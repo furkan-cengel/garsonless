@@ -1,0 +1,40 @@
+{
+  "name": "garsonless",
+  "private": true,
+  "scripts": {
+    "build": "corepack pnpm -r --if-present --workspace-concurrency=4 build",
+    "check": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:db && corepack pnpm build && corepack pnpm smoke",
+    "check:visual": "corepack pnpm check && corepack pnpm visual:smoke",
+    "dev": "corepack pnpm -r --parallel --if-present dev",
+    "lint": "eslint .",
+    "smoke": "playwright test",
+    "test:db": "corepack pnpm --filter @garsonless/db test",
+    "typecheck": "corepack pnpm -r --if-present --workspace-concurrency=4 typecheck",
+    "visual:auth": "playwright test --config=playwright.visual.config.ts --project=dashboard-desktop --project=dashboard-mobile",
+    "visual:auth:setup": "playwright test --config=playwright.visual.config.ts --project=dashboard-auth-setup",
+    "visual:smoke": "playwright test --config=playwright.visual.config.ts",
+    "format": "prettier --write \"**/*.{ts,tsx,css,md}\"",
+    "db:migrate": "corepack pnpm --filter @garsonless/db db:migrate",
+    "db:login": "corepack pnpm --filter @garsonless/db db:login",
+    "db:link": "corepack pnpm --filter @garsonless/db db:link",
+    "db:push": "corepack pnpm --filter @garsonless/db db:push",
+    "db:pull": "corepack pnpm --filter @garsonless/db db:pull",
+    "db:diff": "corepack pnpm --filter @garsonless/db db:diff",
+    "db:status": "corepack pnpm --filter @garsonless/db db:status",
+    "db:reset": "corepack pnpm --filter @garsonless/db db:reset",
+    "types:gen": "corepack pnpm --filter @garsonless/db types:gen"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@next/eslint-plugin-next": "^16.2.9",
+    "@playwright/test": "^1.61.0",
+    "eslint": "^10.5.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.61.1"
+  },
+  "packageManager": "pnpm@9.15.4"
+}

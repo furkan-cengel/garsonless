@@ -1,0 +1,72 @@
+@import "tailwindcss";
+@source "../../packages/ui/src";
+
+/*
+  Design-engine CSS variables are injected per-restaurant by the [slug]/layout.tsx
+  via generateThemeCSS(). The <style> tag placed after this stylesheet in <head>
+  overrides these fallback values at runtime — no build step required.
+  Fallbacks match the `minimal` template.
+*/
+/* Hide scrollbar utility used by CategoryNav */
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ── Spinner keyframes ─────────────────────────────────────── */
+@keyframes spin       { to { transform: rotate(360deg); } }
+@keyframes spinR      { to { transform: rotate(-360deg); } }
+@keyframes pulse-soft { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .6; transform: scale(.85); } }
+@keyframes steam      { 0% { transform: translateY(0) scale(1); opacity: 0; } 30% { opacity: .7; } 100% { transform: translateY(-22px) scale(1.3); opacity: 0; } }
+@keyframes dot-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-8px); opacity: 1; } }
+@keyframes brew-fill  { 0% { stroke-dashoffset: 100; } 100% { stroke-dashoffset: 0; } }
+@keyframes arc-rotate { to { transform: rotate(360deg); } }
+@keyframes dash       { 0% { stroke-dasharray: 1, 200; stroke-dashoffset: 0; } 50% { stroke-dasharray: 90, 200; stroke-dashoffset: -35; } 100% { stroke-dasharray: 90, 200; stroke-dashoffset: -125; } }
+@keyframes wave       { 0% { d: path("M0 30 Q 25 10, 50 30 T 100 30 V60 H0 Z"); } 50% { d: path("M0 30 Q 25 50, 50 30 T 100 30 V60 H0 Z"); } 100% { d: path("M0 30 Q 25 10, 50 30 T 100 30 V60 H0 Z"); } }
+@keyframes saucer     { 0%, 100% { transform: translateX(0) rotate(-2deg); } 50% { transform: translateX(2px) rotate(2deg); } }
+@keyframes shimmer-bg { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes bar-bounce { 0%, 100% { transform: scaleY(.4); } 50% { transform: scaleY(1); } }
+
+/* ── Announcement bar keyframes ────────────────────────────── */
+@keyframes marquee   { from { transform: translateX(0) } to { transform: translateX(-33.33%) } }
+@keyframes fade-loop { 0%, 100% { opacity: 0 } 20%, 80% { opacity: 1 } }
+@keyframes slide-up  {
+  0%   { transform: translateY(0);     opacity: 1 }
+  40%  { transform: translateY(-100%); opacity: 0 }
+  41%  { transform: translateY(100%);  opacity: 0 }
+  60%  { transform: translateY(0);     opacity: 1 }
+  100% { transform: translateY(0);     opacity: 1 }
+}
+
+/* ── Spinner brand var fallbacks (overridden by design-engine theme) ── */
+:root {
+  --brand:      #a13b7a;
+  --brand-soft: #f5e8f0;
+  --ink:        #1c1814;
+  --ink-2:      #4a443e;
+  --ink-3:      #7a7166;
+  --line:       #e8dfd0;
+  --bg-2:       #f8f3eb;
+  --night:      #1a1612;
+  --accent:     #d97757;
+  --accent-2:   #ffd089;
+}
+
+@theme {
+  --color-primary: #0f172a;
+  --color-secondary: #1e293b;
+  --color-accent: #6366f1;
+  --color-background: #ffffff;
+  --color-surface: #f8fafc;
+  --color-text: #0f172a;
+  --color-text-muted: #64748b;
+
+  --font-base: 'Inter', sans-serif;
+  --font-display: 'Inter', sans-serif;
+
+  --radius-base: 8px;
+  --radius-card: 12px;
+  --radius-button: 8px;
+}

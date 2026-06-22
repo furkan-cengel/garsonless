@@ -1,0 +1,46 @@
+{
+  "name": "@garsonless/dashboard",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^9.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@garsonless/ai": "workspace:*",
+    "@garsonless/db": "workspace:*",
+    "@garsonless/design-engine": "workspace:*",
+    "@garsonless/qr": "workspace:*",
+    "@garsonless/ui": "workspace:*",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.47.2",
+    "@tanstack/react-query": "^5.66.0",
+    "@types/papaparse": "^5.5.2",
+    "framer-motion": "^12.4.7",
+    "iyzipay": "2.0.67",
+    "next": "^15.1.6",
+    "papaparse": "^5.5.3",
+    "qr-code-styling": "^1.9.2",
+    "react": "^19.0.0",
+    "react-colorful": "^5.6.1",
+    "react-dom": "^19.0.0",
+    "resend": "^6.12.3",
+    "sharp": "^0.33.5",
+    "zod": "^3.24.1",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.10.7",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "tailwindcss": "^4.0.0",
+    "typescript": "*"
+  }
+}

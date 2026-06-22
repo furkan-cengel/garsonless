@@ -1,0 +1,38 @@
+{
+  "name": "@garsonless/db",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./order-client": "./src/order-client.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "test": "tsx --test src/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:login": "supabase login",
+    "db:link": "supabase link --project-ref yxsegwkzyiscrxiwdeuf",
+    "db:push": "supabase db push",
+    "db:pull": "supabase db pull",
+    "db:diff": "supabase db diff --schema public",
+    "db:status": "supabase migration list",
+    "db:reset": "supabase db reset",
+    "types:gen": "supabase gen types typescript --linked --schema public > src/types.gen.ts",
+    "seed:maf": "tsx src/seed-maf.ts"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.47.2",
+    "jose": "^6.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "dotenv": "^17.4.2",
+    "pg": "^8.20.0",
+    "supabase": "^2.98.2",
+    "tsx": "^4.19.2",
+    "typescript": "*"
+  }
+}

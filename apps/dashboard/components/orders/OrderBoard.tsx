@@ -1,0 +1,525 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import dynamic from 'next/dynamic'
+import { readOrderCustomerTierSnapshot, type OrderStatus } from '@garsonless/db/order-client'
+import { useOrdersRealtime } from './useOrdersRealtime'
+import type { Order } from './useOrdersRealtime'
+import OrderColumn from './OrderColumn'
+import { type CartItem, nextStatus } from './OrderCard'
+import OrderToast from './OrderToast'
+import { useNotificationSW } from './useNotificationSW'
+import { updateOrderStatus } from '../../lib/actions/orders'
+import { formatCurrency } from '../../lib/utils'
+import PageTopBar from '../layout/PageTopBar'
+import { I, S, Tag, IconButton, btnPrimary, btnGhost } from '../../lib/ui'
+
+/* ============================================================
+   COLUMN DEFINITIONS
+   ============================================================ */
+interface ColumnDef {
+  id: string
+  label: string
+  desc: string
+  statuses: OrderStatus[]
+  targetStatus: OrderStatus
+  tone: 'warning' | 'info' | 'positive' | 'neutral'
+}
+
+const COLUMNS: ColumnDef[] = [
+  { id: 'new',   label: 'Yeni',         desc: 'Onay bekliyor', statuses: ['pending', 'pending_approval'],          targetStatus: 'sent_to_kitchen', tone: 'warning' },
+  // 'paid' is a payment attribute living in status for now — kitchen still has to prepare it
+  { id: 'prep',  label: 'Hazırlanıyor', desc: 'Mutfak / Bar',  statuses: ['sent_to_kitchen', 'preparing', 'paid'], targetStatus: 'ready',           tone: 'info' },
+  { id: 'ready', label: 'Hazır',        desc: 'Servise hazır', statuses: ['ready'],                                targetStatus: 'served',          tone: 'positive' },
+  { id: 'done',  label: 'Tamamlandı',   desc: 'Bugün',         statuses: ['served', 'cancelled'],                  targetStatus: 'served',          tone: 'neutral' },
+]
+
+/* ============================================================
+   STATUS TIMELINE
+   ============================================================ */
+function StatusTimeline({ status }: { status: OrderStatus }) {
+  const steps = [
+    { id: ['pending', 'pending_approval'],          label: 'Alındı' },
+    { id: ['sent_to_kitchen', 'preparing', 'paid'], label: 'Hazırlanıyor' },
+    { id: ['ready'],                                label: 'Hazır' },
+    { id: ['served'],                               label: 'Servis' },
+  ]
+  const currentIdx = steps.findIndex(s => (s.id as string[]).includes(status))
+  return (
+    <div style={{ display: 'flex', alignItems: 'center' }}>
+      {steps.map((s, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', flex: i < steps.length - 1 ? 1 : 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <div style={{
+              width: 16, height: 16, borderRadius: 999, flexShrink: 0,
+              border: `1.5px solid ${i <= currentIdx ? 'var(--text)' : 'var(--border-strong)'}`,
+              background: i < currentIdx ? 'var(--text)' : i === currentIdx ? 'var(--surface)' : 'var(--surface-2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {i < currentIdx
+                ? <I.check size={8} strokeWidth={3} color="#fff" />
+                : i === currentIdx
+                ? <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--text)', display: 'inline-block' }} />
+                : null}
+            </div>
+            <span style={{ fontSize: 9.5, fontWeight: 500, color: i <= currentIdx ? 'var(--text)' : 'var(--text-4)', whiteSpace: 'nowrap' }}>{s.label}</span>
+          </div>
+          {i < steps.length - 1 && (
+            <div style={{ flex: 1, height: 1.5, background: i < currentIdx ? 'var(--text)' : 'var(--border-strong)', marginBottom: 14, marginLeft: 2, marginRight: 2 }} />
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* ============================================================
+   ORDER DETAIL PANEL
+   ============================================================ */
+function OrderDetailPanel({
+  order,
+  tableLabel,
+  onClose,
+  onAdvance,
+  onCancel,
+}: {
+  order: Order | null
+  tableLabel: string
+  onClose: () => void
+  onAdvance: (order: Order) => void
+  onCancel: (order: Order) => void
+}) {
+  if (!order) {
+    return (
+      <div style={{
+        width: 'var(--props)', flexShrink: 0,
+        borderLeft: '1px solid var(--border)', background: 'var(--surface)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: 24, textAlign: 'center', color: 'var(--text-3)',
+      }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: 14, background: 'var(--surface-3)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-2)', marginBottom: 14,
+        }}><I.clipboard size={24} /></div>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Bir sipariş seç</div>
+        <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: 240 }}>
+          Detaylar ve ödeme bilgisi için kanban'dan bir kart aç.
+        </div>
+      </div>
+    )
+  }
+
+  const items = (order.items as unknown as CartItem[]) ?? []
+  const nextSt = nextStatus(order.status as OrderStatus)
+  const tier = readOrderCustomerTierSnapshot(order.customer_tier)
+  const advanceLabel =
+    order.status === 'pending' || order.status === 'pending_approval' ? 'Onayla & başlat' :
+    order.status === 'sent_to_kitchen' || order.status === 'preparing' || order.status === 'paid' ? 'Hazır olarak işaretle' :
+    order.status === 'ready' ? 'Servis edildi' : null
+
+  return (
+    <div style={{
+      width: 'var(--props)', flexShrink: 0,
+      borderLeft: '1px solid var(--border)', background: 'var(--surface)',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      {/* Header */}
+      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--divider)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-.01em' }}>{tableLabel}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-3)', ...S.mono }}>#{order.id.slice(0, 8).toUpperCase()}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <IconButton icon={<I.copy size={15} />} ariaLabel="Kopyala" onClick={() => void navigator.clipboard?.writeText(order.id)} />
+            <IconButton icon={<I.close size={15} />} ariaLabel="Kapat" onClick={onClose} />
+          </div>
+        </div>
+        <StatusTimeline status={order.status as OrderStatus} />
+      </div>
+
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {/* Items */}
+        {items.length > 0 && (
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--divider)' }}>
+            <div style={{ ...S.label, marginBottom: 10 }}>Sipariş içeriği · {items.length} kalem</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {items.map((it, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 6,
+                    background: 'var(--surface-3)', color: 'var(--text)',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 700, flexShrink: 0,
+                  }}>{it.qty}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{it.name}</div>
+                    {it.modifiers && it.modifiers.length > 0 && (
+                      <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 2 }}>
+                        {it.modifiers.map(m => m.name).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                  {it.price !== undefined && (
+                    <span style={{ ...S.mono, fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+                      {formatCurrency(it.qty * it.price)}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Summary */}
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--divider)' }}>
+          <div style={{ ...S.label, marginBottom: 10 }}>Hesap özeti</div>
+          <SummaryRow label="Ara toplam" value={formatCurrency(order.total)} />
+          <div style={{ height: 1, background: 'var(--divider)', margin: '8px 0' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600 }}>Toplam</span>
+            <span style={{ ...S.mono, fontSize: 18, fontWeight: 700, letterSpacing: '-.02em' }}>
+              {formatCurrency(order.total)}
+            </span>
+          </div>
+        </div>
+
+        {/* Status */}
+        <div style={{ padding: '14px 16px' }}>
+          <div style={{ ...S.label, marginBottom: 8 }}>Durum</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Tag tone={
+              order.status === 'pending' || order.status === 'pending_approval' ? 'warning' :
+              order.status === 'sent_to_kitchen' || order.status === 'preparing' ? 'info' :
+              order.status === 'ready' ? 'positive' : 'neutral'
+            }>
+              {order.status === 'pending' || order.status === 'pending_approval' ? 'Yeni' :
+               order.status === 'sent_to_kitchen' || order.status === 'preparing' ? 'Hazırlanıyor' :
+               order.status === 'ready' ? 'Hazır' :
+               order.status === 'served' ? 'Servis edildi' :
+               order.status === 'paid' ? 'Ödendi' : 'İptal'}
+            </Tag>
+            {(order.paid_at !== null || order.status === 'paid') && (
+              <Tag tone="positive">ÖDENDİ</Tag>
+            )}
+            {tier?.priorityService && (
+              <Tag tone="warning">
+                <span style={{ width: 6, height: 6, borderRadius: 999, background: tier.color, display: 'inline-block' }} />
+                Öncelikli · {tier.name}
+              </Tag>
+            )}
+            <span style={{ ...S.mono, fontSize: 11, color: 'var(--text-3)' }}>
+              {new Date(order.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{
+        borderTop: '1px solid var(--divider)', padding: '12px 16px',
+        display: 'flex', gap: 6, background: 'var(--surface-2)',
+      }}>
+        <button
+          type="button"
+          onClick={() => onCancel(order)}
+          style={{ ...btnGhost(), flex: 1, justifyContent: 'center' }}
+        >
+          İptal et
+        </button>
+        {advanceLabel && nextSt && (
+          <button
+            type="button"
+            onClick={() => onAdvance(order)}
+            style={{ ...btnPrimary(), flex: 2, justifyContent: 'center' }}
+          >
+            <I.check size={13} />{advanceLabel}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+      <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{label}</span>
+      <span style={{ ...S.mono, fontSize: 12.5 }}>{value}</span>
+    </div>
+  )
+}
+
+/* ============================================================
+   LEFT NAV
+   ============================================================ */
+type FilterId = 'all' | 'active' | 'done' | 'cancelled'
+
+function OrdersNav({ filter, setFilter, orders, search, setSearch }: {
+  filter: FilterId
+  setFilter: (f: FilterId) => void
+  orders: Order[]
+  search: string
+  setSearch: (s: string) => void
+}) {
+  const counts = {
+    all:       orders.length,
+    active:    orders.filter(o => ['pending', 'pending_approval', 'sent_to_kitchen', 'preparing', 'ready'].includes(o.status)).length,
+    done:      orders.filter(o => o.status === 'served' || o.status === 'paid').length,
+    cancelled: orders.filter(o => o.status === 'cancelled').length,
+  }
+
+  const filters: { id: FilterId; label: string; icon: React.ReactNode }[] = [
+    { id: 'all',       label: 'Tümü',      icon: <I.clipboard size={15} /> },
+    { id: 'active',    label: 'Aktif',     icon: <I.bell size={15} /> },
+    { id: 'done',      label: 'Tamamlandı',icon: <I.check size={15} /> },
+    { id: 'cancelled', label: 'İptal',     icon: <I.close size={15} /> },
+  ]
+
+  return (
+    <div style={{
+      width: 'var(--nav)', flexShrink: 0,
+      borderRight: '1px solid var(--border)', background: 'var(--surface)',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--divider)' }}>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>Sipariş Akışı</div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 3 }}>
+          Tüm istasyonlar · {counts.active} aktif
+        </div>
+      </div>
+      <div style={{ padding: '8px 12px 4px' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6, height: 30,
+          padding: '0 10px', background: 'var(--surface-3)', borderRadius: 7,
+          color: 'var(--text-3)',
+        }}>
+          <I.search size={13} />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Sipariş #, masa..."
+            style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 12.5 }}
+          />
+        </div>
+      </div>
+      <div style={{ flex: 1, overflow: 'auto', padding: '6px 8px' }}>
+        <div style={{ ...S.label, padding: '6px 8px 6px' }}>Görünümler</div>
+        {filters.map(f => {
+          const isActive = filter === f.id
+          return (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                width: '100%', padding: '7px 8px', marginBottom: 1,
+                background: isActive ? 'var(--surface-inset)' : 'transparent',
+                border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <span style={{ color: isActive ? 'var(--text)' : 'var(--text-3)', display: 'inline-flex' }}>{f.icon}</span>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: isActive ? 600 : 500, color: 'var(--text)' }}>{f.label}</span>
+              <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)' }}>{counts[f.id]}</span>
+            </button>
+          )
+        })}
+
+      </div>
+      <div style={{ borderTop: '1px solid var(--divider)', padding: '10px 14px', background: 'var(--surface-2)' }}>
+        <button style={{ ...btnGhost(), width: '100%', justifyContent: 'center' }}>
+          <I.history size={13} />Geçmiş siparişler
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ============================================================
+   KPI CHIP
+   ============================================================ */
+function KpiChip({ label, value, tone, pulse }: {
+  label: string; value: string
+  tone?: 'warning' | 'positive' | 'critical'; pulse?: boolean
+}) {
+  const fg = tone === 'warning' ? 'var(--warning)' : tone === 'positive' ? 'var(--positive)' : tone === 'critical' ? 'var(--critical)' : 'var(--text)'
+  const dot = tone ? fg : 'var(--text-3)'
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ width: 7, height: 7, borderRadius: 999, background: dot, flexShrink: 0, animation: pulse ? 'pulse-dot 2s infinite' : 'none' }} />
+      <div style={{ lineHeight: 1.1 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '.05em', textTransform: 'uppercase' }}>{label}</div>
+        <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: fg }}>{value}</div>
+      </div>
+    </div>
+  )
+}
+
+/* ============================================================
+   STATIC KANBAN (DnD fallback while loading)
+   ============================================================ */
+function KanbanStatic({ columns, filteredOrders, tableLabels, selectedOrderId, onSelectOrder, onAdvance }: {
+  columns: ColumnDef[]
+  filteredOrders: Order[]
+  tableLabels: Record<string, string>
+  selectedOrderId: string | null
+  onSelectOrder: (order: Order | null) => void
+  onAdvance: (order: Order) => void
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 12, minWidth: 'max-content', height: '100%' }}>
+      {columns.map(col => (
+        <OrderColumn
+          key={col.id}
+          column={col}
+          orders={filteredOrders.filter(o => col.statuses.includes(o.status as OrderStatus))}
+          tableLabels={tableLabels}
+          selectedOrderId={selectedOrderId}
+          onSelectOrder={onSelectOrder}
+          onAdvance={onAdvance}
+        />
+      ))}
+    </div>
+  )
+}
+
+const OrderBoardDnd = dynamic(() => import('./OrderBoardDnd'), {
+  ssr: false,
+  loading: () => (
+    <KanbanStatic columns={COLUMNS} filteredOrders={[]} tableLabels={{}} selectedOrderId={null} onSelectOrder={() => {}} onAdvance={() => {}} />
+  ),
+})
+
+/* ============================================================
+   MAIN
+   ============================================================ */
+interface Props {
+  restaurantId: string
+  restaurantName: string
+  initialOrders: Order[]
+  tables: Array<{ id: string; label: string }>
+  kitchenToken?: string | null
+}
+
+export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, kitchenToken }: Props) {
+  const { orders, newOrderEvent, clearNewOrderEvent, updateOrderLocally } =
+    useOrdersRealtime(restaurantId, initialOrders)
+
+  useNotificationSW(newOrderEvent)
+
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [filter, setFilter] = useState<FilterId>('all')
+  const [search, setSearch] = useState('')
+  const [, startTransition] = useTransition()
+
+  const tableLabels = Object.fromEntries(tables.map(t => [t.id, t.label]))
+
+  const filteredOrders = orders.filter(o => {
+    if (filter === 'active' && !['pending', 'pending_approval', 'sent_to_kitchen', 'preparing', 'ready'].includes(o.status)) return false
+    if (filter === 'done' && o.status !== 'served' && o.status !== 'paid') return false
+    if (filter === 'cancelled' && o.status !== 'cancelled') return false
+    if (search) {
+      const q = search.toLowerCase()
+      const tableLabel = tableLabels[o.table_id ?? ''] ?? ''
+      return o.id.toLowerCase().startsWith(q) || tableLabel.toLowerCase().includes(q)
+    }
+    return true
+  })
+
+  async function handleAdvance(order: Order) {
+    const next = nextStatus(order.status as OrderStatus)
+    if (!next) return
+    updateOrderLocally(order.id, next)
+    if (selectedOrder?.id === order.id) setSelectedOrder({ ...order, status: next })
+    await updateOrderStatus(order.id, next, restaurantId)
+  }
+
+  async function handleCancel(order: Order) {
+    if (!confirm(`"${tableLabels[order.table_id ?? ''] ?? 'Walk-in'}" siparişini iptal etmek istediğinize emin misiniz?`)) return
+    startTransition(async () => {
+      updateOrderLocally(order.id, 'cancelled')
+      if (selectedOrder?.id === order.id) setSelectedOrder(null)
+      await updateOrderStatus(order.id, 'cancelled', restaurantId)
+    })
+  }
+
+  const activeCount = orders.filter(o =>
+    ['pending', 'pending_approval', 'sent_to_kitchen', 'preparing', 'ready'].includes(o.status)
+  ).length
+  const revenue = orders
+    .filter(o => o.paid_at !== null && o.status !== 'cancelled')
+    .reduce((s, o) => s + o.total, 0)
+  const lateCount = orders.filter(o => {
+    if (!['sent_to_kitchen', 'preparing'].includes(o.status)) return false
+    return Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60_000) > 20
+  }).length
+  const prepOrders = orders.filter(o => ['sent_to_kitchen', 'preparing', 'ready'].includes(o.status))
+  const avgMins = prepOrders.length > 0
+    ? Math.round(prepOrders.reduce((s, o) => s + Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60_000), 0) / prepOrders.length)
+    : 0
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <OrderToast order={newOrderEvent} onDismiss={clearNewOrderEvent} />
+      <PageTopBar
+        restaurantName={restaurantName}
+        title="Siparişler"
+        tag={
+          <Tag tone="positive">
+            <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--positive)', display: 'inline-block', animation: 'pulse-dot 2s infinite' }} />
+            Canlı
+          </Tag>
+        }
+        center={
+          <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+            <KpiChip label="Aktif" value={String(activeCount)} tone="warning" pulse />
+            <KpiChip label="Ort. süre" value={`${avgMins} dk`} />
+            <KpiChip label="Tahsilat" value={formatCurrency(revenue)} tone="positive" />
+            {lateCount > 0 && <KpiChip label="Geciken" value={String(lateCount)} tone="critical" />}
+          </div>
+        }
+        right={
+          <button
+            style={{ ...btnPrimary(), opacity: kitchenToken ? 1 : 0.5, cursor: kitchenToken ? 'pointer' : 'not-allowed' }}
+            disabled={!kitchenToken}
+            title={kitchenToken ? undefined : 'Ayarlar → Mutfak Ekranı bölümünden token oluşturun'}
+            onClick={() => {
+              if (!kitchenToken) return
+              const base = process.env['NEXT_PUBLIC_KITCHEN_URL'] ?? 'http://localhost:3002'
+              window.open(`${base}/kitchen/${restaurantId}?token=${kitchenToken}`, '_blank')
+            }}
+          >
+            <I.monitor size={13} />Mutfak ekranı
+          </button>
+        }
+      />
+
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <OrdersNav filter={filter} setFilter={setFilter} orders={orders} search={search} setSearch={setSearch} />
+
+        {/* Kanban */}
+        <div style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '16px 16px 32px', background: 'var(--bg)' }}>
+          <OrderBoardDnd
+            columns={COLUMNS}
+            filteredOrders={filteredOrders}
+            orders={orders}
+            tableLabels={tableLabels}
+            selectedOrderId={selectedOrder?.id ?? null}
+            onSelectOrder={setSelectedOrder}
+            onAdvance={handleAdvance}
+            updateOrderLocally={updateOrderLocally}
+            restaurantId={restaurantId}
+          />
+        </div>
+
+        <OrderDetailPanel
+          order={selectedOrder}
+          tableLabel={selectedOrder ? (tableLabels[selectedOrder.table_id ?? ''] ?? 'Walk-in') : ''}
+          onClose={() => setSelectedOrder(null)}
+          onAdvance={handleAdvance}
+          onCancel={handleCancel}
+        />
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,367 @@
+'use server'
+
+import { revalidatePath, revalidateTag } from 'next/cache'
+import { z } from 'zod'
+import { createDashboardServerClient } from '../supabase-server'
+import { mut } from '../supabase-mut'
+
+const categorySchema = z.object({
+  restaurantId: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  description: z.string().max(300).nullable().optional(),
+  parentId: z.string().uuid().optional(),
+})
+
+const categoryUpdateSchema = z.object({
+  id: z.string().uuid(),
+  restaurantId: z.string().uuid(),
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(300).nullable().optional(),
+})
+
+const modifierOptionSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1).max(100),
+  price_delta: z.number().min(0),
+})
+
+const modifierGroupSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1).max(100),
+  type: z.enum(['required', 'optional']).optional(),
+  required: z.boolean().optional(),
+  options: z.array(modifierOptionSchema),
+})
+
+const itemSchema = z.object({
+  categoryId: z.string().uuid(),
+  restaurantId: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).nullable().optional(),
+  price: z.number().min(0),
+  is_available: z.boolean().default(true),
+  earns_stamp: z.boolean().optional(),
+  modifier_groups: z.array(modifierGroupSchema).optional(),
+})
+
+const itemUpdateSchema = itemSchema.partial().extend({
+  id: z.string().uuid(),
+  restaurantId: z.string().uuid(),
+  images: z.array(z.string()).optional(),
+})
+
+async function getAuthUser() {
+  const supabase = await createDashboardServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return { supabase, user }
+}
+
+async function assertRestaurantOwner(
+  supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
+  restaurantId: string,
+  userId: string,
+) {
+  const { data } = await supabase
+    .from('restaurants')
+    .select('id')
+    .eq('id', restaurantId)
+    .eq('owner_id', userId)
+    .is('deleted_at', null)
+    .single()
+  return !!data
+}
+
+export async function createCategory(
+  _prev: unknown,
+  formData: FormData,
+): Promise<{ error: string } | { id: string }> {
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const parsed = categorySchema.safeParse({
+    restaurantId: formData.get('restaurantId'),
+    name: formData.get('name'),
+    description: formData.get('description') ?? null,
+    parentId: formData.get('parentId') ?? undefined,
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+  const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
+  if (!isOwner) return { error: 'Not authorized' }
+
+  let posQuery = supabase
+    .from('menu_categories')
+    .select('position')
+    .is('deleted_at', null)
+    .order('position', { ascending: false })
+    .limit(1)
+  if (parsed.data.parentId) {
+    posQuery = posQuery.eq('parent_id', parsed.data.parentId)
+  } else {
+    posQuery = posQuery.eq('restaurant_id', parsed.data.restaurantId).is('parent_id', null)
+  }
+  const { data: maxPos } = await posQuery.maybeSingle()
+
+  const position = ((maxPos as { position: number } | null)?.position ?? -1) + 1
+
+  const { data, error } = await mut(supabase, 'menu_categories')
+    .insert({
+      restaurant_id: parsed.data.restaurantId,
+      name: parsed.data.name,
+      description: parsed.data.description ?? null,
+      position,
+      parent_id: parsed.data.parentId ?? null,
+    })
+    .select('id')
+    .single()
+
+  if (error) return { error: error.message }
+
+  const id = (data as { id: string } | null)?.id
+  if (!id) return { error: 'Failed to create category' }
+
+  revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
+  revalidateTag(`menu:${parsed.data.restaurantId}`)
+  return { id }
+}
+
+export async function updateCategory(
+  formData: FormData,
+): Promise<{ error: string } | { success: true }> {
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const parsed = categoryUpdateSchema.safeParse({
+    id: formData.get('id'),
+    restaurantId: formData.get('restaurantId'),
+    name: formData.get('name') ?? undefined,
+    description: formData.get('description'),
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+  const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
+  if (!isOwner) return { error: 'Not authorized' }
+
+  const { id, restaurantId: _r, ...updates } = parsed.data
+  const { error } = await mut(supabase, 'menu_categories')
+    .update(updates as Record<string, unknown>)
+    .eq('id', id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
+  revalidateTag(`menu:${parsed.data.restaurantId}`)
+  return { success: true }
+}
+
+export async function deleteCategory(
+  categoryId: string,
+  restaurantId: string,
+): Promise<{ error: string } | { success: true }> {
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
+  if (!isOwner) return { error: 'Not authorized' }
+
+  const now = new Date().toISOString()
+
+  const { data: subCats } = await supabase
+    .from('menu_categories')
+    .select('id')
+    .eq('parent_id', categoryId)
+    .is('deleted_at', null)
+
+  const subCatIds = (subCats ?? []).map(c => (c as { id: string }).id)
+
+  await mut(supabase, 'menu_items')
+    .update({ deleted_at: now })
+    .eq('category_id', categoryId)
+    .is('deleted_at', null)
+
+  if (subCatIds.length > 0) {
+    await Promise.all(subCatIds.map(subId =>
+      mut(supabase, 'menu_items').update({ deleted_at: now }).eq('category_id', subId).is('deleted_at', null),
+    ))
+    await Promise.all(subCatIds.map(subId =>
+      mut(supabase, 'menu_categories').update({ deleted_at: now }).eq('id', subId),
+    ))
+  }
+
+  const { error } = await mut(supabase, 'menu_categories')
+    .update({ deleted_at: now })
+    .eq('id', categoryId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/dashboard/${restaurantId}/menu`)
+  revalidateTag(`menu:${restaurantId}`)
+  return { success: true }
+}
+
+export async function reorderCategories(
+  restaurantId: string,
+  orderedIds: string[],
+): Promise<{ error: string } | { success: true }> {
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
+  if (!isOwner) return { error: 'Not authorized' }
+
+  await Promise.all(
+    orderedIds.map((id, position) =>
+      mut(supabase, 'menu_categories').update({ position }).eq('id', id),
+    ),
+  )
+
+  revalidatePath(`/dashboard/${restaurantId}/menu`)
+  revalidateTag(`menu:${restaurantId}`)
+  return { success: true }
+}
+
+export async function createItem(
+  _prev: unknown,
+  formData: FormData,
+): Promise<{ error: string } | { id: string }> {
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const modifierGroupsRaw = formData.get('modifier_groups')
+  const parsed = itemSchema.safeParse({
+    categoryId: formData.get('categoryId'),
+    restaurantId: formData.get('restaurantId'),
+    name: formData.get('name'),
+    description: formData.get('description') ?? null,
+    price: Number(formData.get('price')),
+    is_available: formData.get('is_available') !== 'false',
+    modifier_groups: modifierGroupsRaw ? JSON.parse(modifierGroupsRaw as string) : [],
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+  const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
+  if (!isOwner) return { error: 'Not authorized' }
+
+  const { data: maxPos } = await supabase
+    .from('menu_items')
+    .select('position')
+    .eq('category_id', parsed.data.categoryId)
+    .is('deleted_at', null)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const position = ((maxPos as { position: number } | null)?.position ?? -1) + 1
+
+  const { data, error } = await mut(supabase, 'menu_items')
+    .insert({
+      category_id: parsed.data.categoryId,
+      name: parsed.data.name,
+      description: parsed.data.description ?? null,
+      price: parsed.data.price,
+      is_available: parsed.data.is_available,
+      modifier_groups: (parsed.data.modifier_groups ?? []) as import('@garsonless/db').Json,
+      images: [] as import('@garsonless/db').Json,
+      position,
+    })
+    .select('id')
+    .single()
+
+  if (error) return { error: error.message }
+
+  const id = (data as { id: string } | null)?.id
+  if (!id) return { error: 'Failed to create item' }
+
+  revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
+  revalidateTag(`menu:${parsed.data.restaurantId}`)
+  return { id }
+}
+
+export async function updateItem(
+  formData: FormData,
+): Promise<{ error: string } | { success: true }> {
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const modifierGroupsRaw = formData.get('modifier_groups')
+  const imagesRaw = formData.get('images')
+  const parsed = itemUpdateSchema.safeParse({
+    id: formData.get('id'),
+    restaurantId: formData.get('restaurantId'),
+    categoryId: formData.get('categoryId') ?? undefined,
+    name: formData.get('name') ?? undefined,
+    description: formData.get('description'),
+    price: formData.get('price') ? Number(formData.get('price')) : undefined,
+    is_available: formData.get('is_available') !== null
+      ? formData.get('is_available') !== 'false'
+      : undefined,
+    earns_stamp: formData.get('earns_stamp') !== null
+      ? formData.get('earns_stamp') === 'true'
+      : undefined,
+    modifier_groups: modifierGroupsRaw ? JSON.parse(modifierGroupsRaw as string) : undefined,
+    images: imagesRaw ? JSON.parse(imagesRaw as string) : undefined,
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+  const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId!, user.id)
+  if (!isOwner) return { error: 'Not authorized' }
+
+  const { id, restaurantId: _r, modifier_groups, images, ...rest } = parsed.data
+  const updates: Record<string, unknown> = { ...rest }
+  if (modifier_groups !== undefined) {
+    updates['modifier_groups'] = modifier_groups as import('@garsonless/db').Json
+  }
+  if (images !== undefined) {
+    updates['images'] = images as import('@garsonless/db').Json
+  }
+
+  const { error } = await mut(supabase, 'menu_items').update(updates).eq('id', id!)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
+  revalidateTag(`menu:${parsed.data.restaurantId}`)
+  return { success: true }
+}
+
+export async function deleteItem(
+  itemId: string,
+  restaurantId: string,
+): Promise<{ error: string } | { success: true }> {
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
+  if (!isOwner) return { error: 'Not authorized' }
+
+  const { error } = await mut(supabase, 'menu_items')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', itemId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/dashboard/${restaurantId}/menu`)
+  revalidateTag(`menu:${restaurantId}`)
+  return { success: true }
+}
+
+export async function reorderItems(
+  restaurantId: string,
+  orderedIds: string[],
+): Promise<{ error: string } | { success: true }> {
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
+  if (!isOwner) return { error: 'Not authorized' }
+
+  await Promise.all(
+    orderedIds.map((id, position) =>
+      mut(supabase, 'menu_items').update({ position }).eq('id', id),
+    ),
+  )
+
+  revalidatePath(`/dashboard/${restaurantId}/menu`)
+  revalidateTag(`menu:${restaurantId}`)
+  return { success: true }
+}

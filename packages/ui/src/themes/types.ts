@@ -1,0 +1,64 @@
+import type { GarsonlessTheme } from '@garsonless/design-engine'
+import type { ComponentType, ReactNode } from 'react'
+import type { MenuCategory, MenuItem } from '../menu/types'
+
+export interface ThemeMenuPageProps {
+  categories: MenuCategory[]
+  categoryMeta?: Record<string, { imageUrl?: string | null; itemCount?: number }>
+  renderItems: (catId: string) => ReactNode
+  tableId?: string | null
+  tableLabel?: string | null
+  cartSummary?: { count: number; subtotal: number }
+  onOpenCart?: () => void
+  items?: MenuItem[]
+  onQuickAdd?: (item: MenuItem, originalPrice?: number) => void
+  billSummary?: { total: number; count: number } | null
+  onOpenBill?: (() => void) | undefined
+  memberSummary?: MemberChipSummary | null
+  onOpenMember?: (() => void) | undefined
+  /** Real member loyalty for the promo-slider loyalty slide (null → demo values). */
+  memberLoyalty?: { filled: number; total: number } | null
+}
+
+export interface MemberChipSummary {
+  name: string | null
+  stamps?: number
+  stampGoal?: number
+  points?: number
+  stampEnabled?: boolean
+  pointsEnabled?: boolean
+}
+
+export interface SettingOption {
+  value: string
+  label: string
+}
+
+export interface SettingField {
+  id: string
+  label: string
+  type: 'color' | 'range' | 'select' | 'toggle' | 'font' | 'text'
+  editorTab?: 'design' | 'layout' | 'content'
+  cssVar?: string
+  themeField: keyof GarsonlessTheme
+  default: unknown
+  options?: SettingOption[]
+  min?: number
+  max?: number
+  step?: number
+  unit?: string
+}
+
+export interface SettingsGroup {
+  id: string
+  label: string
+  fields: SettingField[]
+}
+
+export interface ThemeRegistryEntry {
+  id: string
+  name: string
+  SETTINGS_SCHEMA: SettingsGroup[]
+  THEME_DEFAULTS: GarsonlessTheme
+  MenuPage: ComponentType<ThemeMenuPageProps>
+}
