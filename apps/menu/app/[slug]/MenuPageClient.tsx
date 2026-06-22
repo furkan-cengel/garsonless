@@ -44,7 +44,7 @@ function statusPhase(status: OrderStatus): number {
   return 0
 }
 
-function FloatingCartTrigger({ onClick, hasAIChat }: { onClick: () => void; hasAIChat: boolean }) {
+function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
   const { theme } = useTheme()
   const cartItems = useCartStore((s) => s.items)
   const count = cartItems.reduce((sum, i) => sum + i.quantity, 0)
@@ -318,7 +318,7 @@ function FloatingCartTrigger({ onClick, hasAIChat }: { onClick: () => void; hasA
       <button
         onClick={onClick}
         style={{
-          position: 'fixed', bottom: hasAIChat ? 92 : 24, right: 20,
+          position: 'fixed', bottom: 24, right: 20,
           width: 60, height: 60, borderRadius: '50%',
           backgroundColor: 'var(--p-accent)', color: '#fff',
           border: 'none', cursor: 'pointer', zIndex: 30,
@@ -390,7 +390,7 @@ function FloatingCartTrigger({ onClick, hasAIChat }: { onClick: () => void; hasA
   if (footerStyle === 'thumbs') {
     const thumbs = cartItems.slice(0, 3).map((item) => item.name.slice(0, 1).toLocaleUpperCase('tr'))
     return (
-      <div style={{ position: 'fixed', left: 14, right: hasAIChat ? 86 : 14, bottom: 18, zIndex: 30, maxWidth: 430, margin: '0 auto' }}>
+      <div style={{ position: 'fixed', left: 14, right: 14, bottom: 18, zIndex: 30, maxWidth: 430, margin: '0 auto' }}>
         <button
           type="button"
           onClick={onClick}
@@ -512,7 +512,7 @@ function FloatingCartTrigger({ onClick, hasAIChat }: { onClick: () => void; hasA
         position: 'fixed',
         bottom: edge ? 0 : 20,
         left: edge ? 0 : 16,
-        right: edge ? 0 : hasAIChat ? 88 : 16,
+        right: edge ? 0 : 16,
         maxWidth: edge ? 'none' : 430,
         margin: edge ? 0 : '0 auto',
         display: 'flex',
@@ -1418,7 +1418,7 @@ export function MenuPageClient({
       )}
 
       {!isCartOpen && (
-        <FloatingCartTrigger onClick={() => setIsCartOpen(true)} hasAIChat={false} />
+        <FloatingCartTrigger onClick={() => setIsCartOpen(true)} />
       )}
 
       {orderId && orderStatus && orderView === 'bubble' && (

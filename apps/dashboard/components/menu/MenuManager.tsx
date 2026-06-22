@@ -1871,7 +1871,7 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
             </button>
             <button
               style={btnGhost({ whiteSpace: 'nowrap' })}
-              onClick={() => window.open(`${process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3001'}/${restaurantSlug}`, '_blank')}
+              onClick={() => window.open(`${process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'}/${restaurantSlug}`, '_blank')}
             >
               <I.eye size={13} />Önizle
             </button>

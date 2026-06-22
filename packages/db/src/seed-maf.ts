@@ -112,10 +112,6 @@ async function seed() {
         owner_id: ownerId,
         plan: 'pro',
         settings: {
-          ai_waiter_enabled: true,
-          ai_persona_name: 'Maf',
-          ai_tone: 'friendly',
-          ai_language: 'tr',
           kitchen_token: MAF_KITCHEN_TOKEN,
         },
       },
@@ -296,8 +292,8 @@ async function seed() {
   // ── Done ─────────────────────────────────────────────────────────────────
 
   console.log('\n✅  MAF Cafe seed complete!')
-  console.log(`\n   Menu:      http://localhost:3001/maf-lounge`)
-  console.log(`   Table 1:   http://localhost:3001/maf-lounge/table/<tableId>`)
+  console.log(`\n   Menu:      http://localhost:3011/maf-lounge`)
+  console.log(`   Table 1:   http://localhost:3011/maf-lounge/table/<tableId>`)
   console.log(`   Dashboard: http://localhost:3000`)
   console.log(`   Kitchen:   http://localhost:3002/kitchen/${restaurantId}?token=${MAF_KITCHEN_TOKEN}\n`)
 }

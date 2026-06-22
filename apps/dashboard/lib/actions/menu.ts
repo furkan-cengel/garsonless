@@ -345,23 +345,6 @@ export async function deleteItem(
   return { success: true }
 }
 
-export async function reorderItems(
-  restaurantId: string,
-  orderedIds: string[],
-): Promise<{ error: string } | { success: true }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
-  if (!isOwner) return { error: 'Not authorized' }
-
-  await Promise.all(
-    orderedIds.map((id, position) =>
-      mut(supabase, 'menu_items').update({ position }).eq('id', id),
-    ),
-  )
-
-  revalidatePath(`/dashboard/${restaurantId}/menu`)
-  revalidateTag(`menu:${restaurantId}`)
-  return { success: true }
-}
+/* reorderItems was a dead server action (0 callers). Item position is persisted
+   per-item via updateItem; category ordering via reorderCategories. Removed in
+   the dead-code cleanup. */

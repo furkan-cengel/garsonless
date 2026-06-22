@@ -26,8 +26,6 @@ export {
   TableBillSheet,
   ProductCard,
   ProductModal,
-  AIChatBubble,
-  AIChatDrawer,
 } from './menu/index'
 
 export type {
@@ -39,7 +37,6 @@ export type {
   SelectedModifier,
 } from './menu/types'
 
-export type { ChatMessage, ToolChip } from './menu/AIChatDrawer'
 export type { OrderSummaryItem } from './menu/OrderConfirmation'
 export type { BillOrder } from './menu/TableBillSheet'
 

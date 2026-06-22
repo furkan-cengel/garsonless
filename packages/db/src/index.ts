@@ -11,7 +11,7 @@ export { getSmsProvider, MockSmsProvider } from './sms'
 export type { SmsProvider, SmsSendOptions, SmsSendResult, SmsPurpose } from './sms'
 export {
   requestOtp, verifyOtp, earnForOrder, getMemberBalances, NETWORK_SCOPE_KEY,
-  computeOrderDiscount, computePointsRedemption, computeDiscountStack, computeStampEarn, effectivePct, applyBonusStamps, redeemForOrder, warnIfCancellingRedeemedOrder,
+  computeOrderDiscount, computePointsRedemption, computeDiscountStack, computeStampEarn, effectivePct, applyBonusStamps, redeemForOrder,
   refundCancelledLoyaltyOrder,
   computeTier, creditVisitsForSession, creditWelcomeBonus, DEFAULT_TIERS, MAX_TIERS, sanitizeTiers, getLoyaltyScope,
   snapshotOrderCustomerTier, readOrderCustomerTierSnapshot, orderHasPriorityService,

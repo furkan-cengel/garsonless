@@ -9,7 +9,6 @@ import { DEFAULT_TIERS, type LoyaltyTier, type CatalogReward } from './loyalty-c
 import type { SecurityEventView } from './AdvancedSections'
 
 const KitchenAccessSection   = dynamic(() => import('./KitchenAccessSection'))
-const AIWaiterSection        = dynamic(() => import('./AIWaiterSection'))
 const LoyaltySection         = dynamic(() => import('./LoyaltySection'))
 const ProfileSection         = dynamic(() => import('./AccountSections').then(m => ({ default: m.ProfileSection })))
 const TeamSection            = dynamic(() => import('./AccountSections').then(m => ({ default: m.TeamSection })))
@@ -31,7 +30,7 @@ import { I, S, Tag, btnPrimary, btnGhost } from '../../lib/ui'
 type SectionId =
   | 'workspace' | 'profile' | 'team'
   | 'store' | 'hours' | 'tax' | 'languages'
-  | 'payments' | 'ai-waiter' | 'loyalty' | 'kitchen' | 'notifications'
+  | 'payments' | 'loyalty' | 'kitchen' | 'notifications'
   | 'api' | 'billing' | 'security'
 
 interface NavItem {
@@ -85,7 +84,6 @@ const GROUPS: NavGroup[] = [
     title: 'İşletme',
     items: [
       { id: 'payments',      label: 'Ödeme Yöntemleri', desc: 'iyzico aktif',          icon: SI.card },
-      { id: 'ai-waiter',     label: 'AI Garson',        desc: 'Yapay zeka asistan',    icon: SI.sparkles, badge: 'AI', tone: 'positive' },
       { id: 'loyalty',       label: 'Sadakat',          desc: 'Damga, puan, üyelik',   icon: SI.gift },
       { id: 'kitchen',       label: 'Mutfak Ekranı',    desc: 'KDS erişim kodu',       icon: SI.cutlery },
       { id: 'notifications', label: 'Bildirimler',      desc: 'E-posta, SMS, push',    icon: SI.bell },
@@ -110,7 +108,6 @@ const SECTION_META: Record<SectionId, { label: string; desc: string; group: stri
   tax:           { label: 'Vergi & Faturalama', desc: 'KDV oranı, stopaj ve e-fatura sağlayıcısı.',                    group: 'Mağaza' },
   languages:     { label: 'Diller',         desc: 'Müşteri menüsünde görünecek dilleri seç.',                          group: 'Mağaza' },
   payments:      { label: 'Ödeme Yöntemleri', desc: 'Müşterilerin sipariş ekranında görebileceği ödeme yöntemlerini seç.', group: 'İşletme' },
-  'ai-waiter':   { label: 'AI Garson',      desc: 'Yapay zeka asistanını kişiselleştir ve etkinleştir.',               group: 'İşletme' },
   loyalty:       { label: 'Sadakat',        desc: 'Damga ve puan programını, kapsamı ve kazanım kurallarını ayarla.',  group: 'İşletme' },
   kitchen:       { label: 'Mutfak Ekranı',  desc: 'Mutfak ekranı erişim kodunu yönet.',                                group: 'İşletme' },
   notifications: { label: 'Bildirimler',    desc: 'E-posta, SMS ve push bildirim tercihlerini ayarla.',                group: 'İşletme' },
@@ -305,26 +302,6 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
 }
 
 /* ============================================================
-   SECTION: AI WAITER (wrapper)
-   ============================================================ */
-function AIWaiterSectionWrapper({ restaurant }: { restaurant: Tables<'restaurants'> }) {
-  const s = restaurant.settings as Record<string, unknown>
-  return (
-    <AIWaiterSection
-      restaurantId={restaurant.id}
-      initialEnabled={s['ai_waiter_enabled'] !== false}
-      initialPersonaName={typeof s['ai_persona_name'] === 'string' ? s['ai_persona_name'] : 'Garson'}
-      initialTone={
-        (['formal', 'friendly', 'playful'].includes(String(s['ai_tone'])) ? s['ai_tone'] : 'friendly') as 'formal' | 'friendly' | 'playful'
-      }
-      initialLanguage={
-        (['tr', 'en', 'both'].includes(String(s['ai_language'])) ? s['ai_language'] : 'tr') as 'tr' | 'en' | 'both'
-      }
-    />
-  )
-}
-
-/* ============================================================
    SECTION: LOYALTY (wrapper)
    ============================================================ */
 function LoyaltySectionWrapper({ restaurant }: { restaurant: Tables<'restaurants'> }) {
@@ -432,7 +409,6 @@ export default function SettingsForm({ restaurant, user, kitchenToken, securityE
   function renderContent() {
     switch (active) {
       case 'workspace':     return <WorkspaceSection restaurant={restaurant} />
-      case 'ai-waiter':     return <AIWaiterSectionWrapper restaurant={restaurant} />
       case 'loyalty':       return <LoyaltySectionWrapper restaurant={restaurant} />
       case 'kitchen':       return <KitchenSectionWrapper restaurantId={restaurant.id} kitchenToken={kitchenToken} />
       case 'profile':       return <ProfileSection user={user} />

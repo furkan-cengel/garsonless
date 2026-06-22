@@ -12,8 +12,6 @@ export { TableBillSheet } from './TableBillSheet'
 export type { BillOrder } from './TableBillSheet'
 export { ProductCard } from './ProductCard'
 export { ProductModal } from './ProductModal'
-export { AIChatBubble } from './AIChatBubble'
-export { AIChatDrawer } from './AIChatDrawer'
 export type {
   CartItem,
   MenuCategory,
@@ -22,4 +20,3 @@ export type {
   ModifierOption,
   SelectedModifier,
 } from './types'
-export type { ChatMessage, ToolChip } from './AIChatDrawer'

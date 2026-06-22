@@ -1032,8 +1032,3 @@ export async function refundCancelledLoyaltyOrder(orderId: string): Promise<Loya
     return { refundedPoints: 0, refundedStamps: 0, rows: [] }
   }
 }
-
-/** Back-compat export name from the old guard phase. */
-export async function warnIfCancellingRedeemedOrder(orderId: string): Promise<void> {
-  await refundCancelledLoyaltyOrder(orderId)
-}

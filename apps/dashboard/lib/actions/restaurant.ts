@@ -91,59 +91,6 @@ export async function updateRestaurant(
   return { success: true }
 }
 
-const aiSettingsSchema = z.object({
-  restaurantId: z.string().uuid(),
-  ai_waiter_enabled: z.boolean(),
-  ai_persona_name: z.string().min(1).max(50),
-  ai_tone: z.enum(['formal', 'friendly', 'playful']),
-  ai_language: z.enum(['tr', 'en', 'both']),
-})
-
-export async function updateAISettings(
-  formData: FormData,
-): Promise<{ error: string } | { success: true }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const parsed = aiSettingsSchema.safeParse({
-    restaurantId: formData.get('restaurantId'),
-    ai_waiter_enabled: formData.get('ai_waiter_enabled') === 'true',
-    ai_persona_name: formData.get('ai_persona_name'),
-    ai_tone: formData.get('ai_tone'),
-    ai_language: formData.get('ai_language'),
-  })
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
-  }
-
-  const { restaurantId, ...aiFields } = parsed.data
-
-  const { data: existing } = await supabase
-    .from('restaurants')
-    .select('settings')
-    .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-    .single()
-
-  if (!existing) return { error: 'Not authorized' }
-
-  const mergedSettings = {
-    ...((existing as { settings: Record<string, unknown> }).settings ?? {}),
-    ...aiFields,
-  }
-
-  const { error } = await mut(supabase, 'restaurants')
-    .update({ settings: mergedSettings })
-    .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-
-  if (error) return { error: error.message }
-
-  revalidatePath(`/dashboard/${restaurantId}/settings`)
-  revalidateTag(`menu:${restaurantId}`)
-  return { success: true }
-}
-
 export async function updateSettings(
   restaurantId: string,
   settings: Record<string, unknown>,
@@ -339,27 +286,6 @@ export async function generateApiKey(
 
   revalidatePath(`/dashboard/${restaurantId}/settings`)
   return { key }
-}
-
-export async function patchRestaurantName(
-  restaurantId: string,
-  name: string,
-): Promise<{ error: string } | { success: true }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const parsed = z.string().min(1).max(100).safeParse(name)
-  if (!parsed.success) return { error: 'Invalid name' }
-
-  const { error } = await mut(supabase, 'restaurants')
-    .update({ name: parsed.data })
-    .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-
-  if (error) return { error: error.message }
-
-  revalidatePath(`/dashboard/${restaurantId}`)
-  return { success: true }
 }
 
 export async function checkSlugAvailable(slug: string): Promise<boolean> {

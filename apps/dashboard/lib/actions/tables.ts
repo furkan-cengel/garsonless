@@ -62,44 +62,6 @@ export async function createTable(
   return { id }
 }
 
-export async function deleteTable(
-  tableId: string,
-  restaurantId: string,
-): Promise<{ error: string } | { success: true }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
-  if (!isOwner) return { error: 'Not authorized' }
-
-  const { error } = await mut(supabase, 'tables')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', tableId)
-    .eq('restaurant_id', restaurantId)
-
-  if (error) return { error: error.message }
-
-  // A soft-deleted table must not keep an open adisyon alive. Grab the open
-  // session first so we can credit visits for it after closing.
-  const { data: openSess } = await supabase
-    .from('table_sessions')
-    .select('id')
-    .eq('restaurant_id', restaurantId)
-    .eq('table_id', tableId)
-    .is('closed_at', null)
-    .maybeSingle()
-  await mut(supabase, 'table_sessions')
-    .update({ closed_at: new Date().toISOString() })
-    .eq('restaurant_id', restaurantId)
-    .eq('table_id', tableId)
-    .is('closed_at', null)
-  const closedSessionId = (openSess as { id: string } | null)?.id
-  if (closedSessionId) await creditVisitsForSession(closedSessionId)
-
-  revalidatePath(`/dashboard/${restaurantId}/tables`)
-  return { success: true }
-}
-
 export interface OpenSessionInfo {
   sessionId: string
   tableId: string
@@ -195,81 +157,7 @@ export async function closeTableSession(
   return { success: true }
 }
 
-export interface QRStyleOptions {
-  foregroundColor?: string
-  backgroundColor?: string
-  shape?: 'square' | 'rounded'
-  logoEnabled?: boolean
-  logoSize?: number
-}
-
-export async function generateTableQR(
-  tableId: string,
-  restaurantId: string,
-  restaurantSlug: string,
-  style: QRStyleOptions = {},
-  logoUrl?: string | null,
-): Promise<{ error: string } | { qrDataUrl: string }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
-  if (!isOwner) return { error: 'Not authorized' }
-
-  const { data: table } = await supabase
-    .from('tables')
-    .select('id')
-    .eq('id', tableId)
-    .eq('restaurant_id', restaurantId)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (!table) return { error: 'Table not found for this restaurant' }
-
-  const { generateQRDataURL } = await import('@garsonless/qr')
-  const url = `${process.env['NEXT_PUBLIC_MENU_URL'] ?? 'http://localhost:3001'}/${restaurantSlug}/table/${tableId}`
-
-  const qrDataUrl = await generateQRDataURL({
-    url,
-    size: 512,
-    foregroundColor: style.foregroundColor ?? '#000000',
-    backgroundColor: style.backgroundColor ?? '#ffffff',
-    shape: style.shape ?? 'square',
-    logoPath: style.logoEnabled && logoUrl ? logoUrl : undefined,
-    logoSize: style.logoSize ?? 20,
-  })
-
-  return { qrDataUrl }
-}
-
-export async function saveQRStyle(
-  restaurantId: string,
-  style: QRStyleOptions,
-): Promise<{ error: string } | { success: true }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
-  if (!isOwner) return { error: 'Not authorized' }
-
-  const { data: existing } = await supabase
-    .from('restaurants')
-    .select('settings')
-    .eq('id', restaurantId)
-    .single()
-
-  const mergedSettings = {
-    ...((existing as { settings: Record<string, unknown> } | null)?.settings ?? {}),
-    qr_style: style,
-  }
-
-  const { error } = await mut(supabase, 'restaurants')
-    .update({ settings: mergedSettings })
-    .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-
-  if (error) return { error: error.message }
-
-  revalidatePath(`/dashboard/${restaurantId}/tables`)
-  return { success: true }
-}
+/* QR generation/styling were dashboard server actions that no callers used —
+   the Tables/QR builder renders + downloads QR client-side via qr-code-styling
+   and persists style through updateSettings. Removed with their QRStyleOptions
+   type in the dead-code cleanup. */

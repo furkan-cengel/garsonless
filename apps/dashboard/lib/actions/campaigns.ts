@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import {
-  listCampaigns,
   previewCampaignAudience,
   sendCampaign,
   sendCampaignTest,
@@ -55,18 +54,6 @@ function normalizeAudience(input: unknown): CampaignAudienceInput | null {
     return { segmentKind: 'custom', customSegmentId: parsed.data.customSegmentId }
   }
   return { segmentKind: 'all' }
-}
-
-export async function listCampaignsAction(
-  restaurantId: string,
-): Promise<{ error: string } | CampaignSummary[]> {
-  const gate = await assertOwner(restaurantId)
-  if ('error' in gate) return gate
-  try {
-    return await listCampaigns(restaurantId)
-  } catch {
-    return { error: 'Kampanyalar yüklenemedi' }
-  }
 }
 
 export async function previewCampaignAudienceAction(

@@ -378,44 +378,6 @@ export type Database = {
           },
         ]
       }
-      marketing_integrations: {
-        Row: {
-          config: Json
-          created_at: string
-          enabled: boolean
-          last_synced_at: string | null
-          provider: string
-          restaurant_id: string
-          updated_at: string
-        }
-        Insert: {
-          config?: Json
-          created_at?: string
-          enabled?: boolean
-          last_synced_at?: string | null
-          provider?: string
-          restaurant_id: string
-          updated_at?: string
-        }
-        Update: {
-          config?: Json
-          created_at?: string
-          enabled?: boolean
-          last_synced_at?: string | null
-          provider?: string
-          restaurant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "marketing_integrations_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: true
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       menu_categories: {
         Row: {
           created_at: string

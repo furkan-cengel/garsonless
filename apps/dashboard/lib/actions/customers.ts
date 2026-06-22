@@ -5,15 +5,12 @@ import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import {
   getRestaurantCustomers,
-  getRestaurantCustomerDetail,
   grantStoreCredit,
-  listCustomerSegments,
   getCustomerSegment,
   createCustomerSegment,
   updateCustomerSegment,
   deleteCustomerSegment,
   type RestaurantCustomersPage,
-  type RestaurantCustomerDetail,
   type CustomerSort,
   type CustomerSegment,
   type CustomerSegmentDefinition,
@@ -82,18 +79,6 @@ export async function listCustomers(
   }
 }
 
-export async function getCustomerDetailAction(
-  restaurantId: string,
-  customerId: string,
-): Promise<{ error: string } | RestaurantCustomerDetail> {
-  const gate = await assertOwner(restaurantId)
-  if ('error' in gate) return gate
-  if (!z.string().uuid().safeParse(customerId).success) return { error: 'Geçersiz müşteri' }
-  const detail = await getRestaurantCustomerDetail(restaurantId, customerId)
-  if (!detail) return { error: 'Müşteri bu işletmede bulunamadı' }
-  return detail
-}
-
 const grantSchema = z.object({
   points: z.number().int().positive().max(1_000_000),
   note: z.string().max(80).optional(),
@@ -140,18 +125,6 @@ const segmentInputSchema = z.object({
   name: z.string().trim().min(1).max(60),
   definition: segmentDefinitionSchema,
 })
-
-export async function listCustomerSegmentsAction(
-  restaurantId: string,
-): Promise<{ error: string } | SavedCustomerSegment[]> {
-  const gate = await assertOwner(restaurantId)
-  if ('error' in gate) return gate
-  try {
-    return await listCustomerSegments(restaurantId)
-  } catch {
-    return { error: 'Segmentler yüklenemedi' }
-  }
-}
 
 export async function createCustomerSegmentAction(
   restaurantId: string,
