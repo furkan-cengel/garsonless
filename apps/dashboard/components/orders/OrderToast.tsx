@@ -9,18 +9,22 @@ import { I } from '../../lib/ui'
 interface Props {
   order: Order | null
   onDismiss: () => void
+  /** In-app toast channel; when false the event is cleared without rendering. */
+  enabled?: boolean
 }
 
-export default function OrderToast({ order, onDismiss }: Props) {
+export default function OrderToast({ order, onDismiss, enabled = true }: Props) {
   useEffect(() => {
     if (!order) return
+    // Channel disabled → clear the event immediately, never show the toast.
+    if (!enabled) { onDismiss(); return }
     const t = setTimeout(onDismiss, 4000)
     return () => clearTimeout(t)
-  }, [order, onDismiss])
+  }, [order, enabled, onDismiss])
 
   return (
     <AnimatePresence>
-      {order && (
+      {order && enabled && (
         <motion.div
           initial={{ opacity: 0, y: -56, x: '-50%' }}
           animate={{ opacity: 1, y: 0, x: '-50%' }}

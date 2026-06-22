@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createDashboardServerClient } from '../../../../lib/supabase-server'
 import { getRestaurantById, getTablesForRestaurant } from '../../../../lib/queries'
 import OrderBoard from '../../../../components/orders/OrderBoard'
+import { readNotificationPrefs } from '../../../../lib/notification-prefs'
 import type { Tables } from '@garsonless/db'
 
 interface Props {
@@ -45,6 +46,7 @@ export default async function OrdersPage({ params }: Props) {
       initialOrders={initialOrders}
       tables={tables as Tables<'tables'>[]}
       kitchenToken={kitchenToken}
+      notifPrefs={readNotificationPrefs(restaurant.settings)}
     />
   )
 }

@@ -24,5 +24,29 @@ export default async function SettingsPage({ params }: Props) {
     .maybeSingle()
   const kitchenToken = (kc as { token: string } | null)?.token ?? null
 
-  return <SettingsForm restaurant={restaurant} user={user} kitchenToken={kitchenToken} />
+  // Security activity log — read through the authenticated client so RLS scopes
+  // it to the signed-in user's OWN events (user_id = auth.uid()) only.
+  const { data: eventRows } = await supabase
+    .from('security_events')
+    .select('id, event_type, ip, user_agent, created_at')
+    .order('created_at', { ascending: false })
+    .limit(20)
+  const securityEvents = ((eventRows ?? []) as Array<{
+    id: string; event_type: string; ip: string | null; user_agent: string | null; created_at: string
+  }>).map(row => ({
+    id: row.id,
+    eventType: (row.event_type === 'password_change' ? 'password_change' : 'login') as 'login' | 'password_change',
+    ip: row.ip,
+    userAgent: row.user_agent,
+    createdAt: row.created_at,
+  }))
+
+  return (
+    <SettingsForm
+      restaurant={restaurant}
+      user={user}
+      kitchenToken={kitchenToken}
+      securityEvents={securityEvents}
+    />
+  )
 }

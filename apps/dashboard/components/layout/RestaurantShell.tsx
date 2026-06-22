@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import type { Tables } from '@garsonless/db'
 import { ShellContext } from '../../lib/shell-context'
 import { createDashboardBrowserClient } from '../../lib/supabase'
+import { readNotificationPrefs } from '../../lib/notification-prefs'
 
 const ACTIVE_ORDER_STATUSES = ['pending', 'pending_approval', 'sent_to_kitchen', 'preparing', 'paid']
 import { Skeleton } from '../../lib/ui'
@@ -55,6 +56,14 @@ export default function RestaurantShell({
   const [waiterToastLabel, setWaiterToastLabel] = useState<string | null>(null)
   const tableLabelsRef = useRef<Record<string, string>>({})
   const navigationGuardRef = useRef<string | null>(null)
+
+  // "Garson çağrısı uyarısı" toggle. Read via a ref so the realtime effect
+  // (keyed only on restaurantId) always sees the current setting without
+  // resubscribing the channel.
+  const currentRestaurant = restaurants.find(r => r.id === restaurantId)
+  const serviceRequestAlert = readNotificationPrefs(currentRestaurant?.settings ?? null).serviceRequestAlert
+  const serviceAlertRef = useRef(serviceRequestAlert)
+  useEffect(() => { serviceAlertRef.current = serviceRequestAlert }, [serviceRequestAlert])
 
   // Live unread = pending waiter calls + new orders today (derived, not persisted).
   const notificationCount = newOrderCount + pendingReqCount
@@ -150,7 +159,8 @@ export default function RestaurantShell({
         (payload: { new: Record<string, unknown> }) => {
           const tableId = payload.new['table_id'] as string | undefined
           const label = (tableId && tableLabelsRef.current[tableId]) || 'Masa'
-          setWaiterToastLabel(label)
+          // Badge count always refreshes; the toast alert respects the toggle.
+          if (serviceAlertRef.current) setWaiterToastLabel(label)
           void refreshPendingCount()
         },
       )

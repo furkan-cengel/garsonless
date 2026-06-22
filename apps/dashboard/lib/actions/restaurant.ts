@@ -176,6 +176,49 @@ export async function updateSettings(
   return { success: true }
 }
 
+// Notification channel prefs → restaurants.settings.notifications (JSONB).
+// Zod-validated shape; only the four real channels are accepted.
+const notificationPrefsSchema = z.object({
+  newOrderSound: z.boolean(),
+  newOrderPush: z.boolean(),
+  newOrderToast: z.boolean(),
+  serviceRequestAlert: z.boolean(),
+})
+
+export async function saveNotificationSettings(
+  restaurantId: string,
+  prefs: unknown,
+): Promise<{ error: string } | { success: true }> {
+  const parsed = notificationPrefsSchema.safeParse(prefs)
+  if (!parsed.success) return { error: 'Geçersiz bildirim ayarları' }
+
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { data: existing } = await supabase
+    .from('restaurants')
+    .select('settings')
+    .eq('id', restaurantId)
+    .eq('owner_id', user.id)
+    .single()
+  if (!existing) return { error: 'Not authorized' }
+
+  const merged = {
+    ...((existing as { settings: Record<string, unknown> }).settings ?? {}),
+    notifications: parsed.data,
+  }
+  const { error } = await mut(supabase, 'restaurants')
+    .update({ settings: merged })
+    .eq('id', restaurantId)
+    .eq('owner_id', user.id)
+  if (error) return { error: error.message }
+
+  revalidatePath(`/dashboard/${restaurantId}/settings`)
+  // Orders board + shell read prefs from the restaurant row on next load.
+  revalidatePath(`/dashboard/${restaurantId}`, 'layout')
+  return { success: true }
+}
+
 /** Menu items for the loyalty reward-item picker (owner-validated). */
 export async function getRewardItemChoices(
   restaurantId: string,

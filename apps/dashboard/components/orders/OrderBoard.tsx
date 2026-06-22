@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { readOrderCustomerTierSnapshot, type OrderStatus } from '@garsonless/db/order-client'
 import { useOrdersRealtime } from './useOrdersRealtime'
 import type { Order } from './useOrdersRealtime'
+import type { NotificationPrefs } from '../../lib/notification-prefs'
 import OrderColumn from './OrderColumn'
 import { type CartItem, nextStatus } from './OrderCard'
 import OrderToast from './OrderToast'
@@ -399,13 +400,14 @@ interface Props {
   initialOrders: Order[]
   tables: Array<{ id: string; label: string }>
   kitchenToken?: string | null
+  notifPrefs: NotificationPrefs
 }
 
-export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, kitchenToken }: Props) {
+export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, kitchenToken, notifPrefs }: Props) {
   const { orders, newOrderEvent, clearNewOrderEvent, updateOrderLocally } =
     useOrdersRealtime(restaurantId, initialOrders)
 
-  useNotificationSW(newOrderEvent)
+  useNotificationSW(newOrderEvent, { sound: notifPrefs.newOrderSound, push: notifPrefs.newOrderPush })
 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [filter, setFilter] = useState<FilterId>('all')
@@ -460,7 +462,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <OrderToast order={newOrderEvent} onDismiss={clearNewOrderEvent} />
+      <OrderToast order={newOrderEvent} onDismiss={clearNewOrderEvent} enabled={notifPrefs.newOrderToast} />
       <PageTopBar
         restaurantName={restaurantName}
         title="Siparişler"

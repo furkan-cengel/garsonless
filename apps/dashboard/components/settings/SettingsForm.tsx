@@ -6,6 +6,7 @@ import type { Tables } from '@garsonless/db'
 import { updateRestaurant, uploadLogo } from '../../lib/actions/restaurant'
 import dynamic from 'next/dynamic'
 import { DEFAULT_TIERS, type LoyaltyTier, type CatalogReward } from './loyalty-config'
+import type { SecurityEventView } from './AdvancedSections'
 
 const KitchenAccessSection   = dynamic(() => import('./KitchenAccessSection'))
 const AIWaiterSection        = dynamic(() => import('./AIWaiterSection'))
@@ -421,9 +422,11 @@ interface Props {
   user: User | null
   /** GAP #1: kitchen token, fetched server-side from kitchen_credentials. */
   kitchenToken: string | null
+  /** The signed-in user's own security events (RLS-scoped, fetched server-side). */
+  securityEvents: SecurityEventView[]
 }
 
-export default function SettingsForm({ restaurant, user, kitchenToken }: Props) {
+export default function SettingsForm({ restaurant, user, kitchenToken, securityEvents }: Props) {
   const [active, setActive] = useState<SectionId>('workspace')
 
   function renderContent() {
@@ -439,9 +442,9 @@ export default function SettingsForm({ restaurant, user, kitchenToken }: Props) 
       case 'tax':           return <TaxSection restaurant={restaurant} />
       case 'languages':     return <LanguagesSection restaurant={restaurant} />
       case 'payments':      return <PaymentsSection restaurantId={restaurant.id} />
-      case 'notifications': return <NotificationsSection />
+      case 'notifications': return <NotificationsSection restaurant={restaurant} />
       case 'api':           return <ApiSection restaurant={restaurant} />
-      case 'security':      return <SecuritySection />
+      case 'security':      return <SecuritySection events={securityEvents} userEmail={user?.email ?? ''} />
       case 'billing':       return <BillingSection />
     }
   }

@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, useTransition, type ReactNode } from 'react'
+import type { Tables } from '@garsonless/db'
+import { InlineSpinner } from '@garsonless/ui'
 import { I, S, Tag, btnGhost, btnPrimary } from '../../lib/ui'
-import { Toggle, SelectInput, SCard, FormRow, TimeInput, inputStyle } from './primitives'
+import { Toggle, SelectInput, SCard, FormRow, inputStyle } from './primitives'
 import {
   getPaymentCredentialsMeta,
   savePaymentCredentials,
@@ -10,6 +12,8 @@ import {
   testPaymentCredentials,
   type PaymentCredsMeta,
 } from '../../lib/actions/payments'
+import { saveNotificationSettings } from '../../lib/actions/restaurant'
+import { readNotificationPrefs, type NotificationPrefs } from '../../lib/notification-prefs'
 
 /* ── PAYMENTS ─────────────────────────────────────── */
 export function PaymentsSection({ restaurantId }: { restaurantId: string }) {
@@ -295,76 +299,66 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
 }
 
 /* ── NOTIFICATIONS ────────────────────────────────── */
-export function NotificationsSection() {
-  const events = [
-    { id: 'new_order',  label: 'Yeni sipariş',           email: true,  sms: false, push: true,  inapp: true,  desc: 'Müşteri sipariş verdiğinde' },
-    { id: 'late_order', label: 'Geciken sipariş',        email: true,  sms: true,  push: true,  inapp: true,  desc: 'Hazırlama süresi aşıldığında' },
-    { id: 'low_stock',  label: 'Düşük stok',             email: true,  sms: false, push: false, inapp: true,  desc: 'Stok %20 altına düşünce' },
-    { id: 'review',     label: 'Yeni değerlendirme',     email: false, sms: false, push: true,  inapp: true,  desc: 'Müşteri puan verdiğinde' },
-    { id: 'payment',    label: 'Ödeme alındı',           email: false, sms: false, push: false, inapp: true,  desc: 'Her başarılı ödemede' },
-    { id: 'refund',     label: 'İade talebi',            email: true,  sms: true,  push: true,  inapp: true,  desc: 'Müşteri iade istediğinde' },
-    { id: 'report',     label: 'Günlük rapor',           email: true,  sms: false, push: false, inapp: false, desc: "Her gün 23:00'da" },
-    { id: 'system',     label: 'Sistem güncellemeleri', email: true,  sms: false, push: false, inapp: true,  desc: 'Yeni özellik & bakım' },
-  ]
+// Toggles map only to notification surfaces that are actually implemented:
+//   newOrderSound / newOrderPush  → useNotificationSW (beep + Web Notification)
+//   newOrderToast                 → OrderToast on the orders board
+//   serviceRequestAlert           → "Garson çağrısı" toast in the dashboard shell
+// E-posta/SMS and the old "sessiz saatler" stub are omitted — no backing channel.
+const NOTIFICATION_ROWS: { key: keyof NotificationPrefs; label: string; hint: string }[] = [
+  { key: 'newOrderSound',       label: 'Yeni sipariş sesi',      hint: 'Sipariş geldiğinde kısa bip sesi çalar' },
+  { key: 'newOrderPush',        label: 'Masaüstü bildirimi',     hint: 'Tarayıcı/sistem bildirimi gösterir (izin gerekir)' },
+  { key: 'newOrderToast',       label: 'Uygulama içi uyarı',     hint: 'Panelde yeni sipariş baloncuğu gösterir' },
+  { key: 'serviceRequestAlert', label: 'Garson çağrısı uyarısı', hint: 'Müşteri garson çağırınca panelde uyarı gösterir' },
+]
+
+export function NotificationsSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
+  const [prefs, setPrefs] = useState<NotificationPrefs>(() => readNotificationPrefs(restaurant.settings))
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+  const [isPending, startTransition] = useTransition()
+
+  function set(key: keyof NotificationPrefs, value: boolean) {
+    setPrefs(prev => ({ ...prev, [key]: value }))
+    setSaved(false)
+  }
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    startTransition(async () => {
+      const result = await saveNotificationSettings(restaurant.id, prefs)
+      if ('error' in result) { setError(result.error); return }
+      setSaved(true)
+    })
+  }
 
   return (
-    <>
-      <SCard title="Bildirim kanalları" subtitle="Hangi olayda nereden bildirim alacaksın">
-        <div style={{ padding: '14px 18px', background: 'var(--surface-2)', borderBottom: '1px solid var(--divider)' }}>
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 60px 60px 60px 60px',
-            fontSize: 11, color: 'var(--text-3)', fontWeight: 500,
-            letterSpacing: '.05em', textTransform: 'uppercase' as const,
-            alignItems: 'center', gap: 8,
-          }}>
-            <span>Olay</span>
-            <ChannelHead icon={<I.bell size={12} />} label="E-posta" />
-            <ChannelHead icon={<I.phone size={12} />} label="SMS" />
-            <ChannelHead icon={<I.monitor size={12} />} label="Push" />
-            <ChannelHead icon={<I.bell size={12} />} label="Uyg." />
-          </div>
-        </div>
-        {events.map((e, i) => (
-          <div key={e.id} style={{
-            padding: '14px 18px',
-            display: 'grid', gridTemplateColumns: '1fr 60px 60px 60px 60px',
-            alignItems: 'center', gap: 8,
-            borderBottom: i === events.length - 1 ? 'none' : '1px solid var(--divider)',
-          }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 500 }}>{e.label}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>{e.desc}</div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'center' }}><Toggle on={e.email} /></div>
-            <div style={{ display: 'flex', justifyContent: 'center' }}><Toggle on={e.sms} /></div>
-            <div style={{ display: 'flex', justifyContent: 'center' }}><Toggle on={e.push} /></div>
-            <div style={{ display: 'flex', justifyContent: 'center' }}><Toggle on={e.inapp} /></div>
-          </div>
+    <form onSubmit={handleSave}>
+      <SCard title="Bildirimler" subtitle="Sipariş ve garson çağrısı uyarılarını yönet">
+        {NOTIFICATION_ROWS.map(row => (
+          <FormRow key={row.key} label={row.label} hint={row.hint}>
+            <Toggle on={prefs[row.key]} onChange={value => set(row.key, value)} />
+          </FormRow>
         ))}
+        <div style={{ padding: '12px 18px', fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
+          Bu uyarılar sipariş ve masa panellerinde gerçek zamanlı çalışır. E-posta/SMS bildirimleri
+          henüz desteklenmiyor.
+        </div>
       </SCard>
 
-      <SCard title="Sessiz saatler" subtitle="Push ve SMS bildirimleri sustur" style={{ marginTop: 16 }}>
-        <FormRow label="Sessiz mod"><Toggle on={true} /></FormRow>
-        <FormRow label="Saatler">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <TimeInput value="23:00" />
-            <span style={{ color: 'var(--text-3)' }}>—</span>
-            <TimeInput value="08:00" />
-          </div>
-        </FormRow>
-        <FormRow label="Kritik bildirimler" hint="Sessiz modda bile gönder">
-          <Toggle on={true} />
-        </FormRow>
-      </SCard>
-    </>
-  )
-}
-
-function ChannelHead({ icon, label }: { icon: ReactNode; label: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-      <span style={{ height: 13, display: 'inline-flex', alignItems: 'center', color: 'var(--text-2)' }}>{icon}</span>
-      <span style={{ fontSize: 9.5 }}>{label}</span>
-    </div>
+      <div style={{
+        marginTop: 20, padding: '12px 16px',
+        background: 'var(--surface)', borderRadius: 10,
+        border: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <span style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
+          {error || (saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydedin')}
+        </span>
+        <button type="submit" disabled={isPending} style={btnPrimary()}>
+          {isPending ? <InlineSpinner size={13} color="var(--on-action)" /> : <I.check size={13} />}{isPending ? 'Kaydediliyor…' : 'Kaydet'}
+        </button>
+      </div>
+    </form>
   )
 }

@@ -14,13 +14,18 @@ export function inputStyle(overrides?: CSSProperties): CSSProperties {
   }
 }
 
-export function Toggle({ on: initialOn }: { on?: boolean }) {
-  const [on, setOn] = useState(initialOn ?? false)
+// Controlled when `onChange` is provided (the parent owns the value); otherwise
+// falls back to internal state (back-compat for display-only toggles).
+export function Toggle({ on: initialOn, onChange, disabled }: { on?: boolean; onChange?: (v: boolean) => void; disabled?: boolean }) {
+  const [internal, setInternal] = useState(initialOn ?? false)
+  const on = onChange ? (initialOn ?? false) : internal
   return (
     <button
       type="button"
-      onClick={() => setOn(v => !v)}
+      disabled={disabled}
+      onClick={() => { if (onChange) onChange(!on); else setInternal(v => !v) }}
       style={{
+        opacity: disabled ? 0.5 : 1,
         width: 34, height: 20, borderRadius: 999,
         background: on ? 'var(--text)' : 'var(--border-strong)',
         border: 'none', position: 'relative', cursor: 'pointer',

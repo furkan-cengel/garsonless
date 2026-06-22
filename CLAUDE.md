@@ -65,6 +65,22 @@ The design engine is the core differentiator. Every UI decision routes through i
 
 ## Current Sprint
 
+### Sprint 23 — Settings stubs → real surfaces 🚧
+
+**23b — Security section real (login/activity log + password change) ✅ (2026-06-22). Migration: `20260622000000_security_events.sql` (db push, `types:gen`, local/remote match through `20260622000000`).**
+
+**Problem closed:** the Settings → Güvenlik section was a full stub — a fake "Authenticator · Aktif" 2FA card, non-functional session-timeout/IP-restriction/new-device checkboxes, and a hardcoded "Denetim günlüğü" with invented names/IPs (`Ayşe … 85.110.4.21`). Nothing was real.
+
+**Source decision (option a):** an explicit `security_events` table we control, written on real events — portable, not dependent on Supabase's `auth.audit_log_entries` internals. Per-USER scope (`user_id` → `auth.users`, `restaurant_id` nullable for future team events), `event_type check ('login','password_change')`, `ip`, `user_agent`, `created_at`. **RLS:** `for select to authenticated using (user_id = auth.uid())` — each user reads ONLY their own; deliberately **NO anon policy and NO authenticated write policy** → all inserts go through the service role (a user can never forge/tamper with their own audit trail). `gen_random_uuid()`.
+
+**Capture (best-effort, never blocks auth):** new `packages/db/src/security.ts` → `recordSecurityEvent(...)` (service-role insert, try/catch-swallow) + `getSecurityEvents`. `recordSecurityEvent('login')` fires in the `signIn` action (password login) AND the `/auth/callback` route (magic-link/OAuth) with IP/UA from request headers. New `apps/dashboard/lib/request-meta.ts` → pure `parseForwardedIp(x-forwarded-for, x-real-ip)` (first hop of the forwarded chain) + `readRequestMeta()`. Password change → new `changePassword` action: **re-authenticates with the current password** (Supabase `updateUser` doesn't require the old one), `updateUser({ password })`, then records a `password_change` event.
+
+**UI (`AdvancedSections.tsx` `SecuritySection`, fully rewritten):** real **Şifre** form (current/new/confirm → `changePassword` → `router.refresh()` re-fetches the SSR log). Real **Hesap etkinliği** list from `security_events` — event label + relative time + `deviceSummary(ua)` (browser·OS) + IP, newest-first, empty state, **the signed-in user's own events only**. 2FA card kept but **clearly disabled with a "Yakında" tag** (no fake toggle); the unbacked session/IP/new-device stubs were deleted. **Read path is RLS-enforced:** `settings/page.tsx` selects `security_events` via the authenticated client (no manual `user_id` filter — RLS scopes it) and threads `securityEvents` + `userEmail` through `SettingsForm` → `SecuritySection`.
+
+**23b verify:** typecheck **9/9**, lint **0/0**. Runtime gate on Test Cafe B (real owner login; throwaway 2nd user for isolation; password changed then restored; all B test rows + the throwaway user cleaned up; maf-lounge untouched) **18/18**: `recordSecurityEvent` persisted a login row with the parsed IP `203.0.113.7` (from a 3-hop `x-forwarded-for`) + exact UA; **RLS** — B (authed) sees only B's rows and not the 2nd user's, the 2nd user sees only its own, anon (no session) sees 0; real **password change** (reauth → updateUser) made the new password work + the old fail + wrote a `password_change` event, then the original password was restored.
+
+**23a — Notifications section real (4 channel toggles) ✅ (2026-06-22). NO migration** — `settings.notifications` JSONB. Real toggles for the 4 implemented channels (new-order sound/desktop-push/in-app-toast + service-request alert), Zod-validated owner-gated `saveNotificationSettings`, gating wired into `useNotificationSW`/`OrderToast`/`RestaurantShell`. Email/SMS/quiet-hours stubs omitted (no backing channel). Verified typecheck 9/9, lint 0/0, Test Cafe B persist round-trip.
+
 ### Sprint 22 — Automated smoke gates 🚧
 
 **22a — Playwright HTTP smoke + root check script ✅ (2026-06-21). NO migration.**
@@ -454,7 +470,7 @@ The design engine is the core differentiator. Every UI decision routes through i
 
 **Ops notes:** project lives at `~/dev/gersonless` (moved off `~/Desktop` 2026-06-13 to stop iCloud creating `"file 2"` duplicates that broke `.next` typecheck and silently split `MenuPageClient.tsx`). Supabase CLI migration tracking repaired (`supabase migration repair`); use `supabase db push` from `packages/db`. `gen_random_uuid()` in new migrations (not `uuid_generate_v4`).
 
-**Backlog:** Garson çağır (OrderConfirmation'da TODO yorumu) · pg_cron gerçek auto-close · Spain theme section renderers · ThemeEditorClient (~4400 satır) + default MenuPage (~2000 satır) refactor · Notifications STUB (Settings) · üyelik + sadakat katmanı.
+**Backlog:** Garson çağır (OrderConfirmation'da TODO yorumu) · pg_cron gerçek auto-close · Spain theme section renderers · ThemeEditorClient (~4400 satır) + default MenuPage (~2000 satır) refactor · Settings remaining stubs (Team/Workspace team mgmt, Billing real plan/usage, session-timeout/IP-restriction if ever needed) · üyelik + sadakat katmanı.
 
 ---
 

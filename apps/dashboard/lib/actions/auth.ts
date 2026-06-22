@@ -2,7 +2,9 @@
 
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
+import { recordSecurityEvent } from '@garsonless/db'
 import { createDashboardServerClient } from '../supabase-server'
+import { readRequestMeta } from '../request-meta'
 
 const signInSchema = z.object({
   email: z.string().email(),
@@ -31,8 +33,14 @@ export async function signIn(
   }
 
   const supabase = await createDashboardServerClient()
-  const { error } = await supabase.auth.signInWithPassword(parsed.data)
+  const { data, error } = await supabase.auth.signInWithPassword(parsed.data)
   if (error) return { error: error.message }
+
+  // Best-effort security audit (never blocks the login).
+  if (data.user) {
+    const { ip, userAgent } = await readRequestMeta()
+    await recordSecurityEvent({ userId: data.user.id, eventType: 'login', ip, userAgent })
+  }
 
   redirect('/dashboard')
 }
@@ -105,6 +113,41 @@ export async function updateUserProfile(
   const supabase = await createDashboardServerClient()
   const { error } = await supabase.auth.updateUser({ data: parsed.data })
   if (error) return { error: error.message }
+
+  return { success: true }
+}
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Mevcut şifre gerekli'),
+  newPassword: z.string().min(8, 'Yeni şifre en az 8 karakter olmalı'),
+})
+
+export async function changePassword(
+  input: { currentPassword: string; newPassword: string },
+): Promise<{ error: string } | { success: true }> {
+  const parsed = changePasswordSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Geçersiz giriş' }
+  }
+
+  const supabase = await createDashboardServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.email) return { error: 'Oturum bulunamadı' }
+
+  // Supabase updateUser does NOT require the old password, so verify it
+  // explicitly by re-authenticating before allowing the change.
+  const { error: reauthError } = await supabase.auth.signInWithPassword({
+    email: user.email,
+    password: parsed.data.currentPassword,
+  })
+  if (reauthError) return { error: 'Mevcut şifre hatalı' }
+
+  const { error: updateError } = await supabase.auth.updateUser({ password: parsed.data.newPassword })
+  if (updateError) return { error: updateError.message }
+
+  // Best-effort security audit (never blocks the change).
+  const { ip, userAgent } = await readRequestMeta()
+  await recordSecurityEvent({ userId: user.id, eventType: 'password_change', ip, userAgent })
 
   return { success: true }
 }
