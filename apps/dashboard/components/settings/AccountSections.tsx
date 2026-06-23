@@ -1,10 +1,28 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
-import { I, Tag, IconButton, btnGhost, btnPrimary } from '../../lib/ui'
+import type { TeamMember } from '@garsonless/db'
+import { I, Tag, btnGhost, btnPrimary } from '../../lib/ui'
 import { Toggle, SCard, FormRow, DangerZone, inputStyle } from './primitives'
 import { updateUserProfile } from '../../lib/actions/auth'
+import {
+  inviteMember, updateMemberPermissionsAction, setMemberStatusAction,
+  removeMemberAction, resendInviteAction,
+} from '../../lib/actions/team'
+
+const TEAM_SECTION_OPTIONS: { key: string; label: string }[] = [
+  { key: 'pano', label: 'Pano' },
+  { key: 'orders', label: 'Siparişler' },
+  { key: 'menu', label: 'Menü' },
+  { key: 'tables', label: 'Masalar' },
+  { key: 'customers', label: 'Müşteriler' },
+  { key: 'analytics', label: 'Raporlar' },
+  { key: 'theme', label: 'Tema' },
+  { key: 'settings', label: 'Ayarlar' },
+]
+const TEAM_SECTION_LABEL: Record<string, string> = Object.fromEntries(TEAM_SECTION_OPTIONS.map(o => [o.key, o.label]))
 
 /* ── PROFILE ─────────────────────────────────────── */
 export function ProfileSection({ user }: { user: User | null }) {
@@ -144,100 +162,169 @@ export function ProfileSection({ user }: { user: User | null }) {
   )
 }
 
-/* ── TEAM ─────────────────────────────────────────── */
-export function TeamSection() {
-  const members = [
-    { name: 'Ayşe Yılmaz', email: 'ayse@acimarka.co', role: 'Sahip', active: '2 dk önce', color: '#ffd089' },
-    { name: 'Burak Kaplan', email: 'burak@acimarka.co', role: 'Yönetici', active: '12 dk önce', color: '#a4f7c8' },
-    { name: 'Defne Aksoy', email: 'defne@acimarka.co', role: 'Servis', active: '1 saat önce', color: '#c4d0ff' },
-    { name: 'Mehmet Y.', email: 'mehmet@acimarka.co', role: 'Mutfak', active: 'Dün', color: '#f5dcea' },
-    { name: 'Sevda P.', email: 'sevda@acimarka.co', role: 'Servis', active: 'Davet bekliyor', pending: true, color: '#e7e3f0' },
-  ]
+/* ── TEAM (owner-only; real membership) ───────────── */
+function SectionCheckboxes({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  function toggle(k: string) {
+    onChange(value.includes(k) ? value.filter(x => x !== k) : [...value, k])
+  }
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+      {TEAM_SECTION_OPTIONS.map(opt => {
+        const on = value.includes(opt.key)
+        return (
+          <button key={opt.key} type="button" onClick={() => toggle(opt.key)} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px',
+            borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+            border: '1px solid ' + (on ? 'var(--text)' : 'var(--border-strong)'),
+            background: on ? 'var(--surface-inset)' : 'var(--surface)',
+          }}>
+            <span style={{
+              width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+              background: on ? 'var(--text)' : 'transparent',
+              border: '1.5px solid ' + (on ? 'var(--text)' : 'var(--border-strong)'),
+              color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}>{on && <I.check size={11} />}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 500 }}>{opt.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function StatusTag({ status }: { status: TeamMember['status'] }) {
+  if (status === 'active') return <Tag tone="positive">Aktif</Tag>
+  if (status === 'disabled') return <Tag tone="neutral">Devre dışı</Tag>
+  return <Tag tone="warning">Davet bekliyor</Tag>
+}
+
+function MemberRow({ restaurantId, member }: { restaurantId: string; member: TeamMember }) {
+  const router = useRouter()
+  const [editing, setEditing] = useState(false)
+  const [perms, setPerms] = useState<string[]>(member.permissions)
+  const [msg, setMsg] = useState('')
+  const [devUrl, setDevUrl] = useState('')
+  const [isPending, startTransition] = useTransition()
+
+  function run(fn: () => Promise<{ error: string } | { success: true; devInviteUrl?: string }>, after?: () => void) {
+    setMsg('')
+    startTransition(async () => {
+      const res = await fn()
+      if ('error' in res) { setMsg(res.error); return }
+      if ('devInviteUrl' in res && res.devInviteUrl) setDevUrl(res.devInviteUrl)
+      after?.()
+      router.refresh()
+    })
+  }
+
+  return (
+    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--divider)', opacity: member.status === 'disabled' ? 0.6 : 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{
+          width: 30, height: 30, borderRadius: 999, background: 'var(--surface-3)',
+          color: 'var(--text-2)', fontWeight: 700, fontSize: 11, flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>{member.email.slice(0, 2).toUpperCase()}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.email}</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+            {member.permissions.length === 0
+              ? <span style={{ fontSize: 11, color: 'var(--text-3)' }}>İzin yok</span>
+              : member.permissions.map(p => (
+                <span key={p} style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: 'var(--surface-2)', color: 'var(--text-2)' }}>{TEAM_SECTION_LABEL[p] ?? p}</span>
+              ))}
+          </div>
+        </div>
+        <StatusTag status={member.status} />
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button type="button" onClick={() => setEditing(e => !e)} style={btnGhost({ height: 28, padding: '0 10px', fontSize: 12 })}>İzinler</button>
+          {member.status === 'invited' && (
+            <button type="button" disabled={isPending} onClick={() => run(() => resendInviteAction(restaurantId, member.id))} style={btnGhost({ height: 28, padding: '0 10px', fontSize: 12 })}>Tekrar gönder</button>
+          )}
+          {member.status !== 'invited' && (
+            <button type="button" disabled={isPending} onClick={() => run(() => setMemberStatusAction(restaurantId, member.id, member.status === 'active' ? 'disabled' : 'active'))} style={btnGhost({ height: 28, padding: '0 10px', fontSize: 12 })}>
+              {member.status === 'active' ? 'Devre dışı' : 'Etkinleştir'}
+            </button>
+          )}
+          <button type="button" disabled={isPending} onClick={() => { if (window.confirm(`${member.email} ekipten çıkarılsın mı?`)) run(() => removeMemberAction(restaurantId, member.id)) }} style={{ ...btnGhost({ height: 28, padding: '0 10px', fontSize: 12 }), color: 'var(--critical)' }}>Çıkar</button>
+        </div>
+      </div>
+
+      {editing && (
+        <div style={{ marginTop: 12, padding: 12, background: 'var(--surface-2)', borderRadius: 10 }}>
+          <SectionCheckboxes value={perms} onChange={setPerms} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+            <button type="button" disabled={isPending} onClick={() => run(() => updateMemberPermissionsAction(restaurantId, member.id, perms), () => setEditing(false))} style={btnPrimary({ height: 30, fontSize: 12.5 })}>
+              {isPending ? 'Kaydediliyor…' : 'İzinleri kaydet'}
+            </button>
+            <button type="button" onClick={() => { setPerms(member.permissions); setEditing(false) }} style={btnGhost({ height: 30, fontSize: 12.5 })}>Vazgeç</button>
+          </div>
+        </div>
+      )}
+
+      {devUrl && <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-3)', wordBreak: 'break-all' }}>Dev davet linki: {devUrl}</div>}
+      {msg && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--critical)' }}>{msg}</div>}
+    </div>
+  )
+}
+
+export function TeamSection({ restaurantId, ownerEmail, members }: { restaurantId: string; ownerEmail: string; members: TeamMember[] }) {
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [perms, setPerms] = useState<string[]>([])
+  const [result, setResult] = useState<{ ok: boolean; text: string; url?: string } | null>(null)
+  const [isPending, startTransition] = useTransition()
+
+  function handleInvite() {
+    setResult(null)
+    startTransition(async () => {
+      const res = await inviteMember(restaurantId, { email, permissions: perms })
+      if ('error' in res) { setResult({ ok: false, text: res.error }); return }
+      setResult({ ok: true, text: 'Davet gönderildi.', url: res.devInviteUrl })
+      setEmail(''); setPerms([])
+      router.refresh()
+    })
+  }
 
   return (
     <>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14,
-      }}>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {['Tümü 5', 'Aktif 4', 'Davet 1'].map((f, i) => (
-            <button key={f} style={{
-              padding: '5px 10px', fontSize: 11.5, fontWeight: 500,
-              background: i === 0 ? 'var(--surface-inset)' : 'transparent',
-              color: i === 0 ? 'var(--text)' : 'var(--text-2)',
-              border: '1px solid ' + (i === 0 ? 'transparent' : 'var(--border)'),
-              borderRadius: 6, cursor: 'pointer',
-            }}>{f}</button>
-          ))}
-        </div>
-        <button style={btnPrimary()}><I.plus size={13} />Üye davet et</button>
-      </div>
-
-      <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
-        <div style={{
-          display: 'grid', gridTemplateColumns: '1fr 130px 110px 32px',
-          padding: '10px 16px', borderBottom: '1px solid var(--divider)',
-          background: 'var(--surface-2)', fontSize: 11, color: 'var(--text-3)', fontWeight: 500,
-          letterSpacing: '.05em', textTransform: 'uppercase' as const,
-        }}>
-          <span>Üye</span><span>Rol</span><span>Son etkin</span><span></span>
-        </div>
-        {members.map((m, i) => {
-          const roleTone = m.role === 'Sahip' ? 'positive' : m.role === 'Yönetici' ? 'warning' : 'neutral'
-          return (
-            <div key={i} style={{
-              display: 'grid', gridTemplateColumns: '1fr 130px 110px 32px',
-              padding: '12px 16px', alignItems: 'center',
-              borderBottom: i === members.length - 1 ? 'none' : '1px solid var(--divider)',
-              opacity: m.pending ? 0.7 : 1,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                <div style={{
-                  width: 30, height: 30, borderRadius: 999, background: m.color,
-                  color: 'var(--accent)', fontWeight: 700, fontSize: 11,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>{m.name.split(' ').map(s => s[0]).join('').slice(0, 2)}</div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.email}</div>
-                </div>
-              </div>
-              <Tag tone={roleTone as 'positive' | 'warning' | 'neutral'}>{m.role}</Tag>
-              <span style={{ fontSize: 11.5, color: m.pending ? 'var(--warning)' : 'var(--text-3)' }}>{m.active}</span>
-              <IconButton icon={<I.more size={14} />} ariaLabel="Daha fazla" />
-            </div>
-          )
-        })}
-      </div>
-
-      <SCard title="Rol & izinler" subtitle="Her rolün neyi görüp düzenleyebileceğini özelleştir" style={{ marginTop: 20 }}>
+      <SCard title="Ekip üyesi davet et" subtitle="E-posta ile davet et, erişebileceği bölümleri seç">
         <div style={{ padding: 18 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', gap: 0, fontSize: 11.5 }}>
-            <div style={{ padding: '8px 4px', color: 'var(--text-3)', fontWeight: 500 }}>İzin</div>
-            <div style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 600 }}>Sahip</div>
-            <div style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 600 }}>Yönetici</div>
-            <div style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 600 }}>Servis</div>
-            {[
-              ['Sipariş alma', 'check', 'check', 'check'],
-              ['Menü düzenleme', 'check', 'check', '—'],
-              ['Tema değiştirme', 'check', 'check', '—'],
-              ['Üye davet etme', 'check', 'check', '—'],
-              ['Faturalama', 'check', '—', '—'],
-              ['Mağaza silme', 'check', '—', '—'],
-            ].map((row, ri) => (
-              <>
-                <div key={ri + '-l'} style={{ padding: '8px 4px', borderTop: '1px solid var(--divider)', fontWeight: 500 }}>{row[0]}</div>
-                {row.slice(1).map((cell, j) => (
-                  <div key={j} style={{ padding: '8px 4px', textAlign: 'center', borderTop: '1px solid var(--divider)' }}>
-                    {cell === 'check'
-                      ? <span style={{ color: 'var(--positive)' }}><I.check size={14} /></span>
-                      : <span style={{ color: 'var(--text-4)' }}>—</span>}
-                  </div>
-                ))}
-              </>
-            ))}
+          <FormRow label="E-posta">
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ekip@ornek.com" style={inputStyle({ width: 280 })} />
+          </FormRow>
+          <div style={{ padding: '12px 0 4px', fontSize: 12.5, fontWeight: 500 }}>Erişebileceği bölümler</div>
+          <SectionCheckboxes value={perms} onChange={setPerms} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
+            <button type="button" disabled={isPending || !email || perms.length === 0} onClick={handleInvite} style={btnPrimary()}>
+              <I.plus size={13} />{isPending ? 'Gönderiliyor…' : 'Davet gönder'}
+            </button>
+            {result && <span style={{ fontSize: 12.5, color: result.ok ? 'var(--positive)' : 'var(--critical)' }}>{result.text}</span>}
           </div>
+          {result?.url && <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-3)', wordBreak: 'break-all' }}>Dev davet linki: {result.url}</div>}
         </div>
+      </SCard>
+
+      <SCard title="Ekip" subtitle={`${members.length + 1} kişi`} style={{ marginTop: 16 }}>
+        {/* Owner row (source of truth = restaurants.owner_id; not editable) */}
+        <div style={{ padding: '12px 16px', borderBottom: members.length ? '1px solid var(--divider)' : 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 999, background: 'linear-gradient(135deg, #ffd089 0%, #ff8b6b 100%)',
+            color: '#5a2a14', fontWeight: 700, fontSize: 11, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>{ownerEmail.slice(0, 2).toUpperCase()}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ownerEmail}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>Tüm bölümlere erişim</div>
+          </div>
+          <Tag tone="positive">Sahip</Tag>
+        </div>
+        {members.map(m => <MemberRow key={m.id} restaurantId={restaurantId} member={m} />)}
+        {members.length === 0 && (
+          <div style={{ padding: '20px 16px', fontSize: 12.5, color: 'var(--text-3)', textAlign: 'center' }}>
+            Henüz ekip üyesi yok. Yukarıdan davet gönder.
+          </div>
+        )}
       </SCard>
     </>
   )

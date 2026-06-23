@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createDashboardServerClient } from '../supabase-server'
 
 // The dashboard nav sections (verbatim from IconRail.tsx). These are the only
@@ -30,7 +31,9 @@ export interface RestaurantAccess {
  * authenticated user read any restaurant row). This is the GAP #4b discipline,
  * extended from owner-only to membership.
  */
-export async function getUserRestaurantAccess(restaurantId: string): Promise<RestaurantAccess | null> {
+export const getUserRestaurantAccess = cache(async function getUserRestaurantAccess(
+  restaurantId: string,
+): Promise<RestaurantAccess | null> {
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -60,6 +63,22 @@ export async function getUserRestaurantAccess(restaurantId: string): Promise<Res
   }
 
   return null
+})
+
+/** Section landing order for redirects (matches the IconRail nav order). */
+const LANDING_ORDER: Section[] = ['pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'theme', 'settings']
+
+/**
+ * The path a member should land on after login / invite acceptance: the first
+ * section they're permitted, in nav order. Owners (or any 'pano' holder) land on
+ * the Pano root. Never returns a forbidden section.
+ */
+export function firstPermittedPath(restaurantId: string, access: RestaurantAccess): string {
+  const base = `/dashboard/${restaurantId}`
+  if (access.isOwner || access.permissions.includes('pano')) return base
+  const section = LANDING_ORDER.find((s) => access.permissions.includes(s))
+  if (!section || section === 'pano') return base
+  return `${base}/${section}`
 }
 
 /**

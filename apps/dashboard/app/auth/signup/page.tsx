@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { signUp } from '../../../lib/actions/auth'
 import VisualPanel from '../../../components/auth/VisualPanel'
@@ -16,6 +16,7 @@ function AuthInput({
   leftIcon,
   rightSlot,
   onChange,
+  defaultValue,
 }: {
   type?: string
   name: string
@@ -24,6 +25,7 @@ function AuthInput({
   leftIcon?: React.ReactNode
   rightSlot?: React.ReactNode
   onChange?: (v: string) => void
+  defaultValue?: string
 }) {
   const [focused, setFocused] = useState(false)
   return (
@@ -40,6 +42,7 @@ function AuthInput({
         name={name}
         placeholder={placeholder}
         autoFocus={autoFocus}
+        defaultValue={defaultValue}
         onChange={e => onChange?.(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
@@ -108,6 +111,15 @@ function SignupForm() {
   const [showPass, setShowPass] = useState(false)
   const [accept, setAccept] = useState(false)
   const [state, action, pending] = useActionState(signUp, null)
+  // Read invite round-trip params from the URL on the client (avoids the Next 15
+  // useSearchParams Suspense requirement on this otherwise-static page).
+  const [next, setNext] = useState('')
+  const [prefillEmail, setPrefillEmail] = useState('')
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    setNext(p.get('next') ?? '')
+    setPrefillEmail(p.get('email') ?? '')
+  }, [])
 
   const strength = password ? passwordStrength(password) : null
   const strengthLabel = strength === null ? '' : strength <= 1 ? 'Zayıf' : strength === 2 ? 'Orta' : strength === 3 ? 'İyi' : 'Güçlü'
@@ -148,6 +160,7 @@ function SignupForm() {
 
   return (
     <form action={action} style={{ width: '100%', maxWidth: 460 }}>
+      {next && <input type="hidden" name="next" value={next} />}
       {/* Trial badge */}
       <div style={{
         display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -216,9 +229,11 @@ function SignupForm() {
         error={state !== null && 'error' in state ? state.error : undefined}
       >
         <AuthInput
+          key={prefillEmail}
           type="email"
           name="email"
           placeholder="ayse@acimarka.co"
+          defaultValue={prefillEmail}
           leftIcon={<I.mail size={15} />}
         />
       </Field>

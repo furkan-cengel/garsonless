@@ -7,6 +7,7 @@ import { updateRestaurant, uploadLogo } from '../../lib/actions/restaurant'
 import dynamic from 'next/dynamic'
 import { DEFAULT_TIERS, type LoyaltyTier, type CatalogReward } from './loyalty-config'
 import type { SecurityEventView } from './AdvancedSections'
+import type { TeamMember } from '@garsonless/db'
 
 const KitchenAccessSection   = dynamic(() => import('./KitchenAccessSection'))
 const LoyaltySection         = dynamic(() => import('./LoyaltySection'))
@@ -119,7 +120,10 @@ const SECTION_META: Record<SectionId, { label: string; desc: string; group: stri
 /* ============================================================
    LEFT NAV
    ============================================================ */
-function SettingsNav({ active, onSelect }: { active: SectionId; onSelect: (id: SectionId) => void }) {
+// 'team' is OWNER-ONLY (a 'settings' member never sees the team surface). Full
+// per-sub-section owner gating lands in Phase 3.
+function SettingsNav({ active, onSelect, isOwner }: { active: SectionId; onSelect: (id: SectionId) => void; isOwner: boolean }) {
+  const groups = GROUPS.map(g => ({ ...g, items: g.items.filter(item => item.id !== 'team' || isOwner) }))
   return (
     <div style={{
       width: 'var(--nav)', flexShrink: 0,
@@ -132,7 +136,7 @@ function SettingsNav({ active, onSelect }: { active: SectionId; onSelect: (id: S
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '4px 8px 12px' }}>
-        {GROUPS.map((g, gi) => (
+        {groups.map((g, gi) => (
           <div key={gi} style={{ marginTop: gi === 0 ? 4 : 12 }}>
             <div style={{ ...S.label, padding: '6px 8px' }}>{g.title}</div>
             {g.items.map(item => (
@@ -401,9 +405,13 @@ interface Props {
   kitchenToken: string | null
   /** The signed-in user's own security events (RLS-scoped, fetched server-side). */
   securityEvents: SecurityEventView[]
+  /** Whether the current user owns this restaurant (gates owner-only surfaces). */
+  isOwner: boolean
+  /** Team members (owner-only; empty for non-owners). */
+  teamMembers: TeamMember[]
 }
 
-export default function SettingsForm({ restaurant, user, kitchenToken, securityEvents }: Props) {
+export default function SettingsForm({ restaurant, user, kitchenToken, securityEvents, isOwner, teamMembers }: Props) {
   const [active, setActive] = useState<SectionId>('workspace')
 
   function renderContent() {
@@ -412,7 +420,7 @@ export default function SettingsForm({ restaurant, user, kitchenToken, securityE
       case 'loyalty':       return <LoyaltySectionWrapper restaurant={restaurant} />
       case 'kitchen':       return <KitchenSectionWrapper restaurantId={restaurant.id} kitchenToken={kitchenToken} />
       case 'profile':       return <ProfileSection user={user} />
-      case 'team':          return <TeamSection />
+      case 'team':          return isOwner ? <TeamSection restaurantId={restaurant.id} ownerEmail={user?.email ?? ''} members={teamMembers} /> : null
       case 'store':         return <StoreSection restaurant={restaurant} />
       case 'hours':         return <HoursSection restaurant={restaurant} />
       case 'tax':           return <TaxSection restaurant={restaurant} />
@@ -441,7 +449,7 @@ export default function SettingsForm({ restaurant, user, kitchenToken, securityE
       />
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <SettingsNav active={active} onSelect={setActive} />
+        <SettingsNav active={active} onSelect={setActive} isOwner={isOwner} />
         <ContentArea active={active}>
           {renderContent()}
         </ContentArea>

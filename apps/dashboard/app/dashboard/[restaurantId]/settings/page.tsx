@@ -1,5 +1,7 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getRestaurantById } from '../../../../lib/queries'
+import { getUserRestaurantAccess, firstPermittedPath } from '../../../../lib/auth/access'
+import { listTeamMembers } from '@garsonless/db'
 import { createDashboardServerClient } from '../../../../lib/supabase-server'
 import SettingsForm from '../../../../components/settings/SettingsForm'
 
@@ -10,11 +12,19 @@ interface Props {
 export default async function SettingsPage({ params }: Props) {
   const { restaurantId } = await params
   const supabase = await createDashboardServerClient()
-  const [restaurant, { data: { user } }] = await Promise.all([
+  const [restaurant, { data: { user } }, access] = await Promise.all([
     getRestaurantById(restaurantId),
     supabase.auth.getUser(),
+    getUserRestaurantAccess(restaurantId),
   ])
-  if (!restaurant) notFound()
+  if (!restaurant || !access) notFound()
+  // INTERIM GUARD (Phase 2): a member without 'settings' lands on a permitted section.
+  if (!access.isOwner && !access.permissions.includes('settings')) {
+    redirect(firstPermittedPath(restaurantId, access))
+  }
+  const isOwner = access.isOwner
+  // Team list is OWNER-ONLY (members never see the team management surface).
+  const teamMembers = isOwner ? await listTeamMembers(restaurantId) : []
 
   // GAP #1: kitchen token now lives in kitchen_credentials (owner-scoped, no anon).
   const { data: kc } = await supabase
@@ -47,6 +57,8 @@ export default async function SettingsPage({ params }: Props) {
       user={user}
       kitchenToken={kitchenToken}
       securityEvents={securityEvents}
+      isOwner={isOwner}
+      teamMembers={teamMembers}
     />
   )
 }

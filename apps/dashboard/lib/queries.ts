@@ -1,6 +1,7 @@
 import { cache } from 'react'
 import { createDashboardServerClient } from './supabase-server'
 import { createServiceClient, type Tables } from '@garsonless/db'
+import { getUserRestaurantAccess } from './auth/access'
 
 export interface DashboardKPIs {
   revenue: number
@@ -86,38 +87,56 @@ export interface TableReportRow {
 
 export const getRestaurantsForUser = cache(async function getRestaurantsForUser(): Promise<Tables<'restaurants'>[]> {
   const supabase = await createDashboardServerClient()
-  // SECURITY: the public `anon_read_restaurants` SELECT policy lets ANY
-  // authenticated user read every restaurant row, so RLS alone returns ALL
-  // venues. Filter owner_id explicitly — otherwise the post-login redirect
-  // (`/dashboard/${restaurants[0].id}/menu`) and the store switcher would point
-  // at / list restaurants the user does not own. Same fix as getRestaurantById.
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
-  const { data } = await supabase
+
+  // Restaurants the user OWNS or is an ACTIVE member of. SECURITY: both halves
+  // filter EXPLICITLY (owner_id / membership) — the broad `anon_read_restaurants`
+  // policy (which returns every row to any authenticated user) is never the gate.
+  const { data: owned } = await supabase
     .from('restaurants')
     .select('*')
     .eq('owner_id', user.id)
     .is('deleted_at', null)
-    .order('created_at')
-  return (data ?? []) as Tables<'restaurants'>[]
+  const ownedList = (owned ?? []) as Tables<'restaurants'>[]
+  const ownedIds = new Set(ownedList.map((r) => r.id))
+
+  const { data: memberships } = await supabase
+    .from('restaurant_members')
+    .select('restaurant_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+  const memberIds = ((memberships ?? []) as Array<{ restaurant_id: string }>)
+    .map((m) => m.restaurant_id)
+    .filter((id) => !ownedIds.has(id))
+
+  let memberList: Tables<'restaurants'>[] = []
+  if (memberIds.length > 0) {
+    const { data } = await supabase
+      .from('restaurants')
+      .select('*')
+      .in('id', memberIds)
+      .is('deleted_at', null)
+    memberList = (data ?? []) as Tables<'restaurants'>[]
+  }
+
+  return [...ownedList, ...memberList].sort((a, b) => a.created_at.localeCompare(b.created_at))
 })
 
 export const getRestaurantById = cache(async function getRestaurantById(id: string): Promise<Tables<'restaurants'> | null> {
+  // Authorization is the EXPLICIT resolver (owner OR active member), NOT RLS
+  // row-visibility: `anon_read_restaurants` would otherwise let any authenticated
+  // user read any restaurant. This gate guards every dashboard SSR page, incl. the
+  // customers pages whose PII then loads via the service role. (GAP #4b discipline.)
+  const access = await getUserRestaurantAccess(id)
+  if (!access) return null
   const supabase = await createDashboardServerClient()
-  // SECURITY: the public `anon_read_restaurants` SELECT policy lets ANY
-  // authenticated user read any restaurant row, so RLS alone does NOT scope
-  // this to the owner. Filter owner_id explicitly — this is the ownership gate
-  // every dashboard SSR page relies on (`if (!restaurant) notFound()`), incl.
-  // the customers pages whose data then loads via the service role.
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
   const { data } = await supabase
     .from('restaurants')
     .select('*')
     .eq('id', id)
-    .eq('owner_id', user.id)
     .is('deleted_at', null)
-    .single()
+    .maybeSingle()
   return data as Tables<'restaurants'> | null
 })
 

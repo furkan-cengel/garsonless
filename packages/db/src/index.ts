@@ -6,6 +6,15 @@ export { createServiceRequest } from './service-requests'
 export type { CreateServiceRequestInput } from './service-requests'
 export { recordSecurityEvent, getSecurityEvents } from './security'
 export type { SecurityEvent, SecurityEventType, RecordSecurityEventInput } from './security'
+export {
+  TEAM_SECTIONS, generateInviteToken, sanitizeTeamPermissions,
+  listTeamMembers, createInvite, resolveInviteByToken, acceptInvite,
+  updateMemberPermissions, setMemberStatus, removeMember, resendInvite,
+} from './team'
+export type {
+  TeamSection, MemberStatus, TeamMember, ResolvedInvite,
+  CreateInviteResult, AcceptInviteResult, ResendInviteResult,
+} from './team'
 export { normalizePhone } from './phone'
 export { getSmsProvider, MockSmsProvider } from './sms'
 export type { SmsProvider, SmsSendOptions, SmsSendResult, SmsPurpose } from './sms'

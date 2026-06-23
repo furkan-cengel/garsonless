@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { signIn, sendMagicLink } from '../../../lib/actions/auth'
 import VisualPanel from '../../../components/auth/VisualPanel'
@@ -90,9 +90,12 @@ function LoginForm() {
   const [showPass, setShowPass] = useState(false)
   const [remember, setRemember] = useState(true)
   const [state, action, pending] = useActionState(signIn, null)
+  const [next, setNext] = useState('')
+  useEffect(() => { setNext(new URLSearchParams(window.location.search).get('next') ?? '') }, [])
 
   return (
     <form action={action} style={{ width: '100%', maxWidth: 420 }}>
+      {next && <input type="hidden" name="next" value={next} />}
       <h2 style={{ fontFamily: "'Fraunces', Georgia, serif",
         fontSize: 36, fontWeight: 500, letterSpacing: '-0.025em',
         lineHeight: 1.1, margin: 0, color: 'var(--ink)',

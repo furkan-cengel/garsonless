@@ -1,5 +1,6 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getRestaurantById } from '../../../../lib/queries'
+import { getUserRestaurantAccess, firstPermittedPath } from '../../../../lib/auth/access'
 import { getRestaurantCustomers, listCampaigns, listCustomerSegments } from '@garsonless/db'
 import CustomersClient from '../../../../components/customers/CustomersClient'
 
@@ -9,7 +10,14 @@ interface Props {
 
 export default async function CustomersPage({ params }: Props) {
   const { restaurantId } = await params
-  // getRestaurantById is RLS owner-scoped → null (notFound) for non-owners.
+  // INTERIM GUARD (Phase 2): customer PII below loads via the SERVICE ROLE, so it
+  // is NOT RLS-gated — the 'customers' section must be enforced here or a member
+  // without it would read PII. (Full per-route sweep is Phase 3.)
+  const access = await getUserRestaurantAccess(restaurantId)
+  if (!access) notFound()
+  if (!access.isOwner && !access.permissions.includes('customers')) {
+    redirect(firstPermittedPath(restaurantId, access))
+  }
   const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
 

@@ -1,5 +1,6 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getRestaurantById } from '../../../../../lib/queries'
+import { getUserRestaurantAccess, firstPermittedPath } from '../../../../../lib/auth/access'
 import { getRestaurantCustomerDetail } from '@garsonless/db'
 import CustomerDetailClient from '../../../../../components/customers/CustomerDetailClient'
 
@@ -9,7 +10,13 @@ interface Props {
 
 export default async function CustomerDetailPage({ params }: Props) {
   const { restaurantId, customerId } = await params
-  // Owner gate (RLS) + activity-at-venue gate (returns null otherwise).
+  // INTERIM GUARD (Phase 2): detail loads customer PII via the service role —
+  // enforce the 'customers' section here (not RLS-gated).
+  const access = await getUserRestaurantAccess(restaurantId)
+  if (!access) notFound()
+  if (!access.isOwner && !access.permissions.includes('customers')) {
+    redirect(firstPermittedPath(restaurantId, access))
+  }
   const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
   const detail = await getRestaurantCustomerDetail(restaurantId, customerId)

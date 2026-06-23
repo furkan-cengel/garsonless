@@ -42,7 +42,12 @@ export async function signIn(
     await recordSecurityEvent({ userId: data.user.id, eventType: 'login', ip, userAgent })
   }
 
-  redirect('/dashboard')
+  redirect(safeNext(formData.get('next')))
+}
+
+/** Only allow same-origin relative redirects (e.g. the accept-invite return path). */
+function safeNext(value: FormDataEntryValue | null): string {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : '/dashboard'
 }
 
 export async function signUp(
@@ -57,13 +62,20 @@ export async function signUp(
     return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
   }
 
+  const next = safeNext(formData.get('next'))
+  const callbackUrl = `${process.env['NEXT_PUBLIC_APP_URL']}/auth/callback?next=${encodeURIComponent(next)}`
+
   const supabase = await createDashboardServerClient()
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     ...parsed.data,
-    options: { emailRedirectTo: `${process.env['NEXT_PUBLIC_APP_URL']}/auth/callback` },
+    options: { emailRedirectTo: callbackUrl },
   })
   if (error) return { error: error.message }
 
+  // If the project doesn't require email confirmation, signUp returns a live
+  // session → go straight to `next` (e.g. accept-invite). Otherwise the
+  // confirmation email carries `next` via the callback above.
+  if (data.session) redirect(next)
   return { success: true }
 }
 
