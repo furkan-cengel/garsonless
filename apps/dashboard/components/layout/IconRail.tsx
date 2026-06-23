@@ -50,12 +50,22 @@ interface Props {
   userInitials: string
   pathname: string
   ordersBadge?: number
+  /** Sections the user may access; owner sees all. */
+  permissions: string[]
+  isOwner: boolean
 }
 
-export default function IconRail({ restaurantId, userInitials, pathname, ordersBadge = 0 }: Props) {
+// The nav item's section key (the Pano/home item maps to 'pano').
+function navSection(item: NavItem): string {
+  return item.segment || 'pano'
+}
+
+export default function IconRail({ restaurantId, userInitials, pathname, ordersBadge = 0, permissions, isOwner }: Props) {
   const { openHelp, openProfile } = useShell()
   const router = useRouter()
   const base = `/dashboard/${restaurantId}`
+  // Slim nav: render only permitted sections (owner sees all 8).
+  const navItems = NAV.filter(item => isOwner || permissions.includes(navSection(item)))
 
   useEffect(() => {
     const routes = [
@@ -92,7 +102,7 @@ export default function IconRail({ restaurantId, userInitials, pathname, ordersB
         padding: '10px 0',
         gap: 2,
       }}>
-        {NAV.map(item => (
+        {navItems.map(item => (
           <RailLink
             key={item.id}
             ItemIcon={item.Icon}

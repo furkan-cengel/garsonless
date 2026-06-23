@@ -3,6 +3,7 @@ import { createDashboardServerClient } from '../../../../lib/supabase-server'
 import { getRestaurantById, getTablesForRestaurant } from '../../../../lib/queries'
 import OrderBoard from '../../../../components/orders/OrderBoard'
 import { readNotificationPrefs } from '../../../../lib/notification-prefs'
+import { requireSection } from '../../../../lib/auth/access'
 import type { Tables } from '@garsonless/db'
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 
 export default async function OrdersPage({ params }: Props) {
   const { restaurantId } = await params
+  await requireSection(restaurantId, 'orders')
   const [restaurant, tables] = await Promise.all([
     getRestaurantById(restaurantId),
     getTablesForRestaurant(restaurantId),

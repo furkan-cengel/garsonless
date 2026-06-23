@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
+import { assertAccess } from '../auth/access'
 
 const categorySchema = z.object({
   restaurantId: z.string().uuid(),
@@ -56,19 +57,15 @@ async function getAuthUser() {
   return { supabase, user }
 }
 
+// Phase 3 section gate: the owner OR a member with the 'menu' section may manage
+// menu. Kept boolean-shaped so all call sites stay unchanged.
 async function assertRestaurantOwner(
-  supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
+  _supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
   restaurantId: string,
-  userId: string,
+  _userId: string,
 ) {
-  const { data } = await supabase
-    .from('restaurants')
-    .select('id')
-    .eq('id', restaurantId)
-    .eq('owner_id', userId)
-    .is('deleted_at', null)
-    .single()
-  return !!data
+  const gate = await assertAccess(restaurantId, 'menu')
+  return !('error' in gate)
 }
 
 export async function createCategory(

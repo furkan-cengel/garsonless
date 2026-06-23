@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import RestaurantShell, { RestaurantShellSkeleton } from '../../../components/layout/RestaurantShell'
 import NavigationProgress from '../../../components/layout/NavigationProgress'
 import { getRestaurantById, getRestaurantsForUser } from '../../../lib/queries'
+import { getUserRestaurantAccess } from '../../../lib/auth/access'
 import { createDashboardServerClient } from '../../../lib/supabase-server'
 
 interface Props {
@@ -15,13 +16,14 @@ export default async function RestaurantLayout({ children, params }: Props) {
   const { restaurantId } = await params
 
   const supabase = await createDashboardServerClient()
-  const [restaurant, restaurants, { data: authData }] = await Promise.all([
+  const [restaurant, restaurants, { data: authData }, access] = await Promise.all([
     getRestaurantById(restaurantId),
     getRestaurantsForUser(),
     supabase.auth.getUser(),
+    getUserRestaurantAccess(restaurantId),
   ])
 
-  if (!restaurant) notFound()
+  if (!restaurant || !access) notFound()
 
   const userEmail = authData.user?.email ?? ''
   const local = userEmail.split('@')[0] ?? ''
@@ -37,6 +39,8 @@ export default async function RestaurantLayout({ children, params }: Props) {
       restaurants={restaurants}
       userEmail={userEmail}
       userInitials={userInitials || 'U'}
+      permissions={access.permissions}
+      isOwner={access.isOwner}
     >
       <NavigationProgress />
       <Suspense fallback={<RestaurantShellSkeleton />}>

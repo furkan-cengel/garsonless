@@ -5,7 +5,16 @@ import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
 import { slugify } from '../utils'
-import { sanitizeTiers } from '@garsonless/db'
+import { sanitizeTiers, createServiceClient, type Json } from '@garsonless/db'
+import { getUserRestaurantAccess } from '../auth/access'
+
+// Owner-only settings keys — written ONLY by their dedicated owner-gated actions
+// (loyalty config, API key, active template). A non-owner 'settings' member may
+// never write these through the generic updateSettings (escalation guard).
+function isSensitiveSettingsKey(key: string): boolean {
+  return ['loyalty', 'api_key', 'active_template_id', 'qr_style'].includes(key)
+    || key.startsWith('ai_') || key.startsWith('payment')
+}
 
 const createRestaurantSchema = z.object({
   name: z.string().min(1).max(100),
@@ -95,28 +104,36 @@ export async function updateSettings(
   restaurantId: string,
   settings: Record<string, unknown>,
 ): Promise<{ error: string } | { success: true }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
+  // Owner OR a member with 'settings'.
+  const access = await getUserRestaurantAccess(restaurantId)
+  if (!access || (!access.isOwner && !access.permissions.includes('settings'))) {
+    return { error: 'Not authorized' }
+  }
+  // A non-owner may write only NON-sensitive store config (store/hours/tax/
+  // languages/notifications) — never owner-only keys.
+  if (!access.isOwner && Object.keys(settings).some(isSensitiveSettingsKey)) {
+    return { error: 'Not authorized' }
+  }
 
-  const { data: existing } = await supabase
+  // restaurants is owner-only RLS; write via service role (gate above is the
+  // authorization, key denylist prevents escalation).
+  const svc = createServiceClient()
+  const { data: existing } = await svc
     .from('restaurants')
     .select('settings')
     .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-    .single()
-
-  if (!existing) return { error: 'Not authorized' }
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (!existing) return { error: 'Not found' }
 
   const merged = {
     ...((existing as { settings: Record<string, unknown> }).settings ?? {}),
     ...settings,
   }
-
-  const { error } = await mut(supabase, 'restaurants')
-    .update({ settings: merged })
+  const { error } = await svc
+    .from('restaurants')
+    .update({ settings: merged as unknown as Json })
     .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-
   if (error) return { error: error.message }
 
   revalidatePath(`/dashboard/${restaurantId}/settings`)
@@ -139,25 +156,29 @@ export async function saveNotificationSettings(
   const parsed = notificationPrefsSchema.safeParse(prefs)
   if (!parsed.success) return { error: 'Geçersiz bildirim ayarları' }
 
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
+  // Owner OR a member with 'settings'. Writes ONLY the notifications key.
+  const access = await getUserRestaurantAccess(restaurantId)
+  if (!access || (!access.isOwner && !access.permissions.includes('settings'))) {
+    return { error: 'Not authorized' }
+  }
 
-  const { data: existing } = await supabase
+  const svc = createServiceClient()
+  const { data: existing } = await svc
     .from('restaurants')
     .select('settings')
     .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-    .single()
-  if (!existing) return { error: 'Not authorized' }
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (!existing) return { error: 'Not found' }
 
   const merged = {
     ...((existing as { settings: Record<string, unknown> }).settings ?? {}),
     notifications: parsed.data,
   }
-  const { error } = await mut(supabase, 'restaurants')
-    .update({ settings: merged })
+  const { error } = await svc
+    .from('restaurants')
+    .update({ settings: merged as unknown as Json })
     .eq('id', restaurantId)
-    .eq('owner_id', user.id)
   if (error) return { error: error.message }
 
   revalidatePath(`/dashboard/${restaurantId}/settings`)

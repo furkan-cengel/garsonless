@@ -1,6 +1,7 @@
 'use server'
 
 import { createDashboardServerClient } from '../supabase-server'
+import { assertMember } from '../auth/access'
 
 async function getAuthUser() {
   const supabase = await createDashboardServerClient()
@@ -8,19 +9,15 @@ async function getAuthUser() {
   return { supabase, user }
 }
 
+// Phase 3 coarse gate: the new-order bell badge is visible to any active member
+// (owner or member of any section), not section-specific.
 async function assertRestaurantOwner(
-  supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
+  _supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
   restaurantId: string,
-  userId: string,
+  _userId: string,
 ) {
-  const { data } = await supabase
-    .from('restaurants')
-    .select('id')
-    .eq('id', restaurantId)
-    .eq('owner_id', userId)
-    .is('deleted_at', null)
-    .single()
-  return !!data
+  const gate = await assertMember(restaurantId)
+  return !('error' in gate)
 }
 
 export interface NotificationItem {

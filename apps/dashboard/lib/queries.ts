@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { createDashboardServerClient } from './supabase-server'
 import { createServiceClient, type Tables } from '@garsonless/db'
-import { getUserRestaurantAccess } from './auth/access'
+import { getUserRestaurantAccess, assertAccess } from './auth/access'
 
 export interface DashboardKPIs {
   revenue: number
@@ -227,22 +227,6 @@ function getRangeWindow(range: string) {
   return { currentStart, previousStart }
 }
 
-async function assertOwnedRestaurant(restaurantId: string): Promise<boolean> {
-  const supabase = await createDashboardServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return false
-
-  const { data } = await supabase
-    .from('restaurants')
-    .select('id')
-    .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  return Boolean(data)
-}
-
 type AnalyticsOrderItem = {
   itemId?: string
   name?: string
@@ -389,8 +373,10 @@ export async function getTopItems(restaurantId: string, range = 'day'): Promise<
 }
 
 export async function getPaymentBreakdown(restaurantId: string, range = 'week'): Promise<PaymentBreakdown[]> {
-  const authorized = await assertOwnedRestaurant(restaurantId)
-  if (!authorized) return []
+  // Owner OR a member with 'analytics' (reads payment-token aggregates via the
+  // service role — so this app-layer gate, not RLS, is the protection).
+  const gate = await assertAccess(restaurantId, 'analytics')
+  if ('error' in gate) return []
 
   const { currentStart } = getRangeWindow(range)
   const supabase = createServiceClient()

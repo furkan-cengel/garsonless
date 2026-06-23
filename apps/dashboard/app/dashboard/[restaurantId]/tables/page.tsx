@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getRestaurantById, getTablesForRestaurant } from '../../../../lib/queries'
 import TablesBuilderShell from '../../../../components/tables/TablesBuilderShell'
+import { requireSection } from '../../../../lib/auth/access'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -8,6 +9,7 @@ interface Props {
 
 export default async function TablesPage({ params }: Props) {
   const { restaurantId } = await params
+  await requireSection(restaurantId, 'tables')
   const [restaurant, tables] = await Promise.all([
     getRestaurantById(restaurantId),
     getTablesForRestaurant(restaurantId),

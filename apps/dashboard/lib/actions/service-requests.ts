@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
+import { assertAccess } from '../auth/access'
 
 async function getAuthUser() {
   const supabase = await createDashboardServerClient()
@@ -10,19 +11,14 @@ async function getAuthUser() {
   return { supabase, user }
 }
 
+// Phase 3 section gate: owner OR a member with the 'orders' section (waiter calls).
 async function assertRestaurantOwner(
-  supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
+  _supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
   restaurantId: string,
-  userId: string,
+  _userId: string,
 ) {
-  const { data } = await supabase
-    .from('restaurants')
-    .select('id')
-    .eq('id', restaurantId)
-    .eq('owner_id', userId)
-    .is('deleted_at', null)
-    .single()
-  return !!data
+  const gate = await assertAccess(restaurantId, 'orders')
+  return !('error' in gate)
 }
 
 export interface PendingServiceRequest {

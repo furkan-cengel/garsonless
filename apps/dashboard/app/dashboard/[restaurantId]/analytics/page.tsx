@@ -10,6 +10,7 @@ import {
   getProductReportData,
 } from '../../../../lib/queries'
 import AnalyticsClient from '../../../../components/analytics/AnalyticsClient'
+import { requireSection } from '../../../../lib/auth/access'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -17,6 +18,7 @@ interface Props {
 
 export default async function AnalyticsPage({ params }: Props) {
   const { restaurantId } = await params
+  await requireSection(restaurantId, 'analytics')
   const [restaurant, kpis, topItems, salesOverTime, heatmapData, tableStats, paymentBreakdown, productReport] = await Promise.all([
     getRestaurantById(restaurantId),
     getDashboardKPIs(restaurantId),

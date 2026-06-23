@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { createDashboardServerClient } from '../supabase-server'
+import { assertAccess } from '../auth/access'
 import {
   getRestaurantCustomers,
   grantStoreCredit,
@@ -20,18 +20,10 @@ import {
 // Owner gate: every customer action validates the authed user OWNS the
 // restaurant (RLS-backed) BEFORE any service-role read. customers/consents are
 // service-role only, so this gate is the entire authorization boundary.
+// Phase 3: owner OR a member with the 'customers' section (data loads via the
+// service role, so this app-layer gate — not RLS — protects customer PII).
 async function assertOwner(restaurantId: string): Promise<{ userId: string } | { error: string }> {
-  const supabase = await createDashboardServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-  const { data } = await supabase
-    .from('restaurants')
-    .select('id')
-    .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-    .maybeSingle()
-  if (!data) return { error: 'Not authorized' }
-  return { userId: user.id }
+  return assertAccess(restaurantId, 'customers')
 }
 
 const SORTS: CustomerSort[] = ['last_seen', 'spend', 'visits', 'points', 'joined']

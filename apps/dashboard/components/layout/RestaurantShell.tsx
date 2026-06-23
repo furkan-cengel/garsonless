@@ -38,6 +38,9 @@ interface Props {
   restaurants: Tables<'restaurants'>[]
   userEmail: string
   userInitials: string
+  /** Sections the user may access (owner → all 8); drives the slim nav. */
+  permissions: string[]
+  isOwner: boolean
   children: ReactNode
 }
 
@@ -46,6 +49,8 @@ export default function RestaurantShell({
   restaurants,
   userEmail,
   userInitials,
+  permissions,
+  isOwner,
   children,
 }: Props) {
   const pathname = usePathname()
@@ -212,6 +217,8 @@ export default function RestaurantShell({
           userInitials={userInitials}
           pathname={pathname}
           ordersBadge={ordersBadge}
+          permissions={permissions}
+          isOwner={isOwner}
         />
         <main style={{ flex: 1, overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {children}

@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { notFound, redirect } from 'next/navigation'
 import { createDashboardServerClient } from '../supabase-server'
 
 // The dashboard nav sections (verbatim from IconRail.tsx). These are the only
@@ -120,5 +121,35 @@ export async function assertOwner(
     .is('deleted_at', null)
     .maybeSingle()
   if (!data) return { error: 'Not authorized' }
+  return { userId: user.id }
+}
+
+/**
+ * SSR-page section guard. No access → notFound(); access but missing the section
+ * → redirect to the user's first permitted section (never a blank sensitive page,
+ * never notFound for a logged-in member). Returns the access for the page to use.
+ * MUST be called before any data fetch.
+ */
+export async function requireSection(restaurantId: string, section: Section): Promise<RestaurantAccess> {
+  const access = await getUserRestaurantAccess(restaurantId)
+  if (!access) notFound()
+  if (!access.isOwner && !access.permissions.includes(section)) {
+    redirect(firstPermittedPath(restaurantId, access))
+  }
+  return access
+}
+
+/**
+ * Coarse gate — owner OR any active member (no specific section). For surfaces
+ * every team member needs regardless of their sections (e.g. the new-order bell).
+ */
+export async function assertMember(
+  restaurantId: string,
+): Promise<{ userId: string } | { error: string }> {
+  const supabase = await createDashboardServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+  const access = await getUserRestaurantAccess(restaurantId)
+  if (!access) return { error: 'Not authorized' }
   return { userId: user.id }
 }

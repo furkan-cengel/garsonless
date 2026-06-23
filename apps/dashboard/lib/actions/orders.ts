@@ -6,6 +6,7 @@ import { createDashboardServerClient } from '../supabase-server'
 import { updateOrderStatusDB } from '@garsonless/db'
 import type { OrderStatus } from '@garsonless/db'
 import { mut } from '../supabase-mut'
+import { assertAccess } from '../auth/access'
 
 const schema = z.object({
   orderId: z.string().uuid(),
@@ -29,27 +30,10 @@ export async function updateOrderStatus(
   const parsed = schema.safeParse({ orderId, status, restaurantId })
   if (!parsed.success) return { error: 'Invalid input' }
 
-  const supabase = await createDashboardServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  // Verify ownership: order must belong to a restaurant owned by this user
-  const { data: order } = await supabase
-    .from('orders')
-    .select('restaurant_id')
-    .eq('id', orderId)
-    .single()
-
-  if (!order) return { error: 'Order not found' }
-
-  const { data: restaurant } = await supabase
-    .from('restaurants')
-    .select('id')
-    .eq('id', (order as { restaurant_id: string }).restaurant_id)
-    .eq('owner_id', user.id)
-    .single()
-
-  if (!restaurant) return { error: 'Not authorized' }
+  // Owner OR a member with 'orders'. updateOrderStatusDB scopes by restaurant_id,
+  // so a mismatched order returns not-found.
+  const gate = await assertAccess(restaurantId, 'orders')
+  if ('error' in gate) return { error: gate.error }
 
   const { error } = await updateOrderStatusDB(orderId, status, restaurantId)
   if (error) return { error }
@@ -75,18 +59,12 @@ export async function createOrderFromDashboard(
   const parsed = createOrderSchema.safeParse(input)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
 
+  const gate = await assertAccess(parsed.data.restaurantId, 'orders')
+  if ('error' in gate) return { error: gate.error }
+
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
-
-  const { data: restaurant } = await supabase
-    .from('restaurants')
-    .select('id')
-    .eq('id', parsed.data.restaurantId)
-    .eq('owner_id', user.id)
-    .single()
-
-  if (!restaurant) return { error: 'Not authorized' }
 
   if (parsed.data.tableId) {
     const { data: table } = await supabase

@@ -120,10 +120,18 @@ const SECTION_META: Record<SectionId, { label: string; desc: string; group: stri
 /* ============================================================
    LEFT NAV
    ============================================================ */
-// 'team' is OWNER-ONLY (a 'settings' member never sees the team surface). Full
-// per-sub-section owner gating lands in Phase 3.
+// OWNER-ONLY settings sub-sections — a 'settings' member never sees these.
+// (Profile + Security are per-user; store/hours/tax/languages/notifications are
+// the member-editable store config.)
+const OWNER_ONLY_SECTIONS: SectionId[] = ['workspace', 'team', 'payments', 'loyalty', 'kitchen', 'api', 'billing']
+function canSeeSection(id: SectionId, isOwner: boolean): boolean {
+  return isOwner || !OWNER_ONLY_SECTIONS.includes(id)
+}
+
 function SettingsNav({ active, onSelect, isOwner }: { active: SectionId; onSelect: (id: SectionId) => void; isOwner: boolean }) {
-  const groups = GROUPS.map(g => ({ ...g, items: g.items.filter(item => item.id !== 'team' || isOwner) }))
+  const groups = GROUPS
+    .map(g => ({ ...g, items: g.items.filter(item => canSeeSection(item.id, isOwner)) }))
+    .filter(g => g.items.length > 0)
   return (
     <div style={{
       width: 'var(--nav)', flexShrink: 0,
@@ -412,9 +420,12 @@ interface Props {
 }
 
 export default function SettingsForm({ restaurant, user, kitchenToken, securityEvents, isOwner, teamMembers }: Props) {
-  const [active, setActive] = useState<SectionId>('workspace')
+  // A non-owner 'settings' member lands on a section they can see (workspace is owner-only).
+  const [active, setActive] = useState<SectionId>(isOwner ? 'workspace' : 'profile')
 
   function renderContent() {
+    // Defense in depth: never render an owner-only sub-section for a member.
+    if (!canSeeSection(active, isOwner)) return null
     switch (active) {
       case 'workspace':     return <WorkspaceSection restaurant={restaurant} />
       case 'loyalty':       return <LoyaltySectionWrapper restaurant={restaurant} />

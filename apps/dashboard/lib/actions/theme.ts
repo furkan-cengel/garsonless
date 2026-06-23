@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
+import { createServiceClient } from '@garsonless/db'
+import { assertAccess } from '../auth/access'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { Json } from '@garsonless/db'
 
@@ -17,18 +19,9 @@ export async function saveTheme(
   config: GarsonlessTheme,
   templateId = 'default',
 ): Promise<{ error: string } | { success: true }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const { data: restaurant } = await supabase
-    .from('restaurants')
-    .select('id')
-    .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-    .is('deleted_at', null)
-    .single()
-
-  if (!restaurant) return { error: 'Not authorized' }
+  const gate = await assertAccess(restaurantId, 'theme')
+  if ('error' in gate) return { error: gate.error }
+  const { supabase } = await getAuthUser()
 
   const { error } = await mut(supabase, 'theme_configs').upsert(
     {
@@ -49,23 +42,26 @@ export async function saveActiveTemplate(
   restaurantId: string,
   templateId: string,
 ): Promise<{ error: string } | { success: true }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
+  const gate = await assertAccess(restaurantId, 'theme')
+  if ('error' in gate) return { error: gate.error }
+  const { supabase } = await getAuthUser()
 
   const { data: existing } = await supabase
     .from('restaurants')
     .select('settings, slug')
     .eq('id', restaurantId)
-    .eq('owner_id', user.id)
     .is('deleted_at', null)
     .single()
 
-  if (!existing) return { error: 'Not authorized' }
+  if (!existing) return { error: 'Not found' }
 
   const prev = ((existing as { settings: Record<string, unknown> }).settings) ?? {}
   const updated: Json = { ...prev, active_template_id: templateId } as Json
 
-  const { error } = await mut(supabase, 'restaurants')
+  // active_template_id lives in restaurants (owner-only RLS); write via service
+  // role so a 'theme' member can switch the active template. Only this key changes.
+  const { error } = await createServiceClient()
+    .from('restaurants')
     .update({ settings: updated })
     .eq('id', restaurantId)
 

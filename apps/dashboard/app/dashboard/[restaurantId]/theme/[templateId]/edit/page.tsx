@@ -4,6 +4,7 @@ import { TEMPLATES } from '@garsonless/design-engine'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { getCategoriesForRestaurant, getItemsForRestaurant, getRestaurantById, getThemeConfigForRestaurant } from '../../../../../../lib/queries'
 import ThemeEditorClient from '../../../../../../components/theme/ThemeEditorClient'
+import { requireSection } from '../../../../../../lib/auth/access'
 
 interface Props {
   params: Promise<{ restaurantId: string; templateId: string }>
@@ -11,6 +12,7 @@ interface Props {
 
 export default async function ThemeEditPage({ params }: Props) {
   const { restaurantId, templateId } = await params
+  await requireSection(restaurantId, 'theme')
 
   const [restaurant, themeConfig, categories, items] = await Promise.all([
     getRestaurantById(restaurantId),

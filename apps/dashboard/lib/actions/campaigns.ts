@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { createDashboardServerClient } from '../supabase-server'
+import { assertAccess } from '../auth/access'
 import {
   previewCampaignAudience,
   sendCampaign,
@@ -13,18 +13,9 @@ import {
   type CustomerSegment,
 } from '@garsonless/db'
 
+// Phase 3: campaigns live in the Customers CRM → owner OR a member with 'customers'.
 async function assertOwner(restaurantId: string): Promise<{ userId: string } | { error: string }> {
-  const supabase = await createDashboardServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-  const { data } = await supabase
-    .from('restaurants')
-    .select('id')
-    .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-    .maybeSingle()
-  if (!data) return { error: 'Not authorized' }
-  return { userId: user.id }
+  return assertAccess(restaurantId, 'customers')
 }
 
 const builtInSegments = ['new', 'frequent', 'lapsed', 'consented'] as const

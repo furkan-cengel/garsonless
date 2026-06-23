@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
 import { creditVisitsForSession } from '@garsonless/db'
+import { assertAccess } from '../auth/access'
 
 const createTableSchema = z.object({
   restaurantId: z.string().uuid(),
@@ -17,19 +18,14 @@ async function getAuthUser() {
   return { supabase, user }
 }
 
+// Phase 3 section gate: owner OR a member with the 'tables' section.
 async function assertRestaurantOwner(
-  supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
+  _supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
   restaurantId: string,
-  userId: string,
+  _userId: string,
 ) {
-  const { data } = await supabase
-    .from('restaurants')
-    .select('id')
-    .eq('id', restaurantId)
-    .eq('owner_id', userId)
-    .is('deleted_at', null)
-    .single()
-  return !!data
+  const gate = await assertAccess(restaurantId, 'tables')
+  return !('error' in gate)
 }
 
 export async function createTable(

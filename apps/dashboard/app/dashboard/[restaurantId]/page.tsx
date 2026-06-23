@@ -8,6 +8,7 @@ import {
   getTableStatuses,
 } from '../../../lib/queries'
 import PanoClient from '../../../components/pano/PanoClient'
+import { requireSection } from '../../../lib/auth/access'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -15,6 +16,7 @@ interface Props {
 
 export default async function PanoPage({ params }: Props) {
   const { restaurantId } = await params
+  await requireSection(restaurantId, 'pano') // Pano requires its own perm; members without it land on their first section.
   const [restaurant, kpis, hourlySales, initialFeed, topItems, tableStatuses] = await Promise.all([
     getRestaurantById(restaurantId),
     getDashboardKPIs(restaurantId),
