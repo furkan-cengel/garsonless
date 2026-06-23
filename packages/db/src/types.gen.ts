@@ -752,6 +752,62 @@ export type Database = {
           },
         ]
       }
+      restaurant_members: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          id: string
+          invite_expires_at: string | null
+          invite_token_hash: string | null
+          invited_at: string
+          invited_by: string | null
+          permissions: Json
+          restaurant_id: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          invite_expires_at?: string | null
+          invite_token_hash?: string | null
+          invited_at?: string
+          invited_by?: string | null
+          permissions?: Json
+          restaurant_id: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          invite_expires_at?: string | null
+          invite_token_hash?: string | null
+          invited_at?: string
+          invited_by?: string | null
+          permissions?: Json
+          restaurant_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_members_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurants: {
         Row: {
           created_at: string
@@ -1018,6 +1074,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      dump_affected_policies: { Args: never; Returns: Json }
       get_restaurant_customers: {
         Args: {
           p_custom_segment?: Json
@@ -1042,6 +1099,22 @@ export type Database = {
           total_count: number
           visits: number
         }[]
+      }
+      has_restaurant_access: {
+        Args: { p_restaurant_id: string }
+        Returns: boolean
+      }
+      has_restaurant_section: {
+        Args: { p_restaurant_id: string; p_section: string }
+        Returns: boolean
+      }
+      is_restaurant_owner: {
+        Args: { p_restaurant_id: string }
+        Returns: boolean
+      }
+      menu_category_restaurant: {
+        Args: { p_category_id: string }
+        Returns: string
       }
       open_or_get_table_session: {
         Args: { p_restaurant_id: string; p_table_id: string }
