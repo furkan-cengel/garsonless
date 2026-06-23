@@ -3,10 +3,13 @@ node_modules/
 **/node_modules/
 .pnpm-store/
 
-# Environment files
+# Environment files — only *.example placeholders may be committed.
+# Real secrets (.env.local, .env.production, etc.) stay ignored.
 .env*
 !.env.example
 !**/.env.example
+!.env.production.example
+!**/.env.production.example
 
 # Next.js
 .next/
