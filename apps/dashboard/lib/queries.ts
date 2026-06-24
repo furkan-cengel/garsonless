@@ -749,3 +749,25 @@ export async function getTableStatuses(restaurantId: string): Promise<TableStatu
     }
   })
 }
+
+export interface PaymentStatus {
+  configured: boolean
+  /** 'live' | 'sandbox' | null (null when not configured). */
+  mode: string | null
+}
+
+/**
+ * Real İyzico payment status for the Pano system-health panel: does this
+ * restaurant have payment credentials configured, and in which mode. Owner-scoped
+ * via RLS (payment_credentials is owner-only) — call only for the owner.
+ */
+export async function getPaymentStatus(restaurantId: string): Promise<PaymentStatus> {
+  const supabase = await createDashboardServerClient()
+  const { data } = await supabase
+    .from('payment_credentials')
+    .select('mode')
+    .eq('restaurant_id', restaurantId)
+    .maybeSingle()
+  if (!data) return { configured: false, mode: null }
+  return { configured: true, mode: (data as { mode: string | null }).mode ?? null }
+}

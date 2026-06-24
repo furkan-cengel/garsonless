@@ -1,20 +1,24 @@
 'use client'
 
-import { Fragment, useState, useEffect, type ReactNode } from 'react'
+import { Fragment, useState, useEffect, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import PageTopBar from '../layout/PageTopBar'
 import { I, S, Tag, EmptyState, btnPrimary } from '../../lib/ui'
 import NewOrderModal from '../overlays/NewOrderModal'
-import DateRangePicker from '../overlays/DateRangePicker'
 import FloorPlan from '../overlays/FloorPlan'
 import { createDashboardBrowserClient } from '../../lib/supabase'
+import { fetchPanoChart, type PanoChartData, type PanoChartPoint, type PanoChartRange } from '../../lib/actions/pano'
 import type {
   DashboardKPIs,
   HourlySale,
   ActivityEvent,
   TopItem,
   TableStatusData,
+  HeatmapCell,
+  PaymentStatus,
 } from '../../lib/queries'
+
+type RealtimeStatus = 'connecting' | 'connected' | 'down'
 
 interface Props {
   restaurantId: string
@@ -24,6 +28,18 @@ interface Props {
   initialFeed: ActivityEvent[]
   topItems: TopItem[]
   tableStatuses: TableStatusData[]
+  heatmap: HeatmapCell[]
+  /** Owner-only; null for members (payment config is owner domain). */
+  paymentStatus: PaymentStatus | null
+  isOwner: boolean
+}
+
+/** Client-side seed of the 'day' chart from the SSR hourly data (mirrors fetchPanoChart's day branch). */
+function dayPointsFromHourly(hourly: HourlySale[]): PanoChartPoint[] {
+  const currentHour = new Date().getHours()
+  return hourly
+    .filter((d) => d.hour >= 7 && d.hour <= 22)
+    .map((d) => ({ label: String(d.hour).padStart(2, '0'), value: d.total, highlight: d.hour === currentHour }))
 }
 
 function pct(a: number, b: number): string {
@@ -40,15 +56,14 @@ function relTime(iso: string): string {
   return 'Dün'
 }
 
-export default function PanoClient({ restaurantId, restaurantName, kpis, hourlySales, initialFeed, topItems, tableStatuses }: Props) {
+export default function PanoClient({ restaurantId, restaurantName, kpis, hourlySales, initialFeed, topItems, tableStatuses, heatmap, paymentStatus, isOwner }: Props) {
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Günaydın' : hour < 18 ? 'İyi günler' : 'İyi akşamlar'
-  const todayLabel = new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
 
   const [showNewOrder, setShowNewOrder] = useState(false)
-  const [showDateRange, setShowDateRange] = useState(false)
   const [showFloorPlan, setShowFloorPlan] = useState(false)
   const [feed, setFeed] = useState<ActivityEvent[]>(initialFeed)
+  const [realtime, setRealtime] = useState<RealtimeStatus>('connecting')
 
   useEffect(() => {
     const supabase = createDashboardBrowserClient()
@@ -66,9 +81,18 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
           ...prev,
         ].slice(0, 7))
       })
-      .subscribe()
+      .subscribe(status => {
+        // Real liveness signal for the system-health panel — this browser's channel state.
+        setRealtime(
+          status === 'SUBSCRIBED' ? 'connected'
+          : status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED' ? 'down'
+          : 'connecting',
+        )
+      })
     return () => { void supabase.removeChannel(channel) }
   }, [restaurantId])
+
+  const lastOrderAt = feed[0]?.createdAt ?? null
 
   const avgBasketYesterday = kpis.paidOrdersYesterday > 0
     ? Math.round(kpis.revenueYesterday / kpis.paidOrdersYesterday)
@@ -87,20 +111,18 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
         }
         right={
           <>
-            <button
-              onClick={() => setShowDateRange(v => !v)}
+            {/* Static "today" context — the Pano is a today's-operations view.
+                Range exploration lives in the chart toggle + the Analytics page. */}
+            <span
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 padding: '4px 10px', height: 30, borderRadius: 7,
                 background: 'var(--surface-3)', fontSize: 11.5, color: 'var(--text-2)',
-                border: 'none', cursor: 'pointer',
               }}
             >
-              <span style={S.mono}>{todayLabel}</span>
-              <span style={{ color: 'var(--text-4)' }}>·</span>
-              <span style={S.mono}>Bugün</span>
-              <I.chevDown size={12} />
-            </button>
+              <I.clock size={12} />
+              <span style={S.mono}>Bugün · {new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}</span>
+            </span>
             <button onClick={() => setShowNewOrder(true)} style={btnPrimary()}>
               <I.plus size={13} />Yeni sipariş
             </button>
@@ -115,7 +137,6 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
           onClose={() => setShowNewOrder(false)}
         />
       )}
-      {showDateRange && <DateRangePicker onClose={() => setShowDateRange(false)} />}
       {showFloorPlan && <FloorPlan restaurantName={restaurantName} tableStatuses={tableStatuses} onClose={() => setShowFloorPlan(false)} />}
 
       <div style={{ flex: 1, overflow: 'auto', minWidth: 0, background: 'var(--bg)' }}>
@@ -198,20 +219,20 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
 
           {/* Main grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
-            <SalesChart hourlySales={hourlySales} totalRevenue={kpis.revenue} />
+            <SalesChart restaurantId={restaurantId} initialHourly={hourlySales} />
             <ActivityFeedWidget feed={feed} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
             <TopItemsWidget items={topItems} />
-            <PeakHours />
+            <PeakHours heatmap={heatmap} />
             <QuickActions restaurantId={restaurantId} />
           </div>
 
           {/* Wide row */}
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
             <TableStatusWidget tables={tableStatuses} onFloorPlan={() => setShowFloorPlan(true)} />
-            <SystemHealth />
+            <SystemHealth paymentStatus={paymentStatus} isOwner={isOwner} realtime={realtime} lastOrderAt={lastOrderAt} />
           </div>
         </div>
       </div>
@@ -274,73 +295,102 @@ function KPICard({ label, value, delta, trend, sub, featured, href }: {
   )
 }
 
-/* ── SALES CHART ──────────────────────────────────── */
-function SalesChart({ hourlySales, totalRevenue }: { hourlySales: HourlySale[]; totalRevenue: number }) {
-  const [period, setPeriod] = useState(0)
-  const currentHour = new Date().getHours()
-  const max = Math.max(...hourlySales.map(d => d.total), 1)
+/* ── SALES CHART (range-aware: today hourly / 7d / 30d daily) ───────────── */
+function summarizePoints(points: PanoChartPoint[]): { total: number; peakLabel: string; peakValue: number } {
+  const total = points.reduce((s, p) => s + p.value, 0)
+  const peak = points.reduce((a, b) => (b.value > a.value ? b : a), points[0] ?? { label: '', value: 0 })
+  return { total, peakLabel: peak.label, peakValue: peak.value }
+}
+
+const CHART_RANGES: { label: string; range: PanoChartRange }[] = [
+  { label: 'Bugün', range: 'day' },
+  { label: '7 gün', range: 'week' },
+  { label: '30 gün', range: 'month' },
+]
+
+function SalesChart({ restaurantId, initialHourly }: { restaurantId: string; initialHourly: HourlySale[] }) {
+  const seedPoints = dayPointsFromHourly(initialHourly)
+  const [data, setData] = useState<PanoChartData>({ range: 'day', rangeLabel: 'Bugün', points: seedPoints, ...summarizePoints(seedPoints) })
+  const [error, setError] = useState('')
+  const [isPending, startTransition] = useTransition()
+
+  function selectRange(range: PanoChartRange) {
+    if (range === data.range || isPending) return
+    setError('')
+    startTransition(async () => {
+      const res = await fetchPanoChart(restaurantId, range)
+      if ('error' in res) { setError('Veri alınamadı'); return }
+      setData(res)
+    })
+  }
+
   const W = 720, H = 220, padX = 28, padY = 20
-  const visibleHours = hourlySales.filter(d => d.hour >= 7 && d.hour <= 22)
-  const barW = (W - padX * 2) / visibleHours.length - 6
-  const peakHour = hourlySales.reduce((a, b) => b.total > a.total ? b : a, hourlySales[0] ?? { hour: 0, total: 0 })
+  const points = data.points
+  const max = Math.max(...points.map(p => p.value), 1)
+  const slot = (W - padX * 2) / Math.max(points.length, 1)
+  const barW = Math.max(2, slot - 6)
+  const labelStep = points.length > 16 ? Math.ceil(points.length / 8) : 2
+  const isDay = data.range === 'day'
 
   return (
-    <Card title="Tahsilat akışı" subtitle="Saatlik tahsilat · TRY">
+    <Card title="Tahsilat akışı" subtitle={isDay ? 'Saatlik tahsilat · TRY' : `${data.rangeLabel} · günlük tahsilat · TRY`}>
       <div style={{ padding: '12px 16px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 14 }}>
-          <span style={{ ...S.mono, fontSize: 24, fontWeight: 700, letterSpacing: '-.02em' }}>
-            ₺{totalRevenue.toLocaleString('tr-TR')}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 14 }}>
+          <span style={{ ...S.mono, fontSize: 24, fontWeight: 700, letterSpacing: '-.02em', opacity: isPending ? 0.5 : 1 }}>
+            ₺{data.total.toLocaleString('tr-TR')}
           </span>
+          {isPending && <span style={{ fontSize: 11, color: 'var(--text-3)' }}>yükleniyor…</span>}
           <div style={{ marginLeft: 'auto', display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 6, padding: 2 }}>
-            {['Bugün', '7 gün', '30 gün'].map((t, i) => (
-              <button key={t} onClick={() => setPeriod(i)} style={{
+            {CHART_RANGES.map(({ label, range }) => (
+              <button key={range} onClick={() => selectRange(range)} disabled={isPending} style={{
                 padding: '4px 10px', fontSize: 11.5, fontWeight: 500,
-                background: period === i ? 'var(--surface)' : 'transparent',
-                color: period === i ? 'var(--text)' : 'var(--text-2)',
-                boxShadow: period === i ? 'var(--shadow-1)' : 'none',
-                border: 'none', borderRadius: 4, cursor: 'pointer',
-              }}>{t}</button>
+                background: data.range === range ? 'var(--surface)' : 'transparent',
+                color: data.range === range ? 'var(--text)' : 'var(--text-2)',
+                boxShadow: data.range === range ? 'var(--shadow-1)' : 'none',
+                border: 'none', borderRadius: 4, cursor: isPending ? 'default' : 'pointer',
+              }}>{label}</button>
             ))}
           </div>
         </div>
-        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }} preserveAspectRatio="none">
-          {[0, 0.25, 0.5, 0.75, 1].map(p => {
-            const y = padY + (H - padY * 2) * (1 - p)
-            return <line key={p} x1={padX} y1={y} x2={W - padX} y2={y} stroke="var(--divider)" strokeWidth="1" strokeDasharray={p === 0 ? 'none' : '3,3'} />
-          })}
-          {visibleHours.map((d, i) => {
-            const x = padX + i * ((W - padX * 2) / visibleHours.length) + 3
-            const h = (H - padY * 2) * (d.total / max)
-            const y = H - padY - h
-            const isCurrent = d.hour === currentHour
-            const fill = isCurrent ? '#ffd089' : d.total === 0 ? 'var(--surface-3)' : 'var(--text)'
-            return (
-              <g key={d.hour}>
-                <rect x={x} y={y} width={barW} height={h || 2} rx="3" fill={fill} opacity={d.total === 0 ? 0.4 : 1} />
-                {isCurrent && <circle cx={x + barW / 2} cy={y - 6} r="3" fill="#ffd089" />}
-              </g>
-            )
-          })}
-          {visibleHours.filter((_, i) => i % 2 === 0).map((d, idx) => {
-            const i = visibleHours.indexOf(d)
-            const x = padX + i * ((W - padX * 2) / visibleHours.length) + barW / 2 + 3
-            return (
-              <text key={idx} x={x} y={H - 4} fontSize="10" fill="var(--text-3)" textAnchor="middle" fontFamily="Geist Mono, monospace">
-                {String(d.hour).padStart(2, '0')}
+        {error ? (
+          <div style={{ padding: '46px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--critical)' }}>{error}</div>
+        ) : data.total === 0 ? (
+          <div style={{ padding: '46px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--text-3)' }}>Bu aralıkta tahsilat yok</div>
+        ) : (
+          <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', opacity: isPending ? 0.5 : 1, transition: 'opacity 120ms' }} preserveAspectRatio="none">
+            {[0, 0.25, 0.5, 0.75, 1].map(p => {
+              const y = padY + (H - padY * 2) * (1 - p)
+              return <line key={p} x1={padX} y1={y} x2={W - padX} y2={y} stroke="var(--divider)" strokeWidth="1" strokeDasharray={p === 0 ? 'none' : '3,3'} />
+            })}
+            {points.map((d, i) => {
+              const x = padX + i * slot + (slot - barW) / 2
+              const h = (H - padY * 2) * (d.value / max)
+              const y = H - padY - h
+              const fill = d.highlight ? '#ffd089' : d.value === 0 ? 'var(--surface-3)' : 'var(--text)'
+              return (
+                <g key={d.label + i}>
+                  <rect x={x} y={y} width={barW} height={h || 2} rx="3" fill={fill} opacity={d.value === 0 ? 0.4 : 1} />
+                  {d.highlight && <circle cx={x + barW / 2} cy={y - 6} r="3" fill="#ffd089" />}
+                </g>
+              )
+            })}
+            {points.map((d, i) => (i % labelStep === 0 ? (
+              <text key={'l' + i} x={padX + i * slot + slot / 2} y={H - 4} fontSize="10" fill="var(--text-3)" textAnchor="middle" fontFamily="Geist Mono, monospace">
+                {d.label}
               </text>
-            )
-          })}
-        </svg>
+            ) : null))}
+          </svg>
+        )}
         <div style={{
           display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-3)',
-          marginTop: 8, paddingTop: 10, borderTop: '1px solid var(--divider)',
+          marginTop: 8, paddingTop: 10, borderTop: '1px solid var(--divider)', flexWrap: 'wrap',
         }}>
-          <LegendDot color="var(--text)" label={`Tahsilat ₺${totalRevenue.toLocaleString('tr-TR')}`} />
-          <LegendDot color="#ffd089" label={`Şu an ${String(currentHour).padStart(2, '0')}:00`} />
-          {peakHour.total > 0 && (
+          <LegendDot color="var(--text)" label={`Tahsilat ₺${data.total.toLocaleString('tr-TR')}`} />
+          {isDay && <LegendDot color="#ffd089" label={`Şu an ${String(new Date().getHours()).padStart(2, '0')}:00`} />}
+          {data.peakValue > 0 && (
             <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              Pik saat <span style={{ ...S.mono, color: 'var(--text-2)', fontWeight: 600 }}>
-                {String(peakHour.hour).padStart(2, '0')}:00 ₺{peakHour.total.toLocaleString('tr-TR')}
+              {isDay ? 'Pik saat' : 'Pik gün'} <span style={{ ...S.mono, color: 'var(--text-2)', fontWeight: 600 }}>
+                {isDay ? `${data.peakLabel}:00` : data.peakLabel} ₺{data.peakValue.toLocaleString('tr-TR')}
               </span>
             </span>
           )}
@@ -461,51 +511,62 @@ function TopItemsWidget({ items }: { items: TopItem[] }) {
   )
 }
 
-/* ── PEAK HOURS ───────────────────────────────────── */
-function PeakHours() {
-  const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
-  const heat = (d: number, h: number) => {
-    if (h < 8 || h > 22) return 0
-    const base = h >= 12 && h <= 14 ? 0.9 : h >= 18 && h <= 21 ? 0.85 : 0.4
-    const dayMod = d >= 4 ? 1.1 : 0.95
-    const seed = ((d * 13 + h * 7 + 23) % 100) / 100
-    return Math.min(1, base * dayMod * (0.7 + seed * 0.6))
+/* ── PEAK HOURS (real: getHeatmapData, last 30 days order volume) ───────── */
+const HEATMAP_HOURS = Array.from({ length: 15 }, (_, i) => i + 8) // 8..22 — matches getHeatmapData
+
+function PeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
+  const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'] // day 0=Mon … 6=Sun
+  const grid: Record<string, number> = {}
+  let maxCount = 0
+  for (const c of heatmap) {
+    grid[`${c.day}-${c.hour}`] = c.count
+    if (c.count > maxCount) maxCount = c.count
   }
+
   return (
-    <Card title="Yoğun saatler" subtitle="Son 30 gün ortalaması">
-      <div style={{ padding: 14 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'auto repeat(24, 1fr)', gap: 1.5, alignItems: 'center' }}>
-          <span />
-          {Array.from({ length: 24 }, (_, h) => (
-            <span key={h} style={{ fontSize: 8, color: 'var(--text-4)', textAlign: 'center', ...S.mono }}>
-              {h % 3 === 0 ? h : ''}
-            </span>
-          ))}
-          {days.map((d, dayIdx) => (
-            <Fragment key={d}>
-              <span key={d + '-l'} style={{ fontSize: 9.5, color: 'var(--text-3)', paddingRight: 5, fontWeight: 500 }}>{d}</span>
-              {Array.from({ length: 24 }, (_, h) => {
-                const v = heat(dayIdx, h)
-                return (
-                  <div key={`${d}-${h}`} style={{
-                    aspectRatio: '1', borderRadius: 1.5,
-                    background: v === 0 ? 'var(--surface-3)' : `rgba(47, 111, 78, ${v})`,
-                  }} />
-                )
-              })}
-            </Fragment>
-          ))}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 11, color: 'var(--text-3)' }}>
-          <span>Az</span>
-          <div style={{ display: 'flex', gap: 2, flex: 1, margin: '0 8px', maxWidth: 100 }}>
-            {[0.2, 0.4, 0.6, 0.8, 1].map(o => (
-              <div key={o} style={{ flex: 1, height: 8, borderRadius: 1, background: `rgba(47, 111, 78, ${o})` }} />
+    <Card title="Yoğun saatler" subtitle="Son 30 gün · sipariş yoğunluğu">
+      {maxCount === 0 ? (
+        <EmptyState title="Yeterli veri yok" sub="Siparişler biriktikçe yoğun saatler burada görünür" />
+      ) : (
+        <div style={{ padding: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `auto repeat(${HEATMAP_HOURS.length}, 1fr)`, gap: 1.5, alignItems: 'center' }}>
+            <span />
+            {HEATMAP_HOURS.map(h => (
+              <span key={h} style={{ fontSize: 8, color: 'var(--text-4)', textAlign: 'center', ...S.mono }}>
+                {h % 3 === 0 ? h : ''}
+              </span>
+            ))}
+            {days.map((d, dayIdx) => (
+              <Fragment key={d}>
+                <span key={d + '-l'} style={{ fontSize: 9.5, color: 'var(--text-3)', paddingRight: 5, fontWeight: 500 }}>{d}</span>
+                {HEATMAP_HOURS.map(h => {
+                  const count = grid[`${dayIdx}-${h}`] ?? 0
+                  const v = count / maxCount
+                  return (
+                    <div
+                      key={`${d}-${h}`}
+                      title={`${d} ${String(h).padStart(2, '0')}:00 · ${count} sipariş`}
+                      style={{
+                        aspectRatio: '1', borderRadius: 1.5,
+                        background: count === 0 ? 'var(--surface-3)' : `rgba(47, 111, 78, ${0.18 + v * 0.82})`,
+                      }}
+                    />
+                  )
+                })}
+              </Fragment>
             ))}
           </div>
-          <span>Çok</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 11, color: 'var(--text-3)' }}>
+            <span>Az</span>
+            <div style={{ display: 'flex', gap: 2, flex: 1, margin: '0 8px', maxWidth: 100 }}>
+              {[0.2, 0.4, 0.6, 0.8, 1].map(o => (
+                <div key={o} style={{ flex: 1, height: 8, borderRadius: 1, background: `rgba(47, 111, 78, ${o})` }} />
+              ))}
+            </div>
+            <span>Çok</span>
+          </div>
         </div>
-      </div>
+      )}
     </Card>
   )
 }
@@ -513,11 +574,13 @@ function PeakHours() {
 /* ── QUICK ACTIONS ────────────────────────────────── */
 function QuickActions({ restaurantId }: { restaurantId: string }) {
   const actions = [
-    { label: 'Ürün ekle',     desc: 'Menüye yeni kalem',     icon: <I.plus size={15} />, href: `/dashboard/${restaurantId}/menu` },
-    { label: 'QR yazdır',     desc: "Masa QR'larını indir",  icon: <I.qr size={15} />, href: `/dashboard/${restaurantId}/tables` },
-    { label: 'Temayı düzenle', desc: 'Marka kimliğin',       icon: <I.palette size={15} />, href: `/dashboard/${restaurantId}/theme` },
-    { label: 'Mutfak ekranı', desc: 'TV/tablet için',        icon: <I.monitor size={15} />, href: `/dashboard/${restaurantId}/orders` },
-    { label: 'Rapor indir',   desc: 'Günlük özet PDF',       icon: <I.page size={15} />, href: `/dashboard/${restaurantId}/analytics` },
+    { label: 'Ürün ekle',      desc: 'Menüye yeni kalem',     icon: <I.plus size={15} />, href: `/dashboard/${restaurantId}/menu` },
+    { label: 'QR yazdır',      desc: "Masa QR'larını indir",  icon: <I.qr size={15} />, href: `/dashboard/${restaurantId}/tables` },
+    { label: 'Temayı düzenle', desc: 'Marka kimliğin',        icon: <I.palette size={15} />, href: `/dashboard/${restaurantId}/theme` },
+    // Honest targets: /orders is the dashboard order board (not the separate KDS app);
+    // there is no PDF export, so this just opens the Analytics page.
+    { label: 'Sipariş panosu', desc: 'Canlı sipariş akışı',   icon: <I.clipboard size={15} />, href: `/dashboard/${restaurantId}/orders` },
+    { label: 'Raporlar',       desc: 'Satış & tahsilat analizi', icon: <I.chart size={15} />, href: `/dashboard/${restaurantId}/analytics` },
   ] satisfies Array<{ label: string; desc: string; icon: ReactNode; href: string }>
   return (
     <Card title="Hızlı işlemler" subtitle="Tek tıkla başla">
@@ -611,34 +674,76 @@ function TableCell({ table }: { table: TableStatusData }) {
   )
 }
 
-/* ── SYSTEM HEALTH ────────────────────────────────── */
-function SystemHealth() {
-  const services = [
-    { name: 'iyzico',         status: 'ok'   as const, detail: 'Ödeme · aktif' },
-    { name: 'Mutfak Yazıcı',  status: 'ok'   as const, detail: 'Çevrimiçi' },
-    { name: 'Bar Yazıcı',     status: 'ok'   as const, detail: 'Çevrimiçi' },
-    { name: 'Kasa Yazıcı',    status: 'down' as const, detail: 'Bağlantı koptu' },
-    { name: 'WiFi',           status: 'ok'   as const, detail: 'Bağlı' },
-    { name: 'Yemeksepeti',    status: 'warn' as const, detail: 'Senk. gecikme' },
-  ]
-  const COLORS = {
-    ok:   { dot: 'var(--positive)', fg: 'var(--positive)', label: 'Çevrimiçi' },
-    warn: { dot: 'var(--warning)',  fg: 'var(--warning)',  label: 'Yavaş' },
-    down: { dot: 'var(--critical)', fg: 'var(--critical)', label: 'Çevrimdışı' },
+/* ── CONNECTION STATUS (real signals only — no faked integrations) ───────── */
+type HealthStatus = 'ok' | 'warn' | 'down' | 'idle'
+interface HealthCheck { label: string; status: HealthStatus; detail: string }
+
+const HEALTH_COLORS: Record<HealthStatus, { dot: string; fg: string; label: string }> = {
+  ok:   { dot: 'var(--positive)', fg: 'var(--positive)', label: 'Aktif' },
+  warn: { dot: 'var(--warning)',  fg: 'var(--warning)',  label: 'Dikkat' },
+  down: { dot: 'var(--critical)', fg: 'var(--critical)', label: 'Yok' },
+  idle: { dot: 'var(--text-4)',   fg: 'var(--text-3)',   label: '—' },
+}
+
+/** Precise relative time for the health panel (no "Dün" cap — shows real day count). */
+function sinceLabel(iso: string): string {
+  const sec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (sec < 60) return 'az önce'
+  if (sec < 3600) return `${Math.floor(sec / 60)} dk önce`
+  if (sec < 86400) return `${Math.floor(sec / 3600)} sa önce`
+  return `${Math.floor(sec / 86400)} gün önce`
+}
+
+function SystemHealth({ paymentStatus, isOwner, realtime, lastOrderAt }: {
+  paymentStatus: PaymentStatus | null
+  isOwner: boolean
+  realtime: RealtimeStatus
+  lastOrderAt: string | null
+}) {
+  // Built ONLY from genuinely checkable signals. To add a real integration later
+  // (printer / Yemeksepeti / …), push one HealthCheck from its real source here —
+  // never invent a status for something that isn't wired.
+  const checks: HealthCheck[] = []
+
+  // 1) İyzico payment — derived from payment_credentials (owner-only).
+  if (isOwner && paymentStatus) {
+    checks.push(
+      !paymentStatus.configured
+        ? { label: 'İyzico ödeme', status: 'down', detail: 'Yapılandırılmamış' }
+        : paymentStatus.mode === 'live'
+          ? { label: 'İyzico ödeme', status: 'ok', detail: 'Canlı · bağlı' }
+          : { label: 'İyzico ödeme', status: 'warn', detail: 'Test modu (sandbox)' },
+    )
   }
+
+  // 2) Realtime — THIS session's Supabase channel connection state.
+  checks.push(
+    realtime === 'connected' ? { label: 'Gerçek zamanlı', status: 'ok', detail: 'Canlı bağlantı açık' }
+    : realtime === 'down' ? { label: 'Gerçek zamanlı', status: 'down', detail: 'Bağlantı yok' }
+    : { label: 'Gerçek zamanlı', status: 'idle', detail: 'Bağlanıyor…' },
+  )
+
+  // 3) Last order — activity liveness proxy (recent = ok, stale = idle).
+  const lastSec = lastOrderAt ? Math.floor((Date.now() - new Date(lastOrderAt).getTime()) / 1000) : null
+  checks.push(
+    lastOrderAt
+      ? { label: 'Son sipariş', status: lastSec !== null && lastSec < 86400 ? 'ok' : 'idle', detail: sinceLabel(lastOrderAt) }
+      : { label: 'Son sipariş', status: 'idle', detail: 'Henüz sipariş yok' },
+  )
+
   return (
-    <Card title="Sistem sağlığı" subtitle="Tüm bağlı servisler">
+    <Card title="Bağlantı durumu" subtitle="Gerçek zamanlı sinyaller">
       <div style={{ padding: '4px 0' }}>
-        {services.map((sv, i) => {
-          const c = COLORS[sv.status]
+        {checks.map((sv, i) => {
+          const c = HEALTH_COLORS[sv.status]
           return (
-            <div key={i} style={{
-              padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10,
-              borderBottom: i === services.length - 1 ? 'none' : '1px solid var(--divider)',
+            <div key={sv.label} style={{
+              padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10,
+              borderBottom: i === checks.length - 1 ? 'none' : '1px solid var(--divider)',
             }}>
               <span style={{ width: 7, height: 7, borderRadius: 999, background: c.dot, flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text)' }}>{sv.name}</div>
+                <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text)' }}>{sv.label}</div>
                 <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>{sv.detail}</div>
               </div>
               <span style={{ fontSize: 10.5, fontWeight: 500, color: c.fg }}>{c.label}</span>
