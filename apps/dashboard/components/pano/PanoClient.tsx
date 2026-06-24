@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useState, useEffect, useTransition, type ReactNode } from 'react'
+import { Fragment, useState, useEffect, useRef, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import PageTopBar from '../layout/PageTopBar'
 import { I, S, Tag, EmptyState, btnPrimary } from '../../lib/ui'
@@ -65,6 +65,13 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
   const [feed, setFeed] = useState<ActivityEvent[]>(initialFeed)
   const [realtime, setRealtime] = useState<RealtimeStatus>('connecting')
 
+  // Table id → label map (from the SSR table snapshot), kept current so realtime
+  // new orders can show the real table label without an extra fetch.
+  const labelByTableId = useRef<Map<string, string>>(new Map())
+  useEffect(() => {
+    labelByTableId.current = new Map(tableStatuses.map(t => [t.id, t.label]))
+  }, [tableStatuses])
+
   useEffect(() => {
     const supabase = createDashboardBrowserClient()
     const channel = supabase
@@ -77,7 +84,11 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
       }, payload => {
         const row = payload.new as { id: string; status: string; total: number; table_id: string | null; created_at: string }
         setFeed(prev => [
-          { id: row.id, status: row.status, total: row.total, tableId: row.table_id, createdAt: row.created_at },
+          {
+            id: row.id, status: row.status, total: row.total, tableId: row.table_id,
+            tableLabel: row.table_id ? labelByTableId.current.get(row.table_id) ?? null : null,
+            createdAt: row.created_at,
+          },
           ...prev,
         ].slice(0, 7))
       })
@@ -440,9 +451,9 @@ const STATUS_ICONS: Record<string, ReactNode> = {
 
 function ActivityFeedWidget({ feed }: { feed: ActivityEvent[] }) {
   return (
-    <Card title="Canlı akış" subtitle="Sipariş aktivitesi · gerçek zamanlı">
+    <Card title="Canlı akış" subtitle="Bugünün sipariş aktivitesi · gerçek zamanlı">
       {feed.length === 0
-        ? <EmptyState title="Henüz sipariş yok" sub="Siparişler burada görünür" />
+        ? <EmptyState title="Bugün henüz sipariş yok" sub="Yeni siparişler burada anlık görünür" />
         : (
           <div style={{ padding: '0 0 8px', maxHeight: 360, overflow: 'auto' }}>
             {feed.map((e, i) => {
@@ -463,7 +474,7 @@ function ActivityFeedWidget({ feed }: { feed: ActivityEvent[] }) {
                       {STATUS_LABELS[e.status] ?? e.status}
                     </div>
                     <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 1 }}>
-                      {e.tableId ? `Masa · ` : ''}₺{e.total.toLocaleString('tr-TR')}
+                      {(e.tableLabel ?? (e.tableId ? 'Masa' : 'Paket'))} · ₺{e.total.toLocaleString('tr-TR')}
                     </div>
                   </div>
                   <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)', flexShrink: 0 }}>

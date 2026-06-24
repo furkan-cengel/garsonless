@@ -26,6 +26,8 @@ export interface ActivityEvent {
   status: string
   total: number
   tableId: string | null
+  /** Resolved table label ("Masa 5"); null for manual/takeaway orders (no table). */
+  tableLabel: string | null
   createdAt: string
 }
 
@@ -334,19 +336,42 @@ export async function getHourlySales(restaurantId: string): Promise<HourlySale[]
 
 export async function getActivityFeed(restaurantId: string): Promise<ActivityEvent[]> {
   const supabase = await createDashboardServerClient()
+  // Scope to TODAY + non-cancelled — the EXACT day boundary getDashboardKPIs uses,
+  // so the feed and the KPI cards never disagree (no "yesterday's orders vs 0 today").
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
   const { data } = await supabase
     .from('orders')
     .select('id, status, total, table_id, created_at')
     .eq('restaurant_id', restaurantId)
+    .gte('created_at', today.toISOString())
     .is('deleted_at', null)
+    .neq('status', 'cancelled')
     .order('created_at', { ascending: false })
     .limit(7)
 
-  return ((data ?? []) as Tables<'orders'>[]).map(r => ({
+  const orders = (data ?? []) as Tables<'orders'>[]
+
+  // Batch-resolve table labels in ONE query (no N+1). Labels are looked up even for
+  // soft-deleted tables so a real label always resolves.
+  const tableIds = [...new Set(orders.map(o => o.table_id).filter((id): id is string => !!id))]
+  const labelById = new Map<string, string>()
+  if (tableIds.length > 0) {
+    const { data: tbls } = await supabase
+      .from('tables')
+      .select('id, label')
+      .eq('restaurant_id', restaurantId)
+      .in('id', tableIds)
+    for (const t of (tbls ?? []) as { id: string; label: string }[]) labelById.set(t.id, t.label)
+  }
+
+  return orders.map(r => ({
     id: r.id,
     status: r.status,
     total: r.total,
     tableId: r.table_id,
+    tableLabel: r.table_id ? labelById.get(r.table_id) ?? null : null,
     createdAt: r.created_at,
   }))
 }
