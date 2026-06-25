@@ -1,4 +1,4 @@
-export type { OrderStatus } from './enums'
+export type { OrderStatus, PaymentMethod } from './enums'
 
 export interface OrderCustomerTierSnapshot {
   version: 1

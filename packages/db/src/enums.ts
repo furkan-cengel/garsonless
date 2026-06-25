@@ -14,3 +14,8 @@ export type OrderStatus =
   | 'cancelled'
 
 export type RestaurantPlan = 'free' | 'starter' | 'pro' | 'enterprise'
+
+// How an order was settled (orders.payment_method). null = unpaid OR legacy-paid.
+// 'comp' (İkram) is settled but ₺0 COLLECTED — excluded from ciro, reportable
+// separately. Source of truth: 20260625000000_payment_method_settle.sql.
+export type PaymentMethod = 'iyzico' | 'cash' | 'pos' | 'comp'

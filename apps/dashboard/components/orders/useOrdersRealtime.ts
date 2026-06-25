@@ -13,6 +13,8 @@ export type Order = {
   total: number
   customer_tier: unknown
   paid_at: string | null
+  // Settlement method (authenticated payload only; anon's column grant omits it).
+  payment_method?: string | null
   created_at: string
   [key: string]: unknown
 }

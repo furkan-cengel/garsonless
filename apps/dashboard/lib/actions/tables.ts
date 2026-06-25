@@ -116,10 +116,24 @@ export async function getOpenTableSessions(
   })
 }
 
-/** Close the adisyon (confirmed client-side; unpaid orders allowed with override). */
+/**
+ * Close the adisyon — P2: NO path closes unpaid money silently.
+ *
+ *  - Fully paid (no unpaid non-cancelled order) → NORMAL close: closed_at set,
+ *    close_reason stays null, +1 visit credited. This is now a fallback: the
+ *    common path is the UI settling each order via settleOrder, whose last
+ *    settle auto-closes the session (P1).
+ *  - Unpaid orders remain + NO abnormalReason → REJECTED. The caller must settle
+ *    (settlement sheet) or make an explicit abnormal decision. This is the
+ *    money-drop guard.
+ *  - Unpaid orders remain + abnormalReason given → ABNORMAL close (walkout/
+ *    dispute): closed_at set, close_reason recorded, the unpaid orders STAY
+ *    unpaid, and NO visit is credited (no completed paid visit).
+ */
 export async function closeTableSession(
   sessionId: string,
   restaurantId: string,
+  opts?: { abnormalReason?: string },
 ): Promise<{ error: string } | { success: true }> {
   const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
@@ -137,17 +151,53 @@ export async function closeTableSession(
 
   if (!session) return { error: 'Session not found for this restaurant' }
 
+  // Is there unpaid non-cancelled money still on this adisyon?
+  const { data: orderRows } = await supabase
+    .from('orders')
+    .select('paid_at')
+    .eq('restaurant_id', restaurantId)
+    .eq('table_session_id', sessionId)
+    .is('deleted_at', null)
+    .neq('status', 'cancelled')
+
+  const hasUnpaid = ((orderRows ?? []) as Array<{ paid_at: string | null }>)
+    .some((o) => o.paid_at === null)
+
+  const reason = opts?.abnormalReason?.trim()
+  // Abnormal = closing while money is still owed (the recorded-decision path).
+  const abnormal = hasUnpaid
+
+  if (hasUnpaid && !reason) {
+    // The no-silent-drop guard: closing money-owing adisyon needs an explicit,
+    // recorded decision. The UI settles first; this rejects a bare close.
+    return { error: 'Ödenmemiş sipariş var — önce tahsil edin ya da bir sebeple anormal kapatın.' }
+  }
+
+  // close_reason is written ONLY on the abnormal path. A normal (fully-paid)
+  // close leaves it untouched (the column defaults null), so the common close
+  // stays independent of the close_reason migration's deploy timing.
+  const updateRow: Record<string, unknown> = {
+    closed_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+  if (abnormal) updateRow.close_reason = (reason ?? '').slice(0, 200)
+
+  // Race-safe: the `is('closed_at', null)` guard means a concurrent auto-close
+  // (P1) that already closed this session as fully-paid wins — we overwrite
+  // nothing (0 rows) and no-op cleanly.
   const { error } = await mut(supabase, 'table_sessions')
-    .update({ closed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update(updateRow)
     .eq('id', sessionId)
     .eq('restaurant_id', restaurantId)
     .is('closed_at', null)
 
   if (error) return { error: error.message }
 
-  // Credit +1 visit to each member who ordered in this session (idempotent,
-  // best-effort — never blocks the close).
-  await creditVisitsForSession(sessionId)
+  // Visits are a completed-paid-visit signal — credit ONLY on a normal close.
+  // An abnormal close (unpaid money abandoned) must not mint loyalty visits.
+  if (!abnormal) {
+    await creditVisitsForSession(sessionId)
+  }
 
   revalidatePath(`/dashboard/${restaurantId}/tables`)
   return { success: true }

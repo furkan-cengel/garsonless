@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { readOrderCustomerTierSnapshot, type OrderStatus } from '@garsonless/db/order-client'
+import { readOrderCustomerTierSnapshot, type OrderStatus, type PaymentMethod } from '@garsonless/db/order-client'
 import type { Order } from './useOrdersRealtime'
 import { I, S, Tag } from '../../lib/ui'
+import { paymentMethodBadge } from '../../lib/payment-method'
 
 export interface CartItem {
   name: string
@@ -98,6 +99,14 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
   const isLate = group === 'prep' &&
     Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60_000) > 20
 
+  // Settled order → show the method badge (İkram = distinct dashed violet, ₺0
+  // collected) instead of a generic "ödendi". The method rides the authenticated
+  // realtime/SSR payload (anon's column grant never exposes payment_method).
+  const isPaid = order.paid_at !== null || order.status === 'paid'
+  const methodBadge = isPaid
+    ? paymentMethodBadge((order.payment_method as PaymentMethod | null | undefined) ?? null)
+    : null
+
   return (
     <div
       ref={setNodeRef}
@@ -125,12 +134,13 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 700, fontSize: 13.5 }}>{tableLabel ?? 'Walk-in'}</span>
-                {(order.paid_at !== null || order.status === 'paid') && (
+                {methodBadge && (
                   <span style={{
                     fontSize: 9.5, fontWeight: 800, letterSpacing: '.04em',
-                    color: 'var(--positive)', background: 'var(--positive-bg)',
+                    color: methodBadge.fg, background: methodBadge.bg,
                     padding: '2px 7px', borderRadius: 999, flexShrink: 0,
-                  }}>ÖDENDİ</span>
+                    ...(methodBadge.isComp ? { border: `1px dashed ${methodBadge.fg}` } : null),
+                  }}>{methodBadge.label}</span>
                 )}
                 {tier?.priorityService && (
                   <Tag tone="warning">

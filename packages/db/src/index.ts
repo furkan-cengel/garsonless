@@ -20,7 +20,7 @@ export { getSmsProvider, MockSmsProvider } from './sms'
 export type { SmsProvider, SmsSendOptions, SmsSendResult, SmsPurpose } from './sms'
 export {
   requestOtp, verifyOtp, earnForOrder, getMemberBalances, NETWORK_SCOPE_KEY,
-  computeOrderDiscount, computePointsRedemption, computeDiscountStack, computeStampEarn, effectivePct, applyBonusStamps, redeemForOrder,
+  computeOrderDiscount, computePointsRedemption, computeDiscountStack, computeStampEarn, effectivePct, applyBonusStamps, shouldEarnOnSettlement, redeemForOrder,
   refundCancelledLoyaltyOrder,
   computeTier, creditVisitsForSession, creditWelcomeBonus, DEFAULT_TIERS, MAX_TIERS, sanitizeTiers, getLoyaltyScope,
   snapshotOrderCustomerTier, readOrderCustomerTierSnapshot, orderHasPriorityService,
@@ -65,4 +65,4 @@ export type {
   TablesInsert,
   TablesUpdate,
 } from './types.gen'
-export type { OrderStatus, RestaurantPlan } from './enums'
+export type { OrderStatus, RestaurantPlan, PaymentMethod } from './enums'

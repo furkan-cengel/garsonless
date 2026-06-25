@@ -603,8 +603,10 @@ export type Database = {
           id: string
           items: Json
           paid_at: string | null
+          payment_method: string | null
           restaurant_id: string
           session_id: string
+          settled_by: string | null
           status: string
           table_id: string | null
           table_session_id: string | null
@@ -619,8 +621,10 @@ export type Database = {
           id?: string
           items?: Json
           paid_at?: string | null
+          payment_method?: string | null
           restaurant_id: string
           session_id: string
+          settled_by?: string | null
           status?: string
           table_id?: string | null
           table_session_id?: string | null
@@ -635,8 +639,10 @@ export type Database = {
           id?: string
           items?: Json
           paid_at?: string | null
+          payment_method?: string | null
           restaurant_id?: string
           session_id?: string
+          settled_by?: string | null
           status?: string
           table_id?: string | null
           table_session_id?: string | null
@@ -946,6 +952,7 @@ export type Database = {
       }
       table_sessions: {
         Row: {
+          close_reason: string | null
           closed_at: string | null
           created_at: string
           id: string
@@ -955,6 +962,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          close_reason?: string | null
           closed_at?: string | null
           created_at?: string
           id?: string
@@ -964,6 +972,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          close_reason?: string | null
           closed_at?: string | null
           created_at?: string
           id?: string
@@ -1074,7 +1083,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      dump_affected_policies: { Args: never; Returns: Json }
+      close_session_if_fully_paid: {
+        Args: { p_session_id: string }
+        Returns: boolean
+      }
       get_restaurant_customers: {
         Args: {
           p_custom_segment?: Json

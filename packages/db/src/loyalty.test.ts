@@ -4,6 +4,7 @@ import {
   computeStampDelta,
   computePointsDelta,
   applyBonusStamps,
+  shouldEarnOnSettlement,
   readOrderCustomerTierSnapshot,
   orderHasPriorityService,
   sortOrdersByPriorityThenCreatedAt,
@@ -48,6 +49,25 @@ test('points = floor(total * perLira), guarded', () => {
   assert.equal(computePointsDelta(0, 1), 0)
   assert.equal(computePointsDelta(-50, 1), 0)
   assert.equal(computePointsDelta(NaN, 1), 0)
+})
+
+// ─── Payment-method settlement: comp (İkram) NEVER earns loyalty ──────────────
+
+test('comp settlement earns NO loyalty (İkram must not mint points)', () => {
+  // A fresh comp settlement → no earn → 0 loyalty rows written by markOrderPaidDB.
+  assert.equal(shouldEarnOnSettlement('comp', true), false)
+})
+
+test('cash / pos / iyzico settlements DO earn on a fresh settlement', () => {
+  assert.equal(shouldEarnOnSettlement('cash', true), true)
+  assert.equal(shouldEarnOnSettlement('pos', true), true)
+  assert.equal(shouldEarnOnSettlement('iyzico', true), true)
+})
+
+test('a retry / re-callback (not freshly settled) never re-earns, any method', () => {
+  assert.equal(shouldEarnOnSettlement('cash', false), false)
+  assert.equal(shouldEarnOnSettlement('iyzico', false), false)
+  assert.equal(shouldEarnOnSettlement('comp', false), false)
 })
 
 // ─── 17b: points multiplier + bonus stamps ───────────────────────────────────

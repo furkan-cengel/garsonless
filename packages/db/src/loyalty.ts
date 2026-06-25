@@ -6,6 +6,7 @@ import { createHash, randomInt } from 'node:crypto'
 import { createServiceClient } from './client'
 import { normalizePhone } from './phone'
 import { getSmsProvider } from './sms'
+import type { PaymentMethod } from './enums'
 import {
   snapshotOrderCustomerTier,
   type OrderCustomerTierSnapshot,
@@ -348,6 +349,15 @@ export function computeStampDelta(items: unknown, flaggedItemIds: Set<string>): 
 export function computePointsDelta(total: number, pointsPerLira: number, multiplier = 1): number {
   const v = Math.floor(Number(total) * Number(pointsPerLira) * Number(multiplier))
   return Number.isFinite(v) && v > 0 ? v : 0
+}
+
+/**
+ * Pure: should settling an order with `method` earn loyalty?
+ * COMP (İkram) must NEVER earn — a freebie can't mint points (staff would farm
+ * İkram). Earning also fires only on a FRESH settlement (not a retry / re-callback).
+ */
+export function shouldEarnOnSettlement(method: PaymentMethod, freshlySettled: boolean): boolean {
+  return freshlySettled && method !== 'comp'
 }
 
 /** 17b: effective member discount % — the tier's own perk when set, else the

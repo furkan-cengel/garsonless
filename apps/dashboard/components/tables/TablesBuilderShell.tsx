@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { Tables } from '@garsonless/db'
 import { createTable, getOpenTableSessions, closeTableSession } from '../../lib/actions/tables'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
+import SettlementSheet from './SettlementSheet'
 import { getPendingServiceRequests, resolveServiceRequest } from '../../lib/actions/service-requests'
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import { useShell } from '../../lib/shell-context'
@@ -1657,6 +1658,9 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
 
   // Open adisyon (table session) totals per table
   const [openSessions, setOpenSessions] = useState<Record<string, OpenSessionInfo>>({})
+  // Active close-flow settlement sheet (set when closing an adisyon that still
+  // owes money; null = no sheet open)
+  const [settleSession, setSettleSession] = useState<{ session: OpenSessionInfo; label: string } | null>(null)
 
   const loadSessions = useCallback(async () => {
     const result = await getOpenTableSessions(restaurantId)
@@ -1707,10 +1711,12 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
   }, [restaurantId, loadPendingRequests])
 
   const handleCloseSession = useCallback(async (session: OpenSessionInfo, label: string) => {
-    const warn = session.unpaidTotal > 0
-      ? `Ödenmemiş ₺${session.unpaidTotal.toLocaleString('tr-TR')} var. Yine de kapatılsın mı?`
-      : `${label} adisyonu (₺${session.total.toLocaleString('tr-TR')}) kapatılsın mı?`
-    if (!window.confirm(warn)) return
+    // Unpaid money on the adisyon → the settlement sheet forces a per-order
+    // decision (no silent drop). Fully-paid → close directly (no sheet).
+    if (session.unpaidTotal > 0) {
+      setSettleSession({ session, label })
+      return
+    }
     const result = await closeTableSession(session.sessionId, restaurantId)
     if (!('error' in result)) void loadSessions()
   }, [restaurantId, loadSessions])
@@ -1727,6 +1733,16 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
           <QRProps qr={qr} setQR={setQR} tables={tables} />
         </div>
         <StatusBar />
+        {settleSession && (
+          <SettlementSheet
+            restaurantId={restaurantId}
+            session={settleSession.session}
+            tableLabel={settleSession.label}
+            onClose={() => setSettleSession(null)}
+            onSettled={() => void loadSessions()}
+            onSessionClosed={() => { setSettleSession(null); void loadSessions() }}
+          />
+        )}
       </div>
     </>
   )

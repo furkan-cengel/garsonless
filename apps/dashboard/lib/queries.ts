@@ -200,8 +200,29 @@ function isOrderVolumeRow(row: { status?: string | null }) {
   return row.status !== 'cancelled'
 }
 
-function isCollectedOrder(row: { status?: string | null; paid_at?: string | null }) {
-  return row.paid_at != null && row.status !== 'cancelled'
+// ── Collected revenue (tahsilat) — ONE definition, used by every ciro query ──
+// A COLLECTED order counts toward ciro: paid_at set, not cancelled, and NOT a
+// comp (İkram = ₺0 collected). payment_method NULL = legacy/unknown-but-paid →
+// STILL collected. The rule is IS DISTINCT FROM 'comp' (keep null, drop only
+// comp); a plain `<> 'comp'` would wrongly drop legacy null-method paid orders.
+const COMP_METHOD = 'comp'
+
+function isCollectedOrder(row: { status?: string | null; paid_at?: string | null; payment_method?: string | null }) {
+  return row.paid_at != null && row.status !== 'cancelled' && row.payment_method !== COMP_METHOD
+}
+
+// PostgREST equivalent of isCollectedOrder, appended to an orders query builder.
+// `.or('payment_method.is.null,payment_method.neq.comp')` is IS DISTINCT FROM
+// 'comp'. Generic so each call site keeps its own builder/result typing.
+function collectedOrdersFilter<T extends {
+  not: (col: string, op: string, val: unknown) => T
+  neq: (col: string, val: string) => T
+  or: (filters: string) => T
+}>(query: T): T {
+  return query
+    .not('paid_at', 'is', null)
+    .neq('status', 'cancelled')
+    .or(`payment_method.is.null,payment_method.neq.${COMP_METHOD}`)
 }
 
 function sumTotals(rows: Array<{ total?: number | null }>) {
@@ -277,13 +298,13 @@ export async function getDashboardKPIs(restaurantId: string): Promise<DashboardK
   const [todayRes, yRes] = await Promise.all([
     supabase
       .from('orders')
-      .select('total, status, session_id, paid_at')
+      .select('total, status, session_id, paid_at, payment_method')
       .eq('restaurant_id', restaurantId)
       .gte('created_at', today.toISOString())
       .is('deleted_at', null),
     supabase
       .from('orders')
-      .select('total, status, session_id, paid_at')
+      .select('total, status, session_id, paid_at, payment_method')
       .eq('restaurant_id', restaurantId)
       .gte('created_at', yesterday.toISOString())
       .lt('created_at', today.toISOString())
@@ -316,14 +337,14 @@ export async function getHourlySales(restaurantId: string): Promise<HourlySale[]
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const { data } = await supabase
-    .from('orders')
-    .select('total, created_at')
-    .eq('restaurant_id', restaurantId)
-    .gte('created_at', today.toISOString())
-    .is('deleted_at', null)
-    .not('paid_at', 'is', null)
-    .neq('status', 'cancelled')
+  const { data } = await collectedOrdersFilter(
+    supabase
+      .from('orders')
+      .select('total, created_at')
+      .eq('restaurant_id', restaurantId)
+      .gte('created_at', today.toISOString())
+      .is('deleted_at', null),
+  )
 
   const byHour: Record<number, number> = {}
   for (let h = 0; h < 24; h++) byHour[h] = 0
@@ -380,14 +401,14 @@ export async function getTopItems(restaurantId: string, range = 'day'): Promise<
   const supabase = await createDashboardServerClient()
   const { currentStart } = getRangeWindow(range)
 
-  const { data } = await supabase
-    .from('orders')
-    .select('items')
-    .eq('restaurant_id', restaurantId)
-    .gte('created_at', currentStart.toISOString())
-    .is('deleted_at', null)
-    .not('paid_at', 'is', null)
-    .neq('status', 'cancelled')
+  const { data } = await collectedOrdersFilter(
+    supabase
+      .from('orders')
+      .select('items')
+      .eq('restaurant_id', restaurantId)
+      .gte('created_at', currentStart.toISOString())
+      .is('deleted_at', null),
+  )
 
   const counts = foldOrderItems((data ?? []) as Tables<'orders'>[])
 
@@ -406,14 +427,16 @@ export async function getPaymentBreakdown(restaurantId: string, range = 'week'):
   const { currentStart } = getRangeWindow(range)
   const supabase = createServiceClient()
 
-  const { data } = await supabase
-    .from('orders')
-    .select('id, total')
-    .eq('restaurant_id', restaurantId)
-    .gte('created_at', currentStart.toISOString())
-    .is('deleted_at', null)
-    .not('paid_at', 'is', null)
-    .neq('status', 'cancelled')
+  // P1: comp excluded here too — İkram is not collected tahsilat. (P3 rewrites
+  // this to read the real payment_method + add a separate İkram line.)
+  const { data } = await collectedOrdersFilter(
+    supabase
+      .from('orders')
+      .select('id, total')
+      .eq('restaurant_id', restaurantId)
+      .gte('created_at', currentStart.toISOString())
+      .is('deleted_at', null),
+  )
 
   const orders = ((data ?? []) as Array<{ id: string; total: number | null }>)
   if (orders.length === 0) return []
@@ -450,14 +473,14 @@ export async function getProductReportData(restaurantId: string, range = 'week')
   const supabase = await createDashboardServerClient()
   const { currentStart, previousStart } = getRangeWindow(range)
 
-  const { data } = await supabase
-    .from('orders')
-    .select('items, created_at')
-    .eq('restaurant_id', restaurantId)
-    .gte('created_at', previousStart.toISOString())
-    .is('deleted_at', null)
-    .not('paid_at', 'is', null)
-    .neq('status', 'cancelled')
+  const { data } = await collectedOrdersFilter(
+    supabase
+      .from('orders')
+      .select('items, created_at')
+      .eq('restaurant_id', restaurantId)
+      .gte('created_at', previousStart.toISOString())
+      .is('deleted_at', null),
+  )
 
   const rows = (data ?? []) as Tables<'orders'>[]
   const current = foldOrderItems(rows, currentStart)
@@ -514,14 +537,14 @@ export async function getSalesOverTime(restaurantId: string, range: string): Pro
     prevStart.setDate(prevStart.getDate() - bucketCount)
   }
 
-  const { data } = await supabase
-    .from('orders')
-    .select('total, created_at')
-    .eq('restaurant_id', restaurantId)
-    .gte('created_at', prevStart.toISOString())
-    .is('deleted_at', null)
-    .not('paid_at', 'is', null)
-    .neq('status', 'cancelled')
+  const { data } = await collectedOrdersFilter(
+    supabase
+      .from('orders')
+      .select('total, created_at')
+      .eq('restaurant_id', restaurantId)
+      .gte('created_at', prevStart.toISOString())
+      .is('deleted_at', null),
+  )
 
   const rows = (data ?? []) as Tables<'orders'>[]
 
@@ -616,15 +639,15 @@ export async function getTablesReportData(restaurantId: string): Promise<TableRe
       .eq('restaurant_id', restaurantId)
       .is('deleted_at', null)
       .order('created_at'),
-    supabase
-      .from('orders')
-      .select('table_id, total, status')
-      .eq('restaurant_id', restaurantId)
-      .gte('created_at', since.toISOString())
-      .is('deleted_at', null)
-      .not('table_id', 'is', null)
-      .not('paid_at', 'is', null)
-      .neq('status', 'cancelled'),
+    collectedOrdersFilter(
+      supabase
+        .from('orders')
+        .select('table_id, total, status')
+        .eq('restaurant_id', restaurantId)
+        .gte('created_at', since.toISOString())
+        .is('deleted_at', null)
+        .not('table_id', 'is', null),
+    ),
   ])
 
   const tables = (tablesRes.data ?? []) as Tables<'tables'>[]

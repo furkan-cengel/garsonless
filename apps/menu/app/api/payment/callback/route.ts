@@ -72,8 +72,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       }
       // Mark paid using the token-resolved order + restaurant (trusted), NOT the
       // İyzico-echoed basketId. Scoped to restaurantId (GAP #3 defense-in-depth).
+      // method='iyzico' (online); settled_by stays null (system, not staff).
       if (orderId && restaurantId) {
-        const { error } = await markOrderPaidDB(orderId, restaurantId)
+        const { error } = await markOrderPaidDB(orderId, restaurantId, 'iyzico')
         if (error) {
           console.warn(JSON.stringify({ event: 'payment.callback.mark_paid_failed', orderId, error }))
         }
