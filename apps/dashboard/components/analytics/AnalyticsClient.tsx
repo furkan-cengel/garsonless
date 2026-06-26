@@ -10,6 +10,7 @@ import type {
   HeatmapCell,
   TableReportRow,
   PaymentBreakdown,
+  PaymentReport,
   ProductReportItem,
 } from '../../lib/queries'
 import { fetchAnalyticsData } from '../../lib/actions/analytics'
@@ -46,7 +47,7 @@ interface Props {
   salesOverTime: DailySale[]
   heatmapData: HeatmapCell[]
   tableStats: TableReportRow[]
-  paymentBreakdown: PaymentBreakdown[]
+  paymentBreakdown: PaymentReport
   productReport: ProductReportItem[]
 }
 
@@ -207,7 +208,7 @@ function SalesReport({
   topItems: TopItem[]
   salesOverTime: DailySale[]
   heatmapData: HeatmapCell[]
-  paymentBreakdown: PaymentBreakdown[]
+  paymentBreakdown: PaymentReport
 }) {
   const revDelta = delta(kpis.revenue, kpis.revenueYesterday)
   const ordDelta = delta(kpis.orders, kpis.ordersYesterday)
@@ -240,7 +241,7 @@ function SalesReport({
           <BigHeatmap data={heatmapData} />
         </Card>
         <Card title="Ödeme dağılımı" subtitle="Yöntem başına tahsilat">
-          <PaymentDonut segments={paymentBreakdown} />
+          <PaymentDonut segments={paymentBreakdown.collected} />
         </Card>
       </div>
 
@@ -481,35 +482,51 @@ function TopItemsTable({ items }: { items: TopItem[] }) {
 }
 
 /* ── PAYMENTS REPORT ──────────────────────────────── */
-function PaymentsReport({ paymentBreakdown, range }: { paymentBreakdown: PaymentBreakdown[]; range: string }) {
-  const totalAmount = paymentBreakdown.reduce((sum, seg) => sum + seg.amount, 0)
-  const totalCount = paymentBreakdown.reduce((sum, seg) => sum + seg.count, 0)
+function PaymentsReport({ paymentBreakdown, range }: { paymentBreakdown: PaymentReport; range: string }) {
+  const { collected, comp, collectedTotal, collectedCount } = paymentBreakdown
+  const topMethod = collected[0] ?? null
 
   return (
     <div style={{ maxWidth: 1140 }}>
       <div style={{ marginBottom: 22 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-.02em', margin: 0, color: 'var(--text)' }}>Ödeme Raporu</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 0 }}>{rangeLabel(range)} · paid_at bazlı tahsilat</p>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 0 }}>{rangeLabel(range)} · gerçek ödeme yöntemine göre · paid_at bazlı tahsilat</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
-        <KPISmall label="Toplam tahsilat" value={formatCurrency(totalAmount)} delta="—" />
-        <KPISmall label="Ödeme adedi" value={String(totalCount)} delta="—" />
+        <KPISmall label="Toplam tahsilat" value={formatCurrency(collectedTotal)} delta={`${collectedCount} ödeme`} />
         <KPISmall
           label="Ana yöntem"
-          value={paymentBreakdown[0]?.label ?? '—'}
-          delta={paymentBreakdown[0] ? `%${paymentBreakdown[0].pct.toLocaleString('tr-TR')}` : '—'}
+          value={topMethod?.label ?? '—'}
+          delta={topMethod ? `%${topMethod.pct.toLocaleString('tr-TR')}` : '—'}
         />
+        {/* İkram (comp) — its OWN metric, ₺0 collected, never inside tahsilat. */}
+        <KPISmall label="İkram edilen" value={formatCurrency(comp.amount)} delta={comp.count ? `${comp.count} adet · tahsilat dışı` : 'tahsilat dışı'} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 12 }}>
-        <Card title="Dağılım" subtitle="Tahsilat tutarına göre">
-          <PaymentDonut segments={paymentBreakdown} />
+        <Card title="Dağılım" subtitle="Tahsil edilen tutara göre">
+          <PaymentDonut segments={collected} />
         </Card>
-        <Card title="Yöntem detayı" subtitle="Online token varlığına göre">
-          <PaymentRows rows={paymentBreakdown} />
+        <Card title="Yöntem detayı" subtitle="Nakit · Fiziksel POS · İyzico">
+          <PaymentRows rows={collected} />
+          <CompLine comp={comp} />
         </Card>
       </div>
+    </div>
+  )
+}
+
+/* İkram (comp) line — rendered separately, with the P2 comp badge palette
+   (violet, ₺0-collected). Deliberately OUTSIDE the collected breakdown/percent. */
+function CompLine({ comp }: { comp: { amount: number; count: number } }) {
+  if (comp.count === 0) return null
+  return (
+    <div style={{ padding: '12px 14px', borderTop: '1px solid var(--divider)', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', background: '#f3e8ff', border: '1px dashed #c4b5fd', borderRadius: 6, padding: '2px 8px' }}>İkram</span>
+      <span style={{ flex: 1, fontSize: 12, color: 'var(--text-2)' }}>Tahsilat dışı (₺0 toplanan)</span>
+      <span style={{ ...s.mono, fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{formatCurrency(comp.amount)}</span>
+      <span style={{ ...s.mono, fontSize: 11.5, color: 'var(--text-3)', minWidth: 56, textAlign: 'right' }}>{comp.count} adet</span>
     </div>
   )
 }

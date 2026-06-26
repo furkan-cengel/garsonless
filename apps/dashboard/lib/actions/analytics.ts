@@ -13,13 +13,15 @@ import type {
   HeatmapCell,
   TableReportRow,
   TopItem,
-  PaymentBreakdown,
+  PaymentReport,
   ProductReportItem,
 } from '../queries'
 import { assertAccess } from '../auth/access'
 
 const EMPTY_ANALYTICS: AnalyticsPayload = {
-  salesOverTime: [], heatmapData: [], tableStats: [], topItems: [], paymentBreakdown: [], productReport: [],
+  salesOverTime: [], heatmapData: [], tableStats: [], topItems: [],
+  paymentBreakdown: { collected: [], comp: { amount: 0, count: 0 }, collectedTotal: 0, collectedCount: 0 },
+  productReport: [],
 }
 
 export interface AnalyticsPayload {
@@ -27,7 +29,7 @@ export interface AnalyticsPayload {
   heatmapData: HeatmapCell[]
   tableStats: TableReportRow[]
   topItems: TopItem[]
-  paymentBreakdown: PaymentBreakdown[]
+  paymentBreakdown: PaymentReport
   productReport: ProductReportItem[]
 }
 

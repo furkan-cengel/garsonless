@@ -1157,6 +1157,10 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      sweep_fully_paid_idle_sessions: {
+        Args: { p_idle_minutes?: number }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never

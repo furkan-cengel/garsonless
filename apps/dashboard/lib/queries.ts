@@ -42,7 +42,24 @@ export interface PaymentBreakdown {
   label: string
   amount: number
   count: number
+  /** Share of the COLLECTED (tahsilat) base. İkram/comp is never part of this base. */
   pct: number
+}
+
+export interface PaymentReport {
+  /**
+   * Collected (tahsilat) buckets read from the REAL orders.payment_method:
+   * iyzico / cash / pos / unknown (legacy null-method paid). pct = share of
+   * collectedTotal. Sorted by amount desc.
+   */
+  collected: PaymentBreakdown[]
+  /**
+   * İkram (comp): paid_at set but ₺0 COLLECTED — reported as its own metric and
+   * NEVER folded into the collected base or its percentages.
+   */
+  comp: { amount: number; count: number }
+  collectedTotal: number
+  collectedCount: number
 }
 
 export interface ProductReportItem {
@@ -418,55 +435,69 @@ export async function getTopItems(restaurantId: string, range = 'day'): Promise<
     .slice(0, 5)
 }
 
-export async function getPaymentBreakdown(restaurantId: string, range = 'week'): Promise<PaymentBreakdown[]> {
-  // Owner OR a member with 'analytics' (reads payment-token aggregates via the
-  // service role — so this app-layer gate, not RLS, is the protection).
+// P3 collected-bucket labels. 'unknown' = legacy paid orders with a null method
+// (collected money, channel unknown) — kept in the tahsilat base, NOT a comp.
+const COLLECTED_METHOD_LABELS: Record<string, string> = {
+  iyzico: 'İyzico',
+  cash: 'Nakit',
+  pos: 'Fiziksel POS',
+  unknown: 'Bilinmiyor (eski)',
+}
+
+export async function getPaymentBreakdown(restaurantId: string, range = 'week'): Promise<PaymentReport> {
+  const empty: PaymentReport = { collected: [], comp: { amount: 0, count: 0 }, collectedTotal: 0, collectedCount: 0 }
+
+  // Owner OR a member with 'analytics' (reads order aggregates via the service
+  // role — so this app-layer gate, not RLS, is the protection).
   const gate = await assertAccess(restaurantId, 'analytics')
-  if ('error' in gate) return []
+  if ('error' in gate) return empty
 
   const { currentStart } = getRangeWindow(range)
   const supabase = createServiceClient()
 
-  // P1: comp excluded here too — İkram is not collected tahsilat. (P3 rewrites
-  // this to read the real payment_method + add a separate İkram line.)
-  const { data } = await collectedOrdersFilter(
-    supabase
-      .from('orders')
-      .select('id, total')
-      .eq('restaurant_id', restaurantId)
-      .gte('created_at', currentStart.toISOString())
-      .is('deleted_at', null),
-  )
+  // P3: read the REAL per-order payment_method — no more İyzico-vs-Manuel
+  // inference from order_payment_tokens presence. Paid + non-cancelled in range;
+  // comp (İkram) is split out and never enters the collected (tahsilat) base.
+  const { data } = await supabase
+    .from('orders')
+    .select('total, payment_method')
+    .eq('restaurant_id', restaurantId)
+    .not('paid_at', 'is', null)
+    .neq('status', 'cancelled')
+    .gte('created_at', currentStart.toISOString())
+    .is('deleted_at', null)
 
-  const orders = ((data ?? []) as Array<{ id: string; total: number | null }>)
-  if (orders.length === 0) return []
+  const rows = (data ?? []) as Array<{ total: number | null; payment_method: string | null }>
 
-  const ids = orders.map((o) => o.id)
-  const { data: tokenRows } = await supabase
-    .from('order_payment_tokens')
-    .select('order_id')
-    .in('order_id', ids)
+  const collectedGroups: Record<string, { key: string; label: string; amount: number; count: number }> = {
+    iyzico: { key: 'iyzico', label: COLLECTED_METHOD_LABELS['iyzico']!, amount: 0, count: 0 },
+    cash: { key: 'cash', label: COLLECTED_METHOD_LABELS['cash']!, amount: 0, count: 0 },
+    pos: { key: 'pos', label: COLLECTED_METHOD_LABELS['pos']!, amount: 0, count: 0 },
+    unknown: { key: 'unknown', label: COLLECTED_METHOD_LABELS['unknown']!, amount: 0, count: 0 },
+  }
+  const comp = { amount: 0, count: 0 }
 
-  const onlineOrderIds = new Set(((tokenRows ?? []) as Array<{ order_id: string }>).map((r) => r.order_id))
-  const groups: Record<string, { key: string; label: string; amount: number; count: number }> = {
-    iyzico: { key: 'iyzico', label: 'İyzico online', amount: 0, count: 0 },
-    manual: { key: 'manual', label: 'Manuel tahsilat', amount: 0, count: 0 },
+  for (const row of rows) {
+    const amount = row.total ?? 0
+    const method = row.payment_method
+    if (method === COMP_METHOD) {
+      comp.amount += amount
+      comp.count += 1
+      continue
+    }
+    const key = method === 'iyzico' || method === 'cash' || method === 'pos' ? method : 'unknown'
+    collectedGroups[key]!.amount += amount
+    collectedGroups[key]!.count += 1
   }
 
-  for (const order of orders) {
-    const key = onlineOrderIds.has(order.id) ? 'iyzico' : 'manual'
-    groups[key]!.amount += order.total ?? 0
-    groups[key]!.count += 1
-  }
-
-  const total = Object.values(groups).reduce((sum, group) => sum + group.amount, 0)
-  return Object.values(groups)
-    .filter((group) => group.count > 0)
-    .map((group) => ({
-      ...group,
-      pct: total > 0 ? Math.round((group.amount / total) * 1000) / 10 : 0,
-    }))
+  const collectedTotal = Object.values(collectedGroups).reduce((sum, g) => sum + g.amount, 0)
+  const collectedCount = Object.values(collectedGroups).reduce((sum, g) => sum + g.count, 0)
+  const collected = Object.values(collectedGroups)
+    .filter((g) => g.count > 0)
+    .map((g) => ({ ...g, pct: collectedTotal > 0 ? Math.round((g.amount / collectedTotal) * 1000) / 10 : 0 }))
     .sort((a, b) => b.amount - a.amount)
+
+  return { collected, comp, collectedTotal, collectedCount }
 }
 
 export async function getProductReportData(restaurantId: string, range = 'week'): Promise<ProductReportItem[]> {
