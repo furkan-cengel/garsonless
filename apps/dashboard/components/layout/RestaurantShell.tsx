@@ -84,24 +84,18 @@ export default function RestaurantShell({
       // orders from previous days must not inflate the badge.
       const todayStart = new Date()
       todayStart.setHours(0, 0, 0, 0)
-      const { count } = await supabase
+      const { data } = await supabase
         .from('orders')
-        .select('id', { count: 'exact', head: true })
+        .select('status')
         .eq('restaurant_id', restaurantId)
         .in('status', ACTIVE_ORDER_STATUSES)
         .gte('created_at', todayStart.toISOString())
         .is('deleted_at', null)
-      if (!cancelled) setOrdersBadge(count ?? 0)
-
-      // Notification unread share: only brand-new orders awaiting action.
-      const { count: newCount } = await supabase
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('restaurant_id', restaurantId)
-        .in('status', ['pending', 'pending_approval'])
-        .gte('created_at', todayStart.toISOString())
-        .is('deleted_at', null)
-      if (!cancelled) setNewOrderCount(newCount ?? 0)
+      const rows = (data ?? []) as Array<{ status: string }>
+      if (!cancelled) {
+        setOrdersBadge(rows.length)
+        setNewOrderCount(rows.filter((row) => row.status === 'pending' || row.status === 'pending_approval').length)
+      }
     }
 
     void refreshCount()

@@ -74,9 +74,6 @@ importers:
       '@types/papaparse':
         specifier: ^5.5.2
         version: 5.5.2
-      framer-motion:
-        specifier: ^12.4.7
-        version: 12.38.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       iyzipay:
         specifier: 2.0.67
         version: 2.0.67

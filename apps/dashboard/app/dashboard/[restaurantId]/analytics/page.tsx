@@ -5,9 +5,7 @@ import {
   getTopItems,
   getSalesOverTime,
   getHeatmapData,
-  getTablesReportData,
   getPaymentBreakdown,
-  getProductReportData,
 } from '../../../../lib/queries'
 import AnalyticsClient from '../../../../components/analytics/AnalyticsClient'
 import { requireSection } from '../../../../lib/auth/access'
@@ -19,15 +17,13 @@ interface Props {
 export default async function AnalyticsPage({ params }: Props) {
   const { restaurantId } = await params
   await requireSection(restaurantId, 'analytics')
-  const [restaurant, kpis, topItems, salesOverTime, heatmapData, tableStats, paymentBreakdown, productReport] = await Promise.all([
+  const [restaurant, kpis, topItems, salesOverTime, heatmapData, paymentBreakdown] = await Promise.all([
     getRestaurantById(restaurantId),
     getDashboardKPIs(restaurantId),
     getTopItems(restaurantId, 'week'),
     getSalesOverTime(restaurantId, 'week'),
     getHeatmapData(restaurantId),
-    getTablesReportData(restaurantId),
     getPaymentBreakdown(restaurantId, 'week'),
-    getProductReportData(restaurantId, 'week'),
   ])
   if (!restaurant) notFound()
 
@@ -39,9 +35,9 @@ export default async function AnalyticsPage({ params }: Props) {
       topItems={topItems}
       salesOverTime={salesOverTime}
       heatmapData={heatmapData}
-      tableStats={tableStats}
+      tableStats={[]}
       paymentBreakdown={paymentBreakdown}
-      productReport={productReport}
+      productReport={[]}
     />
   )
 }

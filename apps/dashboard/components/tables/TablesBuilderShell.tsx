@@ -11,7 +11,6 @@ import { createDashboardBrowserClient } from '../../lib/supabase'
 import { useShell } from '../../lib/shell-context'
 import { InlineSpinner } from '@garsonless/ui'
 import { AppIconNodes, AppIcons } from '@garsonless/ui/icons'
-import QRCodeStyling from 'qr-code-styling'
 
 /* ─── Types ─────────────────────────────────────────────────── */
 interface TableItem {
@@ -58,6 +57,15 @@ interface Props {
   restaurantName: string
   restaurantSlug: string
   initialTables: Tables<'tables'>[]
+}
+
+type QRCodeStylingCtor = typeof import('qr-code-styling').default
+
+let qrCodeStylingCtorPromise: Promise<QRCodeStylingCtor> | null = null
+
+function loadQRCodeStyling(): Promise<QRCodeStylingCtor> {
+  qrCodeStylingCtorPromise ??= import('qr-code-styling').then(mod => mod.default)
+  return qrCodeStylingCtorPromise
 }
 
 /* ─── Helpers ───────────────────────────────────────────────── */
@@ -949,7 +957,10 @@ function GridCard({ qr, table }: { qr: QRConfig; table: TableItem }) {
   const hostRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!hostRef.current) return
-    const run = () => {
+    let cancelled = false
+    const run = async () => {
+      const QRCodeStyling = await loadQRCodeStyling()
+      if (cancelled || !hostRef.current) return
       const inst = new QRCodeStyling({
         width: 180, height: 180, type: 'svg', margin: qr.margin / 2,
         data: buildUrl(qr, table),
@@ -966,7 +977,8 @@ function GridCard({ qr, table }: { qr: QRConfig; table: TableItem }) {
         inst.append(hostRef.current)
       }
     }
-    run()
+    void run()
+    return () => { cancelled = true }
   }, [qr, table])
   return (
     <div style={{
@@ -994,7 +1006,10 @@ function QRCanvas({ qr, table, tables, qrInstanceRef }: {
 
   useEffect(() => {
     if (!hostRef.current) return
-    const run = () => {
+    let cancelled = false
+    const run = async () => {
+      const QRCodeStyling = await loadQRCodeStyling()
+      if (cancelled || !hostRef.current) return
       const url = buildUrl(qr, table)
       const cfg = {
         width: PREVIEW_SIZE, height: PREVIEW_SIZE,
@@ -1020,10 +1035,12 @@ function QRCanvas({ qr, table, tables, qrInstanceRef }: {
         ;(qrInstanceRef as React.MutableRefObject<{ append: (el: HTMLElement) => void }>).current.append(hostRef.current)
       }
     }
-    run()
+    void run()
+    return () => { cancelled = true }
   }, [qr, qrInstanceRef, table, view])
 
-  const download = useCallback((ext: string) => {
+  const download = useCallback(async (ext: string) => {
+    const QRCodeStyling = await loadQRCodeStyling()
     const exportInst = new QRCodeStyling({
       width: qr.size, height: qr.size, type: ext === 'svg' ? 'svg' : 'canvas',
       data: buildUrl(qr, table), margin: qr.margin,

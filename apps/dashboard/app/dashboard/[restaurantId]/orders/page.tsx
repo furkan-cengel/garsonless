@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createDashboardServerClient } from '../../../../lib/supabase-server'
 import { getRestaurantById, getTablesForRestaurant } from '../../../../lib/queries'
 import OrderBoard from '../../../../components/orders/OrderBoard'
+import type { Order } from '../../../../components/orders/useOrdersRealtime'
 import { readNotificationPrefs } from '../../../../lib/notification-prefs'
 import { requireSection } from '../../../../lib/auth/access'
 import type { Tables } from '@garsonless/db'
@@ -25,14 +26,14 @@ export default async function OrdersPage({ params }: Props) {
 
   const { data } = await supabase
     .from('orders')
-    .select('*')
+    .select('id, restaurant_id, table_id, status, items, total, customer_tier, paid_at, payment_method, created_at')
     .eq('restaurant_id', restaurantId)
     .gte('created_at', today.toISOString())
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(300)
 
-  const initialOrders = (data ?? []) as Tables<'orders'>[]
+  const initialOrders = (data ?? []) as Order[]
   // GAP #1: kitchen token now lives in kitchen_credentials (owner-scoped, no anon).
   const { data: kc } = await supabase
     .from('kitchen_credentials')

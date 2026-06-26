@@ -104,6 +104,28 @@ export interface TableReportRow {
   orders: number
 }
 
+export interface PanoSnapshot {
+  kpis: DashboardKPIs
+  hourlySales: HourlySale[]
+  initialFeed: ActivityEvent[]
+  topItems: TopItem[]
+  tableStatuses: TableStatusData[]
+  heatmap: HeatmapCell[]
+  paymentStatus: PaymentStatus | null
+}
+
+export interface ThemeEditorCategory {
+  id: string
+  name: string
+  parent_id: string | null
+}
+
+export interface ThemeEditorItem {
+  id: string
+  name: string
+  category_id: string
+}
+
 export const getRestaurantsForUser = cache(async function getRestaurantsForUser(): Promise<Tables<'restaurants'>[]> {
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -188,6 +210,36 @@ export const getItemsForRestaurant = cache(async function getItemsForRestaurant(
     .is('deleted_at', null)
     .order('position')
   return data ?? []
+})
+
+export const getThemeEditorMenuRefs = cache(async function getThemeEditorMenuRefs(restaurantId: string) {
+  const supabase = await createDashboardServerClient()
+  const { data: categories } = await supabase
+    .from('menu_categories')
+    .select('id, name, parent_id')
+    .eq('restaurant_id', restaurantId)
+    .is('deleted_at', null)
+    .order('position')
+
+  const categoryIds = ((categories ?? []) as ThemeEditorCategory[]).map((category) => category.id)
+  if (categoryIds.length === 0) {
+    return {
+      categories: [] as ThemeEditorCategory[],
+      items: [] as ThemeEditorItem[],
+    }
+  }
+
+  const { data: items } = await supabase
+    .from('menu_items')
+    .select('id, name, category_id')
+    .in('category_id', categoryIds)
+    .is('deleted_at', null)
+    .order('position')
+
+  return {
+    categories: (categories ?? []) as ThemeEditorCategory[],
+    items: (items ?? []) as ThemeEditorItem[],
+  }
 })
 
 export const getTablesForRestaurant = cache(async function getTablesForRestaurant(restaurantId: string) {
@@ -303,6 +355,21 @@ function foldOrderItems(
   }
 
   return counts
+}
+
+function emptyKpis(): DashboardKPIs {
+  return {
+    revenue: 0,
+    revenueYesterday: 0,
+    orders: 0,
+    ordersYesterday: 0,
+    paidOrders: 0,
+    paidOrdersYesterday: 0,
+    activeOrders: 0,
+    avgBasket: 0,
+    sessions: 0,
+    sessionsYesterday: 0,
+  }
 }
 
 export async function getDashboardKPIs(restaurantId: string): Promise<DashboardKPIs> {
@@ -849,4 +916,251 @@ export async function getPaymentStatus(restaurantId: string): Promise<PaymentSta
     .maybeSingle()
   if (!data) return { configured: false, mode: null }
   return { configured: true, mode: (data as { mode: string | null }).mode ?? null }
+}
+
+export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): Promise<PanoSnapshot> {
+  const supabase = await createDashboardServerClient()
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const heatmapStart = new Date(today)
+  heatmapStart.setDate(heatmapStart.getDate() - 30)
+
+  const [
+    ordersRes,
+    topItemsRes,
+    tablesRes,
+    sessionsRes,
+    paymentRes,
+  ] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('id, total, status, session_id, paid_at, payment_method, table_id, created_at')
+      .eq('restaurant_id', restaurantId)
+      .gte('created_at', heatmapStart.toISOString())
+      .is('deleted_at', null),
+    collectedOrdersFilter(
+      supabase
+        .from('orders')
+        .select('items')
+        .eq('restaurant_id', restaurantId)
+        .gte('created_at', today.toISOString())
+        .is('deleted_at', null),
+    ),
+    supabase
+      .from('tables')
+      .select('id, label, deleted_at')
+      .eq('restaurant_id', restaurantId)
+      .order('created_at'),
+    supabase
+      .from('table_sessions')
+      .select('id, table_id, opened_at')
+      .eq('restaurant_id', restaurantId)
+      .is('closed_at', null),
+    isOwner
+      ? supabase
+          .from('payment_credentials')
+          .select('mode')
+          .eq('restaurant_id', restaurantId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
+
+  const orders = (ordersRes.data ?? []) as Array<{
+    id: string
+    total: number | null
+    status: string
+    session_id: string | null
+    paid_at: string | null
+    payment_method: string | null
+    table_id: string | null
+    created_at: string
+  }>
+  const todayRows = orders.filter((row) => new Date(row.created_at) >= today)
+  const yesterdayRows = orders.filter((row) => {
+    const created = new Date(row.created_at)
+    return created >= yesterday && created < today
+  })
+  const todayVolumeRows = todayRows.filter(isOrderVolumeRow)
+  const yesterdayVolumeRows = yesterdayRows.filter(isOrderVolumeRow)
+  const todayCollectedRows = todayRows.filter(isCollectedOrder)
+  const yesterdayCollectedRows = yesterdayRows.filter(isCollectedOrder)
+
+  const revenue = sumTotals(todayCollectedRows)
+  const paidOrders = todayCollectedRows.length
+  const kpis: DashboardKPIs = {
+    ...emptyKpis(),
+    revenue,
+    revenueYesterday: sumTotals(yesterdayCollectedRows),
+    orders: todayVolumeRows.length,
+    ordersYesterday: yesterdayVolumeRows.length,
+    paidOrders,
+    paidOrdersYesterday: yesterdayCollectedRows.length,
+    activeOrders: todayVolumeRows.filter((row) => ACTIVE_STATUSES.includes(row.status)).length,
+    avgBasket: paidOrders > 0 ? Math.round(revenue / paidOrders) : 0,
+    sessions: new Set(todayVolumeRows.map((row) => row.session_id).filter(Boolean)).size,
+    sessionsYesterday: new Set(yesterdayVolumeRows.map((row) => row.session_id).filter(Boolean)).size,
+  }
+
+  const byHour: Record<number, number> = {}
+  for (let h = 0; h < 24; h++) byHour[h] = 0
+  for (const row of todayCollectedRows) {
+    const h = new Date(row.created_at).getHours()
+    byHour[h] = (byHour[h] ?? 0) + (row.total ?? 0)
+  }
+  const hourlySales: HourlySale[] = Array.from({ length: 24 }, (_, hour) => ({ hour, total: byHour[hour] ?? 0 }))
+
+  const allTables = (tablesRes.data ?? []) as Array<{ id: string; label: string; deleted_at: string | null }>
+  const labelByTable = new Map(allTables.map((table) => [table.id, table.label]))
+  const initialFeed: ActivityEvent[] = todayVolumeRows
+    .slice()
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 7)
+    .map((row) => ({
+      id: row.id,
+      status: row.status,
+      total: row.total ?? 0,
+      tableId: row.table_id,
+      tableLabel: row.table_id ? labelByTable.get(row.table_id) ?? null : null,
+      createdAt: row.created_at,
+    }))
+
+  const topItems = Array.from(foldOrderItems((topItemsRes.data ?? []) as Array<{ items?: unknown }>).entries())
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+
+  const heatGrid: Record<string, number> = {}
+  for (const row of orders.filter(isOrderVolumeRow)) {
+    const d = new Date(row.created_at)
+    const jsDay = d.getDay()
+    const day = jsDay === 0 ? 6 : jsDay - 1
+    const hour = d.getHours()
+    const k = `${day}-${hour}`
+    heatGrid[k] = (heatGrid[k] ?? 0) + 1
+  }
+  const heatmap: HeatmapCell[] = []
+  for (let day = 0; day < 7; day++) {
+    for (let hour = 8; hour <= 22; hour++) {
+      heatmap.push({ day, hour, count: heatGrid[`${day}-${hour}`] ?? 0 })
+    }
+  }
+
+  const sessions = (sessionsRes.data ?? []) as Array<{ id: string; table_id: string; opened_at: string }>
+  const sessionIds = sessions.map((session) => session.id)
+  let sessionOrders: Array<{
+    table_session_id: string | null
+    status: string
+    total: number | null
+    paid_at: string | null
+    created_at: string
+  }> = []
+
+  if (sessionIds.length > 0) {
+    const { data } = await supabase
+      .from('orders')
+      .select('table_session_id, status, total, paid_at, created_at')
+      .in('table_session_id', sessionIds)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+    sessionOrders = (data ?? []) as typeof sessionOrders
+  }
+
+  const ordersBySession = new Map<string, typeof sessionOrders>()
+  for (const order of sessionOrders) {
+    if (!order.table_session_id) continue
+    const list = ordersBySession.get(order.table_session_id) ?? []
+    list.push(order)
+    ordersBySession.set(order.table_session_id, list)
+  }
+
+  const sessionByTable = new Map(sessions.map((session) => [session.table_id, session]))
+  const tableStatuses: TableStatusData[] = allTables
+    .filter((table) => table.deleted_at === null)
+    .map((table) => {
+      const session = sessionByTable.get(table.id)
+      if (!session) {
+        return {
+          id: table.id,
+          label: table.label,
+          status: 'empty' as const,
+          time: 0,
+          total: 0,
+          sessionId: null,
+          openedAt: null,
+          unpaidTotal: 0,
+          orderCount: 0,
+          hasUnfinished: false,
+        }
+      }
+
+      const activeOrders = (ordersBySession.get(session.id) ?? []).filter((order) => order.status !== 'cancelled')
+      if (activeOrders.length === 0) {
+        return {
+          id: table.id,
+          label: table.label,
+          status: 'empty' as const,
+          time: 0,
+          total: 0,
+          sessionId: session.id,
+          openedAt: session.opened_at,
+          unpaidTotal: 0,
+          orderCount: 0,
+          hasUnfinished: false,
+        }
+      }
+
+      const total = activeOrders.reduce((sum, order) => sum + (order.total ?? 0), 0)
+      const unpaidTotal = activeOrders
+        .filter((order) => order.paid_at === null)
+        .reduce((sum, order) => sum + (order.total ?? 0), 0)
+      const unfinished = activeOrders.filter((order) => order.status !== 'served')
+      const hasUnfinished = unfinished.length > 0
+      const lastOrderAt = activeOrders
+        .map((order) => new Date(order.created_at).getTime())
+        .reduce((max, ts) => Math.max(max, ts), 0)
+      const oldestUnfinishedAt = unfinished
+        .map((order) => new Date(order.created_at).getTime())
+        .reduce((min, ts) => Math.min(min, ts), Number.POSITIVE_INFINITY)
+      const lastMins = lastOrderAt > 0 ? Math.max(0, Math.round((Date.now() - lastOrderAt) / 60000)) : 0
+      const oldestUnfinishedMins = Number.isFinite(oldestUnfinishedAt)
+        ? Math.max(0, Math.round((Date.now() - oldestUnfinishedAt) / 60000))
+        : 0
+
+      let status: TableStatusData['status'] = 'active'
+      let time = lastMins
+      if (hasUnfinished && oldestUnfinishedMins > 20) {
+        status = 'late'
+        time = oldestUnfinishedMins
+      } else if (hasUnfinished && lastMins < 5) {
+        status = 'new'
+      } else if (!hasUnfinished && unpaidTotal <= 0) {
+        status = 'paid'
+        time = 0
+      }
+
+      return {
+        id: table.id,
+        label: table.label,
+        status,
+        time,
+        total: unpaidTotal > 0 ? unpaidTotal : total,
+        sessionId: session.id,
+        openedAt: session.opened_at,
+        unpaidTotal,
+        orderCount: activeOrders.length,
+        hasUnfinished,
+      }
+    })
+
+  const paymentData = paymentRes.data as { mode?: string | null } | null
+  const paymentStatus = isOwner
+    ? paymentData
+      ? { configured: true, mode: paymentData.mode ?? null }
+      : { configured: false, mode: null }
+    : null
+
+  return { kpis, hourlySales, initialFeed, topItems, tableStatuses, heatmap, paymentStatus }
 }

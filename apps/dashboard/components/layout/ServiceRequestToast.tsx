@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { I } from '../../lib/ui'
 
 interface Props {
@@ -17,15 +16,19 @@ export default function ServiceRequestToast({ tableLabel, onDismiss }: Props) {
   }, [tableLabel, onDismiss])
 
   return (
-    <AnimatePresence>
-      {tableLabel && (
-        <motion.div
-          initial={{ opacity: 0, y: -56, x: '-50%' }}
-          animate={{ opacity: 1, y: 0, x: '-50%' }}
-          exit={{ opacity: 0, y: -56, x: '-50%' }}
-          transition={{ type: 'spring', stiffness: 340, damping: 26 }}
+    <>
+      <style jsx>{`
+        @keyframes service-toast-in {
+          from { opacity: 0; transform: translate(-50%, -56px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
+        }
+      `}</style>
+      {tableLabel ? (
+        <div
           style={{
             position: 'fixed', top: 16, left: '50%',
+            transform: 'translateX(-50%)',
+            animation: 'service-toast-in 220ms cubic-bezier(.2,.9,.2,1) both',
             zIndex: 200, width: 320,
             background: 'var(--night, #1a1612)', color: '#fff',
             borderRadius: 14,
@@ -63,8 +66,8 @@ export default function ServiceRequestToast({ tableLabel, onDismiss }: Props) {
           >
             ×
           </button>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        </div>
+      ) : null}
+    </>
   )
 }

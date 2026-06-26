@@ -13,7 +13,7 @@ import type {
   PaymentReport,
   ProductReportItem,
 } from '../../lib/queries'
-import { fetchAnalyticsData } from '../../lib/actions/analytics'
+import { fetchAnalyticsReportData, type AnalyticsReportId } from '../../lib/actions/analytics'
 import { formatCurrency } from '../../lib/utils'
 
 const s = {
@@ -25,7 +25,7 @@ const REPORTS = [
   { id: 'items', label: 'Ürünler', icon: <I.cutlery size={15} />, desc: 'Ürün performansı' },
   { id: 'tables', label: 'Masalar', icon: <I.chair size={15} />, desc: 'Doluluk & tahsilat' },
   { id: 'payments', label: 'Ödemeler', icon: <I.card size={15} />, desc: 'Yöntem dağılımı' },
-] satisfies Array<{ id: string; label: string; icon: ReactNode; desc: string }>
+] satisfies Array<{ id: AnalyticsReportId; label: string; icon: ReactNode; desc: string }>
 
 const RANGES = [
   { id: 'day', label: 'Bugün' },
@@ -62,7 +62,7 @@ export default function AnalyticsClient({
   paymentBreakdown,
   productReport,
 }: Props) {
-  const [activeReport, setActiveReport] = useState('sales')
+  const [activeReport, setActiveReport] = useState<AnalyticsReportId>('sales')
   const [range, setRange] = useState('week')
   const [analyticsData, setAnalyticsData] = useState({
     salesOverTime,
@@ -72,15 +72,47 @@ export default function AnalyticsClient({
     paymentBreakdown,
     productReport,
   })
+  const [loadedReports, setLoadedReports] = useState<Record<AnalyticsReportId, boolean>>({
+    sales: true,
+    items: productReport.length > 0,
+    tables: tableStats.length > 0,
+    payments: true,
+  })
   const [isPending, startTransition] = useTransition()
+
+  function markReportLoaded(report: AnalyticsReportId) {
+    setLoadedReports((prev) => ({
+      ...prev,
+      [report]: true,
+      ...(report === 'sales' ? { payments: true } : null),
+    }))
+  }
+
+  function loadReport(report: AnalyticsReportId, nextRange = range) {
+    startTransition(async () => {
+      const data = await fetchAnalyticsReportData(restaurantId, nextRange, report)
+      setAnalyticsData((prev) => ({ ...prev, ...data }))
+      markReportLoaded(report)
+    })
+  }
+
+  function handleReportChange(report: AnalyticsReportId) {
+    setActiveReport(report)
+    if (!loadedReports[report]) loadReport(report)
+  }
 
   function handleRangeChange(newRange: string) {
     setRange(newRange)
-    startTransition(async () => {
-      const data = await fetchAnalyticsData(restaurantId, newRange)
-      setAnalyticsData(data)
+    setLoadedReports({
+      sales: false,
+      items: false,
+      tables: false,
+      payments: false,
     })
+    loadReport(activeReport, newRange)
   }
+
+  const activeReportLoaded = loadedReports[activeReport]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -111,7 +143,7 @@ export default function AnalyticsClient({
           {REPORTS.map((r) => (
             <button
               key={r.id}
-              onClick={() => setActiveReport(r.id)}
+              onClick={() => handleReportChange(r.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 width: '100%', padding: '8px 10px', marginBottom: 1, borderRadius: 7,
@@ -154,7 +186,8 @@ export default function AnalyticsClient({
           <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 20px', color: 'var(--text)' }}>
             {REPORTS.find((r) => r.id === activeReport)?.label ?? 'Raporlar'}
           </h2>
-          {activeReport === 'sales' && (
+          {!activeReportLoaded && isPending && <ReportLoading />}
+          {activeReport === 'sales' && activeReportLoaded && (
             <SalesReport
               kpis={kpis}
               topItems={analyticsData.topItems}
@@ -163,12 +196,27 @@ export default function AnalyticsClient({
               paymentBreakdown={analyticsData.paymentBreakdown}
             />
           )}
-          {activeReport === 'items' && <ItemsReport items={analyticsData.productReport} range={range} />}
-          {activeReport === 'tables' && <TablesReport tables={analyticsData.tableStats} />}
-          {activeReport === 'payments' && <PaymentsReport paymentBreakdown={analyticsData.paymentBreakdown} range={range} />}
+          {activeReport === 'items' && activeReportLoaded && <ItemsReport items={analyticsData.productReport} range={range} />}
+          {activeReport === 'tables' && activeReportLoaded && <TablesReport tables={analyticsData.tableStats} />}
+          {activeReport === 'payments' && activeReportLoaded && <PaymentsReport paymentBreakdown={analyticsData.paymentBreakdown} range={range} />}
         </div>
       </div>
       </div>
+    </div>
+  )
+}
+
+function ReportLoading() {
+  return (
+    <div style={{
+      minHeight: 320,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: 'var(--text-3)',
+      fontSize: 13,
+    }}>
+      Rapor yükleniyor…
     </div>
   )
 }

@@ -91,6 +91,20 @@ The design engine is the core differentiator. Every UI decision routes through i
 
 **P3 verify (Test Cafe B real data; maf-lounge read-only; snapshot→restore; 25/25):** breakdown reads real method — cash ₺150/2, pos ₺80/1, iyzico ₺120/1, legacy-null ₺40/1 → collectedTotal ₺390 (5 orders, unpaid ₺999 excluded), comp ₺70/1 SEPARATE + never in the % base; İkram metric sums comp for the range. Sweep: a fully-paid idle session AND a ~15625-min forgotten paid session → REAPED (closed + `close_reason='auto'` + visit credited); an unpaid idle session → LEFT OPEN (order still unpaid); a recently-active paid session → not swept; re-run idempotent (no double-credit). SAFETY: the global sweep was pre-flighted read-only (candidate set ⊆ throwaway sessions) before the real call → zero maf/other-tenant collateral. typecheck 8/8, lint 0/0, db unit 59/59.
 
+### Dashboard performance pass — first-load + SSR payload reduction ✅ (2026-06-26)
+
+**Goal:** speed up the dashboard panel without product behavior changes. Dirty tree treated as the performance change set after P3; no destructive or production-facing DB commands were rerun.
+
+**SSR/query reductions:** Pano now uses `getPanoSnapshot(restaurantId,isOwner)` to collapse dashboard home data into targeted lightweight queries (30-day order rows, today item fold, tables, open sessions, owner-only payment mode) instead of many broad queries. Orders page selects only board fields (`id, restaurant_id, table_id, status, items, total, customer_tier, paid_at, payment_method, created_at`). Analytics initial SSR loads sales + payments only; product/table reports are fetched lazily per active tab through `fetchAnalyticsReportData(report)`. Theme editor SSR uses `getThemeEditorMenuRefs` (`id/name/parent_id/category_id` only) instead of full category/item rows.
+
+**Client bundle splits:** CSV import (`papaparse`) loads only when a CSV file is selected. QR rendering/export (`qr-code-styling`) loads only when QR canvas/grid/download needs it. Menu category DnD moved to `MenuCategoryDndList` and lazy-loads `@dnd-kit`; the sidebar keeps a static fallback so categories render immediately. Theme editor route imports `ThemeEditorClientLoader`, dynamically loading the heavy editor while keeping the route shell tiny. The initial `ssr:false` loader variant caused an internal-server-error risk in dev; removed it while preserving the chunk split. Dashboard `framer-motion` usage was removed from order/service toasts and replaced with CSS animations; dashboard dependency entry was removed (other apps/packages still use it).
+
+**Realtime/layout cleanup:** `RestaurantShell` now derives order/new badges from one `select('status')` query over active statuses instead of two separate count queries.
+
+**Measured production build impact:** `/dashboard/[restaurantId]/theme/[templateId]/edit` `27.3 kB / 230 kB` → `4.42 kB / 108 kB`; `/menu` baseline `20.6 kB / 242 kB` → `13.8 kB / 219 kB`; `/tables` baseline `30.7 kB / 233 kB` → `16.9 kB / 219 kB`; `/orders` first load baseline `242 kB` → `204 kB`. Dashboard shared first-load JS remains ~103 kB.
+
+**Verification:** `corepack pnpm --filter @garsonless/dashboard typecheck`, `lint`, and `build` all pass after the final loader fix. Restarted local dashboard dev server on `localhost:3000`; `/dashboard` returns 307 to `/auth/login`, `/auth/login` returns 200.
+
 ### Sprint 23 — Settings stubs → real surfaces 🚧
 
 **23b — Security section real (login/activity log + password change) ✅ (2026-06-22). Migration: `20260622000000_security_events.sql` (db push, `types:gen`, local/remote match through `20260622000000`).**

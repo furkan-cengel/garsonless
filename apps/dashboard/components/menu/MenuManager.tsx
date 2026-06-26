@@ -1,19 +1,6 @@
 'use client'
 
-import { useState, useTransition, useCallback, useEffect, useRef } from 'react'
-import {
-  DndContext,
-  DragOverlay,
-  type DragEndEvent,
-  type DragStartEvent,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  useSortable,
-  arrayMove,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { Suspense, lazy, useState, useTransition, useCallback, useEffect, useRef } from 'react'
 import type { Tables } from '@garsonless/db'
 import PageTopBar from '../layout/PageTopBar'
 import CategoryForm from './CategoryForm'
@@ -23,7 +10,8 @@ import { useRouter } from 'next/navigation'
 import { InlineSpinner, BrewBar } from '@garsonless/ui'
 import { deleteItem, deleteCategory, updateItem, reorderCategories, createCategory, createItem } from '../../lib/actions/menu'
 import { createDashboardBrowserClient } from '../../lib/supabase'
-import Papa from 'papaparse'
+
+const MenuCategoryDndList = lazy(() => import('./MenuCategoryDndList'))
 
 /* ============================================================
    TINT PALETTE — deterministic from id
@@ -461,7 +449,6 @@ function CategoryNav({
   const [adding, setAdding] = useState(false)
   const [addingSubCatFor, setAddingSubCatFor] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [dragActiveId, setDragActiveId] = useState<string | null>(null)
 
   const allTopLevel = categories.filter(c => !c.parent_id)
   const topLevel = visibleCategoryIds
@@ -471,27 +458,23 @@ function CategoryNav({
       )
     : allTopLevel
 
-  function handleDragStart(event: DragStartEvent) {
-    setDragActiveId(String(event.active.id))
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event
-    setDragActiveId(null)
-    if (!over || active.id === over.id) return
-    const oldIndex = topLevel.findIndex(c => c.id === active.id)
-    const newIndex = topLevel.findIndex(c => c.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-    const reorderedTop = arrayMove(topLevel, oldIndex, newIndex)
-    const subCats = categories.filter(c => c.parent_id)
-    onCategoriesReordered([...reorderedTop, ...subCats])
-  }
-
-  const dragActiveCat = dragActiveId ? topLevel.find(c => c.id === dragActiveId) : null
-
   // Determine the active top-level cat id (for showing sub-cats)
   const activeCat = categories.find(c => c.id === activeId)
   const activeTopId = activeCat?.parent_id ?? activeId
+  const categoryListProps = {
+    topLevel,
+    categories,
+    items,
+    activeId,
+    activeTopId,
+    restaurantId,
+    addingSubCatFor,
+    onAddingSubCategoryChange: setAddingSubCatFor,
+    onSelect,
+    onDeleteRequest: setConfirmDeleteId,
+    onCategoryAdded,
+    onCategoriesReordered,
+  }
 
   return (
     <div style={{
@@ -510,88 +493,9 @@ function CategoryNav({
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '6px 8px' }}>
-        <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <SortableContext items={topLevel.map(c => c.id)} strategy={verticalListSortingStrategy}>
-            {topLevel.map(c => {
-              const directCount = items.filter(i => i.category_id === c.id).length
-              const subCats = categories.filter(sc => sc.parent_id === c.id)
-              const isTopActive = activeTopId === c.id
-
-              return (
-                <div key={c.id}>
-                  <SortableCategoryRow
-                    id={c.id}
-                    name={c.name}
-                    count={directCount + subCats.reduce((acc, sc) => acc + items.filter(i => i.category_id === sc.id).length, 0)}
-                    active={activeId === c.id}
-                    onClick={() => onSelect(c.id)}
-                    onDelete={() => setConfirmDeleteId(c.id)}
-                  />
-
-                  {/* Sub-categories (visible when this top-level cat is active) */}
-                  {isTopActive && (
-                    <div style={{ marginLeft: 12, borderLeft: '2px solid var(--divider)', paddingLeft: 8, marginBottom: 2 }}>
-                      {subCats.map(sc => (
-                        <CategoryRow
-                          key={sc.id}
-                          id={sc.id}
-                          name={sc.name}
-                          count={items.filter(i => i.category_id === sc.id).length}
-                          active={activeId === sc.id}
-                          onClick={() => onSelect(sc.id)}
-                          onDelete={() => setConfirmDeleteId(sc.id)}
-                        />
-                      ))}
-
-                      {addingSubCatFor === c.id ? (
-                        <div style={{ marginTop: 4, marginBottom: 4 }}>
-                          <CategoryForm
-                            restaurantId={restaurantId}
-                            parentId={c.id}
-                            onCreated={(cat) => {
-                              onCategoryAdded(cat)
-                              setAddingSubCatFor(null)
-                            }}
-                            onCancel={() => setAddingSubCatFor(null)}
-                          />
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setAddingSubCatFor(c.id)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 6,
-                            width: '100%', padding: '5px 8px', marginTop: 2,
-                            border: '1px dashed var(--border)', background: 'transparent',
-                            color: 'var(--text-3)', borderRadius: 6, cursor: 'pointer',
-                            fontSize: 11.5, fontWeight: 500,
-                          }}
-                        >
-                          <I.plus size={11} />Alt kategori ekle
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </SortableContext>
-          <DragOverlay>
-            {dragActiveCat ? (
-              <div style={{
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: 7, padding: '8px 8px', opacity: 0.9,
-                boxShadow: 'var(--shadow-pop)',
-                display: 'flex', alignItems: 'center', gap: 10,
-              }}>
-                <span style={{ width: 20, color: 'var(--text-2)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <I.cutlery size={15} />
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{dragActiveCat.name}</span>
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+        <Suspense fallback={<StaticCategoryList {...categoryListProps} />}>
+          <MenuCategoryDndList {...categoryListProps} />
+        </Suspense>
 
         {adding ? (
           <div style={{ marginTop: 8 }}>
@@ -661,6 +565,99 @@ function CategoryNav({
   )
 }
 
+function StaticCategoryList({
+  topLevel,
+  categories,
+  items,
+  activeId,
+  activeTopId,
+  restaurantId,
+  addingSubCatFor,
+  onAddingSubCategoryChange,
+  onSelect,
+  onDeleteRequest,
+  onCategoryAdded,
+}: {
+  topLevel: Tables<'menu_categories'>[]
+  categories: Tables<'menu_categories'>[]
+  items: Tables<'menu_items'>[]
+  activeId: string | null
+  activeTopId: string | null
+  restaurantId: string
+  addingSubCatFor: string | null
+  onAddingSubCategoryChange: (id: string | null) => void
+  onSelect: (id: string) => void
+  onDeleteRequest: (id: string) => void
+  onCategoryAdded: (cat: Tables<'menu_categories'>) => void
+}) {
+  return (
+    <>
+      {topLevel.map(c => {
+        const directCount = items.filter(i => i.category_id === c.id).length
+        const subCats = categories.filter(sc => sc.parent_id === c.id)
+        const isTopActive = activeTopId === c.id
+
+        return (
+          <div key={c.id}>
+            <CategoryRow
+              id={c.id}
+              name={c.name}
+              count={directCount + subCats.reduce((acc, sc) => acc + items.filter(i => i.category_id === sc.id).length, 0)}
+              active={activeId === c.id}
+              onClick={() => onSelect(c.id)}
+              onDelete={() => onDeleteRequest(c.id)}
+            />
+
+            {isTopActive && (
+              <div style={{ marginLeft: 12, borderLeft: '2px solid var(--divider)', paddingLeft: 8, marginBottom: 2 }}>
+                {subCats.map(sc => (
+                  <CategoryRow
+                    key={sc.id}
+                    id={sc.id}
+                    name={sc.name}
+                    count={items.filter(i => i.category_id === sc.id).length}
+                    active={activeId === sc.id}
+                    onClick={() => onSelect(sc.id)}
+                    onDelete={() => onDeleteRequest(sc.id)}
+                  />
+                ))}
+
+                {addingSubCatFor === c.id ? (
+                  <div style={{ marginTop: 4, marginBottom: 4 }}>
+                    <CategoryForm
+                      restaurantId={restaurantId}
+                      parentId={c.id}
+                      onCreated={(cat) => {
+                        onCategoryAdded(cat)
+                        onAddingSubCategoryChange(null)
+                      }}
+                      onCancel={() => onAddingSubCategoryChange(null)}
+                    />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onAddingSubCategoryChange(c.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      width: '100%', padding: '5px 8px', marginTop: 2,
+                      border: '1px dashed var(--border)', background: 'transparent',
+                      color: 'var(--text-3)', borderRadius: 6, cursor: 'pointer',
+                      fontSize: 11.5, fontWeight: 500,
+                    }}
+                  >
+                    <I.plus size={11} />Alt kategori ekle
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
 function CategoryRow({ id: _id, name, count, active, onClick, onDelete, dragHandle }: {
   id: string; name: string; count: number; active: boolean
   onClick: () => void; onDelete: () => void
@@ -701,44 +698,6 @@ function CategoryRow({ id: _id, name, count, active, onClick, onDelete, dragHand
         ) : dragHandle ?? null}
       </span>
     </button>
-  )
-}
-
-function SortableCategoryRow(props: {
-  id: string; name: string; count: number; active: boolean
-  onClick: () => void; onDelete: () => void
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.id })
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.35 : 1,
-        position: 'relative',
-      }}
-    >
-      <CategoryRow
-        {...props}
-        dragHandle={
-          <span
-            {...attributes}
-            {...listeners}
-            style={{
-              cursor: 'grab',
-              color: 'var(--text-4)',
-              display: 'inline-flex',
-              padding: 2,
-              touchAction: 'none',
-            }}
-            aria-label="Sırala"
-          >
-            <I.drag size={13} />
-          </span>
-        }
-      />
-    </div>
   )
 }
 
@@ -1633,10 +1592,11 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
+    const Papa = (await import('papaparse')).default
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,

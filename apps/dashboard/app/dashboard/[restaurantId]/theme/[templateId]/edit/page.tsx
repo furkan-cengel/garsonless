@@ -2,8 +2,8 @@ import { notFound } from 'next/navigation'
 import { DEFAULT_THEME } from '@garsonless/design-engine'
 import { TEMPLATES } from '@garsonless/design-engine'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
-import { getCategoriesForRestaurant, getItemsForRestaurant, getRestaurantById, getThemeConfigForRestaurant } from '../../../../../../lib/queries'
-import ThemeEditorClient from '../../../../../../components/theme/ThemeEditorClient'
+import { getRestaurantById, getThemeConfigForRestaurant, getThemeEditorMenuRefs } from '../../../../../../lib/queries'
+import ThemeEditorClientLoader from '../../../../../../components/theme/ThemeEditorClientLoader'
 import { requireSection } from '../../../../../../lib/auth/access'
 
 interface Props {
@@ -14,11 +14,10 @@ export default async function ThemeEditPage({ params }: Props) {
   const { restaurantId, templateId } = await params
   await requireSection(restaurantId, 'theme')
 
-  const [restaurant, themeConfig, categories, items] = await Promise.all([
+  const [restaurant, themeConfig, menuRefs] = await Promise.all([
     getRestaurantById(restaurantId),
     getThemeConfigForRestaurant(restaurantId),
-    getCategoriesForRestaurant(restaurantId),
-    getItemsForRestaurant(restaurantId),
+    getThemeEditorMenuRefs(restaurantId),
   ])
   if (!restaurant) notFound()
 
@@ -37,11 +36,11 @@ export default async function ThemeEditPage({ params }: Props) {
     raw != null && typeof raw === 'object' && 'bg' in (raw as object)
       ? { ...templateDefaults, ...(raw as Partial<GarsonlessTheme>) }
       : templateDefaults
-  const menuCategories = categories as Array<{ id: string; name: string; parent_id?: string | null }>
-  const menuItems = items as Array<{ id: string; name: string; category_id: string }>
+  const menuCategories = menuRefs.categories
+  const menuItems = menuRefs.items
 
   return (
-    <ThemeEditorClient
+    <ThemeEditorClientLoader
       restaurantId={restaurantId}
       restaurantSlug={restaurant.slug}
       restaurantName={restaurant.name}
