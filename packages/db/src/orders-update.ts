@@ -1,5 +1,5 @@
 import { createServiceClient } from './client'
-import { earnForOrder, refundCancelledLoyaltyOrder, creditVisitsForSession, shouldEarnOnSettlement } from './loyalty'
+import { earnForOrder, refundCancelledLoyaltyOrder, shouldEarnOnSettlement } from './loyalty'
 import type { OrderStatus, PaymentMethod } from './enums'
 
 // @supabase/supabase-js v2 resolves .update()/.select() as never[] when consumed
@@ -15,15 +15,16 @@ type ScopedUpdateBuilder = {
 }
 
 // markOrderPaidDB settle path: scoped update guarded by `paid_at IS NULL` (only
-// the FIRST settlement wins — a retry/re-callback never overwrites the method),
-// returning the order's session id to drive the auto-close.
+// the FIRST settlement wins — a retry/re-callback never overwrites the method).
+// Payment stamps the bill ONLY; it does NOT close the table (a paid table is
+// freed solely by an explicit staff close — see dashboard closeTableSession).
 type SettleUpdateBuilder = {
   update: (row: Record<string, unknown>) => {
     eq: (col: string, val: string) => {
       eq: (col: string, val: string) => {
         is: (col: string, val: null) => {
           select: (cols: string) => Promise<{
-            data: Array<{ id: string; table_session_id: string | null }> | null
+            data: Array<{ id: string }> | null
             error: { message: string } | null
           }>
         }
@@ -32,11 +33,13 @@ type SettleUpdateBuilder = {
   }
 }
 
-type SessionLookupBuilder = {
+// Existence/scope check for the 0-rows settle branch (already-paid retry vs a
+// genuinely missing/foreign order).
+type OrderScopeLookupBuilder = {
   select: (cols: string) => {
     eq: (col: string, val: string) => {
       eq: (col: string, val: string) => {
-        maybeSingle: () => Promise<{ data: { table_session_id: string | null } | null }>
+        maybeSingle: () => Promise<{ data: { id: string } | null }>
       }
     }
   }
@@ -85,8 +88,15 @@ export async function updateOrderStatusDB(
  * Settle an order: payment is a column, not a kitchen stage — never touches
  * status. Scoped to the expected restaurant (GAP #3 defense-in-depth) and
  * guarded by `paid_at IS NULL` so only the first settlement wins (a retry or
- * re-callback can never overwrite the recorded method). After settling, the
- * session auto-closes iff every non-cancelled order in it is now paid.
+ * re-callback can never overwrite the recorded method).
+ *
+ * Payment SETTLES THE BILL ONLY — it does NOT free the table. A fully-paid
+ * session stays open (closed_at null) and renders as "Ödendi"; the table is
+ * freed solely by an explicit staff close (dashboard closeTableSession), which
+ * credits the visit. Decoupled 2026-06-27: app/İyzico payment must never empty a
+ * table the customer is still sitting at (they can keep ordering on the same
+ * session). The pg_cron safety-net sweep is the backstop for forgotten paid
+ * tables; visit crediting therefore happens at free-time, not pay-time.
  *
  * @param method how the money came in. 'comp' (İkram) is settled at ₺0 collected
  *   and NEVER earns loyalty (a freebie must not mint points).
@@ -110,49 +120,29 @@ export async function markOrderPaidDB(
     .eq('id', orderId)
     .eq('restaurant_id', restaurantId)
     .is('paid_at', null)
-    .select('id, table_session_id')
+    .select('id')
   if (error) return { error: error.message }
 
   // 0 rows: the order is either already settled (retry/re-callback) OR not in
-  // this restaurant. Resolve the session id scoped so the auto-close still runs;
-  // a genuinely missing/foreign order rejects.
-  let tableSessionId: string | null
+  // this restaurant. Confirm it exists here so a genuinely missing/foreign order
+  // still rejects (the `paid_at IS NULL` no-op for a retry returns 0 rows too).
   let freshlySettled = false
   if (data && data.length > 0) {
     freshlySettled = true
-    tableSessionId = data[0]?.table_session_id ?? null
   } else {
-    const lookup = supabase.from('orders') as unknown as SessionLookupBuilder
+    const lookup = supabase.from('orders') as unknown as OrderScopeLookupBuilder
     const { data: existing } = await lookup
-      .select('table_session_id')
+      .select('id')
       .eq('id', orderId)
       .eq('restaurant_id', restaurantId)
       .maybeSingle()
     if (!existing) return { error: 'Order not found for this restaurant' }
-    tableSessionId = existing.table_session_id ?? null
   }
 
   // Loyalty earning on the 'paid' trigger (best-effort; never throws). Only on a
   // FRESH settlement, and NEVER for comp — İkram must not farm loyalty points.
   if (shouldEarnOnSettlement(method, freshlySettled)) {
     await earnForOrder(orderId, 'paid')
-  }
-
-  // Auto-close: if every non-cancelled order in the session is now paid, close
-  // it (race-safe RPC: exactly one concurrent caller wins) and credit visits —
-  // the same side effect as a manual close. Best-effort: a close failure must
-  // never fail the payment write.
-  if (tableSessionId) {
-    try {
-      const { data: closed } = await supabase.rpc('close_session_if_fully_paid', {
-        p_session_id: tableSessionId,
-      })
-      if (closed === true) {
-        await creditVisitsForSession(tableSessionId)
-      }
-    } catch (err) {
-      console.error(`[markOrderPaidDB] auto-close order=${orderId}:`, err)
-    }
   }
 
   return { error: null }

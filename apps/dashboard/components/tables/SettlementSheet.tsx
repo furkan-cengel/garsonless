@@ -73,14 +73,22 @@ export default function SettlementSheet({
   const remaining = unpaid.reduce((sum, o) => sum + o.total, 0)
   const busy = busyId !== null || bulkBusy || closing
 
-  // After a settle: refresh parent, re-read the sheet. If nothing remains unpaid
-  // the session auto-closed server-side (P1) → close the sheet.
+  // After a settle: refresh parent, re-read the sheet. Payment no longer
+  // auto-closes the table (2026-06-27 decouple) — so once every order is settled,
+  // the sheet (opened from the staff "Kapat" intent) FREES the table explicitly
+  // via closeTableSession (fully-paid → normal close + credits the visit once).
+  // İyzico/customer payment never reaches here, so a paid table the customer is
+  // still at stays open and shows "Ödendi".
   const afterSettle = useCallback(async () => {
     onSettled()
     const res = await getSessionSettlement(session.sessionId, restaurantId)
     if ('error' in res) { setErr(res.error); return }
     setOrders(res.orders)
-    if (res.orders.every((o) => o.paidAt !== null)) onSessionClosed()
+    if (res.orders.every((o) => o.paidAt !== null)) {
+      const closeRes = await closeTableSession(session.sessionId, restaurantId)
+      if ('error' in closeRes) { setErr(closeRes.error); return }
+      onSessionClosed()
+    }
   }, [session.sessionId, restaurantId, onSettled, onSessionClosed])
 
   const settleOne = useCallback(async (orderId: string, method: Method) => {

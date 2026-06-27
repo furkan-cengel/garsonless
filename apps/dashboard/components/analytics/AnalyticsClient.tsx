@@ -290,6 +290,17 @@ function SalesReport({
         </Card>
         <Card title="Ödeme dağılımı" subtitle="Yöntem başına tahsilat">
           <PaymentDonut segments={paymentBreakdown.collected} />
+          {/* İkram (comp) surfaced here for visibility — EXCLUDED from the
+              collected donut/ciro, shown alongside as context. Full detail lives
+              in the Ödemeler report. */}
+          {paymentBreakdown.comp.count > 0 && (
+            <div style={{ padding: '0 16px 14px', marginTop: -2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: '#7c3aed', background: '#f3e8ff', border: '1px dashed #c4b5fd', borderRadius: 6, padding: '2px 7px' }}>İkram</span>
+              <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+                İkram edilen {formatCurrency(paymentBreakdown.comp.amount)} · tahsilat dışı
+              </span>
+            </div>
+          )}
         </Card>
       </div>
 
