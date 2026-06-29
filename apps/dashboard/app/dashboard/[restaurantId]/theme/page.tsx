@@ -1,6 +1,6 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { TEMPLATES } from '@garsonless/design-engine'
 import { getRestaurantById } from '../../../../lib/queries'
-import ThemeLibraryClient from '../../../../components/theme/ThemeLibraryClient'
 import { requireSection } from '../../../../lib/auth/access'
 
 interface Props {
@@ -14,14 +14,10 @@ export default async function ThemePage({ params }: Props) {
   if (!restaurant) notFound()
 
   const settings = restaurant.settings as Record<string, unknown> | null
-  const activeTemplateId = typeof settings?.['active_template_id'] === 'string'
+  const configuredTemplateId = typeof settings?.['active_template_id'] === 'string'
     ? settings['active_template_id']
     : 'default'
+  const activeTemplateId = TEMPLATES[configuredTemplateId] ? configuredTemplateId : 'default'
 
-  return (
-    <ThemeLibraryClient
-      restaurantId={restaurantId}
-      activeTemplateId={activeTemplateId}
-    />
-  )
+  redirect(`/dashboard/${restaurantId}/theme/${activeTemplateId}/edit`)
 }

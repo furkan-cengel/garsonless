@@ -834,11 +834,6 @@ export default function ThemeEditorClient({
     }
   }
 
-  function openTemplatePicker() {
-    lastFocusedBeforeDialogRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    setTemplatePickerOpen(true)
-  }
-
   function closeTemplatePicker() {
     setTemplatePickerOpen(false)
     requestAnimationFrame(() => {
@@ -1398,28 +1393,6 @@ export default function ThemeEditorClient({
               <HistoryIcon />
             </IconButton>
           </div>
-          <button
-            ref={templateTriggerRef}
-            type="button"
-            onClick={openTemplatePicker}
-            style={{
-              height: 34,
-              padding: '0 14px',
-              borderRadius: 8,
-              border: '1px solid var(--accent)',
-              background: 'var(--surface)',
-              color: 'var(--text)',
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 7,
-            }}
-          >
-            <GridIcon />
-            {showFullTopbarCopy && 'Şablonlar'}
-          </button>
           <button type="button" onClick={handleOpenPreview} style={topbarButtonStyle}>
             <EyeIcon />
             {showFullTopbarCopy && 'Önizle'}
@@ -4112,7 +4085,6 @@ const zoomButtonStyle: React.CSSProperties = {
 function PhoneIcon() { return <I.phone size={17} /> }
 function DesktopIcon() { return <I.monitor size={17} /> }
 function EyeIcon() { return <I.eye size={17} /> }
-function GridIcon() { return <I.grid size={17} /> }
 function SearchIcon() { return <I.search size={17} /> }
 function PageIcon() { return <I.page size={17} /> }
 function HeaderIcon() { return <I.header size={17} /> }
