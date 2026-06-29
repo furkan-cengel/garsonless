@@ -1,13 +1,21 @@
 'use client'
 
-import { Fragment, useState, useEffect, useRef, useTransition, type ReactNode } from 'react'
+import { Fragment, useCallback, useState, useEffect, useRef, useTransition, type ReactNode } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import PageTopBar from '../layout/PageTopBar'
 import { I, S, Tag, EmptyState, btnPrimary } from '../../lib/ui'
 import NewOrderModal from '../overlays/NewOrderModal'
-import FloorPlan from '../overlays/FloorPlan'
+import TableStatusExperience from './TableStatusExperience'
 import { createDashboardBrowserClient } from '../../lib/supabase'
-import { fetchPanoChart, type PanoChartData, type PanoChartPoint, type PanoChartRange } from '../../lib/actions/pano'
+import { updateOrderStatus } from '../../lib/actions/orders'
+import {
+  fetchPanoChart,
+  fetchPanoTableStatuses,
+  type PanoChartData,
+  type PanoChartPoint,
+  type PanoChartRange,
+} from '../../lib/actions/pano'
 import type {
   DashboardKPIs,
   HourlySale,
@@ -19,6 +27,8 @@ import type {
 } from '../../lib/queries'
 
 type RealtimeStatus = 'connecting' | 'connected' | 'down'
+
+const FloorPlan = dynamic(() => import('../overlays/FloorPlan'))
 
 interface Props {
   restaurantId: string
@@ -61,28 +71,48 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
   const greeting = hour < 12 ? 'Günaydın' : hour < 18 ? 'İyi günler' : 'İyi akşamlar'
 
   const [showNewOrder, setShowNewOrder] = useState(false)
+  const [newOrderTableId, setNewOrderTableId] = useState<string | null>(null)
   const [showFloorPlan, setShowFloorPlan] = useState(false)
   const [feed, setFeed] = useState<ActivityEvent[]>(initialFeed)
   const [realtime, setRealtime] = useState<RealtimeStatus>('connecting')
+  const [liveTableStatuses, setLiveTableStatuses] = useState(tableStatuses)
+
+  const refreshTables = useCallback(async () => {
+    const result = await fetchPanoTableStatuses(restaurantId)
+    if (!('error' in result)) setLiveTableStatuses(result.tables)
+  }, [restaurantId])
+
+  const openNewOrder = useCallback((tableId: string | null = null) => {
+    setNewOrderTableId(tableId)
+    setShowNewOrder(true)
+  }, [])
 
   // Table id → label map (from the SSR table snapshot), kept current so realtime
   // new orders can show the real table label without an extra fetch.
   const labelByTableId = useRef<Map<string, string>>(new Map())
   useEffect(() => {
-    labelByTableId.current = new Map(tableStatuses.map(t => [t.id, t.label]))
-  }, [tableStatuses])
+    labelByTableId.current = new Map(liveTableStatuses.map(t => [t.id, t.label]))
+  }, [liveTableStatuses])
 
   useEffect(() => {
     const supabase = createDashboardBrowserClient()
     const channel = supabase
       .channel(`orders:${restaurantId}`)
       .on('postgres_changes', {
-        event: 'INSERT',
+        event: '*',
         schema: 'public',
         table: 'orders',
         filter: `restaurant_id=eq.${restaurantId}`,
       }, payload => {
+        void refreshTables()
         const row = payload.new as { id: string; status: string; total: number; table_id: string | null; created_at: string }
+        if (payload.eventType === 'UPDATE') {
+          setFeed((previous) => previous.map((event) => (
+            event.id === row.id ? { ...event, status: row.status } : event
+          )))
+          return
+        }
+        if (payload.eventType !== 'INSERT') return
         setFeed(prev => [
           {
             id: row.id, status: row.status, total: row.total, tableId: row.table_id,
@@ -91,6 +121,14 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
           },
           ...prev,
         ].slice(0, 7))
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'table_sessions',
+        filter: `restaurant_id=eq.${restaurantId}`,
+      }, () => {
+        void refreshTables()
       })
       .subscribe(status => {
         // Real liveness signal for the system-health panel — this browser's channel state.
@@ -101,7 +139,7 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
         )
       })
     return () => { void supabase.removeChannel(channel) }
-  }, [restaurantId])
+  }, [restaurantId, refreshTables])
 
   const lastOrderAt = feed[0]?.createdAt ?? null
 
@@ -134,7 +172,7 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
               <I.clock size={12} />
               <span style={S.mono}>Bugün · {new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}</span>
             </span>
-            <button onClick={() => setShowNewOrder(true)} style={btnPrimary()}>
+            <button onClick={() => openNewOrder()} style={btnPrimary()}>
               <I.plus size={13} />Yeni sipariş
             </button>
           </>
@@ -144,11 +182,28 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
       {showNewOrder && (
         <NewOrderModal
           restaurantId={restaurantId}
-          tableStatuses={tableStatuses}
-          onClose={() => setShowNewOrder(false)}
+          tableStatuses={liveTableStatuses}
+          initialTableId={newOrderTableId}
+          onClose={() => {
+            setShowNewOrder(false)
+            setNewOrderTableId(null)
+          }}
+          onCreated={() => void refreshTables()}
         />
       )}
-      {showFloorPlan && <FloorPlan restaurantName={restaurantName} tableStatuses={tableStatuses} onClose={() => setShowFloorPlan(false)} />}
+      {showFloorPlan && (
+        <FloorPlan
+          restaurantId={restaurantId}
+          restaurantName={restaurantName}
+          tableStatuses={liveTableStatuses}
+          onClose={() => setShowFloorPlan(false)}
+          onNewOrder={(tableId) => {
+            setShowFloorPlan(false)
+            openNewOrder(tableId)
+          }}
+          onRefresh={() => void refreshTables()}
+        />
+      )}
 
       <div style={{ flex: 1, overflow: 'auto', minWidth: 0, background: 'var(--bg)' }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '28px 32px 60px' }}>
@@ -231,7 +286,15 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
           {/* Main grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
             <SalesChart restaurantId={restaurantId} initialHourly={hourlySales} />
-            <ActivityFeedWidget feed={feed} />
+            <ActivityFeedWidget
+              feed={feed}
+              restaurantId={restaurantId}
+              onStatusChange={(orderId, status) => {
+                setFeed((previous) => previous.map((event) => (
+                  event.id === orderId ? { ...event, status } : event
+                )))
+              }}
+            />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
@@ -242,7 +305,13 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
 
           {/* Wide row */}
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-            <TableStatusWidget tables={tableStatuses} onFloorPlan={() => setShowFloorPlan(true)} />
+            <TableStatusExperience
+              restaurantId={restaurantId}
+              tables={liveTableStatuses}
+              onFloorPlan={() => setShowFloorPlan(true)}
+              onNewOrder={openNewOrder}
+              onRefresh={() => void refreshTables()}
+            />
             <SystemHealth paymentStatus={paymentStatus} isOwner={isOwner} realtime={realtime} lastOrderAt={lastOrderAt} />
           </div>
         </div>
@@ -449,44 +518,158 @@ const STATUS_ICONS: Record<string, ReactNode> = {
   cancelled: <I.x size={13} />,
 }
 
-function ActivityFeedWidget({ feed }: { feed: ActivityEvent[] }) {
+function ActivityFeedWidget({
+  feed,
+  restaurantId,
+  onStatusChange,
+}: {
+  feed: ActivityEvent[]
+  restaurantId: string
+  onStatusChange: (orderId: string, status: string) => void
+}) {
   return (
     <Card title="Canlı akış" subtitle="Bugünün sipariş aktivitesi · gerçek zamanlı">
+      <style>{`
+        .pano-feed-action {
+          opacity: 0;
+          pointer-events: none;
+          transform: translateX(4px);
+          transition: opacity 120ms ease, transform 120ms ease;
+        }
+        .pano-feed-row:hover .pano-feed-action,
+        .pano-feed-row:focus-within .pano-feed-action {
+          opacity: 1;
+          pointer-events: auto;
+          transform: none;
+        }
+        .pano-feed-time { transition: opacity 120ms ease; }
+        .pano-feed-row:hover .pano-feed-time,
+        .pano-feed-row:focus-within .pano-feed-time { opacity: 0; }
+        .pano-feed-spinner {
+          width: 12px;
+          height: 12px;
+          border: 2px solid color-mix(in srgb, var(--positive) 25%, transparent);
+          border-top-color: var(--positive);
+          border-radius: 999px;
+          animation: pano-feed-spin .7s linear infinite;
+        }
+        @keyframes pano-feed-spin { to { transform: rotate(360deg); } }
+        @media (hover: none) {
+          .pano-feed-action {
+            opacity: 1;
+            pointer-events: auto;
+            transform: none;
+          }
+          .pano-feed-time { opacity: 0; }
+        }
+      `}</style>
       {feed.length === 0
         ? <EmptyState title="Bugün henüz sipariş yok" sub="Yeni siparişler burada anlık görünür" />
         : (
           <div style={{ padding: '0 0 8px', maxHeight: 360, overflow: 'auto' }}>
-            {feed.map((e, i) => {
-              const tone = STATUS_TONES[e.status] ?? STATUS_TONES['pending']!
-              return (
-                <div key={e.id} style={{
-                  padding: '11px 16px', display: 'flex', gap: 10,
-                  borderBottom: i === feed.length - 1 ? 'none' : '1px solid var(--divider)',
-                }}>
-                  <div style={{
-                    width: 26, height: 26, borderRadius: 999,
-                    background: tone.bg, color: tone.fg,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
-                  }}>{STATUS_ICONS[e.status] ?? <I.bell size={13} />}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text)' }}>
-                      {STATUS_LABELS[e.status] ?? e.status}
-                    </div>
-                    <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 1 }}>
-                      {(e.tableLabel ?? (e.tableId ? 'Masa' : 'Paket'))} · ₺{e.total.toLocaleString('tr-TR')}
-                    </div>
-                  </div>
-                  <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)', flexShrink: 0 }}>
-                    {relTime(e.createdAt)}
-                  </span>
-                </div>
-              )
-            })}
+            {feed.map((event, index) => (
+              <ActivityFeedRow
+                key={event.id}
+                event={event}
+                restaurantId={restaurantId}
+                last={index === feed.length - 1}
+                onStatusChange={onStatusChange}
+              />
+            ))}
           </div>
         )
       }
     </Card>
+  )
+}
+
+function ActivityFeedRow({
+  event,
+  restaurantId,
+  last,
+  onStatusChange,
+}: {
+  event: ActivityEvent
+  restaurantId: string
+  last: boolean
+  onStatusChange: (orderId: string, status: string) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const tone = STATUS_TONES[event.status] ?? STATUS_TONES['pending']!
+  const canApprove = event.status === 'pending_approval'
+
+  const approve = async () => {
+    if (busy || !canApprove) return
+    setBusy(true)
+    setError(null)
+    const result = await updateOrderStatus(event.id, 'sent_to_kitchen', restaurantId)
+    setBusy(false)
+    if ('error' in result) {
+      setError(result.error)
+      return
+    }
+    onStatusChange(event.id, 'sent_to_kitchen')
+  }
+
+  return (
+    <div
+      className="pano-feed-row"
+      style={{
+        position: 'relative', padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 10,
+        minHeight: 58, borderBottom: last ? 'none' : '1px solid var(--divider)',
+        background: error ? 'var(--critical-bg)' : 'transparent',
+        transition: 'background 120ms ease',
+      }}
+    >
+      <div style={{
+        width: 26, height: 26, borderRadius: 999,
+        background: tone.bg, color: tone.fg,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+      }}>{STATUS_ICONS[event.status] ?? <I.bell size={13} />}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 500, color: error ? 'var(--critical)' : 'var(--text)' }}>
+          {error ?? STATUS_LABELS[event.status] ?? event.status}
+        </div>
+        <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 1 }}>
+          {(event.tableLabel ?? (event.tableId ? 'Masa' : 'Paket'))} · ₺{event.total.toLocaleString('tr-TR')}
+        </div>
+      </div>
+      {canApprove ? (
+        <div style={{ position: 'relative', width: 90, height: 30, flexShrink: 0 }}>
+          <span className="pano-feed-time" style={{
+            ...S.mono, position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+            fontSize: 10.5, color: 'var(--text-3)',
+          }}>
+            {relTime(event.createdAt)}
+          </span>
+          <button
+            type="button"
+            className="pano-feed-action"
+            disabled={busy}
+            onClick={() => void approve()}
+            aria-label={`${event.tableLabel ?? 'Sipariş'} siparişini onayla`}
+            style={{
+              position: 'absolute', right: 0, top: 0,
+              height: 30, padding: '0 10px',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+              border: '1px solid var(--positive)', borderRadius: 7,
+              background: 'var(--positive-bg)', color: 'var(--positive)',
+              fontSize: 11.5, fontWeight: 700, cursor: busy ? 'wait' : 'pointer',
+            }}
+          >
+            {busy ? <span className="pano-feed-spinner" /> : <I.check size={13} />}
+            {busy ? 'Onaylanıyor' : 'Onayla'}
+          </button>
+        </div>
+      ) : (
+        <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)', flexShrink: 0 }}>
+          {relTime(event.createdAt)}
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -618,70 +801,6 @@ function QuickActions({ restaurantId }: { restaurantId: string }) {
         ))}
       </div>
     </Card>
-  )
-}
-
-/* ── TABLE STATUS ─────────────────────────────────── */
-function TableStatusWidget({ tables, onFloorPlan }: { tables: TableStatusData[]; onFloorPlan: () => void }) {
-  const active = tables.filter(t => t.status === 'active' || t.status === 'new' || t.status === 'late').length
-  const empty = tables.filter(t => t.status === 'empty').length
-  const paid = tables.filter(t => t.status === 'paid').length
-  return (
-    <Card
-      title="Masa durumu"
-      subtitle={`Açık adisyonlar · ${active} aktif, ${paid} ödendi, ${empty} boş`}
-      action={
-        <button
-          onClick={onFloorPlan}
-          style={{ color: 'var(--text-2)', fontSize: 11.5, fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 2 }}
-        >
-          Plan görünümü <I.chevRight size={11} />
-        </button>
-      }
-    >
-      {tables.length === 0
-        ? <EmptyState title="Masa tanımlanmamış" sub="Masalar sekmesinden masa ekleyebilirsin" />
-        : (
-          <div style={{ padding: 14 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 8 }}>
-              {tables.map(t => <TableCell key={t.id} table={t} />)}
-            </div>
-            <div style={{ display: 'flex', gap: 14, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--divider)', fontSize: 11, color: 'var(--text-3)' }}>
-              <LegendDot color="var(--info)" label="Aktif" />
-              <LegendDot color="var(--warning)" label="Yeni" />
-              <LegendDot color="var(--critical)" label="Geciken" />
-              <LegendDot color="var(--positive)" label="Ödendi" />
-              <LegendDot color="var(--surface-3)" label="Boş" />
-            </div>
-          </div>
-        )
-      }
-    </Card>
-  )
-}
-
-function TableCell({ table }: { table: TableStatusData }) {
-  const COLORS: Record<string, { bg: string; fg: string; border: string }> = {
-    empty:  { bg: 'var(--surface-3)',   fg: 'var(--text-3)',   border: 'var(--border)' },
-    paid:   { bg: 'var(--positive-bg)', fg: 'var(--positive)', border: 'var(--positive-bg)' },
-    active: { bg: 'var(--info-bg)',     fg: 'var(--info)',     border: 'var(--info-bg)' },
-    new:    { bg: 'var(--warning-bg)',  fg: 'var(--warning)',  border: 'var(--warning-bg)' },
-    late:   { bg: 'var(--critical-bg)', fg: 'var(--critical)', border: 'var(--critical)' },
-  }
-  const c = COLORS[table.status] ?? COLORS['empty']!
-  const label =
-    table.status === 'empty' ? '—' :
-    table.status === 'paid'  ? `ödendi · ₺${table.total}` :
-    table.unpaidTotal > 0 ? `${table.time}dk · ₺${table.unpaidTotal}` :
-    `${table.time}dk · aktif`
-  return (
-    <div style={{
-      padding: '10px 8px', background: c.bg, borderRadius: 8, textAlign: 'center',
-      border: '1px solid ' + c.border,
-    }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: c.fg }}>{table.label}</div>
-      <div style={{ ...S.mono, fontSize: 10, color: c.fg, opacity: 0.8, marginTop: 2, minHeight: 12 }}>{label}</div>
-    </div>
   )
 }
 

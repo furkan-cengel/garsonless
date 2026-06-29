@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 import type { Tables } from '@garsonless/db'
 import { createTable, getOpenTableSessions, closeTableSession } from '../../lib/actions/tables'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
@@ -11,6 +10,7 @@ import { createDashboardBrowserClient } from '../../lib/supabase'
 import { useShell } from '../../lib/shell-context'
 import { InlineSpinner } from '@garsonless/ui'
 import { AppIconNodes, AppIcons } from '@garsonless/ui/icons'
+import DashboardIconRail from '../layout/IconRail'
 
 /* ─── Types ─────────────────────────────────────────────────── */
 interface TableItem {
@@ -365,63 +365,18 @@ function Tag({ children, tone = 'neutral' }: { children: React.ReactNode; tone?:
 }
 
 /* ─── IconRail ──────────────────────────────────────────────── */
-function IconRail({ restaurantId }: { restaurantId: string }) {
-  const router = useRouter()
-  const [hov, setHov] = useState<string | null>(null)
-  const apps = [
-    { id: 'menu',     icon: I.cutlery,   label: 'Menü',     path: 'menu' },
-    { id: 'tables',   icon: I.chair,     label: 'Masalar',  path: 'tables' },
-    { id: 'theme',    icon: I.palette,   label: 'Tema',     path: 'theme' },
-    { id: 'orders',   icon: I.clipboard, label: 'Siparişler', path: 'orders' },
-    { id: 'settings', icon: I.gear,      label: 'Ayarlar',  path: 'settings' },
-  ]
+function TablesIconRail({ restaurantId }: { restaurantId: string }) {
+  const { navigation } = useShell()
   return (
-    <div className="tb-tables__rail" style={{
-      width: 'var(--rail)', flexShrink: 0,
-      borderRight: '1px solid var(--border)', background: 'var(--surface)',
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      padding: '10px 0', gap: 2,
-    }}>
-      {apps.map(a => {
-        const active = a.id === 'tables'
-        return (
-          <div key={a.id}
-            onMouseEnter={() => setHov(a.id)} onMouseLeave={() => setHov(null)}
-            style={{ position: 'relative', width: 40, display: 'flex', justifyContent: 'center' }}
-            title={a.label}
-          >
-            {active && <div style={{ position: 'absolute', left: -1, top: 6, bottom: 6, width: 2.5, background: 'var(--text)', borderRadius: 2 }} />}
-            <button onClick={() => router.push(`/dashboard/${restaurantId}/${a.path}`)} style={{
-              width: 36, height: 36, border: 'none', cursor: 'pointer',
-              background: active ? 'var(--surface-inset)' : (hov === a.id ? 'var(--surface-3)' : 'transparent'),
-              color: active ? 'var(--text)' : 'var(--text-2)',
-              borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'all 120ms',
-            }}>
-              {React.cloneElement(a.icon as React.ReactElement<{ size?: number }>, { size: 18 })}
-            </button>
-          </div>
-        )
-      })}
-      <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
-        <div title="Yardım" style={{ position: 'relative', width: 40, display: 'flex', justifyContent: 'center' }}>
-          <button style={{
-            width: 36, height: 36, border: 'none', cursor: 'pointer',
-            background: 'transparent', color: 'var(--text-2)',
-            borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {React.cloneElement(I.question as React.ReactElement<{ size?: number }>, { size: 16 })}
-          </button>
-        </div>
-        <div style={{
-          width: 30, height: 30, borderRadius: 999,
-          background: 'linear-gradient(135deg, #ffd089 0%, #ff8b6b 100%)',
-          color: '#5a2a14', fontWeight: 600, fontSize: 11,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          marginTop: 4, cursor: 'pointer',
-        }}>AY</div>
-      </div>
-    </div>
+    <DashboardIconRail
+      className="tb-tables__rail"
+      restaurantId={restaurantId}
+      userInitials={navigation.userInitials}
+      pathname={navigation.pathname}
+      ordersBadge={navigation.ordersBadge}
+      permissions={navigation.permissions}
+      isOwner={navigation.isOwner}
+    />
   )
 }
 
@@ -1744,7 +1699,7 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
       <div className="tb-tables" style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
         <TablesTopBar qr={qr} setQR={setQR} restaurantName={restaurantName} />
         <div className="tb-tables__workspace" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-          <IconRail restaurantId={restaurantId} />
+          <TablesIconRail restaurantId={restaurantId} />
           <TablesNav tables={tables} setTables={setTables} activeId={activeId} setActiveId={setActiveId} restaurantId={restaurantId} openSessions={openSessions} onCloseSession={handleCloseSession} pendingRequests={pendingRequests} onResolveRequest={handleResolveRequest} />
           <QRCanvas qr={qr} table={activeTable} tables={tables} qrInstanceRef={qrInstanceRef} />
           <QRProps qr={qr} setQR={setQR} tables={tables} />

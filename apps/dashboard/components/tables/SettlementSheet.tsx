@@ -44,7 +44,7 @@ function MethodBadge({ order }: { order: SettlementOrder }) {
  * "Ödenmeden kapat (anormal)" records a reason and leaves the money unpaid.
  */
 export default function SettlementSheet({
-  restaurantId, session, tableLabel, onClose, onSettled, onSessionClosed,
+  restaurantId, session, tableLabel, onClose, onSettled, onSessionClosed, zIndex = 60,
 }: {
   restaurantId: string
   session: OpenSessionInfo
@@ -54,6 +54,7 @@ export default function SettlementSheet({
   onSettled: () => void
   /** The adisyon fully settled (auto-closed) or was abnormally closed. */
   onSessionClosed: () => void
+  zIndex?: number
 }) {
   const [orders, setOrders] = useState<SettlementOrder[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -124,7 +125,7 @@ export default function SettlementSheet({
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      style={{ position: 'fixed', inset: 0, zIndex, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       role="dialog"
       aria-modal="true"
     >
