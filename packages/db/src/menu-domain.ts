@@ -41,6 +41,8 @@ export interface MenuIngredient {
   name: string
   removable: boolean
   allergen_codes: AllergenCode[]
+  /** Optional display quantity, e.g. "60g" / "2 dilim". Display-only. */
+  amount?: string
 }
 
 export type ModifierSelectionMode = 'single' | 'multiple' | 'quantity'
@@ -110,6 +112,7 @@ export interface ResolvableMenuItem {
   ingredients: unknown
   energy_kcal: number | null
   may_contain_allergens: unknown
+  contains_allergens: unknown
   contains_alcohol: boolean
   contains_pork: boolean
   modifier_groups: unknown
@@ -137,11 +140,13 @@ export function normalizeIngredients(value: unknown): MenuIngredient[] {
     const row = raw as Record<string, unknown>
     const name = stringValue(row['name'])
     if (!name) return []
+    const amount = stringValue(row['amount'])
     return [{
       id: stringValue(row['id']) || `ingredient-${index}`,
       name,
       removable: row['removable'] === true,
       allergen_codes: normalizeAllergenCodes(row['allergen_codes'] ?? row['allergenCodes']),
+      ...(amount ? { amount } : {}),
     }]
   })
 }
@@ -286,6 +291,9 @@ export function buildOrderLineSnapshot(input: {
     0,
   )
   const allergenSet = new Set<AllergenCode>()
+  // Item-level "contains" (the redesigned editor's flat list) + any per-ingredient
+  // codes (back-compat) + modifier-option codes → the order line's allergen set.
+  for (const code of normalizeAllergenCodes(item.contains_allergens)) allergenSet.add(code)
   for (const ingredient of ingredients) {
     for (const code of ingredient.allergen_codes) allergenSet.add(code)
   }

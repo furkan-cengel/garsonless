@@ -45,6 +45,7 @@ const ingredientSchema = z.object({
   name: z.string().min(1).max(120),
   removable: z.boolean(),
   allergen_codes: z.array(z.enum(ALLERGEN_CODES)),
+  amount: z.string().max(40).optional(),
 })
 
 const itemSchema = z.object({
@@ -53,13 +54,21 @@ const itemSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).nullable().optional(),
   price: z.number().min(0),
+  cost: z.number().min(0).nullable().optional(),
   is_available: z.boolean().default(true),
   earns_stamp: z.boolean().optional(),
   ingredients: z.array(ingredientSchema).optional(),
   energy_kcal: z.number().int().min(0).nullable().optional(),
+  protein_g: z.number().min(0).nullable().optional(),
+  carb_g: z.number().min(0).nullable().optional(),
+  fat_g: z.number().min(0).nullable().optional(),
   may_contain_allergens: z.array(z.enum(ALLERGEN_CODES)).optional(),
+  contains_allergens: z.array(z.enum(ALLERGEN_CODES)).optional(),
   contains_alcohol: z.boolean().optional(),
   contains_pork: z.boolean().optional(),
+  is_vegetarian: z.boolean().optional(),
+  is_vegan: z.boolean().optional(),
+  is_halal: z.boolean().optional(),
   food_info_reviewed: z.boolean().optional(),
   modifier_groups: z.array(modifierGroupSchema).optional(),
 })
@@ -246,18 +255,28 @@ export async function createItem(
   const modifierGroupsRaw = formData.get('modifier_groups')
   const ingredientsRaw = formData.get('ingredients')
   const mayContainRaw = formData.get('may_contain_allergens')
+  const containsRaw = formData.get('contains_allergens')
+  const numOrNull = (k: string) => formData.get(k) ? Number(formData.get(k)) : null
   const parsed = itemSchema.safeParse({
     categoryId: formData.get('categoryId'),
     restaurantId: formData.get('restaurantId'),
     name: formData.get('name'),
     description: formData.get('description') ?? null,
     price: Number(formData.get('price')),
+    cost: numOrNull('cost'),
     is_available: formData.get('is_available') !== 'false',
     ingredients: ingredientsRaw ? JSON.parse(ingredientsRaw as string) : [],
     energy_kcal: formData.get('energy_kcal') ? Number(formData.get('energy_kcal')) : null,
+    protein_g: numOrNull('protein_g'),
+    carb_g: numOrNull('carb_g'),
+    fat_g: numOrNull('fat_g'),
     may_contain_allergens: mayContainRaw ? JSON.parse(mayContainRaw as string) : [],
+    contains_allergens: containsRaw ? JSON.parse(containsRaw as string) : [],
     contains_alcohol: formData.get('contains_alcohol') === 'true',
     contains_pork: formData.get('contains_pork') === 'true',
+    is_vegetarian: formData.get('is_vegetarian') === 'true',
+    is_vegan: formData.get('is_vegan') === 'true',
+    is_halal: formData.get('is_halal') === 'true',
     food_info_reviewed: formData.get('food_info_reviewed') === 'true',
     modifier_groups: modifierGroupsRaw ? JSON.parse(modifierGroupsRaw as string) : [],
   })
@@ -283,12 +302,20 @@ export async function createItem(
       name: parsed.data.name,
       description: parsed.data.description ?? null,
       price: parsed.data.price,
+      cost: parsed.data.cost ?? null,
       is_available: parsed.data.is_available,
       ingredients: (parsed.data.ingredients ?? []) as import('@garsonless/db').Json,
       energy_kcal: parsed.data.energy_kcal ?? null,
+      protein_g: parsed.data.protein_g ?? null,
+      carb_g: parsed.data.carb_g ?? null,
+      fat_g: parsed.data.fat_g ?? null,
       may_contain_allergens: parsed.data.may_contain_allergens ?? [],
+      contains_allergens: parsed.data.contains_allergens ?? [],
       contains_alcohol: parsed.data.contains_alcohol ?? false,
       contains_pork: parsed.data.contains_pork ?? false,
+      is_vegetarian: parsed.data.is_vegetarian ?? false,
+      is_vegan: parsed.data.is_vegan ?? false,
+      is_halal: parsed.data.is_halal ?? false,
       food_info_reviewed_at: parsed.data.food_info_reviewed ? new Date().toISOString() : null,
       food_info_reviewed_by: parsed.data.food_info_reviewed ? user.id : null,
       modifier_groups: (parsed.data.modifier_groups ?? []) as import('@garsonless/db').Json,
@@ -318,6 +345,9 @@ export async function updateItem(
   const imagesRaw = formData.get('images')
   const ingredientsRaw = formData.get('ingredients')
   const mayContainRaw = formData.get('may_contain_allergens')
+  const containsRaw = formData.get('contains_allergens')
+  const numOrUndef = (k: string) => formData.get(k) !== null ? (formData.get(k) ? Number(formData.get(k)) : null) : undefined
+  const boolOrUndef = (k: string) => formData.get(k) !== null ? formData.get(k) === 'true' : undefined
   const parsed = itemUpdateSchema.safeParse({
     id: formData.get('id'),
     restaurantId: formData.get('restaurantId'),
@@ -336,6 +366,14 @@ export async function updateItem(
       ? (formData.get('energy_kcal') ? Number(formData.get('energy_kcal')) : null)
       : undefined,
     may_contain_allergens: mayContainRaw ? JSON.parse(mayContainRaw as string) : undefined,
+    contains_allergens: containsRaw ? JSON.parse(containsRaw as string) : undefined,
+    cost: numOrUndef('cost'),
+    protein_g: numOrUndef('protein_g'),
+    carb_g: numOrUndef('carb_g'),
+    fat_g: numOrUndef('fat_g'),
+    is_vegetarian: boolOrUndef('is_vegetarian'),
+    is_vegan: boolOrUndef('is_vegan'),
+    is_halal: boolOrUndef('is_halal'),
     contains_alcohol: formData.get('contains_alcohol') !== null
       ? formData.get('contains_alcohol') === 'true'
       : undefined,

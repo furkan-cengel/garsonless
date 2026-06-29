@@ -42,6 +42,7 @@ const menuItem = {
   ],
   energy_kcal: 500,
   may_contain_allergens: ['sesame'],
+  contains_allergens: ['eggs'],
   contains_alcohol: false,
   contains_pork: false,
   modifier_groups: groups,
@@ -118,7 +119,7 @@ test('builds authoritative price, calorie, allergen and removal snapshot', () =>
     assert.equal(result.snapshot.modifiersPriceDelta, 20)
     assert.equal(result.snapshot.energyKcal, 580)
     assert.deepEqual(result.snapshot.removedIngredients, [{ id: 'onion', name: 'Soğan' }])
-    assert.deepEqual(result.snapshot.allergens.sort(), ['gluten', 'milk'])
+    assert.deepEqual(result.snapshot.allergens.sort(), ['eggs', 'gluten', 'milk'])
     assert.deepEqual(result.snapshot.mayContainAllergens, ['sesame'])
   }
 })

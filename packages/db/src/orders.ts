@@ -100,7 +100,7 @@ export async function resolveOrderLines(
   }
   const { data, error } = await supabase
     .from('menu_items')
-    .select('id, name, price, is_available, ingredients, energy_kcal, may_contain_allergens, contains_alcohol, contains_pork, modifier_groups')
+    .select('id, name, price, is_available, ingredients, energy_kcal, may_contain_allergens, contains_allergens, contains_alcohol, contains_pork, modifier_groups')
     .in('id', itemIds)
     .in('category_id', categoryIds)
     .is('deleted_at', null)
