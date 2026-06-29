@@ -13,6 +13,13 @@ export interface ShellContextValue {
   getNavigationGuard: () => string | null
   /** Live unread count (pending waiter calls + new orders today); not persisted. */
   notificationCount: number
+  navigation: {
+    pathname: string
+    userInitials: string
+    ordersBadge: number
+    permissions: string[]
+    isOwner: boolean
+  }
 }
 
 export const ShellContext = createContext<ShellContextValue | null>(null)

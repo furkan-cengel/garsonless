@@ -184,6 +184,13 @@ export default function RestaurantShell({
     setNavigationGuard: (message: string | null) => { navigationGuardRef.current = message },
     getNavigationGuard: () => navigationGuardRef.current,
     notificationCount,
+    navigation: {
+      pathname,
+      userInitials,
+      ordersBadge,
+      permissions,
+      isOwner,
+    },
   }
 
   if (isFullScreen) {

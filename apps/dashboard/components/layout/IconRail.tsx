@@ -17,6 +17,22 @@ const RAIL_CSS = `
 }
 .rail-link:hover { background:var(--surface-3); }
 .rail-link--active { background:var(--surface-inset)!important;color:var(--text)!important; }
+.rail-item { position:relative;width:40px;display:flex;justify-content:center; }
+.rail-tooltip {
+  position:absolute;left:46px;top:50%;z-index:120;
+  transform:translate(4px,-50%);opacity:0;visibility:hidden;
+  pointer-events:none;white-space:nowrap;
+  padding:6px 8px;border:1px solid var(--border);
+  border-radius:6px;background:var(--text,#111113);color:var(--on-action,#fff);
+  box-shadow:var(--shadow-pop);font-size:11.5px;font-weight:550;
+  line-height:1;transition:opacity 120ms,transform 120ms,visibility 120ms;
+}
+.rail-item:hover .rail-tooltip,
+.rail-link:focus-visible + .rail-tooltip,
+.rail-btn:focus-visible + .rail-tooltip,
+.rail-item > button:focus-visible + .rail-tooltip {
+  opacity:1;visibility:visible;transform:translate(0,-50%);
+}
 .rail-btn {
   width:36px;height:36px;border:none;cursor:pointer;
   background:transparent;color:var(--text-2);
@@ -53,6 +69,7 @@ interface Props {
   /** Sections the user may access; owner sees all. */
   permissions: string[]
   isOwner: boolean
+  className?: string
 }
 
 // The nav item's section key (the Pano/home item maps to 'pano').
@@ -60,7 +77,15 @@ function navSection(item: NavItem): string {
   return item.segment || 'pano'
 }
 
-export default function IconRail({ restaurantId, userInitials, pathname, ordersBadge = 0, permissions, isOwner }: Props) {
+export default function IconRail({
+  restaurantId,
+  userInitials,
+  pathname,
+  ordersBadge = 0,
+  permissions,
+  isOwner,
+  className,
+}: Props) {
   const { openHelp, openProfile } = useShell()
   const router = useRouter()
   const base = `/dashboard/${restaurantId}`
@@ -91,7 +116,7 @@ export default function IconRail({ restaurantId, userInitials, pathname, ordersB
   return (
     <>
       <style>{RAIL_CSS}</style>
-      <div style={{
+      <div className={className} style={{
         width: 'var(--rail)',
         flexShrink: 0,
         borderRight: '1px solid var(--border)',
@@ -126,27 +151,30 @@ export default function IconRail({ restaurantId, userInitials, pathname, ordersB
             size={16}
             onClick={openHelp}
           />
-          <button
-            onClick={openProfile}
-            aria-label="Profil"
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 999,
-              border: 'none',
-              background: 'linear-gradient(135deg, #ffd089 0%, #ff8b6b 100%)',
-              color: '#5a2a14',
-              fontWeight: 600,
-              fontSize: 11,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginTop: 4,
-              cursor: 'pointer',
-            }}
-          >
-            {userInitials}
-          </button>
+          <div className="rail-item" style={{ marginTop: 4 }}>
+            <button
+              onClick={openProfile}
+              aria-label="Profil"
+              aria-describedby="rail-tooltip-profile"
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 999,
+                border: 'none',
+                background: 'linear-gradient(135deg, #ffd089 0%, #ff8b6b 100%)',
+                color: '#5a2a14',
+                fontWeight: 600,
+                fontSize: 11,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              {userInitials}
+            </button>
+            <span id="rail-tooltip-profile" role="tooltip" className="rail-tooltip">Profil</span>
+          </div>
         </div>
       </div>
     </>
@@ -164,11 +192,11 @@ interface RailLinkProps {
 function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
   const router = useRouter()
   const { getNavigationGuard } = useShell()
+  const tooltipId = `rail-tooltip-${label.toLocaleLowerCase('tr-TR').replaceAll('ı', 'i').replaceAll('ş', 's')}`
   return (
     <div
       onMouseEnter={() => router.prefetch(href)}
-      style={{ position: 'relative', width: 40, display: 'flex', justifyContent: 'center' }}
-      title={label}
+      className="rail-item"
     >
       {active && (
         <div style={{
@@ -184,6 +212,7 @@ function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
       <Link
         href={href}
         aria-label={label}
+        aria-describedby={tooltipId}
         prefetch={true}
         className={`rail-link${active ? ' rail-link--active' : ''}`}
         onClick={(e) => {
@@ -198,6 +227,7 @@ function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
       >
         <ItemIcon size={18} />
       </Link>
+      <span id={tooltipId} role="tooltip" className="rail-tooltip">{label}</span>
       {badge !== undefined && (
         <div style={{
           position: 'absolute',
@@ -231,18 +261,18 @@ interface RailButtonProps {
 }
 
 function RailButton({ ItemIcon, label, size = 18, onClick }: RailButtonProps) {
+  const tooltipId = `rail-tooltip-${label.toLocaleLowerCase('tr-TR').replaceAll('ı', 'i').replaceAll('ş', 's')}`
   return (
-    <div
-      style={{ position: 'relative', width: 40, display: 'flex', justifyContent: 'center' }}
-      title={label}
-    >
+    <div className="rail-item">
       <button
         onClick={onClick}
         aria-label={label}
+        aria-describedby={tooltipId}
         className="rail-btn"
       >
         <ItemIcon size={size} />
       </button>
+      <span id={tooltipId} role="tooltip" className="rail-tooltip">{label}</span>
     </div>
   )
 }
