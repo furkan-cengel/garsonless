@@ -4,7 +4,7 @@ import { Suspense, lazy, useState, useTransition, useCallback, useEffect, useRef
 import type { Tables } from '@garsonless/db'
 import PageTopBar from '../layout/PageTopBar'
 import CategoryForm from './CategoryForm'
-import ItemForm from './ItemForm'
+import NewProductDrawer from './NewProductDrawer'
 import NutritionFields, { nutritionFromItem, appendNutritionToFormData, NutritionStatusPill } from './NutritionFields'
 import type { NutritionState } from './NutritionFields'
 import { I, S, Tag, IconButton, btnPrimary, btnGhost } from '../../lib/ui'
@@ -2435,24 +2435,17 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
       )}
 
       {showAddItem && (activeSubCat ?? activeCategory) && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(17,17,19,.5)', zIndex: 50,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 24, width: 480, boxShadow: 'var(--shadow-pop)', maxHeight: '90vh', overflow: 'auto' }}>
-            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>Yeni ürün ekle</div>
-            <ItemForm
-              restaurantId={restaurantId}
-              categoryId={(activeSubCat ?? activeCategory)!}
-              onCreated={(item) => {
-                setItems(prev => [...prev, item])
-                setShowAddItem(false)
-                setSelectedItem(item)
-              }}
-              onCancel={() => setShowAddItem(false)}
-            />
-          </div>
-        </div>
+        <NewProductDrawer
+          restaurantId={restaurantId}
+          categoryId={(activeSubCat ?? activeCategory)!}
+          categoryName={categories.find((c) => c.id === (activeSubCat ?? activeCategory))?.name ?? 'Kategori'}
+          onCreated={(item) => {
+            setItems(prev => [...prev, item])
+            setShowAddItem(false)
+            setSelectedItem(item)
+          }}
+          onClose={() => setShowAddItem(false)}
+        />
       )}
     </div>
   )
