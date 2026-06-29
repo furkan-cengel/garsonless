@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
 import { assertAccess } from '../auth/access'
+import { ALLERGEN_CODES } from '@garsonless/db/order-client'
 
 const categorySchema = z.object({
   restaurantId: z.string().uuid(),
@@ -24,14 +25,26 @@ const modifierOptionSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1).max(100),
   price_delta: z.number().min(0),
+  calorie_delta: z.number().int(),
+  is_default: z.boolean(),
+  allergen_codes: z.array(z.enum(ALLERGEN_CODES)),
 })
 
 const modifierGroupSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1).max(100),
-  type: z.enum(['required', 'optional']).optional(),
-  required: z.boolean().optional(),
+  selection_mode: z.enum(['single', 'multiple', 'quantity']),
+  required: z.boolean(),
+  min: z.number().int().min(0),
+  max: z.number().int().min(1),
   options: z.array(modifierOptionSchema),
+}).refine((group) => group.max >= group.min, 'Maximum must be greater than minimum')
+
+const ingredientSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).max(120),
+  removable: z.boolean(),
+  allergen_codes: z.array(z.enum(ALLERGEN_CODES)),
 })
 
 const itemSchema = z.object({
@@ -42,6 +55,12 @@ const itemSchema = z.object({
   price: z.number().min(0),
   is_available: z.boolean().default(true),
   earns_stamp: z.boolean().optional(),
+  ingredients: z.array(ingredientSchema).optional(),
+  energy_kcal: z.number().int().min(0).nullable().optional(),
+  may_contain_allergens: z.array(z.enum(ALLERGEN_CODES)).optional(),
+  contains_alcohol: z.boolean().optional(),
+  contains_pork: z.boolean().optional(),
+  food_info_reviewed: z.boolean().optional(),
   modifier_groups: z.array(modifierGroupSchema).optional(),
 })
 
@@ -225,6 +244,8 @@ export async function createItem(
   if (!user) return { error: 'Not authenticated' }
 
   const modifierGroupsRaw = formData.get('modifier_groups')
+  const ingredientsRaw = formData.get('ingredients')
+  const mayContainRaw = formData.get('may_contain_allergens')
   const parsed = itemSchema.safeParse({
     categoryId: formData.get('categoryId'),
     restaurantId: formData.get('restaurantId'),
@@ -232,6 +253,12 @@ export async function createItem(
     description: formData.get('description') ?? null,
     price: Number(formData.get('price')),
     is_available: formData.get('is_available') !== 'false',
+    ingredients: ingredientsRaw ? JSON.parse(ingredientsRaw as string) : [],
+    energy_kcal: formData.get('energy_kcal') ? Number(formData.get('energy_kcal')) : null,
+    may_contain_allergens: mayContainRaw ? JSON.parse(mayContainRaw as string) : [],
+    contains_alcohol: formData.get('contains_alcohol') === 'true',
+    contains_pork: formData.get('contains_pork') === 'true',
+    food_info_reviewed: formData.get('food_info_reviewed') === 'true',
     modifier_groups: modifierGroupsRaw ? JSON.parse(modifierGroupsRaw as string) : [],
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
@@ -257,6 +284,13 @@ export async function createItem(
       description: parsed.data.description ?? null,
       price: parsed.data.price,
       is_available: parsed.data.is_available,
+      ingredients: (parsed.data.ingredients ?? []) as import('@garsonless/db').Json,
+      energy_kcal: parsed.data.energy_kcal ?? null,
+      may_contain_allergens: parsed.data.may_contain_allergens ?? [],
+      contains_alcohol: parsed.data.contains_alcohol ?? false,
+      contains_pork: parsed.data.contains_pork ?? false,
+      food_info_reviewed_at: parsed.data.food_info_reviewed ? new Date().toISOString() : null,
+      food_info_reviewed_by: parsed.data.food_info_reviewed ? user.id : null,
       modifier_groups: (parsed.data.modifier_groups ?? []) as import('@garsonless/db').Json,
       images: [] as import('@garsonless/db').Json,
       position,
@@ -282,6 +316,8 @@ export async function updateItem(
 
   const modifierGroupsRaw = formData.get('modifier_groups')
   const imagesRaw = formData.get('images')
+  const ingredientsRaw = formData.get('ingredients')
+  const mayContainRaw = formData.get('may_contain_allergens')
   const parsed = itemUpdateSchema.safeParse({
     id: formData.get('id'),
     restaurantId: formData.get('restaurantId'),
@@ -295,6 +331,20 @@ export async function updateItem(
     earns_stamp: formData.get('earns_stamp') !== null
       ? formData.get('earns_stamp') === 'true'
       : undefined,
+    ingredients: ingredientsRaw ? JSON.parse(ingredientsRaw as string) : undefined,
+    energy_kcal: formData.get('energy_kcal') !== null
+      ? (formData.get('energy_kcal') ? Number(formData.get('energy_kcal')) : null)
+      : undefined,
+    may_contain_allergens: mayContainRaw ? JSON.parse(mayContainRaw as string) : undefined,
+    contains_alcohol: formData.get('contains_alcohol') !== null
+      ? formData.get('contains_alcohol') === 'true'
+      : undefined,
+    contains_pork: formData.get('contains_pork') !== null
+      ? formData.get('contains_pork') === 'true'
+      : undefined,
+    food_info_reviewed: formData.get('food_info_reviewed') !== null
+      ? formData.get('food_info_reviewed') === 'true'
+      : undefined,
     modifier_groups: modifierGroupsRaw ? JSON.parse(modifierGroupsRaw as string) : undefined,
     images: imagesRaw ? JSON.parse(imagesRaw as string) : undefined,
   })
@@ -303,13 +353,26 @@ export async function updateItem(
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId!, user.id)
   if (!isOwner) return { error: 'Not authorized' }
 
-  const { id, restaurantId: _r, modifier_groups, images, ...rest } = parsed.data
+  const { id, restaurantId: _r, modifier_groups, images, ingredients, food_info_reviewed, ...rest } = parsed.data
   const updates: Record<string, unknown> = { ...rest }
   if (modifier_groups !== undefined) {
     updates['modifier_groups'] = modifier_groups as import('@garsonless/db').Json
   }
   if (images !== undefined) {
     updates['images'] = images as import('@garsonless/db').Json
+  }
+  if (ingredients !== undefined) {
+    updates['ingredients'] = ingredients as import('@garsonless/db').Json
+  }
+  const foodInfoChanged = ingredients !== undefined ||
+    parsed.data.energy_kcal !== undefined ||
+    parsed.data.may_contain_allergens !== undefined ||
+    parsed.data.contains_alcohol !== undefined ||
+    parsed.data.contains_pork !== undefined ||
+    modifier_groups !== undefined
+  if (food_info_reviewed !== undefined || foodInfoChanged) {
+    updates['food_info_reviewed_at'] = food_info_reviewed ? new Date().toISOString() : null
+    updates['food_info_reviewed_by'] = food_info_reviewed ? user.id : null
   }
 
   const { error } = await mut(supabase, 'menu_items').update(updates).eq('id', id!)

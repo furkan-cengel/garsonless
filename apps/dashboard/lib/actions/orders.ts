@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
-import { updateOrderStatusDB } from '@garsonless/db'
+import { createServiceClient, resolveOrderLines, updateOrderStatusDB } from '@garsonless/db'
 import type { OrderStatus } from '@garsonless/db'
 import { mut } from '../supabase-mut'
 import { assertAccess } from '../auth/access'
@@ -46,11 +46,15 @@ const createOrderSchema = z.object({
   restaurantId: z.string().uuid(),
   tableId: z.string().uuid().nullable(),
   items: z.array(z.object({
-    name: z.string(),
-    qty: z.number().int().positive(),
-    price: z.number().nonnegative(),
+    itemId: z.string().uuid(),
+    quantity: z.number().int().positive().max(99),
+    selectedModifiers: z.array(z.object({
+      group_id: z.string(),
+      option_id: z.string(),
+      quantity: z.number().int().positive().optional(),
+    })).optional(),
+    removedIngredientIds: z.array(z.string()).optional(),
   })),
-  total: z.number().nonnegative(),
 })
 
 export async function createOrderFromDashboard(
@@ -65,7 +69,10 @@ export async function createOrderFromDashboard(
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
+  const resolved = await resolveOrderLines(parsed.data.restaurantId, parsed.data.items)
+  if (!resolved.ok) return { error: resolved.error }
 
+  let tableSessionId: string | null = null
   if (parsed.data.tableId) {
     const { data: table } = await supabase
       .from('tables')
@@ -76,14 +83,29 @@ export async function createOrderFromDashboard(
       .maybeSingle()
 
     if (!table) return { error: 'Table not found for this restaurant' }
+
+    // The RPC is service-role only. Access and table ownership have already
+    // been validated above; using the shared primitive preserves its
+    // concurrent-open guard and attaches dashboard orders to the real adisyon.
+    const { data: sessionId, error: sessionError } = await createServiceClient()
+      .rpc('open_or_get_table_session', {
+        p_restaurant_id: parsed.data.restaurantId,
+        p_table_id: parsed.data.tableId,
+      })
+    if (sessionError || !sessionId) return { error: 'Failed to open table session' }
+    tableSessionId = sessionId
   }
 
   const { data, error } = await mut(supabase, 'orders')
     .insert({
       restaurant_id: parsed.data.restaurantId,
       table_id: parsed.data.tableId,
-      items: parsed.data.items,
-      total: parsed.data.total,
+      table_session_id: tableSessionId,
+      items: resolved.snapshots as unknown as import('@garsonless/db').Json,
+      total: resolved.snapshots.reduce(
+        (sum, line) => sum + (line.price + line.modifiersPriceDelta) * line.quantity,
+        0,
+      ),
       status: 'sent_to_kitchen' as OrderStatus,
       session_id: user.id,
     })
@@ -96,5 +118,7 @@ export async function createOrderFromDashboard(
   if (!orderId) return { error: 'Failed to create order' }
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/orders`)
+  revalidatePath(`/dashboard/${parsed.data.restaurantId}`)
+  revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   return { orderId }
 }

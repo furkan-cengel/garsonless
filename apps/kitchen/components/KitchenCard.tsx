@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import type { Tables, OrderStatus } from '@garsonless/db'
-import { readOrderCustomerTierSnapshot } from '@garsonless/db/order-client'
+import { ALLERGEN_LABELS, readOrderCustomerTierSnapshot, readOrderLineSnapshots } from '@garsonless/db/order-client'
 import ElapsedTimer from './ElapsedTimer'
 import { updateOrderStatusAction } from '../lib/actions/orders'
 
@@ -27,12 +27,6 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   paid: 'Ödendi',
 }
 
-interface OrderItem {
-  name: string
-  qty: number
-  modifiers?: Array<{ optionName?: string }>
-}
-
 interface KitchenCardProps {
   order: Tables<'orders'>
   restaurantId: string
@@ -43,7 +37,7 @@ interface KitchenCardProps {
 export default function KitchenCard({ order, restaurantId, kitchenToken, tableLabel }: KitchenCardProps) {
   const [loading, setLoading] = useState(false)
 
-  const items = (order.items as unknown as OrderItem[]) ?? []
+  const items = readOrderLineSnapshots(order.items)
   const nextStatus = NEXT_STATUS[order.status as OrderStatus]
   const tier = readOrderCustomerTierSnapshot(order.customer_tier)
 
@@ -100,16 +94,25 @@ export default function KitchenCard({ order, restaurantId, kitchenToken, tableLa
       <ul className="space-y-2 mb-3">
         {items.map((item, i) => {
           const modifierNames = item.modifiers
-            ?.map((m) => m.optionName)
-            .filter(Boolean)
+            .map((modifier) => `${modifier.optionName}${modifier.quantity > 1 ? ` ×${modifier.quantity}` : ''}`)
             .join(', ')
           return (
             <li key={i} className="flex items-start gap-2">
-              <span className="text-primary font-bold text-sm min-w-[22px]">{item.qty}×</span>
+              <span className="text-primary font-bold text-sm min-w-[22px]">{item.quantity}×</span>
               <div>
                 <span className="text-sm text-text leading-tight">{item.name}</span>
                 {modifierNames && (
                   <p className="text-xs text-text-muted mt-0.5">{modifierNames}</p>
+                )}
+                {item.removedIngredients.length > 0 && (
+                  <p className="text-xs font-extrabold text-red-600 mt-1">
+                    ÇIKAR: {item.removedIngredients.map((ingredient) => ingredient.name).join(', ')}
+                  </p>
+                )}
+                {item.allergens.length > 0 && (
+                  <p className="text-[11px] font-bold text-warning mt-1">
+                    ALERJEN: {item.allergens.map((code) => ALLERGEN_LABELS[code]).join(', ')}
+                  </p>
                 )}
               </div>
             </li>

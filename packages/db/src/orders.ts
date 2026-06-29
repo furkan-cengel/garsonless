@@ -2,16 +2,23 @@ import { createServiceClient } from './client'
 import type { Json } from './types.gen'
 import type { OrderStatus } from './enums'
 import { computeOrderDiscount, computeDiscountStack, redeemForOrder, type OrderLineInput } from './loyalty'
+import {
+  buildOrderLineSnapshot,
+  type OrderLineSnapshot,
+  type ResolvableMenuItem,
+  type SelectedMenuModifier,
+} from './menu-domain'
 
-/** A cart line as sent by the menu app. `price` is stored for display; the
- *  discount subtotal is recomputed server-side from DB menu_items.price. */
+/** Legacy display/money fields are accepted during rollout but ignored. */
 export interface CreateOrderLine {
   itemId: string
-  name: string
-  price: number
   quantity: number
-  modifiers: unknown
-  modifiersPriceDelta: number
+  modifiers?: unknown
+  selectedModifiers?: SelectedMenuModifier[]
+  removedIngredientIds?: string[]
+  name?: string
+  price?: number
+  modifiersPriceDelta?: number
 }
 
 export interface CreateOrderInput {
@@ -49,10 +56,89 @@ export interface OrderDiscountBreakdown {
 
 type OrderResult = { id: string }
 
+type MenuItemForOrder = ResolvableMenuItem
+
+function incomingSelections(line: CreateOrderLine): SelectedMenuModifier[] {
+  const value = line.selectedModifiers ?? line.modifiers
+  if (!Array.isArray(value)) return []
+  return value.flatMap((raw): SelectedMenuModifier[] => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return []
+    const row = raw as Record<string, unknown>
+    const groupId = typeof row['group_id'] === 'string'
+      ? row['group_id']
+      : typeof row['groupId'] === 'string' ? row['groupId'] : ''
+    const optionId = typeof row['option_id'] === 'string'
+      ? row['option_id']
+      : typeof row['optionId'] === 'string' ? row['optionId'] : ''
+    if (!groupId || !optionId) return []
+    const quantity = typeof row['quantity'] === 'number' && Number.isFinite(row['quantity'])
+      ? Math.max(1, Math.floor(row['quantity']))
+      : undefined
+    return [{ group_id: groupId, option_id: optionId, ...(quantity ? { quantity } : {}) }]
+  })
+}
+
+export async function resolveOrderLines(
+  restaurantId: string,
+  inputLines: CreateOrderLine[],
+): Promise<
+  | { ok: true; snapshots: OrderLineSnapshot[]; discountLines: OrderLineInput[] }
+  | { ok: false; error: string }
+> {
+  const supabase = createServiceClient()
+  const { data: categories, error: categoryError } = await supabase
+    .from('menu_categories')
+    .select('id')
+    .eq('restaurant_id', restaurantId)
+    .is('deleted_at', null)
+  if (categoryError) return { ok: false, error: 'Failed to resolve menu' }
+
+  const categoryIds = (categories ?? []).map((row) => row.id)
+  const itemIds = [...new Set(inputLines.map((line) => line.itemId))]
+  if (categoryIds.length === 0 || itemIds.length === 0) {
+    return { ok: false, error: 'Menu item not found' }
+  }
+  const { data, error } = await supabase
+    .from('menu_items')
+    .select('id, name, price, is_available, ingredients, energy_kcal, may_contain_allergens, contains_alcohol, contains_pork, modifier_groups')
+    .in('id', itemIds)
+    .in('category_id', categoryIds)
+    .is('deleted_at', null)
+  if (error) return { ok: false, error: 'Failed to resolve menu' }
+
+  const byId = new Map(
+    ((data ?? []) as MenuItemForOrder[]).map((item) => [item.id, item]),
+  )
+  const snapshots: OrderLineSnapshot[] = []
+  const discountLines: OrderLineInput[] = []
+
+  for (const line of inputLines) {
+    const item = byId.get(line.itemId)
+    if (!item) return { ok: false, error: 'Menu item is not available' }
+    const built = buildOrderLineSnapshot({
+      item,
+      quantity: line.quantity,
+      selections: incomingSelections(line),
+      removedIngredientIds: line.removedIngredientIds ?? [],
+    })
+    if (!built.ok) return built
+    snapshots.push(built.snapshot)
+    discountLines.push({
+      itemId: item.id,
+      quantity: line.quantity,
+      modifiersPriceDelta: built.snapshot.modifiersPriceDelta,
+    })
+  }
+
+  return { ok: true, snapshots, discountLines }
+}
+
 export async function createOrder(
   input: CreateOrderInput,
 ): Promise<{ ok: true; orderId: string; breakdown: OrderDiscountBreakdown } | { ok: false; error: string }> {
   const supabase = createServiceClient()
+  const resolved = await resolveOrderLines(input.restaurantId, input.lines)
+  if (!resolved.ok) return resolved
 
   // Table orders attach to the table's open session (adisyon); the RPC opens
   // one lazily on first order and resolves concurrent-open races atomically.
@@ -81,15 +167,10 @@ export async function createOrder(
 
   // SERVER-AUTHORITATIVE discount: subtotal recomputed from DB prices, points
   // validated against the real balance. Client totals are never trusted.
-  const lines: OrderLineInput[] = input.lines.map((l) => ({
-    itemId: l.itemId,
-    quantity: l.quantity,
-    modifiersPriceDelta: l.modifiersPriceDelta,
-  }))
   const discount = await computeOrderDiscount({
     customerId,
     restaurantId: input.restaurantId,
-    lines,
+    lines: resolved.discountLines,
     requestedPointsRedeem: input.redeemPoints ?? 0,
     requestedStampClaim: input.redeemStampClaim ?? false,
     requestedCatalogReward: input.catalogItemId ? { itemId: input.catalogItemId } : null,
@@ -113,7 +194,7 @@ export async function createOrder(
       session_id: input.sessionId,
       customer_id: customerId,
       customer_tier: discount.customerTierSnapshot,
-      items: input.lines as unknown as Json,
+      items: resolved.snapshots as unknown as Json,
       total: discount.finalTotal, // optimistic; corrected below if redeem clamps
       status: 'pending_approval' as OrderStatus,
     })

@@ -11,6 +11,8 @@ export interface OrderSummaryItem {
   name: string
   unitPrice: number
   originalPrice?: number
+  modifierNames?: string[]
+  removedIngredientNames?: string[]
 }
 
 interface OrderConfirmationProps {
@@ -231,7 +233,15 @@ function Summary({ items, total, isPaid }: { items: OrderSummaryItem[]; total: n
             {items.map((item, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--p-accent)', minWidth: 24 }}>{item.quantity}×</span>
-                <span style={{ flex: 1, fontSize: 14, color: 'var(--p-text)' }}>{item.name}</span>
+                <span style={{ flex: 1, fontSize: 14, color: 'var(--p-text)' }}>
+                  {item.name}
+                  {item.modifierNames && item.modifierNames.length > 0 && (
+                    <small style={{ display: 'block', marginTop: 2, color: 'var(--p-text-2)', fontSize: 11 }}>{item.modifierNames.join(', ')}</small>
+                  )}
+                  {item.removedIngredientNames && item.removedIngredientNames.length > 0 && (
+                    <small style={{ display: 'block', marginTop: 2, color: '#b42318', fontSize: 11, fontWeight: 800 }}>ÇIKAR: {item.removedIngredientNames.join(', ')}</small>
+                  )}
+                </span>
                 {item.originalPrice !== undefined && item.originalPrice !== item.unitPrice && (
                   <span style={{ fontSize: 12.5, color: 'var(--p-text-2)', opacity: 0.7, textDecoration: 'line-through' }}>
                     {formatTRY(item.originalPrice)}

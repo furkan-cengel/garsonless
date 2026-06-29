@@ -10,6 +10,17 @@ import { useRouter } from 'next/navigation'
 import { InlineSpinner, BrewBar } from '@garsonless/ui'
 import { deleteItem, deleteCategory, updateItem, reorderCategories, createCategory, createItem } from '../../lib/actions/menu'
 import { createDashboardBrowserClient } from '../../lib/supabase'
+import {
+  ALLERGEN_CODES,
+  ALLERGEN_LABELS,
+  normalizeAllergenCodes,
+  normalizeIngredients,
+  normalizeModifierGroups,
+  type AllergenCode,
+  type MenuIngredient,
+  type MenuModifierGroup as ModifierGroup,
+  type MenuModifierOption as ModifierOption,
+} from '@garsonless/db/order-client'
 
 const MenuCategoryDndList = lazy(() => import('./MenuCategoryDndList'))
 
@@ -42,37 +53,132 @@ function highlightText(text: string, query: string): React.ReactNode {
   return <>{parts}</>
 }
 
-/* ============================================================
-   MODIFIER TYPES
-   ============================================================ */
-interface ModifierOption {
-  id: string
-  name: string
-  price_delta: number
-}
-interface ModifierGroup {
-  id: string
-  name: string
-  type: 'required' | 'optional'
-  options: ModifierOption[]
+function normalizeGroups(raw: unknown): ModifierGroup[] {
+  return normalizeModifierGroups(raw).map((group) => ({
+    ...group,
+    id: group.id || crypto.randomUUID(),
+    options: group.options.map((option) => ({ ...option, id: option.id || crypto.randomUUID() })),
+  }))
 }
 
-function normalizeGroups(raw: unknown): ModifierGroup[] {
-  if (!Array.isArray(raw)) return []
-  return (raw as Array<Record<string, unknown>>).map(g => ({
-    id: typeof g['id'] === 'string' ? g['id'] : crypto.randomUUID(),
-    name: typeof g['name'] === 'string' ? g['name'] : '',
-    type: g['type'] === 'required' || g['type'] === 'optional'
-      ? g['type']
-      : (g['required'] === true ? 'required' : 'optional'),
-    options: Array.isArray(g['options'])
-      ? (g['options'] as Array<Record<string, unknown>>).map(o => ({
-          id: typeof o['id'] === 'string' ? o['id'] : crypto.randomUUID(),
-          name: typeof o['name'] === 'string' ? o['name'] : '',
-          price_delta: typeof o['price_delta'] === 'number' ? o['price_delta'] : 0,
-        }))
-      : [],
-  }))
+function AllergenPicker({
+  value,
+  onChange,
+  label = 'Alerjen ekle',
+}: {
+  value: AllergenCode[]
+  onChange: (value: AllergenCode[]) => void
+  label?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [dropUp, setDropUp] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const close = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  function toggle(code: AllergenCode) {
+    onChange(value.includes(code) ? value.filter((item) => item !== code) : [...value, code])
+  }
+
+  function toggleOpen() {
+    if (!open) {
+      const rect = rootRef.current?.getBoundingClientRect()
+      setDropUp(Boolean(rect && rect.bottom + 245 > window.innerHeight - 12))
+    }
+    setOpen((current) => !current)
+  }
+
+  return (
+    <div ref={rootRef} style={{ position: 'relative', width: '100%', minWidth: 0 }}>
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={toggleOpen}
+        style={{
+          width: '100%', minHeight: 34, padding: value.length > 0 ? '5px 8px' : '0 10px',
+          border: `1px solid ${open ? 'var(--text)' : 'var(--divider)'}`,
+          borderRadius: 7, background: 'var(--surface)', color: 'var(--text)',
+          display: 'flex', alignItems: 'center', gap: 6, textAlign: 'left',
+          cursor: 'pointer', boxShadow: open ? '0 0 0 2px rgba(17,17,19,.06)' : 'none',
+        }}
+      >
+        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {value.length === 0 ? (
+            <span style={{ color: 'var(--text-3)', fontSize: 11.5 }}>{label}</span>
+          ) : value.map((code) => (
+            <span key={code} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 3,
+              maxWidth: '100%', padding: '2px 6px', borderRadius: 5,
+              background: 'var(--warning-bg)', color: 'var(--warning)',
+              fontSize: 10.5, fontWeight: 600,
+            }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ALLERGEN_LABELS[code]}</span>
+              <span
+                role="button"
+                aria-label={`${ALLERGEN_LABELS[code]} seçimini kaldır`}
+                onClick={(event) => { event.stopPropagation(); toggle(code) }}
+                style={{ display: 'inline-flex', cursor: 'pointer', flexShrink: 0 }}
+              >
+                <I.close size={10} />
+              </span>
+            </span>
+          ))}
+        </span>
+        <I.chevDown size={13} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 120ms', flexShrink: 0 }} />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-multiselectable="true"
+          style={{
+            position: 'absolute', zIndex: 50, left: 0, right: 0,
+            ...(dropUp ? { bottom: 'calc(100% + 5px)' } : { top: 'calc(100% + 5px)' }),
+            maxHeight: 238, overflowY: 'auto', padding: 5,
+            border: '1px solid var(--border-strong)', borderRadius: 8,
+            background: 'var(--surface)', boxShadow: 'var(--shadow-pop)',
+          }}
+        >
+          {ALLERGEN_CODES.map((code) => {
+            const selected = value.includes(code)
+            return (
+              <button
+                key={code}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => toggle(code)}
+                style={{
+                  width: '100%', minHeight: 32, padding: '6px 8px',
+                  border: 'none', borderRadius: 5, background: selected ? 'var(--surface-inset)' : 'transparent',
+                  color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8,
+                  textAlign: 'left', cursor: 'pointer', fontSize: 11.5,
+                }}
+              >
+                <span style={{
+                  width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                  border: `1px solid ${selected ? 'var(--text)' : 'var(--border-strong)'}`,
+                  background: selected ? 'var(--text)' : 'var(--surface)',
+                  color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {selected && <I.check size={10} strokeWidth={3} />}
+                </span>
+                <span>{ALLERGEN_LABELS[code]}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 }
 
 /* ============================================================
@@ -91,7 +197,15 @@ function ModifierGroupEditor({
   }
 
   function addGroup() {
-    onChange([...groups, { id: crypto.randomUUID(), name: '', type: 'optional', options: [] }])
+    onChange([...groups, {
+      id: crypto.randomUUID(),
+      name: '',
+      selection_mode: 'multiple',
+      required: false,
+      min: 0,
+      max: 1,
+      options: [],
+    }])
   }
 
   function deleteGroup(gid: string) {
@@ -105,7 +219,18 @@ function ModifierGroupEditor({
   function addOption(gid: string) {
     onChange(groups.map(g =>
       g.id === gid
-        ? { ...g, options: [...g.options, { id: crypto.randomUUID(), name: '', price_delta: 0 }] }
+        ? {
+            ...g,
+            max: Math.max(g.max, g.options.length + 1),
+            options: [...g.options, {
+              id: crypto.randomUUID(),
+              name: '',
+              price_delta: 0,
+              calorie_delta: 0,
+              is_default: false,
+              allergen_codes: [],
+            }],
+          }
         : g,
     ))
   }
@@ -137,80 +262,138 @@ function ModifierGroupEditor({
         }}>
           {/* Group header */}
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 6,
+            display: 'flex', flexDirection: 'column', gap: 7,
             padding: '8px 10px', borderBottom: g.options.length > 0 ? '1px solid var(--divider)' : 'none',
             background: 'var(--surface)',
           }}>
-            <input
-              value={g.name}
-              onChange={e => updateGroup(g.id, { name: e.target.value })}
-              placeholder={`Grup ${gi + 1} adı`}
-              style={{ ...inputSm, flex: 1, fontWeight: 600 }}
-            />
-            <div style={{ display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 5, padding: 2, gap: 1 }}>
-              {(['required', 'optional'] as const).map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => updateGroup(g.id, { type: t })}
-                  style={{
-                    padding: '2px 8px', fontSize: 10.5, fontWeight: 500, borderRadius: 4,
-                    border: 'none', cursor: 'pointer',
-                    background: g.type === t ? 'var(--surface)' : 'transparent',
-                    color: g.type === t ? 'var(--text)' : 'var(--text-3)',
-                    boxShadow: g.type === t ? 'var(--shadow-1)' : 'none',
-                  }}
-                >
-                  {t === 'required' ? 'Zorunlu' : 'Opsiyonel'}
-                </button>
-              ))}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <input
+                value={g.name}
+                onChange={e => updateGroup(g.id, { name: e.target.value })}
+                placeholder={`Grup ${gi + 1} adı`}
+                style={{ ...inputSm, flex: 1, minWidth: 0, height: 32, fontWeight: 600 }}
+              />
+              <button
+                type="button"
+                onClick={() => deleteGroup(g.id)}
+                style={{
+                  width: 30, height: 30, border: '1px solid var(--critical-bg)', borderRadius: 6, cursor: 'pointer',
+                  background: 'var(--surface)', color: 'var(--critical)', flexShrink: 0,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                }}
+                aria-label="Grubu sil"
+              >
+                <I.trash size={13} />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => deleteGroup(g.id)}
-              style={{
-                width: 22, height: 22, border: 'none', borderRadius: 4, cursor: 'pointer',
-                background: 'transparent', color: 'var(--critical)',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              }}
-              aria-label="Grubu sil"
-            >
-              <I.trash size={12} />
-            </button>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: 6, alignItems: 'center' }}>
+              <select
+                value={g.selection_mode}
+                onChange={(event) => updateGroup(g.id, {
+                  selection_mode: event.target.value as ModifierGroup['selection_mode'],
+                  max: event.target.value === 'single' ? 1 : Math.max(g.max, 1),
+                })}
+                style={{ ...inputSm, width: '100%', height: 30 }}
+              >
+                <option value="single">Tek seçim</option>
+                <option value="multiple">Çoklu seçim</option>
+                <option value="quantity">Adetli seçim</option>
+              </select>
+              <div style={{ display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 6, padding: 2, gap: 1 }}>
+                {([true, false] as const).map(required => (
+                  <button
+                    key={String(required)}
+                    type="button"
+                    onClick={() => updateGroup(g.id, {
+                      required,
+                      min: required ? Math.max(1, g.min) : 0,
+                    })}
+                    style={{
+                      height: 24, padding: '0 7px', fontSize: 10, fontWeight: 600, borderRadius: 4,
+                      border: 'none', cursor: 'pointer',
+                      background: g.required === required ? 'var(--surface)' : 'transparent',
+                      color: g.required === required ? 'var(--text)' : 'var(--text-3)',
+                      boxShadow: g.required === required ? 'var(--shadow-1)' : 'none',
+                    }}
+                  >
+                    {required ? 'Zorunlu' : 'Opsiyonel'}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Options */}
-          <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ padding: '8px 10px 10px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              <label style={{ fontSize: 10, color: 'var(--text-3)' }}>
+                En az
+                <input type="number" min={0} value={g.min} onChange={(event) => updateGroup(g.id, { min: Math.max(0, Number(event.target.value)) })} style={{ ...inputSm, width: '100%', height: 30, marginTop: 3 }} />
+              </label>
+              <label style={{ fontSize: 10, color: 'var(--text-3)' }}>
+                En fazla
+                <input type="number" min={1} value={g.max} onChange={(event) => updateGroup(g.id, { max: Math.max(1, Number(event.target.value)) })} style={{ ...inputSm, width: '100%', height: 30, marginTop: 3 }} />
+              </label>
+            </div>
             {g.options.map(o => (
-              <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input
-                  value={o.name}
-                  onChange={e => updateOption(g.id, o.id, { name: e.target.value })}
-                  placeholder="Seçenek adı"
-                  style={{ ...inputSm, flex: 1 }}
-                />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-3)' }}>₺</span>
+              <div key={o.id} style={{
+                padding: 8, border: '1px solid var(--divider)', borderRadius: 7,
+                background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 7,
+                minWidth: 0,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
                   <input
-                    type="number"
-                    min={0}
-                    value={o.price_delta}
-                    onChange={e => updateOption(g.id, o.id, { price_delta: Math.max(0, Number(e.target.value)) })}
-                    style={{ ...inputSm, width: 54, fontFamily: "'Geist Mono', monospace" }}
+                    value={o.name}
+                    onChange={e => updateOption(g.id, o.id, { name: e.target.value })}
+                    placeholder="İşletmenin ekleyeceği seçenek"
+                    style={{ ...inputSm, flex: 1, minWidth: 0, height: 31 }}
                   />
+                  <button
+                    type="button"
+                    onClick={() => deleteOption(g.id, o.id)}
+                    style={{
+                      width: 28, height: 28, border: 'none', borderRadius: 5, cursor: 'pointer',
+                      background: 'var(--critical-bg)', color: 'var(--critical)', flexShrink: 0,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                    aria-label="Seçeneği sil"
+                  >
+                    <I.trash size={12} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => deleteOption(g.id, o.id)}
-                  style={{
-                    width: 20, height: 20, border: 'none', borderRadius: 3, cursor: 'pointer',
-                    background: 'transparent', color: 'var(--text-4)',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  }}
-                  aria-label="Seçeneği sil"
-                >
-                  <I.close size={10} />
-                </button>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  <label style={{ fontSize: 10, color: 'var(--text-3)' }}>
+                    Fiyat farkı
+                    <input
+                      aria-label="Fiyat farkı"
+                      type="number" min={0} value={o.price_delta}
+                      onChange={e => updateOption(g.id, o.id, { price_delta: Math.max(0, Number(e.target.value)) })}
+                      style={{ ...inputSm, width: '100%', height: 30, marginTop: 3, fontFamily: "'Geist Mono', monospace" }}
+                    />
+                  </label>
+                  <label style={{ fontSize: 10, color: 'var(--text-3)' }}>
+                    Kalori farkı
+                    <input
+                      aria-label="Kalori farkı"
+                      type="number" value={o.calorie_delta}
+                      onChange={e => updateOption(g.id, o.id, { calorie_delta: Math.round(Number(e.target.value)) })}
+                      style={{ ...inputSm, width: '100%', height: 30, marginTop: 3, fontFamily: "'Geist Mono', monospace" }}
+                    />
+                  </label>
+                </div>
+                <AllergenPicker
+                  value={o.allergen_codes}
+                  onChange={(codes) => updateOption(g.id, o.id, { allergen_codes: codes })}
+                  label="Bu seçeneğe alerjen ekle"
+                />
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'var(--text-2)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={o.is_default}
+                    onChange={(event) => updateOption(g.id, o.id, { is_default: event.target.checked })}
+                  />
+                  Varsayılan seçenek
+                </label>
               </div>
             ))}
             <button
@@ -240,6 +423,84 @@ function ModifierGroupEditor({
         }}
       >
         <I.plus size={13} />Yeni grup ekle
+      </button>
+    </div>
+  )
+}
+
+function IngredientEditor({
+  ingredients,
+  onChange,
+}: {
+  ingredients: MenuIngredient[]
+  onChange: (ingredients: MenuIngredient[]) => void
+}) {
+  function update(id: string, patch: Partial<Omit<MenuIngredient, 'id'>>) {
+    onChange(ingredients.map((ingredient) => ingredient.id === id ? { ...ingredient, ...patch } : ingredient))
+  }
+  function move(index: number, direction: -1 | 1) {
+    const target = index + direction
+    if (target < 0 || target >= ingredients.length) return
+    const next = [...ingredients]
+    const current = next[index]
+    const other = next[target]
+    if (!current || !other) return
+    next[index] = other
+    next[target] = current
+    onChange(next)
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {ingredients.map((ingredient, index) => (
+        <div key={ingredient.id} style={{
+          padding: 8, border: '1px solid var(--divider)', borderRadius: 7,
+          background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 7,
+          minWidth: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+            <input
+              value={ingredient.name}
+              onChange={(event) => update(ingredient.id, { name: event.target.value })}
+              placeholder="İşletmenin ekleyeceği bileşen"
+              style={{ flex: 1, minWidth: 0, height: 32, padding: '0 9px', borderRadius: 6, border: '1px solid var(--divider)', background: 'var(--surface-2)', fontSize: 12 }}
+            />
+            <button type="button" aria-label="Yukarı taşı" disabled={index === 0} onClick={() => move(index, -1)} style={{ width: 27, height: 27, border: 'none', background: 'var(--surface-3)', color: 'var(--text-2)', borderRadius: 5, cursor: index === 0 ? 'default' : 'pointer', opacity: index === 0 ? .35 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><I.chevLeft size={12} style={{ transform: 'rotate(90deg)' }} /></button>
+            <button type="button" aria-label="Aşağı taşı" disabled={index === ingredients.length - 1} onClick={() => move(index, 1)} style={{ width: 27, height: 27, border: 'none', background: 'var(--surface-3)', color: 'var(--text-2)', borderRadius: 5, cursor: index === ingredients.length - 1 ? 'default' : 'pointer', opacity: index === ingredients.length - 1 ? .35 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><I.chevRight size={12} style={{ transform: 'rotate(90deg)' }} /></button>
+            <button type="button" aria-label="Bileşeni sil" onClick={() => onChange(ingredients.filter((row) => row.id !== ingredient.id))} style={{ width: 27, height: 27, border: 'none', background: 'var(--critical-bg)', color: 'var(--critical)', borderRadius: 5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><I.trash size={12} /></button>
+          </div>
+          <AllergenPicker
+            value={ingredient.allergen_codes}
+            onChange={(codes) => update(ingredient.id, { allergen_codes: codes })}
+            label="Bu bileşene alerjen ekle"
+          />
+          <label style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+            fontSize: 10.5, color: 'var(--text-2)', cursor: 'pointer',
+          }}>
+            <span>Müşteri bu bileşeni çıkarabilir</span>
+            <span style={{
+              width: 30, height: 18, padding: 2, borderRadius: 999,
+              background: ingredient.removable ? 'var(--positive)' : 'var(--surface-3)',
+              display: 'inline-flex', justifyContent: ingredient.removable ? 'flex-end' : 'flex-start',
+              transition: 'all 120ms', flexShrink: 0,
+            }}>
+              <input
+                type="checkbox"
+                checked={ingredient.removable}
+                onChange={(event) => update(ingredient.id, { removable: event.target.checked })}
+                style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+              />
+              <span style={{ width: 14, height: 14, borderRadius: 999, background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.18)' }} />
+            </span>
+          </label>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange([...ingredients, { id: crypto.randomUUID(), name: '', removable: false, allergen_codes: [] }])}
+        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 8px', border: '1px dashed var(--border-strong)', background: 'transparent', color: 'var(--text-2)', borderRadius: 6, cursor: 'pointer', fontSize: 11.5 }}
+      >
+        <I.plus size={11} />Bileşen ekle
       </button>
     </div>
   )
@@ -316,14 +577,114 @@ function ConfirmDialog({
    CSV IMPORT
    ============================================================ */
 interface CsvPreviewRow {
+  sourceRow: number
   category: string
   name: string
   description: string
   price: number
+  ingredients: MenuIngredient[]
+  energyKcal: number | null
+  mayContainAllergens: AllergenCode[]
+  containsAlcohol: boolean
+  containsPork: boolean
   error?: string
+  warning?: string
+}
+
+function CsvImportStartModal({
+  error,
+  onChoose,
+  onFile,
+  onCancel,
+  onDownloadTemplate,
+}: {
+  error: string | null
+  onChoose: () => void
+  onFile: (file: File) => void
+  onCancel: () => void
+  onDownloadTemplate: () => void
+}) {
+  const [dragging, setDragging] = useState(false)
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(17,17,19,.5)', zIndex: 100,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+    }}>
+      <div style={{
+        background: 'var(--surface)', borderRadius: 12, padding: 24,
+        width: 520, maxWidth: '100%', boxShadow: 'var(--shadow-pop)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 20 }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: 8, flexShrink: 0,
+            display: 'grid', placeItems: 'center', background: 'var(--surface-2)',
+            border: '1px solid var(--border)',
+          }}>
+            <I.upload size={18} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 650 }}>Menüyü CSV’den içe aktar</div>
+            <div style={{ marginTop: 4, color: 'var(--text-3)', fontSize: 12.5, lineHeight: 1.5 }}>
+              Ürünleri eklemeden önce satırları kontrol edip sorunları göstereceğiz.
+            </div>
+          </div>
+          <IconButton icon={<I.close size={15} />} ariaLabel="Kapat" onClick={onCancel} />
+        </div>
+
+        <button
+          type="button"
+          onClick={onChoose}
+          onDragEnter={(event) => { event.preventDefault(); setDragging(true) }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault()
+            setDragging(false)
+            const file = event.dataTransfer.files[0]
+            if (file) onFile(file)
+          }}
+          style={{
+            width: '100%', minHeight: 156, borderRadius: 9,
+            border: `1.5px dashed ${dragging ? 'var(--text)' : 'var(--border-strong)'}`,
+            background: dragging ? 'var(--surface-2)' : 'var(--surface-inset)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            gap: 8, cursor: 'pointer', color: 'var(--text)',
+          }}
+        >
+          <I.upload size={22} />
+          <span style={{ fontSize: 13.5, fontWeight: 600 }}>CSV dosyası seç</span>
+          <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>En fazla 1.000 ürün ve 5 MB</span>
+        </button>
+
+        {error && (
+          <div style={{
+            marginTop: 12, padding: '9px 11px', borderRadius: 7,
+            background: 'rgba(255,80,65,.08)', color: 'var(--critical)',
+            fontSize: 12.5, lineHeight: 1.45,
+          }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{
+          marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--divider)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
+            İlk kez mi aktarıyorsun?
+          </div>
+          <button type="button" onClick={onDownloadTemplate} style={btnGhost()}>
+            Şablonu indir
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function CsvImportModal({
+  fileName,
   rows,
   importing,
   importProgress,
@@ -331,6 +692,7 @@ function CsvImportModal({
   onCancel,
   onDownloadTemplate,
 }: {
+  fileName: string
   rows: CsvPreviewRow[]
   importing: boolean
   importProgress: { done: number; total: number } | null
@@ -339,58 +701,112 @@ function CsvImportModal({
   onDownloadTemplate: () => void
 }) {
   const valid = rows.filter(r => !r.error).length
+  const invalid = rows.length - valid
+  const warnings = rows.filter(r => !r.error && r.warning).length
   return (
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(17,17,19,.5)', zIndex: 100,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }}>
+      <style>{`
+        .csv-preview-grid {
+          display: grid;
+          grid-template-columns: 44px 1fr 1fr 74px minmax(126px, 1.15fr);
+        }
+        .csv-preview-mobile-meta { display: none; }
+        @media (max-width: 600px) {
+          .csv-preview-grid {
+            grid-template-columns: 34px minmax(0, 1fr) minmax(104px, .85fr);
+          }
+          .csv-preview-category,
+          .csv-preview-price { display: none; }
+          .csv-preview-mobile-meta {
+            display: block;
+            margin-top: 3px;
+            color: var(--text-3);
+            font-size: 10.5px;
+            font-weight: 400;
+          }
+          .csv-preview-name,
+          .csv-preview-status {
+            min-width: 0;
+            overflow-wrap: anywhere;
+          }
+        }
+      `}</style>
       <div style={{
-        background: 'var(--surface)', borderRadius: 14, padding: 24,
-        width: 560, maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+        background: 'var(--surface)', borderRadius: 12, padding: 24,
+        width: 720, maxWidth: '100%', maxHeight: '86vh', display: 'flex', flexDirection: 'column',
         boxShadow: 'var(--shadow-pop)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <div style={{ flex: 1, fontWeight: 600, fontSize: 15 }}>CSV içe aktarma önizlemesi</div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 16 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 650, fontSize: 15 }}>İçe aktarma önizlemesi</div>
+            <div style={{
+              color: 'var(--text-3)', fontSize: 11.5, marginTop: 4,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {fileName}
+            </div>
+          </div>
           <button type="button" onClick={onDownloadTemplate} style={btnGhost()}>
             Şablon indir
           </button>
         </div>
 
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+          <Tag tone="positive">{valid} hazır</Tag>
+          {warnings > 0 && <Tag tone="warning">{warnings} eksik bilgi</Tag>}
+          {invalid > 0 && <Tag tone="critical">{invalid} sorunlu</Tag>}
+        </div>
+
         <div style={{ flex: 1, overflow: 'auto', marginBottom: 16 }}>
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr 80px 90px',
+          <div className="csv-preview-grid" style={{
             padding: '8px 12px', background: 'var(--surface-2)',
             borderRadius: '8px 8px 0 0', border: '1px solid var(--border)',
             borderBottom: 'none',
             fontSize: 10.5, fontWeight: 500, letterSpacing: '.05em',
             textTransform: 'uppercase', color: 'var(--text-3)',
           }}>
-            <span>Kategori</span><span>Ad</span><span>Fiyat</span><span>Durum</span>
+            <span>Satır</span>
+            <span className="csv-preview-category">Kategori</span>
+            <span>Ürün</span>
+            <span className="csv-preview-price">Fiyat</span>
+            <span>Durum</span>
           </div>
           <div style={{ border: '1px solid var(--border)', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
             {rows.map((row, i) => (
-              <div key={i} style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr 80px 90px',
+              <div key={i} className="csv-preview-grid" style={{
                 padding: '8px 12px',
                 borderBottom: i < rows.length - 1 ? '1px solid var(--divider)' : 'none',
                 background: row.error ? 'rgba(255,80,65,.04)' : 'transparent',
                 fontSize: 12.5,
               }}>
-                <span style={{ color: 'var(--text-2)' }}>{row.category || '—'}</span>
-                <span style={{ fontWeight: 500 }}>{row.name || '—'}</span>
-                <span style={{ fontFamily: "'Geist Mono', monospace" }}>
+                <span style={{ color: 'var(--text-4)', fontFamily: "'Geist Mono', monospace" }}>{row.sourceRow}</span>
+                <span className="csv-preview-category" style={{ color: 'var(--text-2)' }}>{row.category || '—'}</span>
+                <span className="csv-preview-name" style={{ fontWeight: 500 }}>
+                  {row.name || '—'}
+                  <span className="csv-preview-mobile-meta">
+                    {row.category || 'Kategori yok'} · {!isNaN(row.price) ? `₺${row.price}` : 'Fiyat yok'}
+                  </span>
+                </span>
+                <span className="csv-preview-price" style={{ fontFamily: "'Geist Mono', monospace" }}>
                   {!isNaN(row.price) ? `₺${row.price}` : '—'}
                 </span>
-                <span style={{ color: row.error ? 'var(--critical)' : 'var(--positive)', fontWeight: 500 }}>
-                  {row.error ? `✗ ${row.error}` : '✓ Geçerli'}
+                <span className="csv-preview-status" style={{
+                  color: row.error ? 'var(--critical)' : row.warning ? 'var(--warning)' : 'var(--positive)',
+                  fontWeight: 500,
+                }}>
+                  {row.error ? row.error : row.warning ? row.warning : 'Hazır'}
                 </span>
               </div>
             ))}
           </div>
         </div>
 
-        <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 14 }}>
-          <strong style={{ color: 'var(--text)' }}>{valid}/{rows.length}</strong> satır geçerli
+        <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 14, lineHeight: 1.5 }}>
+          Sorunlu satırlar atlanır. İçe aktarılan ürünler yayımlanır; gıda bilgileri işletme tarafından
+          kontrol edilene kadar <strong style={{ color: 'var(--text)' }}>Bilgi eksik</strong> etiketi taşır.
         </div>
 
         {importing && importProgress && (
@@ -964,6 +1380,9 @@ function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, hig
             >₺{item.price}</span>
           )}
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            {(item.food_info_reviewed_at == null || item.energy_kcal == null || normalizeIngredients(item.ingredients).length === 0) && (
+              <Tag tone="warning">Bilgi eksik</Tag>
+            )}
             {Array.isArray(item.modifier_groups) && (item.modifier_groups as unknown[]).length > 0 && (
               <Tag tone="neutral">Varyant</Tag>
             )}
@@ -1074,6 +1493,14 @@ function ItemEditPanel({
   const [price, setPrice] = useState(String(item.price))
   const [isAvailable, setIsAvailable] = useState(item.is_available)
   const [earnsStamp, setEarnsStamp] = useState<boolean>(item.earns_stamp ?? false)
+  const [ingredients, setIngredients] = useState<MenuIngredient[]>(() => normalizeIngredients(item.ingredients))
+  const [energyKcal, setEnergyKcal] = useState(item.energy_kcal == null ? '' : String(item.energy_kcal))
+  const [mayContainAllergens, setMayContainAllergens] = useState<AllergenCode[]>(() =>
+    normalizeAllergenCodes(item.may_contain_allergens),
+  )
+  const [containsAlcohol, setContainsAlcohol] = useState(item.contains_alcohol ?? false)
+  const [containsPork, setContainsPork] = useState(item.contains_pork ?? false)
+  const [foodInfoReviewed, setFoodInfoReviewed] = useState(item.food_info_reviewed_at != null)
   const [images, setImages] = useState<string[]>(() =>
     Array.isArray(item.images) ? (item.images as string[]) : [],
   )
@@ -1129,6 +1556,12 @@ function ItemEditPanel({
       fd.append('price', price)
       fd.append('is_available', String(isAvailable))
       fd.append('earns_stamp', String(earnsStamp))
+      fd.append('ingredients', JSON.stringify(ingredients))
+      fd.append('energy_kcal', energyKcal)
+      fd.append('may_contain_allergens', JSON.stringify(mayContainAllergens))
+      fd.append('contains_alcohol', String(containsAlcohol))
+      fd.append('contains_pork', String(containsPork))
+      fd.append('food_info_reviewed', String(foodInfoReviewed))
       fd.append('images', JSON.stringify(images))
       fd.append('modifier_groups', JSON.stringify(modifiers))
       const result = await updateItem(fd)
@@ -1140,6 +1573,13 @@ function ItemEditPanel({
         price: Number(price),
         is_available: isAvailable,
         earns_stamp: earnsStamp,
+        ingredients: ingredients as unknown as import('@garsonless/db').Json,
+        energy_kcal: energyKcal ? Number(energyKcal) : null,
+        may_contain_allergens: mayContainAllergens,
+        contains_alcohol: containsAlcohol,
+        contains_pork: containsPork,
+        food_info_reviewed_at: foodInfoReviewed ? new Date().toISOString() : null,
+        food_info_reviewed_by: foodInfoReviewed ? item.food_info_reviewed_by : null,
         images: images as unknown as import('@garsonless/db').Json,
         modifier_groups: modifiers as unknown as import('@garsonless/db').Json,
       })
@@ -1174,7 +1614,7 @@ function ItemEditPanel({
 
   return (
     <div style={{
-      width: 'var(--props)', flexShrink: 0,
+      width: 'var(--props)', minWidth: 0, flexShrink: 0, overflow: 'hidden',
       borderLeft: '1px solid var(--border)', background: 'var(--surface)',
       display: 'flex', flexDirection: 'column',
     }}>
@@ -1189,7 +1629,7 @@ function ItemEditPanel({
         <IconButton icon={<I.close size={15} />} ariaLabel="Kapat" onClick={onClose} />
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
         {/* Image */}
         <div style={{ padding: 16 }}>
           <input
@@ -1300,9 +1740,64 @@ function ItemEditPanel({
           </FieldInline>
         </PanelSection>
 
+        <PanelSection title="İçindekiler ve enerji">
+          <IngredientEditor
+            ingredients={ingredients}
+            onChange={(next) => { setIngredients(next); setFoodInfoReviewed(false) }}
+          />
+          <div style={{ marginTop: 10 }}>
+            <FieldInline label="Porsiyon enerjisi (kcal)">
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={energyKcal}
+                onChange={(event) => { setEnergyKcal(event.target.value); setFoodInfoReviewed(false) }}
+                style={{ ...inputStyle, fontFamily: "'Geist Mono', monospace" }}
+              />
+            </FieldInline>
+          </div>
+        </PanelSection>
+
+        <PanelSection title="Alerjenler">
+          <FieldRow label="Eser miktar">
+            <AllergenPicker
+              value={mayContainAllergens}
+              onChange={(codes) => {
+                setMayContainAllergens(codes)
+                setFoodInfoReviewed(false)
+              }}
+              label="Olası çapraz temas alerjeni ekle"
+            />
+          </FieldRow>
+          <FieldRow label="Özel içerik">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 4 }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5 }}>
+                <input type="checkbox" checked={containsAlcohol} onChange={(event) => { setContainsAlcohol(event.target.checked); setFoodInfoReviewed(false) }} />
+                Alkol içerir
+              </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5 }}>
+                <input type="checkbox" checked={containsPork} onChange={(event) => { setContainsPork(event.target.checked); setFoodInfoReviewed(false) }} />
+                Domuz kaynaklı bileşen içerir
+              </label>
+            </div>
+          </FieldRow>
+          <FieldRow label="Kontrol">
+            <label style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6, fontSize: 11.5, lineHeight: 1.4, paddingTop: 4 }}>
+              <input
+                type="checkbox"
+                checked={foodInfoReviewed}
+                disabled={ingredients.length === 0 || !energyKcal}
+                onChange={(event) => setFoodInfoReviewed(event.target.checked)}
+              />
+              İçerik, enerji ve alerjen bilgilerini gözden geçirdim
+            </label>
+          </FieldRow>
+        </PanelSection>
+
         {/* Varyantlar */}
         <PanelSection title="Varyantlar">
-          <ModifierGroupEditor groups={modifiers} onChange={setModifiers} />
+          <ModifierGroupEditor groups={modifiers} onChange={(next) => { setModifiers(next); setFoodInfoReviewed(false) }} />
         </PanelSection>
 
         {/* Görünürlük */}
@@ -1572,7 +2067,10 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
   const [, startTransition] = useTransition()
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [toastTone, setToastTone] = useState<'error' | 'success'>('error')
+  const [showCsvImport, setShowCsvImport] = useState(false)
+  const [csvSetupError, setCsvSetupError] = useState<string | null>(null)
   const [csvPreview, setCsvPreview] = useState<{
+    fileName: string
     rows: CsvPreviewRow[]
     importing: boolean
     importProgress: { done: number; total: number } | null
@@ -1592,28 +2090,126 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
+  async function parseCsvFile(file: File) {
+    setCsvSetupError(null)
+    if (!file.name.toLocaleLowerCase('tr-TR').endsWith('.csv')) {
+      setCsvSetupError('Yalnızca .csv uzantılı dosyalar desteklenir.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setCsvSetupError('Dosya 5 MB sınırını aşıyor.')
+      return
+    }
+
     const Papa = (await import('papaparse')).default
-    Papa.parse(file, {
+    Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
       complete: (result) => {
-        const rows = (result.data as Record<string, string>[]).map(row => {
+        if (result.errors.length > 0) {
+          const firstError = result.errors[0]
+          setCsvSetupError(`CSV okunamadı: ${firstError?.message ?? 'Biçim hatası'}`)
+          return
+        }
+        const requiredHeaders = ['Kategori', 'Ad', 'Fiyat']
+        const fields = new Set(result.meta.fields ?? [])
+        const missingHeaders = requiredHeaders.filter(header => !fields.has(header))
+        if (missingHeaders.length > 0) {
+          setCsvSetupError(`Eksik zorunlu sütun: ${missingHeaders.join(', ')}`)
+          return
+        }
+        if (result.data.length === 0) {
+          setCsvSetupError('Dosyada içe aktarılacak ürün satırı yok.')
+          return
+        }
+        if (result.data.length > 1000) {
+          setCsvSetupError('Tek seferde en fazla 1.000 ürün içe aktarılabilir.')
+          return
+        }
+
+        const allergenByLabel = new Map<string, AllergenCode>(
+          ALLERGEN_CODES.flatMap((code) => [
+            [code.toLowerCase(), code] as const,
+            [ALLERGEN_LABELS[code].toLocaleLowerCase('tr-TR'), code] as const,
+          ]),
+        )
+        const parseAllergens = (value: string | undefined) => {
+          const labels = (value ?? '').split(';').map(part => part.trim()).filter(Boolean)
+          const codes: AllergenCode[] = []
+          const unknown: string[] = []
+          for (const label of labels) {
+            const code = allergenByLabel.get(label.toLocaleLowerCase('tr-TR'))
+            if (code) codes.push(code)
+            else unknown.push(label)
+          }
+          return { codes: [...new Set(codes)], unknown }
+        }
+        const normalizeKey = (value: string) => value.trim().toLocaleLowerCase('tr-TR')
+        const categoryNamesById = new Map(categories.map(category => [category.id, category.name]))
+        const existingProductKeys = new Set(items.map(item => (
+          `${normalizeKey(categoryNamesById.get(item.category_id) ?? '')}\u0000${normalizeKey(item.name)}`
+        )))
+        const fileProductKeys = new Set<string>()
+        const rows = result.data.map((row, index) => {
           const price = Number(row['Fiyat'])
+          const energyRaw = (row['Kalori'] ?? '').trim()
+          const energyKcal = energyRaw ? Number(energyRaw) : null
           const name = (row['Ad'] ?? '').trim()
           const category = (row['Kategori'] ?? '').trim()
-          let error: string | undefined
-          if (!name) error = 'Ad boş'
-          else if (!category) error = 'Kategori boş'
-          else if (isNaN(price) || price < 0) error = 'Geçersiz fiyat'
-          return { category, name, description: (row['Açıklama'] ?? '').trim(), price, error }
+          const removableNames = new Set((row['Çıkarılabilir İçerikler'] ?? '').split(';').map((part) => part.trim().toLocaleLowerCase('tr-TR')).filter(Boolean))
+          const ingredients = (row['İçindekiler'] ?? '').split(';').map((part) => part.trim()).filter(Boolean).map((ingredientName) => ({
+            id: crypto.randomUUID(),
+            name: ingredientName,
+            removable: removableNames.has(ingredientName.toLocaleLowerCase('tr-TR')),
+            allergen_codes: [] as AllergenCode[],
+          }))
+          const ingredientNames = new Set(ingredients.map(ingredient => normalizeKey(ingredient.name)))
+          const unmatchedRemovables = [...removableNames].filter(removable => !ingredientNames.has(removable))
+          const allergens = parseAllergens(row['Olası Alerjenler'])
+          const productKey = `${normalizeKey(category)}\u0000${normalizeKey(name)}`
+          const errors: string[] = []
+          if (!name) errors.push('Ad boş')
+          if (!category) errors.push('Kategori boş')
+          if (isNaN(price) || price < 0) errors.push('Geçersiz fiyat')
+          if (energyKcal !== null && (!Number.isInteger(energyKcal) || energyKcal < 0)) errors.push('Geçersiz kalori')
+          if (unmatchedRemovables.length > 0) errors.push(`İçerikte yok: ${unmatchedRemovables.join(', ')}`)
+          if (allergens.unknown.length > 0) errors.push(`Bilinmeyen alerjen: ${allergens.unknown.join(', ')}`)
+          if (name && category && existingProductKeys.has(productKey)) errors.push('Ürün zaten mevcut')
+          if (name && category && fileProductKeys.has(productKey)) errors.push('Dosyada tekrar ediyor')
+          fileProductKeys.add(productKey)
+
+          const missingFoodInfo = [
+            ingredients.length === 0 ? 'içerik' : null,
+            energyKcal === null ? 'kalori' : null,
+          ].filter(Boolean)
+          return {
+            sourceRow: index + 2,
+            category,
+            name,
+            description: (row['Açıklama'] ?? '').trim(),
+            price,
+            ingredients,
+            energyKcal,
+            mayContainAllergens: allergens.codes,
+            containsAlcohol: ['evet', 'true', '1'].includes((row['Alkol'] ?? '').trim().toLocaleLowerCase('tr-TR')),
+            containsPork: ['evet', 'true', '1'].includes((row['Domuz Kaynaklı'] ?? '').trim().toLocaleLowerCase('tr-TR')),
+            error: errors.length > 0 ? errors.join(' · ') : undefined,
+            warning: errors.length === 0 && missingFoodInfo.length > 0
+              ? `${missingFoodInfo.join(' ve ')} eksik`
+              : undefined,
+          }
         })
-        setCsvPreview({ rows, importing: false, importProgress: null })
+        setShowCsvImport(false)
+        setCsvPreview({ fileName: file.name, rows, importing: false, importProgress: null })
       },
+      error: (error) => setCsvSetupError(`CSV okunamadı: ${error.message}`),
     })
+  }
+
+  async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (file) await parseCsvFile(file)
   }
 
   async function handleCsvImport() {
@@ -1629,6 +2225,8 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
     }
 
     let done = 0
+    let failed = 0
+    let firstFailure: string | null = null
     const createdCats: Tables<'menu_categories'>[] = []
 
     for (const [catName, rows] of grouped) {
@@ -1639,7 +2237,15 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
         fd.append('restaurantId', restaurantId)
         fd.append('name', catName)
         const result = await createCategory(null, fd)
-        if ('error' in result) { showError(result.error); return }
+        if ('error' in result) {
+          failed += rows.length
+          firstFailure ??= result.error
+          setCsvPreview(prev => prev ? {
+            ...prev,
+            importProgress: { done: done + failed, total: validRows.length },
+          } : null)
+          continue
+        }
         catId = result.id
         const newCat: Tables<'menu_categories'> = {
           id: catId,
@@ -1663,23 +2269,38 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
         fd.append('description', row.description)
         fd.append('price', String(row.price))
         fd.append('is_available', 'true')
+        fd.append('ingredients', JSON.stringify(row.ingredients))
+        fd.append('energy_kcal', row.energyKcal === null ? '' : String(row.energyKcal))
+        fd.append('may_contain_allergens', JSON.stringify(row.mayContainAllergens))
+        fd.append('contains_alcohol', String(row.containsAlcohol))
+        fd.append('contains_pork', String(row.containsPork))
+        fd.append('food_info_reviewed', 'false')
         const result = await createItem(null, fd)
-        if ('error' in result) { showError(result.error); return }
+        if ('error' in result) {
+          failed++
+          firstFailure ??= result.error
+          continue
+        }
         done++
         const currentDone = done
-        setCsvPreview(prev => prev ? { ...prev, importProgress: { done: currentDone, total: validRows.length } } : null)
+        setCsvPreview(prev => prev ? {
+          ...prev,
+          importProgress: { done: currentDone + failed, total: validRows.length },
+        } : null)
       }
     }
 
     if (createdCats.length > 0) setCategories(prev => [...prev, ...createdCats])
     setCsvPreview(null)
-    setToastMsg(`${done} ürün başarıyla içe aktarıldı`)
-    setToastTone('success')
+    setToastMsg(failed > 0
+      ? `${done} ürün aktarıldı, ${failed} ürün aktarılamadı${firstFailure ? `: ${firstFailure}` : ''}`
+      : `${done} ürün başarıyla içe aktarıldı`)
+    setToastTone(failed > 0 ? 'error' : 'success')
     router.refresh()
   }
 
   function downloadCsvTemplate() {
-    const csv = 'Kategori,Ad,Açıklama,Fiyat\nAna Yemekler,Izgara Tavuk,Özel baharatlı,120\nTatlılar,Sütlaç,Fırın sütlaç,45'
+    const csv = 'Kategori,Ad,Açıklama,Fiyat,İçindekiler,Çıkarılabilir İçerikler,Kalori,Olası Alerjenler,Alkol,Domuz Kaynaklı\nAna Yemekler,Izgara Tavuk,Özel baharatlı,120,Tavuk;Domates;Soğan,Domates;Soğan,420,,Hayır,Hayır\nTatlılar,Sütlaç,Fırın sütlaç,45,Süt;Pirinç;Şeker,,260,Süt,Hayır,Hayır'
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -1826,7 +2447,10 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
         right={
           <>
             <input ref={csvFileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleCsvFile} />
-            <button style={btnGhost({ whiteSpace: 'nowrap' })} onClick={() => csvFileRef.current?.click()}>
+            <button
+              style={btnGhost({ whiteSpace: 'nowrap' })}
+              onClick={() => { setCsvSetupError(null); setShowCsvImport(true) }}
+            >
               <I.upload size={13} />İçe aktar
             </button>
             <button
@@ -1899,8 +2523,19 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
 
       {toastMsg && <Toast message={toastMsg} tone={toastTone} onDone={() => setToastMsg(null)} />}
 
+      {showCsvImport && (
+        <CsvImportStartModal
+          error={csvSetupError}
+          onChoose={() => csvFileRef.current?.click()}
+          onFile={parseCsvFile}
+          onCancel={() => { setShowCsvImport(false); setCsvSetupError(null) }}
+          onDownloadTemplate={downloadCsvTemplate}
+        />
+      )}
+
       {csvPreview && (
         <CsvImportModal
+          fileName={csvPreview.fileName}
           rows={csvPreview.rows}
           importing={csvPreview.importing}
           importProgress={csvPreview.importProgress}

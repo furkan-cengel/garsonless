@@ -19,7 +19,9 @@ export function useWaiterCall(restaurantId: string, tableId: string | null) {
   }, [])
 
   const callWaiter = useCallback(async () => {
-    if (!tableId || callState !== 'idle') return
+    if (!tableId) return false
+    if (callState === 'called') return true
+    if (callState !== 'idle') return false
     setCallState('calling')
     try {
       const res = await fetch('/api/service-request', {
@@ -32,11 +34,14 @@ export function useWaiterCall(restaurantId: string, tableId: string | null) {
         setCallState('called')
         if (timerRef.current) clearTimeout(timerRef.current)
         timerRef.current = setTimeout(() => setCallState('idle'), COOLDOWN_MS)
+        return true
       } else {
         setCallState('idle')
+        return false
       }
     } catch {
       setCallState('idle')
+      return false
     }
   }, [restaurantId, tableId, callState])
 

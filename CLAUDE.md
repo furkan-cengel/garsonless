@@ -107,6 +107,44 @@ The design engine is the core differentiator. Every UI decision routes through i
 
 **Verification:** `corepack pnpm --filter @garsonless/dashboard typecheck`, `lint`, and `build` all pass after the final loader fix. Restarted local dashboard dev server on `localhost:3000`; `/dashboard` returns 307 to `/auth/login`, `/auth/login` returns 200.
 
+### Pano masa durumu — canlı ve etkileşimli plan ✅ (2026-06-27)
+
+**Reference implementation:** `Dashboard.html` + `dashboard-page.jsx` + `dashboard-overlays.jsx` masa deneyimi mevcut dashboard tasarım sistemine uyarlandı. Pano masa kartları artık hover özeti ve tıklamayla gerçek adisyon detayını açıyor; detay sipariş kalemlerini lazy server action ile okuyor, seçili masaya doğrudan ürün ekleyebiliyor ve kapatma niyetini mevcut güvenli `SettlementSheet` akışına iletiyor. Ödendi/aktif/yeni/geciken durumları yalnızca gerçek açık oturum ve sipariş verisinden türetiliyor; referanstaki sahte elle durum/ödeme değiştirme davranışı taşınmadı.
+
+**Canlılık + plan:** Pano `orders` ve `table_sessions` realtime değişikliklerinde yetki kontrollü `fetchPanoTableStatuses` ile masa snapshot'ını yeniliyor. FloorPlan referanstaki İç salon/Teras tuvaline, sürükle-bırak yerleşime, restoran bazlı local layout kaydına, bölge/koltuk editörüne ve gerçek Fullscreen API kontrolüne kavuştu. Masa ekleme/silme gerçek `/tables` yönetimine yönleniyor. Dashboard'dan oluşturulan masa siparişleri artık service-role-only `open_or_get_table_session` RPC'siyle gerçek `table_session_id` alıyor; böylece Pano ve adisyonda görünmeme açığı kapandı.
+
+**Verify:** dashboard typecheck + lint + production build geçti. Test Cafe B gerçek owner runtime: Masa 1 canlı ₺50/geciken görünümü, gerçek Filtre Kahve adisyon satırı, ürün ekle/hesabı kapat aksiyonları, 3 masalı plan, düzenleme modu ve kontroller doğrulandı; hiçbir tahsilat/kapatma write'ı tetiklenmedi. Desktop ve iPhone 390×844'te yatay taşma yok.
+
+**Canlı akış hızlı onay (2026-06-28):** `pending_approval` satırları hover/keyboard focus sırasında saat etiketini gerçek **Onayla** aksiyonuyla değiştiriyor; touch cihazlarda aksiyon doğrudan görünür. Aksiyon mevcut owner/member-gated `updateOrderStatus(...,'sent_to_kitchen')` yolunu kullanıyor, bekleme ve hata durumlarını satır içinde gösteriyor. Pano orders realtime handler'ı artık INSERT yanında UPDATE durumlarını da feed'e yansıtıyor. Test Cafe B gerçek owner runtime: hover opacity `0→1`, UI `Onay bekliyor→Mutfağa gönderildi`, DB `pending_approval→sent_to_kitchen`; test sonunda sipariş eski `pending_approval` durumuna geri yüklendi. Dashboard typecheck/lint/build geçti.
+
+### Müşteri ödeme UX — gerçek İyzico + masada tahsilat ✅ (2026-06-28)
+
+**Reference adaptation:** `Müşteri Ödeme.html` ödeme sheet hiyerarşisi gerçek menu akışına uyarlandı: toplam kartı, yöntem seçimi, İyzico için ödeyen kişi bilgileri, güvenli checkout iframe'i ve callback doğrulamasından sonra gerçek sonuç fişi. Mock'taki kayıtlı kart/Visa son hanesi, bahşiş, puan, rating ve e-makbuz eklenmedi; bunların backend modeli yok. Kart seçeneği yalnız gerçek İyzico initialize/callback yolunu kullanıyor. Masa QR'ında ikinci yöntem olan **Masada öde**, gerçek `service_requests` garson çağrısını gönderiyor ve siparişi unpaid bırakıyor; masa dışı siparişte görünmüyor.
+
+**State correctness:** kart ödemesi başlatılırken sipariş artık callback öncesinde `paid=true` yapılmıyor. Sipariş oluşturulur oluşturulmaz unpaid olarak takip state'ine alınıyor; ödeme penceresi kapatılsa bile kaybolmuyor. Yalnız trusted same-origin `PAYMENT_SUCCESS` mesajından sonra meta paid oluyor. İyzico buyer payload'ına gerçek telefon (`gsmNumber`) eklendi. Development callback origin'i gelen hosttan üretildiği için localhost Cloudflare tunnel sandbox callback'i erişilebilir; production canonical `NEXT_PUBLIC_MENU_URL` kullanmaya devam ediyor. `PaymentModal` dinamik chunk'a ayrıldı; menu first-load **281 kB → 269 kB**.
+
+**Verify:** menu typecheck + lint + production build geçti. Test Cafe B iPhone 390×844 runtime (orders/payment/service-request API'leri intercept edilerek DB ve sağlayıcı write'ı olmadan): kart ve masada ödeme sheet'leri, alanlar ve responsive yerleşim doğrulandı; yatay taşma yok. Callback öncesi `paid=false`, doğrulanmış success sonrası `paid=true`; masada tahsilat sonrası `paid=false` + takip görünümü. Başarı fişinde sahte Visa/bahşiş/puan/e-makbuz metni yok.
+
+### Menü gıda bilgisi + güvenli varyant/sipariş snapshot'ı ✅ (2026-06-28)
+
+**Migration (DEV'e uygulandı 2026-06-28):** `20260628000000_menu_food_information.sql` ürünlere yapılandırılmış `ingredients`, temel porsiyon `energy_kcal`, olası çapraz temas alerjenleri, alkol/domuz kaynaklı bileşen bayrakları ve işletme gözden-geçirme audit alanlarını ekler. DEV PostgREST schema-cache probe'u yeni kolonlarla 200 döndü; migration listesi local/remote eşleşiyor. Mevcut ürünler yayında kalır; eksik/gözden geçirilmemiş ürünler dashboard'da `Bilgi eksik` olarak görünür. Resmî takvim kılavuzdan doğrulandı: ulusal zincir `01.07.2026`, il içinde 3+ şube `31.12.2026`, diğer işletmeler bileşen `31.12.2026`, enerji `31.12.2027` (2028 değil). Bakanlığın 14 alerjeni sabit kod listesi olarak kullanılır.
+
+**Ürün ve varyant modeli:** dashboard ürün panelinde sıralanabilir bileşenler, işletme tarafından işaretlenen çıkarılabilir içerikler, kcal, bileşen-alerjen eşlemesi, çapraz temas ve özel içerik bilgileri bulunur. Varyantlar canonical `single|multiple|quantity + required + min/max` gruplarıdır; seçeneklerde fiyat/kcal farkı, varsayılan ve ek alerjenler tutulur. Eski `required|optional` JSON'ları browser-safe normalizer ile okunur. CSV şablonu gıda bilgisi sütunlarıyla genişletildi.
+
+**Sipariş güven sınırı:** menu ve dashboard istemcileri yalnız `itemId + quantity + selected option ids + removed ingredient ids` yollar. `resolveOrderLines` ürünün restorana aitliğini/uygunluğunu, min-max kurallarını ve çıkarılabilirliği service-role DB verisine karşı doğrular; istemcinin isim/fiyat/modifier delta alanları geçiş uyumluluğu için kabul edilse de tamamen yok sayılır. Sunucu insan-okunur immutable order snapshot'ı (`modifiers`, `removedIngredients`, kcal, alerjenler ve gerçek fiyatlar) üretir. Dashboard/mutfak/Pano eski `qty|quantity` satırlarını da okuyabilen ortak normalizer kullanır; mutfakta `ÇIKAR:` ve `ALERJEN:` yüksek görünürlüktedir. Zustand sepet v2 migration eski sepetleri korur.
+
+**Ürün paneli UX iyileştirmesi (2026-06-28):** sağ editördeki native çoklu seçimler, seçilen değerleri çıkarılabilir etiketlerle gösteren modern alerjen dropdown'larıyla değiştirildi. Bileşen ve varyant alanları dar panelde yatay kaydırma gerektirmeyen kart düzenine alındı; işletme bileşen, grup ve seçenek adlarını serbestçe oluşturur, hazır seçenek atanmaz. Sabit 14 alerjen yalnız resmî sınıflandırma sözlüğüdür ve başlangıçta hiçbir değer seçili değildir. Playwright ölçümünde panel masaüstü ve mobilde `scrollWidth === clientWidth` verdi; dashboard typecheck ve workspace lint temiz.
+
+**CSV içe aktarma UX + doğrulama (2026-06-28):** `İçe aktar` artık şablon indirme ve sürükle-bırak destekli bir başlangıç ekranı açar; `.csv`, 5 MB ve 1.000 satır sınırları yüklemeden önce doğrulanır. Önizleme dosya/satır numarasıyla mevcut ürün tekrarını, dosya içi tekrarı, bilinmeyen resmî alerjeni, içerik listesinde bulunmayan çıkarılabilir değeri ve geçersiz fiyat/kaloriyi açıkça gösterir; sorunlu satırlar yazılmaz. Eksik içerik/kalori yalnız uyarıdır ve ürünün mevcut `Bilgi eksik` politikasını korur. Server action hataları kalan satırları kilitlemez; başarılı/başarısız sayısı sonuç mesajında ayrılır. Test Cafe B Playwright read-only senaryosunda başlangıç ve önizleme ekranları, tekrar/alerjen/içerik hataları ve 390 px mobil düzen doğrulandı (`scrollWidth === clientWidth`, konsol hatası yok); gerçek import onayı verilmedi. Dashboard typecheck ve workspace lint temiz.
+
+**Verify:** workspace typecheck, lint 0/0, DB unit **67/67**, production build (marketing/kitchen/menu/dashboard), API route smoke **4/4** geçti. Public desktop+mobile Chromium visual smoke **8/8** geçti; Playwright 1.61 güncellemesi nedeniyle Chromium v1228 yerel cache'e yeniden kuruldu. DEV migration sonrası yeni kolonlar PostgREST üzerinden doğrulandı. Tam Test Cafe B ürün-düzenleme→sipariş→mutfak write senaryosu henüz çalıştırılmadı; PROD deploy sırası migration → app olmalıdır.
+
+### Dashboard ortak navigasyon + erişilebilir tooltip ✅ (2026-06-28)
+
+Masalar tam ekran aracındaki beş öğeli yerel rail kaldırıldı; ekran artık `RestaurantShell` bağlamından kullanıcı/yetki durumunu alıp ortak `IconRail` bileşenini kullanıyor. Böylece Pano, Müşteriler ve Raporlar dahil izin verilen tüm bölümler Menü ve Masalar ekranlarında aynı sırada kalır; profil, yardım, sipariş rozeti ve navigasyon koruması da tek kaynaktan çalışır. Tüm rail ikonlarında mouse hover ve keyboard focus ile açılan, görünen bölüm adı tooltip'i bulunur. Test Cafe B owner Playwright senaryosunda Menü ve Masalar için **8/8** öğe, Masalar üzerinde `Raporlar` tooltip'i ve sıfır runtime/console hatası doğrulandı; dashboard typecheck, workspace lint ve `git diff --check` geçti.
+
+**Tek tema akışı (2026-06-28):** ürün kararına göre kullanıcıya şablon kütüphanesi sunulmaz. `/theme`, restoranın doğrulanmış `active_template_id` değerini kullanarak doğrudan `/theme/{id}/edit` düzenleyicisine yönlenir; eski `ThemeLibraryClient` kaldırıldı ve editör üst çubuğundaki `Şablonlar` tetikleyicisi silindi. Mevcut tema ayarları ve yayınlama yolu değişmedi. Test Cafe B runtime doğrulamasında Tema ikonu doğrudan `/theme/default/edit` açtı; `Şablonlar` düğmesi/dialog sayısı **0/0**, konsol hatası **0**; dashboard typecheck ve workspace lint temiz.
+
 ### Sprint 23 — Settings stubs → real surfaces 🚧
 
 **23b — Security section real (login/activity log + password change) ✅ (2026-06-22). Migration: `20260622000000_security_events.sql` (db push, `types:gen`, local/remote match through `20260622000000`).**
@@ -512,7 +550,7 @@ The design engine is the core differentiator. Every UI decision routes through i
 
 **Ops notes:** project lives at `~/dev/gersonless` (moved off `~/Desktop` 2026-06-13 to stop iCloud creating `"file 2"` duplicates that broke `.next` typecheck and silently split `MenuPageClient.tsx`). Supabase CLI migration tracking repaired (`supabase migration repair`); use `supabase db push` from `packages/db`. `gen_random_uuid()` in new migrations (not `uuid_generate_v4`).
 
-**Backlog:** Garson çağır (OrderConfirmation'da TODO yorumu) · pg_cron gerçek auto-close · Spain theme section renderers · ThemeEditorClient (~4400 satır) + default MenuPage (~2000 satır) refactor · Settings remaining stubs (Team/Workspace team mgmt, Billing real plan/usage, session-timeout/IP-restriction if ever needed) · üyelik + sadakat katmanı.
+**Backlog:** Garson çağır (OrderConfirmation'da TODO yorumu) · pg_cron gerçek auto-close · Spain theme section renderers · ThemeEditorClient (~4400 satır) + default MenuPage (~2000 satır) refactor · Settings remaining stubs (Team/Workspace team mgmt, Billing real plan/usage, session-timeout/IP-restriction if ever needed) · üyelik + sadakat katmanı · gerçek kişi-başı split-pay (partial-payment modeli + pay başına İyzico); müşteri `SplitBillModal` şimdilik yalnızca hesaplayıcıdır · Bakanlığın işletme kayıt/denetim karekodunu ayrı işletme ayarı ve müşteri görünümü olarak ekleme.
 
 ---
 
@@ -677,7 +715,7 @@ The design engine is the core differentiator. Every UI decision routes through i
 - İyzico: `checkoutFormInitialize.create()` → `paymentPageUrl` → iframe in `PaymentModal`
 - İyzico callback: POST `/api/payment/callback` updates order status to `paid`
 - `'paid'` added to `OrderStatus` enum in types.gen.ts
-- Split bill: client-side manual item assignment per person → individual İyzico payment per person
+- Split bill: client-side equal/per-item share calculator shipped; individual İyzico payment per person was planned but never implemented (deferred pending a partial-payment model)
 - `deviceId` added to `useCartStore` as persistent device UUID (separate from sessionId)
 - Stand orders: static page + Resend email (lead capture, not e-commerce)
 - Payment flow: "Ödeme Yap" places order first → gets orderId → opens PaymentModal with İyzico iframe

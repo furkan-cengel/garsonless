@@ -435,13 +435,20 @@ export type Database = {
       menu_items: {
         Row: {
           category_id: string
+          contains_alcohol: boolean
+          contains_pork: boolean
           created_at: string
           deleted_at: string | null
           description: string | null
+          energy_kcal: number | null
           earns_stamp: boolean
+          food_info_reviewed_at: string | null
+          food_info_reviewed_by: string | null
           id: string
           images: Json
+          ingredients: Json
           is_available: boolean
+          may_contain_allergens: string[]
           modifier_groups: Json
           name: string
           position: number
@@ -450,13 +457,20 @@ export type Database = {
         }
         Insert: {
           category_id: string
+          contains_alcohol?: boolean
+          contains_pork?: boolean
           created_at?: string
           deleted_at?: string | null
           description?: string | null
+          energy_kcal?: number | null
           earns_stamp?: boolean
+          food_info_reviewed_at?: string | null
+          food_info_reviewed_by?: string | null
           id?: string
           images?: Json
+          ingredients?: Json
           is_available?: boolean
+          may_contain_allergens?: string[]
           modifier_groups?: Json
           name: string
           position?: number
@@ -465,13 +479,20 @@ export type Database = {
         }
         Update: {
           category_id?: string
+          contains_alcohol?: boolean
+          contains_pork?: boolean
           created_at?: string
           deleted_at?: string | null
           description?: string | null
+          energy_kcal?: number | null
           earns_stamp?: boolean
+          food_info_reviewed_at?: string | null
+          food_info_reviewed_by?: string | null
           id?: string
           images?: Json
+          ingredients?: Json
           is_available?: boolean
+          may_contain_allergens?: string[]
           modifier_groups?: Json
           name?: string
           position?: number

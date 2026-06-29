@@ -20,12 +20,14 @@ BROWSING → CART → ORDER_PLACED → (PENDING_APPROVAL | SENT_TO_KITCHEN) → 
 
 ## Add-ons / Modifiers
 
-- Modifier groups: required (pick 1) / optional (pick many) / quantity
-- Each modifier has: name, price_delta, is_default
-- Cart item stores selected modifiers as JSON
+- Modifier groups: `single | multiple | quantity` with `required`, `min`, and `max`.
+- Options carry price/calorie deltas, defaults, and additional allergen codes.
+- Ingredients are structured; only restaurant-marked ingredients may be removed.
+- Clients send IDs only. `resolveOrderLines` re-reads menu data and writes an immutable, human-readable order snapshot for customer, dashboard, and kitchen views.
 
 ## Split Bill
 
-- Session tracks device_id per order item
-- /checkout shows items grouped by device
-- Each device pays independently
+- Customer `SplitBillModal` is display-only: it calculates equal or per-item shares.
+- It does not create per-person payment sessions or settle partial amounts.
+- One diner pays the whole bill through the normal İyzico flow, or staff settles it at the table.
+- Real per-person split payment is deferred pending a partial-payment model.

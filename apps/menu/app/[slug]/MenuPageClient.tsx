@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
+import dynamic from 'next/dynamic'
 import {
   ThemeProvider,
   ProductCard,
@@ -24,9 +25,10 @@ import { useCartStore } from '../../lib/store/useCartStore'
 import { useOrderStore } from '../../lib/store/useOrderStore'
 import { createMenuBrowserClient } from '../../lib/supabase'
 import { useWaiterCall } from '../../lib/hooks/useWaiterCall'
-import PaymentModal from './components/PaymentModal'
 import SplitBillModal from './components/SplitBillModal'
 import MemberSheet from './components/MemberSheet'
+
+const PaymentModal = dynamic(() => import('./components/PaymentModal'))
 
 function getParentOrigin() {
   if (typeof document === 'undefined' || !document.referrer) return null
@@ -800,7 +802,12 @@ export function MenuPageClient({
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             restaurantId: restaurant.id,
-            items: cartItems.map((i) => ({ itemId: i.itemId, quantity: i.quantity, modifiersPriceDelta: i.modifiersPriceDelta })),
+            items: cartItems.map((i) => ({
+              itemId: i.itemId,
+              quantity: i.quantity,
+              selectedModifiers: i.modifiers,
+              removedIngredientIds: i.removedIngredientIds,
+            })),
             redeemPoints,
             redeemStampClaim: claimStamp,
             catalogItemId,
@@ -835,6 +842,8 @@ export function MenuPageClient({
       quantity: i.quantity,
       name: i.name,
       unitPrice: i.price + i.modifiersPriceDelta,
+      modifierNames: i.modifierNames,
+      removedIngredientNames: i.removedIngredientNames,
       ...(i.originalPrice !== undefined && i.originalPrice !== i.price
         ? { originalPrice: i.originalPrice + i.modifiersPriceDelta }
         : {}),
@@ -921,8 +930,13 @@ export function MenuPageClient({
   }, [restaurant.id, tableId, storedTableId, setStoreTableId])
 
   const handleAddToCart = useCallback(
-    (item: MenuItem, modifiers: ReturnType<typeof useCartStore.getState>['items'][0]['modifiers'], quantity: number) => {
-      addItem(item, modifiers, item.modifier_groups, quantity)
+    (
+      item: MenuItem,
+      modifiers: ReturnType<typeof useCartStore.getState>['items'][0]['modifiers'],
+      quantity: number,
+      removedIngredientIds: string[],
+    ) => {
+      addItem(item, modifiers, item.modifier_groups, quantity, undefined, removedIngredientIds)
     },
     [addItem],
   )
@@ -932,7 +946,7 @@ export function MenuPageClient({
   }, [])
 
   const handleQuickAdd = useCallback((item: MenuItem, originalPrice?: number) => {
-    if (item.modifier_groups.length > 0) {
+    if (item.modifier_groups.length > 0 || item.ingredients.some((ingredient) => ingredient.removable)) {
       setSelectedItem(item)
     } else {
       addItem(item, [], [], 1, originalPrice)
@@ -966,11 +980,9 @@ export function MenuPageClient({
     sessionId,
     items: cartItems.map((i) => ({
       itemId: i.itemId,
-      name: i.name,
-      price: i.price,
       quantity: i.quantity,
-      modifiers: i.modifiers,
-      modifiersPriceDelta: i.modifiersPriceDelta,
+      selectedModifiers: i.modifiers,
+      removedIngredientIds: i.removedIngredientIds,
     })),
     redeemPoints,
     redeemStampClaim: claimStamp,
@@ -1053,7 +1065,13 @@ export function MenuPageClient({
     }
 
     setIsPlacing(false)
-    setOrderMeta({ items: summaryItems, total: finalTotal, createdAt: new Date().toISOString(), paid: true })
+    // The order exists before checkout starts, but is NOT paid until the
+    // verified İyzico callback says so. Keep it trackable even if the customer
+    // closes checkout or chooses table settlement.
+    setOrderMeta({ items: summaryItems, total: finalTotal, createdAt: new Date().toISOString(), paid: false })
+    setOrder(json.data.orderId)
+    setOrderView('bubble')
+    prevPhaseRef.current = 0
     if (effectiveTableId) void refreshBill()
     if (member) void refetchBalances()
     clearCart()
@@ -1440,20 +1458,22 @@ export function MenuPageClient({
           orderId={paymentOrderId}
           total={paymentTotal}
           restaurantId={restaurant.id}
+          restaurantName={restaurant.name}
+          tableLabel={tableLabel ?? null}
           deviceId={deviceId}
+          initialBuyerName={member?.name ?? null}
           onClose={() => setPaymentOrderId(null)}
           onSuccess={() => {
-            // Paid flow: hand over to the order-tracking screen (ÖDENDİ state)
-            const oid = paymentOrderId
+            // Only the verified callback reaches this branch.
+            const currentMeta = useOrderStore.getState().meta
+            if (currentMeta) setOrderMeta({ ...currentMeta, paid: true })
             setPaymentOrderId(null)
-            if (oid) {
-              // Payment lives in paid_at now — status stays in its kitchen stage.
-              // ÖDENDİ badge is driven by orderMeta.paid (set at placement).
-              setOrder(oid)
-              setOrderView('sheet')
-              prevPhaseRef.current = 0
-            }
+            setOrderView('sheet')
           }}
+          {...(effectiveTableId ? {
+            onPayAtTable: callWaiter,
+            onDeferred: () => setOrderView('sheet'),
+          } : {})}
         />
       )}
 
@@ -1477,8 +1497,6 @@ export function MenuPageClient({
         <SplitBillModal
           items={cartItems}
           subtotal={cartItems.reduce((sum, i) => sum + (i.price + i.modifiersPriceDelta) * i.quantity, 0)}
-          restaurantId={restaurant.id}
-          deviceId={deviceId}
           onClose={() => setIsSplitOpen(false)}
         />
       )}

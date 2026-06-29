@@ -23,6 +23,7 @@ interface CartState {
     modifierGroups: ModifierGroup[],
     quantity: number,
     originalPrice?: number,
+    removedIngredientIds?: string[],
   ) => void
   removeItem: (cartId: string) => void
   updateQuantity: (cartId: string, quantity: number) => void
@@ -41,7 +42,7 @@ export const useCartStore = create<CartState>()(
 
       setTableId: (tableId) => set({ tableId }),
 
-      addItem: (item, modifiers, modifierGroups, quantity, originalPrice) => {
+      addItem: (item, modifiers, modifierGroups, quantity, originalPrice, removedIngredientIds = []) => {
         const modifiersPriceDelta = modifiers.reduce((total, sel) => {
           for (const group of modifierGroups) {
             const option = group.options.find((o) => o.id === sel.option_id)
@@ -49,10 +50,31 @@ export const useCartStore = create<CartState>()(
           }
           return total
         }, 0)
+        const modifierNames = modifiers.flatMap((selection) => {
+          for (const group of modifierGroups) {
+            const option = group.options.find((candidate) => candidate.id === selection.option_id)
+            if (option) return [option.name]
+          }
+          return []
+        })
+        const removedIngredientNames = removedIngredientIds.flatMap((id) => {
+          const ingredient = item.ingredients.find((candidate) => candidate.id === id)
+          return ingredient ? [ingredient.name] : []
+        })
+        const calorieDelta = modifiers.reduce((total, selection) => {
+          for (const group of modifierGroups) {
+            const option = group.options.find((candidate) => candidate.id === selection.option_id)
+            if (option) return total + option.calorie_delta * (selection.quantity ?? 1)
+          }
+          return total
+        }, 0)
 
         const serializedModifiers = JSON.stringify(modifiers)
+        const serializedRemovals = JSON.stringify([...removedIngredientIds].sort())
         const existingIndex = get().items.findIndex(
-          (ci) => ci.itemId === item.id && JSON.stringify(ci.modifiers) === serializedModifiers,
+          (ci) => ci.itemId === item.id &&
+            JSON.stringify(ci.modifiers) === serializedModifiers &&
+            JSON.stringify([...(ci.removedIngredientIds ?? [])].sort()) === serializedRemovals,
         )
 
         if (existingIndex >= 0) {
@@ -72,6 +94,12 @@ export const useCartStore = create<CartState>()(
           quantity,
           modifiers,
           modifiersPriceDelta,
+          modifierNames,
+          removedIngredientIds,
+          removedIngredientNames,
+          energyKcal: item.energy_kcal === null
+            ? null
+            : Math.max(0, Math.round(item.energy_kcal + calorieDelta)),
           imageUrl: item.images?.[0] ?? null,
           ...(originalPrice !== undefined && originalPrice !== item.price ? { originalPrice } : {}),
         }
@@ -102,6 +130,20 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: 'garsonless-cart',
+      version: 2,
+      migrate: (persisted) => {
+        const state = persisted as Partial<CartState> & { items?: Partial<CartItem>[] }
+        return {
+          ...state,
+          items: (state.items ?? []).map((item) => ({
+            ...item,
+            modifierNames: item.modifierNames ?? [],
+            removedIngredientIds: item.removedIngredientIds ?? [],
+            removedIngredientNames: item.removedIngredientNames ?? [],
+            energyKcal: item.energyKcal ?? null,
+          })),
+        } as CartState
+      },
       skipHydration: true,
       partialize: (state) => ({
         items: state.items,

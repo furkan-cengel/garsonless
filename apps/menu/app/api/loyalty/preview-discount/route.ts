@@ -1,14 +1,21 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { computeOrderDiscount, verifyCustomerSession, CUSTOMER_SESSION_COOKIE } from '@garsonless/db'
+import { computeOrderDiscount, resolveOrderLines, verifyCustomerSession, CUSTOMER_SESSION_COOKIE } from '@garsonless/db'
 
 const schema = z.object({
   restaurantId: z.string().uuid(),
   items: z.array(z.object({
     itemId: z.string().uuid(),
     quantity: z.number().int().positive(),
-    modifiersPriceDelta: z.number(),
+    selectedModifiers: z.array(z.object({
+      group_id: z.string().min(1),
+      option_id: z.string().min(1),
+      quantity: z.number().int().positive().optional(),
+    })).optional(),
+    removedIngredientIds: z.array(z.string()).optional(),
+    modifiers: z.array(z.record(z.unknown())).optional(),
+    modifiersPriceDelta: z.number().optional(),
   })).min(1),
   redeemPoints: z.number().int().nonnegative().optional(),
   redeemStampClaim: z.boolean().optional(),
@@ -32,11 +39,15 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const token = (await cookies()).get(CUSTOMER_SESSION_COOKIE)?.value
   const session = await verifyCustomerSession(token)
+  const resolved = await resolveOrderLines(parsed.data.restaurantId, parsed.data.items)
+  if (!resolved.ok) {
+    return NextResponse.json({ ok: false, error: resolved.error }, { status: 400 })
+  }
 
   const d = await computeOrderDiscount({
     customerId: session?.customerId ?? null,
     restaurantId: parsed.data.restaurantId,
-    lines: parsed.data.items,
+    lines: resolved.discountLines,
     requestedPointsRedeem: session ? (parsed.data.redeemPoints ?? 0) : 0,
     requestedStampClaim: session ? (parsed.data.redeemStampClaim ?? false) : false,
     requestedCatalogReward: session && parsed.data.catalogItemId ? { itemId: parsed.data.catalogItemId } : null,

@@ -261,6 +261,23 @@ export function CartDrawer({
                             {formatTRY(item.price + item.modifiersPriceDelta)} / adet{item.modifiers.length > 0 ? ' · Seçenekli' : ''}
                           </span>
                         </div>
+                        {(item.modifierNames.length > 0 || item.removedIngredientNames.length > 0 || item.energyKcal !== null) && (
+                          <div style={{ margin: '-3px 0 9px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {item.modifierNames.length > 0 && (
+                              <span style={{ fontSize: 10.5, color: 'var(--p-text-2)' }}>
+                                {item.modifierNames.join(', ')}
+                              </span>
+                            )}
+                            {item.removedIngredientNames.length > 0 && (
+                              <span style={{ fontSize: 10.5, color: '#b42318', fontWeight: 800 }}>
+                                ÇIKAR: {item.removedIngredientNames.join(', ')}
+                              </span>
+                            )}
+                            {item.energyKcal !== null && (
+                              <span style={{ fontSize: 10.5, color: 'var(--p-text-2)' }}>{item.energyKcal} kcal</span>
+                            )}
+                          </div>
+                        )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                           <button
                             onClick={() => onUpdateQuantity(item.cartId, item.quantity - 1)}
@@ -455,7 +472,7 @@ export function CartDrawer({
                           border: '1px solid rgba(15,23,42,.1)', color: 'var(--p-text)',
                           backgroundColor: '#fff', borderRadius: `${Math.max(radius, 12)}px`, cursor: 'pointer',
                         }}
-                      >÷ Hesabı Böl</button>
+                      >÷ Kişi Başı Hesapla</button>
                     )}
                   </div>
                 )}

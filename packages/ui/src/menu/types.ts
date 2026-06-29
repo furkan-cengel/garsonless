@@ -1,24 +1,15 @@
-export interface ModifierOption {
-  id: string
-  name: string
-  price_delta: number
-  is_default: boolean
-}
+import type {
+  AllergenCode,
+  MenuIngredient,
+  MenuModifierGroup,
+  MenuModifierOption,
+  SelectedMenuModifier,
+} from '@garsonless/db/order-client'
 
-export interface ModifierGroup {
-  id: string
-  name: string
-  type: 'required' | 'optional' | 'quantity'
-  min: number
-  max: number
-  options: ModifierOption[]
-}
-
-export interface SelectedModifier {
-  group_id: string
-  option_id: string
-  quantity?: number
-}
+export type ModifierOption = MenuModifierOption
+export type ModifierGroup = MenuModifierGroup
+export type SelectedModifier = SelectedMenuModifier
+export type { AllergenCode, MenuIngredient }
 
 export interface MenuItem {
   id: string
@@ -27,6 +18,12 @@ export interface MenuItem {
   description: string | null
   price: number
   images: string[]
+  ingredients: MenuIngredient[]
+  energy_kcal: number | null
+  may_contain_allergens: AllergenCode[]
+  contains_alcohol: boolean
+  contains_pork: boolean
+  food_info_reviewed_at: string | null
   modifier_groups: ModifierGroup[]
   is_available: boolean
   position: number
@@ -49,6 +46,10 @@ export interface CartItem {
   quantity: number
   modifiers: SelectedModifier[]
   modifiersPriceDelta: number
+  modifierNames: string[]
+  removedIngredientIds: string[]
+  removedIngredientNames: string[]
+  energyKcal: number | null
   imageUrl: string | null
   originalPrice?: number
 }

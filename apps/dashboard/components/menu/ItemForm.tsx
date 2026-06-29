@@ -44,7 +44,23 @@ export default function ItemForm({ restaurantId, categoryId, existing, onCreated
       if (description) fd.append('description', description)
       fd.append('price', price)
       fd.append('is_available', String(isAvailable))
-      fd.append('modifier_groups', JSON.stringify(modifierGroups))
+      const canonicalGroups = modifierGroups.map((group) => ({
+        id: crypto.randomUUID(),
+        name: group.name,
+        selection_mode: group.required ? 'single' : 'multiple',
+        required: group.required,
+        min: group.required ? 1 : 0,
+        max: group.required ? 1 : Math.max(group.options.length, 1),
+        options: group.options.map((option, optionIndex) => ({
+          id: crypto.randomUUID(),
+          name: option.name,
+          price_delta: option.price_delta,
+          calorie_delta: 0,
+          is_default: group.required && optionIndex === 0,
+          allergen_codes: [],
+        })),
+      }))
+      fd.append('modifier_groups', JSON.stringify(canonicalGroups))
 
       if (existing) {
         fd.append('id', existing.id)
@@ -56,7 +72,7 @@ export default function ItemForm({ restaurantId, categoryId, existing, onCreated
           description: description || null,
           price: Number(price),
           is_available: isAvailable,
-          modifier_groups: modifierGroups as unknown as import('@garsonless/db').Json,
+          modifier_groups: canonicalGroups as unknown as import('@garsonless/db').Json,
         })
       } else {
         const result = await createItem(null, fd)
@@ -68,8 +84,16 @@ export default function ItemForm({ restaurantId, categoryId, existing, onCreated
           description: description || null,
           price: Number(price),
           is_available: isAvailable,
+          earns_stamp: false,
           images: [] as unknown as import('@garsonless/db').Json,
-          modifier_groups: modifierGroups as unknown as import('@garsonless/db').Json,
+          ingredients: [] as unknown as import('@garsonless/db').Json,
+          energy_kcal: null,
+          may_contain_allergens: [],
+          contains_alcohol: false,
+          contains_pork: false,
+          food_info_reviewed_at: null,
+          food_info_reviewed_by: null,
+          modifier_groups: canonicalGroups as unknown as import('@garsonless/db').Json,
           position: 0,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),

@@ -1,6 +1,7 @@
 'use client'
 
 import type { MenuItem } from './types'
+import { ALLERGEN_LABELS } from '@garsonless/db/order-client'
 import { useTheme } from './ThemeContext'
 import { formatTRY } from './formatCurrency'
 
@@ -24,6 +25,25 @@ const SHADOW_MAP: Record<string, string> = {
   none: 'none',
   soft: '0 1px 2px rgba(15,17,21,.04), 0 6px 14px -8px rgba(15,17,21,.10)',
   hard: '0 4px 0 0 rgba(15,17,21,.12), 0 1px 0 0 rgba(15,17,21,.06)',
+}
+
+function FoodMeta({ item }: { item: MenuItem }) {
+  const allergens = [...new Set(item.ingredients.flatMap((ingredient) => ingredient.allergen_codes))]
+  if (item.energy_kcal === null && allergens.length === 0) return null
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 5 }}>
+      {item.energy_kcal !== null && (
+        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--p-text-2)' }}>{item.energy_kcal} kcal</span>
+      )}
+      {allergens.slice(0, 2).map((code) => (
+        <span key={code} title={`Alerjen: ${ALLERGEN_LABELS[code]}`} style={{
+          padding: '2px 5px', borderRadius: 4, background: '#fff2df',
+          color: '#8a4b00', fontSize: 9.5, fontWeight: 800,
+        }}>{ALLERGEN_LABELS[code]}</span>
+      ))}
+      {allergens.length > 2 && <span style={{ fontSize: 9.5, color: 'var(--p-text-2)' }}>+{allergens.length - 2}</span>}
+    </div>
+  )
 }
 
 export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, onIncrement, onDecrement }: ProductCardProps) {
@@ -93,6 +113,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, 
           {theme.cardShowDesc && item.description && (
             <div style={{ fontSize: 11.5, color: 'var(--p-text-2)', marginTop: 2 }}>{item.description}</div>
           )}
+          <FoodMeta item={item} />
         </div>
       </div>
     )
@@ -202,6 +223,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, 
                 {item.description}
               </p>
             )}
+            <FoodMeta item={item} />
           </div>
           <div
             style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 12 }}
@@ -340,6 +362,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, 
             {item.description}
           </div>
         )}
+        <FoodMeta item={item} />
         <ProductCTA
           item={item}
           ctaStyle={theme.cardCtaStyle}

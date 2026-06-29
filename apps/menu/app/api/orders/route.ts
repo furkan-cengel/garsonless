@@ -5,11 +5,18 @@ import { createOrder, verifyCustomerSession, CUSTOMER_SESSION_COOKIE, createServ
 
 const orderItemSchema = z.object({
   itemId: z.string().uuid(),
-  name: z.string().min(1),
-  price: z.number().nonnegative(),
-  quantity: z.number().int().positive(),
-  modifiers: z.array(z.record(z.unknown())),
-  modifiersPriceDelta: z.number(),
+  quantity: z.number().int().positive().max(99),
+  selectedModifiers: z.array(z.object({
+    group_id: z.string().min(1),
+    option_id: z.string().min(1),
+    quantity: z.number().int().positive().optional(),
+  })).optional(),
+  removedIngredientIds: z.array(z.string().min(1)).optional(),
+  // Persisted pre-migration carts may still send these; the DB resolver ignores them.
+  modifiers: z.array(z.record(z.unknown())).optional(),
+  name: z.string().optional(),
+  price: z.number().optional(),
+  modifiersPriceDelta: z.number().optional(),
 })
 
 const createOrderSchema = z.object({
@@ -82,7 +89,7 @@ export async function POST(
   })
 
   if (!result.ok) {
-    const status = result.error === 'Table not found for this restaurant' ? 400 : 500
+    const status = result.error.startsWith('Failed to') ? 500 : 400
     return NextResponse.json({ success: false, error: result.error }, { status })
   }
 

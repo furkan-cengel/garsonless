@@ -1,5 +1,5 @@
 export { createClient, createServiceClient } from './client'
-export { createOrder } from './orders'
+export { createOrder, resolveOrderLines } from './orders'
 export type { CreateOrderInput, CreateOrderLine, OrderDiscountBreakdown } from './orders'
 export { updateOrderStatusDB, markOrderPaidDB, validateKitchenToken } from './orders-update'
 export { createServiceRequest } from './service-requests'
@@ -66,3 +66,26 @@ export type {
   TablesUpdate,
 } from './types.gen'
 export type { OrderStatus, RestaurantPlan, PaymentMethod } from './enums'
+export {
+  ALLERGEN_CODES,
+  ALLERGEN_LABELS,
+  normalizeAllergenCodes,
+  normalizeIngredients,
+  normalizeModifierGroups,
+  resolveModifierSelections,
+  buildOrderLineSnapshot,
+  readOrderLineSnapshot,
+  readOrderLineSnapshots,
+} from './menu-domain'
+export type {
+  AllergenCode,
+  MenuIngredient,
+  MenuModifierOption,
+  MenuModifierGroup,
+  ModifierSelectionMode,
+  SelectedMenuModifier,
+  ResolvedOrderModifier,
+  RemovedOrderIngredient,
+  OrderLineSnapshot,
+  ResolvableMenuItem,
+} from './menu-domain'

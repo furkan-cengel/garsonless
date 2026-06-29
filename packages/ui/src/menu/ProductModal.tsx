@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { ALLERGEN_LABELS } from '@garsonless/db/order-client'
 import type { MenuItem, ModifierGroup, SelectedModifier } from './types'
 import { formatTRY } from './formatCurrency'
 import { useTheme } from './ThemeContext'
@@ -9,17 +10,24 @@ import { useTheme } from './ThemeContext'
 interface ProductModalProps {
   item: MenuItem | null
   onClose: () => void
-  onAddToCart: (item: MenuItem, modifiers: SelectedModifier[], quantity: number) => void
+  onAddToCart: (
+    item: MenuItem,
+    modifiers: SelectedModifier[],
+    quantity: number,
+    removedIngredientIds: string[],
+  ) => void
 }
 
 export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) {
   const { theme } = useTheme()
   const [selections, setSelections] = useState<Record<string, SelectedModifier[]>>({})
+  const [removedIngredientIds, setRemovedIngredientIds] = useState<string[]>([])
   const [quantity, setQuantity] = useState(1)
 
   useEffect(() => {
     if (!item) return
     setQuantity(1)
+    setRemovedIngredientIds([])
     // Pre-select defaults
     const defaults: Record<string, SelectedModifier[]> = {}
     for (const group of item.modifier_groups) {
@@ -34,8 +42,11 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
   if (!item) return null
 
   const isValid = item.modifier_groups.every((group) => {
-    if (group.type !== 'required') return true
-    return (selections[group.id]?.length ?? 0) >= (group.min || 1)
+    const count = (selections[group.id] ?? []).reduce(
+      (sum, selection) => sum + (group.selection_mode === 'quantity' ? (selection.quantity ?? 1) : 1),
+      0,
+    )
+    return count >= group.min && count <= group.max
   })
 
   const allModifiers = Object.values(selections).flat()
@@ -47,6 +58,25 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
     }
     return sum
   }, 0)
+  const calorieDelta = allModifiers.reduce((sum, sel) => {
+    for (const group of item.modifier_groups) {
+      const opt = group.options.find((o) => o.id === sel.option_id)
+      if (opt) return sum + opt.calorie_delta * (sel.quantity ?? 1)
+    }
+    return sum
+  }, 0)
+  const selectedAllergens = new Set(
+    item.ingredients.flatMap((ingredient) => ingredient.allergen_codes),
+  )
+  for (const group of item.modifier_groups) {
+    for (const selection of selections[group.id] ?? []) {
+      const option = group.options.find((candidate) => candidate.id === selection.option_id)
+      for (const code of option?.allergen_codes ?? []) selectedAllergens.add(code)
+    }
+  }
+  const energyKcal = item.energy_kcal === null
+    ? null
+    : Math.max(0, Math.round(item.energy_kcal + calorieDelta))
 
   const totalPrice = (item.price + modifierTotal) * quantity
 
@@ -63,15 +93,33 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
     setSelections((prev) => {
       const current = prev[group.id] ?? []
       if (checked) {
+        if (current.length >= group.max) return prev
         return { ...prev, [group.id]: [...current, { group_id: group.id, option_id: optionId }] }
       }
       return { ...prev, [group.id]: current.filter((s) => s.option_id !== optionId) }
     })
   }
 
+  const handleQuantityChange = (group: ModifierGroup, optionId: string, delta: number) => {
+    setSelections((prev) => {
+      const current = prev[group.id] ?? []
+      const existing = current.find((selection) => selection.option_id === optionId)
+      const groupTotal = current.reduce((sum, selection) => sum + (selection.quantity ?? 1), 0)
+      const nextQuantity = Math.max(0, (existing?.quantity ?? 0) + delta)
+      if (delta > 0 && groupTotal >= group.max) return prev
+      const without = current.filter((selection) => selection.option_id !== optionId)
+      return {
+        ...prev,
+        [group.id]: nextQuantity > 0
+          ? [...without, { group_id: group.id, option_id: optionId, quantity: nextQuantity }]
+          : without,
+      }
+    })
+  }
+
   const handleAddToCart = () => {
     if (!isValid) return
-    onAddToCart(item, allModifiers, quantity)
+    onAddToCart(item, allModifiers, quantity, removedIngredientIds)
     onClose()
   }
 
@@ -134,13 +182,89 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
             <p style={{ margin: '10px 0 0', fontSize: 20, fontWeight: 850, color: 'var(--p-accent)' }}>
               {formatTRY(item.price)}
             </p>
+            {energyKcal !== null && (
+              <span style={{
+                display: 'inline-flex', marginTop: 10, padding: '4px 8px',
+                borderRadius: 6, background: 'var(--p-accent-soft)',
+                color: 'var(--p-accent)', fontSize: 12, fontWeight: 800,
+              }}>
+                {energyKcal} kcal / porsiyon
+              </span>
+            )}
           </div>
+
+          {item.ingredients.length > 0 && (
+            <div style={{ borderTop: '1px solid rgba(15,23,42,.08)', padding: '14px 18px' }}>
+              <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 800 }}>İçindekiler</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {item.ingredients.map((ingredient) => (
+                  <span key={ingredient.id} style={{
+                    padding: '5px 8px', borderRadius: 6,
+                    background: ingredient.allergen_codes.length > 0 ? '#fff2df' : 'var(--p-accent-soft)',
+                    color: 'var(--p-text)', fontSize: 12,
+                    fontWeight: ingredient.allergen_codes.length > 0 ? 800 : 600,
+                  }}>
+                    {ingredient.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {item.ingredients.some((ingredient) => ingredient.removable) && (
+            <div style={{ borderTop: '1px solid rgba(15,23,42,.08)', padding: '14px 18px' }}>
+              <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 800 }}>Çıkarma tercihleri</p>
+              {item.ingredients.filter((ingredient) => ingredient.removable).map((ingredient) => (
+                <label key={ingredient.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0',
+                  fontSize: 14, cursor: 'pointer',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={removedIngredientIds.includes(ingredient.id)}
+                    onChange={(event) => setRemovedIngredientIds((current) =>
+                      event.target.checked
+                        ? [...current, ingredient.id]
+                        : current.filter((id) => id !== ingredient.id),
+                    )}
+                    style={{ accentColor: 'var(--p-accent)' }}
+                  />
+                  <span>{ingredient.name} çıkarılsın</span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {(selectedAllergens.size > 0 || item.may_contain_allergens.length > 0 || item.contains_alcohol || item.contains_pork) && (
+            <div style={{ borderTop: '1px solid rgba(15,23,42,.08)', padding: '14px 18px' }}>
+              <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 800 }}>Alerjen ve içerik uyarıları</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {[...selectedAllergens].map((code) => (
+                  <span key={code} style={{ padding: '5px 8px', borderRadius: 6, background: '#fff2df', color: '#8a4b00', fontSize: 11.5, fontWeight: 800 }}>
+                    İçerir: {ALLERGEN_LABELS[code]}
+                  </span>
+                ))}
+                {item.may_contain_allergens.map((code) => (
+                  <span key={`may-${code}`} style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid rgba(138,75,0,.25)', color: '#8a4b00', fontSize: 11.5, fontWeight: 700 }}>
+                    Eser miktarda içerebilir: {ALLERGEN_LABELS[code]}
+                  </span>
+                ))}
+                {item.contains_alcohol && <span style={{ padding: '5px 8px', borderRadius: 6, background: '#fee2e2', color: '#991b1b', fontSize: 11.5, fontWeight: 800 }}>Alkol içerir</span>}
+                {item.contains_pork && <span style={{ padding: '5px 8px', borderRadius: 6, background: '#fee2e2', color: '#991b1b', fontSize: 11.5, fontWeight: 800 }}>Domuz kaynaklı bileşen içerir</span>}
+              </div>
+              {removedIngredientIds.length > 0 && (
+                <p style={{ margin: '9px 0 0', fontSize: 11.5, lineHeight: 1.45, color: 'var(--p-text-2)' }}>
+                  Bir içeriğin çıkarılması ürünün alerjensiz olduğunu garanti etmez.
+                </p>
+              )}
+            </div>
+          )}
 
           {item.modifier_groups.map((group) => (
             <div key={group.id} style={{ borderTop: '1px solid rgba(15,23,42,.08)', padding: '14px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--p-text)' }}>{group.name}</p>
-                {group.type === 'required' && (
+                {group.required && (
                   <span
                     style={{
                       backgroundColor: 'var(--p-accent)',
@@ -178,24 +302,31 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                      <input
-                        type={group.type === 'required' ? 'radio' : 'checkbox'}
-                        name={group.id}
-                        checked={isSelected}
-                        onChange={(e) => {
-                          if (group.type === 'required') {
-                            handleRadioChange(group, opt.id)
-                          } else {
-                            handleCheckboxChange(group, opt.id, e.target.checked)
-                          }
-                        }}
-                        style={{ accentColor: 'var(--p-accent)', flexShrink: 0 }}
-                      />
+                      {group.selection_mode === 'quantity' ? (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                          <button type="button" aria-label={`${opt.name} azalt`} onClick={() => handleQuantityChange(group, opt.id, -1)} style={{ width: 26, height: 26, border: 'none', borderRadius: 6, background: 'var(--p-accent-soft)', color: 'var(--p-accent)', cursor: 'pointer' }}>−</button>
+                          <span style={{ minWidth: 16, textAlign: 'center', fontSize: 12, fontWeight: 800 }}>
+                            {(selections[group.id] ?? []).find((selection) => selection.option_id === opt.id)?.quantity ?? 0}
+                          </span>
+                          <button type="button" aria-label={`${opt.name} artır`} onClick={() => handleQuantityChange(group, opt.id, 1)} style={{ width: 26, height: 26, border: 'none', borderRadius: 6, background: 'var(--p-accent)', color: '#fff', cursor: 'pointer' }}>+</button>
+                        </div>
+                      ) : (
+                        <input
+                          type={group.selection_mode === 'single' ? 'radio' : 'checkbox'}
+                          name={group.id}
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (group.selection_mode === 'single') handleRadioChange(group, opt.id)
+                            else handleCheckboxChange(group, opt.id, e.target.checked)
+                          }}
+                          style={{ accentColor: 'var(--p-accent)', flexShrink: 0 }}
+                        />
+                      )}
                       <span style={{ fontSize: 14, color: 'var(--p-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.name}</span>
                     </div>
-                    {priceDeltaStr && (
-                      <span style={{ fontSize: 12, color: 'var(--p-text-2)', flexShrink: 0 }}>{priceDeltaStr}</span>
-                    )}
+                    <span style={{ fontSize: 12, color: 'var(--p-text-2)', flexShrink: 0 }}>
+                      {[priceDeltaStr, opt.calorie_delta !== 0 ? `${opt.calorie_delta > 0 ? '+' : ''}${opt.calorie_delta} kcal` : null].filter(Boolean).join(' · ')}
+                    </span>
                   </label>
                 )
               })}

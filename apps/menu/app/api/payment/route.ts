@@ -43,10 +43,21 @@ export async function POST(
     buyerName,
     buyerSurname,
     buyerEmail,
+    buyerPhone,
     deviceId,
   } = parsed.data
 
-  const appUrl = process.env['NEXT_PUBLIC_MENU_URL'] ?? 'http://localhost:3011'
+  const requestUrl = new URL(req.url)
+  const forwardedHost = req.headers.get('x-forwarded-host') ?? req.headers.get('host')
+  const forwardedProtocol = req.headers.get('x-forwarded-proto') ?? requestUrl.protocol.replace(':', '')
+  const developmentOrigin = forwardedHost
+    ? `${forwardedProtocol}://${forwardedHost}`
+    : requestUrl.origin
+  // Production uses the canonical configured host. Development follows the
+  // incoming host so HTTPS quick tunnels receive a reachable callback URL.
+  const appUrl = process.env['NODE_ENV'] === 'production'
+    ? process.env['NEXT_PUBLIC_MENU_URL'] ?? requestUrl.origin
+    : developmentOrigin
   const callbackUrl = `${appUrl}/api/payment/callback`
 
   // SERVER-AUTHORITATIVE amount: read the order's stored total (post-discount).
@@ -92,6 +103,7 @@ export async function POST(
         name: buyerName,
         surname: buyerSurname,
         email: buyerEmail,
+        gsmNumber: buyerPhone,
         identityNumber: '11111111111',
         registrationAddress: 'N/A',
         city: 'Istanbul',

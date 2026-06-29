@@ -1,6 +1,11 @@
 import { createClient } from '@garsonless/db'
 import type { Tables } from '@garsonless/db'
-import type { MenuItem, MenuCategory, ModifierGroup } from '@garsonless/ui'
+import type { MenuItem, MenuCategory } from '@garsonless/ui'
+import {
+  normalizeAllergenCodes,
+  normalizeIngredients,
+  normalizeModifierGroups,
+} from '@garsonless/db/order-client'
 
 function mapCategory(row: Tables<'menu_categories'>): MenuCategory {
   return {
@@ -21,9 +26,13 @@ function mapMenuItem(row: Tables<'menu_items'>): MenuItem {
     description: row.description,
     price: Number(row.price),
     images: Array.isArray(row.images) ? (row.images as string[]) : [],
-    modifier_groups: Array.isArray(row.modifier_groups)
-      ? (row.modifier_groups as unknown as ModifierGroup[])
-      : [],
+    ingredients: normalizeIngredients(row.ingredients),
+    energy_kcal: row.energy_kcal ?? null,
+    may_contain_allergens: normalizeAllergenCodes(row.may_contain_allergens),
+    contains_alcohol: row.contains_alcohol ?? false,
+    contains_pork: row.contains_pork ?? false,
+    food_info_reviewed_at: row.food_info_reviewed_at ?? null,
+    modifier_groups: normalizeModifierGroups(row.modifier_groups),
     is_available: row.is_available,
     position: row.position,
   }

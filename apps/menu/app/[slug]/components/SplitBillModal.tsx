@@ -7,8 +7,6 @@ import type { CartItem } from '@garsonless/ui'
 interface Props {
   items: CartItem[]
   subtotal: number
-  restaurantId: string
-  deviceId: string
   onClose: () => void
 }
 
@@ -64,7 +62,12 @@ export default function SplitBillModal({ items, subtotal, onClose }: Props) {
       <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
-          <h2 className="font-semibold text-neutral-900 text-sm">Hesabı Böl</h2>
+          <div>
+            <h2 className="font-semibold text-neutral-900 text-sm">Kişi başı hesapla</h2>
+            <p className="mt-1 text-xs text-neutral-500">
+              Herkesin payını görmek için kullanılan bir hesaplama aracıdır.
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -174,9 +177,11 @@ export default function SplitBillModal({ items, subtotal, onClose }: Props) {
             </div>
           )}
 
-          <p className="text-xs text-neutral-400 text-center">
-            Her kişi kendi ödeme sayfasından kartıyla ödeme yapabilir.
-          </p>
+          <div className="rounded-xl bg-neutral-50 px-4 py-3 text-xs leading-5 text-neutral-600">
+            Bu hesaplama ayrı bir ödeme oluşturmaz. Bir kişi hesabın tamamını normal
+            &ldquo;Öde&rdquo; akışıyla ödeyebilir; diğerleri payını ona nakit verebilir.
+            Alternatif olarak ödemeyi garson masada tahsil eder.
+          </div>
 
           <button
             type="button"

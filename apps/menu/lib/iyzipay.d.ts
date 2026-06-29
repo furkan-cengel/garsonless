@@ -10,6 +10,7 @@ declare module 'iyzipay' {
     name: string
     surname: string
     email: string
+    gsmNumber: string
     identityNumber: string
     registrationAddress: string
     city: string

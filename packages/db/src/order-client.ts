@@ -1,4 +1,26 @@
 export type { OrderStatus, PaymentMethod } from './enums'
+export {
+  ALLERGEN_CODES,
+  ALLERGEN_LABELS,
+  normalizeAllergenCodes,
+  normalizeIngredients,
+  normalizeModifierGroups,
+  buildOrderLineSnapshot,
+  readOrderLineSnapshot,
+  readOrderLineSnapshots,
+} from './menu-domain'
+export type {
+  AllergenCode,
+  MenuIngredient,
+  MenuModifierOption,
+  MenuModifierGroup,
+  ModifierSelectionMode,
+  SelectedMenuModifier,
+  ResolvedOrderModifier,
+  RemovedOrderIngredient,
+  OrderLineSnapshot,
+  ResolvableMenuItem,
+} from './menu-domain'
 
 export interface OrderCustomerTierSnapshot {
   version: 1

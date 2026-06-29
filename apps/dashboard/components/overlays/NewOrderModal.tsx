@@ -5,18 +5,33 @@ import { I, S, btnPrimary, btnGhost, IconButton } from '../../lib/ui'
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import { createOrderFromDashboard } from '../../lib/actions/orders'
 import type { TableStatusData } from '../../lib/queries'
+import {
+  normalizeIngredients,
+  normalizeModifierGroups,
+  type MenuIngredient,
+  type MenuModifierGroup,
+  type SelectedMenuModifier,
+} from '@garsonless/db/order-client'
 
 interface Props {
   restaurantId: string
   tableStatuses: TableStatusData[]
+  initialTableId?: string | null
   onClose: () => void
+  onCreated?: () => void
 }
 
 interface CartItem {
-  id: string
+  cartId: string
+  itemId: string
   name: string
   price: number
   qty: number
+  modifiersPriceDelta: number
+  selectedModifiers: SelectedMenuModifier[]
+  modifierNames: string[]
+  removedIngredientIds: string[]
+  removedIngredientNames: string[]
 }
 
 interface RealMenuItem {
@@ -25,20 +40,22 @@ interface RealMenuItem {
   price: number
   category_id: string
   categoryName: string
+  ingredients: MenuIngredient[]
+  modifier_groups: MenuModifierGroup[]
 }
 
 const mono = S.mono
 
-export default function NewOrderModal({ restaurantId, tableStatuses, onClose }: Props) {
-  const [step, setStep] = useState(1)
-  const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
+export default function NewOrderModal({ restaurantId, tableStatuses, initialTableId = null, onClose, onCreated }: Props) {
+  const [step, setStep] = useState(initialTableId ? 2 : 1)
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(initialTableId)
   const [items, setItems] = useState<CartItem[]>([])
   const [menuItems, setMenuItems] = useState<RealMenuItem[]>([])
   const [loadingMenu, setLoadingMenu] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const total = items.reduce((s, i) => s + i.price * i.qty, 0)
+  const total = items.reduce((s, i) => s + (i.price + i.modifiersPriceDelta) * i.qty, 0)
   const selectedTable = tableStatuses.find(t => t.id === selectedTableId)
 
   useEffect(() => {
@@ -61,13 +78,18 @@ export default function NewOrderModal({ restaurantId, tableStatuses, onClose }: 
 
       const itemRes = await supabase
         .from('menu_items')
-        .select('id, name, price, category_id')
+        .select('id, name, price, category_id, ingredients, modifier_groups')
         .in('category_id', catIds)
         .is('deleted_at', null)
         .order('position')
 
-      const mapped: RealMenuItem[] = ((itemRes.data ?? []) as { id: string; name: string; price: number; category_id: string }[])
-        .map(it => ({ ...it, categoryName: categoryNames[it.category_id] ?? '' }))
+      const mapped: RealMenuItem[] = ((itemRes.data ?? []) as { id: string; name: string; price: number; category_id: string; ingredients: unknown; modifier_groups: unknown }[])
+        .map(it => ({
+          ...it,
+          categoryName: categoryNames[it.category_id] ?? '',
+          ingredients: normalizeIngredients(it.ingredients),
+          modifier_groups: normalizeModifierGroups(it.modifier_groups),
+        }))
 
       setMenuItems(mapped)
       setLoadingMenu(false)
@@ -83,14 +105,19 @@ export default function NewOrderModal({ restaurantId, tableStatuses, onClose }: 
     const result = await createOrderFromDashboard({
       restaurantId,
       tableId: selectedTableId,
-      items: items.map(i => ({ name: i.name, qty: i.qty, price: i.price })),
-      total,
+      items: items.map(i => ({
+        itemId: i.itemId,
+        quantity: i.qty,
+        selectedModifiers: i.selectedModifiers,
+        removedIngredientIds: i.removedIngredientIds,
+      })),
     })
 
     setSubmitting(false)
     if ('error' in result) {
       setError(result.error)
     } else {
+      onCreated?.()
       onClose()
     }
   }
@@ -189,13 +216,15 @@ export default function NewOrderModal({ restaurantId, tableStatuses, onClose }: 
             </div>
             <div style={{ flex: 1, overflow: 'auto', padding: '12px 0' }}>
               {items.map((it) => (
-                <div key={it.id} style={{ padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div key={it.cartId} style={{ padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text)' }}>{it.name}</div>
-                    <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>₺{it.price} × {it.qty}</div>
+                    <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>₺{it.price + it.modifiersPriceDelta} × {it.qty}</div>
+                    {it.modifierNames.length > 0 && <div style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 2 }}>{it.modifierNames.join(', ')}</div>}
+                    {it.removedIngredientNames.length > 0 && <div style={{ fontSize: 10, color: 'var(--critical)', fontWeight: 700, marginTop: 2 }}>ÇIKAR: {it.removedIngredientNames.join(', ')}</div>}
                   </div>
                   <span style={{ ...mono, fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>
-                    ₺{it.price * it.qty}
+                    ₺{(it.price + it.modifiersPriceDelta) * it.qty}
                   </span>
                 </div>
               ))}
@@ -346,6 +375,7 @@ function PickItemsPanel({ items, setItems, menuItems, loading }: {
 }) {
   const [activeCat, setActiveCat] = useState('Tümü')
   const [search, setSearch] = useState('')
+  const [customizing, setCustomizing] = useState<RealMenuItem | null>(null)
 
   const categories = ['Tümü', ...Array.from(new Set(menuItems.map(m => m.categoryName)))]
 
@@ -356,18 +386,59 @@ function PickItemsPanel({ items, setItems, menuItems, loading }: {
   })
 
   function addItem(it: RealMenuItem) {
-    const existing = items.find((x) => x.id === it.id)
-    if (existing) {
-      setItems(items.map((x) => x.id === it.id ? { ...x, qty: x.qty + 1 } : x))
-    } else {
-      setItems([...items, { id: it.id, name: it.name, price: it.price, qty: 1 }])
+    if (it.modifier_groups.length > 0 || it.ingredients.some((ingredient) => ingredient.removable)) {
+      setCustomizing(it)
+      return
     }
+    addConfiguredItem(it, [], [])
   }
 
-  function changeQty(id: string, delta: number) {
+  function addConfiguredItem(
+    it: RealMenuItem,
+    selectedModifiers: SelectedMenuModifier[],
+    removedIngredientIds: string[],
+  ) {
+    const signature = JSON.stringify({ selectedModifiers, removedIngredientIds: [...removedIngredientIds].sort() })
+    const existing = items.find((item) =>
+      item.itemId === it.id &&
+      JSON.stringify({ selectedModifiers: item.selectedModifiers, removedIngredientIds: [...item.removedIngredientIds].sort() }) === signature,
+    )
+    if (existing) {
+      setItems(items.map((item) => item.cartId === existing.cartId ? { ...item, qty: item.qty + 1 } : item))
+    } else {
+      const modifierNames = selectedModifiers.flatMap((selection) =>
+        it.modifier_groups.flatMap((group) => group.options.filter((option) => option.id === selection.option_id).map((option) => option.name)),
+      )
+      const modifiersPriceDelta = selectedModifiers.reduce((sum, selection) => {
+        for (const group of it.modifier_groups) {
+          const option = group.options.find((candidate) => candidate.id === selection.option_id)
+          if (option) return sum + option.price_delta * (selection.quantity ?? 1)
+        }
+        return sum
+      }, 0)
+      setItems([...items, {
+        cartId: crypto.randomUUID(),
+        itemId: it.id,
+        name: it.name,
+        price: it.price,
+        qty: 1,
+        modifiersPriceDelta,
+        selectedModifiers,
+        modifierNames,
+        removedIngredientIds,
+        removedIngredientNames: removedIngredientIds.flatMap((id) => {
+          const ingredient = it.ingredients.find((candidate) => candidate.id === id)
+          return ingredient ? [ingredient.name] : []
+        }),
+      }])
+    }
+    setCustomizing(null)
+  }
+
+  function changeQty(cartId: string, delta: number) {
     setItems(
       items
-        .map((x) => x.id === id ? { ...x, qty: Math.max(0, x.qty + delta) } : x)
+        .map((x) => x.cartId === cartId ? { ...x, qty: Math.max(0, x.qty + delta) } : x)
         .filter((x) => x.qty > 0),
     )
   }
@@ -417,7 +488,7 @@ function PickItemsPanel({ items, setItems, menuItems, loading }: {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
         {filtered.map((it) => {
-          const inCart = items.find((x) => x.id === it.id)
+          const inCart = items.find((x) => x.itemId === it.id)
           return (
             <div
               key={it.id}
@@ -440,11 +511,11 @@ function PickItemsPanel({ items, setItems, menuItems, loading }: {
                     style={{ display: 'flex', alignItems: 'center', gap: 4 }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <button onClick={() => changeQty(it.id, -1)} style={qtyBtnStyle()}>−</button>
+                    <button onClick={() => changeQty(inCart.cartId, -1)} style={qtyBtnStyle()}>−</button>
                     <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, minWidth: 18, textAlign: 'center', color: 'var(--text)' }}>
                       {inCart.qty}
                     </span>
-                    <button onClick={() => changeQty(it.id, 1)} style={qtyBtnStyle()}>+</button>
+                    <button onClick={() => changeQty(inCart.cartId, 1)} style={qtyBtnStyle()}>+</button>
                   </div>
                 ) : (
                   <div style={{
@@ -459,6 +530,121 @@ function PickItemsPanel({ items, setItems, menuItems, loading }: {
             </div>
           )
         })}
+      </div>
+      {customizing && (
+        <DashboardItemCustomizer
+          item={customizing}
+          onCancel={() => setCustomizing(null)}
+          onAdd={(modifiers, removals) => addConfiguredItem(customizing, modifiers, removals)}
+        />
+      )}
+    </div>
+  )
+}
+
+function DashboardItemCustomizer({
+  item,
+  onCancel,
+  onAdd,
+}: {
+  item: RealMenuItem
+  onCancel: () => void
+  onAdd: (modifiers: SelectedMenuModifier[], removedIngredientIds: string[]) => void
+}) {
+  const initialSelections = item.modifier_groups.flatMap((group) =>
+    group.options.filter((option) => option.is_default).map((option) => ({
+      group_id: group.id,
+      option_id: option.id,
+      ...(group.selection_mode === 'quantity' ? { quantity: 1 } : {}),
+    })),
+  )
+  const [selections, setSelections] = useState<SelectedMenuModifier[]>(initialSelections)
+  const [removals, setRemovals] = useState<string[]>([])
+  const valid = item.modifier_groups.every((group) => {
+    const count = selections.filter((selection) => selection.group_id === group.id).reduce(
+      (sum, selection) => sum + (group.selection_mode === 'quantity' ? (selection.quantity ?? 1) : 1),
+      0,
+    )
+    return count >= group.min && count <= group.max
+  })
+
+  function toggle(group: MenuModifierGroup, optionId: string, checked: boolean) {
+    setSelections((current) => {
+      const otherGroups = current.filter((selection) => selection.group_id !== group.id)
+      const groupSelections = current.filter((selection) => selection.group_id === group.id)
+      if (group.selection_mode === 'single') {
+        return checked ? [...otherGroups, { group_id: group.id, option_id: optionId }] : otherGroups
+      }
+      if (!checked) return current.filter((selection) => !(selection.group_id === group.id && selection.option_id === optionId))
+      if (groupSelections.length >= group.max) return current
+      return [...current, { group_id: group.id, option_id: optionId }]
+    })
+  }
+
+  function quantity(group: MenuModifierGroup, optionId: string, delta: number) {
+    setSelections((current) => {
+      const currentGroup = current.filter((selection) => selection.group_id === group.id)
+      const total = currentGroup.reduce((sum, selection) => sum + (selection.quantity ?? 1), 0)
+      const existing = currentGroup.find((selection) => selection.option_id === optionId)
+      if (delta > 0 && total >= group.max) return current
+      const next = Math.max(0, (existing?.quantity ?? 0) + delta)
+      const without = current.filter((selection) => !(selection.group_id === group.id && selection.option_id === optionId))
+      return next > 0 ? [...without, { group_id: group.id, option_id: optionId, quantity: next }] : without
+    })
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(17,17,19,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ width: 'min(520px,100%)', maxHeight: '80vh', overflow: 'auto', background: 'var(--surface)', borderRadius: 12, boxShadow: 'var(--shadow-pop)' }}>
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--divider)', fontSize: 15, fontWeight: 700 }}>{item.name}</div>
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {item.modifier_groups.map((group) => (
+            <div key={group.id}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>{group.name}{group.required ? ' · Zorunlu' : ''}</div>
+              {group.options.map((option) => {
+                const selected = selections.find((selection) => selection.group_id === group.id && selection.option_id === option.id)
+                return (
+                  <div key={option.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34, borderBottom: '1px solid var(--divider)' }}>
+                    <span style={{ fontSize: 12.5 }}>{option.name}{option.price_delta ? ` · +₺${option.price_delta}` : ''}</span>
+                    {group.selection_mode === 'quantity' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <button type="button" onClick={() => quantity(group, option.id, -1)} style={qtyBtnStyle()}>−</button>
+                        <span style={{ width: 18, textAlign: 'center', fontSize: 12 }}>{selected?.quantity ?? 0}</span>
+                        <button type="button" onClick={() => quantity(group, option.id, 1)} style={qtyBtnStyle()}>+</button>
+                      </div>
+                    ) : (
+                      <input
+                        type={group.selection_mode === 'single' ? 'radio' : 'checkbox'}
+                        name={group.id}
+                        checked={Boolean(selected)}
+                        onChange={(event) => toggle(group, option.id, event.target.checked)}
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+          {item.ingredients.some((ingredient) => ingredient.removable) && (
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Çıkarma tercihleri</div>
+              {item.ingredients.filter((ingredient) => ingredient.removable).map((ingredient) => (
+                <label key={ingredient.id} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 32, fontSize: 12.5 }}>
+                  <input
+                    type="checkbox"
+                    checked={removals.includes(ingredient.id)}
+                    onChange={(event) => setRemovals((current) => event.target.checked ? [...current, ingredient.id] : current.filter((id) => id !== ingredient.id))}
+                  />
+                  {ingredient.name} çıkarılsın
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--divider)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button type="button" onClick={onCancel} style={btnGhost()}>Vazgeç</button>
+          <button type="button" disabled={!valid} onClick={() => onAdd(selections, removals)} style={{ ...btnPrimary(), opacity: valid ? 1 : .5 }}>Siparişe ekle</button>
+        </div>
       </div>
     </div>
   )

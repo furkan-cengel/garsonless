@@ -326,6 +326,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@garsonless/db':
+        specifier: workspace:*
+        version: link:../db
       '@garsonless/design-engine':
         specifier: workspace:*
         version: link:../design-engine
@@ -342,9 +345,6 @@ importers:
         specifier: ^19.0.0
         version: 19.2.6(react@19.2.6)
     devDependencies:
-      '@garsonless/db':
-        specifier: workspace:*
-        version: link:../db
       '@types/node':
         specifier: ^22.10.7
         version: 22.19.19

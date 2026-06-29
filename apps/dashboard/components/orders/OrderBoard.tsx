@@ -2,12 +2,12 @@
 
 import { useState, useTransition } from 'react'
 import dynamic from 'next/dynamic'
-import { readOrderCustomerTierSnapshot, type OrderStatus } from '@garsonless/db/order-client'
+import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, ALLERGEN_LABELS, type OrderStatus } from '@garsonless/db/order-client'
 import { useOrdersRealtime } from './useOrdersRealtime'
 import type { Order } from './useOrdersRealtime'
 import type { NotificationPrefs } from '../../lib/notification-prefs'
 import OrderColumn from './OrderColumn'
-import { type CartItem, nextStatus } from './OrderCard'
+import { nextStatus } from './OrderCard'
 import OrderToast from './OrderToast'
 import { useNotificationSW } from './useNotificationSW'
 import { updateOrderStatus } from '../../lib/actions/orders'
@@ -110,7 +110,7 @@ function OrderDetailPanel({
     )
   }
 
-  const items = (order.items as unknown as CartItem[]) ?? []
+  const items = readOrderLineSnapshots(order.items)
   const nextSt = nextStatus(order.status as OrderStatus)
   const tier = readOrderCustomerTierSnapshot(order.customer_tier)
   const advanceLabel =
@@ -152,18 +152,28 @@ function OrderDetailPanel({
                     background: 'var(--surface-3)', color: 'var(--text)',
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 11, fontWeight: 700, flexShrink: 0,
-                  }}>{it.qty}</div>
+                  }}>{it.quantity}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{it.name}</div>
                     {it.modifiers && it.modifiers.length > 0 && (
                       <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 2 }}>
-                        {it.modifiers.map(m => m.name).join(', ')}
+                        {it.modifiers.map(m => `${m.optionName}${m.quantity > 1 ? ` ×${m.quantity}` : ''}`).join(', ')}
+                      </div>
+                    )}
+                    {it.removedIngredients.length > 0 && (
+                      <div style={{ fontSize: 10.5, color: 'var(--critical)', fontWeight: 700, marginTop: 2 }}>
+                        ÇIKAR: {it.removedIngredients.map((ingredient) => ingredient.name).join(', ')}
+                      </div>
+                    )}
+                    {it.allergens.length > 0 && (
+                      <div style={{ fontSize: 10, color: 'var(--warning)', fontWeight: 600, marginTop: 2 }}>
+                        ALERJEN: {it.allergens.map((code) => ALLERGEN_LABELS[code]).join(', ')}
                       </div>
                     )}
                   </div>
                   {it.price !== undefined && (
                     <span style={{ ...S.mono, fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
-                      {formatCurrency(it.qty * it.price)}
+                      {formatCurrency(it.quantity * (it.price + it.modifiersPriceDelta))}
                     </span>
                   )}
                 </div>

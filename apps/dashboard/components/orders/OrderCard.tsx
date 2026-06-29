@@ -3,17 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { readOrderCustomerTierSnapshot, type OrderStatus, type PaymentMethod } from '@garsonless/db/order-client'
+import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, type OrderStatus, type PaymentMethod, type OrderLineSnapshot } from '@garsonless/db/order-client'
 import type { Order } from './useOrdersRealtime'
 import { I, S, Tag } from '../../lib/ui'
 import { paymentMethodBadge } from '../../lib/payment-method'
 
-export interface CartItem {
-  name: string
-  qty: number
-  price?: number
-  modifiers?: { name: string }[]
-}
+export type CartItem = OrderLineSnapshot
 
 function statusGroup(s: OrderStatus): 'new' | 'prep' | 'ready' | 'done' {
   if (s === 'pending' || s === 'pending_approval') return 'new'
@@ -93,7 +88,7 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
 
   const group = statusGroup(order.status as OrderStatus)
   const accent = ACCENT[group]
-  const items = (order.items as unknown as CartItem[]) ?? []
+  const items = readOrderLineSnapshots(order.items)
   const actionLabel = ACTION_LABEL[order.status as OrderStatus]
   const tier = readOrderCustomerTierSnapshot(order.customer_tier)
   const isLate = group === 'prep' &&
@@ -168,7 +163,7 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
             <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--divider)' }}>
               {items.slice(0, 2).map((it, i) => (
                 <div key={i} style={{ display: 'flex', fontSize: 11.5, color: 'var(--text-2)', padding: '2px 0' }}>
-                  <span style={{ ...S.mono, color: 'var(--text-3)', marginRight: 4 }}>{it.qty}×</span>
+                  <span style={{ ...S.mono, color: 'var(--text-3)', marginRight: 4 }}>{it.quantity}×</span>
                   {it.name}
                 </div>
               ))}
