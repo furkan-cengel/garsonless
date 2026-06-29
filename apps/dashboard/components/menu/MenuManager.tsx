@@ -5,6 +5,8 @@ import type { Tables } from '@garsonless/db'
 import PageTopBar from '../layout/PageTopBar'
 import CategoryForm from './CategoryForm'
 import ItemForm from './ItemForm'
+import NutritionFields, { nutritionFromItem, appendNutritionToFormData, NutritionStatusPill } from './NutritionFields'
+import type { NutritionState } from './NutritionFields'
 import { I, S, Tag, IconButton, btnPrimary, btnGhost } from '../../lib/ui'
 import { useRouter } from 'next/navigation'
 import { InlineSpinner, BrewBar } from '@garsonless/ui'
@@ -13,7 +15,6 @@ import { createDashboardBrowserClient } from '../../lib/supabase'
 import {
   ALLERGEN_CODES,
   ALLERGEN_LABELS,
-  normalizeAllergenCodes,
   normalizeIngredients,
   normalizeModifierGroups,
   type AllergenCode,
@@ -423,84 +424,6 @@ function ModifierGroupEditor({
         }}
       >
         <I.plus size={13} />Yeni grup ekle
-      </button>
-    </div>
-  )
-}
-
-function IngredientEditor({
-  ingredients,
-  onChange,
-}: {
-  ingredients: MenuIngredient[]
-  onChange: (ingredients: MenuIngredient[]) => void
-}) {
-  function update(id: string, patch: Partial<Omit<MenuIngredient, 'id'>>) {
-    onChange(ingredients.map((ingredient) => ingredient.id === id ? { ...ingredient, ...patch } : ingredient))
-  }
-  function move(index: number, direction: -1 | 1) {
-    const target = index + direction
-    if (target < 0 || target >= ingredients.length) return
-    const next = [...ingredients]
-    const current = next[index]
-    const other = next[target]
-    if (!current || !other) return
-    next[index] = other
-    next[target] = current
-    onChange(next)
-  }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {ingredients.map((ingredient, index) => (
-        <div key={ingredient.id} style={{
-          padding: 8, border: '1px solid var(--divider)', borderRadius: 7,
-          background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 7,
-          minWidth: 0,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-            <input
-              value={ingredient.name}
-              onChange={(event) => update(ingredient.id, { name: event.target.value })}
-              placeholder="İşletmenin ekleyeceği bileşen"
-              style={{ flex: 1, minWidth: 0, height: 32, padding: '0 9px', borderRadius: 6, border: '1px solid var(--divider)', background: 'var(--surface-2)', fontSize: 12 }}
-            />
-            <button type="button" aria-label="Yukarı taşı" disabled={index === 0} onClick={() => move(index, -1)} style={{ width: 27, height: 27, border: 'none', background: 'var(--surface-3)', color: 'var(--text-2)', borderRadius: 5, cursor: index === 0 ? 'default' : 'pointer', opacity: index === 0 ? .35 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><I.chevLeft size={12} style={{ transform: 'rotate(90deg)' }} /></button>
-            <button type="button" aria-label="Aşağı taşı" disabled={index === ingredients.length - 1} onClick={() => move(index, 1)} style={{ width: 27, height: 27, border: 'none', background: 'var(--surface-3)', color: 'var(--text-2)', borderRadius: 5, cursor: index === ingredients.length - 1 ? 'default' : 'pointer', opacity: index === ingredients.length - 1 ? .35 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><I.chevRight size={12} style={{ transform: 'rotate(90deg)' }} /></button>
-            <button type="button" aria-label="Bileşeni sil" onClick={() => onChange(ingredients.filter((row) => row.id !== ingredient.id))} style={{ width: 27, height: 27, border: 'none', background: 'var(--critical-bg)', color: 'var(--critical)', borderRadius: 5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><I.trash size={12} /></button>
-          </div>
-          <AllergenPicker
-            value={ingredient.allergen_codes}
-            onChange={(codes) => update(ingredient.id, { allergen_codes: codes })}
-            label="Bu bileşene alerjen ekle"
-          />
-          <label style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-            fontSize: 10.5, color: 'var(--text-2)', cursor: 'pointer',
-          }}>
-            <span>Müşteri bu bileşeni çıkarabilir</span>
-            <span style={{
-              width: 30, height: 18, padding: 2, borderRadius: 999,
-              background: ingredient.removable ? 'var(--positive)' : 'var(--surface-3)',
-              display: 'inline-flex', justifyContent: ingredient.removable ? 'flex-end' : 'flex-start',
-              transition: 'all 120ms', flexShrink: 0,
-            }}>
-              <input
-                type="checkbox"
-                checked={ingredient.removable}
-                onChange={(event) => update(ingredient.id, { removable: event.target.checked })}
-                style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
-              />
-              <span style={{ width: 14, height: 14, borderRadius: 999, background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.18)' }} />
-            </span>
-          </label>
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={() => onChange([...ingredients, { id: crypto.randomUUID(), name: '', removable: false, allergen_codes: [] }])}
-        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 8px', border: '1px dashed var(--border-strong)', background: 'transparent', color: 'var(--text-2)', borderRadius: 6, cursor: 'pointer', fontSize: 11.5 }}
-      >
-        <I.plus size={11} />Bileşen ekle
       </button>
     </div>
   )
@@ -1493,14 +1416,9 @@ function ItemEditPanel({
   const [price, setPrice] = useState(String(item.price))
   const [isAvailable, setIsAvailable] = useState(item.is_available)
   const [earnsStamp, setEarnsStamp] = useState<boolean>(item.earns_stamp ?? false)
-  const [ingredients, setIngredients] = useState<MenuIngredient[]>(() => normalizeIngredients(item.ingredients))
-  const [energyKcal, setEnergyKcal] = useState(item.energy_kcal == null ? '' : String(item.energy_kcal))
-  const [mayContainAllergens, setMayContainAllergens] = useState<AllergenCode[]>(() =>
-    normalizeAllergenCodes(item.may_contain_allergens),
-  )
-  const [containsAlcohol, setContainsAlcohol] = useState(item.contains_alcohol ?? false)
-  const [containsPork, setContainsPork] = useState(item.contains_pork ?? false)
-  const [foodInfoReviewed, setFoodInfoReviewed] = useState(item.food_info_reviewed_at != null)
+  const [nutri, setNutri] = useState<NutritionState>(() => nutritionFromItem(item))
+  const setN = (patch: Partial<NutritionState>) => setNutri((s) => ({ ...s, ...patch }))
+  const [cost, setCost] = useState(item.cost == null ? '' : String(item.cost))
   const [images, setImages] = useState<string[]>(() =>
     Array.isArray(item.images) ? (item.images as string[]) : [],
   )
@@ -1556,12 +1474,8 @@ function ItemEditPanel({
       fd.append('price', price)
       fd.append('is_available', String(isAvailable))
       fd.append('earns_stamp', String(earnsStamp))
-      fd.append('ingredients', JSON.stringify(ingredients))
-      fd.append('energy_kcal', energyKcal)
-      fd.append('may_contain_allergens', JSON.stringify(mayContainAllergens))
-      fd.append('contains_alcohol', String(containsAlcohol))
-      fd.append('contains_pork', String(containsPork))
-      fd.append('food_info_reviewed', String(foodInfoReviewed))
+      appendNutritionToFormData(fd, nutri)
+      fd.append('cost', cost)
       fd.append('images', JSON.stringify(images))
       fd.append('modifier_groups', JSON.stringify(modifiers))
       const result = await updateItem(fd)
@@ -1573,13 +1487,21 @@ function ItemEditPanel({
         price: Number(price),
         is_available: isAvailable,
         earns_stamp: earnsStamp,
-        ingredients: ingredients as unknown as import('@garsonless/db').Json,
-        energy_kcal: energyKcal ? Number(energyKcal) : null,
-        may_contain_allergens: mayContainAllergens,
-        contains_alcohol: containsAlcohol,
-        contains_pork: containsPork,
-        food_info_reviewed_at: foodInfoReviewed ? new Date().toISOString() : null,
-        food_info_reviewed_by: foodInfoReviewed ? item.food_info_reviewed_by : null,
+        cost: cost ? Number(cost) : null,
+        ingredients: nutri.ingredients.filter((i) => i.name.trim()).map((i) => ({ id: i.id, name: i.name.trim(), removable: i.removable, allergen_codes: i.allergen_codes, ...(i.amount.trim() ? { amount: i.amount.trim() } : {}) })) as unknown as import('@garsonless/db').Json,
+        energy_kcal: nutri.energyKcal ? Number(nutri.energyKcal) : null,
+        protein_g: nutri.protein ? Number(nutri.protein) : null,
+        carb_g: nutri.carb ? Number(nutri.carb) : null,
+        fat_g: nutri.fat ? Number(nutri.fat) : null,
+        may_contain_allergens: nutri.traces,
+        contains_allergens: nutri.contains,
+        contains_alcohol: nutri.alcohol,
+        contains_pork: nutri.pork,
+        is_vegetarian: nutri.vegetarian,
+        is_vegan: nutri.vegan,
+        is_halal: nutri.halal,
+        food_info_reviewed_at: nutri.reviewed ? new Date().toISOString() : null,
+        food_info_reviewed_by: nutri.reviewed ? item.food_info_reviewed_by : null,
         images: images as unknown as import('@garsonless/db').Json,
         modifier_groups: modifiers as unknown as import('@garsonless/db').Json,
       })
@@ -1732,72 +1654,34 @@ function ItemEditPanel({
 
         {/* Fiyatlandırma */}
         <PanelSection title="Fiyatlandırma">
-          <FieldInline label="Satış fiyatı">
-            <input
-              type="number" value={price} onChange={e => setPrice(e.target.value)}
-              style={{ ...inputStyle, fontFamily: "'Geist Mono', monospace", fontWeight: 700 }}
-            />
-          </FieldInline>
-        </PanelSection>
-
-        <PanelSection title="İçindekiler ve enerji">
-          <IngredientEditor
-            ingredients={ingredients}
-            onChange={(next) => { setIngredients(next); setFoodInfoReviewed(false) }}
-          />
-          <div style={{ marginTop: 10 }}>
-            <FieldInline label="Porsiyon enerjisi (kcal)">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <FieldInline label="Satış fiyatı">
               <input
-                type="number"
-                min={0}
-                step={1}
-                value={energyKcal}
-                onChange={(event) => { setEnergyKcal(event.target.value); setFoodInfoReviewed(false) }}
+                type="number" value={price} onChange={e => setPrice(e.target.value)}
+                style={{ ...inputStyle, fontFamily: "'Geist Mono', monospace", fontWeight: 700 }}
+              />
+            </FieldInline>
+            <FieldInline label="Maliyet">
+              <input
+                type="number" value={cost} onChange={e => setCost(e.target.value)} placeholder="—"
                 style={{ ...inputStyle, fontFamily: "'Geist Mono', monospace" }}
               />
             </FieldInline>
           </div>
+          {Number(price) > 0 && Number(cost) > 0 && (
+            <div style={{ marginTop: 8, padding: '10px 12px', background: 'var(--accent-soft)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11.5, color: 'var(--accent)', fontWeight: 600 }}>Kâr marjı</span>
+              <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>%{Math.round(((Number(price) - Number(cost)) / Number(price)) * 100)}</span>
+            </div>
+          )}
         </PanelSection>
 
-        <PanelSection title="Alerjenler">
-          <FieldRow label="Eser miktar">
-            <AllergenPicker
-              value={mayContainAllergens}
-              onChange={(codes) => {
-                setMayContainAllergens(codes)
-                setFoodInfoReviewed(false)
-              }}
-              label="Olası çapraz temas alerjeni ekle"
-            />
-          </FieldRow>
-          <FieldRow label="Özel içerik">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 4 }}>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5 }}>
-                <input type="checkbox" checked={containsAlcohol} onChange={(event) => { setContainsAlcohol(event.target.checked); setFoodInfoReviewed(false) }} />
-                Alkol içerir
-              </label>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5 }}>
-                <input type="checkbox" checked={containsPork} onChange={(event) => { setContainsPork(event.target.checked); setFoodInfoReviewed(false) }} />
-                Domuz kaynaklı bileşen içerir
-              </label>
-            </div>
-          </FieldRow>
-          <FieldRow label="Kontrol">
-            <label style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6, fontSize: 11.5, lineHeight: 1.4, paddingTop: 4 }}>
-              <input
-                type="checkbox"
-                checked={foodInfoReviewed}
-                disabled={ingredients.length === 0 || !energyKcal}
-                onChange={(event) => setFoodInfoReviewed(event.target.checked)}
-              />
-              İçerik, enerji ve alerjen bilgilerini gözden geçirdim
-            </label>
-          </FieldRow>
-        </PanelSection>
+        {/* İçindekiler · Alerjenler · Özel içerik · Kontrol */}
+        <NutritionFields s={nutri} set={setN} />
 
         {/* Varyantlar */}
         <PanelSection title="Varyantlar">
-          <ModifierGroupEditor groups={modifiers} onChange={(next) => { setModifiers(next); setFoodInfoReviewed(false) }} />
+          <ModifierGroupEditor groups={modifiers} onChange={(next) => { setModifiers(next); setN({ reviewed: false }) }} />
         </PanelSection>
 
         {/* Görünürlük */}
@@ -1842,25 +1726,30 @@ function ItemEditPanel({
       </div>
 
       <div style={{
-        borderTop: '1px solid var(--divider)', padding: '12px 16px',
-        display: 'flex', gap: 6, background: 'var(--surface-2)',
+        borderTop: '1px solid var(--divider)', padding: '10px 16px 12px',
+        background: 'var(--surface-2)',
       }}>
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={deleting || isPending}
-          style={{ ...btnGhost({ color: 'var(--critical)', borderColor: 'var(--critical-bg)' }), flex: 1, justifyContent: 'center' }}
-        >
-          <I.trash size={13} />Sil
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isPending || uploading}
-          style={{ ...btnPrimary(), flex: 2, justifyContent: 'center' }}
-        >
-          {isPending ? <><InlineSpinner size={13} color="var(--on-action)" />Kaydediliyor…</> : 'Değişiklikleri kaydet'}
-        </button>
+        <div style={{ marginBottom: 10 }}>
+          <NutritionStatusPill s={nutri} />
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting || isPending}
+            style={{ ...btnGhost({ color: 'var(--critical)', borderColor: 'var(--critical-bg)' }), flex: 1, justifyContent: 'center' }}
+          >
+            <I.trash size={13} />Sil
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isPending || uploading}
+            style={{ ...btnPrimary(), flex: 2, justifyContent: 'center' }}
+          >
+            {isPending ? <><InlineSpinner size={13} color="var(--on-action)" />Kaydediliyor…</> : 'Değişiklikleri kaydet'}
+          </button>
+        </div>
       </div>
 
       {deleteConfirmOpen && (
