@@ -1,10 +1,9 @@
 import { notFound } from 'next/navigation'
 import { cookies } from 'next/headers'
-import { DEFAULT_THEME, TEMPLATES } from '@garsonless/design-engine'
-import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { verifyCustomerSession, CUSTOMER_SESSION_COOKIE, createServiceClient, getMemberBalances } from '@garsonless/db'
 import type { MemberBalances } from '@garsonless/db'
 import { getRestaurantBySlug, getThemeConfig, getMenuCategories, getMenuItems } from '../../lib/queries'
+import { resolveMenuTheme } from '../../lib/resolve-theme'
 import { MenuPageClient } from './MenuPageClient'
 import type { MenuItem, MenuCategory } from '@garsonless/ui'
 
@@ -30,21 +29,13 @@ export default async function MenuPage({ params, searchParams }: Props) {
 
   const items = await getMenuItems(categories.map((c) => c.id))
 
-  const restaurantSettings = restaurant.settings as Record<string, unknown> | null
-  const savedTemplateId = typeof restaurantSettings?.['active_template_id'] === 'string'
-    ? restaurantSettings['active_template_id']
-    : 'default'
-  const templateId = isPreview && previewTemplate ? previewTemplate : savedTemplateId
-  const baseTheme = TEMPLATES[templateId] ?? DEFAULT_THEME
-  const raw = themeConfig?.tokens as unknown
-  const rawTemplateId =
-    raw != null && typeof raw === 'object' && typeof (raw as Record<string, unknown>)['__template_id'] === 'string'
-      ? (raw as Record<string, unknown>)['__template_id']
-      : null
-  const theme: GarsonlessTheme =
-    rawTemplateId === templateId && raw != null && typeof raw === 'object' && 'bg' in (raw as object)
-      ? { ...baseTheme, ...(raw as Partial<GarsonlessTheme>) }
-      : baseTheme
+  // Resolved through the shared helper so the SSR layout's <style> and this
+  // client initialTheme are always identical (no first-load color flash).
+  const { theme, templateId } = resolveMenuTheme({
+    settings: restaurant.settings as Record<string, unknown> | null,
+    themeTokens: themeConfig?.tokens,
+    templateOverride: isPreview && previewTemplate ? previewTemplate : null,
+  })
 
   // Resolve a returning member from the httpOnly customer-session cookie (menu app only),
   // plus their loyalty balances (service-role, scoped to this customer + restaurant).

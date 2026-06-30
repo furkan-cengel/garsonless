@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { applyGarsonlessTheme, buildFontsUrlFromTheme, DEFAULT_THEME } from '@garsonless/design-engine'
-import type { GarsonlessTheme } from '@garsonless/design-engine'
+import { applyGarsonlessTheme, buildFontsUrlFromTheme } from '@garsonless/design-engine'
 import { getRestaurantBySlug, getThemeConfig } from '../../lib/queries'
+import { resolveMenuTheme } from '../../lib/resolve-theme'
 
 interface Props {
   children: React.ReactNode
@@ -21,11 +21,14 @@ export default async function SlugLayout({ children, params }: Props) {
   if (!restaurant) notFound()
 
   const themeConfig = await getThemeConfig(restaurant.id)
-  const raw = themeConfig?.tokens as unknown
-  const theme: GarsonlessTheme =
-    raw != null && typeof raw === 'object' && 'bg' in (raw as object)
-      ? (raw as GarsonlessTheme)
-      : DEFAULT_THEME
+  // Resolve identically to page.tsx so the SSR <style> matches the client's
+  // initialTheme (no first-load color flash). Layouts can't read searchParams,
+  // so the SSR style uses the saved active template; a preview `?template=`
+  // override is a client-only concern handled by the (opacity-gated) editor iframe.
+  const { theme } = resolveMenuTheme({
+    settings: restaurant.settings as Record<string, unknown> | null,
+    themeTokens: themeConfig?.tokens,
+  })
 
   const themeCSS = applyGarsonlessTheme(theme)
   const fontsUrl = buildFontsUrlFromTheme(theme)
