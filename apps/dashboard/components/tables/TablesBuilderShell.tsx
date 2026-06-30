@@ -402,6 +402,7 @@ function btnPrimary(): React.CSSProperties {
     height: 30, padding: '0 12px', borderRadius: 7, border: '1px solid var(--action)',
     background: 'var(--action)', color: 'var(--on-action)',
     fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+    whiteSpace: 'nowrap', flexShrink: 0,
     boxShadow: 'inset 0 1px 0 rgba(255,255,255,.08), 0 1px 0 rgba(0,0,0,.04)',
   }
 }
@@ -411,6 +412,7 @@ function btnGhost(): React.CSSProperties {
     height: 30, padding: '0 10px', borderRadius: 7,
     border: '1px solid var(--border-strong)', background: 'var(--surface)',
     color: 'var(--text)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+    whiteSpace: 'nowrap', flexShrink: 0,
   }
 }
 
@@ -483,12 +485,12 @@ function PresetChip({ preset, active, onClick }: { preset: typeof PRESETS[number
 }
 
 /* ─── TablesTopBar ──────────────────────────────────────────── */
-function TablesTopBar({ qr, setQR, restaurantName, saveState, previewUrl }: {
+function TablesTopBar({ qr, setQR, restaurantName, saveState, onPreview }: {
   qr: QRConfig
   setQR: (q: QRConfig) => void
   restaurantName: string
   saveState: SaveState
-  previewUrl: string
+  onPreview: () => void
 }) {
   const { openNotifications, notificationCount } = useShell()
   const status = saveState === 'saving'
@@ -585,7 +587,7 @@ function TablesTopBar({ qr, setQR, restaurantName, saveState, previewUrl }: {
           )}
         </button>
         <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
-        <button style={btnGhost()} onClick={() => window.open(previewUrl, '_blank', 'noopener')}>
+        <button style={btnGhost()} onClick={onPreview}>
           {React.cloneElement(I.eye as React.ReactElement<{ size?: number }>, { size: 13 })}Önizle
         </button>
         <Tag tone="positive">
@@ -1241,11 +1243,12 @@ function GridCard({ qr, table }: { qr: QRConfig; table: TableItem }) {
 }
 
 /* ─── QRCanvas ──────────────────────────────────────────────── */
-function QRCanvas({ qr, table, tables, qrInstanceRef }: {
+function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview }: {
   qr: QRConfig
   table?: TableItem
   tables: TableItem[]
   qrInstanceRef: React.RefObject<unknown>
+  onPreview: (src: string, label: string) => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<'preview' | 'grid' | 'print'>('preview')
@@ -1336,12 +1339,12 @@ function QRCanvas({ qr, table, tables, qrInstanceRef }: {
             padding: '3px 7px', border: '1px solid var(--border)', background: 'var(--surface)',
             borderRadius: 5, color: 'var(--text-2)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
             fontSize: 11,
-          }} onClick={() => window.open(url, '_blank', 'noopener')}>
+          }} onClick={() => onPreview(url, table?.label ?? 'Masa')}>
             {React.cloneElement(QRI.scan as React.ReactElement<{ size?: number }>, { size: 11 })}Önizle
           </button>
         </div>
 
-        <div className="tb-tables__canvas-toolbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="tb-tables__canvas-toolbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 2,
             background: 'var(--surface-3)', borderRadius: 7, padding: 3,
@@ -1963,6 +1966,99 @@ function StatusBar({ saveState, tableCount, activeCount }: { saveState: SaveStat
   )
 }
 
+/* ─── MobilePreview (Shopify-style phone mockup) ────────────── */
+function MobilePreview({ src, title, onClose }: { src: string; title: string; onClose: () => void }) {
+  const [loaded, setLoaded] = useState(false)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 80,
+        background: 'rgba(10,10,15,.62)', backdropFilter: 'blur(7px)', WebkitBackdropFilter: 'blur(7px)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        gap: 16, padding: 24,
+      }}
+    >
+      <style dangerouslySetInnerHTML={{ __html: '@keyframes tbmp-spin{to{transform:rotate(360deg)}}' }} />
+
+      {/* Top controls */}
+      <div onClick={(e) => e.stopPropagation()} style={{
+        display: 'flex', alignItems: 'center', gap: 8, maxWidth: '92vw',
+        padding: '7px 8px 7px 14px', borderRadius: 999,
+        background: 'rgba(255,255,255,.1)', border: '1px solid rgba(255,255,255,.14)',
+        color: '#fff', backdropFilter: 'blur(8px)',
+      }}>
+        {React.cloneElement(QRI.scan as React.ReactElement<{ size?: number }>, { size: 14 })}
+        <span style={{ fontSize: 12.5, fontWeight: 600 }}>{title}</span>
+        <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,.25)', margin: '0 2px' }} />
+        <span style={{ ...S.mono, fontSize: 11, color: 'rgba(255,255,255,.7)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{src}</span>
+        <button
+          onClick={() => window.open(src, '_blank', 'noopener')}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5, height: 28, padding: '0 11px',
+            border: '1px solid rgba(255,255,255,.2)', borderRadius: 999,
+            background: 'rgba(255,255,255,.08)', color: '#fff', fontSize: 11.5, fontWeight: 500,
+            cursor: 'pointer', whiteSpace: 'nowrap',
+          }}
+        >
+          {React.cloneElement(I.eye as React.ReactElement<{ size?: number }>, { size: 12 })}Yeni sekmede
+        </button>
+        <button
+          onClick={onClose}
+          aria-label="Kapat"
+          style={{
+            width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            border: '1px solid rgba(255,255,255,.2)', borderRadius: 999,
+            background: 'rgba(255,255,255,.08)', color: '#fff', cursor: 'pointer',
+          }}
+        >
+          {React.cloneElement(I.close as React.ReactElement<{ size?: number }>, { size: 14 })}
+        </button>
+      </div>
+
+      {/* Phone */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: 'relative', height: 'min(820px, 82vh)', aspectRatio: '420 / 860',
+          background: 'linear-gradient(155deg,#202024,#0b0b0d)', borderRadius: 52, padding: 13,
+          boxShadow: '0 50px 90px -30px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.07), inset 0 0 0 2px rgba(0,0,0,.5)',
+        }}
+      >
+        {/* Dynamic island */}
+        <div style={{
+          position: 'absolute', top: 22, left: '50%', transform: 'translateX(-50%)',
+          width: 104, height: 28, background: '#000', borderRadius: 999, zIndex: 3,
+        }} />
+        {/* Screen */}
+        <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 40, overflow: 'hidden', background: 'var(--surface)' }}>
+          {!loaded && (
+            <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--text-3)', zIndex: 1 }}>
+              <div style={{
+                width: 24, height: 24, borderRadius: 999,
+                border: '2px solid currentColor', borderRightColor: 'transparent',
+                animation: 'tbmp-spin 700ms linear infinite',
+              }} />
+            </div>
+          )}
+          <iframe
+            src={src}
+            onLoad={() => setLoaded(true)}
+            title="Mobil önizleme"
+            style={{ position: 'relative', zIndex: 2, width: '100%', height: '100%', border: 'none', background: 'transparent' }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ─── Root shell ────────────────────────────────────────────── */
 export default function TablesBuilderShell({ restaurantId, restaurantName, restaurantSlug, initialTables, initialQRStyle }: Props) {
   const baseQRUrl = `${MENU_BASE.replace(/^https?:\/\//, '')}/${restaurantSlug}`
@@ -1973,6 +2069,8 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
   })
   const [qr, setQR] = useState<QRConfig>(() => normalizeQRStyle(initialQRStyle, baseQRUrl))
   const [saveState, setSaveState] = useState<SaveState>('saved')
+  // Shopify-style in-app mobile preview (phone mockup) — null = closed.
+  const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
   const qrInstanceRef = useRef<unknown>(null)
   const activeTable = tables.find(t => t.id === activeId)
   const saveSeq = useRef(0)
@@ -2068,12 +2166,15 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
           setQR={setQR}
           restaurantName={restaurantName}
           saveState={saveState}
-          previewUrl={`${MENU_PROTOCOL}://${qr.baseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}`}
+          onPreview={() => setPreview({
+            src: `${MENU_PROTOCOL}://${qr.baseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}`,
+            title: 'Menü önizleme',
+          })}
         />
         <div className="tb-tables__workspace" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           <TablesIconRail restaurantId={restaurantId} />
           <TablesNav tables={tables} setTables={setTables} activeId={activeId} setActiveId={setActiveId} restaurantId={restaurantId} openSessions={openSessions} onCloseSession={handleCloseSession} pendingRequests={pendingRequests} onResolveRequest={handleResolveRequest} />
-          <QRCanvas qr={qr} table={activeTable} tables={tables} qrInstanceRef={qrInstanceRef} />
+          <QRCanvas qr={qr} table={activeTable} tables={tables} qrInstanceRef={qrInstanceRef} onPreview={(src, label) => setPreview({ src, title: `${label} önizleme` })} />
           <QRProps qr={qr} setQR={setQR} tables={tables} saveState={saveState} />
         </div>
         <StatusBar saveState={saveState} tableCount={tables.length} activeCount={Object.keys(openSessions).length} />
@@ -2086,6 +2187,9 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
             onSettled={() => void loadSessions()}
             onSessionClosed={() => { setSettleSession(null); void loadSessions() }}
           />
+        )}
+        {preview && (
+          <MobilePreview src={preview.src} title={preview.title} onClose={() => setPreview(null)} />
         )}
       </div>
     </>
