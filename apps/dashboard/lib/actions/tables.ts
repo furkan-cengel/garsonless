@@ -4,12 +4,58 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
-import { creditVisitsForSession } from '@garsonless/db'
+import { createServiceClient, creditVisitsForSession, type Json } from '@garsonless/db'
 import { assertAccess } from '../auth/access'
 
 const createTableSchema = z.object({
   restaurantId: z.string().uuid(),
   label: z.string().min(1).max(50),
+})
+
+const updateTableSchema = z.object({
+  restaurantId: z.string().uuid(),
+  tableId: z.string().uuid(),
+  label: z.string().min(1).max(50),
+})
+
+const deleteTableSchema = z.object({
+  restaurantId: z.string().uuid(),
+  tableId: z.string().uuid(),
+})
+
+const qrStyleSchema = z.object({
+  dotsType: z.string().min(1).max(40),
+  eyeFrame: z.string().min(1).max(40),
+  eyeBall: z.string().min(1).max(40),
+  size: z.number().int().min(200).max(2000),
+  margin: z.number().int().min(0).max(80),
+  ecl: z.enum(['L', 'M', 'Q', 'H']),
+  colorType: z.enum(['single', 'gradient']),
+  fg: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  fg2: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  gradType: z.enum(['linear', 'radial']),
+  gradAngle: z.number().int().min(0).max(360),
+  bg: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  bgTransparent: z.boolean(),
+  // Hard cap: the logo rides inside restaurants.settings, which is read on
+  // every dashboard SSR (and the public menu reads the row), so a multi-MB
+  // base64 blob would bloat those payloads. The client downscales raster logos
+  // to <=256px PNG before upload; this is the server backstop. ~256KB of base64.
+  logo: z.string().max(262_144).nullable(),
+  logoSize: z.number().min(0).max(1),
+  logoMargin: z.number().int().min(0).max(80),
+  logoHideBg: z.boolean(),
+  frame: z.string().min(1).max(40),
+  frameTitle: z.string().max(80),
+  frameSubtitle: z.string().max(140),
+  frameColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  baseUrl: z.string().min(1).max(200),
+  utmSource: z.string().max(80),
+  utmMedium: z.string().max(80),
+  utmCampaign: z.string().max(120),
+  autoLang: z.boolean(),
+  countdown: z.boolean(),
+  _presetId: z.string().max(60).optional(),
 })
 
 async function getAuthUser() {
@@ -56,6 +102,108 @@ export async function createTable(
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   return { id }
+}
+
+export async function renameTable(
+  input: unknown,
+): Promise<{ error: string } | { success: true }> {
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const parsed = updateTableSchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+  const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
+  if (!isOwner) return { error: 'Not authorized' }
+
+  const now = new Date().toISOString()
+  const { data, error } = await mut(supabase, 'tables')
+    .update({ label: parsed.data.label, updated_at: now })
+    .eq('id', parsed.data.tableId)
+    .eq('restaurant_id', parsed.data.restaurantId)
+    .is('deleted_at', null)
+    .select('id')
+
+  if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: 'Table not found for this restaurant' }
+
+  revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
+  return { success: true }
+}
+
+export async function deleteTable(
+  input: unknown,
+): Promise<{ error: string } | { success: true }> {
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const parsed = deleteTableSchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+  const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
+  if (!isOwner) return { error: 'Not authorized' }
+
+  const { data: openRows } = await supabase
+    .from('table_sessions')
+    .select('id')
+    .eq('restaurant_id', parsed.data.restaurantId)
+    .eq('table_id', parsed.data.tableId)
+    .is('closed_at', null)
+    .limit(1)
+
+  if ((openRows ?? []).length > 0) {
+    return { error: 'Bu masada açık adisyon var. Önce adisyonu kapatın.' }
+  }
+
+  const now = new Date().toISOString()
+  const { data, error } = await mut(supabase, 'tables')
+    .update({ deleted_at: now, updated_at: now })
+    .eq('id', parsed.data.tableId)
+    .eq('restaurant_id', parsed.data.restaurantId)
+    .is('deleted_at', null)
+    .select('id')
+
+  if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: 'Table not found for this restaurant' }
+
+  revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
+  return { success: true }
+}
+
+export async function saveQRStyle(
+  restaurantId: string,
+  style: unknown,
+): Promise<{ error: string } | { success: true }> {
+  const gate = await assertAccess(restaurantId, 'tables')
+  if ('error' in gate) return { error: 'Not authorized' }
+
+  const parsed = qrStyleSchema.safeParse(style)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid QR style' }
+
+  const svc = createServiceClient()
+  const { data: existing } = await svc
+    .from('restaurants')
+    .select('settings')
+    .eq('id', restaurantId)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!existing) return { error: 'Restaurant not found' }
+
+  const merged = {
+    ...((existing as { settings: Record<string, unknown> | null }).settings ?? {}),
+    qr_style: parsed.data,
+  }
+
+  const { error } = await svc
+    .from('restaurants')
+    .update({ settings: merged as Json })
+    .eq('id', restaurantId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/dashboard/${restaurantId}/tables`)
+  return { success: true }
 }
 
 export interface OpenSessionInfo {

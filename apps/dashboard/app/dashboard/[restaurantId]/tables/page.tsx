@@ -22,6 +22,7 @@ export default async function TablesPage({ params }: Props) {
       restaurantName={restaurant.name}
       restaurantSlug={restaurant.slug}
       initialTables={tables}
+      initialQRStyle={(restaurant.settings as Record<string, unknown> | null)?.qr_style ?? null}
     />
   )
 }

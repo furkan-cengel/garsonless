@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import type { Tables } from '@garsonless/db'
-import { createTable, getOpenTableSessions, closeTableSession } from '../../lib/actions/tables'
+import { createTable, deleteTable, getOpenTableSessions, closeTableSession, renameTable, saveQRStyle } from '../../lib/actions/tables'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
 import SettlementSheet from './SettlementSheet'
 import { getPendingServiceRequests, resolveServiceRequest } from '../../lib/actions/service-requests'
@@ -57,7 +57,10 @@ interface Props {
   restaurantName: string
   restaurantSlug: string
   initialTables: Tables<'tables'>[]
+  initialQRStyle?: unknown
 }
+
+type SaveState = 'saved' | 'saving' | 'error'
 
 type QRCodeStylingCtor = typeof import('qr-code-styling').default
 
@@ -115,6 +118,66 @@ function defaultQR(baseUrl: string): QRConfig {
     utmCampaign: '',
     autoLang: true,
     countdown: false,
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+function readString(row: Record<string, unknown>, key: keyof QRConfig, fallback: string): string {
+  const value = row[key]
+  return typeof value === 'string' ? value : fallback
+}
+
+function readNumber(row: Record<string, unknown>, key: keyof QRConfig, fallback: number): number {
+  const value = row[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function readBoolean(row: Record<string, unknown>, key: keyof QRConfig, fallback: boolean): boolean {
+  const value = row[key]
+  return typeof value === 'boolean' ? value : fallback
+}
+
+function normalizeQRStyle(input: unknown, baseUrl: string): QRConfig {
+  const fallback = defaultQR(baseUrl)
+  const row = asRecord(input)
+  if (!row) return fallback
+
+  return {
+    dotsType: readString(row, 'dotsType', fallback.dotsType),
+    eyeFrame: readString(row, 'eyeFrame', fallback.eyeFrame),
+    eyeBall: readString(row, 'eyeBall', fallback.eyeBall),
+    size: Math.round(readNumber(row, 'size', fallback.size)),
+    margin: Math.round(readNumber(row, 'margin', fallback.margin)),
+    ecl: ['L', 'M', 'Q', 'H'].includes(readString(row, 'ecl', fallback.ecl))
+      ? readString(row, 'ecl', fallback.ecl)
+      : fallback.ecl,
+    colorType: readString(row, 'colorType', fallback.colorType) === 'gradient' ? 'gradient' : 'single',
+    fg: readString(row, 'fg', fallback.fg),
+    fg2: readString(row, 'fg2', fallback.fg2),
+    gradType: readString(row, 'gradType', fallback.gradType) === 'radial' ? 'radial' : 'linear',
+    gradAngle: Math.round(readNumber(row, 'gradAngle', fallback.gradAngle)),
+    bg: readString(row, 'bg', fallback.bg),
+    bgTransparent: readBoolean(row, 'bgTransparent', fallback.bgTransparent),
+    logo: typeof row.logo === 'string' ? row.logo : null,
+    logoSize: readNumber(row, 'logoSize', fallback.logoSize),
+    logoMargin: Math.round(readNumber(row, 'logoMargin', fallback.logoMargin)),
+    logoHideBg: readBoolean(row, 'logoHideBg', fallback.logoHideBg),
+    frame: readString(row, 'frame', fallback.frame),
+    frameTitle: readString(row, 'frameTitle', fallback.frameTitle),
+    frameSubtitle: readString(row, 'frameSubtitle', fallback.frameSubtitle),
+    frameColor: readString(row, 'frameColor', fallback.frameColor),
+    baseUrl: readString(row, 'baseUrl', fallback.baseUrl),
+    utmSource: readString(row, 'utmSource', fallback.utmSource),
+    utmMedium: readString(row, 'utmMedium', fallback.utmMedium),
+    utmCampaign: readString(row, 'utmCampaign', fallback.utmCampaign),
+    autoLang: readBoolean(row, 'autoLang', fallback.autoLang),
+    countdown: readBoolean(row, 'countdown', fallback.countdown),
+    _presetId: typeof row._presetId === 'string' ? row._presetId : undefined,
   }
 }
 
@@ -309,6 +372,9 @@ const I = {
   layout: AppIconNodes.layout,
   bell: AppIconNodes.bell,
   bellSmall: <AppIcons.bell size={11} />,
+  check: AppIconNodes.check,
+  close: AppIconNodes.close,
+  trash: AppIconNodes.trash,
 }
 
 const QRI = {
@@ -417,8 +483,19 @@ function PresetChip({ preset, active, onClick }: { preset: typeof PRESETS[number
 }
 
 /* ─── TablesTopBar ──────────────────────────────────────────── */
-function TablesTopBar({ qr, setQR, restaurantName }: { qr: QRConfig; setQR: (q: QRConfig) => void; restaurantName: string }) {
+function TablesTopBar({ qr, setQR, restaurantName, saveState, previewUrl }: {
+  qr: QRConfig
+  setQR: (q: QRConfig) => void
+  restaurantName: string
+  saveState: SaveState
+  previewUrl: string
+}) {
   const { openNotifications, notificationCount } = useShell()
+  const status = saveState === 'saving'
+    ? { label: 'Stil kaydediliyor', color: 'var(--warning)' }
+    : saveState === 'error'
+      ? { label: 'Stil kaydedilemedi', color: 'var(--critical)' }
+      : { label: 'Stil kaydedildi', color: 'var(--positive)' }
   return (
     <div className="tb-tables__topbar" style={{
       height: 'var(--topbar)', flexShrink: 0,
@@ -475,10 +552,10 @@ function TablesTopBar({ qr, setQR, restaurantName }: { qr: QRConfig; setQR: (q: 
 
       <div className="tb-tables__topbar-right" style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 8px', color: 'var(--text-3)', fontSize: 12 }}>
-          <div style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--positive)' }} />
-          Stil kaydedildi
+          <div style={{ width: 6, height: 6, borderRadius: 999, background: status.color }} />
+          {status.label}
         </div>
-        <div style={{ display: 'inline-flex', gap: 2 }}>
+        <div aria-hidden style={{ display: 'inline-flex', gap: 2, opacity: 0.35 }}>
           {React.cloneElement(I.undo as React.ReactElement<{ size?: number }>, { size: 15 })}
           {React.cloneElement(I.redo as React.ReactElement<{ size?: number }>, { size: 15 })}
         </div>
@@ -508,12 +585,13 @@ function TablesTopBar({ qr, setQR, restaurantName }: { qr: QRConfig; setQR: (q: 
           )}
         </button>
         <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
-        <button style={btnGhost()}>
+        <button style={btnGhost()} onClick={() => window.open(previewUrl, '_blank', 'noopener')}>
           {React.cloneElement(I.eye as React.ReactElement<{ size?: number }>, { size: 13 })}Önizle
         </button>
-        <button style={btnPrimary()}>
-          {React.cloneElement(QRI.download as React.ReactElement<{ size?: number }>, { size: 13 })}Tümünü yayınla
-        </button>
+        <Tag tone="positive">
+          <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--positive)' }} />
+          Otomatik yayında
+        </Tag>
       </div>
     </div>
   )
@@ -548,36 +626,193 @@ function MiniQR({ seed }: { seed: string }) {
 }
 
 /* ─── TableRow ──────────────────────────────────────────────── */
-function TableRow({ table, active, onClick }: { table: TableItem; active: boolean; onClick: () => void }) {
+function TableRow({
+  table,
+  active,
+  onClick,
+  onRename,
+  onDelete,
+  deleteDisabled,
+}: {
+  table: TableItem
+  active: boolean
+  onClick: () => void
+  onRename: (label: string) => Promise<string | null>
+  onDelete: () => Promise<string | null>
+  deleteDisabled: boolean
+}) {
   const [hov, setHov] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(table.label)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const dotColor = table.status === 'active' ? 'var(--positive)' : table.status === 'paused' ? 'var(--warning)' : 'var(--text-4)'
-  return (
-    <button onClick={onClick}
-      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        width: '100%', padding: '8px 8px',
-        background: active ? 'var(--surface-inset)' : (hov ? 'var(--surface-3)' : 'transparent'),
-        border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left',
-        marginBottom: 1,
-      }}>
+
+  useEffect(() => {
+    if (!editing) setDraft(table.label)
+  }, [editing, table.label])
+
+  const commitRename = async () => {
+    const nextLabel = draft.trim()
+    if (!nextLabel) return
+    if (nextLabel === table.label) {
+      setEditing(false)
+      return
+    }
+    setBusy(true)
+    setError(null)
+    const nextError = await onRename(nextLabel)
+    setBusy(false)
+    if (nextError) {
+      setError(nextError)
+      return
+    }
+    setEditing(false)
+  }
+
+  const commitDelete = async () => {
+    if (deleteDisabled) {
+      setError('Bu masada açık adisyon var. Önce adisyonu kapatın.')
+      setMenuOpen(false)
+      return
+    }
+    if (!window.confirm(`${table.label} silinsin mi? QR bağlantısı da listeden kalkar.`)) return
+    setBusy(true)
+    setError(null)
+    const nextError = await onDelete()
+    setBusy(false)
+    if (nextError) setError(nextError)
+  }
+
+  if (editing) {
+    return (
       <div style={{
-        width: 26, height: 26, borderRadius: 5,
-        background: '#fff', border: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0,
+        padding: 8, marginBottom: 3,
+        background: 'var(--surface-2)', border: '1px solid var(--border)',
+        borderRadius: 8,
       }}>
-        <MiniQR seed={table.slug} />
+        <input
+          autoFocus
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') void commitRename()
+            if (e.key === 'Escape') { setEditing(false); setError(null) }
+          }}
+          style={{
+            width: '100%', height: 28, padding: '0 8px', marginBottom: 6,
+            border: '1px solid var(--border-strong)', borderRadius: 6,
+            outline: 'none', fontSize: 12.5,
+          }}
+        />
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void commitRename()}
+            style={{ ...btnPrimary(), height: 26, fontSize: 11.5, padding: '0 10px', flex: 1, opacity: busy ? 0.6 : 1 }}
+          >
+            {busy ? <><InlineSpinner size={11} color="var(--on-action)" /> Kaydediliyor…</> : <>{React.cloneElement(I.check as React.ReactElement<{ size?: number }>, { size: 12 })}Kaydet</>}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setEditing(false); setError(null) }}
+            style={{ ...btnGhost(), height: 26, fontSize: 11.5, padding: '0 10px' }}
+          >
+            {React.cloneElement(I.close as React.ReactElement<{ size?: number }>, { size: 12 })}
+          </button>
+        </div>
+        {error && <div style={{ marginTop: 6, fontSize: 11, color: 'var(--critical)' }}>{error}</div>}
       </div>
-      <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-        <span style={{ fontSize: 13, fontWeight: active ? 600 : 500, color: 'var(--text)' }}>{table.label}</span>
-        <span style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 2, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 5, height: 5, borderRadius: 999, background: dotColor }} />
-          {table.orders > 0 ? `${table.orders} sipariş bugün` : 'Boş'}
+    )
+  }
+
+  return (
+    <div
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{ position: 'relative', marginBottom: 1 }}
+    >
+      <button onClick={onClick}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          width: '100%', padding: '8px 8px',
+          background: active ? 'var(--surface-inset)' : (hov || menuOpen ? 'var(--surface-3)' : 'transparent'),
+          border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left',
+        }}>
+        <div style={{
+          width: 26, height: 26, borderRadius: 5,
+          background: '#fff', border: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <MiniQR seed={table.slug} />
+        </div>
+        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+          <span style={{ fontSize: 13, fontWeight: active ? 600 : 500, color: 'var(--text)' }}>{table.label}</span>
+          <span style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 2, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 5, height: 5, borderRadius: 999, background: dotColor }} />
+            {table.orders > 0 ? `${table.orders} sipariş bugün` : 'Boş'}
+          </span>
         </span>
-      </span>
-      <span style={{ ...S.mono, fontSize: 10, color: 'var(--text-4)' }}>/{table.slug}</span>
-    </button>
+        <span style={{ ...S.mono, fontSize: 10, color: 'var(--text-4)', marginRight: hov || active || menuOpen ? 28 : 0 }}>/{table.slug}</span>
+      </button>
+      {(hov || active || menuOpen) && (
+        <button
+          type="button"
+          aria-label={`${table.label} seçenekleri`}
+          disabled={busy}
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}
+          style={{
+            position: 'absolute', top: 7, right: 6,
+            width: 24, height: 24, border: '1px solid var(--border)',
+            borderRadius: 6, background: 'var(--surface)', color: 'var(--text-2)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            cursor: busy ? 'default' : 'pointer',
+          }}
+        >
+          {React.cloneElement(QRI.more as React.ReactElement<{ size?: number }>, { size: 13 })}
+        </button>
+      )}
+      {menuOpen && (
+        <>
+          <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 4 }} />
+          <div style={{
+            position: 'absolute', top: 34, right: 4, zIndex: 5,
+            minWidth: 160, padding: 4,
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 8, boxShadow: 'var(--shadow-pop)',
+          }}>
+            <button
+              type="button"
+              onClick={() => { setMenuOpen(false); setEditing(true); setError(null) }}
+              style={{
+                width: '100%', border: 'none', background: 'transparent',
+                borderRadius: 5, padding: '7px 9px', textAlign: 'left',
+                fontSize: 12, color: 'var(--text)', cursor: 'pointer',
+              }}
+            >
+              Yeniden adlandır
+            </button>
+            <button
+              type="button"
+              onClick={() => void commitDelete()}
+              style={{
+                width: '100%', border: 'none', background: 'transparent',
+                borderRadius: 5, padding: '7px 9px', textAlign: 'left',
+                fontSize: 12, color: deleteDisabled ? 'var(--text-4)' : 'var(--critical)',
+                cursor: deleteDisabled ? 'default' : 'pointer',
+              }}
+              title={deleteDisabled ? 'Açık adisyonu olan masa silinemez' : undefined}
+            >
+              Sil
+            </button>
+          </div>
+        </>
+      )}
+      {error && <div style={{ margin: '3px 6px 4px 36px', fontSize: 11, color: 'var(--critical)' }}>{error}</div>}
+    </div>
   )
 }
 
@@ -602,27 +837,58 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
   const [adding, setAdding] = useState(false)
   const [newLabel, setNewLabel] = useState('')
   const [saving, setSaving] = useState(false)
+  const [query, setQuery] = useState('')
+  const [addError, setAddError] = useState<string | null>(null)
+  const filteredTables = query.trim()
+    ? tables.filter(t => t.label.toLocaleLowerCase('tr-TR').includes(query.trim().toLocaleLowerCase('tr-TR')) || t.slug.includes(query.trim()))
+    : tables
 
   const addTable = async () => {
     const label = newLabel.trim()
     if (!label) return
     setSaving(true)
+    setAddError(null)
     const fd = new FormData()
     fd.append('restaurantId', restaurantId)
     fd.append('label', label)
     const result = await createTable(undefined, fd)
     setSaving(false)
-    if ('error' in result) return
+    if ('error' in result) {
+      setAddError(result.error)
+      return
+    }
     const idx = tables.length
-    setTables([...tables, {
+    const nextTable = {
       id: result.id,
       label,
       slug: deriveSlug(label, idx),
       orders: 0,
       status: 'idle',
-    }])
+    } satisfies TableItem
+    setTables([...tables, nextTable])
+    setActiveId(nextTable.id)
     setNewLabel('')
     setAdding(false)
+  }
+
+  const handleRename = async (table: TableItem, label: string): Promise<string | null> => {
+    const result = await renameTable({ restaurantId, tableId: table.id, label })
+    if ('error' in result) return result.error
+    const idx = tables.findIndex(t => t.id === table.id)
+    setTables(tables.map((t, i) => t.id === table.id
+      ? { ...t, label, slug: deriveSlug(label, i >= 0 ? i : idx) }
+      : t,
+    ))
+    return null
+  }
+
+  const handleDelete = async (table: TableItem): Promise<string | null> => {
+    const result = await deleteTable({ restaurantId, tableId: table.id })
+    if ('error' in result) return result.error
+    const nextTables = tables.filter(t => t.id !== table.id)
+    setTables(nextTables)
+    if (activeId === table.id) setActiveId(nextTables[0]?.id ?? '')
+    return null
   }
 
   return (
@@ -637,7 +903,7 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
           <span style={{ ...S.mono, fontSize: 11, color: 'var(--text-3)' }}>{tables.length}</span>
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
-          {tables.filter(t => t.status === 'active').length} aktif · Tek stil
+          {Object.keys(openSessions).length} aktif · Tek stil
         </div>
       </div>
 
@@ -649,7 +915,11 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
           color: 'var(--text-3)',
         }}>
           {React.cloneElement(I.search as React.ReactElement<{ size?: number }>, { size: 13 })}
-          <input placeholder="Masa ara" style={{
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Masa ara"
+            style={{
             flex: 1, border: 'none', outline: 'none', background: 'transparent',
             fontSize: 12.5, color: 'var(--text)',
           }} />
@@ -658,12 +928,36 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 8px 12px' }}>
         <div style={{ ...S.label, padding: '6px 8px 6px' }}>Tüm masalar</div>
-        {tables.map(t => {
+        {filteredTables.length === 0 && (
+          <div style={{
+            margin: '8px 4px 12px', padding: '18px 12px',
+            border: '1px dashed var(--border-strong)', borderRadius: 9,
+            textAlign: 'center', color: 'var(--text-3)', background: 'var(--surface-2)',
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-2)' }}>
+              {tables.length === 0 ? 'Henüz masa yok' : 'Eşleşen masa yok'}
+            </div>
+            <div style={{ fontSize: 11.5, marginTop: 4 }}>
+              {tables.length === 0 ? 'İlk QR masasını ekleyerek başlayın.' : 'Aramayı temizleyin ya da yeni masa ekleyin.'}
+            </div>
+          </div>
+        )}
+        {filteredTables.map(t => {
           const session = openSessions[t.id]
           const pendingRequestId = pendingRequests[t.id]
+          const rowTable: TableItem = session
+            ? { ...t, status: 'active', orders: session.orderCount }
+            : { ...t, status: 'idle', orders: 0 }
           return (
             <div key={t.id}>
-              <TableRow table={t} active={activeId === t.id} onClick={() => setActiveId(t.id)} />
+              <TableRow
+                table={rowTable}
+                active={activeId === t.id}
+                onClick={() => setActiveId(t.id)}
+                onRename={(label) => handleRename(t, label)}
+                onDelete={() => handleDelete(t)}
+                deleteDisabled={Boolean(session)}
+              />
               {pendingRequestId && (
                 <div style={{
                   margin: '0 4px 4px 28px', padding: '5px 8px',
@@ -726,8 +1020,9 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
               }} />
             <div style={{ display: 'flex', gap: 4 }}>
               <button onClick={addTable} disabled={saving} style={{ ...btnPrimary(), height: 26, fontSize: 11.5, padding: '0 10px', flex: 1, opacity: saving ? 0.6 : 1 }}>{saving ? <><InlineSpinner size={11} color="var(--on-action)" /> Kaydediliyor…</> : 'Ekle'}</button>
-              <button onClick={() => { setAdding(false); setNewLabel('') }} style={{ ...btnGhost(), height: 26, fontSize: 11.5, padding: '0 10px' }}>İptal</button>
+              <button onClick={() => { setAdding(false); setNewLabel(''); setAddError(null) }} style={{ ...btnGhost(), height: 26, fontSize: 11.5, padding: '0 10px' }}>İptal</button>
             </div>
+            {addError && <div style={{ marginTop: 6, fontSize: 11, color: 'var(--critical)' }}>{addError}</div>}
           </div>
         ) : (
           <button onClick={() => setAdding(true)} style={{
@@ -742,15 +1037,8 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
         )}
       </div>
 
-      <div style={{ borderTop: '1px solid var(--divider)', padding: '10px 14px', background: 'var(--surface-2)' }}>
-        <button style={{
-          width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          height: 30, fontSize: 12, fontWeight: 500,
-          background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 7,
-          color: 'var(--text)', cursor: 'pointer',
-        }}>
-          {React.cloneElement(QRI.download as React.ReactElement<{ size?: number }>, { size: 13 })}Tümünü PDF olarak indir
-        </button>
+      <div style={{ borderTop: '1px solid var(--divider)', padding: '10px 14px', background: 'var(--surface-2)', fontSize: 11.5, color: 'var(--text-3)' }}>
+        PNG/SVG indirme seçili masa üzerinden yapılır; toplu PDF export ayrı bir iş olarak duruyor.
       </div>
     </div>
   )
@@ -865,11 +1153,15 @@ function Frame({ qr, table, children }: { qr: QRConfig; table?: TableItem; child
 }
 
 /* ─── DownloadMenu ──────────────────────────────────────────── */
-function DownloadMenu({ onPick }: { onPick: (fmt: string) => void }) {
+function DownloadMenu({ onPick, disabled = false }: { onPick: (fmt: string) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <div style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(!open)} style={{ ...btnPrimary(), borderRadius: '0 7px 7px 0', padding: '0 8px' }}>
+      <button
+        disabled={disabled}
+        onClick={() => { if (!disabled) setOpen(!open) }}
+        style={{ ...btnPrimary(), borderRadius: '0 7px 7px 0', padding: '0 8px', opacity: disabled ? 0.45 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
+      >
         {React.cloneElement(I.chevDown as React.ReactElement<{ size?: number }>, { size: 14 })}
       </button>
       {open && (
@@ -1028,7 +1320,7 @@ function QRCanvas({ qr, table, tables, qrInstanceRef }: {
         background: 'rgba(255,255,255,.7)', backdropFilter: 'blur(8px)',
       }}>
         <div className="tb-tables__canvas-toolbar-left" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text-2)', minWidth: 0 }}>
-          <span style={{ fontWeight: 600, color: 'var(--text)', fontSize: 13 }}>{table?.label}</span>
+          <span style={{ fontWeight: 600, color: 'var(--text)', fontSize: 13 }}>{table?.label ?? 'Masa seçin'}</span>
           <span style={{ color: 'var(--text-4)' }}>·</span>
           <span style={{ ...S.mono, fontSize: 11.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>
             {url}
@@ -1073,16 +1365,28 @@ function QRCanvas({ qr, table, tables, qrInstanceRef }: {
           </div>
           <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
           <div style={{ display: 'inline-flex' }}>
-            <button onClick={() => download('png')} style={{ ...btnPrimary(), borderRadius: '7px 0 0 7px', borderRight: '1px solid rgba(255,255,255,.15)', paddingRight: 10 }}>
+            <button
+              onClick={() => { if (table) void download('png') }}
+              disabled={!table}
+              style={{ ...btnPrimary(), borderRadius: '7px 0 0 7px', borderRight: '1px solid rgba(255,255,255,.15)', paddingRight: 10, opacity: table ? 1 : 0.45, cursor: table ? 'pointer' : 'not-allowed' }}
+            >
               {React.cloneElement(QRI.download as React.ReactElement<{ size?: number }>, { size: 13 })}İndir PNG
             </button>
-            <DownloadMenu onPick={download} />
+            <DownloadMenu onPick={download} disabled={!table} />
           </div>
         </div>
       </div>
 
       {/* Canvas body */}
-      {view === 'preview' && (
+      {view === 'preview' && !table && tables.length === 0 && (
+        <div className="tb-tables__canvas-body" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, overflow: 'auto' }}>
+          <div style={{ textAlign: 'center', color: 'var(--text-3)' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Henüz masa yok</div>
+            <div style={{ fontSize: 12, marginTop: 6 }}>QR önizlemesi için sol panelden masa ekleyin.</div>
+          </div>
+        </div>
+      )}
+      {view === 'preview' && (table || tables.length > 0) && (
         <div className="tb-tables__canvas-body" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, overflow: 'auto' }}>
           <Frame qr={qr} table={table}>
             <div ref={hostRef} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
@@ -1395,12 +1699,46 @@ function ColorTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => v
   )
 }
 
+// Keep the stored logo small — it rides inside restaurants.settings (read on
+// every dashboard SSR + the public menu). Raster logos are downscaled to a
+// 256px PNG; the result + any SVG is capped to match the server's 256KB limit.
+const MAX_LOGO_CHARS = 262_144
+
 function LogoTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => void }) {
+  const [logoError, setLogoError] = useState<string | null>(null)
   const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    setLogoError(null)
     const reader = new FileReader()
-    reader.onload = () => set('logo', reader.result)
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      if (!result) return
+      // SVG stays vector — just enforce the size cap.
+      if (file.type === 'image/svg+xml') {
+        if (result.length > MAX_LOGO_CHARS) { setLogoError('Logo çok büyük (en fazla ~256 KB). Daha küçük bir dosya seçin.'); return }
+        set('logo', result)
+        return
+      }
+      // Raster → downscale to <=256px PNG so the persisted payload stays tiny.
+      const img = new Image()
+      img.onload = () => {
+        const max = 256
+        const scale = Math.min(1, max / Math.max(img.width, img.height))
+        const w = Math.max(1, Math.round(img.width * scale))
+        const h = Math.max(1, Math.round(img.height * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { setLogoError('Görsel işlenemedi.'); return }
+        ctx.drawImage(img, 0, 0, w, h)
+        const out = canvas.toDataURL('image/png')
+        if (out.length > MAX_LOGO_CHARS) { setLogoError('Logo çok büyük. Daha küçük/yalın bir görsel deneyin.'); return }
+        set('logo', out)
+      }
+      img.onerror = () => setLogoError('Görsel okunamadı.')
+      img.src = result
+    }
     reader.readAsDataURL(file)
   }
   return (
@@ -1441,6 +1779,9 @@ function LogoTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => vo
           <div style={{ fontSize: 10.5, color: 'var(--text-3)', textAlign: 'center', maxWidth: 200 }}>
             PNG veya SVG, en az 200×200 px
           </div>
+          {logoError && (
+            <div style={{ fontSize: 11, color: 'var(--critical)', textAlign: 'center', maxWidth: 200 }}>{logoError}</div>
+          )}
         </div>
       </Group>
       <Group title="Yerleşim">
@@ -1510,9 +1851,14 @@ function DataTab({ qr, set, tables }: { qr: QRConfig; set: (k: string, v: unknow
 }
 
 /* ─── QRProps panel ─────────────────────────────────────────── */
-function QRProps({ qr, setQR, tables }: { qr: QRConfig; setQR: (q: QRConfig) => void; tables: TableItem[] }) {
+function QRProps({ qr, setQR, tables, saveState }: { qr: QRConfig; setQR: (q: QRConfig) => void; tables: TableItem[]; saveState: SaveState }) {
   const [tab, setTab] = useState('shape')
   const set = (k: string, v: unknown) => setQR({ ...qr, [k]: v })
+  const status = saveState === 'saving'
+    ? { label: 'Kaydediliyor', tone: 'neutral', dot: 'var(--warning)' }
+    : saveState === 'error'
+      ? { label: 'Sorun var', tone: 'neutral', dot: 'var(--critical)' }
+      : { label: 'Senkronlu', tone: 'positive', dot: 'var(--positive)' }
 
   const tabs = [
     { id: 'shape', label: 'Şekil',   icon: QRI.qr },
@@ -1534,9 +1880,9 @@ function QRProps({ qr, setQR, tables }: { qr: QRConfig; setQR: (q: QRConfig) => 
             <div style={{ fontWeight: 600, fontSize: 13.5 }}>QR Stüdyosu</div>
             <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>Tüm masalara uygulanır</div>
           </div>
-          <Tag tone="positive">
-            <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--positive)' }} />
-            Senkronlu
+          <Tag tone={status.tone}>
+            <span style={{ width: 5, height: 5, borderRadius: 999, background: status.dot }} />
+            {status.label}
           </Tag>
         </div>
       </div>
@@ -1580,7 +1926,12 @@ function QRProps({ qr, setQR, tables }: { qr: QRConfig; setQR: (q: QRConfig) => 
 }
 
 /* ─── StatusBar ─────────────────────────────────────────────── */
-function StatusBar() {
+function StatusBar({ saveState, tableCount, activeCount }: { saveState: SaveState; tableCount: number; activeCount: number }) {
+  const statusText = saveState === 'saving'
+    ? 'Otomatik kayıt çalışıyor'
+    : saveState === 'error'
+      ? 'Otomatik kayıt başarısız'
+      : 'Otomatik kayıt açık'
   return (
     <div className="tb-tables__statusbar" style={{
       height: 'var(--statusbar)', flexShrink: 0,
@@ -1589,21 +1940,22 @@ function StatusBar() {
       fontSize: 11.5, color: 'var(--text-3)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <button style={{
+        <span style={{
           display: 'inline-flex', alignItems: 'center', gap: 5,
-          background: 'var(--warning-bg)', color: 'var(--warning)',
-          border: 'none', borderRadius: 999, padding: '3px 9px 3px 7px',
-          fontSize: 11, fontWeight: 500, cursor: 'pointer',
+          color: saveState === 'error' ? 'var(--critical)' : 'var(--text-3)',
+          fontSize: 11.5,
         }}>
-          {React.cloneElement(I.warn as React.ReactElement<{ size?: number }>, { size: 12 })}
-          1 sorun · <span style={{ textDecoration: 'underline' }}>Görüntüle</span>
-        </button>
-        <span>Otomatik kayıt açık</span>
+          <span style={{
+            width: 6, height: 6, borderRadius: 999,
+            background: saveState === 'error' ? 'var(--critical)' : saveState === 'saving' ? 'var(--warning)' : 'var(--positive)',
+          }} />
+          {statusText}
+        </span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, ...S.mono }}>
-        <span>1440 × 900</span>
+        <span>{tableCount} masa</span>
         <span style={{ color: 'var(--text-4)' }}>·</span>
-        <span>%100</span>
+        <span>{activeCount} aktif</span>
         <span style={{ color: 'var(--text-4)' }}>·</span>
         <span>tr-TR</span>
       </div>
@@ -1612,21 +1964,35 @@ function StatusBar() {
 }
 
 /* ─── Root shell ────────────────────────────────────────────── */
-export default function TablesBuilderShell({ restaurantId, restaurantName, restaurantSlug, initialTables }: Props) {
-  const [tables, setTables] = useState<TableItem[]>(() => {
-    const mapped = mapDBTables(initialTables)
-    if (mapped.length === 0) {
-      return [{ id: 'placeholder', label: 'Masa 1', slug: '01', orders: 0, status: 'idle' }]
-    }
-    return mapped
-  })
+export default function TablesBuilderShell({ restaurantId, restaurantName, restaurantSlug, initialTables, initialQRStyle }: Props) {
+  const baseQRUrl = `${MENU_BASE.replace(/^https?:\/\//, '')}/${restaurantSlug}`
+  const [tables, setTables] = useState<TableItem[]>(() => mapDBTables(initialTables))
   const [activeId, setActiveId] = useState<string>(() => {
     const mapped = mapDBTables(initialTables)
-    return mapped[0]?.id ?? 'placeholder'
+    return mapped[0]?.id ?? ''
   })
-  const [qr, setQR] = useState<QRConfig>(() => defaultQR(`${MENU_BASE.replace(/^https?:\/\//, '')}/${restaurantSlug}`))
+  const [qr, setQR] = useState<QRConfig>(() => normalizeQRStyle(initialQRStyle, baseQRUrl))
+  const [saveState, setSaveState] = useState<SaveState>('saved')
   const qrInstanceRef = useRef<unknown>(null)
   const activeTable = tables.find(t => t.id === activeId)
+  const saveSeq = useRef(0)
+  const didMount = useRef(false)
+
+  useEffect(() => {
+    if (!didMount.current) {
+      didMount.current = true
+      return
+    }
+    const seq = ++saveSeq.current
+    setSaveState('saving')
+    const timer = window.setTimeout(() => {
+      void saveQRStyle(restaurantId, qr).then((result) => {
+        if (seq !== saveSeq.current) return
+        setSaveState('error' in result ? 'error' : 'saved')
+      })
+    }, 650)
+    return () => window.clearTimeout(timer)
+  }, [restaurantId, qr])
 
   // Open adisyon (table session) totals per table
   const [openSessions, setOpenSessions] = useState<Record<string, OpenSessionInfo>>({})
@@ -1697,14 +2063,20 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
     <>
       <style dangerouslySetInnerHTML={{ __html: CSS_VARS }} />
       <div className="tb-tables" style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
-        <TablesTopBar qr={qr} setQR={setQR} restaurantName={restaurantName} />
+        <TablesTopBar
+          qr={qr}
+          setQR={setQR}
+          restaurantName={restaurantName}
+          saveState={saveState}
+          previewUrl={`${MENU_PROTOCOL}://${qr.baseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}`}
+        />
         <div className="tb-tables__workspace" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           <TablesIconRail restaurantId={restaurantId} />
           <TablesNav tables={tables} setTables={setTables} activeId={activeId} setActiveId={setActiveId} restaurantId={restaurantId} openSessions={openSessions} onCloseSession={handleCloseSession} pendingRequests={pendingRequests} onResolveRequest={handleResolveRequest} />
           <QRCanvas qr={qr} table={activeTable} tables={tables} qrInstanceRef={qrInstanceRef} />
-          <QRProps qr={qr} setQR={setQR} tables={tables} />
+          <QRProps qr={qr} setQR={setQR} tables={tables} saveState={saveState} />
         </div>
-        <StatusBar />
+        <StatusBar saveState={saveState} tableCount={tables.length} activeCount={Object.keys(openSessions).length} />
         {settleSession && (
           <SettlementSheet
             restaurantId={restaurantId}

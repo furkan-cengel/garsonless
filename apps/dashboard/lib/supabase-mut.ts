@@ -16,6 +16,9 @@ interface SelectChain {
 interface EqChain {
   eq: (col: string, val: unknown) => EqChain
   is: (col: string, val: unknown) => EqChain
+  // `.select(cols)` after an update returns the affected rows (PostgREST), so
+  // callers can detect a 0-row write (e.g. a cross-tenant id that matched nothing).
+  select: (cols: string) => Promise<{ data: Row[] | null; error: DbError }>
   single: () => Promise<{ data: Row | null; error: DbError }>
   then: Promise<{ data: null; error: DbError }>['then']
 }
