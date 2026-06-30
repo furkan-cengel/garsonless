@@ -14,6 +14,8 @@ import { updateOrderStatus } from '../../lib/actions/orders'
 import { formatCurrency } from '../../lib/utils'
 import PageTopBar from '../layout/PageTopBar'
 import { I, S, Tag, IconButton, btnPrimary, btnGhost } from '../../lib/ui'
+import HistoryModal from './HistoryModal'
+import ReceiptModal, { type ReceiptOrder } from './ReceiptModal'
 
 /* ============================================================
    COLUMN DEFINITIONS
@@ -83,12 +85,14 @@ function OrderDetailPanel({
   onClose,
   onAdvance,
   onCancel,
+  onReceipt,
 }: {
   order: Order | null
   tableLabel: string
   onClose: () => void
   onAdvance: (order: Order) => void
   onCancel: (order: Order) => void
+  onReceipt: (order: Order) => void
 }) {
   if (!order) {
     return (
@@ -231,21 +235,35 @@ function OrderDetailPanel({
         borderTop: '1px solid var(--divider)', padding: '12px 16px',
         display: 'flex', gap: 6, background: 'var(--surface-2)',
       }}>
-        <button
-          type="button"
-          onClick={() => onCancel(order)}
-          style={{ ...btnGhost(), flex: 1, justifyContent: 'center' }}
-        >
-          İptal et
-        </button>
-        {advanceLabel && nextSt && (
+        {order.status === 'served' || order.status === 'paid' ? (
           <button
             type="button"
-            onClick={() => onAdvance(order)}
-            style={{ ...btnPrimary(), flex: 2, justifyContent: 'center' }}
+            onClick={() => onReceipt(order)}
+            style={{ ...btnPrimary(), flex: 1, justifyContent: 'center' }}
           >
-            <I.check size={13} />{advanceLabel}
+            <I.history size={14} />Fiş yazdır
           </button>
+        ) : order.status === 'cancelled' ? (
+          <div style={{ flex: 1, textAlign: 'center', fontSize: 12, color: 'var(--text-3)', padding: '7px 0' }}>Bu sipariş iptal edildi</div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => onCancel(order)}
+              style={{ ...btnGhost(), flex: 1, justifyContent: 'center' }}
+            >
+              İptal et
+            </button>
+            {advanceLabel && nextSt && (
+              <button
+                type="button"
+                onClick={() => onAdvance(order)}
+                style={{ ...btnPrimary(), flex: 2, justifyContent: 'center' }}
+              >
+                <I.check size={13} />{advanceLabel}
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -266,12 +284,13 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
    ============================================================ */
 type FilterId = 'all' | 'active' | 'done' | 'cancelled'
 
-function OrdersNav({ filter, setFilter, orders, search, setSearch }: {
+function OrdersNav({ filter, setFilter, orders, search, setSearch, onHistory }: {
   filter: FilterId
   setFilter: (f: FilterId) => void
   orders: Order[]
   search: string
   setSearch: (s: string) => void
+  onHistory: () => void
 }) {
   const counts = {
     all:       orders.length,
@@ -338,7 +357,7 @@ function OrdersNav({ filter, setFilter, orders, search, setSearch }: {
 
       </div>
       <div style={{ borderTop: '1px solid var(--divider)', padding: '10px 14px', background: 'var(--surface-2)' }}>
-        <button style={{ ...btnGhost(), width: '100%', justifyContent: 'center' }}>
+        <button onClick={onHistory} style={{ ...btnGhost(), width: '100%', justifyContent: 'center' }}>
           <I.history size={13} />Geçmiş siparişler
         </button>
       </div>
@@ -422,7 +441,11 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [filter, setFilter] = useState<FilterId>('all')
   const [search, setSearch] = useState('')
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [receipt, setReceipt] = useState<{ order: ReceiptOrder; tableLabel: string } | null>(null)
   const [, startTransition] = useTransition()
+
+  const labelFor = (tableId: string | null) => tableLabels[tableId ?? ''] ?? (tableId ? 'Masa' : 'Kasa')
 
   const tableLabels = Object.fromEntries(tables.map(t => [t.id, t.label]))
 
@@ -507,7 +530,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
       />
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <OrdersNav filter={filter} setFilter={setFilter} orders={orders} search={search} setSearch={setSearch} />
+        <OrdersNav filter={filter} setFilter={setFilter} orders={orders} search={search} setSearch={setSearch} onHistory={() => setHistoryOpen(true)} />
 
         {/* Kanban */}
         <div style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '16px 16px 32px', background: 'var(--bg)' }}>
@@ -526,12 +549,30 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 
         <OrderDetailPanel
           order={selectedOrder}
-          tableLabel={selectedOrder ? (tableLabels[selectedOrder.table_id ?? ''] ?? 'Walk-in') : ''}
+          tableLabel={selectedOrder ? labelFor(selectedOrder.table_id) : ''}
           onClose={() => setSelectedOrder(null)}
           onAdvance={handleAdvance}
           onCancel={handleCancel}
+          onReceipt={(o) => setReceipt({ order: o, tableLabel: labelFor(o.table_id) })}
         />
       </div>
+
+      {historyOpen && (
+        <HistoryModal
+          restaurantId={restaurantId}
+          tableLabels={tableLabels}
+          onClose={() => setHistoryOpen(false)}
+          onReceipt={(o, label) => setReceipt({ order: o as ReceiptOrder, tableLabel: label })}
+        />
+      )}
+      {receipt && (
+        <ReceiptModal
+          order={receipt.order}
+          restaurantName={restaurantName}
+          tableLabel={receipt.tableLabel}
+          onClose={() => setReceipt(null)}
+        />
+      )}
     </div>
   )
 }

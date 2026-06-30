@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { createServiceClient, resolveOrderLines, updateOrderStatusDB } from '@garsonless/db'
-import type { OrderStatus } from '@garsonless/db'
+import type { OrderStatus, Json } from '@garsonless/db'
 import { mut } from '../supabase-mut'
 import { assertAccess } from '../auth/access'
 
@@ -40,6 +40,47 @@ export async function updateOrderStatus(
 
   revalidatePath(`/dashboard/${restaurantId}/orders`)
   return { success: true }
+}
+
+export interface HistoryOrder {
+  id: string
+  table_id: string | null
+  status: string
+  items: Json
+  total: number
+  created_at: string
+  paid_at: string | null
+  payment_method: string | null
+  customer_tier: Json | null
+}
+
+/**
+ * Past served/cancelled orders (last 30 days) for the "Geçmiş siparişler" modal.
+ * Owner OR a member with 'orders'; read through the RLS-scoped auth client.
+ */
+export async function getOrderHistory(
+  restaurantId: string,
+): Promise<{ error: string } | { orders: HistoryOrder[] }> {
+  const gate = await assertAccess(restaurantId, 'orders')
+  if ('error' in gate) return { error: gate.error }
+
+  const supabase = await createDashboardServerClient()
+  const since = new Date()
+  since.setDate(since.getDate() - 30)
+  since.setHours(0, 0, 0, 0)
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, table_id, status, items, total, created_at, paid_at, payment_method, customer_tier')
+    .eq('restaurant_id', restaurantId)
+    .in('status', ['served', 'cancelled'])
+    .gte('created_at', since.toISOString())
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  if (error) return { error: error.message }
+  return { orders: (data ?? []) as HistoryOrder[] }
 }
 
 const createOrderSchema = z.object({

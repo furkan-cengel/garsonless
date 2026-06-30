@@ -41,27 +41,50 @@ const ACTION_LABEL: Partial<Record<OrderStatus, string>> = {
   ready:             'Servis et',
 }
 
+// Elapsed-time urgency. No per-order SLA exists in the data model, so we use
+// sensible per-stage thresholds (minutes) — ok → warn → late — to flag aging
+// orders at a glance, the way a KDS does.
+type Urgency = 'ok' | 'warn' | 'late' | 'done'
+const URG: Record<Urgency, { bg: string; fg: string }> = {
+  ok:   { bg: 'var(--positive-bg)', fg: 'var(--positive)' },
+  warn: { bg: 'var(--warning-bg)',  fg: 'var(--warning)' },
+  late: { bg: 'var(--critical-bg)', fg: 'var(--critical)' },
+  done: { bg: 'var(--surface-3)',   fg: 'var(--text-3)' },
+}
+const THRESHOLDS: Record<'new' | 'prep' | 'ready', { warn: number; late: number }> = {
+  new:   { warn: 5,  late: 10 },
+  prep:  { warn: 12, late: 20 },
+  ready: { warn: 5,  late: 10 },
+}
+function urgencyFor(group: 'new' | 'prep' | 'ready' | 'done', mins: number): Urgency {
+  if (group === 'done') return 'done'
+  const t = THRESHOLDS[group]
+  if (mins >= t.late) return 'late'
+  if (mins >= t.warn) return 'warn'
+  return 'ok'
+}
+
 function ElapsedLabel({ createdAt, group }: { createdAt: string; group: 'new' | 'prep' | 'ready' | 'done' }) {
   const [mins, setMins] = useState<number | null>(null)
 
   useEffect(() => {
     const calc = () => Math.floor((Date.now() - new Date(createdAt).getTime()) / 60_000)
     setMins(calc())
-    const id = setInterval(() => setMins(calc()), 60_000)
+    const id = setInterval(() => setMins(calc()), 30_000)
     return () => clearInterval(id)
   }, [createdAt])
 
   if (mins === null) return null
-  const accent = ACCENT[group]
+  const c = URG[urgencyFor(group, mins)]
   return (
     <span style={{
-      background: accent.pill, color: accent.pillFg,
+      background: c.bg, color: c.fg,
       padding: '2px 7px', borderRadius: 4,
       fontSize: 10, fontWeight: 600, letterSpacing: '.03em', textTransform: 'uppercase',
       display: 'inline-flex', alignItems: 'center', gap: 4,
     }}>
-      <span style={{ width: 4, height: 4, borderRadius: 999, background: accent.pillFg, display: 'inline-block' }} />
-      {mins} dk önce
+      <span style={{ width: 4, height: 4, borderRadius: 999, background: c.fg, display: 'inline-block', animation: group !== 'done' ? 'pulse-dot 2s infinite' : 'none' }} />
+      {mins} dk
     </span>
   )
 }
