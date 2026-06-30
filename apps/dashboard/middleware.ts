@@ -32,25 +32,33 @@ export async function middleware(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user && req.nextUrl.pathname.startsWith('/dashboard')) {
+  // A redirect MUST carry over the cookies Supabase set on supabaseResponse while
+  // getUser() refreshed the session. NextResponse.redirect() starts a fresh response,
+  // so without this copy the rotated access/refresh token is dropped — the next
+  // request reuses the now-invalid token, getUser() returns null, and the user is
+  // bounced /dashboard → /auth/login → /dashboard → Pano (losing their place).
+  // Documented Supabase SSR pitfall ("users randomly logged out / redirected").
+  const redirectTo = (pathname: string) => {
     const url = req.nextUrl.clone()
-    url.pathname = '/auth/login'
-    return NextResponse.redirect(url)
+    url.pathname = pathname
+    const res = NextResponse.redirect(url)
+    supabaseResponse.cookies.getAll().forEach((cookie) => res.cookies.set(cookie))
+    return res
+  }
+
+  if (!user && req.nextUrl.pathname.startsWith('/dashboard')) {
+    return redirectTo('/auth/login')
   }
 
   if (
     user &&
     (req.nextUrl.pathname === '/auth/login' || req.nextUrl.pathname === '/auth/signup')
   ) {
-    const url = req.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+    return redirectTo('/dashboard')
   }
 
   if (user && req.nextUrl.pathname === '/') {
-    const url = req.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+    return redirectTo('/dashboard')
   }
 
   return supabaseResponse
