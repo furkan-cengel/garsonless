@@ -29,8 +29,8 @@ const REPORTS = [
   { id: 'items', label: 'Ürünler', icon: <I.cutlery size={15} />, desc: 'Ürün performansı' },
   { id: 'tables', label: 'Masalar', icon: <I.chair size={15} />, desc: 'Doluluk & tahsilat' },
   { id: 'payments', label: 'Ödemeler', icon: <I.card size={15} />, desc: 'Yöntem dağılımı' },
-  { id: 'operasyon', label: 'Operasyon', icon: <I.clipboard size={15} />, desc: 'İptal & tahsilat' },
-] satisfies Array<{ id: AnalyticsReportId; label: string; icon: ReactNode; desc: string }>
+  { id: 'operasyon', label: 'Operasyon', icon: <I.warn size={15} />, desc: 'İptal · kaçak · tahsilat', badge: 'Yeni' },
+] satisfies Array<{ id: AnalyticsReportId; label: string; icon: ReactNode; desc: string; badge?: string }>
 
 const RANGES = [
   { id: 'day', label: 'Bugün' },
@@ -42,6 +42,26 @@ const RANGES = [
 
 function rangeLabel(range: string): string {
   return RANGES.find((r) => r.id === range)?.label ?? '7G'
+}
+
+function rangePeriodLabel(range: string): string {
+  return ({
+    day: 'Bugün',
+    week: 'Son 7 gün',
+    month: 'Son 30 gün',
+    quarter: 'Bu çeyrek',
+    year: 'Son 12 ay',
+  } as Record<string, string>)[range] ?? 'Son 7 gün'
+}
+
+function previousPeriodLabel(range: string): string {
+  return ({
+    day: 'düne göre',
+    week: 'önceki haftaya göre',
+    month: 'önceki 30 güne göre',
+    quarter: 'önceki çeyreğe göre',
+    year: 'geçen yıla göre',
+  } as Record<string, string>)[range] ?? 'önceki döneme göre'
 }
 
 interface Props {
@@ -163,7 +183,10 @@ export default function AnalyticsClient({
             >
               <span style={{ width: 18, display: 'inline-flex', justifyContent: 'center', color: activeReport === r.id ? 'var(--text)' : 'var(--text-3)' }}>{r.icon}</span>
               <span style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: activeReport === r.id ? 600 : 500, color: 'var(--text)' }}>{r.label}</div>
+                <div style={{ fontSize: 13, fontWeight: activeReport === r.id ? 600 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {r.label}
+                  {r.badge && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--accent)', background: 'var(--accent-soft)', padding: '1px 5px', borderRadius: 4 }}>{r.badge}</span>}
+                </div>
                 <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 1 }}>{r.desc}</div>
               </span>
             </button>
@@ -337,6 +360,7 @@ function KPISmall({
   down,
   direction,
   tone,
+  hint,
 }: {
   label: string
   value: string
@@ -344,6 +368,7 @@ function KPISmall({
   down?: boolean
   direction?: 'up' | 'down' | 'flat'
   tone?: 'positive' | 'critical' | 'neutral'
+  hint?: string
 }) {
   const resolvedTone = tone ?? (delta === '—' ? 'neutral' : down ? 'critical' : 'positive')
   const resolvedDirection = direction ?? (delta === '—' ? 'flat' : down ? 'down' : 'up')
@@ -353,13 +378,16 @@ function KPISmall({
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 14 }}>
       <div style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: '.05em', textTransform: 'uppercase', fontWeight: 500 }}>{label}</div>
       <div style={{ ...s.mono, fontSize: 22, fontWeight: 700, letterSpacing: '-.02em', marginTop: 4, color: 'var(--text)' }}>{value}</div>
-      <div style={{
-        marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 3,
-        padding: '2px 7px', borderRadius: 999,
-        background: neutral ? 'var(--surface-3)' : positive ? 'var(--positive-bg)' : 'var(--critical-bg)',
-        color: neutral ? 'var(--text-3)' : positive ? 'var(--positive)' : 'var(--critical)',
-        fontSize: 10.5, fontWeight: 600,
-      }}>{resolvedDirection === 'up' ? '↑ ' : resolvedDirection === 'down' ? '↓ ' : ''}{delta}</div>
+      <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, minHeight: 19 }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 3,
+          padding: '2px 7px', borderRadius: 999,
+          background: neutral ? 'var(--surface-3)' : positive ? 'var(--positive-bg)' : 'var(--critical-bg)',
+          color: neutral ? 'var(--text-3)' : positive ? 'var(--positive)' : 'var(--critical)',
+          fontSize: 10.5, fontWeight: 600,
+        }}>{resolvedDirection === 'up' ? '↑ ' : resolvedDirection === 'down' ? '↓ ' : ''}{delta}</div>
+        {hint && <span style={{ fontSize: 10.5, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{hint}</span>}
+      </div>
     </div>
   )
 }
@@ -663,60 +691,61 @@ function OperationsReport({
   range: string
 }) {
   return (
-    <div style={{ maxWidth: 1140 }}>
-      <div style={{ marginBottom: 22 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--text)' }}>Operasyon Raporu</h1>
+    <div style={{ maxWidth: 1140, margin: '0 auto' }}>
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--text)' }}>Operasyon</h1>
         <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 0 }}>
-          {rangeLabel(range)} · iptal, anormal kapatma ve tahsilat
+          Para ve personel kaçağı denetimi · {rangePeriodLabel(range)}
         </p>
       </div>
 
-      <ReportSectionHeading title="İptal raporu" subtitle="İptal edilen siparişler ve kaybedilen sipariş tutarı" />
+      <SectionLabel number="1" title="İptal raporu" subtitle="Ne kadar sipariş boşa gitti" />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
-        <OperationKPI label="İptal" value={String(cancellations.count)} change={cancellations.deltaCount} />
-        <OperationKPI label="Kaybedilen tutar" value={formatCurrency(cancellations.lostAmount)} change={cancellations.deltaLost} />
-        <OperationKPI label="İptal oranı" value={`%${cancellations.rate.toLocaleString('tr-TR')}`} change={cancellations.deltaRate} suffix="puan" />
+        <OperationKPI label="İptal sayısı" value={String(cancellations.count)} change={cancellations.deltaCount} hint={previousPeriodLabel(range)} />
+        <OperationKPI label="₺ kayıp" value={formatCurrency(cancellations.lostAmount)} change={cancellations.deltaLost} hint={previousPeriodLabel(range)} />
+        <OperationKPI label="İptal oranı" value={`%${cancellations.rate.toLocaleString('tr-TR')}`} change={cancellations.deltaRate} suffix="puan" hint="sipariş içinde" />
       </div>
       {cancellations.count === 0 ? (
         <EmptyReportState text="Bu dönemde iptal yok" />
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(280px, .6fr)', gap: 12, marginBottom: 24 }}>
-          <Card title="İptal trendi" subtitle="Sipariş adedi · seçili dönem">
-            <CancellationTrend data={cancellations.trend} />
-          </Card>
-          <Card title="En çok iptal edilenler" subtitle="İptal anındaki sipariş kalemleri">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>
+          <Card title="En çok iptal edilen ürünler" subtitle="Adet ve sipariş anındaki kayıp">
             <CancelledItemsTable items={cancellations.topItems} />
+          </Card>
+          <Card title="Dönem içi iptal trendi" subtitle={`${rangePeriodLabel(range)} · adet`}>
+            <CancellationTrend data={cancellations.trend} range={range} />
           </Card>
         </div>
       )}
 
-      <ReportSectionHeading title="Anormal kapatmalar" subtitle="Ödenmemiş tutarla kapatılan masa oturumları" />
+      <SectionLabel number="2" title="Anormal kapatma / kaçak" subtitle="Ödenmeden kapanan adisyonlar" />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
-        <OperationKPI label="Anormal kapatma" value={String(abnormalCloses.count)} change={abnormalCloses.deltaCount} />
-        <OperationKPI label="Masada kalan" value={formatCurrency(abnormalCloses.unpaidTotal)} change={abnormalCloses.deltaUnpaid} />
+        <OperationKPI label="Anormal kapatma" value={String(abnormalCloses.count)} change={abnormalCloses.deltaCount} hint={previousPeriodLabel(range)} />
+        <OperationKPI label="Ödenmeden kalan" value={formatCurrency(abnormalCloses.unpaidTotal)} change={abnormalCloses.deltaUnpaid} hint="tahsil edilemedi" />
       </div>
-      <Card title="Kapatma kayıtları" subtitle="Gerekçe işletmenin girdiği özgün metindir" style={{ marginBottom: 24 }}>
+      <Card title="Kaçak dökümü" subtitle="Masa · zaman · kapatan · gerekçe" style={{ marginBottom: 20 }}>
         <AbnormalCloseTable report={abnormalCloses} />
       </Card>
 
-      <ReportSectionHeading title="Personel tahsilat performansı" subtitle="Siparişi alan değil, tahsilatı tamamlayan kullanıcı" />
+      <SectionLabel number="3" title="Personel tahsilat performansı" subtitle="Kasa denetimi · kim ne kadar tahsil etti" />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
-        <KPISmall label="Toplam tahsilat" value={formatCurrency(staffSettlement.totalCollected)} delta="—" />
-        <KPISmall label="Tahsilat kaynağı" value={String(staffSettlement.rows.length)} delta="—" />
-        <KPISmall label="Yüksek nakit" value={String(staffSettlement.rows.filter((row) => row.highCash).length)} delta="≥ %80 nakit" tone="neutral" direction="flat" />
+        <KPISmall label="Personel nakit" value={formatCurrency(sumStaffMethod(staffSettlement.rows, 'cash'))} delta="elden tahsilat" tone="neutral" direction="flat" />
+        <KPISmall label="Personel kart" value={formatCurrency(sumStaffMethod(staffSettlement.rows, 'pos'))} delta="fiziksel POS" tone="neutral" direction="flat" />
+        <KPISmall label="İyzico (otomatik)" value={formatCurrency(staffSettlement.rows.find((row) => row.role === 'system')?.collected ?? 0)} delta="online · elle değil" tone="neutral" direction="flat" />
       </div>
-      <Card title="Tahsilat dağılımı" subtitle="Nakit oranı, nakit + fiziksel POS toplamı üzerinden hesaplanır">
+      <Card title="Tahsilat kırılımı" subtitle="Nakit vs fiziksel POS · tahsil eden başına">
         <StaffSettlementTable report={staffSettlement} />
       </Card>
     </div>
   )
 }
 
-function ReportSectionHeading({ title, subtitle }: { title: string; subtitle: string }) {
+function SectionLabel({ number, title, subtitle }: { number: string; title: string; subtitle: string }) {
   return (
-    <div style={{ margin: '0 0 10px' }}>
-      <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--text)' }}>{title}</div>
-      <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>{subtitle}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 12px' }}>
+      <span style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--surface-inset)', color: 'var(--text-2)', ...s.mono, fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{number}</span>
+      <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{title}</span>
+      <span style={{ fontSize: 12, color: 'var(--text-3)' }}>· {subtitle}</span>
     </div>
   )
 }
@@ -726,18 +755,20 @@ function OperationKPI({
   value,
   change,
   suffix = '%',
+  hint,
 }: {
   label: string
   value: string
   change: number | null
   suffix?: string
+  hint?: string
 }) {
   const isNew = change === null
   const isFlat = change === 0
   const direction = isNew || (change ?? 0) > 0 ? 'up' : isFlat ? 'flat' : 'down'
   const tone = isFlat ? 'neutral' : isNew || (change ?? 0) > 0 ? 'critical' : 'positive'
   const text = isNew ? 'Yeni' : isFlat ? `0${suffix === '%' ? '%' : ` ${suffix}`}` : `${Math.abs(change).toLocaleString('tr-TR')}${suffix === '%' ? '%' : ` ${suffix}`}`
-  return <KPISmall label={label} value={value} delta={text} direction={direction} tone={tone} />
+  return <KPISmall label={label} value={value} delta={text} direction={direction} tone={tone} hint={hint} />
 }
 
 function EmptyReportState({ text }: { text: string }) {
@@ -757,45 +788,53 @@ function EmptyReportState({ text }: { text: string }) {
   )
 }
 
-function CancellationTrend({ data }: { data: CancellationReport['trend'] }) {
-  const total = data.reduce((sum, point) => sum + point.count, 0)
-  const max = Math.max(...data.map((point) => point.count), 1)
-  const width = 760
-  const height = 180
-  const pad = { left: 32, right: 12, top: 14, bottom: 28 }
-  const chartWidth = width - pad.left - pad.right
-  const chartHeight = height - pad.top - pad.bottom
-  const x = (index: number) => pad.left + (index / Math.max(data.length - 1, 1)) * chartWidth
-  const y = (count: number) => pad.top + chartHeight * (1 - count / max)
-  const path = data.map((point, index) => `${index === 0 ? 'M' : 'L'} ${x(index)} ${y(point.count)}`).join(' ')
-  const labelIndexes = new Set([0, Math.floor((data.length - 1) / 2), data.length - 1])
-
+function CancellationTrend({ data, range }: { data: CancellationReport['trend']; range: string }) {
+  const compact = compactCancellationTrend(data, range)
+  const total = compact.reduce((sum, point) => sum + point.count, 0)
+  const max = Math.max(...compact.map((point) => point.count), 1)
   return (
-    <div style={{ padding: 14, overflowX: 'auto' }}>
-      <svg aria-label={`İptal trendi: ${total} iptal`} viewBox={`0 0 ${width} ${height}`} width="100%" style={{ display: 'block', minWidth: 520 }}>
-        {[0, .5, 1].map((step) => {
-          const yy = y(max * step)
-          return (
-            <g key={step}>
-              <line x1={pad.left} y1={yy} x2={width - pad.right} y2={yy} stroke="var(--divider)" strokeDasharray={step === 0 ? 'none' : '3,3'} />
-              <text x={pad.left - 7} y={yy + 4} textAnchor="end" fontSize="9.5" fill="var(--text-3)">{Math.round(max * step * 10) / 10}</text>
-            </g>
-          )
-        })}
-        <path d={path} fill="none" stroke="var(--critical)" strokeWidth="2.25" strokeLinejoin="round" />
-        {data.map((point, index) => (
-          <Fragment key={`${point.date}-${index}`}>
-            {point.count > 0 && <circle cx={x(index)} cy={y(point.count)} r="3.25" fill="var(--surface)" stroke="var(--critical)" strokeWidth="2" />}
-            {labelIndexes.has(index) && (
-              <text x={x(index)} y={height - 7} textAnchor={index === 0 ? 'start' : index === data.length - 1 ? 'end' : 'middle'} fontSize="9.5" fill="var(--text-3)">
-                {point.date}
-              </text>
-            )}
-          </Fragment>
+    <div aria-label={`İptal trendi: ${total} iptal`} style={{ padding: '14px 16px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 120 }}>
+        {compact.map((point) => (
+          <div key={point.label} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, height: '100%' }}>
+            <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+              <div style={{
+                width: '100%',
+                height: point.count === 0 ? 3 : `${Math.max(6, (point.count / max) * 100)}%`,
+                background: point.count === 0 ? 'var(--surface-3)' : 'var(--critical)',
+                borderRadius: '5px 5px 2px 2px',
+                position: 'relative',
+              }}>
+                <span style={{ position: 'absolute', top: -17, left: 0, right: 0, textAlign: 'center', ...s.mono, fontSize: 10, color: 'var(--text-2)', fontWeight: 600 }}>{point.count}</span>
+              </div>
+            </div>
+            <span style={{ ...s.mono, fontSize: 9.5, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{point.label}</span>
+          </div>
         ))}
-      </svg>
+      </div>
     </div>
   )
+}
+
+function compactCancellationTrend(data: CancellationReport['trend'], range: string) {
+  const targetCount = range === 'week' ? Math.min(7, data.length) : range === 'quarter' ? 3 : range === 'month' || range === 'year' ? 4 : 7
+  const labels = range === 'day'
+    ? ['00', '04', '08', '12', '16', '20', '23']
+    : range === 'month'
+      ? ['1. hf', '2. hf', '3. hf', '4. hf']
+      : range === 'quarter'
+        ? ['1. ay', '2. ay', '3. ay']
+        : range === 'year'
+          ? ['Q1', 'Q2', 'Q3', 'Q4']
+          : data.map((point) => point.date)
+  return Array.from({ length: targetCount }, (_, groupIndex) => {
+    const start = Math.floor((groupIndex * data.length) / targetCount)
+    const end = Math.floor(((groupIndex + 1) * data.length) / targetCount)
+    return {
+      label: labels[groupIndex] ?? String(groupIndex + 1),
+      count: data.slice(start, end).reduce((sum, point) => sum + point.count, 0),
+    }
+  })
 }
 
 function CancelledItemsTable({ items }: { items: TopItem[] }) {
@@ -803,15 +842,22 @@ function CancelledItemsTable({ items }: { items: TopItem[] }) {
     return <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>İptal kalemi yok</div>
   }
   return (
-    <div style={{ padding: '8px 14px' }}>
-      {items.map((item, index) => (
-        <div key={item.name} style={{ display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr) 56px 90px', gap: 8, alignItems: 'center', padding: '9px 0', borderBottom: index === items.length - 1 ? 'none' : '1px solid var(--divider)' }}>
-          <span style={{ ...s.mono, fontSize: 10.5, color: 'var(--text-3)' }}>{index + 1}</span>
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-          <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{item.count} adet</span>
-          <span style={{ ...s.mono, fontSize: 11.5, fontWeight: 600, textAlign: 'right', color: 'var(--text)' }}>{formatCurrency(item.revenue)}</span>
-        </div>
-      ))}
+    <div>
+      {items.map((item) => {
+        const maxCount = Math.max(...items.map((entry) => entry.count), 1)
+        return (
+          <div key={item.name} style={{ padding: '10px 16px', borderBottom: '1px solid var(--divider)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{item.count} iptal</span>
+              <span style={{ ...s.mono, fontSize: 12.5, fontWeight: 600, minWidth: 86, textAlign: 'right', color: 'var(--text)' }}>{formatCurrency(item.revenue)}</span>
+            </div>
+            <div style={{ height: 6, background: 'var(--surface-3)', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ width: `${(item.count / maxCount) * 100}%`, height: '100%', background: 'var(--critical)', borderRadius: 3 }} />
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -844,19 +890,44 @@ function StaffSettlementTable({ report }: { report: StaffSettlementReport }) {
   }
   return (
     <div style={{ overflowX: 'auto' }}>
-      <div style={{ minWidth: 900 }}>
-        <ReportTableHeader columns="minmax(190px, 1.3fr) 110px 110px 110px 100px 120px 110px" labels={['Tahsil eden', 'Nakit', 'Fiziksel POS', 'Diğer', 'İkram', 'Sipariş', 'Toplam']} />
-        {report.rows.map((row, index) => (
-          <div key={row.settledBy ?? 'system'} style={{ display: 'grid', gridTemplateColumns: 'minmax(190px, 1.3fr) 110px 110px 110px 100px 120px 110px', gap: 12, alignItems: 'center', padding: '11px 14px', borderBottom: index === report.rows.length - 1 ? 'none' : '1px solid var(--divider)' }}>
+      <div style={{ minWidth: 1080 }}>
+        <ReportTableHeader columns="minmax(200px, 1.3fr) 76px 100px 100px 100px 100px 110px minmax(140px, 1fr)" labels={['Tahsil eden', 'Sipariş', 'Nakit', 'Fiziksel POS', 'Online / eski', 'İkram', 'Toplam', 'Dağılım']} />
+        {report.rows.map((row, index) => {
+          const paymentBase = row.cash + row.pos + row.otherCollected
+          const cashPct = paymentBase > 0 ? (row.cash / paymentBase) * 100 : 0
+          const posPct = paymentBase > 0 ? (row.pos / paymentBase) * 100 : 0
+          const otherPct = paymentBase > 0 ? (row.otherCollected / paymentBase) * 100 : 0
+          return (
+          <div key={row.settledBy ?? 'system'} style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(200px, 1.3fr) 76px 100px 100px 100px 100px 110px minmax(140px, 1fr)',
+            gap: 12,
+            alignItems: 'center',
+            padding: '11px 14px',
+            borderBottom: index === report.rows.length - 1 ? 'none' : '1px solid var(--divider)',
+            borderTop: row.role === 'system' ? '2px solid var(--border)' : 'none',
+            background: row.role === 'system' ? 'var(--surface-2)' : 'transparent',
+          }}>
             <StaffIdentity row={row} />
-            <SettlementAmount amount={row.cash} highCash={row.highCash} />
+            <span aria-label={`${row.settledCount} tahsilat`} style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{row.settledCount}</span>
+            <SettlementAmount amount={row.cash} warning />
             <SettlementAmount amount={row.pos} />
             <SettlementAmount amount={row.otherCollected} />
             <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{row.compCount ? `${row.compCount} · ${formatCurrency(row.compAmount)}` : '—'}</span>
-            <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{row.settledCount} tahsilat</span>
             <span style={{ ...s.mono, fontSize: 12, fontWeight: 700, textAlign: 'right', color: 'var(--text)' }}>{formatCurrency(row.collected)}</span>
+            <div>
+              <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'var(--surface-3)' }}>
+                {cashPct > 0 && <div title="Nakit" style={{ width: `${cashPct}%`, background: 'var(--warning)' }} />}
+                {posPct > 0 && <div title="Fiziksel POS" style={{ width: `${posPct}%`, background: 'var(--text)' }} />}
+                {otherPct > 0 && <div title="Online / eski" style={{ width: `${otherPct}%`, background: 'var(--info)' }} />}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 3 }}>
+                {paymentBase === 0 ? 'tahsilat dışı' : cashPct > 0 ? `%${Math.round(cashPct)} nakit` : row.role === 'system' ? 'tamamı otomatik' : 'nakit yok'}
+              </div>
+            </div>
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -865,28 +936,40 @@ function StaffSettlementTable({ report }: { report: StaffSettlementReport }) {
 function StaffIdentity({ row }: { row: StaffSettlementRow }) {
   const roleLabel = row.role === 'owner' ? 'Sahip' : row.role === 'member' ? 'Üye' : row.role === 'system' ? 'Sistem' : 'Kayıt bulunamadı'
   const detail = row.role === 'member' && row.sections?.length ? `${roleLabel} · ${row.sections.join(', ')}` : roleLabel
+  const initials = row.role === 'system'
+    ? 'SYS'
+    : row.label.split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
   return (
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</div>
-      <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detail}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+      <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: row.role === 'system' ? 7 : '50%', background: 'var(--surface-inset)', color: row.role === 'system' ? 'var(--info)' : 'var(--text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...s.mono, fontSize: row.role === 'system' ? 9 : 10, fontWeight: 700 }}>{initials || '—'}</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
+          {row.highCash && <span title="Nakit oranı %80 veya üzeri" style={{ padding: '2px 6px', borderRadius: 999, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 9.5, fontWeight: 650, whiteSpace: 'nowrap' }}>yüksek nakit</span>}
+        </div>
+        <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detail}</div>
+      </div>
     </div>
   )
 }
 
-function SettlementAmount({ amount, highCash }: { amount: number; highCash?: boolean }) {
+function SettlementAmount({ amount, warning }: { amount: number; warning?: boolean }) {
   return (
-    <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)', display: 'inline-flex', justifyContent: 'flex-end', alignItems: 'center', gap: 5 }}>
-      {highCash && <span title="Nakit oranı %80 veya üzeri" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--warning)', flexShrink: 0 }} />}
-      {formatCurrency(amount)}
+    <span style={{ ...s.mono, fontSize: 11.5, fontWeight: amount > 0 ? 600 : 400, textAlign: 'right', color: amount > 0 && warning ? 'var(--warning)' : amount > 0 ? 'var(--text-2)' : 'var(--text-4)' }}>
+      {amount > 0 ? formatCurrency(amount) : '—'}
     </span>
   )
+}
+
+function sumStaffMethod(rows: StaffSettlementRow[], method: 'cash' | 'pos') {
+  return rows.filter((row) => row.role !== 'system').reduce((sum, row) => sum + row[method], 0)
 }
 
 function ReportTableHeader({ columns, labels }: { columns: string; labels: string[] }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 12, padding: '8px 14px', background: 'var(--surface-2)', borderBottom: '1px solid var(--divider)' }}>
       {labels.map((label, index) => (
-        <span key={label} style={{ fontSize: 10.5, color: 'var(--text-3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.05em', textAlign: index === 0 || label === 'Kapatılma' || label === 'Gerekçe' || label === 'Kapatan' ? 'left' : 'right' }}>{label}</span>
+        <span key={label} style={{ fontSize: 10.5, color: 'var(--text-3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.05em', textAlign: index === 0 || label === 'Kapatılma' || label === 'Gerekçe' || label === 'Kapatan' || label === 'Dağılım' ? 'left' : 'right' }}>{label}</span>
       ))}
     </div>
   )
