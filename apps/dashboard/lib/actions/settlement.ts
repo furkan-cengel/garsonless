@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { markOrderPaidDB, listTeamMembers } from '@garsonless/db'
+import { markOrderPaidDB, listTeamMembers, readOrderLineSnapshots } from '@garsonless/db'
 import type { PaymentMethod } from '@garsonless/db'
 import { assertAccess, getUserRestaurantAccess } from '../auth/access'
 import { createDashboardServerClient } from '../supabase-server'
@@ -70,6 +70,8 @@ export interface SettlementOrder {
   /** Staff email for a settled order — resolved for OWNERS only (audit visibility). */
   settledByLabel: string | null
   createdAt: string
+  /** Short human-readable line-item summary (e.g. "Türk Kahvesi ×2 · Su"). */
+  itemsSummary: string
 }
 
 type OrderRow = {
@@ -80,6 +82,7 @@ type OrderRow = {
   payment_method: string | null
   settled_by: string | null
   created_at: string
+  items: unknown
 }
 
 function isPaymentMethod(v: string | null): v is PaymentMethod {
@@ -106,7 +109,7 @@ export async function getSessionSettlement(
   const supabase = await createDashboardServerClient()
   const { data } = await supabase
     .from('orders')
-    .select('id, total, status, paid_at, payment_method, settled_by, created_at')
+    .select('id, total, status, paid_at, payment_method, settled_by, created_at, items')
     .eq('restaurant_id', restaurantId)
     .eq('table_session_id', sessionId)
     .is('deleted_at', null)
@@ -137,6 +140,9 @@ export async function getSessionSettlement(
     settledBy: r.settled_by,
     settledByLabel: r.settled_by && labelMap ? labelMap.get(r.settled_by) ?? null : null,
     createdAt: r.created_at,
+    itemsSummary: readOrderLineSnapshots(r.items)
+      .map((it) => `${it.name}${it.quantity > 1 ? ` ×${it.quantity}` : ''}`)
+      .join(' · '),
   }))
 
   return { orders }
