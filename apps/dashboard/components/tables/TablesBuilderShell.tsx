@@ -347,6 +347,12 @@ const CSS_VARS = `
     display: none !important;
   }
 }
+/* Hover/press affordance. Uses filter (never set inline) so it reliably layers
+   over any inline background — inline styles otherwise win over CSS. */
+.tb-tables .tb-hover { transition: filter .12s ease, opacity .12s ease; }
+.tb-tables .tb-hover:hover:not(:disabled) { filter: brightness(0.93); }
+.tb-tables .tb-hover:active:not(:disabled) { filter: brightness(0.84); }
+.tb-tables .tb-hover:disabled { opacity: .4; cursor: not-allowed; }
 `
 
 /* ─── Shared icon aliases ───────────────────────────────────── */
@@ -451,7 +457,7 @@ function TablesIconRail({ restaurantId }: { restaurantId: string }) {
 /* ─── PresetChip ────────────────────────────────────────────── */
 function PresetChip({ preset, active, onClick }: { preset: typeof PRESETS[number]; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} title={preset.name} style={{
+    <button className="tb-hover" onClick={onClick} title={preset.name} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
       height: 28, padding: '0 10px 0 4px',
       background: active ? 'var(--surface)' : 'transparent',
@@ -485,14 +491,27 @@ function PresetChip({ preset, active, onClick }: { preset: typeof PRESETS[number
 }
 
 /* ─── TablesTopBar ──────────────────────────────────────────── */
-function TablesTopBar({ qr, setQR, restaurantName, saveState, onPreview }: {
+function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onRedo, canUndo, canRedo, onPreview }: {
   qr: QRConfig
   setQR: (q: QRConfig) => void
   restaurantName: string
   saveState: SaveState
+  onUndo: () => void
+  onRedo: () => void
+  canUndo: boolean
+  canRedo: boolean
   onPreview: () => void
 }) {
   const { openNotifications, notificationCount } = useShell()
+  const [morePresets, setMorePresets] = useState(false)
+  const applyPreset = (p: typeof PRESETS[number]) => setQR({
+    ...qr,
+    fg: p.fg, bg: p.bg,
+    dotsType: p.dots, eyeFrame: p.ef, eyeBall: p.eb,
+    colorType: p.grad ? 'gradient' : 'single',
+    fg2: ('gradTo' in p ? p.gradTo : qr.fg2) as string,
+    _presetId: p.id,
+  })
   const status = saveState === 'saving'
     ? { label: 'Stil kaydediliyor', color: 'var(--warning)' }
     : saveState === 'error'
@@ -531,25 +550,57 @@ function TablesTopBar({ qr, setQR, restaurantName, saveState, onPreview }: {
       <div className="tb-tables__topbar-presets" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
         <span style={{ ...S.label, marginRight: 4 }}>Hazır</span>
         {PRESETS.slice(0, 5).map(p => (
-          <PresetChip key={p.id} preset={p} active={qr._presetId === p.id}
-            onClick={() => setQR({
-              ...qr,
-              fg: p.fg, bg: p.bg,
-              dotsType: p.dots, eyeFrame: p.ef, eyeBall: p.eb,
-              colorType: p.grad ? 'gradient' : 'single',
-              fg2: ('gradTo' in p ? p.gradTo : qr.fg2) as string,
-              _presetId: p.id,
-            })}
-          />
+          <PresetChip key={p.id} preset={p} active={qr._presetId === p.id} onClick={() => applyPreset(p)} />
         ))}
-        <button style={{
-          height: 28, width: 28, border: '1px solid var(--border-strong)',
-          background: 'var(--surface)', borderRadius: 6, cursor: 'pointer',
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          color: 'var(--text-2)',
-        }}>
-          {React.cloneElement(QRI.more as React.ReactElement<{ size?: number }>, { size: 14 })}
-        </button>
+        <div style={{ position: 'relative' }}>
+          <button
+            className="tb-hover"
+            aria-label="Tüm stiller"
+            title="Tüm stiller"
+            onClick={() => setMorePresets(v => !v)}
+            style={{
+              height: 28, width: 28, border: '1px solid var(--border-strong)',
+              background: morePresets ? 'var(--surface-3)' : 'var(--surface)', borderRadius: 6, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--text-2)',
+            }}
+          >
+            {React.cloneElement(QRI.more as React.ReactElement<{ size?: number }>, { size: 14 })}
+          </button>
+          {morePresets && (
+            <>
+              <div onClick={() => setMorePresets(false)} style={{ position: 'fixed', inset: 0, zIndex: 20 }} />
+              <div style={{
+                position: 'absolute', top: '110%', left: '50%', transform: 'translateX(-50%)', zIndex: 21,
+                minWidth: 190, padding: 6, background: 'var(--surface)',
+                border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-pop)',
+              }}>
+                <div style={{ ...S.label, padding: '4px 8px 6px' }}>Tüm stiller</div>
+                {PRESETS.map(p => {
+                  const active = qr._presetId === p.id
+                  return (
+                    <button
+                      key={p.id}
+                      className="tb-hover"
+                      onClick={() => { applyPreset(p); setMorePresets(false) }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 9, width: '100%',
+                        padding: '6px 8px', border: 'none', borderRadius: 6, cursor: 'pointer', textAlign: 'left',
+                        background: active ? 'var(--surface-inset)' : 'transparent',
+                      }}
+                    >
+                      <span style={{ width: 18, height: 18, borderRadius: 4, background: p.bg, border: '1px solid var(--border)', flexShrink: 0, display: 'inline-block', position: 'relative' }}>
+                        <span style={{ position: 'absolute', inset: 4, borderRadius: 2, background: p.grad && 'gradTo' in p ? `linear-gradient(135deg, ${p.fg}, ${p.gradTo})` : p.fg }} />
+                      </span>
+                      <span style={{ flex: 1, fontSize: 12.5, fontWeight: active ? 600 : 500, color: 'var(--text)' }}>{p.name}</span>
+                      {active && React.cloneElement(I.check as React.ReactElement<{ size?: number }>, { size: 13 })}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="tb-tables__topbar-right" style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
@@ -557,11 +608,38 @@ function TablesTopBar({ qr, setQR, restaurantName, saveState, onPreview }: {
           <div style={{ width: 6, height: 6, borderRadius: 999, background: status.color }} />
           {status.label}
         </div>
-        <div aria-hidden style={{ display: 'inline-flex', gap: 2, opacity: 0.35 }}>
-          {React.cloneElement(I.undo as React.ReactElement<{ size?: number }>, { size: 15 })}
-          {React.cloneElement(I.redo as React.ReactElement<{ size?: number }>, { size: 15 })}
+        <div style={{ display: 'inline-flex', gap: 2 }}>
+          <button
+            className="tb-hover"
+            onClick={onUndo}
+            disabled={!canUndo}
+            aria-label="Geri al"
+            title="Geri al"
+            style={{
+              width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 6,
+              background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            {React.cloneElement(I.undo as React.ReactElement<{ size?: number }>, { size: 14 })}
+          </button>
+          <button
+            className="tb-hover"
+            onClick={onRedo}
+            disabled={!canRedo}
+            aria-label="İleri al"
+            title="İleri al"
+            style={{
+              width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 6,
+              background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            {React.cloneElement(I.redo as React.ReactElement<{ size?: number }>, { size: 14 })}
+          </button>
         </div>
         <button
+          className="tb-hover"
           onClick={openNotifications}
           aria-label="Bildirimler"
           style={{
@@ -587,7 +665,7 @@ function TablesTopBar({ qr, setQR, restaurantName, saveState, onPreview }: {
           )}
         </button>
         <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
-        <button style={btnGhost()} onClick={onPreview}>
+        <button className="tb-hover" style={btnGhost()} onClick={onPreview}>
           {React.cloneElement(I.eye as React.ReactElement<{ size?: number }>, { size: 13 })}Önizle
         </button>
         <Tag tone="positive">
@@ -1160,6 +1238,7 @@ function DownloadMenu({ onPick, disabled = false }: { onPick: (fmt: string) => v
   return (
     <div style={{ position: 'relative' }}>
       <button
+        className="tb-hover"
         disabled={disabled}
         onClick={() => { if (!disabled) setOpen(!open) }}
         style={{ ...btnPrimary(), borderRadius: '0 7px 7px 0', padding: '0 8px', opacity: disabled ? 0.45 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
@@ -1252,6 +1331,7 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview }: {
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<'preview' | 'grid' | 'print'>('preview')
+  const [copied, setCopied] = useState(false)
   const PREVIEW_SIZE = 280
 
   useEffect(() => {
@@ -1328,14 +1408,21 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview }: {
           <span style={{ ...S.mono, fontSize: 11.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>
             {url}
           </span>
-          <button style={{
-            marginLeft: 2, padding: '3px 7px', border: '1px solid var(--border)', background: 'var(--surface)',
-            borderRadius: 5, color: 'var(--text-2)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
-            fontSize: 11,
-          }} onClick={() => navigator.clipboard?.writeText(url)}>
-            {React.cloneElement(I.copy as React.ReactElement<{ size?: number }>, { size: 11 })}Kopyala
+          <button className="tb-hover" style={{
+            marginLeft: 2, padding: '3px 7px', border: '1px solid ' + (copied ? 'var(--positive)' : 'var(--border)'),
+            background: copied ? 'var(--positive-bg)' : 'var(--surface)',
+            borderRadius: 5, color: copied ? 'var(--positive)' : 'var(--text-2)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+            fontSize: 11, fontWeight: copied ? 600 : 400,
+          }} onClick={() => {
+            void navigator.clipboard?.writeText(url)
+            setCopied(true)
+            window.setTimeout(() => setCopied(false), 1600)
+          }}>
+            {copied
+              ? <>{React.cloneElement(I.check as React.ReactElement<{ size?: number }>, { size: 11 })}Kopyalandı</>
+              : <>{React.cloneElement(I.copy as React.ReactElement<{ size?: number }>, { size: 11 })}Kopyala</>}
           </button>
-          <button style={{
+          <button className="tb-hover" style={{
             padding: '3px 7px', border: '1px solid var(--border)', background: 'var(--surface)',
             borderRadius: 5, color: 'var(--text-2)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
             fontSize: 11,
@@ -1354,7 +1441,7 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview }: {
               { id: 'grid',    label: 'Izgara', icon: I.layout },
               { id: 'print',   label: 'Baskı',  icon: QRI.print },
             ] as const).map(v => (
-              <button key={v.id} onClick={() => setView(v.id as typeof view)} style={{
+              <button key={v.id} className="tb-hover" onClick={() => setView(v.id as typeof view)} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px',
                 fontSize: 11.5, fontWeight: 500, borderRadius: 5, border: 'none',
                 background: view === v.id ? 'var(--surface)' : 'transparent',
@@ -1369,6 +1456,7 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview }: {
           <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
           <div style={{ display: 'inline-flex' }}>
             <button
+              className="tb-hover"
               onClick={() => { if (table) void download('png') }}
               disabled={!table}
               style={{ ...btnPrimary(), borderRadius: '7px 0 0 7px', borderRight: '1px solid rgba(255,255,255,.15)', paddingRight: 10, opacity: table ? 1 : 0.45, cursor: table ? 'pointer' : 'not-allowed' }}
@@ -2067,7 +2155,25 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
     const mapped = mapDBTables(initialTables)
     return mapped[0]?.id ?? ''
   })
-  const [qr, setQR] = useState<QRConfig>(() => normalizeQRStyle(initialQRStyle, baseQRUrl))
+  // qr is DERIVED from an undo/redo history stack. setQR pushes a new entry
+  // (truncating any redo tail); undo/redo just move the pointer. The autosave
+  // effect keys on `qr`, so undo/redo persist too.
+  const [hist, setHist] = useState<{ stack: QRConfig[]; index: number }>(
+    () => ({ stack: [normalizeQRStyle(initialQRStyle, baseQRUrl)], index: 0 }),
+  )
+  const qr = hist.stack[hist.index]!
+  const setQR = useCallback((next: QRConfig) => {
+    setHist((h) => {
+      const stack = h.stack.slice(0, h.index + 1)
+      stack.push(next)
+      const capped = stack.length > 60 ? stack.slice(stack.length - 60) : stack
+      return { stack: capped, index: capped.length - 1 }
+    })
+  }, [])
+  const undo = useCallback(() => setHist((h) => (h.index > 0 ? { ...h, index: h.index - 1 } : h)), [])
+  const redo = useCallback(() => setHist((h) => (h.index < h.stack.length - 1 ? { ...h, index: h.index + 1 } : h)), [])
+  const canUndo = hist.index > 0
+  const canRedo = hist.index < hist.stack.length - 1
   const [saveState, setSaveState] = useState<SaveState>('saved')
   // Shopify-style in-app mobile preview (phone mockup) — null = closed.
   const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
@@ -2166,6 +2272,10 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
           setQR={setQR}
           restaurantName={restaurantName}
           saveState={saveState}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
           onPreview={() => setPreview({
             src: `${MENU_PROTOCOL}://${qr.baseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}`,
             title: 'Menü önizleme',
