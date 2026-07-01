@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import type { ReactNode } from 'react'
 import RestaurantShell, { RestaurantShellSkeleton } from '../../../components/layout/RestaurantShell'
 import NavigationProgress from '../../../components/layout/NavigationProgress'
+import NavigationPendingOverlay from '../../../components/layout/NavigationPendingOverlay'
 import { getRestaurantById, getRestaurantsForUser } from '../../../lib/queries'
 import { getUserRestaurantAccess } from '../../../lib/auth/access'
 import { createDashboardServerClient } from '../../../lib/supabase-server'
@@ -43,6 +44,7 @@ export default async function RestaurantLayout({ children, params }: Props) {
       isOwner={access.isOwner}
     >
       <NavigationProgress />
+      <NavigationPendingOverlay />
       <Suspense fallback={<RestaurantShellSkeleton />}>
         {children}
       </Suspense>

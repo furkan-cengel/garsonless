@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { Skeleton } from '../../lib/ui'
 
-type SkeletonKind = 'pano' | 'analytics' | 'orders' | 'menu' | 'theme' | 'tables' | 'settings'
+type SkeletonKind = 'pano' | 'analytics' | 'orders' | 'menu' | 'theme' | 'tables' | 'settings' | 'customers'
 
 interface Props {
   kind?: SkeletonKind
@@ -22,6 +22,7 @@ function Block({ height, width = '100%', style }: { height: number | string; wid
 
 function TopBarSkeleton({ kind }: { kind: SkeletonKind }) {
   const isMenu = kind === 'menu'
+  const isCustomers = kind === 'customers'
   return (
     <div style={{
       height: 'var(--topbar)',
@@ -43,6 +44,8 @@ function TopBarSkeleton({ kind }: { kind: SkeletonKind }) {
       </div>
       {isMenu ? (
         <Block width="min(420px, 34vw)" height={32} style={{ minWidth: 300 }} />
+      ) : isCustomers ? (
+        <div />
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
           <KpiShadow />
@@ -57,7 +60,7 @@ function TopBarSkeleton({ kind }: { kind: SkeletonKind }) {
             <Block width={78} height={30} />
             <Block width={92} height={30} />
           </>
-        ) : (
+        ) : isCustomers ? null : (
           <Block width={118} height={30} />
         )}
         <Block width={30} height={30} style={{ borderRadius: 7 }} />
@@ -521,6 +524,73 @@ function Panel({ rows, chart = false, style }: { rows: number; chart?: boolean; 
   )
 }
 
+const CUST_COLS = '2.2fr 1.6fr 1.1fr .8fr 1.1fr .8fr 1.1fr'
+
+function CustomersSkeleton() {
+  return (
+    <div style={{ height: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
+      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '28px 32px 60px' }}>
+        {/* header */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 18, marginBottom: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            <Block width={150} height={28} />
+            <Block width={250} height={13} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Block width={152} height={40} style={{ borderRadius: 10 }} />
+            <Block width={140} height={40} style={{ borderRadius: 10 }} />
+          </div>
+        </div>
+        {/* 4 KPI cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 22 }}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} style={{ border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 12, padding: '14px 16px', boxShadow: 'var(--shadow-1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Block width={i % 2 ? 84 : 108} height={11} />
+                <Block width={16} height={16} style={{ borderRadius: 5 }} />
+              </div>
+              <Block width={i % 2 ? 70 : 96} height={26} style={{ marginTop: 15 }} />
+              <Block width="52%" height={10} style={{ marginTop: 11 }} />
+            </div>
+          ))}
+        </div>
+        {/* search + sort */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+          <Block height={40} style={{ flex: 1, borderRadius: 10 }} />
+          <Block width={150} height={40} style={{ borderRadius: 10 }} />
+        </div>
+        {/* tabs */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          {[54, 96, 92, 138, 66].map((w, i) => <Block key={i} width={w} height={34} style={{ borderRadius: 999 }} />)}
+        </div>
+        {/* table */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow-1)', overflow: 'hidden' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: CUST_COLS, gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--divider)', background: 'var(--surface-2)' }}>
+            {Array.from({ length: 7 }).map((_, i) => <Block key={i} width={i === 0 ? 60 : i % 2 ? 52 : 72} height={10} />)}
+          </div>
+          {Array.from({ length: 6 }).map((_, r) => (
+            <div key={r} style={{ display: 'grid', gridTemplateColumns: CUST_COLS, gap: 12, padding: '14px 20px', borderBottom: r === 5 ? 'none' : '1px solid var(--divider)', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Block width={38} height={38} style={{ borderRadius: 999, flexShrink: 0 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <Block width={116} height={13} />
+                  <Block width={72} height={10} />
+                </div>
+              </div>
+              <Block width={124} height={12} />
+              <Block width={64} height={20} style={{ borderRadius: 999 }} />
+              <Block width={22} height={12} style={{ marginLeft: 'auto' }} />
+              <Block width={58} height={12} style={{ marginLeft: 'auto' }} />
+              <Block width={46} height={12} style={{ marginLeft: 'auto' }} />
+              <Block width={66} height={12} style={{ marginLeft: 'auto' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardRouteSkeleton({ kind = 'pano' }: Props) {
   const content: Record<SkeletonKind, ReactNode> = {
     pano: <PanoSkeleton />,
@@ -530,6 +600,7 @@ export default function DashboardRouteSkeleton({ kind = 'pano' }: Props) {
     theme: <ThemeSkeleton />,
     tables: <TablesSkeleton />,
     settings: <SettingsSkeleton />,
+    customers: <CustomersSkeleton />,
   }
 
   return (
