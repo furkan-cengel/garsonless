@@ -12,6 +12,10 @@ import type {
   PaymentBreakdown,
   PaymentReport,
   ProductReportItem,
+  CancellationReport,
+  AbnormalCloseReport,
+  StaffSettlementReport,
+  StaffSettlementRow,
 } from '../../lib/queries'
 import { fetchAnalyticsReportData, type AnalyticsReportId } from '../../lib/actions/analytics'
 import { formatCurrency } from '../../lib/utils'
@@ -25,6 +29,7 @@ const REPORTS = [
   { id: 'items', label: 'Ürünler', icon: <I.cutlery size={15} />, desc: 'Ürün performansı' },
   { id: 'tables', label: 'Masalar', icon: <I.chair size={15} />, desc: 'Doluluk & tahsilat' },
   { id: 'payments', label: 'Ödemeler', icon: <I.card size={15} />, desc: 'Yöntem dağılımı' },
+  { id: 'operasyon', label: 'Operasyon', icon: <I.clipboard size={15} />, desc: 'İptal & tahsilat' },
 ] satisfies Array<{ id: AnalyticsReportId; label: string; icon: ReactNode; desc: string }>
 
 const RANGES = [
@@ -71,12 +76,16 @@ export default function AnalyticsClient({
     topItems,
     paymentBreakdown,
     productReport,
+    cancellations: null as CancellationReport | null,
+    abnormalCloses: null as AbnormalCloseReport | null,
+    staffSettlement: null as StaffSettlementReport | null,
   })
   const [loadedReports, setLoadedReports] = useState<Record<AnalyticsReportId, boolean>>({
     sales: true,
     items: productReport.length > 0,
     tables: tableStats.length > 0,
     payments: true,
+    operasyon: false,
   })
   const [isPending, startTransition] = useTransition()
 
@@ -108,6 +117,7 @@ export default function AnalyticsClient({
       items: false,
       tables: false,
       payments: false,
+      operasyon: false,
     })
     loadReport(activeReport, newRange)
   }
@@ -199,6 +209,14 @@ export default function AnalyticsClient({
           {activeReport === 'items' && activeReportLoaded && <ItemsReport items={analyticsData.productReport} range={range} />}
           {activeReport === 'tables' && activeReportLoaded && <TablesReport tables={analyticsData.tableStats} />}
           {activeReport === 'payments' && activeReportLoaded && <PaymentsReport paymentBreakdown={analyticsData.paymentBreakdown} range={range} />}
+          {activeReport === 'operasyon' && activeReportLoaded && analyticsData.cancellations && analyticsData.abnormalCloses && analyticsData.staffSettlement && (
+            <OperationsReport
+              cancellations={analyticsData.cancellations}
+              abnormalCloses={analyticsData.abnormalCloses}
+              staffSettlement={analyticsData.staffSettlement}
+              range={range}
+            />
+          )}
         </div>
       </div>
       </div>
@@ -312,9 +330,25 @@ function SalesReport({
 }
 
 /* ── KPI SMALL ────────────────────────────────────── */
-function KPISmall({ label, value, delta, down }: { label: string; value: string; delta: string; down?: boolean }) {
-  const neutral = delta === '—'
-  const positive = !down && !neutral
+function KPISmall({
+  label,
+  value,
+  delta,
+  down,
+  direction,
+  tone,
+}: {
+  label: string
+  value: string
+  delta: string
+  down?: boolean
+  direction?: 'up' | 'down' | 'flat'
+  tone?: 'positive' | 'critical' | 'neutral'
+}) {
+  const resolvedTone = tone ?? (delta === '—' ? 'neutral' : down ? 'critical' : 'positive')
+  const resolvedDirection = direction ?? (delta === '—' ? 'flat' : down ? 'down' : 'up')
+  const neutral = resolvedTone === 'neutral'
+  const positive = resolvedTone === 'positive'
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 14 }}>
       <div style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: '.05em', textTransform: 'uppercase', fontWeight: 500 }}>{label}</div>
@@ -325,7 +359,7 @@ function KPISmall({ label, value, delta, down }: { label: string; value: string;
         background: neutral ? 'var(--surface-3)' : positive ? 'var(--positive-bg)' : 'var(--critical-bg)',
         color: neutral ? 'var(--text-3)' : positive ? 'var(--positive)' : 'var(--critical)',
         fontSize: 10.5, fontWeight: 600,
-      }}>{neutral ? '' : positive ? '↑ ' : '↓ '}{delta}</div>
+      }}>{resolvedDirection === 'up' ? '↑ ' : resolvedDirection === 'down' ? '↓ ' : ''}{delta}</div>
     </div>
   )
 }
@@ -614,6 +648,257 @@ function PaymentRows({ rows }: { rows: PaymentBreakdown[] }) {
       ))}
     </div>
   )
+}
+
+/* ── OPERATIONS REPORT ────────────────────────────── */
+function OperationsReport({
+  cancellations,
+  abnormalCloses,
+  staffSettlement,
+  range,
+}: {
+  cancellations: CancellationReport
+  abnormalCloses: AbnormalCloseReport
+  staffSettlement: StaffSettlementReport
+  range: string
+}) {
+  return (
+    <div style={{ maxWidth: 1140 }}>
+      <div style={{ marginBottom: 22 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--text)' }}>Operasyon Raporu</h1>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 0 }}>
+          {rangeLabel(range)} · iptal, anormal kapatma ve tahsilat
+        </p>
+      </div>
+
+      <ReportSectionHeading title="İptal raporu" subtitle="İptal edilen siparişler ve kaybedilen sipariş tutarı" />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
+        <OperationKPI label="İptal" value={String(cancellations.count)} change={cancellations.deltaCount} />
+        <OperationKPI label="Kaybedilen tutar" value={formatCurrency(cancellations.lostAmount)} change={cancellations.deltaLost} />
+        <OperationKPI label="İptal oranı" value={`%${cancellations.rate.toLocaleString('tr-TR')}`} change={cancellations.deltaRate} suffix="puan" />
+      </div>
+      {cancellations.count === 0 ? (
+        <EmptyReportState text="Bu dönemde iptal yok" />
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(280px, .6fr)', gap: 12, marginBottom: 24 }}>
+          <Card title="İptal trendi" subtitle="Sipariş adedi · seçili dönem">
+            <CancellationTrend data={cancellations.trend} />
+          </Card>
+          <Card title="En çok iptal edilenler" subtitle="İptal anındaki sipariş kalemleri">
+            <CancelledItemsTable items={cancellations.topItems} />
+          </Card>
+        </div>
+      )}
+
+      <ReportSectionHeading title="Anormal kapatmalar" subtitle="Ödenmemiş tutarla kapatılan masa oturumları" />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
+        <OperationKPI label="Anormal kapatma" value={String(abnormalCloses.count)} change={abnormalCloses.deltaCount} />
+        <OperationKPI label="Masada kalan" value={formatCurrency(abnormalCloses.unpaidTotal)} change={abnormalCloses.deltaUnpaid} />
+      </div>
+      <Card title="Kapatma kayıtları" subtitle="Gerekçe işletmenin girdiği özgün metindir" style={{ marginBottom: 24 }}>
+        <AbnormalCloseTable report={abnormalCloses} />
+      </Card>
+
+      <ReportSectionHeading title="Personel tahsilat performansı" subtitle="Siparişi alan değil, tahsilatı tamamlayan kullanıcı" />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
+        <KPISmall label="Toplam tahsilat" value={formatCurrency(staffSettlement.totalCollected)} delta="—" />
+        <KPISmall label="Tahsilat kaynağı" value={String(staffSettlement.rows.length)} delta="—" />
+        <KPISmall label="Yüksek nakit" value={String(staffSettlement.rows.filter((row) => row.highCash).length)} delta="≥ %80 nakit" tone="neutral" direction="flat" />
+      </div>
+      <Card title="Tahsilat dağılımı" subtitle="Nakit oranı, nakit + fiziksel POS toplamı üzerinden hesaplanır">
+        <StaffSettlementTable report={staffSettlement} />
+      </Card>
+    </div>
+  )
+}
+
+function ReportSectionHeading({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div style={{ margin: '0 0 10px' }}>
+      <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--text)' }}>{title}</div>
+      <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>{subtitle}</div>
+    </div>
+  )
+}
+
+function OperationKPI({
+  label,
+  value,
+  change,
+  suffix = '%',
+}: {
+  label: string
+  value: string
+  change: number | null
+  suffix?: string
+}) {
+  const isNew = change === null
+  const isFlat = change === 0
+  const direction = isNew || (change ?? 0) > 0 ? 'up' : isFlat ? 'flat' : 'down'
+  const tone = isFlat ? 'neutral' : isNew || (change ?? 0) > 0 ? 'critical' : 'positive'
+  const text = isNew ? 'Yeni' : isFlat ? `0${suffix === '%' ? '%' : ` ${suffix}`}` : `${Math.abs(change).toLocaleString('tr-TR')}${suffix === '%' ? '%' : ` ${suffix}`}`
+  return <KPISmall label={label} value={value} delta={text} direction={direction} tone={tone} />
+}
+
+function EmptyReportState({ text }: { text: string }) {
+  return (
+    <div style={{
+      padding: '30px 16px',
+      marginBottom: 24,
+      textAlign: 'center',
+      color: 'var(--text-3)',
+      fontSize: 13,
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 10,
+    }}>
+      {text}
+    </div>
+  )
+}
+
+function CancellationTrend({ data }: { data: CancellationReport['trend'] }) {
+  const total = data.reduce((sum, point) => sum + point.count, 0)
+  const max = Math.max(...data.map((point) => point.count), 1)
+  const width = 760
+  const height = 180
+  const pad = { left: 32, right: 12, top: 14, bottom: 28 }
+  const chartWidth = width - pad.left - pad.right
+  const chartHeight = height - pad.top - pad.bottom
+  const x = (index: number) => pad.left + (index / Math.max(data.length - 1, 1)) * chartWidth
+  const y = (count: number) => pad.top + chartHeight * (1 - count / max)
+  const path = data.map((point, index) => `${index === 0 ? 'M' : 'L'} ${x(index)} ${y(point.count)}`).join(' ')
+  const labelIndexes = new Set([0, Math.floor((data.length - 1) / 2), data.length - 1])
+
+  return (
+    <div style={{ padding: 14, overflowX: 'auto' }}>
+      <svg aria-label={`İptal trendi: ${total} iptal`} viewBox={`0 0 ${width} ${height}`} width="100%" style={{ display: 'block', minWidth: 520 }}>
+        {[0, .5, 1].map((step) => {
+          const yy = y(max * step)
+          return (
+            <g key={step}>
+              <line x1={pad.left} y1={yy} x2={width - pad.right} y2={yy} stroke="var(--divider)" strokeDasharray={step === 0 ? 'none' : '3,3'} />
+              <text x={pad.left - 7} y={yy + 4} textAnchor="end" fontSize="9.5" fill="var(--text-3)">{Math.round(max * step * 10) / 10}</text>
+            </g>
+          )
+        })}
+        <path d={path} fill="none" stroke="var(--critical)" strokeWidth="2.25" strokeLinejoin="round" />
+        {data.map((point, index) => (
+          <Fragment key={`${point.date}-${index}`}>
+            {point.count > 0 && <circle cx={x(index)} cy={y(point.count)} r="3.25" fill="var(--surface)" stroke="var(--critical)" strokeWidth="2" />}
+            {labelIndexes.has(index) && (
+              <text x={x(index)} y={height - 7} textAnchor={index === 0 ? 'start' : index === data.length - 1 ? 'end' : 'middle'} fontSize="9.5" fill="var(--text-3)">
+                {point.date}
+              </text>
+            )}
+          </Fragment>
+        ))}
+      </svg>
+    </div>
+  )
+}
+
+function CancelledItemsTable({ items }: { items: TopItem[] }) {
+  if (items.length === 0) {
+    return <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>İptal kalemi yok</div>
+  }
+  return (
+    <div style={{ padding: '8px 14px' }}>
+      {items.map((item, index) => (
+        <div key={item.name} style={{ display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr) 56px 90px', gap: 8, alignItems: 'center', padding: '9px 0', borderBottom: index === items.length - 1 ? 'none' : '1px solid var(--divider)' }}>
+          <span style={{ ...s.mono, fontSize: 10.5, color: 'var(--text-3)' }}>{index + 1}</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+          <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{item.count} adet</span>
+          <span style={{ ...s.mono, fontSize: 11.5, fontWeight: 600, textAlign: 'right', color: 'var(--text)' }}>{formatCurrency(item.revenue)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function AbnormalCloseTable({ report }: { report: AbnormalCloseReport }) {
+  if (report.rows.length === 0) {
+    return <div style={{ padding: '38px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Bu dönemde anormal kapatma yok</div>
+  }
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <div style={{ minWidth: 720 }}>
+        <ReportTableHeader columns="110px 150px minmax(220px, 1fr) 130px 110px" labels={['Masa', 'Kapatılma', 'Gerekçe', 'Kapatan', 'Tutar']} />
+        {report.rows.map((row, index) => (
+          <div key={row.sessionId} style={{ display: 'grid', gridTemplateColumns: '110px 150px minmax(220px, 1fr) 130px 110px', gap: 12, alignItems: 'center', padding: '11px 14px', borderBottom: index === report.rows.length - 1 ? 'none' : '1px solid var(--divider)' }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{row.tableLabel}</span>
+            <span style={{ ...s.mono, fontSize: 10.5, color: 'var(--text-3)' }}>{formatReportDate(row.closedAt)}</span>
+            <span style={{ fontSize: 12, color: 'var(--text-2)', overflowWrap: 'anywhere' }}>{row.reason}</span>
+            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>
+            <span style={{ ...s.mono, fontSize: 12, fontWeight: 700, color: 'var(--critical)', textAlign: 'right' }}>{formatCurrency(row.amount)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function StaffSettlementTable({ report }: { report: StaffSettlementReport }) {
+  if (report.rows.length === 0) {
+    return <div style={{ padding: '38px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Bu dönemde tahsilat yok</div>
+  }
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <div style={{ minWidth: 900 }}>
+        <ReportTableHeader columns="minmax(190px, 1.3fr) 110px 110px 110px 100px 120px 110px" labels={['Tahsil eden', 'Nakit', 'Fiziksel POS', 'Diğer', 'İkram', 'Sipariş', 'Toplam']} />
+        {report.rows.map((row, index) => (
+          <div key={row.settledBy ?? 'system'} style={{ display: 'grid', gridTemplateColumns: 'minmax(190px, 1.3fr) 110px 110px 110px 100px 120px 110px', gap: 12, alignItems: 'center', padding: '11px 14px', borderBottom: index === report.rows.length - 1 ? 'none' : '1px solid var(--divider)' }}>
+            <StaffIdentity row={row} />
+            <SettlementAmount amount={row.cash} highCash={row.highCash} />
+            <SettlementAmount amount={row.pos} />
+            <SettlementAmount amount={row.otherCollected} />
+            <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{row.compCount ? `${row.compCount} · ${formatCurrency(row.compAmount)}` : '—'}</span>
+            <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{row.settledCount} tahsilat</span>
+            <span style={{ ...s.mono, fontSize: 12, fontWeight: 700, textAlign: 'right', color: 'var(--text)' }}>{formatCurrency(row.collected)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function StaffIdentity({ row }: { row: StaffSettlementRow }) {
+  const roleLabel = row.role === 'owner' ? 'Sahip' : row.role === 'member' ? 'Üye' : row.role === 'system' ? 'Sistem' : 'Kayıt bulunamadı'
+  const detail = row.role === 'member' && row.sections?.length ? `${roleLabel} · ${row.sections.join(', ')}` : roleLabel
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</div>
+      <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detail}</div>
+    </div>
+  )
+}
+
+function SettlementAmount({ amount, highCash }: { amount: number; highCash?: boolean }) {
+  return (
+    <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)', display: 'inline-flex', justifyContent: 'flex-end', alignItems: 'center', gap: 5 }}>
+      {highCash && <span title="Nakit oranı %80 veya üzeri" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--warning)', flexShrink: 0 }} />}
+      {formatCurrency(amount)}
+    </span>
+  )
+}
+
+function ReportTableHeader({ columns, labels }: { columns: string; labels: string[] }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 12, padding: '8px 14px', background: 'var(--surface-2)', borderBottom: '1px solid var(--divider)' }}>
+      {labels.map((label, index) => (
+        <span key={label} style={{ fontSize: 10.5, color: 'var(--text-3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.05em', textAlign: index === 0 || label === 'Kapatılma' || label === 'Gerekçe' || label === 'Kapatan' ? 'left' : 'right' }}>{label}</span>
+      ))}
+    </div>
+  )
+}
+
+function formatReportDate(value: string) {
+  return new Intl.DateTimeFormat('tr-TR', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
 }
 
 /* ── ITEMS REPORT ─────────────────────────────────── */

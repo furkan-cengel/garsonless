@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import { createDashboardServerClient } from './supabase-server'
-import { createServiceClient, type Tables } from '@garsonless/db'
+import { createServiceClient, listTeamMembers, type Tables } from '@garsonless/db'
 import { getUserRestaurantAccess, assertAccess } from './auth/access'
 
 export interface DashboardKPIs {
@@ -766,6 +766,270 @@ export async function getTablesReportData(restaurantId: string): Promise<TableRe
     const agg = byTable.get(t.id)
     return { id: t.id, label: t.label, revenue: agg?.revenue ?? 0, orders: agg?.orders ?? 0 }
   })
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   OPERASYON reports (Wave-1 Phase A) — read-only, range-aware, analytics-gated
+   (service-role reads gated by assertAccess('analytics'), like getPaymentBreakdown).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// % change helper: null when there's no prior baseline (>0 now, 0 before) so the
+// UI can show "Yeni" instead of a fake +100%; 0 when both are 0.
+function pctChange(cur: number, prev: number): number | null {
+  if (prev > 0) return Math.round(((cur - prev) / prev) * 1000) / 10
+  return cur > 0 ? null : 0
+}
+
+// Count timestamps into range buckets (day → 24 hourly; else N daily), current
+// window only. Used for the cancellation trend sparkline.
+function bucketCounts(timestamps: string[], range: string, currentStart: Date): Array<{ date: string; count: number }> {
+  if (range === 'day') {
+    const byHour: Record<number, number> = {}
+    for (const t of timestamps) { const h = new Date(t).getHours(); byHour[h] = (byHour[h] ?? 0) + 1 }
+    return Array.from({ length: 24 }, (_, h) => ({ date: `${h.toString().padStart(2, '0')}:00`, count: byHour[h] ?? 0 }))
+  }
+  const days = ({ week: 7, month: 30, quarter: 90, year: 365 } as Record<string, number>)[range] ?? 7
+  const localDateKey = (date: Date) => [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-')
+  const byDay: Record<string, number> = {}
+  for (const t of timestamps) { const key = localDateKey(new Date(t)); byDay[key] = (byDay[key] ?? 0) + 1 }
+  return Array.from({ length: days }, (_, i) => {
+    const d = new Date(currentStart); d.setDate(d.getDate() + i)
+    const key = localDateKey(d)
+    return { date: d.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric' }), count: byDay[key] ?? 0 }
+  })
+}
+
+// ── 1. İptal raporu ──────────────────────────────────────────────────────────
+export interface CancellationReport {
+  count: number
+  lostAmount: number             // Σ total of cancelled orders (never collected)
+  allOrders: number              // denominator = every non-deleted order in window
+  rate: number                   // cancelled / all %, current window
+  topItems: TopItem[]            // folded from cancelled orders' items JSON
+  trend: Array<{ date: string; count: number }>
+  deltaCount: number | null      // % vs previous window
+  deltaLost: number | null
+  deltaRate: number | null       // percentage-POINT delta of the rate
+}
+
+export async function getCancellationReport(restaurantId: string, range = 'week'): Promise<CancellationReport> {
+  const empty: CancellationReport = { count: 0, lostAmount: 0, allOrders: 0, rate: 0, topItems: [], trend: [], deltaCount: 0, deltaLost: 0, deltaRate: 0 }
+  const gate = await assertAccess(restaurantId, 'analytics')
+  if ('error' in gate) return empty
+
+  const { currentStart, previousStart } = getRangeWindow(range)
+  const svc = createServiceClient()
+  const { data } = await svc
+    .from('orders')
+    .select('total, status, items, created_at')
+    .eq('restaurant_id', restaurantId)
+    .gte('created_at', previousStart.toISOString())
+    .is('deleted_at', null)
+
+  const rows = (data ?? []) as Array<{ total: number | null; status: string; items: unknown; created_at: string }>
+  const cur = rows.filter((r) => new Date(r.created_at) >= currentStart)
+  const prev = rows.filter((r) => { const d = new Date(r.created_at); return d >= previousStart && d < currentStart })
+  const curCancelled = cur.filter((r) => r.status === 'cancelled')
+  const prevCancelled = prev.filter((r) => r.status === 'cancelled')
+
+  const count = curCancelled.length
+  const lostAmount = sumTotals(curCancelled)
+  const allOrders = cur.length
+  const rate = allOrders > 0 ? Math.round((count / allOrders) * 1000) / 10 : 0
+  const prevAll = prev.length
+  const prevRate = prevAll > 0 ? (prevCancelled.length / prevAll) * 100 : 0
+
+  const topItems = Array.from(foldOrderItems(curCancelled).entries())
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+
+  return {
+    count, lostAmount, allOrders, rate,
+    topItems,
+    trend: bucketCounts(curCancelled.map((r) => r.created_at), range, currentStart),
+    deltaCount: pctChange(count, prevCancelled.length),
+    deltaLost: pctChange(lostAmount, sumTotals(prevCancelled)),
+    deltaRate: Math.round((rate - prevRate) * 10) / 10,
+  }
+}
+
+// ── 2. Anormal kapatma / kaçak ───────────────────────────────────────────────
+export interface AbnormalCloseRow {
+  sessionId: string
+  tableLabel: string
+  closedAt: string
+  reason: string                 // RAW staff-typed free text (no structured categories exist)
+  amount: number                 // unpaid non-cancelled ₺ abandoned in that session
+  closedBy: null                 // NOT captured (table_sessions has no closed_by) → UI shows "—"
+}
+export interface AbnormalCloseReport {
+  count: number
+  unpaidTotal: number
+  rows: AbnormalCloseRow[]
+  deltaCount: number | null
+  deltaUnpaid: number | null
+}
+
+export async function getAbnormalCloseReport(restaurantId: string, range = 'week'): Promise<AbnormalCloseReport> {
+  const empty: AbnormalCloseReport = { count: 0, unpaidTotal: 0, rows: [], deltaCount: 0, deltaUnpaid: 0 }
+  const gate = await assertAccess(restaurantId, 'analytics')
+  if ('error' in gate) return empty
+
+  const { currentStart, previousStart } = getRangeWindow(range)
+  const svc = createServiceClient()
+
+  // Abnormal = close_reason recorded AND not the system 'auto' sweep tag.
+  const { data: sessData } = await svc
+    .from('table_sessions')
+    .select('id, table_id, closed_at, close_reason')
+    .eq('restaurant_id', restaurantId)
+    .not('close_reason', 'is', null)
+    .neq('close_reason', 'auto')
+    .not('closed_at', 'is', null)
+    .gte('closed_at', previousStart.toISOString())
+
+  const sessions = (sessData ?? []) as Array<{ id: string; table_id: string; closed_at: string; close_reason: string }>
+  if (sessions.length === 0) return empty
+
+  const cur = sessions.filter((s) => new Date(s.closed_at) >= currentStart)
+  const prev = sessions.filter((s) => { const d = new Date(s.closed_at); return d >= previousStart && d < currentStart })
+
+  // Unpaid money abandoned = Σ total of UNPAID non-cancelled orders in those sessions.
+  const unpaidBySession = new Map<string, number>()
+  const { data: ordData } = await svc
+    .from('orders')
+    .select('table_session_id, total')
+    .in('table_session_id', sessions.map((s) => s.id))
+    .is('paid_at', null)
+    .neq('status', 'cancelled')
+    .is('deleted_at', null)
+  for (const o of (ordData ?? []) as Array<{ table_session_id: string | null; total: number | null }>) {
+    if (!o.table_session_id) continue
+    unpaidBySession.set(o.table_session_id, (unpaidBySession.get(o.table_session_id) ?? 0) + (o.total ?? 0))
+  }
+
+  const labelById = new Map<string, string>()
+  const { data: tbls } = await svc
+    .from('tables')
+    .select('id, label')
+    .eq('restaurant_id', restaurantId)
+    .in('id', [...new Set(sessions.map((s) => s.table_id))])
+  for (const t of (tbls ?? []) as Array<{ id: string; label: string }>) labelById.set(t.id, t.label)
+
+  const rows: AbnormalCloseRow[] = cur
+    .map((s) => ({
+      sessionId: s.id,
+      tableLabel: labelById.get(s.table_id) ?? 'Masa',
+      closedAt: s.closed_at,
+      reason: s.close_reason,
+      amount: unpaidBySession.get(s.id) ?? 0,
+      closedBy: null as null,
+    }))
+    .sort((a, b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime())
+
+  const unpaidTotal = rows.reduce((s, r) => s + r.amount, 0)
+  const prevUnpaid = prev.reduce((s, x) => s + (unpaidBySession.get(x.id) ?? 0), 0)
+
+  return {
+    count: rows.length,
+    unpaidTotal,
+    rows,
+    deltaCount: pctChange(rows.length, prev.length),
+    deltaUnpaid: pctChange(unpaidTotal, prevUnpaid),
+  }
+}
+
+// ── 3. Personel tahsilat performansı ─────────────────────────────────────────
+export interface StaffSettlementRow {
+  settledBy: string | null       // user_id, or null for the İyzico system row
+  label: string                  // owner/member email, "İyzico (otomatik)", or "Bilinmeyen kullanıcı"
+  role: 'owner' | 'member' | 'system' | 'unknown'
+  sections: string[] | null      // member's granted sections (permissions); null otherwise
+  cash: number
+  pos: number
+  otherCollected: number         // iyzico + legacy null-method paid (system row)
+  compAmount: number             // İkram (₺0 collected)
+  compCount: number
+  collected: number              // cash + pos + otherCollected
+  settledCount: number           // orders THEY SETTLED (not "took")
+  highCash: boolean              // cash / (cash + pos) >= 0.8 — skimming audit signal
+}
+export interface StaffSettlementReport {
+  rows: StaffSettlementRow[]
+  totalCollected: number
+}
+
+export async function getStaffSettlementReport(restaurantId: string, range = 'week'): Promise<StaffSettlementReport> {
+  const empty: StaffSettlementReport = { rows: [], totalCollected: 0 }
+  const gate = await assertAccess(restaurantId, 'analytics')
+  if ('error' in gate) return empty
+
+  const { currentStart } = getRangeWindow(range)
+  const svc = createServiceClient()
+  const { data } = await svc
+    .from('orders')
+    .select('total, payment_method, settled_by')
+    .eq('restaurant_id', restaurantId)
+    .not('paid_at', 'is', null)
+    .neq('status', 'cancelled')
+    .gte('created_at', currentStart.toISOString())
+    .is('deleted_at', null)
+
+  const orders = (data ?? []) as Array<{ total: number | null; payment_method: string | null; settled_by: string | null }>
+
+  // Name/permission resolution: owner (restaurants.owner_id) → owner email +
+  // "Sahip"; member (restaurant_members.user_id) → email + granted sections;
+  // settled_by NULL → İyzico system row; unresolved id → "Bilinmeyen kullanıcı".
+  const { data: rest } = await svc.from('restaurants').select('owner_id').eq('id', restaurantId).maybeSingle()
+  const ownerId = (rest as { owner_id: string } | null)?.owner_id ?? null
+  const members = await listTeamMembers(restaurantId)
+  const memberMap = new Map(members.filter((m) => m.userId).map((m) => [m.userId as string, m]))
+  let ownerEmail: string | null = null
+  if (ownerId) {
+    const { data } = await svc.auth.admin.getUserById(ownerId)
+    ownerEmail = data.user?.email ?? null
+  }
+
+  const SYSTEM = '__system'
+  type Agg = { cash: number; pos: number; otherCollected: number; compAmount: number; compCount: number; settledCount: number }
+  const bySettler = new Map<string, Agg>()
+  for (const o of orders) {
+    const key = o.settled_by ?? SYSTEM
+    const agg = bySettler.get(key) ?? { cash: 0, pos: 0, otherCollected: 0, compAmount: 0, compCount: 0, settledCount: 0 }
+    const amt = o.total ?? 0
+    if (o.payment_method === 'cash') agg.cash += amt
+    else if (o.payment_method === 'pos') agg.pos += amt
+    else if (o.payment_method === COMP_METHOD) { agg.compAmount += amt; agg.compCount += 1 }
+    else agg.otherCollected += amt // iyzico or legacy null-method paid
+    agg.settledCount += 1
+    bySettler.set(key, agg)
+  }
+
+  const rows: StaffSettlementRow[] = Array.from(bySettler.entries()).map(([key, agg]) => {
+    let label = 'Bilinmeyen kullanıcı'
+    let role: StaffSettlementRow['role'] = 'unknown'
+    let sections: string[] | null = null
+    if (key === SYSTEM) { label = 'İyzico (otomatik)'; role = 'system' }
+    else if (key === ownerId) { label = ownerEmail ?? 'Sahip'; role = 'owner' }
+    else if (memberMap.has(key)) { const m = memberMap.get(key)!; label = m.email; role = 'member'; sections = m.permissions }
+    const cardCash = agg.cash + agg.pos
+    return {
+      settledBy: key === SYSTEM ? null : key,
+      label, role, sections,
+      cash: agg.cash, pos: agg.pos, otherCollected: agg.otherCollected,
+      compAmount: agg.compAmount, compCount: agg.compCount,
+      collected: agg.cash + agg.pos + agg.otherCollected,
+      settledCount: agg.settledCount,
+      highCash: cardCash > 0 && agg.cash / cardCash >= 0.8,
+    }
+  }).sort((a, b) => b.collected - a.collected)
+
+  return { rows, totalCollected: rows.reduce((s, r) => s + r.collected, 0) }
 }
 
 export async function getTableStatuses(restaurantId: string): Promise<TableStatusData[]> {
