@@ -5,6 +5,7 @@ import {
   createServiceClient,
   validateKitchenToken,
   updateOrderStatusDB,
+  cancelOrderDB,
   type OrderStatus,
   type Tables,
 } from '@garsonless/db'
@@ -38,7 +39,12 @@ export async function updateOrderStatusAction(
 
   // GAP #3: scope the write to the token's restaurant — a valid token for A
   // cannot advance B's order even if the orderId is known.
-  const { error } = await updateOrderStatusDB(orderId, status, restaurantId)
+  // Cancellation routes through THE single cancel path (İyzico-paid block +
+  // idempotent loyalty refund). The kitchen token carries no staff identity →
+  // no reason / cancelled_by.
+  const { error } = status === 'cancelled'
+    ? await cancelOrderDB(orderId, restaurantId)
+    : await updateOrderStatusDB(orderId, status, restaurantId)
   if (error) return { error }
   return { success: true }
 }

@@ -51,31 +51,50 @@ const URG: Record<Urgency, { bg: string; fg: string }> = {
   late: { bg: 'var(--critical-bg)', fg: 'var(--critical)' },
   done: { bg: 'var(--surface-3)',   fg: 'var(--text-3)' },
 }
-const THRESHOLDS: Record<'new' | 'prep' | 'ready', { warn: number; late: number }> = {
-  new:   { warn: 5,  late: 10 },
-  prep:  { warn: 12, late: 20 },
-  ready: { warn: 5,  late: 10 },
-}
-function urgencyFor(group: 'new' | 'prep' | 'ready' | 'done', mins: number): Urgency {
+// prep's late line is the per-restaurant setting (settings.orders.late_threshold_min,
+// default 20); warn kicks in at 60% of it. new/ready keep fixed hand-off targets.
+function urgencyFor(
+  group: 'new' | 'prep' | 'ready' | 'done',
+  mins: number,
+  lateThresholdMin: number,
+): Urgency {
   if (group === 'done') return 'done'
-  const t = THRESHOLDS[group]
+  const t = group === 'prep'
+    ? { warn: Math.max(1, Math.ceil(lateThresholdMin * 0.6)), late: lateThresholdMin }
+    : { warn: 5, late: 10 }
   if (mins >= t.late) return 'late'
   if (mins >= t.warn) return 'warn'
   return 'ok'
 }
 
-function ElapsedLabel({ createdAt, group }: { createdAt: string; group: 'new' | 'prep' | 'ready' | 'done' }) {
+/**
+ * Per-STAGE aging (P2): the clock starts when the order ENTERED its current
+ * stage — prep from sent_to_kitchen_at, serve-wait from ready_at. Pre-migration
+ * orders have NULL stamps → graceful fallback to created_at (today's behavior,
+ * an approximation — never a fabricated stage time).
+ */
+export function stageStartFor(order: Order, group: 'new' | 'prep' | 'ready' | 'done'): string {
+  if (group === 'prep') return (order.sent_to_kitchen_at as string | null) ?? order.created_at
+  if (group === 'ready') return (order.ready_at as string | null) ?? order.created_at
+  return order.created_at
+}
+
+function ElapsedLabel({ startAt, group, lateThresholdMin }: {
+  startAt: string
+  group: 'new' | 'prep' | 'ready' | 'done'
+  lateThresholdMin: number
+}) {
   const [mins, setMins] = useState<number | null>(null)
 
   useEffect(() => {
-    const calc = () => Math.floor((Date.now() - new Date(createdAt).getTime()) / 60_000)
+    const calc = () => Math.floor((Date.now() - new Date(startAt).getTime()) / 60_000)
     setMins(calc())
     const id = setInterval(() => setMins(calc()), 30_000)
     return () => clearInterval(id)
-  }, [createdAt])
+  }, [startAt])
 
   if (mins === null) return null
-  const c = URG[urgencyFor(group, mins)]
+  const c = URG[urgencyFor(group, mins, lateThresholdMin)]
   return (
     <span style={{
       background: c.bg, color: c.fg,
@@ -95,9 +114,11 @@ interface Props {
   active?: boolean
   onClick?: () => void
   onAdvance?: (order: Order) => void
+  /** settings.orders.late_threshold_min (clamped, default 20). */
+  lateThresholdMin?: number
 }
 
-export default function OrderCard({ order, tableLabel, active, onClick, onAdvance }: Props) {
+export default function OrderCard({ order, tableLabel, active, onClick, onAdvance, lateThresholdMin = 20 }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: order.id })
 
@@ -114,8 +135,10 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
   const items = readOrderLineSnapshots(order.items)
   const actionLabel = ACTION_LABEL[order.status as OrderStatus]
   const tier = readOrderCustomerTierSnapshot(order.customer_tier)
+  // Stage-based (P2): prep age counts from sent_to_kitchen_at (fallback
+  // created_at on pre-migration orders), against the per-restaurant threshold.
   const isLate = group === 'prep' &&
-    Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60_000) > 20
+    Math.floor((Date.now() - new Date(stageStartFor(order, group)).getTime()) / 60_000) > lateThresholdMin
 
   // Settled order → show the method badge (İkram = distinct dashed violet, ₺0
   // collected) instead of a generic "ödendi". The method rides the authenticated
@@ -203,7 +226,7 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
             marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--divider)',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
-            <ElapsedLabel createdAt={order.created_at} group={group} />
+            <ElapsedLabel startAt={stageStartFor(order, group)} group={group} lateThresholdMin={lateThresholdMin} />
             {actionLabel && onAdvance && (
               <button
                 type="button"

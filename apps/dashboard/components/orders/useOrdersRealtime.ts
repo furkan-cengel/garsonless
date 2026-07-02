@@ -16,6 +16,12 @@ export type Order = {
   // Settlement method (authenticated payload only; anon's column grant omits it).
   payment_method?: string | null
   created_at: string
+  // Stage timestamps (P2 trigger-stamped; NULL on pre-migration orders — the
+  // UI falls back to created_at, never fabricates). Authenticated payload only.
+  sent_to_kitchen_at?: string | null
+  ready_at?: string | null
+  served_at?: string | null
+  cancel_reason?: string | null
   [key: string]: unknown
 }
 

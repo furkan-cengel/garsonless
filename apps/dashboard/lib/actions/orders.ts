@@ -3,11 +3,14 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
-import { createServiceClient, resolveOrderLines, updateOrderStatusDB } from '@garsonless/db'
+import { createServiceClient, resolveOrderLines, updateOrderStatusDB, cancelOrderDB } from '@garsonless/db'
 import type { OrderStatus, Json } from '@garsonless/db'
 import { mut } from '../supabase-mut'
 import { assertAccess } from '../auth/access'
 
+// 'cancelled' is deliberately NOT in this enum — cancellation has payment rules
+// (İyzico block, required reason for cash/pos-paid) and audit stamping, owned
+// by the dedicated cancelOrder action below.
 const schema = z.object({
   orderId: z.string().uuid(),
   status: z.enum([
@@ -17,7 +20,6 @@ const schema = z.object({
     'preparing',
     'ready',
     'served',
-    'cancelled',
   ]),
   restaurantId: z.string().uuid(),
 })
@@ -36,6 +38,64 @@ export async function updateOrderStatus(
   if ('error' in gate) return { error: gate.error }
 
   const { error } = await updateOrderStatusDB(orderId, status, restaurantId)
+  if (error) return { error }
+
+  revalidatePath(`/dashboard/${restaurantId}/orders`)
+  return { success: true }
+}
+
+const cancelSchema = z.object({
+  orderId: z.string().uuid(),
+  restaurantId: z.string().uuid(),
+  reason: z.string().trim().max(200).optional(),
+})
+
+/**
+ * THE dashboard cancel path. Rules by payment state:
+ *  - İyzico-paid → BLOCKED (typed error; refund is manual in the İyzico panel).
+ *    Also enforced atomically inside cancelOrderDB's WHERE — this pre-read is
+ *    for a friendly early error, the DB guard is the real wall.
+ *  - cash/pos-paid → reason REQUIRED (min 3 chars): money was collected and is
+ *    being refunded in person — the decision must be recorded.
+ *  - unpaid → plain cancel (reason optional), loyalty refund identical to before.
+ * cancelled_by = the acting staff user (audit), like settled_by on settlements.
+ */
+export async function cancelOrder(
+  orderId: string,
+  restaurantId: string,
+  reason?: string,
+): Promise<{ error: string } | { success: true }> {
+  const parsed = cancelSchema.safeParse({ orderId, restaurantId, reason })
+  if (!parsed.success) return { error: 'Geçersiz iptal isteği' }
+
+  const gate = await assertAccess(restaurantId, 'orders')
+  if ('error' in gate) return { error: gate.error }
+
+  const supabase = createServiceClient()
+  const { data: row } = await supabase
+    .from('orders')
+    .select('paid_at, payment_method, status')
+    .eq('id', orderId)
+    .eq('restaurant_id', restaurantId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  const order = row as { paid_at: string | null; payment_method: string | null; status: string } | null
+  if (!order) return { error: 'Order not found for this restaurant' }
+  if (order.status === 'cancelled') return { success: true } // idempotent no-op
+
+  const paid = order.paid_at !== null
+  if (paid && order.payment_method === 'iyzico') {
+    return { error: 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.' }
+  }
+  const trimmedReason = parsed.data.reason?.trim() ?? ''
+  if (paid && (order.payment_method === 'cash' || order.payment_method === 'pos') && trimmedReason.length < 3) {
+    return { error: 'Ödenmiş siparişin iptali için gerekçe zorunlu (en az 3 karakter).' }
+  }
+
+  const { error } = await cancelOrderDB(orderId, restaurantId, {
+    reason: trimmedReason || null,
+    cancelledBy: gate.userId,
+  })
   if (error) return { error }
 
   revalidatePath(`/dashboard/${restaurantId}/orders`)

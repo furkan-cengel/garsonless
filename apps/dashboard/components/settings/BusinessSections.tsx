@@ -12,8 +12,9 @@ import {
   testPaymentCredentials,
   type PaymentCredsMeta,
 } from '../../lib/actions/payments'
-import { saveNotificationSettings } from '../../lib/actions/restaurant'
+import { saveNotificationSettings, updateSettings } from '../../lib/actions/restaurant'
 import { readNotificationPrefs, type NotificationPrefs } from '../../lib/notification-prefs'
+import { readLateThresholdMin, clampLateThreshold, LATE_THRESHOLD_MIN_MIN, LATE_THRESHOLD_MIN_MAX } from '../../lib/orders-prefs'
 
 /* ── PAYMENTS ─────────────────────────────────────── */
 export function PaymentsSection({ restaurantId }: { restaurantId: string }) {
@@ -313,6 +314,9 @@ const NOTIFICATION_ROWS: { key: keyof NotificationPrefs; label: string; hint: st
 
 export function NotificationsSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
   const [prefs, setPrefs] = useState<NotificationPrefs>(() => readNotificationPrefs(restaurant.settings))
+  // Geciken eşiği (dk) — settings.orders.late_threshold_min; Siparişler
+  // panosundaki "Geciken" uyarısını sürer (mutfak aşamasında geçen süre).
+  const [lateThreshold, setLateThreshold] = useState<string>(() => String(readLateThresholdMin(restaurant.settings)))
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -328,6 +332,10 @@ export function NotificationsSection({ restaurant }: { restaurant: Tables<'resta
     startTransition(async () => {
       const result = await saveNotificationSettings(restaurant.id, prefs)
       if ('error' in result) { setError(result.error); return }
+      const clamped = clampLateThreshold(Number(lateThreshold))
+      const thresholdResult = await updateSettings(restaurant.id, { orders: { late_threshold_min: clamped } })
+      if ('error' in thresholdResult) { setError(thresholdResult.error); return }
+      setLateThreshold(String(clamped))
       setSaved(true)
     })
   }
@@ -340,6 +348,20 @@ export function NotificationsSection({ restaurant }: { restaurant: Tables<'resta
             <Toggle on={prefs[row.key]} onChange={value => set(row.key, value)} />
           </FormRow>
         ))}
+        <FormRow label="Gecikme eşiği (dk)" hint="Mutfak aşamasında bu süreyi aşan sipariş panoda 'Geciken' sayılır (5–120)">
+          <input
+            type="number"
+            min={LATE_THRESHOLD_MIN_MIN}
+            max={LATE_THRESHOLD_MIN_MAX}
+            value={lateThreshold}
+            onChange={e => { setLateThreshold(e.target.value); setSaved(false) }}
+            style={{
+              width: 84, height: 32, padding: '0 10px', fontSize: 13,
+              border: '1px solid var(--border-strong)', borderRadius: 7,
+              background: 'var(--surface)', color: 'var(--text)', outline: 'none',
+            }}
+          />
+        </FormRow>
         <div style={{ padding: '12px 18px', fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
           Bu uyarılar sipariş ve masa panellerinde gerçek zamanlı çalışır. E-posta/SMS bildirimleri
           henüz desteklenmiyor.

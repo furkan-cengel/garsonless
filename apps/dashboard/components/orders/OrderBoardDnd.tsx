@@ -40,6 +40,7 @@ interface Props {
   restaurantId: string
   /** Surface a failed server write (the optimistic move gets rolled back). */
   onActionError: (msg: string) => void
+  lateThresholdMin?: number
 }
 
 export default function OrderBoardDnd({
@@ -53,6 +54,7 @@ export default function OrderBoardDnd({
   updateOrderLocally,
   restaurantId,
   onActionError,
+  lateThresholdMin,
 }: Props) {
   const [activeOrder, setActiveOrder] = useState<Order | null>(null)
 
@@ -107,6 +109,7 @@ export default function OrderBoardDnd({
             selectedOrderId={selectedOrderId}
             onSelectOrder={onSelectOrder}
             onAdvance={onAdvance}
+            lateThresholdMin={lateThresholdMin}
           />
         ))}
       </div>

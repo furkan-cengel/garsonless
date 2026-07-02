@@ -4,6 +4,7 @@ import { getRestaurantById, getTablesForRestaurant } from '../../../../lib/queri
 import OrderBoard from '../../../../components/orders/OrderBoard'
 import type { Order } from '../../../../components/orders/useOrdersRealtime'
 import { readNotificationPrefs } from '../../../../lib/notification-prefs'
+import { readLateThresholdMin } from '../../../../lib/orders-prefs'
 import { requireSection } from '../../../../lib/auth/access'
 import type { Tables } from '@garsonless/db'
 
@@ -26,7 +27,7 @@ export default async function OrdersPage({ params }: Props) {
 
   const { data } = await supabase
     .from('orders')
-    .select('id, restaurant_id, table_id, status, items, total, customer_tier, paid_at, payment_method, created_at')
+    .select('id, restaurant_id, table_id, status, items, total, customer_tier, paid_at, payment_method, created_at, sent_to_kitchen_at, ready_at, served_at, cancel_reason')
     .eq('restaurant_id', restaurantId)
     .gte('created_at', today.toISOString())
     .is('deleted_at', null)
@@ -68,6 +69,7 @@ export default async function OrdersPage({ params }: Props) {
       tables={tableRefs}
       kitchenToken={kitchenToken}
       notifPrefs={readNotificationPrefs(restaurant.settings)}
+      lateThresholdMin={readLateThresholdMin(restaurant.settings)}
     />
   )
 }

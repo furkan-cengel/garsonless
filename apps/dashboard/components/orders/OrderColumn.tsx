@@ -28,9 +28,10 @@ interface Props {
   selectedOrderId: string | null
   onSelectOrder: (order: Order) => void
   onAdvance: (order: Order) => void
+  lateThresholdMin?: number
 }
 
-export default function OrderColumn({ column, orders, tableLabels, selectedOrderId, onSelectOrder, onAdvance }: Props) {
+export default function OrderColumn({ column, orders, tableLabels, selectedOrderId, onSelectOrder, onAdvance, lateThresholdMin }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
   const tone = TONE_COLORS[column.tone]
   const sortedOrders = sortOrdersByPriorityThenCreatedAt(orders)
@@ -80,6 +81,7 @@ export default function OrderColumn({ column, orders, tableLabels, selectedOrder
               active={selectedOrderId === order.id}
               onClick={() => onSelectOrder(order)}
               onAdvance={onAdvance}
+              lateThresholdMin={lateThresholdMin}
             />
           ))}
         </SortableContext>

@@ -10,7 +10,7 @@ import OrderColumn from './OrderColumn'
 import { nextStatus } from './OrderCard'
 import OrderToast from './OrderToast'
 import { useNotificationSW } from './useNotificationSW'
-import { updateOrderStatus } from '../../lib/actions/orders'
+import { updateOrderStatus, cancelOrder } from '../../lib/actions/orders'
 import { formatCurrency } from '../../lib/utils'
 import PageTopBar from '../layout/PageTopBar'
 import { I, S, Tag, IconButton, btnPrimary, btnGhost } from '../../lib/ui'
@@ -40,18 +40,28 @@ const COLUMNS: ColumnDef[] = [
 /* ============================================================
    STATUS TIMELINE
    ============================================================ */
-function StatusTimeline({ status }: { status: OrderStatus }) {
+function timelineTime(value: string | null | undefined): string | null {
+  if (!value) return null
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+}
+
+function StatusTimeline({ order }: { order: Order }) {
+  const status = order.status as OrderStatus
+  // Real per-stage times (P2 trigger stamps). NULL (pre-migration order or a
+  // stage not reached) → no time under the step — never a fabricated value.
   const steps = [
-    { id: ['pending', 'pending_approval'],          label: 'Alındı' },
-    { id: ['sent_to_kitchen', 'preparing', 'paid'], label: 'Hazırlanıyor' },
-    { id: ['ready'],                                label: 'Hazır' },
-    { id: ['served'],                               label: 'Servis' },
+    { id: ['pending', 'pending_approval'],          label: 'Alındı',       at: timelineTime(order.created_at) },
+    { id: ['sent_to_kitchen', 'preparing', 'paid'], label: 'Hazırlanıyor', at: timelineTime(order.sent_to_kitchen_at as string | null | undefined) },
+    { id: ['ready'],                                label: 'Hazır',        at: timelineTime(order.ready_at as string | null | undefined) },
+    { id: ['served'],                               label: 'Servis',       at: timelineTime(order.served_at as string | null | undefined) },
   ]
   const currentIdx = steps.findIndex(s => (s.id as string[]).includes(status))
   return (
-    <div style={{ display: 'flex', alignItems: 'center' }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start' }}>
       {steps.map((s, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', flex: i < steps.length - 1 ? 1 : 0 }}>
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', flex: i < steps.length - 1 ? 1 : 0 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
             <div style={{
               width: 16, height: 16, borderRadius: 999, flexShrink: 0,
@@ -66,9 +76,10 @@ function StatusTimeline({ status }: { status: OrderStatus }) {
                 : null}
             </div>
             <span style={{ fontSize: 9.5, fontWeight: 500, color: i <= currentIdx ? 'var(--text)' : 'var(--text-4)', whiteSpace: 'nowrap' }}>{s.label}</span>
+            <span style={{ fontSize: 9, color: 'var(--text-4)', fontVariantNumeric: 'tabular-nums', height: 11 }}>{s.at ?? ''}</span>
           </div>
           {i < steps.length - 1 && (
-            <div style={{ flex: 1, height: 1.5, background: i < currentIdx ? 'var(--text)' : 'var(--border-strong)', marginBottom: 14, marginLeft: 2, marginRight: 2 }} />
+            <div style={{ flex: 1, height: 1.5, background: i < currentIdx ? 'var(--text)' : 'var(--border-strong)', marginTop: 7, marginLeft: 2, marginRight: 2 }} />
           )}
         </div>
       ))}
@@ -140,7 +151,7 @@ function OrderDetailPanel({
             <IconButton icon={<I.close size={15} />} ariaLabel="Kapat" onClick={onClose} />
           </div>
         </div>
-        <StatusTimeline status={order.status as OrderStatus} />
+        <StatusTimeline order={order} />
       </div>
 
       <div style={{ flex: 1, overflow: 'auto' }}>
@@ -230,41 +241,60 @@ function OrderDetailPanel({
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer — cancel rules by payment state: İyzico-paid is BLOCKED in-app
+          (manual refund in the İyzico panel); cash/pos-paid requires a recorded
+          reason (modal); unpaid cancels normally. */}
       <div style={{
         borderTop: '1px solid var(--divider)', padding: '12px 16px',
-        display: 'flex', gap: 6, background: 'var(--surface-2)',
+        display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--surface-2)',
       }}>
-        {order.status === 'served' || order.status === 'paid' ? (
-          <button
-            type="button"
-            onClick={() => onReceipt(order)}
-            style={{ ...btnPrimary(), flex: 1, justifyContent: 'center' }}
-          >
-            <I.history size={14} />Fiş yazdır
-          </button>
-        ) : order.status === 'cancelled' ? (
-          <div style={{ flex: 1, textAlign: 'center', fontSize: 12, color: 'var(--text-3)', padding: '7px 0' }}>Bu sipariş iptal edildi</div>
-        ) : (
-          <>
+        {order.paid_at !== null && order.payment_method === 'iyzico' && order.status !== 'served' && order.status !== 'cancelled' && (
+          <div style={{
+            fontSize: 11.5, color: 'var(--info)', background: 'var(--info-bg)',
+            borderRadius: 8, padding: '8px 10px', lineHeight: 1.45,
+          }}>
+            Bu sipariş online ödendi — iptal/iade İyzico panelinden manuel yapılır.
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 6 }}>
+          {order.status === 'served' || order.status === 'paid' ? (
             <button
               type="button"
-              onClick={() => onCancel(order)}
-              style={{ ...btnGhost(), flex: 1, justifyContent: 'center' }}
+              onClick={() => onReceipt(order)}
+              style={{ ...btnPrimary(), flex: 1, justifyContent: 'center' }}
             >
-              İptal et
+              <I.history size={14} />Fiş yazdır
             </button>
-            {advanceLabel && nextSt && (
-              <button
-                type="button"
-                onClick={() => onAdvance(order)}
-                style={{ ...btnPrimary(), flex: 2, justifyContent: 'center' }}
-              >
-                <I.check size={13} />{advanceLabel}
-              </button>
-            )}
-          </>
-        )}
+          ) : order.status === 'cancelled' ? (
+            <div style={{ flex: 1, textAlign: 'center', fontSize: 12, color: 'var(--text-3)', padding: '7px 0' }}>
+              Bu sipariş iptal edildi
+              {typeof order.cancel_reason === 'string' && order.cancel_reason && (
+                <span style={{ display: 'block', marginTop: 2, fontSize: 11, color: 'var(--text-4)' }}>Gerekçe: {order.cancel_reason}</span>
+              )}
+            </div>
+          ) : (
+            <>
+              {!(order.paid_at !== null && order.payment_method === 'iyzico') && (
+                <button
+                  type="button"
+                  onClick={() => onCancel(order)}
+                  style={{ ...btnGhost(), flex: 1, justifyContent: 'center' }}
+                >
+                  İptal et
+                </button>
+              )}
+              {advanceLabel && nextSt && (
+                <button
+                  type="button"
+                  onClick={() => onAdvance(order)}
+                  style={{ ...btnPrimary(), flex: 2, justifyContent: 'center' }}
+                >
+                  <I.check size={13} />{advanceLabel}
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -430,9 +460,11 @@ interface Props {
   tables: Array<{ id: string; label: string }>
   kitchenToken?: string | null
   notifPrefs: NotificationPrefs
+  /** settings.orders.late_threshold_min (clamped 5–120, default 20). */
+  lateThresholdMin: number
 }
 
-export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, kitchenToken, notifPrefs }: Props) {
+export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, kitchenToken, notifPrefs, lateThresholdMin }: Props) {
   const { orders, newOrderEvent, clearNewOrderEvent, updateOrderLocally } =
     useOrdersRealtime(restaurantId, initialOrders)
 
@@ -494,15 +526,28 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
     }
   }
 
-  async function handleCancel(order: Order) {
-    if (!confirm(`"${tableLabels[order.table_id ?? ''] ?? 'Walk-in'}" siparişini iptal etmek istediğinize emin misiniz?`)) return
+  // Cancel modal target — the modal enforces the payment rules client-side
+  // (İyzico is blocked before this ever opens; cash/pos requires a reason);
+  // the cancelOrder action + cancelOrderDB re-enforce them server-side.
+  const [cancelTarget, setCancelTarget] = useState<Order | null>(null)
+
+  function handleCancel(order: Order) {
+    if (order.paid_at !== null && order.payment_method === 'iyzico') {
+      showActionError('Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.')
+      return
+    }
+    setCancelTarget(order)
+  }
+
+  function confirmCancel(order: Order, reason: string) {
+    setCancelTarget(null)
     const prev = order.status as OrderStatus
     startTransition(async () => {
       updateOrderLocally(order.id, 'cancelled')
       if (selectedOrder?.id === order.id) setSelectedOrder(null)
       let error: string | null = null
       try {
-        const result = await updateOrderStatus(order.id, 'cancelled', restaurantId)
+        const result = await cancelOrder(order.id, restaurantId, reason || undefined)
         if ('error' in result) error = result.error
       } catch {
         error = 'Sunucuya ulaşılamadı'
@@ -525,14 +570,23 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
     .reduce((s, o) => s + o.total, 0)
   const compOrders = orders.filter(o => o.paid_at !== null && o.status !== 'cancelled' && o.payment_method === 'comp')
   const compAmount = compOrders.reduce((s, o) => s + o.total, 0)
+  // Geciken: time IN the kitchen stage (sent_to_kitchen_at; created_at fallback
+  // for pre-migration orders) vs the per-restaurant threshold.
   const lateCount = orders.filter(o => {
     if (!['sent_to_kitchen', 'preparing'].includes(o.status)) return false
-    return Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60_000) > 20
+    const start = (o.sent_to_kitchen_at as string | null) ?? o.created_at
+    return Math.floor((Date.now() - new Date(start).getTime()) / 60_000) > lateThresholdMin
   }).length
-  const prepOrders = orders.filter(o => ['sent_to_kitchen', 'preparing', 'ready'].includes(o.status))
-  const avgMins = prepOrders.length > 0
-    ? Math.round(prepOrders.reduce((s, o) => s + Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60_000), 0) / prepOrders.length)
-    : 0
+  // REAL prep time (P2): mean(ready_at − sent_to_kitchen_at) over today's orders
+  // carrying BOTH stamps. "—" until samples exist (rollout day) — never the old
+  // "age of active orders" number under a prep-time label.
+  const prepSamples = orders
+    .filter(o => o.sent_to_kitchen_at && o.ready_at)
+    .map(o => (new Date(o.ready_at as string).getTime() - new Date(o.sent_to_kitchen_at as string).getTime()) / 60_000)
+    .filter(m => Number.isFinite(m) && m >= 0)
+  const avgPrepLabel = prepSamples.length > 0
+    ? `${Math.round(prepSamples.reduce((s, m) => s + m, 0) / prepSamples.length)} dk`
+    : '—'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -572,7 +626,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         center={
           <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
             <KpiChip label="Aktif" value={String(activeCount)} tone="warning" pulse />
-            <KpiChip label="Ort. süre" value={`${avgMins} dk`} />
+            <KpiChip label="Ort. hazırlık" value={avgPrepLabel} />
             <KpiChip label="Tahsilat" value={formatCurrency(revenue)} tone="positive" />
             {compAmount > 0 && <KpiChip label="İkram (tahsilat dışı)" value={formatCurrency(compAmount)} />}
             {lateCount > 0 && <KpiChip label="Geciken" value={String(lateCount)} tone="critical" />}
@@ -610,6 +664,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             updateOrderLocally={updateOrderLocally}
             restaurantId={restaurantId}
             onActionError={showActionError}
+            lateThresholdMin={lateThresholdMin}
           />
         </div>
 
@@ -639,6 +694,96 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
           onClose={() => setReceipt(null)}
         />
       )}
+      {cancelTarget && (
+        <CancelOrderModal
+          order={cancelTarget}
+          tableLabel={labelFor(cancelTarget.table_id)}
+          onClose={() => setCancelTarget(null)}
+          onConfirm={(reason) => confirmCancel(cancelTarget, reason)}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ============================================================
+   CANCEL MODAL — payment-aware rules
+   ============================================================ */
+function CancelOrderModal({ order, tableLabel, onClose, onConfirm }: {
+  order: Order
+  tableLabel: string
+  onClose: () => void
+  onConfirm: (reason: string) => void
+}) {
+  const [reason, setReason] = useState('')
+  // cash/pos-PAID cancel = money was collected and is being refunded in person →
+  // the reason is REQUIRED (recorded as cancel_reason + cancelled_by). Unpaid →
+  // reason optional. İyzico never reaches this modal (blocked upstream).
+  const paidManual = order.paid_at !== null && (order.payment_method === 'cash' || order.payment_method === 'pos')
+  const reasonOk = !paidManual || reason.trim().length >= 3
+
+  return (
+    <div
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(17,17,19,.42)', backdropFilter: 'blur(3px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+      }}
+    >
+      <div onClick={(e) => e.stopPropagation()} style={{
+        width: 'min(420px, 94vw)', background: 'var(--surface)', borderRadius: 14,
+        boxShadow: 'var(--shadow-pop)', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid var(--divider)' }}>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>Siparişi iptal et</div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 3 }}>
+            {tableLabel} · #{order.id.slice(0, 6).toUpperCase()} · {formatCurrency(order.total)}
+          </div>
+        </div>
+        <div style={{ padding: '14px 18px' }}>
+          {paidManual ? (
+            <div style={{
+              fontSize: 12, color: 'var(--warning)', background: 'var(--warning-bg)',
+              borderRadius: 8, padding: '9px 11px', marginBottom: 12, lineHeight: 1.45,
+            }}>
+              Bu sipariş <b>{order.payment_method === 'cash' ? 'nakit' : 'fiziksel POS'}</b> ile tahsil edildi.
+              İptal kayıt altına alınır — parayı elden iade ettiğinizi onaylıyorsunuz. Gerekçe zorunlu.
+            </div>
+          ) : (
+            <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 12 }}>
+              Sipariş iptal edilecek; kullanılan puan/damga otomatik iade edilir.
+            </div>
+          )}
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={paidManual ? 'İptal gerekçesi (zorunlu)' : 'Gerekçe (opsiyonel)'}
+            autoFocus
+            style={{
+              width: '100%', height: 36, padding: '0 11px', fontSize: 12.5,
+              border: `1px solid ${paidManual && !reasonOk ? 'var(--warning)' : 'var(--border-strong)'}`,
+              borderRadius: 8, outline: 'none', boxSizing: 'border-box',
+            }}
+          />
+        </div>
+        <div style={{ padding: '12px 18px 16px', display: 'flex', gap: 8 }}>
+          <button type="button" onClick={onClose} style={{ ...btnGhost(), flex: 1, justifyContent: 'center' }}>Vazgeç</button>
+          <button
+            type="button"
+            disabled={!reasonOk}
+            onClick={() => reasonOk && onConfirm(reason.trim())}
+            style={{
+              ...btnPrimary(), flex: 1, justifyContent: 'center',
+              background: 'var(--critical)', borderColor: 'var(--critical)',
+              opacity: reasonOk ? 1 : 0.5, cursor: reasonOk ? 'pointer' : 'not-allowed',
+            }}
+          >
+            İptal et
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

@@ -23,10 +23,12 @@ type SettleUpdateBuilder = {
     eq: (col: string, val: string) => {
       eq: (col: string, val: string) => {
         is: (col: string, val: null) => {
-          select: (cols: string) => Promise<{
-            data: Array<{ id: string }> | null
-            error: { message: string } | null
-          }>
+          neq: (col: string, val: string) => {
+            select: (cols: string) => Promise<{
+              data: Array<{ id: string }> | null
+              error: { message: string } | null
+            }>
+          }
         }
       }
     }
@@ -62,6 +64,13 @@ export async function updateOrderStatusDB(
   status: OrderStatus,
   restaurantId: string,
 ): Promise<{ error: string | null }> {
+  // Cancellation is NOT a plain status hop anymore: it has payment rules
+  // (İyzico block), audit fields (cancel_reason/cancelled_by) and the loyalty
+  // refund — exactly ONE path owns it: cancelOrderDB. Rejecting here means no
+  // caller can sidestep the rules via the generic status writer.
+  if (status === 'cancelled') {
+    return { error: 'Use cancelOrderDB for cancellations' }
+  }
   const supabase = createServiceClient()
   const builder = supabase.from('orders') as unknown as ScopedUpdateBuilder
   const { data, error } = await builder
@@ -78,9 +87,82 @@ export async function updateOrderStatusDB(
   if (status === 'served') {
     await earnForOrder(orderId, 'served')
   }
-  if (status === 'cancelled') {
-    await refundCancelledLoyaltyOrder(orderId)
+  return { error: null }
+}
+
+// PostgREST builder shape for the cancel path (same never[] workaround).
+type CancelUpdateBuilder = {
+  update: (row: Record<string, unknown>) => {
+    eq: (col: string, val: string) => {
+      eq: (col: string, val: string) => {
+        neq: (col: string, val: string) => {
+          or: (filters: string) => {
+            select: (cols: string) => Promise<{ data: Array<{ id: string }> | null; error: { message: string } | null }>
+          }
+        }
+      }
+    }
   }
+}
+
+/**
+ * THE single cancel path — dashboard action AND kitchen action both land here.
+ *
+ * Payment rules (enforced ATOMICALLY in the WHERE clause, not read-then-write,
+ * so a concurrent İyzico callback can never be bypassed):
+ *  - İYZICO-paid → BLOCKED. Online money needs a manual refund from the İyzico
+ *    panel (refund API integration is deferred); the app must not orphan it.
+ *  - cash/pos-paid → allowed; the CALLER (dashboard action) enforces the
+ *    required reason before invoking. Staff refunds in person.
+ *  - unpaid → plain cancel, behavior identical to the old path.
+ *
+ * Audit: cancel_reason + cancelled_by are stamped when provided (kitchen has
+ * no staff identity → both null). Already-cancelled → idempotent no-op.
+ * Loyalty refund (idempotent, Sprint 19a) fires exactly as before.
+ */
+export async function cancelOrderDB(
+  orderId: string,
+  restaurantId: string,
+  opts?: { reason?: string | null; cancelledBy?: string | null },
+): Promise<{ error: string | null }> {
+  const supabase = createServiceClient()
+
+  const builder = supabase.from('orders') as unknown as CancelUpdateBuilder
+  const { data, error } = await builder
+    .update({
+      status: 'cancelled',
+      cancel_reason: opts?.reason?.trim() ? opts.reason.trim().slice(0, 200) : null,
+      cancelled_by: opts?.cancelledBy ?? null,
+    })
+    .eq('id', orderId)
+    .eq('restaurant_id', restaurantId)
+    .neq('status', 'cancelled')
+    // NOT (paid_at IS NOT NULL AND payment_method = 'iyzico') — De Morgan:
+    // paid_at IS NULL OR payment_method IS DISTINCT FROM 'iyzico'.
+    .or('paid_at.is.null,payment_method.is.null,payment_method.neq.iyzico')
+    .select('id')
+
+  if (error) return { error: error.message }
+
+  if (!data || data.length === 0) {
+    // 0 rows — diagnose which guard held (read-only; the write already refused).
+    const { data: row } = await supabase
+      .from('orders')
+      .select('status, paid_at, payment_method')
+      .eq('id', orderId)
+      .eq('restaurant_id', restaurantId)
+      .maybeSingle()
+    const existing = row as { status: string; paid_at: string | null; payment_method: string | null } | null
+    if (!existing) return { error: 'Order not found for this restaurant' }
+    if (existing.status === 'cancelled') return { error: null } // idempotent no-op
+    if (existing.paid_at !== null && existing.payment_method === 'iyzico') {
+      return { error: 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.' }
+    }
+    return { error: 'Sipariş iptal edilemedi' }
+  }
+
+  // Idempotent loyalty refund — unchanged from the old cancel path.
+  await refundCancelledLoyaltyOrder(orderId)
   return { error: null }
 }
 
@@ -120,23 +202,34 @@ export async function markOrderPaidDB(
     .eq('id', orderId)
     .eq('restaurant_id', restaurantId)
     .is('paid_at', null)
+    // Cancellation is terminal — money must never be stamped onto a cancelled
+    // order (it would vanish from ciro: collected excludes cancelled). This is
+    // the ATOMIC mirror of cancelOrderDB's İyzico block: whichever of
+    // settle∥cancel lands first wins, the loser gets a typed error — the race
+    // can never produce a cancelled+paid row.
+    .neq('status', 'cancelled')
     .select('id')
   if (error) return { error: error.message }
 
-  // 0 rows: the order is either already settled (retry/re-callback) OR not in
-  // this restaurant. Confirm it exists here so a genuinely missing/foreign order
-  // still rejects (the `paid_at IS NULL` no-op for a retry returns 0 rows too).
+  // 0 rows: already settled (retry/re-callback → no-op), CANCELLED (refuse),
+  // or not in this restaurant (reject). Diagnose read-only — the write above
+  // already refused.
   let freshlySettled = false
   if (data && data.length > 0) {
     freshlySettled = true
   } else {
     const lookup = supabase.from('orders') as unknown as OrderScopeLookupBuilder
     const { data: existing } = await lookup
-      .select('id')
+      .select('id, status, paid_at')
       .eq('id', orderId)
       .eq('restaurant_id', restaurantId)
       .maybeSingle()
-    if (!existing) return { error: 'Order not found for this restaurant' }
+    const found = existing as unknown as { id: string; status: string; paid_at: string | null } | null
+    if (!found) return { error: 'Order not found for this restaurant' }
+    if (found.paid_at === null && found.status === 'cancelled') {
+      return { error: 'Order is cancelled — settlement refused' }
+    }
+    // paid_at already set → settled earlier (retry/re-callback) → no-op success.
   }
 
   // Loyalty earning on the 'paid' trigger (best-effort; never throws). Only on a

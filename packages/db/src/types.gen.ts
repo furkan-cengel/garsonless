@@ -434,69 +434,93 @@ export type Database = {
       }
       menu_items: {
         Row: {
+          carb_g: number | null
           category_id: string
           contains_alcohol: boolean
+          contains_allergens: string[]
           contains_pork: boolean
+          cost: number | null
           created_at: string
           deleted_at: string | null
           description: string | null
-          energy_kcal: number | null
           earns_stamp: boolean
+          energy_kcal: number | null
+          fat_g: number | null
           food_info_reviewed_at: string | null
           food_info_reviewed_by: string | null
           id: string
           images: Json
           ingredients: Json
           is_available: boolean
+          is_halal: boolean
+          is_vegan: boolean
+          is_vegetarian: boolean
           may_contain_allergens: string[]
           modifier_groups: Json
           name: string
           position: number
           price: number
+          protein_g: number | null
           updated_at: string
         }
         Insert: {
+          carb_g?: number | null
           category_id: string
           contains_alcohol?: boolean
+          contains_allergens?: string[]
           contains_pork?: boolean
+          cost?: number | null
           created_at?: string
           deleted_at?: string | null
           description?: string | null
-          energy_kcal?: number | null
           earns_stamp?: boolean
+          energy_kcal?: number | null
+          fat_g?: number | null
           food_info_reviewed_at?: string | null
           food_info_reviewed_by?: string | null
           id?: string
           images?: Json
           ingredients?: Json
           is_available?: boolean
+          is_halal?: boolean
+          is_vegan?: boolean
+          is_vegetarian?: boolean
           may_contain_allergens?: string[]
           modifier_groups?: Json
           name: string
           position?: number
           price: number
+          protein_g?: number | null
           updated_at?: string
         }
         Update: {
+          carb_g?: number | null
           category_id?: string
           contains_alcohol?: boolean
+          contains_allergens?: string[]
           contains_pork?: boolean
+          cost?: number | null
           created_at?: string
           deleted_at?: string | null
           description?: string | null
-          energy_kcal?: number | null
           earns_stamp?: boolean
+          energy_kcal?: number | null
+          fat_g?: number | null
           food_info_reviewed_at?: string | null
           food_info_reviewed_by?: string | null
           id?: string
           images?: Json
           ingredients?: Json
           is_available?: boolean
+          is_halal?: boolean
+          is_vegan?: boolean
+          is_vegetarian?: boolean
           may_contain_allergens?: string[]
           modifier_groups?: Json
           name?: string
           position?: number
           price?: number
+          protein_g?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -617,6 +641,8 @@ export type Database = {
       }
       orders: {
         Row: {
+          cancel_reason: string | null
+          cancelled_by: string | null
           created_at: string
           customer_id: string | null
           customer_tier: Json | null
@@ -625,7 +651,10 @@ export type Database = {
           items: Json
           paid_at: string | null
           payment_method: string | null
+          ready_at: string | null
           restaurant_id: string
+          sent_to_kitchen_at: string | null
+          served_at: string | null
           session_id: string
           settled_by: string | null
           status: string
@@ -635,6 +664,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cancel_reason?: string | null
+          cancelled_by?: string | null
           created_at?: string
           customer_id?: string | null
           customer_tier?: Json | null
@@ -643,7 +674,10 @@ export type Database = {
           items?: Json
           paid_at?: string | null
           payment_method?: string | null
+          ready_at?: string | null
           restaurant_id: string
+          sent_to_kitchen_at?: string | null
+          served_at?: string | null
           session_id: string
           settled_by?: string | null
           status?: string
@@ -653,6 +687,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cancel_reason?: string | null
+          cancelled_by?: string | null
           created_at?: string
           customer_id?: string | null
           customer_tier?: Json | null
@@ -661,7 +697,10 @@ export type Database = {
           items?: Json
           paid_at?: string | null
           payment_method?: string | null
+          ready_at?: string | null
           restaurant_id?: string
+          sent_to_kitchen_at?: string | null
+          served_at?: string | null
           session_id?: string
           settled_by?: string | null
           status?: string
