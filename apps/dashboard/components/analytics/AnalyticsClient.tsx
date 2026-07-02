@@ -2,7 +2,7 @@
 
 import { useState, useTransition, Fragment, type ReactNode, type CSSProperties } from 'react'
 import PageTopBar from '../layout/PageTopBar'
-import { I, btnPrimary, btnGhost } from '../../lib/ui'
+import { I, btnPrimary } from '../../lib/ui'
 import type {
   DashboardKPIs,
   TopItem,
@@ -155,6 +155,23 @@ export default function AnalyticsClient({
 
   const activeReportLoaded = loadedReports[activeReport]
 
+  // Export is enabled once the ACTIVE tab's data is loaded (never a dead
+  // button — only a loading state). Operasyon needs its lazily-loaded payload.
+  const canExport = activeReportLoaded && (
+    activeReport === 'operasyon'
+      ? Boolean(analyticsData.cancellations && analyticsData.abnormalCloses && analyticsData.staffSettlement)
+      : activeReport === 'sadakat'
+        ? Boolean(analyticsData.loyalty)
+        : true
+  )
+
+  function handleExport() {
+    if (!canExport) return
+    const built = buildReportCsv(activeReport, range, kpis, analyticsData)
+    if (!built) return
+    downloadCsv(built.filename, built.csv)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageTopBar
@@ -163,8 +180,15 @@ export default function AnalyticsClient({
         right={
           <>
             <RangePicker value={range} onChange={handleRangeChange} loading={isPending} />
-            <button style={btnGhost()}><I.history size={13} />Karşılaştır</button>
-            <button style={btnPrimary()}><I.image size={13} />Dışa aktar</button>
+            {/* Real CSV export of the ACTIVE tab's loaded data (client-side; no
+                dead chrome — disabled only while the tab is still loading). */}
+            <button
+              onClick={handleExport}
+              disabled={!canExport}
+              style={{ ...btnPrimary(), opacity: canExport ? 1 : 0.45, cursor: canExport ? 'pointer' : 'not-allowed' }}
+            >
+              <I.download size={13} />Dışa aktar
+            </button>
           </>
         }
       />
@@ -202,25 +226,6 @@ export default function AnalyticsClient({
               </span>
             </button>
           ))}
-          <div style={{ fontSize: 10.5, color: 'var(--text-4)', letterSpacing: '.06em', textTransform: 'uppercase', fontWeight: 500, padding: '14px 10px 6px' }}>
-            Kaydedilmiş
-          </div>
-          {['Aylık özet · Mayıs', 'Vergi raporu Q1', 'Personel komisyon'].map((name, i) => (
-            <button key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              width: '100%', padding: '6px 10px', borderRadius: 6,
-              background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
-            }}>
-              <span style={{ width: 14, display: 'inline-flex', color: 'var(--text-3)' }}><I.page size={12} /></span>
-              <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{name}</span>
-            </button>
-          ))}
-          <button style={{
-            marginTop: 8, padding: '6px 10px', width: '100%',
-            background: 'transparent', border: '1px dashed var(--border-strong)',
-            borderRadius: 6, fontSize: 11.5, color: 'var(--text-2)', cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-          }}><I.plus size={12} />Özel rapor</button>
         </div>
       </div>
 
@@ -259,6 +264,158 @@ export default function AnalyticsClient({
       </div>
     </div>
   )
+}
+
+/* ── CSV EXPORT ───────────────────────────────────────────────
+   Client-side CSV of the ACTIVE tab's already-loaded data (no backend).
+   Comma-delimited + UTF-8 BOM (same convention as the menu CSV template) so
+   Turkish characters open correctly in Excel; numbers are raw (machine-
+   readable), ₺/% live in the column headers. Multi-section reports use a
+   section-title row + a blank row between sections. */
+
+type CsvValue = string | number | null
+type LoadedAnalyticsData = {
+  salesOverTime: DailySale[]
+  heatmapData: HeatmapCell[]
+  tableStats: TableReportRow[]
+  topItems: TopItem[]
+  paymentBreakdown: PaymentReport
+  productReport: ProductReportItem[]
+  cancellations: CancellationReport | null
+  abnormalCloses: AbnormalCloseReport | null
+  staffSettlement: StaffSettlementReport | null
+  loyalty: LoyaltyReport | null
+}
+
+function csvCell(v: CsvValue): string {
+  if (v === null) return ''
+  const s = String(v)
+  return /[",\n\r;]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s
+}
+
+function rowsToCsv(rows: CsvValue[][]): string {
+  return rows.map((r) => r.map(csvCell).join(',')).join('\r\n')
+}
+
+function downloadCsv(filename: string, csv: string) {
+  // BOM so Excel detects UTF-8 (Turkish İ/ş/ğ) — same as the menu template.
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+const EXPORT_SLUGS: Record<AnalyticsReportId, string> = {
+  sales: 'satis-raporu',
+  items: 'urun-performansi',
+  tables: 'masa-performansi',
+  payments: 'odeme-raporu',
+  operasyon: 'operasyon-raporu',
+  sadakat: 'sadakat-raporu',
+}
+const RANGE_SLUGS: Record<string, string> = {
+  day: 'bugun', week: '7gun', month: '30gun', quarter: 'ceyrek', year: 'yil',
+}
+
+function buildReportCsv(
+  report: AnalyticsReportId,
+  range: string,
+  kpis: DashboardKPIs,
+  data: LoadedAnalyticsData,
+): { filename: string; csv: string } | null {
+  const period = rangePeriodLabel(range)
+  const rows: CsvValue[][] = []
+  const section = (title: string) => { if (rows.length > 0) rows.push([]); rows.push([title]) }
+
+  if (report === 'sales') {
+    // The sales KPI cards are TODAY-based (vs yesterday) — labeled as such;
+    // trend/top-items/payment sections follow the selected range.
+    section('Satış Raporu — günün özeti (bugün · düne kıyasla)')
+    rows.push(['Metrik', 'Değer'])
+    rows.push(['Tahsil edilen (₺)', kpis.revenue])
+    rows.push(['Sipariş hacmi', kpis.orders])
+    rows.push(['Ort. tahsilat (₺)', kpis.avgBasket])
+    rows.push(['Oturum', kpis.sessions])
+    rows.push(['Aktif sipariş', kpis.activeOrders])
+    section(`Tahsilat trendi (${period})`)
+    rows.push(['Tarih', 'Dönem (₺)', 'Önceki dönem (₺)'])
+    for (const d of data.salesOverTime) rows.push([d.date, d.current, d.prev])
+    section(`En çok satan ürünler (${period})`)
+    rows.push(['Ürün', 'Adet', 'Tutar (₺)'])
+    for (const t of data.topItems) rows.push([t.name, t.count, t.revenue])
+    section(`Ödeme dağılımı (${period})`)
+    rows.push(['Yöntem', 'Tutar (₺)', 'Adet', 'Pay (%)'])
+    for (const p of data.paymentBreakdown.collected) rows.push([p.label, p.amount, p.count, p.pct])
+    rows.push(['İkram (tahsilat dışı)', data.paymentBreakdown.comp.amount, data.paymentBreakdown.comp.count, null])
+  } else if (report === 'items') {
+    section(`Ürün Performansı (${period})`)
+    rows.push(['Ürün', 'Adet', 'Tutar (₺)', 'Pay (%)', 'Kümülatif (%)', 'Sınıf', 'Değişim (%)'])
+    for (const it of data.productReport) {
+      rows.push([it.name, it.count, it.revenue, it.sharePct, it.cumulativePct, it.abcClass, it.deltaPct === null ? 'Yeni' : it.deltaPct])
+    }
+  } else if (report === 'tables') {
+    section(`Masa Performansı (${period})`)
+    rows.push(['Masa', 'Tahsilat (₺)', 'Ödemeli sipariş', 'Devir (kapanan oturum)', 'Ort. oturum (dk)', 'Şu an dolu'])
+    for (const t of data.tableStats) {
+      rows.push([t.label, t.revenue, t.orders, t.turnover, t.avgDwellMinutes, t.openNow ? 'Evet' : 'Hayır'])
+    }
+  } else if (report === 'payments') {
+    section(`Ödeme Raporu (${period})`)
+    rows.push(['Yöntem', 'Tutar (₺)', 'Adet', 'Pay (%)'])
+    for (const p of data.paymentBreakdown.collected) rows.push([p.label, p.amount, p.count, p.pct])
+    rows.push(['Toplam tahsilat', data.paymentBreakdown.collectedTotal, data.paymentBreakdown.collectedCount, null])
+    // İkram never enters the collected base/percentages — separate line.
+    rows.push(['İkram (tahsilat dışı)', data.paymentBreakdown.comp.amount, data.paymentBreakdown.comp.count, null])
+  } else if (report === 'operasyon') {
+    const { cancellations, abnormalCloses, staffSettlement } = data
+    if (!cancellations || !abnormalCloses || !staffSettlement) return null
+    section(`İptal Raporu (${period})`)
+    rows.push(['Metrik', 'Değer'])
+    rows.push(['İptal sayısı', cancellations.count])
+    rows.push(['Kayıp (₺)', cancellations.lostAmount])
+    rows.push(['İptal oranı (%)', cancellations.rate])
+    section('En çok iptal edilen ürünler')
+    rows.push(['Ürün', 'İptal adedi', 'Tutar (₺)'])
+    for (const t of cancellations.topItems) rows.push([t.name, t.count, t.revenue])
+    section(`Anormal kapatma / kaçak (${period})`)
+    rows.push(['Masa', 'Kapatılma', 'Gerekçe', 'Kapatan', 'Tutar (₺)'])
+    // Kapatan is NOT captured (no closed_by column) → honest "—", never a name.
+    for (const r of abnormalCloses.rows) rows.push([r.tableLabel, formatReportDate(r.closedAt), r.reason, '—', r.amount])
+    section(`Personel tahsilat performansı (${period})`)
+    rows.push(['Tahsil eden', 'Rol', 'Tahsil ettiği sipariş', 'Nakit (₺)', 'Fiziksel POS (₺)', 'Online / eski (₺)', 'İkram adet', 'İkram (₺)', 'Toplam (₺)', 'Yüksek nakit'])
+    for (const r of staffSettlement.rows) {
+      const role = r.role === 'owner' ? 'Sahip' : r.role === 'member' ? `Üye${r.sections?.length ? ` (${r.sections.join(' · ')})` : ''}` : r.role === 'system' ? 'Sistem' : 'Kayıt bulunamadı'
+      rows.push([r.label, role, r.settledCount, r.cash, r.pos, r.otherCollected, r.compCount, r.compAmount, r.collected, r.highCash ? 'Evet' : 'Hayır'])
+    }
+  } else {
+    const loyalty = data.loyalty
+    if (!loyalty) return null
+    section(`Sadakat Raporu (${period})`)
+    rows.push(['Metrik', 'Değer'])
+    rows.push(['Kazandırılan puan (hoş geldin dahil)', loyalty.pointsIssued])
+    rows.push(['Kullanılan puan', loyalty.pointsRedeemed])
+    rows.push(['Kullanım oranı (%)', loyalty.redeemRate])
+    rows.push(['Puan iadesi', loyalty.pointsRefunded])
+    rows.push(['Damga kazanılan', loyalty.stampsIssued])
+    rows.push(['Damga kullanılan', loyalty.stampsRedeemed])
+    rows.push(['Damga iadesi', loyalty.stampsRefunded])
+    rows.push(['Ziyaret', loyalty.visits])
+    rows.push(['Hoş geldin bonusu (üye)', loyalty.welcomeCount])
+    rows.push(['Hoş geldin bonusu (puan)', loyalty.welcomePoints])
+    rows.push(['İkram (₺ · tahsilat dışı)', loyalty.comp.amount])
+    rows.push(['İkram (adet)', loyalty.comp.count])
+    section('Kullanımlar (defterdeki ham sebep)')
+    rows.push(['Sebep', 'İşlem', 'Puan', 'Damga'])
+    for (const r of loyalty.redemptionsByReason) rows.push([r.reason, r.count, r.points, r.stamps])
+  }
+
+  return {
+    filename: `${EXPORT_SLUGS[report]}-${RANGE_SLUGS[range] ?? range}.csv`,
+    csv: rowsToCsv(rows),
+  }
 }
 
 function ReportLoading() {
