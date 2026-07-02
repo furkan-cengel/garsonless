@@ -58,9 +58,34 @@ export function useOrdersRealtime(
         },
         (payload: { new: Record<string, unknown> }) => {
           const updated = payload.new as Order
+          // Soft delete arrives as an UPDATE setting deleted_at — drop the card
+          // live (the SSR query filters deleted_at; the board must match).
+          if (updated['deleted_at'] != null) {
+            knownIds.current.delete(updated.id)
+            setOrders((prev) => prev.filter((o) => o.id !== updated.id))
+            return
+          }
           setOrders((prev) =>
             prev.map((o) => (o.id === updated.id ? updated : o)),
           )
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          // Hard DELETE: remove the card without a reload. No restaurant filter —
+          // DELETE payloads only carry the PK under the default replica identity,
+          // so the filter column isn't available. Removing by UUID is safe: only
+          // this restaurant's orders ever live in local state.
+          event: 'DELETE',
+          schema: 'public',
+          table: 'orders',
+        },
+        (payload: { old: Record<string, unknown> }) => {
+          const deletedId = (payload.old as { id?: string }).id
+          if (!deletedId) return
+          knownIds.current.delete(deletedId)
+          setOrders((prev) => prev.filter((o) => o.id !== deletedId))
         },
       )
       .subscribe()

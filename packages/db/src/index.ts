@@ -66,6 +66,9 @@ export type {
   TablesUpdate,
 } from './types.gen'
 export type { OrderStatus, RestaurantPlan, PaymentMethod } from './enums'
+// The one collected-revenue (tahsilat) predicate — client-safe home in
+// order-client.ts, re-exported here for server queries.
+export { isCollectedOrderRow } from './order-client'
 export {
   ALLERGEN_CODES,
   ALLERGEN_LABELS,

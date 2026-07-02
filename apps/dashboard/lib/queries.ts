@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import { createDashboardServerClient } from './supabase-server'
-import { createServiceClient, listTeamMembers, type Tables } from '@garsonless/db'
+import { createServiceClient, listTeamMembers, isCollectedOrderRow, type Tables } from '@garsonless/db'
 import { getUserRestaurantAccess, assertAccess } from './auth/access'
 
 export interface DashboardKPIs {
@@ -277,19 +277,17 @@ function isOrderVolumeRow(row: { status?: string | null }) {
 }
 
 // ── Collected revenue (tahsilat) — ONE definition, used by every ciro query ──
-// A COLLECTED order counts toward ciro: paid_at set, not cancelled, and NOT a
-// comp (İkram = ₺0 collected). payment_method NULL = legacy/unknown-but-paid →
-// STILL collected. The rule is IS DISTINCT FROM 'comp' (keep null, drop only
-// comp); a plain `<> 'comp'` would wrongly drop legacy null-method paid orders.
+// The predicate itself moved to its client-safe home (packages/db order-client
+// `isCollectedOrderRow`, re-exported from the server barrel) so the Orders
+// board's Tahsilat chip shares the EXACT same rule. Semantics unchanged:
+// paid_at set, not cancelled, IS DISTINCT FROM 'comp' (legacy null stays in).
 const COMP_METHOD = 'comp'
+const isCollectedOrder = isCollectedOrderRow
 
-function isCollectedOrder(row: { status?: string | null; paid_at?: string | null; payment_method?: string | null }) {
-  return row.paid_at != null && row.status !== 'cancelled' && row.payment_method !== COMP_METHOD
-}
-
-// PostgREST equivalent of isCollectedOrder, appended to an orders query builder.
-// `.or('payment_method.is.null,payment_method.neq.comp')` is IS DISTINCT FROM
-// 'comp'. Generic so each call site keeps its own builder/result typing.
+// PostgREST equivalent of isCollectedOrderRow, appended to an orders query
+// builder. `.or('payment_method.is.null,payment_method.neq.comp')` is
+// IS DISTINCT FROM 'comp'. If the rule ever changes, change BOTH here and
+// isCollectedOrderRow. Generic so each call site keeps its own result typing.
 function collectedOrdersFilter<T extends {
   not: (col: string, op: string, val: unknown) => T
   neq: (col: string, val: string) => T

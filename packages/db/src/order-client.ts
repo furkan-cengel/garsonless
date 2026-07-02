@@ -22,6 +22,25 @@ export type {
   ResolvableMenuItem,
 } from './menu-domain'
 
+/**
+ * THE collected-revenue (tahsilat) predicate — the Sprint-19/P3 one-predicate
+ * rule, in its single client-safe home. An order counts toward ciro iff:
+ * paid_at set, not cancelled, and NOT a comp (İkram = ₺0 collected).
+ * payment_method NULL = legacy/unknown-but-paid → STILL collected
+ * (IS DISTINCT FROM 'comp' semantics: keep null, drop only comp).
+ * Used by server queries (dashboard KPIs/reports) AND client surfaces (the
+ * Orders board Tahsilat chip). The PostgREST twin lives in
+ * apps/dashboard/lib/queries.ts (`collectedOrdersFilter`) — if this rule ever
+ * changes, change BOTH.
+ */
+export function isCollectedOrderRow(row: {
+  status?: string | null
+  paid_at?: string | null
+  payment_method?: string | null
+}): boolean {
+  return row.paid_at != null && row.status !== 'cancelled' && row.payment_method !== 'comp'
+}
+
 export interface OrderCustomerTierSnapshot {
   version: 1
   name: string

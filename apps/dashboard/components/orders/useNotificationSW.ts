@@ -57,9 +57,9 @@ export function useNotificationSW(newOrder: Order | null, channels: NewOrderChan
         .then((reg) => {
           reg.active?.postMessage({
             type: 'NEW_ORDER',
-            title: 'New Order!',
+            title: 'Yeni sipariş!',
             body: `${formatCurrency(newOrder.total)} · ${
-              (newOrder.items as unknown as { name: string }[])[0]?.name ?? 'New order'
+              (newOrder.items as unknown as { name: string }[])[0]?.name ?? 'Yeni sipariş'
             }`,
           })
         })

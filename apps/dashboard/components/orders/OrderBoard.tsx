@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useRef, useCallback, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, ALLERGEN_LABELS, type OrderStatus } from '@garsonless/db/order-client'
+import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, isCollectedOrderRow, ALLERGEN_LABELS, type OrderStatus } from '@garsonless/db/order-client'
 import { useOrdersRealtime } from './useOrdersRealtime'
 import type { Order } from './useOrdersRealtime'
 import type { NotificationPrefs } from '../../lib/notification-prefs'
@@ -461,29 +461,70 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
     return true
   })
 
+  // Transient action-error banner (auto-clears). An optimistic move that fails
+  // server-side is ROLLED BACK and surfaced here — never a silent stuck card.
+  const [actionError, setActionError] = useState<string | null>(null)
+  const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showActionError = useCallback((msg: string) => {
+    setActionError(msg)
+    if (errorTimer.current) clearTimeout(errorTimer.current)
+    errorTimer.current = setTimeout(() => setActionError(null), 5000)
+  }, [])
+  useEffect(() => () => { if (errorTimer.current) clearTimeout(errorTimer.current) }, [])
+
   async function handleAdvance(order: Order) {
     const next = nextStatus(order.status as OrderStatus)
     if (!next) return
+    const prev = order.status as OrderStatus
     updateOrderLocally(order.id, next)
     if (selectedOrder?.id === order.id) setSelectedOrder({ ...order, status: next })
-    await updateOrderStatus(order.id, next, restaurantId)
+    // Both a typed {error} result AND a thrown exception (network/500) roll the
+    // optimistic move back — never a silently stuck card.
+    let error: string | null = null
+    try {
+      const result = await updateOrderStatus(order.id, next, restaurantId)
+      if ('error' in result) error = result.error
+    } catch {
+      error = 'Sunucuya ulaşılamadı'
+    }
+    if (error) {
+      updateOrderLocally(order.id, prev)
+      if (selectedOrder?.id === order.id) setSelectedOrder({ ...order, status: prev })
+      showActionError(`Durum güncellenemedi: ${error}`)
+    }
   }
 
   async function handleCancel(order: Order) {
     if (!confirm(`"${tableLabels[order.table_id ?? ''] ?? 'Walk-in'}" siparişini iptal etmek istediğinize emin misiniz?`)) return
+    const prev = order.status as OrderStatus
     startTransition(async () => {
       updateOrderLocally(order.id, 'cancelled')
       if (selectedOrder?.id === order.id) setSelectedOrder(null)
-      await updateOrderStatus(order.id, 'cancelled', restaurantId)
+      let error: string | null = null
+      try {
+        const result = await updateOrderStatus(order.id, 'cancelled', restaurantId)
+        if ('error' in result) error = result.error
+      } catch {
+        error = 'Sunucuya ulaşılamadı'
+      }
+      if (error) {
+        updateOrderLocally(order.id, prev)
+        showActionError(`İptal edilemedi: ${error}`)
+      }
     })
   }
 
   const activeCount = orders.filter(o =>
     ['pending', 'pending_approval', 'sent_to_kitchen', 'preparing', 'ready'].includes(o.status)
   ).length
+  // THE shared collected predicate (isCollectedOrderRow): İkram/comp is ₺0
+  // collected and must not inflate the board's Tahsilat — same rule + same
+  // number as the Ödemeler report.
   const revenue = orders
-    .filter(o => o.paid_at !== null && o.status !== 'cancelled')
+    .filter(isCollectedOrderRow)
     .reduce((s, o) => s + o.total, 0)
+  const compOrders = orders.filter(o => o.paid_at !== null && o.status !== 'cancelled' && o.payment_method === 'comp')
+  const compAmount = compOrders.reduce((s, o) => s + o.total, 0)
   const lateCount = orders.filter(o => {
     if (!['sent_to_kitchen', 'preparing'].includes(o.status)) return false
     return Math.floor((Date.now() - new Date(o.created_at).getTime()) / 60_000) > 20
@@ -496,6 +537,29 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <OrderToast order={newOrderEvent} onDismiss={clearNewOrderEvent} enabled={notifPrefs.newOrderToast} />
+      {actionError && (
+        <div
+          role="alert"
+          style={{
+            position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 210, maxWidth: 420,
+            background: 'var(--critical-bg)', color: 'var(--critical)',
+            border: '1px solid var(--critical)', borderRadius: 10,
+            padding: '10px 14px', fontSize: 12.5, fontWeight: 600,
+            boxShadow: 'var(--shadow-pop)',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}
+        >
+          <I.warn size={14} />
+          <span style={{ flex: 1 }}>{actionError}</span>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            aria-label="Kapat"
+            style={{ border: 'none', background: 'transparent', color: 'var(--critical)', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: 0 }}
+          >×</button>
+        </div>
+      )}
       <PageTopBar
         restaurantName={restaurantName}
         title="Siparişler"
@@ -510,6 +574,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             <KpiChip label="Aktif" value={String(activeCount)} tone="warning" pulse />
             <KpiChip label="Ort. süre" value={`${avgMins} dk`} />
             <KpiChip label="Tahsilat" value={formatCurrency(revenue)} tone="positive" />
+            {compAmount > 0 && <KpiChip label="İkram (tahsilat dışı)" value={formatCurrency(compAmount)} />}
             {lateCount > 0 && <KpiChip label="Geciken" value={String(lateCount)} tone="critical" />}
           </div>
         }
@@ -544,6 +609,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             onAdvance={handleAdvance}
             updateOrderLocally={updateOrderLocally}
             restaurantId={restaurantId}
+            onActionError={showActionError}
           />
         </div>
 

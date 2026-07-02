@@ -34,6 +34,24 @@ export default async function OrdersPage({ params }: Props) {
     .limit(300)
 
   const initialOrders = (data ?? []) as Order[]
+
+  // Label map must resolve SOFT-DELETED tables too (same discipline as the Pano
+  // activity feed) — an order on a since-deleted table must show its real label,
+  // not a generic "Masa". Live tables + any order-referenced deleted ones.
+  const liveTables = (tables as Tables<'tables'>[]).map((t) => ({ id: t.id, label: t.label }))
+  const knownIds = new Set(liveTables.map((t) => t.id))
+  const missingIds = [...new Set(
+    initialOrders.map((o) => o.table_id).filter((id): id is string => !!id && !knownIds.has(id)),
+  )]
+  let tableRefs = liveTables
+  if (missingIds.length > 0) {
+    const { data: deletedTables } = await supabase
+      .from('tables')
+      .select('id, label')
+      .eq('restaurant_id', restaurantId)
+      .in('id', missingIds) // deliberately NO deleted_at filter
+    tableRefs = [...liveTables, ...((deletedTables ?? []) as Array<{ id: string; label: string }>)]
+  }
   // GAP #1: kitchen token now lives in kitchen_credentials (owner-scoped, no anon).
   const { data: kc } = await supabase
     .from('kitchen_credentials')
@@ -47,7 +65,7 @@ export default async function OrdersPage({ params }: Props) {
       restaurantId={restaurantId}
       restaurantName={restaurant.name}
       initialOrders={initialOrders}
-      tables={tables as Tables<'tables'>[]}
+      tables={tableRefs}
       kitchenToken={kitchenToken}
       notifPrefs={readNotificationPrefs(restaurant.settings)}
     />

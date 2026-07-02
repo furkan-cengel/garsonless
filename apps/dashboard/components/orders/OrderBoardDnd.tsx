@@ -38,6 +38,8 @@ interface Props {
   onAdvance: (order: Order) => void
   updateOrderLocally: (id: string, status: OrderStatus) => void
   restaurantId: string
+  /** Surface a failed server write (the optimistic move gets rolled back). */
+  onActionError: (msg: string) => void
 }
 
 export default function OrderBoardDnd({
@@ -50,6 +52,7 @@ export default function OrderBoardDnd({
   onAdvance,
   updateOrderLocally,
   restaurantId,
+  onActionError,
 }: Props) {
   const [activeOrder, setActiveOrder] = useState<Order | null>(null)
 
@@ -70,8 +73,21 @@ export default function OrderBoardDnd({
     if (!order) return
     const targetColumn = columns.find(c => c.id === over.id)
     if (!targetColumn || targetColumn.statuses.includes(order.status as OrderStatus)) return
+    const prev = order.status as OrderStatus
     updateOrderLocally(order.id, targetColumn.targetStatus)
-    await updateOrderStatus(order.id, targetColumn.targetStatus, restaurantId)
+    // Typed {error} AND thrown exceptions (network/500) both roll back — never
+    // leave a card silently stuck in a column the server rejected.
+    let error: string | null = null
+    try {
+      const result = await updateOrderStatus(order.id, targetColumn.targetStatus, restaurantId)
+      if ('error' in result) error = result.error
+    } catch {
+      error = 'Sunucuya ulaşılamadı'
+    }
+    if (error) {
+      updateOrderLocally(order.id, prev)
+      onActionError(`Durum güncellenemedi: ${error}`)
+    }
   }
 
   return (

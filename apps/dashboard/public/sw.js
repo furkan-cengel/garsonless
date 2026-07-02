@@ -3,7 +3,7 @@ self.addEventListener('message', (event) => {
 
   const { title, body } = event.data
 
-  self.registration.showNotification(title ?? 'New Order!', {
+  self.registration.showNotification(title ?? 'Yeni sipariş!', {
     body: body ?? '',
     icon: '/icon.svg',
     badge: '/icon.svg',
