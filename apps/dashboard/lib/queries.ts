@@ -102,6 +102,13 @@ export interface TableReportRow {
   label: string
   revenue: number
   orders: number
+  /** Sessions CLOSED in range (completed turns). Open sessions are NOT counted. */
+  turnover: number
+  /** Mean(closed_at − opened_at) in minutes over range-closed sessions; null if none.
+      Still-open sessions are excluded (no end time — counting them would fabricate). */
+  avgDwellMinutes: number | null
+  /** Has a currently-open session ("şu an dolu"). */
+  openNow: boolean
 }
 
 export interface PanoSnapshot {
@@ -724,13 +731,12 @@ export async function getHeatmapData(restaurantId: string): Promise<HeatmapCell[
   return cells
 }
 
-export async function getTablesReportData(restaurantId: string): Promise<TableReportRow[]> {
+export async function getTablesReportData(restaurantId: string, range = 'week'): Promise<TableReportRow[]> {
   const supabase = await createDashboardServerClient()
-  const since = new Date()
-  since.setDate(since.getDate() - 7)
-  since.setHours(0, 0, 0, 0)
+  const { currentStart } = getRangeWindow(range)
+  const since = currentStart.toISOString()
 
-  const [tablesRes, ordersRes] = await Promise.all([
+  const [tablesRes, ordersRes, closedRes, openRes] = await Promise.all([
     supabase
       .from('tables')
       .select('id, label')
@@ -742,29 +748,64 @@ export async function getTablesReportData(restaurantId: string): Promise<TableRe
         .from('orders')
         .select('table_id, total, status')
         .eq('restaurant_id', restaurantId)
-        .gte('created_at', since.toISOString())
+        .gte('created_at', since)
         .is('deleted_at', null)
         .not('table_id', 'is', null),
     ),
+    // Devir + gerçek oturum süresi: sessions CLOSED in range. NOTE: a true
+    // occupancy % needs a business-hours denominator — settings.hours is not
+    // reliably populated, so the % is deliberately NOT computed (no fabricated
+    // denominator). Dwell/turnover below are fully real.
+    supabase
+      .from('table_sessions')
+      .select('table_id, opened_at, closed_at')
+      .eq('restaurant_id', restaurantId)
+      .not('closed_at', 'is', null)
+      .gte('closed_at', since),
+    supabase
+      .from('table_sessions')
+      .select('table_id')
+      .eq('restaurant_id', restaurantId)
+      .is('closed_at', null),
   ])
 
   const tables = (tablesRes.data ?? []) as Tables<'tables'>[]
   const orders = (ordersRes.data ?? []) as Tables<'orders'>[]
+  const closedSessions = (closedRes.data ?? []) as Array<{ table_id: string; opened_at: string; closed_at: string }>
+  const openTables = new Set(((openRes.data ?? []) as Array<{ table_id: string }>).map((s) => s.table_id))
 
-  type Agg = { revenue: number; orders: number }
+  type Agg = { revenue: number; orders: number; turnover: number; dwellSum: number }
   const byTable = new Map<string, Agg>()
+  const agg = (id: string): Agg => {
+    if (!byTable.has(id)) byTable.set(id, { revenue: 0, orders: 0, turnover: 0, dwellSum: 0 })
+    return byTable.get(id)!
+  }
 
   for (const order of orders) {
     if (!order.table_id) continue
-    if (!byTable.has(order.table_id)) byTable.set(order.table_id, { revenue: 0, orders: 0 })
-    const agg = byTable.get(order.table_id)!
-    agg.revenue += order.total ?? 0
-    agg.orders += 1
+    const a = agg(order.table_id)
+    a.revenue += order.total ?? 0
+    a.orders += 1
+  }
+  for (const s of closedSessions) {
+    const mins = (new Date(s.closed_at).getTime() - new Date(s.opened_at).getTime()) / 60_000
+    if (!Number.isFinite(mins) || mins < 0) continue
+    const a = agg(s.table_id)
+    a.turnover += 1
+    a.dwellSum += mins
   }
 
   return tables.map(t => {
-    const agg = byTable.get(t.id)
-    return { id: t.id, label: t.label, revenue: agg?.revenue ?? 0, orders: agg?.orders ?? 0 }
+    const a = byTable.get(t.id)
+    return {
+      id: t.id,
+      label: t.label,
+      revenue: a?.revenue ?? 0,
+      orders: a?.orders ?? 0,
+      turnover: a?.turnover ?? 0,
+      avgDwellMinutes: a && a.turnover > 0 ? Math.round(a.dwellSum / a.turnover) : null,
+      openNow: openTables.has(t.id),
+    }
   })
 }
 
@@ -1041,6 +1082,93 @@ export async function getStaffSettlementReport(restaurantId: string, range = 'we
   }).sort((a, b) => b.collected - a.collected)
 
   return { rows, totalCollected: rows.reduce((s, r) => s + r.collected, 0) }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SADAKAT report (Wave-1 Phase B) — loyalty_transactions aggregates, range-
+   scoped. AGGREGATES ONLY (no customer identity/PII), so the regular
+   analytics gate applies (owner OR member with 'analytics') — unlike the
+   owner-only Operasyon audit tab. İkram ₺ is NOT a ledger row: it is reused
+   from getPaymentBreakdown's comp figure (orders.payment_method='comp') and
+   merged in by the action layer, so both tabs show the same number.
+   ══════════════════════════════════════════════════════════════════════════ */
+export interface LoyaltyReport {
+  /** Σ delta, type='points', direction='earn' (includes welcome bonuses). */
+  pointsIssued: number
+  /** Σ |delta|, type='points', direction='redeem'. */
+  pointsRedeemed: number
+  /** redeemed / issued %, 0 when nothing issued. */
+  redeemRate: number
+  /** Σ delta, type='points', direction='refund' (cancel refunds return points). */
+  pointsRefunded: number
+  stampsIssued: number
+  stampsRedeemed: number
+  stampsRefunded: number
+  /** Visit credits (type='visit', direction='earn') — one per member per closed session. */
+  visits: number
+  welcomeCount: number
+  welcomePoints: number
+  /** Redemptions grouped by the ledger's RAW reason string (no invented categories). */
+  redemptionsByReason: Array<{ reason: string; count: number; points: number; stamps: number }>
+  /** İkram (comp) — merged from getPaymentBreakdown by the action; ₺0 collected. */
+  comp: { amount: number; count: number }
+}
+
+export async function getLoyaltyReport(restaurantId: string, range = 'week'): Promise<LoyaltyReport> {
+  const empty: LoyaltyReport = {
+    pointsIssued: 0, pointsRedeemed: 0, redeemRate: 0, pointsRefunded: 0,
+    stampsIssued: 0, stampsRedeemed: 0, stampsRefunded: 0,
+    visits: 0, welcomeCount: 0, welcomePoints: 0,
+    redemptionsByReason: [], comp: { amount: 0, count: 0 },
+  }
+  const gate = await assertAccess(restaurantId, 'analytics')
+  if ('error' in gate) return empty
+
+  const { currentStart } = getRangeWindow(range)
+  const svc = createServiceClient()
+  const { data } = await svc
+    .from('loyalty_transactions')
+    .select('type, direction, delta, reason, created_at')
+    .eq('restaurant_id', restaurantId)
+    .gte('created_at', currentStart.toISOString())
+
+  const rows = (data ?? []) as Array<{ type: string; direction: string; delta: number; reason: string }>
+  const out = { ...empty, redemptionsByReason: [] as LoyaltyReport['redemptionsByReason'] }
+  const byReason = new Map<string, { count: number; points: number; stamps: number }>()
+
+  for (const r of rows) {
+    const mag = Math.abs(r.delta ?? 0)
+    if (r.type === 'points') {
+      if (r.direction === 'earn') {
+        out.pointsIssued += mag
+        if (r.reason === 'welcome') { out.welcomeCount += 1; out.welcomePoints += mag }
+      } else if (r.direction === 'redeem') out.pointsRedeemed += mag
+      else if (r.direction === 'refund') out.pointsRefunded += mag
+    } else if (r.type === 'stamp') {
+      if (r.direction === 'earn') out.stampsIssued += mag
+      else if (r.direction === 'redeem') out.stampsRedeemed += mag
+      else if (r.direction === 'refund') out.stampsRefunded += mag
+    } else if (r.type === 'visit' && r.direction === 'earn') {
+      out.visits += mag
+    }
+    if (r.direction === 'redeem') {
+      const key = r.reason || 'redeem'
+      const g = byReason.get(key) ?? { count: 0, points: 0, stamps: 0 }
+      g.count += 1
+      if (r.type === 'points') g.points += mag
+      if (r.type === 'stamp') g.stamps += mag
+      byReason.set(key, g)
+    }
+  }
+
+  out.redeemRate = out.pointsIssued > 0
+    ? Math.round((out.pointsRedeemed / out.pointsIssued) * 1000) / 10
+    : 0
+  out.redemptionsByReason = Array.from(byReason.entries())
+    .map(([reason, g]) => ({ reason, ...g }))
+    .sort((a, b) => b.count - a.count)
+
+  return out
 }
 
 export async function getTableStatuses(restaurantId: string): Promise<TableStatusData[]> {

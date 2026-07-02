@@ -16,6 +16,7 @@ import type {
   AbnormalCloseReport,
   StaffSettlementReport,
   StaffSettlementRow,
+  LoyaltyReport,
 } from '../../lib/queries'
 import { fetchAnalyticsReportData, type AnalyticsReportId } from '../../lib/actions/analytics'
 import { formatCurrency } from '../../lib/utils'
@@ -27,9 +28,10 @@ const s = {
 const REPORTS = [
   { id: 'sales', label: 'Satışlar', icon: <I.chart size={15} />, desc: 'Tahsilat & hacim' },
   { id: 'items', label: 'Ürünler', icon: <I.cutlery size={15} />, desc: 'Ürün performansı' },
-  { id: 'tables', label: 'Masalar', icon: <I.chair size={15} />, desc: 'Doluluk & tahsilat' },
+  { id: 'tables', label: 'Masalar', icon: <I.chair size={15} />, desc: 'Devir & tahsilat' },
   { id: 'payments', label: 'Ödemeler', icon: <I.card size={15} />, desc: 'Yöntem dağılımı' },
   { id: 'operasyon', label: 'Operasyon', icon: <I.warn size={15} />, desc: 'İptal · kaçak · tahsilat', badge: 'Yeni' },
+  { id: 'sadakat', label: 'Sadakat', icon: <I.star size={15} />, desc: 'Puan · damga · ziyaret', badge: 'Yeni' },
 ] satisfies Array<{ id: AnalyticsReportId; label: string; icon: ReactNode; desc: string; badge?: string }>
 
 const RANGES = [
@@ -104,6 +106,7 @@ export default function AnalyticsClient({
     cancellations: null as CancellationReport | null,
     abnormalCloses: null as AbnormalCloseReport | null,
     staffSettlement: null as StaffSettlementReport | null,
+    loyalty: null as LoyaltyReport | null,
   })
   const [loadedReports, setLoadedReports] = useState<Record<AnalyticsReportId, boolean>>({
     sales: true,
@@ -111,6 +114,7 @@ export default function AnalyticsClient({
     tables: tableStats.length > 0,
     payments: true,
     operasyon: false,
+    sadakat: false,
   })
   const [isPending, startTransition] = useTransition()
 
@@ -144,6 +148,7 @@ export default function AnalyticsClient({
       tables: false,
       payments: false,
       operasyon: false,
+      sadakat: false,
     })
     loadReport(activeReport, newRange)
   }
@@ -236,7 +241,7 @@ export default function AnalyticsClient({
             />
           )}
           {activeReport === 'items' && activeReportLoaded && <ItemsReport items={analyticsData.productReport} range={range} />}
-          {activeReport === 'tables' && activeReportLoaded && <TablesReport tables={analyticsData.tableStats} />}
+          {activeReport === 'tables' && activeReportLoaded && <TablesReport tables={analyticsData.tableStats} range={range} />}
           {activeReport === 'payments' && activeReportLoaded && <PaymentsReport paymentBreakdown={analyticsData.paymentBreakdown} range={range} />}
           {activeReport === 'operasyon' && activeReportLoaded && analyticsData.cancellations && analyticsData.abnormalCloses && analyticsData.staffSettlement && (
             <OperationsReport
@@ -245,6 +250,9 @@ export default function AnalyticsClient({
               staffSettlement={analyticsData.staffSettlement}
               range={range}
             />
+          )}
+          {activeReport === 'sadakat' && activeReportLoaded && analyticsData.loyalty && (
+            <LoyaltyReportView loyalty={analyticsData.loyalty} range={range} />
           )}
         </div>
       </div>
@@ -1228,12 +1236,18 @@ function FallersList({ items }: { items: ProductReportItem[] }) {
 }
 
 /* ── TABLES REPORT ─────────────────────────────────── */
-function TablesReport({ tables }: { tables: TableReportRow[] }) {
+function dwellLabel(mins: number | null): string {
+  if (mins === null) return '—'
+  if (mins < 60) return `${mins}dk`
+  return `${Math.floor(mins / 60)}s ${String(mins % 60).padStart(2, '0')}dk`
+}
+
+function TablesReport({ tables, range }: { tables: TableReportRow[]; range: string }) {
   if (tables.length === 0) {
     return (
       <div style={{ maxWidth: 1140 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-.02em', margin: 0, color: 'var(--text)' }}>Masa Performansı</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 22 }}>Son 7 günlük tahsilat</p>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 22 }}>{rangePeriodLabel(range)} · tahsilat</p>
         <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Henüz masa verisi yok</div>
       </div>
     )
@@ -1244,31 +1258,45 @@ function TablesReport({ tables }: { tables: TableReportRow[] }) {
   const totalRevenue = sorted.reduce((s, t) => s + t.revenue, 0)
   const totalOrders = sorted.reduce((s, t) => s + t.orders, 0)
   const activeTables = sorted.filter(t => t.orders > 0).length
+  // Devir + gerçek oturum süresi (kapanan oturumlardan). NOT: gerçek doluluk %'si
+  // için işletme açılış saatleri gerekir (settings.hours kayıtlı değil) — payda
+  // uydurmak yerine süre/devir gösteriyoruz.
+  const totalTurnover = sorted.reduce((s, t) => s + t.turnover, 0)
+  const dwellTables = sorted.filter(t => t.avgDwellMinutes !== null)
+  const overallDwell = dwellTables.length > 0
+    ? Math.round(dwellTables.reduce((s, t) => s + (t.avgDwellMinutes ?? 0) * t.turnover, 0) / Math.max(totalTurnover, 1))
+    : null
+  const openNowCount = sorted.filter(t => t.openNow).length
 
   return (
     <div style={{ maxWidth: 1140 }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-.02em', margin: 0, color: 'var(--text)' }}>Masa Performansı</h1>
       <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 22 }}>
-        {tables.length} masa · Son 7 günlük doluluk ve tahsilat
+        {tables.length} masa · {rangePeriodLabel(range)} · devir ve tahsilat
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
-        <KPISmall label="Aktif masa" value={String(activeTables)} delta="—" />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+        <KPISmall label="Aktif masa" value={String(activeTables)} delta={openNowCount > 0 ? `${openNowCount} şu an dolu` : '—'} tone="neutral" direction="flat" />
         <KPISmall label="Ödemeli sipariş" value={String(totalOrders)} delta="—" />
         <KPISmall label="Toplam tahsilat" value={formatCurrency(totalRevenue)} delta="—" />
         <KPISmall label="Ort. masa tahsilatı"
           value={activeTables > 0 ? formatCurrency(Math.round(totalRevenue / activeTables)) : '—'}
           delta="—"
         />
+        <KPISmall label="Devir (kapanan oturum)" value={String(totalTurnover)} delta="açık oturumlar sayılmaz" tone="neutral" direction="flat" />
+        <KPISmall label="Ort. oturum süresi" value={dwellLabel(overallDwell)} delta="kapanan oturumlardan" tone="neutral" direction="flat" />
       </div>
 
-      <Card title="Masa tahsilatı" subtitle="7 günlük toplam · masa başı" style={{ marginBottom: 12 }}>
+      <Card title="Masa tahsilatı ve devri" subtitle={`${rangePeriodLabel(range)} · masa başı tahsilat, devir ve ortalama oturum süresi`} style={{ marginBottom: 12 }}>
         <div style={{ padding: 14 }}>
           {sorted.map((t, i) => {
             const pct = (t.revenue / maxRev) * 100
             return (
               <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, width: 38, ...s.mono }}>{t.label}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, width: 52, ...s.mono, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  {t.label}
+                  {t.openNow && <span title="Şu an dolu" style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--positive)', flexShrink: 0 }} />}
+                </span>
                 <div style={{ flex: 1, position: 'relative', height: 18, background: 'var(--surface-3)', borderRadius: 9, overflow: 'hidden' }}>
                   <div style={{
                     position: 'absolute', left: 0, top: 0, bottom: 0, width: pct + '%',
@@ -1279,14 +1307,121 @@ function TablesReport({ tables }: { tables: TableReportRow[] }) {
                 <span style={{ ...s.mono, fontSize: 11.5, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
                   {t.revenue > 0 ? `₺${(t.revenue / 1000).toFixed(1)}K` : '—'}
                 </span>
-                <span style={{ ...s.mono, fontSize: 11, color: 'var(--text-3)', minWidth: 50, textAlign: 'right' }}>
+                <span style={{ ...s.mono, fontSize: 11, color: 'var(--text-3)', minWidth: 54, textAlign: 'right' }}>
                   {t.orders} ödeme
+                </span>
+                <span style={{ ...s.mono, fontSize: 11, color: 'var(--text-3)', minWidth: 50, textAlign: 'right' }}>
+                  {t.turnover} devir
+                </span>
+                <span style={{ ...s.mono, fontSize: 11, color: 'var(--text-2)', minWidth: 64, textAlign: 'right' }}>
+                  {dwellLabel(t.avgDwellMinutes)}
                 </span>
               </div>
             )
           })}
         </div>
       </Card>
+    </div>
+  )
+}
+
+/* ── SADAKAT REPORT ───────────────────────────────── */
+const REDEEM_REASON_LABELS: Record<string, string> = {
+  redeem: 'Puan / damga kullanımı',
+}
+
+function LoyaltyReportView({ loyalty, range }: { loyalty: LoyaltyReport; range: string }) {
+  const hasAny =
+    loyalty.pointsIssued > 0 || loyalty.pointsRedeemed > 0 || loyalty.pointsRefunded > 0 ||
+    loyalty.stampsIssued > 0 || loyalty.stampsRedeemed > 0 || loyalty.stampsRefunded > 0 ||
+    loyalty.visits > 0 || loyalty.welcomeCount > 0 || loyalty.comp.count > 0
+
+  return (
+    <div style={{ maxWidth: 1140 }}>
+      <div style={{ marginBottom: 22 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-.02em', margin: 0, color: 'var(--text)' }}>Sadakat Raporu</h1>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 0 }}>
+          {rangePeriodLabel(range)} · puan, damga, ziyaret ve İkram hareketleri
+        </p>
+      </div>
+
+      {!hasAny ? (
+        <div style={{
+          padding: '48px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13,
+          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,
+        }}>
+          Bu dönemde sadakat hareketi yok. Sadakat programı Ayarlar → Sadakat bölümünden yönetilir.
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
+            <KPISmall label="Kazandırılan puan" value={loyalty.pointsIssued.toLocaleString('tr-TR')} delta="hoş geldin dahil" tone="neutral" direction="flat" />
+            <KPISmall label="Kullanılan puan" value={loyalty.pointsRedeemed.toLocaleString('tr-TR')} delta={`%${loyalty.redeemRate.toLocaleString('tr-TR')} kullanım oranı`} tone="neutral" direction="flat" />
+            <KPISmall label="Ziyaret" value={loyalty.visits.toLocaleString('tr-TR')} delta="kapanan adisyonlardan" tone="neutral" direction="flat" />
+            {/* İkram — getPaymentBreakdown'ın comp rakamıyla AYNI (₺0 tahsilat). */}
+            <KPISmall label="İkram edilen" value={formatCurrency(loyalty.comp.amount)} delta={loyalty.comp.count ? `${loyalty.comp.count} adet · tahsilat dışı` : 'tahsilat dışı'} tone="neutral" direction="flat" />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
+            <Card title="Damga" subtitle="Kazanılan · kullanılan · iade">
+              <MiniStatRows rows={[
+                { label: 'Kazanılan', value: loyalty.stampsIssued },
+                { label: 'Kullanılan', value: loyalty.stampsRedeemed },
+                { label: 'İade', value: loyalty.stampsRefunded },
+              ]} />
+            </Card>
+            <Card title="Hoş geldin bonusu" subtitle="Yeni üyelik kazanımları">
+              <MiniStatRows rows={[
+                { label: 'Üye', value: loyalty.welcomeCount },
+                { label: 'Puan', value: loyalty.welcomePoints },
+              ]} />
+            </Card>
+            <Card title="İadeler" subtitle="İptal edilen siparişlerden geri dönen">
+              <MiniStatRows rows={[
+                { label: 'Puan iadesi', value: loyalty.pointsRefunded },
+                { label: 'Damga iadesi', value: loyalty.stampsRefunded },
+              ]} />
+            </Card>
+          </div>
+
+          <Card title="Kullanımlar" subtitle="Defterdeki ham sebep bazında (redeem satırları)">
+            {loyalty.redemptionsByReason.length === 0 ? (
+              <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Bu dönemde kullanım yok</div>
+            ) : (
+              <div style={{ padding: '4px 0' }}>
+                {loyalty.redemptionsByReason.map((r, i, arr) => (
+                  <div key={r.reason} style={{
+                    display: 'grid', gridTemplateColumns: 'minmax(160px, 1fr) 90px 110px 110px', gap: 10,
+                    alignItems: 'center', padding: '10px 16px',
+                    borderBottom: i === arr.length - 1 ? 'none' : '1px solid var(--divider)',
+                  }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{REDEEM_REASON_LABELS[r.reason] ?? r.reason}</span>
+                    <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{r.count} işlem</span>
+                    <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{r.points ? `${r.points.toLocaleString('tr-TR')} puan` : '—'}</span>
+                    <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{r.stamps ? `${r.stamps} damga` : '—'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+    </div>
+  )
+}
+
+function MiniStatRows({ rows }: { rows: Array<{ label: string; value: number }> }) {
+  return (
+    <div style={{ padding: '4px 0' }}>
+      {rows.map((r, i) => (
+        <div key={r.label} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '9px 16px', borderBottom: i === rows.length - 1 ? 'none' : '1px solid var(--divider)',
+        }}>
+          <span style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{r.label}</span>
+          <span style={{ ...s.mono, fontSize: 13, fontWeight: 700, color: r.value > 0 ? 'var(--text)' : 'var(--text-4)' }}>{r.value.toLocaleString('tr-TR')}</span>
+        </div>
+      ))}
     </div>
   )
 }

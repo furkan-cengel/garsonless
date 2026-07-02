@@ -10,6 +10,7 @@ import {
   getCancellationReport,
   getAbnormalCloseReport,
   getStaffSettlementReport,
+  getLoyaltyReport,
 } from '../queries'
 import type {
   DailySale,
@@ -21,18 +22,26 @@ import type {
   CancellationReport,
   AbnormalCloseReport,
   StaffSettlementReport,
+  LoyaltyReport,
 } from '../queries'
 import { assertAccess } from '../auth/access'
 
 const EMPTY_CANCELLATIONS: CancellationReport = { count: 0, lostAmount: 0, allOrders: 0, rate: 0, topItems: [], trend: [], deltaCount: 0, deltaLost: 0, deltaRate: 0 }
 const EMPTY_ABNORMAL: AbnormalCloseReport = { count: 0, unpaidTotal: 0, rows: [], deltaCount: 0, deltaUnpaid: 0 }
 const EMPTY_STAFF: StaffSettlementReport = { rows: [], totalCollected: 0 }
+const EMPTY_LOYALTY: LoyaltyReport = {
+  pointsIssued: 0, pointsRedeemed: 0, redeemRate: 0, pointsRefunded: 0,
+  stampsIssued: 0, stampsRedeemed: 0, stampsRefunded: 0,
+  visits: 0, welcomeCount: 0, welcomePoints: 0,
+  redemptionsByReason: [], comp: { amount: 0, count: 0 },
+}
 
 const EMPTY_ANALYTICS: AnalyticsPayload = {
   salesOverTime: [], heatmapData: [], tableStats: [], topItems: [],
   paymentBreakdown: { collected: [], comp: { amount: 0, count: 0 }, collectedTotal: 0, collectedCount: 0 },
   productReport: [],
   cancellations: EMPTY_CANCELLATIONS, abnormalCloses: EMPTY_ABNORMAL, staffSettlement: EMPTY_STAFF,
+  loyalty: EMPTY_LOYALTY,
 }
 
 const EMPTY_PAYMENT_REPORT: PaymentReport = {
@@ -52,27 +61,31 @@ export interface AnalyticsPayload {
   cancellations: CancellationReport
   abnormalCloses: AbnormalCloseReport
   staffSettlement: StaffSettlementReport
+  loyalty: LoyaltyReport
 }
 
-export type AnalyticsReportId = 'sales' | 'items' | 'tables' | 'payments' | 'operasyon'
+export type AnalyticsReportId = 'sales' | 'items' | 'tables' | 'payments' | 'operasyon' | 'sadakat'
 
 export async function fetchAnalyticsData(restaurantId: string, range: string): Promise<AnalyticsPayload> {
   // Owner OR a member with 'analytics'. Denied → empty payload (no data).
   const gate = await assertAccess(restaurantId, 'analytics')
   if ('error' in gate) return EMPTY_ANALYTICS
 
-  const [salesOverTime, heatmapData, tableStats, topItems, paymentBreakdown, productReport, cancellations, abnormalCloses, staffSettlement] = await Promise.all([
+  const [salesOverTime, heatmapData, tableStats, topItems, paymentBreakdown, productReport, cancellations, abnormalCloses, staffSettlement, loyaltyRaw] = await Promise.all([
     getSalesOverTime(restaurantId, range),
     getHeatmapData(restaurantId),
-    getTablesReportData(restaurantId),
+    getTablesReportData(restaurantId, range),
     getTopItems(restaurantId, range),
     getPaymentBreakdown(restaurantId, range),
     getProductReportData(restaurantId, range),
     getCancellationReport(restaurantId, range),
     getAbnormalCloseReport(restaurantId, range),
     getStaffSettlementReport(restaurantId, range),
+    getLoyaltyReport(restaurantId, range),
   ])
-  return { salesOverTime, heatmapData, tableStats, topItems, paymentBreakdown, productReport, cancellations, abnormalCloses, staffSettlement }
+  // İkram ₺ on the Sadakat tab = the SAME comp figure the Ödemeler tab shows.
+  const loyalty = { ...loyaltyRaw, comp: paymentBreakdown.comp }
+  return { salesOverTime, heatmapData, tableStats, topItems, paymentBreakdown, productReport, cancellations, abnormalCloses, staffSettlement, loyalty }
 }
 
 export async function fetchAnalyticsReportData(
@@ -100,6 +113,7 @@ export async function fetchAnalyticsReportData(
         staffSettlement: EMPTY_STAFF,
       }
     }
+    if (report === 'sadakat') return { loyalty: EMPTY_LOYALTY }
     return { paymentBreakdown: EMPTY_PAYMENT_REPORT }
   }
 
@@ -119,7 +133,7 @@ export async function fetchAnalyticsReportData(
   }
 
   if (report === 'tables') {
-    const tableStats = await getTablesReportData(restaurantId)
+    const tableStats = await getTablesReportData(restaurantId, range)
     return { tableStats }
   }
 
@@ -130,6 +144,16 @@ export async function fetchAnalyticsReportData(
       getStaffSettlementReport(restaurantId, range),
     ])
     return { cancellations, abnormalCloses, staffSettlement }
+  }
+
+  if (report === 'sadakat') {
+    // İkram ₺ reuses getPaymentBreakdown's comp — the Sadakat and Ödemeler tabs
+    // must show the same number for the same range.
+    const [loyaltyRaw, paymentBreakdown] = await Promise.all([
+      getLoyaltyReport(restaurantId, range),
+      getPaymentBreakdown(restaurantId, range),
+    ])
+    return { loyalty: { ...loyaltyRaw, comp: paymentBreakdown.comp } }
   }
 
   const paymentBreakdown = await getPaymentBreakdown(restaurantId, range)
