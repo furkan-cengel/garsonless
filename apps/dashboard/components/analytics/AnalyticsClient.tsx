@@ -74,6 +74,9 @@ interface Props {
   tableStats: TableReportRow[]
   paymentBreakdown: PaymentReport
   productReport: ProductReportItem[]
+  /** Operasyon is an owner-only AUDIT tab (staff emails + cash audit + fraud
+      flags) — hidden from members; the queries re-check server-side anyway. */
+  isOwner: boolean
 }
 
 export default function AnalyticsClient({
@@ -86,7 +89,9 @@ export default function AnalyticsClient({
   tableStats,
   paymentBreakdown,
   productReport,
+  isOwner,
 }: Props) {
+  const visibleReports = REPORTS.filter((r) => r.id !== 'operasyon' || isOwner)
   const [activeReport, setActiveReport] = useState<AnalyticsReportId>('sales')
   const [range, setRange] = useState('week')
   const [analyticsData, setAnalyticsData] = useState({
@@ -126,6 +131,7 @@ export default function AnalyticsClient({
   }
 
   function handleReportChange(report: AnalyticsReportId) {
+    if (report === 'operasyon' && !isOwner) return // audit tab is owner-only
     setActiveReport(report)
     if (!loadedReports[report]) loadReport(report)
   }
@@ -170,7 +176,7 @@ export default function AnalyticsClient({
           </div>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '8px 8px' }}>
-          {REPORTS.map((r) => (
+          {visibleReports.map((r) => (
             <button
               key={r.id}
               onClick={() => handleReportChange(r.id)}

@@ -16,7 +16,10 @@ interface Props {
 
 export default async function AnalyticsPage({ params }: Props) {
   const { restaurantId } = await params
-  await requireSection(restaurantId, 'analytics')
+  // Members with 'analytics' see the business tabs; the Operasyon AUDIT tab
+  // (staff emails + per-person cash + fraud flags) is owner-only — the nav is
+  // filtered by isOwner and the queries themselves re-check server-side.
+  const access = await requireSection(restaurantId, 'analytics')
   const [restaurant, kpis, topItems, salesOverTime, heatmapData, paymentBreakdown] = await Promise.all([
     getRestaurantById(restaurantId),
     getDashboardKPIs(restaurantId),
@@ -38,6 +41,7 @@ export default async function AnalyticsPage({ params }: Props) {
       tableStats={[]}
       paymentBreakdown={paymentBreakdown}
       productReport={[]}
+      isOwner={access.isOwner}
     />
   )
 }

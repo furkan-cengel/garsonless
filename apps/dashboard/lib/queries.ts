@@ -769,9 +769,21 @@ export async function getTablesReportData(restaurantId: string): Promise<TableRe
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   OPERASYON reports (Wave-1 Phase A) — read-only, range-aware, analytics-gated
-   (service-role reads gated by assertAccess('analytics'), like getPaymentBreakdown).
+   OPERASYON reports (Wave-1 Phase A) — read-only, range-aware, OWNER-ONLY.
+   These are AUDIT reports ("para ve personel kaçağı denetimi"): the staff
+   settlement section exposes team emails, per-person cash totals and the
+   "yüksek nakit" fraud flag — showing that to the very staff being audited
+   defeats the purpose and leaks PII across a privilege boundary. Members with
+   'analytics' keep the four business tabs; the Operasyon tab is the owner's.
+   Gate lives INSIDE each query (defense in depth: every caller path covered).
    ══════════════════════════════════════════════════════════════════════════ */
+
+// Owner-only gate for the audit reports. Returns false for members (any
+// permissions), non-members, cross-tenant callers and anonymous sessions.
+async function isOwnerViewer(restaurantId: string): Promise<boolean> {
+  const access = await getUserRestaurantAccess(restaurantId)
+  return access?.isOwner === true
+}
 
 // % change helper: null when there's no prior baseline (>0 now, 0 before) so the
 // UI can show "Yeni" instead of a fake +100%; 0 when both are 0.
@@ -818,8 +830,7 @@ export interface CancellationReport {
 
 export async function getCancellationReport(restaurantId: string, range = 'week'): Promise<CancellationReport> {
   const empty: CancellationReport = { count: 0, lostAmount: 0, allOrders: 0, rate: 0, topItems: [], trend: [], deltaCount: 0, deltaLost: 0, deltaRate: 0 }
-  const gate = await assertAccess(restaurantId, 'analytics')
-  if ('error' in gate) return empty
+  if (!(await isOwnerViewer(restaurantId))) return empty
 
   const { currentStart, previousStart } = getRangeWindow(range)
   const svc = createServiceClient()
@@ -877,8 +888,7 @@ export interface AbnormalCloseReport {
 
 export async function getAbnormalCloseReport(restaurantId: string, range = 'week'): Promise<AbnormalCloseReport> {
   const empty: AbnormalCloseReport = { count: 0, unpaidTotal: 0, rows: [], deltaCount: 0, deltaUnpaid: 0 }
-  const gate = await assertAccess(restaurantId, 'analytics')
-  if ('error' in gate) return empty
+  if (!(await isOwnerViewer(restaurantId))) return empty
 
   const { currentStart, previousStart } = getRangeWindow(range)
   const svc = createServiceClient()
@@ -966,8 +976,9 @@ export interface StaffSettlementReport {
 
 export async function getStaffSettlementReport(restaurantId: string, range = 'week'): Promise<StaffSettlementReport> {
   const empty: StaffSettlementReport = { rows: [], totalCollected: 0 }
-  const gate = await assertAccess(restaurantId, 'analytics')
-  if ('error' in gate) return empty
+  // OWNER-ONLY (see block comment above): emails + per-person cash audit + the
+  // high-cash flag must never be readable by the audited staff themselves.
+  if (!(await isOwnerViewer(restaurantId))) return empty
 
   const { currentStart } = getRangeWindow(range)
   const svc = createServiceClient()
