@@ -1,4 +1,5 @@
 export type { OrderStatus, PaymentMethod } from './enums'
+export { ORDER_STATUS_TRANSITIONS, canTransitionOrderStatus } from './enums'
 export {
   ALLERGEN_CODES,
   ALLERGEN_LABELS,

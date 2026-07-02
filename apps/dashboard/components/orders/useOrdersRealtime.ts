@@ -15,6 +15,8 @@ export type Order = {
   paid_at: string | null
   // Settlement method (authenticated payload only; anon's column grant omits it).
   payment_method?: string | null
+  /** Adisyon bağlantısı — settle-from-board bunun üzerinden SettlementSheet açar. */
+  table_session_id?: string | null
   created_at: string
   // Stage timestamps (P2 trigger-stamped; NULL on pre-migration orders — the
   // UI falls back to created_at, never fabricates). Authenticated payload only.

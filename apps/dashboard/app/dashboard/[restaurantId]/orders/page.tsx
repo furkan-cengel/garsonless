@@ -25,14 +25,18 @@ export default async function OrdersPage({ params }: Props) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
+  // Newest-first cap: a >LIMIT day clips the OLDEST orders (likely served) —
+  // the board shows a truncation banner instead of hiding them silently.
+  const ORDERS_LIMIT = 500
+
   const { data } = await supabase
     .from('orders')
-    .select('id, restaurant_id, table_id, status, items, total, customer_tier, paid_at, payment_method, created_at, sent_to_kitchen_at, ready_at, served_at, cancel_reason')
+    .select('id, restaurant_id, table_id, table_session_id, status, items, total, customer_tier, paid_at, payment_method, created_at, sent_to_kitchen_at, ready_at, served_at, cancel_reason')
     .eq('restaurant_id', restaurantId)
     .gte('created_at', today.toISOString())
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
-    .limit(300)
+    .limit(ORDERS_LIMIT)
 
   const initialOrders = (data ?? []) as Order[]
 
@@ -70,6 +74,7 @@ export default async function OrdersPage({ params }: Props) {
       kitchenToken={kitchenToken}
       notifPrefs={readNotificationPrefs(restaurant.settings)}
       lateThresholdMin={readLateThresholdMin(restaurant.settings)}
+      initialTruncated={initialOrders.length === ORDERS_LIMIT}
     />
   )
 }

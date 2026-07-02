@@ -13,6 +13,36 @@ export type OrderStatus =
   | 'paid'
   | 'cancelled'
 
+/**
+ * Legal status transitions — THE single source for both the dashboard board
+ * (drag/advance) and updateOrderStatusDB's atomic server guard.
+ * Keyed by TARGET status → the statuses it may be entered FROM.
+ *
+ * Covers every real caller's hops:
+ *  - dashboard: pending|pending_approval→sent_to_kitchen, prep-group→ready,
+ *    ready→served, and ready→sent_to_kitchen as a one-step mis-tap correction.
+ *  - kitchen app: pending|pending_approval|sent_to_kitchen|paid→preparing,
+ *    preparing→ready, ready→served.
+ *  - self-transitions allowed (idempotent no-op for double-clicks/retries).
+ * NOT here: 'cancelled' (owned exclusively by cancelOrderDB) and 'paid'
+ * (legacy status — payment is a column; nothing transitions TO it anymore).
+ * 'served' and 'cancelled' are terminal: no way out.
+ */
+export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  pending: [],
+  pending_approval: [],
+  sent_to_kitchen: ['pending', 'pending_approval', 'ready', 'sent_to_kitchen'],
+  preparing: ['pending', 'pending_approval', 'sent_to_kitchen', 'paid', 'preparing'],
+  ready: ['sent_to_kitchen', 'preparing', 'paid', 'ready'],
+  served: ['ready', 'served'],
+  paid: [],
+  cancelled: [],
+}
+
+export function canTransitionOrderStatus(from: OrderStatus, to: OrderStatus): boolean {
+  return (ORDER_STATUS_TRANSITIONS[to] ?? []).includes(from)
+}
+
 export type RestaurantPlan = 'free' | 'starter' | 'pro' | 'enterprise'
 
 // How an order was settled (orders.payment_method). null = unpaid OR legacy-paid.

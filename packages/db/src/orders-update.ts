@@ -1,5 +1,6 @@
 import { createServiceClient } from './client'
 import { earnForOrder, refundCancelledLoyaltyOrder, shouldEarnOnSettlement } from './loyalty'
+import { ORDER_STATUS_TRANSITIONS } from './enums'
 import type { OrderStatus, PaymentMethod } from './enums'
 
 // @supabase/supabase-js v2 resolves .update()/.select() as never[] when consumed
@@ -8,7 +9,9 @@ type ScopedUpdateBuilder = {
   update: (row: Record<string, unknown>) => {
     eq: (col: string, val: string) => {
       eq: (col: string, val: string) => {
-        select: (cols: string) => Promise<{ data: Array<{ id: string }> | null; error: { message: string } | null }>
+        in: (col: string, vals: string[]) => {
+          select: (cols: string) => Promise<{ data: Array<{ id: string }> | null; error: { message: string } | null }>
+        }
       }
     }
   }
@@ -71,15 +74,34 @@ export async function updateOrderStatusDB(
   if (status === 'cancelled') {
     return { error: 'Use cancelOrderDB for cancellations' }
   }
+  // Transition matrix (ORDER_STATUS_TRANSITIONS — shared with the board's drag
+  // guard), enforced ATOMICALLY: the UPDATE only matches when the CURRENT
+  // status is a legal source for the target. Self-transitions are in the map
+  // (idempotent no-op for double-clicks/retries); terminal states
+  // (served/cancelled) have no exits. A bypassed client cannot skip stages.
+  const allowedFrom = ORDER_STATUS_TRANSITIONS[status] ?? []
+  if (allowedFrom.length === 0) return { error: `Illegal status transition to '${status}'` }
   const supabase = createServiceClient()
   const builder = supabase.from('orders') as unknown as ScopedUpdateBuilder
   const { data, error } = await builder
     .update({ status })
     .eq('id', orderId)
     .eq('restaurant_id', restaurantId)
+    .in('status', allowedFrom)
     .select('id')
   if (error) return { error: error.message }
-  if (!data || data.length === 0) return { error: 'Order not found for this restaurant' }
+  if (!data || data.length === 0) {
+    // 0 rows — diagnose read-only: missing/foreign vs illegal transition.
+    const lookup = supabase.from('orders') as unknown as OrderScopeLookupBuilder
+    const { data: existing } = await lookup
+      .select('id, status')
+      .eq('id', orderId)
+      .eq('restaurant_id', restaurantId)
+      .maybeSingle()
+    const found = existing as unknown as { id: string; status: string } | null
+    if (!found) return { error: 'Order not found for this restaurant' }
+    return { error: `Illegal status transition: ${found.status} → ${status}` }
+  }
 
   // Loyalty earning on the 'served' trigger (best-effort; never throws). The
   // config's earn_trigger gate inside earnForOrder ensures only the configured

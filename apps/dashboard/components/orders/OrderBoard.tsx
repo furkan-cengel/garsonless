@@ -11,6 +11,8 @@ import { nextStatus } from './OrderCard'
 import OrderToast from './OrderToast'
 import { useNotificationSW } from './useNotificationSW'
 import { updateOrderStatus, cancelOrder } from '../../lib/actions/orders'
+import { getOpenTableSessions } from '../../lib/actions/tables'
+import type { OpenSessionInfo } from '../../lib/actions/tables'
 import { formatCurrency } from '../../lib/utils'
 import PageTopBar from '../layout/PageTopBar'
 import { I, S, Tag, IconButton, btnPrimary, btnGhost } from '../../lib/ui'
@@ -97,6 +99,8 @@ function OrderDetailPanel({
   onAdvance,
   onCancel,
   onReceipt,
+  onSettle,
+  settleLoading,
 }: {
   order: Order | null
   tableLabel: string
@@ -104,6 +108,8 @@ function OrderDetailPanel({
   onAdvance: (order: Order) => void
   onCancel: (order: Order) => void
   onReceipt: (order: Order) => void
+  onSettle: (order: Order) => void
+  settleLoading: boolean
 }) {
   if (!order) {
     return (
@@ -255,6 +261,22 @@ function OrderDetailPanel({
           }}>
             Bu sipariş online ödendi — iptal/iade İyzico panelinden manuel yapılır.
           </div>
+        )}
+        {/* Settle-from-board: unpaid order on an open adisyon → open the Tables
+            SettlementSheet here (the exact same money flow, no screen switch). */}
+        {order.paid_at === null && order.table_session_id && order.status !== 'cancelled' && (
+          <button
+            type="button"
+            disabled={settleLoading}
+            onClick={() => onSettle(order)}
+            style={{
+              ...btnGhost(), width: '100%', justifyContent: 'center',
+              color: 'var(--positive)', borderColor: 'var(--positive)',
+              opacity: settleLoading ? 0.6 : 1,
+            }}
+          >
+            {settleLoading ? 'Adisyon yükleniyor…' : 'Masayı tahsil et (adisyon)'}
+          </button>
         )}
         <div style={{ display: 'flex', gap: 6 }}>
           {order.status === 'served' || order.status === 'paid' ? (
@@ -443,6 +465,10 @@ function KanbanStatic({ columns, filteredOrders, tableLabels, selectedOrderId, o
   )
 }
 
+// Settle-from-board: the EXACT SettlementSheet money flow from Tables (same
+// component, same settleOrder/closeTableSession path) — not a parallel impl.
+const SettlementSheet = dynamic(() => import('../tables/SettlementSheet'))
+
 const OrderBoardDnd = dynamic(() => import('./OrderBoardDnd'), {
   ssr: false,
   loading: () => (
@@ -462,9 +488,11 @@ interface Props {
   notifPrefs: NotificationPrefs
   /** settings.orders.late_threshold_min (clamped 5–120, default 20). */
   lateThresholdMin: number
+  /** SSR bootstrap hit its row cap — today's OLDEST orders are not on the board. */
+  initialTruncated: boolean
 }
 
-export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, kitchenToken, notifPrefs, lateThresholdMin }: Props) {
+export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, kitchenToken, notifPrefs, lateThresholdMin, initialTruncated }: Props) {
   const { orders, newOrderEvent, clearNewOrderEvent, updateOrderLocally } =
     useOrdersRealtime(restaurantId, initialOrders)
 
@@ -530,6 +558,26 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
   // (İyzico is blocked before this ever opens; cash/pos requires a reason);
   // the cancelOrder action + cancelOrderDB re-enforce them server-side.
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null)
+
+  // Settle-from-board: resolve the order's open adisyon and open the Tables
+  // SettlementSheet right here (staff shouldn't switch screens to collect).
+  const [settleSheet, setSettleSheet] = useState<{ session: OpenSessionInfo; label: string } | null>(null)
+  const [settleLoading, setSettleLoading] = useState(false)
+  async function handleSettleFromBoard(order: Order) {
+    if (!order.table_session_id) return
+    setSettleLoading(true)
+    try {
+      const res = await getOpenTableSessions(restaurantId)
+      if (!Array.isArray(res)) { showActionError(res.error); return }
+      const session = res.find((s) => s.sessionId === order.table_session_id)
+      if (!session) { showActionError('Adisyon bulunamadı — kapatılmış olabilir.'); return }
+      setSettleSheet({ session, label: labelFor(order.table_id) })
+    } catch {
+      showActionError('Sunucuya ulaşılamadı')
+    } finally {
+      setSettleLoading(false)
+    }
+  }
 
   function handleCancel(order: Order) {
     if (order.paid_at !== null && order.payment_method === 'iyzico') {
@@ -653,6 +701,38 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 
         {/* Kanban */}
         <div style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '16px 16px 32px', background: 'var(--bg)' }}>
+          {/* Truncation awareness: the SSR bootstrap clips at the row cap on a
+              very busy day — say so instead of silently hiding orders. Realtime
+              still appends NEW orders on top; Geçmiş is the lookback path. */}
+          {initialTruncated && (
+            <div style={{
+              marginBottom: 12, padding: '9px 12px', borderRadius: 9,
+              background: 'var(--warning-bg)', color: 'var(--warning)',
+              fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <I.warn size={13} />
+              Yoğun gün — bugünün en eski siparişleri panoda gösterilmiyor. Tümüne “Geçmiş siparişler”den ulaşabilirsiniz.
+            </div>
+          )}
+          {/* New-café hero: ONLY when today has zero orders at all (not when a
+              search/filter merely matches nothing — that keeps the column view). */}
+          {orders.length === 0 && (
+            <div style={{
+              marginBottom: 14, padding: '26px 20px', textAlign: 'center',
+              background: 'var(--surface)', border: '1px dashed var(--border-strong)', borderRadius: 12,
+            }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12, background: 'var(--surface-3)',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--text-2)', marginBottom: 10,
+              }}><I.clipboard size={20} /></div>
+              <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text)' }}>Bugün henüz sipariş yok</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.5 }}>
+                Müşterilerin QR menüden verdiği siparişler burada canlı görünür.
+                Masa QR’larını Masalar &amp; QR bölümünden yazdırabilirsiniz.
+              </div>
+            </div>
+          )}
           <OrderBoardDnd
             columns={COLUMNS}
             filteredOrders={filteredOrders}
@@ -675,8 +755,22 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
           onAdvance={handleAdvance}
           onCancel={handleCancel}
           onReceipt={(o) => setReceipt({ order: o, tableLabel: labelFor(o.table_id) })}
+          onSettle={handleSettleFromBoard}
+          settleLoading={settleLoading}
         />
       </div>
+
+      {settleSheet && (
+        <SettlementSheet
+          restaurantId={restaurantId}
+          session={settleSheet.session}
+          tableLabel={settleSheet.label}
+          zIndex={130}
+          onClose={() => setSettleSheet(null)}
+          onSettled={() => { /* realtime UPDATE stamps land live on the board */ }}
+          onSessionClosed={() => setSettleSheet(null)}
+        />
+      )}
 
       {historyOpen && (
         <HistoryModal

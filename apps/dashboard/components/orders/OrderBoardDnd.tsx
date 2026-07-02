@@ -13,7 +13,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import type { OrderStatus } from '@garsonless/db/order-client'
+import { canTransitionOrderStatus, type OrderStatus } from '@garsonless/db/order-client'
 import type { Order } from './useOrdersRealtime'
 import OrderColumn from './OrderColumn'
 import OrderCard from './OrderCard'
@@ -75,6 +75,13 @@ export default function OrderBoardDnd({
     if (!order) return
     const targetColumn = columns.find(c => c.id === over.id)
     if (!targetColumn || targetColumn.statuses.includes(order.status as OrderStatus)) return
+    // Transition matrix (shared with the server guard): an illegal drag —
+    // backwards/skip (e.g. Hazır→Yeni, Yeni→Tamamlandı) — never moves the card
+    // optimistically and never hits the server.
+    if (!canTransitionOrderStatus(order.status as OrderStatus, targetColumn.targetStatus)) {
+      onActionError('Geçersiz taşıma — sipariş bu duruma alınamaz.')
+      return
+    }
     const prev = order.status as OrderStatus
     updateOrderLocally(order.id, targetColumn.targetStatus)
     // Typed {error} AND thrown exceptions (network/500) both roll back — never

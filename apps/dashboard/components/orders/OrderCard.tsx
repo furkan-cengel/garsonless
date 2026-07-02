@@ -119,8 +119,11 @@ interface Props {
 }
 
 export default function OrderCard({ order, tableLabel, active, onClick, onAdvance, lateThresholdMin = 20 }: Props) {
+  // Terminal orders (served/cancelled) are NOT draggable — no way out of a
+  // terminal state (the server matrix rejects it anyway; this removes the affordance).
+  const terminal = statusGroup(order.status as OrderStatus) === 'done'
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: order.id })
+    useSortable({ id: order.id, disabled: terminal })
 
   const [hov, setHov] = useState(false)
 
