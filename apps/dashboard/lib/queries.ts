@@ -1,6 +1,11 @@
 import { cache } from 'react'
 import { createDashboardServerClient } from './supabase-server'
-import { createServiceClient, listTeamMembers, isCollectedOrderRow, normalizeTimeZone, type Tables } from '@garsonless/db'
+import {
+  createServiceClient, listTeamMembers, isCollectedOrderRow, normalizeTimeZone,
+  rangeWindow, startOfRestaurantDay, startOfDayNDaysAgo,
+  restaurantDayKey, restaurantHour, restaurantWeekday,
+  type Tables,
+} from '@garsonless/db'
 import { getUserRestaurantAccess, assertAccess } from './auth/access'
 
 export interface DashboardKPIs {
@@ -317,25 +322,13 @@ export const getRestaurantTimezone = cache(async function getRestaurantTimezone(
   return normalizeTimeZone((data as { timezone?: unknown } | null)?.timezone)
 })
 
-function getRangeWindow(range: string) {
-  const now = new Date()
-  const currentStart = new Date(now)
-
-  if (range === 'day') {
-    currentStart.setHours(0, 0, 0, 0)
-    const previousStart = new Date(currentStart)
-    previousStart.setDate(previousStart.getDate() - 1)
-    return { currentStart, previousStart }
-  }
-
-  const daysMap: Record<string, number> = { week: 7, month: 30, quarter: 90, year: 365 }
-  const days = daysMap[range] ?? 7
-  currentStart.setDate(currentStart.getDate() - days + 1)
-  currentStart.setHours(0, 0, 0, 0)
-
-  const previousStart = new Date(currentStart)
-  previousStart.setDate(previousStart.getDate() - days)
-  return { currentStart, previousStart }
+// Restaurant-local range window: fetches the restaurant timezone (react-cached →
+// deduped per request, so a report with N sub-queries triggers ONE tz lookup) and
+// delegates to the shared, DST-correct rangeWindow. Replaces the old server-local
+// getRangeWindow across every range-aware query.
+async function rangeWindowFor(restaurantId: string, range: string) {
+  const tz = await getRestaurantTimezone(restaurantId)
+  return rangeWindow(tz, range)
 }
 
 type AnalyticsOrderItem = {
@@ -393,10 +386,9 @@ function emptyKpis(): DashboardKPIs {
 
 export async function getDashboardKPIs(restaurantId: string): Promise<DashboardKPIs> {
   const supabase = await createDashboardServerClient()
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
+  const tz = await getRestaurantTimezone(restaurantId)
+  const today = startOfRestaurantDay(tz)
+  const yesterday = startOfDayNDaysAgo(tz, 1)
 
   const [todayRes, yRes] = await Promise.all([
     supabase
@@ -437,8 +429,8 @@ export async function getDashboardKPIs(restaurantId: string): Promise<DashboardK
 
 export async function getHourlySales(restaurantId: string): Promise<HourlySale[]> {
   const supabase = await createDashboardServerClient()
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  const tz = await getRestaurantTimezone(restaurantId)
+  const today = startOfRestaurantDay(tz)
 
   const { data } = await collectedOrdersFilter(
     supabase
@@ -452,7 +444,7 @@ export async function getHourlySales(restaurantId: string): Promise<HourlySale[]
   const byHour: Record<number, number> = {}
   for (let h = 0; h < 24; h++) byHour[h] = 0
   for (const row of (data ?? []) as Tables<'orders'>[]) {
-    const h = new Date(row.created_at).getHours()
+    const h = restaurantHour(row.created_at, tz)
     byHour[h] = (byHour[h] ?? 0) + (row.total ?? 0)
   }
   return Array.from({ length: 24 }, (_, h) => ({ hour: h, total: byHour[h] ?? 0 }))
@@ -460,10 +452,9 @@ export async function getHourlySales(restaurantId: string): Promise<HourlySale[]
 
 export async function getActivityFeed(restaurantId: string): Promise<ActivityEvent[]> {
   const supabase = await createDashboardServerClient()
-  // Scope to TODAY + non-cancelled — the EXACT day boundary getDashboardKPIs uses,
-  // so the feed and the KPI cards never disagree (no "yesterday's orders vs 0 today").
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // Scope to TODAY + non-cancelled — the EXACT restaurant-local day boundary
+  // getDashboardKPIs uses, so the feed and the KPI cards never disagree.
+  const today = startOfRestaurantDay(await getRestaurantTimezone(restaurantId))
 
   const { data } = await supabase
     .from('orders')
@@ -502,7 +493,7 @@ export async function getActivityFeed(restaurantId: string): Promise<ActivityEve
 
 export async function getTopItems(restaurantId: string, range = 'day'): Promise<TopItem[]> {
   const supabase = await createDashboardServerClient()
-  const { currentStart } = getRangeWindow(range)
+  const { currentStart } = await rangeWindowFor(restaurantId, range)
 
   const { data } = await collectedOrdersFilter(
     supabase
@@ -538,7 +529,7 @@ export async function getPaymentBreakdown(restaurantId: string, range = 'week'):
   const gate = await assertAccess(restaurantId, 'analytics')
   if ('error' in gate) return empty
 
-  const { currentStart } = getRangeWindow(range)
+  const { currentStart } = await rangeWindowFor(restaurantId, range)
   const supabase = createServiceClient()
 
   // P3: read the REAL per-order payment_method — no more İyzico-vs-Manuel
@@ -588,7 +579,7 @@ export async function getPaymentBreakdown(restaurantId: string, range = 'week'):
 
 export async function getProductReportData(restaurantId: string, range = 'week'): Promise<ProductReportItem[]> {
   const supabase = await createDashboardServerClient()
-  const { currentStart, previousStart } = getRangeWindow(range)
+  const { currentStart, previousStart } = await rangeWindowFor(restaurantId, range)
 
   const { data } = await collectedOrdersFilter(
     supabase
@@ -626,33 +617,14 @@ export async function getProductReportData(restaurantId: string, range = 'week')
 
 export async function getSalesOverTime(restaurantId: string, range: string): Promise<DailySale[]> {
   const supabase = await createDashboardServerClient()
-  const now = new Date()
+  const tz = await getRestaurantTimezone(restaurantId)
 
-  let bucketCount: number
-  let isHourly = false
+  const isHourly = range === 'day'
+  const bucketCount = isHourly ? 24 : ({ week: 7, month: 30, quarter: 90, year: 365 } as Record<string, number>)[range] ?? 7
 
-  if (range === 'day') {
-    isHourly = true
-    bucketCount = 24
-  } else {
-    const daysMap: Record<string, number> = { week: 7, month: 30, quarter: 90, year: 365 }
-    bucketCount = daysMap[range] ?? 7
-  }
-
-  const periodStart = new Date(now)
-  if (isHourly) {
-    periodStart.setHours(0, 0, 0, 0)
-  } else {
-    periodStart.setDate(periodStart.getDate() - bucketCount + 1)
-    periodStart.setHours(0, 0, 0, 0)
-  }
-
-  const prevStart = new Date(periodStart)
-  if (isHourly) {
-    prevStart.setDate(prevStart.getDate() - 1)
-  } else {
-    prevStart.setDate(prevStart.getDate() - bucketCount)
-  }
+  // Restaurant-local window boundaries (UTC instants).
+  const currentStart = isHourly ? startOfRestaurantDay(tz) : startOfDayNDaysAgo(tz, bucketCount - 1)
+  const prevStart = isHourly ? startOfDayNDaysAgo(tz, 1) : startOfDayNDaysAgo(tz, 2 * bucketCount - 1)
 
   const { data } = await collectedOrdersFilter(
     supabase
@@ -662,20 +634,15 @@ export async function getSalesOverTime(restaurantId: string, range: string): Pro
       .gte('created_at', prevStart.toISOString())
       .is('deleted_at', null),
   )
-
   const rows = (data ?? []) as Tables<'orders'>[]
 
   if (isHourly) {
     const currentMap: Record<number, number> = {}
     const prevMap: Record<number, number> = {}
     for (const row of rows) {
-      const d = new Date(row.created_at)
-      const h = d.getHours()
-      if (d >= periodStart) {
-        currentMap[h] = (currentMap[h] ?? 0) + (row.total ?? 0)
-      } else {
-        prevMap[h] = (prevMap[h] ?? 0) + (row.total ?? 0)
-      }
+      const map = new Date(row.created_at) >= currentStart ? currentMap : prevMap
+      const h = restaurantHour(row.created_at, tz)
+      map[h] = (map[h] ?? 0) + (row.total ?? 0)
     }
     return Array.from({ length: 24 }, (_, h) => ({
       date: `${h.toString().padStart(2, '0')}:00`,
@@ -684,35 +651,33 @@ export async function getSalesOverTime(restaurantId: string, range: string): Pro
     }))
   }
 
+  // Daily: row key AND output bucket key now share ONE basis (restaurant-local
+  // day) → "today" is never orphaned and the result no longer depends on the
+  // server timezone. This is the acute getSalesOverTime bug's fix.
   const currentMap: Record<string, number> = {}
   const prevMap: Record<string, number> = {}
   for (const row of rows) {
-    const d = new Date(row.created_at)
-    const key = d.toISOString().slice(0, 10)
-    if (d >= periodStart) {
-      currentMap[key] = (currentMap[key] ?? 0) + (row.total ?? 0)
-    } else {
-      prevMap[key] = (prevMap[key] ?? 0) + (row.total ?? 0)
-    }
+    const key = restaurantDayKey(row.created_at, tz)
+    const map = new Date(row.created_at) >= currentStart ? currentMap : prevMap
+    map[key] = (map[key] ?? 0) + (row.total ?? 0)
   }
 
   return Array.from({ length: bucketCount }, (_, i) => {
-    const d = new Date(periodStart)
-    d.setDate(d.getDate() + i)
-    const key = d.toISOString().slice(0, 10)
-    const pd = new Date(prevStart)
-    pd.setDate(pd.getDate() + i)
-    const prevKey = pd.toISOString().slice(0, 10)
-    const label = d.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric' })
-    return { date: label, current: currentMap[key] ?? 0, prev: prevMap[prevKey] ?? 0 }
+    const daysAgo = bucketCount - 1 - i // i=0 → oldest day … last → today
+    const dayStart = startOfDayNDaysAgo(tz, daysAgo)
+    const prevDayStart = startOfDayNDaysAgo(tz, daysAgo + bucketCount)
+    return {
+      date: dayStart.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', timeZone: tz }),
+      current: currentMap[restaurantDayKey(dayStart, tz)] ?? 0,
+      prev: prevMap[restaurantDayKey(prevDayStart, tz)] ?? 0,
+    }
   })
 }
 
 export async function getHeatmapData(restaurantId: string): Promise<HeatmapCell[]> {
   const supabase = await createDashboardServerClient()
-  const since = new Date()
-  since.setDate(since.getDate() - 30)
-  since.setHours(0, 0, 0, 0)
+  const tz = await getRestaurantTimezone(restaurantId)
+  const since = startOfDayNDaysAgo(tz, 30)
 
   const { data } = await supabase
     .from('orders')
@@ -726,10 +691,8 @@ export async function getHeatmapData(restaurantId: string): Promise<HeatmapCell[
   const grid: Record<string, number> = {}
 
   for (const row of rows) {
-    const d = new Date(row.created_at)
-    const jsDay = d.getDay()
-    const day = jsDay === 0 ? 6 : jsDay - 1
-    const hour = d.getHours()
+    const day = restaurantWeekday(row.created_at, tz)
+    const hour = restaurantHour(row.created_at, tz)
     const k = `${day}-${hour}`
     grid[k] = (grid[k] ?? 0) + 1
   }
@@ -745,7 +708,7 @@ export async function getHeatmapData(restaurantId: string): Promise<HeatmapCell[
 
 export async function getTablesReportData(restaurantId: string, range = 'week'): Promise<TableReportRow[]> {
   const supabase = await createDashboardServerClient()
-  const { currentStart } = getRangeWindow(range)
+  const { currentStart } = await rangeWindowFor(restaurantId, range)
   const since = currentStart.toISOString()
 
   const [tablesRes, ordersRes, closedRes, openRes] = await Promise.all([
@@ -846,25 +809,24 @@ function pctChange(cur: number, prev: number): number | null {
 }
 
 // Count timestamps into range buckets (day → 24 hourly; else N daily), current
-// window only. Used for the cancellation trend sparkline.
-function bucketCounts(timestamps: string[], range: string, currentStart: Date): Array<{ date: string; count: number }> {
+// window only. Uses the SAME shared restaurant-local helpers as getSalesOverTime
+// — one source of truth for day/hour bucketing, not a second (formerly separate,
+// server-local) localDateKey implementation.
+function bucketCounts(timestamps: string[], range: string, tz: string): Array<{ date: string; count: number }> {
   if (range === 'day') {
     const byHour: Record<number, number> = {}
-    for (const t of timestamps) { const h = new Date(t).getHours(); byHour[h] = (byHour[h] ?? 0) + 1 }
+    for (const t of timestamps) { const h = restaurantHour(t, tz); byHour[h] = (byHour[h] ?? 0) + 1 }
     return Array.from({ length: 24 }, (_, h) => ({ date: `${h.toString().padStart(2, '0')}:00`, count: byHour[h] ?? 0 }))
   }
   const days = ({ week: 7, month: 30, quarter: 90, year: 365 } as Record<string, number>)[range] ?? 7
-  const localDateKey = (date: Date) => [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-')
   const byDay: Record<string, number> = {}
-  for (const t of timestamps) { const key = localDateKey(new Date(t)); byDay[key] = (byDay[key] ?? 0) + 1 }
+  for (const t of timestamps) { const key = restaurantDayKey(t, tz); byDay[key] = (byDay[key] ?? 0) + 1 }
   return Array.from({ length: days }, (_, i) => {
-    const d = new Date(currentStart); d.setDate(d.getDate() + i)
-    const key = localDateKey(d)
-    return { date: d.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric' }), count: byDay[key] ?? 0 }
+    const dayStart = startOfDayNDaysAgo(tz, days - 1 - i) // i=0 → oldest … last → today
+    return {
+      date: dayStart.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', timeZone: tz }),
+      count: byDay[restaurantDayKey(dayStart, tz)] ?? 0,
+    }
   })
 }
 
@@ -885,7 +847,8 @@ export async function getCancellationReport(restaurantId: string, range = 'week'
   const empty: CancellationReport = { count: 0, lostAmount: 0, allOrders: 0, rate: 0, topItems: [], trend: [], deltaCount: 0, deltaLost: 0, deltaRate: 0 }
   if (!(await isOwnerViewer(restaurantId))) return empty
 
-  const { currentStart, previousStart } = getRangeWindow(range)
+  const tz = await getRestaurantTimezone(restaurantId)
+  const { currentStart, previousStart } = rangeWindow(tz, range)
   const svc = createServiceClient()
   const { data } = await svc
     .from('orders')
@@ -915,7 +878,7 @@ export async function getCancellationReport(restaurantId: string, range = 'week'
   return {
     count, lostAmount, allOrders, rate,
     topItems,
-    trend: bucketCounts(curCancelled.map((r) => r.created_at), range, currentStart),
+    trend: bucketCounts(curCancelled.map((r) => r.created_at), range, tz),
     deltaCount: pctChange(count, prevCancelled.length),
     deltaLost: pctChange(lostAmount, sumTotals(prevCancelled)),
     deltaRate: Math.round((rate - prevRate) * 10) / 10,
@@ -943,7 +906,7 @@ export async function getAbnormalCloseReport(restaurantId: string, range = 'week
   const empty: AbnormalCloseReport = { count: 0, unpaidTotal: 0, rows: [], deltaCount: 0, deltaUnpaid: 0 }
   if (!(await isOwnerViewer(restaurantId))) return empty
 
-  const { currentStart, previousStart } = getRangeWindow(range)
+  const { currentStart, previousStart } = await rangeWindowFor(restaurantId, range)
   const svc = createServiceClient()
 
   // Abnormal = close_reason recorded AND not the system 'auto' sweep tag.
@@ -1033,7 +996,7 @@ export async function getStaffSettlementReport(restaurantId: string, range = 'we
   // high-cash flag must never be readable by the audited staff themselves.
   if (!(await isOwnerViewer(restaurantId))) return empty
 
-  const { currentStart } = getRangeWindow(range)
+  const { currentStart } = await rangeWindowFor(restaurantId, range)
   const svc = createServiceClient()
   const { data } = await svc
     .from('orders')
@@ -1136,7 +1099,7 @@ export async function getLoyaltyReport(restaurantId: string, range = 'week'): Pr
   const gate = await assertAccess(restaurantId, 'analytics')
   if ('error' in gate) return empty
 
-  const { currentStart } = getRangeWindow(range)
+  const { currentStart } = await rangeWindowFor(restaurantId, range)
   const svc = createServiceClient()
   const { data } = await svc
     .from('loyalty_transactions')
@@ -1336,12 +1299,10 @@ export async function getPaymentStatus(restaurantId: string): Promise<PaymentSta
 export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): Promise<PanoSnapshot> {
   const supabase = await createDashboardServerClient()
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const heatmapStart = new Date(today)
-  heatmapStart.setDate(heatmapStart.getDate() - 30)
+  const tz = await getRestaurantTimezone(restaurantId)
+  const today = startOfRestaurantDay(tz)
+  const yesterday = startOfDayNDaysAgo(tz, 1)
+  const heatmapStart = startOfDayNDaysAgo(tz, 30)
 
   const [
     ordersRes,
@@ -1422,7 +1383,7 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
   const byHour: Record<number, number> = {}
   for (let h = 0; h < 24; h++) byHour[h] = 0
   for (const row of todayCollectedRows) {
-    const h = new Date(row.created_at).getHours()
+    const h = restaurantHour(row.created_at, tz)
     byHour[h] = (byHour[h] ?? 0) + (row.total ?? 0)
   }
   const hourlySales: HourlySale[] = Array.from({ length: 24 }, (_, hour) => ({ hour, total: byHour[hour] ?? 0 }))
@@ -1449,10 +1410,8 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
 
   const heatGrid: Record<string, number> = {}
   for (const row of orders.filter(isOrderVolumeRow)) {
-    const d = new Date(row.created_at)
-    const jsDay = d.getDay()
-    const day = jsDay === 0 ? 6 : jsDay - 1
-    const hour = d.getHours()
+    const day = restaurantWeekday(row.created_at, tz)
+    const hour = restaurantHour(row.created_at, tz)
     const k = `${day}-${hour}`
     heatGrid[k] = (heatGrid[k] ?? 0) + 1
   }

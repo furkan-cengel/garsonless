@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createDashboardServerClient } from '../../../../lib/supabase-server'
-import { getRestaurantById, getTablesForRestaurant } from '../../../../lib/queries'
+import { getRestaurantById, getTablesForRestaurant, getRestaurantTimezone } from '../../../../lib/queries'
+import { startOfRestaurantDay } from '@garsonless/db'
 import OrderBoard from '../../../../components/orders/OrderBoard'
 import type { Order } from '../../../../components/orders/useOrdersRealtime'
 import { readNotificationPrefs } from '../../../../lib/notification-prefs'
@@ -22,8 +23,9 @@ export default async function OrdersPage({ params }: Props) {
   if (!restaurant) notFound()
 
   const supabase = await createDashboardServerClient()
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // Restaurant-local "today" — the board scopes to the café's own day, not the
+  // server's (consistent with every reporting query).
+  const today = startOfRestaurantDay(await getRestaurantTimezone(restaurantId))
 
   // Newest-first cap: a >LIMIT day clips the OLDEST orders (likely served) —
   // the board shows a truncation banner instead of hiding them silently.
