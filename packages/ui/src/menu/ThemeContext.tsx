@@ -132,6 +132,7 @@ export function ThemeProvider({ children, initialTheme, isPreview = false, initi
       if (!requestId) return
       pendingThemeAckRef.current = null
       requestAnimationFrame(() => {
+        if (cancelled) return
         window.parent?.postMessage(
           { type: 'THEME_APPLIED', requestId },
           getParentOrigin() ?? '*',
@@ -161,7 +162,7 @@ export function ThemeProvider({ children, initialTheme, isPreview = false, initi
         const incoming = data.theme as GarsonlessTheme
         const requestId = typeof data.requestId === 'string' ? data.requestId : null
         if (incoming) {
-          pendingThemeAckRef.current = requestId
+          if (requestId) pendingThemeAckRef.current = requestId
           setTheme(incoming)
         }
         return

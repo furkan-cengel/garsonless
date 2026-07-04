@@ -14,6 +14,7 @@ import { I } from '../../lib/ui'
 type EditorTab = 'design' | 'layout' | 'content'
 type SectionFieldType = 'text' | 'textarea' | 'color' | 'range' | 'select' | 'url' | 'toggle' | 'product-select' | 'category-select' | 'heading'
 type PageBlock = { type: 'section' | 'category' | 'nav'; id: string }
+type PreviewStatus = 'preparing' | 'ready' | 'degraded'
 
 interface SectionSettingField {
   key: string
@@ -47,6 +48,7 @@ const EDITOR_TABS: Array<{ id: EditorTab; label: string }> = [
 ]
 const THEME_GROUP_ID = 'theme'
 const THEME_GROUP_SOURCE_IDS = new Set(['colors', 'typography'])
+const PREVIEW_FALLBACK_MS = 5_000
 
 const SECTION_LIBRARY = [
   { id: 'hero-banner', group: 'Üst Bölümler', label: 'Hero Banner', sub: 'Tam genişlik kampanya görseli + CTA', icon: <I.image size={17} />, plan: 'free' },
@@ -757,10 +759,11 @@ export default function ThemeEditorClient({
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [localLogoUrl, setLocalLogoUrl] = useState<string | null>(restaurantLogoUrl)
   const [logoUploading, setLogoUploading] = useState(false)
-  const [previewHydrated, setPreviewHydrated] = useState(false)
+  const [previewStatus, setPreviewStatus] = useState<PreviewStatus>('preparing')
   const revisionRef = useRef(0)
   const previewRequestRef = useRef(0)
   const pendingPreviewRequestRef = useRef<string | null>(null)
+  const previewFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const templateTriggerRef = useRef<HTMLButtonElement>(null)
   const sectionTriggerRef = useRef<HTMLButtonElement>(null)
   const templateCloseRef = useRef<HTMLButtonElement>(null)
@@ -799,11 +802,28 @@ export default function ThemeEditorClient({
     setTimeout(() => setToast(''), 2500)
   }
 
+  const clearPreviewFallback = useCallback(() => {
+    if (previewFallbackTimerRef.current) {
+      clearTimeout(previewFallbackTimerRef.current)
+      previewFallbackTimerRef.current = null
+    }
+  }, [])
+
+  const armPreviewFallback = useCallback(() => {
+    clearPreviewFallback()
+    previewFallbackTimerRef.current = setTimeout(() => {
+      previewFallbackTimerRef.current = null
+      pendingPreviewRequestRef.current = null
+      setPreviewStatus((current) => current === 'preparing' ? 'degraded' : current)
+    }, PREVIEW_FALLBACK_MS)
+  }, [clearPreviewFallback])
+
   function reloadPreviewFrame() {
     const iframe = iframeRef.current
     if (!iframe) return
-    setPreviewHydrated(false)
+    setPreviewStatus('preparing')
     pendingPreviewRequestRef.current = null
+    armPreviewFallback()
     const currentSrc = iframe.src
     iframe.src = currentSrc
   }
@@ -915,6 +935,13 @@ export default function ThemeEditorClient({
   }, [postPreviewMessage, previewTheme])
 
   useEffect(() => {
+    setPreviewStatus('preparing')
+    pendingPreviewRequestRef.current = null
+    armPreviewFallback()
+    return clearPreviewFallback
+  }, [armPreviewFallback, clearPreviewFallback, previewUrl])
+
+  useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.source !== iframeRef.current?.contentWindow) return
       if (previewOrigin !== '*' && e.origin !== previewOrigin) return
@@ -922,7 +949,8 @@ export default function ThemeEditorClient({
       if (data.type === 'PREVIEW_READY') {
         const requestId = `theme-preview-${++previewRequestRef.current}`
         pendingPreviewRequestRef.current = requestId
-        setPreviewHydrated(false)
+        setPreviewStatus('preparing')
+        armPreviewFallback()
         sendFullTheme(requestId)
       }
       if (
@@ -930,12 +958,13 @@ export default function ThemeEditorClient({
         data.requestId === pendingPreviewRequestRef.current
       ) {
         pendingPreviewRequestRef.current = null
-        setPreviewHydrated(true)
+        clearPreviewFallback()
+        setPreviewStatus('ready')
       }
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [previewOrigin, sendFullTheme])
+  }, [armPreviewFallback, clearPreviewFallback, previewOrigin, sendFullTheme])
 
   useEffect(() => {
     if (!templatePickerOpen && !sectionPickerOpen) return
@@ -1733,6 +1762,23 @@ export default function ThemeEditorClient({
               <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {previewUrl.replace(/^https?:\/\//, '')}
               </span>
+              {previewStatus === 'degraded' && (
+                <span
+                  role="status"
+                  title="Tema onayı zamanında alınamadı; önizleme yine de gösteriliyor."
+                  style={{
+                    flexShrink: 0,
+                    padding: '2px 6px',
+                    borderRadius: 5,
+                    background: 'var(--warning-bg)',
+                    color: 'var(--warning)',
+                    fontSize: 10.5,
+                    fontWeight: 650,
+                  }}
+                >
+                  Sınırlı önizleme
+                </span>
+              )}
               <a
                 href={previewUrl}
                 target="_blank"
@@ -1798,11 +1844,12 @@ export default function ThemeEditorClient({
                   src={previewUrl}
                   style={{
                     width: '100%', height: '100%', border: 'none',
-                    opacity: previewHydrated ? 1 : 0,
+                    opacity: previewStatus === 'preparing' ? 0 : 1,
                   }}
+                  data-preview-state={previewStatus}
                   title="Menu Preview"
                 />
-                {!previewHydrated && (
+                {previewStatus === 'preparing' && (
                   <div
                     aria-label="Önizleme hazırlanıyor"
                     style={{
