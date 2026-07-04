@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { DEFAULT_THEME } from '@garsonless/design-engine'
 
@@ -120,12 +120,26 @@ export function ThemeProvider({ children, initialTheme, isPreview = false, initi
   const [theme, setTheme] = useState<GarsonlessTheme>(initialTheme)
   const [restaurantName, setRestaurantName] = useState(initialRestaurantName)
   const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl)
+  const pendingThemeAckRef = useRef<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     injectGoogleFonts(theme)
     applyNonFontVars(theme)
-    void loadAndApplyFonts(theme)
-  }, [theme])
+    void loadAndApplyFonts(theme).then(() => {
+      if (cancelled || !isPreview) return
+      const requestId = pendingThemeAckRef.current
+      if (!requestId) return
+      pendingThemeAckRef.current = null
+      requestAnimationFrame(() => {
+        window.parent?.postMessage(
+          { type: 'THEME_APPLIED', requestId },
+          getParentOrigin() ?? '*',
+        )
+      })
+    })
+    return () => { cancelled = true }
+  }, [isPreview, theme])
 
   const handleMessage = useCallback(
     (event: MessageEvent) => {
@@ -145,7 +159,11 @@ export function ThemeProvider({ children, initialTheme, isPreview = false, initi
       }
       if (data?.type === 'FULL_THEME_UPDATE') {
         const incoming = data.theme as GarsonlessTheme
-        if (incoming) setTheme(incoming)
+        const requestId = typeof data.requestId === 'string' ? data.requestId : null
+        if (incoming) {
+          pendingThemeAckRef.current = requestId
+          setTheme(incoming)
+        }
         return
       }
       if (data?.type === 'RESTAURANT_NAME_UPDATE') {
@@ -164,6 +182,7 @@ export function ThemeProvider({ children, initialTheme, isPreview = false, initi
   useEffect(() => {
     if (!isPreview) return
     window.addEventListener('message', handleMessage)
+    window.parent?.postMessage({ type: 'PREVIEW_READY' }, getParentOrigin() ?? '*')
     return () => window.removeEventListener('message', handleMessage)
   }, [isPreview, handleMessage])
 

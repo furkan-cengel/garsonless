@@ -30,15 +30,6 @@ import MemberSheet from './components/MemberSheet'
 
 const PaymentModal = dynamic(() => import('./components/PaymentModal'))
 
-function getParentOrigin() {
-  if (typeof document === 'undefined' || !document.referrer) return null
-  try {
-    return new URL(document.referrer).origin
-  } catch {
-    return null
-  }
-}
-
 function statusPhase(status: OrderStatus): number {
   if (status === 'preparing') return 1
   if (status === 'ready') return 2
@@ -898,12 +889,6 @@ export function MenuPageClient({
     void restore()
     return () => { cancelled = true }
   }, [])
-
-  useEffect(() => {
-    if (isPreview) {
-      window.parent.postMessage({ type: 'PREVIEW_READY' }, getParentOrigin() ?? '*')
-    }
-  }, [isPreview])
 
   useEffect(() => {
     if (tableId && tableId !== storedTableId) {

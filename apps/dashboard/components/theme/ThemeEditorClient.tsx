@@ -757,7 +757,10 @@ export default function ThemeEditorClient({
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [localLogoUrl, setLocalLogoUrl] = useState<string | null>(restaurantLogoUrl)
   const [logoUploading, setLogoUploading] = useState(false)
+  const [previewHydrated, setPreviewHydrated] = useState(false)
   const revisionRef = useRef(0)
+  const previewRequestRef = useRef(0)
+  const pendingPreviewRequestRef = useRef<string | null>(null)
   const templateTriggerRef = useRef<HTMLButtonElement>(null)
   const sectionTriggerRef = useRef<HTMLButtonElement>(null)
   const templateCloseRef = useRef<HTMLButtonElement>(null)
@@ -799,6 +802,8 @@ export default function ThemeEditorClient({
   function reloadPreviewFrame() {
     const iframe = iframeRef.current
     if (!iframe) return
+    setPreviewHydrated(false)
+    pendingPreviewRequestRef.current = null
     const currentSrc = iframe.src
     iframe.src = currentSrc
   }
@@ -905,16 +910,27 @@ export default function ThemeEditorClient({
     iframeRef.current?.contentWindow?.postMessage(message, previewOrigin)
   }, [previewOrigin])
 
-  const sendFullTheme = useCallback(() => {
-    postPreviewMessage({ type: 'FULL_THEME_UPDATE', theme: previewTheme })
+  const sendFullTheme = useCallback((requestId?: string) => {
+    postPreviewMessage({ type: 'FULL_THEME_UPDATE', theme: previewTheme, requestId })
   }, [postPreviewMessage, previewTheme])
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.source !== iframeRef.current?.contentWindow) return
       if (previewOrigin !== '*' && e.origin !== previewOrigin) return
-      if ((e.data as { type?: string })?.type === 'PREVIEW_READY') {
-        sendFullTheme()
+      const data = e.data as { type?: string; requestId?: string }
+      if (data.type === 'PREVIEW_READY') {
+        const requestId = `theme-preview-${++previewRequestRef.current}`
+        pendingPreviewRequestRef.current = requestId
+        setPreviewHydrated(false)
+        sendFullTheme(requestId)
+      }
+      if (
+        data.type === 'THEME_APPLIED' &&
+        data.requestId === pendingPreviewRequestRef.current
+      ) {
+        pendingPreviewRequestRef.current = null
+        setPreviewHydrated(true)
       }
     }
     window.addEventListener('message', handler)
@@ -1776,12 +1792,35 @@ export default function ThemeEditorClient({
               mode={previewMode}
               scale={previewScale}
             >
-              <iframe
-                ref={iframeRef}
-                src={previewUrl}
-                style={{ width: '100%', height: '100%', border: 'none' }}
-                title="Menu Preview"
-              />
+              <>
+                <iframe
+                  ref={iframeRef}
+                  src={previewUrl}
+                  style={{
+                    width: '100%', height: '100%', border: 'none',
+                    opacity: previewHydrated ? 1 : 0,
+                  }}
+                  title="Menu Preview"
+                />
+                {!previewHydrated && (
+                  <div
+                    aria-label="Önizleme hazırlanıyor"
+                    style={{
+                      position: 'absolute', inset: 0, zIndex: 2,
+                      display: 'grid', placeItems: 'center',
+                      background: previewTheme.bg,
+                      color: previewTheme.accent,
+                    }}
+                  >
+                    <div style={{
+                      width: 22, height: 22, borderRadius: 999,
+                      border: '2px solid currentColor',
+                      borderRightColor: 'transparent',
+                      animation: 'spin 700ms linear infinite',
+                    }} />
+                  </div>
+                )}
+              </>
             </PhoneFrame>
           </div>
         </div>
