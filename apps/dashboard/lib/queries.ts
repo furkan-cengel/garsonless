@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import { createDashboardServerClient } from './supabase-server'
-import { createServiceClient, listTeamMembers, isCollectedOrderRow, type Tables } from '@garsonless/db'
+import { createServiceClient, listTeamMembers, isCollectedOrderRow, normalizeTimeZone, type Tables } from '@garsonless/db'
 import { getUserRestaurantAccess, assertAccess } from './auth/access'
 
 export interface DashboardKPIs {
@@ -302,6 +302,20 @@ function collectedOrdersFilter<T extends {
 function sumTotals(rows: Array<{ total?: number | null }>) {
   return rows.reduce((sum, row) => sum + (row.total ?? 0), 0)
 }
+
+// Request-scoped restaurant timezone (react cache dedupes it per request). Falls
+// back to Europe/Istanbul on a null/garbage value (defensive against a bad direct
+// DB edit). P1: defined + exported but NOT yet consumed by any query (zero
+// behavior change this phase); P2 migrates every date query onto restaurant-time.
+export const getRestaurantTimezone = cache(async function getRestaurantTimezone(restaurantId: string): Promise<string> {
+  const supabase = await createDashboardServerClient()
+  const { data } = await supabase
+    .from('restaurants')
+    .select('timezone')
+    .eq('id', restaurantId)
+    .maybeSingle()
+  return normalizeTimeZone((data as { timezone?: unknown } | null)?.timezone)
+})
 
 function getRangeWindow(range: string) {
   const now = new Date()

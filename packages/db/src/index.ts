@@ -67,6 +67,11 @@ export type {
 } from './types.gen'
 export type { OrderStatus, RestaurantPlan, PaymentMethod } from './enums'
 export { ORDER_STATUS_TRANSITIONS, canTransitionOrderStatus } from './enums'
+// Restaurant-local-day helpers — one source of truth for day boundaries/keys.
+export {
+  DEFAULT_TIMEZONE, startOfRestaurantDay, startOfDayNDaysAgo, rangeWindow,
+  restaurantDayKey, restaurantHour, restaurantWeekday, isValidTimeZone, normalizeTimeZone,
+} from './restaurant-time'
 // The one collected-revenue (tahsilat) predicate — client-safe home in
 // order-client.ts, re-exported here for server queries.
 export { isCollectedOrderRow } from './order-client'
