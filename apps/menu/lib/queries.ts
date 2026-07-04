@@ -7,6 +7,25 @@ import {
   normalizeModifierGroups,
 } from '@garsonless/db/order-client'
 
+type PublicMenuItemRow = Pick<
+  Tables<'menu_items'>,
+  | 'id'
+  | 'category_id'
+  | 'name'
+  | 'description'
+  | 'price'
+  | 'images'
+  | 'ingredients'
+  | 'energy_kcal'
+  | 'may_contain_allergens'
+  | 'contains_alcohol'
+  | 'contains_pork'
+  | 'food_info_reviewed_at'
+  | 'modifier_groups'
+  | 'is_available'
+  | 'position'
+>
+
 function mapCategory(row: Tables<'menu_categories'>): MenuCategory {
   return {
     id: row.id,
@@ -18,7 +37,7 @@ function mapCategory(row: Tables<'menu_categories'>): MenuCategory {
   }
 }
 
-function mapMenuItem(row: Tables<'menu_items'>): MenuItem {
+function mapMenuItem(row: PublicMenuItemRow): MenuItem {
   return {
     id: row.id,
     category_id: row.category_id,
@@ -140,7 +159,23 @@ export async function getMenuItems(categoryIds: string[]): Promise<MenuItem[]> {
   const supabase = createClient()
   const { data } = await supabase
     .from('menu_items')
-    .select('*')
+    .select(`
+      id,
+      category_id,
+      name,
+      description,
+      price,
+      images,
+      ingredients,
+      energy_kcal,
+      may_contain_allergens,
+      contains_alcohol,
+      contains_pork,
+      food_info_reviewed_at,
+      modifier_groups,
+      is_available,
+      position
+    `)
     .in('category_id', categoryIds)
     .eq('is_available', true)
     .is('deleted_at', null)
