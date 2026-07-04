@@ -20,6 +20,16 @@ import type {
 } from '../../lib/queries'
 import { fetchAnalyticsReportData, type AnalyticsReportId } from '../../lib/actions/analytics'
 import { formatCurrency } from '../../lib/utils'
+import dynamic from 'next/dynamic'
+
+// recharts-based charts — dynamically imported (ssr:false) so the KPI cards +
+// tables paint first and recharts' ResponsiveContainer never SSRs at 0 width.
+// The fixed-height loading box reserves the space → no layout shift on hydrate.
+const chartLoading = (height: number) => () => (
+  <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-4)', fontSize: 12 }}>Grafik yükleniyor…</div>
+)
+const SalesLineChart = dynamic(() => import('./chart-primitives/SalesLineChart'), { ssr: false, loading: chartLoading(300) })
+const ProductScatterChart = dynamic(() => import('./chart-primitives/ProductScatterChart'), { ssr: false, loading: chartLoading(272) })
 
 const s = {
   mono: { fontFamily: "'Geist Mono', ui-monospace, monospace" } as React.CSSProperties,
@@ -243,6 +253,7 @@ export default function AnalyticsClient({
               salesOverTime={analyticsData.salesOverTime}
               heatmapData={analyticsData.heatmapData}
               paymentBreakdown={analyticsData.paymentBreakdown}
+              range={range}
             />
           )}
           {activeReport === 'items' && activeReportLoaded && <ItemsReport items={analyticsData.productReport} range={range} />}
@@ -463,12 +474,14 @@ function SalesReport({
   salesOverTime,
   heatmapData,
   paymentBreakdown,
+  range,
 }: {
   kpis: DashboardKPIs
   topItems: TopItem[]
   salesOverTime: DailySale[]
   heatmapData: HeatmapCell[]
   paymentBreakdown: PaymentReport
+  range: string
 }) {
   const revDelta = delta(kpis.revenue, kpis.revenueYesterday)
   const ordDelta = delta(kpis.orders, kpis.ordersYesterday)
@@ -492,8 +505,8 @@ function SalesReport({
         <KPISmall label="Aktif sipariş"  value={String(kpis.activeOrders)}      delta="—" />
       </div>
 
-      <Card title="Tahsilat trendi" subtitle="Seçili dönem · paid_at bazlı" style={{ marginBottom: 12 }}>
-        <BigLineChart data={salesOverTime} />
+      <Card title="Tahsilat trendi" subtitle="Seçili dönem · paid_at bazlı" style={{ marginBottom: 12, overflow: 'visible' }}>
+        <SalesLineChart data={salesOverTime} range={range} />
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
@@ -559,85 +572,6 @@ function KPISmall({
         }}>{resolvedDirection === 'up' ? '↑ ' : resolvedDirection === 'down' ? '↓ ' : ''}{delta}</div>
         {hint && <span style={{ fontSize: 10.5, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{hint}</span>}
       </div>
-    </div>
-  )
-}
-
-/* ── BIG LINE CHART ───────────────────────────────── */
-function BigLineChart({ data }: { data: DailySale[] }) {
-  if (data.length === 0) {
-    return <div style={{ padding: '40px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Veri yok</div>
-  }
-
-  const W = 1040, H = 260, padL = 50, padR = 16, padT = 20, padB = 32
-  const total = data.reduce((sum, d) => sum + d.current, 0)
-  const prevTotal = data.reduce((sum, d) => sum + d.prev, 0)
-  const deltaPct = prevTotal > 0 ? ((total - prevTotal) / prevTotal) * 100 : 0
-  const max = Math.max(...data.map(d => Math.max(d.current, d.prev)), 1)
-  const xStep = (W - padL - padR) / Math.max(data.length - 1, 1)
-  const x = (i: number) => padL + i * xStep
-  const y = (v: number) => padT + (H - padT - padB) * (1 - v / max)
-  const line = (key: 'current' | 'prev') =>
-    data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(d[key])}`).join(' ')
-  const areaPath = `${line('current')} L ${x(data.length - 1)} ${y(0)} L ${x(0)} ${y(0)} Z`
-  const peakIdx = data.reduce((best, d, i) => d.current > (data[best]?.current ?? 0) ? i : best, 0)
-
-  const tickStep = Math.max(1, Math.floor(data.length / 8))
-
-  return (
-    <div style={{ padding: '12px 14px 14px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 12 }}>
-        <span style={{ ...s.mono, fontSize: 26, fontWeight: 700, letterSpacing: '-.02em', color: 'var(--text)' }}>
-          {formatCurrency(total)}
-        </span>
-        {prevTotal > 0 && (
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 3,
-            padding: '2px 7px', borderRadius: 999,
-            background: deltaPct >= 0 ? 'var(--positive-bg)' : 'var(--critical-bg)',
-            color: deltaPct >= 0 ? 'var(--positive)' : 'var(--critical)',
-            fontSize: 10.5, fontWeight: 600,
-          }}>{deltaPct >= 0 ? '↑' : '↓'} %{Math.abs(deltaPct).toFixed(1)} önceki dönem</span>
-        )}
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
-        {[0, 0.25, 0.5, 0.75, 1].map((p) => {
-          const yL = padT + (H - padT - padB) * (1 - p)
-          return (
-            <g key={p}>
-              <line x1={padL} y1={yL} x2={W - padR} y2={yL} stroke="var(--divider)" strokeWidth="1" strokeDasharray={p === 0 ? 'none' : '3,3'} />
-              <text x={padL - 8} y={yL + 4} fontSize="10" fill="var(--text-3)" textAnchor="end" fontFamily="Geist Mono, monospace">
-                ₺{Math.round(max * p / 1000)}K
-              </text>
-            </g>
-          )
-        })}
-        <defs>
-          <linearGradient id="gradAreaAn" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#111113" stopOpacity="0.14" />
-            <stop offset="100%" stopColor="#111113" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={areaPath} fill="url(#gradAreaAn)" />
-        <path d={line('prev')} fill="none" stroke="var(--text-4)" strokeWidth="1.5" strokeDasharray="5,3" />
-        <path d={line('current')} fill="none" stroke="var(--text)" strokeWidth="2.5" />
-        {data.map((d, i) => (
-          <g key={i}>
-            <circle cx={x(i)} cy={y(d.current)} r="4" fill="#fff" stroke="var(--text)" strokeWidth="2" />
-            {i === peakIdx && d.current > 0 && (
-              <g>
-                <rect x={x(i) - 32} y={y(d.current) - 30} width="64" height="22" rx="4" fill="var(--text)" />
-                <text x={x(i)} y={y(d.current) - 15} fontSize="11" fontWeight="600" fill="#ffd089" textAnchor="middle" fontFamily="Geist Mono, monospace">
-                  ₺{(d.current / 1000).toFixed(1)}K
-                </text>
-              </g>
-            )}
-            {i % tickStep === 0 && (
-              <text x={x(i)} y={H - 8} fontSize="10" fill="var(--text-3)" textAnchor="middle" fontFamily="Geist Mono, monospace">{d.date}</text>
-            )}
-          </g>
-        ))}
-      </svg>
     </div>
   )
 }
@@ -1180,8 +1114,8 @@ function ItemsReport({ items, range }: { items: ProductReportItem[]; range: stri
         <ABCAnalysis items={items} totalRevenue={totalRevenue} classTotals={classTotals} />
       </Card>
 
-      <Card title="Ürün karması" subtitle="Tahsilat payı × hacim" style={{ marginBottom: 12 }}>
-        <ItemMatrix items={items} />
+      <Card title="Ürün karması" subtitle="Tahsilat payı × hacim" style={{ marginBottom: 12, overflow: 'visible' }}>
+        <ProductScatterChart items={items} />
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -1266,55 +1200,6 @@ function ProductTable({ items }: { items: ProductReportItem[] }) {
           <span style={{ ...s.mono, fontSize: 11, fontWeight: 700, textAlign: 'right', color: item.abcClass === 'A' ? 'var(--positive)' : item.abcClass === 'B' ? 'var(--warning)' : 'var(--text-3)' }}>{item.abcClass}</span>
         </div>
       ))}
-    </div>
-  )
-}
-
-function ItemMatrix({ items }: { items: ProductReportItem[] }) {
-  if (items.length === 0) {
-    return (
-      <div style={{ padding: '42px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-        Bu aralıkta ürün verisi yok
-      </div>
-    )
-  }
-
-  const plotItems = items.slice(0, 14)
-  const W = 1040, H = 260, padL = 50, padR = 24, padT = 16, padB = 36
-  const xMax = Math.max(...plotItems.map((item) => item.count), 1)
-  const yMax = Math.max(...plotItems.map((item) => item.sharePct), 1)
-  const maxRevenue = Math.max(...plotItems.map((item) => item.revenue), 1)
-  const px = (v: number) => padL + (v / xMax) * (W - padL - padR)
-  const py = (v: number) => H - padB - (v / yMax) * (H - padT - padB)
-  const tone = (cls: ProductReportItem['abcClass']) => cls === 'A' ? '#137a4d' : cls === 'B' ? '#f0b429' : '#b42318'
-  const shortName = (name: string) => name.length > 14 ? `${name.slice(0, 13)}…` : name
-
-  return (
-    <div style={{ padding: 14 }}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
-        {[0, 0.25, 0.5, 0.75, 1].map(p => {
-          const yy = py(p)
-          return (
-            <g key={p}>
-              <line x1={padL} y1={yy} x2={W - padR} y2={yy} stroke="var(--divider)" strokeDasharray={p === 0 ? 'none' : '3,3'} />
-              <text x={padL - 8} y={yy + 4} fontSize="10" fill="var(--text-3)" textAnchor="end" fontFamily="Geist Mono">%{Math.round(yMax * p)}</text>
-            </g>
-          )
-        })}
-        <line x1={padL} y1={py(yMax * 0.5)} x2={W - padR} y2={py(yMax * 0.5)} stroke="var(--text-4)" strokeDasharray="4,4" />
-        <line x1={px(xMax * 0.5)} y1={padT} x2={px(xMax * 0.5)} y2={H - padB} stroke="var(--text-4)" strokeDasharray="4,4" />
-        {plotItems.map((item) => {
-          const r = 6 + (item.revenue / maxRevenue) * 18
-          return (
-          <g key={item.name}>
-            <circle cx={px(item.count)} cy={py(item.sharePct)} r={r} fill={tone(item.abcClass)} opacity={0.56} stroke={tone(item.abcClass)} strokeWidth="1.5" />
-            <text x={px(item.count)} y={py(item.sharePct) - r - 4} fontSize="10" fill="var(--text-2)" textAnchor="middle" fontWeight="500">{shortName(item.name)}</text>
-          </g>
-          )
-        })}
-        <text x={(W - padL - padR) / 2 + padL} y={H - 8} fontSize="10" fill="var(--text-3)" textAnchor="middle">Hacim (adet) →</text>
-        <text x={14} y={(H - padT - padB) / 2 + padT} fontSize="10" fill="var(--text-3)" textAnchor="middle" transform={`rotate(-90 14 ${(H - padT - padB) / 2 + padT})`}>Tahsilat payı %</text>
-      </svg>
     </div>
   )
 }

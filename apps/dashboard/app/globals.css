@@ -111,6 +111,25 @@ button, input, select, textarea { font-family: inherit; }
   --accent-2:   #ffd089;
 }
 
+/* ── Chart tokens — promote the analytics charts' hardcoded literals to vars,
+   all mapped onto the existing semantic set (extend, don't reinvent). recharts
+   accepts these `var(--chart-*)` strings directly as SVG fill/stroke. ── */
+:root {
+  --chart-series-current: var(--text);   /* current-period line */
+  --chart-series-prev:    var(--text-4); /* previous-period line (dashed) */
+  --chart-gold:           var(--accent-2);
+  --chart-abc-a:          var(--positive);
+  --chart-abc-b:          #f0b429;        /* amber — no existing token close enough */
+  --chart-abc-c:          var(--critical);
+  --chart-cat-1:          var(--text);    /* payment-method sequence (was PAYMENT_COLORS) */
+  --chart-cat-2:          var(--accent);
+  --chart-cat-3:          var(--accent-2);
+  --chart-cat-4:          var(--info);
+  --chart-cat-5:          #a13b7a;
+  --chart-grid:           var(--divider);
+  --chart-axis-text:      var(--text-3);
+}
+
 /*
   Tailwind v4 theme bridge — keeps Tailwind utilities in sync with design tokens.
 */
