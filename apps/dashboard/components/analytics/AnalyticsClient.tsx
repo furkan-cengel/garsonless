@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, Fragment, type ReactNode, type CSSProperties } from 'react'
+import { useState, useTransition, type ReactNode, type CSSProperties } from 'react'
 import PageTopBar from '../layout/PageTopBar'
 import { I, btnPrimary } from '../../lib/ui'
 import type {
@@ -21,6 +21,8 @@ import type {
 import { fetchAnalyticsReportData, type AnalyticsReportId } from '../../lib/actions/analytics'
 import { formatCurrency } from '../../lib/utils'
 import dynamic from 'next/dynamic'
+// Heatmap is CSS + FloatingTooltip (no recharts) → normal import, no ssr:false.
+import HeatmapGrid from './chart-primitives/HeatmapGrid'
 
 // recharts-based charts — dynamically imported (ssr:false) so the KPI cards +
 // tables paint first and recharts' ResponsiveContainer never SSRs at 0 width.
@@ -30,6 +32,8 @@ const chartLoading = (height: number) => () => (
 )
 const SalesLineChart = dynamic(() => import('./chart-primitives/SalesLineChart'), { ssr: false, loading: chartLoading(300) })
 const ProductScatterChart = dynamic(() => import('./chart-primitives/ProductScatterChart'), { ssr: false, loading: chartLoading(272) })
+const PaymentDonutChart = dynamic(() => import('./chart-primitives/PaymentDonutChart'), { ssr: false, loading: chartLoading(240) })
+const CancellationTrendChart = dynamic(() => import('./chart-primitives/CancellationTrendChart'), { ssr: false, loading: chartLoading(148) })
 
 const s = {
   mono: { fontFamily: "'Geist Mono', ui-monospace, monospace" } as React.CSSProperties,
@@ -511,10 +515,10 @@ function SalesReport({
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
         <Card title="Saat × Gün ısı haritası" subtitle="Son 30 gün · sipariş yoğunluğu">
-          <BigHeatmap data={heatmapData} />
+          <HeatmapGrid data={heatmapData} />
         </Card>
-        <Card title="Ödeme dağılımı" subtitle="Yöntem başına tahsilat">
-          <PaymentDonut segments={paymentBreakdown.collected} />
+        <Card title="Ödeme dağılımı" subtitle="Yöntem başına tahsilat" style={{ overflow: 'visible' }}>
+          <PaymentDonutChart segments={paymentBreakdown.collected} />
           {/* İkram (comp) surfaced here for visibility — EXCLUDED from the
               collected donut/ciro, shown alongside as context. Full detail lives
               in the Ödemeler report. */}
@@ -576,98 +580,8 @@ function KPISmall({
   )
 }
 
-/* ── BIG HEATMAP ──────────────────────────────────── */
-function BigHeatmap({ data }: { data: HeatmapCell[] }) {
-  const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
-
-  const lookup = new Map<string, number>()
-  let maxCount = 1
-  for (const cell of data) {
-    lookup.set(`${cell.day}-${cell.hour}`, cell.count)
-    if (cell.count > maxCount) maxCount = cell.count
-  }
-
-  return (
-    <div style={{ padding: '12px 16px 16px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'auto repeat(15, 1fr)', gap: 3, alignItems: 'center' }}>
-        <span />
-        {Array.from({ length: 15 }, (_, h) => (
-          <span key={h} style={{ fontSize: 9, color: 'var(--text-4)', textAlign: 'center', ...s.mono }}>
-            {h + 8}
-          </span>
-        ))}
-        {days.map((d, dayIdx) => (
-          <Fragment key={d}>
-            <span style={{ fontSize: 10, color: 'var(--text-3)', paddingRight: 6, fontWeight: 500 }}>{d}</span>
-            {Array.from({ length: 15 }, (_, hIdx) => {
-              const count = lookup.get(`${dayIdx}-${hIdx + 8}`) ?? 0
-              const v = count / maxCount
-              return (
-                <div key={hIdx} style={{
-                  aspectRatio: '1', borderRadius: 2,
-                  background: v === 0 ? 'var(--surface-3)' : `rgba(31, 78, 143, ${Math.max(0.1, v)})`,
-                }} />
-              )
-            })}
-          </Fragment>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 /* ── PAYMENT DONUT ────────────────────────────────── */
-const PAYMENT_COLORS = ['#111113', '#2f6f4e', '#ffd089', '#1f4e8f', '#a13b7a']
-
-function PaymentDonut({ segments }: { segments: PaymentBreakdown[] }) {
-  const totalAmount = segments.reduce((sum, seg) => sum + seg.amount, 0)
-  const totalCount = segments.reduce((sum, seg) => sum + seg.count, 0)
-  const size = 160, stroke = 30, r = (size - stroke) / 2, C = 2 * Math.PI * r
-  let offset = 0
-
-  if (segments.length === 0 || totalAmount <= 0) {
-    return (
-      <div style={{ padding: '46px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-        Bu aralıkta tahsil edilmiş ödeme yok
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-      <div style={{ position: 'relative', width: size, height: size }}>
-        <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-          {segments.map((seg, i) => {
-            const dash = (seg.amount / totalAmount) * C
-            const el = (
-              <circle key={seg.key} cx={size / 2} cy={size / 2} r={r}
-                fill="none" stroke={PAYMENT_COLORS[i % PAYMENT_COLORS.length]} strokeWidth={stroke}
-                strokeDasharray={`${dash} ${C - dash}`}
-                strokeDashoffset={-offset}
-              />
-            )
-            offset += dash
-            return el
-          })}
-        </svg>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ ...s.mono, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>{formatCurrency(totalAmount)}</span>
-          <span style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 2 }}>{totalCount} ödeme</span>
-        </div>
-      </div>
-      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {segments.map((seg, i) => (
-          <div key={seg.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: PAYMENT_COLORS[i % PAYMENT_COLORS.length] }} />
-            <span style={{ flex: 1, fontSize: 12, color: 'var(--text)' }}>{seg.label}</span>
-            <span style={{ ...s.mono, fontSize: 11, color: 'var(--text-3)' }}>%{seg.pct.toLocaleString('tr-TR')}</span>
-            <span style={{ ...s.mono, fontSize: 11.5, fontWeight: 600, minWidth: 74, textAlign: 'right', color: 'var(--text)' }}>{formatCurrency(seg.amount)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+const PAYMENT_COLORS = ['var(--chart-cat-1)', 'var(--chart-cat-2)', 'var(--chart-cat-3)', 'var(--chart-cat-4)', 'var(--chart-cat-5)']
 
 /* ── TOP ITEMS TABLE ──────────────────────────────── */
 function TopItemsTable({ items }: { items: TopItem[] }) {
@@ -731,8 +645,8 @@ function PaymentsReport({ paymentBreakdown, range }: { paymentBreakdown: Payment
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 12 }}>
-        <Card title="Dağılım" subtitle="Tahsil edilen tutara göre">
-          <PaymentDonut segments={collected} />
+        <Card title="Dağılım" subtitle="Tahsil edilen tutara göre" style={{ overflow: 'visible' }}>
+          <PaymentDonutChart segments={collected} />
         </Card>
         <Card title="Yöntem detayı" subtitle="Nakit · Fiziksel POS · İyzico">
           <PaymentRows rows={collected} />
@@ -817,7 +731,7 @@ function OperationsReport({
           <Card title="En çok iptal edilen ürünler" subtitle="Adet ve sipariş anındaki kayıp">
             <CancelledItemsTable items={cancellations.topItems} />
           </Card>
-          <Card title="Dönem içi iptal trendi" subtitle={`${rangePeriodLabel(range)} · adet`}>
+          <Card title="Dönem içi iptal trendi" subtitle={`${rangePeriodLabel(range)} · adet`} style={{ overflow: 'visible' }}>
             <CancellationTrend data={cancellations.trend} range={range} />
           </Card>
         </div>
@@ -893,30 +807,12 @@ function EmptyReportState({ text }: { text: string }) {
   )
 }
 
+// Thin wrapper: keep the compaction here, render the recharts bar (HOVER tier).
 function CancellationTrend({ data, range }: { data: CancellationReport['trend']; range: string }) {
   const compact = compactCancellationTrend(data, range)
-  const total = compact.reduce((sum, point) => sum + point.count, 0)
-  const max = Math.max(...compact.map((point) => point.count), 1)
   return (
-    <div aria-label={`İptal trendi: ${total} iptal`} style={{ padding: '14px 16px 16px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 120 }}>
-        {compact.map((point) => (
-          <div key={point.label} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, height: '100%' }}>
-            <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
-              <div style={{
-                width: '100%',
-                height: point.count === 0 ? 3 : `${Math.max(6, (point.count / max) * 100)}%`,
-                background: point.count === 0 ? 'var(--surface-3)' : 'var(--critical)',
-                borderRadius: '5px 5px 2px 2px',
-                position: 'relative',
-              }}>
-                <span style={{ position: 'absolute', top: -17, left: 0, right: 0, textAlign: 'center', ...s.mono, fontSize: 10, color: 'var(--text-2)', fontWeight: 600 }}>{point.count}</span>
-              </div>
-            </div>
-            <span style={{ ...s.mono, fontSize: 9.5, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{point.label}</span>
-          </div>
-        ))}
-      </div>
+    <div style={{ padding: '12px 12px 8px' }}>
+      <CancellationTrendChart data={compact} />
     </div>
   )
 }
