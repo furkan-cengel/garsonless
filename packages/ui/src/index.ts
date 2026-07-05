@@ -26,7 +26,10 @@ export {
   TableBillSheet,
   ProductCard,
   ProductModal,
+  DietaryFilterBar,
+  itemMatchesDietaryFilters,
 } from './menu/index'
+export type { DietaryFilter } from './menu/index'
 
 export type {
   CartItem,

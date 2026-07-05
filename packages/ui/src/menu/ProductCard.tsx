@@ -1,9 +1,9 @@
 'use client'
 
 import type { MenuItem } from './types'
-import { ALLERGEN_LABELS } from '@garsonless/db/order-client'
 import { useTheme } from './ThemeContext'
 import { formatTRY } from './formatCurrency'
+import { DietaryBadges, hasAllergenInformation } from './FoodInfoBadges'
 
 interface ProductCardProps {
   item: MenuItem
@@ -28,20 +28,32 @@ const SHADOW_MAP: Record<string, string> = {
 }
 
 function FoodMeta({ item }: { item: MenuItem }) {
-  const allergens = [...new Set(item.ingredients.flatMap((ingredient) => ingredient.allergen_codes))]
-  if (item.energy_kcal === null && allergens.length === 0) return null
+  const hasDietaryBadge = item.is_vegan || item.is_vegetarian || item.is_halal
+  const hasAllergenNotice = hasAllergenInformation(item)
+  if (item.energy_kcal === null && !hasDietaryBadge && !hasAllergenNotice) return null
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 5 }}>
-      {item.energy_kcal !== null && (
-        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--p-text-2)' }}>{item.energy_kcal} kcal</span>
+    <div data-component="food-meta" style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+        {item.energy_kcal !== null && (
+          <span style={{ fontSize: 10, fontWeight: 750, color: 'var(--p-text-2)' }}>{item.energy_kcal} kcal</span>
+        )}
+        <DietaryBadges item={item} compact />
+      </div>
+      {hasAllergenNotice && (
+        <span style={{
+          alignSelf: 'flex-start',
+          padding: '3px 6px',
+          borderRadius: 5,
+          background: '#fff2df',
+          color: '#7a4300',
+          fontSize: 9.5,
+          fontWeight: 800,
+          lineHeight: 1.2,
+        }}>
+          Alerjen bilgisi var
+        </span>
       )}
-      {allergens.slice(0, 2).map((code) => (
-        <span key={code} title={`Alerjen: ${ALLERGEN_LABELS[code]}`} style={{
-          padding: '2px 5px', borderRadius: 4, background: '#fff2df',
-          color: '#8a4b00', fontSize: 9.5, fontWeight: 800,
-        }}>{ALLERGEN_LABELS[code]}</span>
-      ))}
-      {allergens.length > 2 && <span style={{ fontSize: 9.5, color: 'var(--p-text-2)' }}>+{allergens.length - 2}</span>}
     </div>
   )
 }

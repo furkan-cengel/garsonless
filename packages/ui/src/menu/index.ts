@@ -12,6 +12,8 @@ export { TableBillSheet } from './TableBillSheet'
 export type { BillOrder } from './TableBillSheet'
 export { ProductCard } from './ProductCard'
 export { ProductModal } from './ProductModal'
+export { DietaryFilterBar, itemMatchesDietaryFilters } from './DietaryFilterBar'
+export type { DietaryFilter } from './DietaryFilterBar'
 export type {
   CartItem,
   MenuCategory,

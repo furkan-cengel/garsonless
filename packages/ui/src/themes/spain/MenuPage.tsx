@@ -26,7 +26,7 @@ const CUSTOM_SECTION_IDS = new Set([
   'footer',
 ])
 
-export function SpainMenuPage({ categories, renderItems, tableId, tableLabel: tableName }: ThemeMenuPageProps) {
+export function SpainMenuPage({ categories, renderItems, menuFilters, filterEmptyState, tableId, tableLabel: tableName }: ThemeMenuPageProps) {
   const { restaurantName, theme } = useTheme()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
@@ -617,7 +617,15 @@ export function SpainMenuPage({ categories, renderItems, tableId, tableLabel: ta
 
         {pageBlocks.map((block) => {
           if (block.type === 'section') return renderCustomSection(block.id)
-          if (block.type === 'nav') return renderCategoryNav()
+          if (block.type === 'nav') {
+            return (
+              <div key="category-nav">
+                {renderCategoryNav()}
+                <div style={{ marginInline: -24 }}>{menuFilters}</div>
+                {filterEmptyState}
+              </div>
+            )
+          }
 
           const category = categoryById.get(block.id)
           if (!category) return null

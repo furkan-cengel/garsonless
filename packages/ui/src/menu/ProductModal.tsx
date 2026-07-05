@@ -6,6 +6,7 @@ import { ALLERGEN_LABELS } from '@garsonless/db/order-client'
 import type { MenuItem, ModifierGroup, SelectedModifier } from './types'
 import { formatTRY } from './formatCurrency'
 import { useTheme } from './ThemeContext'
+import { DietaryBadges, getDefiniteAllergens } from './FoodInfoBadges'
 
 interface ProductModalProps {
   item: MenuItem | null
@@ -65,9 +66,7 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
     }
     return sum
   }, 0)
-  const selectedAllergens = new Set(
-    item.ingredients.flatMap((ingredient) => ingredient.allergen_codes),
-  )
+  const selectedAllergens = new Set(getDefiniteAllergens(item))
   for (const group of item.modifier_groups) {
     for (const selection of selections[group.id] ?? []) {
       const option = group.options.find((candidate) => candidate.id === selection.option_id)
@@ -77,6 +76,9 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
   const energyKcal = item.energy_kcal === null
     ? null
     : Math.max(0, Math.round(item.energy_kcal + calorieDelta))
+  const crossContactAllergens = item.may_contain_allergens.filter(
+    (code) => !selectedAllergens.has(code),
+  )
 
   const totalPrice = (item.price + modifierTotal) * quantity
 
@@ -176,6 +178,11 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
 
           <div style={{ padding: 18 }}>
             <h2 style={{ margin: 0, fontFamily: 'var(--p-display)', fontSize: 24, lineHeight: 1.12, fontWeight: 800, color: 'var(--p-text)' }}>{item.name}</h2>
+            {(item.is_vegan || item.is_vegetarian || item.is_halal) && (
+              <div style={{ marginTop: 8 }}>
+                <DietaryBadges item={item} />
+              </div>
+            )}
             {item.description && (
               <p style={{ margin: '8px 0 0', fontSize: 14, lineHeight: 1.5, color: 'var(--p-text-2)' }}>{item.description}</p>
             )}
@@ -205,6 +212,11 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
                     fontWeight: ingredient.allergen_codes.length > 0 ? 800 : 600,
                   }}>
                     {ingredient.name}
+                    {ingredient.amount ? (
+                      <span style={{ marginLeft: 5, color: 'var(--p-text-2)', fontWeight: 600 }}>
+                        · {ingredient.amount}
+                      </span>
+                    ) : null}
                   </span>
                 ))}
               </div>
@@ -235,28 +247,58 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
             </div>
           )}
 
-          {(selectedAllergens.size > 0 || item.may_contain_allergens.length > 0 || item.contains_alcohol || item.contains_pork) && (
-            <div style={{ borderTop: '1px solid rgba(15,23,42,.08)', padding: '14px 18px' }}>
-              <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 800 }}>Alerjen ve içerik uyarıları</p>
+          {(item.contains_alcohol || item.contains_pork) && (
+            <div data-component="special-content-warning" style={{ borderTop: '1px solid rgba(15,23,42,.08)', padding: '14px 18px' }}>
+              <div style={{ padding: 12, borderRadius: 8, background: '#fee2e2', color: '#991b1b' }}>
+                <p style={{ margin: '0 0 7px', fontSize: 13, fontWeight: 850 }}>Önemli içerik uyarısı</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {item.contains_alcohol && <span style={{ fontSize: 12, fontWeight: 800 }}>Alkol içerir</span>}
+                  {item.contains_alcohol && item.contains_pork && <span aria-hidden="true">·</span>}
+                  {item.contains_pork && <span style={{ fontSize: 12, fontWeight: 800 }}>Domuz kaynaklı bileşen içerir</span>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {selectedAllergens.size > 0 && (
+            <div data-component="contains-allergens" style={{ borderTop: '1px solid rgba(15,23,42,.08)', padding: '14px 18px' }}>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 850, color: '#7a4300' }}>Alerjenler · ürün içerir</p>
+              <p style={{ margin: '4px 0 9px', fontSize: 11.5, lineHeight: 1.45, color: 'var(--p-text-2)' }}>
+                Bu alerjenler ürünün bileşenlerinde bulunur.
+              </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {[...selectedAllergens].map((code) => (
-                  <span key={code} style={{ padding: '5px 8px', borderRadius: 6, background: '#fff2df', color: '#8a4b00', fontSize: 11.5, fontWeight: 800 }}>
-                    İçerir: {ALLERGEN_LABELS[code]}
+                  <span key={code} style={{ padding: '5px 8px', borderRadius: 6, background: '#fff2df', color: '#7a4300', fontSize: 11.5, fontWeight: 850 }}>
+                    {ALLERGEN_LABELS[code]}
                   </span>
                 ))}
-                {item.may_contain_allergens.map((code) => (
-                  <span key={`may-${code}`} style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid rgba(138,75,0,.25)', color: '#8a4b00', fontSize: 11.5, fontWeight: 700 }}>
-                    Eser miktarda içerebilir: {ALLERGEN_LABELS[code]}
-                  </span>
-                ))}
-                {item.contains_alcohol && <span style={{ padding: '5px 8px', borderRadius: 6, background: '#fee2e2', color: '#991b1b', fontSize: 11.5, fontWeight: 800 }}>Alkol içerir</span>}
-                {item.contains_pork && <span style={{ padding: '5px 8px', borderRadius: 6, background: '#fee2e2', color: '#991b1b', fontSize: 11.5, fontWeight: 800 }}>Domuz kaynaklı bileşen içerir</span>}
               </div>
-              {removedIngredientIds.length > 0 && (
-                <p style={{ margin: '9px 0 0', fontSize: 11.5, lineHeight: 1.45, color: 'var(--p-text-2)' }}>
-                  Bir içeriğin çıkarılması ürünün alerjensiz olduğunu garanti etmez.
+            </div>
+          )}
+
+          {crossContactAllergens.length > 0 && (
+            <div data-component="cross-contact-allergens" style={{ borderTop: '1px solid rgba(15,23,42,.08)', padding: '14px 18px' }}>
+              <div style={{ padding: 12, border: '1px dashed rgba(71,85,105,.38)', borderRadius: 8, background: 'rgba(241,245,249,.72)' }}>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--p-text)' }}>Olası çapraz temas</p>
+                <p style={{ margin: '4px 0 9px', fontSize: 11.5, lineHeight: 1.45, color: 'var(--p-text-2)' }}>
+                  Ürün eser miktarda aşağıdaki alerjenleri içerebilir.
                 </p>
-              )}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {crossContactAllergens.map((code) => (
+                    <span key={code} style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid rgba(71,85,105,.24)', color: 'var(--p-text-2)', fontSize: 11.5, fontWeight: 750 }}>
+                      {ALLERGEN_LABELS[code]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {removedIngredientIds.length > 0 && (selectedAllergens.size > 0 || crossContactAllergens.length > 0) && (
+            <div style={{ padding: '0 18px 14px' }}>
+              <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.45, color: 'var(--p-text-2)' }}>
+                Bir içeriğin çıkarılması ürünün alerjensiz olduğunu garanti etmez.
+              </p>
             </div>
           )}
 

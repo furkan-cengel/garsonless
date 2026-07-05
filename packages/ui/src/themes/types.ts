@@ -6,6 +6,8 @@ export interface ThemeMenuPageProps {
   categories: MenuCategory[]
   categoryMeta?: Record<string, { imageUrl?: string | null; itemCount?: number }>
   renderItems: (catId: string) => ReactNode
+  menuFilters?: ReactNode
+  filterEmptyState?: ReactNode
   tableId?: string | null
   tableLabel?: string | null
   cartSummary?: { count: number; subtotal: number }

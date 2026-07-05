@@ -20,9 +20,13 @@ export interface MenuItem {
   images: string[]
   ingredients: MenuIngredient[]
   energy_kcal: number | null
+  contains_allergens: AllergenCode[]
   may_contain_allergens: AllergenCode[]
   contains_alcohol: boolean
   contains_pork: boolean
+  is_vegetarian: boolean
+  is_vegan: boolean
+  is_halal: boolean
   food_info_reviewed_at: string | null
   modifier_groups: ModifierGroup[]
   is_available: boolean

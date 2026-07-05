@@ -17,9 +17,13 @@ type PublicMenuItemRow = Pick<
   | 'images'
   | 'ingredients'
   | 'energy_kcal'
+  | 'contains_allergens'
   | 'may_contain_allergens'
   | 'contains_alcohol'
   | 'contains_pork'
+  | 'is_vegetarian'
+  | 'is_vegan'
+  | 'is_halal'
   | 'food_info_reviewed_at'
   | 'modifier_groups'
   | 'is_available'
@@ -47,9 +51,13 @@ function mapMenuItem(row: PublicMenuItemRow): MenuItem {
     images: Array.isArray(row.images) ? (row.images as string[]) : [],
     ingredients: normalizeIngredients(row.ingredients),
     energy_kcal: row.energy_kcal ?? null,
+    contains_allergens: normalizeAllergenCodes(row.contains_allergens),
     may_contain_allergens: normalizeAllergenCodes(row.may_contain_allergens),
     contains_alcohol: row.contains_alcohol ?? false,
     contains_pork: row.contains_pork ?? false,
+    is_vegetarian: row.is_vegetarian ?? false,
+    is_vegan: row.is_vegan ?? false,
+    is_halal: row.is_halal ?? false,
     food_info_reviewed_at: row.food_info_reviewed_at ?? null,
     modifier_groups: normalizeModifierGroups(row.modifier_groups),
     is_available: row.is_available,
@@ -168,9 +176,13 @@ export async function getMenuItems(categoryIds: string[]): Promise<MenuItem[]> {
       images,
       ingredients,
       energy_kcal,
+      contains_allergens,
       may_contain_allergens,
       contains_alcohol,
       contains_pork,
+      is_vegetarian,
+      is_vegan,
+      is_halal,
       food_info_reviewed_at,
       modifier_groups,
       is_available,

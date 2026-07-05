@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import {
@@ -16,8 +16,10 @@ import {
   formatTRY,
   CartIconSvg,
   THEME_REGISTRY,
+  DietaryFilterBar,
+  itemMatchesDietaryFilters,
 } from '@garsonless/ui'
-import type { MenuItem, MenuCategory, OrderSummaryItem, BillOrder } from '@garsonless/ui'
+import type { MenuItem, MenuCategory, OrderSummaryItem, BillOrder, DietaryFilter } from '@garsonless/ui'
 import type { TableSessionInfo, SessionOrderRow } from '../../lib/queries'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { Tables, OrderStatus, MemberBalances } from '@garsonless/db'
@@ -673,6 +675,7 @@ export function MenuPageClient({
   isPreview = false,
 }: Props) {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
+  const [dietaryFilters, setDietaryFilters] = useState<DietaryFilter[]>([])
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [paymentOrderId, setPaymentOrderId] = useState<string | null>(null)
   const [paymentTotal, setPaymentTotal] = useState(0)
@@ -1253,15 +1256,36 @@ export function MenuPageClient({
     }, 340)
   }
 
-  const itemsByCategory = categories.reduce<Record<string, MenuItem[]>>((acc, cat) => {
-    acc[cat.id] = items.filter((i) => i.category_id === cat.id)
+  const filteredItems = useMemo(
+    () => dietaryFilters.length === 0
+      ? items
+      : items.filter((item) => itemMatchesDietaryFilters(item, dietaryFilters)),
+    [dietaryFilters, items],
+  )
+  const visibleCategories = useMemo(() => {
+    if (dietaryFilters.length === 0) return categories
+    const visibleIds = new Set(filteredItems.map((item) => item.category_id))
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const category of categories) {
+        if (!visibleIds.has(category.id) || !category.parent_id || visibleIds.has(category.parent_id)) continue
+        visibleIds.add(category.parent_id)
+        changed = true
+      }
+    }
+    return categories.filter((category) => visibleIds.has(category.id))
+  }, [categories, dietaryFilters.length, filteredItems])
+
+  const itemsByCategory = visibleCategories.reduce<Record<string, MenuItem[]>>((acc, cat) => {
+    acc[cat.id] = filteredItems.filter((i) => i.category_id === cat.id)
     return acc
   }, {})
 
-  const categoryMeta = categories.reduce<Record<string, { imageUrl: string | null; itemCount: number }>>((acc, cat) => {
+  const categoryMeta = visibleCategories.reduce<Record<string, { imageUrl: string | null; itemCount: number }>>((acc, cat) => {
     const collectIds = (categoryId: string): string[] => [
       categoryId,
-      ...categories
+      ...visibleCategories
         .filter((category) => category.parent_id === categoryId)
         .flatMap((category) => collectIds(category.id)),
     ]
@@ -1274,6 +1298,12 @@ export function MenuPageClient({
     }
     return acc
   }, {})
+
+  const toggleDietaryFilter = useCallback((filter: DietaryFilter) => {
+    setDietaryFilters((current) => current.includes(filter)
+      ? current.filter((candidate) => candidate !== filter)
+      : [...current, filter])
+  }, [])
 
   function renderItems(catId: string) {
     const catItems = itemsByCategory[catId] ?? []
@@ -1339,9 +1369,35 @@ export function MenuPageClient({
       initialLogoUrl={restaurant.logo_url ?? null}
     >
       <ThemeMenuPage
-        categories={categories}
+        categories={visibleCategories}
         categoryMeta={categoryMeta}
         renderItems={renderItems}
+        menuFilters={(
+          <DietaryFilterBar
+            selected={dietaryFilters}
+            onToggle={toggleDietaryFilter}
+          />
+        )}
+        filterEmptyState={dietaryFilters.length > 0 && filteredItems.length === 0 ? (
+          <div
+            data-component="filter-empty-state"
+            role="status"
+            style={{
+              margin: '18px var(--p-pad) 28px',
+              padding: '18px 16px',
+              border: 'var(--p-border-w) solid var(--p-border)',
+              borderRadius: 'min(var(--p-radius), 12px)',
+              background: 'var(--p-card)',
+              color: 'var(--p-text-2)',
+              textAlign: 'center',
+              fontSize: 13,
+              lineHeight: 1.45,
+              fontWeight: 650,
+            }}
+          >
+            Seçili filtrelere uyan ürün yok.
+          </div>
+        ) : null}
         tableId={effectiveTableId}
         {...(tableLabel ? { tableLabel } : {})}
         cartSummary={{
@@ -1349,7 +1405,7 @@ export function MenuPageClient({
           subtotal: cartItems.reduce((sum, item) => sum + (item.price + item.modifiersPriceDelta) * item.quantity, 0),
         }}
         onOpenCart={() => setIsCartOpen(true)}
-        items={items}
+        items={filteredItems}
         onQuickAdd={handleQuickAdd}
         billSummary={billSummary}
         onOpenBill={() => { void openBill() }}

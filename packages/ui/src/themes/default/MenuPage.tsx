@@ -23,7 +23,7 @@ import {
   InfoBlockSection,
 } from './sections/MiscSections'
 
-export function DefaultMenuPage({ categories, categoryMeta, renderItems, tableId, tableLabel, cartSummary, onOpenCart, items, onQuickAdd, billSummary, onOpenBill, memberSummary, onOpenMember, memberLoyalty }: ThemeMenuPageProps) {
+export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFilters, filterEmptyState, tableId, tableLabel, cartSummary, onOpenCart, items, onQuickAdd, billSummary, onOpenBill, memberSummary, onOpenMember, memberLoyalty }: ThemeMenuPageProps) {
   const { theme, restaurantName } = useTheme()
   const visualNav = theme.catnavStyle === 'visual'
   const rootCategories = useMemo(() => categories.filter((category) => !category.parent_id), [categories])
@@ -406,6 +406,8 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, tableId
                     activeId: activeVisualCategoryId,
                     onSelect: setActiveVisualCategoryId,
                   })}
+                  {menuFilters}
+                  {filterEmptyState}
                 </div>
               )
             }
@@ -417,6 +419,8 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, tableId
                   activeCategoryId={undefined}
                   onCategorySelect={undefined}
                 />
+                {menuFilters}
+                {filterEmptyState}
               </div>
             )
           }
