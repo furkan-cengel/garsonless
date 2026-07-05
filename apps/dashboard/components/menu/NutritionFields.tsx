@@ -98,6 +98,18 @@ export function nutritionComplete(s: NutritionState): boolean {
   return s.ingredients.some((i) => i.name.trim()) && s.energyKcal.trim() !== '' && s.reviewed
 }
 
+export function applyNutritionPatch(
+  current: NutritionState,
+  patch: Partial<NutritionState>,
+): NutritionState {
+  const explicitlySetsReview = Object.prototype.hasOwnProperty.call(patch, 'reviewed')
+  return {
+    ...current,
+    ...patch,
+    ...(explicitlySetsReview ? {} : { reviewed: false }),
+  }
+}
+
 /* ── allergen glyphs (mapped to the EU codes) ──────────────────────────── */
 const G = (d: React.ReactNode) => (
   <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">{d}</svg>
@@ -193,6 +205,17 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
   const updIng = (id: string, patch: Partial<NutritionIngredient>) => set({ ingredients: s.ingredients.map((i) => (i.id === id ? { ...i, ...patch } : i)) })
   const addIng = () => set({ ingredients: [...s.ingredients, { id: crypto.randomUUID(), name: '', amount: '', removable: false, allergen_codes: [] }] })
   const rmIng = (id: string) => set({ ingredients: s.ingredients.filter((i) => i.id !== id) })
+  const moveIng = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= s.ingredients.length) return
+    const ingredients = [...s.ingredients]
+    const current = ingredients[index]
+    const adjacent = ingredients[target]
+    if (!current || !adjacent) return
+    ingredients[index] = adjacent
+    ingredients[target] = current
+    set({ ingredients })
+  }
   const toggleContains = (code: AllergenCode) => set({
     contains: s.contains.includes(code) ? s.contains.filter((x) => x !== code) : [...s.contains, code],
     traces: s.traces.filter((x) => x !== code),
@@ -208,15 +231,35 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
       <NSection first={firstBorderless} title="İçindekiler ve enerji"
         right={ingredientCount > 0 ? <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: "'Geist Mono', monospace" }}>{ingredientCount} bileşen</span> : undefined}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {s.ingredients.map((ing) => (
+          {s.ingredients.map((ing, index) => (
             <div key={ing.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ color: 'var(--text-4)', flexShrink: 0, display: 'flex' }}>{icDrag}</span>
+              <span style={{ color: 'var(--text-4)', flexShrink: 0, display: 'flex' }} aria-hidden="true">{icDrag}</span>
               <input value={ing.name} onChange={(e) => updIng(ing.id, { name: e.target.value })} placeholder="Bileşen adı"
                 style={{ flex: 1, minWidth: 0, height: 32, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 8, outline: 'none', fontSize: 12.5, background: 'var(--surface)', fontFamily: 'inherit' }} />
-              <input value={ing.amount} onChange={(e) => updIng(ing.id, { amount: e.target.value })} placeholder="miktar"
+              <input value={ing.amount} maxLength={40} onChange={(e) => updIng(ing.id, { amount: e.target.value })} placeholder="miktar"
                 style={{ width: 64, flexShrink: 0, height: 32, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, outline: 'none', fontSize: 12, textAlign: 'center', background: 'var(--surface)', color: 'var(--text-2)', fontFamily: 'inherit' }} />
               <button type="button" title="Müşteri çıkarabilir" onClick={() => updIng(ing.id, { removable: !ing.removable })}
                 style={{ width: 30, height: 32, flexShrink: 0, borderRadius: 7, fontSize: 9.5, fontWeight: 700, cursor: 'pointer', border: '1px solid ' + (ing.removable ? 'var(--accent)' : 'var(--border)'), background: ing.removable ? 'var(--accent-soft)' : 'var(--surface)', color: ing.removable ? 'var(--accent)' : 'var(--text-4)' }}>çıkar</button>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+                <button
+                  type="button"
+                  aria-label={`${ing.name.trim() || `Bileşen ${index + 1}`} yukarı taşı`}
+                  disabled={index === 0}
+                  onClick={() => moveIng(index, -1)}
+                  style={{ width: 24, height: 15, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--surface-2)', color: 'var(--text-2)', cursor: index === 0 ? 'default' : 'pointer', opacity: index === 0 ? 0.35 : 1, fontSize: 10, lineHeight: 1 }}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  aria-label={`${ing.name.trim() || `Bileşen ${index + 1}`} aşağı taşı`}
+                  disabled={index === s.ingredients.length - 1}
+                  onClick={() => moveIng(index, 1)}
+                  style={{ width: 24, height: 15, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--surface-2)', color: 'var(--text-2)', cursor: index === s.ingredients.length - 1 ? 'default' : 'pointer', opacity: index === s.ingredients.length - 1 ? 0.35 : 1, fontSize: 10, lineHeight: 1 }}
+                >
+                  ↓
+                </button>
+              </span>
               <button type="button" onClick={() => rmIng(ing.id)} disabled={s.ingredients.length <= 1}
                 style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 7, display: 'grid', placeItems: 'center', color: s.ingredients.length > 1 ? 'var(--text-3)' : 'var(--text-4)', background: 'transparent', border: 'none', cursor: s.ingredients.length > 1 ? 'pointer' : 'default', opacity: s.ingredients.length > 1 ? 1 : 0.4 }}>{icX}</button>
             </div>
@@ -230,7 +273,7 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
           <MacroInput label="Karbon." value={s.carb} onChange={(v) => set({ carb: v })} suffix="g" />
           <MacroInput label="Yağ" value={s.fat} onChange={(v) => set({ fat: v })} suffix="g" />
         </div>
-        <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 7 }}>Porsiyon başına. Müşteri menüsünde ürün kartında görünür.</div>
+        <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 7 }}>Porsiyon başına. Enerji müşteriye gösterilir; makrolar işletme içi kalır.</div>
       </NSection>
 
       <NSection title="Alerjenler"
@@ -255,15 +298,15 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
       <NSection title="Özel içerik & diyet">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <FlagRow tone="critical" on={s.alcohol} onToggle={() => set({ alcohol: !s.alcohol })}
-            icon={flagIcon(<path d="M8 22h8M12 15v7M5 3h14l-6 10H11L5 3ZM7.5 7h9" />)} label="Alkol içerir" desc="18 yaş altı müşterilere uyarı gösterilir" />
+            icon={flagIcon(<path d="M8 22h8M12 15v7M5 3h14l-6 10H11L5 3ZM7.5 7h9" />)} label="Alkol içerir" desc="Müşteri detayında içerik uyarısı gösterilir" />
           <FlagRow tone="critical" on={s.pork} onToggle={() => set({ pork: !s.pork })}
-            icon={flagIcon(<path d="M5 11a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5v-2ZM3 10l2 1M21 10l-2 1M11 12h.01M15 12h.01" />)} label="Domuz kaynaklı bileşen içerir" desc="Helal filtresinde gizlenir" />
+            icon={flagIcon(<path d="M5 11a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5v-2ZM3 10l2 1M21 10l-2 1M11 12h.01M15 12h.01" />)} label="Domuz kaynaklı bileşen içerir" desc="Helal beyanıyla birlikte seçilemez" />
           <FlagRow tone="positive" on={s.vegetarian} onToggle={() => set({ vegetarian: !s.vegetarian, vegan: false })}
             icon={flagIcon(<path d="M5 19c8 1 14-5 14-14C11 4 5 11 5 19ZM9 15c2-3 4-5 7-6" />)} label="Vejetaryen" desc="Et içermez" />
           <FlagRow tone="positive" on={s.vegan} onToggle={() => set({ vegan: !s.vegan, vegetarian: s.vegan ? s.vegetarian : true })}
             icon={flagIcon(<path d="M5 19c8 1 14-5 14-14C11 4 5 11 5 19Z" />)} label="Vegan" desc="Hayvansal ürün içermez" />
           <FlagRow tone="accent" on={s.halal} onToggle={() => set({ halal: !s.halal })}
-            icon={flagIcon(<path d="M12 3 4 7v5c0 4 3.5 7 8 9 4.5-2 8-5 8-9V7l-8-4ZM9 12l2 2 4-4" />)} label="Helal onaylı" desc="Helal filtresinde öne çıkar" />
+            icon={flagIcon(<path d="M12 3 4 7v5c0 4 3.5 7 8 9 4.5-2 8-5 8-9V7l-8-4ZM9 12l2 2 4-4" />)} label="Helal onaylı" desc="İşletmenin ürün beyanıdır" />
         </div>
       </NSection>
 
@@ -275,7 +318,7 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
           <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, border: '2px solid ' + (s.reviewed ? 'var(--positive)' : 'var(--border-strong)'), background: s.reviewed ? 'var(--positive)' : 'transparent', color: '#fff', display: 'grid', placeItems: 'center' }}>{s.reviewed && icCheck(13)}</span>
           <span style={{ flex: 1 }}>
             <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: s.reviewed ? 'var(--positive)' : 'var(--text)' }}>İçerik, enerji ve alerjen bilgilerini gözden geçirdim</span>
-            <span style={{ display: 'block', fontSize: 11, color: s.reviewed ? 'var(--positive)' : 'var(--text-3)', marginTop: 1 }}>{s.reviewed ? 'Onaylandı' : 'Yasal sorumluluk için zorunlu'}</span>
+            <span style={{ display: 'block', fontSize: 11, color: s.reviewed ? 'var(--positive)' : 'var(--text-3)', marginTop: 1 }}>{s.reviewed ? 'Onaylandı' : 'İşletme beyanını kaydeder'}</span>
           </span>
         </button>
       </NSection>

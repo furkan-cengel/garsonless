@@ -5,7 +5,7 @@ import type { Tables } from '@garsonless/db'
 import PageTopBar from '../layout/PageTopBar'
 import CategoryForm from './CategoryForm'
 import NewProductDrawer from './NewProductDrawer'
-import NutritionFields, { nutritionFromItem, appendNutritionToFormData, NutritionStatusPill } from './NutritionFields'
+import NutritionFields, { nutritionFromItem, appendNutritionToFormData, applyNutritionPatch, NutritionStatusPill } from './NutritionFields'
 import type { NutritionState } from './NutritionFields'
 import { I, S, Tag, IconButton, btnPrimary, btnGhost } from '../../lib/ui'
 import { useRouter } from 'next/navigation'
@@ -17,6 +17,7 @@ import {
   ALLERGEN_LABELS,
   normalizeIngredients,
   normalizeModifierGroups,
+  calculateMarginPercent,
   type AllergenCode,
   type MenuIngredient,
   type MenuModifierGroup as ModifierGroup,
@@ -1417,7 +1418,7 @@ function ItemEditPanel({
   const [isAvailable, setIsAvailable] = useState(item.is_available)
   const [earnsStamp, setEarnsStamp] = useState<boolean>(item.earns_stamp ?? false)
   const [nutri, setNutri] = useState<NutritionState>(() => nutritionFromItem(item))
-  const setN = (patch: Partial<NutritionState>) => setNutri((s) => ({ ...s, ...patch }))
+  const setN = (patch: Partial<NutritionState>) => setNutri((current) => applyNutritionPatch(current, patch))
   const [cost, setCost] = useState(item.cost == null ? '' : String(item.cost))
   const [images, setImages] = useState<string[]>(() =>
     Array.isArray(item.images) ? (item.images as string[]) : [],
@@ -1429,6 +1430,10 @@ function ItemEditPanel({
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const tint = tintFor(item.id)
+  const marginPercent = calculateMarginPercent(
+    Number(price),
+    cost.trim() === '' ? null : Number(cost),
+  )
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -1460,7 +1465,7 @@ function ItemEditPanel({
       setImages(prevImages)
       onError(result.error)
     } else {
-      onSaved({ ...item, images: newImages as unknown as import('@garsonless/db').Json })
+      onSaved(result.item)
     }
   }
 
@@ -1480,31 +1485,7 @@ function ItemEditPanel({
       fd.append('modifier_groups', JSON.stringify(modifiers))
       const result = await updateItem(fd)
       if ('error' in result) { onError(result.error); return }
-      onSaved({
-        ...item,
-        name,
-        description: description || null,
-        price: Number(price),
-        is_available: isAvailable,
-        earns_stamp: earnsStamp,
-        cost: cost ? Number(cost) : null,
-        ingredients: nutri.ingredients.filter((i) => i.name.trim()).map((i) => ({ id: i.id, name: i.name.trim(), removable: i.removable, allergen_codes: i.allergen_codes, ...(i.amount.trim() ? { amount: i.amount.trim() } : {}) })) as unknown as import('@garsonless/db').Json,
-        energy_kcal: nutri.energyKcal ? Number(nutri.energyKcal) : null,
-        protein_g: nutri.protein ? Number(nutri.protein) : null,
-        carb_g: nutri.carb ? Number(nutri.carb) : null,
-        fat_g: nutri.fat ? Number(nutri.fat) : null,
-        may_contain_allergens: nutri.traces,
-        contains_allergens: nutri.contains,
-        contains_alcohol: nutri.alcohol,
-        contains_pork: nutri.pork,
-        is_vegetarian: nutri.vegetarian,
-        is_vegan: nutri.vegan,
-        is_halal: nutri.halal,
-        food_info_reviewed_at: nutri.reviewed ? new Date().toISOString() : null,
-        food_info_reviewed_by: nutri.reviewed ? item.food_info_reviewed_by : null,
-        images: images as unknown as import('@garsonless/db').Json,
-        modifier_groups: modifiers as unknown as import('@garsonless/db').Json,
-      })
+      onSaved(result.item)
     })
   }
 
@@ -1539,7 +1520,12 @@ function ItemEditPanel({
       width: 'var(--props)', minWidth: 0, flexShrink: 0, overflow: 'hidden',
       borderLeft: '1px solid var(--border)', background: 'var(--surface)',
       display: 'flex', flexDirection: 'column',
-    }}>
+    }}
+      data-item-id={item.id}
+      data-item-position={item.position}
+      data-item-created-at={item.created_at}
+      data-item-updated-at={item.updated_at}
+    >
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--divider)', display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ width: 28, height: 28, borderRadius: 6, background: tint, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-2)' }}>
           <I.cutlery size={15} />
@@ -1592,7 +1578,7 @@ function ItemEditPanel({
                     fd.append('images', JSON.stringify([]))
                     const result = await updateItem(fd)
                     if ('error' in result) { setImages(prev); onError(result.error) }
-                    else onSaved({ ...item, images: [] as unknown as import('@garsonless/db').Json })
+                    else onSaved(result.item)
                   }}
                   style={{
                     background: 'rgba(255,255,255,.9)', backdropFilter: 'blur(6px)',
@@ -1668,10 +1654,10 @@ function ItemEditPanel({
               />
             </FieldInline>
           </div>
-          {Number(price) > 0 && Number(cost) > 0 && (
+          {marginPercent !== null && (
             <div style={{ marginTop: 8, padding: '10px 12px', background: 'var(--accent-soft)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 11.5, color: 'var(--accent)', fontWeight: 600 }}>Kâr marjı</span>
-              <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>%{Math.round(((Number(price) - Number(cost)) / Number(price)) * 100)}</span>
+              <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>%{marginPercent}</span>
             </div>
           )}
         </PanelSection>
@@ -2269,6 +2255,9 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
         setItems(prev => prev.map(i => i.id === id ? original : i))
         setSelectedItem(prev => prev?.id === id ? original : prev)
         showError(result.error)
+      } else {
+        setItems(prev => prev.map(i => i.id === id ? result.item : i))
+        setSelectedItem(prev => prev?.id === id ? result.item : prev)
       }
     })
   }

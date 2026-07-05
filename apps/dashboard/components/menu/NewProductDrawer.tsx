@@ -4,7 +4,7 @@ import React, { useState, useTransition } from 'react'
 import { InlineSpinner } from '@garsonless/ui'
 import type { Tables } from '@garsonless/db'
 import { createItem } from '../../lib/actions/menu'
-import NutritionFields, { nutritionFromItem, appendNutritionToFormData, NutritionStatusPill, type NutritionState } from './NutritionFields'
+import NutritionFields, { nutritionFromItem, appendNutritionToFormData, applyNutritionPatch, NutritionStatusPill, type NutritionState } from './NutritionFields'
 
 const icX = <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
 const icChevR = <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg>
@@ -34,7 +34,7 @@ export default function NewProductDrawer({
   const [isAvailable, setIsAvailable] = useState(true)
   const [earnsStamp, setEarnsStamp] = useState(false)
   const [nutri, setNutri] = useState<NutritionState>(() => nutritionFromItem(null))
-  const setN = (patch: Partial<NutritionState>) => setNutri((s) => ({ ...s, ...patch }))
+  const setN = (patch: Partial<NutritionState>) => setNutri((current) => applyNutritionPatch(current, patch))
   const [err, setErr] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
@@ -56,22 +56,7 @@ export default function NewProductDrawer({
       appendNutritionToFormData(fd, nutri)
       const res = await createItem(null, fd)
       if ('error' in res) { setErr(res.error); return }
-      onCreated({
-        id: res.id, category_id: categoryId, name: name.trim(), description: description.trim() || null,
-        price: Number(price), cost: cost ? Number(cost) : null, is_available: isAvailable, earns_stamp: earnsStamp,
-        images: [] as unknown as Tables<'menu_items'>['images'],
-        ingredients: nutri.ingredients.filter((i) => i.name.trim()).map((i) => ({ id: i.id, name: i.name.trim(), removable: i.removable, allergen_codes: i.allergen_codes, ...(i.amount.trim() ? { amount: i.amount.trim() } : {}) })) as unknown as Tables<'menu_items'>['ingredients'],
-        energy_kcal: nutri.energyKcal ? Number(nutri.energyKcal) : null,
-        protein_g: nutri.protein ? Number(nutri.protein) : null,
-        carb_g: nutri.carb ? Number(nutri.carb) : null,
-        fat_g: nutri.fat ? Number(nutri.fat) : null,
-        may_contain_allergens: nutri.traces, contains_allergens: nutri.contains,
-        contains_alcohol: nutri.alcohol, contains_pork: nutri.pork,
-        is_vegetarian: nutri.vegetarian, is_vegan: nutri.vegan, is_halal: nutri.halal,
-        food_info_reviewed_at: nutri.reviewed ? new Date().toISOString() : null, food_info_reviewed_by: null,
-        modifier_groups: [] as unknown as Tables<'menu_items'>['modifier_groups'],
-        position: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), deleted_at: null,
-      } as Tables<'menu_items'>)
+      onCreated(res.item)
     })
   }
 

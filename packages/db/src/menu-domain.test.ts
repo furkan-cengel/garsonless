@@ -95,12 +95,14 @@ test('normalizes structured removable ingredients and allergen codes', () => {
   const result = normalizeIngredients([{
     id: 'onion',
     name: ' Soğan ',
+    amount: ' 60 g ',
     removable: true,
     allergen_codes: ['milk', 'invalid'],
   }])
   assert.deepEqual(result, [{
     id: 'onion',
     name: 'Soğan',
+    amount: '60 g',
     removable: true,
     allergen_codes: ['milk'],
   }])
@@ -121,6 +123,7 @@ test('builds authoritative price, calorie, allergen and removal snapshot', () =>
     assert.deepEqual(result.snapshot.removedIngredients, [{ id: 'onion', name: 'Soğan' }])
     assert.deepEqual(result.snapshot.allergens.sort(), ['eggs', 'gluten', 'milk'])
     assert.deepEqual(result.snapshot.mayContainAllergens, ['sesame'])
+    assert.ok(result.snapshot.allergens.includes('gluten'), 'removing onion must not erase product allergen warnings')
   }
 })
 

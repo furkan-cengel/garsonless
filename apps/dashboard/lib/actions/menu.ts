@@ -5,7 +5,8 @@ import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
 import { assertAccess } from '../auth/access'
-import { ALLERGEN_CODES } from '@garsonless/db/order-client'
+import type { Tables } from '@garsonless/db'
+import { ALLERGEN_CODES, getDietaryClaimsConflict } from '@garsonless/db/order-client'
 
 const categorySchema = z.object({
   restaurantId: z.string().uuid(),
@@ -48,7 +49,7 @@ const ingredientSchema = z.object({
   amount: z.string().max(40).optional(),
 })
 
-const itemSchema = z.object({
+const itemBaseSchema = z.object({
   categoryId: z.string().uuid(),
   restaurantId: z.string().uuid(),
   name: z.string().min(1).max(100),
@@ -73,7 +74,28 @@ const itemSchema = z.object({
   modifier_groups: z.array(modifierGroupSchema).optional(),
 })
 
-const itemUpdateSchema = itemSchema.partial().extend({
+function dietaryConflictFor(input: {
+  is_vegetarian?: boolean
+  is_vegan?: boolean
+  is_halal?: boolean
+  contains_alcohol?: boolean
+  contains_pork?: boolean
+}) {
+  return getDietaryClaimsConflict({
+    vegetarian: input.is_vegetarian ?? false,
+    vegan: input.is_vegan ?? false,
+    halal: input.is_halal ?? false,
+    containsAlcohol: input.contains_alcohol ?? false,
+    containsPork: input.contains_pork ?? false,
+  })
+}
+
+const itemSchema = itemBaseSchema.superRefine((item, context) => {
+  const conflict = dietaryConflictFor(item)
+  if (conflict) context.addIssue({ code: z.ZodIssueCode.custom, message: conflict })
+})
+
+const itemUpdateSchema = itemBaseSchema.partial().extend({
   id: z.string().uuid(),
   restaurantId: z.string().uuid(),
   images: z.array(z.string()).optional(),
@@ -248,7 +270,7 @@ export async function reorderCategories(
 export async function createItem(
   _prev: unknown,
   formData: FormData,
-): Promise<{ error: string } | { id: string }> {
+): Promise<{ error: string } | { item: Tables<'menu_items'> }> {
   const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
 
@@ -322,22 +344,22 @@ export async function createItem(
       images: [] as import('@garsonless/db').Json,
       position,
     })
-    .select('id')
+    .select('*')
     .single()
 
   if (error) return { error: error.message }
 
-  const id = (data as { id: string } | null)?.id
-  if (!id) return { error: 'Failed to create item' }
+  const item = data as Tables<'menu_items'> | null
+  if (!item) return { error: 'Failed to create item' }
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
   revalidateTag(`menu:${parsed.data.restaurantId}`)
-  return { id }
+  return { item }
 }
 
 export async function updateItem(
   formData: FormData,
-): Promise<{ error: string } | { success: true }> {
+): Promise<{ error: string } | { item: Tables<'menu_items'> }> {
   const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
 
@@ -391,6 +413,26 @@ export async function updateItem(
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId!, user.id)
   if (!isOwner) return { error: 'Not authorized' }
 
+  const { data: existing, error: existingError } = await supabase
+    .from('menu_items')
+    .select('id, is_vegetarian, is_vegan, is_halal, contains_alcohol, contains_pork')
+    .eq('id', parsed.data.id)
+    .single()
+  const existingItem = existing as Pick<
+    Tables<'menu_items'>,
+    'id' | 'is_vegetarian' | 'is_vegan' | 'is_halal' | 'contains_alcohol' | 'contains_pork'
+  > | null
+  if (existingError || !existingItem) return { error: 'Item not found' }
+
+  const dietaryConflict = getDietaryClaimsConflict({
+    vegetarian: parsed.data.is_vegetarian ?? existingItem.is_vegetarian,
+    vegan: parsed.data.is_vegan ?? existingItem.is_vegan,
+    halal: parsed.data.is_halal ?? existingItem.is_halal,
+    containsAlcohol: parsed.data.contains_alcohol ?? existingItem.contains_alcohol,
+    containsPork: parsed.data.contains_pork ?? existingItem.contains_pork,
+  })
+  if (dietaryConflict) return { error: dietaryConflict }
+
   const { id, restaurantId: _r, modifier_groups, images, ingredients, food_info_reviewed, ...rest } = parsed.data
   const updates: Record<string, unknown> = { ...rest }
   if (modifier_groups !== undefined) {
@@ -404,22 +446,31 @@ export async function updateItem(
   }
   const foodInfoChanged = ingredients !== undefined ||
     parsed.data.energy_kcal !== undefined ||
+    parsed.data.protein_g !== undefined ||
+    parsed.data.carb_g !== undefined ||
+    parsed.data.fat_g !== undefined ||
+    parsed.data.contains_allergens !== undefined ||
     parsed.data.may_contain_allergens !== undefined ||
     parsed.data.contains_alcohol !== undefined ||
     parsed.data.contains_pork !== undefined ||
+    parsed.data.is_vegetarian !== undefined ||
+    parsed.data.is_vegan !== undefined ||
+    parsed.data.is_halal !== undefined ||
     modifier_groups !== undefined
   if (food_info_reviewed !== undefined || foodInfoChanged) {
     updates['food_info_reviewed_at'] = food_info_reviewed ? new Date().toISOString() : null
     updates['food_info_reviewed_by'] = food_info_reviewed ? user.id : null
   }
 
-  const { error } = await mut(supabase, 'menu_items').update(updates).eq('id', id!)
+  const { data, error } = await mut(supabase, 'menu_items').update(updates).eq('id', id!).select('*')
 
   if (error) return { error: error.message }
+  const item = data?.[0] as Tables<'menu_items'> | undefined
+  if (!item) return { error: 'Item not found' }
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
   revalidateTag(`menu:${parsed.data.restaurantId}`)
-  return { success: true }
+  return { item }
 }
 
 export async function deleteItem(

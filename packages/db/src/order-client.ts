@@ -4,6 +4,8 @@ export {
   DEFAULT_TIMEZONE, startOfRestaurantDay, startOfDayNDaysAgo, rangeWindow,
   restaurantDayKey, restaurantHour, restaurantWeekday, isValidTimeZone, normalizeTimeZone,
 } from './restaurant-time'
+export { calculateMarginPercent, getDietaryClaimsConflict } from './menu-nutrition'
+export type { DietaryClaims } from './menu-nutrition'
 export {
   ALLERGEN_CODES,
   ALLERGEN_LABELS,
