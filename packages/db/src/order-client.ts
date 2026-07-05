@@ -4,8 +4,12 @@ export {
   DEFAULT_TIMEZONE, startOfRestaurantDay, startOfDayNDaysAgo, rangeWindow,
   restaurantDayKey, restaurantHour, restaurantWeekday, isValidTimeZone, normalizeTimeZone,
 } from './restaurant-time'
-export { calculateMarginPercent, getDietaryClaimsConflict } from './menu-nutrition'
-export type { DietaryClaims } from './menu-nutrition'
+export {
+  applyReviewInvalidatingPatch, calculateMarginPercent, getDietaryClaimsConflict,
+  moveListItem, normalizeMenuNumericText, parseMenuNumericInput,
+  separateAllergenDeclarations, toggleAllergenDeclaration,
+} from './menu-nutrition'
+export type { DietaryClaims, MenuNumericParseResult } from './menu-nutrition'
 export {
   ALLERGEN_CODES,
   ALLERGEN_LABELS,

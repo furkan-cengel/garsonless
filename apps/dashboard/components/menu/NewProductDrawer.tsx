@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from 'react'
 import { InlineSpinner } from '@garsonless/ui'
 import type { Tables } from '@garsonless/db'
+import { normalizeMenuNumericText, parseMenuNumericInput } from '@garsonless/db/order-client'
 import { createItem } from '../../lib/actions/menu'
 import NutritionFields, { nutritionFromItem, appendNutritionToFormData, applyNutritionPatch, NutritionStatusPill, type NutritionState } from './NutritionFields'
 
@@ -38,7 +39,9 @@ export default function NewProductDrawer({
   const [err, setErr] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
-  const step1Valid = name.trim().length > 0 && Number(price) > 0
+  const parsedPrice = parseMenuNumericInput(price, { required: true, min: 0.01 })
+  const parsedCost = parseMenuNumericInput(cost, { min: 0 })
+  const step1Valid = name.trim().length > 0 && parsedPrice.ok && parsedCost.ok
 
   function create() {
     setErr(null)
@@ -48,7 +51,7 @@ export default function NewProductDrawer({
       fd.append('categoryId', categoryId)
       fd.append('name', name.trim())
       fd.append('description', description.trim())
-      fd.append('price', String(Number(price)))
+      fd.append('price', price)
       fd.append('cost', cost)
       fd.append('is_available', String(isAvailable))
       fd.append('earns_stamp', String(earnsStamp))
@@ -153,7 +156,7 @@ function CurrencyInput({ value, onChange }: { value: string; onChange: (v: strin
   return (
     <div style={{ display: 'flex', alignItems: 'stretch', border: '1px solid var(--border-strong)', borderRadius: 7, overflow: 'hidden' }}>
       <span style={{ padding: '0 10px', background: 'var(--surface-3)', color: 'var(--text-2)', display: 'inline-flex', alignItems: 'center', fontSize: 13, fontWeight: 500, borderRight: '1px solid var(--border)' }}>₺</span>
-      <input value={value} onChange={(e) => onChange(e.target.value.replace(/[^\d.]/g, ''))} placeholder="0" inputMode="decimal" style={{ flex: 1, padding: '0 10px', border: 'none', outline: 'none', fontSize: 14, height: 38, fontFamily: "'Geist Mono', monospace", background: 'var(--surface)', color: 'var(--text)' }} />
+      <input value={value} onChange={(e) => onChange(normalizeMenuNumericText(e.target.value))} placeholder="0" inputMode="decimal" style={{ flex: 1, padding: '0 10px', border: 'none', outline: 'none', fontSize: 14, height: 38, fontFamily: "'Geist Mono', monospace", background: 'var(--surface)', color: 'var(--text)' }} />
     </div>
   )
 }

@@ -1,7 +1,16 @@
 'use client'
 
 import React from 'react'
-import { ALLERGEN_CODES, ALLERGEN_LABELS, normalizeAllergenCodes, normalizeIngredients } from '@garsonless/db/order-client'
+import {
+  ALLERGEN_CODES,
+  ALLERGEN_LABELS,
+  applyReviewInvalidatingPatch,
+  moveListItem,
+  normalizeAllergenCodes,
+  normalizeIngredients,
+  normalizeMenuNumericText,
+  toggleAllergenDeclaration,
+} from '@garsonless/db/order-client'
 import type { AllergenCode, MenuIngredient } from '@garsonless/db/order-client'
 
 /* ============================================================
@@ -102,12 +111,7 @@ export function applyNutritionPatch(
   current: NutritionState,
   patch: Partial<NutritionState>,
 ): NutritionState {
-  const explicitlySetsReview = Object.prototype.hasOwnProperty.call(patch, 'reviewed')
-  return {
-    ...current,
-    ...patch,
-    ...(explicitlySetsReview ? {} : { reviewed: false }),
-  }
+  return applyReviewInvalidatingPatch(current, patch)
 }
 
 /* ── allergen glyphs (mapped to the EU codes) ──────────────────────────── */
@@ -156,7 +160,7 @@ function MacroInput({ label, value, onChange, suffix, accent }: { label: string;
     <div style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 9, padding: '7px 10px', background: 'var(--surface)' }}>
       <div style={{ fontSize: 9.5, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-3)', fontWeight: 600 }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, marginTop: 2 }}>
-        <input value={value} onChange={(e) => onChange(e.target.value.replace(/[^\d.]/g, ''))} placeholder="—"
+        <input value={value} onChange={(e) => onChange(normalizeMenuNumericText(e.target.value))} placeholder="—"
           style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontFamily: "'Geist Mono', monospace", fontSize: 15, fontWeight: 700, color: accent ? 'var(--accent)' : 'var(--text)', padding: 0 }} />
         <span style={{ fontSize: 10, color: 'var(--text-4)', flexShrink: 0 }}>{suffix}</span>
       </div>
@@ -206,23 +210,13 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
   const addIng = () => set({ ingredients: [...s.ingredients, { id: crypto.randomUUID(), name: '', amount: '', removable: false, allergen_codes: [] }] })
   const rmIng = (id: string) => set({ ingredients: s.ingredients.filter((i) => i.id !== id) })
   const moveIng = (index: number, direction: -1 | 1) => {
-    const target = index + direction
-    if (target < 0 || target >= s.ingredients.length) return
-    const ingredients = [...s.ingredients]
-    const current = ingredients[index]
-    const adjacent = ingredients[target]
-    if (!current || !adjacent) return
-    ingredients[index] = adjacent
-    ingredients[target] = current
-    set({ ingredients })
+    set({ ingredients: moveListItem(s.ingredients, index, direction) })
   }
-  const toggleContains = (code: AllergenCode) => set({
-    contains: s.contains.includes(code) ? s.contains.filter((x) => x !== code) : [...s.contains, code],
-    traces: s.traces.filter((x) => x !== code),
-  })
+  const toggleContains = (code: AllergenCode) => set(
+    toggleAllergenDeclaration(s.contains, s.traces, code, 'contains'),
+  )
   const toggleTrace = (code: AllergenCode) => {
-    if (s.contains.includes(code)) return
-    set({ traces: s.traces.includes(code) ? s.traces.filter((x) => x !== code) : [...s.traces, code] })
+    set(toggleAllergenDeclaration(s.contains, s.traces, code, 'trace'))
   }
   const ingredientCount = s.ingredients.filter((i) => i.name.trim()).length
 

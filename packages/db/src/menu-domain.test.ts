@@ -37,7 +37,7 @@ const menuItem = {
   price: 120,
   is_available: true,
   ingredients: [
-    { id: 'onion', name: 'Soğan', removable: true, allergen_codes: [] },
+    { id: 'onion', name: 'Soğan', removable: true, allergen_codes: ['peanuts'] },
     { id: 'bread', name: 'Ekmek', removable: false, allergen_codes: ['gluten'] },
   ],
   energy_kcal: 500,
@@ -98,13 +98,24 @@ test('normalizes structured removable ingredients and allergen codes', () => {
     amount: ' 60 g ',
     removable: true,
     allergen_codes: ['milk', 'invalid'],
-  }])
+  }, {
+    name: ' Eski kayıt ',
+    amount: ' 2 dilim ',
+    removable: false,
+    allergenCodes: ['gluten'],
+  }, null, 'invalid'])
   assert.deepEqual(result, [{
     id: 'onion',
     name: 'Soğan',
     amount: '60 g',
     removable: true,
     allergen_codes: ['milk'],
+  }, {
+    id: 'ingredient-1',
+    name: 'Eski kayıt',
+    amount: '2 dilim',
+    removable: false,
+    allergen_codes: ['gluten'],
   }])
 })
 
@@ -121,10 +132,35 @@ test('builds authoritative price, calorie, allergen and removal snapshot', () =>
     assert.equal(result.snapshot.modifiersPriceDelta, 20)
     assert.equal(result.snapshot.energyKcal, 580)
     assert.deepEqual(result.snapshot.removedIngredients, [{ id: 'onion', name: 'Soğan' }])
-    assert.deepEqual(result.snapshot.allergens.sort(), ['eggs', 'gluten', 'milk'])
+    assert.deepEqual(result.snapshot.allergens.sort(), ['eggs', 'gluten', 'milk', 'peanuts'])
     assert.deepEqual(result.snapshot.mayContainAllergens, ['sesame'])
-    assert.ok(result.snapshot.allergens.includes('gluten'), 'removing onion must not erase product allergen warnings')
+    assert.ok(result.snapshot.allergens.includes('peanuts'), 'removing an ingredient must not imply an allergen-free guarantee')
   }
+})
+
+test('stored order snapshots are immutable when the menu changes later', () => {
+  const built = buildOrderLineSnapshot({
+    item: menuItem,
+    quantity: 1,
+    selections: [{ group_id: 'size', option_id: 'large' }],
+    removedIngredientIds: ['onion'],
+  })
+  assert.equal(built.ok, true)
+  if (!built.ok) return
+
+  const stored = JSON.parse(JSON.stringify(built.snapshot))
+  const changedMenu = {
+    ...menuItem,
+    name: 'Yeni Burger',
+    contains_allergens: ['fish'],
+    ingredients: [],
+    modifier_groups: [],
+  }
+  assert.equal(changedMenu.name, 'Yeni Burger')
+  const historical = readOrderLineSnapshots([stored])[0]
+  assert.equal(historical?.name, 'Burger')
+  assert.deepEqual(historical?.allergens.sort(), ['eggs', 'gluten', 'milk', 'peanuts'])
+  assert.deepEqual(historical?.removedIngredients, [{ id: 'onion', name: 'Soğan' }])
 })
 
 test('rejects removal of a non-removable ingredient', () => {

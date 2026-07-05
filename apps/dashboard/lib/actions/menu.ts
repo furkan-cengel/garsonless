@@ -6,7 +6,12 @@ import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
 import { assertAccess } from '../auth/access'
 import type { Tables } from '@garsonless/db'
-import { ALLERGEN_CODES, getDietaryClaimsConflict } from '@garsonless/db/order-client'
+import {
+  ALLERGEN_CODES,
+  getDietaryClaimsConflict,
+  parseMenuNumericInput,
+  separateAllergenDeclarations,
+} from '@garsonless/db/order-client'
 
 const categorySchema = z.object({
   restaurantId: z.string().uuid(),
@@ -88,6 +93,17 @@ function dietaryConflictFor(input: {
     containsAlcohol: input.contains_alcohol ?? false,
     containsPork: input.contains_pork ?? false,
   })
+}
+
+function numericFormValue(
+  formData: FormData,
+  key: string,
+  options: Parameters<typeof parseMenuNumericInput>[1] = {},
+): { ok: true; value: number | null | undefined } | { ok: false; error: string } {
+  const raw = formData.get(key)
+  if (raw === null) return { ok: true, value: undefined }
+  const parsed = parseMenuNumericInput(raw, options)
+  return parsed.ok ? parsed : { ok: false, error: parsed.error }
 }
 
 const itemSchema = itemBaseSchema.superRefine((item, context) => {
@@ -278,20 +294,29 @@ export async function createItem(
   const ingredientsRaw = formData.get('ingredients')
   const mayContainRaw = formData.get('may_contain_allergens')
   const containsRaw = formData.get('contains_allergens')
-  const numOrNull = (k: string) => formData.get(k) ? Number(formData.get(k)) : null
+  const numericFields = {
+    price: numericFormValue(formData, 'price', { required: true, min: 0 }),
+    cost: numericFormValue(formData, 'cost', { min: 0 }),
+    energyKcal: numericFormValue(formData, 'energy_kcal', { integer: true, min: 0 }),
+    protein: numericFormValue(formData, 'protein_g', { min: 0 }),
+    carb: numericFormValue(formData, 'carb_g', { min: 0 }),
+    fat: numericFormValue(formData, 'fat_g', { min: 0 }),
+  }
+  const invalidNumeric = Object.values(numericFields).find((field) => !field.ok)
+  if (invalidNumeric && !invalidNumeric.ok) return { error: invalidNumeric.error }
   const parsed = itemSchema.safeParse({
     categoryId: formData.get('categoryId'),
     restaurantId: formData.get('restaurantId'),
     name: formData.get('name'),
     description: formData.get('description') ?? null,
-    price: Number(formData.get('price')),
-    cost: numOrNull('cost'),
+    price: numericFields.price.ok ? numericFields.price.value : undefined,
+    cost: numericFields.cost.ok ? numericFields.cost.value : undefined,
     is_available: formData.get('is_available') !== 'false',
     ingredients: ingredientsRaw ? JSON.parse(ingredientsRaw as string) : [],
-    energy_kcal: formData.get('energy_kcal') ? Number(formData.get('energy_kcal')) : null,
-    protein_g: numOrNull('protein_g'),
-    carb_g: numOrNull('carb_g'),
-    fat_g: numOrNull('fat_g'),
+    energy_kcal: numericFields.energyKcal.ok ? numericFields.energyKcal.value : undefined,
+    protein_g: numericFields.protein.ok ? numericFields.protein.value : undefined,
+    carb_g: numericFields.carb.ok ? numericFields.carb.value : undefined,
+    fat_g: numericFields.fat.ok ? numericFields.fat.value : undefined,
     may_contain_allergens: mayContainRaw ? JSON.parse(mayContainRaw as string) : [],
     contains_allergens: containsRaw ? JSON.parse(containsRaw as string) : [],
     contains_alcohol: formData.get('contains_alcohol') === 'true',
@@ -306,6 +331,10 @@ export async function createItem(
 
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
+  const allergenDeclarations = separateAllergenDeclarations(
+    parsed.data.contains_allergens,
+    parsed.data.may_contain_allergens,
+  )
 
   const { data: maxPos } = await supabase
     .from('menu_items')
@@ -331,8 +360,8 @@ export async function createItem(
       protein_g: parsed.data.protein_g ?? null,
       carb_g: parsed.data.carb_g ?? null,
       fat_g: parsed.data.fat_g ?? null,
-      may_contain_allergens: parsed.data.may_contain_allergens ?? [],
-      contains_allergens: parsed.data.contains_allergens ?? [],
+      may_contain_allergens: allergenDeclarations.traces,
+      contains_allergens: allergenDeclarations.contains,
       contains_alcohol: parsed.data.contains_alcohol ?? false,
       contains_pork: parsed.data.contains_pork ?? false,
       is_vegetarian: parsed.data.is_vegetarian ?? false,
@@ -368,15 +397,24 @@ export async function updateItem(
   const ingredientsRaw = formData.get('ingredients')
   const mayContainRaw = formData.get('may_contain_allergens')
   const containsRaw = formData.get('contains_allergens')
-  const numOrUndef = (k: string) => formData.get(k) !== null ? (formData.get(k) ? Number(formData.get(k)) : null) : undefined
   const boolOrUndef = (k: string) => formData.get(k) !== null ? formData.get(k) === 'true' : undefined
+  const numericFields = {
+    price: numericFormValue(formData, 'price', { min: 0 }),
+    cost: numericFormValue(formData, 'cost', { min: 0 }),
+    energyKcal: numericFormValue(formData, 'energy_kcal', { integer: true, min: 0 }),
+    protein: numericFormValue(formData, 'protein_g', { min: 0 }),
+    carb: numericFormValue(formData, 'carb_g', { min: 0 }),
+    fat: numericFormValue(formData, 'fat_g', { min: 0 }),
+  }
+  const invalidNumeric = Object.values(numericFields).find((field) => !field.ok)
+  if (invalidNumeric && !invalidNumeric.ok) return { error: invalidNumeric.error }
   const parsed = itemUpdateSchema.safeParse({
     id: formData.get('id'),
     restaurantId: formData.get('restaurantId'),
     categoryId: formData.get('categoryId') ?? undefined,
     name: formData.get('name') ?? undefined,
     description: formData.get('description'),
-    price: formData.get('price') ? Number(formData.get('price')) : undefined,
+    price: numericFields.price.ok ? numericFields.price.value : undefined,
     is_available: formData.get('is_available') !== null
       ? formData.get('is_available') !== 'false'
       : undefined,
@@ -384,15 +422,13 @@ export async function updateItem(
       ? formData.get('earns_stamp') === 'true'
       : undefined,
     ingredients: ingredientsRaw ? JSON.parse(ingredientsRaw as string) : undefined,
-    energy_kcal: formData.get('energy_kcal') !== null
-      ? (formData.get('energy_kcal') ? Number(formData.get('energy_kcal')) : null)
-      : undefined,
+    energy_kcal: numericFields.energyKcal.ok ? numericFields.energyKcal.value : undefined,
     may_contain_allergens: mayContainRaw ? JSON.parse(mayContainRaw as string) : undefined,
     contains_allergens: containsRaw ? JSON.parse(containsRaw as string) : undefined,
-    cost: numOrUndef('cost'),
-    protein_g: numOrUndef('protein_g'),
-    carb_g: numOrUndef('carb_g'),
-    fat_g: numOrUndef('fat_g'),
+    cost: numericFields.cost.ok ? numericFields.cost.value : undefined,
+    protein_g: numericFields.protein.ok ? numericFields.protein.value : undefined,
+    carb_g: numericFields.carb.ok ? numericFields.carb.value : undefined,
+    fat_g: numericFields.fat.ok ? numericFields.fat.value : undefined,
     is_vegetarian: boolOrUndef('is_vegetarian'),
     is_vegan: boolOrUndef('is_vegan'),
     is_halal: boolOrUndef('is_halal'),
@@ -415,12 +451,12 @@ export async function updateItem(
 
   const { data: existing, error: existingError } = await supabase
     .from('menu_items')
-    .select('id, is_vegetarian, is_vegan, is_halal, contains_alcohol, contains_pork')
+    .select('id, is_vegetarian, is_vegan, is_halal, contains_alcohol, contains_pork, contains_allergens, may_contain_allergens')
     .eq('id', parsed.data.id)
     .single()
   const existingItem = existing as Pick<
     Tables<'menu_items'>,
-    'id' | 'is_vegetarian' | 'is_vegan' | 'is_halal' | 'contains_alcohol' | 'contains_pork'
+    'id' | 'is_vegetarian' | 'is_vegan' | 'is_halal' | 'contains_alcohol' | 'contains_pork' | 'contains_allergens' | 'may_contain_allergens'
   > | null
   if (existingError || !existingItem) return { error: 'Item not found' }
 
@@ -440,6 +476,14 @@ export async function updateItem(
   }
   if (images !== undefined) {
     updates['images'] = images as import('@garsonless/db').Json
+  }
+  if (parsed.data.contains_allergens !== undefined || parsed.data.may_contain_allergens !== undefined) {
+    const allergenDeclarations = separateAllergenDeclarations(
+      parsed.data.contains_allergens ?? existingItem.contains_allergens,
+      parsed.data.may_contain_allergens ?? existingItem.may_contain_allergens,
+    )
+    updates['contains_allergens'] = allergenDeclarations.contains
+    updates['may_contain_allergens'] = allergenDeclarations.traces
   }
   if (ingredients !== undefined) {
     updates['ingredients'] = ingredients as import('@garsonless/db').Json
