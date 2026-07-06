@@ -818,6 +818,102 @@ export type Database = {
           },
         ]
       }
+      payment_share_tokens: {
+        Row: {
+          created_at: string
+          share_id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          share_id: string
+          token: string
+        }
+        Update: {
+          created_at?: string
+          share_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_share_tokens_share_id_fkey"
+            columns: ["share_id"]
+            isOneToOne: true
+            referencedRelation: "payment_shares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_shares: {
+        Row: {
+          amount: number
+          assigned_items: Json | null
+          created_at: string
+          customer_id: string | null
+          id: string
+          label: string | null
+          method: string | null
+          restaurant_id: string
+          settled_at: string | null
+          settled_by: string | null
+          status: string
+          table_session_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          assigned_items?: Json | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          label?: string | null
+          method?: string | null
+          restaurant_id: string
+          settled_at?: string | null
+          settled_by?: string | null
+          status?: string
+          table_session_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          assigned_items?: Json | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          label?: string | null
+          method?: string | null
+          restaurant_id?: string
+          settled_at?: string | null
+          settled_by?: string | null
+          status?: string
+          table_session_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_shares_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_shares_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_shares_table_session_id_fkey"
+            columns: ["table_session_id"]
+            isOneToOne: false
+            referencedRelation: "table_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_members: {
         Row: {
           accepted_at: string | null
@@ -1147,6 +1243,10 @@ export type Database = {
     }
     Functions: {
       close_session_if_fully_paid: {
+        Args: { p_session_id: string }
+        Returns: boolean
+      }
+      finalize_split_if_covered: {
         Args: { p_session_id: string }
         Returns: boolean
       }

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
-import { createServiceClient, creditVisitsForSession, type Json } from '@garsonless/db'
+import { createServiceClient, creditVisitsForSession, voidDeclaredSharesForSession, type Json } from '@garsonless/db'
 import { assertAccess } from '../auth/access'
 
 const createTableSchema = z.object({
@@ -345,6 +345,11 @@ export async function closeTableSession(
   // An abnormal close (unpaid money abandoned) must not mint loyalty visits.
   if (!abnormal) {
     await creditVisitsForSession(sessionId)
+  } else {
+    // Abnormal close = money still owed. Void any DECLARED (unconfirmed) split
+    // shares — they'll never be paid. SETTLED shares (real money) stay intact;
+    // the close_reason is the audit record (no parallel mechanism, no silent drop).
+    await voidDeclaredSharesForSession(sessionId, restaurantId)
   }
 
   revalidatePath(`/dashboard/${restaurantId}/tables`)
