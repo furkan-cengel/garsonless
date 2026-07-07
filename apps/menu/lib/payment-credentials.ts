@@ -111,3 +111,43 @@ export async function attachPaymentTokenToOrder(orderId: string, token: string):
     )
   }
 }
+
+/** Split payment: token ↔ SHARE (mirror of attachPaymentTokenToOrder). The token
+ *  lives in the service-role-only payment_share_tokens side table, never on the
+ *  anon-readable share row and not in realtime. */
+export async function attachPaymentTokenToShare(shareId: string, token: string): Promise<void> {
+  const supabase = createServiceClient()
+  const builder = supabase.from('payment_share_tokens') as unknown as {
+    upsert: (row: Record<string, unknown>, opts: { onConflict: string }) => Promise<{ error: { message: string } | null }>
+  }
+  const { error } = await builder.upsert({ share_id: shareId, token }, { onConflict: 'share_id' })
+  if (error) {
+    console.warn(JSON.stringify({ event: 'payment.share_token.attach_failed', shareId, error: error.message }))
+  }
+}
+
+/** Callback path for a SHARE token: token → payment_share_tokens → share →
+ *  restaurant → credentials. Returns shareId=null when the token is NOT a share
+ *  token (so the caller falls through to the order-token resolver). */
+export async function resolveCredentialsByShareToken(
+  token: string,
+): Promise<{ credentials: IyzicoCredentials | null; shareId: string | null; restaurantId: string | null }> {
+  const supabase = createServiceClient()
+  const { data: tokenRow } = await supabase
+    .from('payment_share_tokens')
+    .select('share_id')
+    .eq('token', token)
+    .maybeSingle()
+  const shareId = (tokenRow as { share_id: string } | null)?.share_id ?? null
+  if (!shareId) return { credentials: null, shareId: null, restaurantId: null }
+
+  const { data: shareRow } = await supabase
+    .from('payment_shares')
+    .select('restaurant_id')
+    .eq('id', shareId)
+    .maybeSingle()
+  const restaurantId = (shareRow as { restaurant_id: string } | null)?.restaurant_id ?? null
+  if (!restaurantId) return { credentials: null, shareId, restaurantId: null }
+
+  return { credentials: await resolveIyzicoCredentials(restaurantId), shareId, restaurantId }
+}

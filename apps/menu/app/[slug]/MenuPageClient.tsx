@@ -1534,10 +1534,11 @@ export function MenuPageClient({
         />
       )}
 
-      {isSplitOpen && (
+      {isSplitOpen && tableSessionId && (
         <SplitBillModal
-          items={cartItems}
-          subtotal={cartItems.reduce((sum, i) => sum + (i.price + i.modifiersPriceDelta) * i.quantity, 0)}
+          restaurantId={restaurant.id}
+          slug={restaurant.slug}
+          tableSessionId={tableSessionId}
           onClose={() => setIsSplitOpen(false)}
         />
       )}

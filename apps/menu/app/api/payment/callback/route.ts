@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createIyzicoClient, retrieveCheckout } from '../../../../lib/iyzico'
-import { resolveCredentialsByPaymentToken } from '../../../../lib/payment-credentials'
-import { markOrderPaidDB } from '@garsonless/db'
+import { resolveCredentialsByPaymentToken, resolveCredentialsByShareToken } from '../../../../lib/payment-credentials'
+import { markOrderPaidDB, settleShareDB } from '@garsonless/db'
 
 // İyzico browser-POSTs into the PaymentModal iframe, so this route must
 // return a renderable HTML page that postMessages the result to the parent.
 function callbackHtml(
-  message: { type: 'PAYMENT_SUCCESS'; orderId: string } | { type: 'PAYMENT_FAILED'; reason: string },
+  message:
+    | { type: 'PAYMENT_SUCCESS'; orderId: string }
+    | { type: 'SHARE_PAYMENT_SUCCESS'; shareId: string }
+    | { type: 'PAYMENT_FAILED'; reason: string },
   text: string,
   status = 200,
 ): NextResponse {
@@ -50,6 +53,30 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   try {
+    // SHARE branch first: if this token is in payment_share_tokens it's a split
+    // share payment → settle THAT share (not the whole order). The existing
+    // single-order path below is reached only for non-share tokens, unchanged.
+    const shareResolved = await resolveCredentialsByShareToken(token)
+    if (shareResolved.shareId) {
+      const { credentials: sCred, shareId, restaurantId: sRest } = shareResolved
+      if (!sCred || !sRest) {
+        return callbackHtml({ type: 'PAYMENT_FAILED', reason: 'Ödeme yapılandırması bulunamadı' }, 'Ödeme yapılandırması bulunamadı.', 503)
+      }
+      const sClient = createIyzicoClient(sCred)
+      const { paymentStatus: sStatus } = await retrieveCheckout(sClient, token)
+      if (sStatus === 'SUCCESS') {
+        // Card is real payment → settle the share (method already 'iyzico',
+        // settled_by null = system). settleShareDB finalizes/closes if this
+        // crossed full coverage. Idempotent on a re-fired callback.
+        const { error } = await settleShareDB(shareId, sRest)
+        if (error) {
+          console.warn(JSON.stringify({ event: 'payment.callback.share_settle_failed', shareId, error }))
+        }
+        return callbackHtml({ type: 'SHARE_PAYMENT_SUCCESS', shareId }, 'Payınız ödendi, teşekkürler…')
+      }
+      return callbackHtml({ type: 'PAYMENT_FAILED', reason: 'Ödeme tamamlanamadı' }, 'Ödeme tamamlanamadı.')
+    }
+
     // Resolve token → order → restaurant → credentials entirely server-side;
     // nothing in the callback payload is trusted beyond the token itself.
     const { credentials, orderId, restaurantId } = await resolveCredentialsByPaymentToken(token)
