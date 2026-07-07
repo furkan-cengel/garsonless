@@ -400,7 +400,7 @@ function buildReportCsv(
     // Kapatan is NOT captured (no closed_by column) → honest "—", never a name.
     for (const r of abnormalCloses.rows) rows.push([r.tableLabel, formatReportDate(r.closedAt), r.reason, '—', r.amount])
     section(`Personel tahsilat performansı (${period})`)
-    rows.push(['Tahsil eden', 'Rol', 'Tahsil ettiği sipariş', 'Nakit (₺)', 'Fiziksel POS (₺)', 'Online / eski (₺)', 'İkram adet', 'İkram (₺)', 'Toplam (₺)', 'Yüksek nakit'])
+    rows.push(['Tahsil eden', 'Rol', 'Tahsil ettiği sipariş', 'Nakit (₺)', 'Fiziksel POS (₺)', 'Online / split / eski (₺)', 'İkram adet', 'İkram (₺)', 'Toplam (₺)', 'Yüksek nakit'])
     for (const r of staffSettlement.rows) {
       const role = r.role === 'owner' ? 'Sahip' : r.role === 'member' ? `Üye${r.sections?.length ? ` (${r.sections.join(' · ')})` : ''}` : r.role === 'system' ? 'Sistem' : 'Kayıt bulunamadı'
       rows.push([r.label, role, r.settledCount, r.cash, r.pos, r.otherCollected, r.compCount, r.compAmount, r.collected, r.highCash ? 'Evet' : 'Hayır'])
@@ -648,7 +648,7 @@ function PaymentsReport({ paymentBreakdown, range }: { paymentBreakdown: Payment
         <Card title="Dağılım" subtitle="Tahsil edilen tutara göre" style={{ overflow: 'visible' }}>
           <PaymentDonutChart segments={collected} />
         </Card>
-        <Card title="Yöntem detayı" subtitle="Nakit · Fiziksel POS · İyzico">
+        <Card title="Yöntem detayı" subtitle="Nakit · Fiziksel POS · İyzico · Hesap bölüşme">
           <PaymentRows rows={collected} />
           <CompLine comp={comp} />
         </Card>
@@ -892,7 +892,7 @@ function StaffSettlementTable({ report }: { report: StaffSettlementReport }) {
   return (
     <div style={{ overflowX: 'auto' }}>
       <div style={{ minWidth: 1080 }}>
-        <ReportTableHeader columns="minmax(200px, 1.3fr) 76px 100px 100px 100px 100px 110px minmax(140px, 1fr)" labels={['Tahsil eden', 'Sipariş', 'Nakit', 'Fiziksel POS', 'Online / eski', 'İkram', 'Toplam', 'Dağılım']} />
+        <ReportTableHeader columns="minmax(200px, 1.3fr) 76px 100px 100px 100px 100px 110px minmax(140px, 1fr)" labels={['Tahsil eden', 'Sipariş', 'Nakit', 'Fiziksel POS', 'Online / split / eski', 'İkram', 'Toplam', 'Dağılım']} />
         {report.rows.map((row, index) => {
           const paymentBase = row.cash + row.pos + row.otherCollected
           const cashPct = paymentBase > 0 ? (row.cash / paymentBase) * 100 : 0

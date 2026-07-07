@@ -38,6 +38,8 @@ function sessionFromTable(table: TableStatusData): OpenSessionInfo | null {
     openedAt: table.openedAt,
     total: table.total,
     unpaidTotal: table.unpaidTotal,
+    splitSettledTotal: table.splitSettledTotal,
+    splitDeclaredCashTotal: table.splitDeclaredCashTotal,
     orderCount: table.orderCount,
     hasUnfinished: table.hasUnfinished,
   }

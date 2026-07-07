@@ -3,9 +3,10 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { InlineSpinner } from '@garsonless/ui'
 import { settleOrder, getSessionSettlement } from '../../lib/actions/settlement'
-import type { SettlementOrder } from '../../lib/actions/settlement'
+import type { SettlementOrder, SettlementShare } from '../../lib/actions/settlement'
 import { closeTableSession } from '../../lib/actions/tables'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
+import { confirmCashShare } from '../../lib/actions/split'
 
 type Method = 'cash' | 'pos' | 'comp'
 
@@ -131,9 +132,11 @@ export default function SettlementSheet({
   zIndex?: number
 }) {
   const [orders, setOrders] = useState<SettlementOrder[] | null>(null)
+  const [shares, setShares] = useState<SettlementShare[]>([])
   const [staged, setStaged] = useState<Record<string, Method>>({})
   const [err, setErr] = useState<string | null>(null)
   const [committing, setCommitting] = useState(false)
+  const [confirmingShareId, setConfirmingShareId] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const [abnormal, setAbnormal] = useState(false)
   const [abnormalReason, setAbnormalReason] = useState('')
@@ -142,24 +145,35 @@ export default function SettlementSheet({
     const res = await getSessionSettlement(session.sessionId, restaurantId)
     if ('error' in res) { setErr(res.error); return }
     setOrders(res.orders)
+    setShares(res.shares)
   }, [session.sessionId, restaurantId])
   useEffect(() => { void load() }, [load])
 
   const all = orders ?? []
+  const isSplitMode = shares.length > 0 || all.some((o) => o.paymentMethod === 'split')
   const paid = all.filter((o) => o.paidAt !== null)
   const unpaid = all.filter((o) => o.paidAt === null)
   const total = all.reduce((s, o) => s + o.total, 0)
-  const stagedCount = unpaid.filter((o) => staged[o.id]).length
+  const stagedCount = isSplitMode ? 0 : unpaid.filter((o) => staged[o.id]).length
   const assigned = paid.length + stagedCount
   const remaining = unpaid.filter((o) => !staged[o.id]).reduce((s, o) => s + o.total, 0)
-  const allStaged = unpaid.every((o) => Boolean(staged[o.id]))
+  const allStaged = isSplitMode ? unpaid.length === 0 : unpaid.every((o) => Boolean(staged[o.id]))
+
+  const settledShares = shares.filter((share) => share.status === 'settled')
+  const declaredCashShares = shares.filter((share) => share.status === 'declared' && share.method === 'cash')
+  const pendingCardShares = shares.filter((share) => share.status === 'declared' && share.method === 'iyzico')
+  const settledShareTotal = settledShares.reduce((sum, share) => sum + share.amount, 0)
+  const declaredCashTotal = declaredCashShares.reduce((sum, share) => sum + share.amount, 0)
+  const pendingCardTotal = pendingCardShares.reduce((sum, share) => sum + share.amount, 0)
+  const splitRemaining = Math.max(0, total - settledShareTotal)
 
   const tally: Record<Method, number> = { cash: 0, pos: 0, comp: 0 }
-  for (const o of paid) { if (o.paymentMethod && o.paymentMethod !== 'iyzico') tally[o.paymentMethod] += o.total }
-  for (const o of unpaid) { const m = staged[o.id]; if (m) tally[m] += o.total }
+  for (const o of paid) { if (o.paymentMethod && o.paymentMethod !== 'iyzico' && o.paymentMethod !== 'split') tally[o.paymentMethod] += o.total }
+  if (!isSplitMode) for (const o of unpaid) { const m = staged[o.id]; if (m) tally[m] += o.total }
   // İyzico-prepaid collected still counts toward the collected figure.
   const iyzicoPaid = paid.filter((o) => o.paymentMethod === 'iyzico').reduce((s, o) => s + o.total, 0)
-  const collected = tally.cash + tally.pos + iyzicoPaid
+  const splitCollected = settledShares.reduce((sum, share) => sum + share.amount, 0)
+  const collected = tally.cash + tally.pos + iyzicoPaid + splitCollected
 
   const busy = committing
   const setMethod = (id: string, m: Method) =>
@@ -168,8 +182,24 @@ export default function SettlementSheet({
     const n = { ...s }; for (const o of unpaid) n[o.id] = m; return n
   })
 
+  const confirmShare = useCallback(async (shareId: string) => {
+    setErr(null)
+    setConfirmingShareId(shareId)
+    const res = await confirmCashShare(shareId, restaurantId)
+    setConfirmingShareId(null)
+    if ('error' in res) { setErr(res.error); void load(); return }
+    void load()
+    onSettled()
+  }, [restaurantId, load, onSettled])
+
   const commit = useCallback(async () => {
     setErr(null); setCommitting(true)
+    if (isSplitMode && unpaid.length > 0) {
+      setErr('Bu adisyon split ödeme ile devam ediyor. Önce tüm paylar ödensin veya nakit beyanları garson tarafından onaylansın.')
+      setCommitting(false)
+      void load()
+      return
+    }
     for (const o of unpaid) {
       const m = staged[o.id]
       if (!m) continue
@@ -181,7 +211,7 @@ export default function SettlementSheet({
     if ('error' in closeRes) { setErr(closeRes.error); void load(); return }
     onSettled()
     setDone(true)
-  }, [unpaid, staged, restaurantId, session.sessionId, load, onSettled])
+  }, [isSplitMode, unpaid, staged, restaurantId, session.sessionId, load, onSettled])
 
   const confirmAbnormal = useCallback(async () => {
     const reason = abnormalReason.trim()
@@ -195,6 +225,25 @@ export default function SettlementSheet({
 
   if (done) {
     return <DoneCard tableLabel={tableLabel} tally={tally} collected={collected} onDone={onSessionClosed} zIndex={zIndex} />
+  }
+
+  const splitLineStyle = (tone: 'paid' | 'cash' | 'card' | 'open'): React.CSSProperties => {
+    const palette = {
+      paid: { bg: 'var(--positive-bg)', fg: 'var(--positive)', border: 'transparent' },
+      cash: { bg: '#fff7ed', fg: '#b45309', border: '#fed7aa' },
+      card: { bg: '#eef2ff', fg: '#4338ca', border: '#c7d2fe' },
+      open: { bg: 'var(--surface-2)', fg: 'var(--text-2)', border: 'var(--divider)' },
+    }[tone]
+    return {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      padding: '10px 12px',
+      borderRadius: 11,
+      background: palette.bg,
+      color: palette.fg,
+      border: `1px solid ${palette.border}`,
+    }
   }
 
   return (
@@ -231,30 +280,110 @@ export default function SettlementSheet({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <div style={{ fontSize: 11.5, color: allStaged ? 'var(--positive)' : 'var(--text-3)', fontWeight: 500 }}>
-                      {allStaged ? 'Tümü işaretlendi' : 'İşaretlenecek kalan'}
+                      {isSplitMode
+                        ? allStaged ? 'Split ödeme tamamlandı' : 'Split ödemede kalan'
+                        : allStaged ? 'Tümü işaretlendi' : 'İşaretlenecek kalan'}
                     </div>
                     <div key={remaining} className="sm-mono" style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.1, marginTop: 3, color: allStaged ? 'var(--positive)' : 'var(--text)', fontVariantNumeric: 'tabular-nums', animation: 'sm-count .25s ease' }}>
-                      {allStaged ? fmt(collected) : fmt(remaining)}
+                      {isSplitMode
+                        ? allStaged ? fmt(settledShareTotal) : fmt(splitRemaining)
+                        : allStaged ? fmt(collected) : fmt(remaining)}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.6 }}>
                     <div>Toplam <span className="sm-mono" style={{ color: 'var(--text-2)', fontWeight: 600 }}>{fmt(total)}</span></div>
-                    <div>{assigned}/{all.length} sipariş işaretlendi</div>
+                    <div>{isSplitMode ? `${shares.length} pay · ${settledShares.length} onaylı` : `${assigned}/${all.length} sipariş işaretlendi`}</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', height: 7, borderRadius: 999, overflow: 'hidden', marginTop: 13, background: 'rgba(17,17,19,.06)', gap: 2 }}>
                   {all.map((o) => {
                     const m: Method | null = o.paidAt !== null
-                      ? (o.paymentMethod && o.paymentMethod !== 'iyzico' ? o.paymentMethod : null)
+                      ? (o.paymentMethod && o.paymentMethod !== 'iyzico' && o.paymentMethod !== 'split' ? o.paymentMethod : null)
                       : (staged[o.id] ?? null)
-                    const color = o.paidAt !== null && o.paymentMethod === 'iyzico' ? 'var(--positive)' : m ? METHODS[m].dot : 'transparent'
+                    const color = o.paidAt !== null && o.paymentMethod === 'iyzico'
+                      ? 'var(--positive)'
+                      : o.paidAt !== null && o.paymentMethod === 'split'
+                        ? '#b45309'
+                        : m ? METHODS[m].dot : 'transparent'
                     return <div key={o.id} style={{ flex: o.total, background: color, transition: 'background .2s ease' }} />
                   })}
                 </div>
               </div>
 
+              {isSplitMode && (
+                <div style={{ marginTop: 14, border: '1px solid var(--divider)', borderRadius: 14, overflow: 'hidden', background: 'var(--surface)' }}>
+                  <div style={{ padding: '11px 13px', borderBottom: '1px solid var(--divider)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text)' }}>Split ödeme durumu</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)' }}>
+                      Ödenen {fmt(settledShareTotal)}
+                      {declaredCashTotal > 0 ? ` · ${fmt(declaredCashTotal)} nakit onayı bekliyor` : ''}
+                      {pendingCardTotal > 0 ? ` · ${fmt(pendingCardTotal)} kart bekliyor` : ''}
+                    </span>
+                  </div>
+                  <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {shares.length === 0 ? (
+                      <div style={{ fontSize: 12, color: 'var(--text-3)', padding: '14px 4px', textAlign: 'center' }}>
+                        Bu adisyonda split pay yok.
+                      </div>
+                    ) : shares.map((share) => {
+                      const settled = share.status === 'settled'
+                      const isCash = share.method === 'cash'
+                      const tone = settled ? 'paid' : isCash ? 'cash' : 'card'
+                      const label = share.label?.trim() || (isCash ? 'Nakit beyanı' : 'Kart payı')
+                      const waitingText = isCash ? 'Garson onayı bekliyor' : 'Kart ödemesi bekliyor'
+                      return (
+                        <div key={share.id} style={splitLineStyle(tone)}>
+                          <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,.55)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                            {settled
+                              ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4.5 4.5L19 7" /></svg>
+                              : isCash ? cashIcon : cardIcon}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                              <span style={{ fontSize: 12.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+                              <span style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.8 }}>{isCash ? 'Nakit' : 'İyzico'}</span>
+                            </div>
+                            <div style={{ fontSize: 11, opacity: 0.78, marginTop: 1 }}>
+                              {settled ? `Onaylandı${share.settledByLabel ? ` · ${share.settledByLabel}` : ''}` : waitingText}
+                            </div>
+                          </div>
+                          <span className="sm-mono" style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmt(share.amount)}</span>
+                          {!settled && isCash && (
+                            <button
+                              type="button"
+                              disabled={busy || confirmingShareId === share.id}
+                              onClick={() => void confirmShare(share.id)}
+                              style={{
+                                height: 30,
+                                padding: '0 10px',
+                                borderRadius: 8,
+                                border: '1px solid #b45309',
+                                background: 'var(--surface)',
+                                color: '#b45309',
+                                fontSize: 11.5,
+                                fontWeight: 800,
+                                cursor: busy || confirmingShareId === share.id ? 'default' : 'pointer',
+                                opacity: busy || confirmingShareId === share.id ? 0.65 : 1,
+                              }}
+                            >
+                              {confirmingShareId === share.id ? <InlineSpinner size={11} /> : 'Onayla'}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {splitRemaining > 0 && (
+                      <div style={splitLineStyle('open')}>
+                        <span style={{ flex: 1, fontSize: 12, fontWeight: 700 }}>Kalan tutar</span>
+                        <span className="sm-mono" style={{ fontSize: 13.5, fontWeight: 800 }}>{fmt(splitRemaining)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Quick fill */}
-              {unpaid.length > 1 && (
+              {!isSplitMode && unpaid.length > 1 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
                   <span style={{ fontSize: 11.5, color: 'var(--text-3)', fontWeight: 500 }}>Tümüne uygula</span>
                   <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
@@ -276,7 +405,11 @@ export default function SettlementSheet({
                   const locked = o.paidAt !== null
                   const staged_m = staged[o.id] ?? null
                   const borderM = locked
-                    ? (o.paymentMethod === 'iyzico' ? '#137a4d' : o.paymentMethod ? METHODS[o.paymentMethod].dot : 'var(--border)')
+                    ? (o.paymentMethod === 'iyzico'
+                      ? '#137a4d'
+                      : o.paymentMethod === 'split'
+                        ? '#b45309'
+                        : o.paymentMethod ? METHODS[o.paymentMethod].dot : 'var(--border)')
                     : staged_m ? METHODS[staged_m].dot : 'var(--border)'
                   return (
                     <div key={o.id} style={{ border: `1px solid ${borderM}`, borderRadius: 14, padding: '13px 14px 14px', background: locked ? 'var(--surface-2)' : 'var(--surface)', transition: 'border-color .15s ease' }}>
@@ -290,17 +423,22 @@ export default function SettlementSheet({
                         </div>
                         <span className="sm-mono" style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(o.total)}</span>
                       </div>
-                      {locked ? (
+                      {locked || isSplitMode ? (
                         <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5 }}>
                           {(() => {
                             const isComp = o.paymentMethod === 'comp'
-                            const m = o.paymentMethod && o.paymentMethod !== 'iyzico' ? METHODS[o.paymentMethod] : null
-                            const label = o.paymentMethod === 'iyzico' ? 'İyzico · online' : m ? m.label : 'Ödendi'
-                            const fg = o.paymentMethod === 'iyzico' ? 'var(--positive)' : m ? m.fg : 'var(--text-2)'
-                            const bg = o.paymentMethod === 'iyzico' ? 'var(--positive-bg)' : m ? m.bg : 'var(--surface-3)'
+                            const isSplit = o.paymentMethod === 'split' || (isSplitMode && !locked)
+                            const m = o.paymentMethod && o.paymentMethod !== 'iyzico' && o.paymentMethod !== 'split' ? METHODS[o.paymentMethod] : null
+                            const label = o.paymentMethod === 'iyzico'
+                              ? 'İyzico · online'
+                              : isSplit
+                                ? locked ? 'Hesap bölüşme · ödendi' : 'Split ödeme bekleniyor'
+                                : m ? m.label : 'Ödendi'
+                            const fg = o.paymentMethod === 'iyzico' ? 'var(--positive)' : isSplit ? '#b45309' : m ? m.fg : 'var(--text-2)'
+                            const bg = o.paymentMethod === 'iyzico' ? 'var(--positive-bg)' : isSplit ? '#fff7ed' : m ? m.bg : 'var(--surface-3)'
                             return (
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: fg, background: bg, padding: '4px 9px', borderRadius: 999, fontWeight: 700, ...(isComp ? { border: `1px dashed ${fg}` } : null) }}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4.5 4.5L19 7" /></svg>
+                                {locked ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4.5 4.5L19 7" /></svg> : cardIcon}
                                 {isComp ? `${label} · ₺0` : label}
                               </span>
                             )
@@ -344,7 +482,9 @@ export default function SettlementSheet({
                   ? <><InlineSpinner size={13} color="#fff" /> Kapatılıyor…</>
                   : allStaged
                     ? <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4.5 4.5L19 7" /></svg>Masayı kapat · {fmt(collected)} tahsil</>
-                    : `Kalan ${fmt(remaining)} işaretle`}
+                    : isSplitMode
+                      ? `Split ödeme kalan ${fmt(splitRemaining)}`
+                      : `Kalan ${fmt(remaining)} işaretle`}
               </button>
             </div>
 

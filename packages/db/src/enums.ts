@@ -47,5 +47,6 @@ export type RestaurantPlan = 'free' | 'starter' | 'pro' | 'enterprise'
 
 // How an order was settled (orders.payment_method). null = unpaid OR legacy-paid.
 // 'comp' (İkram) is settled but ₺0 COLLECTED — excluded from ciro, reportable
-// separately. Source of truth: 20260625000000_payment_method_settle.sql.
-export type PaymentMethod = 'iyzico' | 'cash' | 'pos' | 'comp'
+// separately. 'split' means the order was covered by payment_shares; the share
+// ledger is the source of truth for card/cash sub-breakdown.
+export type PaymentMethod = 'iyzico' | 'cash' | 'pos' | 'comp' | 'split'

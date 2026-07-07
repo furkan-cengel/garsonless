@@ -212,6 +212,8 @@ export interface OpenSessionInfo {
   openedAt: string
   total: number
   unpaidTotal: number
+  splitSettledTotal: number
+  splitDeclaredCashTotal: number
   orderCount: number
   hasUnfinished: boolean
 }
@@ -244,6 +246,19 @@ export async function getOpenTableSessions(
   const orderRows = (orders ?? []) as Array<{
     table_session_id: string; total: number; status: string; paid_at: string | null
   }>
+  const svc = createServiceClient()
+  const { data: shares } = await svc
+    .from('payment_shares')
+    .select('table_session_id, amount, method, status')
+    .in('table_session_id', sessionRows.map((s) => s.id))
+    .eq('restaurant_id', restaurantId)
+    .neq('status', 'void')
+  const shareRows = (shares ?? []) as Array<{
+    table_session_id: string
+    amount: number | null
+    method: string | null
+    status: string
+  }>
 
   return sessionRows.map((session) => {
     const sessionOrders = orderRows.filter((o) => o.table_session_id === session.id)
@@ -252,12 +267,21 @@ export async function getOpenTableSessions(
     const unpaidTotal = active
       .filter((o) => o.paid_at === null)
       .reduce((sum, o) => sum + Number(o.total), 0)
+    const sessionShares = shareRows.filter((share) => share.table_session_id === session.id)
+    const splitSettledTotal = sessionShares
+      .filter((share) => share.status === 'settled')
+      .reduce((sum, share) => sum + Number(share.amount ?? 0), 0)
+    const splitDeclaredCashTotal = sessionShares
+      .filter((share) => share.status === 'declared' && share.method === 'cash')
+      .reduce((sum, share) => sum + Number(share.amount ?? 0), 0)
     return {
       sessionId: session.id,
       tableId: session.table_id,
       openedAt: session.opened_at,
       total,
       unpaidTotal,
+      splitSettledTotal,
+      splitDeclaredCashTotal,
       orderCount: active.length,
       hasUnfinished: active.some((o) => o.status !== 'served'),
     }

@@ -9,6 +9,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: 'Nakit',
   pos: 'Fiziksel POS',
   comp: 'İkram',
+  split: 'Hesap bölüşme',
 }
 
 export interface MethodBadge {
@@ -35,6 +36,8 @@ export function paymentMethodBadge(method: PaymentMethod | null): MethodBadge {
       return { label: PAYMENT_METHOD_LABELS.iyzico, bg: '#e7e9fb', fg: '#4338ca', isComp: false }
     case 'comp':
       return { label: PAYMENT_METHOD_LABELS.comp, bg: '#f3e8ff', fg: '#7c3aed', isComp: true }
+    case 'split':
+      return { label: PAYMENT_METHOD_LABELS.split, bg: '#fff7ed', fg: '#b45309', isComp: false }
     default:
       // paid_at set but method null = legacy-collected, unknown channel. Still
       // collected (not comp) — a neutral "Ödendi" chip, not a fabricated method.

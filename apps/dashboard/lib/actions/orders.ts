@@ -52,9 +52,10 @@ const cancelSchema = z.object({
 
 /**
  * THE dashboard cancel path. Rules by payment state:
- *  - İyzico-paid → BLOCKED (typed error; refund is manual in the İyzico panel).
- *    Also enforced atomically inside cancelOrderDB's WHERE — this pre-read is
- *    for a friendly early error, the DB guard is the real wall.
+ *  - İyzico-paid or split-paid → BLOCKED (typed error; refund/adjustment needs
+ *    the provider/share ledger path). Also enforced atomically inside
+ *    cancelOrderDB's WHERE — this pre-read is for a friendly early error, the
+ *    DB guard is the real wall.
  *  - cash/pos-paid → reason REQUIRED (min 3 chars): money was collected and is
  *    being refunded in person — the decision must be recorded.
  *  - unpaid → plain cancel (reason optional), loyalty refund identical to before.
@@ -86,6 +87,9 @@ export async function cancelOrder(
   const paid = order.paid_at !== null
   if (paid && order.payment_method === 'iyzico') {
     return { error: 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.' }
+  }
+  if (paid && order.payment_method === 'split') {
+    return { error: 'Bu sipariş hesap bölüşme ile ödendi — pay iadeleri/iptali ayrı iade akışı gerektirir.' }
   }
   const trimmedReason = parsed.data.reason?.trim() ?? ''
   if (paid && (order.payment_method === 'cash' || order.payment_method === 'pos') && trimmedReason.length < 3) {

@@ -1068,6 +1068,7 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--positive)', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     ₺{session.total.toLocaleString('tr-TR')} · {sessionDuration(session.openedAt)}
                     {session.unpaidTotal > 0 && ` · ₺${session.unpaidTotal.toLocaleString('tr-TR')} açık`}
+                    {session.splitDeclaredCashTotal > 0 && ` · ₺${session.splitDeclaredCashTotal.toLocaleString('tr-TR')} nakit onayı`}
                   </span>
                   <button
                     type="button"
@@ -2255,7 +2256,7 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
   const handleCloseSession = useCallback(async (session: OpenSessionInfo, label: string) => {
     // Unpaid money on the adisyon → the settlement sheet forces a per-order
     // decision (no silent drop). Fully-paid → close directly (no sheet).
-    if (session.unpaidTotal > 0) {
+    if (session.unpaidTotal > 0 || session.splitDeclaredCashTotal > 0) {
       setSettleSession({ session, label })
       return
     }

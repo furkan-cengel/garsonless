@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { markOrderPaidDB, listTeamMembers, readOrderLineSnapshots } from '@garsonless/db'
+import { createServiceClient, markOrderPaidDB, listTeamMembers, readOrderLineSnapshots } from '@garsonless/db'
 import type { PaymentMethod } from '@garsonless/db'
 import { assertAccess, getUserRestaurantAccess } from '../auth/access'
 import { createDashboardServerClient } from '../supabase-server'
@@ -28,8 +28,8 @@ const settleSchema = z.object({
  * Settlement itself is delegated to the P1 markOrderPaidDB, which is
  * restaurant-scoped AND guarded by `paid_at IS NULL`: re-settling an already
  * paid order (incl. an İyzico one) affects 0 rows and never overwrites the
- * recorded method (idempotent / no-op). The P1 auto-close fires inside — if this
- * was the session's last unpaid order, the table closes + visits are credited.
+ * recorded method (idempotent / no-op). Payment only settles the bill; explicit
+ * staff close / idle sweep frees the table.
  */
 export async function settleOrder(
   orderId: string,
@@ -74,6 +74,18 @@ export interface SettlementOrder {
   itemsSummary: string
 }
 
+export interface SettlementShare {
+  id: string
+  amount: number
+  method: 'iyzico' | 'cash' | null
+  status: 'declared' | 'settled' | 'void'
+  label: string | null
+  settledAt: string | null
+  settledBy: string | null
+  settledByLabel: string | null
+  createdAt: string
+}
+
 type OrderRow = {
   id: string
   total: number
@@ -86,7 +98,15 @@ type OrderRow = {
 }
 
 function isPaymentMethod(v: string | null): v is PaymentMethod {
-  return v === 'iyzico' || v === 'cash' || v === 'pos' || v === 'comp'
+  return v === 'iyzico' || v === 'cash' || v === 'pos' || v === 'comp' || v === 'split'
+}
+
+function isShareMethod(v: string | null): 'iyzico' | 'cash' | null {
+  return v === 'iyzico' || v === 'cash' ? v : null
+}
+
+function isShareStatus(v: string): 'declared' | 'settled' | 'void' {
+  return v === 'settled' || v === 'void' ? v : 'declared'
 }
 
 /**
@@ -98,7 +118,7 @@ function isPaymentMethod(v: string | null): v is PaymentMethod {
 export async function getSessionSettlement(
   sessionId: string,
   restaurantId: string,
-): Promise<{ orders: SettlementOrder[] } | { error: string }> {
+): Promise<{ orders: SettlementOrder[]; shares: SettlementShare[] } | { error: string }> {
   const idCheck = z.object({ sessionId: z.string().uuid(), restaurantId: z.string().uuid() })
     .safeParse({ sessionId, restaurantId })
   if (!idCheck.success) return { error: 'Geçersiz oturum' }
@@ -107,16 +127,36 @@ export async function getSessionSettlement(
   if ('error' in gate) return { error: gate.error }
 
   const supabase = await createDashboardServerClient()
-  const { data } = await supabase
-    .from('orders')
-    .select('id, total, status, paid_at, payment_method, settled_by, created_at, items')
-    .eq('restaurant_id', restaurantId)
-    .eq('table_session_id', sessionId)
-    .is('deleted_at', null)
-    .neq('status', 'cancelled')
-    .order('created_at', { ascending: true })
+  const svc = createServiceClient()
+  const [{ data }, { data: shareData }] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('id, total, status, paid_at, payment_method, settled_by, created_at, items')
+      .eq('restaurant_id', restaurantId)
+      .eq('table_session_id', sessionId)
+      .is('deleted_at', null)
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: true }),
+    svc
+      .from('payment_shares')
+      .select('id, amount, method, status, label, settled_at, settled_by, created_at')
+      .eq('restaurant_id', restaurantId)
+      .eq('table_session_id', sessionId)
+      .neq('status', 'void')
+      .order('created_at', { ascending: true }),
+  ])
 
   const rows = (data ?? []) as OrderRow[]
+  const shareRows = (shareData ?? []) as Array<{
+    id: string
+    amount: number | null
+    method: string | null
+    status: string
+    label: string | null
+    settled_at: string | null
+    settled_by: string | null
+    created_at: string
+  }>
 
   // settled_by → email map, OWNER-ONLY. The caller is the owner when isOwner, so
   // owner-settled rows resolve via the caller; member-settled rows via the team
@@ -145,5 +185,17 @@ export async function getSessionSettlement(
       .join(' · '),
   }))
 
-  return { orders }
+  const shares: SettlementShare[] = shareRows.map((r) => ({
+    id: r.id,
+    amount: Number(r.amount ?? 0),
+    method: isShareMethod(r.method),
+    status: isShareStatus(r.status),
+    label: r.label,
+    settledAt: r.settled_at,
+    settledBy: r.settled_by,
+    settledByLabel: r.settled_by && labelMap ? labelMap.get(r.settled_by) ?? null : null,
+    createdAt: r.created_at,
+  }))
+
+  return { orders, shares }
 }

@@ -54,8 +54,8 @@ export interface PaymentBreakdown {
 export interface PaymentReport {
   /**
    * Collected (tahsilat) buckets read from the REAL orders.payment_method:
-   * iyzico / cash / pos / unknown (legacy null-method paid). pct = share of
-   * collectedTotal. Sorted by amount desc.
+   * iyzico / cash / pos / split / unknown (legacy null-method paid). pct =
+   * share of collectedTotal. Sorted by amount desc.
    */
   collected: PaymentBreakdown[]
   /**
@@ -86,6 +86,8 @@ export interface TableStatusData {
   sessionId: string | null
   openedAt: string | null
   unpaidTotal: number
+  splitSettledTotal: number
+  splitDeclaredCashTotal: number
   orderCount: number
   hasUnfinished: boolean
 }
@@ -518,6 +520,7 @@ const COLLECTED_METHOD_LABELS: Record<string, string> = {
   iyzico: 'İyzico',
   cash: 'Nakit',
   pos: 'Fiziksel POS',
+  split: 'Hesap bölüşme',
   unknown: 'Bilinmiyor (eski)',
 }
 
@@ -550,6 +553,7 @@ export async function getPaymentBreakdown(restaurantId: string, range = 'week'):
     iyzico: { key: 'iyzico', label: COLLECTED_METHOD_LABELS['iyzico']!, amount: 0, count: 0 },
     cash: { key: 'cash', label: COLLECTED_METHOD_LABELS['cash']!, amount: 0, count: 0 },
     pos: { key: 'pos', label: COLLECTED_METHOD_LABELS['pos']!, amount: 0, count: 0 },
+    split: { key: 'split', label: COLLECTED_METHOD_LABELS['split']!, amount: 0, count: 0 },
     unknown: { key: 'unknown', label: COLLECTED_METHOD_LABELS['unknown']!, amount: 0, count: 0 },
   }
   const comp = { amount: 0, count: 0 }
@@ -562,7 +566,9 @@ export async function getPaymentBreakdown(restaurantId: string, range = 'week'):
       comp.count += 1
       continue
     }
-    const key = method === 'iyzico' || method === 'cash' || method === 'pos' ? method : 'unknown'
+    const key = method === 'iyzico' || method === 'cash' || method === 'pos' || method === 'split'
+      ? method
+      : 'unknown'
     collectedGroups[key]!.amount += amount
     collectedGroups[key]!.count += 1
   }
@@ -1208,6 +1214,8 @@ export async function getTableStatuses(restaurantId: string): Promise<TableStatu
         sessionId: null,
         openedAt: null,
         unpaidTotal: 0,
+        splitSettledTotal: 0,
+        splitDeclaredCashTotal: 0,
         orderCount: 0,
         hasUnfinished: false,
       }
@@ -1225,6 +1233,8 @@ export async function getTableStatuses(restaurantId: string): Promise<TableStatu
         sessionId: session.id,
         openedAt: session.opened_at,
         unpaidTotal: 0,
+        splitSettledTotal: 0,
+        splitDeclaredCashTotal: 0,
         orderCount: 0,
         hasUnfinished: false,
       }
@@ -1268,6 +1278,8 @@ export async function getTableStatuses(restaurantId: string): Promise<TableStatu
       sessionId: session.id,
       openedAt: session.opened_at,
       unpaidTotal,
+      splitSettledTotal: 0,
+      splitDeclaredCashTotal: 0,
       orderCount: activeOrders.length,
       hasUnfinished,
     }
@@ -1465,6 +1477,8 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
           sessionId: null,
           openedAt: null,
           unpaidTotal: 0,
+          splitSettledTotal: 0,
+          splitDeclaredCashTotal: 0,
           orderCount: 0,
           hasUnfinished: false,
         }
@@ -1481,6 +1495,8 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
           sessionId: session.id,
           openedAt: session.opened_at,
           unpaidTotal: 0,
+          splitSettledTotal: 0,
+          splitDeclaredCashTotal: 0,
           orderCount: 0,
           hasUnfinished: false,
         }
@@ -1524,6 +1540,8 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
         sessionId: session.id,
         openedAt: session.opened_at,
         unpaidTotal,
+        splitSettledTotal: 0,
+        splitDeclaredCashTotal: 0,
         orderCount: activeOrders.length,
         hasUnfinished,
       }

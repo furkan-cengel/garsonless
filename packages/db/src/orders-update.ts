@@ -132,8 +132,8 @@ type CancelUpdateBuilder = {
  *
  * Payment rules (enforced ATOMICALLY in the WHERE clause, not read-then-write,
  * so a concurrent İyzico callback can never be bypassed):
- *  - İYZICO-paid → BLOCKED. Online money needs a manual refund from the İyzico
- *    panel (refund API integration is deferred); the app must not orphan it.
+ *  - İYZICO-paid / split-paid → BLOCKED. Online/split money needs a manual
+ *    refund or share-ledger adjustment path (deferred); the app must not orphan it.
  *  - cash/pos-paid → allowed; the CALLER (dashboard action) enforces the
  *    required reason before invoking. Staff refunds in person.
  *  - unpaid → plain cancel, behavior identical to the old path.
@@ -159,9 +159,10 @@ export async function cancelOrderDB(
     .eq('id', orderId)
     .eq('restaurant_id', restaurantId)
     .neq('status', 'cancelled')
-    // NOT (paid_at IS NOT NULL AND payment_method = 'iyzico') — De Morgan:
-    // paid_at IS NULL OR payment_method IS DISTINCT FROM 'iyzico'.
-    .or('paid_at.is.null,payment_method.is.null,payment_method.neq.iyzico')
+    // NOT (paid_at IS NOT NULL AND payment_method IN ('iyzico','split')).
+    // PostgREST OR/AND form: unpaid OR legacy-null OR paid by a non-online,
+    // non-split method. This is the atomic mirror of the dashboard pre-read.
+    .or('paid_at.is.null,payment_method.is.null,and(payment_method.neq.iyzico,payment_method.neq.split)')
     .select('id')
 
   if (error) return { error: error.message }
@@ -179,6 +180,9 @@ export async function cancelOrderDB(
     if (existing.status === 'cancelled') return { error: null } // idempotent no-op
     if (existing.paid_at !== null && existing.payment_method === 'iyzico') {
       return { error: 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.' }
+    }
+    if (existing.paid_at !== null && existing.payment_method === 'split') {
+      return { error: 'Bu sipariş hesap bölüşme ile ödendi — pay iadeleri/iptali ayrı iade akışı gerektirir.' }
     }
     return { error: 'Sipariş iptal edilemedi' }
   }
