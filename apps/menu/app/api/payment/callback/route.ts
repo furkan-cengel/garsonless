@@ -66,8 +66,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       const { paymentStatus: sStatus } = await retrieveCheckout(sClient, token)
       if (sStatus === 'SUCCESS') {
         // Card is real payment → settle the share (method already 'iyzico',
-        // settled_by null = system). settleShareDB finalizes/closes if this
-        // crossed full coverage. Idempotent on a re-fired callback.
+        // settled_by null = system). settleShareDB stamps covered orders
+        // paid+'split' if this crossed full coverage, but it does NOT close
+        // the table. Idempotent on a re-fired callback.
         const { error } = await settleShareDB(shareId, sRest)
         if (error) {
           console.warn(JSON.stringify({ event: 'payment.callback.share_settle_failed', shareId, error }))

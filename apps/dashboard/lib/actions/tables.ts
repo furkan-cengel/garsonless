@@ -330,9 +330,10 @@ export async function closeTableSession(
   }
   if (abnormal) updateRow.close_reason = (reason ?? '').slice(0, 200)
 
-  // Race-safe: the `is('closed_at', null)` guard means a concurrent auto-close
-  // (P1) that already closed this session as fully-paid wins — we overwrite
-  // nothing (0 rows) and no-op cleanly.
+  // Race-safe: the `is('closed_at', null)` guard means a concurrent explicit
+  // close / idle sweep that already closed this session wins — we overwrite
+  // nothing (0 rows) and no-op cleanly. Split-payment finalization deliberately
+  // does NOT close the table.
   const { error } = await mut(supabase, 'table_sessions')
     .update(updateRow)
     .eq('id', sessionId)

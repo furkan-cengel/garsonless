@@ -42,8 +42,9 @@ export async function createShareDB(input: CreateShareInput): Promise<{ shareId:
  * İyzico callback (card: settledBy null, method already 'iyzico') and the staff
  * cash-confirm (settledBy = staff user). Idempotent: a re-fired callback for an
  * already-settled share transitions 0 rows and never double-counts; finalize is
- * itself atomic/idempotent. Always runs finalize when the share is settled (robust
- * to a prior partial failure).
+ * itself atomic/idempotent. Finalize stamps covered orders paid+'split' but does
+ * NOT close the table; explicit staff close / idle sweep still frees it. Always
+ * runs finalize when the share is settled (robust to a prior partial failure).
  */
 export async function settleShareDB(
   shareId: string,

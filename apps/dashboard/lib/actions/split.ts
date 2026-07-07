@@ -15,7 +15,8 @@ const schema = z.object({
  * THIS is the only path that makes a cash share count (RLS blocks every direct
  * customer/authenticated write to payment_shares). Gate = owner OR a member with
  * 'tables' (whoever sees the cash), mirroring settleOrder's authority. The
- * finalize inside settleShareDB closes the table if this crossed full coverage.
+ * finalize inside settleShareDB stamps covered orders paid+'split' but leaves
+ * the table open until staff close / idle sweep.
  */
 export async function confirmCashShare(
   shareId: string,

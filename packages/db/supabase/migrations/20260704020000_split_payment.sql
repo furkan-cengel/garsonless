@@ -11,8 +11,9 @@
 --    ('settled', settled_by set) or card-settled ('settled', İyzico) share does.
 --  • 'split' orders are COLLECTED (paid_at set, not comp) → count in ciro; the
 --    IS DISTINCT FROM 'comp' predicate already includes 'split' as non-comp.
---  • Finalize is atomic + race-safe (session-row lock + closed_at/paid_at guards),
---    same discipline as close_session_if_fully_paid.
+--  • Finalize is atomic + race-safe (session-row lock + paid_at guards), same
+--    discipline as close_session_if_fully_paid. Follow-up 20260707000000 keeps
+--    the table open after split payment, matching the 20260627 payment invariant.
 
 -- ── 1. payment_shares (session-level) ───────────────────────────────────────
 create table if not exists payment_shares (
@@ -98,8 +99,11 @@ create policy "staff_read_payment_shares" on payment_shares
 alter publication supabase_realtime add table payment_shares;
 
 -- ── 5. finalize_split_if_covered — atomic, race-safe ────────────────────────
--- After ANY share settles, check whether settled shares now cover the session
--- total; if so, stamp all non-cancelled unpaid orders paid + 'split' and close.
+-- Original P1 behavior: after ANY share settles, check whether settled shares
+-- now cover the session total; if so, stamp all non-cancelled unpaid orders
+-- paid + 'split' and close the session.
+-- NOTE: superseded by 20260707000000_split_payment_keep_table_open.sql; split
+-- finalize now stamps paid orders only and leaves the table open.
 -- SELECT ... FOR UPDATE serializes concurrent finalizers on the session row, so
 -- the LAST settle to commit always sees the full settled sum (no under-count);
 -- the paid_at-null / closed_at-null guards make the losers no-op (no double-count).
