@@ -20,7 +20,7 @@ function HeroVisual() {
           {['#ff5f57', '#febc2e', '#28c840'].map((c) => (
             <span key={c} style={{ width: 10, height: 10, borderRadius: 999, background: c }} />
           ))}
-          <span style={{ marginLeft: 14, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: 'var(--ink-3)' }}>maf-cafe.garsonless.app/pano</span>
+          <span style={{ marginLeft: 14, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: 'var(--ink-3)' }}>maf-cafe.masabu.co/pano</span>
         </div>
         <div style={{ padding: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>

@@ -179,7 +179,7 @@ function JoinScreen({ restaurantName, welcomeBonus, busy, error, onSubmit, onSki
           </span>
           <span style={{ fontSize: 12, color: 'var(--ml-text2)', lineHeight: 1.55 }}>
             <b style={{ color: 'var(--ml-text)' }}>{restaurantName}</b> sadakat programına katılıyorum; ad ve telefon numaramın bu işletme tarafından üyelik ve iletişim amacıyla işlenmesine <b style={{ color: 'var(--ml-text)' }}>açık rıza</b> veriyorum.{' '}
-            <a href="https://garsonless.app/kvkk" target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: 'var(--ml-accent)', textDecoration: 'underline' }}>KVKK aydınlatma metni</a>.
+            <a href="https://masabu.co/legal#kvkk" target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: 'var(--ml-accent)', textDecoration: 'underline' }}>KVKK aydınlatma metni</a>.
           </span>
         </label>
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: -2, cursor: 'pointer' }}>

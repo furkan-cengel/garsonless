@@ -137,8 +137,8 @@ function Nav() {
     }}>
       <div style={{ ...ctr, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'var(--ink)' }}>
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--ink)', color: 'var(--accent-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...fd, fontWeight: 600, fontSize: 17, lineHeight: 1 }}>g</div>
-          <span style={{ fontWeight: 600, fontSize: 16, letterSpacing: '-0.02em' }}>garsonless</span>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--ink)', color: 'var(--accent-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...fd, fontWeight: 600, fontSize: 17, lineHeight: 1 }}>m</div>
+          <span style={{ fontWeight: 600, fontSize: 16, letterSpacing: '-0.02em' }}>masabu</span>
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {['Özellikler', 'Demo', 'Fiyatlandırma', 'Hikayeler', 'Kaynaklar'].map(l => (
@@ -164,7 +164,7 @@ function HeroVisual() {
       <div style={{ position: 'absolute', right: 0, top: 40, width: 540, background: 'var(--surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid var(--line)', boxShadow: '0 30px 80px -20px rgba(28,24,20,.25), 0 4px 12px rgba(28,24,20,.08)', transform: 'rotate(2deg)' }}>
         <div style={{ height: 32, background: '#f6f1e8', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px' }}>
           {['#ff5f57','#febc2e','#28c840'].map(c => <span key={c} style={{ width: 10, height: 10, borderRadius: 999, background: c }} />)}
-          <span style={{ marginLeft: 14, ...gm, fontSize: 11, color: 'var(--ink-3)' }}>maf-cafe.garsonless.app/pano</span>
+          <span style={{ marginLeft: 14, ...gm, fontSize: 11, color: 'var(--ink-3)' }}>maf-cafe.masabu.co/pano</span>
         </div>
         <div style={{ padding: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
@@ -613,7 +613,7 @@ function DemoAdmin() {
     <div style={{ width: '100%', maxWidth: 720, background: '#fdfaf5', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,.1)', color: 'var(--ink)' }}>
       <div style={{ height: 32, background: '#f6f1e8', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px' }}>
         {['#ff5f57','#febc2e','#28c840'].map(c => <span key={c} style={{ width: 10, height: 10, borderRadius: 999, background: c }} />)}
-        <span style={{ marginLeft: 12, ...gm, fontSize: 11, color: 'var(--ink-3)' }}>maf-cafe.garsonless.app</span>
+        <span style={{ marginLeft: 12, ...gm, fontSize: 11, color: 'var(--ink-3)' }}>maf-cafe.masabu.co</span>
       </div>
       <div style={{ padding: 20 }}>
         <h3 style={{ ...fd, fontSize: 22, fontWeight: 500, letterSpacing: '-.02em', margin: 0 }}>Günaydın, Ayşe 👋</h3>
@@ -852,12 +852,12 @@ function Compare() {
   return (
     <section style={{ padding: '120px 0', background: 'var(--bg-2)' }}>
       <div style={ctr}>
-        <SectionHead eyebrow="Kıyaslama" title={<>Neden <em style={{ fontStyle: 'italic', color: 'var(--brand)' }}>garsonless?</em></>} sub="Tüm rakiplerin yapabildiğini yapar — ve fazlasını." />
+        <SectionHead eyebrow="Kıyaslama" title={<>Neden <em style={{ fontStyle: 'italic', color: 'var(--brand)' }}>masabu?</em></>} sub="Tüm rakiplerin yapabildiğini yapar — ve fazlasını." />
         <div style={{ background: 'var(--surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid var(--line)', maxWidth: 1000, margin: '0 auto' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', background: 'var(--night)', color: '#fff' }}>
             <div style={{ padding: '18px 22px', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,.55)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Özellik</div>
             <div style={{ padding: '18px 14px', textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,.08)', background: 'var(--accent-2)', color: 'var(--ink)' }}>
-              <div style={{ ...fd, fontSize: 18, fontWeight: 700 }}>garsonless</div>
+              <div style={{ ...fd, fontSize: 18, fontWeight: 700 }}>masabu</div>
               <div style={{ fontSize: 10, fontWeight: 600, marginTop: 2, opacity: .75 }}>Bizim ürün</div>
             </div>
             {['Adisyo','Klasik POS','Zenchef'].map(n => <div key={n} style={{ padding: '18px 14px', textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,.08)', fontSize: 14, fontWeight: 600 }}>{n}</div>)}
@@ -993,8 +993,8 @@ function Footer() {
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(4, 1fr)', gap: 48, marginBottom: 56 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 9, background: 'var(--ink)', color: 'var(--accent-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...fd, fontWeight: 600, fontSize: 19, lineHeight: 1 }}>g</div>
-              <span style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.02em' }}>garsonless</span>
+              <div style={{ width: 32, height: 32, borderRadius: 9, background: 'var(--ink)', color: 'var(--accent-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...fd, fontWeight: 600, fontSize: 19, lineHeight: 1 }}>m</div>
+              <span style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.02em' }}>masabu</span>
             </div>
             <p style={{ fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.6, maxWidth: 280, margin: 0 }}>Türk gastronomisi için tasarlandı.<br />Mekanınız ister kafe ister fine-dining — biz oradayız.</p>
             <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
@@ -1015,7 +1015,7 @@ function Footer() {
           ))}
         </div>
         <div style={{ paddingTop: 28, borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>© 2026 garsonless · İstanbul, Türkiye</div>
+          <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>© 2026 masabu · İstanbul, Türkiye</div>
           <div style={{ display: 'flex', gap: 24, fontSize: 13, color: 'var(--ink-3)' }}>
             {['Gizlilik','Şartlar','KVKK','Çerezler'].map(l => <a key={l} href="#" style={{ textDecoration: 'none', color: 'inherit' }}>{l}</a>)}
           </div>

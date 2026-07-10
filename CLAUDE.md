@@ -1,4 +1,4 @@
-# Garsonless — Project Intelligence
+# Masabu — Project Intelligence (formerly Garsonless)
 
 ## Product Vision
 
@@ -11,7 +11,7 @@ Comparable to Shopify in customization depth.
 - Monorepo: Turborepo
 - Apps:
   - `apps/dashboard` — Next.js 15, restaurant admin panel + theme builder
-  - `apps/menu` — Next.js 15, customer-facing QR menu (served at menu.garsonless.app/{slug})
+  - `apps/menu` — Next.js 15, customer-facing QR menu (served at menu.masabu.co/{slug})
   - `apps/kitchen` — Next.js 15, KDS (Kitchen Display System)
 - Packages:
   - `packages/ui` — Shared component library (shadcn base + custom)

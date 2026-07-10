@@ -45,8 +45,8 @@ export function MarketingNav({ active }: Props) {
             background: 'var(--ink)', color: 'var(--accent-2)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontFamily: 'Fraunces, serif', fontWeight: 600, fontSize: 17, lineHeight: 1,
-          }}>g</div>
-          <span style={{ fontWeight: 600, fontSize: 16, letterSpacing: '-0.02em' }}>garsonless</span>
+          }}>m</div>
+          <span style={{ fontWeight: 600, fontSize: 16, letterSpacing: '-0.02em' }}>masabu</span>
         </a>
 
         <div className="marketing-nav__links" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

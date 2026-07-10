@@ -60,9 +60,9 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
               width: 34, height: 34, borderRadius: 8, background: '#18181b', color: '#fff',
               display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 16, margin: '0 auto 8px',
               fontFamily: 'system-ui, sans-serif',
-            }}>g</div>
+            }}>m</div>
             <div style={{ fontFamily: 'system-ui, sans-serif', fontWeight: 700, fontSize: 15 }}>{restaurantName}</div>
-            <div style={{ fontSize: 10.5, color: '#777', marginTop: 2 }}>garsonless</div>
+            <div style={{ fontSize: 10.5, color: '#777', marginTop: 2 }}>masabu</div>
             {(company || taxNumber || taxOffice || taxAddress) && (
               <div style={{ marginTop: 8, fontSize: 9.5, color: '#666', lineHeight: 1.45 }}>
                 {company && <div>{company}</div>}
@@ -127,7 +127,7 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
           </div>
 
           <div style={{ textAlign: 'center', fontSize: 10.5, color: '#777', marginTop: 16, borderTop: '1.5px dashed #cfcfcf', paddingTop: 14, lineHeight: 1.7 }}>
-            garsonless ile · Teşekkürler!
+            masabu ile · Teşekkürler!
           </div>
         </div>
 

@@ -57,17 +57,17 @@ const DOCS: Record<string, LegalDoc> = {
         'Düzeltme: yanlış verileri panelden güncelleyebilirsiniz',
         'Silme: hesabı tek tıkla iptal edebilirsiniz',
         'Taşınabilirlik: CSV, JSON formatlarında export',
-        'İtiraz: privacy@garsonless.app',
+        'İtiraz: privacy@masabu.co',
       ]},
     ],
   },
   şartlar: {
     label: 'Kullanım Şartları', icon: '📜',
     updated: '8 Mayıs 2026', version: 'v4.1',
-    summary: "garsonless'i kullanırken sizin ve bizim sorumluluklarımız.",
+    summary: "masabu'i kullanırken sizin ve bizim sorumluluklarımız.",
     sections: [
       { t: 'Hizmetin kapsamı', items: [
-        'garsonless bir SaaS platformudur — QR menü, sipariş yönetimi, raporlama',
+        'masabu bir SaaS platformudur — QR menü, sipariş yönetimi, raporlama',
         "Müşterilerin telefonlarından sipariş vermesini sağlar",
         'Hizmet aralıksız çalışır — %99.9 SLA Pro+ planlarda garanti edilir',
       ]},
@@ -103,7 +103,7 @@ const DOCS: Record<string, LegalDoc> = {
     summary: '6698 sayılı Kişisel Verilerin Korunması Kanunu kapsamında veri sorumlusu olarak aydınlatma metnimiz.',
     sections: [
       { t: 'Veri sorumlusu', items: [
-        'Unvan: Garsonless Teknoloji A.Ş.',
+        'Unvan: Masabu Teknoloji A.Ş.',
         'Adres: Bağdat Cd. No: 128/A, Kadıköy / İstanbul',
         'MERSIS: 0123 4567 8910 1112',
         'VERBIS sicil no: VRB-2021-001234',
@@ -138,7 +138,7 @@ const DOCS: Record<string, LegalDoc> = {
         'Zarar uğradıysanız tazminat talep etme',
       ]},
       { t: 'Başvuru yolları', items: [
-        'E-posta: kvkk@garsonless.app (kayıtlı e-postanızdan)',
+        'E-posta: kvkk@masabu.co (kayıtlı e-postanızdan)',
         'Posta: Bağdat Cd. No: 128/A, Kadıköy / İstanbul (KVKK İlgili Kişi Başvurusu)',
         'Yanıt süresi: en geç 30 gün',
         'Başvuru formu: Yardım merkezinde indirilebilir',
@@ -220,10 +220,10 @@ function LegalBody() {
   const doc = DOCS[active]!
 
   const contactNote = active === 'kvkk'
-    ? 'KVKK ile ilgili her şey için kvkk@garsonless.app'
+    ? 'KVKK ile ilgili her şey için kvkk@masabu.co'
     : active === 'gizlilik'
-      ? 'Gizlilikle ilgili sorularınız için privacy@garsonless.app'
-      : 'merhaba@garsonless.app — 4 saat içinde dönüş'
+      ? 'Gizlilikle ilgili sorularınız için privacy@masabu.co'
+      : 'merhaba@masabu.co — 4 saat içinde dönüş'
 
   return (
     <section style={{ padding: '20px 0 80px' }}>

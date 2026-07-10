@@ -49,9 +49,9 @@ export default function OnboardingPage() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontFamily: 'Fraunces, Georgia, serif',
           fontWeight: 700, fontSize: 22, lineHeight: 1,
-        }}>g</div>
+        }}>m</div>
         <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', color: 'var(--text)' }}>
-          garsonless
+          masabu
         </span>
       </div>
 

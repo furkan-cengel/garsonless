@@ -45,8 +45,8 @@ export function MarketingFooter() {
                 background: 'var(--ink)', color: 'var(--accent-2)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontFamily: 'Fraunces, serif', fontWeight: 600, fontSize: 19, lineHeight: 1,
-              }}>g</div>
-              <span style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.02em' }}>garsonless</span>
+              }}>m</div>
+              <span style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.02em' }}>masabu</span>
             </div>
             <p style={{ fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.6, maxWidth: 280, margin: 0 }}>
               Türk gastronomisi için tasarlandı.<br />Mekanınız ister kafe ister fine-dining — biz oradayız.
@@ -83,7 +83,7 @@ export function MarketingFooter() {
           paddingTop: 28, borderTop: '1px solid var(--line)',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16,
         }}>
-          <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>© 2026 garsonless · İstanbul, Türkiye</div>
+          <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>© 2026 masabu · İstanbul, Türkiye</div>
           <div style={{ display: 'flex', gap: 24, fontSize: 13, color: 'var(--ink-3)' }}>
             <a href="/legal#gizlilik" style={{ textDecoration: 'none', color: 'inherit' }}>Gizlilik</a>
             <a href="/legal#şartlar" style={{ textDecoration: 'none', color: 'inherit' }}>Şartlar</a>

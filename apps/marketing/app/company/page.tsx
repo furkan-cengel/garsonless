@@ -54,7 +54,7 @@ function AboutSection() {
               Bir kafe köşesinde, <em style={{ fontStyle: 'italic', color: 'var(--brand)' }}>2 garsonsuz akşam</em>.
             </h2>
             <p style={{ fontSize: 16, color: 'var(--ink-2)', marginTop: 18, lineHeight: 1.65 }}>
-              2019 baharında Kadıköy&apos;de bir kafe açtık. Açılışın 2. günü iki garson işten ayrıldı. O akşam müşterilerin telefonlarından sipariş alabilseydik diye düşündük — ve garsonless doğdu.
+              2019 baharında Kadıköy&apos;de bir kafe açtık. Açılışın 2. günü iki garson işten ayrıldı. O akşam müşterilerin telefonlarından sipariş alabilseydik diye düşündük — ve masabu doğdu.
             </p>
             <p style={{ fontSize: 16, color: 'var(--ink-2)', marginTop: 14, lineHeight: 1.65 }}>
               Bugün İstanbul, Ankara, İzmir, Antalya ve daha 24 şehirdeki kafeler, restoranlar, otel restoranları bizimle çalışıyor.
@@ -166,8 +166,8 @@ function CareersSection() {
 
 function PressSection() {
   const press = [
-    { src: 'TechCrunch', date: 'Mar 2026', t: "Garsonless lands $4M Series A for Turkey's F&B digitization" },
-    { src: 'Webrazzi', date: 'Şub 2026', t: 'Garsonless 2 400 mekana ulaştı, B2B abone modelinde rekor' },
+    { src: 'TechCrunch', date: 'Mar 2026', t: "Masabu lands $4M Series A for Turkey's F&B digitization" },
+    { src: 'Webrazzi', date: 'Şub 2026', t: 'Masabu 2 400 mekana ulaştı, B2B abone modelinde rekor' },
     { src: 'Hürriyet', date: 'Oca 2026', t: "Restoran teknolojisinde Türk girişim Avrupa'ya açıldı" },
     { src: 'Forbes Türkiye', date: 'Ara 2025', t: '40 yaş altı 40 girişimci: Mehmet Sönmez listede' },
   ]
@@ -204,7 +204,7 @@ function PressSection() {
             </div>
             <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--line)', fontSize: 12.5 }}>
               Basın iletişim:<br />
-              <a href="mailto:press@garsonless.app" style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>press@garsonless.app</a>
+              <a href="mailto:press@masabu.co" style={{ color: 'var(--brand)', fontWeight: 600, textDecoration: 'none' }}>press@masabu.co</a>
             </div>
           </div>
         </div>
@@ -251,7 +251,7 @@ function ContactSection() {
             {[
               { ico: '💬', t: 'Canlı destek', d: '7/24 Türkçe · ortalama 4 dk yanıt', cta: 'Sohbet başlat' },
               { ico: '📞', t: 'Satış', d: 'Çoklu mağaza, özel teklif', cta: '+90 850 *** ** **' },
-              { ico: '✉', t: 'E-posta', d: 'Hızlı sorular', cta: 'merhaba@garsonless.app' },
+              { ico: '✉', t: 'E-posta', d: 'Hızlı sorular', cta: 'merhaba@masabu.co' },
             ].map(c => (
               <div key={c.t} style={{ padding: 20, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, display: 'flex', gap: 16, alignItems: 'center' }}>
                 <div style={{ fontSize: 26 }}>{c.ico}</div>
@@ -292,7 +292,7 @@ function PartnersSection() {
   return (
     <section id="bayilik" style={{ padding: '80px 0', scrollMarginTop: 80 }}>
       <div className="container">
-        <SectionHead eyebrow="Bayilik Programı" title="Bizimle ortak olun." sub="Şehrinizde garsonless temsilcisi olun · %20 komisyon · pazarlama desteği · özel eğitim" tone="brand" />
+        <SectionHead eyebrow="Bayilik Programı" title="Bizimle ortak olun." sub="Şehrinizde masabu temsilcisi olun · %20 komisyon · pazarlama desteği · özel eğitim" tone="brand" />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, maxWidth: 1080, margin: '0 auto 32px' }}>
           {benefits.map(b => (
             <div key={b.t} style={{ padding: 24, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14 }}>

@@ -82,8 +82,8 @@ export default function VisualPanel({ mode }: Props): ReactElement {
           background: '#ffd089', color: '#1a1612',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontFamily: "'Fraunces', Georgia, serif", fontWeight: 600, fontSize: 19, lineHeight: 1,
-        }}>g</div>
-        <span style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.02em' }}>garsonless</span>
+        }}>m</div>
+        <span style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.02em' }}>masabu</span>
       </div>
 
       {/* Main content */}

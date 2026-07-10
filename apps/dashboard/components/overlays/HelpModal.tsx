@@ -13,7 +13,7 @@ const ARTICLES = [
 ]
 
 const QUICK_ACTIONS = [
-  { Icon: I.sparkles, title: "Garsonless'i tanı",  desc: 'Etkileşimli 60 sn turu başlat', tag: 'Tur' as const },
+  { Icon: I.sparkles, title: "Masabu'yu tanı",  desc: 'Etkileşimli 60 sn turu başlat', tag: 'Tur' as const },
   { Icon: I.cutlery,  title: 'Menü içe aktar',     desc: 'CSV veya Yemeksepeti / Trendyol bağla' },
   { Icon: I.qr,       title: 'QR kodları indir',   desc: 'Tüm masalar için PNG paketi' },
 ]

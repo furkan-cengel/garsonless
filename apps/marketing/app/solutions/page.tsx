@@ -113,7 +113,7 @@ function HeroSolutions() {
           Bizim de cevabı.
         </h1>
         <p style={{ fontSize: 18, color: 'var(--ink-2)', lineHeight: 1.55, margin: '24px auto 0', maxWidth: 580 }}>
-          Kafe, fine-dining, bar, zincir veya otel — garsonless her venue&apos;ya kendi şeklini alır.
+          Kafe, fine-dining, bar, zincir veya otel — masabu her venue&apos;ya kendi şeklini alır.
         </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 32 }}>
           {SOLUTIONS.map(s => (

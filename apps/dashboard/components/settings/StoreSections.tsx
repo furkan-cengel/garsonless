@@ -124,7 +124,7 @@ export function StoreSection({ restaurant }: { restaurant: Tables<'restaurants'>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{restaurant.name}</div>
             <div style={{ ...S.mono, fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
-              menu.garsonless.app/{restaurant.slug}
+              menu.masabu.co/{restaurant.slug}
             </div>
           </div>
           <Tag tone="positive">Canlı bilgi</Tag>

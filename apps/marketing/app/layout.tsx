@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'garsonless — Kafenizi 2 dakikada akıllandırın',
+  title: 'masabu — Kafenizi 2 dakikada akıllandırın',
   description: 'QR menü, sipariş yönetimi, mutfak ekranı ve daha fazlası. 2 dakikada kurulum, garson maliyeti sıfır.',
 }
 

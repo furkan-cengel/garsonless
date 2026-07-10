@@ -256,7 +256,7 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
         <SettingsRow label="Mağaza adı" hint="Müşteri menüsü ve faturalarda görünür">
           <input value={name} onChange={e => setName(e.target.value)} style={inp} required />
         </SettingsRow>
-        <SettingsRow label="URL slug" hint={`menu.garsonless.app/${slug}`}>
+        <SettingsRow label="URL slug" hint={`menu.masabu.co/${slug}`}>
           <input
             value={slug}
             onChange={e => setSlug(e.target.value.replace(/[^a-z0-9-]/g, ''))}

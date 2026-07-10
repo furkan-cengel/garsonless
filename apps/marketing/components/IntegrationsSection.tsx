@@ -39,14 +39,14 @@ export function IntegrationsSection() {
       <div className="container">
         <SectionHead
           eyebrow="Kıyaslama"
-          title={<>Neden <em style={{ fontStyle: 'italic', color: 'var(--brand)' }}>garsonless?</em></>}
+          title={<>Neden <em style={{ fontStyle: 'italic', color: 'var(--brand)' }}>masabu?</em></>}
           sub="Tüm rakiplerin yapabildiğini yapar — ve fazlasını."
         />
         <div style={{ background: 'var(--surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid var(--line)', maxWidth: 1000, margin: '0 auto' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', background: 'var(--night)', color: '#fff' }}>
             <div style={{ padding: '18px 22px', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,.55)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Özellik</div>
             <div style={{ padding: '18px 14px', textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,.08)', background: 'var(--accent-2)', color: 'var(--ink)' }}>
-              <div className="font-display" style={{ fontSize: 18, fontWeight: 700 }}>garsonless</div>
+              <div className="font-display" style={{ fontSize: 18, fontWeight: 700 }}>masabu</div>
               <div style={{ fontSize: 10, fontWeight: 600, marginTop: 2, opacity: .75 }}>Bizim ürün</div>
             </div>
             {['Adisyo', 'Klasik POS', 'Zenchef'].map((h) => (

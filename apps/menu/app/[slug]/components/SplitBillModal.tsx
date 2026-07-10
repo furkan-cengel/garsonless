@@ -122,7 +122,7 @@ export default function SplitBillModal({ restaurantId, slug, tableSessionId, onC
     if (!shareId) { setBusy(false); return }
     const res = await fetch('/api/split/pay', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ shareId, restaurantId, slug, buyerName: 'Misafir', buyerSurname: 'Musteri', buyerEmail: 'guest@garsonless.app', buyerPhone: '+905000000000', deviceId: `dev-${Math.random().toString(36).slice(2)}` }),
+      body: JSON.stringify({ shareId, restaurantId, slug, buyerName: 'Misafir', buyerSurname: 'Musteri', buyerEmail: 'guest@masabu.co', buyerPhone: '+905000000000', deviceId: `dev-${Math.random().toString(36).slice(2)}` }),
     })
     const json = (await res.json()) as { success: boolean; data?: { paymentPageUrl: string }; error?: string }
     if (!json.success || !json.data) { setError(json.error ?? 'Ödeme başlatılamadı'); setBusy(false); return }

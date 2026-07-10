@@ -55,8 +55,8 @@ export default function PageTopBar({ restaurantName, title, tag, center, right, 
             background: 'linear-gradient(135deg, #18181b 0%, #3f3f46 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 700, fontSize: 12,
-          }}>g</div>
-          <span style={{ fontWeight: 600, fontSize: 13, letterSpacing: '-.01em' }}>garsonless</span>
+          }}>m</div>
+          <span style={{ fontWeight: 600, fontSize: 13, letterSpacing: '-.01em' }}>masabu</span>
         </div>
 
         <button

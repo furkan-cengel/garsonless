@@ -89,7 +89,7 @@ export async function requestOtp(input: { rawPhone: string; ip: string | null })
   // this ordering cannot be abused to spam send attempts (a legit code that WAS
   // sent still counts; a failed one costs nothing and the user may retry).
   try {
-    await getSmsProvider().send(phone, `Garsonless doğrulama kodunuz: ${code}`, { purpose: 'otp' })
+    await getSmsProvider().send(phone, `Masabu doğrulama kodunuz: ${code}`, { purpose: 'otp' })
   } catch {
     return { ok: false, reason: 'sms_failed' }
   }
@@ -617,7 +617,7 @@ export async function getMemberBalances(customerId: string, restaurantId: string
   const { tier, tierIndex, nextTier, tierProgress } = computeTier(lifetimePoints, cfg.tiers)
 
   return {
-    memberCode: `GRS-${customerId.replaceAll('-', '').slice(0, 8).toUpperCase().replace(/(.{4})(.{4})/, '$1-$2')}`,
+    memberCode: `MSB-${customerId.replaceAll('-', '').slice(0, 8).toUpperCase().replace(/(.{4})(.{4})/, '$1-$2')}`,
     joinedAt: customer.created_at,
     stamps,
     points,

@@ -1,6 +1,6 @@
-# Garsonless
+# Masabu
 
-Garsonless is a QR menu SaaS monorepo for restaurants: customizable digital menus, table ordering, kitchen display, loyalty, analytics, AI waiter flows, and payment integrations.
+Masabu is a QR menu SaaS monorepo for restaurants: customizable digital menus, table ordering, kitchen display, loyalty, analytics, AI waiter flows, and payment integrations.
 
 ## Apps
 

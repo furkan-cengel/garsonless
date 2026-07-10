@@ -86,7 +86,7 @@ export default function StepRestaurantInfo({ onCreated }: Props) {
             fontSize: 13, color: 'var(--text-3)',
             whiteSpace: 'nowrap', flexShrink: 0,
           }}>
-            garsonless.com/
+            masabu.co/
           </span>
           <input
             name="slug"

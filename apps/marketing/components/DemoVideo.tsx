@@ -61,7 +61,7 @@ function DemoAdmin() {
     <div style={{ width: '100%', maxWidth: 720, background: '#fdfaf5', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,.1)', color: 'var(--ink)' }}>
       <div style={{ height: 32, background: '#f6f1e8', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px' }}>
         {['#ff5f57', '#febc2e', '#28c840'].map((c) => <span key={c} style={{ width: 10, height: 10, borderRadius: 999, background: c }} />)}
-        <span style={{ marginLeft: 12, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: 'var(--ink-3)' }}>maf-cafe.garsonless.app</span>
+        <span style={{ marginLeft: 12, fontFamily: 'Geist Mono, monospace', fontSize: 11, color: 'var(--ink-3)' }}>maf-cafe.masabu.co</span>
       </div>
       <div style={{ padding: 20 }}>
         <h3 className="font-display" style={{ fontSize: 22, fontWeight: 500, letterSpacing: '-.02em', margin: 0 }}>Günaydın, Ayşe 👋</h3>

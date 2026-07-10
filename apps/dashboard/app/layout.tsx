@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Garsonless — QR Menü & Dijital Sipariş',
+  title: 'Masabu — QR Menü & Dijital Sipariş',
   description:
     'Restoranınızı modernleştirin. QR menü, dijital sipariş, mutfak ekranı ve analitik — 5 dakikada kurulum.',
 }

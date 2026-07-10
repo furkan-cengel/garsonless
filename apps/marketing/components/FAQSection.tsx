@@ -6,7 +6,7 @@ import { SectionHead } from './ui/SectionHead'
 
 const FAQ_ITEMS = [
   { q: 'Kurulum ne kadar sürer?', a: "Ortalama 2 dakika. Mağazanı oluşturuyorsun, menünü yükleyebiliyor (CSV/Yemeksepeti/Trendyol'dan içe aktarma destekli) ve QR kodlarını yazdırıyorsun. Yardıma ihtiyacın olursa Türkçe ekibimiz 7/24 yanında." },
-  { q: 'Mevcut POS sistemimle çalışır mı?', a: "Evet — iyzico, Vallet, Logo, Mikro ve Netsis ile direkt entegre. Webhook + API ile her POS'a bağlanabilirsin. Sipariş Tezgah'a düşer, hesabı garsonless üzerinden alabilirsin." },
+  { q: 'Mevcut POS sistemimle çalışır mı?', a: "Evet — iyzico, Vallet, Logo, Mikro ve Netsis ile direkt entegre. Webhook + API ile her POS'a bağlanabilirsin. Sipariş Tezgah'a düşer, hesabı masabu üzerinden alabilirsin." },
   { q: 'Sipariş başı komisyon var mı?', a: "Yok. Bizden alınan tek ücret aylık abonelik. Ödeme komisyonu doğrudan iyzico'ya gider (kart için %1,8 + ₺2,5). Nakit ödemeler tamamen sizin." },
   { q: 'Müşterilerimin uygulama indirmesi gerekir mi?', a: "Hayır. QR'ı tarayınca tarayıcıda menü açılır. iOS, Android, hatta tuşlu telefonların tarayıcısında bile çalışır." },
   { q: 'Bir mağazadan fazla mı yöneteceğim?', a: "Pro plan 3'e kadar, Business sınırsız mağaza destekler. Tek kullanıcıyla hepsini geziniyor, hangi şubenin nasıl çalıştığını tek panoda görebiliyorsun." },

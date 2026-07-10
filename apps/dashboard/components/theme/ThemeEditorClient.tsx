@@ -1370,8 +1370,8 @@ export default function ThemeEditorClient({
             fontSize: 13,
             fontWeight: 700,
             flexShrink: 0,
-          }}>g</div>
-          {showFullTopbarCopy && <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>garsonless</span>}
+          }}>m</div>
+          {showFullTopbarCopy && <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>masabu</span>}
           {showFullTopbarCopy && <span style={{ color: 'var(--text-4)' }}>/</span>}
           <span style={{ color: 'var(--text-2)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {restaurantName}

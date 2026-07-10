@@ -530,8 +530,8 @@ function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onRedo, ca
             background: 'linear-gradient(135deg, #18181b 0%, #3f3f46 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 700, fontSize: 12, letterSpacing: '-.02em',
-          }}>g</div>
-          <span style={{ fontWeight: 600, fontSize: 13, letterSpacing: '-.01em', color: 'var(--text)' }}>garsonless</span>
+          }}>m</div>
+          <span style={{ fontWeight: 600, fontSize: 13, letterSpacing: '-.01em', color: 'var(--text)' }}>masabu</span>
         </a>
         <button style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12,
@@ -1145,7 +1145,7 @@ function colorOpts(qr: QRConfig): object {
   }
 }
 
-const MENU_BASE = process.env.NEXT_PUBLIC_MENU_BASE_URL ?? 'https://menu.garsonless.app'
+const MENU_BASE = process.env.NEXT_PUBLIC_MENU_BASE_URL ?? 'https://menu.masabu.co'
 const MENU_PROTOCOL = MENU_BASE.startsWith('http://') ? 'http' : 'https'
 
 function buildUrl(qr: QRConfig, table?: TableItem): string {
@@ -1383,7 +1383,7 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview }: {
       cornersDotOptions: { type: qr.eyeBall as any, color: qr.fg },
       backgroundOptions: { color: qr.bgTransparent ? 'transparent' : qr.bg },
     })
-    exportInst.download({ name: `garsonless-${table?.slug || 'qr'}`, extension: ext as 'png' | 'svg' | 'jpeg' | 'webp' })
+    exportInst.download({ name: `masabu-${table?.slug || 'qr'}`, extension: ext as 'png' | 'svg' | 'jpeg' | 'webp' })
   }, [qr, table])
 
   const url = buildUrl(qr, table)
@@ -1515,7 +1515,7 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview }: {
             boxShadow: 'var(--shadow-2)', borderRadius: 4, padding: 50,
             display: 'flex', flexDirection: 'column', alignItems: 'center',
           }}>
-            <div style={{ fontSize: 11, color: 'var(--text-3)', alignSelf: 'flex-start', letterSpacing: '.06em', textTransform: 'uppercase' }}>garsonless · A4</div>
+            <div style={{ fontSize: 11, color: 'var(--text-3)', alignSelf: 'flex-start', letterSpacing: '.06em', textTransform: 'uppercase' }}>masabu · A4</div>
             <div style={{ fontSize: 24, fontWeight: 700, marginTop: 30, color: qr.frameColor, letterSpacing: '-.02em' }}>{qr.frameTitle}</div>
             <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 4 }}>{qr.frameSubtitle}</div>
             <div style={{ marginTop: 30 }}>
