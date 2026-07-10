@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { createOrder, verifyCustomerSession, CUSTOMER_SESSION_COOKIE, createServiceClient, type OrderDiscountBreakdown } from '@garsonless/db'
+import { createOrder, createServiceClient, type OrderDiscountBreakdown } from '@garsonless/db'
+import { getCustomerSession } from '../../../lib/customer-session'
 
 const orderItemSchema = z.object({
   itemId: z.string().uuid(),
@@ -74,8 +74,7 @@ export async function POST(
 
   // Link the order to a verified member (httpOnly cookie, same menu origin).
   // Covers BOTH place-order and pay-first. No cookie → guest, no redemption.
-  const token = (await cookies()).get(CUSTOMER_SESSION_COOKIE)?.value
-  const session = await verifyCustomerSession(token)
+  const session = await getCustomerSession()
 
   const result = await createOrder({
     restaurantId: parsed.data.restaurantId,
