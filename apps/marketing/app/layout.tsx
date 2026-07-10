@@ -2,8 +2,27 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://masabu.co'),
   title: 'masabu — Kafenizi 2 dakikada akıllandırın',
   description: 'QR menü, sipariş yönetimi, mutfak ekranı ve daha fazlası. 2 dakikada kurulum, garson maliyeti sıfır.',
+  icons: {
+    icon: [
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon.ico' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
+  manifest: '/site.webmanifest',
+  openGraph: {
+    title: 'masabu — Kafenizi 2 dakikada akıllandırın',
+    description: 'QR menü, sipariş yönetimi, mutfak ekranı ve daha fazlası. 2 dakikada kurulum, garson maliyeti sıfır.',
+    url: 'https://masabu.co',
+    siteName: 'masabu',
+    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+    locale: 'tr_TR',
+    type: 'website',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

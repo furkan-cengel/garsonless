@@ -39,14 +39,8 @@ export function MarketingNav({ active }: Props) {
       <div className="container marketing-nav__inner" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64,
       }}>
-        <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'var(--ink)' }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 8,
-            background: 'var(--ink)', color: 'var(--accent-2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'Fraunces, serif', fontWeight: 600, fontSize: 17, lineHeight: 1,
-          }}>m</div>
-          <span style={{ fontWeight: 600, fontSize: 16, letterSpacing: '-0.02em' }}>masabu</span>
+        <a href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', color: 'var(--ink)' }}>
+          <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 20, width: 'auto', display: 'block' }} />
         </a>
 
         <div className="marketing-nav__links" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

@@ -41,18 +41,9 @@ export default function OnboardingPage() {
       justifyContent: 'center',
       padding: '32px 16px',
     }}>
-      {/* Logo mark */}
-      <div style={{ marginBottom: 32, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: 10,
-          background: 'var(--text)', color: 'var(--bg)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontFamily: 'Fraunces, Georgia, serif',
-          fontWeight: 700, fontSize: 22, lineHeight: 1,
-        }}>m</div>
-        <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', color: 'var(--text)' }}>
-          masabu
-        </span>
+      {/* Logo mark — real wordmark on the light onboarding surface. */}
+      <div style={{ marginBottom: 32, display: 'flex', alignItems: 'center' }}>
+        <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 24, width: 'auto', display: 'block' }} />
       </div>
 
       <div style={{ width: '100%', maxWidth: 480 }}>

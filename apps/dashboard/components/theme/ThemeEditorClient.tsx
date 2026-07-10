@@ -1358,20 +1358,10 @@ export default function ThemeEditorClient({
         background: 'var(--surface)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: showFullTopbarCopy ? 12 : 8, minWidth: 0, flex: '1 1 260px' }}>
-          <div style={{
-            width: 28,
-            height: 28,
-            borderRadius: 7,
-            background: 'var(--text)',
-            color: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 13,
-            fontWeight: 700,
-            flexShrink: 0,
-          }}>m</div>
-          {showFullTopbarCopy && <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>masabu</span>}
+          {/* Narrow topbar → compact m mark; wide → full wordmark (both real assets, light surface). */}
+          {showFullTopbarCopy
+            ? <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 18, width: 'auto', display: 'block', flexShrink: 0 }} />
+            : <img src="/brand/masabu-m-favicon-transparent.svg" alt="Masabu" style={{ width: 26, height: 26, display: 'block', flexShrink: 0 }} />}
           {showFullTopbarCopy && <span style={{ color: 'var(--text-4)' }}>/</span>}
           <span style={{ color: 'var(--text-2)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {restaurantName}

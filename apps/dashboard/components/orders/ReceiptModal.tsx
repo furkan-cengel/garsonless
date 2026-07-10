@@ -56,13 +56,9 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
         }}>
           {/* Header */}
           <div style={{ textAlign: 'center', borderBottom: '1.5px dashed #cfcfcf', paddingBottom: 14 }}>
-            <div style={{
-              width: 34, height: 34, borderRadius: 8, background: '#18181b', color: '#fff',
-              display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 16, margin: '0 auto 8px',
-              fontFamily: 'system-ui, sans-serif',
-            }}>m</div>
+            {/* Real wordmark — receipt is white (screen + print), vector stays sharp when printed. */}
+            <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 20, width: 'auto', display: 'block', margin: '0 auto 8px' }} />
             <div style={{ fontFamily: 'system-ui, sans-serif', fontWeight: 700, fontSize: 15 }}>{restaurantName}</div>
-            <div style={{ fontSize: 10.5, color: '#777', marginTop: 2 }}>masabu</div>
             {(company || taxNumber || taxOffice || taxAddress) && (
               <div style={{ marginTop: 8, fontSize: 9.5, color: '#666', lineHeight: 1.45 }}>
                 {company && <div>{company}</div>}

@@ -525,13 +525,7 @@ function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onRedo, ca
     }}>
       <div className="tb-tables__topbar-left" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 8, paddingRight: 8, borderRight: '1px solid var(--border)', height: 28, textDecoration: 'none' }}>
-          <div style={{
-            width: 26, height: 26, borderRadius: 7,
-            background: 'linear-gradient(135deg, #18181b 0%, #3f3f46 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: 700, fontSize: 12, letterSpacing: '-.02em',
-          }}>m</div>
-          <span style={{ fontWeight: 600, fontSize: 13, letterSpacing: '-.01em', color: 'var(--text)' }}>masabu</span>
+          <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 18, width: 'auto', display: 'block' }} />
         </a>
         <button style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12,
@@ -1515,7 +1509,11 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview }: {
             boxShadow: 'var(--shadow-2)', borderRadius: 4, padding: 50,
             display: 'flex', flexDirection: 'column', alignItems: 'center',
           }}>
-            <div style={{ fontSize: 11, color: 'var(--text-3)', alignSelf: 'flex-start', letterSpacing: '.06em', textTransform: 'uppercase' }}>masabu · A4</div>
+            {/* Print-context brand: vector SVG stays sharp at A4 print resolution. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start' }}>
+              <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 13, width: 'auto', display: 'block' }} />
+              <span style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>· A4</span>
+            </div>
             <div style={{ fontSize: 24, fontWeight: 700, marginTop: 30, color: qr.frameColor, letterSpacing: '-.02em' }}>{qr.frameTitle}</div>
             <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 4 }}>{qr.frameSubtitle}</div>
             <div style={{ marginTop: 30 }}>

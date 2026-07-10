@@ -39,14 +39,8 @@ export function MarketingFooter() {
       <div className="container">
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(4, 1fr)', gap: 48, marginBottom: 56 }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: 9,
-                background: 'var(--ink)', color: 'var(--accent-2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: 'Fraunces, serif', fontWeight: 600, fontSize: 19, lineHeight: 1,
-              }}>m</div>
-              <span style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.02em' }}>masabu</span>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 18 }}>
+              <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 22, width: 'auto', display: 'block' }} />
             </div>
             <p style={{ fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.6, maxWidth: 280, margin: 0 }}>
               Türk gastronomisi için tasarlandı.<br />Mekanınız ister kafe ister fine-dining — biz oradayız.

@@ -75,15 +75,14 @@ export default function VisualPanel({ mode }: Props): ReactElement {
         opacity: .04, mixBlendMode: 'overlay',
       }} />
 
-      {/* Logo */}
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 9, zIndex: 1 }}>
-        <div style={{
-          width: 32, height: 32, borderRadius: 9,
-          background: '#ffd089', color: '#1a1612',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontFamily: "'Fraunces', Georgia, serif", fontWeight: 600, fontSize: 19, lineHeight: 1,
-        }}>m</div>
-        <span style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.02em' }}>masabu</span>
+      {/* Logo — the auth hero panel is DARK, so the dark-ink transparent wordmark
+          vanishes; use the white-background variant as a rounded plate. */}
+      <div style={{ display: 'inline-flex', alignItems: 'center', zIndex: 1 }}>
+        <img
+          src="/brand/masabu-logo-white-background.svg"
+          alt="Masabu"
+          style={{ height: 30, width: 'auto', display: 'block', borderRadius: 8, padding: '4px 8px', background: '#fff' }}
+        />
       </div>
 
       {/* Main content */}

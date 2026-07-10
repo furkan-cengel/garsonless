@@ -136,9 +136,8 @@ function Nav() {
       transition: 'all 200ms',
     }}>
       <div style={{ ...ctr, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'var(--ink)' }}>
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--ink)', color: 'var(--accent-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...fd, fontWeight: 600, fontSize: 17, lineHeight: 1 }}>m</div>
-          <span style={{ fontWeight: 600, fontSize: 16, letterSpacing: '-0.02em' }}>masabu</span>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', color: 'var(--ink)' }}>
+          <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 20, width: 'auto', display: 'block' }} />
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {['Özellikler', 'Demo', 'Fiyatlandırma', 'Hikayeler', 'Kaynaklar'].map(l => (
@@ -857,7 +856,7 @@ function Compare() {
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', background: 'var(--night)', color: '#fff' }}>
             <div style={{ padding: '18px 22px', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,.55)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Özellik</div>
             <div style={{ padding: '18px 14px', textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,.08)', background: 'var(--accent-2)', color: 'var(--ink)' }}>
-              <div style={{ ...fd, fontSize: 18, fontWeight: 700 }}>masabu</div>
+              <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 16, width: 'auto', display: 'inline-block' }} />
               <div style={{ fontSize: 10, fontWeight: 600, marginTop: 2, opacity: .75 }}>Bizim ürün</div>
             </div>
             {['Adisyo','Klasik POS','Zenchef'].map(n => <div key={n} style={{ padding: '18px 14px', textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,.08)', fontSize: 14, fontWeight: 600 }}>{n}</div>)}
@@ -993,8 +992,7 @@ function Footer() {
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(4, 1fr)', gap: 48, marginBottom: 56 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 9, background: 'var(--ink)', color: 'var(--accent-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...fd, fontWeight: 600, fontSize: 19, lineHeight: 1 }}>m</div>
-              <span style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.02em' }}>masabu</span>
+              <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 22, width: 'auto', display: 'block' }} />
             </div>
             <p style={{ fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.6, maxWidth: 280, margin: 0 }}>Türk gastronomisi için tasarlandı.<br />Mekanınız ister kafe ister fine-dining — biz oradayız.</p>
             <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>

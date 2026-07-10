@@ -50,13 +50,8 @@ export default function PageTopBar({ restaurantName, title, tag, center, right, 
           paddingRight: 8, borderRight: '1px solid var(--border)',
           height: 28, flexShrink: 0,
         }}>
-          <div style={{
-            width: 26, height: 26, borderRadius: 7,
-            background: 'linear-gradient(135deg, #18181b 0%, #3f3f46 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: 700, fontSize: 12,
-          }}>m</div>
-          <span style={{ fontWeight: 600, fontSize: 13, letterSpacing: '-.01em' }}>masabu</span>
+          {/* Real wordmark (light topbar → transparent variant); replaces the placeholder m-box + text. */}
+          <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 18, width: 'auto', display: 'block' }} />
         </div>
 
         <button
