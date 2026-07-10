@@ -46,6 +46,7 @@ export type RequestOtpResult =
   | { ok: true; phone: string; devCode: string }
   | { ok: false; reason: 'invalid_phone' }
   | { ok: false; reason: 'throttled' }
+  | { ok: false; reason: 'sms_failed' }
 
 export async function requestOtp(input: { rawPhone: string; ip: string | null }): Promise<RequestOtpResult> {
   const phone = normalizePhone(input.rawPhone)
@@ -80,6 +81,19 @@ export async function requestOtp(input: { rawPhone: string; ip: string | null })
   }
 
   const code = String(randomInt(100_000, 1_000_000)) // 6 digits, no leading zero
+
+  // Send FIRST, persist ONLY on success (P1.3). A provider failure returns typed
+  // 'sms_failed' WITHOUT inserting a row → the caller's rate-limit budget (counted
+  // from otp_codes rows) is never burned for an undelivered code, and no
+  // unverifiable challenge is stored. The rate-limit checks above already ran, so
+  // this ordering cannot be abused to spam send attempts (a legit code that WAS
+  // sent still counts; a failed one costs nothing and the user may retry).
+  try {
+    await getSmsProvider().send(phone, `Garsonless doğrulama kodunuz: ${code}`, { purpose: 'otp' })
+  } catch {
+    return { ok: false, reason: 'sms_failed' }
+  }
+
   const insert = supabase.from('otp_codes') as unknown as {
     insert: (row: Record<string, unknown>) => Promise<{ error: unknown }>
   }
@@ -89,9 +103,11 @@ export async function requestOtp(input: { rawPhone: string; ip: string | null })
     ip: input.ip,
     expires_at: new Date(Date.now() + OTP_TTL_MS).toISOString(),
   })
-  if (error) return { ok: false, reason: 'throttled' } // fail closed; don't leak detail
+  // SMS already went out but the challenge couldn't be stored (rare DB failure) →
+  // the customer can't verify it, so surface a retryable error rather than a
+  // silent success. Rate budget stays untouched (no row persisted).
+  if (error) return { ok: false, reason: 'sms_failed' }
 
-  await getSmsProvider().send(phone, `Garsonless doğrulama kodunuz: ${code}`, { purpose: 'otp' })
   return { ok: true, phone, devCode: code }
 }
 

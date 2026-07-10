@@ -27,7 +27,7 @@ export type {
   CreateInviteResult, AcceptInviteResult, ResendInviteResult,
 } from './team'
 export { normalizePhone } from './phone'
-export { getSmsProvider, MockSmsProvider } from './sms'
+export { getSmsProvider, MockSmsProvider, assertSmsConfig } from './sms'
 export type { SmsProvider, SmsSendOptions, SmsSendResult, SmsPurpose } from './sms'
 export {
   requestOtp, verifyOtp, earnForOrder, getMemberBalances, NETWORK_SCOPE_KEY,

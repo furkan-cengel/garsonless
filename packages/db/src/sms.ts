@@ -105,11 +105,75 @@ function readNetgsmMessageId(value: unknown): string | undefined {
   return found == null ? undefined : String(found)
 }
 
+function resolveProviderName(): string {
+  return (process.env['SMS_PROVIDER'] ?? 'mock').toLowerCase()
+}
+
+function isProd(): boolean {
+  return process.env.NODE_ENV === 'production'
+}
+
+/**
+ * Fail-fast configuration guard (P1.1). The mock provider only console.logs —
+ * if it were the resolved provider in production, every customer OTP would
+ * silently vanish and auth would appear "up" while being completely broken.
+ * That silent-outage mode is the single worst failure for a launch, so this
+ * MUST throw rather than no-op.
+ *
+ * Called at boot from apps/menu instrumentation (crashes a misconfigured prod
+ * deploy before it serves a single request) AND, as defense-in-depth, inside
+ * getSmsProvider (covers any path that bypasses instrumentation).
+ *
+ * Checks:
+ *  - CUSTOMER_SESSION_SECRET must be present (session signing dies without it).
+ *  - In production, SMS_PROVIDER must not be mock/unset.
+ *  - When a real provider is selected, its credentials must be present (so the
+ *    misconfiguration surfaces at boot, not on the first customer's send).
+ */
+export function assertSmsConfig(): void {
+  if (!process.env['CUSTOMER_SESSION_SECRET']) {
+    throw new Error('Auth misconfiguration: CUSTOMER_SESSION_SECRET is not set.')
+  }
+
+  const which = resolveProviderName()
+
+  if (isProd() && (which === 'mock' || which === '' || !process.env['SMS_PROVIDER'])) {
+    throw new Error(
+      `SMS misconfiguration: SMS_PROVIDER=${process.env['SMS_PROVIDER'] ? `'${which}'` : '(unset)'} ` +
+        `resolves to the mock provider under NODE_ENV=production. Real customer OTP delivery would ` +
+        `silently no-op. Set SMS_PROVIDER=netgsm (or twilio) with credentials.`,
+    )
+  }
+
+  if (which === 'netgsm') {
+    for (const key of ['NETGSM_USERCODE', 'NETGSM_PASSWORD', 'NETGSM_MSGHEADER']) {
+      if (!process.env[key]) throw new Error(`SMS misconfiguration: SMS_PROVIDER=netgsm but ${key} is not set.`)
+    }
+  }
+
+  if (which === 'twilio') {
+    for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM']) {
+      if (!process.env[key]) throw new Error(`SMS misconfiguration: SMS_PROVIDER=twilio but ${key} is not set.`)
+    }
+  }
+}
+
 let cached: SmsProvider | null = null
 
 export function getSmsProvider(): SmsProvider {
+  const which = resolveProviderName()
+
+  // Defense-in-depth (runs BEFORE the cache): the mock only logs and must never
+  // be the resolved provider in production — mirrors the boot-time
+  // assertSmsConfig guard so no bypass path can silently drop OTPs.
+  if (isProd() && (which === 'mock' || which === '' || !process.env['SMS_PROVIDER'])) {
+    throw new Error(
+      `SMS misconfiguration: SMS_PROVIDER=${process.env['SMS_PROVIDER'] ? `'${which}'` : '(unset)'} ` +
+        `resolves to the mock provider under NODE_ENV=production.`,
+    )
+  }
+
   if (cached) return cached
-  const which = (process.env['SMS_PROVIDER'] ?? 'mock').toLowerCase()
   switch (which) {
     case 'twilio':
       cached = new TwilioSmsProvider()
@@ -122,4 +186,10 @@ export function getSmsProvider(): SmsProvider {
       cached = new MockSmsProvider()
   }
   return cached
+}
+
+/** Test-only: clear the memoized provider so a test can re-resolve under a
+ *  different SMS_PROVIDER/NODE_ENV. Never call from application code. */
+export function __resetSmsProviderCacheForTests(): void {
+  cached = null
 }

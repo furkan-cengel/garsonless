@@ -33,6 +33,14 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse>> {
     if (result.reason === 'invalid_phone') {
       return NextResponse.json({ ok: false, error: 'Geçerli bir telefon numarası girin.' }, { status: 400 })
     }
+    if (result.reason === 'sms_failed') {
+      // Provider send failed — no code was stored, the rate budget is untouched,
+      // the customer can retry immediately. Distinct from 429 (throttle) / 400.
+      return NextResponse.json(
+        { ok: false, error: 'SMS gönderilemedi. Lütfen tekrar deneyin.' },
+        { status: 503 },
+      )
+    }
     // throttled — never reveal whether the phone exists; uniform friendly message.
     return NextResponse.json(
       { ok: false, error: 'Çok fazla deneme. Lütfen birazdan tekrar deneyin.' },
