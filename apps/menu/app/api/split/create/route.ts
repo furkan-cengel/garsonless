@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { createServiceClient, createShareDB, verifyCustomerSession, CUSTOMER_SESSION_COOKIE } from '@garsonless/db'
+import { createServiceClient, createShareDB } from '@garsonless/db'
+import { getCustomerSession } from '../../../../lib/customer-session'
 
 // Customer declares a split share (card intent OR cash). Service-role, gated by
 // the slug↔restaurant cross-check + an OPEN session (mirrors /api/orders). The
@@ -73,8 +73,7 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ sha
     shareAmount = Math.min(amount, sessionTotal)
   }
 
-  const token = (await cookies()).get(CUSTOMER_SESSION_COOKIE)?.value
-  const session = await verifyCustomerSession(token)
+  const session = await getCustomerSession()
 
   const { shareId, error } = await createShareDB({
     restaurantId,

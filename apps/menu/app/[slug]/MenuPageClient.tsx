@@ -27,6 +27,7 @@ import type { Tables, OrderStatus, MemberBalances } from '@garsonless/db'
 import { useCartStore } from '../../lib/store/useCartStore'
 import { useOrderStore } from '../../lib/store/useOrderStore'
 import { createMenuBrowserClient } from '../../lib/supabase'
+import { createMenuAuthBrowserClient } from '../../lib/supabase-browser'
 import { useWaiterCall } from '../../lib/hooks/useWaiterCall'
 import SplitBillModal from './components/SplitBillModal'
 import MemberSheet from './components/MemberSheet'
@@ -778,11 +779,11 @@ export function MenuPageClient({
     }
   }, [loyaltyEnabled, restaurant.id])
 
-  // Member logout: clear the httpOnly cookie server-side, then drop all member
-  // state so the Header chip flips back to "Üye ol" without a hard refresh.
+  // Member logout: end the Supabase Auth session, then drop all member state so
+  // the Header chip flips back to "Üye ol" without a hard refresh.
   const handleLogout = useCallback(async () => {
     try {
-      await fetch('/api/loyalty/logout', { method: 'POST' })
+      await createMenuAuthBrowserClient().auth.signOut()
     } catch {
       /* clear local state regardless */
     }
