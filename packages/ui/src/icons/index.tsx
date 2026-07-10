@@ -18,6 +18,7 @@ import CodeXml from 'lucide-react/dist/esm/icons/code-xml.mjs'
 import Copy from 'lucide-react/dist/esm/icons/copy.mjs'
 import CreditCard from 'lucide-react/dist/esm/icons/credit-card.mjs'
 import Crown from 'lucide-react/dist/esm/icons/crown.mjs'
+import Cigarette from 'lucide-react/dist/esm/icons/cigarette.mjs'
 import Download from 'lucide-react/dist/esm/icons/download.mjs'
 import Droplet from 'lucide-react/dist/esm/icons/droplet.mjs'
 import Eye from 'lucide-react/dist/esm/icons/eye.mjs'
@@ -26,10 +27,12 @@ import FileText from 'lucide-react/dist/esm/icons/file-text.mjs'
 import Frame from 'lucide-react/dist/esm/icons/frame.mjs'
 import Gift from 'lucide-react/dist/esm/icons/gift.mjs'
 import Globe2 from 'lucide-react/dist/esm/icons/globe-2.mjs'
+import GlassWater from 'lucide-react/dist/esm/icons/glass-water.mjs'
 import GripVertical from 'lucide-react/dist/esm/icons/grip-vertical.mjs'
 import Grid3x3 from 'lucide-react/dist/esm/icons/grid-3x3.mjs'
 import History from 'lucide-react/dist/esm/icons/history.mjs'
 import House from 'lucide-react/dist/esm/icons/house.mjs'
+import HandPlatter from 'lucide-react/dist/esm/icons/hand-platter.mjs'
 import Image from 'lucide-react/dist/esm/icons/image.mjs'
 import LayoutPanelTop from 'lucide-react/dist/esm/icons/layout-panel-top.mjs'
 import Link2 from 'lucide-react/dist/esm/icons/link-2.mjs'
@@ -60,6 +63,7 @@ import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check.mjs'
 import ShoppingCart from 'lucide-react/dist/esm/icons/shopping-cart.mjs'
 import Smartphone from 'lucide-react/dist/esm/icons/smartphone.mjs'
 import Sparkles from 'lucide-react/dist/esm/icons/sparkles.mjs'
+import SprayCan from 'lucide-react/dist/esm/icons/spray-can.mjs'
 import Stamp from 'lucide-react/dist/esm/icons/stamp.mjs'
 import Star from 'lucide-react/dist/esm/icons/star.mjs'
 import Store from 'lucide-react/dist/esm/icons/store.mjs'
@@ -148,6 +152,10 @@ export const AppIcons = {
   trash: icon(Trash2),
   search: icon(Search),
   bell: icon(Bell),
+  cigarette: icon(Cigarette),
+  glassWater: icon(GlassWater),
+  handPlatter: icon(HandPlatter),
+  spray: icon(SprayCan),
   megaphone: icon(Megaphone),
   sparkles: icon(Sparkles),
   more: icon(MoreHorizontal, 2.2),

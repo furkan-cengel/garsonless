@@ -911,7 +911,7 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
   restaurantId: string
   openSessions: Record<string, OpenSessionInfo>
   onCloseSession: (session: OpenSessionInfo, label: string) => void
-  pendingRequests: Record<string, string>
+  pendingRequests: Record<string, Array<{ id: string; label: string }>>
   onResolveRequest: (requestId: string) => void
 }) {
   const [adding, setAdding] = useState(false)
@@ -1024,7 +1024,7 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
         )}
         {filteredTables.map(t => {
           const session = openSessions[t.id]
-          const pendingRequestId = pendingRequests[t.id]
+          const tableRequests = pendingRequests[t.id] ?? []
           const rowTable: TableItem = session
             ? { ...t, status: 'active', orders: session.orderCount }
             : { ...t, status: 'idle', orders: 0 }
@@ -1038,27 +1038,27 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
                 onDelete={() => handleDelete(t)}
                 deleteDisabled={Boolean(session)}
               />
-              {pendingRequestId && (
-                <div style={{
+              {tableRequests.map((request) => (
+                <div key={request.id} style={{
                   margin: '0 4px 4px 28px', padding: '5px 8px',
                   display: 'flex', alignItems: 'center', gap: 6,
                   background: 'rgba(255,159,64,.14)', borderRadius: 6,
                 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#b8690f', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                    {I.bellSmall}Garson çağrısı
+                    {I.bellSmall}{request.label}
                   </span>
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); onResolveRequest(pendingRequestId) }}
+                    onClick={(e) => { e.stopPropagation(); onResolveRequest(request.id) }}
                     style={{
                       fontSize: 10.5, fontWeight: 700, padding: '2px 8px',
                       border: '1px solid #d98324', borderRadius: 5,
                       background: 'var(--surface)', color: '#b8690f',
                       cursor: 'pointer', flexShrink: 0,
                     }}
-                  >Çağrıyı kapat</button>
+                  >Tamamla</button>
                 </div>
-              )}
+              ))}
               {session && (
                 <div style={{
                   margin: '0 4px 4px 28px', padding: '5px 8px',
@@ -2217,13 +2217,15 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
   useEffect(() => { void loadSessions() }, [loadSessions])
 
   // Pending waiter calls per table (one chip per table)
-  const [pendingRequests, setPendingRequests] = useState<Record<string, string>>({})
+  const [pendingRequests, setPendingRequests] = useState<Record<string, Array<{ id: string; label: string }>>>({})
 
   const loadPendingRequests = useCallback(async () => {
     const result = await getPendingServiceRequests(restaurantId)
     if (Array.isArray(result)) {
-      const byTable: Record<string, string> = {}
-      result.forEach((req) => { byTable[req.tableId] = req.id })
+      const byTable: Record<string, Array<{ id: string; label: string }>> = {}
+      result.forEach((req) => {
+        byTable[req.tableId] = [...(byTable[req.tableId] ?? []), { id: req.id, label: req.label }]
+      })
       setPendingRequests(byTable)
     }
   }, [restaurantId])
@@ -2244,11 +2246,14 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
   }, [restaurantId, loadPendingRequests])
 
   const handleResolveRequest = useCallback(async (requestId: string) => {
-    setPendingRequests((prev) => {
-      const next = { ...prev }
-      for (const [tid, id] of Object.entries(next)) if (id === requestId) delete next[tid]
-      return next
-    })
+    setPendingRequests((prev) => Object.fromEntries(
+      Object.entries(prev)
+        .map(([tableId, requests]) => [
+          tableId,
+          requests.filter((request) => request.id !== requestId),
+        ] as const)
+        .filter(([, requests]) => requests.length > 0),
+    ))
     await resolveServiceRequest(requestId, restaurantId)
     void loadPendingRequests()
   }, [restaurantId, loadPendingRequests])

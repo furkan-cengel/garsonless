@@ -23,7 +23,7 @@ import {
   InfoBlockSection,
 } from './sections/MiscSections'
 
-export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFilters, filterEmptyState, tableId, tableLabel, cartSummary, onOpenCart, items, onQuickAdd, billSummary, onOpenBill, memberSummary, onOpenMember, memberLoyalty }: ThemeMenuPageProps) {
+export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFilters, orderStatus, filterEmptyState, tableId, tableLabel, cartSummary, onOpenCart, items, onQuickAdd, billSummary, onOpenBill, memberSummary, onOpenMember, memberLoyalty, storeInfo }: ThemeMenuPageProps) {
   const { theme, restaurantName } = useTheme()
   const visualNav = theme.catnavStyle === 'visual'
   const rootCategories = useMemo(() => categories.filter((category) => !category.parent_id), [categories])
@@ -353,7 +353,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
       return <GallerySection key={sectionId} config={config} />
     }
     if (sectionId === 'reviews' || sectionId === 'hours' || sectionId === 'allergens' || sectionId === 'service-info' || sectionId === 'request-buttons' || sectionId === 'waiter-call' || sectionId === 'wifi-info' || sectionId === 'bill-summary' || sectionId === 'social-block' || sectionId === 'footer') {
-      return <InfoBlockSection key={sectionId} sectionId={sectionId} config={config} restaurantName={restaurantName} />
+      return <InfoBlockSection key={sectionId} sectionId={sectionId} config={config} restaurantName={restaurantName} storeInfo={storeInfo ?? null} />
     }
 
     return null
@@ -384,6 +384,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
   return (
     <div suppressHydrationWarning style={{ minHeight: '100dvh', backgroundColor: 'var(--p-bg)', ...textureStyle }}>
       <Header tableId={tableId ?? null} tableName={tableLabel ?? null} categories={categories} cartSummary={cartSummary} onOpenCart={onOpenCart} billSummary={billSummary ?? null} onOpenBill={onOpenBill} memberSummary={memberSummary ?? null} onOpenMember={onOpenMember} />
+      {orderStatus}
       <main style={{ paddingBottom: 96 }}>
         {pageBlocks.map((block) => {
           if (block.type === 'section') return renderCustomSection(block.id)

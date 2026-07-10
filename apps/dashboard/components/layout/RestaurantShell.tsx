@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 import type { Tables } from '@garsonless/db'
+import { serviceRequestLabel } from '@garsonless/db/order-client'
 import { ShellContext } from '../../lib/shell-context'
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import { readNotificationPrefs } from '../../lib/notification-prefs'
@@ -58,7 +59,7 @@ export default function RestaurantShell({
   const [ordersBadge, setOrdersBadge] = useState(0)
   const [newOrderCount, setNewOrderCount] = useState(0)
   const [pendingReqCount, setPendingReqCount] = useState(0)
-  const [waiterToastLabel, setWaiterToastLabel] = useState<string | null>(null)
+  const [waiterToast, setWaiterToast] = useState<{ tableLabel: string; label: string } | null>(null)
   const tableLabelsRef = useRef<Record<string, string>>({})
   const navigationGuardRef = useRef<string | null>(null)
 
@@ -158,8 +159,9 @@ export default function RestaurantShell({
         (payload: { new: Record<string, unknown> }) => {
           const tableId = payload.new['table_id'] as string | undefined
           const label = (tableId && tableLabelsRef.current[tableId]) || 'Masa'
+          const requestLabel = serviceRequestLabel(payload.new['request_type'])
           // Badge count always refreshes; the toast alert respects the toggle.
-          if (serviceAlertRef.current) setWaiterToastLabel(label)
+          if (serviceAlertRef.current) setWaiterToast({ tableLabel: label, label: requestLabel })
           void refreshPendingCount()
         },
       )
@@ -200,7 +202,7 @@ export default function RestaurantShell({
         {overlay === 'notif' && (
           <NotificationsPanel restaurantId={restaurantId} onClose={() => setOverlay(null)} />
         )}
-        <ServiceRequestToast tableLabel={waiterToastLabel} onDismiss={() => setWaiterToastLabel(null)} />
+        <ServiceRequestToast request={waiterToast} onDismiss={() => setWaiterToast(null)} />
       </ShellContext.Provider>
     )
   }
@@ -249,7 +251,7 @@ export default function RestaurantShell({
         />
       )}
 
-      <ServiceRequestToast tableLabel={waiterToastLabel} onDismiss={() => setWaiterToastLabel(null)} />
+        <ServiceRequestToast request={waiterToast} onDismiss={() => setWaiterToast(null)} />
     </ShellContext.Provider>
   )
 }

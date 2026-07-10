@@ -7,6 +7,7 @@ export interface ThemeMenuPageProps {
   categoryMeta?: Record<string, { imageUrl?: string | null; itemCount?: number }>
   renderItems: (catId: string) => ReactNode
   menuFilters?: ReactNode
+  orderStatus?: ReactNode
   filterEmptyState?: ReactNode
   tableId?: string | null
   tableLabel?: string | null
@@ -20,6 +21,24 @@ export interface ThemeMenuPageProps {
   onOpenMember?: (() => void) | undefined
   /** Real member loyalty for the promo-slider loyalty slide (null → demo values). */
   memberLoyalty?: { filled: number; total: number } | null
+  storeInfo?: StoreInfo | null
+}
+
+export interface StoreInfo {
+  contact?: {
+    phone?: string
+    email?: string
+    website?: string
+    address?: string
+    district?: string
+    city?: string
+    zip?: string
+    instagram?: string
+    facebook?: string
+    tiktok?: string
+    whatsapp?: string
+  } | null
+  hours?: Record<string, { open?: string; close?: string; active?: boolean }> | null
 }
 
 export interface MemberChipSummary {

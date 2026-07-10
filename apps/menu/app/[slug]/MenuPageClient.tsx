@@ -11,6 +11,7 @@ import {
   OrderConfirmation,
   OrderBubble,
   OrderToastNotification,
+  ServiceRequestFab,
   TableBillSheet,
   useTheme,
   formatTRY,
@@ -19,7 +20,7 @@ import {
   DietaryFilterBar,
   itemMatchesDietaryFilters,
 } from '@garsonless/ui'
-import type { MenuItem, MenuCategory, OrderSummaryItem, BillOrder, DietaryFilter } from '@garsonless/ui'
+import type { MenuItem, MenuCategory, OrderSummaryItem, BillOrder, DietaryFilter, StoreInfo } from '@garsonless/ui'
 import type { TableSessionInfo, SessionOrderRow } from '../../lib/queries'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { Tables, OrderStatus, MemberBalances } from '@garsonless/db'
@@ -660,6 +661,49 @@ interface Props {
   isPreview?: boolean
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function cleanString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+function readStoreInfo(settings: unknown): StoreInfo | null {
+  if (!isPlainRecord(settings)) return null
+  const rawContact = isPlainRecord(settings['contact']) ? settings['contact'] : null
+  const rawHours = isPlainRecord(settings['hours']) ? settings['hours'] : null
+
+  const contact: NonNullable<StoreInfo['contact']> = {}
+  if (rawContact) {
+    for (const key of ['phone', 'email', 'website', 'address', 'district', 'city', 'zip', 'instagram', 'facebook', 'tiktok', 'whatsapp'] as const) {
+      const value = cleanString(rawContact[key])
+      if (value) contact[key] = value
+    }
+  }
+
+  const hours: NonNullable<StoreInfo['hours']> = {}
+  if (rawHours) {
+    for (const [day, value] of Object.entries(rawHours)) {
+      if (!isPlainRecord(value)) continue
+      const open = cleanString(value['open'])
+      const close = cleanString(value['close'])
+      const active = typeof value['active'] === 'boolean' ? value['active'] : Boolean(open && close)
+      hours[day] = { ...(open ? { open } : {}), ...(close ? { close } : {}), active }
+    }
+  }
+
+  const hasContact = Object.keys(contact).length > 0
+  const hasHours = Object.keys(hours).length > 0
+  if (!hasContact && !hasHours) return null
+  return {
+    ...(hasContact ? { contact } : {}),
+    ...(hasHours ? { hours } : {}),
+  }
+}
+
 export function MenuPageClient({
   restaurant,
   categories,
@@ -691,6 +735,7 @@ export function MenuPageClient({
   const [member, setMember] = useState<{ name: string | null } | null>(initialMember)
   const [memberBalances, setMemberBalances] = useState<MemberBalances | null>(initialMemberBalances)
   const [isMemberOpen, setIsMemberOpen] = useState(false)
+  const storeInfo = useMemo(() => readStoreInfo(restaurant.settings), [restaurant.settings])
   const loyaltyConfig = (restaurant.settings as Record<string, unknown> | null)?.['loyalty'] as
     | {
         stamp_enabled?: boolean; points_enabled?: boolean; points_redeem_rate?: number; member_discount_pct?: number; reward_item_id?: string
@@ -784,7 +829,11 @@ export function MenuPageClient({
   // /maf-lounge too when the device already has an open table.
   const effectiveTableId = tableId ?? storedTableId
 
-  const { callState: waiterCallState, callWaiter } = useWaiterCall(restaurant.id, effectiveTableId ?? null)
+  const {
+    callState: waiterCallState,
+    callWaiter,
+    sendServiceRequest,
+  } = useWaiterCall(restaurant.id, effectiveTableId ?? null)
 
   // Discount preview (server-computed; NO client money math). Debounced; refetched
   // when cart or requested redemption changes. Guests / non-redeemers → null.
@@ -1378,6 +1427,14 @@ export function MenuPageClient({
             onToggle={toggleDietaryFilter}
           />
         )}
+        orderStatus={orderId && orderStatus && orderView === 'bubble' ? (
+          <OrderBubble
+            phase={statusPhase(orderStatus)}
+            unseen={unseen}
+            justChanged={bubbleWiggle}
+            onOpen={openOrderSheet}
+          />
+        ) : null}
         filterEmptyState={dietaryFilters.length > 0 && filteredItems.length === 0 ? (
           <div
             data-component="filter-empty-state"
@@ -1424,6 +1481,7 @@ export function MenuPageClient({
         memberLoyalty={member && memberBalances && memberBalances.stampEnabled
           ? { filled: memberBalances.stamps, total: memberBalances.stampGoal }
           : null}
+        storeInfo={storeInfo}
       />
 
       <ProductModal
@@ -1480,18 +1538,15 @@ export function MenuPageClient({
         <FloatingCartTrigger onClick={() => setIsCartOpen(true)} />
       )}
 
-      {orderId && orderStatus && orderView === 'bubble' && (
-        <>
-          <OrderBubble
-            phase={statusPhase(orderStatus)}
-            unseen={unseen}
-            justChanged={bubbleWiggle}
-            onOpen={openOrderSheet}
-          />
-          {toastPhase !== null && (
-            <OrderToastNotification phase={toastPhase} onOpen={openOrderSheet} />
-          )}
-        </>
+      {effectiveTableId && !isCartOpen && !isBillOpen && !selectedItem && !isMemberOpen && !isSplitOpen && !paymentOrderId && (
+        <ServiceRequestFab
+          tableLabel={tableLabel ?? null}
+          onRequest={sendServiceRequest}
+        />
+      )}
+
+      {orderId && orderStatus && orderView === 'bubble' && toastPhase !== null && (
+        <OrderToastNotification phase={toastPhase} onOpen={openOrderSheet} />
       )}
 
       {paymentOrderId && (

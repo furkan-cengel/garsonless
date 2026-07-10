@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useTheme } from '../../menu/ThemeContext'
 import { AnnouncementBar } from '../../menu/AnnouncementBar'
-import type { ThemeMenuPageProps } from '../types'
+import type { StoreInfo, ThemeMenuPageProps } from '../types'
 import type { MenuCategory } from '../../menu/types'
 import type { CSSProperties, ReactNode } from 'react'
 
@@ -26,7 +26,7 @@ const CUSTOM_SECTION_IDS = new Set([
   'footer',
 ])
 
-export function SpainMenuPage({ categories, renderItems, menuFilters, filterEmptyState, tableId, tableLabel: tableName }: ThemeMenuPageProps) {
+export function SpainMenuPage({ categories, renderItems, menuFilters, orderStatus, filterEmptyState, tableId, tableLabel: tableName, storeInfo }: ThemeMenuPageProps) {
   const { restaurantName, theme } = useTheme()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
@@ -414,6 +414,27 @@ export function SpainMenuPage({ categories, renderItems, menuFilters, filterEmpt
       )
     }
 
+    if (sectionId === 'hours' || sectionId === 'social-block' || sectionId === 'footer') {
+      return (
+        <section key={sectionId} data-component="custom-section" style={shell}>
+          <div style={{
+            borderRadius: 18,
+            background: 'var(--p-card)',
+            border: '1px solid var(--p-border)',
+            boxShadow: 'var(--p-shadow)',
+            padding: 18,
+          }}>
+            <h3 style={{ margin: 0, color: 'var(--p-text)', fontSize: 18, fontWeight: 800 }}>
+              {text('title', sectionId === 'hours' ? 'Çalışma Saatleri' : sectionId === 'social-block' ? 'Sosyal Medya' : displayName)}
+            </h3>
+            <p style={{ margin: '6px 0 0', color: '#444748', fontSize: 13, lineHeight: 1.45, whiteSpace: 'pre-line' }}>
+              {readStoreInfoBody(sectionId, storeInfo) ?? text('body', 'Bu bilgi işletme tarafından henüz doldurulmadı.')}
+            </p>
+          </div>
+        </section>
+      )
+    }
+
     return (
       <section key={sectionId} data-component="custom-section" style={shell}>
         <div style={{
@@ -561,6 +582,7 @@ export function SpainMenuPage({ categories, renderItems, menuFilters, filterEmpt
       )}
 
       <main style={{ maxWidth: 430, margin: '0 auto', padding: theme.stickyHeader ? '96px 24px 0' : '24px 24px 0' }}>
+        {orderStatus && <div style={{ marginInline: -24 }}>{orderStatus}</div>}
         <section data-component="welcome" style={{ marginBottom: 32 }}>
           <div style={{ display: 'flex', marginBottom: 12 }}>
             {['#c7d9f1', '#f7c8b7', '#d7ead8'].map((color, index) => (
@@ -678,6 +700,58 @@ export function SpainMenuPage({ categories, renderItems, menuFilters, filterEmpt
       </div>
     </div>
   )
+}
+
+const STORE_DAY_LABELS: Record<string, string> = {
+  mon: 'Pazartesi',
+  tue: 'Salı',
+  wed: 'Çarşamba',
+  thu: 'Perşembe',
+  fri: 'Cuma',
+  sat: 'Cumartesi',
+  sun: 'Pazar',
+}
+
+function readStoreInfoBody(sectionId: string, storeInfo?: StoreInfo | null): string | null {
+  if (!storeInfo) return null
+  if (sectionId === 'hours') {
+    const hours = storeInfo.hours ?? {}
+    const lines = Object.entries(STORE_DAY_LABELS)
+      .map(([key, label]) => {
+        const day = hours[key]
+        if (!day) return null
+        if (day.active === false) return `${label}: Kapalı`
+        if (!day.open || !day.close) return null
+        return `${label}: ${day.open}-${day.close}`
+      })
+      .filter((line): line is string => Boolean(line))
+    return lines.length ? lines.join('\n') : 'Çalışma saatleri henüz eklenmedi.'
+  }
+
+  const contact = storeInfo.contact
+  if (!contact) return null
+  if (sectionId === 'social-block') {
+    const socials = [
+      contact.instagram ? `Instagram: ${contact.instagram}` : null,
+      contact.facebook ? `Facebook: ${contact.facebook}` : null,
+      contact.tiktok ? `TikTok: ${contact.tiktok}` : null,
+      contact.whatsapp ? `WhatsApp: ${contact.whatsapp}` : null,
+    ].filter((line): line is string => Boolean(line))
+    return socials.length ? socials.join('\n') : 'Sosyal medya bilgisi henüz eklenmedi.'
+  }
+
+  if (sectionId === 'footer') {
+    const address = [contact.address, contact.district, contact.city, contact.zip].filter(Boolean).join(', ')
+    const lines = [
+      address || null,
+      contact.phone ? `Tel: ${contact.phone}` : null,
+      contact.email ? `E-posta: ${contact.email}` : null,
+      contact.website ? `Web: ${contact.website}` : null,
+    ].filter((line): line is string => Boolean(line))
+    return lines.length ? lines.join('\n') : 'İletişim bilgisi henüz eklenmedi.'
+  }
+
+  return null
 }
 
 function DrawerButton({ active = false, icon, label, onClick }: {

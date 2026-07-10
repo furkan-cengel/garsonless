@@ -4,16 +4,16 @@ import { useEffect } from 'react'
 import { I } from '../../lib/ui'
 
 interface Props {
-  tableLabel: string | null
+  request: { tableLabel: string; label: string } | null
   onDismiss: () => void
 }
 
-export default function ServiceRequestToast({ tableLabel, onDismiss }: Props) {
+export default function ServiceRequestToast({ request, onDismiss }: Props) {
   useEffect(() => {
-    if (!tableLabel) return
+    if (!request) return
     const t = setTimeout(onDismiss, 5000)
     return () => clearTimeout(t)
-  }, [tableLabel, onDismiss])
+  }, [request, onDismiss])
 
   return (
     <>
@@ -23,7 +23,7 @@ export default function ServiceRequestToast({ tableLabel, onDismiss }: Props) {
           to { opacity: 1; transform: translate(-50%, 0); }
         }
       `}</style>
-      {tableLabel ? (
+      {request ? (
         <div
           style={{
             position: 'fixed', top: 16, left: '50%',
@@ -44,12 +44,12 @@ export default function ServiceRequestToast({ tableLabel, onDismiss }: Props) {
           }}><I.bell size={18} strokeWidth={2} /></div>
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, margin: 0 }}>Garson çağrısı</p>
+            <p style={{ fontSize: 13, fontWeight: 700, margin: 0 }}>{request.label}</p>
             <p style={{
               fontSize: 12, color: 'rgba(255,255,255,.6)', margin: '2px 0 0',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
-              {tableLabel} garson çağırıyor
+              {request.tableLabel} · yeni masa isteği
             </p>
           </div>
 

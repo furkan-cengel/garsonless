@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ServiceRequestType } from '@garsonless/db/order-client'
 
 export type WaiterCallState = 'idle' | 'calling' | 'called'
 
@@ -18,32 +19,41 @@ export function useWaiterCall(restaurantId: string, tableId: string | null) {
     if (timerRef.current) clearTimeout(timerRef.current)
   }, [])
 
-  const callWaiter = useCallback(async () => {
+  const sendServiceRequest = useCallback(async (requestType: ServiceRequestType) => {
     if (!tableId) return false
-    if (callState === 'called') return true
-    if (callState !== 'idle') return false
-    setCallState('calling')
+    if (requestType === 'waiter') {
+      if (callState === 'called') return true
+      if (callState !== 'idle') return false
+      setCallState('calling')
+    }
     try {
       const res = await fetch('/api/service-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ restaurantId, tableId }),
+        body: JSON.stringify({ restaurantId, tableId, requestType }),
       })
       const data = (await res.json()) as { ok: boolean }
       if (data.ok) {
-        setCallState('called')
-        if (timerRef.current) clearTimeout(timerRef.current)
-        timerRef.current = setTimeout(() => setCallState('idle'), COOLDOWN_MS)
+        if (requestType === 'waiter') {
+          setCallState('called')
+          if (timerRef.current) clearTimeout(timerRef.current)
+          timerRef.current = setTimeout(() => setCallState('idle'), COOLDOWN_MS)
+        }
         return true
       } else {
-        setCallState('idle')
+        if (requestType === 'waiter') setCallState('idle')
         return false
       }
     } catch {
-      setCallState('idle')
+      if (requestType === 'waiter') setCallState('idle')
       return false
     }
   }, [restaurantId, tableId, callState])
 
-  return { callState, callWaiter }
+  const callWaiter = useCallback(
+    () => sendServiceRequest('waiter'),
+    [sendServiceRequest],
+  )
+
+  return { callState, callWaiter, sendServiceRequest }
 }

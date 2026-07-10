@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createServiceRequest } from '@garsonless/db'
+import { createServiceRequest, SERVICE_REQUEST_TYPES } from '@garsonless/db'
 
 const schema = z.object({
   restaurantId: z.string().uuid(),
   tableId: z.string().uuid(),
+  requestType: z.enum(SERVICE_REQUEST_TYPES),
 })
 
 type ApiResponse = { ok: true; throttled: boolean } | { ok: false; error: string }
@@ -28,6 +29,7 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse>> {
   const result = await createServiceRequest({
     restaurantId: parsed.data.restaurantId,
     tableId: parsed.data.tableId,
+    requestType: parsed.data.requestType,
   })
 
   if (!result.ok) {

@@ -1,10 +1,12 @@
 import { createServiceClient } from './client'
+import type { ServiceRequestType } from './service-request-types'
 
 const THROTTLE_MS = 90_000
 
 export interface CreateServiceRequestInput {
   restaurantId: string
   tableId: string
+  requestType: ServiceRequestType
 }
 
 /**
@@ -34,6 +36,7 @@ export async function createServiceRequest(
     .select('id')
     .eq('restaurant_id', input.restaurantId)
     .eq('table_id', input.tableId)
+    .eq('request_type', input.requestType)
     .eq('status', 'pending')
     .gte('created_at', since)
     .limit(1)
@@ -58,6 +61,7 @@ export async function createServiceRequest(
     restaurant_id: input.restaurantId,
     table_id: input.tableId,
     table_session_id: tableSessionId,
+    request_type: input.requestType,
   })
 
   if (error) return { ok: false, error: 'Failed to create service request' }

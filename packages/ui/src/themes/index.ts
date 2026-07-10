@@ -6,7 +6,7 @@ import { SPAIN_SETTINGS_SCHEMA } from './spain/settings'
 import { SETTINGS_SCHEMA as DEFAULT_SCHEMA, THEME_DEFAULTS } from './default/settings'
 import type { ThemeRegistryEntry } from './types'
 
-export type { ThemeMenuPageProps, SettingField, SettingOption, SettingsGroup, ThemeRegistryEntry } from './types'
+export type { ThemeMenuPageProps, StoreInfo, SettingField, SettingOption, SettingsGroup, ThemeRegistryEntry } from './types'
 export { computeThemeVars } from './utils'
 
 const TEMPLATE_NAMES: Record<string, string> = {

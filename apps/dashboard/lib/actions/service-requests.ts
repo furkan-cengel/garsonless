@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
 import { assertAccess } from '../auth/access'
+import { serviceRequestLabel, type ServiceRequestType } from '@garsonless/db'
 
 async function getAuthUser() {
   const supabase = await createDashboardServerClient()
@@ -25,6 +26,8 @@ export interface PendingServiceRequest {
   id: string
   tableId: string
   createdAt: string
+  requestType: ServiceRequestType
+  label: string
 }
 
 export async function getPendingServiceRequests(
@@ -38,15 +41,22 @@ export async function getPendingServiceRequests(
 
   const { data } = await supabase
     .from('service_requests')
-    .select('id, table_id, created_at')
+    .select('id, table_id, created_at, request_type')
     .eq('restaurant_id', restaurantId)
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
 
-  return ((data ?? []) as Array<{ id: string; table_id: string; created_at: string }>).map((row) => ({
+  return ((data ?? []) as Array<{
+    id: string
+    table_id: string
+    created_at: string
+    request_type: ServiceRequestType
+  }>).map((row) => ({
     id: row.id,
     tableId: row.table_id,
     createdAt: row.created_at,
+    requestType: row.request_type,
+    label: serviceRequestLabel(row.request_type),
   }))
 }
 

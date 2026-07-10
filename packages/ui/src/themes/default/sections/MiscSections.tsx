@@ -1,5 +1,6 @@
 import { makeReaders, customSectionShell } from '../lib/sectionHelpers'
 import type { MenuCategory } from '../../../menu/types'
+import type { StoreInfo } from '../../types'
 
 export function ModeTabsSection({ config }: { config: Record<string, string> }) {
   const { text } = makeReaders(config)
@@ -108,10 +109,12 @@ export function InfoBlockSection({
   sectionId,
   config,
   restaurantName,
+  storeInfo,
 }: {
   sectionId: string
   config: Record<string, string>
   restaurantName: string
+  storeInfo?: StoreInfo | null
 }) {
   const { text } = makeReaders(config)
   const titleMap: Record<string, string> = {
@@ -126,6 +129,7 @@ export function InfoBlockSection({
     'social-block': 'Sosyal Medya',
     footer: restaurantName,
   }
+  const realBody = readRealInfoBody(sectionId, storeInfo)
   return (
     <section data-component="custom-section" style={customSectionShell}>
       <div style={{
@@ -136,10 +140,62 @@ export function InfoBlockSection({
         color: 'var(--p-text)',
       }}>
         <h3 style={{ margin: 0, fontSize: 13, fontWeight: 850 }}>{text('title', titleMap[sectionId] ?? sectionId)}</h3>
-        <p style={{ margin: '6px 0 0', color: 'var(--p-text-2)', fontSize: 12.5, lineHeight: 1.45 }}>
-          {text('body', 'Sipariş deneyimini zenginleştiren bilgi ve etkileşim bloğu.')}
+        <p style={{ margin: '6px 0 0', color: 'var(--p-text-2)', fontSize: 12.5, lineHeight: 1.45, whiteSpace: 'pre-line' }}>
+          {realBody ?? text('body', 'Bu bilgi işletme tarafından henüz doldurulmadı.')}
         </p>
       </div>
     </section>
   )
+}
+
+const DAY_LABELS: Record<string, string> = {
+  mon: 'Pazartesi',
+  tue: 'Salı',
+  wed: 'Çarşamba',
+  thu: 'Perşembe',
+  fri: 'Cuma',
+  sat: 'Cumartesi',
+  sun: 'Pazar',
+}
+
+function readRealInfoBody(sectionId: string, storeInfo?: StoreInfo | null): string | null {
+  if (!storeInfo) return null
+  if (sectionId === 'hours') {
+    const hours = storeInfo.hours ?? {}
+    const lines = Object.entries(DAY_LABELS)
+      .map(([key, label]) => {
+        const day = hours[key]
+        if (!day) return null
+        if (day.active === false) return `${label}: Kapalı`
+        if (!day.open || !day.close) return null
+        return `${label}: ${day.open}-${day.close}`
+      })
+      .filter((line): line is string => Boolean(line))
+    return lines.length ? lines.join('\n') : 'Çalışma saatleri henüz eklenmedi.'
+  }
+
+  const contact = storeInfo.contact
+  if (!contact) return null
+  if (sectionId === 'social-block') {
+    const socials = [
+      contact.instagram ? `Instagram: ${contact.instagram}` : null,
+      contact.facebook ? `Facebook: ${contact.facebook}` : null,
+      contact.tiktok ? `TikTok: ${contact.tiktok}` : null,
+      contact.whatsapp ? `WhatsApp: ${contact.whatsapp}` : null,
+    ].filter((line): line is string => Boolean(line))
+    return socials.length ? socials.join('\n') : 'Sosyal medya bilgisi henüz eklenmedi.'
+  }
+
+  if (sectionId === 'footer') {
+    const address = [contact.address, contact.district, contact.city, contact.zip].filter(Boolean).join(', ')
+    const lines = [
+      address || null,
+      contact.phone ? `Tel: ${contact.phone}` : null,
+      contact.email ? `E-posta: ${contact.email}` : null,
+      contact.website ? `Web: ${contact.website}` : null,
+    ].filter((line): line is string => Boolean(line))
+    return lines.length ? lines.join('\n') : 'İletişim bilgisi henüz eklenmedi.'
+  }
+
+  return null
 }

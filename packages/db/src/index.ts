@@ -8,6 +8,13 @@ export { createShareDB, settleShareDB, voidShareDB, voidDeclaredSharesForSession
 export type { CreateShareInput } from './split'
 export { createServiceRequest } from './service-requests'
 export type { CreateServiceRequestInput } from './service-requests'
+export {
+  SERVICE_REQUEST_TYPES,
+  SERVICE_REQUEST_LABELS,
+  isServiceRequestType,
+  serviceRequestLabel,
+} from './service-request-types'
+export type { ServiceRequestType } from './service-request-types'
 export { recordSecurityEvent, getSecurityEvents } from './security'
 export type { SecurityEvent, SecurityEventType, RecordSecurityEventInput } from './security'
 export {

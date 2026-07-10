@@ -2,6 +2,7 @@
 
 import { createDashboardServerClient } from '../supabase-server'
 import { assertMember } from '../auth/access'
+import { serviceRequestLabel } from '@garsonless/db'
 
 async function getAuthUser() {
   const supabase = await createDashboardServerClient()
@@ -47,7 +48,7 @@ export async function getNotifications(
   const [reqRes, tablesRes, ordersRes] = await Promise.all([
     supabase
       .from('service_requests')
-      .select('id, table_id, created_at')
+      .select('id, table_id, created_at, request_type')
       .eq('restaurant_id', restaurantId)
       .eq('status', 'pending')
       .order('created_at', { ascending: false }),
@@ -73,12 +74,17 @@ export async function getNotifications(
   }
 
   const waiterItems: NotificationItem[] = (
-    (reqRes.data ?? []) as Array<{ id: string; table_id: string; created_at: string }>
+    (reqRes.data ?? []) as Array<{
+      id: string
+      table_id: string
+      created_at: string
+      request_type: string
+    }>
   ).map((r) => ({
     id: `req-${r.id}`,
     type: 'waiter',
-    title: `${labels[r.table_id] ?? 'Masa'} garson çağırıyor`,
-    subtitle: 'Garson çağrısı bekliyor',
+    title: `${labels[r.table_id] ?? 'Masa'} · ${serviceRequestLabel(r.request_type)}`,
+    subtitle: 'Masa isteği bekliyor',
     createdAt: r.created_at,
     requestId: r.id,
   }))

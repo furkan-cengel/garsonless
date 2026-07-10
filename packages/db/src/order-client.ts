@@ -1,4 +1,11 @@
 export type { OrderStatus, PaymentMethod } from './enums'
+export {
+  SERVICE_REQUEST_TYPES,
+  SERVICE_REQUEST_LABELS,
+  isServiceRequestType,
+  serviceRequestLabel,
+} from './service-request-types'
+export type { ServiceRequestType } from './service-request-types'
 export { computeVatBreakdown } from './order-tax'
 export type { VatBreakdown, VatBreakdownRate, VatLineInput } from './order-tax'
 export { ORDER_STATUS_TRANSITIONS, canTransitionOrderStatus } from './enums'

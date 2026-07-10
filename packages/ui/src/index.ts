@@ -22,6 +22,7 @@ export {
   CartIconSvg,
   OrderConfirmation,
   OrderBubble,
+  ServiceRequestFab,
   OrderToastNotification,
   TableBillSheet,
   ProductCard,
@@ -45,5 +46,5 @@ export type { BillOrder } from './menu/TableBillSheet'
 
 // Theme system
 export { THEME_REGISTRY, computeThemeVars } from './themes/index'
-export type { ThemeMenuPageProps, SettingField, SettingOption, SettingsGroup, ThemeRegistryEntry } from './themes/index'
+export type { ThemeMenuPageProps, StoreInfo, SettingField, SettingOption, SettingsGroup, ThemeRegistryEntry } from './themes/index'
 export { DefaultMenuPage, SETTINGS_SCHEMA, THEME_DEFAULTS } from './themes/default'
