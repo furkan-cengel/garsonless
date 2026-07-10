@@ -226,6 +226,21 @@ export const getItemsForRestaurant = cache(async function getItemsForRestaurant(
   return data ?? []
 })
 
+export const getKitchenStationsForRestaurant = cache(async function getKitchenStationsForRestaurant(restaurantId: string) {
+  const supabase = await createDashboardServerClient()
+  try {
+    const { data, error } = await supabase
+      .from('kitchen_stations')
+      .select('*')
+      .eq('restaurant_id', restaurantId)
+      .order('position')
+    if (error) return []
+    return data ?? []
+  } catch {
+    return []
+  }
+})
+
 export const getThemeEditorMenuRefs = cache(async function getThemeEditorMenuRefs(restaurantId: string) {
   const supabase = await createDashboardServerClient()
   const { data: categories } = await supabase

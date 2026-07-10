@@ -34,3 +34,19 @@ export async function getOrdersForKitchen(restaurantId: string): Promise<Tables<
     .order('created_at', { ascending: true })
   return sortOrdersByPriorityThenCreatedAt((data ?? []) as Tables<'orders'>[])
 }
+
+export async function getKitchenStations(restaurantId: string): Promise<Tables<'kitchen_stations'>[]> {
+  const supabase = createServiceClient()
+  try {
+    const { data, error } = await supabase
+      .from('kitchen_stations')
+      .select('*')
+      .eq('restaurant_id', restaurantId)
+      .eq('is_active', true)
+      .order('position')
+    if (error) return []
+    return (data ?? []) as Tables<'kitchen_stations'>[]
+  } catch {
+    return []
+  }
+}

@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
-import { getRestaurantById } from '../../../../lib/queries'
+import { getKitchenStationsForRestaurant, getRestaurantById } from '../../../../lib/queries'
 import { getUserRestaurantAccess, firstPermittedPath } from '../../../../lib/auth/access'
 import { listTeamMembers } from '@garsonless/db'
 import { createDashboardServerClient } from '../../../../lib/supabase-server'
@@ -24,7 +24,10 @@ export default async function SettingsPage({ params }: Props) {
   }
   const isOwner = access.isOwner
   // Team list is OWNER-ONLY (members never see the team management surface).
-  const teamMembers = isOwner ? await listTeamMembers(restaurantId) : []
+  const [teamMembers, kitchenStations] = await Promise.all([
+    isOwner ? listTeamMembers(restaurantId) : Promise.resolve([]),
+    isOwner ? getKitchenStationsForRestaurant(restaurantId) : Promise.resolve([]),
+  ])
 
   // GAP #1: kitchen token now lives in kitchen_credentials (owner-scoped, no anon).
   const { data: kc } = await supabase
@@ -56,6 +59,7 @@ export default async function SettingsPage({ params }: Props) {
       restaurant={restaurant}
       user={user}
       kitchenToken={kitchenToken}
+      kitchenStations={kitchenStations}
       securityEvents={securityEvents}
       isOwner={isOwner}
       teamMembers={teamMembers}

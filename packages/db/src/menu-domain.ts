@@ -89,6 +89,12 @@ export interface RemovedOrderIngredient {
   name: string
 }
 
+export interface OrderLineStationSnapshot {
+  id: string
+  name: string
+  color: string
+}
+
 export interface OrderLineSnapshot {
   itemId: string
   name: string
@@ -102,12 +108,16 @@ export interface OrderLineSnapshot {
   mayContainAllergens: AllergenCode[]
   containsAlcohol: boolean
   containsPork: boolean
+  vatRate: number | null
+  vatIncluded: true
+  station: OrderLineStationSnapshot | null
 }
 
 export interface ResolvableMenuItem {
   id: string
   name: string
   price: number
+  vat_rate: number | null
   is_available: boolean
   ingredients: unknown
   energy_kcal: number | null
@@ -116,6 +126,7 @@ export interface ResolvableMenuItem {
   contains_alcohol: boolean
   contains_pork: boolean
   modifier_groups: unknown
+  kitchenStation: OrderLineStationSnapshot | null
 }
 
 function finiteNumber(value: unknown, fallback = 0): number {
@@ -124,6 +135,27 @@ function finiteNumber(value: unknown, fallback = 0): number {
 
 function stringValue(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function nullableVatRate(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) {
+    return null
+  }
+  return Math.round(value * 100) / 100
+}
+
+function normalizeStationSnapshot(value: unknown): OrderLineStationSnapshot | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const row = value as Record<string, unknown>
+  const id = stringValue(row['id'])
+  const name = stringValue(row['name'])
+  const color = stringValue(row['color'])
+  if (!id || !name) return null
+  return {
+    id,
+    name,
+    color: /^#[0-9A-Fa-f]{6}$/.test(color) ? color : '#2e7d52',
+  }
 }
 
 export function normalizeAllergenCodes(value: unknown): AllergenCode[] {
@@ -317,6 +349,9 @@ export function buildOrderLineSnapshot(input: {
       mayContainAllergens: normalizeAllergenCodes(item.may_contain_allergens),
       containsAlcohol: item.contains_alcohol,
       containsPork: item.contains_pork,
+      vatRate: nullableVatRate(item.vat_rate),
+      vatIncluded: true,
+      station: item.kitchenStation,
     },
   }
 }
@@ -375,6 +410,9 @@ export function readOrderLineSnapshot(value: unknown): OrderLineSnapshot | null 
     mayContainAllergens: normalizeAllergenCodes(row['mayContainAllergens']),
     containsAlcohol: row['containsAlcohol'] === true,
     containsPork: row['containsPork'] === true,
+    vatRate: nullableVatRate(row['vatRate'] ?? row['vat_rate']),
+    vatIncluded: true,
+    station: normalizeStationSnapshot(row['station'] ?? row['kitchenStation'] ?? row['kitchen_station']),
   }
 }
 

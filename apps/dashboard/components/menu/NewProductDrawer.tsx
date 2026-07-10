@@ -19,11 +19,13 @@ const icChevR = <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stro
  * upload-before-create). On finish → createItem → onCreated opens the panel.
  */
 export default function NewProductDrawer({
-  restaurantId, categoryId, categoryName, onClose, onCreated,
+  restaurantId, categoryId, categoryName, categoryStationId, kitchenStations, onClose, onCreated,
 }: {
   restaurantId: string
   categoryId: string
   categoryName: string
+  categoryStationId: string | null
+  kitchenStations: Tables<'kitchen_stations'>[]
   onClose: () => void
   onCreated: (item: Tables<'menu_items'>) => void
 }) {
@@ -34,6 +36,8 @@ export default function NewProductDrawer({
   const [cost, setCost] = useState('')
   const [isAvailable, setIsAvailable] = useState(true)
   const [earnsStamp, setEarnsStamp] = useState(false)
+  const [stationMode, setStationMode] = useState<'category' | 'custom'>('category')
+  const [kitchenStationId, setKitchenStationId] = useState(categoryStationId ?? '')
   const [nutri, setNutri] = useState<NutritionState>(() => nutritionFromItem(null))
   const setN = (patch: Partial<NutritionState>) => setNutri((current) => applyNutritionPatch(current, patch))
   const [err, setErr] = useState<string | null>(null)
@@ -53,6 +57,7 @@ export default function NewProductDrawer({
       fd.append('description', description.trim())
       fd.append('price', price)
       fd.append('cost', cost)
+      fd.append('kitchen_station_id', stationMode === 'category' ? '' : kitchenStationId)
       fd.append('is_available', String(isAvailable))
       fd.append('earns_stamp', String(earnsStamp))
       fd.append('modifier_groups', JSON.stringify([]))
@@ -107,6 +112,27 @@ export default function NewProductDrawer({
               <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', marginBottom: -2 }}>Görünürlük</div>
               <ToggleRow label="Menüde yayında" desc="Tüm müşteriler görebilir" on={isAvailable} onToggle={() => setIsAvailable((v) => !v)} />
               <ToggleRow label="Sadakat damgası kazandırır" desc="Her adet bir damga sayılır (ör. kahve)" on={earnsStamp} onToggle={() => setEarnsStamp((v) => !v)} />
+              <div style={{ padding: '10px 12px', borderRadius: 9, background: 'var(--surface-2)', border: '1px solid var(--divider)' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>Mutfak istasyonu</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  <button type="button" onClick={() => setStationMode('category')} style={segment(stationMode === 'category')}>Kategori varsayılanı</button>
+                  <button type="button" onClick={() => setStationMode('custom')} style={segment(stationMode === 'custom')}>Özel istasyon</button>
+                </div>
+                {stationMode === 'custom' ? (
+                  <select value={kitchenStationId} onChange={(e) => setKitchenStationId(e.target.value)} style={{ ...inp(34, 12.5), marginTop: 8 }}>
+                    <option value="">Atanmamış</option>
+                    {kitchenStations.filter((station) => station.is_active).map((station) => (
+                      <option key={station.id} value={station.id}>{station.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 8, lineHeight: 1.45 }}>
+                    {categoryStationId
+                      ? `Kategori varsayılanı kullanılacak: ${kitchenStations.find((station) => station.id === categoryStationId)?.name ?? 'Atanmamış'}`
+                      : 'Kategori istasyonu yoksa sipariş mutfakta Atanmamış görünür.'}
+                  </div>
+                )}
+              </div>
               <div style={{ marginTop: 4, padding: '10px 12px', borderRadius: 9, background: 'var(--surface-2)', border: '1px solid var(--divider)', fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
                 Görsel ve varyantları ürünü oluşturduktan sonra ürün panelinden ekleyebilirsin.
               </div>
@@ -139,6 +165,16 @@ const inp = (height?: number, fontSize = 12.5): React.CSSProperties => ({
 })
 const btnGhost: React.CSSProperties = { height: 36, padding: '0 14px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, border: '1px solid var(--border-strong)', cursor: 'pointer' }
 const btnPrimary: React.CSSProperties = { height: 36, padding: '0 16px', borderRadius: 8, background: 'var(--action)', color: 'var(--on-action)', fontSize: 12.5, fontWeight: 600, border: 'none', display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer' }
+const segment = (active: boolean): React.CSSProperties => ({
+  height: 32,
+  borderRadius: 7,
+  border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
+  background: active ? 'var(--text)' : 'var(--surface)',
+  color: active ? 'var(--surface)' : 'var(--text-2)',
+  fontSize: 11.5,
+  fontWeight: 700,
+  cursor: 'pointer',
+})
 
 function Field({ label, hint, required, children }: { label: string; hint?: string; required?: boolean; children: React.ReactNode }) {
   return (

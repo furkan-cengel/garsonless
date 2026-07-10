@@ -485,6 +485,7 @@ interface Props {
   initialOrders: Order[]
   tables: Array<{ id: string; label: string }>
   kitchenToken?: string | null
+  receiptTax?: Record<string, unknown> | null
   notifPrefs: NotificationPrefs
   /** settings.orders.late_threshold_min (clamped 5–120, default 20). */
   lateThresholdMin: number
@@ -492,7 +493,7 @@ interface Props {
   initialTruncated: boolean
 }
 
-export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, kitchenToken, notifPrefs, lateThresholdMin, initialTruncated }: Props) {
+export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, kitchenToken, receiptTax, notifPrefs, lateThresholdMin, initialTruncated }: Props) {
   const { orders, newOrderEvent, clearNewOrderEvent, updateOrderLocally } =
     useOrdersRealtime(restaurantId, initialOrders)
 
@@ -784,6 +785,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         <ReceiptModal
           order={receipt.order}
           restaurantName={restaurantName}
+          tax={receiptTax ?? null}
           tableLabel={receipt.tableLabel}
           onClose={() => setReceipt(null)}
         />

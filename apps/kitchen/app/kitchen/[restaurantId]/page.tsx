@@ -1,5 +1,5 @@
 import { validateKitchenToken } from '@garsonless/db'
-import { getRestaurantPublic, getOrdersForKitchen, getTableLabels } from '../../../lib/queries'
+import { getKitchenStations, getRestaurantPublic, getOrdersForKitchen, getTableLabels } from '../../../lib/queries'
 import KitchenBoard from '../../../components/KitchenBoard'
 
 interface Props {
@@ -20,10 +20,11 @@ export default async function KitchenPage({ params, searchParams }: Props) {
     return <ErrorScreen message="Geçersiz token." detail="Dashboard'dan yeni bir token oluşturun." />
   }
 
-  const [restaurant, orders, tableLabels] = await Promise.all([
+  const [restaurant, orders, tableLabels, stations] = await Promise.all([
     getRestaurantPublic(restaurantId),
     getOrdersForKitchen(restaurantId),
     getTableLabels(restaurantId),
+    getKitchenStations(restaurantId),
   ])
 
   if (!restaurant) {
@@ -37,6 +38,7 @@ export default async function KitchenPage({ params, searchParams }: Props) {
       restaurantId={restaurantId}
       kitchenToken={token}
       tableLabels={tableLabels}
+      stations={stations}
     />
   )
 }

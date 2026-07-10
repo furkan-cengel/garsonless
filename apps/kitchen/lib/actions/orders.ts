@@ -5,24 +5,17 @@ import {
   createServiceClient,
   validateKitchenToken,
   updateOrderStatusDB,
-  cancelOrderDB,
   type OrderStatus,
   type Tables,
 } from '@garsonless/db'
+import { readOrderLineSnapshots } from '@garsonless/db/order-client'
 
 const updateSchema = z.object({
   orderId: z.string().uuid(),
-  status: z.enum([
-    'pending',
-    'pending_approval',
-    'sent_to_kitchen',
-    'preparing',
-    'ready',
-    'served',
-    'cancelled',
-  ]),
+  status: z.enum(['preparing', 'ready']),
   restaurantId: z.string().uuid(),
   kitchenToken: z.string().min(1),
+  stationScope: z.union([z.literal('expo'), z.literal('unassigned'), z.string().uuid()]),
 })
 
 export async function updateOrderStatusAction(
@@ -30,21 +23,41 @@ export async function updateOrderStatusAction(
   status: OrderStatus,
   restaurantId: string,
   kitchenToken: string,
+  stationScope: 'expo' | 'unassigned' | string,
 ): Promise<{ error: string } | { success: true }> {
-  const parsed = updateSchema.safeParse({ orderId, status, restaurantId, kitchenToken })
+  const parsed = updateSchema.safeParse({ orderId, status, restaurantId, kitchenToken, stationScope })
   if (!parsed.success) return { error: 'Invalid input' }
 
   const valid = await validateKitchenToken(restaurantId, kitchenToken)
   if (!valid) return { error: 'Invalid kitchen token' }
 
-  // GAP #3: scope the write to the token's restaurant — a valid token for A
-  // cannot advance B's order even if the orderId is known.
-  // Cancellation routes through THE single cancel path (İyzico-paid block +
-  // idempotent loyalty refund). The kitchen token carries no staff identity →
-  // no reason / cancelled_by.
-  const { error } = status === 'cancelled'
-    ? await cancelOrderDB(orderId, restaurantId)
-    : await updateOrderStatusDB(orderId, status, restaurantId)
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('orders')
+    .select('id, status, items')
+    .eq('id', orderId)
+    .eq('restaurant_id', restaurantId)
+    .maybeSingle()
+  if (!data) return { error: 'Order not found' }
+
+  const currentStatus = data.status as OrderStatus
+  const canStart = status === 'preparing'
+    && ['pending', 'pending_approval', 'sent_to_kitchen', 'paid'].includes(currentStatus)
+  const canFinish = status === 'ready' && currentStatus === 'preparing'
+  if (!canStart && !canFinish) return { error: 'Invalid kitchen status transition' }
+
+  const lines = readOrderLineSnapshots(data.items)
+  const stationKeys = new Set(lines.map((line) => line.station?.id ?? 'unassigned'))
+  if (stationScope !== 'expo') {
+    if (!stationKeys.has(stationScope)) return { error: 'Order does not belong to this station' }
+    if (status === 'ready' && (stationKeys.size !== 1 || !stationKeys.has(stationScope))) {
+      return { error: 'Çok istasyonlu siparişi Son Kontrol tamamlar' }
+    }
+  }
+
+  // Kitchen tokens can prepare food and mark it ready. Serving is a staff
+  // hand-off and remains available only through the authenticated dashboard.
+  const { error } = await updateOrderStatusDB(orderId, status, restaurantId)
   if (error) return { error }
   return { success: true }
 }

@@ -1,4 +1,6 @@
 export type { OrderStatus, PaymentMethod } from './enums'
+export { computeVatBreakdown } from './order-tax'
+export type { VatBreakdown, VatBreakdownRate, VatLineInput } from './order-tax'
 export { ORDER_STATUS_TRANSITIONS, canTransitionOrderStatus } from './enums'
 export {
   DEFAULT_TIMEZONE, startOfRestaurantDay, startOfDayNDaysAgo, rangeWindow,
@@ -30,6 +32,7 @@ export type {
   ResolvedOrderModifier,
   RemovedOrderIngredient,
   OrderLineSnapshot,
+  OrderLineStationSnapshot,
   ResolvableMenuItem,
 } from './menu-domain'
 

@@ -304,6 +304,47 @@ export type Database = {
           },
         ]
       }
+      kitchen_stations: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          position: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          position?: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          position?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kitchen_stations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       loyalty_transactions: {
         Row: {
           created_at: string
@@ -385,11 +426,13 @@ export type Database = {
           description: string | null
           id: string
           is_visible: boolean
+          kitchen_station_id: string | null
           name: string
           parent_id: string | null
           position: number
           restaurant_id: string
           updated_at: string
+          vat_rate: number
         }
         Insert: {
           created_at?: string
@@ -397,11 +440,13 @@ export type Database = {
           description?: string | null
           id?: string
           is_visible?: boolean
+          kitchen_station_id?: string | null
           name: string
           parent_id?: string | null
           position?: number
           restaurant_id: string
           updated_at?: string
+          vat_rate?: number
         }
         Update: {
           created_at?: string
@@ -409,13 +454,22 @@ export type Database = {
           description?: string | null
           id?: string
           is_visible?: boolean
+          kitchen_station_id?: string | null
           name?: string
           parent_id?: string | null
           position?: number
           restaurant_id?: string
           updated_at?: string
+          vat_rate?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "menu_categories_kitchen_station_id_fkey"
+            columns: ["kitchen_station_id"]
+            isOneToOne: false
+            referencedRelation: "kitchen_stations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "menu_categories_parent_id_fkey"
             columns: ["parent_id"]
@@ -455,6 +509,7 @@ export type Database = {
           is_halal: boolean
           is_vegan: boolean
           is_vegetarian: boolean
+          kitchen_station_id: string | null
           may_contain_allergens: string[]
           modifier_groups: Json
           name: string
@@ -462,6 +517,7 @@ export type Database = {
           price: number
           protein_g: number | null
           updated_at: string
+          vat_rate: number | null
         }
         Insert: {
           carb_g?: number | null
@@ -485,6 +541,7 @@ export type Database = {
           is_halal?: boolean
           is_vegan?: boolean
           is_vegetarian?: boolean
+          kitchen_station_id?: string | null
           may_contain_allergens?: string[]
           modifier_groups?: Json
           name: string
@@ -492,6 +549,7 @@ export type Database = {
           price: number
           protein_g?: number | null
           updated_at?: string
+          vat_rate?: number | null
         }
         Update: {
           carb_g?: number | null
@@ -515,6 +573,7 @@ export type Database = {
           is_halal?: boolean
           is_vegan?: boolean
           is_vegetarian?: boolean
+          kitchen_station_id?: string | null
           may_contain_allergens?: string[]
           modifier_groups?: Json
           name?: string
@@ -522,6 +581,7 @@ export type Database = {
           price?: number
           protein_g?: number | null
           updated_at?: string
+          vat_rate?: number | null
         }
         Relationships: [
           {
@@ -529,6 +589,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "menu_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_items_kitchen_station_id_fkey"
+            columns: ["kitchen_station_id"]
+            isOneToOne: false
+            referencedRelation: "kitchen_stations"
             referencedColumns: ["id"]
           },
         ]
@@ -1054,6 +1121,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          request_type: string
           resolved_at: string | null
           restaurant_id: string
           status: string
@@ -1063,6 +1131,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          request_type?: string
           resolved_at?: string | null
           restaurant_id: string
           status?: string
@@ -1072,6 +1141,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          request_type?: string
           resolved_at?: string | null
           restaurant_id?: string
           status?: string

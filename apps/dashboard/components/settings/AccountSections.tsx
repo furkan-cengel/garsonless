@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import type { TeamMember } from '@garsonless/db'
 import { I, Tag, btnGhost, btnPrimary } from '../../lib/ui'
-import { Toggle, SCard, FormRow, DangerZone, inputStyle } from './primitives'
+import { SCard, FormRow, inputStyle } from './primitives'
 import { updateUserProfile } from '../../lib/actions/auth'
 import {
   inviteMember, updateMemberPermissionsAction, setMemberStatusAction,
@@ -59,28 +59,18 @@ export function ProfileSection({ user }: { user: User | null }) {
     <>
       <SCard title="Profil bilgisi" subtitle="Mağaza ekibi seni bu bilgilerle görür">
         <div style={{ padding: 18, display: 'flex', gap: 18, alignItems: 'flex-start', borderBottom: '1px solid var(--divider)' }}>
-          <div style={{ position: 'relative' }}>
+          <div>
             <div style={{
               width: 72, height: 72, borderRadius: 999,
               background: 'linear-gradient(135deg, #ffd089 0%, #ff8b6b 100%)',
               color: '#5a2a14', fontWeight: 700, fontSize: 24,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>{initials}</div>
-            <button style={{
-              position: 'absolute', bottom: -2, right: -2,
-              width: 26, height: 26, borderRadius: 999,
-              background: 'var(--surface)', border: '1px solid var(--border)',
-              color: 'var(--text-2)', cursor: 'pointer',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: 'var(--shadow-1)',
-            }}><I.image size={12} /></button>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 600 }}>Profil fotoğrafı</div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>JPG, PNG veya GIF · max 4MB</div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-              <button style={btnGhost()}>Yükle</button>
-              <button style={{ ...btnGhost(), color: 'var(--critical)' }}>Kaldır</button>
+            <div style={{ fontSize: 13.5, fontWeight: 600 }}>Hesap profili</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2, lineHeight: 1.45 }}>
+              Bu bilgiler Supabase kullanıcı metadata alanına kaydedilir. Profil fotoğrafı yükleme ve oturum yönetimi bu sürümde desteklenmiyor.
             </div>
           </div>
         </div>
@@ -117,47 +107,6 @@ export function ProfileSection({ user }: { user: User | null }) {
           <I.check size={13} />{isPending ? 'Kaydediliyor…' : 'Kaydet'}
         </button>
       </div>
-
-      <SCard title="Şifre & oturum" style={{ marginTop: 16 }}>
-        <FormRow label="Şifre" hint="Son değişiklik 3 ay önce"><button style={btnGhost()}>Değiştir</button></FormRow>
-        <FormRow label="İki faktörlü doğrulama" hint="Authenticator uygulamasıyla">
-          <Toggle on={true} />
-        </FormRow>
-      </SCard>
-
-      <SCard title="Aktif oturumlar" subtitle="3 cihazda açıksın" style={{ marginTop: 16 }}>
-        {[
-          { device: 'MacBook Pro · Chrome', loc: 'İstanbul · Türkiye', when: 'Şu an aktif', current: true },
-          { device: 'iPhone · Safari', loc: 'İstanbul · Türkiye', when: '3 saat önce' },
-          { device: 'iPad · garsonless app', loc: 'Mağaza Wi-Fi', when: '2 gün önce' },
-        ].map((s, i) => (
-          <div key={i} style={{
-            padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 12,
-            borderBottom: i === 2 ? 'none' : '1px solid var(--divider)',
-          }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 8, background: 'var(--surface-3)', color: 'var(--text-2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {s.device.includes('Phone') || s.device.includes('iPad')
-                ? <I.phone size={15} />
-                : <I.monitor size={15} />}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                {s.device}
-                {s.current && <Tag tone="positive">Şu an</Tag>}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>{s.loc} · {s.when}</div>
-            </div>
-            {!s.current && (
-              <button style={{ ...btnGhost(), color: 'var(--critical)', height: 26, padding: '0 10px', fontSize: 11.5 }}>Sonlandır</button>
-            )}
-          </div>
-        ))}
-      </SCard>
-
-      <DangerZone title="Hesabı sil" desc="Bu işlem geri alınamaz. Tüm verilerin ve mağaza erişimin silinir." />
     </>
   )
 }

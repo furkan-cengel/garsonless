@@ -5,15 +5,22 @@ import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
 import { slugify } from '../utils'
-import { sanitizeTiers, createServiceClient, type Json } from '@garsonless/db'
+import { sanitizeTiers, createServiceClient, type Json, type Tables } from '@garsonless/db'
 import { getUserRestaurantAccess } from '../auth/access'
 
-// Owner-only settings keys — written ONLY by their dedicated owner-gated actions
-// (loyalty config, API key, active template). A non-owner 'settings' member may
-// never write these through the generic updateSettings (escalation guard).
-function isSensitiveSettingsKey(key: string): boolean {
-  return ['loyalty', 'api_key', 'active_template_id', 'qr_style'].includes(key)
-    || key.startsWith('ai_') || key.startsWith('payment')
+// ALLOWLIST of settings keys a non-owner 'settings' member may write through the
+// generic updateSettings: plain store config only. Everything else (loyalty,
+// active_template_id, qr_style, ai_*, payment*, themeSettings/pageBlocks/
+// sectionSettings — the public menu's look — and any FUTURE key) is denied by
+// default. A denylist here would let every newly-added settings key leak to
+// members until someone remembered to list it (and already let a 'settings'-only
+// member rewrite theme keys without the 'theme' section) — allowlist inverts the
+// failure mode. Owners are unrestricted, as before.
+const NON_OWNER_SETTINGS_KEYS = new Set([
+  'store', 'contact', 'hours', 'tax', 'languages', 'notifications', 'orders',
+])
+function isNonOwnerWritableSettingsKey(key: string): boolean {
+  return NON_OWNER_SETTINGS_KEYS.has(key)
 }
 
 const createRestaurantSchema = z.object({
@@ -28,10 +35,39 @@ const updateRestaurantSchema = z.object({
   logo_url: z.string().url().nullable().optional(),
 })
 
+const kitchenStationSchema = z.object({
+  restaurantId: z.string().uuid(),
+  name: z.string().trim().min(1).max(60),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default('#2e7d52'),
+  is_active: z.boolean().optional(),
+})
+
+const kitchenStationUpdateSchema = kitchenStationSchema.partial().extend({
+  id: z.string().uuid(),
+  restaurantId: z.string().uuid(),
+})
+
+function getActionErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback
+}
+
 async function getAuthUser() {
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   return { supabase, user }
+}
+
+async function assertRestaurantOwner(restaurantId: string) {
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { supabase, user, ok: false as const, error: 'Not authenticated' }
+  const { data: restaurant } = await supabase
+    .from('restaurants')
+    .select('id')
+    .eq('id', restaurantId)
+    .eq('owner_id', user.id)
+    .single()
+  if (!restaurant) return { supabase, user, ok: false as const, error: 'Not authorized' }
+  return { supabase, user, ok: true as const }
 }
 
 export async function createRestaurant(
@@ -109,9 +145,10 @@ export async function updateSettings(
   if (!access || (!access.isOwner && !access.permissions.includes('settings'))) {
     return { error: 'Not authorized' }
   }
-  // A non-owner may write only NON-sensitive store config (store/hours/tax/
-  // languages/notifications) — never owner-only keys.
-  if (!access.isOwner && Object.keys(settings).some(isSensitiveSettingsKey)) {
+  // A non-owner may write ONLY the allowlisted store-config keys (store/contact/
+  // hours/tax/languages/notifications/orders) — unknown or owner-only keys are
+  // rejected by default, not by enumeration.
+  if (!access.isOwner && !Object.keys(settings).every(isNonOwnerWritableSettingsKey)) {
     return { error: 'Not authorized' }
   }
 
@@ -137,6 +174,7 @@ export async function updateSettings(
   if (error) return { error: error.message }
 
   revalidatePath(`/dashboard/${restaurantId}/settings`)
+  revalidateTag(`menu:${restaurantId}`)
   return { success: true }
 }
 
@@ -272,43 +310,6 @@ export async function saveLoyaltyConfig(
   return { success: true }
 }
 
-export async function generateApiKey(
-  restaurantId: string,
-): Promise<{ error: string } | { key: string }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const key =
-    'sk_live_' +
-    Array.from(crypto.getRandomValues(new Uint8Array(16)))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('')
-
-  const { data: existing } = await supabase
-    .from('restaurants')
-    .select('settings')
-    .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-    .single()
-
-  if (!existing) return { error: 'Not authorized' }
-
-  const merged = {
-    ...((existing as { settings: Record<string, unknown> }).settings ?? {}),
-    api_key: key,
-  }
-
-  const { error } = await mut(supabase, 'restaurants')
-    .update({ settings: merged })
-    .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-
-  if (error) return { error: error.message }
-
-  revalidatePath(`/dashboard/${restaurantId}/settings`)
-  return { key }
-}
-
 export async function checkSlugAvailable(slug: string): Promise<boolean> {
   const supabase = await createDashboardServerClient()
   const { data } = await supabase
@@ -364,6 +365,111 @@ export async function uploadLogo(
 
   revalidatePath(`/dashboard/${restaurantId}`)
   return { url: data.publicUrl }
+}
+
+export async function createKitchenStation(
+  formData: FormData,
+): Promise<{ error: string } | { station: Tables<'kitchen_stations'> }> {
+  const parsed = kitchenStationSchema.safeParse({
+    restaurantId: formData.get('restaurantId'),
+    name: formData.get('name'),
+    color: formData.get('color') || '#2e7d52',
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+  try {
+    const gate = await assertRestaurantOwner(parsed.data.restaurantId)
+    if (!gate.ok) return { error: gate.error }
+
+    const { data: maxPos } = await gate.supabase
+      .from('kitchen_stations')
+      .select('position')
+      .eq('restaurant_id', parsed.data.restaurantId)
+      .order('position', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const position = ((maxPos as { position: number } | null)?.position ?? -1) + 1
+
+    const { data, error } = await mut(gate.supabase, 'kitchen_stations')
+      .insert({
+        restaurant_id: parsed.data.restaurantId,
+        name: parsed.data.name,
+        color: parsed.data.color,
+        position,
+        is_active: true,
+      })
+      .select('*')
+      .single()
+    if (error) return { error: error.message }
+    const station = data as Tables<'kitchen_stations'> | null
+    if (!station) return { error: 'Failed to create station' }
+
+    revalidatePath(`/dashboard/${parsed.data.restaurantId}/settings`)
+    revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
+    return { station }
+  } catch (error) {
+    return { error: getActionErrorMessage(error, 'Mutfak istasyonu oluşturulamadı') }
+  }
+}
+
+export async function updateKitchenStation(
+  formData: FormData,
+): Promise<{ error: string } | { station: Tables<'kitchen_stations'> }> {
+  const parsed = kitchenStationUpdateSchema.safeParse({
+    id: formData.get('id'),
+    restaurantId: formData.get('restaurantId'),
+    name: formData.get('name') ?? undefined,
+    color: formData.get('color') || undefined,
+    is_active: formData.get('is_active') !== null ? formData.get('is_active') === 'true' : undefined,
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+  try {
+    const gate = await assertRestaurantOwner(parsed.data.restaurantId)
+    if (!gate.ok) return { error: gate.error }
+
+    const { id, restaurantId, ...updates } = parsed.data
+    const { data, error } = await mut(gate.supabase, 'kitchen_stations')
+      .update(updates)
+      .eq('id', id)
+      .eq('restaurant_id', restaurantId)
+      .select('*')
+    if (error) return { error: error.message }
+    const station = (data?.[0] ?? null) as Tables<'kitchen_stations'> | null
+    if (!station) return { error: 'Station not found' }
+
+    revalidatePath(`/dashboard/${restaurantId}/settings`)
+    revalidatePath(`/dashboard/${restaurantId}/menu`)
+    return { station }
+  } catch (error) {
+    return { error: getActionErrorMessage(error, 'Mutfak istasyonu güncellenemedi') }
+  }
+}
+
+export async function reorderKitchenStations(
+  restaurantId: string,
+  orderedIds: string[],
+): Promise<{ error: string } | { success: true }> {
+  const parsedRestaurantId = z.string().uuid().safeParse(restaurantId)
+  const parsedIds = z.array(z.string().uuid()).safeParse(orderedIds)
+  if (!parsedRestaurantId.success || !parsedIds.success) return { error: 'Invalid input' }
+
+  try {
+    const gate = await assertRestaurantOwner(parsedRestaurantId.data)
+    if (!gate.ok) return { error: gate.error }
+
+    await Promise.all(parsedIds.data.map((id, position) =>
+      mut(gate.supabase, 'kitchen_stations')
+        .update({ position })
+        .eq('id', id)
+        .eq('restaurant_id', parsedRestaurantId.data),
+    ))
+
+    revalidatePath(`/dashboard/${parsedRestaurantId.data}/settings`)
+    return { success: true }
+  } catch (error) {
+    return { error: getActionErrorMessage(error, 'Mutfak istasyonları sıralanamadı') }
+  }
 }
 
 export async function generateKitchenToken(

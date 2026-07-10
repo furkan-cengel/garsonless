@@ -66,6 +66,10 @@ export default async function OrdersPage({ params }: Props) {
     .eq('restaurant_id', restaurantId)
     .maybeSingle()
   const kitchenToken = (kc as { token: string } | null)?.token ?? null
+  const settings = (restaurant.settings as Record<string, unknown> | null) ?? {}
+  const receiptTax = typeof settings['tax'] === 'object' && settings['tax'] !== null && !Array.isArray(settings['tax'])
+    ? settings['tax'] as Record<string, unknown>
+    : null
 
   return (
     <OrderBoard
@@ -74,6 +78,7 @@ export default async function OrdersPage({ params }: Props) {
       initialOrders={initialOrders}
       tables={tableRefs}
       kitchenToken={kitchenToken}
+      receiptTax={receiptTax}
       notifPrefs={readNotificationPrefs(restaurant.settings)}
       lateThresholdMin={readLateThresholdMin(restaurant.settings)}
       initialTruncated={initialOrders.length === ORDERS_LIMIT}

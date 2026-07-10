@@ -18,6 +18,8 @@ const categorySchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(300).nullable().optional(),
   parentId: z.string().uuid().optional(),
+  vat_rate: z.number().min(0).max(100).optional(),
+  kitchen_station_id: z.string().uuid().nullable().optional(),
 })
 
 const categoryUpdateSchema = z.object({
@@ -25,6 +27,8 @@ const categoryUpdateSchema = z.object({
   restaurantId: z.string().uuid(),
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(300).nullable().optional(),
+  vat_rate: z.number().min(0).max(100).optional(),
+  kitchen_station_id: z.string().uuid().nullable().optional(),
 })
 
 const modifierOptionSchema = z.object({
@@ -60,6 +64,8 @@ const itemBaseSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).nullable().optional(),
   price: z.number().min(0),
+  vat_rate: z.number().min(0).max(100).nullable().optional(),
+  kitchen_station_id: z.string().uuid().nullable().optional(),
   cost: z.number().min(0).nullable().optional(),
   is_available: z.boolean().default(true),
   earns_stamp: z.boolean().optional(),
@@ -134,23 +140,52 @@ async function assertRestaurantOwner(
   return !('error' in gate)
 }
 
+function nullableUuidFormValue(formData: FormData, key: string): string | null | undefined {
+  const value = formData.get(key)
+  if (value === null) return undefined
+  const trimmed = String(value).trim()
+  return trimmed ? trimmed : null
+}
+
+async function validateKitchenStationForRestaurant(
+  supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
+  restaurantId: string,
+  stationId: string | null | undefined,
+): Promise<boolean> {
+  if (stationId == null) return true
+  const { data } = await supabase
+    .from('kitchen_stations')
+    .select('id')
+    .eq('id', stationId)
+    .eq('restaurant_id', restaurantId)
+    .maybeSingle()
+  return !!data
+}
+
 export async function createCategory(
   _prev: unknown,
   formData: FormData,
 ): Promise<{ error: string } | { id: string }> {
   const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
+  const categoryVat = numericFormValue(formData, 'vat_rate', { min: 0, max: 100 })
+  if (!categoryVat.ok) return { error: categoryVat.error }
 
   const parsed = categorySchema.safeParse({
     restaurantId: formData.get('restaurantId'),
     name: formData.get('name'),
     description: formData.get('description') ?? null,
     parentId: formData.get('parentId') ?? undefined,
+    vat_rate: categoryVat.value ?? undefined,
+    kitchen_station_id: nullableUuidFormValue(formData, 'kitchen_station_id'),
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
 
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
+  if (!(await validateKitchenStationForRestaurant(supabase, parsed.data.restaurantId, parsed.data.kitchen_station_id))) {
+    return { error: 'Invalid kitchen station' }
+  }
 
   let posQuery = supabase
     .from('menu_categories')
@@ -172,6 +207,8 @@ export async function createCategory(
       restaurant_id: parsed.data.restaurantId,
       name: parsed.data.name,
       description: parsed.data.description ?? null,
+      vat_rate: parsed.data.vat_rate ?? 10,
+      kitchen_station_id: parsed.data.kitchen_station_id ?? null,
       position,
       parent_id: parsed.data.parentId ?? null,
     })
@@ -193,17 +230,24 @@ export async function updateCategory(
 ): Promise<{ error: string } | { success: true }> {
   const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
+  const categoryVat = numericFormValue(formData, 'vat_rate', { min: 0, max: 100 })
+  if (!categoryVat.ok) return { error: categoryVat.error }
 
   const parsed = categoryUpdateSchema.safeParse({
     id: formData.get('id'),
     restaurantId: formData.get('restaurantId'),
     name: formData.get('name') ?? undefined,
     description: formData.get('description'),
+    vat_rate: categoryVat.value ?? undefined,
+    kitchen_station_id: nullableUuidFormValue(formData, 'kitchen_station_id'),
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
 
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
+  if (!(await validateKitchenStationForRestaurant(supabase, parsed.data.restaurantId, parsed.data.kitchen_station_id))) {
+    return { error: 'Invalid kitchen station' }
+  }
 
   const { id, restaurantId: _r, ...updates } = parsed.data
   const { error } = await mut(supabase, 'menu_categories')
@@ -296,6 +340,7 @@ export async function createItem(
   const containsRaw = formData.get('contains_allergens')
   const numericFields = {
     price: numericFormValue(formData, 'price', { required: true, min: 0 }),
+    vatRate: numericFormValue(formData, 'vat_rate', { min: 0, max: 100 }),
     cost: numericFormValue(formData, 'cost', { min: 0 }),
     energyKcal: numericFormValue(formData, 'energy_kcal', { integer: true, min: 0 }),
     protein: numericFormValue(formData, 'protein_g', { min: 0 }),
@@ -310,6 +355,8 @@ export async function createItem(
     name: formData.get('name'),
     description: formData.get('description') ?? null,
     price: numericFields.price.ok ? numericFields.price.value : undefined,
+    vat_rate: numericFields.vatRate.ok ? numericFields.vatRate.value : undefined,
+    kitchen_station_id: nullableUuidFormValue(formData, 'kitchen_station_id'),
     cost: numericFields.cost.ok ? numericFields.cost.value : undefined,
     is_available: formData.get('is_available') !== 'false',
     ingredients: ingredientsRaw ? JSON.parse(ingredientsRaw as string) : [],
@@ -331,6 +378,9 @@ export async function createItem(
 
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
+  if (!(await validateKitchenStationForRestaurant(supabase, parsed.data.restaurantId, parsed.data.kitchen_station_id))) {
+    return { error: 'Invalid kitchen station' }
+  }
   const allergenDeclarations = separateAllergenDeclarations(
     parsed.data.contains_allergens,
     parsed.data.may_contain_allergens,
@@ -353,6 +403,8 @@ export async function createItem(
       name: parsed.data.name,
       description: parsed.data.description ?? null,
       price: parsed.data.price,
+      vat_rate: parsed.data.vat_rate ?? null,
+      kitchen_station_id: parsed.data.kitchen_station_id ?? null,
       cost: parsed.data.cost ?? null,
       is_available: parsed.data.is_available,
       ingredients: (parsed.data.ingredients ?? []) as import('@garsonless/db').Json,
@@ -400,6 +452,7 @@ export async function updateItem(
   const boolOrUndef = (k: string) => formData.get(k) !== null ? formData.get(k) === 'true' : undefined
   const numericFields = {
     price: numericFormValue(formData, 'price', { min: 0 }),
+    vatRate: numericFormValue(formData, 'vat_rate', { min: 0, max: 100 }),
     cost: numericFormValue(formData, 'cost', { min: 0 }),
     energyKcal: numericFormValue(formData, 'energy_kcal', { integer: true, min: 0 }),
     protein: numericFormValue(formData, 'protein_g', { min: 0 }),
@@ -415,6 +468,8 @@ export async function updateItem(
     name: formData.get('name') ?? undefined,
     description: formData.get('description'),
     price: numericFields.price.ok ? numericFields.price.value : undefined,
+    vat_rate: numericFields.vatRate.ok ? numericFields.vatRate.value : undefined,
+    kitchen_station_id: nullableUuidFormValue(formData, 'kitchen_station_id'),
     is_available: formData.get('is_available') !== null
       ? formData.get('is_available') !== 'false'
       : undefined,
@@ -448,6 +503,9 @@ export async function updateItem(
 
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId!, user.id)
   if (!isOwner) return { error: 'Not authorized' }
+  if (!(await validateKitchenStationForRestaurant(supabase, parsed.data.restaurantId!, parsed.data.kitchen_station_id))) {
+    return { error: 'Invalid kitchen station' }
+  }
 
   const { data: existing, error: existingError } = await supabase
     .from('menu_items')

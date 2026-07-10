@@ -1,6 +1,6 @@
 'use client'
 
-import { readOrderLineSnapshots, type PaymentMethod } from '@garsonless/db/order-client'
+import { computeVatBreakdown, readOrderLineSnapshots, type PaymentMethod } from '@garsonless/db/order-client'
 import { I, S, btnPrimary, btnGhost } from '../../lib/ui'
 import { formatCurrency } from '../../lib/utils'
 import { paymentMethodBadge } from '../../lib/payment-method'
@@ -15,23 +15,28 @@ export interface ReceiptOrder {
   status: string
 }
 
-/**
- * Printable receipt. Deliberately honest: restaurant name + real line items +
- * the real (server-authoritative, post-discount) order total + payment method.
- * No invented VKN/address/KDV breakdown — those aren't in our data model.
- */
-export default function ReceiptModal({ order, restaurantName, tableLabel, onClose }: {
+export default function ReceiptModal({ order, restaurantName, tax, tableLabel, onClose }: {
   order: ReceiptOrder
   restaurantName: string
+  tax?: Record<string, unknown> | null
   tableLabel: string
   onClose: () => void
 }) {
   const items = readOrderLineSnapshots(order.items)
+  // Pass the REAL charged total: VAT is derived from the DISCOUNTED base, so the
+  // printed net + KDV rows always sum to TOPLAM (a discounted order previously
+  // printed line-basis KDV that visibly disagreed with its own total).
+  const vat = computeVatBreakdown(items, order.total)
+  const hasVatBreakdown = vat.byRate.length > 0
   const when = new Date(order.created_at).toLocaleString('tr-TR', {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
   })
   const isPaid = order.paid_at !== null || order.status === 'paid'
   const methodBadge = isPaid ? paymentMethodBadge((order.payment_method as PaymentMethod | null | undefined) ?? null) : null
+  const company = taxText(tax?.['company'])
+  const taxNumber = taxText(tax?.['taxNumber'] ?? tax?.['tcVkn'])
+  const taxOffice = taxText(tax?.['office'])
+  const taxAddress = taxText(tax?.['address'])
 
   return (
     <div
@@ -58,6 +63,13 @@ export default function ReceiptModal({ order, restaurantName, tableLabel, onClos
             }}>g</div>
             <div style={{ fontFamily: 'system-ui, sans-serif', fontWeight: 700, fontSize: 15 }}>{restaurantName}</div>
             <div style={{ fontSize: 10.5, color: '#777', marginTop: 2 }}>garsonless</div>
+            {(company || taxNumber || taxOffice || taxAddress) && (
+              <div style={{ marginTop: 8, fontSize: 9.5, color: '#666', lineHeight: 1.45 }}>
+                {company && <div>{company}</div>}
+                {(taxOffice || taxNumber) && <div>{[taxOffice, taxNumber].filter(Boolean).join(' · ')}</div>}
+                {taxAddress && <div>{taxAddress}</div>}
+              </div>
+            )}
           </div>
 
           {/* Meta */}
@@ -79,6 +91,34 @@ export default function ReceiptModal({ order, restaurantName, tableLabel, onClos
               </div>
             )) : <div style={{ fontSize: 11, color: '#777', textAlign: 'center', padding: '4px 0' }}>Kalem dökümü mevcut değil</div>}
           </div>
+
+          {items.length > 0 && (
+            <div style={{ borderTop: '1.5px dashed #cfcfcf', margin: '10px 0 0', paddingTop: 10 }}>
+              {hasVatBreakdown ? (
+                <>
+                  {vat.discountTotal > 0 && (
+                    <>
+                      <ReceiptRow label="Satır toplamı" value={formatCurrency(vat.grossTotal + vat.discountTotal)} />
+                      <ReceiptRow label="İndirim" value={`−${formatCurrency(vat.discountTotal)}`} />
+                    </>
+                  )}
+                  <ReceiptRow label="Ara toplam KDV hariç" value={formatCurrency(vat.netTotal)} />
+                  {vat.byRate.map(row => (
+                    <ReceiptRow key={row.rate} label={`KDV %${formatRate(row.rate)}`} value={formatCurrency(row.vat)} />
+                  ))}
+                  {vat.unknownGrossTotal > 0 && (
+                    <div style={{ fontSize: 10, color: '#777', lineHeight: 1.45, paddingTop: 4 }}>
+                      Bazı eski kalemlerde KDV oranı yok: {formatCurrency(vat.unknownGrossTotal)}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: 10, color: '#777', lineHeight: 1.45 }}>
+                  KDV dökümü mevcut değil. Bu sipariş KDV oranı snapshot'ından önce oluşturulmuş olabilir.
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Total — the real, post-discount order total */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1.5px solid #1a1a1a', marginTop: 10, paddingTop: 10 }}>
@@ -109,4 +149,12 @@ function ReceiptRow({ label, value }: { label: string; value: string }) {
       <span style={{ fontWeight: 600, ...S.mono }}>{value}</span>
     </div>
   )
+}
+
+function taxText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function formatRate(rate: number): string {
+  return Number.isInteger(rate) ? String(rate) : rate.toLocaleString('tr-TR', { maximumFractionDigits: 2 })
 }

@@ -22,6 +22,7 @@ interface Props {
   topLevel: Tables<'menu_categories'>[]
   categories: Tables<'menu_categories'>[]
   items: Tables<'menu_items'>[]
+  kitchenStations: Tables<'kitchen_stations'>[]
   activeId: string | null
   activeTopId: string | null
   restaurantId: string
@@ -30,13 +31,17 @@ interface Props {
   onSelect: (id: string) => void
   onDeleteRequest: (id: string) => void
   onCategoryAdded: (cat: Tables<'menu_categories'>) => void
+  onCategoryUpdated: (cat: Tables<'menu_categories'>) => void
   onCategoriesReordered: (reordered: Tables<'menu_categories'>[]) => void
+  editingCategoryId: string | null
+  onEditingCategoryChange: (id: string | null) => void
 }
 
 export default function MenuCategoryDndList({
   topLevel,
   categories,
   items,
+  kitchenStations,
   activeId,
   activeTopId,
   restaurantId,
@@ -45,7 +50,10 @@ export default function MenuCategoryDndList({
   onSelect,
   onDeleteRequest,
   onCategoryAdded,
+  onCategoryUpdated,
   onCategoriesReordered,
+  editingCategoryId,
+  onEditingCategoryChange,
 }: Props) {
   const [dragActiveId, setDragActiveId] = useState<string | null>(null)
 
@@ -77,18 +85,48 @@ export default function MenuCategoryDndList({
 
           return (
             <div key={c.id}>
-              <SortableCategoryRow
-                id={c.id}
-                name={c.name}
-                count={directCount + subCats.reduce((acc, sc) => acc + items.filter(i => i.category_id === sc.id).length, 0)}
-                active={activeId === c.id}
-                onClick={() => onSelect(c.id)}
-                onDelete={() => onDeleteRequest(c.id)}
-              />
+              {editingCategoryId === c.id ? (
+                <div style={{ marginTop: 4, marginBottom: 4 }}>
+                  <CategoryForm
+                    restaurantId={restaurantId}
+                    kitchenStations={kitchenStations}
+                    existing={c}
+                    onUpdated={(cat) => {
+                      onCategoryUpdated(cat)
+                      onEditingCategoryChange(null)
+                    }}
+                    onCancel={() => onEditingCategoryChange(null)}
+                  />
+                </div>
+              ) : (
+                <SortableCategoryRow
+                  id={c.id}
+                  name={c.name}
+                  count={directCount + subCats.reduce((acc, sc) => acc + items.filter(i => i.category_id === sc.id).length, 0)}
+                  active={activeId === c.id}
+                  onClick={() => onSelect(c.id)}
+                  onEdit={() => onEditingCategoryChange(c.id)}
+                  onDelete={() => onDeleteRequest(c.id)}
+                />
+              )}
 
               {isTopActive && (
                 <div style={{ marginLeft: 12, borderLeft: '2px solid var(--divider)', paddingLeft: 8, marginBottom: 2 }}>
-                  {subCats.map(sc => (
+                  {subCats.map(sc => editingCategoryId === sc.id ? (
+                    <div key={sc.id} style={{ marginTop: 4, marginBottom: 4 }}>
+                      <CategoryForm
+                        restaurantId={restaurantId}
+                        parentId={c.id}
+                        kitchenStations={kitchenStations}
+                        existing={sc}
+                        onUpdated={(cat) => {
+                          onCategoryUpdated(cat)
+                          onEditingCategoryChange(null)
+                        }}
+                        onCancel={() => onEditingCategoryChange(null)}
+                      />
+                    </div>
+                  ) : (
                     <CategoryRow
                       key={sc.id}
                       id={sc.id}
@@ -96,6 +134,7 @@ export default function MenuCategoryDndList({
                       count={items.filter(i => i.category_id === sc.id).length}
                       active={activeId === sc.id}
                       onClick={() => onSelect(sc.id)}
+                      onEdit={() => onEditingCategoryChange(sc.id)}
                       onDelete={() => onDeleteRequest(sc.id)}
                     />
                   ))}
@@ -105,6 +144,7 @@ export default function MenuCategoryDndList({
                       <CategoryForm
                         restaurantId={restaurantId}
                         parentId={c.id}
+                        kitchenStations={kitchenStations}
                         onCreated={(cat) => {
                           onCategoryAdded(cat)
                           onAddingSubCategoryChange(null)
@@ -152,9 +192,9 @@ export default function MenuCategoryDndList({
   )
 }
 
-function CategoryRow({ id: _id, name, count, active, onClick, onDelete, dragHandle }: {
+function CategoryRow({ id: _id, name, count, active, onClick, onEdit, onDelete, dragHandle }: {
   id: string; name: string; count: number; active: boolean
-  onClick: () => void; onDelete: () => void
+  onClick: () => void; onEdit: () => void; onDelete: () => void
   dragHandle?: React.ReactNode
 }) {
   const [hov, setHov] = useState(false)
@@ -179,16 +219,26 @@ function CategoryRow({ id: _id, name, count, active, onClick, onDelete, dragHand
       </span>
       <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: active ? 600 : 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
       <span style={{ ...S.mono, width: 20, textAlign: 'right', fontSize: 10.5, color: 'var(--text-3)', flexShrink: 0 }}>{count}</span>
-      <span style={{ width: 18, height: 18, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ minWidth: 18, height: 18, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
         {hov ? (
-        <span
-          role="button"
-          aria-label="Sil"
-          onClick={(e) => { e.stopPropagation(); onDelete() }}
-          style={{ color: 'var(--critical)', display: 'inline-flex', padding: 2, borderRadius: 4 }}
-        >
-          <I.trash size={13} />
-        </span>
+          <>
+            <span
+              role="button"
+              aria-label="Düzenle"
+              onClick={(e) => { e.stopPropagation(); onEdit() }}
+              style={{ color: 'var(--text-2)', display: 'inline-flex', padding: 2, borderRadius: 4 }}
+            >
+              <I.gear size={13} />
+            </span>
+            <span
+              role="button"
+              aria-label="Sil"
+              onClick={(e) => { e.stopPropagation(); onDelete() }}
+              style={{ color: 'var(--critical)', display: 'inline-flex', padding: 2, borderRadius: 4 }}
+            >
+              <I.trash size={13} />
+            </span>
+          </>
         ) : dragHandle ?? null}
       </span>
     </button>
@@ -197,7 +247,7 @@ function CategoryRow({ id: _id, name, count, active, onClick, onDelete, dragHand
 
 function SortableCategoryRow(props: {
   id: string; name: string; count: number; active: boolean
-  onClick: () => void; onDelete: () => void
+  onClick: () => void; onEdit: () => void; onDelete: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.id })
   return (

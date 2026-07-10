@@ -25,6 +25,7 @@ import {
 } from '@garsonless/db/order-client'
 
 const MenuCategoryDndList = lazy(() => import('./MenuCategoryDndList'))
+const VAT_RATE_PRESETS = [1, 10, 20]
 
 /* ============================================================
    TINT PALETTE — deterministic from id
@@ -768,26 +769,31 @@ function CsvImportModal({
 function CategoryNav({
   categories,
   items,
+  kitchenStations,
   activeId,
   restaurantId,
   visibleCategoryIds,
   onSelect,
   onCategoryAdded,
+  onCategoryUpdated,
   onCategoryDeleted,
   onCategoriesReordered,
 }: {
   categories: Tables<'menu_categories'>[]
   items: Tables<'menu_items'>[]
+  kitchenStations: Tables<'kitchen_stations'>[]
   activeId: string | null
   restaurantId: string
   visibleCategoryIds?: Set<string>
   onSelect: (id: string) => void
   onCategoryAdded: (cat: Tables<'menu_categories'>) => void
+  onCategoryUpdated: (cat: Tables<'menu_categories'>) => void
   onCategoryDeleted: (id: string) => void
   onCategoriesReordered: (reordered: Tables<'menu_categories'>[]) => void
 }) {
   const [adding, setAdding] = useState(false)
   const [addingSubCatFor, setAddingSubCatFor] = useState<string | null>(null)
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const allTopLevel = categories.filter(c => !c.parent_id)
@@ -805,6 +811,7 @@ function CategoryNav({
     topLevel,
     categories,
     items,
+    kitchenStations,
     activeId,
     activeTopId,
     restaurantId,
@@ -813,7 +820,10 @@ function CategoryNav({
     onSelect,
     onDeleteRequest: setConfirmDeleteId,
     onCategoryAdded,
+    onCategoryUpdated,
     onCategoriesReordered,
+    editingCategoryId,
+    onEditingCategoryChange: setEditingCategoryId,
   }
 
   return (
@@ -841,6 +851,7 @@ function CategoryNav({
           <div style={{ marginTop: 8 }}>
             <CategoryForm
               restaurantId={restaurantId}
+              kitchenStations={kitchenStations}
               onCreated={(cat) => {
                 onCategoryAdded(cat)
                 setAdding(false)
@@ -909,6 +920,7 @@ function StaticCategoryList({
   topLevel,
   categories,
   items,
+  kitchenStations,
   activeId,
   activeTopId,
   restaurantId,
@@ -917,10 +929,14 @@ function StaticCategoryList({
   onSelect,
   onDeleteRequest,
   onCategoryAdded,
+  onCategoryUpdated,
+  editingCategoryId,
+  onEditingCategoryChange,
 }: {
   topLevel: Tables<'menu_categories'>[]
   categories: Tables<'menu_categories'>[]
   items: Tables<'menu_items'>[]
+  kitchenStations: Tables<'kitchen_stations'>[]
   activeId: string | null
   activeTopId: string | null
   restaurantId: string
@@ -929,6 +945,9 @@ function StaticCategoryList({
   onSelect: (id: string) => void
   onDeleteRequest: (id: string) => void
   onCategoryAdded: (cat: Tables<'menu_categories'>) => void
+  onCategoryUpdated: (cat: Tables<'menu_categories'>) => void
+  editingCategoryId: string | null
+  onEditingCategoryChange: (id: string | null) => void
 }) {
   return (
     <>
@@ -939,18 +958,48 @@ function StaticCategoryList({
 
         return (
           <div key={c.id}>
-            <CategoryRow
-              id={c.id}
-              name={c.name}
-              count={directCount + subCats.reduce((acc, sc) => acc + items.filter(i => i.category_id === sc.id).length, 0)}
-              active={activeId === c.id}
-              onClick={() => onSelect(c.id)}
-              onDelete={() => onDeleteRequest(c.id)}
-            />
+            {editingCategoryId === c.id ? (
+              <div style={{ marginTop: 4, marginBottom: 4 }}>
+                  <CategoryForm
+                    restaurantId={restaurantId}
+                    kitchenStations={kitchenStations}
+                    existing={c}
+                  onUpdated={(cat) => {
+                    onCategoryUpdated(cat)
+                    onEditingCategoryChange(null)
+                  }}
+                  onCancel={() => onEditingCategoryChange(null)}
+                />
+              </div>
+            ) : (
+              <CategoryRow
+                id={c.id}
+                name={c.name}
+                count={directCount + subCats.reduce((acc, sc) => acc + items.filter(i => i.category_id === sc.id).length, 0)}
+                active={activeId === c.id}
+                onClick={() => onSelect(c.id)}
+                onEdit={() => onEditingCategoryChange(c.id)}
+                onDelete={() => onDeleteRequest(c.id)}
+              />
+            )}
 
             {isTopActive && (
               <div style={{ marginLeft: 12, borderLeft: '2px solid var(--divider)', paddingLeft: 8, marginBottom: 2 }}>
-                {subCats.map(sc => (
+                {subCats.map(sc => editingCategoryId === sc.id ? (
+                  <div key={sc.id} style={{ marginTop: 4, marginBottom: 4 }}>
+                      <CategoryForm
+                        restaurantId={restaurantId}
+                        parentId={c.id}
+                        kitchenStations={kitchenStations}
+                        existing={sc}
+                      onUpdated={(cat) => {
+                        onCategoryUpdated(cat)
+                        onEditingCategoryChange(null)
+                      }}
+                      onCancel={() => onEditingCategoryChange(null)}
+                    />
+                  </div>
+                ) : (
                   <CategoryRow
                     key={sc.id}
                     id={sc.id}
@@ -958,6 +1007,7 @@ function StaticCategoryList({
                     count={items.filter(i => i.category_id === sc.id).length}
                     active={activeId === sc.id}
                     onClick={() => onSelect(sc.id)}
+                    onEdit={() => onEditingCategoryChange(sc.id)}
                     onDelete={() => onDeleteRequest(sc.id)}
                   />
                 ))}
@@ -967,6 +1017,7 @@ function StaticCategoryList({
                     <CategoryForm
                       restaurantId={restaurantId}
                       parentId={c.id}
+                      kitchenStations={kitchenStations}
                       onCreated={(cat) => {
                         onCategoryAdded(cat)
                         onAddingSubCategoryChange(null)
@@ -998,9 +1049,9 @@ function StaticCategoryList({
   )
 }
 
-function CategoryRow({ id: _id, name, count, active, onClick, onDelete, dragHandle }: {
+function CategoryRow({ id: _id, name, count, active, onClick, onEdit, onDelete, dragHandle }: {
   id: string; name: string; count: number; active: boolean
-  onClick: () => void; onDelete: () => void
+  onClick: () => void; onEdit: () => void; onDelete: () => void
   dragHandle?: React.ReactNode
 }) {
   const [hov, setHov] = useState(false)
@@ -1025,16 +1076,26 @@ function CategoryRow({ id: _id, name, count, active, onClick, onDelete, dragHand
       </span>
       <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: active ? 600 : 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
       <span style={{ ...S.mono, width: 20, textAlign: 'right', fontSize: 10.5, color: 'var(--text-3)', flexShrink: 0 }}>{count}</span>
-      <span style={{ width: 18, height: 18, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ minWidth: 18, height: 18, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
         {hov ? (
-        <span
-          role="button"
-          aria-label="Sil"
-          onClick={(e) => { e.stopPropagation(); onDelete() }}
-          style={{ color: 'var(--critical)', display: 'inline-flex', padding: 2, borderRadius: 4 }}
-        >
-          <I.trash size={13} />
-        </span>
+          <>
+            <span
+              role="button"
+              aria-label="Düzenle"
+              onClick={(e) => { e.stopPropagation(); onEdit() }}
+              style={{ color: 'var(--text-2)', display: 'inline-flex', padding: 2, borderRadius: 4 }}
+            >
+              <I.gear size={13} />
+            </span>
+            <span
+              role="button"
+              aria-label="Sil"
+              onClick={(e) => { e.stopPropagation(); onDelete() }}
+              style={{ color: 'var(--critical)', display: 'inline-flex', padding: 2, borderRadius: 4 }}
+            >
+              <I.trash size={13} />
+            </span>
+          </>
         ) : dragHandle ?? null}
       </span>
     </button>
@@ -1398,6 +1459,9 @@ function ItemsList({ items, selected, onSelect, highlight }: {
 function ItemEditPanel({
   item,
   categoryName,
+  categoryVatRate,
+  categoryStationId,
+  kitchenStations,
   restaurantId,
   onClose,
   onSaved,
@@ -1406,6 +1470,9 @@ function ItemEditPanel({
 }: {
   item: Tables<'menu_items'>
   categoryName: string
+  categoryVatRate: number
+  categoryStationId: string | null
+  kitchenStations: Tables<'kitchen_stations'>[]
   restaurantId: string
   onClose: () => void
   onSaved: (updated: Tables<'menu_items'>) => void
@@ -1415,6 +1482,10 @@ function ItemEditPanel({
   const [name, setName] = useState(item.name)
   const [description, setDescription] = useState(item.description ?? '')
   const [price, setPrice] = useState(String(item.price))
+  const [vatMode, setVatMode] = useState<'category' | 'custom'>(item.vat_rate == null ? 'category' : 'custom')
+  const [vatRate, setVatRate] = useState(String(item.vat_rate ?? categoryVatRate))
+  const [stationMode, setStationMode] = useState<'category' | 'custom'>(item.kitchen_station_id == null ? 'category' : 'custom')
+  const [kitchenStationId, setKitchenStationId] = useState(item.kitchen_station_id ?? categoryStationId ?? '')
   const [isAvailable, setIsAvailable] = useState(item.is_available)
   const [earnsStamp, setEarnsStamp] = useState<boolean>(item.earns_stamp ?? false)
   const [nutri, setNutri] = useState<NutritionState>(() => nutritionFromItem(item))
@@ -1477,6 +1548,8 @@ function ItemEditPanel({
       fd.append('name', name)
       fd.append('description', description)
       fd.append('price', price)
+      fd.append('vat_rate', vatMode === 'category' ? '' : vatRate)
+      fd.append('kitchen_station_id', stationMode === 'category' ? '' : kitchenStationId)
       fd.append('is_available', String(isAvailable))
       fd.append('earns_stamp', String(earnsStamp))
       appendNutritionToFormData(fd, nutri)
@@ -1636,6 +1709,58 @@ function ItemEditPanel({
               color: 'var(--accent)', borderRadius: 6, fontSize: 12, fontWeight: 500,
             }}>{categoryName}</span>
           </FieldRow>
+          <FieldRow label="İstasyon">
+            <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setStationMode('category')}
+                  style={{
+                    height: 32,
+                    borderRadius: 7,
+                    border: `1px solid ${stationMode === 'category' ? 'var(--text)' : 'var(--border)'}`,
+                    background: stationMode === 'category' ? 'var(--text)' : 'var(--surface)',
+                    color: stationMode === 'category' ? 'var(--surface)' : 'var(--text-2)',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Kategori
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStationMode('custom')}
+                  style={{
+                    height: 32,
+                    borderRadius: 7,
+                    border: `1px solid ${stationMode === 'custom' ? 'var(--text)' : 'var(--border)'}`,
+                    background: stationMode === 'custom' ? 'var(--text)' : 'var(--surface)',
+                    color: stationMode === 'custom' ? 'var(--surface)' : 'var(--text-2)',
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Özel
+                </button>
+              </div>
+              {stationMode === 'custom' ? (
+                <select value={kitchenStationId} onChange={e => setKitchenStationId(e.target.value)} style={inputStyle}>
+                  <option value="">Atanmamış</option>
+                  {kitchenStations.filter((station) => station.is_active).map((station) => (
+                    <option key={station.id} value={station.id}>{station.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.4 }}>
+                  {categoryStationId
+                    ? `Kategori varsayılanı: ${kitchenStations.find((station) => station.id === categoryStationId)?.name ?? 'Atanmamış'}`
+                    : 'Kategori için varsayılan istasyon yok; sipariş Atanmamış görünür.'}
+                </div>
+              )}
+            </div>
+          </FieldRow>
         </PanelSection>
 
         {/* Fiyatlandırma */}
@@ -1660,6 +1785,89 @@ function ItemEditPanel({
               <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>%{marginPercent}</span>
             </div>
           )}
+          <div style={{ marginTop: 10, padding: 10, border: '1px solid var(--divider)', borderRadius: 8, background: 'var(--surface-2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text)' }}>KDV oranı</div>
+                <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
+                  Fiyatlar müşteriye KDV dahil görünür.
+                </div>
+              </div>
+              <span style={{ ...S.mono, fontSize: 11.5, color: 'var(--text-3)' }}>
+                Etkin %{vatMode === 'category' ? categoryVatRate : (Number(vatRate) || 0)}
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 10 }}>
+              <button
+                type="button"
+                onClick={() => setVatMode('category')}
+                style={{
+                  height: 32,
+                  borderRadius: 7,
+                  border: `1px solid ${vatMode === 'category' ? 'var(--text)' : 'var(--border)'}`,
+                  background: vatMode === 'category' ? 'var(--text)' : 'var(--surface)',
+                  color: vatMode === 'category' ? 'var(--surface)' : 'var(--text-2)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Kategori oranı (%{categoryVatRate})
+              </button>
+              <button
+                type="button"
+                onClick={() => setVatMode('custom')}
+                style={{
+                  height: 32,
+                  borderRadius: 7,
+                  border: `1px solid ${vatMode === 'custom' ? 'var(--text)' : 'var(--border)'}`,
+                  background: vatMode === 'custom' ? 'var(--text)' : 'var(--surface)',
+                  color: vatMode === 'custom' ? 'var(--surface)' : 'var(--text-2)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Özel oran
+              </button>
+            </div>
+            {vatMode === 'custom' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr) 76px', gap: 6, marginTop: 8 }}>
+                {VAT_RATE_PRESETS.map((rate) => {
+                  const active = Number(vatRate) === rate
+                  return (
+                    <button
+                      key={rate}
+                      type="button"
+                      onClick={() => setVatRate(String(rate))}
+                      style={{
+                        height: 30,
+                        borderRadius: 7,
+                        border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
+                        background: active ? 'var(--text)' : 'var(--surface)',
+                        color: active ? 'var(--surface)' : 'var(--text-2)',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      %{rate}
+                    </button>
+                  )
+                })}
+                <input
+                  aria-label="Özel ürün KDV oranı"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  value={vatRate}
+                  onChange={e => setVatRate(e.target.value)}
+                  style={{ ...inputStyle, height: 30, textAlign: 'right', fontFamily: "'Geist Mono', monospace" }}
+                />
+              </div>
+            )}
+          </div>
         </PanelSection>
 
         {/* İçindekiler · Alerjenler · Özel içerik · Kontrol */}
@@ -1832,6 +2040,7 @@ interface Props {
   restaurantSlug: string
   initialCategories: Tables<'menu_categories'>[]
   initialItems: Tables<'menu_items'>[]
+  kitchenStations: Tables<'kitchen_stations'>[]
 }
 
 function SkeletonGrid() {
@@ -1924,7 +2133,7 @@ function SkeletonGrid() {
   )
 }
 
-export default function MenuManager({ restaurantId, restaurantName, restaurantSlug, initialCategories, initialItems }: Props) {
+export default function MenuManager({ restaurantId, restaurantName, restaurantSlug, initialCategories, initialItems, kitchenStations }: Props) {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -2129,6 +2338,8 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
           description: null,
           position: 0,
           is_visible: true,
+          vat_rate: 10,
+          kitchen_station_id: null,
           parent_id: null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -2346,6 +2557,7 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
         <CategoryNav
           categories={categories}
           items={items}
+          kitchenStations={kitchenStations}
           activeId={navActiveId}
           restaurantId={restaurantId}
           visibleCategoryIds={searchMatchedCategoryIds}
@@ -2359,6 +2571,9 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
               setActiveCategory(cat.parent_id)
               setActiveSubCat(cat.id)
             }
+          }}
+          onCategoryUpdated={(cat) => {
+            setCategories(prev => prev.map(current => current.id === cat.id ? cat : current))
           }}
           onCategoryDeleted={handleDeleteCategory}
           onCategoriesReordered={handleCategoriesReordered}
@@ -2382,6 +2597,9 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
             key={selectedItem.id}
             item={selectedItem}
             categoryName={activeCatForPanel?.name ?? ''}
+            categoryVatRate={Number(activeCatForPanel?.vat_rate ?? 10)}
+            categoryStationId={activeCatForPanel?.kitchen_station_id ?? null}
+            kitchenStations={kitchenStations}
             restaurantId={restaurantId}
             onClose={() => setSelectedItem(null)}
             onSaved={(updated) => {
@@ -2428,6 +2646,8 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
           restaurantId={restaurantId}
           categoryId={(activeSubCat ?? activeCategory)!}
           categoryName={categories.find((c) => c.id === (activeSubCat ?? activeCategory))?.name ?? 'Kategori'}
+          categoryStationId={categories.find((c) => c.id === (activeSubCat ?? activeCategory))?.kitchen_station_id ?? null}
+          kitchenStations={kitchenStations}
           onCreated={(item) => {
             setItems(prev => [...prev, item])
             setShowAddItem(false)

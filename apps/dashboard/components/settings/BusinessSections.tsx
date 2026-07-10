@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useTransition, type ReactNode } from 'react'
+import { useEffect, useState, useTransition } from 'react'
+import type { ReactNode } from 'react'
 import type { Tables } from '@garsonless/db'
 import { InlineSpinner } from '@garsonless/ui'
 import { I, S, Tag, btnGhost, btnPrimary } from '../../lib/ui'
-import { Toggle, SelectInput, SCard, FormRow, inputStyle } from './primitives'
+import { Toggle, SCard, FormRow, inputStyle } from './primitives'
 import {
   getPaymentCredentialsMeta,
   savePaymentCredentials,
@@ -18,83 +19,67 @@ import { readLateThresholdMin, clampLateThreshold, LATE_THRESHOLD_MIN_MIN, LATE_
 
 /* ── PAYMENTS ─────────────────────────────────────── */
 export function PaymentsSection({ restaurantId }: { restaurantId: string }) {
-  const methods = [
-    { id: 'card',     label: 'Kart ile öde',         desc: 'Tüm bankalar · taksit destekli', icon: <I.card size={18} />, active: true,  fee: '%1,8 + ₺2,5' },
-    { id: 'wallet',   label: 'Dijital cüzdan',       desc: 'Apple Pay · Google Pay',         icon: <I.phone size={18} />, active: true,  fee: '%1,8 + ₺2,5' },
-    { id: 'cash',     label: 'Kapıda nakit',          desc: 'Garson teslim alır',             icon: <I.receipt size={18} />, active: true,  fee: 'Ücretsiz' },
-    { id: 'transfer', label: 'Banka transferi',      desc: 'FAST · IBAN ile',                 icon: <I.store size={18} />, active: false, fee: 'Ücretsiz' },
-    { id: 'sodexo',   label: 'Yemek kartı (Sodexo)', desc: 'Multinet, Setcard, Sodexo',       icon: <I.gift size={18} />, active: false, fee: '%2,0' },
-  ] satisfies Array<{ id: string; label: string; desc: string; icon: ReactNode; active: boolean; fee: string }>
-
   return (
     <>
       <IyzicoCredentialsCard restaurantId={restaurantId} />
 
-      <SCard title="Aktif yöntemler" subtitle="Müşterilerin seçebileceği ödeme yöntemleri">
-        {methods.map(m => (
-          <div key={m.id} style={{
-            display: 'flex', alignItems: 'center', gap: 14,
-            padding: '14px 18px', borderBottom: '1px solid var(--divider)',
-            opacity: m.active ? 1 : 0.65,
-          }}>
-            <span style={{ color: 'var(--text-4)', cursor: 'grab' }}><I.drag size={14} /></span>
-            <div style={{
-              width: 40, height: 40, borderRadius: 8,
-              background: 'var(--surface-3)', color: 'var(--text-3)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>{m.icon}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 600 }}>{m.label}</div>
-              <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>{m.desc}</div>
-            </div>
-            <span style={{ ...S.mono, fontSize: 11, color: 'var(--text-3)' }}>{m.fee}</span>
-            <Toggle on={m.active} />
-          </div>
-        ))}
-      </SCard>
-
-      <SCard title="Ödeme akışı" subtitle="Müşteri deneyimi" style={{ marginTop: 16 }}>
-        <FormRow label="Çıkışta ödeme zorunluluğu" hint="Müşteri masadan ayrılırken otomatik ödeme">
-          <Toggle on={false} />
-        </FormRow>
-        <FormRow label="Bahşiş alanı göster" hint="%5 / %10 / %15 / Özel seçenekleri">
-          <Toggle on={true} />
-        </FormRow>
-        <FormRow label="Bölüştürülmüş hesap" hint="Müşteri masadaki tutarı kişilere böler">
-          <Toggle on={true} />
-        </FormRow>
-        <FormRow label="Servis ücreti" hint="Her hesaba otomatik eklenir">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input defaultValue="5" style={inputStyle({ width: 60, textAlign: 'right' })} />
-            <span style={{ ...S.mono, fontSize: 12, color: 'var(--text-2)' }}>%</span>
-          </div>
-        </FormRow>
-      </SCard>
-
-      <SCard title="Makbuz & E-fatura" style={{ marginTop: 16 }}>
-        <FormRow label="Makbuz dili">
-          <SelectInput value="Müşteri tercihi" options={['Türkçe', 'English', 'Müşteri tercihi']} />
-        </FormRow>
-        <FormRow label="E-fatura sağlayıcısı">
-          <SelectInput value="Logo" options={['Logo', 'Mikro', 'Netsis', 'Kullanma']} />
-        </FormRow>
-        <FormRow label="Otomatik gönderim" hint="Ödeme alınınca e-postaya gönder">
-          <Toggle on={true} />
-        </FormRow>
-      </SCard>
-
-      <div style={{
-        marginTop: 32, padding: '12px 16px',
-        background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <span style={{ fontSize: 12, color: 'var(--text-3)' }}>3 değişiklik kaydedildi · 14:22</span>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button style={btnGhost()}>Geri al</button>
-          <button style={btnPrimary()}><I.check size={13} />Tümünü uygula</button>
+      <SCard title="Gerçek ödeme yolları" subtitle="Bu bölüm yalnızca bugün çalışan akışları gösterir">
+        <PaymentPath
+          icon={<I.card size={18} />}
+          title="Müşteri kart ödemesi"
+          body="Normal Öde ve hesap bölüşme kart akışları İyzico checkout üzerinden çalışır."
+          status="İyzico ile"
+          tone="positive"
+        />
+        <PaymentPath
+          icon={<I.receipt size={18} />}
+          title="Garson tahsilatı"
+          body="Nakit, fiziksel POS ve İkram tahsilatları masa kapatma ekranında personel tarafından işlenir."
+          status="Panelden"
+          tone="neutral"
+        />
+        <PaymentPath
+          icon={<I.gift size={18} />}
+          title="Hesap bölüşme"
+          body="Müşteri pay oluşturabilir; kart payı İyzico ile tahsil edilir, nakit beyanı garson onayı bekler."
+          status="Aktif"
+          tone="positive"
+        />
+        <div style={{ padding: '12px 18px', fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
+          Dijital cüzdanlar, banka transferi, yemek kartları, otomatik servis ücreti ve e-fatura gönderimi bu sürümde
+          yapılandırılabilir bir ödeme yöntemi değildir.
         </div>
-      </div>
+      </SCard>
     </>
+  )
+}
+
+function PaymentPath({
+  icon,
+  title,
+  body,
+  status,
+  tone,
+}: {
+  icon: ReactNode
+  title: string
+  body: string
+  status: string
+  tone: 'positive' | 'neutral'
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderBottom: '1px solid var(--divider)' }}>
+      <div style={{
+        width: 40, height: 40, borderRadius: 8,
+        background: 'var(--surface-3)', color: 'var(--text-3)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>{icon}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{title}</div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2, lineHeight: 1.45 }}>{body}</div>
+      </div>
+      <Tag tone={tone}>{status}</Tag>
+    </div>
   )
 }
 

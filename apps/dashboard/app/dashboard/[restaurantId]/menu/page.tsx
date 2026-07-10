@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getCategoriesForRestaurant, getItemsForRestaurant } from '../../../../lib/queries'
+import { getCategoriesForRestaurant, getItemsForRestaurant, getKitchenStationsForRestaurant } from '../../../../lib/queries'
 import { getRestaurantById } from '../../../../lib/queries'
 import MenuManager from '../../../../components/menu/MenuManager'
 import { requireSection } from '../../../../lib/auth/access'
@@ -11,10 +11,11 @@ interface Props {
 export default async function MenuPage({ params }: Props) {
   const { restaurantId } = await params
   await requireSection(restaurantId, 'menu')
-  const [restaurant, categories, items] = await Promise.all([
+  const [restaurant, categories, items, kitchenStations] = await Promise.all([
     getRestaurantById(restaurantId),
     getCategoriesForRestaurant(restaurantId),
     getItemsForRestaurant(restaurantId),
+    getKitchenStationsForRestaurant(restaurantId),
   ])
   if (!restaurant) notFound()
 
@@ -25,6 +26,7 @@ export default async function MenuPage({ params }: Props) {
       restaurantSlug={restaurant.slug}
       initialCategories={categories}
       initialItems={items}
+      kitchenStations={kitchenStations}
     />
   )
 }

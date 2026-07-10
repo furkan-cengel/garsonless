@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createServiceClient } from '@garsonless/db'
 import { createIyzicoClient, initializeCheckout } from '../../../../lib/iyzico'
 import { resolveIyzicoCredentials, attachPaymentTokenToShare } from '../../../../lib/payment-credentials'
+import { buildCheckoutAddresses } from '../../../../lib/checkout-address'
 
 // Start an İyzico checkout for ONE split share. The charge is SERVER-AUTHORITATIVE
 // AND CLAMPED to the remaining uncovered total: charge = min(share.amount,
@@ -72,15 +73,24 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ pay
 
   const credentials = await resolveIyzicoCredentials(restaurantId)
   if (!credentials) return NextResponse.json({ success: false, error: 'Bu restoran için ödeme yapılandırılmamış' }, { status: 503 })
+  const { data: restaurantRow } = await svc
+    .from('restaurants')
+    .select('settings')
+    .eq('id', restaurantId)
+    .maybeSingle()
+  const checkoutAddress = buildCheckoutAddresses(
+    (restaurantRow as { settings: unknown } | null)?.settings,
+    `${buyerName} ${buyerSurname}`,
+  )
 
   try {
     const client = createIyzicoClient(credentials)
     const result = await initializeCheckout(client, {
       locale: 'tr', conversationId: shareId, price: priceStr, paidPrice: priceStr, currency: 'TRY',
       basketId: shareId, paymentGroup: 'PRODUCT', callbackUrl,
-      buyer: { id: deviceId, name: buyerName, surname: buyerSurname, email: buyerEmail, gsmNumber: buyerPhone, identityNumber: '11111111111', registrationAddress: 'N/A', city: 'Istanbul', country: 'Turkey', ip },
-      shippingAddress: { contactName: `${buyerName} ${buyerSurname}`, city: 'Istanbul', country: 'Turkey', address: 'N/A' },
-      billingAddress: { contactName: `${buyerName} ${buyerSurname}`, city: 'Istanbul', country: 'Turkey', address: 'N/A' },
+      buyer: { id: deviceId, name: buyerName, surname: buyerSurname, email: buyerEmail, gsmNumber: buyerPhone, identityNumber: '11111111111', registrationAddress: checkoutAddress.registrationAddress, city: checkoutAddress.city, country: 'Turkey', ip },
+      shippingAddress: checkoutAddress.shippingAddress,
+      billingAddress: checkoutAddress.billingAddress,
       basketItems: [{ id: shareId, name: 'Hesap payı', category1: 'Food', itemType: 'VIRTUAL', price: priceStr }],
     })
     await attachPaymentTokenToShare(shareId, result.token)

@@ -5,6 +5,7 @@ import { computeOrderDiscount, computeDiscountStack, redeemForOrder, type OrderL
 import {
   buildOrderLineSnapshot,
   type OrderLineSnapshot,
+  type OrderLineStationSnapshot,
   type ResolvableMenuItem,
   type SelectedMenuModifier,
 } from './menu-domain'
@@ -57,6 +58,13 @@ export interface OrderDiscountBreakdown {
 type OrderResult = { id: string }
 
 type MenuItemForOrder = ResolvableMenuItem
+type CategoryForOrder = { id: string; vat_rate: number | null; kitchen_station_id: string | null }
+type MenuItemRowForOrder = Omit<ResolvableMenuItem, 'vat_rate' | 'kitchenStation'> & {
+  category_id: string
+  vat_rate: number | null
+  kitchen_station_id: string | null
+}
+type KitchenStationForOrder = OrderLineStationSnapshot & { is_active: boolean; position: number }
 
 function incomingSelections(line: CreateOrderLine): SelectedMenuModifier[] {
   const value = line.selectedModifiers ?? line.modifiers
@@ -88,26 +96,50 @@ export async function resolveOrderLines(
   const supabase = createServiceClient()
   const { data: categories, error: categoryError } = await supabase
     .from('menu_categories')
-    .select('id')
+    .select('id, vat_rate, kitchen_station_id')
     .eq('restaurant_id', restaurantId)
     .is('deleted_at', null)
   if (categoryError) return { ok: false, error: 'Failed to resolve menu' }
 
-  const categoryIds = (categories ?? []).map((row) => row.id)
+  const categoryRows = (categories ?? []) as CategoryForOrder[]
+  const categoryIds = categoryRows.map((row) => row.id)
+  const categoryVatById = new Map(categoryRows.map((row) => [row.id, row.vat_rate]))
+  const categoryStationById = new Map(categoryRows.map((row) => [row.id, row.kitchen_station_id]))
   const itemIds = [...new Set(inputLines.map((line) => line.itemId))]
   if (categoryIds.length === 0 || itemIds.length === 0) {
     return { ok: false, error: 'Menu item not found' }
   }
+  const { data: stations, error: stationsError } = await supabase
+    .from('kitchen_stations')
+    .select('id, name, color, is_active, position')
+    .eq('restaurant_id', restaurantId)
+    .eq('is_active', true)
+    .order('position')
+  if (stationsError) return { ok: false, error: 'Failed to resolve kitchen stations' }
+  const stationById = new Map(
+    ((stations ?? []) as KitchenStationForOrder[]).map((station) => [
+      station.id,
+      { id: station.id, name: station.name, color: station.color },
+    ]),
+  )
+
   const { data, error } = await supabase
     .from('menu_items')
-    .select('id, name, price, is_available, ingredients, energy_kcal, may_contain_allergens, contains_allergens, contains_alcohol, contains_pork, modifier_groups')
+    .select('id, category_id, name, price, vat_rate, kitchen_station_id, is_available, ingredients, energy_kcal, may_contain_allergens, contains_allergens, contains_alcohol, contains_pork, modifier_groups')
     .in('id', itemIds)
     .in('category_id', categoryIds)
     .is('deleted_at', null)
   if (error) return { ok: false, error: 'Failed to resolve menu' }
 
   const byId = new Map(
-    ((data ?? []) as MenuItemForOrder[]).map((item) => [item.id, item]),
+    ((data ?? []) as MenuItemRowForOrder[]).map((item): [string, MenuItemForOrder] => [
+      item.id,
+      {
+        ...item,
+        vat_rate: item.vat_rate ?? categoryVatById.get(item.category_id) ?? null,
+        kitchenStation: stationById.get(item.kitchen_station_id ?? categoryStationById.get(item.category_id) ?? '') ?? null,
+      },
+    ]),
   )
   const snapshots: OrderLineSnapshot[] = []
   const discountLines: OrderLineInput[] = []

@@ -35,6 +35,7 @@ const menuItem = {
   id: 'burger',
   name: 'Burger',
   price: 120,
+  vat_rate: 10,
   is_available: true,
   ingredients: [
     { id: 'onion', name: 'Soğan', removable: true, allergen_codes: ['peanuts'] },
@@ -46,6 +47,7 @@ const menuItem = {
   contains_alcohol: false,
   contains_pork: false,
   modifier_groups: groups,
+  kitchenStation: { id: 'station-bar', name: 'Bar', color: '#2563eb' },
 }
 
 test('normalizes legacy required modifier groups', () => {
@@ -130,6 +132,9 @@ test('builds authoritative price, calorie, allergen and removal snapshot', () =>
   if (result.ok) {
     assert.equal(result.snapshot.price, 120)
     assert.equal(result.snapshot.modifiersPriceDelta, 20)
+    assert.equal(result.snapshot.vatRate, 10)
+    assert.equal(result.snapshot.vatIncluded, true)
+    assert.deepEqual(result.snapshot.station, { id: 'station-bar', name: 'Bar', color: '#2563eb' })
     assert.equal(result.snapshot.energyKcal, 580)
     assert.deepEqual(result.snapshot.removedIngredients, [{ id: 'onion', name: 'Soğan' }])
     assert.deepEqual(result.snapshot.allergens.sort(), ['eggs', 'gluten', 'milk', 'peanuts'])
@@ -159,6 +164,8 @@ test('stored order snapshots are immutable when the menu changes later', () => {
   assert.equal(changedMenu.name, 'Yeni Burger')
   const historical = readOrderLineSnapshots([stored])[0]
   assert.equal(historical?.name, 'Burger')
+  assert.equal(historical?.vatRate, 10)
+  assert.deepEqual(historical?.station, { id: 'station-bar', name: 'Bar', color: '#2563eb' })
   assert.deepEqual(historical?.allergens.sort(), ['eggs', 'gluten', 'milk', 'peanuts'])
   assert.deepEqual(historical?.removedIngredients, [{ id: 'onion', name: 'Soğan' }])
 })
@@ -184,6 +191,8 @@ test('reads canonical and legacy order lines without changing snapshots', () => 
     removedIngredients: [{ id: 'onion', name: 'Soğan' }],
     energyKcal: 640,
     allergens: ['gluten'],
+    vatRate: 20,
+    station: { id: 'station-kitchen', name: 'Mutfak', color: '#2e7d52' },
   }, {
     name: 'Legacy',
     price: 40,
@@ -194,6 +203,11 @@ test('reads canonical and legacy order lines without changing snapshots', () => 
   assert.equal(parsed[0]?.quantity, 2)
   assert.equal(parsed[0]?.removedIngredients[0]?.name, 'Soğan')
   assert.equal(parsed[0]?.energyKcal, 640)
+  assert.equal(parsed[0]?.vatRate, 20)
+  assert.deepEqual(parsed[0]?.station, { id: 'station-kitchen', name: 'Mutfak', color: '#2e7d52' })
   assert.equal(parsed[1]?.quantity, 1)
   assert.equal(parsed[1]?.modifiers[0]?.optionName, 'Sade')
+  assert.equal(parsed[1]?.vatRate, null)
+  assert.equal(parsed[1]?.vatIncluded, true)
+  assert.equal(parsed[1]?.station, null)
 })

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createServiceClient } from '@garsonless/db'
 import { createIyzicoClient, initializeCheckout } from '../../../lib/iyzico'
 import { resolveIyzicoCredentials, attachPaymentTokenToOrder } from '../../../lib/payment-credentials'
+import { buildCheckoutAddresses } from '../../../lib/checkout-address'
 
 const paymentSchema = z.object({
   orderId: z.string().uuid(),
@@ -72,6 +73,15 @@ export async function POST(
   if (!order || order.restaurant_id !== restaurantId) {
     return NextResponse.json({ success: false, error: 'Sipariş bulunamadı' }, { status: 404 })
   }
+  const { data: restaurantRow } = await svc
+    .from('restaurants')
+    .select('settings')
+    .eq('id', restaurantId)
+    .maybeSingle()
+  const checkoutAddress = buildCheckoutAddresses(
+    (restaurantRow as { settings: unknown } | null)?.settings,
+    `${buyerName} ${buyerSurname}`,
+  )
   const amount = Number(order.total)
   if (!(amount > 0)) {
     return NextResponse.json({ success: false, error: 'Geçersiz tutar' }, { status: 400 })
@@ -105,13 +115,13 @@ export async function POST(
         email: buyerEmail,
         gsmNumber: buyerPhone,
         identityNumber: '11111111111',
-        registrationAddress: 'N/A',
-        city: 'Istanbul',
+        registrationAddress: checkoutAddress.registrationAddress,
+        city: checkoutAddress.city,
         country: 'Turkey',
         ip,
       },
-      shippingAddress: { contactName: `${buyerName} ${buyerSurname}`, city: 'Istanbul', country: 'Turkey', address: 'N/A' },
-      billingAddress: { contactName: `${buyerName} ${buyerSurname}`, city: 'Istanbul', country: 'Turkey', address: 'N/A' },
+      shippingAddress: checkoutAddress.shippingAddress,
+      billingAddress: checkoutAddress.billingAddress,
       basketItems: [
         {
           id: orderId,

@@ -77,14 +77,14 @@ const GROUPS: NavGroup[] = [
     items: [
       { id: 'store',     label: 'Mağaza Bilgisi', desc: 'Adres, iletişim',        icon: SI.store },
       { id: 'hours',     label: 'Çalışma Saatleri', desc: 'Gün ve saat aralıkları', icon: SI.clock },
-      { id: 'tax',       label: 'Vergi & Fatura', desc: 'KDV, stopaj',            icon: SI.receipt },
-      { id: 'languages', label: 'Diller',         desc: 'TR · EN · AR',           icon: SI.globe },
+      { id: 'tax',       label: 'Vergi & Fatura', desc: 'KDV, firma',             icon: SI.receipt },
+      { id: 'languages', label: 'Diller',         desc: 'TR varsayılan',          icon: SI.globe },
     ],
   },
   {
     title: 'İşletme',
     items: [
-      { id: 'payments',      label: 'Ödeme Yöntemleri', desc: 'iyzico aktif',          icon: SI.card },
+      { id: 'payments',      label: 'Ödeme Yöntemleri', desc: 'İyzico ve tahsilat',    icon: SI.card },
       { id: 'loyalty',       label: 'Sadakat',          desc: 'Damga, puan, üyelik',   icon: SI.gift },
       { id: 'kitchen',       label: 'Mutfak Ekranı',    desc: 'KDS erişim kodu',       icon: SI.cutlery },
       { id: 'notifications', label: 'Bildirimler',      desc: 'E-posta, SMS, push',    icon: SI.bell },
@@ -94,27 +94,27 @@ const GROUPS: NavGroup[] = [
     title: 'Gelişmiş',
     items: [
       { id: 'api',      label: 'API & Webhooks',  desc: 'Geliştirici erişimi',    icon: SI.code },
-      { id: 'billing',  label: 'Faturalama',      desc: 'Pro plan',               icon: SI.invoice },
-      { id: 'security', label: 'Güvenlik',        desc: '2FA & oturum',           icon: SI.shield, tone: 'positive' },
+      { id: 'billing',  label: 'Faturalama',      desc: 'Plan özeti',             icon: SI.invoice },
+      { id: 'security', label: 'Güvenlik',        desc: 'Şifre ve güvenlik',      icon: SI.shield, tone: 'positive' },
     ],
   },
 ]
 
 const SECTION_META: Record<SectionId, { label: string; desc: string; group: string }> = {
   workspace:     { label: 'Çalışma Alanı',  desc: 'Restoranın adını, kısa URL\'ini ve logosunu buradan düzenle.',       group: 'Hesap' },
-  profile:       { label: 'Profil',         desc: 'Hesap bilgilerini ve profil fotoğrafını güncelle.',                  group: 'Hesap' },
+  profile:       { label: 'Profil',         desc: 'Hesap adını ve iletişim bilgilerini güncelle.',                      group: 'Hesap' },
   team:          { label: 'Ekip & İzinler', desc: 'Ekip üyelerini ekle veya çıkar, rolleri düzenle.',                  group: 'Hesap' },
   store:         { label: 'Mağaza Bilgisi', desc: 'Adres, iletişim bilgileri ve sosyal medya.',                         group: 'Mağaza' },
   hours:         { label: 'Çalışma Saatleri', desc: 'Haftalık gün ve saat aralıklarını ayarla.',                       group: 'Mağaza' },
-  tax:           { label: 'Vergi & Faturalama', desc: 'KDV oranı, stopaj ve e-fatura sağlayıcısı.',                    group: 'Mağaza' },
-  languages:     { label: 'Diller',         desc: 'Müşteri menüsünde görünecek dilleri seç.',                          group: 'Mağaza' },
-  payments:      { label: 'Ödeme Yöntemleri', desc: 'Müşterilerin sipariş ekranında görebileceği ödeme yöntemlerini seç.', group: 'İşletme' },
+  tax:           { label: 'Vergi & Faturalama', desc: 'Firma bilgileri ve varsayılan vergi oranı. E-fatura entegrasyonu yok.', group: 'Mağaza' },
+  languages:     { label: 'Diller',         desc: 'Bu sürümde müşteri menüsü Türkçe çalışır; çeviri altyapısı yakında.', group: 'Mağaza' },
+  payments:      { label: 'Ödeme Yöntemleri', desc: 'İyzico kart ödemesi ve personel tahsilatı akışlarını yönet.',      group: 'İşletme' },
   loyalty:       { label: 'Sadakat',        desc: 'Damga ve puan programını, kapsamı ve kazanım kurallarını ayarla.',  group: 'İşletme' },
   kitchen:       { label: 'Mutfak Ekranı',  desc: 'Mutfak ekranı erişim kodunu yönet.',                                group: 'İşletme' },
   notifications: { label: 'Bildirimler',    desc: 'E-posta, SMS ve push bildirim tercihlerini ayarla.',                group: 'İşletme' },
-  api:           { label: 'API & Webhooks', desc: 'Geliştirici API anahtarları ve webhook URL\'leri.',                 group: 'Gelişmiş' },
-  billing:       { label: 'Faturalama',     desc: 'Plan detayları, fatura geçmişi ve ödeme yöntemi.',                  group: 'Gelişmiş' },
-  security:      { label: 'Güvenlik',       desc: 'İki faktörlü doğrulama ve aktif oturumlar.',                        group: 'Gelişmiş' },
+  api:           { label: 'API & Webhooks', desc: 'Geliştirici API ve webhook altyapısı bu sürümde kapalı.',            group: 'Gelişmiş' },
+  billing:       { label: 'Faturalama',     desc: 'Gerçek abonelik sistemi gelene kadar plan bilgisi salt okunur.',     group: 'Gelişmiş' },
+  security:      { label: 'Güvenlik',       desc: 'Şifre değişimi ve hesap güvenliği.',                                group: 'Gelişmiş' },
 }
 
 /* ============================================================
@@ -351,11 +351,20 @@ function LoyaltySectionWrapper({ restaurant }: { restaurant: Tables<'restaurants
 /* ============================================================
    SECTION: KITCHEN (wrapper)
    ============================================================ */
-function KitchenSectionWrapper({ restaurantId, kitchenToken }: { restaurantId: string; kitchenToken: string | null }) {
+function KitchenSectionWrapper({
+  restaurantId,
+  kitchenToken,
+  kitchenStations,
+}: {
+  restaurantId: string
+  kitchenToken: string | null
+  kitchenStations: Tables<'kitchen_stations'>[]
+}) {
   return (
     <KitchenAccessSection
       restaurantId={restaurantId}
       existingToken={kitchenToken}
+      initialStations={kitchenStations}
     />
   )
 }
@@ -411,6 +420,7 @@ interface Props {
   user: User | null
   /** GAP #1: kitchen token, fetched server-side from kitchen_credentials. */
   kitchenToken: string | null
+  kitchenStations: Tables<'kitchen_stations'>[]
   /** The signed-in user's own security events (RLS-scoped, fetched server-side). */
   securityEvents: SecurityEventView[]
   /** Whether the current user owns this restaurant (gates owner-only surfaces). */
@@ -419,7 +429,7 @@ interface Props {
   teamMembers: TeamMember[]
 }
 
-export default function SettingsForm({ restaurant, user, kitchenToken, securityEvents, isOwner, teamMembers }: Props) {
+export default function SettingsForm({ restaurant, user, kitchenToken, kitchenStations, securityEvents, isOwner, teamMembers }: Props) {
   // A non-owner 'settings' member lands on a section they can see (workspace is owner-only).
   const [active, setActive] = useState<SectionId>(isOwner ? 'workspace' : 'profile')
 
@@ -429,18 +439,18 @@ export default function SettingsForm({ restaurant, user, kitchenToken, securityE
     switch (active) {
       case 'workspace':     return <WorkspaceSection restaurant={restaurant} />
       case 'loyalty':       return <LoyaltySectionWrapper restaurant={restaurant} />
-      case 'kitchen':       return <KitchenSectionWrapper restaurantId={restaurant.id} kitchenToken={kitchenToken} />
+      case 'kitchen':       return <KitchenSectionWrapper restaurantId={restaurant.id} kitchenToken={kitchenToken} kitchenStations={kitchenStations} />
       case 'profile':       return <ProfileSection user={user} />
       case 'team':          return isOwner ? <TeamSection restaurantId={restaurant.id} ownerEmail={user?.email ?? ''} members={teamMembers} /> : null
       case 'store':         return <StoreSection restaurant={restaurant} />
       case 'hours':         return <HoursSection restaurant={restaurant} />
       case 'tax':           return <TaxSection restaurant={restaurant} />
-      case 'languages':     return <LanguagesSection restaurant={restaurant} />
+      case 'languages':     return <LanguagesSection />
       case 'payments':      return <PaymentsSection restaurantId={restaurant.id} />
       case 'notifications': return <NotificationsSection restaurant={restaurant} />
-      case 'api':           return <ApiSection restaurant={restaurant} />
+      case 'api':           return <ApiSection />
       case 'security':      return <SecuritySection events={securityEvents} userEmail={user?.email ?? ''} />
-      case 'billing':       return <BillingSection />
+      case 'billing':       return <BillingSection restaurant={restaurant} />
     }
   }
 
@@ -452,8 +462,8 @@ export default function SettingsForm({ restaurant, user, kitchenToken, securityE
         right={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-3)', fontSize: 12 }}>
-              <div style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--positive)', display: 'inline-block' }} />
-              Otomatik kaydedildi
+              <div style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--text-3)', display: 'inline-block' }} />
+              Değişiklikler bölüm içinde kaydedilir
             </div>
           </div>
         }

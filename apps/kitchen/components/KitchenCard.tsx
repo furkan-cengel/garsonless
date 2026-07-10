@@ -13,7 +13,6 @@ const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   sent_to_kitchen: 'preparing',
   paid: 'preparing',
   preparing: 'ready',
-  ready: 'served',
 }
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -31,34 +30,63 @@ interface KitchenCardProps {
   order: Tables<'orders'>
   restaurantId: string
   kitchenToken: string
+  activeStationId: 'expo' | 'unassigned' | string
   tableLabel?: string
 }
 
-export default function KitchenCard({ order, restaurantId, kitchenToken, tableLabel }: KitchenCardProps) {
+export default function KitchenCard({ order, restaurantId, kitchenToken, activeStationId, tableLabel }: KitchenCardProps) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const items = readOrderLineSnapshots(order.items)
   const nextStatus = NEXT_STATUS[order.status as OrderStatus]
   const tier = readOrderCustomerTierSnapshot(order.customer_tier)
+  const isExpo = activeStationId === 'expo'
+  const stationKeys = new Set(items.map((item) => item.station?.id ?? 'unassigned'))
+  const isSingleStationOrder = stationKeys.size <= 1
+  const visibleItems = isExpo
+    ? items
+    : items.filter((item) => item.station?.id === activeStationId)
+  const stationSummary = Array.from(items.filter((item) => item.station !== null).reduce((map, item) => {
+    const station = item.station!
+    const prev = map.get(station.id) ?? { name: station.name, color: station.color, count: 0 }
+    prev.count += 1
+    map.set(station.id, prev)
+    return map
+  }, new Map<string, { name: string; color: string; count: number }>()).values())
+  const stationBlocksFinalReady = !isExpo && nextStatus === 'ready' && !isSingleStationOrder
+  const blockedReason = stationBlocksFinalReady
+    ? 'Son kontrol tamamlar'
+    : order.status === 'ready' ? 'Garson teslim edecek' : ''
+  const canAdvance = !!nextStatus && !stationBlocksFinalReady
 
   async function handleTap() {
-    if (!nextStatus || loading) return
+    if (!nextStatus || loading || !canAdvance) return
     setLoading(true)
-    await updateOrderStatusAction(order.id, nextStatus, restaurantId, kitchenToken)
+    setError(null)
+    const result = await updateOrderStatusAction(
+      order.id,
+      nextStatus,
+      restaurantId,
+      kitchenToken,
+      activeStationId,
+    )
+    if ('error' in result) setError(result.error)
     setLoading(false)
   }
 
   return (
     <motion.div
+      data-order-id={order.id}
+      data-station-scope={activeStationId}
       layout
       initial={{ opacity: 0, y: -16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
-      onClick={handleTap}
       className={[
-        'bg-surface rounded-[14px] border border-border p-4 select-none',
-        nextStatus ? 'cursor-pointer hover:border-primary/50 active:scale-[0.98]' : 'cursor-default',
+        'bg-surface rounded-lg border border-border p-4 select-none',
+        tier?.priorityService ? 'border-l-4 border-l-warning' : '',
         loading ? 'opacity-50' : '',
         'transition-all',
       ].join(' ')}
@@ -92,7 +120,7 @@ export default function KitchenCard({ order, restaurantId, kitchenToken, tableLa
       </div>
 
       <ul className="space-y-2 mb-3">
-        {items.map((item, i) => {
+        {visibleItems.map((item, i) => {
           const modifierNames = item.modifiers
             .map((modifier) => `${modifier.optionName}${modifier.quantity > 1 ? ` ×${modifier.quantity}` : ''}`)
             .join(', ')
@@ -101,6 +129,15 @@ export default function KitchenCard({ order, restaurantId, kitchenToken, tableLa
               <span className="text-primary font-bold text-sm min-w-[22px]">{item.quantity}×</span>
               <div>
                 <span className="text-sm text-text leading-tight">{item.name}</span>
+                {isExpo && item.station && (
+                  <span
+                    className="ml-2 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold text-text-muted"
+                    style={{ background: `${item.station.color}26` }}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: item.station.color }} />
+                    {item.station.name}
+                  </span>
+                )}
                 {modifierNames && (
                   <p className="text-xs text-text-muted mt-0.5">{modifierNames}</p>
                 )}
@@ -120,13 +157,42 @@ export default function KitchenCard({ order, restaurantId, kitchenToken, tableLa
         })}
       </ul>
 
-      {nextStatus && (
-        <div className="text-center pt-1 border-t border-border">
-          <span className="text-xs px-3 py-1 rounded-full bg-primary/15 text-primary">
-            → {STATUS_LABELS[nextStatus]}
-          </span>
+      {isExpo && stationSummary.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {stationSummary.map((station) => (
+            <span
+              key={station.name}
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold text-text-muted"
+              style={{ background: `${station.color}22` }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: station.color }} />
+              {station.name} {station.count}
+            </span>
+          ))}
         </div>
       )}
+
+      <div className="pt-3 border-t border-border">
+        {canAdvance && nextStatus ? (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={handleTap}
+            className="h-11 w-full rounded-md bg-primary px-4 text-sm font-extrabold text-white transition-colors hover:bg-secondary disabled:cursor-wait disabled:opacity-60"
+          >
+            {loading
+              ? 'Güncelleniyor…'
+              : nextStatus === 'preparing' ? 'Hazırlamaya başla' : 'Hazır olarak işaretle'}
+          </button>
+        ) : (
+          <div className="flex h-10 items-center justify-center rounded-md bg-surface-2 px-3 text-xs font-bold text-text-muted">
+            {blockedReason || STATUS_LABELS[order.status as OrderStatus]}
+          </div>
+        )}
+        {error && (
+          <p className="mt-2 text-center text-xs font-semibold text-danger">{error}</p>
+        )}
+      </div>
     </motion.div>
   )
 }

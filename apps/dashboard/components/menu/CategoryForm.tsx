@@ -9,6 +9,7 @@ interface Props {
   restaurantId: string
   parentId?: string
   existing?: Tables<'menu_categories'>
+  kitchenStations?: Tables<'kitchen_stations'>[]
   onCreated?: (cat: Tables<'menu_categories'>) => void
   onUpdated?: (cat: Tables<'menu_categories'>) => void
   onCancel: () => void
@@ -22,9 +23,13 @@ const inputStyle: React.CSSProperties = {
   outline: 'none', boxSizing: 'border-box',
 }
 
-export default function CategoryForm({ restaurantId, parentId, existing, onCreated, onUpdated, onCancel }: Props) {
+const VAT_PRESETS = [1, 10, 20]
+
+export default function CategoryForm({ restaurantId, parentId, existing, kitchenStations = [], onCreated, onUpdated, onCancel }: Props) {
   const [name, setName] = useState(existing?.name ?? '')
   const [description, setDescription] = useState(existing?.description ?? null)
+  const [vatRate, setVatRate] = useState(String(existing?.vat_rate ?? 10))
+  const [kitchenStationId, setKitchenStationId] = useState(existing?.kitchen_station_id ?? '')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -32,19 +37,25 @@ export default function CategoryForm({ restaurantId, parentId, existing, onCreat
     e.preventDefault()
     setError('')
     startTransition(async () => {
+      const submittedVatRate = vatRate.trim() === '' ? String(existing?.vat_rate ?? 10) : vatRate
+      const submittedVatNumber = Number(submittedVatRate)
       if (existing) {
         const fd = new FormData()
         fd.append('id', existing.id)
         fd.append('restaurantId', restaurantId)
         fd.append('name', name)
+        fd.append('vat_rate', submittedVatRate)
+        fd.append('kitchen_station_id', kitchenStationId)
         if (description) fd.append('description', description)
         const result = await updateCategory(fd)
         if ('error' in result) { setError(result.error); return }
-        onUpdated?.({ ...existing, name, description: description ?? null })
+        onUpdated?.({ ...existing, name, description: description ?? null, vat_rate: Number.isFinite(submittedVatNumber) ? submittedVatNumber : 0, kitchen_station_id: kitchenStationId || null })
       } else {
         const fd = new FormData()
         fd.append('restaurantId', restaurantId)
         fd.append('name', name)
+        fd.append('vat_rate', submittedVatRate)
+        fd.append('kitchen_station_id', kitchenStationId)
         if (description) fd.append('description', description)
         if (parentId) fd.append('parentId', parentId)
         const result = await createCategory(null, fd)
@@ -60,6 +71,8 @@ export default function CategoryForm({ restaurantId, parentId, existing, onCreat
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           deleted_at: null,
+          vat_rate: Number.isFinite(submittedVatNumber) ? submittedVatNumber : 10,
+          kitchen_station_id: kitchenStationId || null,
         } as Tables<'menu_categories'>)
       }
     })
@@ -88,6 +101,56 @@ export default function CategoryForm({ restaurantId, parentId, existing, onCreat
         onChange={(e) => setDescription(e.target.value || null)}
         style={inputStyle}
       />
+      <div style={{ display: 'grid', gap: 5 }}>
+        <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)' }}>Varsayılan KDV oranı</label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr) 86px', gap: 5 }}>
+          {VAT_PRESETS.map((rate) => {
+            const active = Number(vatRate) === rate
+            return (
+              <button
+                key={rate}
+                type="button"
+                onClick={() => setVatRate(String(rate))}
+                style={{
+                  height: 30,
+                  borderRadius: 7,
+                  border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
+                  background: active ? 'var(--text)' : 'var(--surface)',
+                  color: active ? 'var(--surface)' : 'var(--text-2)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                %{rate}
+              </button>
+            )
+          })}
+          <input
+            aria-label="Özel KDV oranı"
+            type="number"
+            min={0}
+            max={100}
+            step="0.01"
+            value={vatRate}
+            onChange={(e) => setVatRate(e.target.value)}
+            style={{ ...inputStyle, height: 30, textAlign: 'right', fontFamily: "'Geist Mono', monospace" }}
+          />
+        </div>
+      </div>
+      <div style={{ display: 'grid', gap: 5 }}>
+        <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)' }}>Varsayılan mutfak istasyonu</label>
+        <select
+          value={kitchenStationId}
+          onChange={(e) => setKitchenStationId(e.target.value)}
+          style={inputStyle}
+        >
+          <option value="">Atanmamış</option>
+          {kitchenStations.filter((station) => station.is_active).map((station) => (
+            <option key={station.id} value={station.id}>{station.name}</option>
+          ))}
+        </select>
+      </div>
       {error && (
         <p style={{ fontSize: 11.5, color: 'var(--critical)', margin: 0 }}>{error}</p>
       )}
