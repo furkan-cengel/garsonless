@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation'
-import { cookies } from 'next/headers'
-import { verifyCustomerSession, CUSTOMER_SESSION_COOKIE, createServiceClient, getMemberBalances } from '@garsonless/db'
+import { getMemberBalances } from '@garsonless/db'
 import type { MemberBalances } from '@garsonless/db'
 import { getRestaurantBySlug, getThemeConfig, getMenuCategories, getMenuItems } from '../../lib/queries'
+import { getCustomerSession } from '../../lib/customer-session'
 import { resolveMenuTheme } from '../../lib/resolve-theme'
 import { MenuPageClient } from './MenuPageClient'
 import type { MenuItem, MenuCategory } from '@garsonless/ui'
@@ -37,16 +37,13 @@ export default async function MenuPage({ params, searchParams }: Props) {
     templateOverride: isPreview && previewTemplate ? previewTemplate : null,
   })
 
-  // Resolve a returning member from the httpOnly customer-session cookie (menu app only),
-  // plus their loyalty balances (service-role, scoped to this customer + restaurant).
+  // Resolve a returning member from the Supabase Auth cookie, plus loyalty
+  // balances (service-role, scoped to this customer + restaurant).
   let initialMember: { name: string | null } | null = null
   let initialMemberBalances: MemberBalances | null = null
-  const token = (await cookies()).get(CUSTOMER_SESSION_COOKIE)?.value
-  const session = await verifyCustomerSession(token)
+  const session = await getCustomerSession()
   if (session) {
-    const svc = createServiceClient()
-    const { data } = await svc.from('customers').select('name').eq('id', session.customerId).maybeSingle()
-    initialMember = { name: (data as { name: string | null } | null)?.name ?? null }
+    initialMember = { name: session.name }
     initialMemberBalances = await getMemberBalances(session.customerId, restaurant.id)
   }
 

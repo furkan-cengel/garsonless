@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { verifyCustomerSession, recordConsent, getConsentStatus, CUSTOMER_SESSION_COOKIE } from '@garsonless/db'
+import { recordConsent, getConsentStatus } from '@garsonless/db'
+import { getCustomerSession } from '../../../../lib/customer-session'
 
 const schema = z.object({
   restaurantId: z.string().uuid(),
@@ -26,8 +26,7 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse>> {
     return NextResponse.json({ ok: false, error: 'Geçersiz istek.' }, { status: 400 })
   }
 
-  const token = (await cookies()).get(CUSTOMER_SESSION_COOKIE)?.value
-  const session = await verifyCustomerSession(token)
+  const session = await getCustomerSession()
   if (!session) {
     return NextResponse.json({ ok: false, error: 'Üye değilsiniz.' }, { status: 401 })
   }

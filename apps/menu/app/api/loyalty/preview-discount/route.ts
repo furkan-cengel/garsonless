@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { computeOrderDiscount, resolveOrderLines, verifyCustomerSession, CUSTOMER_SESSION_COOKIE } from '@garsonless/db'
+import { computeOrderDiscount, resolveOrderLines } from '@garsonless/db'
+import { getCustomerSession } from '../../../../lib/customer-session'
 
 const schema = z.object({
   restaurantId: z.string().uuid(),
@@ -37,8 +37,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: 'Invalid request' }, { status: 400 })
   }
 
-  const token = (await cookies()).get(CUSTOMER_SESSION_COOKIE)?.value
-  const session = await verifyCustomerSession(token)
+  const session = await getCustomerSession()
   const resolved = await resolveOrderLines(parsed.data.restaurantId, parsed.data.items)
   if (!resolved.ok) {
     return NextResponse.json({ ok: false, error: resolved.error }, { status: 400 })

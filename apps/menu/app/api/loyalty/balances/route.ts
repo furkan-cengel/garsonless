@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import {
-  verifyCustomerSession,
   getMemberBalances,
-  CUSTOMER_SESSION_COOKIE,
   type MemberBalances,
 } from '@garsonless/db'
+import { getCustomerSession } from '../../../../lib/customer-session'
 
 type ApiResponse =
   | { ok: true; balances: MemberBalances | null }
@@ -19,8 +17,7 @@ export async function GET(req: Request): Promise<NextResponse<ApiResponse>> {
     return NextResponse.json({ ok: false, error: 'restaurantId required' }, { status: 400 })
   }
 
-  const token = (await cookies()).get(CUSTOMER_SESSION_COOKIE)?.value
-  const session = await verifyCustomerSession(token)
+  const session = await getCustomerSession()
   if (!session) {
     return NextResponse.json({ ok: false, error: 'Not a member' }, { status: 401 })
   }
