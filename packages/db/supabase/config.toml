@@ -34,3 +34,17 @@ enable_refresh_token_rotation = true
 enable_signup = true
 double_confirm_changes = true
 enable_confirmations = false
+
+[functions.send-email-hook]
+enabled = true
+# Auth'un Send Email Hook POST'u client JWT tasimaz — verify_jwt ACIK olursa
+# hook 401 alir ve hic auth e-postasi gonderilemez. Guvenlik imzayla saglanir
+# (standardwebhooks + SEND_EMAIL_HOOK_SECRET), JWT ile degil.
+verify_jwt = false
+import_map = "./functions/send-email-hook/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/send-email-hook/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/send-email-hook/*.html" ]
