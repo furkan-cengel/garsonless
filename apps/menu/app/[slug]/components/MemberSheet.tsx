@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { MemberBalances, LoyaltyActivity } from '@garsonless/db'
+import { createMenuAuthBrowserClient } from '../../../lib/supabase-browser'
 
 // ── Rich member home (Sprint 15b). Three screens — Join → OTP → MemberHome —
 // rebuilt from ref/Membership_Loyalty.html, but every value is bound to the
@@ -21,6 +22,7 @@ interface Props {
   memberName?: string | null
   /** Restaurant the member is verifying on (welcome bonus + card label). */
   restaurantId?: string
+  restaurantSlug?: string
   restaurantName?: string
   /** Welcome bonus points — drives the "& X puan kazan" join suffix. */
   welcomeBonus?: number
@@ -140,18 +142,21 @@ function Field({ label, value, onChange, placeholder, type = 'text' }: {
   )
 }
 
-// ── Screen 1: Join ──────────────────────────────────────────────────────────
-function JoinScreen({ restaurantName, welcomeBonus, busy, error, onSubmit, onSkip }: {
+// ── Screen 1: Supabase Auth ─────────────────────────────────────────────────
+function AuthScreen({ restaurantName, welcomeBonus, busy, error, onEmail, onGoogle, onSkip }: {
   restaurantName: string; welcomeBonus: number; busy: boolean; error: string
-  onSubmit: (name: string, phone: string, consent: boolean, marketingConsent: boolean) => void; onSkip: () => void
+  onEmail: (name: string, email: string, consent: boolean, marketingConsent: boolean) => void
+  onGoogle: (name: string, consent: boolean, marketingConsent: boolean) => void
+  onSkip: () => void
 }) {
   const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
   // KVKK açık rıza must be an affirmative opt-in → default UNCHECKED (a
   // pre-ticked consent box is not valid consent).
   const [agree, setAgree] = useState(false)
   const [marketingAgree, setMarketingAgree] = useState(false)
-  const valid = name.trim().length > 1 && phone.replace(/\D/g, '').length >= 10 && agree
+  const valid = name.trim().length > 1 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && agree
+  const socialValid = agree
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', animation: 'ml-fade-slide .4s ease both' }}>
@@ -172,13 +177,13 @@ function JoinScreen({ restaurantName, welcomeBonus, busy, error, onSubmit, onSki
 
       <div style={{ padding: '22px 22px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <Field label="Ad Soyad" value={name} onChange={setName} placeholder="Adın Soyadın" />
-        <Field label="Telefon" value={phone} onChange={setPhone} placeholder="0555 123 45 67" type="tel" />
+        <Field label="E-posta" value={email} onChange={setEmail} placeholder="ornek@eposta.com" type="email" />
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 2, cursor: 'pointer' }}>
           <span onClick={() => setAgree((a) => !a)} style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, marginTop: 1, border: '2px solid ' + (agree ? 'var(--ml-accent)' : 'var(--ml-line)'), background: agree ? 'var(--ml-accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 150ms' }}>
             {agree && <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5 L10 17.5 L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>}
           </span>
           <span style={{ fontSize: 12, color: 'var(--ml-text2)', lineHeight: 1.55 }}>
-            <b style={{ color: 'var(--ml-text)' }}>{restaurantName}</b> sadakat programına katılıyorum; ad ve telefon numaramın bu işletme tarafından üyelik ve iletişim amacıyla işlenmesine <b style={{ color: 'var(--ml-text)' }}>açık rıza</b> veriyorum.{' '}
+            <b style={{ color: 'var(--ml-text)' }}>{restaurantName}</b> sadakat programına katılıyorum; ad ve e-posta adresimin bu işletme tarafından üyelik ve iletişim amacıyla işlenmesine <b style={{ color: 'var(--ml-text)' }}>açık rıza</b> veriyorum.{' '}
             <a href="https://masabu.co/legal#kvkk" target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: 'var(--ml-accent)', textDecoration: 'underline' }}>KVKK aydınlatma metni</a>.
           </span>
         </label>
@@ -187,7 +192,7 @@ function JoinScreen({ restaurantName, welcomeBonus, busy, error, onSubmit, onSki
             {marketingAgree && <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5 L10 17.5 L19 7" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>}
           </span>
           <span style={{ fontSize: 12, color: 'var(--ml-text2)', lineHeight: 1.55 }}>
-            Kampanya, indirim ve duyurular için SMS almak istiyorum.
+            Kampanya, indirim ve duyurular için e-posta almak istiyorum.
           </span>
         </label>
         {error && <p style={{ color: 'var(--ml-cta)', fontSize: 13, margin: '2px 0 0', fontWeight: 600 }}>{error}</p>}
@@ -195,7 +200,7 @@ function JoinScreen({ restaurantName, welcomeBonus, busy, error, onSubmit, onSki
 
       <div style={{ padding: '16px 22px calc(16px + env(safe-area-inset-bottom, 8px))', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <button
-          type="button" onClick={() => valid && !busy && onSubmit(name, phone, agree, marketingAgree)} disabled={!valid || busy}
+          type="button" onClick={() => valid && !busy && onEmail(name, email, agree, marketingAgree)} disabled={!valid || busy}
           style={{
             width: '100%', height: 52, borderRadius: 14, border: 'none',
             background: valid && !busy ? 'var(--ml-accent)' : 'var(--ml-line)',
@@ -204,8 +209,14 @@ function JoinScreen({ restaurantName, welcomeBonus, busy, error, onSubmit, onSki
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
           }}
         >
-          {busy ? <><Spinner /> Gönderiliyor…</> : `Üye ol${welcomeBonus > 0 ? ` & ${welcomeBonus} puan kazan` : ''}`}
+          {busy ? <><Spinner /> Gönderiliyor…</> : `E-posta ile devam et${welcomeBonus > 0 ? ` & ${welcomeBonus} puan kazan` : ''}`}
         </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--ml-text3)', fontSize: 12 }}><span style={{ height: 1, background: 'var(--ml-line)', flex: 1 }} />veya<span style={{ height: 1, background: 'var(--ml-line)', flex: 1 }} /></div>
+        <button
+          type="button" onClick={() => socialValid && !busy && onGoogle(name, agree, marketingAgree)} disabled={!socialValid || busy}
+          style={{ width: '100%', height: 50, borderRadius: 14, border: '1px solid var(--ml-line)', background: 'var(--ml-surface)', color: 'var(--ml-text)', fontSize: 15, fontWeight: 700, cursor: socialValid && !busy ? 'pointer' : 'not-allowed', opacity: socialValid ? 1 : .55, fontFamily: 'inherit' }}
+        >Google ile devam et</button>
+        {/* Apple provider hazır olana dek ürün kararına uygun olarak gizli. */}
         <button type="button" onClick={onSkip} style={{ width: '100%', height: 42, borderRadius: 14, border: 'none', background: 'none', color: 'var(--ml-text2)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Şimdilik geç</button>
       </div>
     </div>
@@ -213,19 +224,17 @@ function JoinScreen({ restaurantName, welcomeBonus, busy, error, onSubmit, onSki
 }
 
 // ── Screen 1.5: OTP ─────────────────────────────────────────────────────────
-function OTPScreen({ phone, initialDevCode, onVerify, onResend, onBack }: {
-  phone: string
-  initialDevCode: string | null
+function OTPScreen({ email, onVerify, onResend, onBack }: {
+  email: string
   onVerify: (code: string) => Promise<boolean>
-  onResend: () => Promise<string | null>
+  onResend: () => Promise<boolean>
   onBack: () => void
 }) {
   const LEN = 6
-  const [digits, setDigits] = useState<string[]>(() => (initialDevCode && initialDevCode.length === LEN ? initialDevCode.split('') : Array(LEN).fill('')))
+  const [digits, setDigits] = useState<string[]>(() => Array(LEN).fill(''))
   const [secs, setSecs] = useState(60)
   const [err, setErr] = useState(false)
   const [verifying, setVerifying] = useState(false)
-  const [devCode, setDevCode] = useState<string | null>(initialDevCode)
   const refs = useRef<(HTMLInputElement | null)[]>([])
 
   useEffect(() => { refs.current[0]?.focus() }, [])
@@ -273,11 +282,9 @@ function OTPScreen({ phone, initialDevCode, onVerify, onResend, onBack }: {
     if (e.key === 'Backspace' && !digits[i] && i > 0) refs.current[i - 1]?.focus()
   }
   async function resend() {
-    const dc = await onResend()
-    setDevCode(dc)
-    setSecs(60)
+    const ok = await onResend()
+    if (ok) setSecs(60)
     setErr(false)
-    if (dc && dc.length === LEN) { setDigits(dc.split('')); refs.current[LEN - 1]?.focus() }
   }
 
   return (
@@ -291,9 +298,9 @@ function OTPScreen({ phone, initialDevCode, onVerify, onResend, onBack }: {
         <div style={{ width: 60, height: 60, borderRadius: 18, background: 'var(--ml-accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="6" y="2.5" width="12" height="19" rx="3" stroke="var(--ml-accent)" strokeWidth="1.9" /><path d="M10.5 18.5h3" stroke="var(--ml-accent)" strokeWidth="1.9" strokeLinecap="round" /></svg>
         </div>
-        <h1 style={{ fontSize: 23, fontWeight: 800, letterSpacing: '-0.025em', margin: 0, color: 'var(--ml-text)', fontFamily: 'var(--p-display)' }}>Telefonunu doğrula</h1>
+        <h1 style={{ fontSize: 23, fontWeight: 800, letterSpacing: '-0.025em', margin: 0, color: 'var(--ml-text)', fontFamily: 'var(--p-display)' }}>E-postanı doğrula</h1>
         <p style={{ fontSize: 14, color: 'var(--ml-text2)', margin: '8px 0 0', lineHeight: 1.5 }}>
-          <b style={{ color: 'var(--ml-text)' }}>{phone}</b> numarasına 6 haneli kodu gönderdik.
+          <b style={{ color: 'var(--ml-text)' }}>{email}</b> adresine 6 haneli kodu gönderdik.
         </p>
       </div>
 
@@ -318,11 +325,6 @@ function OTPScreen({ phone, initialDevCode, onVerify, onResend, onBack }: {
             ? <>Kodu almadın mı? <b style={{ color: 'var(--ml-text3)' }}>{secs}s</b> sonra tekrar gönder</>
             : <button type="button" onClick={() => void resend()} style={{ background: 'none', border: 'none', color: 'var(--ml-accent)', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit' }}>Kodu tekrar gönder</button>}
         </div>
-        {devCode && (
-          <div style={{ marginTop: 14, padding: '10px 12px', background: 'var(--ml-accent-soft)', borderRadius: 12, fontSize: 12, color: 'var(--ml-accent2)', textAlign: 'center', lineHeight: 1.5 }}>
-            Geliştirme kodu: <b>{devCode}</b>
-          </div>
-        )}
       </div>
 
       <div style={{ padding: '20px 22px calc(16px + env(safe-area-inset-bottom, 8px))' }}>
@@ -639,54 +641,77 @@ function RewardsSheet({ points, catalog, pointsEnabled, onRedeem, onClose }: { p
 // ── orchestrator ─────────────────────────────────────────────────────────────
 export default function MemberSheet({
   onClose, onVerified, balances = null, memberName: initialName = null,
-  restaurantId, restaurantName = 'Sadakat', welcomeBonus = 0, rewardCatalog = [], onRedeemCatalog, onRefresh, onLogout,
+  restaurantId, restaurantSlug, restaurantName = 'Sadakat', welcomeBonus = 0, rewardCatalog = [], onRedeemCatalog, onRefresh, onLogout,
 }: Props) {
   const [phase, setPhase] = useState<'join' | 'otp' | 'home'>(balances ? 'home' : 'join')
-  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
   const [pendingName, setPendingName] = useState('')
   const [pendingConsent, setPendingConsent] = useState(false)
   const [pendingMarketingConsent, setPendingMarketingConsent] = useState(false)
   const [localName, setLocalName] = useState<string | null>(initialName)
   const [busy, setBusy] = useState(false)
   const [joinError, setJoinError] = useState('')
-  const [devCode, setDevCode] = useState<string | null>(null)
   const [subSheet, setSubSheet] = useState<null | 'rewards'>(null)
 
-  async function sendOtp(forPhone: string): Promise<{ ok: boolean; devCode: string | null; error?: string }> {
+  async function sendOtp(forEmail: string, name = pendingName): Promise<{ ok: boolean; error?: string }> {
     try {
-      const res = await fetch('/api/loyalty/request-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: forPhone }) })
-      const json = (await res.json()) as { ok: boolean; error?: string; devCode?: string }
-      if (!json.ok) return { ok: false, devCode: null, error: json.error ?? 'Bir hata oluştu.' }
-      return { ok: true, devCode: json.devCode ?? null }
+      const { error } = await createMenuAuthBrowserClient().auth.signInWithOtp({
+        email: forEmail.trim().toLowerCase(),
+        options: { shouldCreateUser: true, data: { full_name: name.trim() } },
+      })
+      if (error) return { ok: false, error: 'Kod gönderilemedi. Lütfen tekrar deneyin.' }
+      return { ok: true }
     } catch {
-      return { ok: false, devCode: null, error: 'Bağlantı hatası. Tekrar deneyin.' }
+      return { ok: false, error: 'Bağlantı hatası. Tekrar deneyin.' }
     }
   }
 
-  async function handleJoin(name: string, rawPhone: string, consent: boolean, marketingConsent: boolean) {
+  async function handleEmail(name: string, rawEmail: string, consent: boolean, marketingConsent: boolean) {
     setBusy(true)
     setJoinError('')
-    setPhone(rawPhone)
+    const normalizedEmail = rawEmail.trim().toLowerCase()
+    setEmail(normalizedEmail)
     setPendingName(name)
     setPendingConsent(consent)
     setPendingMarketingConsent(marketingConsent)
-    const r = await sendOtp(rawPhone)
+    const r = await sendOtp(normalizedEmail, name)
     setBusy(false)
     if (!r.ok) { setJoinError(r.error ?? 'Bir hata oluştu.'); return }
-    setDevCode(r.devCode)
     setPhase('otp')
+  }
+
+  async function handleGoogle(name: string, consent: boolean, marketingConsent: boolean) {
+    setBusy(true)
+    setJoinError('')
+    const next = restaurantSlug ? `/${restaurantSlug}` : window.location.pathname
+    const callback = new URL('/auth/callback', window.location.origin)
+    callback.searchParams.set('next', next)
+    if (restaurantId) callback.searchParams.set('restaurantId', restaurantId)
+    if (name.trim()) callback.searchParams.set('name', name.trim())
+    if (consent) callback.searchParams.set('consent', '1')
+    if (marketingConsent) callback.searchParams.set('marketingConsent', '1')
+    const { error } = await createMenuAuthBrowserClient().auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: callback.toString() },
+    })
+    if (error) {
+      setJoinError('Google girişi başlatılamadı. Lütfen tekrar deneyin.')
+      setBusy(false)
+    }
   }
 
   async function handleVerify(code: string): Promise<boolean> {
     try {
-      const res = await fetch('/api/loyalty/verify-otp', {
+      const { data, error } = await createMenuAuthBrowserClient().auth.verifyOtp({ email, token: code, type: 'email' })
+      if (error || !data.user || !data.session) return false
+      const res = await fetch('/api/auth/ensure-customer', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code, name: pendingName.trim() || undefined, restaurantId, consent: pendingConsent, marketingConsent: pendingMarketingConsent }),
+        body: JSON.stringify({ name: pendingName.trim() || undefined, restaurantId, consent: pendingConsent, marketingConsent: pendingMarketingConsent }),
       })
-      const json = (await res.json()) as { ok: boolean; member?: { name: string | null } }
-      if (!json.ok || !json.member) return false
-      setLocalName(json.member.name)
-      onVerified({ name: json.member.name })
+      const json = (await res.json()) as { ok: boolean; customer?: { name: string | null } }
+      if (!json.ok || !json.customer) return false
+      setLocalName(json.customer.name)
+      onVerified({ name: json.customer.name })
       setPhase('home')
       return true
     } catch {
@@ -714,13 +739,13 @@ export default function MemberSheet({
         </div>
 
         {phase === 'join' && (
-          <JoinScreen restaurantName={restaurantName} welcomeBonus={welcomeBonus} busy={busy} error={joinError} onSubmit={handleJoin} onSkip={onClose} />
+          <AuthScreen restaurantName={restaurantName} welcomeBonus={welcomeBonus} busy={busy} error={joinError} onEmail={handleEmail} onGoogle={handleGoogle} onSkip={onClose} />
         )}
         {phase === 'otp' && (
           <OTPScreen
-            phone={phone} initialDevCode={devCode}
+            email={email}
             onVerify={handleVerify}
-            onResend={async () => { const r = await sendOtp(phone); setDevCode(r.devCode); return r.devCode }}
+            onResend={async () => (await sendOtp(email)).ok}
             onBack={() => { setPhase('join'); setJoinError('') }}
           />
         )}

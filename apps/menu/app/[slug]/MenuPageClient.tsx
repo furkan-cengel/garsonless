@@ -1579,6 +1579,7 @@ export function MenuPageClient({
           balances={member ? memberBalances : null}
           memberName={member?.name ?? null}
           restaurantId={restaurant.id}
+          restaurantSlug={restaurant.slug}
           restaurantName={restaurant.name}
           welcomeBonus={welcomeBonus}
           rewardCatalog={rewardCatalog}

@@ -17,6 +17,8 @@ export {
 export type { ServiceRequestType } from './service-request-types'
 export { recordSecurityEvent, getSecurityEvents } from './security'
 export type { SecurityEvent, SecurityEventType, RecordSecurityEventInput } from './security'
+export { ensureCustomerForAuthUser } from './customer-auth'
+export type { EnsureCustomerOptions, EnsureCustomerResult } from './customer-auth'
 export {
   TEAM_SECTIONS, generateInviteToken, sanitizeTeamPermissions,
   listTeamMembers, createInvite, resolveInviteByToken, acceptInvite,
