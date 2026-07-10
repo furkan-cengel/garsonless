@@ -253,24 +253,30 @@ export type Database = {
       }
       customers: {
         Row: {
+          auth_user_id: string | null
           created_at: string
+          email: string | null
           id: string
           name: string | null
-          phone: string
+          phone: string | null
           verified_at: string | null
         }
         Insert: {
+          auth_user_id?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           name?: string | null
-          phone: string
+          phone?: string | null
           verified_at?: string | null
         }
         Update: {
+          auth_user_id?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           name?: string | null
-          phone?: string
+          phone?: string | null
           verified_at?: string | null
         }
         Relationships: []
@@ -1316,6 +1322,7 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: boolean
       }
+      customer_access_token_hook: { Args: { event: Json }; Returns: Json }
       finalize_split_if_covered: {
         Args: { p_session_id: string }
         Returns: boolean
@@ -1357,6 +1364,7 @@ export type Database = {
         Args: { p_restaurant_id: string }
         Returns: boolean
       }
+      is_staff_user: { Args: { p_user_id: string }; Returns: boolean }
       menu_category_restaurant: {
         Args: { p_category_id: string }
         Returns: string
