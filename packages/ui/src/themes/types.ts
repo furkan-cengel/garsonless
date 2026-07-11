@@ -48,6 +48,8 @@ export interface MemberChipSummary {
   points?: number
   stampEnabled?: boolean
   pointsEnabled?: boolean
+  /** Join teaser for NON-members: welcome bonus points. 0/absent → plain "Üye ol". */
+  welcomeBonus?: number
 }
 
 export interface SettingOption {

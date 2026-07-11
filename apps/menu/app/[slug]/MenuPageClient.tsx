@@ -1469,6 +1469,7 @@ export function MenuPageClient({
         onOpenBill={() => { void openBill() }}
         memberSummary={loyaltyEnabled ? {
           name: member?.name ?? null,
+          welcomeBonus,
           ...(member && memberBalances ? {
             stamps: memberBalances.stamps,
             stampGoal: memberBalances.stampGoal,

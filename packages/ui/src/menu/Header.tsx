@@ -114,6 +114,8 @@ interface HeaderProps {
     pointsEnabled?: boolean
     /** Tier accent color — renders a small dot on the compact member chip. */
     tierColor?: string
+    /** Join teaser for NON-members: welcome bonus points. 0/absent → plain "Üye ol". */
+    welcomeBonus?: number
   } | null
   onOpenMember?: (() => void) | undefined
 }
@@ -208,14 +210,18 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
       Hesap · {formatTRY(billSummary!.total)}
     </button>
   ) : null
+  // Logged-in members (real balances present) get a compact progress chip;
+  // otherwise the chip is the "Üye ol" entry point. Welcome-bonus teaser only
+  // when a real bonus exists — never advertise 0.
+  const memberIsMember = Boolean(memberSummary && (memberSummary.stampEnabled !== undefined || memberSummary.pointsEnabled !== undefined))
+  const memberWelcomeBonus = memberSummary?.welcomeBonus ?? 0
+  const memberJoinLabel = memberWelcomeBonus > 0 ? `Üye ol · +${memberWelcomeBonus}` : 'Üye ol'
   const memberChip = memberSummary && onOpenMember ? (() => {
-    // Logged-in members (real balances present) get a compact progress chip;
-    // otherwise the chip is the "Üye ol" entry point.
-    const isMember = memberSummary.stampEnabled !== undefined || memberSummary.pointsEnabled !== undefined
+    const isMember = memberIsMember
     const showStamp = memberSummary.stampEnabled && typeof memberSummary.stamps === 'number'
     const showPoints = memberSummary.pointsEnabled && typeof memberSummary.points === 'number'
     const label = !isMember
-      ? 'Üye ol'
+      ? memberJoinLabel
       : showStamp
         ? `☕ ${memberSummary.stamps}/${memberSummary.stampGoal ?? 0}`
         : showPoints
@@ -356,7 +362,8 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
             )}
             {memberChip && (
               <button data-overflow-priority="secondary" type="button" role="menuitem" onClick={() => { closeMoreMenu(); onOpenMember?.() }}>
-                Üyelik
+                {memberIsMember ? 'Üyelik' : 'Üye ol'}
+                {!memberIsMember && memberWelcomeBonus > 0 && <span>+{memberWelcomeBonus} puan</span>}
               </button>
             )}
             {languageBadge && (
