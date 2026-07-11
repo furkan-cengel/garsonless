@@ -987,6 +987,32 @@ export type Database = {
           },
         ]
       }
+      qr_stand_request_limits: {
+        Row: {
+          last_requested_at: string
+          requested_by: string
+          restaurant_id: string
+        }
+        Insert: {
+          last_requested_at?: string
+          requested_by: string
+          restaurant_id: string
+        }
+        Update: {
+          last_requested_at?: string
+          requested_by?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qr_stand_request_limits_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_members: {
         Row: {
           accepted_at: string | null
@@ -1318,6 +1344,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_qr_stand_request_slot: {
+        Args: {
+          p_requested_by: string
+          p_restaurant_id: string
+          p_window_seconds?: number
+        }
+        Returns: string
+      }
       close_session_if_fully_paid: {
         Args: { p_session_id: string }
         Returns: boolean

@@ -46,9 +46,11 @@ const labelStyle: React.CSSProperties = {
 
 export default function OrderStandsPage() {
   const params = useParams<{ restaurantId: string }>()
-  void params
   const [selected, setSelected] = useState<StandType>('basic')
-  const [state, formAction, pending] = useActionState(requestStands, null)
+  const [state, formAction, pending] = useActionState(
+    requestStands.bind(null, params.restaurantId),
+    null,
+  )
 
   if (state && 'success' in state) {
     return (
@@ -120,10 +122,6 @@ export default function OrderStandsPage() {
         <input type="hidden" name="standType" value={selected} />
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <div>
-            <label style={labelStyle}>Restoran adı</label>
-            <input name="restaurantName" required style={inputStyle} />
-          </div>
           <div>
             <label style={labelStyle}>Adınız</label>
             <input name="contactName" required style={inputStyle} />
