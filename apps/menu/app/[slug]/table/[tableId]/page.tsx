@@ -1,10 +1,15 @@
 import { notFound } from 'next/navigation'
+import { getMemberBalances } from '@garsonless/db'
+import type { MemberBalances } from '@garsonless/db'
 import { DEFAULT_THEME, TEMPLATES } from '@garsonless/design-engine'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { getRestaurantBySlug, getThemeConfig, getMenuCategories, getMenuItems, getTableLabel, getOpenTableSession, getSessionOrders } from '../../../../lib/queries'
+import { getCustomerSession } from '../../../../lib/customer-session'
 import { MenuPageClient } from '../../MenuPageClient'
 
-export const revalidate = 60
+// Reading the auth cookie makes this route dynamic anyway; align with the
+// slug page instead of a stale ISR bill/session snapshot.
+export const dynamic = 'force-dynamic'
 
 interface Props {
   params: Promise<{ slug: string; tableId: string }>
@@ -26,6 +31,16 @@ export default async function TableMenuPage({ params }: Props) {
   const sessionOrders = tableSession ? await getSessionOrders(tableSession.id) : []
 
   const items = await getMenuItems(categories.map((c) => c.id))
+
+  // Resolve a returning member from the Supabase Auth cookie, plus loyalty
+  // balances — same pattern as the slug page; guests stay null.
+  let initialMember: { name: string | null } | null = null
+  let initialMemberBalances: MemberBalances | null = null
+  const session = await getCustomerSession()
+  if (session) {
+    initialMember = { name: session.name }
+    initialMemberBalances = await getMemberBalances(session.customerId, restaurant.id)
+  }
 
   const restaurantSettings = restaurant.settings as Record<string, unknown> | null
   const templateId = typeof restaurantSettings?.['active_template_id'] === 'string'
@@ -53,6 +68,8 @@ export default async function TableMenuPage({ params }: Props) {
       tableLabel={tableLabel}
       initialTableSession={tableSession}
       initialSessionOrders={sessionOrders}
+      initialMember={initialMember}
+      initialMemberBalances={initialMemberBalances}
     />
   )
 }
