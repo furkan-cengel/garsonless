@@ -58,6 +58,8 @@ const qrStyleSchema = z.object({
   _presetId: z.string().max(60).optional(),
 })
 
+const MENU_ORIGIN = 'https://menu.masabu.co'
+
 async function getAuthUser() {
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -183,12 +185,17 @@ export async function saveQRStyle(
   const svc = createServiceClient()
   const { data: existing } = await svc
     .from('restaurants')
-    .select('settings')
+    .select('settings, slug')
     .eq('id', restaurantId)
     .is('deleted_at', null)
     .maybeSingle()
 
   if (!existing) return { error: 'Restaurant not found' }
+
+  const expectedBaseUrl = `${MENU_ORIGIN}/${existing.slug}`
+  if (parsed.data.baseUrl !== expectedBaseUrl) {
+    return { error: 'QR menu address cannot be changed' }
+  }
 
   const merged = {
     ...((existing as { settings: Record<string, unknown> | null }).settings ?? {}),

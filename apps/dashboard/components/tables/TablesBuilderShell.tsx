@@ -171,7 +171,9 @@ function normalizeQRStyle(input: unknown, baseUrl: string): QRConfig {
     frameTitle: readString(row, 'frameTitle', fallback.frameTitle),
     frameSubtitle: readString(row, 'frameSubtitle', fallback.frameSubtitle),
     frameColor: readString(row, 'frameColor', fallback.frameColor),
-    baseUrl: readString(row, 'baseUrl', fallback.baseUrl),
+    // The menu host is product-controlled. Never revive a legacy/custom value
+    // from restaurants.settings; custom domains belong to a future epic.
+    baseUrl: fallback.baseUrl,
     utmSource: readString(row, 'utmSource', fallback.utmSource),
     utmMedium: readString(row, 'utmMedium', fallback.utmMedium),
     utmCampaign: readString(row, 'utmCampaign', fallback.utmCampaign),
@@ -1139,18 +1141,15 @@ function colorOpts(qr: QRConfig): object {
   }
 }
 
-const MENU_BASE = process.env.NEXT_PUBLIC_MENU_BASE_URL ?? 'https://menu.masabu.co'
-const MENU_PROTOCOL = MENU_BASE.startsWith('http://') ? 'http' : 'https'
+const MENU_ORIGIN = 'https://menu.masabu.co'
 
 function buildUrl(qr: QRConfig, table?: TableItem): string {
-  const base = qr.baseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
   const tableId = table?.id && table.id !== 'placeholder' ? table.id : 'preview'
-  const params: string[] = []
-  if (qr.utmSource) params.push(`utm_source=${qr.utmSource}`)
-  if (qr.utmMedium) params.push(`utm_medium=${qr.utmMedium}`)
-  if (qr.utmCampaign) params.push(`utm_campaign=${qr.utmCampaign}`)
-  const q = params.length ? '?' + params.join('&') : ''
-  return `${MENU_PROTOCOL}://${base}/table/${tableId}${q}`
+  const url = new URL(`${qr.baseUrl}/table/${tableId}`)
+  if (qr.utmSource) url.searchParams.set('utm_source', qr.utmSource)
+  if (qr.utmMedium) url.searchParams.set('utm_medium', qr.utmMedium)
+  if (qr.utmCampaign) url.searchParams.set('utm_campaign', qr.utmCampaign)
+  return url.toString()
 }
 
 /* ─── QR Frame ──────────────────────────────────────────────── */
@@ -1311,7 +1310,7 @@ function GridCard({ qr, table }: { qr: QRConfig; table: TableItem }) {
     }}>
       <div ref={hostRef} style={{ width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
       <div style={{ fontSize: 13, fontWeight: 600 }}>{table.label}</div>
-      <div style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)' }}>/masa-{table.slug}</div>
+      <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>Benzersiz masa bağlantısı</div>
     </div>
   )
 }
@@ -1913,18 +1912,26 @@ function FrameTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => v
 }
 
 function DataTab({ qr, set, tables }: { qr: QRConfig; set: (k: string, v: unknown) => void; tables: TableItem[] }) {
+  const exampleTableId = tables[0]?.id ?? '{benzersiz-kimlik}'
   return (
     <>
       <Group title="Bağlantı">
-        <Field label="Temel URL" hint="Her masa için /masa-ID eklenir">
-          <TextInput value={qr.baseUrl} onChange={v => set('baseUrl', v)} prefix={React.cloneElement(QRI.link2 as React.ReactElement<{ size?: number }>, { size: 13 })} />
+        <Field label="Menü adresi" hint="Her masa için benzersiz, tahmin edilemez bir bağlantı oluşturulur">
+          <div style={{
+            minHeight: 34, display: 'flex', alignItems: 'center', gap: 7,
+            padding: '7px 9px', border: '1px solid var(--divider)', borderRadius: 6,
+            background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: 12,
+          }}>
+            {React.cloneElement(QRI.link2 as React.ReactElement<{ size?: number }>, { size: 13 })}
+            <span style={S.mono}>{qr.baseUrl}</span>
+          </div>
         </Field>
         <div style={{
           marginTop: 6, padding: '8px 10px', background: 'var(--surface-2)',
           border: '1px solid var(--divider)', borderRadius: 6,
           fontSize: 11, color: 'var(--text-2)', ...S.mono,
         }}>
-          Örnek: {qr.baseUrl}/masa-{tables[0]?.slug || '01'}
+          Örnek: {qr.baseUrl}/table/{exampleTableId}
         </div>
       </Group>
       <Group title="UTM parametreleri" defaultOpen={false}>
@@ -2148,7 +2155,7 @@ function MobilePreview({ src, title, onClose }: { src: string; title: string; on
 
 /* ─── Root shell ────────────────────────────────────────────── */
 export default function TablesBuilderShell({ restaurantId, restaurantName, restaurantSlug, initialTables, initialQRStyle }: Props) {
-  const baseQRUrl = `${MENU_BASE.replace(/^https?:\/\//, '')}/${restaurantSlug}`
+  const baseQRUrl = `${MENU_ORIGIN}/${restaurantSlug}`
   const [tables, setTables] = useState<TableItem[]>(() => mapDBTables(initialTables))
   const [activeId, setActiveId] = useState<string>(() => {
     const mapped = mapDBTables(initialTables)
@@ -2281,7 +2288,7 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
           canUndo={canUndo}
           canRedo={canRedo}
           onPreview={() => setPreview({
-            src: `${MENU_PROTOCOL}://${qr.baseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}`,
+            src: qr.baseUrl,
             title: 'Menü önizleme',
           })}
         />
