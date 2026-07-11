@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getRestaurantById, getTablesForRestaurant } from '../../../../lib/queries'
 import TablesBuilderShell from '../../../../components/tables/TablesBuilderShell'
 import { requireSection } from '../../../../lib/auth/access'
+import { getOpenTableSessions } from '../../../../lib/actions/tables'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -10,9 +11,10 @@ interface Props {
 export default async function TablesPage({ params }: Props) {
   const { restaurantId } = await params
   await requireSection(restaurantId, 'tables')
-  const [restaurant, tables] = await Promise.all([
+  const [restaurant, tables, openSessionsResult] = await Promise.all([
     getRestaurantById(restaurantId),
     getTablesForRestaurant(restaurantId),
+    getOpenTableSessions(restaurantId),
   ])
   if (!restaurant) notFound()
 
@@ -22,6 +24,7 @@ export default async function TablesPage({ params }: Props) {
       restaurantName={restaurant.name}
       restaurantSlug={restaurant.slug}
       initialTables={tables}
+      initialOpenSessions={Array.isArray(openSessionsResult) ? openSessionsResult : []}
       initialQRStyle={(restaurant.settings as Record<string, unknown> | null)?.qr_style ?? null}
     />
   )

@@ -57,6 +57,7 @@ interface Props {
   restaurantName: string
   restaurantSlug: string
   initialTables: Tables<'tables'>[]
+  initialOpenSessions: OpenSessionInfo[]
   initialQRStyle?: unknown
 }
 
@@ -79,14 +80,19 @@ function deriveSlug(label: string, index: number): string {
   return num ? num.padStart(2, '0') : String(index + 1).padStart(2, '0')
 }
 
-function mapDBTables(dbTables: Tables<'tables'>[]): TableItem[] {
+function mapDBTables(dbTables: Tables<'tables'>[], openSessions: OpenSessionInfo[]): TableItem[] {
+  const openByTable = new Map(openSessions.map((session) => [session.tableId, session]))
   return dbTables.map((t, i) => ({
     id: t.id,
     label: t.label,
     slug: deriveSlug(t.label, i),
-    orders: 0,
-    status: t.qr_code_url ? 'active' : 'idle',
+    orders: openByTable.get(t.id)?.orderCount ?? 0,
+    status: openByTable.has(t.id) ? 'active' : 'idle',
   }))
+}
+
+function sessionsByTable(sessions: OpenSessionInfo[]): Record<string, OpenSessionInfo> {
+  return Object.fromEntries(sessions.map((session) => [session.tableId, session]))
 }
 
 function defaultQR(baseUrl: string): QRConfig {
@@ -526,17 +532,16 @@ function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onRedo, ca
       padding: '0 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface)',
     }}>
       <div className="tb-tables__topbar-left" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-        <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 8, paddingRight: 8, borderRight: '1px solid var(--border)', height: 28, textDecoration: 'none' }}>
+        <a href="/dashboard" aria-label="Dashboard ana sayfası" style={{ display: 'flex', alignItems: 'center', gap: 8, paddingRight: 8, borderRight: '1px solid var(--border)', height: 28, textDecoration: 'none' }}>
           <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 18, width: 'auto', display: 'block' }} />
         </a>
-        <button style={{
+        <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12,
-          color: 'var(--text-2)', background: 'transparent', border: 'none', cursor: 'pointer',
+          color: 'var(--text-2)',
           padding: '5px 8px', borderRadius: 6,
         }}>
           <span>{restaurantName}</span>
-          {React.cloneElement(I.chevDown as React.ReactElement<{ size?: number }>, { size: 13 })}
-        </button>
+        </div>
         <span style={{ color: 'var(--text-4)' }}>/</span>
         <span style={{ fontSize: 12, color: 'var(--text-2)' }}>Mağaza</span>
         <span style={{ color: 'var(--text-4)' }}>/</span>
@@ -1490,7 +1495,7 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview }: {
                 <button onClick={() => window.print()} style={btnGhost()}>
                   {React.cloneElement(QRI.print as React.ReactElement<{ size?: number }>, { size: 13 })}Yazdır
                 </button>
-                <button style={{ ...btnPrimary(), opacity: 0.5, cursor: 'not-allowed' }} title="Yakında">
+                <button disabled aria-disabled="true" style={{ ...btnPrimary(), opacity: 0.5, cursor: 'not-allowed' }} title="Yakında">
                   {React.cloneElement(QRI.download as React.ReactElement<{ size?: number }>, { size: 13 })}Tümünü indir (.zip)
                 </button>
               </div>
@@ -1939,10 +1944,6 @@ function DataTab({ qr, set, tables }: { qr: QRConfig; set: (k: string, v: unknow
         <Field label="Medya"><TextInput value={qr.utmMedium} onChange={v => set('utmMedium', v)} placeholder="masa" /></Field>
         <Field label="Kampanya"><TextInput value={qr.utmCampaign} onChange={v => set('utmCampaign', v)} /></Field>
       </Group>
-      <Group title="Davranış">
-        <Field label="Otomatik dil"><Toggle on={qr.autoLang} onChange={v => set('autoLang', v)} /></Field>
-        <Field label="Geri sayım"><Toggle on={qr.countdown} onChange={v => set('countdown', v)} /></Field>
-      </Group>
     </>
   )
 }
@@ -2154,11 +2155,11 @@ function MobilePreview({ src, title, onClose }: { src: string; title: string; on
 }
 
 /* ─── Root shell ────────────────────────────────────────────── */
-export default function TablesBuilderShell({ restaurantId, restaurantName, restaurantSlug, initialTables, initialQRStyle }: Props) {
+export default function TablesBuilderShell({ restaurantId, restaurantName, restaurantSlug, initialTables, initialOpenSessions, initialQRStyle }: Props) {
   const baseQRUrl = `${MENU_ORIGIN}/${restaurantSlug}`
-  const [tables, setTables] = useState<TableItem[]>(() => mapDBTables(initialTables))
+  const [tables, setTables] = useState<TableItem[]>(() => mapDBTables(initialTables, initialOpenSessions))
   const [activeId, setActiveId] = useState<string>(() => {
-    const mapped = mapDBTables(initialTables)
+    const mapped = mapDBTables(initialTables, initialOpenSessions)
     return mapped[0]?.id ?? ''
   })
   // qr is DERIVED from an undo/redo history stack. setQR pushes a new entry
@@ -2205,7 +2206,9 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
   }, [restaurantId, qr])
 
   // Open adisyon (table session) totals per table
-  const [openSessions, setOpenSessions] = useState<Record<string, OpenSessionInfo>>({})
+  const [openSessions, setOpenSessions] = useState<Record<string, OpenSessionInfo>>(
+    () => sessionsByTable(initialOpenSessions),
+  )
   // Active close-flow settlement sheet (set when closing an adisyon that still
   // owes money; null = no sheet open)
   const [settleSession, setSettleSession] = useState<{ session: OpenSessionInfo; label: string } | null>(null)
@@ -2213,9 +2216,7 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
   const loadSessions = useCallback(async () => {
     const result = await getOpenTableSessions(restaurantId)
     if (Array.isArray(result)) {
-      const byTable: Record<string, OpenSessionInfo> = {}
-      result.forEach((session) => { byTable[session.tableId] = session })
-      setOpenSessions(byTable)
+      setOpenSessions(sessionsByTable(result))
     }
   }, [restaurantId])
 
