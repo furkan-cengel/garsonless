@@ -77,7 +77,7 @@ function softForTier(color: string): string {
 }
 
 function tagsForCustomer(c: RestaurantCustomer): string[] {
-  const tags: string[] = []
+  const tags: string[] = [c.authLinked ? 'Bağlı hesap' : 'Bağlantısız kayıt']
   const firstDays = daysSince(c.firstSeen)
   const lastDays = daysSince(c.lastSeen)
   if (firstDays !== null && firstDays <= 30) tags.push('Yeni üye')
@@ -434,7 +434,10 @@ function CustomerRow({ c, onClick, delay }: { c: RestaurantCustomer; onClick: ()
           {tags.length > 0 && <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tags.join(' · ')}</div>}
         </div>
       </div>
-      <span style={{ fontSize: 13, color: c.phoneMasked ? 'var(--text-3)' : 'var(--text-2)', ...S.mono }}>{c.phone}</span>
+      <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2, ...S.mono }}>
+        <span style={{ fontSize: 13, color: c.phoneMasked ? 'var(--text-3)' : 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.phone}</span>
+        <span style={{ fontSize: 11, color: c.emailMasked ? 'var(--text-4)' : 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.email}</span>
+      </span>
       <span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: c.tier.color, background: soft, padding: '3px 10px', borderRadius: 99 }}>
           <span style={{ width: 6, height: 6, borderRadius: 999, background: c.tier.color }} />{c.tier.name}

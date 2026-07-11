@@ -18,12 +18,23 @@ export function maskPhone(e164: string | null): string {
   return `${national.slice(0, 4)} *** ** ${national.slice(-2)}`
 }
 
+export function maskEmail(email: string | null): string {
+  if (!email) return '—'
+  const [local, domain] = email.split('@')
+  if (!local || !domain) return '***'
+  const visible = local.slice(0, Math.min(2, local.length))
+  return `${visible}${'*'.repeat(Math.max(3, local.length - visible.length))}@${domain}`
+}
+
 export interface RestaurantCustomer {
   customerId: string
   name: string | null
   /** Masked unless open consent at this venue. */
   phone: string
   phoneMasked: boolean
+  email: string
+  emailMasked: boolean
+  authLinked: boolean
   hasConsent: boolean
   spend: number // paid-only ₺ at this venue
   visits: number
@@ -183,14 +194,27 @@ export async function getRestaurantCustomers(
 
   const rows = (data as RawRow[] | null) ?? []
   const total = rows.length > 0 ? Number(rows[0]!.total_count) : 0
+  const customerIds = rows.map((row) => row.customer_id)
+  const { data: identityRows } = customerIds.length
+    ? await supabase.from('customers').select('id, email, auth_user_id').in('id', customerIds)
+    : { data: [] }
+  const identities = new Map(((identityRows ?? []) as Array<{
+    id: string
+    email: string | null
+    auth_user_id: string | null
+  }>).map((identity) => [identity.id, identity]))
   const customers: RestaurantCustomer[] = rows.map((r) => {
     const lifetime = Number(r.lifetime_points)
     const { tier, tierIndex } = computeTier(lifetime, tiers)
+    const identity = identities.get(r.customer_id)
     return {
       customerId: r.customer_id,
       name: r.name,
       phone: r.has_consent ? (r.phone ?? '—') : maskPhone(r.phone),
       phoneMasked: !r.has_consent,
+      email: r.has_consent ? (identity?.email ?? '—') : maskEmail(identity?.email ?? null),
+      emailMasked: !r.has_consent,
+      authLinked: Boolean(identity?.auth_user_id),
       hasConsent: r.has_consent,
       spend: Number(r.spend),
       visits: Number(r.visits),
@@ -339,6 +363,9 @@ export interface RestaurantCustomerDetail {
   name: string | null
   phone: string
   phoneMasked: boolean
+  email: string
+  emailMasked: boolean
+  authLinked: boolean
   hasConsent: boolean
   joinedAt: string // global platform join
   firstSeenAt: string | null
@@ -373,7 +400,7 @@ export async function getRestaurantCustomerDetail(
   if (!(await hasActivityAtVenue(supabase, restaurantId, customerId))) return null
 
   const [{ data: cust }, consentOpen, balances, { data: summaryRows }, { data: orderRows }, { data: ledgerRows }] = await Promise.all([
-    supabase.from('customers').select('name, phone, created_at').eq('id', customerId).maybeSingle(),
+    supabase.from('customers').select('name, phone, email, auth_user_id, created_at').eq('id', customerId).maybeSingle(),
     getConsentStatus(customerId, restaurantId),
     getMemberBalances(customerId, restaurantId),
     supabase.rpc('get_restaurant_customer_summary', {
@@ -387,7 +414,13 @@ export async function getRestaurantCustomerDetail(
       .eq('restaurant_id', restaurantId).eq('customer_id', customerId)
       .order('created_at', { ascending: false }).limit(50),
   ])
-  const customer = cust as { name: string | null; phone: string | null; created_at: string } | null
+  const customer = cust as {
+    name: string | null
+    phone: string | null
+    email: string | null
+    auth_user_id: string | null
+    created_at: string
+  } | null
   if (!customer) return null
 
   const orders = (orderRows as Array<{ id: string; total: number; status: string; paid_at: string | null; created_at: string }> | null) ?? []
@@ -416,6 +449,9 @@ export async function getRestaurantCustomerDetail(
     name: customer.name,
     phone: consentOpen ? (customer.phone ?? '—') : maskPhone(customer.phone),
     phoneMasked: !consentOpen,
+    email: consentOpen ? (customer.email ?? '—') : maskEmail(customer.email),
+    emailMasked: !consentOpen,
+    authLinked: Boolean(customer.auth_user_id),
     hasConsent: consentOpen,
     joinedAt: customer.created_at,
     firstSeenAt: summary?.first_seen ?? null,

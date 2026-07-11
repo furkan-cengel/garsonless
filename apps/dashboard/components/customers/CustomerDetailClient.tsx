@@ -82,6 +82,7 @@ export default function CustomerDetailClient({
   const tierColor = tier?.color ?? 'var(--text-3)'
   const tierSoft = softForTier(tier?.color)
   const tags = [
+    detail.authLinked ? 'Bağlı hesap' : 'Bağlantısız kayıt',
     detail.hasConsent ? 'İzinli' : 'İzin yok',
     detail.visits >= 3 ? 'Sık gelen' : null,
     (b?.tierIndex ?? 0) >= 2 ? 'VIP' : null,
@@ -126,6 +127,9 @@ export default function CustomerDetailClient({
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, color: detail.phoneMasked ? 'var(--text-3)' : 'var(--text-2)', marginTop: 8, ...S.mono }}>
                   <span style={{ color: 'var(--text-3)', display: 'inline-flex' }}><I.phone size={14} /></span>{detail.phone}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, color: detail.emailMasked ? 'var(--text-3)' : 'var(--text-2)', marginTop: 5, ...S.mono }}>
+                  <span style={{ color: 'var(--text-3)', display: 'inline-flex' }}><I.mail size={14} /></span>{detail.email}
                 </div>
                 <div style={{ display: 'flex', gap: 22, marginTop: 12, fontSize: 12.5, color: 'var(--text-3)', flexWrap: 'wrap' }}>
                   <span>Üye: <b style={{ color: 'var(--text-2)', fontWeight: 650 }}>{fmtDate(detail.joinedAt)}</b></span>
