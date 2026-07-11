@@ -159,7 +159,10 @@ function AuthScreen({ restaurantName, welcomeBonus, busy, error, onEmail, onGoog
   const socialValid = agree
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', animation: 'ml-fade-slide .4s ease both' }}>
+    // minHeight 0 + overflowY auto: the sheet is overflow-hidden and capped at
+    // 92vh — without its own scroll area the footer (Google / skip) is
+    // unreachable on short mobile viewports.
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto', animation: 'ml-fade-slide .4s ease both' }}>
       <div style={{ padding: '8px 22px 0', textAlign: 'center' }}>
         <div style={{ position: 'relative', width: 86, height: 86, margin: '8px auto 0' }}>
           <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid var(--ml-accent)', animation: 'ml-ring-expand 2.4s ease-out infinite' }} />
