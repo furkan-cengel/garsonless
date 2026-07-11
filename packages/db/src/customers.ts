@@ -372,10 +372,14 @@ export async function getRestaurantCustomerDetail(
   const supabase = createServiceClient()
   if (!(await hasActivityAtVenue(supabase, restaurantId, customerId))) return null
 
-  const [{ data: cust }, consentOpen, balances, { data: orderRows }, { data: ledgerRows }] = await Promise.all([
+  const [{ data: cust }, consentOpen, balances, { data: summaryRows }, { data: orderRows }, { data: ledgerRows }] = await Promise.all([
     supabase.from('customers').select('name, phone, created_at').eq('id', customerId).maybeSingle(),
     getConsentStatus(customerId, restaurantId),
     getMemberBalances(customerId, restaurantId),
+    supabase.rpc('get_restaurant_customer_summary', {
+      p_restaurant_id: restaurantId,
+      p_customer_id: customerId,
+    }),
     supabase.from('orders').select('id, total, status, paid_at, created_at')
       .eq('restaurant_id', restaurantId).eq('customer_id', customerId).is('deleted_at', null)
       .order('created_at', { ascending: false }).limit(50),
@@ -388,11 +392,12 @@ export async function getRestaurantCustomerDetail(
 
   const orders = (orderRows as Array<{ id: string; total: number; status: string; paid_at: string | null; created_at: string }> | null) ?? []
   const ledger = (ledgerRows as Array<{ id: string; type: string; delta: number; direction: string; reason: string; created_at: string }> | null) ?? []
-
-  const spend = orders
-    .filter((o) => o.paid_at !== null && o.status !== 'cancelled')
-    .reduce((s, o) => s + Number(o.total), 0)
-  const visits = ledger.filter((l) => l.type === 'visit').reduce((s, l) => s + l.delta, 0)
+  const summary = (summaryRows as Array<{
+    spend: number | string
+    visits: number
+    first_seen: string | null
+    last_seen: string | null
+  }> | null)?.[0]
 
   const timeline: CustomerTimelineEvent[] = [
     ...orders.map((o): CustomerTimelineEvent => ({
@@ -406,10 +411,6 @@ export async function getRestaurantCustomerDetail(
     }),
   ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
 
-  const allAt = [...orders.map((o) => o.created_at), ...ledger.map((l) => l.created_at)]
-  const lastSeenAt = allAt.length ? allAt.reduce((m, t) => (t > m ? t : m)) : null
-  const firstSeenAt = allAt.length ? allAt.reduce((m, t) => (t < m ? t : m)) : null
-
   return {
     customerId,
     name: customer.name,
@@ -417,10 +418,10 @@ export async function getRestaurantCustomerDetail(
     phoneMasked: !consentOpen,
     hasConsent: consentOpen,
     joinedAt: customer.created_at,
-    firstSeenAt,
-    lastSeenAt,
-    spend,
-    visits,
+    firstSeenAt: summary?.first_seen ?? null,
+    lastSeenAt: summary?.last_seen ?? null,
+    spend: Number(summary?.spend ?? 0),
+    visits: Number(summary?.visits ?? 0),
     balances,
     timeline,
   }

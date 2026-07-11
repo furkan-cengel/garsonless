@@ -1361,6 +1361,15 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: boolean
       }
+      get_restaurant_customer_summary: {
+        Args: { p_customer_id: string; p_restaurant_id: string }
+        Returns: {
+          first_seen: string
+          last_seen: string
+          spend: number
+          visits: number
+        }[]
+      }
       get_restaurant_customers: {
         Args: {
           p_custom_segment?: Json
