@@ -38,7 +38,7 @@ const SORTS: { id: string; label: string }[] = [
   { id: 'spend', label: 'En çok harcayan' },
   { id: 'visits', label: 'En çok ziyaret' },
   { id: 'points', label: 'En yüksek puan' },
-  { id: 'joined', label: 'Katılım' },
+  { id: 'joined', label: 'İlk aktivite' },
 ]
 const MONTHS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
 

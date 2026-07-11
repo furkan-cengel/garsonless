@@ -132,7 +132,7 @@ export default function CustomerDetailClient({
                   <span style={{ color: 'var(--text-3)', display: 'inline-flex' }}><I.mail size={14} /></span>{detail.email}
                 </div>
                 <div style={{ display: 'flex', gap: 22, marginTop: 12, fontSize: 12.5, color: 'var(--text-3)', flexWrap: 'wrap' }}>
-                  <span>Üye: <b style={{ color: 'var(--text-2)', fontWeight: 650 }}>{fmtDate(detail.joinedAt)}</b></span>
+                  <span>Müşteri kaydı: <b style={{ color: 'var(--text-2)', fontWeight: 650 }}>{fmtDate(detail.joinedAt)}</b></span>
                   <span>İlk ziyaret: <b style={{ color: 'var(--text-2)', fontWeight: 650 }}>{fmtDate(detail.firstSeenAt)}</b></span>
                   <span>Son görülme: <b style={{ color: 'var(--text-2)', fontWeight: 650 }}>{fmtDate(detail.lastSeenAt)}</b></span>
                 </div>

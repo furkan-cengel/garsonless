@@ -367,7 +367,7 @@ export interface RestaurantCustomerDetail {
   emailMasked: boolean
   authLinked: boolean
   hasConsent: boolean
-  joinedAt: string // global platform join
+  joinedAt: string // global customers-row creation time (not auth-link time)
   firstSeenAt: string | null
   lastSeenAt: string | null
   spend: number
