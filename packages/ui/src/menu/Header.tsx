@@ -135,6 +135,7 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
   const isCompact = layout === 'compact'
   const compact = isCompact
   const rowLayout = isSplit || isCompact
+  const rowBrandAlignment = theme.headerAlign === 'center' ? 'center' : 'flex-start'
   const showHeaderCartIcon = theme.cartHeaderTriggerStyle === 'icon' && Boolean(onOpenCart)
   const showHeaderCartPill = theme.cartHeaderTriggerStyle === 'pill' && Boolean(onOpenCart) && cartCount > 0
   // Missing on legacy saved themes means true: existing tenants keep the bill
@@ -414,7 +415,7 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
       gap: compact ? 0 : 2,
       minWidth: 0,
       width: '100%',
-      alignItems: isSplit ? 'flex-start' : isCompact ? 'flex-start' : 'center',
+      alignItems: rowLayout ? rowBrandAlignment : 'center',
       justifySelf: isSplit ? 'start' : 'center',
     }}>
       <div style={{

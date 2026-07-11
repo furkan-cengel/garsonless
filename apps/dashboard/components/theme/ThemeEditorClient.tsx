@@ -470,6 +470,9 @@ function getFieldEditorTab(field: SettingField, groupId = ''): EditorTab {
     field.id.includes('gap') ||
     field.id.includes('pad') ||
     field.id.includes('sectionGap') ||
+    field.themeField === 'headerPadY' ||
+    field.themeField === 'headerBottomGap' ||
+    field.themeField === 'headerBorder' ||
     field.themeField === 'cardLayout' ||
     field.themeField === 'cardImageAspect' ||
     field.themeField === 'catnavStyle' ||
@@ -762,6 +765,7 @@ export default function ThemeEditorClient({
   const [logoUploading, setLogoUploading] = useState(false)
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus>('preparing')
   const revisionRef = useRef(0)
+  const savedThemeRef = useRef<GarsonlessTheme>(initialTheme)
   const previewRequestRef = useRef(0)
   const pendingPreviewRequestRef = useRef<string | null>(null)
   const previewFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -787,6 +791,17 @@ export default function ThemeEditorClient({
     }) as GarsonlessTheme,
     [mergedTheme, pageBlocks],
   )
+  const unsavedFieldLabels = useMemo(() => {
+    if (!hasUnsavedChanges) return []
+    const baseline = savedThemeRef.current
+    return schema.flatMap((group) => group.fields)
+      .filter((field) => {
+        const key = field.themeField as keyof GarsonlessTheme
+        return JSON.stringify(previewTheme[key]) !== JSON.stringify(baseline[key])
+      })
+      .map((field) => field.label)
+      .filter((label, index, labels) => labels.indexOf(label) === index)
+  }, [hasUnsavedChanges, previewTheme, schema])
   const activeSections = useMemo(
     () => pageBlocks.filter((block) => block.type === 'section').map((block) => block.id),
     [pageBlocks],
@@ -1189,6 +1204,7 @@ export default function ThemeEditorClient({
         setToast('Kaydedildi; son değişiklikler henüz yayınlanmadı')
       } else {
         setHasUnsavedChanges(false)
+        savedThemeRef.current = previewTheme
         setLastSavedAt(new Date())
         setToast('Kaydedildi')
       }
@@ -1315,6 +1331,7 @@ export default function ThemeEditorClient({
     }
 
     if (!activeGroupData) return
+    if (activeGroup === 'header' && !window.confirm('Header ayarları varsayılan değerlerine döndürülsün mü?')) return
     const patch: Partial<GarsonlessTheme> = {}
     for (const field of activeGroupData.fields) {
       ;(patch as Record<string, unknown>)[field.themeField] = entry.THEME_DEFAULTS[field.themeField as keyof GarsonlessTheme]
@@ -1399,6 +1416,26 @@ export default function ThemeEditorClient({
             <span style={{ width: 6, height: 6, borderRadius: 999, background: saveStatusColor }} />
             {saveStatusText}
           </span>
+          {hasUnsavedChanges && (
+            <span
+              title={unsavedFieldLabels.length > 0 ? unsavedFieldLabels.join(', ') : 'Tema yapısı değişti'}
+              style={{
+                height: 24,
+                padding: '0 8px',
+                border: '1px solid var(--border)',
+                borderRadius: 999,
+                background: '#fff7ed',
+                color: '#9a4d00',
+                display: 'inline-flex',
+                alignItems: 'center',
+                fontSize: 11.5,
+                fontWeight: 650,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {unsavedFieldLabels.length || 1} değişiklik
+            </span>
+          )}
           <div style={{
             height: 34,
             display: 'inline-flex',
@@ -1910,7 +1947,7 @@ export default function ThemeEditorClient({
           </div>
           )}
 
-          <div style={{ flex: 1, overflow: 'auto' }}>
+          <div data-theme-properties style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden' }}>
             {selectedSection && selectedSectionId ? (
               <>
                 <PropertySection title="Bölüm İçeriği" defaultOpen>
@@ -1967,7 +2004,16 @@ export default function ThemeEditorClient({
                       onRemove={handleLogoRemove}
                     />
                   )}
-                  {visibleFields.length > 0 ? (
+                  {activeGroup === 'header' && visibleFields.length > 0 ? (
+                    <HeaderPropertyPanel
+                      fields={visibleFields}
+                      getValue={(field) =>
+                        overrides[field.themeField as keyof GarsonlessTheme] ??
+                        entry.THEME_DEFAULTS[field.themeField as keyof GarsonlessTheme]
+                      }
+                      onChange={handleFieldChange}
+                    />
+                  ) : visibleFields.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {visibleFields.map((field) => (
                         <PropertyFieldEditor
@@ -2985,6 +3031,162 @@ function TemplateProductTile({ theme, title, price, tone }: { theme: GarsonlessT
       </div>
     </div>
   )
+}
+
+const HEADER_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
+  { title: 'Görünüm', ids: ['headerLogoStyle', 'headerNameSize', 'headerLogoSize', 'logoShape', 'logoBg', 'logoShadow', 'logoBorder', 'headerStyle'] },
+  { title: 'Yerleşim', ids: ['headerLayout', 'headerAlign', 'stickyHeader', 'headerHeight'] },
+  { title: 'Boşluk ve çizgi', ids: ['headerPadY', 'headerBottomGap', 'headerBorder'] },
+  { title: 'Görünür öğeler', ids: ['headerShowMenu', 'headerTableBadge', 'headerShowBill'] },
+]
+
+function HeaderPropertyPanel({ fields, getValue, onChange }: {
+  fields: SettingField[]
+  getValue: (field: SettingField) => unknown
+  onChange: (field: SettingField, value: unknown) => void
+}) {
+  return (
+    <div data-header-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
+      {HEADER_FIELD_SECTIONS.map((section) => {
+        const sectionFields = section.ids
+          .map((id) => fields.find((field) => field.id === id))
+          .filter((field): field is SettingField => Boolean(field))
+        if (sectionFields.length === 0) return null
+        return (
+          <div key={section.title} style={{
+            padding: 14,
+            minWidth: 0,
+            maxWidth: '100%',
+            boxSizing: 'border-box',
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+            background: 'var(--surface)',
+            boxShadow: '0 1px 2px rgba(20,25,31,.03)',
+          }}>
+            <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750, color: 'var(--text)' }}>
+              {section.title}
+            </div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              {sectionFields.map((field) => (
+                <HeaderPropertyField
+                  key={field.id}
+                  field={field}
+                  value={getValue(field)}
+                  onChange={(value) => onChange(field, value)}
+                />
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function HeaderPropertyField({ field, value, onChange }: {
+  field: SettingField
+  value: unknown
+  onChange: (value: unknown) => void
+}) {
+  const controlId = `theme-field-${sanitizeId(field.id)}`
+  const tiledSelect = field.type === 'select' && ['headerLogoStyle', 'headerStyle', 'headerLayout', 'headerAlign'].includes(field.id)
+  if (tiledSelect) {
+    return (
+      <div>
+        <div style={{ marginBottom: 7, fontSize: 12.5, color: 'var(--text-2)' }}>{field.label}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(field.options?.length ?? 1, 3)}, minmax(0, 1fr))`, gap: 7, minWidth: 0 }}>
+          {field.options?.map((option) => {
+            const active = value === option.value
+            return (
+              <button key={String(option.value)} type="button" onClick={() => onChange(option.value)} style={{
+                minHeight: 54,
+                padding: '7px 5px',
+                minWidth: 0,
+                border: active ? '1.5px solid #111318' : '1px solid var(--border)',
+                borderRadius: 9,
+                background: active ? '#f1f2f3' : '#fff',
+                color: active ? '#111318' : 'var(--text-2)',
+                cursor: 'pointer',
+                fontSize: 11.5,
+                fontWeight: active ? 700 : 550,
+              }}>
+                <span aria-hidden="true" style={{ display: 'flex', justifyContent: 'center', marginBottom: 5, lineHeight: 1 }}>
+                  {headerOptionIcon(field.id, String(option.value))}
+                </span>
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+  if (field.id === 'headerHeight') {
+    const height = Number(value ?? field.default ?? 64)
+    const presets = [{ label: 'Kompakt', value: 56 }, { label: 'Normal', value: 64 }, { label: 'Geniş', value: 80 }]
+    const customHeight = !presets.some((preset) => preset.value === height)
+    return (
+      <div>
+        <div style={{ marginBottom: 7, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 12.5, color: 'var(--text-2)' }}>
+          <span>Header yüksekliği</span>
+          {customHeight && (
+            <span style={{ padding: '2px 6px', borderRadius: 999, background: '#f1f2f3', color: '#111318', fontSize: 10.5, fontWeight: 700 }}>
+              Özel · {height}px
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7, marginBottom: 9 }}>
+          {presets.map((preset) => {
+            const active = height === preset.value
+            return (
+              <button key={preset.value} type="button" onClick={() => onChange(preset.value)} style={{
+                height: 48, borderRadius: 9, cursor: 'pointer',
+                border: active ? '1.5px solid #111318' : '1px solid var(--border)',
+                background: active ? '#f1f2f3' : '#fff',
+                color: active ? '#111318' : 'var(--text-2)', fontSize: 11.5,
+              }}>
+                <strong style={{ display: 'block' }}>{preset.label}</strong>{preset.value}px
+              </button>
+            )
+          })}
+        </div>
+        <PropertyControl field={field} value={height} onChange={onChange} controlId={controlId} />
+      </div>
+    )
+  }
+  if (field.type === 'toggle') {
+    return (
+      <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <label htmlFor={controlId} style={{ minWidth: 0, fontSize: 12.5, color: 'var(--text-2)' }}>{field.label}</label>
+        <PropertyControl field={field} value={value} onChange={onChange} controlId={controlId} />
+      </div>
+    )
+  }
+  return (
+    <div style={{ minWidth: 0 }}>
+      <label htmlFor={controlId} style={{ display: 'block', marginBottom: 7, fontSize: 12.5, color: 'var(--text-2)' }}>
+        {field.label}
+      </label>
+      <PropertyControl field={field} value={value} onChange={onChange} controlId={controlId} />
+    </div>
+  )
+}
+
+function headerOptionIcon(fieldId: string, value: string) {
+  if (fieldId === 'headerStyle') return value === 'blur' ? <I.sparkles size={17} /> : <I.color size={17} />
+  if (fieldId === 'headerAlign') return value === 'center' ? <I.layout size={17} /> : <I.spacing size={17} />
+  if (fieldId === 'headerLayout') {
+    if (value === 'stacked') return <I.header size={17} />
+    if (value === 'center') return <I.layout size={17} />
+    if (value === 'compact') return <I.card size={17} />
+    return <I.spacing size={17} />
+  }
+  if (fieldId === 'headerLogoStyle') {
+    if (value === 'image') return <I.image size={17} />
+    if (value === 'wordmark') return <I.type size={17} />
+    return <I.header size={17} />
+  }
+  return <I.check size={17} />
 }
 
 function PropertySection({ title, children, defaultOpen = true }: {
