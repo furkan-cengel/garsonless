@@ -1,10 +1,99 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { useTheme } from './ThemeContext'
 import { AnnouncementBar } from './AnnouncementBar'
 import { formatTRY } from './formatCurrency'
+
+const HEADER_RESPONSIVE_CSS = `
+  [data-component="header"] [data-header-more] {
+    display: none;
+    position: relative;
+    flex-shrink: 0;
+  }
+  [data-component="header"] [data-header-more] > summary {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: var(--p-accent-soft);
+    color: var(--p-accent);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    list-style: none;
+  }
+  [data-component="header"] [data-header-more] > summary::-webkit-details-marker {
+    display: none;
+  }
+  [data-component="header"] [data-header-more] > summary:focus-visible {
+    outline: 2px solid var(--p-accent);
+    outline-offset: 2px;
+  }
+  [data-component="header"] [data-header-more-popover] {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 176px;
+    padding: 6px;
+    border: 1px solid var(--p-border, rgba(0,0,0,.08));
+    border-radius: 12px;
+    background: var(--p-bg, #fff);
+    box-shadow: 0 14px 36px rgba(20,25,31,.16);
+  }
+  [data-component="header"] [data-header-more-popover] > button,
+  [data-component="header"] [data-header-more-popover] > div {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--p-text, #1c1d20);
+    font: 600 13px var(--p-body);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    white-space: nowrap;
+  }
+  [data-component="header"] [data-header-more-popover] > button {
+    cursor: pointer;
+  }
+  [data-component="header"] [data-header-more-popover] > button:hover,
+  [data-component="header"] [data-header-more-popover] > button:focus-visible {
+    background: var(--p-accent-soft);
+    outline: none;
+  }
+  [data-component="header"] [data-header-more-popover] span {
+    color: var(--p-text-2);
+    font-weight: 500;
+  }
+  [data-component="header"] [data-header-more-popover] [data-overflow-priority="secondary"] {
+    display: none;
+  }
+  @container menu-header (max-width: 560px) {
+    [data-component="header"] [data-action-priority="tertiary"] {
+      display: none;
+    }
+    [data-component="header"] [data-header-more][data-has-tertiary="true"] {
+      display: block;
+    }
+  }
+  @container menu-header (max-width: 420px) {
+    [data-component="header"] [data-action-priority="secondary"] {
+      display: none;
+    }
+    [data-component="header"] [data-header-more][data-has-secondary="true"] {
+      display: block;
+    }
+    [data-component="header"] [data-header-more-popover] [data-overflow-priority="secondary"] {
+      display: flex;
+    }
+  }
+`
 
 interface HeaderProps {
   tableId?: string | null
@@ -32,6 +121,7 @@ interface HeaderProps {
 export function Header({ tableId, tableName, categories, cartSummary, onOpenCart, billSummary, onOpenBill, memberSummary, onOpenMember }: HeaderProps) {
   const { theme, restaurantName, logoUrl } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
+  const moreMenuRef = useRef<HTMLDetailsElement>(null)
   const cartCount = cartSummary?.count ?? 0
   const cartSubtotal = cartSummary?.subtotal ?? 0
   const layout = theme.headerLayout ?? (theme.headerAlign === 'center' ? 'center' : 'split')
@@ -48,15 +138,12 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
   // (utility tier); center/stacked keep their original placements.
   const actionsHoldBill = rowLayout && hasBillChip
   const actionsHoldMenu = isSplit && theme.headerShowMenu
-  const visibleActionCount = [
-    showHeaderCartIcon,
-    showHeaderCartPill,
-    theme.headerShowLang,
-    Boolean(memberSummary && onOpenMember),
-    actionsHoldBill,
-    actionsHoldMenu,
-  ].filter(Boolean).length
-  const crowdedHeader = rowLayout && (visibleActionCount >= 5 || (showHeaderCartPill && visibleActionCount >= 4))
+  const hasMemberAction = Boolean(memberSummary && onOpenMember)
+  const hasSecondaryAction = actionsHoldBill || hasMemberAction
+  const hasOverflowAction = hasSecondaryAction || theme.headerShowLang
+  const closeMoreMenu = () => {
+    if (moreMenuRef.current) moreMenuRef.current.open = false
+  }
   // Never render a raw UUID — use the human label, else a short id form.
   const tableLabel = tableName
     ? `${tableName} · Açık`
@@ -118,61 +205,62 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
       Hesap · {formatTRY(billSummary!.total)}
     </button>
   ) : null
+  const memberChip = memberSummary && onOpenMember ? (() => {
+    // Logged-in members (real balances present) get a compact progress chip;
+    // otherwise the chip is the "Üye ol" entry point.
+    const isMember = memberSummary.stampEnabled !== undefined || memberSummary.pointsEnabled !== undefined
+    const showStamp = memberSummary.stampEnabled && typeof memberSummary.stamps === 'number'
+    const showPoints = memberSummary.pointsEnabled && typeof memberSummary.points === 'number'
+    const label = !isMember
+      ? 'Üye ol'
+      : showStamp
+        ? `☕ ${memberSummary.stamps}/${memberSummary.stampGoal ?? 0}`
+        : showPoints
+          ? `⭐ ${memberSummary.points}`
+          : (memberSummary.name || 'Üyelik')
+    return (
+      <button
+        type="button"
+        onClick={onOpenMember}
+        aria-label={isMember ? 'Üyelik' : 'Üye ol'}
+        style={{
+          height: 30, padding: '0 11px', borderRadius: 999,
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit',
+          background: 'var(--p-accent-soft)', color: 'var(--p-accent)',
+          border: 'none', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+        }}
+      >
+        {!isMember && <MemberIcon />}
+        {isMember && memberSummary.tierColor && (
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: memberSummary.tierColor, flexShrink: 0 }} />
+        )}
+        {label}
+      </button>
+    )
+  })() : null
+  const languageBadge = theme.headerShowLang ? (
+    <span style={{
+      height: 30, padding: '0 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 600,
+      background: 'var(--p-accent-soft)', color: 'var(--p-accent)',
+      display: 'inline-flex', alignItems: 'center',
+      flexShrink: 0,
+    }}>TR</span>
+  ) : null
   const headerActions = (
-    <div style={{
+    <div data-header-actions style={{
       display: 'flex',
       gap: 8,
-      rowGap: 6,
       alignItems: 'center',
       justifyContent: isStacked ? 'center' : 'flex-end',
-      flexWrap: 'wrap',
+      flexWrap: 'nowrap',
       minWidth: 0,
-      maxWidth: isStacked ? '100%' : (crowdedHeader ? 216 : 224),
+      maxWidth: '100%',
       justifySelf: isCenter ? 'end' : isStacked ? 'center' : rowLayout ? 'end' : 'center',
     }}>
-      {actionsHoldBill && billChip}
-      {memberSummary && onOpenMember && (() => {
-        // Logged-in members (real balances present) get a compact progress chip;
-        // otherwise the chip is the "Üye ol" entry point.
-        const isMember = memberSummary.stampEnabled !== undefined || memberSummary.pointsEnabled !== undefined
-        const showStamp = memberSummary.stampEnabled && typeof memberSummary.stamps === 'number'
-        const showPoints = memberSummary.pointsEnabled && typeof memberSummary.points === 'number'
-        const label = !isMember
-          ? 'Üye ol'
-          : showStamp
-            ? `☕ ${memberSummary.stamps}/${memberSummary.stampGoal ?? 0}`
-            : showPoints
-              ? `⭐ ${memberSummary.points}`
-              : (memberSummary.name || 'Üyelik')
-        return (
-          <button
-            type="button"
-            onClick={onOpenMember}
-            aria-label={isMember ? 'Üyelik' : 'Üye ol'}
-            style={{
-              height: 30, padding: '0 11px', borderRadius: 999,
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit',
-              background: 'var(--p-accent-soft)', color: 'var(--p-accent)',
-              border: 'none', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
-            }}
-          >
-            {!isMember && <MemberIcon />}
-            {isMember && memberSummary.tierColor && (
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: memberSummary.tierColor, flexShrink: 0 }} />
-            )}
-            {label}
-          </button>
-        )
-      })()}
-      {theme.headerShowLang && (
-        <div style={{
-          height: 30, padding: '0 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 600,
-          background: 'var(--p-accent-soft)', color: 'var(--p-accent)',
-          display: 'inline-flex', alignItems: 'center',
-          flexShrink: 0,
-        }}>TR</div>
-      )}
+      {actionsHoldBill && <span data-action-priority="secondary">{billChip}</span>}
+      {memberChip && <span data-action-priority="secondary">{memberChip}</span>}
+      {languageBadge && <span data-action-priority="tertiary">{languageBadge}</span>}
       {showHeaderCartIcon && (
         <button
           type="button"
@@ -219,7 +307,7 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
             cursor: 'pointer',
             boxShadow: '0 10px 24px rgba(46,125,82,.22)',
             flexShrink: 1,
-            maxWidth: crowdedHeader ? 116 : 138,
+            maxWidth: 138,
             minWidth: 72,
             overflow: 'hidden',
           }}
@@ -247,6 +335,35 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
         </button>
       )}
       {actionsHoldMenu && menuButton}
+      {hasOverflowAction && (
+        <details
+          ref={moreMenuRef}
+          data-header-more
+          data-has-secondary={hasSecondaryAction ? 'true' : 'false'}
+          data-has-tertiary={theme.headerShowLang ? 'true' : 'false'}
+        >
+          <summary aria-label="Daha fazla" title="Daha fazla">
+            <MoreIcon />
+          </summary>
+          <div role="menu" aria-label="Diğer header işlemleri" data-header-more-popover>
+            {actionsHoldBill && (
+              <button data-overflow-priority="secondary" type="button" role="menuitem" onClick={() => { closeMoreMenu(); onOpenBill?.() }}>
+                Hesap <span>{formatTRY(billSummary!.total)}</span>
+              </button>
+            )}
+            {memberChip && (
+              <button data-overflow-priority="secondary" type="button" role="menuitem" onClick={() => { closeMoreMenu(); onOpenMember?.() }}>
+                Üyelik
+              </button>
+            )}
+            {languageBadge && (
+              <div data-overflow-priority="tertiary" role="menuitem" aria-label="Dil: Türkçe">
+                Dil <span>Türkçe</span>
+              </div>
+            )}
+          </div>
+        </details>
+      )}
     </div>
   )
   const inlineBillChip = actionsHoldBill ? null : billChip
@@ -288,8 +405,8 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
           restaurantName={restaurantName}
           logoUrl={logoUrl}
           compact={compact}
-          crowded={crowdedHeader}
           centered
+          maxLines={isCenter || isStacked ? 2 : 1}
         />
       </div>
       {tableBadge}
@@ -321,6 +438,7 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
       <AnnouncementBar />
       <header
         data-component="header"
+        data-header-layout={layout}
         style={{
           background: theme.headerStyle === 'blur' ? 'rgba(255,255,255,.8)' : theme.headerBg,
           backdropFilter: theme.headerStyle === 'blur' ? 'blur(10px)' : 'none',
@@ -344,7 +462,9 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
           columnGap: (isSplit || isCompact) ? 10 : isCenter ? 8 : 0,
           rowGap: isStacked ? 10 : isCenter ? 0 : 6,
           borderBottom: theme.headerBorder ? '1px solid var(--p-border, rgba(0,0,0,0.08))' : 'none',
-          overflow: 'hidden',
+          overflow: 'visible',
+          containerType: 'inline-size',
+          containerName: 'menu-header',
         }}
       >
         {isCenter && menuButton}
@@ -352,6 +472,8 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
         {headerActions}
         {isStacked && theme.headerShowMenu && menuButton}
       </header>
+
+      <style>{HEADER_RESPONSIVE_CSS}</style>
 
       {theme.headerShowMenu && (
         <NavDrawer
@@ -464,18 +586,18 @@ function NavDrawer({ open, onClose, restaurantName, categories }: {
   )
 }
 
-function Logo({ theme, restaurantName, logoUrl, compact = false, crowded = false, centered = false }: {
+function Logo({ theme, restaurantName, logoUrl, compact = false, crowded = false, centered = false, maxLines = 2 }: {
   theme: GarsonlessTheme
   restaurantName: string
   logoUrl: string | null
   compact?: boolean
   crowded?: boolean
   centered?: boolean
+  maxLines?: 1 | 2
 }) {
   const logoSize = theme.headerLogoSize ?? 40
   const textSize = compact ? Math.min(theme.headerNameSize, 30) : theme.headerNameSize
   const textMaxWidth = centered ? 260 : crowded ? 136 : compact ? 158 : 230
-  const lineClamp = compact ? 1 : 2
   const clampTextStyle: React.CSSProperties = {
     maxWidth: textMaxWidth,
     minWidth: 0,
@@ -483,9 +605,10 @@ function Logo({ theme, restaurantName, logoUrl, compact = false, crowded = false
     textOverflow: 'ellipsis',
     wordBreak: 'normal',
     overflowWrap: 'normal',
-    display: '-webkit-box',
-    WebkitBoxOrient: 'vertical',
-    WebkitLineClamp: lineClamp,
+    display: maxLines === 1 ? 'block' : '-webkit-box',
+    whiteSpace: maxLines === 1 ? 'nowrap' : undefined,
+    WebkitBoxOrient: maxLines === 1 ? undefined : 'vertical',
+    WebkitLineClamp: maxLines === 1 ? undefined : maxLines,
   }
 
   if (theme.headerLogoStyle === 'image') {
@@ -526,7 +649,7 @@ function Logo({ theme, restaurantName, logoUrl, compact = false, crowded = false
       )
     }
     return (
-      <div style={{
+      <div title={restaurantName} aria-label={restaurantName} style={{
         ...containerStyle,
         width: logoSize, height: logoSize,
         background: hasBg ? bgColor : 'var(--p-accent)',
@@ -548,7 +671,7 @@ function Logo({ theme, restaurantName, logoUrl, compact = false, crowded = false
     )
   }
   return (
-    <div style={{
+    <div title={restaurantName} aria-label={restaurantName} style={{
       fontFamily: 'var(--p-display)',
       fontSize: textSize + 'px',
       fontWeight: 700,
@@ -618,6 +741,16 @@ function HamburgerIcon() {
       <line x1="4" y1="7" x2="20" y2="7" />
       <line x1="4" y1="12" x2="20" y2="12" />
       <line x1="4" y1="17" x2="20" y2="17" />
+    </svg>
+  )
+}
+
+function MoreIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="5" cy="12" r="1.7" />
+      <circle cx="12" cy="12" r="1.7" />
+      <circle cx="19" cy="12" r="1.7" />
     </svg>
   )
 }
