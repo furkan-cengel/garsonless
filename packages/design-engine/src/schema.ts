@@ -32,6 +32,7 @@ export interface GarsonlessTheme {
   headerShowSearch: boolean
   headerShowLang: boolean
   headerTableBadge: boolean
+  headerShowBill: boolean
   headerStyle: 'solid' | 'blur'
   catnavStyle: 'pills' | 'visual' | 'underline' | 'segmented' | 'dots' | 'outlined'
   catnavVisualStyle?: 'compact' | 'overlay' | 'poster'
@@ -120,6 +121,7 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   headerShowSearch: true,
   headerShowLang: false,
   headerTableBadge: true,
+  headerShowBill: true,
   headerStyle: 'solid',
   catnavStyle: 'pills',
   catnavVisualStyle: 'compact',

@@ -133,7 +133,10 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
   const rowLayout = isSplit || isCompact
   const showHeaderCartIcon = theme.cartHeaderTriggerStyle === 'icon' && Boolean(onOpenCart)
   const showHeaderCartPill = theme.cartHeaderTriggerStyle === 'pill' && Boolean(onOpenCart) && cartCount > 0
-  const hasBillChip = Boolean(billSummary && billSummary.count > 0 && onOpenBill)
+  // Missing on legacy saved themes means true: existing tenants keep the bill
+  // chip until they explicitly turn the new independent control off.
+  const showBill = theme.headerShowBill ?? true
+  const hasBillChip = Boolean(showBill && billSummary && billSummary.count > 0 && onOpenBill)
   // Row layouts host the bill chip + hamburger inside the right action cluster
   // (utility tier); center/stacked keep their original placements.
   const actionsHoldBill = rowLayout && hasBillChip

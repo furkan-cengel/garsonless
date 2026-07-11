@@ -9,11 +9,12 @@ const ANNOUNCEMENT_DEFAULTS: Pick<GarsonlessTheme, 'announcementEnabled' | 'anno
   announcementSpeed: 3,
 }
 
-const HEADER_DEFAULTS: Pick<GarsonlessTheme, 'headerHeight' | 'headerBg' | 'headerBorder' | 'headerShowMenu' | 'headerNameSize' | 'headerLogoSize' | 'headerLayout'> = {
+const HEADER_DEFAULTS: Pick<GarsonlessTheme, 'headerHeight' | 'headerBg' | 'headerBorder' | 'headerShowMenu' | 'headerShowBill' | 'headerNameSize' | 'headerLogoSize' | 'headerLayout'> = {
   headerHeight: 64,
   headerBg: '#ffffff',
   headerBorder: false,
   headerShowMenu: true,
+  headerShowBill: true,
   headerNameSize: 28,
   headerLogoSize: 40,
   headerLayout: 'split',

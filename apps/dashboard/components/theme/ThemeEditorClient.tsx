@@ -497,7 +497,8 @@ function getFieldEditorTab(field: SettingField, groupId = ''): EditorTab {
     field.themeField === 'headerShowSearch' ||
     field.themeField === 'headerShowLang' ||
     field.themeField === 'headerShowMenu' ||
-    field.themeField === 'headerTableBadge'
+    field.themeField === 'headerTableBadge' ||
+    field.themeField === 'headerShowBill'
   ) {
     return 'content'
   }
