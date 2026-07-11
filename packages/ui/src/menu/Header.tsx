@@ -52,7 +52,6 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
     showHeaderCartIcon,
     showHeaderCartPill,
     theme.headerShowLang,
-    theme.headerShowSearch,
     Boolean(memberSummary && onOpenMember),
     actionsHoldBill,
     actionsHoldMenu,
@@ -173,17 +172,6 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
           display: 'inline-flex', alignItems: 'center',
           flexShrink: 0,
         }}>TR</div>
-      )}
-      {theme.headerShowSearch && (
-        <button type="button" aria-label="Ara" style={{
-          width: 34, height: 34, borderRadius: 999,
-          background: 'var(--p-accent-soft)', color: 'var(--p-accent)',
-          border: 'none', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-        }}>
-          <SearchIcon />
-        </button>
       )}
       {showHeaderCartIcon && (
         <button
@@ -638,15 +626,6 @@ function CloseIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
       <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
-}
-
-function SearchIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" width={18} height={18}>
-      <circle cx="11" cy="11" r="6" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="m20 20-3.5-3.5" />
     </svg>
   )
 }

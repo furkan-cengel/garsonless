@@ -322,7 +322,6 @@ export const SETTINGS_SCHEMA: SettingsGroup[] = [
       },
       { id: 'stickyHeader', label: 'Sabit', type: 'toggle', themeField: 'stickyHeader', default: THEME_DEFAULTS.stickyHeader },
       { id: 'headerBorder', label: 'Alt Çizgi', type: 'toggle', themeField: 'headerBorder', default: THEME_DEFAULTS.headerBorder },
-      { id: 'headerShowSearch', label: 'Arama Butonu', type: 'toggle', themeField: 'headerShowSearch', default: THEME_DEFAULTS.headerShowSearch },
       { id: 'headerShowMenu', label: 'Menü Butonu', type: 'toggle', themeField: 'headerShowMenu', default: THEME_DEFAULTS.headerShowMenu },
       { id: 'headerShowLang', label: 'Dil Rozeti', type: 'toggle', themeField: 'headerShowLang', default: THEME_DEFAULTS.headerShowLang },
       { id: 'headerTableBadge', label: 'Masa Rozeti', type: 'toggle', themeField: 'headerTableBadge', default: THEME_DEFAULTS.headerTableBadge },
