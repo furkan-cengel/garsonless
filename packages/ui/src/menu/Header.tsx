@@ -43,13 +43,21 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
   const rowLayout = isSplit || isCompact
   const showHeaderCartIcon = theme.cartHeaderTriggerStyle === 'icon' && Boolean(onOpenCart)
   const showHeaderCartPill = theme.cartHeaderTriggerStyle === 'pill' && Boolean(onOpenCart) && cartCount > 0
+  const hasBillChip = Boolean(billSummary && billSummary.count > 0 && onOpenBill)
+  // Row layouts host the bill chip + hamburger inside the right action cluster
+  // (utility tier); center/stacked keep their original placements.
+  const actionsHoldBill = rowLayout && hasBillChip
+  const actionsHoldMenu = isSplit && theme.headerShowMenu
   const visibleActionCount = [
     showHeaderCartIcon,
     showHeaderCartPill,
     theme.headerShowLang,
     theme.headerShowSearch,
+    Boolean(memberSummary && onOpenMember),
+    actionsHoldBill,
+    actionsHoldMenu,
   ].filter(Boolean).length
-  const crowdedHeader = rowLayout && (visibleActionCount >= 4 || (showHeaderCartPill && visibleActionCount >= 3))
+  const crowdedHeader = rowLayout && (visibleActionCount >= 5 || (showHeaderCartPill && visibleActionCount >= 4))
   // Never render a raw UUID — use the human label, else a short id form.
   const tableLabel = tableName
     ? `${tableName} · Açık`
@@ -83,18 +91,47 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
       <HamburgerIcon />
     </button>
   ) : <span aria-hidden="true" />
+  const billChip = hasBillChip ? (
+    <button
+      type="button"
+      onClick={onOpenBill}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        height: actionsHoldBill ? 30 : 'auto',
+        fontSize: actionsHoldBill ? 11.5 : compact ? 10 : 11,
+        fontWeight: 700,
+        color: 'var(--p-accent)',
+        // Outlined (vs the filled member chip) so the two money/membership
+        // chips read as distinct controls even when adjacent.
+        background: actionsHoldBill ? 'transparent' : 'var(--p-accent-soft)',
+        border: actionsHoldBill ? '1px solid color-mix(in srgb, var(--p-accent) 35%, transparent)' : 'none',
+        padding: actionsHoldBill ? '0 11px' : '2px 9px',
+        borderRadius: 999,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+        fontFamily: 'inherit',
+        flexShrink: 0,
+        marginRight: actionsHoldBill ? 6 : 0,
+      }}
+    >
+      Hesap · {formatTRY(billSummary!.total)}
+    </button>
+  ) : null
   const headerActions = (
     <div style={{
       display: 'flex',
-      gap: 6,
+      gap: 8,
       rowGap: 6,
       alignItems: 'center',
       justifyContent: isStacked ? 'center' : 'flex-end',
       flexWrap: 'wrap',
       minWidth: 0,
-      maxWidth: isStacked ? '100%' : (crowdedHeader ? 152 : 198),
+      maxWidth: isStacked ? '100%' : (crowdedHeader ? 216 : 224),
       justifySelf: isCenter ? 'end' : isStacked ? 'center' : rowLayout ? 'end' : 'center',
     }}>
+      {actionsHoldBill && billChip}
       {memberSummary && onOpenMember && (() => {
         // Logged-in members (real balances present) get a compact progress chip;
         // otherwise the chip is the "Üye ol" entry point.
@@ -221,32 +258,10 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
           </span>
         </button>
       )}
+      {actionsHoldMenu && menuButton}
     </div>
   )
-  const billChip = billSummary && billSummary.count > 0 && onOpenBill ? (
-    <button
-      type="button"
-      onClick={onOpenBill}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        fontSize: compact ? 10 : 11,
-        fontWeight: 700,
-        color: 'var(--p-accent)',
-        background: 'var(--p-accent-soft)',
-        border: 'none',
-        padding: '2px 9px',
-        borderRadius: 999,
-        cursor: 'pointer',
-        whiteSpace: 'nowrap',
-        fontFamily: 'inherit',
-        flexShrink: 0,
-      }}
-    >
-      Hesap · {formatTRY(billSummary.total)}
-    </button>
-  ) : null
+  const inlineBillChip = actionsHoldBill ? null : billChip
   const tableBadge = theme.headerTableBadge ? (
     <div style={{
       fontSize: compact ? 10.5 : 11.5,
@@ -259,9 +274,9 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
     }}>
       <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--p-cta)', flexShrink: 0 }} />
       {tableLabel}
-      {billChip}
+      {inlineBillChip}
     </div>
-  ) : billChip
+  ) : inlineBillChip
   const brandBlock = (
     <div style={{
       display: 'flex',
@@ -327,8 +342,10 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
           padding: `${theme.headerPadY ?? 8}px 16px`,
           marginBottom: theme.headerBottomGap ?? 0,
           display: 'grid',
+          // split: the hamburger lives in the right action cluster (utility
+          // tier) so the restaurant name owns the leading edge.
           gridTemplateColumns: isSplit
-            ? '40px minmax(0,1fr) auto'
+            ? 'minmax(0,1fr) auto'
             : isCenter
               ? '40px 1fr 40px'
               : isCompact
@@ -342,7 +359,7 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
           overflow: 'hidden',
         }}
       >
-        {(isSplit || isCenter) && menuButton}
+        {isCenter && menuButton}
         {brandBlock}
         {headerActions}
         {isStacked && theme.headerShowMenu && menuButton}
