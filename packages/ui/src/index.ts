@@ -29,6 +29,7 @@ export {
   ProductModal,
   DietaryFilterBar,
   itemMatchesDietaryFilters,
+  ML_STAMP_POP_KEYFRAME,
 } from './menu/index'
 export type { DietaryFilter } from './menu/index'
 

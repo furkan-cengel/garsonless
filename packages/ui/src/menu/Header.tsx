@@ -1,12 +1,14 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { useTheme } from './ThemeContext'
 import { AnnouncementBar } from './AnnouncementBar'
 import { formatTRY } from './formatCurrency'
+import { ML_STAMP_POP_KEYFRAME } from './keyframes'
 
 const HEADER_RESPONSIVE_CSS = `
+${ML_STAMP_POP_KEYFRAME}
   [data-component="header"] [data-header-more] {
     display: none;
     position: relative;
@@ -212,18 +214,29 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
   ) : null
   // Logged-in members (real balances present) get a compact progress chip;
   // otherwise the chip is the "Üye ol" entry point. Welcome-bonus teaser only
-  // when a real bonus exists — never advertise 0.
+  // when a real bonus exists — never advertise 0. Stamp ring only with a real
+  // goal (> 0); a goal-less stamp program falls back to the points display.
   const memberIsMember = Boolean(memberSummary && (memberSummary.stampEnabled !== undefined || memberSummary.pointsEnabled !== undefined))
   const memberWelcomeBonus = memberSummary?.welcomeBonus ?? 0
   const memberJoinLabel = memberWelcomeBonus > 0 ? `Üye ol · +${memberWelcomeBonus}` : 'Üye ol'
+  const memberStamps = typeof memberSummary?.stamps === 'number' ? memberSummary.stamps : null
+  const memberStampGoal = memberSummary?.stampGoal ?? 0
+  const memberShowStamp = Boolean(memberIsMember && memberSummary?.stampEnabled && memberStamps !== null && memberStampGoal > 0)
+  // One-shot pop when the stamp count INCREASES (never on initial mount).
+  const prevStampsRef = useRef<number | null>(memberStamps)
+  const [stampPop, setStampPop] = useState(0)
+  useEffect(() => {
+    const prev = prevStampsRef.current
+    prevStampsRef.current = memberStamps
+    if (memberStamps !== null && prev !== null && memberStamps > prev) setStampPop((t) => t + 1)
+  }, [memberStamps])
   const memberChip = memberSummary && onOpenMember ? (() => {
     const isMember = memberIsMember
-    const showStamp = memberSummary.stampEnabled && typeof memberSummary.stamps === 'number'
     const showPoints = memberSummary.pointsEnabled && typeof memberSummary.points === 'number'
     const label = !isMember
       ? memberJoinLabel
-      : showStamp
-        ? `☕ ${memberSummary.stamps}/${memberSummary.stampGoal ?? 0}`
+      : memberShowStamp
+        ? `${memberStamps}/${memberStampGoal}`
         : showPoints
           ? `⭐ ${memberSummary.points}`
           : (memberSummary.name || 'Üyelik')
@@ -241,6 +254,7 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
         }}
       >
         {!isMember && <MemberIcon />}
+        {memberShowStamp && <StampRing stamps={memberStamps!} goal={memberStampGoal} pop={stampPop} />}
         {isMember && memberSummary.tierColor && (
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: memberSummary.tierColor, flexShrink: 0 }} />
         )}
@@ -364,6 +378,7 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
               <button data-overflow-priority="secondary" type="button" role="menuitem" onClick={() => { closeMoreMenu(); onOpenMember?.() }}>
                 {memberIsMember ? 'Üyelik' : 'Üye ol'}
                 {!memberIsMember && memberWelcomeBonus > 0 && <span>+{memberWelcomeBonus} puan</span>}
+                {memberShowStamp && <span>☕ {memberStamps}/{memberStampGoal}</span>}
               </button>
             )}
             {languageBadge && (
@@ -769,6 +784,31 @@ function CloseIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
       <path d="m6 6 12 12M18 6 6 18" />
+    </svg>
+  )
+}
+
+/** 22px stamp-progress ring. Purely decorative (aria-hidden) — the chip text
+ * carries the real count. Arc rotation lives on the circle (SVG attribute) so
+ * the pop animation's transform on the svg can't knock the start point off. */
+function StampRing({ stamps, goal, pop }: { stamps: number; goal: number; pop: number }) {
+  const R = 8.5
+  const C = 2 * Math.PI * R
+  const frac = Math.max(0, Math.min(1, stamps / goal))
+  return (
+    <svg
+      key={pop}
+      width="22"
+      height="22"
+      viewBox="0 0 22 22"
+      aria-hidden="true"
+      style={{ flexShrink: 0, ...(pop > 0 ? { animation: 'ml-stamp-pop .5s cubic-bezier(.2,.9,.3,1.3) both' } : {}) }}
+    >
+      <circle cx="11" cy="11" r={R} fill="none" stroke="color-mix(in srgb, currentColor 25%, transparent)" strokeWidth="2.5" />
+      <circle
+        cx="11" cy="11" r={R} fill="none" stroke="currentColor" strokeWidth="2.5"
+        strokeLinecap="round" strokeDasharray={`${C * frac} ${C}`} transform="rotate(-90 11 11)"
+      />
     </svg>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { MemberBalances, LoyaltyActivity } from '@garsonless/db'
+import { ML_STAMP_POP_KEYFRAME } from '@garsonless/ui'
 import { createMenuAuthBrowserClient } from '../../../lib/supabase-browser'
 
 // ── Rich member home (Sprint 15b). Three screens — Join → OTP → MemberHome —
@@ -55,7 +56,7 @@ const ROOT_VARS = {
 const KEYFRAMES = `
 @keyframes ml-pulse-dot {0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--ml-accent) 40%, transparent)}50%{box-shadow:0 0 0 6px color-mix(in srgb, var(--ml-accent) 0%, transparent)}}
 @keyframes ml-fade-slide {from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-@keyframes ml-stamp-pop {0%{transform:scale(0) rotate(-25deg);opacity:0}60%{transform:scale(1.2) rotate(6deg)}100%{transform:scale(1) rotate(-8deg);opacity:1}}
+${ML_STAMP_POP_KEYFRAME}
 @keyframes ml-shimmer {from{background-position:-160% 0}to{background-position:260% 0}}
 @keyframes ml-count-up {from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 @keyframes ml-sheet-up {from{transform:translateY(100%)}to{transform:translateY(0)}}
