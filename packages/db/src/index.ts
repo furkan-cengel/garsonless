@@ -45,7 +45,7 @@ export type {
   OrderCustomerTierSnapshot, LoyaltyRefundResult,
 } from './loyalty'
 export {
-  getRestaurantCustomers, getRestaurantCustomerDetail, grantStoreCredit,
+  getRestaurantCustomers, getRestaurantCustomerSegmentCounts, getRestaurantCustomerDetail, grantStoreCredit,
   recordConsent, getConsentStatus, maskPhone,
   listCustomerSegments, getCustomerSegment, createCustomerSegment,
   updateCustomerSegment, deleteCustomerSegment,
@@ -53,7 +53,7 @@ export {
 } from './customers'
 export type {
   RestaurantCustomer, RestaurantCustomersPage, RestaurantCustomerDetail,
-  CustomerTimelineEvent, CustomerSort, CustomerSegment,
+  CustomerTimelineEvent, CustomerSort, CustomerSegment, CustomerSegmentCounts,
   CustomerSegmentDefinition, CustomerSegmentRule, CustomerSegmentOperator,
   CustomerSegmentConsent, CustomerConsentType, SavedCustomerSegment,
 } from './customers'

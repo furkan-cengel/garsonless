@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { getRestaurantById } from '../../../../lib/queries'
 import { getUserRestaurantAccess, firstPermittedPath } from '../../../../lib/auth/access'
-import { getRestaurantCustomers, listCampaigns, listCustomerSegments } from '@garsonless/db'
+import { getRestaurantCustomers, getRestaurantCustomerSegmentCounts, listCampaigns, listCustomerSegments } from '@garsonless/db'
 import CustomersClient from '../../../../components/customers/CustomersClient'
 
 interface Props {
@@ -21,8 +21,9 @@ export default async function CustomersPage({ params }: Props) {
   const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
 
-  const [initial, initialSegments, initialCampaigns] = await Promise.all([
+  const [initial, initialSegmentCounts, initialSegments, initialCampaigns] = await Promise.all([
     getRestaurantCustomers(restaurantId, { sort: 'last_seen', page: 1, pageSize: 25 }),
+    getRestaurantCustomerSegmentCounts(restaurantId),
     listCustomerSegments(restaurantId),
     listCampaigns(restaurantId),
   ])
@@ -32,6 +33,7 @@ export default async function CustomersPage({ params }: Props) {
       restaurantId={restaurantId}
       restaurantName={restaurant.name}
       initial={initial}
+      initialSegmentCounts={{ all: initial.total, ...initialSegmentCounts }}
       initialSegments={initialSegments}
       initialCampaigns={initialCampaigns}
     />

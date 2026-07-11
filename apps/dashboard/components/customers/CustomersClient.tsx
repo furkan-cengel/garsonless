@@ -9,6 +9,7 @@ import type {
   CustomerSegmentDefinition,
   RestaurantCustomer,
   RestaurantCustomersPage,
+  CustomerSegmentCounts,
   SavedCustomerSegment,
 } from '@garsonless/db'
 import {
@@ -92,12 +93,14 @@ export default function CustomersClient({
   restaurantId,
   restaurantName,
   initial,
+  initialSegmentCounts,
   initialSegments,
   initialCampaigns,
 }: {
   restaurantId: string
   restaurantName: string
   initial: RestaurantCustomersPage
+  initialSegmentCounts: CustomerSegmentCounts & { all: number }
   initialSegments: SavedCustomerSegment[]
   initialCampaigns: CampaignSummary[]
 }) {
@@ -141,20 +144,11 @@ export default function CustomersClient({
   const consentedVisible = data.customers.filter((c) => c.hasConsent).length
 
   function countForBuiltIn(id: string): number {
-    if (id === '') return data.total
-    return data.customers.filter((c) => {
-      if (id === 'new') {
-        const d = daysSince(c.firstSeen)
-        return d !== null && d <= 30
-      }
-      if (id === 'frequent') return c.visits >= 3
-      if (id === 'lapsed') {
-        const d = daysSince(c.lastSeen)
-        return d !== null && d >= 60
-      }
-      if (id === 'consented') return c.hasConsent
-      return false
-    }).length
+    if (id === '') return initialSegmentCounts.all
+    if (id === 'new' || id === 'frequent' || id === 'lapsed' || id === 'consented') {
+      return initialSegmentCounts[id]
+    }
+    return 0
   }
 
   function applyBuiltInSegment(id: string) {

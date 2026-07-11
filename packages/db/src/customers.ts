@@ -55,6 +55,7 @@ export interface RestaurantCustomersPage {
 
 export type CustomerSort = 'last_seen' | 'spend' | 'visits' | 'points' | 'joined'
 export type CustomerSegment = 'new' | 'frequent' | 'lapsed' | 'consented'
+export type CustomerSegmentCounts = Record<CustomerSegment, number>
 export type CustomerSegmentOperator = '>=' | '<='
 export type CustomerSegmentConsent = 'granted' | 'missing'
 
@@ -227,6 +228,31 @@ export async function getRestaurantCustomers(
     }
   })
   return { customers, total, page, pageSize }
+}
+
+/** Global built-in segment counts, independent of the currently visible CRM
+ * page/search/filter. Uses the same canonical RPC predicates as the list. */
+export async function getRestaurantCustomerSegmentCounts(
+  restaurantId: string,
+): Promise<CustomerSegmentCounts> {
+  const scope = await getLoyaltyScope(restaurantId)
+  const scopeKey = scope?.scopeKey ?? restaurantId
+  const supabase = createServiceClient()
+  const segments: CustomerSegment[] = ['new', 'frequent', 'lapsed', 'consented']
+  const totals = await Promise.all(segments.map(async (segment) => {
+    const { data, error } = await supabase.rpc('get_restaurant_customers', {
+      p_restaurant_id: restaurantId,
+      p_scope_key: scopeKey,
+      p_segment: segment,
+      p_sort: 'last_seen',
+      p_limit: 1,
+      p_offset: 0,
+    })
+    if (error) throw new Error(`getRestaurantCustomerSegmentCounts: ${error.message}`)
+    const row = ((data as RawRow[] | null) ?? [])[0]
+    return [segment, row ? Number(row.total_count) : 0] as const
+  }))
+  return Object.fromEntries(totals) as CustomerSegmentCounts
 }
 
 export async function listCustomerSegments(restaurantId: string): Promise<SavedCustomerSegment[]> {
