@@ -111,6 +111,13 @@ export async function ensureCustomerForAuthUser(
   if (stampError) return { ok: false, error: 'Müşteri oturumu damgalanamadı.' }
 
   if (opts.restaurantId) {
+    const { error: associationError } = await supabase
+      .from('customer_restaurants')
+      .upsert(
+        { customer_id: customer.id, restaurant_id: opts.restaurantId, source: 'auth' },
+        { onConflict: 'customer_id,restaurant_id', ignoreDuplicates: true },
+      )
+    if (associationError) return { ok: false, error: 'Müşteri işletme bağlantısı oluşturulamadı.' }
     await creditWelcomeBonus(customer.id, opts.restaurantId)
     if (opts.consent === true) await recordConsent(customer.id, opts.restaurantId, true, 'join')
     if (opts.marketingConsent === true) await recordConsent(customer.id, opts.restaurantId, true, 'join', 'marketing')

@@ -402,20 +402,22 @@ export interface RestaurantCustomerDetail {
   timeline: CustomerTimelineEvent[]
 }
 
-/** Has this customer any activity at this venue? Gate for detail + grant so an
- *  owner can't probe arbitrary customer UUIDs or touch another venue's members. */
+/** Has this customer a trusted relationship with this venue? Gate for detail +
+ * grant so an owner can't probe arbitrary customer UUIDs or another venue. */
 async function hasActivityAtVenue(
   supabase: ReturnType<typeof createServiceClient>,
   restaurantId: string,
   customerId: string,
 ): Promise<boolean> {
-  const [{ count: oc }, { count: lc }] = await Promise.all([
+  const [{ count: oc }, { count: lc }, { count: ac }] = await Promise.all([
     supabase.from('orders').select('id', { count: 'exact', head: true })
       .eq('restaurant_id', restaurantId).eq('customer_id', customerId).is('deleted_at', null),
     supabase.from('loyalty_transactions').select('id', { count: 'exact', head: true })
       .eq('restaurant_id', restaurantId).eq('customer_id', customerId),
+    supabase.from('customer_restaurants').select('customer_id', { count: 'exact', head: true })
+      .eq('restaurant_id', restaurantId).eq('customer_id', customerId),
   ])
-  return (oc ?? 0) > 0 || (lc ?? 0) > 0
+  return (oc ?? 0) > 0 || (lc ?? 0) > 0 || (ac ?? 0) > 0
 }
 
 export async function getRestaurantCustomerDetail(

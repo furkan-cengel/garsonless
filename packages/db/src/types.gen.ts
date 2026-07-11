@@ -210,6 +210,42 @@ export type Database = {
           },
         ]
       }
+      customer_restaurants: {
+        Row: {
+          customer_id: string
+          linked_at: string
+          restaurant_id: string
+          source: string
+        }
+        Insert: {
+          customer_id: string
+          linked_at?: string
+          restaurant_id: string
+          source: string
+        }
+        Update: {
+          customer_id?: string
+          linked_at?: string
+          restaurant_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_restaurants_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_restaurants_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_segments: {
         Row: {
           created_at: string
