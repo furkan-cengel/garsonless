@@ -3040,6 +3040,31 @@ const HEADER_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
   { title: 'Görünür öğeler', ids: ['headerShowMenu', 'headerTableBadge', 'headerShowBill'] },
 ]
 
+const HEADER_CONTROL_CSS = `
+  [data-header-property-panel] .header-modern-range {
+    width: 100%; height: 20px; margin: 0; appearance: none; -webkit-appearance: none;
+    background: transparent; cursor: pointer;
+  }
+  [data-header-property-panel] .header-modern-range::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 999px; background: #dedfe2;
+  }
+  [data-header-property-panel] .header-modern-range::-webkit-slider-thumb {
+    appearance: none; -webkit-appearance: none; width: 16px; height: 16px;
+    margin-top: -6px; border: 3px solid #fff; border-radius: 50%;
+    background: #111318; box-shadow: 0 1px 4px rgba(17,19,24,.28);
+  }
+  [data-header-property-panel] .header-modern-range::-moz-range-track {
+    height: 4px; border-radius: 999px; background: #dedfe2;
+  }
+  [data-header-property-panel] .header-modern-range::-moz-range-thumb {
+    width: 12px; height: 12px; border: 3px solid #fff; border-radius: 50%;
+    background: #111318; box-shadow: 0 1px 4px rgba(17,19,24,.28);
+  }
+  [data-header-property-panel] .header-modern-range:focus-visible {
+    outline: 2px solid #111318; outline-offset: 3px; border-radius: 999px;
+  }
+`
+
 function HeaderPropertyPanel({ fields, getValue, onChange }: {
   fields: SettingField[]
   getValue: (field: SettingField) => unknown
@@ -3047,6 +3072,7 @@ function HeaderPropertyPanel({ fields, getValue, onChange }: {
 }) {
   return (
     <div data-header-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
+      <style>{HEADER_CONTROL_CSS}</style>
       {HEADER_FIELD_SECTIONS.map((section) => {
         const sectionFields = section.ids
           .map((id) => fields.find((field) => field.id === id))
@@ -3150,7 +3176,7 @@ function HeaderPropertyField({ field, value, onChange }: {
             )
           })}
         </div>
-        <PropertyControl field={field} value={height} onChange={onChange} controlId={controlId} />
+        <HeaderRangeControl field={field} value={height} onChange={onChange} controlId={controlId} />
       </div>
     )
   }
@@ -3158,7 +3184,15 @@ function HeaderPropertyField({ field, value, onChange }: {
     return (
       <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <label htmlFor={controlId} style={{ minWidth: 0, fontSize: 12.5, color: 'var(--text-2)' }}>{field.label}</label>
-        <PropertyControl field={field} value={value} onChange={onChange} controlId={controlId} />
+        <HeaderToggleControl controlId={controlId} value={Boolean(value)} onChange={onChange} label={field.label} />
+      </div>
+    )
+  }
+  if (field.type === 'range') {
+    return (
+      <div style={{ minWidth: 0 }}>
+        <label htmlFor={controlId} style={{ display: 'block', marginBottom: 7, fontSize: 12.5, color: 'var(--text-2)' }}>{field.label}</label>
+        <HeaderRangeControl field={field} value={Number(value ?? field.default ?? 0)} onChange={onChange} controlId={controlId} />
       </div>
     )
   }
@@ -3169,6 +3203,53 @@ function HeaderPropertyField({ field, value, onChange }: {
       </label>
       <PropertyControl field={field} value={value} onChange={onChange} controlId={controlId} />
     </div>
+  )
+}
+
+function HeaderRangeControl({ field, value, onChange, controlId }: {
+  field: SettingField
+  value: number
+  onChange: (value: number) => void
+  controlId: string
+}) {
+  const min = field.min ?? 0
+  const max = field.max ?? 100
+  const step = field.step ?? 1
+  const clamp = (next: number) => Math.min(max, Math.max(min, next))
+  return (
+    <div style={{ minWidth: 0, display: 'grid', gridTemplateColumns: '28px minmax(0,1fr) 50px 28px', alignItems: 'center', gap: 6 }}>
+      <button type="button" aria-label={`${field.label} azalt`} onClick={() => onChange(clamp(value - step))} disabled={value <= min} style={headerRangeStepButtonStyle}>−</button>
+      <input id={controlId} className="header-modern-range" type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <output htmlFor={controlId} style={{ height: 30, border: '1px solid var(--border)', borderRadius: 8, background: '#fff', color: '#111318', display: 'grid', placeItems: 'center', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+        {value}{field.unit ?? ''}
+      </output>
+      <button type="button" aria-label={`${field.label} artır`} onClick={() => onChange(clamp(value + step))} disabled={value >= max} style={headerRangeStepButtonStyle}>+</button>
+    </div>
+  )
+}
+
+const headerRangeStepButtonStyle: React.CSSProperties = {
+  width: 28, height: 28, padding: 0, border: '1px solid var(--border)', borderRadius: 8,
+  background: '#fff', color: '#111318', cursor: 'pointer', fontSize: 16, lineHeight: 1,
+}
+
+function HeaderToggleControl({ controlId, value, onChange, label }: {
+  controlId: string
+  value: boolean
+  onChange: (value: boolean) => void
+  label: string
+}) {
+  return (
+    <button id={controlId} type="button" role="switch" aria-checked={value} aria-label={label} onClick={() => onChange(!value)} style={{
+      width: 38, height: 22, padding: 0, border: '1px solid #d7d9dd', borderRadius: 999,
+      background: value ? '#111318' : '#e7e8eb', position: 'relative', cursor: 'pointer', flexShrink: 0,
+      transition: 'background 150ms, border-color 150ms',
+    }}>
+      <span style={{
+        position: 'absolute', top: 2, left: value ? 18 : 2, width: 16, height: 16,
+        borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(17,19,24,.22)', transition: 'left 150ms',
+      }} />
+    </button>
   )
 }
 
