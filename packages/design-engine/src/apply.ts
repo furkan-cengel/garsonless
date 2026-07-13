@@ -28,7 +28,7 @@ export function buildFontsUrl(page: PageConfig): string | null {
   if (fonts.length === 0) return null
 
   const params = fonts
-    .map((f) => `family=${encodeURIComponent(f)}:ital,wght@0,400;0,600;0,700;1,400`)
+    .map((f) => `family=${encodeURIComponent(f)}:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400`)
     .join('&')
 
   return `https://fonts.googleapis.com/css2?${params}&display=swap`
@@ -140,10 +140,10 @@ export function applyGarsonlessTheme(theme: GarsonlessTheme): string {
     : `"${theme.bodyFont}", sans-serif`
   const displayFont = SYSTEM_FONTS.has(theme.displayFont)
     ? theme.displayFont
-    : `"${theme.displayFont}", cursive`
+    : `"${theme.displayFont}", serif`
   return `:root {
   --p-bg: ${theme.bg};
-  --p-card: #ffffff;
+  --p-card: ${theme.cardColor ?? '#ffffff'};
   --p-display: ${displayFont};
   --p-body: ${bodyFont};
   --p-radius: ${theme.radius}px;
@@ -152,10 +152,12 @@ export function applyGarsonlessTheme(theme: GarsonlessTheme): string {
   --p-accent: ${theme.accent};
   --p-accent-soft: ${theme.accentSoft};
   --p-cta: ${theme.cta};
-  --p-text: #1c1d20;
-  --p-text-2: #6c6f76;
+  --p-text: ${theme.textColor ?? '#1c1d20'};
+  --p-text-2: ${theme.mutedTextColor ?? '#6c6f76'};
+  --p-cta-text: ${theme.ctaTextColor ?? '#ffffff'};
   --p-shadow: ${THEME_SHADOW_MAP[theme.shadow]};
   --p-border-w: ${THEME_BORDER_W_MAP[theme.border]};
+  --p-border: ${theme.border === 'none' ? 'transparent' : (theme.borderColor ?? theme.accentSoft)};
   --p-cols: ${theme.cols};
   --p-gap: ${theme.gap}px;
   --p-pad: ${theme.pad}px;
@@ -163,6 +165,7 @@ export function applyGarsonlessTheme(theme: GarsonlessTheme): string {
 }
 body {
   background-color: ${theme.bg};
+  color: ${theme.textColor ?? '#1c1d20'};
   font-family: ${bodyFont};
   font-size: ${theme.fs}px;
   line-height: ${theme.lh / 100};

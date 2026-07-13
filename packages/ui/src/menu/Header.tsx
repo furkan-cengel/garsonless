@@ -76,14 +76,6 @@ ${ML_STAMP_POP_KEYFRAME}
   [data-component="header"] [data-header-more-popover] [data-overflow-priority="secondary"] {
     display: none;
   }
-  @container menu-header (max-width: 560px) {
-    [data-component="header"] [data-action-priority="tertiary"] {
-      display: none;
-    }
-    [data-component="header"] [data-header-more][data-has-tertiary="true"] {
-      display: block;
-    }
-  }
   @container menu-header (max-width: 420px) {
     [data-component="header"] [data-action-priority="secondary"] {
       display: none;
@@ -125,6 +117,7 @@ interface HeaderProps {
 export function Header({ tableId, tableName, categories, cartSummary, onOpenCart, billSummary, onOpenBill, memberSummary, onOpenMember }: HeaderProps) {
   const { theme, restaurantName, logoUrl } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
+  const headerRef = useRef<HTMLElement>(null)
   const moreMenuRef = useRef<HTMLDetailsElement>(null)
   const cartCount = cartSummary?.count ?? 0
   const cartSubtotal = cartSummary?.subtotal ?? 0
@@ -147,8 +140,8 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
   const actionsHoldBill = rowLayout && hasBillChip
   const actionsHoldMenu = isSplit && theme.headerShowMenu
   const hasMemberAction = Boolean(memberSummary && onOpenMember)
-  const hasSecondaryAction = actionsHoldBill || hasMemberAction
-  const hasOverflowAction = hasSecondaryAction || theme.headerShowLang
+  const hasSecondaryAction = hasMemberAction
+  const hasOverflowAction = hasSecondaryAction
   const closeMoreMenu = () => {
     if (moreMenuRef.current) moreMenuRef.current.open = false
   }
@@ -157,10 +150,21 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
     ? `${tableName} · Açık`
     : tableId
       ? `Masa ${tableId.slice(0, 4).toUpperCase()} · Açık`
-      : 'Masa 12 · Açık'
+      : null
   const stickyStyle: React.CSSProperties = theme.stickyHeader
     ? { position: 'sticky', top: 0, zIndex: 20 }
     : { position: 'relative' }
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) return
+    const updateHeight = () => {
+      document.documentElement.style.setProperty('--p-header-sticky-height', `${header.getBoundingClientRect().height}px`)
+    }
+    updateHeight()
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(header)
+    return () => observer.disconnect()
+  }, [])
   const menuButton = theme.headerShowMenu ? (
     <button
       type="button"
@@ -263,14 +267,9 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
       </button>
     )
   })() : null
-  const languageBadge = theme.headerShowLang ? (
-    <span style={{
-      height: 30, padding: '0 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 600,
-      background: 'var(--p-accent-soft)', color: 'var(--p-accent)',
-      display: 'inline-flex', alignItems: 'center',
-      flexShrink: 0,
-    }}>TR</span>
-  ) : null
+  // headerShowLang stays in the schema, but there is NO real language switch
+  // behind it yet — per the no-dead-controls rule the static "TR" badge is not
+  // rendered (same treatment as the removed search button).
   const headerActions = (
     <div data-header-actions style={{
       display: 'flex',
@@ -282,9 +281,8 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
       maxWidth: '100%',
       justifySelf: isCenter ? 'end' : isStacked ? 'center' : rowLayout ? 'end' : 'center',
     }}>
-      {actionsHoldBill && <span data-action-priority="secondary">{billChip}</span>}
+      {actionsHoldBill && <span data-action-priority="primary">{billChip}</span>}
       {memberChip && <span data-action-priority="secondary">{memberChip}</span>}
-      {languageBadge && <span data-action-priority="tertiary">{languageBadge}</span>}
       {showHeaderCartIcon && (
         <button
           type="button"
@@ -364,17 +362,11 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
           ref={moreMenuRef}
           data-header-more
           data-has-secondary={hasSecondaryAction ? 'true' : 'false'}
-          data-has-tertiary={theme.headerShowLang ? 'true' : 'false'}
         >
           <summary aria-label="Daha fazla" title="Daha fazla">
             <MoreIcon />
           </summary>
           <div role="menu" aria-label="Diğer header işlemleri" data-header-more-popover>
-            {actionsHoldBill && (
-              <button data-overflow-priority="secondary" type="button" role="menuitem" onClick={() => { closeMoreMenu(); onOpenBill?.() }}>
-                Hesap <span>{formatTRY(billSummary!.total)}</span>
-              </button>
-            )}
             {memberChip && (
               <button data-overflow-priority="secondary" type="button" role="menuitem" onClick={() => { closeMoreMenu(); onOpenMember?.() }}>
                 {memberIsMember ? 'Üyelik' : 'Üye ol'}
@@ -382,18 +374,13 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
                 {memberShowStamp && <span>☕ {memberStamps}/{memberStampGoal}</span>}
               </button>
             )}
-            {languageBadge && (
-              <div data-overflow-priority="tertiary" role="menuitem" aria-label="Dil: Türkçe">
-                Dil <span>Türkçe</span>
-              </div>
-            )}
           </div>
         </details>
       )}
     </div>
   )
   const inlineBillChip = actionsHoldBill ? null : billChip
-  const tableBadge = theme.headerTableBadge ? (
+  const tableBadge = theme.headerTableBadge && tableLabel ? (
     <div style={{
       fontSize: compact ? 10.5 : 11.5,
       color: 'var(--p-text-2)',
@@ -451,11 +438,6 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
           {theme.headerTagline}
         </p>
       )}
-      {theme.pageDescription && (
-        <p style={{ fontSize: 12, color: 'var(--p-text-2)', margin: 0, fontFamily: 'var(--p-body)' }}>
-          {theme.pageDescription}
-        </p>
-      )}
     </div>
   )
 
@@ -463,6 +445,7 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
     <>
       <AnnouncementBar />
       <header
+        ref={headerRef}
         data-component="header"
         data-header-layout={layout}
         style={{
@@ -471,6 +454,7 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
           WebkitBackdropFilter: theme.headerStyle === 'blur' ? 'blur(10px)' : 'none',
           ...stickyStyle,
           minHeight: theme.headerHeight + 'px',
+          boxSizing: 'border-box',
           padding: `${theme.headerPadY ?? 8}px 16px`,
           marginBottom: theme.headerBottomGap ?? 0,
           display: 'grid',

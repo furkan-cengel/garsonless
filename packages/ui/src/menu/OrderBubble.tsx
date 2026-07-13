@@ -106,7 +106,7 @@ export function OrderBubble({ phase, unseen, justChanged, onOpen }: OrderBubbleP
             style={{
               position: 'absolute', top: -5, right: -5,
               minWidth: 20, height: 20, borderRadius: 99,
-              background: 'var(--p-cta)', color: '#fff',
+              background: 'var(--p-cta)', color: 'var(--p-cta-text)',
               fontSize: 12, fontWeight: 800,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               border: '2px solid var(--p-bg)',

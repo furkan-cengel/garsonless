@@ -15,7 +15,7 @@ function injectGoogleFonts(theme: GarsonlessTheme) {
   )
   if (fonts.length === 0) return
   const params = fonts
-    .map((f) => `family=${encodeURIComponent(f)}:ital,wght@0,400;0,600;0,700;1,400`)
+    .map((f) => `family=${encodeURIComponent(f)}:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400`)
     .join('&')
   const url = `https://fonts.googleapis.com/css2?${params}&display=swap`
   const existing = document.querySelector('link[data-garsonless-fonts]') as HTMLLinkElement | null
@@ -63,22 +63,25 @@ function getParentOrigin() {
 function applyNonFontVars(t: GarsonlessTheme) {
   const root = document.documentElement
   root.style.setProperty('--p-bg', t.bg)
-  root.style.setProperty('--p-card', '#ffffff')
+  root.style.setProperty('--p-card', t.cardColor ?? '#ffffff')
   root.style.setProperty('--p-radius', `${t.radius}px`)
   root.style.setProperty('--p-fs', `${t.fs}px`)
   root.style.setProperty('--p-lh', `${t.lh / 100}`)
   root.style.setProperty('--p-accent', t.accent)
   root.style.setProperty('--p-accent-soft', t.accentSoft)
   root.style.setProperty('--p-cta', t.cta)
-  root.style.setProperty('--p-text', '#1c1d20')
-  root.style.setProperty('--p-text-2', '#6c6f76')
+  root.style.setProperty('--p-text', t.textColor ?? '#1c1d20')
+  root.style.setProperty('--p-text-2', t.mutedTextColor ?? '#6c6f76')
+  root.style.setProperty('--p-cta-text', t.ctaTextColor ?? '#ffffff')
   root.style.setProperty('--p-shadow', SHADOW_MAP[t.shadow])
   root.style.setProperty('--p-border-w', BORDER_W_MAP[t.border])
-  root.style.setProperty('--p-border', t.border === 'none' ? 'transparent' : t.accentSoft)
+  root.style.setProperty('--p-border', t.border === 'none' ? 'transparent' : (t.borderColor ?? t.accentSoft))
   root.style.setProperty('--p-cols', String(t.cols))
   root.style.setProperty('--p-gap', `${t.gap}px`)
   root.style.setProperty('--p-pad', `${t.pad}px`)
   root.style.setProperty('--p-section-gap', `${t.sectionGap}px`)
+  document.body.style.backgroundColor = t.bg
+  document.body.style.color = t.textColor ?? '#1c1d20'
 }
 
 function applyFontVars(bodyFont: string, displayFont: string) {

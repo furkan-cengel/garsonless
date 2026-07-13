@@ -17,7 +17,14 @@ export interface GarsonlessTheme {
   accent: string
   accentSoft: string
   cta: string
+  cardColor?: string
+  textColor?: string
+  mutedTextColor?: string
+  ctaTextColor?: string
+  borderColor?: string
+  cardVariant?: 'default' | 'spain'
   texture: 'solid' | 'noise' | 'grid'
+  textureStrength?: number
   motion: 'full' | 'reduced' | 'none'
   showSelection: boolean
   cols: number
@@ -47,11 +54,29 @@ export interface GarsonlessTheme {
   catnavOverlayBlur?: number
   catnavShowIcons: boolean
   catnavShowCount: boolean
+  catnavAlign?: 'left' | 'center' | 'spread'
+  catnavDensity?: 'compact' | 'normal' | 'comfortable'
+  catnavItemGap?: number
+  catnavFontSize?: number
+  catnavActiveStyle?: 'filled' | 'soft' | 'outline'
+  catnavAutoCenter?: boolean
+  catnavEdgeFade?: boolean
   cardLayout: 'vertical' | 'horizontal' | 'minimal'
   cardImageAspect: '1:1' | '4:3' | '16:9'
   cardShowDesc: boolean
   cardShowTag: boolean
   cardCtaStyle: 'icon' | 'pill' | 'full'
+  cardDensity?: 'compact' | 'normal' | 'spacious'
+  cardShowImage?: boolean
+  cardImageFit?: 'cover' | 'contain'
+  cardImagePosition?: 'top' | 'center' | 'bottom'
+  cardTitleLines?: 1 | 2 | 3
+  cardDescriptionLines?: 1 | 2 | 3
+  cardHorizontalImageWidth?: number
+  cardPriceAlign?: 'left' | 'right'
+  cardHover?: 'none' | 'lift' | 'glow'
+  cardCtaIcon?: 'plus' | 'cart' | 'bag'
+  cardPlaceholderStyle?: 'neutral' | 'accent' | 'outline'
   cartStyle: 'pill' | 'banner' | 'fab'
   cartHeaderTriggerStyle?: 'none' | 'icon' | 'pill'
   cartFooterTriggerStyle?: 'none' | 'bar' | 'tabbar' | 'fab' | 'thumbs' | 'pill'
@@ -92,6 +117,9 @@ export interface GarsonlessTheme {
   navBottomGap?: number
   categoryGridTopGap?: number
   sectionHeading: 'accent' | 'editorial' | 'catalog'
+  sectionHeadingTopGap?: number
+  sectionHeadingBottomGap?: number
+  pageMaxWidth?: 'none' | '960' | '1200'
 }
 
 export const DEFAULT_THEME: GarsonlessTheme = {
@@ -106,7 +134,14 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   accent: '#a13b7a',
   accentSoft: '#f5e8f0',
   cta: '#7eb928',
+  cardColor: '#ffffff',
+  textColor: '#1c1d20',
+  mutedTextColor: '#6c6f76',
+  ctaTextColor: '#ffffff',
+  borderColor: '#e3e4e7',
+  cardVariant: 'default',
   texture: 'solid',
+  textureStrength: 4,
   motion: 'full',
   showSelection: false,
   cols: 2,
@@ -136,11 +171,29 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   catnavOverlayBlur: 0,
   catnavShowIcons: false,
   catnavShowCount: false,
+  catnavAlign: 'left',
+  catnavDensity: 'normal',
+  catnavItemGap: 8,
+  catnavFontSize: 12,
+  catnavActiveStyle: 'filled',
+  catnavAutoCenter: true,
+  catnavEdgeFade: true,
   cardLayout: 'vertical',
   cardImageAspect: '4:3',
   cardShowDesc: true,
   cardShowTag: true,
   cardCtaStyle: 'icon',
+  cardDensity: 'normal',
+  cardShowImage: true,
+  cardImageFit: 'cover',
+  cardImagePosition: 'center',
+  cardTitleLines: 2,
+  cardDescriptionLines: 2,
+  cardHorizontalImageWidth: 92,
+  cardPriceAlign: 'left',
+  cardHover: 'none',
+  cardCtaIcon: 'plus',
+  cardPlaceholderStyle: 'neutral',
   cartStyle: 'pill',
   cartHeaderTriggerStyle: 'none',
   cartFooterTriggerStyle: 'pill',
@@ -177,10 +230,13 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   logoShadow: false,
   logoBorder: false,
   logoBg: 'none',
-  navTopGap: 0,
+  navTopGap: 10,
   navBottomGap: 14,
   categoryGridTopGap: 18,
   sectionHeading: 'accent',
+  sectionHeadingTopGap: 24,
+  sectionHeadingBottomGap: 12,
+  pageMaxWidth: 'none',
 }
 
 // ── Legacy nested config (menu app backward compat) ───────────────────────────

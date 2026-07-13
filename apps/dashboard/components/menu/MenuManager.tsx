@@ -2336,6 +2336,7 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
           restaurant_id: restaurantId,
           name: catName,
           description: null,
+          image_url: null,
           position: 0,
           is_visible: true,
           vat_rate: 10,

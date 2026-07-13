@@ -324,7 +324,7 @@ export function OrderConfirmation({
           onClick={onDone}
           style={{
             padding: '13px 32px', borderRadius: 'var(--p-radius)', border: 'none',
-            background: 'var(--p-cta)', color: '#fff', fontSize: 15, fontWeight: 700,
+            background: 'var(--p-cta)', color: 'var(--p-cta-text)', fontSize: 15, fontWeight: 700,
             cursor: 'pointer', fontFamily: 'inherit',
           }}
         >Tekrar Dene</button>
@@ -481,7 +481,7 @@ export function OrderConfirmation({
           onClick={onDone}
           style={{
             width: '100%', height: 52, borderRadius: 'var(--p-radius)', border: 'none',
-            background: 'var(--p-cta)', color: '#fff', fontSize: 15.5, fontWeight: 700,
+            background: 'var(--p-cta)', color: 'var(--p-cta-text)', fontSize: 15.5, fontWeight: 700,
             cursor: 'pointer', fontFamily: 'inherit',
           }}
         >

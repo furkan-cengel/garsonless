@@ -7,6 +7,7 @@ import { CategoryNav } from '../../menu/CategoryNav'
 import type { ThemeMenuPageProps } from '../types'
 import type { MenuCategory } from '../../menu/types'
 import type { CSSProperties } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import { HeroSection } from './sections/HeroSection'
 import { PromoStripSection } from './sections/PromoStripSection'
 import { ChefPickSection } from './sections/ChefPickSection'
@@ -34,6 +35,9 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
     [categories, activeVisualRootId],
   )
   const [activeVisualCategoryId, setActiveVisualCategoryId] = useState(childCategories[0]?.id ?? rootsForNav[0]?.id ?? '')
+  const [visualStage, setVisualStage] = useState<'roots' | 'children' | 'products'>('roots')
+  const textureAlpha = Math.max(1, Math.min(10, theme.textureStrength ?? 4)) / 100
+  const pageMaxWidth = theme.pageMaxWidth === '960' ? 960 : theme.pageMaxWidth === '1200' ? 1200 : undefined
   useEffect(() => {
     if (!rootsForNav.some((category) => category.id === activeVisualRootId)) {
       setActiveVisualRootId(rootsForNav[0]?.id ?? '')
@@ -48,12 +52,12 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
   const textureStyle: CSSProperties =
     theme.texture === 'grid'
       ? {
-          backgroundImage: 'linear-gradient(rgba(0,0,0,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,.035) 1px, transparent 1px)',
+          backgroundImage: `linear-gradient(rgba(0,0,0,${textureAlpha}) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,${textureAlpha}) 1px, transparent 1px)`,
           backgroundSize: '18px 18px',
         }
       : theme.texture === 'noise'
         ? {
-            backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(0,0,0,.055) 1px, transparent 0)',
+            backgroundImage: `radial-gradient(circle at 1px 1px, rgba(0,0,0,${textureAlpha}) 1px, transparent 0)`,
             backgroundSize: '14px 14px',
           }
         : {}
@@ -61,7 +65,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
   function sectionHeadingStyle(): CSSProperties {
     const sh = theme.sectionHeading ?? 'accent'
     if (sh === 'editorial') return {
-      padding: `32px var(--p-pad) 8px`,
+      padding: `${theme.sectionHeadingTopGap ?? 32}px var(--p-pad) ${theme.sectionHeadingBottomGap ?? 8}px`,
       fontSize: `calc(var(--p-fs) + 4px)`,
       fontWeight: 800,
       fontFamily: 'var(--p-display)',
@@ -71,7 +75,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
       margin: 0,
     }
     if (sh === 'catalog') return {
-      padding: `20px var(--p-pad) 6px`,
+      padding: `${theme.sectionHeadingTopGap ?? 20}px var(--p-pad) ${theme.sectionHeadingBottomGap ?? 6}px`,
       fontSize: `calc(var(--p-fs) - 1px)`,
       fontWeight: 700,
       fontFamily: 'var(--p-body)',
@@ -81,7 +85,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
       margin: 0,
     }
     return {
-      padding: `24px var(--p-pad) 12px`,
+      padding: `${theme.sectionHeadingTopGap ?? 24}px var(--p-pad) ${theme.sectionHeadingBottomGap ?? 12}px`,
       fontSize: `calc(var(--p-fs) + 6px)`,
       fontWeight: 700,
       fontFamily: 'var(--p-display)',
@@ -93,9 +97,17 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
 
   function renderSection(cat: MenuCategory) {
     return (
-      <section key={cat.id} id={`section-${cat.id}`} style={{ marginBottom: 'var(--p-section-gap)' }}>
+      <section key={cat.id} id={`section-${cat.id}`} style={{
+        marginBottom: 'var(--p-section-gap)',
+        scrollMarginTop: theme.stickyNav
+          ? `calc(${theme.stickyHeader ? `var(--p-header-sticky-height, ${theme.headerHeight}px)` : '0px'} + ${56 + (theme.navTopGap ?? 0) + (theme.navBottomGap ?? 14)}px)`
+          : theme.stickyHeader
+            ? `calc(var(--p-header-sticky-height, ${theme.headerHeight}px) + 8px)`
+            : 8,
+      }}>
         <h2 style={sectionHeadingStyle()}>{cat.name}</h2>
         <div
+          data-product-grid
           style={{
             padding: `0 var(--p-pad)`,
             display: 'grid',
@@ -127,7 +139,6 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
     const visualStyle = theme.catnavVisualStyle ?? 'compact'
     const isOverlay = visualStyle === 'overlay'
     const isPoster = visualStyle === 'poster'
-    const visualWidth = theme.catnavVisualCardWidth ?? 150
     const visualHeight = theme.catnavVisualCardHeight ?? 104
     const visualRadius = theme.catnavVisualRadius ?? 22
     const overlayOpacity = Math.max(0, Math.min(90, theme.catnavOverlayOpacity ?? 45)) / 100
@@ -148,7 +159,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
       <section
         data-component="visual-category-grid"
         style={{
-          padding: `${theme.categoryGridTopGap ?? 18}px var(--p-pad) ${theme.navBottomGap ?? 14}px`,
+          padding: `${theme.navTopGap ?? 18}px var(--p-pad) ${theme.navBottomGap ?? 14}px`,
         }}
       >
         {title && (
@@ -161,15 +172,10 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
         )}
         <div
           style={{
-            display: 'flex',
-            gap: 10,
-            overflowX: 'auto',
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr)',
+            gap: 12,
             paddingBottom: 10,
-            marginRight: 'calc(var(--p-pad) * -1)',
-            paddingRight: 'var(--p-pad)',
-            scrollbarWidth: 'none',
-            WebkitOverflowScrolling: 'touch',
-            scrollSnapType: 'x proximity',
           }}
         >
           {items.map((cat, index) => {
@@ -184,8 +190,8 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
                 type="button"
                 onClick={() => onSelect(cat.id)}
                 style={{
-                  width: isOverlay ? visualWidth : isPoster ? Math.max(104, visualWidth - 32) : Math.max(150, visualWidth + 18),
-                  minWidth: isOverlay ? visualWidth : isPoster ? Math.max(104, visualWidth - 32) : Math.max(150, visualWidth + 18),
+                  width: '100%',
+                  minWidth: 0,
                   minHeight: isOverlay ? visualHeight : isPoster ? Math.max(130, visualHeight + 44) : Math.max(78, visualHeight - 16),
                   border: isActive ? '1px solid var(--p-accent)' : 'var(--p-border-w) solid var(--p-border)',
                   borderRadius: isOverlay ? visualRadius : isPoster ? visualRadius : Math.max(18, visualRadius + 4),
@@ -208,7 +214,6 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
                   textAlign: 'left',
                   cursor: 'pointer',
                   font: 'inherit',
-                  scrollSnapAlign: 'start',
                   position: 'relative',
                   transition: 'transform 160ms ease, box-shadow 160ms ease, background 160ms ease',
                 }}
@@ -359,6 +364,30 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
     return null
   }
 
+  function renderVisualTrail() {
+    if (visualStage === 'roots') return null
+    const rootName = categoryById.get(activeVisualRootId)?.name ?? 'Kategoriler'
+    const activeName = categoryById.get(activeVisualCategoryId)?.name ?? rootName
+    return (
+      <div style={{ padding: `${theme.navTopGap ?? 12}px var(--p-pad) 0`, display: 'flex', alignItems: 'center', gap: 9 }}>
+        <button
+          type="button"
+          aria-label="Bir önceki kategori seviyesine dön"
+          onClick={() => setVisualStage(visualStage === 'products' && childCategories.length > 0 ? 'children' : 'roots')}
+          style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 999, border: 'var(--p-border-w) solid var(--p-border)', background: 'var(--p-card)', color: 'var(--p-text)', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}
+        ><ArrowLeft size={18} strokeWidth={2} aria-hidden="true" /></button>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 11, color: 'var(--p-text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Kategoriler · {rootName}{visualStage === 'products' && activeName !== rootName ? ` · ${activeName}` : ''}
+          </div>
+          <div style={{ marginTop: 2, fontFamily: 'var(--p-display)', fontWeight: 800, fontSize: 20, color: 'var(--p-accent)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {visualStage === 'products' ? activeName : rootName}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const categoryById = new Map(categories.map((category) => [category.id, category]))
   const pageBlocks = useMemo(() => {
     const stored = theme.pageBlocks?.filter((block) =>
@@ -385,35 +414,36 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
     <div suppressHydrationWarning style={{ minHeight: '100dvh', backgroundColor: 'var(--p-bg)', ...textureStyle }}>
       <Header tableId={tableId ?? null} tableName={tableLabel ?? null} categories={categories} cartSummary={cartSummary} onOpenCart={onOpenCart} billSummary={billSummary ?? null} onOpenBill={onOpenBill} memberSummary={memberSummary ?? null} onOpenMember={onOpenMember} />
       {orderStatus}
-      <main style={{ paddingBottom: 96 }}>
+      <main style={{ paddingBottom: 96, width: '100%', maxWidth: pageMaxWidth, marginInline: 'auto' }}>
         {pageBlocks.map((block) => {
           if (block.type === 'section') return renderCustomSection(block.id)
           if (block.type === 'nav') {
             if (visualNav) {
               return (
                 <div key="category-nav">
-                  {renderCategoryGrid({
+                  {renderVisualTrail()}
+                  {visualStage === 'roots' && renderCategoryGrid({
                     items: rootsForNav,
                     activeId: activeVisualRootId,
                     onSelect: (id) => {
                       setActiveVisualRootId(id)
-                      const firstChild = categories.find((category) => category.parent_id === id)
-                      setActiveVisualCategoryId(firstChild?.id ?? id)
+                      const children = categories.filter((category) => category.parent_id === id)
+                      setActiveVisualCategoryId(children[0]?.id ?? id)
+                      setVisualStage(children.length > 0 ? 'children' : 'products')
                     },
                   })}
-                  {childCategories.length > 0 && renderCategoryGrid({
-                    title: categoryById.get(activeVisualRootId)?.name,
+                  {visualStage === 'children' && childCategories.length > 0 && renderCategoryGrid({
                     items: childCategories,
                     activeId: activeVisualCategoryId,
-                    onSelect: setActiveVisualCategoryId,
+                    onSelect: (id) => { setActiveVisualCategoryId(id); setVisualStage('products') },
                   })}
-                  {menuFilters}
-                  {filterEmptyState}
+                  {visualStage === 'products' && menuFilters}
+                  {visualStage === 'products' && filterEmptyState}
                 </div>
               )
             }
             return (
-              <div key="category-nav">
+              <div key="category-nav" style={{ display: 'contents' }}>
                 <CategoryNav
                   categories={categories}
                   categoryMeta={categoryMeta}
@@ -425,7 +455,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
               </div>
             )
           }
-          if (visualNav && block.id !== activeVisualCategoryId) return null
+          if (visualNav && (visualStage !== 'products' || block.id !== activeVisualCategoryId)) return null
           const category = categoryById.get(block.id)
           if (!category) return null
           const section = renderSection(category)
@@ -442,6 +472,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
           }
         `}</style>
       )}
+      <style>{`@media (max-width:480px){[data-product-grid]{grid-template-columns:repeat(min(var(--p-cols),2),minmax(0,1fr))!important}}`}</style>
     </div>
   )
 }

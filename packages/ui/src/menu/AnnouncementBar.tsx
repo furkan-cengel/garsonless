@@ -11,11 +11,15 @@ export function AnnouncementBar() {
     announcementColor,
     announcementStyle,
     announcementSpeed,
+    motion,
   } = theme
 
-  if (!announcementEnabled) return null
+  const text = announcementText.trim()
+  if (!announcementEnabled || !text) return null
 
-  const duration = `${6 - announcementSpeed}s`
+  const safeSpeed = Math.min(8, Math.max(1, announcementSpeed))
+  const duration = `${Math.max(4, 20 - safeSpeed * 2)}s`
+  const effectiveStyle = motion === 'none' ? 'static' : announcementStyle
 
   const wrapperStyle: React.CSSProperties = {
     width: '100%',
@@ -29,47 +33,48 @@ export function AnnouncementBar() {
     boxSizing: 'border-box',
   }
 
-  if (announcementStyle === 'static') {
+  if (effectiveStyle === 'static') {
     return (
-      <div style={wrapperStyle}>
-        <div style={{ textAlign: 'center' }}>{announcementText}</div>
-      </div>
+      <section aria-label="İşletme duyurusu" style={wrapperStyle}>
+        <div style={{ textAlign: 'center' }}>{text}</div>
+      </section>
     )
   }
 
-  if (announcementStyle === 'marquee') {
+  if (effectiveStyle === 'marquee') {
     return (
-      <div style={wrapperStyle}>
-        <div style={{
-          display: 'flex',
-          gap: 64,
-          animation: `marquee ${duration} linear infinite`,
+      <section aria-label="İşletme duyurusu" style={wrapperStyle}>
+        <div className="announcement-motion" style={{
+          display: 'block',
+          animation: `marquee ${motion === 'reduced' ? '24s' : duration} linear infinite`,
           width: 'max-content',
+          minWidth: '100%',
+          paddingLeft: '100%',
           whiteSpace: 'nowrap',
         }}>
-          {[0, 1, 2].map(i => <span key={i}>{announcementText}</span>)}
+          {text}
         </div>
-      </div>
+      </section>
     )
   }
 
-  if (announcementStyle === 'fade') {
+  if (effectiveStyle === 'fade') {
     return (
-      <div style={wrapperStyle}>
-        <div style={{ textAlign: 'center', animation: `fade-loop ${duration} ease-in-out infinite` }}>
-          {announcementText}
+      <section aria-label="İşletme duyurusu" style={wrapperStyle}>
+        <div className="announcement-motion" style={{ textAlign: 'center', animation: `fade-loop ${motion === 'reduced' ? '12s' : duration} ease-in-out infinite` }}>
+          {text}
         </div>
-      </div>
+      </section>
     )
   }
 
   return (
-    <div style={wrapperStyle}>
+    <section aria-label="İşletme duyurusu" style={wrapperStyle}>
       <div style={{ textAlign: 'center', overflow: 'hidden' }}>
-        <span style={{ display: 'inline-block', animation: `slide-up ${duration} ease-in-out infinite` }}>
-          {announcementText}
+        <span className="announcement-motion" style={{ display: 'inline-block', animation: `slide-up ${motion === 'reduced' ? '12s' : duration} ease-in-out infinite` }}>
+          {text}
         </span>
       </div>
-    </div>
+    </section>
   )
 }

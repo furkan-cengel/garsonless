@@ -39,6 +39,7 @@ export interface MenuCategory {
   name: string
   position: number
   is_visible: boolean
+  image_url?: string | null
   parent_id?: string | null
 }
 

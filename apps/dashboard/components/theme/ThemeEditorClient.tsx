@@ -1247,8 +1247,32 @@ export default function ThemeEditorClient({
     const fieldKey = String(field.themeField)
     if (fieldKey.startsWith('catnavVisual') && mergedTheme.catnavStyle !== 'visual') return false
     if (fieldKey.startsWith('catnavOverlay') && (mergedTheme.catnavStyle !== 'visual' || mergedTheme.catnavVisualStyle !== 'overlay')) return false
+    if (activeGroupData?.id === 'nav' && mergedTheme.catnavStyle === 'visual' && [
+      'stickyNav', 'catnavAlign', 'catnavDensity', 'catnavItemGap', 'catnavFontSize',
+      'catnavActiveStyle', 'catnavAutoCenter', 'catnavEdgeFade',
+    ].includes(fieldKey)) return false
     if (fieldKey === 'headerNameSize' && mergedTheme.headerLogoStyle === 'image') return false
     if ((fieldKey === 'headerLogoSize' || fieldKey === 'logoShape' || fieldKey === 'logoShadow' || fieldKey === 'logoBorder' || fieldKey === 'logoBg') && mergedTheme.headerLogoStyle !== 'image') return false
+    if (activeGroupData?.id === 'cards') {
+      const layout = mergedTheme.cardLayout
+      const showImage = mergedTheme.cardShowImage ?? true
+      if (fieldKey === 'cardImageAspect' && (layout !== 'vertical' || !showImage)) return false
+      if ((fieldKey === 'cardImageFit' || fieldKey === 'cardImagePosition') && (layout === 'minimal' || !showImage)) return false
+      if (fieldKey === 'cardHorizontalImageWidth' && (layout !== 'horizontal' || !showImage)) return false
+      if (field.id === 'cardColumns' && layout !== 'vertical') return false
+      if ((fieldKey === 'cardCtaStyle' || fieldKey === 'cardCtaIcon') && layout === 'minimal') return false
+      if (fieldKey === 'cardCtaIcon' && mergedTheme.cardCtaStyle !== 'icon') return false
+      if (fieldKey === 'cardDescriptionLines' && !mergedTheme.cardShowDesc) return false
+    }
+    if (activeGroupData?.id === 'cart') {
+      const footer = mergedTheme.cartFooterTriggerStyle ?? 'pill'
+      if ((fieldKey === 'cartPillTone' || fieldKey === 'cartPillPosition') && footer !== 'pill') return false
+      if (fieldKey === 'cartShowBadge' && mergedTheme.cartHeaderTriggerStyle === 'none' && footer === 'none') return false
+    }
+    if (activeGroupData?.id === 'announcement') {
+      if (!mergedTheme.announcementEnabled && fieldKey !== 'announcementEnabled') return false
+      if (fieldKey === 'announcementSpeed' && mergedTheme.announcementStyle === 'static') return false
+    }
     return getFieldEditorTab(field, activeGroupData?.id) === effectiveEditorTab
   })
   const visibleSectionFields = selectedSectionFields.filter((field) => field.editorTab === effectiveEditorTab)
@@ -2013,6 +2037,48 @@ export default function ThemeEditorClient({
                       }
                       onChange={handleFieldChange}
                     />
+                  ) : activeGroup === 'cards' && visibleFields.length > 0 ? (
+                    <CardPropertyPanel
+                      fields={visibleFields}
+                      layout={mergedTheme.cardLayout}
+                      getValue={(field) => overrides[field.themeField as keyof GarsonlessTheme] ?? entry.THEME_DEFAULTS[field.themeField as keyof GarsonlessTheme]}
+                      onChange={handleFieldChange}
+                    />
+                  ) : activeGroup === 'nav' && visibleFields.length > 0 ? (
+                    <NavPropertyPanel
+                      fields={visibleFields}
+                      visual={mergedTheme.catnavStyle === 'visual'}
+                      getValue={(field) => overrides[field.themeField as keyof GarsonlessTheme] ?? entry.THEME_DEFAULTS[field.themeField as keyof GarsonlessTheme]}
+                      onChange={handleFieldChange}
+                    />
+                  ) : activeGroup === 'layout' && visibleFields.length > 0 ? (
+                    <LayoutPropertyPanel
+                      fields={visibleFields}
+                      texture={mergedTheme.texture}
+                      getValue={(field) => overrides[field.themeField as keyof GarsonlessTheme] ?? entry.THEME_DEFAULTS[field.themeField as keyof GarsonlessTheme]}
+                      onChange={handleFieldChange}
+                    />
+                  ) : activeGroup === THEME_GROUP_ID && visibleFields.length > 0 ? (
+                    <ThemePropertyPanel
+                      fields={visibleFields}
+                      getValue={(field) => overrides[field.themeField as keyof GarsonlessTheme] ?? entry.THEME_DEFAULTS[field.themeField as keyof GarsonlessTheme]}
+                      onChange={handleFieldChange}
+                    />
+                  ) : activeGroup === 'cart' && visibleFields.length > 0 ? (
+                    <CartPropertyPanel
+                      fields={visibleFields}
+                      headerStyle={mergedTheme.cartHeaderTriggerStyle ?? 'none'}
+                      footerStyle={mergedTheme.cartFooterTriggerStyle ?? 'pill'}
+                      getValue={(field) => overrides[field.themeField as keyof GarsonlessTheme] ?? entry.THEME_DEFAULTS[field.themeField as keyof GarsonlessTheme]}
+                      onChange={handleFieldChange}
+                      onPatch={updateThemePatch}
+                    />
+                  ) : activeGroup === 'announcement' && visibleFields.length > 0 ? (
+                    <AnnouncementPropertyPanel
+                      fields={visibleFields}
+                      getValue={(field) => overrides[field.themeField as keyof GarsonlessTheme] ?? entry.THEME_DEFAULTS[field.themeField as keyof GarsonlessTheme]}
+                      onChange={handleFieldChange}
+                    />
                   ) : visibleFields.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {visibleFields.map((field) => (
@@ -2040,7 +2106,7 @@ export default function ThemeEditorClient({
                     </div>
                   )}
                 </PropertySection>
-                {effectiveEditorTab === 'design' && activeGroup !== THEME_GROUP_ID && (
+                {effectiveEditorTab === 'design' && activeGroup !== THEME_GROUP_ID && activeGroup !== 'announcement' && (
                   <PropertySection title="Marka rengi" defaultOpen={false}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {['accent', 'cta'].map((key) => {
@@ -3038,29 +3104,30 @@ const HEADER_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
   { title: 'Yerleşim', ids: ['headerLayout', 'headerAlign', 'stickyHeader', 'headerHeight'] },
   { title: 'Boşluk ve çizgi', ids: ['headerPadY', 'headerBottomGap', 'headerBorder'] },
   { title: 'Görünür öğeler', ids: ['headerShowMenu', 'headerTableBadge', 'headerShowBill'] },
+  { title: 'İçerik', ids: ['headerTagline'] },
 ]
 
 const HEADER_CONTROL_CSS = `
-  [data-header-property-panel] .header-modern-range {
+  [data-modern-property-panel] .header-modern-range {
     width: 100%; height: 20px; margin: 0; appearance: none; -webkit-appearance: none;
     background: transparent; cursor: pointer;
   }
-  [data-header-property-panel] .header-modern-range::-webkit-slider-runnable-track {
+  [data-modern-property-panel] .header-modern-range::-webkit-slider-runnable-track {
     height: 4px; border-radius: 999px; background: #dedfe2;
   }
-  [data-header-property-panel] .header-modern-range::-webkit-slider-thumb {
+  [data-modern-property-panel] .header-modern-range::-webkit-slider-thumb {
     appearance: none; -webkit-appearance: none; width: 16px; height: 16px;
     margin-top: -6px; border: 3px solid #fff; border-radius: 50%;
     background: #111318; box-shadow: 0 1px 4px rgba(17,19,24,.28);
   }
-  [data-header-property-panel] .header-modern-range::-moz-range-track {
+  [data-modern-property-panel] .header-modern-range::-moz-range-track {
     height: 4px; border-radius: 999px; background: #dedfe2;
   }
-  [data-header-property-panel] .header-modern-range::-moz-range-thumb {
+  [data-modern-property-panel] .header-modern-range::-moz-range-thumb {
     width: 12px; height: 12px; border: 3px solid #fff; border-radius: 50%;
     background: #111318; box-shadow: 0 1px 4px rgba(17,19,24,.28);
   }
-  [data-header-property-panel] .header-modern-range:focus-visible {
+  [data-modern-property-panel] .header-modern-range:focus-visible {
     outline: 2px solid #111318; outline-offset: 3px; border-radius: 999px;
   }
 `
@@ -3071,7 +3138,7 @@ function HeaderPropertyPanel({ fields, getValue, onChange }: {
   onChange: (field: SettingField, value: unknown) => void
 }) {
   return (
-    <div data-header-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
+    <div data-header-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
       <style>{HEADER_CONTROL_CSS}</style>
       {HEADER_FIELD_SECTIONS.map((section) => {
         const sectionFields = section.ids
@@ -3109,13 +3176,307 @@ function HeaderPropertyPanel({ fields, getValue, onChange }: {
   )
 }
 
+const CARD_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
+  { title: 'Kart yüzeyi', ids: ['radius', 'shadow', 'border', 'cardHover', 'cardPlaceholderStyle'] },
+  { title: 'Aksiyon', ids: ['cardCtaStyle', 'cardCtaIcon'] },
+  { title: 'Kart düzeni', ids: ['cardLayout', 'cardColumns', 'cardDensity', 'cardPriceAlign'] },
+  { title: 'Görsel', ids: ['cardImageAspect', 'cardImageFit', 'cardImagePosition', 'cardHorizontalImageWidth'] },
+  { title: 'İçerik', ids: ['cardShowImage', 'cardShowDesc', 'cardShowTag', 'cardTitleLines', 'cardDescriptionLines'] },
+]
+
+function CardPropertyPanel({ fields, layout, getValue, onChange }: {
+  fields: SettingField[]
+  layout: GarsonlessTheme['cardLayout']
+  getValue: (field: SettingField) => unknown
+  onChange: (field: SettingField, value: unknown) => void
+}) {
+  return (
+    <div data-card-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
+      <style>{HEADER_CONTROL_CSS}</style>
+      {layout === 'minimal' && (
+        <div role="note" style={{ padding: '10px 12px', borderRadius: 10, background: '#f3f4f6', color: '#4b4f58', fontSize: 11.5, lineHeight: 1.45 }}>
+          Minimal düzende ürün görseli ve hızlı ekleme aksiyonu kullanılmaz.
+        </div>
+      )}
+      {CARD_FIELD_SECTIONS.map((section) => {
+        const sectionFields = section.ids.map((id) => fields.find((field) => field.id === id)).filter((field): field is SettingField => Boolean(field))
+        if (sectionFields.length === 0) return null
+        return (
+          <div key={section.title} style={{ padding: 14, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', boxShadow: '0 1px 2px rgba(20,25,31,.03)' }}>
+            <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750, color: 'var(--text)' }}>{section.title}</div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              {sectionFields.map((field) => (
+                <div key={field.id}>
+                  <HeaderPropertyField field={field} value={getValue(field)} onChange={(value) => onChange(field, value)} />
+                  {field.id === 'cardShowDesc' && <div style={{ marginTop: 5, fontSize: 10.5, color: 'var(--text-3)' }}>Yalnız açıklaması olan ürünlerde görünür.</div>}
+                  {field.id === 'cardShowTag' && <div style={{ marginTop: 5, fontSize: 10.5, color: 'var(--text-3)' }}>Yalnız seçenek grubu olan ürünlerde görünür.</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+const NAV_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
+  { title: 'Görünüm', ids: ['catnavStyle', 'catnavActiveStyle', 'catnavFontSize'] },
+  { title: 'Yerleşim', ids: ['catnavAlign', 'catnavDensity', 'catnavItemGap', 'navTopGap', 'navBottomGap', 'stickyNav'] },
+  { title: 'Davranış ve içerik', ids: ['catnavShowCount', 'catnavAutoCenter', 'catnavEdgeFade'] },
+  { title: 'Görsel kartlar', ids: ['catnavVisualStyle', 'catnavVisualCardWidth', 'catnavVisualCardHeight', 'catnavVisualRadius'] },
+  { title: 'Fotoğraf overlay', ids: ['catnavOverlayTextPosition', 'catnavOverlayTextAlign', 'catnavOverlayTextColor', 'catnavOverlayColor', 'catnavOverlayOpacity', 'catnavOverlayBlur'] },
+]
+
+function NavPropertyPanel({ fields, visual, getValue, onChange }: {
+  fields: SettingField[]
+  visual: boolean
+  getValue: (field: SettingField) => unknown
+  onChange: (field: SettingField, value: unknown) => void
+}) {
+  return (
+    <div data-nav-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
+      <style>{HEADER_CONTROL_CSS}</style>
+      {visual && <div role="note" style={{ padding: '10px 12px', borderRadius: 10, background: '#f3f4f6', color: '#4b4f58', fontSize: 11.5, lineHeight: 1.45 }}>Görselli navigasyon kategori kartlarıyla çalışır; sticky ve aktif öğeyi ortalama ayarları yalnız yatay metin navigasyonunda kullanılır.</div>}
+      {NAV_FIELD_SECTIONS.map((section) => {
+        const sectionFields = section.ids.map((id) => fields.find((field) => field.id === id)).filter((field): field is SettingField => Boolean(field))
+        if (sectionFields.length === 0) return null
+        return (
+          <div key={section.title} style={{ padding: 14, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', boxShadow: '0 1px 2px rgba(20,25,31,.03)' }}>
+            <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750, color: 'var(--text)' }}>{section.title}</div>
+            <div style={{ display: 'grid', gap: 12 }}>{sectionFields.map((field) => <HeaderPropertyField key={field.id} field={field} value={getValue(field)} onChange={(value) => onChange(field, value)} />)}</div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+const LAYOUT_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
+  { title: 'Sayfa görünümü', ids: ['texture', 'textureStrength', 'sectionHeading', 'pageMaxWidth'] },
+  { title: 'Sayfa boşlukları', ids: ['pad', 'sectionGap', 'sectionHeadingTopGap', 'sectionHeadingBottomGap'] },
+  { title: 'Ürün grid’i', ids: ['gap'] },
+]
+
+function LayoutPropertyPanel({ fields, texture, getValue, onChange }: {
+  fields: SettingField[]
+  texture: GarsonlessTheme['texture']
+  getValue: (field: SettingField) => unknown
+  onChange: (field: SettingField, value: unknown) => void
+}) {
+  return (
+    <div data-layout-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
+      <style>{HEADER_CONTROL_CSS}</style>
+      {LAYOUT_FIELD_SECTIONS.map((section) => {
+        const sectionFields = section.ids
+          .map((id) => fields.find((field) => field.id === id))
+          .filter((field): field is SettingField => Boolean(field))
+          .filter((field) => field.id !== 'textureStrength' || texture !== 'solid')
+        if (sectionFields.length === 0) return null
+        return (
+          <div key={section.title} style={{ padding: 14, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', boxShadow: '0 1px 2px rgba(20,25,31,.03)' }}>
+            <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750, color: 'var(--text)' }}>{section.title}</div>
+            <div style={{ display: 'grid', gap: 12 }}>{sectionFields.map((field) => <HeaderPropertyField key={field.id} field={field} value={getValue(field)} onChange={(value) => onChange(field, value)} />)}</div>
+            {section.title === 'Ürün grid’i' && <div role="note" style={{ marginTop: 10, fontSize: 10.5, lineHeight: 1.45, color: 'var(--text-3)' }}>Sütun sayısı ve kart yapısı Kartlar → Düzen bölümünden yönetilir. Mobilde en fazla iki sütun gösterilir.</div>}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+const THEME_COLOR_IDS = ['bg', 'cardColor', 'textColor', 'mutedTextColor', 'accent', 'accentSoft', 'cta', 'ctaTextColor', 'borderColor', 'headerBg']
+
+function ThemePropertyPanel({ fields, getValue, onChange }: {
+  fields: SettingField[]
+  getValue: (field: SettingField) => unknown
+  onChange: (field: SettingField, value: unknown) => void
+}) {
+  const fieldMap = new Map(fields.map((field) => [field.id, field]))
+  const valueFor = (id: string, fallback: string) => String(fieldMap.get(id) ? getValue(fieldMap.get(id)!) : fallback)
+  const contrastPairs = [
+    ['Ana metin / Sayfa', valueFor('textColor', '#1c1d20'), valueFor('bg', '#ffffff')],
+    ['Ana metin / Kart', valueFor('textColor', '#1c1d20'), valueFor('cardColor', '#ffffff')],
+    ['Buton metni / Buton', valueFor('ctaTextColor', '#ffffff'), valueFor('cta', '#111111')],
+    ['Vurgu / Sayfa', valueFor('accent', '#111111'), valueFor('bg', '#ffffff')],
+  ] as const
+  const sections = [
+    { title: 'Renk sistemi', ids: THEME_COLOR_IDS },
+    { title: 'Tipografi', ids: ['displayFont', 'bodyFont', 'fs', 'lh'] },
+  ]
+  return (
+    <div data-theme-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
+      <style>{HEADER_CONTROL_CSS}</style>
+      {sections.map((section) => {
+        const sectionFields = section.ids.map((id) => fieldMap.get(id)).filter((field): field is SettingField => Boolean(field))
+        if (sectionFields.length === 0) return null
+        return (
+          <div key={section.title} style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', boxShadow: '0 1px 2px rgba(20,25,31,.03)' }}>
+            <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750 }}>{section.title}</div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              {sectionFields.map((field) => field.type === 'color'
+                ? <ThemeColorField key={field.id} field={field} value={String(getValue(field) ?? field.default ?? '')} onChange={(value) => onChange(field, value)} />
+                : <HeaderPropertyField key={field.id} field={field} value={getValue(field)} onChange={(value) => onChange(field, value)} />)}
+            </div>
+            {section.title === 'Renk sistemi' && fieldMap.get('accentSoft') && (
+              <button type="button" onClick={() => onChange(fieldMap.get('accentSoft')!, deriveSoftColor(valueFor('accent', '#2e7d52')))} style={{ marginTop: 12, width: '100%', height: 34, border: '1px solid var(--border)', borderRadius: 8, background: '#fff', color: '#111318', cursor: 'pointer', fontSize: 11.5, fontWeight: 700 }}>Vurgu Soft’u otomatik üret</button>
+            )}
+          </div>
+        )
+      })}
+      <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)' }}>
+        <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 750 }}>Erişilebilirlik</div>
+        <div style={{ display: 'grid', gap: 7 }}>{contrastPairs.map(([label, fg, bg]) => {
+          const ratio = contrastRatio(fg, bg)
+          const pass = ratio >= 4.5
+          return <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 11.5, color: 'var(--text-2)' }}><span>{label}</span><strong style={{ color: pass ? '#18794e' : '#b42318' }}>{ratio.toFixed(2)}:1 · {pass ? 'Geçer' : 'Zayıf'}</strong></div>
+        })}</div>
+      </div>
+    </div>
+  )
+}
+
+const CART_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
+  { title: 'Sepete erişim', ids: ['cartHeaderTriggerStyle', 'cartFooterTriggerStyle', 'cartIcon', 'cartShowBadge'] },
+  { title: 'Alt tetikleyici', ids: ['cartPillTone', 'cartPillPosition', 'cartShowSubtotal', 'cartShowItemCount'] },
+  { title: 'Sepet çekmecesi', ids: ['cartDrawerTone'] },
+  { title: 'Metinler', ids: ['cartButtonText', 'cartEmptyText', 'cartPrimaryActionText'] },
+]
+
+function CartPropertyPanel({ fields, headerStyle, footerStyle, getValue, onChange, onPatch }: {
+  fields: SettingField[]
+  headerStyle: NonNullable<GarsonlessTheme['cartHeaderTriggerStyle']>
+  footerStyle: NonNullable<GarsonlessTheme['cartFooterTriggerStyle']>
+  getValue: (field: SettingField) => unknown
+  onChange: (field: SettingField, value: unknown) => void
+  onPatch: (patch: Partial<GarsonlessTheme>) => void
+}) {
+  const fieldById = new Map(fields.map((field) => [field.id, field]))
+  const safeChange = (field: SettingField, value: unknown) => {
+    if (field.id === 'cartHeaderTriggerStyle') {
+      onPatch({
+        cartHeaderTriggerStyle: value as GarsonlessTheme['cartHeaderTriggerStyle'],
+        cartFooterTriggerStyle: value !== 'none' ? 'none' : footerStyle === 'none' ? 'pill' : footerStyle,
+      })
+      return
+    }
+    if (field.id === 'cartFooterTriggerStyle') {
+      onPatch({
+        cartFooterTriggerStyle: value as GarsonlessTheme['cartFooterTriggerStyle'],
+        cartHeaderTriggerStyle: value !== 'none' ? 'none' : headerStyle === 'none' ? 'icon' : headerStyle,
+      })
+      return
+    }
+    onChange(field, value)
+  }
+  return (
+    <div data-cart-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
+      <style>{HEADER_CONTROL_CSS}</style>
+      <div role="note" style={{ padding: '10px 12px', borderRadius: 10, background: '#f3f4f6', color: '#4b4f58', fontSize: 11.5, lineHeight: 1.45 }}>Sepet girişi Header veya alt alanda gösterilir. Bir konumu seçtiğinde diğeri otomatik kapanır.</div>
+      {CART_FIELD_SECTIONS.map((section) => {
+        const sectionFields = section.ids.map((id) => fieldById.get(id)).filter((field): field is SettingField => Boolean(field))
+        if (sectionFields.length === 0) return null
+        return <div key={section.title} style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', boxShadow: '0 1px 2px rgba(20,25,31,.03)' }}>
+          <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750 }}>{section.title}</div>
+          <div style={{ display: 'grid', gap: 12 }}>{sectionFields.map((field) => <HeaderPropertyField key={field.id} field={field} value={getValue(field)} onChange={(value) => safeChange(field, value)} />)}</div>
+        </div>
+      })}
+    </div>
+  )
+}
+
+const ANNOUNCEMENT_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
+  { title: 'Durum ve içerik', ids: ['announcementEnabled', 'announcementText'] },
+  { title: 'Görünüm ve hareket', ids: ['announcementBg', 'announcementColor', 'announcementStyle', 'announcementSpeed'] },
+]
+
+function AnnouncementPropertyPanel({ fields, getValue, onChange }: {
+  fields: SettingField[]
+  getValue: (field: SettingField) => unknown
+  onChange: (field: SettingField, value: unknown) => void
+}) {
+  const fieldById = new Map(fields.map((field) => [field.id, field]))
+  const background = String(fieldById.get('announcementBg') ? getValue(fieldById.get('announcementBg')!) : '#111111')
+  const foreground = String(fieldById.get('announcementColor') ? getValue(fieldById.get('announcementColor')!) : '#ffffff')
+  const ratio = contrastRatio(foreground, background)
+  return (
+    <div data-announcement-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
+      <style>{HEADER_CONTROL_CSS}</style>
+      {ANNOUNCEMENT_FIELD_SECTIONS.map((section) => {
+        const sectionFields = section.ids.map((id) => fieldById.get(id)).filter((field): field is SettingField => Boolean(field))
+        if (sectionFields.length === 0) return null
+        return <div key={section.title} style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', boxShadow: '0 1px 2px rgba(20,25,31,.03)' }}>
+          <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750 }}>{section.title}</div>
+          <div style={{ display: 'grid', gap: 12 }}>{sectionFields.map((field) => field.type === 'color'
+            ? <ThemeColorField key={field.id} field={field} value={String(getValue(field))} onChange={(value) => onChange(field, value)} />
+            : <HeaderPropertyField key={field.id} field={field} value={getValue(field)} onChange={(value) => onChange(field, value)} />)}</div>
+        </div>
+      })}
+      {fieldById.has('announcementBg') && fieldById.has('announcementColor') && (
+        <div role="status" style={{ padding: '10px 12px', border: `1px solid ${ratio >= 4.5 ? '#b7dfca' : '#f0b8b8'}`, borderRadius: 10, background: ratio >= 4.5 ? '#f0faf5' : '#fff4f4', color: ratio >= 4.5 ? '#18794e' : '#b42318', fontSize: 11.5, fontWeight: 700 }}>
+          Metin kontrastı {ratio.toFixed(2)}:1 · {ratio >= 4.5 ? 'Erişilebilir' : 'Kontrastı artırın'}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ThemeColorField({ field, value, onChange }: { field: SettingField; value: string; onChange: (value: string) => void }) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  const valid = /^#[0-9a-fA-F]{6}$/.test(draft)
+  return (
+    <div>
+      <label style={{ display: 'block', marginBottom: 6, fontSize: 12.5, color: 'var(--text-2)' }}>{field.label}</label>
+      <div style={{ display: 'grid', gridTemplateColumns: '38px minmax(0,1fr)', border: `1px solid ${valid ? 'var(--border)' : '#d92d20'}`, borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+        <input aria-label={`${field.label} renk seçici`} type="color" value={valid ? draft : '#000000'} onChange={(event) => { setDraft(event.target.value); onChange(event.target.value) }} style={{ width: 38, height: 34, padding: 2, border: 0, background: '#fff', cursor: 'pointer' }} />
+        <input aria-label={`${field.label} hex değeri`} value={draft} onChange={(event) => { const next = event.target.value; setDraft(next); if (/^#[0-9a-fA-F]{6}$/.test(next)) onChange(next) }} style={{ minWidth: 0, border: 0, borderLeft: '1px solid var(--border)', padding: '0 9px', fontFamily: 'monospace', fontSize: 12, outline: 0 }} />
+      </div>
+      {!valid && <div style={{ marginTop: 4, color: '#b42318', fontSize: 10.5 }}>Geçerli format: #RRGGBB</div>}
+    </div>
+  )
+}
+
+function rgbFromHex(hex: string) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null
+  return [Number.parseInt(hex.slice(1, 3), 16), Number.parseInt(hex.slice(3, 5), 16), Number.parseInt(hex.slice(5, 7), 16)] as const
+}
+
+function contrastRatio(foreground: string, background: string) {
+  const luminance = (hex: string) => {
+    const rgb = rgbFromHex(hex)
+    if (!rgb) return 0
+    const channels = rgb.map((channel) => { const value = channel / 255; return value <= .03928 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4 })
+    const [red = 0, green = 0, blue = 0] = channels
+    return .2126 * red + .7152 * green + .0722 * blue
+  }
+  const first = luminance(foreground)
+  const second = luminance(background)
+  return (Math.max(first, second) + .05) / (Math.min(first, second) + .05)
+}
+
+function deriveSoftColor(accent: string) {
+  const rgb = rgbFromHex(accent)
+  if (!rgb) return '#f1f2f3'
+  const mixed = rgb.map((channel) => Math.round(channel * .12 + 255 * .88))
+  return `#${mixed.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+}
+
 function HeaderPropertyField({ field, value, onChange }: {
   field: SettingField
   value: unknown
   onChange: (value: unknown) => void
 }) {
   const controlId = `theme-field-${sanitizeId(field.id)}`
-  const tiledSelect = field.type === 'select' && ['headerLogoStyle', 'headerStyle', 'headerLayout', 'headerAlign'].includes(field.id)
+  const tiledSelect = field.type === 'select' && [
+    'headerLogoStyle', 'headerStyle', 'headerLayout', 'headerAlign',
+    'cardLayout', 'cardDensity', 'cardPriceAlign', 'cardImageFit', 'cardImagePosition',
+    'cardHover', 'cardPlaceholderStyle', 'cardCtaStyle', 'cardCtaIcon',
+    'catnavStyle', 'catnavActiveStyle', 'catnavAlign', 'catnavDensity', 'catnavVisualStyle',
+    'texture', 'sectionHeading', 'pageMaxWidth',
+    'cartHeaderTriggerStyle', 'cartFooterTriggerStyle', 'cartIcon', 'cartPillTone', 'cartDrawerTone', 'cartPillPosition',
+    'announcementStyle',
+  ].includes(field.id)
   if (tiledSelect) {
     return (
       <div>
@@ -3267,7 +3628,33 @@ function headerOptionIcon(fieldId: string, value: string) {
     if (value === 'wordmark') return <I.type size={17} />
     return <I.header size={17} />
   }
-  return <I.check size={17} />
+  if (fieldId === 'cardLayout') return value === 'horizontal' ? <I.section size={17} /> : value === 'minimal' ? <I.page size={17} /> : <I.grid size={17} />
+  if (fieldId === 'cardDensity') return value === 'compact' ? <I.spacing size={17} /> : value === 'comfortable' ? <I.sparkles size={17} /> : <I.card size={17} />
+  if (fieldId === 'cardPriceAlign' || fieldId === 'catnavAlign') return value === 'right' ? <I.arrow size={17} /> : value === 'center' ? <I.layout size={17} /> : <I.chevLeft size={17} />
+  if (fieldId === 'cardImageFit' || fieldId === 'cardImagePosition' || fieldId === 'cardPlaceholderStyle') return <I.image size={17} />
+  if (fieldId === 'cardHover') return value === 'none' ? <I.close size={17} /> : value === 'lift' ? <I.arrow size={17} /> : <I.sparkles size={17} />
+  if (fieldId === 'cardCtaStyle') return value === 'none' ? <I.close size={17} /> : value === 'icon' ? <I.plus size={17} /> : <I.tag size={17} />
+  if (fieldId === 'cardCtaIcon') return value === 'cart' ? <I.cart size={17} /> : value === 'bag' ? <I.store size={17} /> : <I.plus size={17} />
+  if (fieldId === 'catnavStyle') return value === 'visual' ? <I.image size={17} /> : <I.nav size={17} />
+  if (fieldId === 'catnavActiveStyle') return value === 'underline' ? <I.spacing size={17} /> : value === 'dot' ? <I.more size={17} /> : <I.tag size={17} />
+  if (fieldId === 'catnavDensity') return value === 'compact' ? <I.spacing size={17} /> : <I.nav size={17} />
+  if (fieldId === 'catnavVisualStyle') return value === 'overlay' ? <I.image size={17} /> : <I.card size={17} />
+  if (fieldId === 'texture') return value === 'solid' ? <I.color size={17} /> : value === 'paper' ? <I.page size={17} /> : <I.sparkles size={17} />
+  if (fieldId === 'sectionHeading') return value === 'catalog' ? <I.page size={17} /> : value === 'editorial' ? <I.type size={17} /> : <I.color size={17} />
+  if (fieldId === 'pageMaxWidth') return value === 'none' ? <I.frame size={17} /> : <I.layout size={17} />
+  if (fieldId === 'cartHeaderTriggerStyle') return value === 'none' ? <I.close size={17} /> : value === 'icon' ? <I.cart size={17} /> : <I.receipt size={17} />
+  if (fieldId === 'cartFooterTriggerStyle') {
+    if (value === 'none') return <I.close size={17} />
+    if (value === 'bar') return <I.section size={17} />
+    if (value === 'fab') return <I.plus size={17} />
+    if (value === 'thumbs') return <I.image size={17} />
+    return <I.cart size={17} />
+  }
+  if (fieldId === 'cartIcon') return value === 'cart' ? <I.cart size={17} /> : value === 'bag' ? <I.store size={17} /> : <I.handPlatter size={17} />
+  if (fieldId === 'cartPillTone' || fieldId === 'cartDrawerTone') return value === 'light' || value === 'clean' ? <I.sparkles size={17} /> : <I.color size={17} />
+  if (fieldId === 'cartPillPosition') return value === 'edge' ? <I.spacing size={17} /> : <I.arrow size={17} />
+  if (fieldId === 'announcementStyle') return value === 'static' ? <I.page size={17} /> : value === 'marquee' ? <I.arrow size={17} /> : value === 'fade' ? <I.sparkles size={17} /> : <I.section size={17} />
+  return <I.sparkles size={17} />
 }
 
 function PropertySection({ title, children, defaultOpen = true }: {

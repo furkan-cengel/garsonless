@@ -406,7 +406,7 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
                   borderRadius: 999,
                   border: 'none',
                   background: 'var(--p-cta)',
-                  color: '#fff',
+                  color: 'var(--p-cta-text)',
                   fontSize: 18,
                   fontWeight: 850,
                   cursor: 'pointer',

@@ -1,6 +1,7 @@
 'use client'
 
 import { AnimatePresence, motion } from 'framer-motion'
+import { useEffect, useRef } from 'react'
 import type { CartItem } from './types'
 import { useTheme } from './ThemeContext'
 import { formatTRY } from './formatCurrency'
@@ -101,6 +102,27 @@ export function CartDrawer({
   const primaryActionText = theme.cartPrimaryActionText || 'Sipariş ver'
   const headerIsAccent = drawerTone === 'accentHeader'
   const itemCount = visibleItems.reduce((sum, i) => sum + i.quantity, 0)
+  const drawerRef = useRef<HTMLDivElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    returnFocusRef.current = document.activeElement as HTMLElement | null
+    const drawer = drawerRef.current
+    drawer?.focus()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); onClose(); return }
+      if (event.key !== 'Tab' || !drawer) return
+      const focusable = [...drawer.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      if (focusable.length === 0) return
+      const first = focusable[0]!
+      const last = focusable[focusable.length - 1]!
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('keydown', onKeyDown); returnFocusRef.current?.focus() }
+  }, [isOpen, onClose])
 
   return (
     <AnimatePresence>
@@ -117,7 +139,12 @@ export function CartDrawer({
 
           <motion.div
             key="drawer"
+            ref={drawerRef}
             data-component="cart"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cart-drawer-title"
+            tabIndex={-1}
             style={{
               background: 'var(--p-card)',
               color: 'var(--p-text)',
@@ -129,7 +156,7 @@ export function CartDrawer({
               zIndex: 50,
               display: 'flex',
               flexDirection: 'column',
-              border: '1px solid rgba(15,23,42,.08)',
+              border: '1px solid var(--p-border)',
               overflow: 'hidden',
             }}
             variants={{ hidden: { y: '100%' }, visible: { y: 0 } }}
@@ -139,7 +166,7 @@ export function CartDrawer({
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
           >
             <div style={{
-              background: headerIsAccent ? 'linear-gradient(135deg, var(--p-accent), var(--p-cta))' : '#fff',
+              background: headerIsAccent ? 'linear-gradient(135deg, var(--p-accent), var(--p-cta))' : 'var(--p-card)',
               color: headerIsAccent ? '#fff' : 'var(--p-text)',
               padding: '12px 18px 14px',
               borderBottom: headerIsAccent ? 'none' : '1px solid rgba(15,23,42,.08)',
@@ -149,7 +176,7 @@ export function CartDrawer({
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div style={{ minWidth: 0 }}>
-                  <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'inherit', letterSpacing: '-0.01em' }}>Sepetiniz</h2>
+                  <h2 id="cart-drawer-title" style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'inherit', letterSpacing: '-0.01em' }}>Sepetiniz</h2>
                   {showItemCount && (
                     <p style={{ fontSize: 12, margin: '3px 0 0', color: headerIsAccent ? 'rgba(255,255,255,.78)' : 'var(--p-text-2)' }}>
                       {itemCount > 0 ? `${itemCount} ürün siparişe hazır` : theme.cartEmptyText || 'Sepetiniz boş'}
@@ -248,7 +275,7 @@ export function CartDrawer({
                         <p style={{ fontSize: 14, fontWeight: 800, margin: '0 0 3px', color: 'var(--p-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                           {item.originalPrice && item.originalPrice !== item.price && (
-                            <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--p-cta)', color: '#fff', padding: '1px 6px', borderRadius: 4, flexShrink: 0 }}>İndirimli</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--p-cta)', color: 'var(--p-cta-text)', padding: '1px 6px', borderRadius: 4, flexShrink: 0 }}>İndirimli</span>
                           )}
                         </p>
                         <div style={{ margin: '0 0 9px', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -282,25 +309,26 @@ export function CartDrawer({
                           <button
                             onClick={() => onUpdateQuantity(item.cartId, item.quantity - 1)}
                             style={{
-                              height: 28, width: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              height: 44, width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
                               border: 'none', borderRadius: 999,
                               background: 'var(--p-accent-soft)', color: 'var(--p-accent)', fontSize: 16, fontWeight: 800, cursor: 'pointer',
                             }}
-                          >−</button>
+                          aria-label={`${item.name} adedini azalt`}>−</button>
                           <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--p-text)', minWidth: 18, textAlign: 'center' }}>
                             {item.quantity}
                           </span>
                           <button
                             onClick={() => onUpdateQuantity(item.cartId, item.quantity + 1)}
                             style={{
-                              height: 28, width: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              height: 44, width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
                               border: 'none', borderRadius: 999,
-                              backgroundColor: 'var(--p-cta)', color: '#ffffff', fontSize: 16, fontWeight: 800, cursor: 'pointer',
+                              backgroundColor: 'var(--p-cta)', color: 'var(--p-cta-text)', fontSize: 16, fontWeight: 800, cursor: 'pointer',
                             }}
-                          >+</button>
+                          aria-label={`${item.name} adedini artır`}>+</button>
                           <button
                             onClick={() => onRemoveItem(item.cartId)}
-                            style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: 11.5, color: 'var(--p-text-2)', cursor: 'pointer', padding: '4px 0' }}
+                            aria-label={`${item.name} ürününü sepetten kaldır`}
+                            style={{ marginLeft: 'auto', minHeight: 44, background: 'none', border: 'none', fontSize: 11.5, color: 'var(--p-text-2)', cursor: 'pointer', padding: '4px 8px' }}
                           >Kaldır</button>
                         </div>
                       </div>
@@ -315,9 +343,9 @@ export function CartDrawer({
 
             {visibleItems.length > 0 && (
               <div style={{
-                padding: '14px 16px 18px',
+                padding: '14px 16px calc(18px + env(safe-area-inset-bottom))',
                 borderTop: '1px solid rgba(15,23,42,.08)',
-                background: 'rgba(255,255,255,.94)',
+                background: 'color-mix(in srgb, var(--p-card) 94%, transparent)',
                 boxShadow: '0 -12px 28px rgba(15,23,42,.06)',
               }}>
                 {stampReward && stampReward.cardFull && (

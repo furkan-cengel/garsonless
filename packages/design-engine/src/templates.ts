@@ -46,7 +46,7 @@ export const TEMPLATES: Record<string, GarsonlessTheme> = {
 
   // Premium Mediterranean — fixed glass app bar, horizontal menu cards, list products
   spain: {
-    bg: '#fdf9f4', bodyFont: 'Hanken Grotesk', displayFont: 'Hanken Grotesk',
+    bg: '#fdf9f4', bodyFont: 'Hanken Grotesk', displayFont: 'Hanken Grotesk', cardVariant: 'spain',
     fs: 16, lh: 150, radius: 12, shadow: 'none', border: 'none',
     accent: '#000000', accentSoft: '#e6e2dd', cta: '#000000',
     texture: 'solid', motion: 'reduced', showSelection: false,
@@ -67,7 +67,7 @@ export const TEMPLATES: Record<string, GarsonlessTheme> = {
   obsidian: {
     bg: '#0a0a0a', bodyFont: 'Inter', displayFont: 'Playfair Display',
     fs: 15, lh: 150, radius: 2, shadow: 'none', border: 'none',
-    accent: '#e8c97d', accentSoft: '#2a240e', cta: '#e8c97d',
+    accent: '#e8c97d', accentSoft: '#2a240e', cta: '#e8c97d', cardColor: '#171717', textColor: '#f7f3e8', mutedTextColor: '#b8b2a4', ctaTextColor: '#171717', borderColor: '#373127',
     texture: 'solid', motion: 'full', showSelection: false,
     cols: 2, gap: 16, pad: 16, sectionGap: 32,
     stickyHeader: false, stickyNav: true,
@@ -143,7 +143,7 @@ export const TEMPLATES: Record<string, GarsonlessTheme> = {
   midnight: {
     bg: '#0f172a', bodyFont: 'DM Sans', displayFont: 'Fraunces',
     fs: 14, lh: 150, radius: 12, shadow: 'none', border: 'none',
-    accent: '#a78bfa', accentSoft: '#1e1b4b', cta: '#7c3aed',
+    accent: '#a78bfa', accentSoft: '#1e1b4b', cta: '#7c3aed', cardColor: '#111827', textColor: '#f8fafc', mutedTextColor: '#cbd5e1', ctaTextColor: '#ffffff', borderColor: '#334155',
     texture: 'solid', motion: 'full', showSelection: false,
     cols: 1, gap: 8, pad: 16, sectionGap: 28,
     stickyHeader: true, stickyNav: true,

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import type { ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import {
   ThemeProvider,
@@ -50,7 +49,8 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
     0,
   )
   const style = theme.cartStyle
-  const footerStyle = theme.cartFooterTriggerStyle ?? (style === 'banner' ? 'bar' : style === 'fab' ? 'fab' : 'pill')
+  const configuredFooterStyle = theme.cartFooterTriggerStyle ?? (style === 'banner' ? 'bar' : style === 'fab' ? 'fab' : 'pill')
+  const footerStyle = configuredFooterStyle === 'tabbar' ? 'pill' : configuredFooterStyle
   const iconKind = theme.cartIcon
   const showBadge = theme.cartShowBadge
   const radius = theme.radius
@@ -58,18 +58,18 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
   const showItemCount = theme.cartShowItemCount ?? true
   const pillPosition = theme.cartPillPosition ?? 'floating'
   const pillTone = theme.cartPillTone ?? 'dark'
-  const spainBar = theme.bodyFont === 'Hanken Grotesk'
+  const spainBar = theme.cardVariant === 'spain'
   const spainActionLabel = theme.cartButtonText || 'Pay'
 
   if (spainBar) {
-    if (theme.cartStyle === 'fab') {
+    if (footerStyle === 'fab') {
       return (
         <button
           type="button"
           onClick={onClick}
           style={{
             position: 'fixed',
-            bottom: 24,
+            bottom: 'calc(24px + env(safe-area-inset-bottom))',
             right: 20,
             zIndex: 45,
             width: 64,
@@ -77,7 +77,7 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
             borderRadius: '50%',
             border: 'none',
             background: 'var(--p-cta)',
-            color: '#fff',
+            color: 'var(--p-cta-text)',
             boxShadow: '0 18px 36px rgba(28,28,25,.22)',
             display: 'flex',
             alignItems: 'center',
@@ -96,7 +96,7 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
               padding: '0 6px',
               borderRadius: 999,
               background: '#7eb928',
-              color: '#fff',
+              color: 'var(--p-cta-text)',
               border: '2px solid #fff',
               fontSize: 11,
               fontWeight: 800,
@@ -109,14 +109,14 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
       )
     }
 
-    if (theme.cartStyle === 'pill') {
+    if (footerStyle === 'pill') {
       return (
         <button
           type="button"
           onClick={onClick}
           style={{
             position: 'fixed',
-            bottom: 20,
+            bottom: 'calc(20px + env(safe-area-inset-bottom))',
             left: 20,
             right: 20,
             maxWidth: 390,
@@ -161,101 +161,6 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
       )
     }
 
-    return (
-      <footer
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          width: '100%',
-          maxWidth: 430,
-          margin: '0 auto',
-          zIndex: 45,
-          borderRadius: '12px 12px 0 0',
-          background: '#000',
-          color: '#fff',
-          padding: '20px 24px 14px',
-          boxShadow: '0 -8px 28px rgba(28,28,25,.18)',
-          fontFamily: 'var(--p-body)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-          <button
-            type="button"
-            onClick={onClick}
-            style={{
-              minWidth: 0,
-              border: 'none',
-              background: 'transparent',
-              color: 'inherit',
-              padding: 0,
-              textAlign: 'left',
-              cursor: 'pointer',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 28, lineHeight: '34px', fontWeight: 650 }}>
-                {formatTRY(subtotal || 0)}
-              </span>
-              <span style={{ opacity: 0.6, display: 'inline-flex' }}>
-                <InfoIcon />
-              </span>
-            </div>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              color: 'rgba(255,255,255,.7)',
-              fontSize: 14,
-              lineHeight: '20px',
-              letterSpacing: '0.05em',
-              fontWeight: 500,
-            }}>
-              <span>Total Table 12</span>
-              <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'rgba(255,255,255,.3)' }} />
-              <span>4 persons</span>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={onClick}
-            style={{
-              border: 'none',
-              borderRadius: 999,
-              background: 'var(--p-cta)',
-              color: '#fff',
-              padding: '12px 24px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              fontSize: 14,
-              fontWeight: 800,
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            <CartIconSvg kind={iconKind} color="currentColor" size={20} />
-            {spainActionLabel}
-          </button>
-        </div>
-        {showBadge && (
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-around',
-            alignItems: 'center',
-            marginTop: 20,
-            paddingTop: 12,
-            borderTop: '1px solid rgba(255,255,255,.1)',
-          }}>
-            <SpainTab active icon={<MenuTabIcon />} label="Menu" />
-            <SpainTab icon={<CartIconSvg kind="cart" color="currentColor" size={20} />} label="Order" />
-            <SpainTab icon={<PaymentSmallIcon />} label="Split" />
-            <SpainTab icon={<ServiceIcon />} label="Service" />
-          </div>
-        )}
-      </footer>
-    )
   }
 
   if (count === 0 || footerStyle === 'none') return null
@@ -302,7 +207,7 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
       fontSize: 10,
       fontWeight: 900,
       backgroundColor: 'var(--p-cta)',
-      color: '#fff',
+      color: 'var(--p-cta-text)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -315,7 +220,7 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
       <button
         onClick={onClick}
         style={{
-          position: 'fixed', bottom: 24, right: 20,
+          position: 'fixed', bottom: 'calc(24px + env(safe-area-inset-bottom))', right: 20,
           width: 60, height: 60, borderRadius: '50%',
           backgroundColor: 'var(--p-accent)', color: '#fff',
           border: 'none', cursor: 'pointer', zIndex: 30,
@@ -326,61 +231,6 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
         <CartIconSvg kind={iconKind} color="#fff" size={24} />
         {badge}
       </button>
-    )
-  }
-
-  if (footerStyle === 'tabbar') {
-    const tabs = [
-      { icon: <MenuTabIcon />, label: 'Menü', active: false },
-      { icon: <SearchSmallIcon />, label: 'Ara', active: false },
-      { icon: <CartIconSvg kind={iconKind} color="currentColor" size={21} />, label: 'Sepet', active: true },
-    ]
-    return (
-      <nav style={{
-        position: 'fixed',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 30,
-        maxWidth: 430,
-        margin: '0 auto',
-        height: 68,
-        borderTop: '1px solid var(--p-border, rgba(0,0,0,.08))',
-        background: '#fff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-around',
-        padding: '6px 18px 10px',
-        boxShadow: '0 -12px 28px rgba(15,23,42,.08)',
-      }}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.label}
-            type="button"
-            onClick={tab.label === 'Sepet' ? onClick : undefined}
-            style={{
-              position: 'relative',
-              border: 'none',
-              background: 'transparent',
-              color: tab.active ? 'var(--p-accent)' : 'var(--p-text-3)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 4,
-              fontFamily: 'var(--p-body)',
-              fontSize: 10.5,
-              fontWeight: tab.active ? 850 : 650,
-              cursor: tab.active ? 'pointer' : 'default',
-            }}
-          >
-            <span style={{ position: 'relative', display: 'inline-flex' }}>
-              {tab.icon}
-              {tab.active ? badge : null}
-            </span>
-            {tab.label}
-          </button>
-        ))}
-      </nav>
     )
   }
 
@@ -397,7 +247,7 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
             borderRadius: 999,
             border: 'none',
             background: 'var(--p-text)',
-            color: '#fff',
+            color: 'var(--p-cta-text)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -547,7 +397,7 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
             position: 'absolute', top: -5, right: -5,
             minWidth: 20, height: 20, padding: '0 5px',
             borderRadius: 999, fontSize: 10, fontWeight: 800,
-            backgroundColor: 'var(--p-cta)', color: '#fff',
+            backgroundColor: 'var(--p-cta)', color: 'var(--p-cta-text)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             border: '2px solid currentColor',
           }}>{count > 99 ? '99+' : count}</span>
@@ -574,76 +424,6 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
         }}>{formatTRY(subtotal)}</span>
       )}
     </button>
-  )
-}
-
-function SpainTab({ active = false, icon, label }: { active?: boolean; icon: ReactNode; label: string }) {
-  return (
-    <button
-      type="button"
-      style={{
-        border: 'none',
-        background: 'transparent',
-        color: active ? '#fff' : 'rgba(255,255,255,.5)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 4,
-        padding: 0,
-        fontSize: 10,
-        lineHeight: 1,
-        letterSpacing: '0.1em',
-        fontWeight: active ? 800 : 500,
-        textTransform: 'uppercase',
-      }}
-    >
-      <span style={{ display: 'inline-flex' }}>{icon}</span>
-      <span>{label}</span>
-    </button>
-  )
-}
-
-function InfoIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5M12 8h.01" />
-    </svg>
-  )
-}
-
-function PaymentSmallIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-      <rect x="3" y="6" width="18" height="12" rx="2" />
-      <path d="M3 10h18M7 15h4" />
-    </svg>
-  )
-}
-
-function SearchSmallIcon() {
-  return (
-    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.5-3.5" />
-    </svg>
-  )
-}
-
-function MenuTabIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M7 3a1 1 0 0 1 1 1v7.2a3.2 3.2 0 0 1-2 2.96V20a1 1 0 1 1-2 0v-5.84a3.2 3.2 0 0 1-2-2.96V4a1 1 0 0 1 2 0v7.2a1.2 1.2 0 0 0 2.4 0V4a1 1 0 0 1 1-1Zm10.5 0A2.5 2.5 0 0 1 20 5.5V20a1 1 0 1 1-2 0v-5h-3V5.5A2.5 2.5 0 0 1 17.5 3Z" />
-    </svg>
-  )
-}
-
-function ServiceIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-      <path d="M4 18h16M6 18v-1a6 6 0 0 1 12 0v1M12 7V4" />
-      <path d="M10 4h4" />
-    </svg>
   )
 }
 
@@ -1343,7 +1123,7 @@ export function MenuPageClient({
     const catItems = categoryIds.flatMap((categoryId) => itemsByCategory[categoryId] ?? [])
     const firstImage = catItems.find((item) => item.images.length > 0)?.images[0] ?? null
     acc[cat.id] = {
-      imageUrl: firstImage,
+      imageUrl: cat.image_url ?? firstImage,
       itemCount: catItems.length,
     }
     return acc

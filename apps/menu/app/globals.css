@@ -30,7 +30,7 @@
 @keyframes bar-bounce { 0%, 100% { transform: scaleY(.4); } 50% { transform: scaleY(1); } }
 
 /* ── Announcement bar keyframes ────────────────────────────── */
-@keyframes marquee   { from { transform: translateX(0) } to { transform: translateX(-33.33%) } }
+@keyframes marquee   { from { transform: translateX(0) } to { transform: translateX(-100%) } }
 @keyframes fade-loop { 0%, 100% { opacity: 0 } 20%, 80% { opacity: 1 } }
 @keyframes slide-up  {
   0%   { transform: translateY(0);     opacity: 1 }
@@ -69,4 +69,11 @@
   --radius-base: 8px;
   --radius-card: 12px;
   --radius-button: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .announcement-motion {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
 }

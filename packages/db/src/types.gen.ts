@@ -467,6 +467,7 @@ export type Database = {
           deleted_at: string | null
           description: string | null
           id: string
+          image_url: string | null
           is_visible: boolean
           kitchen_station_id: string | null
           name: string
@@ -481,6 +482,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           id?: string
+          image_url?: string | null
           is_visible?: boolean
           kitchen_station_id?: string | null
           name: string
@@ -495,6 +497,7 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           id?: string
+          image_url?: string | null
           is_visible?: boolean
           kitchen_station_id?: string | null
           name?: string

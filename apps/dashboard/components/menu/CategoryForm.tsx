@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { createCategory, updateCategory } from '../../lib/actions/menu'
+import { createDashboardBrowserClient } from '../../lib/supabase'
 import { InlineSpinner } from '@garsonless/ui'
 import type { Tables } from '@garsonless/db'
 
@@ -30,8 +31,28 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
   const [description, setDescription] = useState(existing?.description ?? null)
   const [vatRate, setVatRate] = useState(String(existing?.vat_rate ?? 10))
   const [kitchenStationId, setKitchenStationId] = useState(existing?.kitchen_station_id ?? '')
+  const [imageUrl, setImageUrl] = useState(existing?.image_url ?? '')
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
+
+  async function handleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    event.target.value = ''
+    setUploading(true)
+    setError('')
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    const categoryKey = existing?.id ?? crypto.randomUUID()
+    const path = `restaurants/${restaurantId}/categories/${categoryKey}/${Date.now()}.${ext}`
+    const supabase = createDashboardBrowserClient()
+    const { error: uploadError } = await supabase.storage.from('restaurant-assets').upload(path, file, { upsert: true })
+    if (uploadError) { setError(uploadError.message); setUploading(false); return }
+    const { data } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
+    setImageUrl(data.publicUrl)
+    setUploading(false)
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -46,16 +67,18 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
         fd.append('name', name)
         fd.append('vat_rate', submittedVatRate)
         fd.append('kitchen_station_id', kitchenStationId)
+        fd.append('image_url', imageUrl)
         if (description) fd.append('description', description)
         const result = await updateCategory(fd)
         if ('error' in result) { setError(result.error); return }
-        onUpdated?.({ ...existing, name, description: description ?? null, vat_rate: Number.isFinite(submittedVatNumber) ? submittedVatNumber : 0, kitchen_station_id: kitchenStationId || null })
+        onUpdated?.({ ...existing, name, description: description ?? null, image_url: imageUrl || null, vat_rate: Number.isFinite(submittedVatNumber) ? submittedVatNumber : 0, kitchen_station_id: kitchenStationId || null })
       } else {
         const fd = new FormData()
         fd.append('restaurantId', restaurantId)
         fd.append('name', name)
         fd.append('vat_rate', submittedVatRate)
         fd.append('kitchen_station_id', kitchenStationId)
+        fd.append('image_url', imageUrl)
         if (description) fd.append('description', description)
         if (parentId) fd.append('parentId', parentId)
         const result = await createCategory(null, fd)
@@ -65,6 +88,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
           restaurant_id: restaurantId,
           name,
           description: description ?? null,
+          image_url: imageUrl || null,
           position: 0,
           is_visible: true,
           parent_id: parentId ?? null,
@@ -94,6 +118,16 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
         autoFocus
         style={inputStyle}
       />
+      <div style={{ display: 'grid', gridTemplateColumns: imageUrl ? '56px 1fr' : '1fr', gap: 8, alignItems: 'center' }}>
+        {imageUrl && <img src={imageUrl} alt="Kategori görseli" style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} />}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={handleImageUpload} hidden />
+          <button type="button" disabled={uploading} onClick={() => fileInputRef.current?.click()} style={{ ...inputStyle, cursor: 'pointer', width: 'auto', flex: 1 }}>
+            {uploading ? 'Yükleniyor…' : imageUrl ? 'Görseli değiştir' : 'Kategori görseli yükle'}
+          </button>
+          {imageUrl && <button type="button" onClick={() => setImageUrl('')} aria-label="Kategori görselini kaldır" style={{ width: 34, borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}>×</button>}
+        </div>
+      </div>
       <input
         type="text"
         placeholder="Açıklama (opsiyonel)"

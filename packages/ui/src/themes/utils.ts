@@ -16,10 +16,10 @@ const SYSTEM_FONTS = new Set(['Georgia', 'Times New Roman', 'Arial', 'Helvetica'
 
 export function computeThemeVars(t: GarsonlessTheme): Record<string, string> {
   const bodyFont = SYSTEM_FONTS.has(t.bodyFont) ? t.bodyFont : `"${t.bodyFont}", sans-serif`
-  const displayFont = SYSTEM_FONTS.has(t.displayFont) ? t.displayFont : `"${t.displayFont}", cursive`
+  const displayFont = SYSTEM_FONTS.has(t.displayFont) ? t.displayFont : `"${t.displayFont}", serif`
   return {
     '--p-bg': t.bg,
-    '--p-card': '#ffffff',
+    '--p-card': t.cardColor ?? '#ffffff',
     '--p-display': displayFont,
     '--p-body': bodyFont,
     '--p-radius': `${t.radius}px`,
@@ -28,11 +28,12 @@ export function computeThemeVars(t: GarsonlessTheme): Record<string, string> {
     '--p-accent': t.accent,
     '--p-accent-soft': t.accentSoft,
     '--p-cta': t.cta,
-    '--p-text': '#1c1d20',
-    '--p-text-2': '#6c6f76',
+    '--p-text': t.textColor ?? '#1c1d20',
+    '--p-text-2': t.mutedTextColor ?? '#6c6f76',
+    '--p-cta-text': t.ctaTextColor ?? '#ffffff',
     '--p-shadow': SHADOW_MAP[t.shadow],
     '--p-border-w': BORDER_W_MAP[t.border],
-    '--p-border': t.border === 'none' ? 'transparent' : t.accentSoft,
+    '--p-border': t.border === 'none' ? 'transparent' : (t.borderColor ?? t.accentSoft),
     '--p-cols': String(t.cols),
     '--p-gap': `${t.gap}px`,
     '--p-pad': `${t.pad}px`,

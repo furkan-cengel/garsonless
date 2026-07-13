@@ -37,6 +37,7 @@ function mapCategory(row: Tables<'menu_categories'>): MenuCategory {
     name: row.name,
     position: row.position,
     is_visible: row.is_visible,
+    image_url: row.image_url,
     parent_id: row.parent_id,
   }
 }
