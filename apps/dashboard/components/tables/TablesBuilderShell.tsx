@@ -898,10 +898,26 @@ function TableRow({
 }
 
 /* ─── TablesNav ─────────────────────────────────────────────── */
-function sessionDuration(openedAt: string): string {
-  const mins = Math.max(0, Math.floor((Date.now() - new Date(openedAt).getTime()) / 60_000))
+function sessionDuration(openedAt: string, now: number): string {
+  const mins = Math.max(0, Math.floor((now - new Date(openedAt).getTime()) / 60_000))
   if (mins < 60) return `${mins}dk`
   return `${Math.floor(mins / 60)}s ${mins % 60}dk`
+}
+
+function LiveSessionDuration({ openedAt }: { openedAt: string }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const update = () => setNow(Date.now())
+    const timer = window.setInterval(update, 30_000)
+    window.addEventListener('focus', update)
+    document.addEventListener('visibilitychange', update)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', update)
+      document.removeEventListener('visibilitychange', update)
+    }
+  }, [])
+  return <>{sessionDuration(openedAt, now)}</>
 }
 
 function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, openSessions, onCloseSession, pendingRequests, onResolveRequest }: {
@@ -1067,7 +1083,7 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
                   background: 'var(--positive-bg)', borderRadius: 6,
                 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--positive)', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    ₺{session.total.toLocaleString('tr-TR')} · {sessionDuration(session.openedAt)}
+                    ₺{session.total.toLocaleString('tr-TR')} · <LiveSessionDuration openedAt={session.openedAt} />
                     {session.unpaidTotal > 0 && ` · ₺${session.unpaidTotal.toLocaleString('tr-TR')} açık`}
                     {session.splitDeclaredCashTotal > 0 && ` · ₺${session.splitDeclaredCashTotal.toLocaleString('tr-TR')} nakit onayı`}
                   </span>
@@ -1155,6 +1171,173 @@ function buildUrl(qr: QRConfig, table?: TableItem): string {
   if (qr.utmMedium) url.searchParams.set('utm_medium', qr.utmMedium)
   if (qr.utmCampaign) url.searchParams.set('utm_campaign', qr.utmCampaign)
   return url.toString()
+}
+
+function escapeXML(value: string): string {
+  return value.replace(/[<>&"']/g, character => ({
+    '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;',
+  })[character] ?? character)
+}
+
+function safeFilePart(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'masa'
+}
+
+async function renderQRMarkup(qr: QRConfig, table?: TableItem): Promise<string> {
+  const QRCodeStyling = await loadQRCodeStyling()
+  const instance = new QRCodeStyling({
+    width: qr.size, height: qr.size, type: 'svg',
+    data: buildUrl(qr, table), margin: qr.margin,
+    qrOptions: { errorCorrectionLevel: qr.ecl as 'L' | 'M' | 'Q' | 'H' },
+    image: qr.logo ?? undefined,
+    imageOptions: {
+      hideBackgroundDots: qr.logoHideBg,
+      imageSize: qr.logoSize,
+      margin: qr.logoMargin,
+      crossOrigin: 'anonymous',
+    },
+    dotsOptions: { type: qr.dotsType as any, ...colorOpts(qr) as object },
+    cornersSquareOptions: { type: qr.eyeFrame as any, color: qr.fg },
+    cornersDotOptions: { type: qr.eyeBall as any, color: qr.fg },
+    backgroundOptions: { color: qr.bgTransparent ? 'transparent' : qr.bg },
+  })
+  const blob = await instance.getRawData('svg')
+  if (!blob) throw new Error('QR SVG oluşturulamadı')
+  const markup = blob instanceof Blob
+    ? await blob.text()
+    : new TextDecoder().decode(blob)
+  return markup
+    .replace(/^<\?xml[^>]*>\s*/i, '')
+    .replace(/<svg\b[^>]*>/i, `<svg x="0" y="0" width="${qr.size}" height="${qr.size}" viewBox="0 0 ${qr.size} ${qr.size}">`)
+}
+
+async function renderTableCardSVG(qr: QRConfig, table?: TableItem): Promise<string> {
+  const qrMarkup = await renderQRMarkup(qr, table)
+  const label = escapeXML(table?.label ?? 'Masa')
+  const title = escapeXML(qr.frameTitle)
+  const subtitle = escapeXML(qr.frameSubtitle)
+  const frameColor = escapeXML(qr.frameColor)
+  const textMuted = '#66666d'
+  const qrSize = qr.size
+  if (qr.frame === 'none') {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${qrSize}" height="${qrSize}" viewBox="0 0 ${qrSize} ${qrSize}">${qrMarkup}</svg>`
+  }
+  const horizontalPadding = qr.frame === 'phone' ? 44 : 28
+  const topContent = 82
+  const bottomContent = 104
+  const width = qrSize + horizontalPadding * 2
+  const height = qrSize + topContent + bottomContent
+  const qrX = horizontalPadding
+  const qrY = topContent
+  const radius = qr.frame === 'phone' ? 42 : qr.frame === 'speech' ? 18 : 16
+  const outerFill = qr.frame === 'banner' ? frameColor : qr.frame === 'phone' ? '#0b0b0d' : '#ffffff'
+  const innerBackground = qr.frame === 'banner' || qr.frame === 'phone'
+    ? `<rect x="${qrX - 12}" y="${qrY - 12}" width="${qrSize + 24}" height="${qrSize + 24}" rx="12" fill="#ffffff"/>`
+    : ''
+  const border = qr.frame === 'card' || qr.frame === 'speech'
+    ? `stroke="${frameColor}" stroke-width="2"`
+    : ''
+  const headingColor = qr.frame === 'banner' ? '#ffffff' : frameColor
+  const subtitleColor = qr.frame === 'banner' ? '#ffffff' : textMuted
+  const phoneInner = qr.frame === 'phone'
+    ? `<rect x="12" y="12" width="${width - 24}" height="${height - 24}" rx="30" fill="#ffffff"/>
+       <rect x="${width / 2 - 40}" y="30" width="80" height="5" rx="3" fill="#e7e7ea"/>`
+    : ''
+  const speechTail = qr.frame === 'speech'
+    ? `<path d="M${width / 2 - 20} ${height - 2} H${width / 2 + 20} L${width / 2 + 2} ${height + 18} Q${width / 2} ${height + 20} ${width / 2 - 2} ${height + 18} Z" fill="#fff" stroke="${frameColor}" stroke-width="2"/>`
+    : ''
+  const documentHeight = height + (qr.frame === 'speech' ? 22 : 0)
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${documentHeight}" viewBox="0 0 ${width} ${documentHeight}">
+    <rect width="${width}" height="${height}" rx="${radius}" fill="${outerFill}" ${border}/>
+    ${phoneInner}
+    <text x="${width / 2}" y="${qr.frame === 'phone' ? 65 : 44}" text-anchor="middle" fill="${headingColor}" font-family="Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="1.2">${label.toLocaleUpperCase('tr-TR')}</text>
+    ${innerBackground}
+    <g transform="translate(${qrX} ${qrY})">${qrMarkup}</g>
+    <text x="${width / 2}" y="${qrY + qrSize + 48}" text-anchor="middle" fill="${headingColor}" font-family="Arial, sans-serif" font-size="28" font-weight="700">${title}</text>
+    <text x="${width / 2}" y="${qrY + qrSize + 78}" text-anchor="middle" fill="${subtitleColor}" opacity="${qr.frame === 'banner' ? '.78' : '1'}" font-family="Arial, sans-serif" font-size="18">${subtitle}</text>
+    ${speechTail}
+  </svg>`
+}
+
+function downloadBlob(blob: Blob, name: string): void {
+  const href = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = href
+  anchor.download = name
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(href), 1000)
+}
+
+async function downloadTableCard(qr: QRConfig, table: TableItem, extension: string): Promise<void> {
+  const svg = await renderTableCardSVG(qr, table)
+  const filename = `masabu-${safeFilePart(table.label)}-${table.id.slice(0, 8)}`
+  if (extension === 'svg') {
+    downloadBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), `${filename}.svg`)
+    return
+  }
+
+  const source = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }))
+  try {
+    const image = new Image()
+    image.decoding = 'async'
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve()
+      image.onerror = () => reject(new Error('QR görseli dönüştürülemedi'))
+      image.src = source
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Canvas oluşturulamadı')
+    if (extension === 'jpeg') {
+      context.fillStyle = '#ffffff'
+      context.fillRect(0, 0, canvas.width, canvas.height)
+    }
+    context.drawImage(image, 0, 0)
+    const mime = extension === 'jpeg' ? 'image/jpeg' : 'image/png'
+    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, mime, .94))
+    if (!blob) throw new Error('QR dosyası oluşturulamadı')
+    downloadBlob(blob, `${filename}.${extension === 'jpeg' ? 'jpg' : 'png'}`)
+  } finally {
+    URL.revokeObjectURL(source)
+  }
+}
+
+async function printTableCards(qr: QRConfig, tables: TableItem[]): Promise<void> {
+  const cards = await Promise.all(tables.map(table => renderTableCardSVG(qr, table)))
+  const frame = document.createElement('iframe')
+  frame.setAttribute('title', 'Masa QR baskı görünümü')
+  frame.style.position = 'fixed'
+  frame.style.width = '1px'
+  frame.style.height = '1px'
+  frame.style.opacity = '0'
+  frame.style.pointerEvents = 'none'
+  frame.srcdoc = `<!doctype html><html><head><title>Masa QR Kodları</title><style>
+    @page { size: A4; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #111; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10mm; }
+    .card { display: flex; align-items: center; justify-content: center; break-inside: avoid; page-break-inside: avoid; }
+    .card svg { width: 100%; height: auto; max-height: 126mm; }
+    @media print { .grid { gap: 8mm; } }
+  </style></head><body><main class="grid">${cards.map(card => `<section class="card">${card}</section>`).join('')}</main></body></html>`
+  document.body.appendChild(frame)
+  frame.onload = () => {
+    window.setTimeout(() => {
+      frame.contentWindow?.focus()
+      frame.contentWindow?.print()
+      window.setTimeout(() => frame.remove(), 1000)
+    }, 100)
+  }
 }
 
 /* ─── QR Frame ──────────────────────────────────────────────── */
@@ -1369,19 +1552,8 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview }: {
   }, [qr, qrInstanceRef, table, view])
 
   const download = useCallback(async (ext: string) => {
-    const QRCodeStyling = await loadQRCodeStyling()
-    const exportInst = new QRCodeStyling({
-      width: qr.size, height: qr.size, type: ext === 'svg' ? 'svg' : 'canvas',
-      data: buildUrl(qr, table), margin: qr.margin,
-      qrOptions: { errorCorrectionLevel: qr.ecl as 'L' | 'M' | 'Q' | 'H' },
-      image: qr.logo ?? undefined,
-      imageOptions: { hideBackgroundDots: qr.logoHideBg, imageSize: qr.logoSize, margin: qr.logoMargin, crossOrigin: 'anonymous' },
-      dotsOptions: { type: qr.dotsType as any, ...colorOpts(qr) as object },
-      cornersSquareOptions: { type: qr.eyeFrame as any, color: qr.fg },
-      cornersDotOptions: { type: qr.eyeBall as any, color: qr.fg },
-      backgroundOptions: { color: qr.bgTransparent ? 'transparent' : qr.bg },
-    })
-    exportInst.download({ name: `masabu-${table?.slug || 'qr'}`, extension: ext as 'png' | 'svg' | 'jpeg' | 'webp' })
+    if (!table) return
+    await downloadTableCard(qr, table, ext)
   }, [qr, table])
 
   const url = buildUrl(qr, table)
@@ -1492,7 +1664,7 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview }: {
                 <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>Aynı stil, farklı bağlantılar — {tables.length} QR</div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => window.print()} style={btnGhost()}>
+                <button className="tb-hover" onClick={() => { void printTableCards(qr, tables) }} disabled={tables.length === 0} style={{ ...btnGhost(), opacity: tables.length ? 1 : .45, cursor: tables.length ? 'pointer' : 'not-allowed' }}>
                   {React.cloneElement(QRI.print as React.ReactElement<{ size?: number }>, { size: 13 })}Yazdır
                 </button>
                 <button disabled aria-disabled="true" style={{ ...btnPrimary(), opacity: 0.5, cursor: 'not-allowed' }} title="Yakında">
@@ -2212,15 +2384,63 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
   // Active close-flow settlement sheet (set when closing an adisyon that still
   // owes money; null = no sheet open)
   const [settleSession, setSettleSession] = useState<{ session: OpenSessionInfo; label: string } | null>(null)
+  const sessionLoadSeq = useRef(0)
 
   const loadSessions = useCallback(async () => {
+    const seq = ++sessionLoadSeq.current
     const result = await getOpenTableSessions(restaurantId)
-    if (Array.isArray(result)) {
-      setOpenSessions(sessionsByTable(result))
-    }
+    if (!Array.isArray(result) || seq !== sessionLoadSeq.current) return
+    const nextSessions = sessionsByTable(result)
+    setOpenSessions(nextSessions)
+    setTables((current) => current.map((table) => {
+      const session = nextSessions[table.id]
+      return {
+        ...table,
+        status: session ? 'active' : 'idle',
+        orders: session?.orderCount ?? 0,
+      }
+    }))
   }, [restaurantId])
 
   useEffect(() => { void loadSessions() }, [loadSessions])
+
+  // Keep table occupancy, order totals and settlement state live. Realtime
+  // events are only invalidation signals: the authoritative, access-gated
+  // server action recomputes the complete session aggregate after a short
+  // debounce, so partial payloads can never create a misleading total.
+  useEffect(() => {
+    const supabase = createDashboardBrowserClient()
+    let refreshTimer: number | null = null
+    const scheduleRefresh = () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer)
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null
+        void loadSessions()
+      }, 180)
+    }
+    const channel = supabase
+      .channel(`tables-sessions:${restaurantId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'table_sessions', filter: `restaurant_id=eq.${restaurantId}` },
+        scheduleRefresh,
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
+        scheduleRefresh,
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payment_shares', filter: `restaurant_id=eq.${restaurantId}` },
+        scheduleRefresh,
+      )
+      .subscribe()
+    return () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer)
+      void supabase.removeChannel(channel)
+    }
+  }, [restaurantId, loadSessions])
 
   // Pending waiter calls per table (one chip per table)
   const [pendingRequests, setPendingRequests] = useState<Record<string, Array<{ id: string; label: string }>>>({})
