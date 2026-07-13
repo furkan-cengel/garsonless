@@ -1873,12 +1873,15 @@ function ItemEditPanel({
                 </button>
               </div>
               {stationMode === 'custom' ? (
-                <select value={kitchenStationId} onChange={e => setKitchenStationId(e.target.value)} style={inputStyle}>
-                  <option value="">Atanmamış</option>
-                  {kitchenStations.filter((station) => station.is_active).map((station) => (
-                    <option key={station.id} value={station.id}>{station.name}</option>
-                  ))}
-                </select>
+                <div>
+                  <select value={kitchenStationId} onChange={e => setKitchenStationId(e.target.value)} style={inputStyle}>
+                    <option value="">Atanmamış</option>
+                    {kitchenStations.filter((station) => station.is_active).map((station) => (
+                      <option key={station.id} value={station.id}>{station.name}</option>
+                    ))}
+                  </select>
+                  {kitchenStations.length === 0 && <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-3)', lineHeight: 1.4 }}>Henüz istasyon yok. <a href={`/dashboard/${restaurantId}/settings#kitchen-stations`} style={{ color: 'var(--text)', fontWeight: 700 }}>İstasyon oluştur</a></div>}
+                </div>
               ) : (
                 <div style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.4 }}>
                   {categoryStationId

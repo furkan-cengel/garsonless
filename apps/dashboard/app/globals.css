@@ -84,6 +84,12 @@ button, input, select, textarea { font-family: inherit; }
   filter: brightness(.97);
   box-shadow: 0 2px 8px rgba(17, 17, 19, .10);
 }
+.menu-manager .nutrition-editor button:not(:disabled):hover {
+  transform: translateY(-1px);
+  filter: brightness(.94);
+  box-shadow: 0 3px 10px rgba(17, 17, 19, .13);
+}
+.menu-manager a:hover { text-decoration-thickness: 2px; }
 .menu-manager button:not(:disabled):active { transform: translateY(1px); }
 .menu-manager button:focus-visible,
 .menu-manager [role="button"]:focus-visible,

@@ -36,6 +36,8 @@ export interface NutritionState {
   fat: string
   contains: AllergenCode[]      // DEFINITELY contains → contains_allergens
   traces: AllergenCode[]        // cross-contact → may_contain_allergens
+  allergenNote: string
+  crossContactNote: string
   alcohol: boolean
   pork: boolean
   vegetarian: boolean
@@ -52,6 +54,8 @@ type RawItem = {
   fat_g?: number | null
   contains_allergens?: unknown
   may_contain_allergens?: unknown
+  allergen_note?: string | null
+  cross_contact_note?: string | null
   contains_alcohol?: boolean | null
   contains_pork?: boolean | null
   is_vegetarian?: boolean | null
@@ -74,6 +78,8 @@ export function nutritionFromItem(item: RawItem | null): NutritionState {
     fat: numStr(item?.fat_g),
     contains: normalizeAllergenCodes(item?.contains_allergens),
     traces: normalizeAllergenCodes(item?.may_contain_allergens),
+    allergenNote: item?.allergen_note ?? '',
+    crossContactNote: item?.cross_contact_note ?? '',
     alcohol: item?.contains_alcohol ?? false,
     pork: item?.contains_pork ?? false,
     vegetarian: item?.is_vegetarian ?? false,
@@ -95,6 +101,8 @@ export function appendNutritionToFormData(fd: FormData, s: NutritionState): void
   fd.set('fat_g', s.fat.trim())
   fd.set('contains_allergens', JSON.stringify(s.contains))
   fd.set('may_contain_allergens', JSON.stringify(s.traces))
+  fd.set('allergen_note', s.allergenNote.trim())
+  fd.set('cross_contact_note', s.crossContactNote.trim())
   fd.set('contains_alcohol', String(s.alcohol))
   fd.set('contains_pork', String(s.pork))
   fd.set('is_vegetarian', String(s.vegetarian))
@@ -206,6 +214,8 @@ const flagIcon = (d: React.ReactNode) => <svg width={15} height={15} viewBox="0 
 
 /* ── main ──────────────────────────────────────────────────────────────── */
 export default function NutritionFields({ s, set, firstBorderless }: { s: NutritionState; set: (patch: Partial<NutritionState>) => void; firstBorderless?: boolean }) {
+  const allergenNoteId = React.useId()
+  const crossContactNoteId = React.useId()
   const updIng = (id: string, patch: Partial<NutritionIngredient>) => set({ ingredients: s.ingredients.map((i) => (i.id === id ? { ...i, ...patch } : i)) })
   const addIng = () => set({ ingredients: [...s.ingredients, { id: crypto.randomUUID(), name: '', amount: '', removable: false, allergen_codes: [] }] })
   const rmIng = (id: string) => set({ ingredients: s.ingredients.filter((i) => i.id !== id) })
@@ -221,7 +231,7 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
   const ingredientCount = s.ingredients.filter((i) => i.name.trim()).length
 
   return (
-    <>
+    <div className="nutrition-editor">
       <NSection first={firstBorderless} title="İçindekiler ve enerji"
         right={ingredientCount > 0 ? <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: "'Geist Mono', monospace" }}>{ingredientCount} bileşen</span> : undefined}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -272,12 +282,17 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
 
       <NSection title="Alerjenler"
         right={s.contains.length > 0 ? <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--warning)', background: 'var(--warning-bg)', padding: '2px 8px', borderRadius: 999 }}>{s.contains.length} içerir</span> : undefined}>
-        <div style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 600, marginBottom: 7 }}>İçerir</div>
+        <label style={{ display: 'block', fontSize: 11, color: 'var(--text-2)', fontWeight: 600, marginBottom: 6 }} htmlFor={allergenNoteId}>İşletme açıklaması · içerir</label>
+        <textarea id={allergenNoteId} value={s.allergenNote} maxLength={500} onChange={(event) => set({ allergenNote: event.target.value })} placeholder="Örn. Süt ve fındık içerir. Aynı mutfakta susam kullanılmaktadır." style={{ width: '100%', minHeight: 62, resize: 'vertical', padding: '9px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 11.5, lineHeight: 1.45, outline: 'none' }} />
+        <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, marginBottom: 10 }}>Bu metin müşteriye aynen gösterilir. Kesin ve doğrulanmış bilgi girin.</div>
+        <div style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 600, marginBottom: 7 }}>Resmi alerjen etiketleri · içerir</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {ALLERGEN_CODES.map((code) => (
             <AllergenChip key={code} code={code} variant="contains" on={s.contains.includes(code)} onClick={() => toggleContains(code)} />
           ))}
         </div>
+        <label style={{ display: 'block', fontSize: 11, color: 'var(--text-2)', fontWeight: 600, marginTop: 14, marginBottom: 6 }} htmlFor={crossContactNoteId}>İşletme açıklaması · eser miktarda</label>
+        <textarea id={crossContactNoteId} value={s.crossContactNote} maxLength={500} onChange={(event) => set({ crossContactNote: event.target.value })} placeholder="Örn. Üretim alanında yer fıstığı işlendiği için eser miktarda içerebilir." style={{ width: '100%', minHeight: 62, resize: 'vertical', padding: '9px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 11.5, lineHeight: 1.45, outline: 'none' }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 14, marginBottom: 7 }}>
           <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 600 }}>Eser miktar</span>
           <span style={{ fontSize: 10.5, color: 'var(--text-4)' }}>· olası çapraz temas</span>
@@ -316,7 +331,7 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
           </span>
         </button>
       </NSection>
-    </>
+    </div>
   )
 }
 

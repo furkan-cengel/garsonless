@@ -125,7 +125,7 @@ export default function KitchenAccessSection({ restaurantId, existingToken, init
 
   return (
     <div style={{ display: 'grid', gap: 18 }}>
-      <section style={{ padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)' }}>
+      <section id="kitchen-stations" style={{ padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', scrollMarginTop: 80 }}>
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Mutfak Erişimi</div>
         <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 3 }}>

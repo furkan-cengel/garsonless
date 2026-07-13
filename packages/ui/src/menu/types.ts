@@ -22,6 +22,8 @@ export interface MenuItem {
   energy_kcal: number | null
   contains_allergens: AllergenCode[]
   may_contain_allergens: AllergenCode[]
+  allergen_note: string | null
+  cross_contact_note: string | null
   contains_alcohol: boolean
   contains_pork: boolean
   is_vegetarian: boolean

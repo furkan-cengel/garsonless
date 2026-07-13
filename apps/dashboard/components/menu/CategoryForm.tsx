@@ -184,6 +184,11 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
             <option key={station.id} value={station.id}>{station.name}</option>
           ))}
         </select>
+        {kitchenStations.length === 0 && (
+          <p style={{ margin: 0, fontSize: 11, lineHeight: 1.45, color: 'var(--text-3)' }}>
+            Henüz istasyon oluşturulmamış. <a href={`/dashboard/${restaurantId}/settings#kitchen-stations`} style={{ color: 'var(--text)', fontWeight: 700, textUnderlineOffset: 2 }}>Mutfak istasyonu oluştur</a>
+          </p>
+        )}
       </div>
       {error && (
         <p style={{ fontSize: 11.5, color: 'var(--critical)', margin: 0 }}>{error}</p>

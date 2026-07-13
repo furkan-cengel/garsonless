@@ -78,6 +78,8 @@ const itemBaseSchema = z.object({
   fat_g: z.number().min(0).nullable().optional(),
   may_contain_allergens: z.array(z.enum(ALLERGEN_CODES)).optional(),
   contains_allergens: z.array(z.enum(ALLERGEN_CODES)).optional(),
+  allergen_note: z.string().max(500).nullable().optional(),
+  cross_contact_note: z.string().max(500).nullable().optional(),
   contains_alcohol: z.boolean().optional(),
   contains_pork: z.boolean().optional(),
   is_vegetarian: z.boolean().optional(),
@@ -424,6 +426,8 @@ export async function createItem(
     fat_g: numericFields.fat.ok ? numericFields.fat.value : undefined,
     may_contain_allergens: jsonFields.mayContain.ok ? jsonFields.mayContain.value : [],
     contains_allergens: jsonFields.contains.ok ? jsonFields.contains.value : [],
+    allergen_note: String(formData.get('allergen_note') ?? '').trim() || null,
+    cross_contact_note: String(formData.get('cross_contact_note') ?? '').trim() || null,
     contains_alcohol: formData.get('contains_alcohol') === 'true',
     contains_pork: formData.get('contains_pork') === 'true',
     is_vegetarian: formData.get('is_vegetarian') === 'true',
@@ -475,6 +479,8 @@ export async function createItem(
       fat_g: parsed.data.fat_g ?? null,
       may_contain_allergens: allergenDeclarations.traces,
       contains_allergens: allergenDeclarations.contains,
+      allergen_note: parsed.data.allergen_note ?? null,
+      cross_contact_note: parsed.data.cross_contact_note ?? null,
       contains_alcohol: parsed.data.contains_alcohol ?? false,
       contains_pork: parsed.data.contains_pork ?? false,
       is_vegetarian: parsed.data.is_vegetarian ?? false,
@@ -550,6 +556,8 @@ export async function updateItem(
     energy_kcal: numericFields.energyKcal.ok ? numericFields.energyKcal.value : undefined,
     may_contain_allergens: jsonFields.mayContain.ok ? jsonFields.mayContain.value : undefined,
     contains_allergens: jsonFields.contains.ok ? jsonFields.contains.value : undefined,
+    allergen_note: formData.get('allergen_note') !== null ? String(formData.get('allergen_note')).trim() || null : undefined,
+    cross_contact_note: formData.get('cross_contact_note') !== null ? String(formData.get('cross_contact_note')).trim() || null : undefined,
     cost: numericFields.cost.ok ? numericFields.cost.value : undefined,
     protein_g: numericFields.protein.ok ? numericFields.protein.value : undefined,
     carb_g: numericFields.carb.ok ? numericFields.carb.value : undefined,
@@ -628,6 +636,8 @@ export async function updateItem(
     parsed.data.carb_g !== undefined ||
     parsed.data.fat_g !== undefined ||
     parsed.data.contains_allergens !== undefined ||
+    parsed.data.allergen_note !== undefined ||
+    parsed.data.cross_contact_note !== undefined ||
     parsed.data.may_contain_allergens !== undefined ||
     parsed.data.contains_alcohol !== undefined ||
     parsed.data.contains_pork !== undefined ||

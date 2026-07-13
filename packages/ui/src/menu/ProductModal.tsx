@@ -260,36 +260,36 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
             </div>
           )}
 
-          {selectedAllergens.size > 0 && (
+          {(selectedAllergens.size > 0 || item.allergen_note) && (
             <div data-component="contains-allergens" style={{ borderTop: '1px solid rgba(15,23,42,.08)', padding: '14px 18px' }}>
               <p style={{ margin: 0, fontSize: 14, fontWeight: 850, color: '#7a4300' }}>Alerjenler · ürün içerir</p>
               <p style={{ margin: '4px 0 9px', fontSize: 11.5, lineHeight: 1.45, color: 'var(--p-text-2)' }}>
-                Bu alerjenler ürünün bileşenlerinde bulunur.
+                {item.allergen_note || 'Bu alerjenler ürünün bileşenlerinde bulunur.'}
               </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {selectedAllergens.size > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {[...selectedAllergens].map((code) => (
                   <span key={code} style={{ padding: '5px 8px', borderRadius: 6, background: '#fff2df', color: '#7a4300', fontSize: 11.5, fontWeight: 850 }}>
                     {ALLERGEN_LABELS[code]}
                   </span>
                 ))}
-              </div>
+              </div>}
             </div>
           )}
 
-          {crossContactAllergens.length > 0 && (
+          {(crossContactAllergens.length > 0 || item.cross_contact_note) && (
             <div data-component="cross-contact-allergens" style={{ borderTop: '1px solid rgba(15,23,42,.08)', padding: '14px 18px' }}>
               <div style={{ padding: 12, border: '1px dashed rgba(71,85,105,.38)', borderRadius: 8, background: 'rgba(241,245,249,.72)' }}>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--p-text)' }}>Olası çapraz temas</p>
                 <p style={{ margin: '4px 0 9px', fontSize: 11.5, lineHeight: 1.45, color: 'var(--p-text-2)' }}>
-                  Ürün eser miktarda aşağıdaki alerjenleri içerebilir.
+                  {item.cross_contact_note || 'Ürün eser miktarda aşağıdaki alerjenleri içerebilir.'}
                 </p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {crossContactAllergens.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {crossContactAllergens.map((code) => (
                     <span key={code} style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid rgba(71,85,105,.24)', color: 'var(--p-text-2)', fontSize: 11.5, fontWeight: 750 }}>
                       {ALLERGEN_LABELS[code]}
                     </span>
                   ))}
-                </div>
+                </div>}
               </div>
             </div>
           )}

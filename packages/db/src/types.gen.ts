@@ -533,11 +533,13 @@ export type Database = {
       }
       menu_items: {
         Row: {
+          allergen_note: string | null
           carb_g: number | null
           category_id: string
           contains_alcohol: boolean
           contains_allergens: string[]
           contains_pork: boolean
+          cross_contact_note: string | null
           cost: number | null
           created_at: string
           deleted_at: string | null
@@ -565,11 +567,13 @@ export type Database = {
           vat_rate: number | null
         }
         Insert: {
+          allergen_note?: string | null
           carb_g?: number | null
           category_id: string
           contains_alcohol?: boolean
           contains_allergens?: string[]
           contains_pork?: boolean
+          cross_contact_note?: string | null
           cost?: number | null
           created_at?: string
           deleted_at?: string | null
@@ -597,11 +601,13 @@ export type Database = {
           vat_rate?: number | null
         }
         Update: {
+          allergen_note?: string | null
           carb_g?: number | null
           category_id?: string
           contains_alcohol?: boolean
           contains_allergens?: string[]
           contains_pork?: boolean
+          cross_contact_note?: string | null
           cost?: number | null
           created_at?: string
           deleted_at?: string | null

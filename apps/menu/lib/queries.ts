@@ -19,6 +19,8 @@ type PublicMenuItemRow = Pick<
   | 'energy_kcal'
   | 'contains_allergens'
   | 'may_contain_allergens'
+  | 'allergen_note'
+  | 'cross_contact_note'
   | 'contains_alcohol'
   | 'contains_pork'
   | 'is_vegetarian'
@@ -54,6 +56,8 @@ function mapMenuItem(row: PublicMenuItemRow): MenuItem {
     energy_kcal: row.energy_kcal ?? null,
     contains_allergens: normalizeAllergenCodes(row.contains_allergens),
     may_contain_allergens: normalizeAllergenCodes(row.may_contain_allergens),
+    allergen_note: row.allergen_note ?? null,
+    cross_contact_note: row.cross_contact_note ?? null,
     contains_alcohol: row.contains_alcohol ?? false,
     contains_pork: row.contains_pork ?? false,
     is_vegetarian: row.is_vegetarian ?? false,
@@ -179,6 +183,8 @@ export async function getMenuItems(categoryIds: string[]): Promise<MenuItem[]> {
       energy_kcal,
       contains_allergens,
       may_contain_allergens,
+      allergen_note,
+      cross_contact_note,
       contains_alcohol,
       contains_pork,
       is_vegetarian,
