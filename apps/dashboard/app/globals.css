@@ -75,6 +75,30 @@ body {
 
 button, input, select, textarea { font-family: inherit; }
 
+/* Menu manager interaction contract. Component colors remain intact; hover
+   and keyboard focus feedback stays neutral and consistent. */
+.menu-manager button:not(:disabled) {
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease, opacity 120ms ease;
+}
+.menu-manager button:not(:disabled):hover {
+  filter: brightness(.97);
+  box-shadow: 0 2px 8px rgba(17, 17, 19, .10);
+}
+.menu-manager button:not(:disabled):active { transform: translateY(1px); }
+.menu-manager button:focus-visible,
+.menu-manager [role="button"]:focus-visible,
+.menu-manager input:focus-visible,
+.menu-manager textarea:focus-visible,
+.menu-manager select:focus-visible {
+  outline: 2px solid var(--text) !important;
+  outline-offset: 2px;
+}
+.menu-manager button:disabled { cursor: not-allowed !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-manager button { transition: none !important; }
+}
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #d8d9dc; border-radius: 8px; border: 2px solid var(--surface); }

@@ -1451,6 +1451,10 @@ export type Database = {
         Args: { p_category_id: string }
         Returns: string
       }
+      delete_menu_category: {
+        Args: { p_category_id: string; p_restaurant_id: string }
+        Returns: undefined
+      }
       open_or_get_table_session: {
         Args: { p_restaurant_id: string; p_table_id: string }
         Returns: string
@@ -1470,6 +1474,14 @@ export type Database = {
           points_debited: number
           stamps_debited: number
         }[]
+      }
+      reorder_menu_categories: {
+        Args: { p_ordered_ids: string[]; p_restaurant_id: string }
+        Returns: undefined
+      }
+      set_menu_items_availability: {
+        Args: { p_is_available: boolean; p_item_ids: string[]; p_restaurant_id: string }
+        Returns: undefined
       }
       refund_cancelled_loyalty: {
         Args: { p_order: string }

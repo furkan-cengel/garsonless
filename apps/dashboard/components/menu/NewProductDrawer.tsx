@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useTransition } from 'react'
+import React, { useEffect, useRef, useState, useTransition } from 'react'
 import { InlineSpinner } from '@garsonless/ui'
 import type { Tables } from '@garsonless/db'
 import { normalizeMenuNumericText, parseMenuNumericInput } from '@garsonless/db/order-client'
@@ -29,6 +29,7 @@ export default function NewProductDrawer({
   onClose: () => void
   onCreated: (item: Tables<'menu_items'>) => void
 }) {
+  const drawerRef = useRef<HTMLDivElement>(null)
   const [step, setStep] = useState(1)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -42,6 +43,19 @@ export default function NewProductDrawer({
   const setN = (patch: Partial<NutritionState>) => setNutri((current) => applyNutritionPatch(current, patch))
   const [err, setErr] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null
+    drawerRef.current?.focus()
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !pending) onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      previousFocus?.focus()
+    }
+  }, [onClose, pending])
 
   const parsedPrice = parseMenuNumericInput(price, { required: true, min: 0.01 })
   const parsedCost = parseMenuNumericInput(cost, { min: 0 })
@@ -72,12 +86,12 @@ export default function NewProductDrawer({
 
   return (
     <div onClick={pending ? undefined : onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(17,17,19,.4)', backdropFilter: 'blur(3px)' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 'min(480px, 100vw)', background: 'var(--surface)', boxShadow: '-20px 0 60px -10px rgba(0,0,0,.2)', display: 'flex', flexDirection: 'column' }}>
+      <div ref={drawerRef} role="dialog" aria-modal="true" aria-labelledby="new-product-title" tabIndex={-1} onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 'min(480px, 100vw)', background: 'var(--surface)', boxShadow: '-20px 0 60px -10px rgba(0,0,0,.2)', display: 'flex', flexDirection: 'column', outline: 'none' }}>
         {/* Header */}
         <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid var(--divider)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-.01em', color: 'var(--text)' }}>Yeni ürün ekle</div>
+              <div id="new-product-title" style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-.01em', color: 'var(--text)' }}>Yeni ürün ekle</div>
               <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>Adım {step}/3 · {categoryName} kategorisine</div>
             </div>
             <button type="button" onClick={pending ? undefined : onClose} aria-label="Kapat" style={{ width: 30, height: 30, borderRadius: 7, background: 'var(--surface-2)', color: 'var(--text-3)', display: 'grid', placeItems: 'center', border: '1px solid var(--border)', cursor: 'pointer' }}>{icX}</button>

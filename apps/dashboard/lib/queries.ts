@@ -143,6 +143,16 @@ export interface ThemeEditorItem {
   category_id: string
 }
 
+export interface MenuManagementData {
+  categories: Tables<'menu_categories'>[]
+  items: Tables<'menu_items'>[]
+  kitchenStations: Tables<'kitchen_stations'>[]
+}
+
+export type MenuManagementResult =
+  | { ok: true; data: MenuManagementData }
+  | { ok: false; error: string }
+
 export const getRestaurantsForUser = cache(async function getRestaurantsForUser(): Promise<Tables<'restaurants'>[]> {
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -241,6 +251,53 @@ export const getKitchenStationsForRestaurant = cache(async function getKitchenSt
     return data ?? []
   } catch {
     return []
+  }
+})
+
+/** Dashboard menu loader. Unlike legacy list helpers, a failed query is never
+ * converted into an empty menu, which would mislead operators into thinking
+ * their products were deleted. */
+export const getMenuManagementData = cache(async function getMenuManagementData(
+  restaurantId: string,
+): Promise<MenuManagementResult> {
+  const supabase = await createDashboardServerClient()
+  const [categoryResult, stationResult] = await Promise.all([
+    supabase
+      .from('menu_categories')
+      .select('*')
+      .eq('restaurant_id', restaurantId)
+      .is('deleted_at', null)
+      .order('position'),
+    supabase
+      .from('kitchen_stations')
+      .select('*')
+      .eq('restaurant_id', restaurantId)
+      .order('position'),
+  ])
+
+  if (categoryResult.error) return { ok: false, error: 'Kategoriler yüklenemedi.' }
+  if (stationResult.error) return { ok: false, error: 'Mutfak istasyonları yüklenemedi.' }
+
+  const categories = (categoryResult.data ?? []) as Tables<'menu_categories'>[]
+  let items: Tables<'menu_items'>[] = []
+  if (categories.length > 0) {
+    const itemResult = await supabase
+      .from('menu_items')
+      .select('*')
+      .in('category_id', categories.map((category) => category.id))
+      .is('deleted_at', null)
+      .order('position')
+    if (itemResult.error) return { ok: false, error: 'Ürünler yüklenemedi.' }
+    items = (itemResult.data ?? []) as Tables<'menu_items'>[]
+  }
+
+  return {
+    ok: true,
+    data: {
+      categories,
+      items,
+      kitchenStations: (stationResult.data ?? []) as Tables<'kitchen_stations'>[],
+    },
   }
 })
 

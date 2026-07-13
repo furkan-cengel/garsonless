@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
-import { getCategoriesForRestaurant, getItemsForRestaurant, getKitchenStationsForRestaurant } from '../../../../lib/queries'
-import { getRestaurantById } from '../../../../lib/queries'
+import { getMenuManagementData, getRestaurantById } from '../../../../lib/queries'
 import MenuManager from '../../../../components/menu/MenuManager'
+import MenuLoadError from '../../../../components/menu/MenuLoadError'
 import { requireSection } from '../../../../lib/auth/access'
 
 interface Props {
@@ -11,13 +11,14 @@ interface Props {
 export default async function MenuPage({ params }: Props) {
   const { restaurantId } = await params
   await requireSection(restaurantId, 'menu')
-  const [restaurant, categories, items, kitchenStations] = await Promise.all([
+  const [restaurant, menuResult] = await Promise.all([
     getRestaurantById(restaurantId),
-    getCategoriesForRestaurant(restaurantId),
-    getItemsForRestaurant(restaurantId),
-    getKitchenStationsForRestaurant(restaurantId),
+    getMenuManagementData(restaurantId),
   ])
   if (!restaurant) notFound()
+  if (!menuResult.ok) return <MenuLoadError message={menuResult.error} />
+
+  const { categories, items, kitchenStations } = menuResult.data
 
   return (
     <MenuManager

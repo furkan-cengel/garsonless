@@ -149,6 +149,61 @@ function nullableUuidFormValue(formData: FormData, key: string): string | null |
   return trimmed ? trimmed : null
 }
 
+function jsonFormValue(
+  value: FormDataEntryValue | null,
+  fallback: unknown,
+): { ok: true; value: unknown } | { ok: false; error: string } {
+  if (value === null || value === '') return { ok: true, value: fallback }
+  if (typeof value !== 'string') return { ok: false, error: 'Invalid JSON input' }
+  try {
+    return { ok: true, value: JSON.parse(value) }
+  } catch {
+    return { ok: false, error: 'Invalid JSON input' }
+  }
+}
+
+async function validateCategoryForRestaurant(
+  supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
+  restaurantId: string,
+  categoryId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('menu_categories')
+    .select('id')
+    .eq('id', categoryId)
+    .eq('restaurant_id', restaurantId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  return !error && !!data
+}
+
+async function validateItemForRestaurant(
+  supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
+  restaurantId: string,
+  itemId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('menu_items')
+    .select('category_id')
+    .eq('id', itemId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (error || !data) return false
+  return validateCategoryForRestaurant(supabase, restaurantId, (data as { category_id: string }).category_id)
+}
+
+async function callMenuRpc(
+  supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
+  name: 'delete_menu_category' | 'reorder_menu_categories' | 'set_menu_items_availability',
+  args: Record<string, string | string[] | boolean>,
+) {
+  const rpc = supabase.rpc as unknown as (
+    functionName: string,
+    parameters: Record<string, string | string[] | boolean>,
+  ) => Promise<{ error: { message: string } | null }>
+  return rpc(name, args)
+}
+
 async function validateKitchenStationForRestaurant(
   supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
   restaurantId: string,
@@ -186,6 +241,9 @@ export async function createCategory(
 
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
+  if (parsed.data.parentId && !(await validateCategoryForRestaurant(supabase, parsed.data.restaurantId, parsed.data.parentId))) {
+    return { error: 'Invalid parent category' }
+  }
   if (!(await validateKitchenStationForRestaurant(supabase, parsed.data.restaurantId, parsed.data.kitchen_station_id))) {
     return { error: 'Invalid kitchen station' }
   }
@@ -250,6 +308,9 @@ export async function updateCategory(
 
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
+  if (!(await validateCategoryForRestaurant(supabase, parsed.data.restaurantId, parsed.data.id))) {
+    return { error: 'Category not found' }
+  }
   if (!(await validateKitchenStationForRestaurant(supabase, parsed.data.restaurantId, parsed.data.kitchen_station_id))) {
     return { error: 'Invalid kitchen station' }
   }
@@ -258,6 +319,7 @@ export async function updateCategory(
   const { error } = await mut(supabase, 'menu_categories')
     .update(updates as Record<string, unknown>)
     .eq('id', id)
+    .eq('restaurant_id', parsed.data.restaurantId)
 
   if (error) return { error: error.message }
 
@@ -276,33 +338,14 @@ export async function deleteCategory(
   const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
 
-  const now = new Date().toISOString()
+  const categoryInput = z.string().uuid().safeParse(categoryId)
+  const restaurantInput = z.string().uuid().safeParse(restaurantId)
+  if (!categoryInput.success || !restaurantInput.success) return { error: 'Invalid input' }
 
-  const { data: subCats } = await supabase
-    .from('menu_categories')
-    .select('id')
-    .eq('parent_id', categoryId)
-    .is('deleted_at', null)
-
-  const subCatIds = (subCats ?? []).map(c => (c as { id: string }).id)
-
-  await mut(supabase, 'menu_items')
-    .update({ deleted_at: now })
-    .eq('category_id', categoryId)
-    .is('deleted_at', null)
-
-  if (subCatIds.length > 0) {
-    await Promise.all(subCatIds.map(subId =>
-      mut(supabase, 'menu_items').update({ deleted_at: now }).eq('category_id', subId).is('deleted_at', null),
-    ))
-    await Promise.all(subCatIds.map(subId =>
-      mut(supabase, 'menu_categories').update({ deleted_at: now }).eq('id', subId),
-    ))
-  }
-
-  const { error } = await mut(supabase, 'menu_categories')
-    .update({ deleted_at: now })
-    .eq('id', categoryId)
+  const { error } = await callMenuRpc(supabase, 'delete_menu_category', {
+    p_category_id: categoryInput.data,
+    p_restaurant_id: restaurantInput.data,
+  })
 
   if (error) return { error: error.message }
 
@@ -320,12 +363,14 @@ export async function reorderCategories(
 
   const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
+  const input = z.array(z.string().uuid()).max(500).safeParse(orderedIds)
+  if (!input.success || new Set(input.data).size !== input.data.length) return { error: 'Invalid category order' }
 
-  await Promise.all(
-    orderedIds.map((id, position) =>
-      mut(supabase, 'menu_categories').update({ position }).eq('id', id),
-    ),
-  )
+  const { error } = await callMenuRpc(supabase, 'reorder_menu_categories', {
+    p_ordered_ids: input.data,
+    p_restaurant_id: restaurantId,
+  })
+  if (error) return { error: error.message }
 
   revalidatePath(`/dashboard/${restaurantId}/menu`)
   revalidateTag(`menu:${restaurantId}`)
@@ -343,6 +388,14 @@ export async function createItem(
   const ingredientsRaw = formData.get('ingredients')
   const mayContainRaw = formData.get('may_contain_allergens')
   const containsRaw = formData.get('contains_allergens')
+  const jsonFields = {
+    modifierGroups: jsonFormValue(modifierGroupsRaw, []),
+    ingredients: jsonFormValue(ingredientsRaw, []),
+    mayContain: jsonFormValue(mayContainRaw, []),
+    contains: jsonFormValue(containsRaw, []),
+  }
+  const invalidJson = Object.values(jsonFields).find((field) => !field.ok)
+  if (invalidJson && !invalidJson.ok) return { error: invalidJson.error }
   const numericFields = {
     price: numericFormValue(formData, 'price', { required: true, min: 0 }),
     vatRate: numericFormValue(formData, 'vat_rate', { min: 0, max: 100 }),
@@ -364,25 +417,28 @@ export async function createItem(
     kitchen_station_id: nullableUuidFormValue(formData, 'kitchen_station_id'),
     cost: numericFields.cost.ok ? numericFields.cost.value : undefined,
     is_available: formData.get('is_available') !== 'false',
-    ingredients: ingredientsRaw ? JSON.parse(ingredientsRaw as string) : [],
+    ingredients: jsonFields.ingredients.ok ? jsonFields.ingredients.value : [],
     energy_kcal: numericFields.energyKcal.ok ? numericFields.energyKcal.value : undefined,
     protein_g: numericFields.protein.ok ? numericFields.protein.value : undefined,
     carb_g: numericFields.carb.ok ? numericFields.carb.value : undefined,
     fat_g: numericFields.fat.ok ? numericFields.fat.value : undefined,
-    may_contain_allergens: mayContainRaw ? JSON.parse(mayContainRaw as string) : [],
-    contains_allergens: containsRaw ? JSON.parse(containsRaw as string) : [],
+    may_contain_allergens: jsonFields.mayContain.ok ? jsonFields.mayContain.value : [],
+    contains_allergens: jsonFields.contains.ok ? jsonFields.contains.value : [],
     contains_alcohol: formData.get('contains_alcohol') === 'true',
     contains_pork: formData.get('contains_pork') === 'true',
     is_vegetarian: formData.get('is_vegetarian') === 'true',
     is_vegan: formData.get('is_vegan') === 'true',
     is_halal: formData.get('is_halal') === 'true',
     food_info_reviewed: formData.get('food_info_reviewed') === 'true',
-    modifier_groups: modifierGroupsRaw ? JSON.parse(modifierGroupsRaw as string) : [],
+    modifier_groups: jsonFields.modifierGroups.ok ? jsonFields.modifierGroups.value : [],
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
 
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
+  if (!(await validateCategoryForRestaurant(supabase, parsed.data.restaurantId, parsed.data.categoryId))) {
+    return { error: 'Invalid category' }
+  }
   if (!(await validateKitchenStationForRestaurant(supabase, parsed.data.restaurantId, parsed.data.kitchen_station_id))) {
     return { error: 'Invalid kitchen station' }
   }
@@ -454,6 +510,15 @@ export async function updateItem(
   const ingredientsRaw = formData.get('ingredients')
   const mayContainRaw = formData.get('may_contain_allergens')
   const containsRaw = formData.get('contains_allergens')
+  const jsonFields = {
+    modifierGroups: jsonFormValue(modifierGroupsRaw, undefined),
+    images: jsonFormValue(imagesRaw, undefined),
+    ingredients: jsonFormValue(ingredientsRaw, undefined),
+    mayContain: jsonFormValue(mayContainRaw, undefined),
+    contains: jsonFormValue(containsRaw, undefined),
+  }
+  const invalidJson = Object.values(jsonFields).find((field) => !field.ok)
+  if (invalidJson && !invalidJson.ok) return { error: invalidJson.error }
   const boolOrUndef = (k: string) => formData.get(k) !== null ? formData.get(k) === 'true' : undefined
   const numericFields = {
     price: numericFormValue(formData, 'price', { min: 0 }),
@@ -481,10 +546,10 @@ export async function updateItem(
     earns_stamp: formData.get('earns_stamp') !== null
       ? formData.get('earns_stamp') === 'true'
       : undefined,
-    ingredients: ingredientsRaw ? JSON.parse(ingredientsRaw as string) : undefined,
+    ingredients: jsonFields.ingredients.ok ? jsonFields.ingredients.value : undefined,
     energy_kcal: numericFields.energyKcal.ok ? numericFields.energyKcal.value : undefined,
-    may_contain_allergens: mayContainRaw ? JSON.parse(mayContainRaw as string) : undefined,
-    contains_allergens: containsRaw ? JSON.parse(containsRaw as string) : undefined,
+    may_contain_allergens: jsonFields.mayContain.ok ? jsonFields.mayContain.value : undefined,
+    contains_allergens: jsonFields.contains.ok ? jsonFields.contains.value : undefined,
     cost: numericFields.cost.ok ? numericFields.cost.value : undefined,
     protein_g: numericFields.protein.ok ? numericFields.protein.value : undefined,
     carb_g: numericFields.carb.ok ? numericFields.carb.value : undefined,
@@ -501,13 +566,19 @@ export async function updateItem(
     food_info_reviewed: formData.get('food_info_reviewed') !== null
       ? formData.get('food_info_reviewed') === 'true'
       : undefined,
-    modifier_groups: modifierGroupsRaw ? JSON.parse(modifierGroupsRaw as string) : undefined,
-    images: imagesRaw ? JSON.parse(imagesRaw as string) : undefined,
+    modifier_groups: jsonFields.modifierGroups.ok ? jsonFields.modifierGroups.value : undefined,
+    images: jsonFields.images.ok ? jsonFields.images.value : undefined,
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
 
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId!, user.id)
   if (!isOwner) return { error: 'Not authorized' }
+  if (!(await validateItemForRestaurant(supabase, parsed.data.restaurantId!, parsed.data.id))) {
+    return { error: 'Item not found' }
+  }
+  if (parsed.data.categoryId && !(await validateCategoryForRestaurant(supabase, parsed.data.restaurantId!, parsed.data.categoryId))) {
+    return { error: 'Invalid category' }
+  }
   if (!(await validateKitchenStationForRestaurant(supabase, parsed.data.restaurantId!, parsed.data.kitchen_station_id))) {
     return { error: 'Invalid kitchen station' }
   }
@@ -589,6 +660,7 @@ export async function deleteItem(
 
   const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
+  if (!(await validateItemForRestaurant(supabase, restaurantId, itemId))) return { error: 'Item not found' }
 
   const { error } = await mut(supabase, 'menu_items')
     .update({ deleted_at: new Date().toISOString() })
@@ -598,6 +670,32 @@ export async function deleteItem(
 
   revalidatePath(`/dashboard/${restaurantId}/menu`)
   revalidateTag(`menu:${restaurantId}`)
+  return { success: true }
+}
+
+export async function setMenuItemsAvailability(
+  restaurantId: string,
+  itemIds: string[],
+  isAvailable: boolean,
+): Promise<{ error: string } | { success: true }> {
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
+  const restaurantInput = z.string().uuid().safeParse(restaurantId)
+  const itemsInput = z.array(z.string().uuid()).min(1).max(500).safeParse(itemIds)
+  if (!restaurantInput.success || !itemsInput.success || new Set(itemsInput.data).size !== itemsInput.data.length) {
+    return { error: 'Invalid item selection' }
+  }
+  if (!(await assertRestaurantOwner(supabase, restaurantInput.data, user.id))) return { error: 'Not authorized' }
+
+  const { error } = await callMenuRpc(supabase, 'set_menu_items_availability', {
+    p_restaurant_id: restaurantInput.data,
+    p_item_ids: itemsInput.data,
+    p_is_available: isAvailable,
+  })
+  if (error) return { error: error.message }
+
+  revalidatePath(`/dashboard/${restaurantInput.data}/menu`)
+  revalidateTag(`menu:${restaurantInput.data}`)
   return { success: true }
 }
 

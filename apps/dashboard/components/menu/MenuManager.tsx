@@ -10,7 +10,7 @@ import type { NutritionState } from './NutritionFields'
 import { I, S, Tag, IconButton, btnPrimary, btnGhost } from '../../lib/ui'
 import { useRouter } from 'next/navigation'
 import { InlineSpinner, BrewBar } from '@garsonless/ui'
-import { deleteItem, deleteCategory, updateItem, reorderCategories, createCategory, createItem } from '../../lib/actions/menu'
+import { deleteItem, deleteCategory, updateItem, reorderCategories, createCategory, createItem, setMenuItemsAvailability } from '../../lib/actions/menu'
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import {
   ALLERGEN_CODES,
@@ -1055,50 +1055,51 @@ function CategoryRow({ id: _id, name, count, active, onClick, onEdit, onDelete, 
   dragHandle?: React.ReactNode
 }) {
   const [hov, setHov] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const showActions = hov || focused
   return (
-    <button
-      onClick={onClick}
+    <div
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false)
+      }}
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
         width: '100%', padding: '8px 8px', marginBottom: 1,
         background: active ? 'var(--surface-inset)' : (hov ? 'var(--surface-3)' : 'transparent'),
-        border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left',
+        borderRadius: 7,
       }}
     >
-      <span style={{
-        width: 20, height: 20, flexShrink: 0,
-        color: active ? 'var(--text)' : 'var(--text-3)',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <I.cutlery size={15} />
-      </span>
-      <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: active ? 600 : 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+      <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: 0, border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', textAlign: 'left' }}>
+        <span style={{ width: 20, height: 20, flexShrink: 0, color: active ? 'var(--text)' : 'var(--text-3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><I.cutlery size={15} /></span>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: active ? 600 : 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+      </button>
       <span style={{ ...S.mono, width: 20, textAlign: 'right', fontSize: 10.5, color: 'var(--text-3)', flexShrink: 0 }}>{count}</span>
-      <span style={{ minWidth: 18, height: 18, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-        {hov ? (
+      <span style={{ minWidth: 42, height: 24, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
+        {showActions ? (
           <>
-            <span
-              role="button"
+            <button
+              type="button"
               aria-label="Düzenle"
-              onClick={(e) => { e.stopPropagation(); onEdit() }}
-              style={{ color: 'var(--text-2)', display: 'inline-flex', padding: 2, borderRadius: 4 }}
+              onClick={onEdit}
+              style={{ color: 'var(--text-2)', display: 'inline-flex', padding: 4, border: 0, background: 'transparent', borderRadius: 4, cursor: 'pointer' }}
             >
               <I.gear size={13} />
-            </span>
-            <span
-              role="button"
+            </button>
+            <button
+              type="button"
               aria-label="Sil"
-              onClick={(e) => { e.stopPropagation(); onDelete() }}
-              style={{ color: 'var(--critical)', display: 'inline-flex', padding: 2, borderRadius: 4 }}
+              onClick={onDelete}
+              style={{ color: 'var(--critical)', display: 'inline-flex', padding: 4, border: 0, background: 'transparent', borderRadius: 4, cursor: 'pointer' }}
             >
               <I.trash size={13} />
-            </span>
+            </button>
           </>
         ) : dragHandle ?? null}
       </span>
-    </button>
+    </div>
   )
 }
 
@@ -1115,6 +1116,7 @@ function ItemsCanvas({
   onSelectItem,
   onAddItem,
   onQuickUpdate,
+  onBulkAvailability,
   highlight,
 }: {
   items: Tables<'menu_items'>[]
@@ -1126,10 +1128,30 @@ function ItemsCanvas({
   onSelectItem: (item: Tables<'menu_items'>) => void
   onAddItem: () => void
   onQuickUpdate: (id: string, patch: { price?: number; is_available?: boolean }) => void
+  onBulkAvailability: (ids: string[], isAvailable: boolean) => Promise<boolean>
   highlight?: string
 }) {
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+
+  useEffect(() => {
+    setSelectedIds((current) => new Set([...current].filter((id) => items.some((item) => item.id === id))))
+  }, [items])
+
+  function toggleSelected(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function applyBulkAvailability(isAvailable: boolean) {
+    const ids = [...selectedIds]
+    if (await onBulkAvailability(ids, isAvailable)) setSelectedIds(new Set())
+  }
 
   const filtered = items.filter(item => {
     if (filter === 'active') return item.is_available
@@ -1138,6 +1160,7 @@ function ItemsCanvas({
   })
 
   const activeCount = items.filter(i => i.is_available).length
+  const inactiveCount = items.length - activeCount
   const hasSubCats = subCategories.length > 0
 
   return (
@@ -1164,13 +1187,21 @@ function ItemsCanvas({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {selectedIds.size > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 8, borderRight: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-2)' }}>{selectedIds.size} seçili</span>
+              <button type="button" onClick={() => void applyBulkAvailability(true)} style={btnGhost({ height: 28, padding: '0 8px' })}>Yayına al</button>
+              <button type="button" onClick={() => void applyBulkAvailability(false)} style={btnGhost({ height: 28, padding: '0 8px' })}>Pasife al</button>
+              <button type="button" aria-label="Seçimi temizle" onClick={() => setSelectedIds(new Set())} style={btnGhost({ width: 28, height: 28, padding: 0, justifyContent: 'center' })}><I.close size={13} /></button>
+            </div>
+          )}
           {/* Filter chips */}
           <div style={{ display: 'flex', gap: 4 }}>
             {(['all', 'active', 'inactive'] as const).map((f) => {
-              const labels = { all: 'Tümü', active: 'Aktif', inactive: 'Pasif' }
+              const labels = { all: `Tümü ${items.length}`, active: `Aktif ${activeCount}`, inactive: `Pasif ${inactiveCount}` }
               const isActive = filter === f
               return (
-                <button key={f} onClick={() => setFilter(f)} style={{
+                <button type="button" key={f} aria-pressed={isActive} onClick={() => setFilter(f)} style={{
                   padding: '5px 10px', fontSize: 11.5, fontWeight: 500,
                   background: isActive ? 'var(--surface-inset)' : 'transparent',
                   color: isActive ? 'var(--text)' : 'var(--text-2)',
@@ -1186,7 +1217,7 @@ function ItemsCanvas({
           {/* View toggle */}
           <div style={{ display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 6, padding: 2 }}>
             {(['grid', 'list'] as const).map(v => (
-              <button key={v} onClick={() => setView(v)} style={{
+              <button type="button" key={v} aria-label={v === 'grid' ? 'Kart görünümü' : 'Liste görünümü'} aria-pressed={view === v} onClick={() => setView(v)} style={{
                 width: 28, height: 24, border: 'none', borderRadius: 4, cursor: 'pointer',
                 background: view === v ? 'var(--surface)' : 'transparent',
                 color: view === v ? 'var(--text)' : 'var(--text-3)',
@@ -1237,7 +1268,14 @@ function ItemsCanvas({
 
       {/* Items */}
       <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
-        {view === 'grid' ? (
+        {filtered.length === 0 ? (
+          <EmptyProducts
+            filtered={items.length > 0}
+            searching={Boolean(highlight)}
+            onAdd={onAddItem}
+            onResetFilter={() => setFilter('all')}
+          />
+        ) : view === 'grid' ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
             {filtered.map(item => (
               <ItemCard
@@ -1247,29 +1285,34 @@ function ItemsCanvas({
                 onClick={() => onSelectItem(item)}
                 onPriceUpdate={(p) => onQuickUpdate(item.id, { price: p })}
                 onToggleAvailable={() => onQuickUpdate(item.id, { is_available: !item.is_available })}
+                selectedForBulk={selectedIds.has(item.id)}
+                onToggleSelected={() => toggleSelected(item.id)}
                 highlight={highlight}
               />
             ))}
             <AddCard onClick={onAddItem} />
           </div>
         ) : (
-          <ItemsList items={filtered} selected={selectedItem} onSelect={onSelectItem} highlight={highlight} />
+          <ItemsList items={filtered} selected={selectedItem} selectedIds={selectedIds} onToggleSelected={toggleSelected} onSelect={onSelectItem} highlight={highlight} />
         )}
       </div>
     </div>
   )
 }
 
-function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, highlight }: {
+function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, selectedForBulk, onToggleSelected, highlight }: {
   item: Tables<'menu_items'>; active: boolean; onClick: () => void
   onPriceUpdate?: (price: number) => void
   onToggleAvailable?: () => void
+  selectedForBulk: boolean
+  onToggleSelected: () => void
   highlight?: string
 }) {
   const [hov, setHov] = useState(false)
   const [editingPrice, setEditingPrice] = useState(false)
   const [priceVal, setPriceVal] = useState(String(item.price))
   const tint = tintFor(item.id)
+  const missingInfo = getMissingProductInfo(item)
 
   function commitPrice() {
     const n = Number(priceVal)
@@ -1294,6 +1337,14 @@ function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, hig
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         position: 'relative', overflow: 'hidden', color: 'rgba(17,17,19,.34)',
       }}>
+        <input
+          type="checkbox"
+          aria-label={`${item.name} ürününü seç`}
+          checked={selectedForBulk}
+          onChange={onToggleSelected}
+          onClick={(event) => event.stopPropagation()}
+          style={{ position: 'absolute', zIndex: 2, top: 9, left: 9, width: 18, height: 18, accentColor: 'var(--text)', cursor: 'pointer' }}
+        />
         {(Array.isArray(item.images) && (item.images as string[])[0])
           ? <img src={(item.images as string[])[0]} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
           : <I.cutlery size={46} />}
@@ -1321,19 +1372,19 @@ function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, hig
                   color: item.is_available ? 'var(--text-2)' : 'var(--warning)',
                 }}
               ><I.eye size={13} /></button>
-              <span style={{
-                width: 26, height: 26, borderRadius: 6, background: 'var(--surface)',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: 'var(--shadow-1)', color: 'var(--text-2)',
-              }}><I.drag size={14} /></span>
             </div>
           </div>
         )}
       </div>
       <div style={{ padding: '10px 12px 12px' }}>
-        <div style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.2 }}>
+        <button
+          type="button"
+          onClick={(event) => { event.stopPropagation(); onClick() }}
+          aria-label={`${item.name} ürününü düzenle`}
+          style={{ display: 'block', width: '100%', padding: 0, border: 0, background: 'transparent', color: 'inherit', textAlign: 'left', cursor: 'pointer', fontSize: 13.5, fontWeight: 600, lineHeight: 1.2 }}
+        >
           {highlight ? highlightText(item.name, highlight) : item.name}
-        </div>
+        </button>
         {item.description && (
           <div style={{
             fontSize: 11.5, color: 'var(--text-3)', marginTop: 3, lineHeight: 1.3,
@@ -1365,8 +1416,8 @@ function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, hig
             >₺{item.price}</span>
           )}
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            {(item.food_info_reviewed_at == null || item.energy_kcal == null || normalizeIngredients(item.ingredients).length === 0) && (
-              <Tag tone="warning">Bilgi eksik</Tag>
+            {missingInfo.length > 0 && (
+              <span title={`Eksik: ${missingInfo.join(', ')}`}><Tag tone="warning">{missingInfo.length} eksik</Tag></span>
             )}
             {Array.isArray(item.modifier_groups) && (item.modifier_groups as unknown[]).length > 0 && (
               <Tag tone="neutral">Varyant</Tag>
@@ -1401,20 +1452,62 @@ function AddCard({ onClick }: { onClick: () => void }) {
   )
 }
 
-function ItemsList({ items, selected, onSelect, highlight }: {
+function getMissingProductInfo(item: Tables<'menu_items'>) {
+  return [
+    !item.description?.trim() ? 'Açıklama' : null,
+    !(Array.isArray(item.images) && item.images.length > 0) ? 'Görsel' : null,
+    normalizeIngredients(item.ingredients).length === 0 ? 'İçindekiler' : null,
+    item.energy_kcal == null ? 'Kalori' : null,
+    item.food_info_reviewed_at == null ? 'Gıda bilgisi onayı' : null,
+  ].filter((label): label is string => Boolean(label))
+}
+
+function EmptyProducts({ filtered, searching, onAdd, onResetFilter }: {
+  filtered: boolean
+  searching: boolean
+  onAdd: () => void
+  onResetFilter: () => void
+}) {
+  const title = searching ? 'Aramayla eşleşen ürün yok' : filtered ? 'Bu filtrede ürün yok' : 'Henüz ürün eklenmemiş'
+  const description = searching
+    ? 'Farklı bir ürün adı veya kategori aramayı dene.'
+    : filtered
+      ? 'Tüm ürünleri görüntüleyebilir veya yeni ürün ekleyebilirsin.'
+      : 'İlk ürününü ekleyerek menünü oluşturmaya başla.'
+  return (
+    <div style={{ minHeight: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+      <div style={{ maxWidth: 320 }}>
+        <span style={{ margin: '0 auto', width: 52, height: 52, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-3)', color: 'var(--text-2)' }}><I.cutlery size={22} /></span>
+        <h3 style={{ margin: '14px 0 0', fontSize: 15, color: 'var(--text)' }}>{title}</h3>
+        <p style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5, color: 'var(--text-3)' }}>{description}</p>
+        {!searching && (
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 8 }}>
+            {filtered && <button type="button" onClick={onResetFilter} style={btnGhost()}>Tümünü göster</button>}
+            <button type="button" onClick={onAdd} style={btnPrimary()}><I.plus size={13} />Yeni ürün</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ItemsList({ items, selected, selectedIds, onToggleSelected, onSelect, highlight }: {
   items: Tables<'menu_items'>[]
   selected: Tables<'menu_items'> | null
+  selectedIds: Set<string>
+  onToggleSelected: (id: string) => void
   onSelect: (item: Tables<'menu_items'>) => void
   highlight?: string
 }) {
   return (
     <div style={{ background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
       <div style={{
-        display: 'grid', gridTemplateColumns: '40px 1fr 90px 70px',
+        display: 'grid', gridTemplateColumns: '24px 40px 1fr 90px 70px',
         padding: '10px 14px', borderBottom: '1px solid var(--divider)',
         background: 'var(--surface-2)', fontSize: 11, color: 'var(--text-3)',
         fontWeight: 500, letterSpacing: '.05em', textTransform: 'uppercase',
       }}>
+        <span />
         <span />
         <span>Ürün</span>
         <span>Fiyat</span>
@@ -1422,30 +1515,35 @@ function ItemsList({ items, selected, onSelect, highlight }: {
       </div>
       {items.map(item => {
         const tint = tintFor(item.id)
+        const missingInfo = getMissingProductInfo(item)
         return (
           <div
             key={item.id}
-            onClick={() => onSelect(item)}
             style={{
-              display: 'grid', gridTemplateColumns: '40px 1fr 90px 70px', alignItems: 'center',
+              display: 'grid', gridTemplateColumns: '24px 1fr', alignItems: 'center',
               padding: '10px 14px', borderBottom: '1px solid var(--divider)',
-              cursor: 'pointer',
               background: selected?.id === item.id ? 'var(--surface-inset)' : 'transparent',
             }}
           >
-            <div style={{ width: 30, height: 30, borderRadius: 6, background: tint, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(17,17,19,.42)' }}>
+            <input type="checkbox" aria-label={`${item.name} ürününü seç`} checked={selectedIds.has(item.id)} onChange={() => onToggleSelected(item.id)} style={{ width: 16, height: 16, accentColor: 'var(--text)', cursor: 'pointer' }} />
+            <button type="button" onClick={() => onSelect(item)} style={{ display: 'grid', gridTemplateColumns: '40px 1fr 90px 70px', alignItems: 'center', width: '100%', padding: 0, border: 0, background: 'transparent', color: 'inherit', textAlign: 'left', cursor: 'pointer' }}>
+              <div style={{ width: 30, height: 30, borderRadius: 6, background: tint, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(17,17,19,.42)' }}>
               {(Array.isArray(item.images) && (item.images as string[])[0])
                 ? <img src={(item.images as string[])[0]} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
                 : <I.cutlery size={15} />}
-            </div>
+              </div>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{highlight ? highlightText(item.name, highlight) : item.name}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{highlight ? highlightText(item.name, highlight) : item.name}</span>
+                {missingInfo.length > 0 && <span title={`Eksik: ${missingInfo.join(', ')}`}><Tag tone="warning">{missingInfo.length} eksik</Tag></span>}
+              </div>
               {item.description && <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>{highlight ? highlightText(item.description, highlight) : item.description}</div>}
             </div>
             <span style={{ fontWeight: 600, fontSize: 13 }}>₺{item.price}</span>
             <span style={{ textAlign: 'right' }}>
               <Tag tone={item.is_available ? 'positive' : 'neutral'}>{item.is_available ? 'Aktif' : 'Pasif'}</Tag>
             </span>
+            </button>
           </div>
         )
       })}
@@ -1467,6 +1565,7 @@ function ItemEditPanel({
   onSaved,
   onDeleted,
   onError,
+  onDirtyChange,
 }: {
   item: Tables<'menu_items'>
   categoryName: string
@@ -1478,6 +1577,7 @@ function ItemEditPanel({
   onSaved: (updated: Tables<'menu_items'>) => void
   onDeleted: (id: string) => void
   onError: (msg: string) => void
+  onDirtyChange: (dirty: boolean) => void
 }) {
   const [name, setName] = useState(item.name)
   const [description, setDescription] = useState(item.description ?? '')
@@ -1505,6 +1605,33 @@ function ItemEditPanel({
     Number(price),
     cost.trim() === '' ? null : Number(cost),
   )
+  const isDirty = name !== item.name ||
+    description !== (item.description ?? '') ||
+    price !== String(item.price) ||
+    cost !== (item.cost == null ? '' : String(item.cost)) ||
+    vatMode !== (item.vat_rate == null ? 'category' : 'custom') ||
+    (vatMode === 'custom' && vatRate !== String(item.vat_rate ?? categoryVatRate)) ||
+    stationMode !== (item.kitchen_station_id == null ? 'category' : 'custom') ||
+    (stationMode === 'custom' && kitchenStationId !== (item.kitchen_station_id ?? categoryStationId ?? '')) ||
+    isAvailable !== item.is_available ||
+    earnsStamp !== (item.earns_stamp ?? false) ||
+    JSON.stringify(nutri) !== JSON.stringify(nutritionFromItem(item)) ||
+    JSON.stringify(images) !== JSON.stringify(Array.isArray(item.images) ? item.images : []) ||
+    JSON.stringify(modifiers) !== JSON.stringify(normalizeGroups(item.modifier_groups))
+
+  useEffect(() => {
+    onDirtyChange(isDirty)
+    return () => onDirtyChange(false)
+  }, [isDirty, onDirtyChange])
+
+  useEffect(() => {
+    function warnBeforeUnload(event: BeforeUnloadEvent) {
+      if (!isDirty) return
+      event.preventDefault()
+    }
+    window.addEventListener('beforeunload', warnBeforeUnload)
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
+  }, [isDirty])
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -1924,7 +2051,10 @@ function ItemEditPanel({
         background: 'var(--surface-2)',
       }}>
         <div style={{ marginBottom: 10 }}>
-          <NutritionStatusPill s={nutri} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <NutritionStatusPill s={nutri} />
+            {isDirty && <Tag tone="warning">Kaydedilmemiş değişiklik</Tag>}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           <button
@@ -1938,8 +2068,8 @@ function ItemEditPanel({
           <button
             type="button"
             onClick={handleSave}
-            disabled={isPending || uploading}
-            style={{ ...btnPrimary(), flex: 2, justifyContent: 'center' }}
+            disabled={isPending || uploading || !isDirty}
+            style={{ ...btnPrimary(), flex: 2, justifyContent: 'center', opacity: !isDirty ? 0.5 : 1 }}
           >
             {isPending ? <><InlineSpinner size={13} color="var(--on-action)" />Kaydediliyor…</> : 'Değişiklikleri kaydet'}
           </button>
@@ -2051,7 +2181,7 @@ function SkeletonGrid() {
   }
   const skel = (style: React.CSSProperties) => <div style={{ borderRadius: 7, ...shimmer, ...style }} />
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="menu-manager" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{
         height: 52,
         borderBottom: '1px solid var(--border)',
@@ -2145,6 +2275,7 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
   )
   const [activeSubCat, setActiveSubCat] = useState<string | null>(null)
   const [selectedItem, setSelectedItem] = useState<Tables<'menu_items'> | null>(null)
+  const [itemEditDirty, setItemEditDirty] = useState(false)
   const [showAddItem, setShowAddItem] = useState(false)
   const [search, setSearch] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
@@ -2162,6 +2293,15 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
   const searchInputRef = useRef<HTMLInputElement>(null)
   const csvFileRef = useRef<HTMLInputElement>(null)
   const showError = useCallback((msg: string) => { setToastMsg(msg); setToastTone('error') }, [])
+  const showSuccess = useCallback((msg: string) => { setToastMsg(msg); setToastTone('success') }, [])
+
+  function canLeaveItemEditor() {
+    return !itemEditDirty || window.confirm('Kaydedilmemiş ürün değişiklikleri silinsin mi?')
+  }
+
+  function selectItem(item: Tables<'menu_items'>) {
+    if (selectedItem?.id === item.id || canLeaveItemEditor()) setSelectedItem(item)
+  }
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -2311,6 +2451,7 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
     let done = 0
     let failed = 0
     let firstFailure: string | null = null
+    const importFailures: Array<{ row: number; category: string; name: string; error: string }> = []
     const createdCats: Tables<'menu_categories'>[] = []
 
     for (const [catName, rows] of grouped) {
@@ -2324,6 +2465,7 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
         if ('error' in result) {
           failed += rows.length
           firstFailure ??= result.error
+          importFailures.push(...rows.map((row) => ({ row: row.sourceRow, category: row.category, name: row.name, error: result.error })))
           setCsvPreview(prev => prev ? {
             ...prev,
             importProgress: { done: done + failed, total: validRows.length },
@@ -2366,6 +2508,7 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
         if ('error' in result) {
           failed++
           firstFailure ??= result.error
+          importFailures.push({ row: row.sourceRow, category: row.category, name: row.name, error: result.error })
           continue
         }
         done++
@@ -2378,9 +2521,10 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
     }
 
     if (createdCats.length > 0) setCategories(prev => [...prev, ...createdCats])
+    if (importFailures.length > 0) downloadCsvImportFailures(importFailures)
     setCsvPreview(null)
     setToastMsg(failed > 0
-      ? `${done} ürün aktarıldı, ${failed} ürün aktarılamadı${firstFailure ? `: ${firstFailure}` : ''}`
+      ? `${done} ürün aktarıldı, ${failed} ürün aktarılamadı; hata raporu indirildi${firstFailure ? `: ${firstFailure}` : ''}`
       : `${done} ürün başarıyla içe aktarıldı`)
     setToastTone(failed > 0 ? 'error' : 'success')
     router.refresh()
@@ -2397,7 +2541,23 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
     URL.revokeObjectURL(url)
   }
 
+  function downloadCsvImportFailures(failures: Array<{ row: number; category: string; name: string; error: string }>) {
+    const escape = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`
+    const csv = [
+      ['Satır', 'Kategori', 'Ürün', 'Hata'].map(escape).join(','),
+      ...failures.map((failure) => [failure.row, failure.category, failure.name, failure.error].map(escape).join(',')),
+    ].join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = 'menu_ice_aktarma_hatalari.csv'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   function handleSelectCategory(id: string) {
+    if (!canLeaveItemEditor()) return
     const cat = categories.find(c => c.id === id)
     if (cat?.parent_id) {
       // sub-cat selected from nav: keep the top-level cat as active, set sub-cat tab
@@ -2434,6 +2594,8 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
         setItems(itemsSnap)
         setActiveCategory(prevActive)
         showError(result.error)
+      } else {
+        showSuccess('Kategori silindi')
       }
     })
   }
@@ -2447,6 +2609,8 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
       if ('error' in result) {
         setCategories(snapshot)
         showError(result.error)
+      } else {
+        showSuccess('Kategori sırası kaydedildi')
       }
     })
   }
@@ -2470,8 +2634,23 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
       } else {
         setItems(prev => prev.map(i => i.id === id ? result.item : i))
         setSelectedItem(prev => prev?.id === id ? result.item : prev)
+        showSuccess(patch.is_available === undefined ? 'Fiyat güncellendi' : patch.is_available ? 'Ürün yayına alındı' : 'Ürün pasife alındı')
       }
     })
+  }
+
+  async function handleBulkAvailability(ids: string[], isAvailable: boolean) {
+    const snapshot = [...items]
+    setItems((current) => current.map((item) => ids.includes(item.id) ? { ...item, is_available: isAvailable } : item))
+    const result = await setMenuItemsAvailability(restaurantId, ids, isAvailable)
+    if ('error' in result) {
+      setItems(snapshot)
+      showError(result.error)
+      return false
+    }
+    setSelectedItem((current) => current && ids.includes(current.id) ? { ...current, is_available: isAvailable } : current)
+    showSuccess(`${ids.length} ürün ${isAvailable ? 'yayına alındı' : 'pasife alındı'}`)
+    return true
   }
 
   if (!mounted) return <SkeletonGrid />
@@ -2585,11 +2764,16 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
           activeCategory={activeCat}
           subCategories={subCatsOfActive}
           activeSubCat={activeSubCat}
-          onSubCatChange={(id) => { setActiveSubCat(id); setSelectedItem(null) }}
+          onSubCatChange={(id) => {
+            if (!canLeaveItemEditor()) return
+            setActiveSubCat(id)
+            setSelectedItem(null)
+          }}
           selectedItem={selectedItem}
-          onSelectItem={setSelectedItem}
+          onSelectItem={selectItem}
           onAddItem={() => setShowAddItem(true)}
           onQuickUpdate={handleQuickUpdate}
+          onBulkAvailability={handleBulkAvailability}
           highlight={search || undefined}
         />
 
@@ -2602,7 +2786,9 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
             categoryStationId={activeCatForPanel?.kitchen_station_id ?? null}
             kitchenStations={kitchenStations}
             restaurantId={restaurantId}
-            onClose={() => setSelectedItem(null)}
+            onClose={() => {
+              if (canLeaveItemEditor()) setSelectedItem(null)
+            }}
             onSaved={(updated) => {
               setItems(prev => prev.map(i => i.id === updated.id ? updated : i))
               setSelectedItem(updated)
@@ -2612,6 +2798,7 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
               setSelectedItem(null)
             }}
             onError={showError}
+            onDirtyChange={setItemEditDirty}
           />
         ) : (
           <EmptyPanel />

@@ -198,50 +198,53 @@ function CategoryRow({ id: _id, name, count, active, onClick, onEdit, onDelete, 
   dragHandle?: React.ReactNode
 }) {
   const [hov, setHov] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const showActions = hov || focused
   return (
-    <button
-      onClick={onClick}
+    <div
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false)
+      }}
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
         width: '100%', padding: '8px 8px', marginBottom: 1,
         background: active ? 'var(--surface-inset)' : (hov ? 'var(--surface-3)' : 'transparent'),
-        border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left',
+        borderRadius: 7,
       }}
     >
-      <span style={{
-        width: 20, height: 20, flexShrink: 0,
-        color: active ? 'var(--text)' : 'var(--text-3)',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <I.cutlery size={15} />
-      </span>
-      <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: active ? 600 : 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+      <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: 0, border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', textAlign: 'left' }}>
+        <span style={{ width: 20, height: 20, flexShrink: 0, color: active ? 'var(--text)' : 'var(--text-3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+          <I.cutlery size={15} />
+        </span>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: active ? 600 : 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+      </button>
       <span style={{ ...S.mono, width: 20, textAlign: 'right', fontSize: 10.5, color: 'var(--text-3)', flexShrink: 0 }}>{count}</span>
-      <span style={{ minWidth: 18, height: 18, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-        {hov ? (
+      <span style={{ minWidth: 42, height: 24, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
+        {showActions ? (
           <>
-            <span
-              role="button"
+            <button
+              type="button"
               aria-label="Düzenle"
-              onClick={(e) => { e.stopPropagation(); onEdit() }}
-              style={{ color: 'var(--text-2)', display: 'inline-flex', padding: 2, borderRadius: 4 }}
+              onClick={onEdit}
+              style={{ color: 'var(--text-2)', display: 'inline-flex', padding: 4, border: 0, background: 'transparent', borderRadius: 4, cursor: 'pointer' }}
             >
               <I.gear size={13} />
-            </span>
-            <span
-              role="button"
+            </button>
+            <button
+              type="button"
               aria-label="Sil"
-              onClick={(e) => { e.stopPropagation(); onDelete() }}
-              style={{ color: 'var(--critical)', display: 'inline-flex', padding: 2, borderRadius: 4 }}
+              onClick={onDelete}
+              style={{ color: 'var(--critical)', display: 'inline-flex', padding: 4, border: 0, background: 'transparent', borderRadius: 4, cursor: 'pointer' }}
             >
               <I.trash size={13} />
-            </span>
+            </button>
           </>
         ) : dragHandle ?? null}
       </span>
-    </button>
+    </div>
   )
 }
 
