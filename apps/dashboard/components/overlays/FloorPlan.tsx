@@ -24,6 +24,7 @@ interface Props {
   onClose: () => void
   onNewOrder: (tableId: string) => void
   onRefresh: () => void
+  canCreateOrders?: boolean
 }
 
 interface LayoutEntry {
@@ -86,6 +87,7 @@ export default function FloorPlan({
   onClose,
   onNewOrder,
   onRefresh,
+  canCreateOrders = true,
 }: Props) {
   const tables = useMemo(() => tableStatuses ?? [], [tableStatuses])
   const shellRef = useRef<HTMLDivElement>(null)
@@ -336,6 +338,7 @@ export default function FloorPlan({
             setSettleTable({ table: detailTable, session })
           }}
           onRefresh={onRefresh}
+          canCreateOrders={canCreateOrders}
         />
       )}
 

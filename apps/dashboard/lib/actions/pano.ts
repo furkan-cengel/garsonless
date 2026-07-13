@@ -1,10 +1,11 @@
 'use server'
 
-import { assertAccess } from '../auth/access'
+import { assertAccess, getUserRestaurantAccess } from '../auth/access'
 import { createDashboardServerClient } from '../supabase-server'
-import { getHourlySales, getSalesOverTime, getTableStatuses } from '../queries'
+import { getHourlySales, getPanoSnapshot, getRestaurantTimezone, getSalesOverTime, getTableStatuses } from '../queries'
 import type { TableStatusData } from '../queries'
-import { readOrderLineSnapshots } from '@garsonless/db/order-client'
+import type { PanoSnapshot } from '../queries'
+import { readOrderLineSnapshots, restaurantHour } from '@garsonless/db/order-client'
 
 export type PanoChartRange = 'day' | 'week' | 'month'
 
@@ -71,6 +72,20 @@ export async function fetchPanoTableStatuses(
   const gate = await assertAccess(restaurantId, 'pano')
   if ('error' in gate) return { error: gate.error }
   return { tables: await getTableStatuses(restaurantId) }
+}
+
+export async function fetchPanoSnapshot(
+  restaurantId: string,
+): Promise<{ error: string } | { snapshot: PanoSnapshot }> {
+  const gate = await assertAccess(restaurantId, 'pano')
+  if ('error' in gate) return { error: gate.error }
+  const access = await getUserRestaurantAccess(restaurantId)
+  if (!access) return { error: 'Not authorized' }
+  try {
+    return { snapshot: await getPanoSnapshot(restaurantId, access.isOwner) }
+  } catch {
+    return { error: 'Pano verileri alınamadı.' }
+  }
 }
 
 export async function fetchPanoTableDetail(
@@ -147,10 +162,12 @@ export async function fetchPanoChart(
   if ('error' in gate) return { error: gate.error }
 
   if (range === 'day') {
-    const hourly = await getHourlySales(restaurantId)
-    const currentHour = new Date().getHours()
+    const [hourly, timezone] = await Promise.all([
+      getHourlySales(restaurantId),
+      getRestaurantTimezone(restaurantId),
+    ])
+    const currentHour = restaurantHour(new Date(), timezone)
     const points: PanoChartPoint[] = hourly
-      .filter((d) => d.hour >= 7 && d.hour <= 22)
       .map((d) => ({ label: String(d.hour).padStart(2, '0'), value: d.total, highlight: d.hour === currentHour }))
     return finalize('day', 'Bugün', points)
   }

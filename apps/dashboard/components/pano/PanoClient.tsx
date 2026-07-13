@@ -11,6 +11,7 @@ import { createDashboardBrowserClient } from '../../lib/supabase'
 import { updateOrderStatus } from '../../lib/actions/orders'
 import {
   fetchPanoChart,
+  fetchPanoSnapshot,
   fetchPanoTableStatuses,
   type PanoChartData,
   type PanoChartPoint,
@@ -25,6 +26,7 @@ import type {
   HeatmapCell,
   PaymentStatus,
 } from '../../lib/queries'
+import type { Section } from '../../lib/auth/access'
 
 type RealtimeStatus = 'connecting' | 'connected' | 'down'
 
@@ -33,6 +35,9 @@ const FloorPlan = dynamic(() => import('../overlays/FloorPlan'))
 interface Props {
   restaurantId: string
   restaurantName: string
+  timezone: string
+  initialErrors: string[]
+  permissions: Section[]
   kpis: DashboardKPIs
   hourlySales: HourlySale[]
   initialFeed: ActivityEvent[]
@@ -45,10 +50,13 @@ interface Props {
 }
 
 /** Client-side seed of the 'day' chart from the SSR hourly data (mirrors fetchPanoChart's day branch). */
-function dayPointsFromHourly(hourly: HourlySale[]): PanoChartPoint[] {
-  const currentHour = new Date().getHours()
+function hourInTimezone(timezone: string): number {
+  return Number(new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', hourCycle: 'h23' }).format(new Date()))
+}
+
+function dayPointsFromHourly(hourly: HourlySale[], timezone: string): PanoChartPoint[] {
+  const currentHour = hourInTimezone(timezone)
   return hourly
-    .filter((d) => d.hour >= 7 && d.hour <= 22)
     .map((d) => ({ label: String(d.hour).padStart(2, '0'), value: d.total, highlight: d.hour === currentHour }))
 }
 
@@ -66,16 +74,54 @@ function relTime(iso: string): string {
   return 'Dün'
 }
 
-export default function PanoClient({ restaurantId, restaurantName, kpis, hourlySales, initialFeed, topItems, tableStatuses, heatmap, paymentStatus, isOwner }: Props) {
-  const hour = new Date().getHours()
+export default function PanoClient(props: Props) {
+  const { restaurantId, restaurantName, timezone, isOwner } = props
+  const can = useCallback((section: Section) => isOwner || props.permissions.includes(section), [isOwner, props.permissions])
+  const [snapshot, setSnapshot] = useState(() => ({
+    kpis: props.kpis,
+    hourlySales: props.hourlySales,
+    topItems: props.topItems,
+    heatmap: props.heatmap,
+    paymentStatus: props.paymentStatus,
+    errors: props.initialErrors,
+  }))
+  const { kpis, hourlySales, topItems, heatmap, paymentStatus } = snapshot
+  const hour = hourInTimezone(timezone)
   const greeting = hour < 12 ? 'Günaydın' : hour < 18 ? 'İyi günler' : 'İyi akşamlar'
 
   const [showNewOrder, setShowNewOrder] = useState(false)
   const [newOrderTableId, setNewOrderTableId] = useState<string | null>(null)
   const [showFloorPlan, setShowFloorPlan] = useState(false)
-  const [feed, setFeed] = useState<ActivityEvent[]>(initialFeed)
+  const [feed, setFeed] = useState<ActivityEvent[]>(props.initialFeed)
   const [realtime, setRealtime] = useState<RealtimeStatus>('connecting')
-  const [liveTableStatuses, setLiveTableStatuses] = useState(tableStatuses)
+  const [liveTableStatuses, setLiveTableStatuses] = useState(props.tableStatuses)
+  const [updatedAt, setUpdatedAt] = useState(() => new Date())
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const refreshSnapshot = useCallback(async () => {
+    const result = await fetchPanoSnapshot(restaurantId)
+    if ('error' in result) {
+      setSnapshot((current) => ({ ...current, errors: [result.error] }))
+      return
+    }
+    const next = result.snapshot
+    setSnapshot({
+      kpis: next.kpis,
+      hourlySales: next.hourlySales,
+      topItems: next.topItems,
+      heatmap: next.heatmap,
+      paymentStatus: next.paymentStatus,
+      errors: next.errors,
+    })
+    setFeed(next.initialFeed)
+    setLiveTableStatuses(next.tableStatuses)
+    setUpdatedAt(new Date())
+  }, [restaurantId])
+
+  const scheduleSnapshotRefresh = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    refreshTimer.current = setTimeout(() => void refreshSnapshot(), 250)
+  }, [refreshSnapshot])
 
   const refreshTables = useCallback(async () => {
     const result = await fetchPanoTableStatuses(restaurantId)
@@ -104,7 +150,7 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
         table: 'orders',
         filter: `restaurant_id=eq.${restaurantId}`,
       }, payload => {
-        void refreshTables()
+        scheduleSnapshotRefresh()
         const row = payload.new as { id: string; status: string; total: number; table_id: string | null; created_at: string }
         if (payload.eventType === 'UPDATE') {
           setFeed((previous) => previous.map((event) => (
@@ -128,7 +174,7 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
         table: 'table_sessions',
         filter: `restaurant_id=eq.${restaurantId}`,
       }, () => {
-        void refreshTables()
+        scheduleSnapshotRefresh()
       })
       .subscribe(status => {
         // Real liveness signal for the system-health panel — this browser's channel state.
@@ -138,8 +184,11 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
           : 'connecting',
         )
       })
-    return () => { void supabase.removeChannel(channel) }
-  }, [restaurantId, refreshTables])
+    return () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current)
+      void supabase.removeChannel(channel)
+    }
+  }, [restaurantId, scheduleSnapshotRefresh])
 
   const lastOrderAt = feed[0]?.createdAt ?? null
 
@@ -149,6 +198,42 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <style>{`
+        .pano-shell { max-width: 1280px; margin: 0 auto; padding: 28px 32px 60px; }
+        .pano-greeting { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+        .pano-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .pano-main-grid, .pano-wide-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 12px; margin-bottom: 12px; }
+        .pano-lower-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+        .pano-wide-grid { margin-bottom: 0; }
+        .pano-heatmap-scroll { min-width: 0; overflow-x: auto; padding-bottom: 2px; }
+        .pano-action, .pano-quick-action, .pano-range-action {
+          transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease, border-color 140ms ease, opacity 140ms ease;
+        }
+        .pano-action:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
+        .pano-action-primary:hover { filter: brightness(1.15); }
+        .pano-action-secondary:hover { background: var(--surface-2) !important; border-color: var(--border-strong) !important; }
+        .pano-quick-action:hover { background: var(--surface-3) !important; transform: translateX(2px); }
+        .pano-quick-action:hover .pano-quick-icon { background: var(--surface) !important; color: var(--text) !important; box-shadow: var(--shadow-1); }
+        .pano-range-action:not(:disabled):hover { background: var(--surface-2) !important; color: var(--text) !important; }
+        .pano-action:focus-visible, .pano-quick-action:focus-visible, .pano-range-action:focus-visible {
+          outline: 2px solid var(--focus-ring, var(--text)); outline-offset: 2px;
+        }
+        .pano-action:active, .pano-quick-action:active { transform: translateY(0) scale(.98); box-shadow: none; }
+        @media (max-width: 1100px) {
+          .pano-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .pano-main-grid, .pano-wide-grid { grid-template-columns: minmax(0, 1fr); }
+          .pano-lower-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 760px) {
+          .pano-shell { padding: 20px 16px 48px; }
+          .pano-greeting { align-items: flex-start; flex-direction: column; }
+          .pano-greeting-actions { width: 100%; flex-wrap: wrap; }
+          .pano-kpis, .pano-lower-grid { grid-template-columns: minmax(0, 1fr); }
+          .pano-chart-head { align-items: flex-start !important; flex-wrap: wrap; }
+          .pano-chart-ranges { width: 100%; margin-left: 0 !important; }
+          .pano-chart-ranges button { flex: 1; }
+        }
+      `}</style>
       <PageTopBar
         restaurantName={restaurantName}
         title="Pano"
@@ -170,11 +255,13 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
               }}
             >
               <I.clock size={12} />
-              <span style={S.mono}>Bugün · {new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}</span>
+              <span style={S.mono}>Bugün · {new Date().toLocaleDateString('tr-TR', { timeZone: timezone, day: 'numeric', month: 'long' })}</span>
             </span>
-            <button onClick={() => openNewOrder()} style={btnPrimary()}>
-              <I.plus size={13} />Yeni sipariş
-            </button>
+            {can('orders') && (
+              <button type="button" className="pano-action pano-action-primary" onClick={() => openNewOrder()} style={btnPrimary()}>
+                <I.plus size={13} />Yeni sipariş
+              </button>
+            )}
           </>
         }
       />
@@ -202,14 +289,15 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
             openNewOrder(tableId)
           }}
           onRefresh={() => void refreshTables()}
+          canCreateOrders={can('orders')}
         />
       )}
 
       <div style={{ flex: 1, overflow: 'auto', minWidth: 0, background: 'var(--bg)' }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '28px 32px 60px' }}>
+        <div className="pano-shell">
 
           {/* Greeting */}
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
+          <div className="pano-greeting">
             <div>
               <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-.02em', margin: 0, color: 'var(--text)' }}>
                 {greeting}
@@ -217,12 +305,13 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
               <p style={{ fontSize: 13.5, color: 'var(--text-2)', marginTop: 6, marginBottom: 0 }}>
                 {restaurantName} — son güncelleme{' '}
                 <span style={{ ...S.mono, color: 'var(--text-3)' }}>
-                  {new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                  {updatedAt.toLocaleTimeString('tr-TR', { timeZone: timezone, hour: '2-digit', minute: '2-digit' })}
                 </span>
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <Link
+            <div className="pano-greeting-actions" style={{ display: 'flex', gap: 6 }}>
+              {can('analytics') && <Link
+                className="pano-action pano-action-secondary"
                 href={`/dashboard/${restaurantId}/analytics`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -232,8 +321,9 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
                 }}
               >
                 <I.chart size={13} /> Raporlar
-              </Link>
-              <Link
+              </Link>}
+              {can('menu') && <Link
+                className="pano-action pano-action-primary"
                 href={`/dashboard/${restaurantId}/menu`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -241,13 +331,20 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
                   background: 'var(--text)', color: '#fff', textDecoration: 'none',
                 }}
               >
-                <I.plus size={13} /> Ürün ekle
-              </Link>
+                <I.plus size={13} /> Menüye git
+              </Link>}
             </div>
           </div>
 
+          {snapshot.errors.length > 0 && (
+            <div role="alert" style={{ marginBottom: 16, padding: '11px 13px', borderRadius: 10, border: '1px solid var(--critical)', background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 12 }}>
+              Bazı Pano verileri alınamadı. Gösterilen değerlerin bir bölümü güncel olmayabilir.
+              <button type="button" onClick={() => void refreshSnapshot()} style={{ marginLeft: 8, border: 0, padding: 0, background: 'transparent', color: 'inherit', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}>Yeniden dene</button>
+            </div>
+          )}
+
           {/* KPI Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+          <div className="pano-kpis">
             <KPICard
               label="Tahsil edilen ciro"
               value={`₺${kpis.revenue.toLocaleString('tr-TR')}`}
@@ -284,8 +381,8 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
           </div>
 
           {/* Main grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
-            <SalesChart restaurantId={restaurantId} initialHourly={hourlySales} />
+          <div className="pano-main-grid">
+            <SalesChart restaurantId={restaurantId} initialHourly={hourlySales} timezone={timezone} />
             <ActivityFeedWidget
               feed={feed}
               restaurantId={restaurantId}
@@ -294,23 +391,26 @@ export default function PanoClient({ restaurantId, restaurantName, kpis, hourlyS
                   event.id === orderId ? { ...event, status } : event
                 )))
               }}
+              canManageOrders={can('orders')}
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <div className="pano-lower-grid">
             <TopItemsWidget items={topItems} />
             <PeakHours heatmap={heatmap} />
-            <QuickActions restaurantId={restaurantId} />
+            <QuickActions restaurantId={restaurantId} permissions={props.permissions} isOwner={isOwner} />
           </div>
 
           {/* Wide row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+          <div className="pano-wide-grid">
             <TableStatusExperience
               restaurantId={restaurantId}
               tables={liveTableStatuses}
               onFloorPlan={() => setShowFloorPlan(true)}
               onNewOrder={openNewOrder}
               onRefresh={() => void refreshTables()}
+              canViewDetails={can('tables')}
+              canCreateOrders={can('orders')}
             />
             <SystemHealth paymentStatus={paymentStatus} isOwner={isOwner} realtime={realtime} lastOrderAt={lastOrderAt} />
           </div>
@@ -388,14 +488,20 @@ const CHART_RANGES: { label: string; range: PanoChartRange }[] = [
   { label: '30 gün', range: 'month' },
 ]
 
-function SalesChart({ restaurantId, initialHourly }: { restaurantId: string; initialHourly: HourlySale[] }) {
-  const seedPoints = dayPointsFromHourly(initialHourly)
+function SalesChart({ restaurantId, initialHourly, timezone }: { restaurantId: string; initialHourly: HourlySale[]; timezone: string }) {
+  const seedPoints = dayPointsFromHourly(initialHourly, timezone)
   const [data, setData] = useState<PanoChartData>({ range: 'day', rangeLabel: 'Bugün', points: seedPoints, ...summarizePoints(seedPoints) })
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
-  function selectRange(range: PanoChartRange) {
-    if (range === data.range || isPending) return
+  useEffect(() => {
+    if (data.range !== 'day') return
+    const points = dayPointsFromHourly(initialHourly, timezone)
+    setData({ range: 'day', rangeLabel: 'Bugün', points, ...summarizePoints(points) })
+  }, [data.range, initialHourly, timezone]) // Deliberately keep the user's 7/30-day selection stable.
+
+  function selectRange(range: PanoChartRange, force = false) {
+    if ((!force && range === data.range) || isPending) return
     setError('')
     startTransition(async () => {
       const res = await fetchPanoChart(restaurantId, range)
@@ -415,14 +521,14 @@ function SalesChart({ restaurantId, initialHourly }: { restaurantId: string; ini
   return (
     <Card title="Tahsilat akışı" subtitle={isDay ? 'Saatlik tahsilat · TRY' : `${data.rangeLabel} · günlük tahsilat · TRY`}>
       <div style={{ padding: '12px 16px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 14 }}>
+        <div className="pano-chart-head" style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 14 }}>
           <span style={{ ...S.mono, fontSize: 24, fontWeight: 700, letterSpacing: '-.02em', opacity: isPending ? 0.5 : 1 }}>
             ₺{data.total.toLocaleString('tr-TR')}
           </span>
           {isPending && <span style={{ fontSize: 11, color: 'var(--text-3)' }}>yükleniyor…</span>}
-          <div style={{ marginLeft: 'auto', display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 6, padding: 2 }}>
+          <div className="pano-chart-ranges" style={{ marginLeft: 'auto', display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 6, padding: 2 }}>
             {CHART_RANGES.map(({ label, range }) => (
-              <button key={range} onClick={() => selectRange(range)} disabled={isPending} style={{
+              <button type="button" className="pano-range-action" key={range} onClick={() => selectRange(range)} disabled={isPending} aria-pressed={data.range === range} style={{
                 padding: '4px 10px', fontSize: 11.5, fontWeight: 500,
                 background: data.range === range ? 'var(--surface)' : 'transparent',
                 color: data.range === range ? 'var(--text)' : 'var(--text-2)',
@@ -433,11 +539,16 @@ function SalesChart({ restaurantId, initialHourly }: { restaurantId: string; ini
           </div>
         </div>
         {error ? (
-          <div style={{ padding: '46px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--critical)' }}>{error}</div>
+          <div role="alert" style={{ padding: '38px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--critical)' }}>
+            <div>{error}</div>
+            <button type="button" onClick={() => selectRange(data.range, true)} style={{ marginTop: 8, border: 0, padding: 0, background: 'transparent', color: 'inherit', textDecoration: 'underline', fontWeight: 700, cursor: 'pointer' }}>Yeniden dene</button>
+          </div>
         ) : data.total === 0 ? (
           <div style={{ padding: '46px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--text-3)' }}>Bu aralıkta tahsilat yok</div>
         ) : (
-          <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', opacity: isPending ? 0.5 : 1, transition: 'opacity 120ms' }} preserveAspectRatio="none">
+          <svg role="img" aria-label={`${data.rangeLabel} tahsilat grafiği. Toplam ₺${data.total.toLocaleString('tr-TR')}. Pik ${data.peakLabel || 'yok'} ₺${data.peakValue.toLocaleString('tr-TR')}.`} viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', opacity: isPending ? 0.5 : 1, transition: 'opacity 120ms' }} preserveAspectRatio="xMidYMid meet">
+            <title>{data.rangeLabel} tahsilat grafiği</title>
+            <desc>{points.map((point) => `${point.label}: ₺${point.value.toLocaleString('tr-TR')}`).join(', ')}</desc>
             {[0, 0.25, 0.5, 0.75, 1].map(p => {
               const y = padY + (H - padY * 2) * (1 - p)
               return <line key={p} x1={padX} y1={y} x2={W - padX} y2={y} stroke="var(--divider)" strokeWidth="1" strokeDasharray={p === 0 ? 'none' : '3,3'} />
@@ -449,7 +560,9 @@ function SalesChart({ restaurantId, initialHourly }: { restaurantId: string; ini
               const fill = d.highlight ? '#ffd089' : d.value === 0 ? 'var(--surface-3)' : 'var(--text)'
               return (
                 <g key={d.label + i}>
-                  <rect x={x} y={y} width={barW} height={h || 2} rx="3" fill={fill} opacity={d.value === 0 ? 0.4 : 1} />
+                  <rect x={x} y={y} width={barW} height={h || 2} rx="3" fill={fill} opacity={d.value === 0 ? 0.4 : 1}>
+                    <title>{d.label}{isDay ? ':00' : ''} · ₺{d.value.toLocaleString('tr-TR')}</title>
+                  </rect>
                   {d.highlight && <circle cx={x + barW / 2} cy={y - 6} r="3" fill="#ffd089" />}
                 </g>
               )
@@ -466,7 +579,7 @@ function SalesChart({ restaurantId, initialHourly }: { restaurantId: string; ini
           marginTop: 8, paddingTop: 10, borderTop: '1px solid var(--divider)', flexWrap: 'wrap',
         }}>
           <LegendDot color="var(--text)" label={`Tahsilat ₺${data.total.toLocaleString('tr-TR')}`} />
-          {isDay && <LegendDot color="#ffd089" label={`Şu an ${String(new Date().getHours()).padStart(2, '0')}:00`} />}
+          {isDay && <LegendDot color="#ffd089" label={`Şu an ${String(hourInTimezone(timezone)).padStart(2, '0')}:00`} />}
           {data.peakValue > 0 && (
             <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               {isDay ? 'Pik saat' : 'Pik gün'} <span style={{ ...S.mono, color: 'var(--text-2)', fontWeight: 600 }}>
@@ -522,10 +635,12 @@ function ActivityFeedWidget({
   feed,
   restaurantId,
   onStatusChange,
+  canManageOrders,
 }: {
   feed: ActivityEvent[]
   restaurantId: string
   onStatusChange: (orderId: string, status: string) => void
+  canManageOrders: boolean
 }) {
   return (
     <Card title="Canlı akış" subtitle="Bugünün sipariş aktivitesi · gerçek zamanlı">
@@ -574,6 +689,7 @@ function ActivityFeedWidget({
                 restaurantId={restaurantId}
                 last={index === feed.length - 1}
                 onStatusChange={onStatusChange}
+                canManageOrders={canManageOrders}
               />
             ))}
           </div>
@@ -588,16 +704,18 @@ function ActivityFeedRow({
   restaurantId,
   last,
   onStatusChange,
+  canManageOrders,
 }: {
   event: ActivityEvent
   restaurantId: string
   last: boolean
   onStatusChange: (orderId: string, status: string) => void
+  canManageOrders: boolean
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const tone = STATUS_TONES[event.status] ?? STATUS_TONES['pending']!
-  const canApprove = event.status === 'pending_approval'
+  const canApprove = canManageOrders && event.status === 'pending_approval'
 
   const approve = async () => {
     if (busy || !canApprove) return
@@ -723,7 +841,8 @@ function PeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
         <EmptyState title="Yeterli veri yok" sub="Siparişler biriktikçe yoğun saatler burada görünür" />
       ) : (
         <div style={{ padding: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: `auto repeat(${HEATMAP_HOURS.length}, 1fr)`, gap: 1.5, alignItems: 'center' }}>
+          <div className="pano-heatmap-scroll">
+          <div style={{ minWidth: 300, display: 'grid', gridTemplateColumns: `auto repeat(${HEATMAP_HOURS.length}, 1fr)`, gap: 1.5, alignItems: 'center' }}>
             <span />
             {HEATMAP_HOURS.map(h => (
               <span key={h} style={{ fontSize: 8, color: 'var(--text-4)', textAlign: 'center', ...S.mono }}>
@@ -750,6 +869,7 @@ function PeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
               </Fragment>
             ))}
           </div>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 11, color: 'var(--text-3)' }}>
             <span>Az</span>
             <div style={{ display: 'flex', gap: 2, flex: 1, margin: '0 8px', maxWidth: 100 }}>
@@ -766,38 +886,35 @@ function PeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
 }
 
 /* ── QUICK ACTIONS ────────────────────────────────── */
-function QuickActions({ restaurantId }: { restaurantId: string }) {
+function QuickActions({ restaurantId, permissions, isOwner }: { restaurantId: string; permissions: Section[]; isOwner: boolean }) {
   const actions = [
-    { label: 'Ürün ekle',      desc: 'Menüye yeni kalem',     icon: <I.plus size={15} />, href: `/dashboard/${restaurantId}/menu` },
-    { label: 'QR yazdır',      desc: "Masa QR'larını indir",  icon: <I.qr size={15} />, href: `/dashboard/${restaurantId}/tables` },
-    { label: 'Temayı düzenle', desc: 'Marka kimliğin',        icon: <I.palette size={15} />, href: `/dashboard/${restaurantId}/theme` },
-    // Honest targets: /orders is the dashboard order board (not the separate KDS app);
-    // there is no PDF export, so this just opens the Analytics page.
-    { label: 'Sipariş panosu', desc: 'Canlı sipariş akışı',   icon: <I.clipboard size={15} />, href: `/dashboard/${restaurantId}/orders` },
-    { label: 'Raporlar',       desc: 'Satış & tahsilat analizi', icon: <I.chart size={15} />, href: `/dashboard/${restaurantId}/analytics` },
-  ] satisfies Array<{ label: string; desc: string; icon: ReactNode; href: string }>
+    { section: 'menu', label: 'Menüyü yönet', desc: 'Ürün ve kategorileri aç', icon: <I.plus size={15} />, href: `/dashboard/${restaurantId}/menu` },
+    { section: 'tables', label: 'QR ekranını aç', desc: 'Masa QR kodlarını yönet', icon: <I.qr size={15} />, href: `/dashboard/${restaurantId}/tables` },
+    { section: 'theme', label: 'Temayı düzenle', desc: 'Marka kimliğini yönet', icon: <I.palette size={15} />, href: `/dashboard/${restaurantId}/theme` },
+    { section: 'orders', label: 'Sipariş panosu', desc: 'Canlı sipariş akışı', icon: <I.clipboard size={15} />, href: `/dashboard/${restaurantId}/orders` },
+    { section: 'analytics', label: 'Raporlar', desc: 'Satış ve tahsilat analizi', icon: <I.chart size={15} />, href: `/dashboard/${restaurantId}/analytics` },
+  ].filter((action) => isOwner || permissions.includes(action.section as Section)) satisfies Array<{ section: string; label: string; desc: string; icon: ReactNode; href: string }>
   return (
-    <Card title="Hızlı işlemler" subtitle="Tek tıkla başla">
+    <Card title="Hızlı işlemler" subtitle="Yetkili olduğun bölümler">
       <div style={{ padding: 8 }}>
-        {actions.map((a, i) => (
-          <a key={i} href={a.href} style={{
+        {actions.length === 0 ? <EmptyState title="Kullanılabilir işlem yok" sub="Bu hesap yalnız Pano görüntüleme yetkisine sahip" /> : actions.map((a) => (
+          <Link className="pano-quick-action" key={a.section} href={a.href} style={{
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '8px 10px', marginBottom: 1, borderRadius: 7,
             background: 'transparent', textDecoration: 'none',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-3)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-            <div style={{
+          }}>
+            <div className="pano-quick-icon" style={{
               width: 32, height: 32, borderRadius: 8,
               background: 'var(--surface-3)', color: 'var(--text-2)',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background-color 140ms ease, color 140ms ease, box-shadow 140ms ease',
             }}>{a.icon}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{a.label}</div>
               <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>{a.desc}</div>
             </div>
             <span style={{ color: 'var(--text-4)', display: 'inline-flex' }}><I.chevRight size={13} /></span>
-          </a>
+          </Link>
         ))}
       </div>
     </Card>

@@ -75,6 +75,8 @@ function TableHoverCard({
   onLeave,
   onDetail,
   onNewOrder,
+  canViewDetails,
+  canCreateOrders,
 }: {
   table: TableStatusData
   anchor: DOMRect
@@ -82,6 +84,8 @@ function TableHoverCard({
   onLeave: () => void
   onDetail: () => void
   onNewOrder: () => void
+  canViewDetails: boolean
+  canCreateOrders: boolean
 }) {
   const width = 280
   const estimatedHeight = table.status === 'empty' ? 170 : 220
@@ -124,9 +128,9 @@ function TableHoverCard({
             <p style={{ margin: '12px 0 0', fontSize: 12, lineHeight: 1.5, color: 'var(--text-2)' }}>
               Masa boş. QR siparişi bekleyebilir veya personel yeni sipariş başlatabilir.
             </p>
-            <button type="button" onClick={onNewOrder} style={primaryButton({ width: '100%', marginTop: 11 })}>
+            {canCreateOrders && <button type="button" onClick={onNewOrder} style={primaryButton({ width: '100%', marginTop: 11 })}>
               <I.plus size={13} />Yeni sipariş başlat
-            </button>
+            </button>}
           </>
         ) : (
           <>
@@ -157,12 +161,12 @@ function TableHoverCard({
               </div>
             )}
             <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-              <button type="button" onClick={onDetail} style={primaryButton({ flex: 1 })}>
+              {canViewDetails && <button type="button" onClick={onDetail} style={primaryButton({ flex: 1 })}>
                 <I.clipboard size={13} />Adisyonu gör
-              </button>
-              <button type="button" onClick={onNewOrder} style={secondaryButton({ flex: 1 })}>
+              </button>}
+              {canCreateOrders && <button type="button" onClick={onNewOrder} style={secondaryButton({ flex: 1 })}>
                 <I.plus size={13} />Sipariş
-              </button>
+              </button>}
             </div>
           </>
         )}
@@ -194,11 +198,13 @@ function TableCell({
   onEnter,
   onLeave,
   onClick,
+  interactive,
 }: {
   table: TableStatusData
   onEnter: (rect: DOMRect) => void
   onLeave: () => void
   onClick: () => void
+  interactive: boolean
 }) {
   const [hovered, setHovered] = useState(false)
   const tone = STATUS[table.status]
@@ -206,6 +212,7 @@ function TableCell({
   return (
     <button
       type="button"
+      disabled={!interactive}
       onMouseEnter={(event) => {
         setHovered(true)
         onEnter(event.currentTarget.getBoundingClientRect())
@@ -219,7 +226,7 @@ function TableCell({
       onClick={onClick}
       style={{
         minWidth: 0, minHeight: 58, padding: '9px 9px 10px',
-        borderRadius: 9, textAlign: 'left', cursor: 'pointer',
+        borderRadius: 9, textAlign: 'left', cursor: interactive ? 'pointer' : 'default',
         background: tone.bg, color: tone.fg,
         border: `1px solid ${hovered ? 'var(--border-strong)' : tone.border}`,
         boxShadow: hovered ? 'var(--shadow-2)' : 'none',
@@ -257,6 +264,7 @@ export function TableDetailModal({
   onNewOrder,
   onSettle,
   onRefresh,
+  canCreateOrders = true,
 }: {
   restaurantId: string
   table: TableStatusData
@@ -264,11 +272,49 @@ export function TableDetailModal({
   onNewOrder: () => void
   onSettle: (session: OpenSessionInfo) => void
   onRefresh: () => void
+  canCreateOrders?: boolean
 }) {
   const [detail, setDetail] = useState<PanoTableDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [closing, setClosing] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
   const empty = table.status === 'empty'
+
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const dialog = dialogRef.current
+    const focusable = dialog?.querySelector<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')
+    focusable?.focus()
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab' || !dialog) return
+      const elements = Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+      if (elements.length === 0) return
+      const first = elements[0]!
+      const last = elements[elements.length - 1]!
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      previousFocusRef.current?.focus()
+    }
+  }, [])
 
   useEffect(() => {
     if (empty) return
@@ -311,7 +357,7 @@ export function TableDetailModal({
         background: 'rgba(17,17,19,.45)', backdropFilter: 'blur(3px)',
       }}
     >
-      <div onClick={(event) => event.stopPropagation()} style={{
+      <div ref={dialogRef} onClick={(event) => event.stopPropagation()} style={{
         width: 'min(480px, 96vw)', maxHeight: '88vh',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         borderRadius: 14, background: 'var(--surface)', boxShadow: 'var(--shadow-pop)',
@@ -397,16 +443,16 @@ export function TableDetailModal({
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, padding: '12px 16px', borderTop: '1px solid var(--divider)', background: 'var(--surface-2)' }}>
-          {empty ? (
+        {(!empty || canCreateOrders) && <div style={{ display: 'flex', gap: 8, padding: '12px 16px', borderTop: '1px solid var(--divider)', background: 'var(--surface-2)' }}>
+          {empty && canCreateOrders ? (
             <button type="button" onClick={onNewOrder} style={primaryButton({ flex: 1, height: 38 })}>
               <I.plus size={14} />Yeni sipariş başlat
             </button>
           ) : table.status === 'paid' ? (
             <>
-              <button type="button" onClick={onNewOrder} style={secondaryButton({ flex: 1, height: 38 })}>
+              {canCreateOrders && <button type="button" onClick={onNewOrder} style={secondaryButton({ flex: 1, height: 38 })}>
                 <I.plus size={14} />Sipariş ekle
-              </button>
+              </button>}
               <button type="button" disabled={closing} onClick={() => void closePaidTable()} style={primaryButton({ flex: 1, height: 38, opacity: closing ? 0.6 : 1 })}>
                 {closing ? <InlineSpinner size={12} color="white" /> : <I.check size={14} />}
                 Masayı boşalt
@@ -414,9 +460,9 @@ export function TableDetailModal({
             </>
           ) : (
             <>
-              <button type="button" onClick={onNewOrder} style={secondaryButton({ flex: 1, height: 38 })}>
+              {canCreateOrders && <button type="button" onClick={onNewOrder} style={secondaryButton({ flex: 1, height: 38 })}>
                 <I.plus size={14} />Ürün ekle
-              </button>
+              </button>}
               <button
                 type="button"
                 disabled={!session}
@@ -427,7 +473,7 @@ export function TableDetailModal({
               </button>
             </>
           )}
-        </div>
+        </div>}
       </div>
     </div>
   )
@@ -448,12 +494,16 @@ export default function TableStatusExperience({
   onFloorPlan,
   onNewOrder,
   onRefresh,
+  canViewDetails,
+  canCreateOrders,
 }: {
   restaurantId: string
   tables: TableStatusData[]
   onFloorPlan: () => void
   onNewOrder: (tableId: string) => void
   onRefresh: () => void
+  canViewDetails: boolean
+  canCreateOrders: boolean
 }) {
   const [hovered, setHovered] = useState<{ table: TableStatusData; anchor: DOMRect } | null>(null)
   const [detailTable, setDetailTable] = useState<TableStatusData | null>(null)
@@ -496,13 +546,13 @@ export default function TableStatusExperience({
               Açık adisyonlar · {active} açık, {paid} ödendi, {empty} boş
             </div>
           </div>
-          <button type="button" onClick={onFloorPlan} style={{
+          {canViewDetails && <button type="button" onClick={onFloorPlan} style={{
             display: 'inline-flex', alignItems: 'center', gap: 2,
             padding: 0, border: 'none', background: 'none',
             color: 'var(--text-2)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
           }}>
             Plan görünümü <I.chevRight size={11} />
-          </button>
+          </button>}
         </div>
 
         {tables.length === 0 ? (
@@ -514,14 +564,17 @@ export default function TableStatusExperience({
                 <TableCell
                   key={table.id}
                   table={table}
+                  interactive={canViewDetails || canCreateOrders}
                   onEnter={(anchor) => {
+                    if (!canViewDetails && !canCreateOrders) return
                     holdHover()
                     setHovered({ table, anchor })
                   }}
                   onLeave={delayedClose}
                   onClick={() => {
                     closeHover()
-                    setDetailTable(table)
+                    if (canViewDetails) setDetailTable(table)
+                    else if (canCreateOrders) onNewOrder(table.id)
                   }}
                 />
               ))}
@@ -547,6 +600,8 @@ export default function TableStatusExperience({
             closeHover()
             onNewOrder(hovered.table.id)
           }}
+          canViewDetails={canViewDetails}
+          canCreateOrders={canCreateOrders}
         />
       )}
 
@@ -565,6 +620,7 @@ export default function TableStatusExperience({
             setSettleTable({ table: detailTable, session })
           }}
           onRefresh={onRefresh}
+          canCreateOrders={canCreateOrders}
         />
       )}
 

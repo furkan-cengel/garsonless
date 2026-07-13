@@ -119,6 +119,9 @@ export interface TableReportRow {
 }
 
 export interface PanoSnapshot {
+  timezone: string
+  /** Widget-level read failures. Never silently present a failed query as real zero data. */
+  errors: string[]
   kpis: DashboardKPIs
   hourlySales: HourlySale[]
   initialFeed: ActivityEvent[]
@@ -1333,9 +1336,11 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
 
   const [
     ordersRes,
+    activeOrdersRes,
     topItemsRes,
     tablesRes,
     sessionsRes,
+    sessionMetricsRes,
     paymentRes,
   ] = await Promise.all([
     supabase
@@ -1343,6 +1348,12 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
       .select('id, total, status, session_id, paid_at, payment_method, table_id, created_at')
       .eq('restaurant_id', restaurantId)
       .gte('created_at', heatmapStart.toISOString())
+      .is('deleted_at', null),
+    supabase
+      .from('orders')
+      .select('id, status')
+      .eq('restaurant_id', restaurantId)
+      .in('status', ACTIVE_STATUSES)
       .is('deleted_at', null),
     collectedOrdersFilter(
       supabase
@@ -1362,6 +1373,11 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
       .select('id, table_id, opened_at')
       .eq('restaurant_id', restaurantId)
       .is('closed_at', null),
+    supabase
+      .from('table_sessions')
+      .select('id, opened_at')
+      .eq('restaurant_id', restaurantId)
+      .gte('opened_at', yesterday.toISOString()),
     isOwner
       ? supabase
           .from('payment_credentials')
@@ -1370,6 +1386,18 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ])
+
+  const errors: string[] = []
+  const recordError = (label: string, error: { message: string } | null | undefined) => {
+    if (error) errors.push(`${label}: ${error.message}`)
+  }
+  recordError('Siparişler', ordersRes.error)
+  recordError('Aktif siparişler', activeOrdersRes.error)
+  recordError('Ürün sıralaması', topItemsRes.error)
+  recordError('Masalar', tablesRes.error)
+  recordError('Açık oturumlar', sessionsRes.error)
+  recordError('Oturum metrikleri', sessionMetricsRes.error)
+  if (isOwner && 'error' in paymentRes) recordError('Ödeme durumu', paymentRes.error)
 
   const orders = (ordersRes.data ?? []) as Array<{
     id: string
@@ -1393,6 +1421,12 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
 
   const revenue = sumTotals(todayCollectedRows)
   const paidOrders = todayCollectedRows.length
+  const metricSessions = (sessionMetricsRes.data ?? []) as Array<{ id: string; opened_at: string }>
+  const sessionsToday = metricSessions.filter((session) => new Date(session.opened_at) >= today).length
+  const sessionsYesterday = metricSessions.filter((session) => {
+    const openedAt = new Date(session.opened_at)
+    return openedAt >= yesterday && openedAt < today
+  }).length
   const kpis: DashboardKPIs = {
     ...emptyKpis(),
     revenue,
@@ -1401,10 +1435,10 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
     ordersYesterday: yesterdayVolumeRows.length,
     paidOrders,
     paidOrdersYesterday: yesterdayCollectedRows.length,
-    activeOrders: todayVolumeRows.filter((row) => ACTIVE_STATUSES.includes(row.status)).length,
+    activeOrders: activeOrdersRes.data?.length ?? 0,
     avgBasket: paidOrders > 0 ? Math.round(revenue / paidOrders) : 0,
-    sessions: new Set(todayVolumeRows.map((row) => row.session_id).filter(Boolean)).size,
-    sessionsYesterday: new Set(yesterdayVolumeRows.map((row) => row.session_id).filter(Boolean)).size,
+    sessions: sessionsToday,
+    sessionsYesterday,
   }
 
   const byHour: Record<number, number> = {}
@@ -1460,12 +1494,13 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
   }> = []
 
   if (sessionIds.length > 0) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('orders')
       .select('table_session_id, status, total, paid_at, created_at')
       .in('table_session_id', sessionIds)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
+    recordError('Açık oturum siparişleri', error)
     sessionOrders = (data ?? []) as typeof sessionOrders
   }
 
@@ -1569,5 +1604,5 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
       : { configured: false, mode: null }
     : null
 
-  return { kpis, hourlySales, initialFeed, topItems, tableStatuses, heatmap, paymentStatus }
+  return { timezone: tz, errors, kpis, hourlySales, initialFeed, topItems, tableStatuses, heatmap, paymentStatus }
 }

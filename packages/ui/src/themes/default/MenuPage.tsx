@@ -390,6 +390,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
 
   const categoryById = new Map(categories.map((category) => [category.id, category]))
   const pageBlocks = useMemo(() => {
+    const categoryIds = new Set(categories.map((category) => category.id))
     const stored = theme.pageBlocks?.filter((block) =>
       block.type === 'section' ||
       block.type === 'nav' ||
@@ -404,11 +405,27 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
           ...(theme.sections ?? []).map((id) => ({ type: 'section' as const, id })),
           ...categories.map((category) => ({ type: 'category' as const, id: category.id })),
         ]
-    return result
+    const seen = new Set(result.map((block) => `${block.type}:${block.id}`))
+    for (const category of categories) {
+      if (!seen.has(`category:${category.id}`)) result.push({ type: 'category', id: category.id })
+    }
+    const childrenByParent = new Map<string, typeof result>()
+    for (const block of result) {
+      if (block.type !== 'category') continue
+      const parentId = categories.find((category) => category.id === block.id)?.parent_id
+      if (!parentId || !categoryIds.has(parentId)) continue
+      const children = childrenByParent.get(parentId) ?? []
+      children.push(block)
+      childrenByParent.set(parentId, children)
+    }
+    const normalized: typeof result = []
+    for (const block of result) {
+      if (block.type === 'category' && categories.find((category) => category.id === block.id)?.parent_id) continue
+      normalized.push(block)
+      if (block.type === 'category') normalized.push(...(childrenByParent.get(block.id) ?? []))
+    }
+    return normalized
   }, [categories, categoryById, theme.pageBlocks, theme.sections])
-  const selectedCategoryBlockIndex = visualNav
-    ? pageBlocks.findIndex((block) => block.type === 'category' && block.id === activeVisualCategoryId)
-    : -1
 
   return (
     <div suppressHydrationWarning style={{ minHeight: '100dvh', backgroundColor: 'var(--p-bg)', ...textureStyle }}>
@@ -439,6 +456,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
                   })}
                   {visualStage === 'products' && menuFilters}
                   {visualStage === 'products' && filterEmptyState}
+                  {visualStage === 'products' && categoryById.get(activeVisualCategoryId) && renderSection(categoryById.get(activeVisualCategoryId)!)}
                 </div>
               )
             }
@@ -455,13 +473,11 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
               </div>
             )
           }
-          if (visualNav && (visualStage !== 'products' || block.id !== activeVisualCategoryId)) return null
+          if (visualNav) return null
           const category = categoryById.get(block.id)
           if (!category) return null
           const section = renderSection(category)
-          return visualNav && selectedCategoryBlockIndex >= 0
-            ? <div key={`visual-category-${category.id}`} style={{ animation: 'garsonless-category-fade 180ms ease' }}>{section}</div>
-            : section
+          return section
         })}
       </main>
       {visualNav && (

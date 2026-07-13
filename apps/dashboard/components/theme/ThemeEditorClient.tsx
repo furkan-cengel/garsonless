@@ -49,6 +49,45 @@ const EDITOR_TABS: Array<{ id: EditorTab; label: string }> = [
 const THEME_GROUP_ID = 'theme'
 const THEME_GROUP_SOURCE_IDS = new Set(['colors', 'typography'])
 const PREVIEW_FALLBACK_MS = 5_000
+const EDITOR_INTERACTION_CSS = `
+  [data-theme-editor-root] button:not(:disabled) {
+    transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease, background-color 140ms ease, border-color 140ms ease !important;
+  }
+  [data-theme-editor-root] button:not(:disabled):hover {
+    filter: brightness(.96);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 14%, transparent), 0 2px 7px rgba(17,19,24,.07);
+    transform: translateY(-1px);
+  }
+  [data-theme-editor-root] button:not(:disabled):active {
+    filter: brightness(.92);
+    transform: translateY(0) scale(.985);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 20%, transparent);
+  }
+  [data-theme-editor-root] button:focus-visible,
+  [data-theme-editor-root] [role="button"]:focus-visible,
+  [data-theme-editor-root] input:focus-visible,
+  [data-theme-editor-root] select:focus-visible {
+    outline: 2px solid var(--text) !important;
+    outline-offset: 2px;
+  }
+  [data-theme-editor-root] button:disabled {
+    cursor: not-allowed !important;
+    opacity: .38;
+  }
+  [data-theme-editor-root] [data-page-flow-row] {
+    transition: background-color 140ms ease, box-shadow 140ms ease;
+  }
+  [data-theme-editor-root] [data-page-flow-row]:hover {
+    background: var(--surface-3) !important;
+    box-shadow: inset 3px 0 0 var(--text-3);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-theme-editor-root] button,
+    [data-theme-editor-root] [data-page-flow-row] { transition: none !important; }
+    [data-theme-editor-root] button:hover,
+    [data-theme-editor-root] button:active { transform: none !important; }
+  }
+`
 
 const SECTION_LIBRARY = [
   { id: 'hero-banner', group: 'Üst Bölümler', label: 'Hero Banner', sub: 'Tam genişlik kampanya görseli + CTA', icon: <I.image size={17} />, plan: 'free' },
@@ -1065,9 +1104,12 @@ export default function ThemeEditorClient({
       return
     }
     const nextSections = [...activeSections, sectionId]
+    const nextBlocks = [...pageBlocks]
+    const navIndex = nextBlocks.findIndex((block) => block.type === 'nav')
+    nextBlocks.splice(navIndex >= 0 ? navIndex + 1 : 0, 0, { type: 'section', id: sectionId })
     updateThemePatch({
       sections: nextSections,
-      pageBlocks: [...pageBlocks, { type: 'section', id: sectionId }],
+      pageBlocks: nextBlocks,
     })
     setSectionPickerOpen(false)
     setActiveEditorTab('content')
@@ -1153,12 +1195,14 @@ export default function ThemeEditorClient({
         const targetTopKey = targetBlock.type === 'category' && targetParentId ? `category:${targetParentId}` : pageBlockKey(targetBlock)
         const nextIndex = withoutGroup.findIndex((block) => pageBlockKey(block) === targetTopKey)
         if (nextIndex < 0) return
-        withoutGroup.splice(nextIndex, 0, ...movingGroup)
+        const insertIndex = nextIndex + (fromIndex < toIndex ? 1 : 0)
+        withoutGroup.splice(insertIndex, 0, ...movingGroup)
         updateThemePatch({
           pageBlocks: withoutGroup,
           sections: withoutGroup.filter((block) => block.type === 'section').map((block) => block.id),
         })
         setDragBlockKey(null)
+        flashToast(`${movingGroup[0]?.type === 'category' ? menuCategories.find((item) => item.id === movingGroup[0]?.id)?.name ?? 'Kategori' : 'Bölüm'} taşındı`)
         return
       }
     }
@@ -1172,16 +1216,29 @@ export default function ThemeEditorClient({
       sections: nextBlocks.filter((block) => block.type === 'section').map((block) => block.id),
     })
     setDragBlockKey(null)
+    const movedLabel = moved.type === 'category'
+      ? menuCategories.find((item) => item.id === moved.id)?.name ?? 'Kategori'
+      : moved.type === 'nav'
+        ? 'Kategori Menüsü'
+        : SECTION_LIBRARY.find((item) => item.id === moved.id)?.label ?? 'Bölüm'
+    flashToast(`${movedLabel} taşındı`)
   }
 
   function handlePageBlockDrop(targetKey: string) {
-    if (!dragBlockKey) return
+    if (!dragBlockKey || editorQuery) return
     reorderPageBlock(dragBlockKey, targetKey)
   }
 
   function handlePageBlockKeyboardMove(sourceKey: string, direction: -1 | 1) {
-    const currentIndex = pageBlocks.findIndex((block) => pageBlockKey(block) === sourceKey)
-    const targetBlock = pageBlocks[currentIndex + direction]
+    if (editorQuery) return
+    const source = pageBlocks.find((block) => pageBlockKey(block) === sourceKey)
+    if (!source) return
+    const sourceParentId = source.type === 'category' ? getCategoryParentId(menuCategories, source.id) : null
+    const scope = sourceParentId
+      ? pageBlocks.filter((block) => block.type === 'category' && getCategoryParentId(menuCategories, block.id) === sourceParentId)
+      : pageBlocks.filter((block) => block.type !== 'category' || !getCategoryParentId(menuCategories, block.id))
+    const currentIndex = scope.findIndex((block) => pageBlockKey(block) === sourceKey)
+    const targetBlock = scope[currentIndex + direction]
     if (currentIndex < 0 || !targetBlock) return
     reorderPageBlock(sourceKey, pageBlockKey(targetBlock))
   }
@@ -1382,11 +1439,12 @@ export default function ThemeEditorClient({
   const saveStatusColor = hasUnsavedChanges ? '#b86408' : 'var(--positive)'
 
   return (
-    <div style={{
+    <div data-theme-editor-root style={{
       height: '100vh', overflow: 'hidden',
       display: 'flex', flexDirection: 'column',
       background: 'var(--surface-inset)',
     }}>
+      <style>{EDITOR_INTERACTION_CSS}</style>
       <div style={{
         minHeight: 52,
         flexShrink: 0,
@@ -1625,6 +1683,7 @@ export default function ThemeEditorClient({
             {filteredPageBlocks.length > 0 && (
               <div style={{ marginTop: 18 }}>
                 <div style={navGroupLabelStyle}>Sayfa Akışı</div>
+                {editorQuery && <div role="note" style={{ margin: '0 8px 8px', fontSize: 11, lineHeight: 1.4, color: 'var(--text-3)' }}>Arama sırasında sıralama kapalıdır. Taşımak için aramayı temizleyin.</div>}
                 {filteredPageBlocks.map((block) => {
                   const key = pageBlockKey(block)
                   const preset = block.type === 'section'
@@ -1641,46 +1700,14 @@ export default function ThemeEditorClient({
                   return (
                     <div
                       key={key}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`${block.type === 'section'
-                        ? preset?.label ?? block.id
-                        : block.type === 'nav'
-                          ? 'Kategori Menüsü'
-                          : category?.name ?? block.id} bölümünü seç. Alt ve ok tuşlarıyla sıralamayı değiştir.`}
-                      draggable
-                      onClick={() => {
-                        if (block.type === 'section') {
-                          setSelectedSectionId(block.id)
-                          setActiveEditorTab('content')
-                        } else if (block.type === 'nav') {
-                          setSelectedSectionId(null)
-                          setActiveGroup('nav')
-                          setActiveEditorTab('design')
-                        } else {
-                          setSelectedSectionId(null)
-                        }
-                      }}
+                      data-page-flow-row
+                      role="group"
+                      aria-label={`${block.type === 'section' ? preset?.label ?? block.id : block.type === 'nav' ? 'Kategori Menüsü' : category?.name ?? block.id} akış öğesi`}
+                      draggable={!editorQuery}
                       onDragStart={() => setDragBlockKey(key)}
                       onDragEnd={() => setDragBlockKey(null)}
-                      onDragOver={(e) => e.preventDefault()}
+                      onDragOver={(e) => { if (!editorQuery) e.preventDefault() }}
                       onDrop={() => handlePageBlockDrop(key)}
-                      onKeyDown={(event) => {
-                        if (event.altKey && event.key === 'ArrowUp') {
-                          event.preventDefault()
-                          handlePageBlockKeyboardMove(key, -1)
-                          return
-                        }
-                        if (event.altKey && event.key === 'ArrowDown') {
-                          event.preventDefault()
-                          handlePageBlockKeyboardMove(key, 1)
-                          return
-                        }
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault()
-                          event.currentTarget.click()
-                        }
-                      }}
                       style={{
                         minHeight: 44,
                         display: 'flex',
@@ -1690,7 +1717,7 @@ export default function ThemeEditorClient({
                         borderRadius: 8,
                         background: selected ? 'var(--surface-inset)' : 'transparent',
                         color: selected ? 'var(--text)' : 'var(--text-2)',
-                        cursor: dragBlockKey === key ? 'grabbing' : 'grab',
+                        cursor: editorQuery ? 'default' : dragBlockKey === key ? 'grabbing' : 'grab',
                         opacity: dragBlockKey === key ? 0.55 : 1,
                         position: 'relative',
                         outline: 'none',
@@ -1711,7 +1738,12 @@ export default function ThemeEditorClient({
                           }}
                         />
                       )}
-                      <span style={{ color: 'var(--text-4)', fontSize: 13, letterSpacing: -2 }}>⋮⋮</span>
+                      <span aria-hidden style={{ color: 'var(--text-4)', fontSize: 13, letterSpacing: -2 }}>⋮⋮</span>
+                      <button type="button" onClick={() => {
+                        if (block.type === 'section') { setSelectedSectionId(block.id); setActiveEditorTab('content') }
+                        else if (block.type === 'nav') { setSelectedSectionId(null); setActiveGroup('nav'); setActiveEditorTab('design') }
+                        else setSelectedSectionId(null)
+                      }} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, padding: 0, border: 0, background: 'transparent', color: 'inherit', textAlign: 'left', cursor: 'pointer' }}>
                       <span style={{ display: 'inline-flex', color: selected ? 'var(--text)' : 'var(--text-3)' }}>
                         {block.type === 'section' ? <PageIcon /> : block.type === 'nav' ? <HeaderIcon /> : <ListIcon />}
                       </span>
@@ -1733,6 +1765,13 @@ export default function ThemeEditorClient({
                                 : 'Menü kategorisi'}
                         </span>
                       </span>
+                      </button>
+                      {!editorQuery && (
+                        <span style={{ display: 'inline-flex', gap: 2 }}>
+                          <button type="button" aria-label="Yukarı taşı" disabled={pageBlocks[0] === block} onClick={() => handlePageBlockKeyboardMove(key, -1)} style={{ width: 24, height: 24, border: 0, borderRadius: 6, background: 'transparent', color: 'var(--text-3)', cursor: 'pointer' }}>↑</button>
+                          <button type="button" aria-label="Aşağı taşı" disabled={pageBlocks[pageBlocks.length - 1] === block} onClick={() => handlePageBlockKeyboardMove(key, 1)} style={{ width: 24, height: 24, border: 0, borderRadius: 6, background: 'transparent', color: 'var(--text-3)', cursor: 'pointer' }}>↓</button>
+                        </span>
+                      )}
                       {block.type === 'section' && (
                         <button
                           type="button"
