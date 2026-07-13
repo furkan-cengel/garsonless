@@ -493,6 +493,8 @@ function SalesChart({ restaurantId, initialHourly, timezone }: { restaurantId: s
   const [data, setData] = useState<PanoChartData>({ range: 'day', rangeLabel: 'Bugün', points: seedPoints, ...summarizePoints(seedPoints) })
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
+  const [tooltip, setTooltip] = useState<{ point: PanoChartPoint; x: number; y: number } | null>(null)
+  const chartRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (data.range !== 'day') return
@@ -546,6 +548,7 @@ function SalesChart({ restaurantId, initialHourly, timezone }: { restaurantId: s
         ) : data.total === 0 ? (
           <div style={{ padding: '46px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--text-3)' }}>Bu aralıkta tahsilat yok</div>
         ) : (
+          <div ref={chartRef} style={{ position: 'relative' }} onMouseLeave={() => setTooltip(null)}>
           <svg role="img" aria-label={`${data.rangeLabel} tahsilat grafiği. Toplam ₺${data.total.toLocaleString('tr-TR')}. Pik ${data.peakLabel || 'yok'} ₺${data.peakValue.toLocaleString('tr-TR')}.`} viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', opacity: isPending ? 0.5 : 1, transition: 'opacity 120ms' }} preserveAspectRatio="xMidYMid meet">
             <title>{data.rangeLabel} tahsilat grafiği</title>
             <desc>{points.map((point) => `${point.label}: ₺${point.value.toLocaleString('tr-TR')}`).join(', ')}</desc>
@@ -560,7 +563,30 @@ function SalesChart({ restaurantId, initialHourly, timezone }: { restaurantId: s
               const fill = d.highlight ? '#ffd089' : d.value === 0 ? 'var(--surface-3)' : 'var(--text)'
               return (
                 <g key={d.label + i}>
-                  <rect x={x} y={y} width={barW} height={h || 2} rx="3" fill={fill} opacity={d.value === 0 ? 0.4 : 1}>
+                  <rect
+                    x={x}
+                    y={y}
+                    width={barW}
+                    height={h || 2}
+                    rx="3"
+                    fill={fill}
+                    opacity={d.value === 0 ? 0.4 : 1}
+                    tabIndex={0}
+                    role="graphics-symbol"
+                    aria-label={`${d.label}${isDay ? ':00' : ''}, ₺${d.value.toLocaleString('tr-TR')}`}
+                    style={{ cursor: 'crosshair', outline: 'none' }}
+                    onMouseMove={(event) => {
+                      const bounds = chartRef.current?.getBoundingClientRect()
+                      if (!bounds) return
+                      setTooltip({ point: d, x: event.clientX - bounds.left, y: event.clientY - bounds.top })
+                    }}
+                    onFocus={() => {
+                      const bounds = chartRef.current?.getBoundingClientRect()
+                      if (!bounds) return
+                      setTooltip({ point: d, x: ((i + 0.5) / Math.max(points.length, 1)) * bounds.width, y: 32 })
+                    }}
+                    onBlur={() => setTooltip(null)}
+                  >
                     <title>{d.label}{isDay ? ':00' : ''} · ₺{d.value.toLocaleString('tr-TR')}</title>
                   </rect>
                   {d.highlight && <circle cx={x + barW / 2} cy={y - 6} r="3" fill="#ffd089" />}
@@ -573,6 +599,27 @@ function SalesChart({ restaurantId, initialHourly, timezone }: { restaurantId: s
               </text>
             ) : null))}
           </svg>
+          {tooltip && (
+            <div role="tooltip" style={{
+              position: 'absolute', zIndex: 4,
+              left: Math.max(72, Math.min(tooltip.x, (chartRef.current?.clientWidth ?? 200) - 72)),
+              top: Math.max(8, tooltip.y - 76), transform: 'translateX(-50%)',
+              minWidth: 132, padding: '9px 11px', borderRadius: 9,
+              color: '#fff', background: 'rgba(17,17,19,.94)', boxShadow: 'var(--shadow-pop)',
+              pointerEvents: 'none',
+            }}>
+              <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,.65)' }}>
+                {isDay ? `${tooltip.point.label}:00` : tooltip.point.label}
+              </div>
+              <div style={{ ...S.mono, marginTop: 2, fontSize: 15, fontWeight: 750 }}>
+                ₺{tooltip.point.value.toLocaleString('tr-TR')}
+              </div>
+              <div style={{ marginTop: 2, fontSize: 10, color: 'rgba(255,255,255,.65)' }}>
+                {data.total > 0 ? `Toplamın %${Math.round((tooltip.point.value / data.total) * 100)}` : 'Bu aralıkta tahsilat yok'}
+              </div>
+            </div>
+          )}
+          </div>
         )}
         <div style={{
           display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-3)',
