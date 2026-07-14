@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { I } from '../../lib/ui'
 import type { Icon } from '../../lib/ui'
 import { useShell } from '../../lib/shell-context'
+import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 
 const RAIL_CSS = `
 .rail-link {
@@ -192,6 +193,7 @@ interface RailLinkProps {
 function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
   const router = useRouter()
   const { getNavigationGuard } = useShell()
+  const [confirmNavigation, setConfirmNavigation] = useState(false)
   const tooltipId = `rail-tooltip-${label.toLocaleLowerCase('tr-TR').replaceAll('ı', 'i').replaceAll('ş', 's')}`
   return (
     <div
@@ -218,8 +220,9 @@ function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
         onClick={(e) => {
           if (active) return
           const guardMessage = getNavigationGuard()
-          if (guardMessage && !window.confirm(guardMessage)) {
+          if (guardMessage) {
             e.preventDefault()
+            setConfirmNavigation(true)
             return
           }
           window.dispatchEvent(new Event('navigation-start'))
@@ -248,6 +251,18 @@ function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
         }}>
           {badge > 9 ? '9+' : badge}
         </div>
+      )}
+      {confirmNavigation && (
+        <UnsavedChangesDialog
+          description="Tema düzenleyicide yaptığın değişiklikler henüz yayınlanmadı. Çıkarsan bu değişiklikler kaybolacak."
+          discardLabel="Değişiklikleri sil ve çık"
+          onKeepEditing={() => setConfirmNavigation(false)}
+          onDiscard={() => {
+            setConfirmNavigation(false)
+            window.dispatchEvent(new Event('navigation-start'))
+            router.push(href)
+          }}
+        />
       )}
     </div>
   )

@@ -85,8 +85,8 @@ export default function NewProductDrawer({
   const next = () => { if (step < 3) setStep(step + 1); else create() }
 
   return (
-    <div onClick={pending ? undefined : onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(17,17,19,.4)', backdropFilter: 'blur(3px)' }}>
-      <div ref={drawerRef} role="dialog" aria-modal="true" aria-labelledby="new-product-title" tabIndex={-1} onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 'min(480px, 100vw)', background: 'var(--surface)', boxShadow: '-20px 0 60px -10px rgba(0,0,0,.2)', display: 'flex', flexDirection: 'column', outline: 'none' }}>
+    <div className="new-product-overlay" onClick={pending ? undefined : onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(17,17,19,.4)', backdropFilter: 'blur(3px)' }}>
+      <div className="new-product-drawer" ref={drawerRef} role="dialog" aria-modal="true" aria-labelledby="new-product-title" tabIndex={-1} onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 'min(480px, 100vw)', background: 'var(--surface)', boxShadow: '-20px 0 60px -10px rgba(0,0,0,.2)', display: 'flex', flexDirection: 'column', outline: 'none' }}>
         {/* Header */}
         <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid var(--divider)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -94,27 +94,30 @@ export default function NewProductDrawer({
               <div id="new-product-title" style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-.01em', color: 'var(--text)' }}>Yeni ürün ekle</div>
               <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>Adım {step}/3 · {categoryName} kategorisine</div>
             </div>
-            <button type="button" onClick={pending ? undefined : onClose} aria-label="Kapat" style={{ width: 30, height: 30, borderRadius: 7, background: 'var(--surface-2)', color: 'var(--text-3)', display: 'grid', placeItems: 'center', border: '1px solid var(--border)', cursor: 'pointer' }}>{icX}</button>
+            <button className="new-product-close" type="button" disabled={pending} onClick={onClose} aria-label="Yeni ürün penceresini kapat" style={{ width: 30, height: 30, borderRadius: 7, background: 'var(--surface-2)', color: 'var(--text-3)', display: 'grid', placeItems: 'center', border: '1px solid var(--border)', cursor: pending ? 'not-allowed' : 'pointer' }}>{icX}</button>
           </div>
-          <div style={{ display: 'flex', gap: 4, marginTop: 12 }}>
-            {[1, 2, 3].map((n) => <div key={n} style={{ flex: 1, height: 3, borderRadius: 2, background: n <= step ? 'var(--text)' : 'var(--surface-3)', transition: 'background .2s' }} />)}
+          <div className="new-product-steps" aria-label={`3 adımın ${step}. adımı`}>
+            {['Temel bilgiler', 'Gıda bilgileri', 'Yayın ayarları'].map((label, index) => {
+              const n = index + 1
+              return <div key={label} className="new-product-step" data-state={n === step ? 'current' : n < step ? 'complete' : 'upcoming'}><span>{n}</span>{label}</div>
+            })}
           </div>
         </div>
 
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          {err && <div style={{ margin: 16, fontSize: 12, color: 'var(--critical)', background: 'var(--critical-bg)', padding: '9px 11px', borderRadius: 9 }}>{err}</div>}
+        <div className="new-product-content" style={{ flex: 1, overflow: 'auto' }}>
+          {err && <div role="alert" style={{ margin: 16, fontSize: 12, color: 'var(--critical)', background: 'var(--critical-bg)', padding: '9px 11px', borderRadius: 9 }}>{err}</div>}
 
           {step === 1 && (
             <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <Field label="Ürün adı" required>
-                <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="örn. Serpme Kahvaltı" style={inp(38, 14)} />
+                <input aria-label="Ürün adı" autoFocus value={name} maxLength={120} onChange={(e) => setName(e.target.value)} placeholder="örn. Serpme Kahvaltı" style={inp(38, 14)} />
               </Field>
-              <Field label="Açıklama" hint="120 karakter önerilir">
-                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Ürünün içeriği ve özellikleri" style={{ ...inp(undefined, 13), height: 'auto', padding: '8px 10px', resize: 'vertical' }} />
+              <Field label="Açıklama" hint={`${description.length}/120 önerilen`}>
+                <textarea aria-label="Ürün açıklaması" value={description} maxLength={500} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="İçerik, porsiyon ve öne çıkan özellikler" style={{ ...inp(undefined, 13), height: 'auto', minHeight: 86, padding: '8px 10px', resize: 'vertical' }} />
               </Field>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <Field label="Satış fiyatı" required><CurrencyInput value={price} onChange={setPrice} /></Field>
-                <Field label="Maliyet" hint="opsiyonel"><CurrencyInput value={cost} onChange={setCost} /></Field>
+              <div className="new-product-price-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <Field label="Satış fiyatı" required><CurrencyInput label="Satış fiyatı" value={price} onChange={setPrice} /></Field>
+                <Field label="Maliyet" hint="opsiyonel"><CurrencyInput label="Maliyet" value={cost} onChange={setCost} /></Field>
               </div>
             </div>
           )}
@@ -129,8 +132,8 @@ export default function NewProductDrawer({
               <div style={{ padding: '10px 12px', borderRadius: 9, background: 'var(--surface-2)', border: '1px solid var(--divider)' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>Mutfak istasyonu</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                  <button type="button" onClick={() => setStationMode('category')} style={segment(stationMode === 'category')}>Kategori varsayılanı</button>
-                  <button type="button" onClick={() => setStationMode('custom')} style={segment(stationMode === 'custom')}>Özel istasyon</button>
+                  <button className="new-product-segment" type="button" aria-pressed={stationMode === 'category'} onClick={() => setStationMode('category')} style={segment(stationMode === 'category')}>Kategori varsayılanı</button>
+                  <button className="new-product-segment" type="button" aria-pressed={stationMode === 'custom'} onClick={() => setStationMode('custom')} style={segment(stationMode === 'custom')}>Özel istasyon</button>
                 </div>
                 {stationMode === 'custom' ? (
                   <div>
@@ -159,11 +162,11 @@ export default function NewProductDrawer({
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '12px 18px', borderTop: '1px solid var(--divider)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button type="button" onClick={pending ? undefined : onClose} style={btnGhost}>İptal</button>
+        <div className="new-product-footer" style={{ padding: '12px 18px', borderTop: '1px solid var(--divider)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button className="new-product-action new-product-action-secondary" type="button" disabled={pending} onClick={onClose} style={btnGhost}>İptal</button>
           <div style={{ display: 'flex', gap: 6 }}>
-            {step > 1 && <button type="button" disabled={pending} onClick={() => setStep(step - 1)} style={btnGhost}>Geri</button>}
-            <button type="button" disabled={pending || (step === 1 && !step1Valid)} onClick={next} style={{ ...btnPrimary, opacity: pending || (step === 1 && !step1Valid) ? 0.5 : 1, cursor: pending || (step === 1 && !step1Valid) ? 'not-allowed' : 'pointer' }}>
+            {step > 1 && <button className="new-product-action new-product-action-secondary" type="button" disabled={pending} onClick={() => setStep(step - 1)} style={btnGhost}>Geri</button>}
+            <button className="new-product-action new-product-action-primary" type="button" disabled={pending || (step === 1 && !step1Valid)} onClick={next} style={{ ...btnPrimary, opacity: pending || (step === 1 && !step1Valid) ? 0.5 : 1, cursor: pending || (step === 1 && !step1Valid) ? 'not-allowed' : 'pointer' }}>
               {pending ? <InlineSpinner size={13} color="#fff" /> : null}
               {step === 3 ? 'Ürünü oluştur' : 'Devam'}
               {step < 3 && !pending && icChevR}
@@ -205,18 +208,18 @@ function Field({ label, hint, required, children }: { label: string; hint?: stri
   )
 }
 
-function CurrencyInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function CurrencyInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'stretch', border: '1px solid var(--border-strong)', borderRadius: 7, overflow: 'hidden' }}>
+    <div className="new-product-currency" style={{ display: 'flex', alignItems: 'stretch', border: '1px solid var(--border-strong)', borderRadius: 7, overflow: 'hidden' }}>
       <span style={{ padding: '0 10px', background: 'var(--surface-3)', color: 'var(--text-2)', display: 'inline-flex', alignItems: 'center', fontSize: 13, fontWeight: 500, borderRight: '1px solid var(--border)' }}>₺</span>
-      <input value={value} onChange={(e) => onChange(normalizeMenuNumericText(e.target.value))} placeholder="0" inputMode="decimal" style={{ flex: 1, padding: '0 10px', border: 'none', outline: 'none', fontSize: 14, height: 38, fontFamily: "'Geist Mono', monospace", background: 'var(--surface)', color: 'var(--text)' }} />
+      <input aria-label={label} value={value} onChange={(e) => onChange(normalizeMenuNumericText(e.target.value))} placeholder="0,00" inputMode="decimal" style={{ flex: 1, minWidth: 0, width: 0, padding: '0 10px', border: 'none', outline: 'none', fontSize: 14, height: 38, fontFamily: "'Geist Mono', monospace", background: 'var(--surface)', color: 'var(--text)' }} />
     </div>
   )
 }
 
 function ToggleRow({ label, desc, on, onToggle }: { label: string; desc: string; on: boolean; onToggle: () => void }) {
   return (
-    <button type="button" onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '10px 12px', background: 'var(--surface-2)', border: '1px solid var(--divider)', borderRadius: 9, cursor: 'pointer' }}>
+    <button className="new-product-toggle" type="button" role="switch" aria-checked={on} onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '10px 12px', background: 'var(--surface-2)', border: '1px solid var(--divider)', borderRadius: 9, cursor: 'pointer' }}>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{label}</div>
         <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>{desc}</div>

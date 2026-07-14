@@ -5,6 +5,7 @@ import type { Tables } from '@garsonless/db'
 import PageTopBar from '../layout/PageTopBar'
 import CategoryForm from './CategoryForm'
 import NewProductDrawer from './NewProductDrawer'
+import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import NutritionFields, { nutritionFromItem, appendNutritionToFormData, applyNutritionPatch, NutritionStatusPill } from './NutritionFields'
 import type { NutritionState } from './NutritionFields'
 import { I, S, Tag, IconButton, btnPrimary, btnGhost } from '../../lib/ui'
@@ -862,6 +863,7 @@ function CategoryNav({
         ) : (
           <button
             type="button"
+            className="menu-category-add"
             onClick={() => setAdding(true)}
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
@@ -1190,9 +1192,9 @@ function ItemsCanvas({
           {selectedIds.size > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 8, borderRight: '1px solid var(--border)' }}>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-2)' }}>{selectedIds.size} seçili</span>
-              <button type="button" onClick={() => void applyBulkAvailability(true)} style={btnGhost({ height: 28, padding: '0 8px' })}>Yayına al</button>
-              <button type="button" onClick={() => void applyBulkAvailability(false)} style={btnGhost({ height: 28, padding: '0 8px' })}>Pasife al</button>
-              <button type="button" aria-label="Seçimi temizle" onClick={() => setSelectedIds(new Set())} style={btnGhost({ width: 28, height: 28, padding: 0, justifyContent: 'center' })}><I.close size={13} /></button>
+              <button className="menu-bulk-action" type="button" onClick={() => void applyBulkAvailability(true)} style={btnGhost({ height: 28, padding: '0 8px' })}>Yayına al</button>
+              <button className="menu-bulk-action" type="button" onClick={() => void applyBulkAvailability(false)} style={btnGhost({ height: 28, padding: '0 8px' })}>Pasife al</button>
+              <button className="menu-bulk-action menu-bulk-clear" type="button" aria-label="Seçimi temizle" onClick={() => setSelectedIds(new Set())} style={btnGhost({ width: 28, height: 28, padding: 0, justifyContent: 'center' })}><I.close size={13} /></button>
             </div>
           )}
           {/* Filter chips */}
@@ -1201,7 +1203,7 @@ function ItemsCanvas({
               const labels = { all: `Tümü ${items.length}`, active: `Aktif ${activeCount}`, inactive: `Pasif ${inactiveCount}` }
               const isActive = filter === f
               return (
-                <button type="button" key={f} aria-pressed={isActive} onClick={() => setFilter(f)} style={{
+                <button type="button" className="menu-filter-button" key={f} aria-pressed={isActive} onClick={() => setFilter(f)} style={{
                   padding: '5px 10px', fontSize: 11.5, fontWeight: 500,
                   background: isActive ? 'var(--surface-inset)' : 'transparent',
                   color: isActive ? 'var(--text)' : 'var(--text-2)',
@@ -1217,7 +1219,7 @@ function ItemsCanvas({
           {/* View toggle */}
           <div style={{ display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 6, padding: 2 }}>
             {(['grid', 'list'] as const).map(v => (
-              <button type="button" key={v} aria-label={v === 'grid' ? 'Kart görünümü' : 'Liste görünümü'} aria-pressed={view === v} onClick={() => setView(v)} style={{
+              <button type="button" className="menu-view-button" key={v} aria-label={v === 'grid' ? 'Kart görünümü' : 'Liste görünümü'} aria-pressed={view === v} onClick={() => setView(v)} style={{
                 width: 28, height: 24, border: 'none', borderRadius: 4, cursor: 'pointer',
                 background: view === v ? 'var(--surface)' : 'transparent',
                 color: view === v ? 'var(--text)' : 'var(--text-3)',
@@ -1434,6 +1436,7 @@ function AddCard({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
+      className="menu-add-product-card"
       onClick={onClick}
       style={{
         aspectRatio: '4/3', minHeight: 200,
@@ -1443,7 +1446,7 @@ function AddCard({ onClick }: { onClick: () => void }) {
         gap: 8, color: 'var(--text-3)',
       }}
     >
-      <div style={{
+      <div className="menu-add-product-card-icon" style={{
         width: 36, height: 36, borderRadius: 999, background: 'var(--surface)',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-2)',
       }}><I.plus size={18} /></div>
@@ -1716,7 +1719,7 @@ function ItemEditPanel({
   const mainImage = images[0] ?? null
 
   return (
-    <div style={{
+    <div className="menu-item-editor" style={{
       width: 'var(--props)', minWidth: 0, flexShrink: 0, overflow: 'hidden',
       borderLeft: '1px solid var(--border)', background: 'var(--surface)',
       display: 'flex', flexDirection: 'column',
@@ -1768,6 +1771,7 @@ function ItemEditPanel({
             <div style={{ position: 'absolute', bottom: 8, right: 8, display: 'flex', gap: 4 }}>
               {mainImage && !uploading && (
                 <button
+                  className="menu-item-image-action menu-item-image-remove"
                   type="button"
                   onClick={async () => {
                     const prev = images
@@ -1791,6 +1795,7 @@ function ItemEditPanel({
                 </button>
               )}
               <button
+                className="menu-item-image-action"
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
@@ -1841,6 +1846,7 @@ function ItemEditPanel({
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                 <button
                   type="button"
+                  aria-pressed={stationMode === 'category'}
                   onClick={() => setStationMode('category')}
                   style={{
                     height: 32,
@@ -1857,6 +1863,7 @@ function ItemEditPanel({
                 </button>
                 <button
                   type="button"
+                  aria-pressed={stationMode === 'custom'}
                   onClick={() => setStationMode('custom')}
                   style={{
                     height: 32,
@@ -1930,6 +1937,7 @@ function ItemEditPanel({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 10 }}>
               <button
                 type="button"
+                aria-pressed={vatMode === 'category'}
                 onClick={() => setVatMode('category')}
                 style={{
                   height: 32,
@@ -1946,6 +1954,7 @@ function ItemEditPanel({
               </button>
               <button
                 type="button"
+                aria-pressed={vatMode === 'custom'}
                 onClick={() => setVatMode('custom')}
                 style={{
                   height: 32,
@@ -1969,6 +1978,7 @@ function ItemEditPanel({
                     <button
                       key={rate}
                       type="button"
+                      aria-pressed={active}
                       onClick={() => setVatRate(String(rate))}
                       style={{
                         height: 30,
@@ -2013,6 +2023,8 @@ function ItemEditPanel({
           <FieldRow label="Yayında">
             <button
               type="button"
+              role="switch"
+              aria-checked={isAvailable}
               onClick={() => setIsAvailable(v => !v)}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 8px',
@@ -2031,6 +2043,8 @@ function ItemEditPanel({
           <FieldRow label="Damga kazandırır">
             <button
               type="button"
+              role="switch"
+              aria-checked={earnsStamp}
               onClick={() => setEarnsStamp(v => !v)}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 8px',
@@ -2061,6 +2075,7 @@ function ItemEditPanel({
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           <button
+            className="menu-item-footer-action menu-item-delete-action"
             type="button"
             onClick={handleDelete}
             disabled={deleting || isPending}
@@ -2069,6 +2084,7 @@ function ItemEditPanel({
             <I.trash size={13} />Sil
           </button>
           <button
+            className="menu-item-footer-action menu-item-save-action"
             type="button"
             onClick={handleSave}
             disabled={isPending || uploading || !isDirty}
@@ -2279,6 +2295,7 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
   const [activeSubCat, setActiveSubCat] = useState<string | null>(null)
   const [selectedItem, setSelectedItem] = useState<Tables<'menu_items'> | null>(null)
   const [itemEditDirty, setItemEditDirty] = useState(false)
+  const [pendingEditorExit, setPendingEditorExit] = useState<(() => void) | null>(null)
   const [showAddItem, setShowAddItem] = useState(false)
   const [search, setSearch] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
@@ -2298,12 +2315,14 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
   const showError = useCallback((msg: string) => { setToastMsg(msg); setToastTone('error') }, [])
   const showSuccess = useCallback((msg: string) => { setToastMsg(msg); setToastTone('success') }, [])
 
-  function canLeaveItemEditor() {
-    return !itemEditDirty || window.confirm('Kaydedilmemiş ürün değişiklikleri silinsin mi?')
+  function requestEditorExit(action: () => void) {
+    if (!itemEditDirty) action()
+    else setPendingEditorExit(() => action)
   }
 
   function selectItem(item: Tables<'menu_items'>) {
-    if (selectedItem?.id === item.id || canLeaveItemEditor()) setSelectedItem(item)
+    if (selectedItem?.id === item.id) return
+    requestEditorExit(() => setSelectedItem(item))
   }
 
   useEffect(() => {
@@ -2560,17 +2579,18 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
   }
 
   function handleSelectCategory(id: string) {
-    if (!canLeaveItemEditor()) return
-    const cat = categories.find(c => c.id === id)
-    if (cat?.parent_id) {
-      // sub-cat selected from nav: keep the top-level cat as active, set sub-cat tab
-      setActiveCategory(cat.parent_id)
-      setActiveSubCat(id)
-    } else {
-      setActiveCategory(id)
-      setActiveSubCat(null)
-    }
-    setSelectedItem(null)
+    requestEditorExit(() => {
+      const cat = categories.find(c => c.id === id)
+      if (cat?.parent_id) {
+        // sub-cat selected from nav: keep the top-level cat as active, set sub-cat tab
+        setActiveCategory(cat.parent_id)
+        setActiveSubCat(id)
+      } else {
+        setActiveCategory(id)
+        setActiveSubCat(null)
+      }
+      setSelectedItem(null)
+    })
   }
 
   function handleDeleteCategory(id: string) {
@@ -2720,18 +2740,20 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
           <>
             <input ref={csvFileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleCsvFile} />
             <button
+              className="menu-top-action menu-top-action-secondary"
               style={btnGhost({ whiteSpace: 'nowrap' })}
               onClick={() => { setCsvSetupError(null); setShowCsvImport(true) }}
             >
               <I.upload size={13} />İçe aktar
             </button>
             <button
+              className="menu-top-action menu-top-action-secondary"
               style={btnGhost({ whiteSpace: 'nowrap' })}
               onClick={() => window.open(`${process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'}/${restaurantSlug}`, '_blank')}
             >
               <I.eye size={13} />Önizle
             </button>
-            <button style={btnPrimary({ whiteSpace: 'nowrap' })} onClick={() => setShowAddItem(true)}><I.plus size={13} />Yeni ürün</button>
+            <button className="menu-top-action menu-top-action-primary" style={btnPrimary({ whiteSpace: 'nowrap' })} onClick={() => setShowAddItem(true)}><I.plus size={13} />Yeni ürün</button>
           </>
         }
       />
@@ -2768,9 +2790,10 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
           subCategories={subCatsOfActive}
           activeSubCat={activeSubCat}
           onSubCatChange={(id) => {
-            if (!canLeaveItemEditor()) return
-            setActiveSubCat(id)
-            setSelectedItem(null)
+            requestEditorExit(() => {
+              setActiveSubCat(id)
+              setSelectedItem(null)
+            })
           }}
           selectedItem={selectedItem}
           onSelectItem={selectItem}
@@ -2790,7 +2813,7 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
             kitchenStations={kitchenStations}
             restaurantId={restaurantId}
             onClose={() => {
-              if (canLeaveItemEditor()) setSelectedItem(null)
+              requestEditorExit(() => setSelectedItem(null))
             }}
             onSaved={(updated) => {
               setItems(prev => prev.map(i => i.id === updated.id ? updated : i))
@@ -2809,6 +2832,19 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
       </div>
 
       {toastMsg && <Toast message={toastMsg} tone={toastTone} onDone={() => setToastMsg(null)} />}
+
+      {pendingEditorExit && (
+        <UnsavedChangesDialog
+          description="Bu üründe yaptığın değişiklikler henüz kaydedilmedi. Çıkarsan değişiklikler kalıcı olarak silinecek."
+          onKeepEditing={() => setPendingEditorExit(null)}
+          onDiscard={() => {
+            const action = pendingEditorExit
+            setPendingEditorExit(null)
+            setItemEditDirty(false)
+            action()
+          }}
+        />
+      )}
 
       {showCsvImport && (
         <CsvImportStartModal

@@ -82,6 +82,7 @@ export default function PageTopBar({ restaurantName, title, tag, center, right, 
       }}>
         {right}
         <button
+          className="page-topbar-notification"
           onClick={openNotifications}
           aria-label="Bildirimler"
           style={{

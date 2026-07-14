@@ -122,7 +122,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
         {imageUrl && <img src={imageUrl} alt="Kategori görseli" style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} />}
         <div style={{ display: 'flex', gap: 6 }}>
           <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={handleImageUpload} hidden />
-          <button type="button" disabled={uploading} onClick={() => fileInputRef.current?.click()} style={{ ...inputStyle, cursor: 'pointer', width: 'auto', flex: 1 }}>
+          <button className="category-form-action category-form-upload" type="button" disabled={uploading} onClick={() => fileInputRef.current?.click()} style={{ ...inputStyle, cursor: uploading ? 'not-allowed' : 'pointer', width: 'auto', flex: 1 }}>
             {uploading ? 'Yükleniyor…' : imageUrl ? 'Görseli değiştir' : 'Kategori görseli yükle'}
           </button>
           {imageUrl && <button type="button" onClick={() => setImageUrl('')} aria-label="Kategori görselini kaldır" style={{ width: 34, borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}>×</button>}
@@ -195,6 +195,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
       )}
       <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
         <button
+          className="category-form-action category-form-submit"
           type="submit"
           disabled={isPending}
           style={{
@@ -207,6 +208,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
           {isPending ? <InlineSpinner size={13} color="var(--on-action)" /> : existing ? 'Kaydet' : 'Ekle'}
         </button>
         <button
+          className="category-form-action category-form-cancel"
           type="button"
           onClick={onCancel}
           style={{
