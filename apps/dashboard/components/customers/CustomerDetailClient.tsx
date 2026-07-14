@@ -71,6 +71,7 @@ export default function CustomerDetailClient({
   const [points, setPoints] = useState('')
   const [note, setNote] = useState('')
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+  const [grantConfirmed, setGrantConfirmed] = useState(false)
   const [pending, startTransition] = useTransition()
 
   const b = detail.balances
@@ -91,6 +92,11 @@ export default function CustomerDetailClient({
   function submitGrant() {
     const n = Math.floor(Number(points))
     if (!Number.isFinite(n) || n <= 0) { setMsg({ kind: 'err', text: 'Geçerli bir puan girin' }); return }
+    if (n >= 1000 && !grantConfirmed) {
+      setGrantConfirmed(true)
+      setMsg({ kind: 'err', text: `${n.toLocaleString('tr-TR')} puan yüksek bir tutar. İşlemi doğrulamak için tekrar onaylayın.` })
+      return
+    }
     setMsg(null)
     startTransition(async () => {
       const res = await grantStoreCreditAction(restaurantId, detail.customerId, n, note.trim() || undefined)
@@ -98,6 +104,7 @@ export default function CustomerDetailClient({
       setMsg({ kind: 'ok', text: `${res.granted} puan tanımlandı` })
       setPoints('')
       setNote('')
+      setGrantConfirmed(false)
       router.refresh()
     })
   }
@@ -109,7 +116,7 @@ export default function CustomerDetailClient({
       <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg)', minWidth: 0 }}>
         <div style={{ maxWidth: 1000, margin: '0 auto', padding: '24px 32px 60px' }}>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: 'var(--shadow-1)', padding: 22, marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18 }}>
+            <div className="customer-profile" style={{ display: 'flex', alignItems: 'flex-start', gap: 18 }}>
               <div style={{ width: 64, height: 64, borderRadius: 999, background: tierSoft, color: tierColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 750, fontSize: 22, flexShrink: 0 }}>
                 {initials(detail.name)}
               </div>
@@ -143,7 +150,7 @@ export default function CustomerDetailClient({
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+          <div className="customer-detail-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
             <StatCard icon={<I.receipt size={17} />} label="HARCAMA" value={formatCurrency(detail.spend)} tone="var(--text)" mono />
             <StatCard icon={<I.users size={17} />} label="ZİYARET" value={String(detail.visits)} tone="var(--text)" />
             <StatCard icon={<I.star size={17} />} label="PUAN" value={String(spendable)} tone="#c8922a" />
@@ -168,15 +175,17 @@ export default function CustomerDetailClient({
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow-1)', padding: 20, marginBottom: 22 }}>
             <div style={{ fontSize: 15, fontWeight: 650, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: '#c8922a', display: 'inline-flex' }}><I.gift size={14} /></span>Puan / Kredi tanımla</div>
             <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 3, marginBottom: 14 }}>Manuel puan kredisi; müşterinin bakiyesine anında eklenir, hareketlerde görünür.</div>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div className="customer-grant-form" style={{ display: 'flex', gap: 10 }}>
               <input
+                aria-label="Tanımlanacak puan"
                 value={points}
-                onChange={(e) => setPoints(e.target.value.replace(/[^\d]/g, ''))}
+                onChange={(e) => { setPoints(e.target.value.replace(/[^\d]/g, '')); setGrantConfirmed(false); setMsg(null) }}
                 placeholder="Puan"
                 inputMode="numeric"
                 style={{ width: 130, height: 40, padding: '0 14px', border: '1px solid var(--border-strong)', borderRadius: 9, fontSize: 14, fontWeight: 650, outline: 'none', textAlign: 'center', background: 'var(--surface)', color: 'var(--text)' }}
               />
               <input
+                aria-label="Puan tanımlama notu"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Not (opsiyonel)"
@@ -185,12 +194,12 @@ export default function CustomerDetailClient({
               />
               <button type="button" onClick={submitGrant} disabled={pending || !points}
                 style={{ height: 40, padding: '0 22px', borderRadius: 9, border: 'none', background: points && !pending ? 'var(--action)' : 'var(--border-strong)', color: '#fff', fontSize: 14, fontWeight: 650, cursor: points && !pending ? 'pointer' : 'not-allowed' }}>
-                {pending ? 'Tanımlanıyor...' : 'Tanımla'}
+                {pending ? 'Tanımlanıyor...' : grantConfirmed ? 'Puanı onayla' : 'Tanımla'}
               </button>
             </div>
             <div style={{ display: 'flex', gap: 7, marginTop: 12, flexWrap: 'wrap' }}>
               {[50, 100, 250, 500].map((v) => (
-                <button key={v} type="button" onClick={() => setPoints(String(v))} style={{ height: 28, padding: '0 12px', borderRadius: 99, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>+{v}</button>
+                <button key={v} type="button" onClick={() => { setPoints(String(v)); setGrantConfirmed(false); setMsg(null) }} style={{ height: 28, padding: '0 12px', borderRadius: 99, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>+{v}</button>
               ))}
               <button type="button" onClick={() => { setPoints(''); setNote('') }} style={{ ...btnGhost({ height: 28, padding: '0 12px', borderRadius: 99, fontSize: 12.5 }) }}>Temizle</button>
             </div>
@@ -215,6 +224,7 @@ export default function CustomerDetailClient({
               )
             })}
           </div>
+          <style>{`@media (max-width:760px){.customer-detail-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}.customer-grant-form{flex-direction:column!important}.customer-grant-form input{width:100%!important}.customer-profile{flex-wrap:wrap!important}} @media (max-width:460px){.customer-detail-stats{grid-template-columns:1fr!important}}`}</style>
         </div>
       </div>
     </div>

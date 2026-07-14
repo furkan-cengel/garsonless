@@ -29,7 +29,7 @@ import PageTopBar from '../layout/PageTopBar'
 
 const SEGMENTS: { id: string; label: string }[] = [
   { id: '', label: 'Tümü' },
-  { id: 'new', label: 'Yeni üyeler' },
+  { id: 'new', label: 'Yeni müşteriler' },
   { id: 'frequent', label: 'Sık gelenler' },
   { id: 'lapsed', label: 'Uzun süredir gelmeyen' },
   { id: 'consented', label: 'İzinli' },
@@ -81,7 +81,7 @@ function tagsForCustomer(c: RestaurantCustomer): string[] {
   const tags: string[] = [c.authLinked ? 'Bağlı hesap' : 'Bağlantısız kayıt']
   const firstDays = daysSince(c.firstSeen)
   const lastDays = daysSince(c.lastSeen)
-  if (firstDays !== null && firstDays <= 30) tags.push('Yeni üye')
+  if (firstDays !== null && firstDays <= 30) tags.push('Yeni müşteri')
   if (c.visits >= 3) tags.push('Sık gelen')
   if (c.tierIndex >= 2) tags.push('VIP')
   if (lastDays !== null && lastDays >= 60) tags.push('Uzun süredir gelmeyen')
@@ -117,14 +117,18 @@ export default function CustomersClient({
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>(initialCampaigns)
   const [segmentError, setSegmentError] = useState<string | null>(null)
   const [savingSegment, setSavingSegment] = useState(false)
+  const [segmentToDelete, setSegmentToDelete] = useState<SavedCustomerSegment | null>(null)
   const [pending, startTransition] = useTransition()
   const firstRender = useRef(true)
+  const requestSequence = useRef(0)
 
   useEffect(() => {
     if (firstRender.current) { firstRender.current = false; return }
     const t = setTimeout(() => {
+      const sequence = ++requestSequence.current
       startTransition(async () => {
         const res = await listCustomers(restaurantId, { search, segment, customSegmentId, sort, page })
+        if (sequence !== requestSequence.current) return
         if ('error' in res) setSegmentError(res.error)
         else {
           setData(res)
@@ -139,9 +143,7 @@ export default function CustomersClient({
   const activeSavedSegment = customSegmentId
     ? savedSegments.find((sg) => sg.id === customSegmentId) ?? null
     : null
-  const visibleSpend = data.customers.reduce((sum, c) => sum + c.spend, 0)
-  const visiblePoints = data.customers.reduce((sum, c) => sum + c.points, 0)
-  const consentedVisible = data.customers.filter((c) => c.hasConsent).length
+  const hasActiveFilters = Boolean(search.trim() || segment || customSegmentId)
 
   function countForBuiltIn(id: string): number {
     if (id === '') return initialSegmentCounts.all
@@ -207,8 +209,6 @@ export default function CustomersClient({
   }
 
   async function handleDeleteSegment(saved: SavedCustomerSegment) {
-    const ok = window.confirm(`"${saved.name}" segmenti silinsin mi?`)
-    if (!ok) return
     setSegmentError(null)
     const res = await deleteCustomerSegmentAction(restaurantId, saved.id)
     if ('error' in res) {
@@ -221,11 +221,20 @@ export default function CustomersClient({
       setSegment('')
       setPage(1)
     }
+    setSegmentToDelete(null)
+  }
+
+  function resetFilters() {
+    setSearch('')
+    setSegment('')
+    setCustomSegmentId(null)
+    setSort('last_seen')
+    setPage(1)
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <PageTopBar restaurantName={restaurantName} title="Müşteriler" tag={<span style={{ ...S.caption }}>{data.total} kişi</span>} />
+      <PageTopBar restaurantName={restaurantName} title="Müşteriler" tag={<span style={{ ...S.caption }}>{initialSegmentCounts.all} müşteri</span>} />
 
       <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg)', minWidth: 0 }}>
         <div style={{ maxWidth: 1180, margin: '0 auto', padding: '28px 32px 60px' }}>
@@ -244,22 +253,24 @@ export default function CustomersClient({
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 22 }}>
-            <MiniStat label="Toplam müşteri" value={data.total.toLocaleString('tr-TR')} icon={<I.users size={15} />} />
-            <MiniStat label="İzinli üye" value={consentedVisible.toLocaleString('tr-TR')} icon={<I.check size={15} />} sub={`Bu sayfada ${data.customers.length ? Math.round((consentedVisible / data.customers.length) * 100) : 0}%`} />
-            <MiniStat label="Görünen harcama" value={formatCurrency(visibleSpend)} icon={<I.card size={15} />} mono />
-            <MiniStat label="Görünen puan" value={visiblePoints.toLocaleString('tr-TR')} icon={<I.star size={15} />} />
+          <div className="customer-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 22 }}>
+            <MiniStat label="Toplam müşteri" value={initialSegmentCounts.all.toLocaleString('tr-TR')} icon={<I.users size={15} />} />
+            <MiniStat label="İletişim izinli" value={initialSegmentCounts.consented.toLocaleString('tr-TR')} icon={<I.check size={15} />} sub={`Tüm müşterilerin %${initialSegmentCounts.all ? Math.round((initialSegmentCounts.consented / initialSegmentCounts.all) * 100) : 0}'i`} />
+            <MiniStat label="Sık gelen" value={initialSegmentCounts.frequent.toLocaleString('tr-TR')} icon={<I.star size={15} />} sub="En az 3 ziyaret" />
+            <MiniStat label="Geri kazanılacak" value={initialSegmentCounts.lapsed.toLocaleString('tr-TR')} icon={<I.clock size={15} />} sub="60+ gündür gelmeyen" />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+          <div className="customer-toolbar" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, height: 40, padding: '0 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-1)' }}>
               <span style={{ color: 'var(--text-3)', display: 'inline-flex' }}><I.search size={16} /></span>
               <input
+                aria-label="Müşteri ara"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 placeholder="Ad veya telefon sonu (örn. 67)"
                 style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 13.5, color: 'var(--text)' }}
               />
+              {search && <button type="button" aria-label="Aramayı temizle" onClick={() => { setSearch(''); setPage(1) }} style={{ ...btnGhost({ width: 28, height: 28, padding: 0, justifyContent: 'center', border: 'none' }) }}><I.close size={13} /></button>}
             </div>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13, color: 'var(--text-3)' }}>Sırala</span>
@@ -318,7 +329,7 @@ export default function CustomersClient({
                       {saved.name}
                     </button>
                     <button type="button" onClick={() => openEditSegment(saved)} aria-label={`${saved.name} düzenle`} style={segmentIconBtn(active)}><I.gear size={12} /></button>
-                    <button type="button" onClick={() => { void handleDeleteSegment(saved) }} aria-label={`${saved.name} sil`} style={segmentIconBtn(active)}><I.trash size={12} /></button>
+                    <button type="button" onClick={() => setSegmentToDelete(saved)} aria-label={`${saved.name} sil`} style={segmentIconBtn(active)}><I.trash size={12} /></button>
                   </span>
                 )
               })}
@@ -331,12 +342,17 @@ export default function CustomersClient({
 
           {segmentError && <div style={{ marginBottom: 12, color: 'var(--critical)', fontSize: 12.5 }}>{segmentError}</div>}
 
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow-1)', overflow: 'hidden', opacity: pending ? 0.6 : 1, transition: 'opacity 120ms' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2.2fr 1.6fr 1.1fr .8fr 1.1fr .8fr 1.1fr', gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--divider)', background: 'var(--surface-2)', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '.04em' }}>
+          <div className="customer-table" aria-busy={pending} style={{ position: 'relative', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow-1)', overflow: 'auto', opacity: pending ? 0.72 : 1, transition: 'opacity 120ms' }}>
+            {pending && <div role="status" aria-live="polite" style={{ position: 'absolute', right: 14, top: 10, zIndex: 2, padding: '5px 9px', borderRadius: 99, background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-1)', fontSize: 11.5, color: 'var(--text-2)' }}>Güncelleniyor…</div>}
+            <div className="customer-grid-row" style={{ display: 'grid', gridTemplateColumns: '2.2fr 1.6fr 1.1fr .8fr 1.1fr .8fr 1.1fr', gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--divider)', background: 'var(--surface-2)', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '.04em' }}>
               <span>MÜŞTERİ</span><span>TELEFON</span><span>SEVİYE</span><span style={{ textAlign: 'right' }}>ZİYARET</span><span style={{ textAlign: 'right' }}>HARCAMA</span><span style={{ textAlign: 'right' }}>PUAN</span><span style={{ textAlign: 'right' }}>SON GÖRÜLME</span>
             </div>
             {data.customers.length === 0 ? (
-              <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)', fontSize: 13.5 }}>Eşleşen müşteri yok</div>
+              <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)', fontSize: 13.5 }}>
+                <div style={{ fontWeight: 650, color: 'var(--text-2)', marginBottom: 6 }}>Eşleşen müşteri yok</div>
+                <div style={{ marginBottom: 14 }}>Arama veya segment ölçütlerini değiştirin.</div>
+                {hasActiveFilters && <button type="button" onClick={resetFilters} style={btnGhost()}>Filtreleri temizle</button>}
+              </div>
             ) : (
               data.customers.map((c, i) => (
                 <CustomerRow key={c.customerId} c={c} delay={i * 25} onClick={() => router.push(`/dashboard/${restaurantId}/customers/${c.customerId}`)} />
@@ -345,7 +361,7 @@ export default function CustomersClient({
           </div>
 
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 12, textAlign: 'center' }}>
-            {data.customers.length} müşteri gösteriliyor
+            {data.total > 0 ? `${data.total} eşleşmeden ${data.customers.length} müşteri gösteriliyor` : 'Gösterilecek müşteri yok'}
           </div>
 
           {data.total > data.pageSize && (
@@ -377,6 +393,36 @@ export default function CustomersClient({
           onSent={(campaign) => setCampaigns((prev) => [campaign, ...prev.filter((c) => c.id !== campaign.id)])}
         />
       )}
+      {segmentToDelete && (
+        <ConfirmDialog
+          title="Segment silinsin mi?"
+          description={`“${segmentToDelete.name}” kayıtlı filtresi silinecek. Müşteri verileri etkilenmez.`}
+          confirmLabel="Segmenti sil"
+          onClose={() => setSegmentToDelete(null)}
+          onConfirm={() => { void handleDeleteSegment(segmentToDelete) }}
+        />
+      )}
+      <style>{`@media (max-width: 820px){.customer-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}.customer-toolbar{align-items:stretch!important;flex-direction:column!important}.customer-table{overflow-x:auto!important}.customer-grid-row{min-width:900px}} @media (max-width:520px){.customer-stats{grid-template-columns:1fr!important}}`}</style>
+    </div>
+  )
+}
+
+function ConfirmDialog({ title, description, confirmLabel, onClose, onConfirm }: { title: string; description: string; confirmLabel: string; onClose: () => void; onConfirm: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+  return (
+    <div role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }} style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(17,17,19,.45)', display: 'grid', placeItems: 'center', padding: 20 }}>
+      <div role="alertdialog" aria-modal="true" aria-labelledby="customer-confirm-title" aria-describedby="customer-confirm-description" style={{ width: 'min(440px,100%)', padding: 20, borderRadius: 16, background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 24px 80px rgba(0,0,0,.24)' }}>
+        <div id="customer-confirm-title" style={{ fontSize: 17, fontWeight: 750 }}>{title}</div>
+        <p id="customer-confirm-description" style={{ margin: '8px 0 20px', color: 'var(--text-2)', fontSize: 13.5, lineHeight: 1.55 }}>{description}</p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button type="button" onClick={onClose} style={btnGhost()}>Vazgeç</button>
+          <button type="button" onClick={onConfirm} style={btnPrimary({ background: 'var(--critical)' })}>{confirmLabel}</button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -400,6 +446,7 @@ function CustomerRow({ c, onClick, delay }: { c: RestaurantCustomer; onClick: ()
   const soft = softForTier(c.tier.color)
   return (
     <button
+      className="customer-grid-row"
       type="button"
       onClick={onClick}
       onMouseEnter={() => setHover(true)}

@@ -743,6 +743,8 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 
 **Backlog:** Garson çağır (OrderConfirmation'da TODO yorumu) · pg_cron gerçek auto-close · Spain theme section renderers · ThemeEditorClient (~4400 satır) + default MenuPage (~2000 satır) refactor · Settings remaining stubs (Team/Workspace team mgmt, Billing real plan/usage, session-timeout/IP-restriction if ever needed) · üyelik + sadakat katmanı · gerçek kişi-başı split-pay (partial-payment modeli + pay başına İyzico); müşteri `SplitBillModal` şimdilik yalnızca hesaplayıcıdır · Bakanlığın işletme kayıt/denetim karekodunu ayrı işletme ayarı ve müşteri görünümü olarak ekleme.
 
+**Siparişler — ayrı ürün/faz backlog'u:** personel/garson atama ve “Bana atananlar” görünümü · işletme bazlı aşama SLA hedefleri · toplu sipariş işlemleri · durum değişiminden sonra kısa geri-al penceresi · tam ekran/TV operasyon modu · vardiya özeti ve operasyonel sorun etiketleri · mutfak token'ını URL'den çıkarıp güvenli ticket/cookie akışına taşıma. Bunlar mevcut Siparişler panosu polish kapsamına dahil edilmez; ayrı veri modeli, yetki ve runtime matrisiyle ele alınır.
+
 ---
 
 ### Sprint 11 — Theme Registry + Section Library 🚧
