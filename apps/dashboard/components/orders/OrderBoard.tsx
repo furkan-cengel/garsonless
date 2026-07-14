@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition, useRef, useCallback, useEffect } from 'react'
+import { useState, useTransition, useRef, useCallback, useEffect, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
-import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, isCollectedOrderRow, ALLERGEN_LABELS, type OrderStatus } from '@garsonless/db/order-client'
+import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, isCollectedOrderRow, orderHasPriorityService, ALLERGEN_LABELS, type OrderStatus } from '@garsonless/db/order-client'
 import { useOrdersRealtime } from './useOrdersRealtime'
 import type { Order } from './useOrdersRealtime'
 import type { NotificationPrefs } from '../../lib/notification-prefs'
@@ -18,6 +18,9 @@ import PageTopBar from '../layout/PageTopBar'
 import { I, S, Tag, IconButton, btnPrimary, btnGhost } from '../../lib/ui'
 import HistoryModal from './HistoryModal'
 import ReceiptModal, { type ReceiptOrder } from './ReceiptModal'
+import type { OrderDensity } from './OrderCard'
+import { isActiveOrder, isCancelledOrder, isCompletedOrder, isLateOrder, isReadyWaitingOrder } from './order-status'
+import { FILTER_LABELS, orderMatchesSearch, orderMatchesView, orderStationNames, type FilterId } from './order-filters'
 
 /* ============================================================
    COLUMN DEFINITIONS
@@ -36,7 +39,7 @@ const COLUMNS: ColumnDef[] = [
   // 'paid' is a payment attribute living in status for now — kitchen still has to prepare it
   { id: 'prep',  label: 'Hazırlanıyor', desc: 'Mutfak / Bar',  statuses: ['sent_to_kitchen', 'preparing', 'paid'], targetStatus: 'ready',           tone: 'info' },
   { id: 'ready', label: 'Hazır',        desc: 'Servise hazır', statuses: ['ready'],                                targetStatus: 'served',          tone: 'positive' },
-  { id: 'done',  label: 'Tamamlandı',   desc: 'Bugün',         statuses: ['served', 'cancelled'],                  targetStatus: 'served',          tone: 'neutral' },
+  { id: 'done',  label: 'Kapanan',       desc: 'Tamamlandı / İptal', statuses: ['served', 'cancelled'],              targetStatus: 'served',          tone: 'neutral' },
 ]
 
 /* ============================================================
@@ -344,26 +347,42 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 /* ============================================================
    LEFT NAV
    ============================================================ */
-type FilterId = 'all' | 'active' | 'done' | 'cancelled'
-
-function OrdersNav({ filter, setFilter, orders, search, setSearch, onHistory }: {
+function OrdersNav({ filter, setFilter, orders, search, setSearch, onHistory, lateThresholdMin, searchInputRef, now, stations, selectedStation, setSelectedStation }: {
   filter: FilterId
   setFilter: (f: FilterId) => void
   orders: Order[]
   search: string
   setSearch: (s: string) => void
   onHistory: () => void
+  lateThresholdMin: number
+  searchInputRef: RefObject<HTMLInputElement | null>
+  now: number
+  stations: string[]
+  selectedStation: string | null
+  setSelectedStation: (station: string | null) => void
 }) {
+  const late = orders.filter(order => isLateOrder(order, lateThresholdMin, now)).length
+  const priority = orders.filter(order => isActiveOrder(order) && orderHasPriorityService(order)).length
   const counts = {
     all:       orders.length,
-    active:    orders.filter(o => ['pending', 'pending_approval', 'sent_to_kitchen', 'preparing', 'ready'].includes(o.status)).length,
-    done:      orders.filter(o => o.status === 'served' || o.status === 'paid').length,
-    cancelled: orders.filter(o => o.status === 'cancelled').length,
+    active:    orders.filter(isActiveOrder).length,
+    attention: orders.filter(order => isLateOrder(order, lateThresholdMin, now) || isReadyWaitingOrder(order, 5, now) || (isActiveOrder(order) && orderHasPriorityService(order))).length,
+    late,
+    ready_wait: orders.filter(order => isReadyWaitingOrder(order, 5, now)).length,
+    unpaid:    orders.filter(order => isActiveOrder(order) && order.paid_at === null).length,
+    priority,
+    done:      orders.filter(isCompletedOrder).length,
+    cancelled: orders.filter(isCancelledOrder).length,
   }
 
   const filters: { id: FilterId; label: string; icon: React.ReactNode }[] = [
     { id: 'all',       label: 'Tümü',      icon: <I.clipboard size={15} /> },
     { id: 'active',    label: 'Aktif',     icon: <I.bell size={15} /> },
+    { id: 'attention', label: 'Dikkat gerekiyor', icon: <I.warn size={15} /> },
+    { id: 'late',      label: 'Geciken',   icon: <I.clock size={15} /> },
+    { id: 'ready_wait',label: 'Servis bekleyen', icon: <I.clock size={15} /> },
+    { id: 'unpaid',    label: 'Ödenmemiş', icon: <I.card size={15} /> },
+    { id: 'priority',  label: 'Öncelikli', icon: <I.star size={15} /> },
     { id: 'done',      label: 'Tamamlandı',icon: <I.check size={15} /> },
     { id: 'cancelled', label: 'İptal',     icon: <I.close size={15} /> },
   ]
@@ -388,11 +407,18 @@ function OrdersNav({ filter, setFilter, orders, search, setSearch, onHistory }: 
         }}>
           <I.search size={13} />
           <input
+            ref={searchInputRef}
+            aria-label="Siparişlerde ara"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Sipariş #, masa..."
+            placeholder="Sipariş, masa, ürün..."
             style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 12.5 }}
           />
+          {search && (
+            <button type="button" aria-label="Aramayı temizle" onClick={() => setSearch('')} style={{ border: 0, background: 'transparent', color: 'var(--text-3)', cursor: 'pointer', padding: 2, display: 'inline-flex' }}>
+              <I.close size={12} />
+            </button>
+          )}
         </div>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '6px 8px' }}>
@@ -402,12 +428,17 @@ function OrdersNav({ filter, setFilter, orders, search, setSearch, onHistory }: 
           return (
             <button
               key={f.id}
+              type="button"
+              aria-pressed={isActive}
               onClick={() => setFilter(f.id)}
+              onMouseEnter={event => { if (!isActive) event.currentTarget.style.background = 'var(--surface-3)' }}
+              onMouseLeave={event => { if (!isActive) event.currentTarget.style.background = 'transparent' }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 width: '100%', padding: '7px 8px', marginBottom: 1,
                 background: isActive ? 'var(--surface-inset)' : 'transparent',
                 border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left',
+                minHeight: 38, transition: 'background 120ms ease',
               }}
             >
               <span style={{ color: isActive ? 'var(--text)' : 'var(--text-3)', display: 'inline-flex' }}>{f.icon}</span>
@@ -416,6 +447,31 @@ function OrdersNav({ filter, setFilter, orders, search, setSearch, onHistory }: 
             </button>
           )
         })}
+
+        {stations.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ ...S.label, padding: '6px 8px' }}>İstasyonlar</div>
+            {stations.map(station => {
+              const active = selectedStation === station
+              const count = orders.filter(order => orderStationNames(order).includes(station)).length
+              return (
+                <button
+                  key={station}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setSelectedStation(active ? null : station)}
+                  onMouseEnter={event => { if (!active) event.currentTarget.style.background = 'var(--surface-3)' }}
+                  onMouseLeave={event => { if (!active) event.currentTarget.style.background = 'transparent' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minHeight: 36, padding: '6px 8px', border: 0, borderRadius: 7, background: active ? 'var(--surface-inset)' : 'transparent', color: 'var(--text)', cursor: 'pointer', textAlign: 'left', transition: 'background 120ms ease' }}
+                >
+                  <I.cutlery size={14} />
+                  <span style={{ flex: 1, fontSize: 12.5, fontWeight: active ? 650 : 500 }}>{station}</span>
+                  <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)' }}>{count}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
       </div>
       <div style={{ borderTop: '1px solid var(--divider)', padding: '10px 14px', background: 'var(--surface-2)' }}>
@@ -514,25 +570,71 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
   const pendingOrders = useRef(new Set<string>())
   const [filter, setFilter] = useState<FilterId>('all')
   const [search, setSearch] = useState('')
+  const [selectedStation, setSelectedStation] = useState<string | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [receipt, setReceipt] = useState<{ order: ReceiptOrder; tableLabel: string } | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+  const [density, setDensity] = useState<OrderDensity>('comfortable')
+  const [closedCollapsed, setClosedCollapsed] = useState(true)
   const [, startTransition] = useTransition()
 
   const labelFor = (tableId: string | null) => tableLabels[tableId ?? ''] ?? (tableId ? 'Masa' : 'Kasa')
 
   const tableLabels = Object.fromEntries(tables.map(t => [t.id, t.label]))
+  const stations = [...new Set(orders.flatMap(orderStationNames))].sort((a, b) => a.localeCompare(b, 'tr-TR'))
 
   const filteredOrders = orders.filter(o => {
-    if (filter === 'active' && !['pending', 'pending_approval', 'sent_to_kitchen', 'preparing', 'ready'].includes(o.status)) return false
-    if (filter === 'done' && o.status !== 'served' && o.status !== 'paid') return false
-    if (filter === 'cancelled' && o.status !== 'cancelled') return false
-    if (search) {
-      const q = search.toLowerCase()
-      const tableLabel = tableLabels[o.table_id ?? ''] ?? ''
-      return o.id.toLowerCase().startsWith(q) || tableLabel.toLowerCase().includes(q)
-    }
-    return true
+    if (!orderMatchesView(o, filter, lateThresholdMin, now)) return false
+    if (selectedStation && !orderStationNames(o).includes(selectedStation)) return false
+    return orderMatchesSearch(o, tableLabels[o.table_id ?? ''] ?? '', search)
   })
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem('orders:density')
+    if (stored === 'comfortable' || stored === 'compact' || stored === 'dense') setDensity(stored)
+  }, [])
+
+  const changeDensity = (value: OrderDensity) => {
+    setDensity(value)
+    window.localStorage.setItem('orders:density', value)
+  }
+
+  useEffect(() => {
+    if (selectedOrderId && !filteredOrders.some(order => order.id === selectedOrderId)) setSelectedOrderId(null)
+  }, [filteredOrders, selectedOrderId])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable
+      if (event.key === '/' && !typing) {
+        event.preventDefault()
+        searchInputRef.current?.focus()
+        return
+      }
+      if (event.key === 'Escape') {
+        if (search) setSearch('')
+        else setSelectedOrderId(null)
+        return
+      }
+      if (typing || filteredOrders.length === 0) return
+      const current = filteredOrders.findIndex(order => order.id === selectedOrderId)
+      if (event.key.toLowerCase() === 'j' || event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        const delta = event.key.toLowerCase() === 'j' ? 1 : -1
+        const nextIndex = current < 0 ? 0 : (current + delta + filteredOrders.length) % filteredOrders.length
+        setSelectedOrderId(filteredOrders[nextIndex]?.id ?? null)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [filteredOrders, search, selectedOrderId])
 
   // Transient action-error banner (auto-clears). An optimistic move that fails
   // server-side is ROLLED BACK and surfaced here — never a silent stuck card.
@@ -630,9 +732,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
     })
   }
 
-  const activeCount = orders.filter(o =>
-    ['pending', 'pending_approval', 'sent_to_kitchen', 'preparing', 'ready'].includes(o.status)
-  ).length
+  const activeCount = orders.filter(isActiveOrder).length
   // THE shared collected predicate (isCollectedOrderRow): İkram/comp is ₺0
   // collected and must not inflate the board's Tahsilat — same rule + same
   // number as the Ödemeler report.
@@ -643,11 +743,11 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
   const compAmount = compOrders.reduce((s, o) => s + o.total, 0)
   // Geciken: time IN the kitchen stage (sent_to_kitchen_at; created_at fallback
   // for pre-migration orders) vs the per-restaurant threshold.
-  const lateCount = orders.filter(o => {
-    if (!['sent_to_kitchen', 'preparing'].includes(o.status)) return false
-    const start = (o.sent_to_kitchen_at as string | null) ?? o.created_at
-    return Math.floor((Date.now() - new Date(start).getTime()) / 60_000) > lateThresholdMin
-  }).length
+  const lateCount = orders.filter(o => isLateOrder(o, lateThresholdMin, now)).length
+  const readyWaitCount = orders.filter(o => isReadyWaitingOrder(o, 5, now)).length
+  const closedCount = orders.filter(order => isCompletedOrder(order) || isCancelledOrder(order)).length
+  const showClosedColumn = !closedCollapsed || filter === 'done' || filter === 'cancelled'
+  const visibleColumns = showClosedColumn ? COLUMNS : COLUMNS.filter(column => column.id !== 'done')
   // REAL prep time (P2): mean(ready_at − sent_to_kitchen_at) over today's orders
   // carrying BOTH stamps. "—" until samples exist (rollout day) — never the old
   // "age of active orders" number under a prep-time label.
@@ -701,6 +801,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             <KpiChip label="Tahsilat" value={formatCurrency(revenue)} tone="positive" />
             {compAmount > 0 && <KpiChip label="İkram (tahsilat dışı)" value={formatCurrency(compAmount)} />}
             {lateCount > 0 && <KpiChip label="Geciken" value={String(lateCount)} tone="critical" />}
+            {readyWaitCount > 0 && <KpiChip label="Servis bekliyor" value={String(readyWaitCount)} tone="warning" pulse />}
           </div>
         }
         right={
@@ -720,10 +821,24 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
       />
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <OrdersNav filter={filter} setFilter={setFilter} orders={orders} search={search} setSearch={setSearch} onHistory={() => setHistoryOpen(true)} />
+        <OrdersNav filter={filter} setFilter={setFilter} orders={orders} search={search} setSearch={setSearch} onHistory={() => setHistoryOpen(true)} lateThresholdMin={lateThresholdMin} searchInputRef={searchInputRef} now={now} stations={stations} selectedStation={selectedStation} setSelectedStation={setSelectedStation} />
 
         {/* Kanban */}
         <div style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '16px 16px 32px', background: 'var(--bg)' }}>
+          <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div role="group" aria-label="Sipariş kartı yoğunluğu" style={{ display: 'inline-flex', padding: 3, gap: 2, borderRadius: 8, background: 'var(--surface-3)' }}>
+              {([['comfortable', 'Rahat'], ['compact', 'Kompakt'], ['dense', 'Yoğun']] as const).map(([value, label]) => (
+                <button key={value} type="button" aria-pressed={density === value} onClick={() => changeDensity(value)} style={{ height: 26, padding: '0 9px', border: 0, borderRadius: 6, background: density === value ? 'var(--surface)' : 'transparent', color: density === value ? 'var(--text)' : 'var(--text-3)', boxShadow: density === value ? 'var(--shadow-1)' : 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: density === value ? 650 : 500 }}>{label}</button>
+              ))}
+            </div>
+            {closedCount > 0 && filter !== 'done' && filter !== 'cancelled' && (
+              <button type="button" aria-expanded={!closedCollapsed} onClick={() => setClosedCollapsed(value => !value)} style={{ ...btnGhost(), height: 32 }}>
+                {closedCollapsed ? <I.eye size={13} /> : <I.eyeOff size={13} />}
+                {closedCollapsed ? `Kapananı göster (${closedCount})` : 'Kapananı gizle'}
+              </button>
+            )}
+            <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-4)' }}>Hazır bekleme alarmı: 5 dk</span>
+          </div>
           {notifPrefs.newOrderPush && notification.permission !== 'granted' && notification.permission !== 'unsupported' && (
             <div role="status" style={{ marginBottom: 12, padding: '9px 12px', borderRadius: 9, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
               <I.bell size={13} />
@@ -750,8 +865,26 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
               </div>
             </div>
           )}
+          {orders.length > 0 && (filter !== 'all' || search.trim() || selectedStation) && (
+            <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 7, minHeight: 28 }}>
+              <Tag tone={filter === 'late' || filter === 'attention' ? 'warning' : 'neutral'}>{FILTER_LABELS[filter]} · {filteredOrders.length}</Tag>
+              {search.trim() && <Tag>“{search.trim()}”</Tag>}
+              {selectedStation && <Tag tone="info"><I.cutlery size={11} />{selectedStation}</Tag>}
+              <button type="button" onClick={() => { setFilter('all'); setSearch(''); setSelectedStation(null) }} style={{ ...btnGhost(), height: 26, border: 'none', background: 'transparent', color: 'var(--text-3)' }}>
+                <I.close size={12} />Filtreleri temizle
+              </button>
+              <span style={{ marginLeft: 'auto', color: 'var(--text-4)', fontSize: 10.5 }}>J/K seç · / ara · Esc temizle</span>
+            </div>
+          )}
+          {orders.length > 0 && filteredOrders.length === 0 && (
+            <div role="status" style={{ marginBottom: 12, padding: '18px 16px', borderRadius: 10, border: '1px dashed var(--border-strong)', background: 'var(--surface)', textAlign: 'center' }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700 }}>Bu görünümde sipariş yok</div>
+              <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-3)' }}>{search.trim() ? 'Aramanızı değiştirin veya filtreleri temizleyin.' : `${FILTER_LABELS[filter]} görünümünde eşleşen sipariş bulunmuyor.`}</div>
+              <button type="button" onClick={() => { setFilter('all'); setSearch(''); setSelectedStation(null) }} style={{ ...btnGhost(), marginTop: 10 }}>Filtreleri temizle</button>
+            </div>
+          )}
           <OrderBoardDnd
-            columns={COLUMNS}
+            columns={visibleColumns}
             filteredOrders={filteredOrders}
             orders={orders}
             tableLabels={tableLabels}
@@ -761,6 +894,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             onMove={(order, target) => void moveOrder(order, target)}
             onActionError={showActionError}
             lateThresholdMin={lateThresholdMin}
+            density={density}
           />
         </div>
 

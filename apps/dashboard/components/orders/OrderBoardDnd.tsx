@@ -16,7 +16,7 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { canTransitionOrderStatus, type OrderStatus } from '@garsonless/db/order-client'
 import type { Order } from './useOrdersRealtime'
 import OrderColumn from './OrderColumn'
-import OrderCard from './OrderCard'
+import OrderCard, { type OrderDensity } from './OrderCard'
 
 interface ColumnDef {
   id: string
@@ -39,6 +39,7 @@ interface Props {
   /** Surface a failed server write (the optimistic move gets rolled back). */
   onActionError: (msg: string) => void
   lateThresholdMin?: number
+  density?: OrderDensity
 }
 
 export default function OrderBoardDnd({
@@ -52,6 +53,7 @@ export default function OrderBoardDnd({
   onMove,
   onActionError,
   lateThresholdMin,
+  density = 'comfortable',
 }: Props) {
   const [activeOrder, setActiveOrder] = useState<Order | null>(null)
 
@@ -100,6 +102,7 @@ export default function OrderBoardDnd({
             onSelectOrder={onSelectOrder}
             onAdvance={onAdvance}
             lateThresholdMin={lateThresholdMin}
+            density={density}
           />
         ))}
       </div>
@@ -108,6 +111,7 @@ export default function OrderBoardDnd({
           <OrderCard
             order={activeOrder}
             tableLabel={tableLabels[activeOrder.table_id ?? ''] ?? 'Walk-in'}
+            density={density}
           />
         )}
       </DragOverlay>

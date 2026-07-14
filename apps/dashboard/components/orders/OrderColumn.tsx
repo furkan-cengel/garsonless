@@ -4,7 +4,7 @@ import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import type { Order } from './useOrdersRealtime'
 import { sortOrdersByPriorityThenCreatedAt, type OrderStatus } from '@garsonless/db/order-client'
-import OrderCard from './OrderCard'
+import OrderCard, { type OrderDensity } from './OrderCard'
 
 interface ColumnDef {
   id: string
@@ -29,9 +29,10 @@ interface Props {
   onSelectOrder: (order: Order) => void
   onAdvance: (order: Order) => void
   lateThresholdMin?: number
+  density?: OrderDensity
 }
 
-export default function OrderColumn({ column, orders, tableLabels, selectedOrderId, onSelectOrder, onAdvance, lateThresholdMin }: Props) {
+export default function OrderColumn({ column, orders, tableLabels, selectedOrderId, onSelectOrder, onAdvance, lateThresholdMin, density = 'comfortable' }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
   const tone = TONE_COLORS[column.tone]
   const sortedOrders = sortOrdersByPriorityThenCreatedAt(orders)
@@ -67,8 +68,8 @@ export default function OrderColumn({ column, orders, tableLabels, selectedOrder
       <div
         ref={setNodeRef}
         style={{
-          flex: 1, overflow: 'auto', padding: 10,
-          display: 'flex', flexDirection: 'column', gap: 8,
+          flex: 1, overflow: 'auto', padding: density === 'dense' ? 6 : density === 'compact' ? 8 : 10,
+          display: 'flex', flexDirection: 'column', gap: density === 'dense' ? 5 : density === 'compact' ? 6 : 8,
           minHeight: 120,
         }}
       >
@@ -82,6 +83,7 @@ export default function OrderColumn({ column, orders, tableLabels, selectedOrder
               onClick={() => onSelectOrder(order)}
               onAdvance={onAdvance}
               lateThresholdMin={lateThresholdMin}
+              density={density}
             />
           ))}
         </SortableContext>

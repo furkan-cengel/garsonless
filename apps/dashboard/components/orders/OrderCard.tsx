@@ -7,16 +7,9 @@ import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, type OrderStatus
 import type { Order } from './useOrdersRealtime'
 import { I, S, Tag } from '../../lib/ui'
 import { paymentMethodBadge } from '../../lib/payment-method'
+import { isLateOrder, isReadyWaitingOrder, orderStageStartedAt, orderStatusGroup } from './order-status'
 
 export type CartItem = OrderLineSnapshot
-
-function statusGroup(s: OrderStatus): 'new' | 'prep' | 'ready' | 'done' {
-  if (s === 'pending' || s === 'pending_approval') return 'new'
-  // 'paid' = payment attribute in the status field; kitchen still prepares it
-  if (s === 'sent_to_kitchen' || s === 'preparing' || s === 'paid') return 'prep'
-  if (s === 'ready') return 'ready'
-  return 'done'
-}
 
 export function nextStatus(s: OrderStatus): OrderStatus | null {
   if (s === 'pending' || s === 'pending_approval') return 'sent_to_kitchen'
@@ -74,9 +67,8 @@ function urgencyFor(
  * an approximation — never a fabricated stage time).
  */
 export function stageStartFor(order: Order, group: 'new' | 'prep' | 'ready' | 'done'): string {
-  if (group === 'prep') return (order.sent_to_kitchen_at as string | null) ?? order.created_at
-  if (group === 'ready') return (order.ready_at as string | null) ?? order.created_at
-  return order.created_at
+  void group
+  return orderStageStartedAt(order)
 }
 
 function ElapsedLabel({ startAt, group, lateThresholdMin }: {
@@ -116,12 +108,15 @@ interface Props {
   onAdvance?: (order: Order) => void
   /** settings.orders.late_threshold_min (clamped, default 20). */
   lateThresholdMin?: number
+  density?: OrderDensity
 }
 
-export default function OrderCard({ order, tableLabel, active, onClick, onAdvance, lateThresholdMin = 20 }: Props) {
+export type OrderDensity = 'comfortable' | 'compact' | 'dense'
+
+export default function OrderCard({ order, tableLabel, active, onClick, onAdvance, lateThresholdMin = 20, density = 'comfortable' }: Props) {
   // Terminal orders (served/cancelled) are NOT draggable — no way out of a
   // terminal state (the server matrix rejects it anyway; this removes the affordance).
-  const terminal = statusGroup(order.status as OrderStatus) === 'done'
+  const terminal = orderStatusGroup(order.status as OrderStatus) === 'done'
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: order.id, disabled: terminal })
 
@@ -133,15 +128,17 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
     opacity: isDragging ? 0.4 : 1,
   }
 
-  const group = statusGroup(order.status as OrderStatus)
+  const group = orderStatusGroup(order.status as OrderStatus)
   const accent = ACCENT[group]
   const items = readOrderLineSnapshots(order.items)
   const actionLabel = ACTION_LABEL[order.status as OrderStatus]
   const tier = readOrderCustomerTierSnapshot(order.customer_tier)
   // Stage-based (P2): prep age counts from sent_to_kitchen_at (fallback
   // created_at on pre-migration orders), against the per-restaurant threshold.
-  const isLate = group === 'prep' &&
-    Math.floor((Date.now() - new Date(stageStartFor(order, group)).getTime()) / 60_000) > lateThresholdMin
+  const isLate = isLateOrder(order, lateThresholdMin)
+  const isReadyWaiting = isReadyWaitingOrder(order)
+  const contentPadding = density === 'dense' ? '7px 9px' : density === 'compact' ? '8px 10px' : '10px 12px'
+  const visibleItemCount = density === 'comfortable' ? 2 : density === 'compact' ? 1 : 0
 
   // Settled order → show the method badge (İkram = distinct dashed violet, ₺0
   // collected) instead of a generic "ödendi". The method rides the authenticated
@@ -173,7 +170,7 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
         {/* Status stripe */}
         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: accent.left }} />
 
-        <div style={{ padding: '10px 12px' }}>
+        <div style={{ padding: contentPadding }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -198,6 +195,12 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
                     Gecikme
                   </Tag>
                 )}
+                {isReadyWaiting && (
+                  <Tag tone="warning">
+                    <I.clock size={10} />
+                    Servis bekliyor
+                  </Tag>
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: 'var(--text-3)', marginTop: 3, ...S.mono }}>
                 <span>#{order.id.slice(0, 6).toUpperCase()}</span>
@@ -208,17 +211,17 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
           </div>
 
           {/* Mini items */}
-          {items.length > 0 && (
+          {items.length > 0 && visibleItemCount > 0 && (
             <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--divider)' }}>
-              {items.slice(0, 2).map((it, i) => (
+              {items.slice(0, visibleItemCount).map((it, i) => (
                 <div key={i} style={{ display: 'flex', fontSize: 11.5, color: 'var(--text-2)', padding: '2px 0' }}>
                   <span style={{ ...S.mono, color: 'var(--text-3)', marginRight: 4 }}>{it.quantity}×</span>
                   {it.name}
                 </div>
               ))}
-              {items.length > 2 && (
+              {items.length > visibleItemCount && (
                 <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 1 }}>
-                  +{items.length - 2} ürün daha
+                  +{items.length - visibleItemCount} ürün daha
                 </div>
               )}
             </div>
