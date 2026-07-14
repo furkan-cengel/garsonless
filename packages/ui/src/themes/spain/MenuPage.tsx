@@ -64,6 +64,17 @@ export function SpainMenuPage({ categories, renderItems, menuFilters, orderStatu
       ...categories.map((category) => ({ type: 'category' as const, id: category.id })),
     ]
   }, [categories, categoryById, theme.pageBlocks, theme.sections])
+  const orderedCategories = useMemo(() => {
+    const flowOrder = new Map(
+      pageBlocks
+        .filter((block) => block.type === 'category')
+        .map((block, index) => [block.id, index]),
+    )
+    return categories
+      .map((category, index) => ({ category, index }))
+      .sort((a, b) => (flowOrder.get(a.category.id) ?? Number.MAX_SAFE_INTEGER) - (flowOrder.get(b.category.id) ?? Number.MAX_SAFE_INTEGER) || a.index - b.index)
+      .map(({ category }) => category)
+  }, [categories, pageBlocks])
 
   function showToast() {
     setToastVisible(true)
@@ -168,7 +179,7 @@ export function SpainMenuPage({ categories, renderItems, menuFilters, orderStatu
             scrollbarWidth: 'none',
           }}
         >
-          {categories.map(renderCategoryCard)}
+          {orderedCategories.map(renderCategoryCard)}
         </div>
       </section>
     )

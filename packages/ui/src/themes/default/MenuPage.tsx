@@ -27,12 +27,23 @@ import {
 export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFilters, orderStatus, filterEmptyState, tableId, tableLabel, cartSummary, onOpenCart, items, onQuickAdd, billSummary, onOpenBill, memberSummary, onOpenMember, memberLoyalty, storeInfo }: ThemeMenuPageProps) {
   const { theme, restaurantName } = useTheme()
   const visualNav = theme.catnavStyle === 'visual'
-  const rootCategories = useMemo(() => categories.filter((category) => !category.parent_id), [categories])
-  const rootsForNav = rootCategories.length > 0 ? rootCategories : categories
+  const orderedCategories = useMemo(() => {
+    const flowOrder = new Map(
+      (theme.pageBlocks ?? [])
+        .filter((block) => block.type === 'category')
+        .map((block, index) => [block.id, index]),
+    )
+    return categories
+      .map((category, index) => ({ category, index }))
+      .sort((a, b) => (flowOrder.get(a.category.id) ?? Number.MAX_SAFE_INTEGER) - (flowOrder.get(b.category.id) ?? Number.MAX_SAFE_INTEGER) || a.index - b.index)
+      .map(({ category }) => category)
+  }, [categories, theme.pageBlocks])
+  const rootCategories = useMemo(() => orderedCategories.filter((category) => !category.parent_id), [orderedCategories])
+  const rootsForNav = rootCategories.length > 0 ? rootCategories : orderedCategories
   const [activeVisualRootId, setActiveVisualRootId] = useState(rootsForNav[0]?.id ?? '')
   const childCategories = useMemo(
-    () => categories.filter((category) => category.parent_id === activeVisualRootId),
-    [categories, activeVisualRootId],
+    () => orderedCategories.filter((category) => category.parent_id === activeVisualRootId),
+    [orderedCategories, activeVisualRootId],
   )
   const [activeVisualCategoryId, setActiveVisualCategoryId] = useState(childCategories[0]?.id ?? rootsForNav[0]?.id ?? '')
   const [visualStage, setVisualStage] = useState<'roots' | 'children' | 'products'>('roots')
@@ -429,7 +440,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
 
   return (
     <div suppressHydrationWarning style={{ minHeight: '100dvh', backgroundColor: 'var(--p-bg)', ...textureStyle }}>
-      <Header tableId={tableId ?? null} tableName={tableLabel ?? null} categories={categories} cartSummary={cartSummary} onOpenCart={onOpenCart} billSummary={billSummary ?? null} onOpenBill={onOpenBill} memberSummary={memberSummary ?? null} onOpenMember={onOpenMember} />
+      <Header tableId={tableId ?? null} tableName={tableLabel ?? null} categories={orderedCategories} cartSummary={cartSummary} onOpenCart={onOpenCart} billSummary={billSummary ?? null} onOpenBill={onOpenBill} memberSummary={memberSummary ?? null} onOpenMember={onOpenMember} />
       {orderStatus}
       <main style={{ paddingBottom: 96, width: '100%', maxWidth: pageMaxWidth, marginInline: 'auto' }}>
         {pageBlocks.map((block) => {
@@ -463,7 +474,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
             return (
               <div key="category-nav" style={{ display: 'contents' }}>
                 <CategoryNav
-                  categories={categories}
+                  categories={orderedCategories}
                   categoryMeta={categoryMeta}
                   activeCategoryId={undefined}
                   onCategorySelect={undefined}
