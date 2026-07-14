@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import { createKitchenBrowserClient } from '../lib/supabase'
 import type { Tables, OrderStatus } from '@garsonless/db'
 import { readOrderLineSnapshots, sortOrdersByPriorityThenCreatedAt } from '@garsonless/db/order-client'
 import KitchenCard from './KitchenCard'
-import { getKitchenOrderAction } from '../lib/actions/orders'
+import { getKitchenOrdersAction } from '../lib/actions/orders'
 
 interface Column {
   id: string
@@ -66,47 +65,15 @@ export default function KitchenBoard({
 
   useEffect(() => {
     let alive = true
-    const supabase = createKitchenBrowserClient()
-    const channel = supabase
-      .channel(`kitchen:${restaurantId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-          filter: `restaurant_id=eq.${restaurantId}`,
-        },
-        async (payload: { eventType: string; new: unknown }) => {
-          const raw = payload.new as Tables<'orders'>
-          if (!raw?.id) return
-          if (payload.eventType === 'UPDATE' && (raw.status === 'served' || raw.status === 'cancelled')) {
-            setOrders((prev) =>
-              sortOrdersByPriorityThenCreatedAt(prev.filter((o) => o.id !== raw.id)),
-            )
-            return
-          }
-
-          const result = await getKitchenOrderAction(raw.id, restaurantId, kitchenToken)
-          const order = 'order' in result ? result.order : raw
-          if (!alive) return
-          if (order.status === 'served' || order.status === 'cancelled') {
-            setOrders((prev) => sortOrdersByPriorityThenCreatedAt(prev.filter((o) => o.id !== order.id)))
-            return
-          }
-          setOrders((prev) =>
-            sortOrdersByPriorityThenCreatedAt([
-              ...prev.filter((o) => o.id !== order.id),
-              order,
-            ]),
-          )
-        },
-      )
-      .subscribe()
-
+    const reconcile = async () => {
+      const result = await getKitchenOrdersAction(restaurantId, kitchenToken)
+      if (alive && 'orders' in result) setOrders(sortOrdersByPriorityThenCreatedAt(result.orders))
+    }
+    void reconcile()
+    const timer = window.setInterval(() => void reconcile(), 2_000)
     return () => {
       alive = false
-      void supabase.removeChannel(channel)
+      window.clearInterval(timer)
     }
   }, [restaurantId, kitchenToken])
 

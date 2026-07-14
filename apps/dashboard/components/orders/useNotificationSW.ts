@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Order } from './useOrdersRealtime'
 import { formatCurrency } from '../../lib/utils'
 
@@ -13,6 +13,14 @@ interface NewOrderChannels {
 
 export function useNotificationSW(newOrder: Order | null, channels: NewOrderChannels) {
   const { sound, push } = channels
+  const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>(() =>
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported',
+  )
+
+  const requestPermission = useCallback(async () => {
+    if (!('Notification' in window)) return
+    setPermission(await Notification.requestPermission())
+  }, [])
 
   // Register ServiceWorker on mount (cheap, fires no notification by itself).
   useEffect(() => {
@@ -50,9 +58,7 @@ export function useNotificationSW(newOrder: Order | null, channels: NewOrderChan
 
     // Desktop Web Notification via the ServiceWorker
     if (push && 'serviceWorker' in navigator) {
-      if ('Notification' in window && Notification.permission === 'default') {
-        void Notification.requestPermission()
-      }
+      if (!('Notification' in window) || Notification.permission !== 'granted') return
       navigator.serviceWorker.ready
         .then((reg) => {
           reg.active?.postMessage({
@@ -66,4 +72,6 @@ export function useNotificationSW(newOrder: Order | null, channels: NewOrderChan
         .catch(() => {})
     }
   }, [newOrder, sound, push])
+
+  return { permission, requestPermission }
 }

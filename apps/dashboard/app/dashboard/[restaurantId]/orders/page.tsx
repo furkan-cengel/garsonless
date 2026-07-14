@@ -27,20 +27,24 @@ export default async function OrdersPage({ params }: Props) {
   // server's (consistent with every reporting query).
   const today = startOfRestaurantDay(await getRestaurantTimezone(restaurantId))
 
-  // Newest-first cap: a >LIMIT day clips the OLDEST orders (likely served) —
-  // the board shows a truncation banner instead of hiding them silently.
-  const ORDERS_LIMIT = 500
-
-  const { data } = await supabase
-    .from('orders')
-    .select('id, restaurant_id, table_id, table_session_id, status, items, total, customer_tier, paid_at, payment_method, created_at, sent_to_kitchen_at, ready_at, served_at, cancel_reason')
-    .eq('restaurant_id', restaurantId)
-    .gte('created_at', today.toISOString())
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(ORDERS_LIMIT)
-
-  const initialOrders = (data ?? []) as Order[]
+  // Supabase applies a per-request row ceiling. Page through the restaurant day
+  // so active counts, revenue and preparation KPIs are exact on busy days too.
+  const initialOrders: Order[] = []
+  const PAGE_SIZE = 500
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error: ordersError } = await supabase
+      .from('orders')
+      .select('id, restaurant_id, table_id, table_session_id, status, items, total, discount_breakdown, customer_tier, paid_at, payment_method, created_at, sent_to_kitchen_at, ready_at, served_at, cancel_reason')
+      .eq('restaurant_id', restaurantId)
+      .gte('created_at', today.toISOString())
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .range(from, from + PAGE_SIZE - 1)
+    if (ordersError) throw new Error(`Siparişler yüklenemedi: ${ordersError.message}`)
+    const page = (data ?? []) as Order[]
+    initialOrders.push(...page)
+    if (page.length < PAGE_SIZE) break
+  }
 
   // Label map must resolve SOFT-DELETED tables too (same discipline as the Pano
   // activity feed) — an order on a since-deleted table must show its real label,
@@ -81,7 +85,7 @@ export default async function OrdersPage({ params }: Props) {
       receiptTax={receiptTax}
       notifPrefs={readNotificationPrefs(restaurant.settings)}
       lateThresholdMin={readLateThresholdMin(restaurant.settings)}
-      initialTruncated={initialOrders.length === ORDERS_LIMIT}
+      initialSince={today.toISOString()}
     />
   )
 }

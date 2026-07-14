@@ -170,7 +170,7 @@ export async function deleteTable(
   if (!isOwner) return { error: 'Not authorized' }
 
   const svc = createServiceClient()
-  const atomicDelete = svc.rpc as unknown as (
+  const atomicDelete = svc.rpc.bind(svc) as unknown as (
     fn: 'soft_delete_table_atomic',
     args: { p_table_id: string; p_restaurant_id: string },
   ) => Promise<{ data: string | null; error: { message: string } | null }>
@@ -339,7 +339,7 @@ export async function closeTableSession(
 
   const reason = opts?.abnormalReason?.trim()
   const svc = createServiceClient()
-  const atomicClose = svc.rpc as unknown as (
+  const atomicClose = svc.rpc.bind(svc) as unknown as (
     fn: 'close_table_session_atomic',
     args: { p_session_id: string; p_restaurant_id: string; p_abnormal_reason: string | null },
   ) => Promise<{ data: string | null; error: { message: string } | null }>

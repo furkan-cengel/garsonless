@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { createOrder, createServiceClient, type OrderDiscountBreakdown } from '@garsonless/db'
 import { getCustomerSession } from '../../../lib/customer-session'
@@ -25,9 +26,10 @@ const createOrderSchema = z.object({
   // against restaurantId so a tampered body can't inject orders into another
   // restaurant (mirrors the /api/payment restaurant cross-check). Optional for
   // back-compat; when present it MUST match.
-  slug: z.string().min(1).optional(),
-  tableId: z.string().uuid().nullable(),
+  slug: z.string().min(1),
+  tableId: z.string().uuid(),
   sessionId: z.string().uuid(),
+  requestId: z.string().uuid(),
   items: z.array(orderItemSchema).min(1),
   // total is IGNORED — the server recomputes from DB prices. Kept for back-compat.
   total: z.number().nonnegative().optional(),
@@ -58,8 +60,8 @@ export async function POST(
 
   // Anti-spoof: the slug is trusted (it's the URL the customer is ordering
   // from); confirm it resolves to the restaurantId in the body. Mismatch → 400.
-  if (parsed.data.slug) {
-    const svc = createServiceClient()
+  const svc = createServiceClient()
+  {
     const { data: restRow } = await svc
       .from('restaurants')
       .select('id')
@@ -72,6 +74,29 @@ export async function POST(
     }
   }
 
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    ?? req.headers.get('x-real-ip')?.trim()
+    ?? 'unknown'
+  const keyHash = createHash('sha256')
+    .update(`${ip}:${parsed.data.sessionId}:${req.headers.get('user-agent') ?? ''}`)
+    .digest('hex')
+  const rpc = svc.rpc.bind(svc) as unknown as (
+    name: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message: string } | null }>
+  const { data: allowed, error: rateError } = await rpc('consume_public_order_rate_limit', {
+    p_restaurant_id: parsed.data.restaurantId,
+    p_key_hash: keyHash,
+    p_max: 8,
+    p_window_seconds: 60,
+  })
+  if (rateError) {
+    return NextResponse.json({ success: false, error: 'Sipariş güvenlik kontrolü kullanılamıyor' }, { status: 503 })
+  }
+  if (allowed !== true) {
+    return NextResponse.json({ success: false, error: 'Çok fazla sipariş denemesi. Lütfen kısa süre sonra tekrar deneyin.' }, { status: 429 })
+  }
+
   // Link the order to a verified member (httpOnly cookie, same menu origin).
   // Covers BOTH place-order and pay-first. No cookie → guest, no redemption.
   const session = await getCustomerSession()
@@ -80,6 +105,7 @@ export async function POST(
     restaurantId: parsed.data.restaurantId,
     tableId: parsed.data.tableId,
     sessionId: parsed.data.sessionId,
+    requestId: parsed.data.requestId,
     lines: parsed.data.items,
     customerId: session?.customerId ?? null,
     redeemPoints: session ? (parsed.data.redeemPoints ?? 0) : 0, // guests can't redeem

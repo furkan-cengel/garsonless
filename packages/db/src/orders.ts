@@ -1,7 +1,7 @@
 import { createServiceClient } from './client'
 import type { Json } from './types.gen'
 import type { OrderStatus } from './enums'
-import { computeOrderDiscount, computeDiscountStack, redeemForOrder, type OrderLineInput } from './loyalty'
+import { computeOrderDiscount, type OrderLineInput } from './loyalty'
 import {
   buildOrderLineSnapshot,
   type OrderLineSnapshot,
@@ -26,6 +26,8 @@ export interface CreateOrderInput {
   restaurantId: string
   tableId: string | null
   sessionId: string
+  /** Client-stable key: retries return the original order instead of duplicating it. */
+  requestId: string
   lines: CreateOrderLine[]
   /** Set when the order is placed by a verified member (else guest → null). */
   customerId?: string | null
@@ -169,12 +171,29 @@ export async function createOrder(
   input: CreateOrderInput,
 ): Promise<{ ok: true; orderId: string; breakdown: OrderDiscountBreakdown } | { ok: false; error: string }> {
   const supabase = createServiceClient()
+
+  const existingTable = supabase.from.bind(supabase) as unknown as (name: string) => {
+    select: (cols: string) => {
+      eq: (column: string, value: string) => {
+        maybeSingle: () => Promise<{ data: { id: string; discount_breakdown: unknown } | null; error: unknown }>
+      }
+    }
+  }
+  const { data: existing } = await existingTable('orders')
+    .select('id, discount_breakdown')
+    .eq('request_id', input.requestId)
+    .maybeSingle()
+  if (existing) {
+    if (existing.discount_breakdown && typeof existing.discount_breakdown === 'object') {
+      return { ok: true, orderId: existing.id, breakdown: existing.discount_breakdown as unknown as OrderDiscountBreakdown }
+    }
+    return { ok: false, error: 'Order request is still processing' }
+  }
   const resolved = await resolveOrderLines(input.restaurantId, input.lines)
   if (!resolved.ok) return resolved
 
-  // Table orders attach to the table's open session (adisyon); the RPC opens
-  // one lazily on first order and resolves concurrent-open races atomically.
-  let tableSessionId: string | null = null
+  // Validate table ownership early, but do not open an adisyon until every
+  // fallible menu/discount validation has completed.
   if (input.tableId) {
     const { data: table } = await supabase
       .from('tables')
@@ -185,14 +204,6 @@ export async function createOrder(
       .maybeSingle()
     if (!table) return { ok: false, error: 'Table not found for this restaurant' }
 
-    const { data: sessionId, error: sessionError } = await supabase.rpc('open_or_get_table_session', {
-      p_restaurant_id: input.restaurantId,
-      p_table_id: input.tableId,
-    })
-    if (sessionError || !sessionId) {
-      return { ok: false, error: 'Failed to open table session' }
-    }
-    tableSessionId = (sessionId as string | null) ?? null
   }
 
   const customerId = input.customerId ?? null
@@ -207,6 +218,19 @@ export async function createOrder(
     requestedStampClaim: input.redeemStampClaim ?? false,
     requestedCatalogReward: input.catalogItemId ? { itemId: input.catalogItemId } : null,
   })
+
+  // Table orders attach to the table's open session (adisyon); this is delayed
+  // until immediately before insertion so invalid carts cannot leave an empty
+  // session behind.
+  let tableSessionId: string | null = null
+  if (input.tableId) {
+    const { data: sessionId, error: sessionError } = await supabase.rpc('open_or_get_table_session', {
+      p_restaurant_id: input.restaurantId,
+      p_table_id: input.tableId,
+    })
+    if (sessionError || !sessionId) return { ok: false, error: 'Failed to open table session' }
+    tableSessionId = sessionId as string
+  }
 
   // Type-cast required: @supabase/supabase-js v2 resolves insert() as never[]
   // cross-package under strict TypeScript (purely a TS limitation).
@@ -224,6 +248,7 @@ export async function createOrder(
       table_id: input.tableId,
       table_session_id: tableSessionId,
       session_id: input.sessionId,
+      request_id: input.requestId,
       customer_id: customerId,
       customer_tier: discount.customerTierSnapshot,
       items: resolved.snapshots as unknown as Json,
@@ -234,87 +259,57 @@ export async function createOrder(
     .single()
 
   if (error || !data) {
+    // A concurrent retry may have won the request-id uniqueness race. Return
+    // that completed order instead of surfacing a spurious create failure.
+    const { data: winner } = await existingTable('orders')
+      .select('id, discount_breakdown')
+      .eq('request_id', input.requestId)
+      .maybeSingle()
+    if (winner?.discount_breakdown && typeof winner.discount_breakdown === 'object') {
+      return {
+        ok: true,
+        orderId: winner.id,
+        breakdown: winner.discount_breakdown as unknown as OrderDiscountBreakdown,
+      }
+    }
     return { ok: false, error: 'Failed to create order' }
   }
   const orderId = data.id
 
-  let memberDiscountAmount = discount.memberDiscountAmount
-  let pointsRedeemed = discount.pointsRedeemed
-  let pointsDiscountAmount = discount.pointsDiscountAmount
-  let stampDiscountAmount = discount.stampDiscountAmount
-  let stampsRedeemed = discount.stampsConsumed
-  let catalogDiscountAmount = discount.catalogDiscountAmount
-  let catalogPointsRedeemed = discount.catalogPointsCost
-  let finalTotal = discount.finalTotal
-  let clamped = false
-
-  // either/or: a catalog reward uses the points slot for an EXACT (all-or-nothing)
-  // debit; otherwise the points slot is free-form points-as-₺ (partial, whole-₺).
   const catalogActive = discount.catalogPointsCost > 0
   const pointsToDebit = catalogActive ? discount.catalogPointsCost : discount.pointsRedeemed
-
-  // Commit the redemption debit (atomic, double-spend-safe). May clamp under
-  // concurrency → recompute the WHOLE stack from the ACTUAL debits (a clamped
-  // free-item claim changes the member-% base, so re-stack rather than patch).
-  if (customerId && discount.scopeKey && (pointsToDebit > 0 || discount.stampsConsumed > 0)) {
-    const { pointsDebited, stampsDebited } = await redeemForOrder({
-      customerId,
-      scopeKey: discount.scopeKey,
-      restaurantId: input.restaurantId,
-      orderId,
-      points: pointsToDebit,
-      stamps: discount.stampsConsumed,
-      pointsRate: discount.pointsRate,
-      pointsExact: catalogActive, // catalog = all-or-nothing on the exact pointCost
-    })
-    const actualStamp = stampsDebited > 0 ? discount.stampDiscountAmount : 0
-    // Catalog all-or-nothing: free item stands only if the full pointCost debited.
-    const catalogClaimed = catalogActive && pointsDebited >= discount.catalogPointsCost
-    const actualCatalog = catalogClaimed ? discount.catalogDiscountAmount : 0
-    const reStack = computeDiscountStack({
-      subtotal: discount.subtotal,
-      stampDiscountAmount: actualStamp,
-      catalogDiscountAmount: actualCatalog,
-      memberPct: discount.memberDiscountPct,
-      // points-as-₺ re-stack only when no catalog reward; catalog points don't feed here.
-      requestedPoints: catalogActive ? 0 : pointsDebited,
-      pointsBalance: catalogActive ? 0 : pointsDebited,
-      pointsRate: discount.pointsRate,
-    })
-    memberDiscountAmount = reStack.memberDiscountAmount
-    pointsDiscountAmount = reStack.pointsDiscountAmount
-    pointsRedeemed = catalogActive ? 0 : pointsDebited
-    stampDiscountAmount = reStack.stampDiscountAmount
-    stampsRedeemed = stampsDebited
-    catalogDiscountAmount = reStack.catalogDiscountAmount
-    catalogPointsRedeemed = catalogClaimed ? pointsDebited : 0
-    finalTotal = reStack.finalTotal
-    if (reStack.finalTotal !== discount.finalTotal) {
-      clamped = true
-      const upd = supabase.from('orders') as unknown as {
-        update: (row: Record<string, unknown>) => { eq: (c: string, v: string) => Promise<{ error: unknown }> }
-      }
-      await upd.update({ total: reStack.finalTotal }).eq('id', orderId)
-    }
+  const rpc = supabase.rpc.bind(supabase) as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ data: Array<{ final_total: number; discount_breakdown: unknown }> | null; error: { message?: string } | null }>
+  const { data: finalized, error: finalizeError } = await rpc('finalize_order_discount', {
+    p_order: orderId,
+    p_restaurant: input.restaurantId,
+    p_customer: customerId,
+    p_scope_key: discount.scopeKey,
+    p_subtotal: discount.subtotal,
+    p_member_pct: discount.memberDiscountPct,
+    p_points_requested: catalogActive ? 0 : pointsToDebit,
+    p_points_rate: discount.pointsRate,
+    p_stamps_requested: discount.stampsConsumed,
+    p_stamp_discount: discount.stampDiscountAmount,
+    p_reward_item_name: discount.rewardItemName,
+    p_catalog_points_cost: discount.catalogPointsCost,
+    p_catalog_discount: discount.catalogDiscountAmount,
+    p_catalog_item_name: discount.catalogItemName,
+    p_preview_total: discount.finalTotal,
+  })
+  const finalRow = finalized?.[0]
+  if (finalizeError || !finalRow?.discount_breakdown) {
+    // No ledger debit can survive an RPC failure, but remove the unfinished
+    // shell so a retry with the same request id can safely start over.
+    await supabase.from('orders').delete().eq('id', orderId)
+    return { ok: false, error: 'Failed to finalize order total' }
   }
 
   return {
     ok: true,
     orderId,
-    breakdown: {
-      subtotal: discount.subtotal,
-      memberDiscountAmount,
-      memberDiscountPct: discount.memberDiscountPct,
-      pointsDiscountAmount,
-      pointsRedeemed,
-      stampDiscountAmount,
-      stampsRedeemed,
-      rewardItemName: discount.rewardItemName,
-      catalogDiscountAmount,
-      catalogPointsRedeemed,
-      catalogItemName: discount.catalogItemName,
-      finalTotal,
-      clamped,
-    },
+    breakdown: finalRow.discount_breakdown as unknown as OrderDiscountBreakdown,
   }
 }

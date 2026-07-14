@@ -199,7 +199,7 @@ async function callMenuRpc(
   name: 'delete_menu_category' | 'reorder_menu_categories' | 'set_menu_items_availability',
   args: Record<string, string | string[] | boolean>,
 ) {
-  const rpc = supabase.rpc as unknown as (
+  const rpc = supabase.rpc.bind(supabase) as unknown as (
     functionName: string,
     parameters: Record<string, string | string[] | boolean>,
   ) => Promise<{ error: { message: string } | null }>

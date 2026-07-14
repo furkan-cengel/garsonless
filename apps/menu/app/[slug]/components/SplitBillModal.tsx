@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { formatTRY } from '@garsonless/ui'
-import { createMenuBrowserClient } from '../../../lib/supabase'
 
 const fmt = formatTRY
 
 interface Props {
   restaurantId: string
   slug: string
+  tableId: string
   tableSessionId: string
   onClose: () => void
 }
@@ -26,10 +26,7 @@ interface Share {
 }
 interface Line { itemId: string; name: string; price: number; quantity: number; modifiersPriceDelta: number }
 
-const SHARE_COLS = 'id, amount, method, status, label'
-
-export default function SplitBillModal({ restaurantId, slug, tableSessionId, onClose }: Props) {
-  const supabase = useMemo(() => createMenuBrowserClient(), [])
+export default function SplitBillModal({ restaurantId, slug, tableId, tableSessionId, onClose }: Props) {
   const [shares, setShares] = useState<Share[]>([])
   const [orders, setOrders] = useState<SessionOrder[]>([])
   const [mode, setMode] = useState<'items' | 'free'>('items')
@@ -45,37 +42,21 @@ export default function SplitBillModal({ restaurantId, slug, tableSessionId, onC
   const declaredCash = shares.filter((s) => s.status === 'declared' && s.method === 'cash').reduce((s, x) => s + x.amount, 0)
   const remaining = Math.round((sessionTotal - settled) * 100) / 100
 
-  // Live shares for this session (anon, session-filtered). Realtime respects the
-  // column grant, so settled_by never reaches the client.
-  useEffect(() => {
-    let alive = true
-    const load = async () => {
-      const { data } = await supabase.from('payment_shares').select(SHARE_COLS).eq('table_session_id', tableSessionId).neq('status', 'void')
-      if (alive) setShares((data ?? []) as unknown as Share[])
-    }
-    void load()
-    const ch = supabase
-      .channel(`shares-${tableSessionId}-${Math.random().toString(36).slice(2, 8)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_shares', filter: `table_session_id=eq.${tableSessionId}` }, () => void load())
-      .subscribe()
-    return () => { alive = false; void supabase.removeChannel(ch) }
-  }, [supabase, tableSessionId])
+  const loadState = useCallback(async () => {
+    const res = await fetch(`/api/table-state?restaurantId=${encodeURIComponent(restaurantId)}&tableId=${encodeURIComponent(tableId)}`, { cache: 'no-store' })
+    const body = await res.json() as { success: boolean; data?: { session: { id: string } | null; shares: Share[]; orders: SessionOrder[] } }
+    if (!body.success || body.data?.session?.id !== tableSessionId) return
+    setShares(body.data.shares)
+    setOrders(body.data.orders)
+  }, [restaurantId, tableId, tableSessionId])
 
-  // Session orders (anon-granted columns: total + items) for the bill total and
-  // item-based split. Refetched when an order updates (e.g. becomes paid).
   useEffect(() => {
     let alive = true
-    const load = async () => {
-      const { data } = await supabase.from('orders').select('id, total, status, items').eq('table_session_id', tableSessionId).is('deleted_at', null)
-      if (alive) setOrders((data ?? []) as unknown as SessionOrder[])
-    }
+    const load = async () => { if (alive) await loadState() }
     void load()
-    const ch = supabase
-      .channel(`splitorders-${tableSessionId}-${Math.random().toString(36).slice(2, 8)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `table_session_id=eq.${tableSessionId}` }, () => void load())
-      .subscribe()
-    return () => { alive = false; void supabase.removeChannel(ch) }
-  }, [supabase, tableSessionId])
+    const timer = window.setInterval(() => void load(), 3_000)
+    return () => { alive = false; window.clearInterval(timer) }
+  }, [loadState])
 
   // Card success from the İyzico iframe → the callback settled the share; realtime
   // will refresh. Close the iframe.

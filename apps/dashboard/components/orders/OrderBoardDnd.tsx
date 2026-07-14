@@ -17,7 +17,6 @@ import { canTransitionOrderStatus, type OrderStatus } from '@garsonless/db/order
 import type { Order } from './useOrdersRealtime'
 import OrderColumn from './OrderColumn'
 import OrderCard from './OrderCard'
-import { updateOrderStatus } from '../../lib/actions/orders'
 
 interface ColumnDef {
   id: string
@@ -36,8 +35,7 @@ interface Props {
   selectedOrderId: string | null
   onSelectOrder: (order: Order | null) => void
   onAdvance: (order: Order) => void
-  updateOrderLocally: (id: string, status: OrderStatus) => void
-  restaurantId: string
+  onMove: (order: Order, target: OrderStatus) => void
   /** Surface a failed server write (the optimistic move gets rolled back). */
   onActionError: (msg: string) => void
   lateThresholdMin?: number
@@ -51,8 +49,7 @@ export default function OrderBoardDnd({
   selectedOrderId,
   onSelectOrder,
   onAdvance,
-  updateOrderLocally,
-  restaurantId,
+  onMove,
   onActionError,
   lateThresholdMin,
 }: Props) {
@@ -82,21 +79,7 @@ export default function OrderBoardDnd({
       onActionError('Geçersiz taşıma — sipariş bu duruma alınamaz.')
       return
     }
-    const prev = order.status as OrderStatus
-    updateOrderLocally(order.id, targetColumn.targetStatus)
-    // Typed {error} AND thrown exceptions (network/500) both roll back — never
-    // leave a card silently stuck in a column the server rejected.
-    let error: string | null = null
-    try {
-      const result = await updateOrderStatus(order.id, targetColumn.targetStatus, restaurantId)
-      if ('error' in result) error = result.error
-    } catch {
-      error = 'Sunucuya ulaşılamadı'
-    }
-    if (error) {
-      updateOrderLocally(order.id, prev)
-      onActionError(`Durum güncellenemedi: ${error}`)
-    }
+    onMove(order, targetColumn.targetStatus)
   }
 
   return (

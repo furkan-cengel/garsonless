@@ -90,3 +90,22 @@ export async function getKitchenOrderAction(
   if (!data) return { error: 'Order not found' }
   return { order: data as Tables<'orders'> }
 }
+
+export async function getKitchenOrdersAction(
+  restaurantId: string,
+  kitchenToken: string,
+): Promise<{ error: string } | { orders: Tables<'orders'>[] }> {
+  const parsed = z.object({ restaurantId: z.string().uuid(), kitchenToken: z.string().min(1) })
+    .safeParse({ restaurantId, kitchenToken })
+  if (!parsed.success) return { error: 'Invalid input' }
+  if (!await validateKitchenToken(restaurantId, kitchenToken)) return { error: 'Invalid kitchen token' }
+
+  const supabase = createServiceClient()
+  const { data, error } = await supabase.from('orders').select('*')
+    .eq('restaurant_id', restaurantId)
+    .in('status', ['pending', 'pending_approval', 'sent_to_kitchen', 'paid', 'preparing', 'ready'])
+    .is('deleted_at', null)
+    .order('created_at')
+  if (error) return { error: 'Orders unavailable' }
+  return { orders: (data ?? []) as Tables<'orders'>[] }
+}

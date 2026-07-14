@@ -11,6 +11,7 @@ export type Order = {
   status: string
   items: unknown
   total: number
+  discount_breakdown?: unknown
   customer_tier: unknown
   paid_at: string | null
   // Settlement method (authenticated payload only; anon's column grant omits it).
@@ -30,10 +31,12 @@ export type Order = {
 export function useOrdersRealtime(
   restaurantId: string,
   initialOrders: Order[],
+  initialSince: string,
 ) {
   const [orders, setOrders] = useState<Order[]>(initialOrders)
   const [newOrderEvent, setNewOrderEvent] = useState<Order | null>(null)
   const knownIds = useRef(new Set(initialOrders.map((o) => o.id)))
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'live' | 'offline'>('connecting')
 
   useEffect(() => {
     const supabase = createDashboardBrowserClient()
@@ -73,9 +76,14 @@ export function useOrdersRealtime(
             setOrders((prev) => prev.filter((o) => o.id !== updated.id))
             return
           }
-          setOrders((prev) =>
-            prev.map((o) => (o.id === updated.id ? updated : o)),
-          )
+          if (!knownIds.current.has(updated.id)) {
+            // UPDATE can be the first event after a reconnect/race. Treat it as
+            // an upsert so an active order can never silently disappear.
+            knownIds.current.add(updated.id)
+            setOrders((prev) => [updated, ...prev])
+            return
+          }
+          setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
         },
       )
       .on(
@@ -96,12 +104,48 @@ export function useOrdersRealtime(
           setOrders((prev) => prev.filter((o) => o.id !== deletedId))
         },
       )
-      .subscribe()
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          setConnectionStatus('live')
+          // Reconcile after the initial connection and every reconnect. Realtime
+          // delivery is not a durable queue; rows missed while offline must be
+          // fetched before the UI may honestly call itself live again.
+          const fresh: Order[] = []
+          let reconciliationFailed = false
+          const pageSize = 500
+          for (let from = 0; ; from += pageSize) {
+            const { data, error } = await supabase
+              .from('orders')
+              .select('id, restaurant_id, table_id, table_session_id, status, items, total, discount_breakdown, customer_tier, paid_at, payment_method, created_at, sent_to_kitchen_at, ready_at, served_at, cancel_reason, deleted_at')
+              .eq('restaurant_id', restaurantId)
+              .gte('created_at', initialSince)
+              .is('deleted_at', null)
+              .order('created_at', { ascending: false })
+              .range(from, from + pageSize - 1)
+            if (error) { reconciliationFailed = true; break }
+            const page = (data ?? []) as Order[]
+            fresh.push(...page)
+            if (page.length < pageSize) break
+          }
+          if (!reconciliationFailed) {
+            knownIds.current = new Set(fresh.map((order) => order.id))
+            setOrders(fresh)
+          } else {
+            setConnectionStatus('offline')
+          }
+          return
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setConnectionStatus('offline')
+        } else {
+          setConnectionStatus('connecting')
+        }
+      })
 
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [restaurantId])
+  }, [restaurantId, initialSince])
 
   function clearNewOrderEvent() {
     setNewOrderEvent(null)
@@ -113,5 +157,5 @@ export function useOrdersRealtime(
     )
   }
 
-  return { orders, newOrderEvent, clearNewOrderEvent, updateOrderLocally }
+  return { orders, newOrderEvent, clearNewOrderEvent, updateOrderLocally, connectionStatus }
 }

@@ -3,10 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
-import { createServiceClient, resolveOrderLines, updateOrderStatusDB, cancelOrderDB } from '@garsonless/db'
+import { createServiceClient, resolveOrderLines, updateOrderStatusDB, cancelOrderDB, startOfDayNDaysAgo } from '@garsonless/db'
 import type { OrderStatus, Json } from '@garsonless/db'
 import { mut } from '../supabase-mut'
 import { assertAccess } from '../auth/access'
+import { getRestaurantTimezone } from '../queries'
 
 // 'cancelled' is deliberately NOT in this enum — cancellation has payment rules
 // (İyzico block, required reason for cash/pos-paid) and audit stamping, owned
@@ -124,14 +125,12 @@ export interface HistoryOrder {
  */
 export async function getOrderHistory(
   restaurantId: string,
-): Promise<{ error: string } | { orders: HistoryOrder[] }> {
+): Promise<{ error: string } | { orders: HistoryOrder[]; truncated: boolean }> {
   const gate = await assertAccess(restaurantId, 'orders')
   if ('error' in gate) return { error: gate.error }
 
   const supabase = await createDashboardServerClient()
-  const since = new Date()
-  since.setDate(since.getDate() - 30)
-  since.setHours(0, 0, 0, 0)
+  const since = startOfDayNDaysAgo(await getRestaurantTimezone(restaurantId), 30)
 
   const { data, error } = await supabase
     .from('orders')
@@ -141,10 +140,11 @@ export async function getOrderHistory(
     .gte('created_at', since.toISOString())
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
-    .limit(200)
+    .limit(201)
 
   if (error) return { error: error.message }
-  return { orders: (data ?? []) as HistoryOrder[] }
+  const rows = (data ?? []) as HistoryOrder[]
+  return { orders: rows.slice(0, 200), truncated: rows.length > 200 }
 }
 
 const createOrderSchema = z.object({

@@ -201,7 +201,7 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: 'var(--text-3)', marginTop: 3, ...S.mono }}>
                 <span>#{order.id.slice(0, 6).toUpperCase()}</span>
-                {items.length > 0 && <><span>·</span><span>{items.length} ürün</span></>}
+                {items.length > 0 && <><span>·</span><span>{items.reduce((sum, item) => sum + Math.max(0, item.quantity), 0)} adet</span></>}
               </div>
             </div>
             <div style={{ ...S.mono, fontSize: 14, fontWeight: 700 }}>₺{order.total}</div>

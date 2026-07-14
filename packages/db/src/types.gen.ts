@@ -765,11 +765,13 @@ export type Database = {
           customer_id: string | null
           customer_tier: Json | null
           deleted_at: string | null
+          discount_breakdown: Json | null
           id: string
           items: Json
           paid_at: string | null
           payment_method: string | null
           ready_at: string | null
+          request_id: string | null
           restaurant_id: string
           sent_to_kitchen_at: string | null
           served_at: string | null
@@ -788,11 +790,13 @@ export type Database = {
           customer_id?: string | null
           customer_tier?: Json | null
           deleted_at?: string | null
+          discount_breakdown?: Json | null
           id?: string
           items?: Json
           paid_at?: string | null
           payment_method?: string | null
           ready_at?: string | null
+          request_id?: string | null
           restaurant_id: string
           sent_to_kitchen_at?: string | null
           served_at?: string | null
@@ -811,11 +815,13 @@ export type Database = {
           customer_id?: string | null
           customer_tier?: Json | null
           deleted_at?: string | null
+          discount_breakdown?: Json | null
           id?: string
           items?: Json
           paid_at?: string | null
           payment_method?: string | null
           ready_at?: string | null
+          request_id?: string | null
           restaurant_id?: string
           sent_to_kitchen_at?: string | null
           served_at?: string | null
@@ -936,6 +942,73 @@ export type Database = {
           },
         ]
       }
+      payment_reconciliation_events: {
+        Row: {
+          attempts: number
+          created_at: string
+          detail: Json
+          event_type: string
+          id: string
+          order_id: string | null
+          provider_token_hash: string
+          resolved_at: string | null
+          restaurant_id: string | null
+          share_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          detail?: Json
+          event_type: string
+          id?: string
+          order_id?: string | null
+          provider_token_hash: string
+          resolved_at?: string | null
+          restaurant_id?: string | null
+          share_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          detail?: Json
+          event_type?: string
+          id?: string
+          order_id?: string | null
+          provider_token_hash?: string
+          resolved_at?: string | null
+          restaurant_id?: string | null
+          share_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_reconciliation_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_reconciliation_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_reconciliation_events_share_id_fkey"
+            columns: ["share_id"]
+            isOneToOne: false
+            referencedRelation: "payment_shares"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_share_tokens: {
         Row: {
           created_at: string
@@ -1028,6 +1101,35 @@ export type Database = {
             columns: ["table_session_id"]
             isOneToOne: false
             referencedRelation: "table_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_order_rate_events: {
+        Row: {
+          created_at: string
+          id: number
+          key_hash: string
+          restaurant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          key_hash: string
+          restaurant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          key_hash?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_order_rate_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
             referencedColumns: ["id"]
           },
         ]
@@ -1401,10 +1503,50 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: boolean
       }
+      close_table_session_atomic: {
+        Args: {
+          p_abnormal_reason?: string
+          p_restaurant_id: string
+          p_session_id: string
+        }
+        Returns: string
+      }
+      consume_public_order_rate_limit: {
+        Args: {
+          p_key_hash: string
+          p_max?: number
+          p_restaurant_id: string
+          p_window_seconds?: number
+        }
+        Returns: boolean
+      }
       customer_access_token_hook: { Args: { event: Json }; Returns: Json }
       delete_menu_category: {
         Args: { p_category_id: string; p_restaurant_id: string }
         Returns: undefined
+      }
+      finalize_order_discount: {
+        Args: {
+          p_catalog_discount: number
+          p_catalog_item_name: string
+          p_catalog_points_cost: number
+          p_customer: string
+          p_member_pct: number
+          p_order: string
+          p_points_rate: number
+          p_points_requested: number
+          p_preview_total: number
+          p_restaurant: string
+          p_reward_item_name: string
+          p_scope_key: string
+          p_stamp_discount: number
+          p_stamps_requested: number
+          p_subtotal: number
+        }
+        Returns: {
+          discount_breakdown: Json
+          final_total: number
+        }[]
       }
       finalize_split_if_covered: {
         Args: { p_session_id: string }
@@ -1506,6 +1648,10 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      soft_delete_table_atomic: {
+        Args: { p_restaurant_id: string; p_table_id: string }
+        Returns: string
+      }
       sweep_fully_paid_idle_sessions: {
         Args: { p_idle_minutes?: number }
         Returns: number

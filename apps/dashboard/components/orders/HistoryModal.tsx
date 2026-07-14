@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { readOrderLineSnapshots, type PaymentMethod } from '@garsonless/db/order-client'
 import { getOrderHistory, type HistoryOrder } from '../../lib/actions/orders'
 import { I, S, Tag, IconButton, btnGhost } from '../../lib/ui'
@@ -28,15 +28,24 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [orders, setOrders] = useState<HistoryOrder[]>([])
+  const [truncated, setTruncated] = useState(false)
   const [tab, setTab] = useState<Tab>('all')
   const [q, setQ] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    searchRef.current?.focus()
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   useEffect(() => {
     let cancelled = false
     void getOrderHistory(restaurantId).then((res) => {
       if (cancelled) return
       if ('error' in res) setError(res.error)
-      else setOrders(res.orders)
+      else { setOrders(res.orders); setTruncated(res.truncated) }
       setLoading(false)
     })
     return () => { cancelled = true }
@@ -70,11 +79,11 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(17,17,19,.42)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 620, height: '84vh', background: 'var(--surface)', borderRadius: 16, boxShadow: 'var(--shadow-pop)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="order-history-title" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 620, height: '84vh', background: 'var(--surface)', borderRadius: 16, boxShadow: 'var(--shadow-pop)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ padding: '15px 20px 13px', borderBottom: '1px solid var(--divider)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-.01em' }}>Geçmiş siparişler</div>
+            <div id="order-history-title" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-.01em' }}>Geçmiş siparişler</div>
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>Son 30 günün tamamlanan ve iptal edilen siparişleri</div>
           </div>
           <IconButton icon={<I.close size={15} />} ariaLabel="Kapat" onClick={onClose} />
@@ -84,7 +93,7 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
         <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--divider)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, height: 32, padding: '0 11px', background: 'var(--surface-3)', borderRadius: 8, color: 'var(--text-3)' }}>
             <I.search size={13} />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sipariş #, masa..." style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: 12.5, color: 'var(--text)' }} />
+            <input ref={searchRef} aria-label="Geçmiş siparişlerde ara" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sipariş #, masa..." style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: 12.5, color: 'var(--text)' }} />
           </div>
           <div style={{ display: 'flex', gap: 4, background: 'var(--surface-3)', borderRadius: 8, padding: 3 }}>
             {tabs.map(t => (
@@ -100,6 +109,11 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
 
         {/* Body */}
         <div style={{ flex: 1, overflow: 'auto', padding: '8px 20px 20px' }}>
+          {truncated && !loading && !error && (
+            <div role="status" style={{ margin: '8px 0', padding: '9px 11px', borderRadius: 8, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 11.5, fontWeight: 600 }}>
+              Son 200 kayıt gösteriliyor. Daha eski kayıtlar için rapor dışa aktarımını kullanın.
+            </div>
+          )}
           {loading && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)' }}><InlineSpinner size={18} /></div>}
           {error && <div style={{ padding: 40, textAlign: 'center', color: 'var(--critical)', fontSize: 12.5 }}>{error}</div>}
           {!loading && !error && rows.length === 0 && (

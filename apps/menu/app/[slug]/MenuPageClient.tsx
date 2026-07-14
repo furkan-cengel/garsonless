@@ -591,6 +591,7 @@ export function MenuPageClient({
   const wiggleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevPhaseRef = useRef<number | null>(null)
+  const orderRequestRef = useRef<string | null>(null)
 
   const sessionId = useCartStore((s) => s.sessionId)
   const deviceId = useCartStore((s) => s.deviceId)
@@ -697,15 +698,11 @@ export function MenuPageClient({
         return
       }
 
-      const supabase = createMenuBrowserClient()
-      const { data } = await supabase
-        .from('orders')
-        .select('status, paid_at')
-        .eq('id', state.orderId)
-        .maybeSingle()
+      const response = await fetch(`/api/orders/status?orderId=${encodeURIComponent(state.orderId)}&sessionId=${encodeURIComponent(sessionId)}`)
+      const payload = await response.json() as { success: boolean; data?: { status: string; paid_at: string | null } }
       if (cancelled) return
 
-      const row = data as { status: string; paid_at: string | null } | null
+      const row = payload.success ? payload.data ?? null : null
       const fetched = row?.status as OrderStatus | undefined
       if (!fetched || fetched === 'served' || fetched === 'cancelled') {
         useOrderStore.getState().reset()
@@ -721,7 +718,7 @@ export function MenuPageClient({
     }
     void restore()
     return () => { cancelled = true }
-  }, [])
+  }, [sessionId])
 
   useEffect(() => {
     if (tableId && tableId !== storedTableId) {
@@ -791,11 +788,12 @@ export function MenuPageClient({
   }, [catalogItemId, cartItems])
 
   type OrderBreakdown = { subtotal: number; pointsDiscountAmount: number; finalTotal: number; pointsRedeemed: number; clamped: boolean }
-  const orderBody = () => ({
+  const orderBody = (requestId: string) => ({
     restaurantId: restaurant.id,
     slug: restaurant.slug, // server cross-checks slug→restaurant.id (anti-spoof)
     tableId: effectiveTableId ?? null,
     sessionId,
+    requestId,
     items: cartItems.map((i) => ({
       itemId: i.itemId,
       quantity: i.quantity,
@@ -812,18 +810,30 @@ export function MenuPageClient({
     setIsPlacing(true)
     const summaryItems = snapshotOrderItems()
 
-    const res = await fetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderBody()),
-    })
+    const requestId = orderRequestRef.current ?? crypto.randomUUID()
+    orderRequestRef.current = requestId
+    let res: Response
+    try {
+      res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderBody(requestId)),
+      })
+    } catch {
+      setError('Sipariş sunucuya ulaştırılamadı. Tekrar deneyebilirsiniz.')
+      setIsPlacing(false)
+      return
+    }
 
     const json = (await res.json()) as { success: boolean; data?: { orderId: string; breakdown: OrderBreakdown }; error?: string }
 
     if (!json.success || !json.data) {
+      if (res.status < 500) orderRequestRef.current = null
       setError(json.error ?? 'Failed to place order')
+      setIsPlacing(false)
       return
     }
+    orderRequestRef.current = null
 
     // Server is the source of truth for money — use the recomputed finalTotal.
     setOrderMeta({ items: summaryItems, total: json.data.breakdown.finalTotal, createdAt: new Date().toISOString(), paid: false })
@@ -847,19 +857,30 @@ export function MenuPageClient({
     const summaryItems = snapshotOrderItems()
     const previewedTotal = discountPreview?.finalTotal ?? subtotal()
 
-    const res = await fetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderBody()),
-    })
+    const requestId = orderRequestRef.current ?? crypto.randomUUID()
+    orderRequestRef.current = requestId
+    let res: Response
+    try {
+      res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderBody(requestId)),
+      })
+    } catch {
+      setError('Sipariş sunucuya ulaştırılamadı. Tekrar deneyebilirsiniz.')
+      setIsPlacing(false)
+      return
+    }
 
     const json = (await res.json()) as { success: boolean; data?: { orderId: string; breakdown: OrderBreakdown }; error?: string }
 
     if (!json.success || !json.data) {
+      if (res.status < 500) orderRequestRef.current = null
       setIsPlacing(false)
       setError(json.error ?? 'Failed to place order')
       return
     }
+    orderRequestRef.current = null
 
     const finalTotal = json.data.breakdown.finalTotal
 
@@ -904,33 +925,23 @@ export function MenuPageClient({
 
   const subscribeRealtime = useCallback(
     (oid: string, onStatusChange: (status: OrderStatus, paidAt: string | null) => void) => {
-      const supabase = createMenuBrowserClient()
-      // Unique topic per subscription: the browser client is a singleton, and
-      // two subscribers (page + confirmation sheet) on the same topic would
-      // throw "cannot add postgres_changes callbacks after subscribe()".
-      const channel = supabase
-        .channel(`order-${oid}-${Math.random().toString(36).slice(2, 8)}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'orders',
-            filter: `id=eq.${oid}`,
-          },
-          (payload: { new: Record<string, unknown> }) => {
-            const newStatus = payload.new['status'] as OrderStatus | undefined
-            const paidAt = (payload.new['paid_at'] as string | null | undefined) ?? null
-            if (newStatus) onStatusChange(newStatus, paidAt)
-          },
-        )
-        .subscribe()
-
-      return () => {
-        void supabase.removeChannel(channel)
+      let active = true
+      let last = ''
+      const poll = async () => {
+        try {
+          const res = await fetch(`/api/orders/status?orderId=${encodeURIComponent(oid)}&sessionId=${encodeURIComponent(sessionId)}`, { cache: 'no-store' })
+          const body = await res.json() as { success: boolean; data?: { status: OrderStatus; paid_at: string | null } }
+          if (active && body.success && body.data && body.data.status !== last) {
+            last = body.data.status
+            onStatusChange(body.data.status, body.data.paid_at)
+          }
+        } catch { /* a later poll reconciles transient network failures */ }
       }
+      void poll()
+      const timer = window.setInterval(() => void poll(), 3_000)
+      return () => { active = false; window.clearInterval(timer) }
     },
-    [],
+    [sessionId],
   )
 
   // Keep order status flowing into the store even while minimized to the bubble
@@ -979,27 +990,17 @@ export function MenuPageClient({
   // ─── Table bill (adisyon) ───
   const refreshBill = useCallback(async (): Promise<'open' | 'closed' | 'none'> => {
     if (!effectiveTableId) return 'none'
-    const supabase = createMenuBrowserClient()
-    const { data: sess } = await supabase
-      .from('table_sessions')
-      .select('id, opened_at')
-      .eq('restaurant_id', restaurant.id)
-      .eq('table_id', effectiveTableId)
-      .is('closed_at', null)
-      .maybeSingle()
-    const sessionRow = sess as { id: string; opened_at: string } | null
+    const res = await fetch(`/api/table-state?restaurantId=${encodeURIComponent(restaurant.id)}&tableId=${encodeURIComponent(effectiveTableId)}`, { cache: 'no-store' })
+    const payload = await res.json() as { success: boolean; data?: { session: { id: string; opened_at: string } | null; orders: Array<{ id: string; status: string; total: number; paid_at: string | null; created_at: string; items: unknown }> } }
+    if (!payload.success) return 'none'
+    const sessionRow = payload.data?.session ?? null
     if (!sessionRow) {
       setTableSession(null)
       return 'closed'
     }
-    const { data: rows } = await supabase
-      .from('orders')
-      .select('id, status, total, paid_at, created_at, items')
-      .eq('table_session_id', sessionRow.id)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: true })
+    const rows = payload.data?.orders ?? []
     setTableSession({ id: sessionRow.id, openedAt: sessionRow.opened_at })
-    setBillOrders(((rows ?? []) as Array<{
+    setBillOrders((rows as Array<{
       id: string; status: string; total: number; paid_at: string | null; created_at: string; items: unknown
     }>).map((row) => ({
       id: row.id,
@@ -1030,19 +1031,12 @@ export function MenuPageClient({
     }
   }
 
-  // Live bill: another device's order lands in the open session → refresh list
+  // Poll the protected table-state endpoint. Direct anon table/realtime reads
+  // intentionally remain disabled to prevent cross-venue enumeration.
   useEffect(() => {
     if (!tableSessionId) return
-    const supabase = createMenuBrowserClient()
-    const channel = supabase
-      .channel(`bill-${tableSessionId}-${Math.random().toString(36).slice(2, 8)}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `table_session_id=eq.${tableSessionId}` },
-        () => { void refreshBill() },
-      )
-      .subscribe()
-    return () => { void supabase.removeChannel(channel) }
+    const timer = window.setInterval(() => void refreshBill(), 3_000)
+    return () => window.clearInterval(timer)
   }, [tableSessionId, refreshBill])
 
   // Non-table route gap-fill: when the device already has an open table (stored
@@ -1376,6 +1370,7 @@ export function MenuPageClient({
         <SplitBillModal
           restaurantId={restaurant.id}
           slug={restaurant.slug}
+          tableId={effectiveTableId!}
           tableSessionId={tableSessionId}
           onClose={() => setIsSplitOpen(false)}
         />

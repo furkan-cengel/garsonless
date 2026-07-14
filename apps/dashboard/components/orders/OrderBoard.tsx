@@ -132,6 +132,12 @@ function OrderDetailPanel({
   }
 
   const items = readOrderLineSnapshots(order.items)
+  const itemQuantity = items.reduce((sum, item) => sum + Math.max(0, item.quantity), 0)
+  const breakdown = order.discount_breakdown && typeof order.discount_breakdown === 'object' && !Array.isArray(order.discount_breakdown)
+    ? order.discount_breakdown as Record<string, unknown>
+    : null
+  const money = (key: string) => typeof breakdown?.[key] === 'number' ? breakdown[key] as number : 0
+  const subtotal = money('subtotal') || order.total
   const nextSt = nextStatus(order.status as OrderStatus)
   const tier = readOrderCustomerTierSnapshot(order.customer_tier)
   const advanceLabel =
@@ -164,7 +170,7 @@ function OrderDetailPanel({
         {/* Items */}
         {items.length > 0 && (
           <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--divider)' }}>
-            <div style={{ ...S.label, marginBottom: 10 }}>Sipariş içeriği · {items.length} kalem</div>
+            <div style={{ ...S.label, marginBottom: 10 }}>Sipariş içeriği · {items.length} kalem · {itemQuantity} adet</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {items.map((it, i) => (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -206,7 +212,11 @@ function OrderDetailPanel({
         {/* Summary */}
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--divider)' }}>
           <div style={{ ...S.label, marginBottom: 10 }}>Hesap özeti</div>
-          <SummaryRow label="Ara toplam" value={formatCurrency(order.total)} />
+          <SummaryRow label="Ara toplam" value={formatCurrency(subtotal)} />
+          {money('stampDiscountAmount') > 0 && <SummaryRow label="Damga ödülü" value={`−${formatCurrency(money('stampDiscountAmount'))}`} />}
+          {money('catalogDiscountAmount') > 0 && <SummaryRow label="Katalog ödülü" value={`−${formatCurrency(money('catalogDiscountAmount'))}`} />}
+          {money('memberDiscountAmount') > 0 && <SummaryRow label={`Üye indirimi${money('memberDiscountPct') ? ` (%${money('memberDiscountPct')})` : ''}`} value={`−${formatCurrency(money('memberDiscountAmount'))}`} />}
+          {money('pointsDiscountAmount') > 0 && <SummaryRow label="Puan indirimi" value={`−${formatCurrency(money('pointsDiscountAmount'))}`} />}
           <div style={{ height: 1, background: 'var(--divider)', margin: '8px 0' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontSize: 13.5, fontWeight: 600 }}>Toplam</span>
@@ -489,17 +499,19 @@ interface Props {
   notifPrefs: NotificationPrefs
   /** settings.orders.late_threshold_min (clamped 5–120, default 20). */
   lateThresholdMin: number
-  /** SSR bootstrap hit its row cap — today's OLDEST orders are not on the board. */
-  initialTruncated: boolean
+  /** Restaurant-local start-of-day used by SSR and reconnect reconciliation. */
+  initialSince: string
 }
 
-export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, kitchenToken, receiptTax, notifPrefs, lateThresholdMin, initialTruncated }: Props) {
-  const { orders, newOrderEvent, clearNewOrderEvent, updateOrderLocally } =
-    useOrdersRealtime(restaurantId, initialOrders)
+export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, kitchenToken, receiptTax, notifPrefs, lateThresholdMin, initialSince }: Props) {
+  const { orders, newOrderEvent, clearNewOrderEvent, updateOrderLocally, connectionStatus } =
+    useOrdersRealtime(restaurantId, initialOrders, initialSince)
 
-  useNotificationSW(newOrderEvent, { sound: notifPrefs.newOrderSound, push: notifPrefs.newOrderPush })
+  const notification = useNotificationSW(newOrderEvent, { sound: notifPrefs.newOrderSound, push: notifPrefs.newOrderPush })
 
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
+  const selectedOrder = selectedOrderId ? orders.find((order) => order.id === selectedOrderId) ?? null : null
+  const pendingOrders = useRef(new Set<string>())
   const [filter, setFilter] = useState<FilterId>('all')
   const [search, setSearch] = useState('')
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -533,12 +545,11 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
   }, [])
   useEffect(() => () => { if (errorTimer.current) clearTimeout(errorTimer.current) }, [])
 
-  async function handleAdvance(order: Order) {
-    const next = nextStatus(order.status as OrderStatus)
-    if (!next) return
+  async function moveOrder(order: Order, next: OrderStatus) {
+    if (pendingOrders.current.has(order.id)) return
+    pendingOrders.current.add(order.id)
     const prev = order.status as OrderStatus
     updateOrderLocally(order.id, next)
-    if (selectedOrder?.id === order.id) setSelectedOrder({ ...order, status: next })
     // Both a typed {error} result AND a thrown exception (network/500) roll the
     // optimistic move back — never a silently stuck card.
     let error: string | null = null
@@ -550,9 +561,15 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
     }
     if (error) {
       updateOrderLocally(order.id, prev)
-      if (selectedOrder?.id === order.id) setSelectedOrder({ ...order, status: prev })
       showActionError(`Durum güncellenemedi: ${error}`)
     }
+    pendingOrders.current.delete(order.id)
+  }
+
+  async function handleAdvance(order: Order) {
+    const next = nextStatus(order.status as OrderStatus)
+    if (!next) return
+    await moveOrder(order, next)
   }
 
   // Cancel modal target — the modal enforces the payment rules client-side
@@ -581,19 +598,23 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
   }
 
   function handleCancel(order: Order) {
-    if (order.paid_at !== null && order.payment_method === 'iyzico') {
-      showActionError('Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.')
+    if (order.paid_at !== null && (order.payment_method === 'iyzico' || order.payment_method === 'split')) {
+      showActionError(order.payment_method === 'split'
+        ? 'Bölünmüş ödeme alınmış sipariş burada iptal edilemez; önce payları uzlaştırın.'
+        : 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.')
       return
     }
     setCancelTarget(order)
   }
 
   function confirmCancel(order: Order, reason: string) {
+    if (pendingOrders.current.has(order.id)) return
+    pendingOrders.current.add(order.id)
     setCancelTarget(null)
     const prev = order.status as OrderStatus
     startTransition(async () => {
       updateOrderLocally(order.id, 'cancelled')
-      if (selectedOrder?.id === order.id) setSelectedOrder(null)
+      if (selectedOrderId === order.id) setSelectedOrderId(null)
       let error: string | null = null
       try {
         const result = await cancelOrder(order.id, restaurantId, reason || undefined)
@@ -605,6 +626,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         updateOrderLocally(order.id, prev)
         showActionError(`İptal edilemedi: ${error}`)
       }
+      pendingOrders.current.delete(order.id)
     })
   }
 
@@ -667,9 +689,9 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         restaurantName={restaurantName}
         title="Siparişler"
         tag={
-          <Tag tone="positive">
-            <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--positive)', display: 'inline-block', animation: 'pulse-dot 2s infinite' }} />
-            Canlı
+          <Tag tone={connectionStatus === 'live' ? 'positive' : connectionStatus === 'connecting' ? 'warning' : 'critical'}>
+            <span style={{ width: 5, height: 5, borderRadius: 999, background: 'currentColor', display: 'inline-block', animation: connectionStatus === 'connecting' ? 'pulse-dot 2s infinite' : 'none' }} />
+            {connectionStatus === 'live' ? 'Canlı' : connectionStatus === 'connecting' ? 'Bağlanıyor' : 'Çevrimdışı'}
           </Tag>
         }
         center={
@@ -702,17 +724,11 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 
         {/* Kanban */}
         <div style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '16px 16px 32px', background: 'var(--bg)' }}>
-          {/* Truncation awareness: the SSR bootstrap clips at the row cap on a
-              very busy day — say so instead of silently hiding orders. Realtime
-              still appends NEW orders on top; Geçmiş is the lookback path. */}
-          {initialTruncated && (
-            <div style={{
-              marginBottom: 12, padding: '9px 12px', borderRadius: 9,
-              background: 'var(--warning-bg)', color: 'var(--warning)',
-              fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <I.warn size={13} />
-              Yoğun gün — bugünün en eski siparişleri panoda gösterilmiyor. Tümüne “Geçmiş siparişler”den ulaşabilirsiniz.
+          {notifPrefs.newOrderPush && notification.permission !== 'granted' && notification.permission !== 'unsupported' && (
+            <div role="status" style={{ marginBottom: 12, padding: '9px 12px', borderRadius: 9, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <I.bell size={13} />
+              <span style={{ flex: 1 }}>{notification.permission === 'denied' ? 'Tarayıcı bildirimleri engellenmiş. Site ayarlarından izin verin.' : 'Yeni sipariş masaüstü bildirimlerini etkinleştirin.'}</span>
+              {notification.permission === 'default' && <button type="button" onClick={() => void notification.requestPermission()} style={{ ...btnGhost(), height: 28 }}>İzin ver</button>}
             </div>
           )}
           {/* New-café hero: ONLY when today has zero orders at all (not when a
@@ -739,11 +755,10 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             filteredOrders={filteredOrders}
             orders={orders}
             tableLabels={tableLabels}
-            selectedOrderId={selectedOrder?.id ?? null}
-            onSelectOrder={setSelectedOrder}
+            selectedOrderId={selectedOrderId}
+            onSelectOrder={(order) => setSelectedOrderId(order?.id ?? null)}
             onAdvance={handleAdvance}
-            updateOrderLocally={updateOrderLocally}
-            restaurantId={restaurantId}
+            onMove={(order, target) => void moveOrder(order, target)}
             onActionError={showActionError}
             lateThresholdMin={lateThresholdMin}
           />
@@ -752,7 +767,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         <OrderDetailPanel
           order={selectedOrder}
           tableLabel={selectedOrder ? labelFor(selectedOrder.table_id) : ''}
-          onClose={() => setSelectedOrder(null)}
+          onClose={() => setSelectedOrderId(null)}
           onAdvance={handleAdvance}
           onCancel={handleCancel}
           onReceipt={(o) => setReceipt({ order: o, tableLabel: labelFor(o.table_id) })}
