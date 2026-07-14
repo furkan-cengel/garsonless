@@ -9,13 +9,13 @@ import { assertAccess } from '../auth/access'
 
 const createTableSchema = z.object({
   restaurantId: z.string().uuid(),
-  label: z.string().min(1).max(50),
+  label: z.string().trim().min(1).max(50),
 })
 
 const updateTableSchema = z.object({
   restaurantId: z.string().uuid(),
   tableId: z.string().uuid(),
-  label: z.string().min(1).max(50),
+  label: z.string().trim().min(1).max(50),
 })
 
 const deleteTableSchema = z.object({
@@ -92,6 +92,15 @@ export async function createTable(
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
 
+  const { data: duplicate } = await supabase
+    .from('tables')
+    .select('id')
+    .eq('restaurant_id', parsed.data.restaurantId)
+    .ilike('label', parsed.data.label)
+    .is('deleted_at', null)
+    .limit(1)
+  if ((duplicate ?? []).length > 0) return { error: 'Bu isimde aktif bir masa zaten var.' }
+
   const { data, error } = await mut(supabase, 'tables')
     .insert({ restaurant_id: parsed.data.restaurantId, label: parsed.data.label })
     .select('id')
@@ -117,6 +126,16 @@ export async function renameTable(
 
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
+
+  const { data: duplicate } = await supabase
+    .from('tables')
+    .select('id')
+    .eq('restaurant_id', parsed.data.restaurantId)
+    .neq('id', parsed.data.tableId)
+    .ilike('label', parsed.data.label)
+    .is('deleted_at', null)
+    .limit(1)
+  if ((duplicate ?? []).length > 0) return { error: 'Bu isimde aktif bir masa zaten var.' }
 
   const now = new Date().toISOString()
   const { data, error } = await mut(supabase, 'tables')

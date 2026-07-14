@@ -275,6 +275,13 @@ const CSS_VARS = `
   letter-spacing: -0.005em;
 }
 .tb-tables button { font-family: inherit; }
+.tb-tables button:not(:disabled) { transition: filter 120ms ease, transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease, border-color 120ms ease; }
+.tb-tables button:not(:disabled):hover { filter: brightness(.96); transform: translateY(-1px); }
+.tb-tables button:not(:disabled):active { filter: brightness(.92); transform: translateY(0); }
+.tb-tables button:focus-visible,
+.tb-tables input:focus-visible,
+.tb-tables select:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+.tb-tables button:disabled { cursor: not-allowed; }
 .tb-tables input, .tb-tables select { font-family: inherit; }
 .tb-tables ::-webkit-scrollbar { width: 10px; height: 10px; }
 .tb-tables ::-webkit-scrollbar-track { background: transparent; }
@@ -333,6 +340,9 @@ const CSS_VARS = `
   .tb-tables__canvas-toolbar {
     height: auto !important;
     min-height: 44px;
+    position: sticky;
+    top: 0;
+    z-index: 12;
     flex-wrap: wrap;
     gap: 8px;
     padding: 8px 10px !important;
@@ -356,6 +366,7 @@ const CSS_VARS = `
     border-left: none !important;
     border-top: 1px solid var(--border);
   }
+  .tb-tables__props-tabs { position: sticky; top: 0; z-index: 10; background: var(--surface); }
   .tb-tables__statusbar {
     display: none !important;
   }
@@ -672,7 +683,7 @@ function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onRedo, ca
         </button>
         <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
         <button className="tb-hover" style={btnGhost()} onClick={onPreview}>
-          {React.cloneElement(I.eye as React.ReactElement<{ size?: number }>, { size: 13 })}Önizle
+          {React.cloneElement(I.eye as React.ReactElement<{ size?: number }>, { size: 13 })}Menüyü önizle
         </button>
         <Tag tone="positive">
           <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--positive)' }} />
@@ -712,6 +723,43 @@ function MiniQR({ seed }: { seed: string }) {
 }
 
 /* ─── TableRow ──────────────────────────────────────────────── */
+function DeleteTableDialog({ label, busy, onCancel, onConfirm }: {
+  label: string
+  busy: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busy) onCancel()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [busy, onCancel])
+  return (
+    <div onClick={() => { if (!busy) onCancel() }} style={{
+      position: 'fixed', inset: 0, zIndex: 90, padding: 20,
+      display: 'grid', placeItems: 'center', background: 'rgba(17,17,19,.48)', backdropFilter: 'blur(4px)',
+    }}>
+      <div role="alertdialog" aria-modal="true" aria-labelledby="delete-table-title" aria-describedby="delete-table-description" onClick={event => event.stopPropagation()} style={{
+        width: 'min(420px, 100%)', padding: 20, borderRadius: 14,
+        background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-pop)',
+      }}>
+        <div id="delete-table-title" style={{ fontSize: 16, fontWeight: 750 }}>Masayı sil</div>
+        <div id="delete-table-description" style={{ marginTop: 8, color: 'var(--text-2)', fontSize: 12.5, lineHeight: 1.55 }}>
+          <strong>{label}</strong> listeden kaldırılacak. Bu masanın tahmin edilemez QR bağlantısı artık kullanılamayacak.
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+          <button type="button" autoFocus disabled={busy} onClick={onCancel} style={btnGhost()}>Vazgeç</button>
+          <button type="button" disabled={busy} onClick={onConfirm} style={{
+            ...btnPrimary(), background: 'var(--critical)', opacity: busy ? .6 : 1,
+          }}>{busy ? <><InlineSpinner size={12} color="#fff" /> Siliniyor…</> : 'Masayı sil'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function TableRow({
   table,
   active,
@@ -733,6 +781,7 @@ function TableRow({
   const [draft, setDraft] = useState(table.label)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const dotColor = table.status === 'active' ? 'var(--positive)' : table.status === 'paused' ? 'var(--warning)' : 'var(--text-4)'
 
   useEffect(() => {
@@ -763,12 +812,15 @@ function TableRow({
       setMenuOpen(false)
       return
     }
-    if (!window.confirm(`${table.label} silinsin mi? QR bağlantısı da listeden kalkar.`)) return
     setBusy(true)
     setError(null)
     const nextError = await onDelete()
     setBusy(false)
-    if (nextError) setError(nextError)
+    if (nextError) {
+      setError(nextError)
+      return
+    }
+    setDeleteOpen(false)
   }
 
   if (editing) {
@@ -883,7 +935,8 @@ function TableRow({
             </button>
             <button
               type="button"
-              onClick={() => void commitDelete()}
+              disabled={deleteDisabled}
+              onClick={() => { setMenuOpen(false); setDeleteOpen(true); setError(null) }}
               style={{
                 width: '100%', border: 'none', background: 'transparent',
                 borderRadius: 5, padding: '7px 9px', textAlign: 'left',
@@ -898,6 +951,14 @@ function TableRow({
         </>
       )}
       {error && <div style={{ margin: '3px 6px 4px 36px', fontSize: 11, color: 'var(--critical)' }}>{error}</div>}
+      {deleteOpen && (
+        <DeleteTableDialog
+          label={table.label}
+          busy={busy}
+          onCancel={() => setDeleteOpen(false)}
+          onConfirm={() => { void commitDelete() }}
+        />
+      )}
     </div>
   )
 }
@@ -925,7 +986,7 @@ function LiveSessionDuration({ openedAt }: { openedAt: string }) {
   return <>{sessionDuration(openedAt, now)}</>
 }
 
-function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, openSessions, onCloseSession, pendingRequests, onResolveRequest }: {
+function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, openSessions, onCloseSession, pendingRequests, onResolveRequest, requestError }: {
   tables: TableItem[]
   setTables: (t: TableItem[]) => void
   activeId: string
@@ -935,6 +996,7 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
   onCloseSession: (session: OpenSessionInfo, label: string) => void
   pendingRequests: Record<string, Array<{ id: string; label: string }>>
   onResolveRequest: (requestId: string) => void
+  requestError: string | null
 }) {
   const [adding, setAdding] = useState(false)
   const [newLabel, setNewLabel] = useState('')
@@ -1008,6 +1070,11 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
           {Object.keys(openSessions).length} aktif · Tek stil
         </div>
       </div>
+      {requestError && (
+        <div role="alert" style={{ margin: '8px 12px 0', padding: '8px 10px', borderRadius: 7, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 11.5 }}>
+          İstek tamamlanamadı: {requestError}
+        </div>
+      )}
 
       <div style={{ padding: '10px 12px 4px' }}>
         <div style={{
@@ -1528,9 +1595,26 @@ function DownloadMenu({ onPick, disabled = false }: { onPick: (fmt: string) => v
 
 /* ─── GridCard ──────────────────────────────────────────────── */
 function GridCard({ qr, table }: { qr: QRConfig; table: TableItem }) {
+  const cardRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
   useEffect(() => {
-    if (!hostRef.current) return
+    const node = cardRef.current
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      setVisible(true)
+      return
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) {
+        setVisible(true)
+        observer.disconnect()
+      }
+    }, { rootMargin: '240px' })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+  useEffect(() => {
+    if (!visible || !hostRef.current) return
     let cancelled = false
     const run = async () => {
       const QRCodeStyling = await loadQRCodeStyling()
@@ -1553,14 +1637,14 @@ function GridCard({ qr, table }: { qr: QRConfig; table: TableItem }) {
     }
     void run()
     return () => { cancelled = true }
-  }, [qr, table])
+  }, [qr, table, visible])
   return (
-    <div style={{
+    <div ref={cardRef} style={{
       background: '#fff', borderRadius: 12, border: '1px solid var(--border)',
       padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
       boxShadow: 'var(--shadow-1)',
     }}>
-      <div ref={hostRef} style={{ width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
+      <div ref={hostRef} aria-label={`${table.label} QR önizlemesi`} style={{ width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', background: visible ? 'transparent' : 'var(--surface-3)', borderRadius: 8 }} />
       <div style={{ fontSize: 13, fontWeight: 600 }}>{table.label}</div>
       <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>Benzersiz masa bağlantısı</div>
     </div>
@@ -1579,6 +1663,7 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview, health }: {
   const hostRef = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<'preview' | 'grid' | 'print'>('preview')
   const [copied, setCopied] = useState(false)
+  const deferredQR = React.useDeferredValue(qr)
   const PREVIEW_SIZE = 280
 
   useEffect(() => {
@@ -1663,7 +1748,7 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview, health }: {
             borderRadius: 5, color: 'var(--text-2)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
             fontSize: 11,
           }} onClick={() => onPreview(url, table?.label ?? 'Masa')}>
-            {React.cloneElement(QRI.scan as React.ReactElement<{ size?: number }>, { size: 11 })}Önizle
+            {React.cloneElement(QRI.scan as React.ReactElement<{ size?: number }>, { size: 11 })}Masayı önizle
           </button>
         </div>
 
@@ -1685,7 +1770,7 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview, health }: {
               { id: 'grid',    label: 'Izgara', icon: I.layout },
               { id: 'print',   label: 'Baskı',  icon: QRI.print },
             ] as const).map(v => (
-              <button key={v.id} className="tb-hover" onClick={() => setView(v.id as typeof view)} style={{
+              <button key={v.id} type="button" aria-pressed={view === v.id} className="tb-hover" onClick={() => setView(v.id as typeof view)} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px',
                 fontSize: 11.5, fontWeight: 500, borderRadius: 5, border: 'none',
                 background: view === v.id ? 'var(--surface)' : 'transparent',
@@ -1747,7 +1832,7 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview, health }: {
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
-              {tables.map(t => <GridCard key={t.id} qr={qr} table={t} />)}
+              {tables.map(t => <GridCard key={t.id} qr={deferredQR} table={t} />)}
             </div>
           </div>
         </div>
@@ -1782,7 +1867,7 @@ function Group({ title, defaultOpen = true, children }: { title: string; default
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div style={{ borderBottom: '1px solid var(--divider)' }}>
-      <button onClick={() => setOpen(!open)} style={{
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         width: '100%', padding: '11px 16px', border: 'none', background: 'transparent',
         cursor: 'pointer', textAlign: 'left',
@@ -1809,12 +1894,18 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   )
 }
 
-function Slider({ value, min, max, step = 1, onChange, suffix }: {
-  value: number; min: number; max: number; step?: number; onChange: (v: number) => void; suffix?: string
+function Slider({ value, min, max, step = 1, onChange, onBegin, suffix }: {
+  value: number; min: number; max: number; step?: number; onChange: (v: number, transient: boolean) => void; onBegin?: () => void; suffix?: string
 }) {
+  const dragging = useRef(false)
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(Number(e.target.value))}
+      <input type="range" min={min} max={max} step={step} value={value}
+        onPointerDown={() => { dragging.current = true; onBegin?.() }}
+        onPointerUp={() => { dragging.current = false }}
+        onPointerCancel={() => { dragging.current = false }}
+        onBlur={() => { dragging.current = false }}
+        onChange={e => onChange(Number(e.target.value), dragging.current)}
         style={{ flex: 1, accentColor: 'var(--action)' }} />
       <span style={{ ...S.mono, fontSize: 11.5, color: 'var(--text-2)', minWidth: 36, textAlign: 'right' }}>{value}{suffix}</span>
     </div>
@@ -1823,9 +1914,9 @@ function Slider({ value, min, max, step = 1, onChange, suffix }: {
 
 function Segmented({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
   return (
-    <div style={{ display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 7, padding: 3, width: '100%' }}>
+    <div role="group" style={{ display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 7, padding: 3, width: '100%' }}>
       {options.map(o => (
-        <button key={o.value} onClick={() => onChange(o.value)} style={{
+        <button key={o.value} type="button" aria-pressed={value === o.value} onClick={() => onChange(o.value)} style={{
           flex: 1, height: 26, border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 11.5, fontWeight: 500,
           background: value === o.value ? 'var(--surface)' : 'transparent',
           color: value === o.value ? 'var(--text)' : 'var(--text-2)',
@@ -1860,7 +1951,7 @@ function ColorField({ value, onChange }: { value: string; onChange: (v: string) 
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
-    <button onClick={() => onChange(!on)} style={{
+    <button type="button" role="switch" aria-checked={on} onClick={() => onChange(!on)} style={{
       position: 'relative', width: 32, height: 18, border: 'none', cursor: 'pointer', padding: 0,
       borderRadius: 9, background: on ? 'var(--action)' : 'var(--surface-inset)', transition: 'background 150ms',
     }}>
@@ -1889,7 +1980,7 @@ function Swatches({ value, onChange, options }: { value: string; onChange: (v: s
   return (
     <div style={{ display: 'flex', gap: 4 }}>
       {options.map(c => (
-        <button key={c} onClick={() => onChange(c)} style={{
+        <button key={c} type="button" aria-label={`${c} rengini seç`} aria-pressed={value === c} onClick={() => onChange(c)} style={{
           width: 22, height: 22, borderRadius: 4, background: c, border: '2px solid ' + (value === c ? 'var(--text)' : 'transparent'),
           cursor: 'pointer', padding: 0,
         }} />
@@ -1908,7 +1999,7 @@ function StylePicker({ value, onChange, options, renderPreview }: {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
       {options.map(o => (
-        <button key={o.value} onClick={() => onChange(o.value)} style={{
+        <button key={o.value} type="button" aria-pressed={value === o.value} onClick={() => onChange(o.value)} style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
           padding: '10px 6px 8px',
           background: value === o.value ? 'var(--surface)' : 'var(--surface-2)',
@@ -1970,7 +2061,9 @@ function FramePreview({ kind }: { kind: string }) {
 }
 
 /* ─── QRProps tabs ──────────────────────────────────────────── */
-function ShapeTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => void }) {
+type SetQRField = (key: string, value: unknown, mode?: 'push' | 'replace' | 'begin') => void
+
+function ShapeTab({ qr, set }: { qr: QRConfig; set: SetQRField }) {
   return (
     <>
       <Group title="Modül şekli" defaultOpen>
@@ -1986,8 +2079,8 @@ function ShapeTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => v
           options={EYE_BALL_STYLES} renderPreview={k => <EyeBallPreview kind={k} />} />
       </Group>
       <Group title="Genel" defaultOpen={false}>
-        <Field label="Boyut"><Slider value={qr.size} min={200} max={1200} step={50} onChange={v => set('size', v)} suffix="px" /></Field>
-        <Field label="Kenar boşluğu"><Slider value={qr.margin} min={0} max={40} onChange={v => set('margin', v)} suffix="px" /></Field>
+        <Field label="Boyut"><Slider value={qr.size} min={200} max={1200} step={50} onBegin={() => set('size', qr.size, 'begin')} onChange={(v, transient) => set('size', v, transient ? 'replace' : 'push')} suffix="px" /></Field>
+        <Field label="Kenar boşluğu"><Slider value={qr.margin} min={0} max={40} onBegin={() => set('margin', qr.margin, 'begin')} onChange={(v, transient) => set('margin', v, transient ? 'replace' : 'push')} suffix="px" /></Field>
         <Field label="Hata düzeltme" hint="Logo varsa H önerilir">
           <Segmented value={qr.ecl} onChange={v => set('ecl', v)} options={[
             { value: 'L', label: 'L · %7' },
@@ -2001,7 +2094,7 @@ function ShapeTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => v
   )
 }
 
-function ColorTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => void }) {
+function ColorTab({ qr, set }: { qr: QRConfig; set: SetQRField }) {
   return (
     <>
       <Group title="Renk türü">
@@ -2021,7 +2114,7 @@ function ColorTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => v
             ]} />
           </Field>
           {qr.gradType === 'linear' && (
-            <Field label="Açı"><Slider value={qr.gradAngle} min={0} max={360} step={15} onChange={v => set('gradAngle', v)} suffix="°" /></Field>
+            <Field label="Açı"><Slider value={qr.gradAngle} min={0} max={360} step={15} onBegin={() => set('gradAngle', qr.gradAngle, 'begin')} onChange={(v, transient) => set('gradAngle', v, transient ? 'replace' : 'push')} suffix="°" /></Field>
           )}
         </>}
         <div style={{ marginTop: 4 }}>
@@ -2044,7 +2137,7 @@ function ColorTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => v
 // 256px PNG; the result + any SVG is capped to match the server's 256KB limit.
 const MAX_LOGO_CHARS = 262_144
 
-function LogoTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => void }) {
+function LogoTab({ qr, set }: { qr: QRConfig; set: SetQRField }) {
   const [logoError, setLogoError] = useState<string | null>(null)
   const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -2125,21 +2218,21 @@ function LogoTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => vo
         </div>
       </Group>
       <Group title="Yerleşim">
-        <Field label="Boyut"><Slider value={Math.round(qr.logoSize * 100)} min={10} max={50} onChange={v => set('logoSize', v / 100)} suffix="%" /></Field>
-        <Field label="Boşluk"><Slider value={qr.logoMargin} min={0} max={20} onChange={v => set('logoMargin', v)} suffix="px" /></Field>
+        <Field label="Boyut"><Slider value={Math.round(qr.logoSize * 100)} min={10} max={50} onBegin={() => set('logoSize', qr.logoSize, 'begin')} onChange={(v, transient) => set('logoSize', v / 100, transient ? 'replace' : 'push')} suffix="%" /></Field>
+        <Field label="Boşluk"><Slider value={qr.logoMargin} min={0} max={20} onBegin={() => set('logoMargin', qr.logoMargin, 'begin')} onChange={(v, transient) => set('logoMargin', v, transient ? 'replace' : 'push')} suffix="px" /></Field>
         <Field label="Şeffaf arka"><Toggle on={!qr.logoHideBg} onChange={v => set('logoHideBg', !v)} /></Field>
       </Group>
     </>
   )
 }
 
-function FrameTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => void }) {
+function FrameTab({ qr, set }: { qr: QRConfig; set: SetQRField }) {
   return (
     <>
       <Group title="Çerçeve stili" defaultOpen>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
           {FRAME_STYLES.map(f => (
-            <button key={f.id} onClick={() => set('frame', f.id)} style={{
+            <button key={f.id} type="button" aria-pressed={qr.frame === f.id} onClick={() => set('frame', f.id)} style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
               padding: '12px 6px 8px', cursor: 'pointer',
               background: qr.frame === f.id ? 'var(--surface)' : 'var(--surface-2)',
@@ -2162,7 +2255,7 @@ function FrameTab({ qr, set }: { qr: QRConfig; set: (k: string, v: unknown) => v
   )
 }
 
-function DataTab({ qr, set, tables }: { qr: QRConfig; set: (k: string, v: unknown) => void; tables: TableItem[] }) {
+function DataTab({ qr, set, tables }: { qr: QRConfig; set: SetQRField; tables: TableItem[] }) {
   const exampleTableId = tables[0]?.id ?? '{benzersiz-kimlik}'
   return (
     <>
@@ -2195,9 +2288,26 @@ function DataTab({ qr, set, tables }: { qr: QRConfig; set: (k: string, v: unknow
 }
 
 /* ─── QRProps panel ─────────────────────────────────────────── */
-function QRProps({ qr, setQR, tables, saveState }: { qr: QRConfig; setQR: (q: QRConfig) => void; tables: TableItem[]; saveState: SaveState }) {
+function QRProps({ qr, setQR, replaceQR, beginQRChange, tables, saveState, saveError, onRetry }: {
+  qr: QRConfig
+  setQR: (q: QRConfig) => void
+  replaceQR: (q: QRConfig) => void
+  beginQRChange: () => void
+  tables: TableItem[]
+  saveState: SaveState
+  saveError: string | null
+  onRetry: () => void
+}) {
   const [tab, setTab] = useState('shape')
-  const set = (k: string, v: unknown) => setQR({ ...qr, [k]: v })
+  const set: SetQRField = (key, value, mode = 'push') => {
+    if (mode === 'begin') {
+      beginQRChange()
+      return
+    }
+    const next = { ...qr, [key]: value }
+    if (mode === 'replace') replaceQR(next)
+    else setQR(next)
+  }
   const status = saveState === 'saving'
     ? { label: 'Kaydediliyor', tone: 'neutral', dot: 'var(--warning)' }
     : saveState === 'error'
@@ -2229,11 +2339,17 @@ function QRProps({ qr, setQR, tables, saveState }: { qr: QRConfig; setQR: (q: QR
             {status.label}
           </Tag>
         </div>
+        {saveState === 'error' && (
+          <div role="alert" style={{ marginTop: 10, padding: '8px 9px', borderRadius: 7, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 11.5 }}>
+            <div>{saveError ?? 'Değişiklikler kaydedilemedi.'}</div>
+            <button type="button" onClick={onRetry} style={{ marginTop: 6, padding: 0, border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 750, textDecoration: 'underline' }}>Tekrar dene</button>
+          </div>
+        )}
       </div>
 
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--divider)', padding: '0 8px', overflowX: 'auto' }}>
+      <div className="tb-tables__props-tabs" role="tablist" aria-label="QR stüdyosu ayarları" style={{ display: 'flex', borderBottom: '1px solid var(--divider)', padding: '0 8px', overflowX: 'auto' }}>
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
             padding: '10px 10px', fontSize: 12, fontWeight: 500,
             border: 'none', background: 'transparent', flexShrink: 0,
@@ -2440,6 +2556,21 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
       return { stack: capped, index: capped.length - 1 }
     })
   }, [])
+  const beginQRChange = useCallback(() => {
+    setHist((history) => {
+      const stack = history.stack.slice(0, history.index + 1)
+      stack.push({ ...stack[history.index]! })
+      const capped = stack.length > 60 ? stack.slice(stack.length - 60) : stack
+      return { stack: capped, index: capped.length - 1 }
+    })
+  }, [])
+  const replaceQR = useCallback((next: QRConfig) => {
+    setHist((history) => {
+      const stack = [...history.stack]
+      stack[history.index] = next
+      return { ...history, stack }
+    })
+  }, [])
   const undo = useCallback(() => setHist((h) => (h.index > 0 ? { ...h, index: h.index - 1 } : h)), [])
   const redo = useCallback(() => setHist((h) => (h.index < h.stack.length - 1 ? { ...h, index: h.index + 1 } : h)), [])
   const canUndo = hist.index > 0
@@ -2574,6 +2705,7 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
 
   // Pending waiter calls per table (one chip per table)
   const [pendingRequests, setPendingRequests] = useState<Record<string, Array<{ id: string; label: string }>>>({})
+  const [requestError, setRequestError] = useState<string | null>(null)
 
   const loadPendingRequests = useCallback(async () => {
     const result = await getPendingServiceRequests(restaurantId)
@@ -2602,15 +2734,18 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
   }, [restaurantId, loadPendingRequests])
 
   const handleResolveRequest = useCallback(async (requestId: string) => {
+    setRequestError(null)
+    const result = await resolveServiceRequest(requestId, restaurantId)
+    if ('error' in result) {
+      setRequestError(result.error)
+      void loadPendingRequests()
+      return
+    }
     setPendingRequests((prev) => Object.fromEntries(
       Object.entries(prev)
-        .map(([tableId, requests]) => [
-          tableId,
-          requests.filter((request) => request.id !== requestId),
-        ] as const)
+        .map(([tableId, requests]) => [tableId, requests.filter(request => request.id !== requestId)] as const)
         .filter(([, requests]) => requests.length > 0),
     ))
-    await resolveServiceRequest(requestId, restaurantId)
     void loadPendingRequests()
   }, [restaurantId, loadPendingRequests])
 
@@ -2645,9 +2780,9 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
         />
         <div className="tb-tables__workspace" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           <TablesIconRail restaurantId={restaurantId} />
-          <TablesNav tables={tables} setTables={setTables} activeId={activeId} setActiveId={setActiveId} restaurantId={restaurantId} openSessions={openSessions} onCloseSession={handleCloseSession} pendingRequests={pendingRequests} onResolveRequest={handleResolveRequest} />
+          <TablesNav tables={tables} setTables={setTables} activeId={activeId} setActiveId={setActiveId} restaurantId={restaurantId} openSessions={openSessions} onCloseSession={handleCloseSession} pendingRequests={pendingRequests} onResolveRequest={handleResolveRequest} requestError={requestError} />
           <QRCanvas qr={qr} table={activeTable} tables={tables} qrInstanceRef={qrInstanceRef} health={qrHealth} onPreview={(src, label) => setPreview({ src, title: `${label} önizleme` })} />
-          <QRProps qr={qr} setQR={setQR} tables={tables} saveState={saveState} />
+          <QRProps qr={qr} setQR={setQR} replaceQR={replaceQR} beginQRChange={beginQRChange} tables={tables} saveState={saveState} saveError={saveError} onRetry={() => { void persistQR(qr) }} />
         </div>
         <StatusBar saveState={saveState} saveError={saveError} onRetry={() => { void persistQR(qr) }} tableCount={tables.length} activeCount={Object.keys(openSessions).length} />
         {settleSession && (

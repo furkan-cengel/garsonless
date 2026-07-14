@@ -70,12 +70,15 @@ export async function resolveServiceRequest(
   const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
 
-  const { error } = await mut(supabase, 'service_requests')
+  const { data, error } = await mut(supabase, 'service_requests')
     .update({ status: 'resolved', resolved_at: new Date().toISOString() })
     .eq('id', requestId)
     .eq('restaurant_id', restaurantId)
+    .eq('status', 'pending')
+    .select('id')
 
   if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: 'İstek bulunamadı veya daha önce tamamlandı.' }
 
   revalidatePath(`/dashboard/${restaurantId}/tables`)
   return { success: true }
