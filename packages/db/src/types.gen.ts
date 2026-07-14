@@ -539,9 +539,9 @@ export type Database = {
           contains_alcohol: boolean
           contains_allergens: string[]
           contains_pork: boolean
-          cross_contact_note: string | null
           cost: number | null
           created_at: string
+          cross_contact_note: string | null
           deleted_at: string | null
           description: string | null
           earns_stamp: boolean
@@ -573,9 +573,9 @@ export type Database = {
           contains_alcohol?: boolean
           contains_allergens?: string[]
           contains_pork?: boolean
-          cross_contact_note?: string | null
           cost?: number | null
           created_at?: string
+          cross_contact_note?: string | null
           deleted_at?: string | null
           description?: string | null
           earns_stamp?: boolean
@@ -607,9 +607,9 @@ export type Database = {
           contains_alcohol?: boolean
           contains_allergens?: string[]
           contains_pork?: boolean
-          cross_contact_note?: string | null
           cost?: number | null
           created_at?: string
+          cross_contact_note?: string | null
           deleted_at?: string | null
           description?: string | null
           earns_stamp?: boolean
@@ -1402,6 +1402,10 @@ export type Database = {
         Returns: boolean
       }
       customer_access_token_hook: { Args: { event: Json }; Returns: Json }
+      delete_menu_category: {
+        Args: { p_category_id: string; p_restaurant_id: string }
+        Returns: undefined
+      }
       finalize_split_if_covered: {
         Args: { p_session_id: string }
         Returns: boolean
@@ -1457,13 +1461,13 @@ export type Database = {
         Args: { p_category_id: string }
         Returns: string
       }
-      delete_menu_category: {
-        Args: { p_category_id: string; p_restaurant_id: string }
-        Returns: undefined
-      }
       open_or_get_table_session: {
         Args: { p_restaurant_id: string; p_table_id: string }
         Returns: string
+      }
+      patch_restaurant_qr_style: {
+        Args: { p_qr_style: Json; p_restaurant_id: string }
+        Returns: undefined
       }
       redeem_loyalty: {
         Args: {
@@ -1481,20 +1485,24 @@ export type Database = {
           stamps_debited: number
         }[]
       }
-      reorder_menu_categories: {
-        Args: { p_ordered_ids: string[]; p_restaurant_id: string }
-        Returns: undefined
-      }
-      set_menu_items_availability: {
-        Args: { p_is_available: boolean; p_item_ids: string[]; p_restaurant_id: string }
-        Returns: undefined
-      }
       refund_cancelled_loyalty: {
         Args: { p_order: string }
         Returns: {
           refunded: number
           type: string
         }[]
+      }
+      reorder_menu_categories: {
+        Args: { p_ordered_ids: string[]; p_restaurant_id: string }
+        Returns: undefined
+      }
+      set_menu_items_availability: {
+        Args: {
+          p_is_available: boolean
+          p_item_ids: string[]
+          p_restaurant_id: string
+        }
+        Returns: undefined
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }

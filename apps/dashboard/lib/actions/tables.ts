@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
-import { createServiceClient, creditVisitsForSession, voidDeclaredSharesForSession, type Json } from '@garsonless/db'
+import { createServiceClient, creditVisitsForSession, voidDeclaredSharesForSession } from '@garsonless/db'
 import { assertAccess } from '../auth/access'
 
 const createTableSchema = z.object({
@@ -185,7 +185,7 @@ export async function saveQRStyle(
   const svc = createServiceClient()
   const { data: existing } = await svc
     .from('restaurants')
-    .select('settings, slug')
+    .select('slug')
     .eq('id', restaurantId)
     .is('deleted_at', null)
     .maybeSingle()
@@ -197,15 +197,14 @@ export async function saveQRStyle(
     return { error: 'QR menu address cannot be changed' }
   }
 
-  const merged = {
-    ...((existing as { settings: Record<string, unknown> | null }).settings ?? {}),
-    qr_style: parsed.data,
-  }
-
-  const { error } = await svc
-    .from('restaurants')
-    .update({ settings: merged as Json })
-    .eq('id', restaurantId)
+  // Atomic JSONB patch: updating QR Studio can no longer overwrite a theme,
+  // notification or loyalty setting saved concurrently by another screen.
+  // The RPC is service-role only; this action's section gate remains the
+  // user-facing authorization boundary.
+  const { error } = await svc.rpc('patch_restaurant_qr_style', {
+    p_restaurant_id: restaurantId,
+    p_qr_style: parsed.data,
+  })
 
   if (error) return { error: error.message }
 
