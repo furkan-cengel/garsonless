@@ -25,6 +25,7 @@ export default async function TablesPage({ params }: Props) {
       restaurantSlug={restaurant.slug}
       initialTables={tables}
       initialOpenSessions={Array.isArray(openSessionsResult) ? openSessionsResult : []}
+      initialSessionError={Array.isArray(openSessionsResult) ? null : openSessionsResult.error}
       initialQRStyle={(restaurant.settings as Record<string, unknown> | null)?.qr_style ?? null}
     />
   )

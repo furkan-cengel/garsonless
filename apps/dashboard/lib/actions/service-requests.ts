@@ -2,9 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createDashboardServerClient } from '../supabase-server'
-import { mut } from '../supabase-mut'
 import { assertAccess } from '../auth/access'
-import { serviceRequestLabel, type ServiceRequestType } from '@garsonless/db'
+import { createServiceClient, serviceRequestLabel, type ServiceRequestType } from '@garsonless/db'
 
 async function getAuthUser() {
   const supabase = await createDashboardServerClient()
@@ -12,13 +11,15 @@ async function getAuthUser() {
   return { supabase, user }
 }
 
-// Phase 3 section gate: owner OR a member with the 'orders' section (waiter calls).
+// Waiter calls are handled inside the Tables workspace, so the action follows
+// that page's `tables` section gate. The service-role mutation runs only after
+// this verified user/tenant authorization boundary.
 async function assertRestaurantOwner(
   _supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
   restaurantId: string,
   _userId: string,
 ) {
-  const gate = await assertAccess(restaurantId, 'orders')
+  const gate = await assertAccess(restaurantId, 'tables')
   return !('error' in gate)
 }
 
@@ -70,7 +71,9 @@ export async function resolveServiceRequest(
   const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
 
-  const { data, error } = await mut(supabase, 'service_requests')
+  const svc = createServiceClient()
+  const { data, error } = await svc
+    .from('service_requests')
     .update({ status: 'resolved', resolved_at: new Date().toISOString() })
     .eq('id', requestId)
     .eq('restaurant_id', restaurantId)

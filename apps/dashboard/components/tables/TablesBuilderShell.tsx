@@ -58,6 +58,7 @@ interface Props {
   restaurantSlug: string
   initialTables: Tables<'tables'>[]
   initialOpenSessions: OpenSessionInfo[]
+  initialSessionError?: string | null
   initialQRStyle?: unknown
 }
 
@@ -621,7 +622,7 @@ function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onRedo, ca
       </div>
 
       <div className="tb-tables__topbar-right" style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 8px', color: 'var(--text-3)', fontSize: 12 }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, width: 112, flexShrink: 0, padding: '0 6px', color: 'var(--text-3)', fontSize: 11.5, whiteSpace: 'nowrap' }}>
           <div style={{ width: 6, height: 6, borderRadius: 999, background: status.color }} />
           {status.label}
         </div>
@@ -685,10 +686,28 @@ function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onRedo, ca
         <button className="tb-hover" style={btnGhost()} onClick={onPreview}>
           {React.cloneElement(I.eye as React.ReactElement<{ size?: number }>, { size: 13 })}Menüyü önizle
         </button>
-        <Tag tone="positive">
-          <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--positive)' }} />
-          Otomatik yayında
-        </Tag>
+        <div
+          title="Kaydedilen QR stili otomatik olarak tüm masalara yayınlanır"
+          aria-label="Otomatik yayın açık"
+          style={{
+            height: 30, minWidth: 82, padding: '0 10px 0 7px', flexShrink: 0,
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            border: '1px solid rgba(19,122,77,.18)', borderRadius: 999,
+            background: 'linear-gradient(180deg, #f3fbf6 0%, var(--positive-bg) 100%)',
+            color: 'var(--positive)', whiteSpace: 'nowrap',
+            fontSize: 11.5, fontWeight: 650, lineHeight: 1,
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,.8)',
+          }}
+        >
+          <span aria-hidden="true" style={{
+            width: 18, height: 18, flexShrink: 0, borderRadius: 999,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            background: 'var(--positive)', color: '#fff',
+          }}>
+            {React.cloneElement(I.check as React.ReactElement<{ size?: number; strokeWidth?: number }>, { size: 11, strokeWidth: 2.5 })}
+          </span>
+          Canlı
+        </div>
       </div>
     </div>
   )
@@ -986,7 +1005,7 @@ function LiveSessionDuration({ openedAt }: { openedAt: string }) {
   return <>{sessionDuration(openedAt, now)}</>
 }
 
-function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, openSessions, onCloseSession, pendingRequests, onResolveRequest, requestError }: {
+function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, openSessions, onCloseSession, pendingRequests, onResolveRequest, requestError, sessionError }: {
   tables: TableItem[]
   setTables: (t: TableItem[]) => void
   activeId: string
@@ -997,6 +1016,7 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
   pendingRequests: Record<string, Array<{ id: string; label: string }>>
   onResolveRequest: (requestId: string) => void
   requestError: string | null
+  sessionError: string | null
 }) {
   const [adding, setAdding] = useState(false)
   const [newLabel, setNewLabel] = useState('')
@@ -1073,6 +1093,11 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
       {requestError && (
         <div role="alert" style={{ margin: '8px 12px 0', padding: '8px 10px', borderRadius: 7, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 11.5 }}>
           İstek tamamlanamadı: {requestError}
+        </div>
+      )}
+      {sessionError && (
+        <div role="alert" style={{ margin: '8px 12px 0', padding: '8px 10px', borderRadius: 7, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 11.5 }}>
+          Masa durumu yenilenemedi: {sessionError}
         </div>
       )}
 
@@ -1234,7 +1259,12 @@ function colorOpts(qr: QRConfig): object {
   }
 }
 
-const MENU_ORIGIN = 'https://menu.masabu.co'
+const PRODUCTION_MENU_ORIGIN = 'https://menu.masabu.co'
+const MENU_ORIGIN = (
+  process.env.NODE_ENV === 'production'
+    ? PRODUCTION_MENU_ORIGIN
+    : process.env.NEXT_PUBLIC_MENU_BASE_URL ?? process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'
+).replace(/\/+$/, '')
 
 function buildUrl(qr: QRConfig, table?: TableItem): string {
   const tableId = table?.id && table.id !== 'placeholder' ? table.id : 'preview'
@@ -1304,7 +1334,7 @@ async function renderQRMarkup(qr: QRConfig, table?: TableItem): Promise<string> 
     : new TextDecoder().decode(blob)
   return markup
     .replace(/^<\?xml[^>]*>\s*/i, '')
-    .replace(/<svg\b[^>]*>/i, `<svg x="0" y="0" width="${qr.size}" height="${qr.size}" viewBox="0 0 ${qr.size} ${qr.size}">`)
+    .replace(/<svg\b[^>]*>/i, `<svg xmlns="http://www.w3.org/2000/svg" x="0" y="0" width="${qr.size}" height="${qr.size}" viewBox="0 0 ${qr.size} ${qr.size}">`)
 }
 
 async function renderTableCardSVG(qr: QRConfig, table?: TableItem): Promise<string> {
@@ -1373,8 +1403,12 @@ async function validateRenderedQR(qr: QRConfig, table?: TableItem): Promise<QRHe
       image.src = source
     })
     const canvas = document.createElement('canvas')
-    canvas.width = qr.size
-    canvas.height = qr.size
+    // Decode on a camera-like raster size. Very large export dimensions (for
+    // example 1100px) are useful for print, but feeding that full bitmap to
+    // jsQR can produce a false negative that looks like a save failure.
+    const validationSize = Math.min(qr.size, 720)
+    canvas.width = validationSize
+    canvas.height = validationSize
     const context = canvas.getContext('2d', { willReadFrequently: true })
     if (!context) throw new Error('QR doğrulama yüzeyi oluşturulamadı')
     context.fillStyle = '#ffffff'
@@ -1385,12 +1419,12 @@ async function validateRenderedQR(qr: QRConfig, table?: TableItem): Promise<QRHe
     const decoded = jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: 'attemptBoth' })
     const expected = buildUrl(qr, table)
     if (!decoded || decoded.data !== expected) {
-      return { state: 'invalid', message: 'QR otomatik tarama testini geçemedi', contrast }
+      return { state: 'invalid', message: 'Stil kaydedildi · okunabilirlik testi başarısız', contrast }
     }
     if (contrast < 4 || qr.logoSize > .42) {
-      return { state: 'warning', message: `Okunuyor, baskı payı düşük (${contrast.toFixed(1)}:1)`, contrast }
+      return { state: 'warning', message: `Stil kaydedildi · baskı payı düşük (${contrast.toFixed(1)}:1)`, contrast }
     }
-    return { state: 'valid', message: `Tarama testi başarılı · ${contrast.toFixed(1)}:1`, contrast }
+    return { state: 'valid', message: `Stil kaydedildi · QR okunuyor · ${contrast.toFixed(1)}:1`, contrast }
   } finally {
     URL.revokeObjectURL(source)
   }
@@ -1652,17 +1686,18 @@ function GridCard({ qr, table }: { qr: QRConfig; table: TableItem }) {
 }
 
 /* ─── QRCanvas ──────────────────────────────────────────────── */
-function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview, health }: {
+function QRCanvas({ qr, table, tables, qrInstanceRef, health }: {
   qr: QRConfig
   table?: TableItem
   tables: TableItem[]
   qrInstanceRef: React.RefObject<unknown>
-  onPreview: (src: string, label: string) => void
   health: QRHealth
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<'preview' | 'grid' | 'print'>('preview')
   const [copied, setCopied] = useState(false)
+  const [exportState, setExportState] = useState<'idle' | 'working'>('idle')
+  const [exportError, setExportError] = useState<string | null>(null)
   const deferredQR = React.useDeferredValue(qr)
   const PREVIEW_SIZE = 280
 
@@ -1703,8 +1738,28 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview, health }: {
 
   const download = useCallback(async (ext: string) => {
     if (!table) return
-    await downloadTableCard(qr, table, ext)
+    setExportState('working')
+    setExportError(null)
+    try {
+      await downloadTableCard(qr, table, ext)
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'QR dosyası indirilemedi')
+    } finally {
+      setExportState('idle')
+    }
   }, [qr, table])
+
+  const printAll = useCallback(async () => {
+    setExportState('working')
+    setExportError(null)
+    try {
+      await printTableCards(qr, tables)
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Baskı görünümü hazırlanamadı')
+    } finally {
+      setExportState('idle')
+    }
+  }, [qr, tables])
 
   const url = buildUrl(qr, table)
 
@@ -1724,8 +1779,6 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview, health }: {
         background: 'rgba(255,255,255,.7)', backdropFilter: 'blur(8px)',
       }}>
         <div className="tb-tables__canvas-toolbar-left" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text-2)', minWidth: 0 }}>
-          <span style={{ fontWeight: 600, color: 'var(--text)', fontSize: 13 }}>{table?.label ?? 'Masa seçin'}</span>
-          <span style={{ color: 'var(--text-4)' }}>·</span>
           <span style={{ ...S.mono, fontSize: 11.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>
             {url}
           </span>
@@ -1742,13 +1795,6 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview, health }: {
             {copied
               ? <>{React.cloneElement(I.check as React.ReactElement<{ size?: number }>, { size: 11 })}Kopyalandı</>
               : <>{React.cloneElement(I.copy as React.ReactElement<{ size?: number }>, { size: 11 })}Kopyala</>}
-          </button>
-          <button className="tb-hover" style={{
-            padding: '3px 7px', border: '1px solid var(--border)', background: 'var(--surface)',
-            borderRadius: 5, color: 'var(--text-2)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
-            fontSize: 11,
-          }} onClick={() => onPreview(url, table?.label ?? 'Masa')}>
-            {React.cloneElement(QRI.scan as React.ReactElement<{ size?: number }>, { size: 11 })}Masayı önizle
           </button>
         </div>
 
@@ -1787,16 +1833,22 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview, health }: {
             <button
               className="tb-hover"
               onClick={() => { if (table) void download('png') }}
-              disabled={!table || health.state === 'invalid' || health.state === 'checking'}
+              disabled={!table || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'}
               title={health.state === 'invalid' ? health.message : undefined}
               style={{ ...btnPrimary(), borderRadius: '7px 0 0 7px', borderRight: '1px solid rgba(255,255,255,.15)', paddingRight: 10, opacity: table && health.state !== 'invalid' && health.state !== 'checking' ? 1 : 0.45, cursor: table && health.state !== 'invalid' && health.state !== 'checking' ? 'pointer' : 'not-allowed' }}
             >
-              {React.cloneElement(QRI.download as React.ReactElement<{ size?: number }>, { size: 13 })}İndir PNG
+              {React.cloneElement(QRI.download as React.ReactElement<{ size?: number }>, { size: 13 })}{exportState === 'working' ? 'Hazırlanıyor…' : 'İndir PNG'}
             </button>
-            <DownloadMenu onPick={download} disabled={!table || health.state === 'invalid' || health.state === 'checking'} />
+            <DownloadMenu onPick={download} disabled={!table || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'} />
           </div>
         </div>
       </div>
+
+      {exportError && (
+        <div role="alert" style={{ padding: '8px 14px', color: 'var(--critical)', background: 'var(--critical-bg)', borderBottom: '1px solid var(--critical)', fontSize: 12 }}>
+          {exportError} · QR stilini sadeleştirip yeniden deneyin.
+        </div>
+      )}
 
       {/* Canvas body */}
       {view === 'preview' && !table && tables.length === 0 && (
@@ -1823,8 +1875,8 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, onPreview, health }: {
                 <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>Aynı stil, farklı bağlantılar — {tables.length} QR</div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className="tb-hover" onClick={() => { void printTableCards(qr, tables) }} disabled={tables.length === 0 || health.state === 'invalid' || health.state === 'checking'} title={health.state === 'invalid' ? health.message : undefined} style={{ ...btnGhost(), opacity: tables.length && health.state !== 'invalid' && health.state !== 'checking' ? 1 : .45, cursor: tables.length && health.state !== 'invalid' && health.state !== 'checking' ? 'pointer' : 'not-allowed' }}>
-                  {React.cloneElement(QRI.print as React.ReactElement<{ size?: number }>, { size: 13 })}Yazdır
+                <button className="tb-hover" onClick={() => { void printAll() }} disabled={tables.length === 0 || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'} title={health.state === 'invalid' ? health.message : undefined} style={{ ...btnGhost(), opacity: tables.length && exportState !== 'working' && health.state !== 'invalid' && health.state !== 'checking' ? 1 : .45, cursor: tables.length && exportState !== 'working' && health.state !== 'invalid' && health.state !== 'checking' ? 'pointer' : 'not-allowed' }}>
+                  {React.cloneElement(QRI.print as React.ReactElement<{ size?: number }>, { size: 13 })}{exportState === 'working' ? 'Hazırlanıyor…' : 'Yazdır'}
                 </button>
                 <button disabled aria-disabled="true" style={{ ...btnPrimary(), opacity: 0.5, cursor: 'not-allowed' }} title="Yakında">
                   {React.cloneElement(QRI.download as React.ReactElement<{ size?: number }>, { size: 13 })}Tümünü indir (.zip)
@@ -2534,7 +2586,7 @@ function MobilePreview({ src, title, onClose }: { src: string; title: string; on
 }
 
 /* ─── Root shell ────────────────────────────────────────────── */
-export default function TablesBuilderShell({ restaurantId, restaurantName, restaurantSlug, initialTables, initialOpenSessions, initialQRStyle }: Props) {
+export default function TablesBuilderShell({ restaurantId, restaurantName, restaurantSlug, initialTables, initialOpenSessions, initialSessionError = null, initialQRStyle }: Props) {
   const baseQRUrl = `${MENU_ORIGIN}/${restaurantSlug}`
   const [tables, setTables] = useState<TableItem[]>(() => mapDBTables(initialTables, initialOpenSessions))
   const [activeId, setActiveId] = useState<string>(() => {
@@ -2581,22 +2633,35 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
   const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
   const qrInstanceRef = useRef<unknown>(null)
   const activeTable = tables.find(t => t.id === activeId)
-  const [qrHealth, setQRHealth] = useState<QRHealth>({ state: 'checking', message: 'QR kontrol ediliyor', contrast: 0 })
-  const saveSeq = useRef(0)
+  const [qrHealth, setQRHealth] = useState<QRHealth>({ state: 'checking', message: 'Okunabilirlik kontrol ediliyor', contrast: 0 })
+  const [healthDialogOpen, setHealthDialogOpen] = useState(false)
+  const healthWasInvalid = useRef(false)
+  const pendingQRSave = useRef<QRConfig | null>(null)
+  const qrSaveRunning = useRef(false)
   const didMount = useRef(false)
 
   const persistQR = useCallback(async (style: QRConfig) => {
-    const seq = ++saveSeq.current
-    setSaveState('saving')
-    setSaveError(null)
-    const result = await saveQRStyle(restaurantId, style)
-    if (seq !== saveSeq.current) return
-    if ('error' in result) {
-      setSaveState('error')
-      setSaveError(result.error)
-      return
+    pendingQRSave.current = style
+    if (qrSaveRunning.current) return
+    qrSaveRunning.current = true
+    try {
+      while (pendingQRSave.current) {
+        const next = pendingQRSave.current
+        pendingQRSave.current = null
+        setSaveState('saving')
+        setSaveError(null)
+        const result = await saveQRStyle(restaurantId, next)
+        if ('error' in result) {
+          setSaveState('error')
+          setSaveError(result.error)
+          if (!pendingQRSave.current) break
+          continue
+        }
+        if (!pendingQRSave.current) setSaveState('saved')
+      }
+    } finally {
+      qrSaveRunning.current = false
     }
-    setSaveState('saved')
   }, [restaurantId])
 
   useEffect(() => {
@@ -2624,12 +2689,13 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
 
   useEffect(() => {
     let cancelled = false
-    setQRHealth({ state: 'checking', message: 'QR kontrol ediliyor', contrast: qrContrast(qr) })
+    setQRHealth({ state: 'checking', message: 'Okunabilirlik kontrol ediliyor', contrast: qrContrast(qr) })
     const timer = window.setTimeout(() => {
       void validateRenderedQR(qr, activeTable).then((result) => {
         if (!cancelled) setQRHealth(result)
-      }).catch(() => {
-        if (!cancelled) setQRHealth({ state: 'invalid', message: 'QR doğrulama tamamlanamadı', contrast: qrContrast(qr) })
+      }).catch((error: unknown) => {
+        console.error('[QR validation]', error)
+        if (!cancelled) setQRHealth({ state: 'invalid', message: 'Stil kaydedildi · okunabilirlik testi çalıştırılamadı', contrast: qrContrast(qr) })
       })
     }, 350)
     return () => {
@@ -2638,10 +2704,23 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
     }
   }, [activeTable, qr])
 
+  useEffect(() => {
+    if (qrHealth.state === 'invalid') {
+      if (!healthWasInvalid.current) setHealthDialogOpen(true)
+      healthWasInvalid.current = true
+      return
+    }
+    if (qrHealth.state === 'valid' || qrHealth.state === 'warning') {
+      healthWasInvalid.current = false
+      setHealthDialogOpen(false)
+    }
+  }, [qrHealth.state])
+
   // Open adisyon (table session) totals per table
   const [openSessions, setOpenSessions] = useState<Record<string, OpenSessionInfo>>(
     () => sessionsByTable(initialOpenSessions),
   )
+  const [sessionError, setSessionError] = useState<string | null>(initialSessionError)
   // Active close-flow settlement sheet (set when closing an adisyon that still
   // owes money; null = no sheet open)
   const [settleSession, setSettleSession] = useState<{ session: OpenSessionInfo; label: string } | null>(null)
@@ -2650,7 +2729,12 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
   const loadSessions = useCallback(async () => {
     const seq = ++sessionLoadSeq.current
     const result = await getOpenTableSessions(restaurantId)
-    if (!Array.isArray(result) || seq !== sessionLoadSeq.current) return
+    if (seq !== sessionLoadSeq.current) return
+    if (!Array.isArray(result)) {
+      setSessionError(result.error)
+      return
+    }
+    setSessionError(null)
     const nextSessions = sessionsByTable(result)
     setOpenSessions(nextSessions)
     setTables((current) => current.map((table) => {
@@ -2710,11 +2794,14 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
   const loadPendingRequests = useCallback(async () => {
     const result = await getPendingServiceRequests(restaurantId)
     if (Array.isArray(result)) {
+      setRequestError(null)
       const byTable: Record<string, Array<{ id: string; label: string }>> = {}
       result.forEach((req) => {
         byTable[req.tableId] = [...(byTable[req.tableId] ?? []), { id: req.id, label: req.label }]
       })
       setPendingRequests(byTable)
+    } else {
+      setRequestError(result.error)
     }
   }, [restaurantId])
 
@@ -2757,7 +2844,11 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
       return
     }
     const result = await closeTableSession(session.sessionId, restaurantId)
-    if (!('error' in result)) void loadSessions()
+    if ('error' in result) {
+      setSessionError(result.error)
+      return
+    }
+    void loadSessions()
   }, [restaurantId, loadSessions])
 
   return (
@@ -2780,8 +2871,8 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
         />
         <div className="tb-tables__workspace" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           <TablesIconRail restaurantId={restaurantId} />
-          <TablesNav tables={tables} setTables={setTables} activeId={activeId} setActiveId={setActiveId} restaurantId={restaurantId} openSessions={openSessions} onCloseSession={handleCloseSession} pendingRequests={pendingRequests} onResolveRequest={handleResolveRequest} requestError={requestError} />
-          <QRCanvas qr={qr} table={activeTable} tables={tables} qrInstanceRef={qrInstanceRef} health={qrHealth} onPreview={(src, label) => setPreview({ src, title: `${label} önizleme` })} />
+          <TablesNav tables={tables} setTables={setTables} activeId={activeId} setActiveId={setActiveId} restaurantId={restaurantId} openSessions={openSessions} onCloseSession={handleCloseSession} pendingRequests={pendingRequests} onResolveRequest={handleResolveRequest} requestError={requestError} sessionError={sessionError} />
+          <QRCanvas qr={qr} table={activeTable} tables={tables} qrInstanceRef={qrInstanceRef} health={qrHealth} />
           <QRProps qr={qr} setQR={setQR} replaceQR={replaceQR} beginQRChange={beginQRChange} tables={tables} saveState={saveState} saveError={saveError} onRetry={() => { void persistQR(qr) }} />
         </div>
         <StatusBar saveState={saveState} saveError={saveError} onRetry={() => { void persistQR(qr) }} tableCount={tables.length} activeCount={Object.keys(openSessions).length} />
@@ -2797,6 +2888,45 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
         )}
         {preview && (
           <MobilePreview src={preview.src} title={preview.title} onClose={() => setPreview(null)} />
+        )}
+        {healthDialogOpen && qrHealth.state === 'invalid' && (
+          <div
+            role="presentation"
+            onMouseDown={() => setHealthDialogOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(17,17,19,.42)', backdropFilter: 'blur(3px)' }}
+          >
+            <div
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="qr-health-title"
+              aria-describedby="qr-health-description"
+              onMouseDown={(event) => event.stopPropagation()}
+              style={{ width: 'min(440px, 100%)', borderRadius: 16, border: '1px solid var(--border)', background: 'var(--surface)', boxShadow: '0 24px 70px rgba(0,0,0,.22)', padding: 22 }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <div aria-hidden="true" style={{ width: 38, height: 38, borderRadius: 10, display: 'grid', placeItems: 'center', color: 'var(--critical)', background: 'var(--critical-bg)', fontWeight: 800 }}>!</div>
+                <div style={{ minWidth: 0 }}>
+                  <div id="qr-health-title" style={{ fontSize: 17, fontWeight: 750, color: 'var(--text)' }}>QR okunabilirlik testini geçemedi</div>
+                  <div id="qr-health-description" style={{ marginTop: 5, fontSize: 12.5, lineHeight: 1.55, color: 'var(--text-2)' }}>
+                    Stiliniz kaydedildi; ancak bu QR bazı telefon kameralarında zor okunabilir. Baskıya veya yayına almadan önce aşağıdaki ayarları gözden geçirin.
+                  </div>
+                </div>
+              </div>
+              <ul style={{ margin: '16px 0 0', padding: '13px 16px 13px 32px', borderRadius: 10, background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: 12.5, lineHeight: 1.65 }}>
+                {qrHealth.contrast < 4 && <li>Ön plan ile arka plan arasındaki renk farkını artırın.</li>}
+                {qr.logoSize > .36 && <li>Logo boyutunu küçültün veya logo etrafındaki boşluğu artırın.</li>}
+                {['dots', 'classy', 'classy-rounded'].includes(qr.dotsType) && <li>Daha sade bir modül şekli deneyin: Kare veya Yuvarlak.</li>}
+                {['L', 'M'].includes(qr.ecl) && <li>Hata düzeltmeyi Q (%25) veya H (%30) seviyesine yükseltin.</li>}
+                {qr.margin < 16 && <li>Kenar boşluğunu artırın; kameranın QR sınırını ayırması kolaylaşır.</li>}
+                <li>Değişiklikten sonra üstteki okunabilirlik sonucunun yeşile dönmesini bekleyin.</li>
+              </ul>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+                <button type="button" className="tb-hover" onClick={() => setHealthDialogOpen(false)} style={btnPrimary()}>
+                  Ayarları gözden geçir
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </>

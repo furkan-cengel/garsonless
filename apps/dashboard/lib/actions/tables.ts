@@ -58,7 +58,12 @@ const qrStyleSchema = z.object({
   _presetId: z.string().max(60).optional(),
 })
 
-const MENU_ORIGIN = 'https://menu.masabu.co'
+const PRODUCTION_MENU_ORIGIN = 'https://menu.masabu.co'
+const MENU_ORIGIN = (
+  process.env.NODE_ENV === 'production'
+    ? PRODUCTION_MENU_ORIGIN
+    : process.env.NEXT_PUBLIC_MENU_BASE_URL ?? process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'
+).replace(/\/+$/, '')
 
 async function getAuthUser() {
   const supabase = await createDashboardServerClient()
@@ -106,7 +111,7 @@ export async function createTable(
     .select('id')
     .single()
 
-  if (error) return { error: error.message }
+  if (error) return { error: error.code === '23505' ? 'Bu isimde aktif bir masa zaten var.' : error.message }
 
   const id = (data as { id: string } | null)?.id
   if (!id) return { error: 'Failed to create table' }
@@ -145,7 +150,7 @@ export async function renameTable(
     .is('deleted_at', null)
     .select('id')
 
-  if (error) return { error: error.message }
+  if (error) return { error: error.code === '23505' ? 'Bu isimde aktif bir masa zaten var.' : error.message }
   if (!data || data.length === 0) return { error: 'Table not found for this restaurant' }
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
@@ -164,28 +169,19 @@ export async function deleteTable(
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
 
-  const { data: openRows } = await supabase
-    .from('table_sessions')
-    .select('id')
-    .eq('restaurant_id', parsed.data.restaurantId)
-    .eq('table_id', parsed.data.tableId)
-    .is('closed_at', null)
-    .limit(1)
-
-  if ((openRows ?? []).length > 0) {
-    return { error: 'Bu masada açık adisyon var. Önce adisyonu kapatın.' }
-  }
-
-  const now = new Date().toISOString()
-  const { data, error } = await mut(supabase, 'tables')
-    .update({ deleted_at: now, updated_at: now })
-    .eq('id', parsed.data.tableId)
-    .eq('restaurant_id', parsed.data.restaurantId)
-    .is('deleted_at', null)
-    .select('id')
+  const svc = createServiceClient()
+  const atomicDelete = svc.rpc as unknown as (
+    fn: 'soft_delete_table_atomic',
+    args: { p_table_id: string; p_restaurant_id: string },
+  ) => Promise<{ data: string | null; error: { message: string } | null }>
+  const { data: outcome, error } = await atomicDelete('soft_delete_table_atomic', {
+    p_table_id: parsed.data.tableId,
+    p_restaurant_id: parsed.data.restaurantId,
+  })
 
   if (error) return { error: error.message }
-  if (!data || data.length === 0) return { error: 'Table not found for this restaurant' }
+  if (outcome === 'open_session') return { error: 'Bu masada açık adisyon var. Önce adisyonu kapatın.' }
+  if (outcome !== 'deleted') return { error: 'Table not found for this restaurant' }
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   return { success: true }
@@ -253,31 +249,34 @@ export async function getOpenTableSessions(
   const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
 
-  const { data: sessions } = await supabase
+  const { data: sessions, error: sessionsError } = await supabase
     .from('table_sessions')
     .select('id, table_id, opened_at')
     .eq('restaurant_id', restaurantId)
     .is('closed_at', null)
 
+  if (sessionsError) return { error: `Açık adisyonlar yüklenemedi: ${sessionsError.message}` }
   const sessionRows = (sessions ?? []) as Array<{ id: string; table_id: string; opened_at: string }>
   if (sessionRows.length === 0) return []
 
-  const { data: orders } = await supabase
+  const { data: orders, error: ordersError } = await supabase
     .from('orders')
     .select('table_session_id, total, status, paid_at')
     .in('table_session_id', sessionRows.map((s) => s.id))
     .is('deleted_at', null)
 
+  if (ordersError) return { error: `Sipariş toplamları yüklenemedi: ${ordersError.message}` }
   const orderRows = (orders ?? []) as Array<{
     table_session_id: string; total: number; status: string; paid_at: string | null
   }>
   const svc = createServiceClient()
-  const { data: shares } = await svc
+  const { data: shares, error: sharesError } = await svc
     .from('payment_shares')
     .select('table_session_id, amount, method, status')
     .in('table_session_id', sessionRows.map((s) => s.id))
     .eq('restaurant_id', restaurantId)
     .neq('status', 'void')
+  if (sharesError) return { error: `Ödeme payları yüklenemedi: ${sharesError.message}` }
   const shareRows = (shares ?? []) as Array<{
     table_session_id: string
     amount: number | null
@@ -338,58 +337,25 @@ export async function closeTableSession(
   const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
 
-  const { data: session } = await supabase
-    .from('table_sessions')
-    .select('id')
-    .eq('id', sessionId)
-    .eq('restaurant_id', restaurantId)
-    .is('closed_at', null)
-    .maybeSingle()
-
-  if (!session) return { error: 'Session not found for this restaurant' }
-
-  // Is there unpaid non-cancelled money still on this adisyon?
-  const { data: orderRows } = await supabase
-    .from('orders')
-    .select('paid_at')
-    .eq('restaurant_id', restaurantId)
-    .eq('table_session_id', sessionId)
-    .is('deleted_at', null)
-    .neq('status', 'cancelled')
-
-  const hasUnpaid = ((orderRows ?? []) as Array<{ paid_at: string | null }>)
-    .some((o) => o.paid_at === null)
-
   const reason = opts?.abnormalReason?.trim()
-  // Abnormal = closing while money is still owed (the recorded-decision path).
-  const abnormal = hasUnpaid
-
-  if (hasUnpaid && !reason) {
-    // The no-silent-drop guard: closing money-owing adisyon needs an explicit,
-    // recorded decision. The UI settles first; this rejects a bare close.
-    return { error: 'Ödenmemiş sipariş var — önce tahsil edin ya da bir sebeple anormal kapatın.' }
-  }
-
-  // close_reason is written ONLY on the abnormal path. A normal (fully-paid)
-  // close leaves it untouched (the column defaults null), so the common close
-  // stays independent of the close_reason migration's deploy timing.
-  const updateRow: Record<string, unknown> = {
-    closed_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }
-  if (abnormal) updateRow.close_reason = (reason ?? '').slice(0, 200)
-
-  // Race-safe: the `is('closed_at', null)` guard means a concurrent explicit
-  // close / idle sweep that already closed this session wins — we overwrite
-  // nothing (0 rows) and no-op cleanly. Split-payment finalization deliberately
-  // does NOT close the table.
-  const { error } = await mut(supabase, 'table_sessions')
-    .update(updateRow)
-    .eq('id', sessionId)
-    .eq('restaurant_id', restaurantId)
-    .is('closed_at', null)
+  const svc = createServiceClient()
+  const atomicClose = svc.rpc as unknown as (
+    fn: 'close_table_session_atomic',
+    args: { p_session_id: string; p_restaurant_id: string; p_abnormal_reason: string | null },
+  ) => Promise<{ data: string | null; error: { message: string } | null }>
+  const { data: outcome, error } = await atomicClose('close_table_session_atomic', {
+    p_session_id: sessionId,
+    p_restaurant_id: restaurantId,
+    p_abnormal_reason: reason || null,
+  })
 
   if (error) return { error: error.message }
+  if (outcome === 'not_found') return { error: 'Session not found for this restaurant' }
+  if (outcome === 'unpaid') return { error: 'Ödenmemiş sipariş var — önce tahsil edin ya da bir sebeple anormal kapatın.' }
+  if (outcome === 'already_closed') return { success: true }
+  if (outcome !== 'closed_normal' && outcome !== 'closed_abnormal') return { error: 'Adisyon kapatılamadı.' }
+
+  const abnormal = outcome === 'closed_abnormal'
 
   // Visits are a completed-paid-visit signal — credit ONLY on a normal close.
   // An abnormal close (unpaid money abandoned) must not mint loyalty visits.

@@ -55,7 +55,7 @@ export async function createServiceRequest(
   const tableSessionId = (session as { id: string } | null)?.id ?? null
 
   const builder = supabase.from('service_requests') as unknown as {
-    insert: (row: Record<string, unknown>) => Promise<{ error: unknown }>
+    insert: (row: Record<string, unknown>) => Promise<{ error: { code?: string } | null }>
   }
   const { error } = await builder.insert({
     restaurant_id: input.restaurantId,
@@ -64,6 +64,9 @@ export async function createServiceRequest(
     request_type: input.requestType,
   })
 
+  // The partial unique index is the concurrency-safe throttle. Two parallel
+  // requests may both miss the read above, but only one can insert.
+  if (error?.code === '23505') return { ok: true, throttled: true }
   if (error) return { ok: false, error: 'Failed to create service request' }
   return { ok: true, throttled: false }
 }
