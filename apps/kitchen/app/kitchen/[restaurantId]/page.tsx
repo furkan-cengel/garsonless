@@ -1,5 +1,5 @@
-import { validateKitchenToken } from '@garsonless/db'
-import { getKitchenStations, getRestaurantPublic, getOrdersForKitchen, getTableLabels } from '../../../lib/queries'
+import { readKitchenBoard } from '@garsonless/application/tables'
+import { createKitchenBoardPort, verifyKitchenActor } from '@garsonless/db/server'
 import KitchenBoard from '../../../components/KitchenBoard'
 
 interface Props {
@@ -15,17 +15,18 @@ export default async function KitchenPage({ params, searchParams }: Props) {
     return <ErrorScreen message="Erişim için token gerekli." detail="URL'ye ?token=... ekleyin." />
   }
 
-  const valid = await validateKitchenToken(restaurantId, token)
+  const valid = await verifyKitchenActor(restaurantId, token)
   if (!valid) {
     return <ErrorScreen message="Geçersiz token." detail="Dashboard'dan yeni bir token oluşturun." />
   }
 
-  const [restaurant, orders, tableLabels, stations] = await Promise.all([
-    getRestaurantPublic(restaurantId),
-    getOrdersForKitchen(restaurantId),
-    getTableLabels(restaurantId),
-    getKitchenStations(restaurantId),
-  ])
+  const board = await readKitchenBoard(
+    { actor: 'kitchen', restaurantId, stationId: 'expo' },
+    restaurantId,
+    createKitchenBoardPort(),
+  )
+  if (!board.ok) return <ErrorScreen message="Mutfak verileri yüklenemedi." detail={board.error} />
+  const { restaurant, orders, tableLabels, stations } = board.value
 
   if (!restaurant) {
     return <ErrorScreen message="Restoran bulunamadı." detail={`ID: ${restaurantId}`} />

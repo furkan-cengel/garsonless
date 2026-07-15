@@ -12,8 +12,11 @@ export type DashboardActorContext = {
 export type TableGuestContext = {
   actor: 'table-guest'
   restaurantId: string
+  /** Internal table id resolved from the opaque QR token at the server edge. */
+  tableId: string
   tableToken: string
-  sessionId: string
+  /** Device idempotency/session id; service requests do not require one. */
+  sessionId?: string
 }
 
 export type KitchenActorContext = {

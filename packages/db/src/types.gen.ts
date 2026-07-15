@@ -324,6 +324,7 @@ export type Database = {
           attempts: number
           available_at: string
           created_at: string
+          dead_lettered_at: string | null
           event_type: string
           id: string
           idempotency_key: string
@@ -341,6 +342,7 @@ export type Database = {
           attempts?: number
           available_at?: string
           created_at?: string
+          dead_lettered_at?: string | null
           event_type: string
           id?: string
           idempotency_key: string
@@ -358,6 +360,7 @@ export type Database = {
           attempts?: number
           available_at?: string
           created_at?: string
+          dead_lettered_at?: string | null
           event_type?: string
           id?: string
           idempotency_key?: string
@@ -1639,6 +1642,7 @@ export type Database = {
           attempts: number
           available_at: string
           created_at: string
+          dead_lettered_at: string | null
           event_type: string
           id: string
           idempotency_key: string
@@ -1709,7 +1713,7 @@ export type Database = {
           p_event_id: string
           p_worker: string
         }
-        Returns: boolean
+        Returns: string
       }
       finalize_order_discount: {
         Args: {
@@ -1737,6 +1741,17 @@ export type Database = {
       finalize_split_if_covered: {
         Args: { p_session_id: string }
         Returns: boolean
+      }
+      get_domain_outbox_health: {
+        Args: never
+        Returns: {
+          dead_letter_count: number
+          last_processed_at: string
+          leased_count: number
+          oldest_pending_seconds: number
+          pending_count: number
+          ready_count: number
+        }[]
       }
       get_restaurant_customer_summary: {
         Args: { p_customer_id: string; p_restaurant_id: string }
@@ -1780,6 +1795,7 @@ export type Database = {
         Args: { p_restaurant_id: string; p_section: string }
         Returns: boolean
       }
+      invoke_domain_outbox_worker: { Args: never; Returns: number }
       is_restaurant_owner: {
         Args: { p_restaurant_id: string }
         Returns: boolean
@@ -1830,6 +1846,10 @@ export type Database = {
       reorder_menu_categories: {
         Args: { p_ordered_ids: string[]; p_restaurant_id: string }
         Returns: undefined
+      }
+      requeue_domain_outbox: {
+        Args: { p_event_id: string; p_operator: string }
+        Returns: boolean
       }
       resolve_active_table_qr_token: {
         Args: { p_token: string }

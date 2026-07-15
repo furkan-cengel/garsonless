@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createServiceRequest, SERVICE_REQUEST_TYPES } from '@garsonless/db'
-import { resolveActiveTableQrToken } from '@garsonless/db/server'
+import { requestTableService } from '@garsonless/application/tables'
+import { SERVICE_REQUEST_TYPES } from '@garsonless/db'
+import { createTableServiceRequestPort, resolveActiveTableQrToken } from '@garsonless/db/server'
 
 const schema = z.object({
   tableToken: z.string().uuid(),
@@ -28,15 +29,25 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse>> {
 
   const table = await resolveActiveTableQrToken(parsed.data.tableToken)
   if (!table) return NextResponse.json({ ok: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
-  const result = await createServiceRequest({
-    restaurantId: table.restaurantId,
-    tableId: table.tableId,
-    requestType: parsed.data.requestType,
-  })
+  const result = await requestTableService(
+    {
+      actor: 'table-guest',
+      restaurantId: table.restaurantId,
+      tableId: table.tableId,
+      tableToken: parsed.data.tableToken,
+    },
+    {
+      restaurantId: table.restaurantId,
+      tableId: table.tableId,
+      tableToken: parsed.data.tableToken,
+      requestType: parsed.data.requestType,
+    },
+    createTableServiceRequestPort(),
+  )
 
   if (!result.ok) {
     const status = result.error === 'Table not found for this restaurant' ? 400 : 500
     return NextResponse.json(result, { status })
   }
-  return NextResponse.json(result)
+  return NextResponse.json({ ok: true, throttled: result.value.throttled })
 }

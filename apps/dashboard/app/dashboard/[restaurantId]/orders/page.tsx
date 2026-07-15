@@ -1,13 +1,13 @@
 import { notFound } from 'next/navigation'
-import { createDashboardServerClient } from '../../../../lib/supabase-server'
-import { getRestaurantById, getTablesForRestaurant, getRestaurantTimezone } from '../../../../lib/queries'
+import { getRestaurantById, getRestaurantTimezone } from '../../../../lib/queries'
 import { startOfRestaurantDay } from '@garsonless/db'
+import { readOrdersBoard } from '@garsonless/application/read-models'
+import { createOrdersBoardReadModelPort } from '@garsonless/db/server'
 import OrderBoard from '../../../../components/orders/OrderBoard'
 import type { Order } from '../../../../components/orders/useOrdersRealtime'
 import { readNotificationPrefs } from '../../../../lib/notification-prefs'
 import { readLateThresholdMin } from '../../../../lib/orders-prefs'
-import { requireSection } from '../../../../lib/auth/access'
-import type { Tables } from '@garsonless/db'
+import { assertAccess, requireSection } from '../../../../lib/auth/access'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -16,60 +16,21 @@ interface Props {
 export default async function OrdersPage({ params }: Props) {
   const { restaurantId } = await params
   await requireSection(restaurantId, 'orders')
-  const [restaurant, tables] = await Promise.all([
-    getRestaurantById(restaurantId),
-    getTablesForRestaurant(restaurantId),
-  ])
+  const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
 
-  const supabase = await createDashboardServerClient()
   // Restaurant-local "today" — the board scopes to the café's own day, not the
   // server's (consistent with every reporting query).
   const today = startOfRestaurantDay(await getRestaurantTimezone(restaurantId))
+  const gate = await assertAccess(restaurantId, 'orders')
+  if ('error' in gate) throw new Error(gate.error)
+  const board = await readOrdersBoard(
+    { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['orders'] },
+    { restaurantId, since: today.toISOString() },
+    createOrdersBoardReadModelPort(),
+  )
+  if (!board.ok) throw new Error(board.error)
 
-  // Supabase applies a per-request row ceiling. Page through the restaurant day
-  // so active counts, revenue and preparation KPIs are exact on busy days too.
-  const initialOrders: Order[] = []
-  const PAGE_SIZE = 500
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error: ordersError } = await supabase
-      .from('orders')
-      .select('id, restaurant_id, table_id, table_session_id, status, items, total, discount_breakdown, customer_tier, paid_at, payment_method, created_at, sent_to_kitchen_at, ready_at, served_at, cancel_reason')
-      .eq('restaurant_id', restaurantId)
-      .gte('created_at', today.toISOString())
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .range(from, from + PAGE_SIZE - 1)
-    if (ordersError) throw new Error(`Siparişler yüklenemedi: ${ordersError.message}`)
-    const page = (data ?? []) as Order[]
-    initialOrders.push(...page)
-    if (page.length < PAGE_SIZE) break
-  }
-
-  // Label map must resolve SOFT-DELETED tables too (same discipline as the Pano
-  // activity feed) — an order on a since-deleted table must show its real label,
-  // not a generic "Masa". Live tables + any order-referenced deleted ones.
-  const liveTables = (tables as Tables<'tables'>[]).map((t) => ({ id: t.id, label: t.label }))
-  const knownIds = new Set(liveTables.map((t) => t.id))
-  const missingIds = [...new Set(
-    initialOrders.map((o) => o.table_id).filter((id): id is string => !!id && !knownIds.has(id)),
-  )]
-  let tableRefs = liveTables
-  if (missingIds.length > 0) {
-    const { data: deletedTables } = await supabase
-      .from('tables')
-      .select('id, label')
-      .eq('restaurant_id', restaurantId)
-      .in('id', missingIds) // deliberately NO deleted_at filter
-    tableRefs = [...liveTables, ...((deletedTables ?? []) as Array<{ id: string; label: string }>)]
-  }
-  // GAP #1: kitchen token now lives in kitchen_credentials (owner-scoped, no anon).
-  const { data: kc } = await supabase
-    .from('kitchen_credentials')
-    .select('token')
-    .eq('restaurant_id', restaurantId)
-    .maybeSingle()
-  const kitchenToken = (kc as { token: string } | null)?.token ?? null
   const settings = (restaurant.settings as Record<string, unknown> | null) ?? {}
   const receiptTax = typeof settings['tax'] === 'object' && settings['tax'] !== null && !Array.isArray(settings['tax'])
     ? settings['tax'] as Record<string, unknown>
@@ -79,9 +40,9 @@ export default async function OrdersPage({ params }: Props) {
     <OrderBoard
       restaurantId={restaurantId}
       restaurantName={restaurant.name}
-      initialOrders={initialOrders}
-      tables={tableRefs}
-      kitchenToken={kitchenToken}
+      initialOrders={board.value.orders as Order[]}
+      tables={board.value.tables}
+      kitchenToken={board.value.kitchenToken}
       receiptTax={receiptTax}
       notifPrefs={readNotificationPrefs(restaurant.settings)}
       lateThresholdMin={readLateThresholdMin(restaurant.settings)}

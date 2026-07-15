@@ -1,11 +1,12 @@
 import { cache } from 'react'
 import { createDashboardServerClient } from './supabase-server'
 import {
-  createServiceClient, listTeamMembers, isCollectedOrderRow, normalizeTimeZone,
+  isCollectedOrderRow, normalizeTimeZone,
   rangeWindow, startOfRestaurantDay, startOfDayNDaysAgo,
   restaurantDayKey, restaurantHour, restaurantWeekday,
   type Tables,
 } from '@garsonless/db'
+import { applyCollectedOrderFilter, createAnalyticsReadModelPort } from '@garsonless/db/server'
 import { getUserRestaurantAccess, assertAccess } from './auth/access'
 
 export interface DashboardKPIs {
@@ -353,33 +354,18 @@ export const getThemeConfigForRestaurant = cache(async function getThemeConfigFo
 })
 
 const ACTIVE_STATUSES = ['pending', 'pending_approval', 'sent_to_kitchen', 'preparing', 'ready', 'served']
+const analyticsReadModel = createAnalyticsReadModelPort()
 
 function isOrderVolumeRow(row: { status?: string | null }) {
   return row.status !== 'cancelled'
 }
 
 // ── Collected revenue (tahsilat) — ONE definition, used by every ciro query ──
-// The predicate itself moved to its client-safe home (packages/db order-client
-// `isCollectedOrderRow`, re-exported from the server barrel) so the Orders
-// board's Tahsilat chip shares the EXACT same rule. Semantics unchanged:
-// paid_at set, not cancelled, IS DISTINCT FROM 'comp' (legacy null stays in).
+// The canonical policy lives in @garsonless/domain/orders. Browser evaluation
+// delegates through isCollectedOrderRow; every PostgREST query above/below uses
+// applyCollectedOrderFilter, which translates that same specification.
 const COMP_METHOD = 'comp'
 const isCollectedOrder = isCollectedOrderRow
-
-// PostgREST equivalent of isCollectedOrderRow, appended to an orders query
-// builder. `.or('payment_method.is.null,payment_method.neq.comp')` is
-// IS DISTINCT FROM 'comp'. If the rule ever changes, change BOTH here and
-// isCollectedOrderRow. Generic so each call site keeps its own result typing.
-function collectedOrdersFilter<T extends {
-  not: (col: string, op: string, val: unknown) => T
-  neq: (col: string, val: string) => T
-  or: (filters: string) => T
-}>(query: T): T {
-  return query
-    .not('paid_at', 'is', null)
-    .neq('status', 'cancelled')
-    .or(`payment_method.is.null,payment_method.neq.${COMP_METHOD}`)
-}
 
 function sumTotals(rows: Array<{ total?: number | null }>) {
   return rows.reduce((sum, row) => sum + (row.total ?? 0), 0)
@@ -481,7 +467,7 @@ export async function getDashboardKPIs(restaurantId: string): Promise<DashboardK
       .gte('created_at', yesterday.toISOString())
       .lt('created_at', today.toISOString())
       .is('deleted_at', null),
-    collectedOrdersFilter(
+    applyCollectedOrderFilter(
       supabase
         .from('orders')
         .select('total, status, session_id, paid_at, payment_method')
@@ -489,7 +475,7 @@ export async function getDashboardKPIs(restaurantId: string): Promise<DashboardK
         .gte('paid_at', today.toISOString())
         .is('deleted_at', null),
     ),
-    collectedOrdersFilter(
+    applyCollectedOrderFilter(
       supabase
         .from('orders')
         .select('total, status, session_id, paid_at, payment_method')
@@ -529,7 +515,7 @@ export async function getHourlySales(restaurantId: string): Promise<HourlySale[]
   const tz = await getRestaurantTimezone(restaurantId)
   const today = startOfRestaurantDay(tz)
 
-  const { data, error } = await collectedOrdersFilter(
+  const { data, error } = await applyCollectedOrderFilter(
     supabase
       .from('orders')
       .select('total, paid_at')
@@ -594,7 +580,7 @@ export async function getTopItems(restaurantId: string, range = 'day'): Promise<
   const supabase = await createDashboardServerClient()
   const { currentStart } = await rangeWindowFor(restaurantId, range)
 
-  const { data, error } = await collectedOrdersFilter(
+  const { data, error } = await applyCollectedOrderFilter(
     supabase
       .from('orders')
       .select('items')
@@ -631,22 +617,11 @@ export async function getPaymentBreakdown(restaurantId: string, range = 'week'):
   if ('error' in gate) return empty
 
   const { currentStart } = await rangeWindowFor(restaurantId, range)
-  const supabase = createServiceClient()
-
-  // P3: read the REAL per-order payment_method — no more İyzico-vs-Manuel
-  // inference from order_payment_tokens presence. Paid + non-cancelled in range;
-  // comp (İkram) is split out and never enters the collected (tahsilat) base.
-  const { data, error } = await supabase
-    .from('orders')
-    .select('total, payment_method')
-    .eq('restaurant_id', restaurantId)
-    .not('paid_at', 'is', null)
-    .neq('status', 'cancelled')
-    .gte('paid_at', currentStart.toISOString())
-    .is('deleted_at', null)
-  if (error) throw new Error(`getPaymentBreakdown: ${error.message}`)
-
-  const rows = (data ?? []) as Array<{ total: number | null; payment_method: string | null }>
+  const result = await analyticsReadModel.readPaymentOrders({
+    restaurantId,
+    since: currentStart.toISOString(),
+  })
+  if (!result.ok) throw new Error(`getPaymentBreakdown: ${result.error}`)
 
   const collectedGroups: Record<string, { key: string; label: string; amount: number; count: number }> = {
     iyzico: { key: 'iyzico', label: COLLECTED_METHOD_LABELS['iyzico']!, amount: 0, count: 0 },
@@ -657,9 +632,9 @@ export async function getPaymentBreakdown(restaurantId: string, range = 'week'):
   }
   const comp = { amount: 0, count: 0 }
 
-  for (const row of rows) {
+  for (const row of result.value) {
     const amount = row.total ?? 0
-    const method = row.payment_method
+    const method = row.paymentMethod
     if (method === COMP_METHOD) {
       comp.amount += amount
       comp.count += 1
@@ -686,7 +661,7 @@ export async function getProductReportData(restaurantId: string, range = 'week')
   const supabase = await createDashboardServerClient()
   const { currentStart, previousStart } = await rangeWindowFor(restaurantId, range)
 
-  const { data, error } = await collectedOrdersFilter(
+  const { data, error } = await applyCollectedOrderFilter(
     supabase
       .from('orders')
       .select('items, paid_at')
@@ -732,7 +707,7 @@ export async function getSalesOverTime(restaurantId: string, range: string): Pro
   const currentStart = isHourly ? startOfRestaurantDay(tz) : startOfDayNDaysAgo(tz, bucketCount - 1)
   const prevStart = isHourly ? startOfDayNDaysAgo(tz, 1) : startOfDayNDaysAgo(tz, 2 * bucketCount - 1)
 
-  const { data, error } = await collectedOrdersFilter(
+  const { data, error } = await applyCollectedOrderFilter(
     supabase
       .from('orders')
       .select('total, paid_at')
@@ -826,7 +801,7 @@ export async function getTablesReportData(restaurantId: string, range = 'week'):
       .eq('restaurant_id', restaurantId)
       .is('deleted_at', null)
       .order('created_at'),
-    collectedOrdersFilter(
+    applyCollectedOrderFilter(
       supabase
         .from('orders')
         .select('table_id, total, status, paid_at')
@@ -960,16 +935,12 @@ export async function getCancellationReport(restaurantId: string, range = 'week'
 
   const tz = await getRestaurantTimezone(restaurantId)
   const { currentStart, previousStart } = rangeWindow(tz, range)
-  const svc = createServiceClient()
-  const { data, error } = await svc
-    .from('orders')
-    .select('total, status, items, created_at')
-    .eq('restaurant_id', restaurantId)
-    .gte('created_at', previousStart.toISOString())
-    .is('deleted_at', null)
-  if (error) throw new Error(`getCancellationReport: ${error.message}`)
-
-  const rows = (data ?? []) as Array<{ total: number | null; status: string; items: unknown; created_at: string }>
+  const result = await analyticsReadModel.readCancellationOrders({
+    restaurantId,
+    since: previousStart.toISOString(),
+  })
+  if (!result.ok) throw new Error(`getCancellationReport: ${result.error}`)
+  const rows = result.value.map((row) => ({ ...row, created_at: row.createdAt }))
   const cur = rows.filter((r) => new Date(r.created_at) >= currentStart)
   const prev = rows.filter((r) => { const d = new Date(r.created_at); return d >= previousStart && d < currentStart })
   const curCancelled = cur.filter((r) => r.status === 'cancelled')
@@ -1019,20 +990,17 @@ export async function getAbnormalCloseReport(restaurantId: string, range = 'week
   if (!(await isOwnerViewer(restaurantId))) return empty
 
   const { currentStart, previousStart } = await rangeWindowFor(restaurantId, range)
-  const svc = createServiceClient()
-
-  // Abnormal = close_reason recorded AND not the system 'auto' sweep tag.
-  const { data: sessData, error: sessionsError } = await svc
-    .from('table_sessions')
-    .select('id, table_id, closed_at, close_reason')
-    .eq('restaurant_id', restaurantId)
-    .not('close_reason', 'is', null)
-    .neq('close_reason', 'auto')
-    .not('closed_at', 'is', null)
-    .gte('closed_at', previousStart.toISOString())
-  if (sessionsError) throw new Error(`getAbnormalCloseReport sessions: ${sessionsError.message}`)
-
-  const sessions = (sessData ?? []) as Array<{ id: string; table_id: string; closed_at: string; close_reason: string }>
+  const result = await analyticsReadModel.readAbnormalCloseData({
+    restaurantId,
+    since: previousStart.toISOString(),
+  })
+  if (!result.ok) throw new Error(`getAbnormalCloseReport: ${result.error}`)
+  const sessions = result.value.sessions.map((session) => ({
+    id: session.id,
+    table_id: session.tableId,
+    closed_at: session.closedAt,
+    close_reason: session.closeReason,
+  }))
   if (sessions.length === 0) return empty
 
   const cur = sessions.filter((s) => new Date(s.closed_at) >= currentStart)
@@ -1040,27 +1008,12 @@ export async function getAbnormalCloseReport(restaurantId: string, range = 'week
 
   // Unpaid money abandoned = Σ total of UNPAID non-cancelled orders in those sessions.
   const unpaidBySession = new Map<string, number>()
-  const { data: ordData, error: ordersError } = await svc
-    .from('orders')
-    .select('table_session_id, total')
-    .in('table_session_id', sessions.map((s) => s.id))
-    .is('paid_at', null)
-    .neq('status', 'cancelled')
-    .is('deleted_at', null)
-  if (ordersError) throw new Error(`getAbnormalCloseReport orders: ${ordersError.message}`)
-  for (const o of (ordData ?? []) as Array<{ table_session_id: string | null; total: number | null }>) {
-    if (!o.table_session_id) continue
-    unpaidBySession.set(o.table_session_id, (unpaidBySession.get(o.table_session_id) ?? 0) + (o.total ?? 0))
+  for (const order of result.value.unpaidOrders) {
+    if (!order.tableSessionId) continue
+    unpaidBySession.set(order.tableSessionId, (unpaidBySession.get(order.tableSessionId) ?? 0) + (order.total ?? 0))
   }
 
-  const labelById = new Map<string, string>()
-  const { data: tbls, error: tablesError } = await svc
-    .from('tables')
-    .select('id, label')
-    .eq('restaurant_id', restaurantId)
-    .in('id', [...new Set(sessions.map((s) => s.table_id))])
-  if (tablesError) throw new Error(`getAbnormalCloseReport tables: ${tablesError.message}`)
-  for (const t of (tbls ?? []) as Array<{ id: string; label: string }>) labelById.set(t.id, t.label)
+  const labelById = new Map(Object.entries(result.value.tableLabels))
 
   const rows: AbnormalCloseRow[] = cur
     .map((s) => ({
@@ -1112,44 +1065,24 @@ export async function getStaffSettlementReport(restaurantId: string, range = 'we
   if (!(await isOwnerViewer(restaurantId))) return empty
 
   const { currentStart } = await rangeWindowFor(restaurantId, range)
-  const svc = createServiceClient()
-  const { data, error } = await svc
-    .from('orders')
-    .select('total, payment_method, settled_by')
-    .eq('restaurant_id', restaurantId)
-    .not('paid_at', 'is', null)
-    .neq('status', 'cancelled')
-    .gte('paid_at', currentStart.toISOString())
-    .is('deleted_at', null)
-  if (error) throw new Error(`getStaffSettlementReport: ${error.message}`)
-
-  const orders = (data ?? []) as Array<{ total: number | null; payment_method: string | null; settled_by: string | null }>
-
-  // Name/permission resolution: owner (restaurants.owner_id) → owner email +
-  // "Sahip"; member (restaurant_members.user_id) → email + granted sections;
-  // settled_by NULL → İyzico system row; unresolved id → "Bilinmeyen kullanıcı".
-  const { data: rest, error: restaurantError } = await svc.from('restaurants').select('owner_id').eq('id', restaurantId).maybeSingle()
-  if (restaurantError) throw new Error(`getStaffSettlementReport restaurant: ${restaurantError.message}`)
-  const ownerId = (rest as { owner_id: string } | null)?.owner_id ?? null
-  const members = await listTeamMembers(restaurantId)
-  const memberMap = new Map(members.filter((m) => m.userId).map((m) => [m.userId as string, m]))
-  let ownerEmail: string | null = null
-  if (ownerId) {
-    const { data, error: ownerError } = await svc.auth.admin.getUserById(ownerId)
-    if (ownerError) throw new Error(`getStaffSettlementReport owner: ${ownerError.message}`)
-    ownerEmail = data.user?.email ?? null
-  }
+  const result = await analyticsReadModel.readStaffSettlementData({
+    restaurantId,
+    since: currentStart.toISOString(),
+  })
+  if (!result.ok) throw new Error(`getStaffSettlementReport: ${result.error}`)
+  const { orders, ownerId, ownerEmail, members } = result.value
+  const memberMap = new Map(members.filter((member) => member.userId).map((member) => [member.userId as string, member]))
 
   const SYSTEM = '__system'
   type Agg = { cash: number; pos: number; otherCollected: number; compAmount: number; compCount: number; settledCount: number }
   const bySettler = new Map<string, Agg>()
   for (const o of orders) {
-    const key = o.settled_by ?? SYSTEM
+    const key = o.settledBy ?? SYSTEM
     const agg = bySettler.get(key) ?? { cash: 0, pos: 0, otherCollected: 0, compAmount: 0, compCount: 0, settledCount: 0 }
     const amt = o.total ?? 0
-    if (o.payment_method === 'cash') agg.cash += amt
-    else if (o.payment_method === 'pos') agg.pos += amt
-    else if (o.payment_method === COMP_METHOD) { agg.compAmount += amt; agg.compCount += 1 }
+    if (o.paymentMethod === 'cash') agg.cash += amt
+    else if (o.paymentMethod === 'pos') agg.pos += amt
+    else if (o.paymentMethod === COMP_METHOD) { agg.compAmount += amt; agg.compCount += 1 }
     else agg.otherCollected += amt // iyzico or legacy null-method paid
     agg.settledCount += 1
     bySettler.set(key, agg)
@@ -1218,15 +1151,12 @@ export async function getLoyaltyReport(restaurantId: string, range = 'week'): Pr
   if ('error' in gate) return empty
 
   const { currentStart } = await rangeWindowFor(restaurantId, range)
-  const svc = createServiceClient()
-  const { data, error } = await svc
-    .from('loyalty_transactions')
-    .select('type, direction, delta, reason, created_at')
-    .eq('restaurant_id', restaurantId)
-    .gte('created_at', currentStart.toISOString())
-  if (error) throw new Error(`getLoyaltyReport: ${error.message}`)
-
-  const rows = (data ?? []) as Array<{ type: string; direction: string; delta: number; reason: string }>
+  const result = await analyticsReadModel.readLoyaltyRows({
+    restaurantId,
+    since: currentStart.toISOString(),
+  })
+  if (!result.ok) throw new Error(`getLoyaltyReport: ${result.error}`)
+  const rows = result.value
   const out = { ...empty, redemptionsByReason: [] as LoyaltyReport['redemptionsByReason'] }
   const byReason = new Map<string, { count: number; points: number; stamps: number }>()
 
@@ -1450,7 +1380,7 @@ export async function getPanoSnapshot(restaurantId: string, isOwner: boolean): P
       .eq('restaurant_id', restaurantId)
       .in('status', ACTIVE_STATUSES)
       .is('deleted_at', null),
-    collectedOrdersFilter(
+    applyCollectedOrderFilter(
       supabase
         .from('orders')
         .select('items')

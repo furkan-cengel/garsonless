@@ -11,7 +11,7 @@ test('public order command rejects a mismatched verified table context before us
     async createOrder() { throw new Error('unreachable') },
   }
   const result = await placePublicOrder(
-    { actor: 'table-guest', restaurantId: 'restaurant', tableToken: 'table-a', sessionId: 'device-a' },
+    { actor: 'table-guest', restaurantId: 'restaurant', tableId: 'internal-table', tableToken: 'table-a', sessionId: 'device-a' },
     { restaurantId: 'restaurant', slug: 'cafe', tableToken: 'table-b', tableId: 'internal-table', sessionId: 'device-a', requestId: 'request', lines: [], customerId: null, redeemPoints: 0, redeemStampClaim: false, catalogItemId: null, rateLimitKey: 'hash' },
     port,
   )

@@ -136,24 +136,3 @@ export function createKitchenOrderPort(): KitchenOrderPort {
     },
   }
 }
-
-export async function readKitchenOrder(input: { orderId: string; restaurantId: string }) {
-  const { data, error } = await createServiceClient()
-    .from('orders')
-    .select('*')
-    .eq('id', input.orderId)
-    .eq('restaurant_id', input.restaurantId)
-    .maybeSingle()
-  if (error) throw new Error(error.message)
-  return data
-}
-
-export async function listKitchenOrders(restaurantId: string) {
-  const { data, error } = await createServiceClient().from('orders').select('*')
-    .eq('restaurant_id', restaurantId)
-    .in('status', ['pending', 'pending_approval', 'sent_to_kitchen', 'paid', 'preparing', 'ready'])
-    .is('deleted_at', null)
-    .order('created_at')
-  if (error) throw new Error(error.message)
-  return data ?? []
-}

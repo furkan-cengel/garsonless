@@ -74,6 +74,7 @@ export async function POST(
     {
       actor: 'table-guest',
       restaurantId: table.restaurantId,
+      tableId: table.tableId,
       tableToken: parsed.data.tableToken,
       sessionId: parsed.data.sessionId,
     },

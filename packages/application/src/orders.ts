@@ -42,7 +42,12 @@ export async function placePublicOrder(
   command: PlacePublicOrderCommand,
   port: PublicOrderPort,
 ): Promise<Result<PlacePublicOrderResult>> {
-  if (!hasSameRestaurant(context, command.restaurantId) || context.tableToken !== command.tableToken || context.sessionId !== command.sessionId) {
+  if (
+    !hasSameRestaurant(context, command.restaurantId)
+    || context.tableId !== command.tableId
+    || context.tableToken !== command.tableToken
+    || context.sessionId !== command.sessionId
+  ) {
     return err('Invalid table context')
   }
 

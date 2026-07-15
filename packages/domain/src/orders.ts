@@ -10,6 +10,18 @@ export type OrderStatus =
 
 export type PaymentMethod = 'iyzico' | 'cash' | 'pos' | 'comp' | 'split'
 
+/**
+ * Canonical collected-revenue specification. Database adapters translate this
+ * data-only policy to PostgREST/SQL while browser code evaluates it directly.
+ * A paid legacy row with a null method is collected; a comp is not revenue.
+ */
+export const COLLECTED_ORDER_SPEC = {
+  paidAtRequired: true,
+  excludedStatuses: ['cancelled'],
+  excludedPaymentMethods: ['comp'],
+  includeNullPaymentMethod: true,
+} as const
+
 /** Target status -> allowed source statuses. Cancellation and payment each have
  * dedicated commands, so neither is a generic status transition. */
 export const ORDER_STATUS_TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatus[]>> = {
@@ -47,5 +59,7 @@ export function isCollectedOrder(input: {
   paidAt?: string | null
   paymentMethod?: string | null
 }): boolean {
-  return input.paidAt != null && input.status !== 'cancelled' && input.paymentMethod !== 'comp'
+  return input.paidAt != null
+    && !COLLECTED_ORDER_SPEC.excludedStatuses.some((status) => status === input.status)
+    && !COLLECTED_ORDER_SPEC.excludedPaymentMethods.some((method) => method === input.paymentMethod)
 }

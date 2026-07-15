@@ -1,11 +1,12 @@
 'use server'
 
 import { assertAccess, getUserRestaurantAccess } from '../auth/access'
-import { createDashboardServerClient } from '../supabase-server'
 import { getHourlySales, getPanoSnapshot, getRestaurantTimezone, getSalesOverTime, getTableStatuses } from '../queries'
 import type { TableStatusData } from '../queries'
 import type { PanoSnapshot } from '../queries'
 import { readOrderLineSnapshots, restaurantHour } from '@garsonless/db/order-client'
+import { readPanoTableDetail } from '@garsonless/application/read-models'
+import { createPanoTableDetailReadModelPort } from '@garsonless/db/server'
 
 export type PanoChartRange = 'day' | 'week' | 'month'
 
@@ -94,50 +95,23 @@ export async function fetchPanoTableDetail(
 ): Promise<{ error: string } | PanoTableDetail> {
   const gate = await assertAccess(restaurantId, 'tables')
   if ('error' in gate) return { error: gate.error }
-
-  const supabase = await createDashboardServerClient()
-  const { data: session } = await supabase
-    .from('table_sessions')
-    .select('id, opened_at')
-    .eq('restaurant_id', restaurantId)
-    .eq('table_id', tableId)
-    .is('closed_at', null)
-    .maybeSingle()
-
-  if (!session) return { error: 'Bu masada açık adisyon yok.' }
-  const sessionRow = session as unknown as { id: string; opened_at: string }
-
-  const { data, error } = await supabase
-    .from('orders')
-    .select('id, status, total, paid_at, payment_method, created_at, items')
-    .eq('restaurant_id', restaurantId)
-    .eq('table_session_id', sessionRow.id)
-    .is('deleted_at', null)
-    .neq('status', 'cancelled')
-    .order('created_at', { ascending: true })
-
-  if (error) return { error: error.message }
-
-  const rows = (data ?? []) as Array<{
-    id: string
-    status: string
-    total: number | null
-    paid_at: string | null
-    payment_method: string | null
-    created_at: string
-    items: unknown
-  }>
+  const detail = await readPanoTableDetail(
+    { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['tables'] },
+    { restaurantId, tableId },
+    createPanoTableDetailReadModelPort(),
+  )
+  if (!detail.ok) return { error: detail.error }
 
   return {
-    sessionId: sessionRow.id,
-    openedAt: sessionRow.opened_at,
-    orders: rows.map((row) => ({
+    sessionId: detail.value.sessionId,
+    openedAt: detail.value.openedAt,
+    orders: detail.value.orders.map((row) => ({
       id: row.id,
       status: row.status,
-      total: Number(row.total ?? 0),
-      paidAt: row.paid_at,
-      paymentMethod: row.payment_method,
-      createdAt: row.created_at,
+      total: row.total,
+      paidAt: row.paidAt,
+      paymentMethod: row.paymentMethod,
+      createdAt: row.createdAt,
       items: readLineItems(row.id, row.items),
     })),
   }

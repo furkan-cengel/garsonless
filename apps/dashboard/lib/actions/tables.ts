@@ -4,8 +4,15 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
-import { createServiceClient, creditVisitsForSession, voidDeclaredSharesForSession } from '@garsonless/db'
-import { listActiveTableQrTokens, rotateActiveTableQrToken } from '@garsonless/db/server'
+import { closeTableSession as closeTableSessionCommand, listOpenTableSessions } from '@garsonless/application/tables'
+import {
+  createTableSessionPort,
+  listActiveTableQrTokens,
+  patchRestaurantQrStyle,
+  readRestaurantSlug,
+  rotateActiveTableQrToken,
+  softDeleteTable,
+} from '@garsonless/db/server'
 import { assertAccess } from '../auth/access'
 
 const createTableSchema = z.object({
@@ -179,15 +186,7 @@ export async function deleteTable(
   const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
   if (!isOwner) return { error: 'Not authorized' }
 
-  const svc = createServiceClient()
-  const atomicDelete = svc.rpc.bind(svc) as unknown as (
-    fn: 'soft_delete_table_atomic',
-    args: { p_table_id: string; p_restaurant_id: string },
-  ) => Promise<{ data: string | null; error: { message: string } | null }>
-  const { data: outcome, error } = await atomicDelete('soft_delete_table_atomic', {
-    p_table_id: parsed.data.tableId,
-    p_restaurant_id: parsed.data.restaurantId,
-  })
+  const { data: outcome, error } = await softDeleteTable(parsed.data)
 
   if (error) return { error: error.message }
   if (outcome === 'open_session') return { error: 'Bu masada açık adisyon var. Önce adisyonu kapatın.' }
@@ -227,17 +226,15 @@ export async function saveQRStyle(
   const parsed = qrStyleSchema.safeParse(style)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid QR style' }
 
-  const svc = createServiceClient()
-  const { data: existing } = await svc
-    .from('restaurants')
-    .select('slug')
-    .eq('id', restaurantId)
-    .is('deleted_at', null)
-    .maybeSingle()
+  let slug: string | null
+  try {
+    slug = await readRestaurantSlug(restaurantId)
+  } catch {
+    return { error: 'Restaurant could not be loaded' }
+  }
+  if (!slug) return { error: 'Restaurant not found' }
 
-  if (!existing) return { error: 'Restaurant not found' }
-
-  const expectedBaseUrl = `${MENU_ORIGIN}/${existing.slug}`
+  const expectedBaseUrl = `${MENU_ORIGIN}/${slug}`
   if (parsed.data.baseUrl !== expectedBaseUrl) {
     return { error: 'QR menu address cannot be changed' }
   }
@@ -246,100 +243,27 @@ export async function saveQRStyle(
   // notification or loyalty setting saved concurrently by another screen.
   // The RPC is service-role only; this action's section gate remains the
   // user-facing authorization boundary.
-  const { error } = await svc.rpc('patch_restaurant_qr_style', {
-    p_restaurant_id: restaurantId,
-    p_qr_style: parsed.data,
-  })
-
-  if (error) return { error: error.message }
+  const result = await patchRestaurantQrStyle(restaurantId, parsed.data)
+  if (!result.ok) return { error: result.error }
 
   revalidatePath(`/dashboard/${restaurantId}/tables`)
   return { success: true }
 }
 
-export interface OpenSessionInfo {
-  sessionId: string
-  tableId: string
-  openedAt: string
-  total: number
-  unpaidTotal: number
-  splitSettledTotal: number
-  splitDeclaredCashTotal: number
-  orderCount: number
-  hasUnfinished: boolean
-}
+export type OpenSessionInfo = import('@garsonless/application/tables').OpenTableSession
 
 /** Open sessions with totals for every table of the restaurant. */
 export async function getOpenTableSessions(
   restaurantId: string,
 ): Promise<OpenSessionInfo[] | { error: string }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
-  if (!isOwner) return { error: 'Not authorized' }
-
-  const { data: sessions, error: sessionsError } = await supabase
-    .from('table_sessions')
-    .select('id, table_id, opened_at')
-    .eq('restaurant_id', restaurantId)
-    .is('closed_at', null)
-
-  if (sessionsError) return { error: `Açık adisyonlar yüklenemedi: ${sessionsError.message}` }
-  const sessionRows = (sessions ?? []) as Array<{ id: string; table_id: string; opened_at: string }>
-  if (sessionRows.length === 0) return []
-
-  const { data: orders, error: ordersError } = await supabase
-    .from('orders')
-    .select('table_session_id, total, status, paid_at')
-    .in('table_session_id', sessionRows.map((s) => s.id))
-    .is('deleted_at', null)
-
-  if (ordersError) return { error: `Sipariş toplamları yüklenemedi: ${ordersError.message}` }
-  const orderRows = (orders ?? []) as Array<{
-    table_session_id: string; total: number; status: string; paid_at: string | null
-  }>
-  const svc = createServiceClient()
-  const { data: shares, error: sharesError } = await svc
-    .from('payment_shares')
-    .select('table_session_id, amount, method, status')
-    .in('table_session_id', sessionRows.map((s) => s.id))
-    .eq('restaurant_id', restaurantId)
-    .neq('status', 'void')
-  if (sharesError) return { error: `Ödeme payları yüklenemedi: ${sharesError.message}` }
-  const shareRows = (shares ?? []) as Array<{
-    table_session_id: string
-    amount: number | null
-    method: string | null
-    status: string
-  }>
-
-  return sessionRows.map((session) => {
-    const sessionOrders = orderRows.filter((o) => o.table_session_id === session.id)
-    const active = sessionOrders.filter((o) => o.status !== 'cancelled')
-    const total = active.reduce((sum, o) => sum + Number(o.total), 0)
-    const unpaidTotal = active
-      .filter((o) => o.paid_at === null)
-      .reduce((sum, o) => sum + Number(o.total), 0)
-    const sessionShares = shareRows.filter((share) => share.table_session_id === session.id)
-    const splitSettledTotal = sessionShares
-      .filter((share) => share.status === 'settled')
-      .reduce((sum, share) => sum + Number(share.amount ?? 0), 0)
-    const splitDeclaredCashTotal = sessionShares
-      .filter((share) => share.status === 'declared' && share.method === 'cash')
-      .reduce((sum, share) => sum + Number(share.amount ?? 0), 0)
-    return {
-      sessionId: session.id,
-      tableId: session.table_id,
-      openedAt: session.opened_at,
-      total,
-      unpaidTotal,
-      splitSettledTotal,
-      splitDeclaredCashTotal,
-      orderCount: active.length,
-      hasUnfinished: active.some((o) => o.status !== 'served'),
-    }
-  })
+  const gate = await assertAccess(restaurantId, 'tables')
+  if ('error' in gate) return { error: gate.error }
+  const result = await listOpenTableSessions(
+    { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['tables'] },
+    restaurantId,
+    createTableSessionPort(),
+  )
+  return result.ok ? result.value : { error: result.error }
 }
 
 /**
@@ -361,42 +285,19 @@ export async function closeTableSession(
   restaurantId: string,
   opts?: { abnormalReason?: string },
 ): Promise<{ error: string } | { success: true }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
-  if (!isOwner) return { error: 'Not authorized' }
-
-  const reason = opts?.abnormalReason?.trim()
-  const svc = createServiceClient()
-  const atomicClose = svc.rpc.bind(svc) as unknown as (
-    fn: 'close_table_session_atomic',
-    args: { p_session_id: string; p_restaurant_id: string; p_abnormal_reason: string | null },
-  ) => Promise<{ data: string | null; error: { message: string } | null }>
-  const { data: outcome, error } = await atomicClose('close_table_session_atomic', {
-    p_session_id: sessionId,
-    p_restaurant_id: restaurantId,
-    p_abnormal_reason: reason || null,
-  })
-
-  if (error) return { error: error.message }
+  const gate = await assertAccess(restaurantId, 'tables')
+  if ('error' in gate) return { error: gate.error }
+  const result = await closeTableSessionCommand(
+    { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['tables'] },
+    { sessionId, restaurantId, abnormalReason: opts?.abnormalReason },
+    createTableSessionPort(),
+  )
+  if (!result.ok) return { error: result.error }
+  const outcome = result.value
   if (outcome === 'not_found') return { error: 'Session not found for this restaurant' }
   if (outcome === 'unpaid') return { error: 'Ödenmemiş sipariş var — önce tahsil edin ya da bir sebeple anormal kapatın.' }
   if (outcome === 'already_closed') return { success: true }
   if (outcome !== 'closed_normal' && outcome !== 'closed_abnormal') return { error: 'Adisyon kapatılamadı.' }
-
-  const abnormal = outcome === 'closed_abnormal'
-
-  // Visits are a completed-paid-visit signal — credit ONLY on a normal close.
-  // An abnormal close (unpaid money abandoned) must not mint loyalty visits.
-  if (!abnormal) {
-    await creditVisitsForSession(sessionId)
-  } else {
-    // Abnormal close = money still owed. Void any DECLARED (unconfirmed) split
-    // shares — they'll never be paid. SETTLED shares (real money) stay intact;
-    // the close_reason is the audit record (no parallel mechanism, no silent drop).
-    await voidDeclaredSharesForSession(sessionId, restaurantId)
-  }
 
   revalidatePath(`/dashboard/${restaurantId}/tables`)
   return { success: true }

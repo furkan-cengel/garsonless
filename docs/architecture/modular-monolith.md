@@ -61,16 +61,75 @@ ile yazar. Başlangıç event'leri:
 işler ve `ack_domain_outbox` ile tamamlar. `domain_outbox_receipts` tüketici
 başına idempotency sınırıdır. İlk `outbox-worker` operational projection
 receipt yazar; KDS, bildirim ve analitik consumer'ları bu delivery sınırına
-ayrı consumer adıyla eklenir.
+ayrı consumer adıyla eklenir. Hatalar exponential backoff ile yeniden
+planlanır; sekizinci başarısız claim event'i dead-letter durumuna taşır.
+`requeue_domain_outbox` yalnız açık bir operasyon kararıyla poison event'i
+tekrar kuyruğa alır, `get_domain_outbox_health` ise pending/ready/leased/dead
+sayısını ve en eski event gecikmesini verir.
 
 Worker deploy öncesi iki secret gerekir:
 
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `OUTBOX_WORKER_SECRET`
 
-Scheduler, Edge Function'a `x-outbox-secret` header'ı ile istek atmalıdır.
-Bu migration yalnız tablo/RPC/trigger altyapısını kurar; scheduler secret'ı
-repo veya migration içine yazılmaz.
+Scheduler, Edge Function'a `x-outbox-secret` header'ı ile istek atar. URL ve
+ortak secret her ortamda Supabase Vault'taki `outbox_worker_url` ve
+`outbox_worker_secret` kayıtlarından okunur; repo veya `cron.job.command`
+içine yazılmaz. `domain-outbox-worker-every-minute` pg_cron işi worker'ı her
+dakika çağırır. DEV'de function deploy, Vault, cron ve gerçek
+claim/receipt/ack akışı doğrulanmıştır; PROD deploy sırasında aynı iki Vault
+kaydı ve Edge secret ayrıca kurulmalıdır.
+
+## Tables ve Kitchen strangler dilimi
+
+Masa oturumu kapatma, açık adisyon read model'i ve servis isteği yaşam döngüsü
+`@garsonless/application/tables` command/query sınırına taşındı. Dashboard
+action'ları önce `tables` bölüm yetkisini çözer ve yalnız doğrulanmış
+`dashboard-member` context'i ile command çağırır. Normal/anormal kapanış kararı
+application katmanında, atomik para guard'ı `close_table_session_atomic`
+RPC'sinde, visit/split-share yan etkileri ise `@garsonless/db/server`
+adaptöründe tek yoldur.
+
+Public hızlı masa isteği ham `restaurantId` veya `tableId` kabul etmez. Route,
+opaque QR token'ı çözer; command doğrulanmış context ile input'taki restaurant,
+internal table ve token üçlüsünü yeniden eşleştirir. İstek türü ve kullanıcı
+etiketi artık browser-safe domain sözlüğüdür. Pending type/table unique index'i
+eşzamanlı replay'i tek satıra indirir.
+
+Kitchen SSR board, tek-order refresh ve liste refresh okumaları
+`KitchenBoardPort` üzerinden yapılır. Token adapter'da doğrulanır; application
+query yalnız güvenilir kitchen context alır. KDS yazması mevcut
+`transitionKitchenOrder` command'ini kullanmaya devam eder; istasyon sahipliği,
+çok-istasyon son kontrolü ve yalnız `preparing|ready` hedefleri UI'dan bağımsız
+kalır. Kitchen uygulamasındaki doğrudan service-role query modülü kaldırıldı.
+
+DEV throwaway runtime matrisinde servis isteği create+replay throttle+resolve,
+normal close, unpaid close reddi, gerekçeli abnormal close ve tek-istasyon
+`sent_to_kitchen -> preparing -> ready` zinciri doğrulandı; tenant, QR, session,
+order, request, credential, station ve outbox kayıtları cascade ile temizlendi.
+
+## Read-model strangler dilimi
+
+Tahsil edilmiş sipariş semantiğinin tek sahibi artık
+`@garsonless/domain/orders` içindeki `COLLECTED_ORDER_SPEC`'tir. Browser
+görünümleri aynı policy'yi saf predicate olarak değerlendirir;
+`@garsonless/db/server` ise specification'ı PostgREST filtresine çevirir. Bu
+sayede `paid_at`, iptal ve `comp` kurallarının TypeScript ve sorgu string'i
+olarak birbirinden bağımsız drift etmesi engellenir. Legacy null ödeme yöntemi
+`IS DISTINCT FROM comp` davranışıyla tahsilata dahil kalır.
+
+Orders Board SSR okuması; sayfalama, soft-delete edilmiş masa etiketi çözümü ve
+kitchen credential okumasıyla birlikte `OrdersBoardReadModelPort` sınırına
+taşındı. Pano masa detayı da `PanoTableDetailReadModelPort` kullanır. Her iki
+application query'si repository çağrısından önce restaurant ve bölüm yetkisini
+kontrol eder; cross-tenant replay port çalıştırılmadan reddedilir.
+
+Analytics'in service-role gerektiren ödeme, iptal, anormal kapanış, personel
+tahsilatı ve sadakat ham sorguları `AnalyticsReadModelPort` ile
+`@garsonless/db/server` adaptörüne taşındı. Dashboard query katmanı yalnız
+rapor hesaplama/bucketing yapar; service-role client oluşturmaz. DEV salt-okunur
+smoke testinde Test Cafe B ve maf-lounge sonuçlarının yalnız kendi
+`restaurant_id` satırlarını döndürdüğü doğrulandı.
 
 ## Sınır kuralları
 
@@ -85,15 +144,8 @@ repo veya migration içine yazılmaz.
 
 ## Sonraki dilimler
 
-1. Outbox operasyonu: worker deploy, scheduler, retry/backoff, poison-event
-   görünürlüğü ve consumer idempotency runtime doğrulaması.
-2. Tables/Kitchen: table-session command'leri, service-request command'i ve
-   KDS transition/query portlarının tamamlanması. Rotatable QR token bölümü
-   tamamlandı.
-3. Read models: pano, analytics ve order-board query modülleri; tahsilat
-   semantiği tek specification kaynağından türetilir.
-4. Menu, loyalty, customer, theme strangler geçişi ve büyük client shell'lerin
+1. Menu, loyalty, customer, theme strangler geçişi ve büyük client shell'lerin
    parçalanması.
-5. Eski session/OTP, compatibility barrel'leri ve dağınık service-role
+2. Eski session/OTP, compatibility barrel'leri ve dağınık service-role
    importlarının retirement'ı. Geniş anon order/session/share okumaları
    kaldırıldı.

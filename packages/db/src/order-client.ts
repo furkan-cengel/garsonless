@@ -1,3 +1,5 @@
+import { isCollectedOrder } from '@garsonless/domain/orders'
+
 export type { OrderStatus, PaymentMethod } from './enums'
 export {
   SERVICE_REQUEST_TYPES,
@@ -50,16 +52,18 @@ export type {
  * payment_method NULL = legacy/unknown-but-paid → STILL collected
  * (IS DISTINCT FROM 'comp' semantics: keep null, drop only comp).
  * Used by server queries (dashboard KPIs/reports) AND client surfaces (the
- * Orders board Tahsilat chip). The PostgREST twin lives in
- * apps/dashboard/lib/queries.ts (`collectedOrdersFilter`) — if this rule ever
- * changes, change BOTH.
+ * Orders board Tahsilat chip). Both delegate to the domain specification.
  */
 export function isCollectedOrderRow(row: {
   status?: string | null
   paid_at?: string | null
   payment_method?: string | null
 }): boolean {
-  return row.paid_at != null && row.status !== 'cancelled' && row.payment_method !== 'comp'
+  return isCollectedOrder({
+    status: row.status ?? null,
+    paidAt: row.paid_at ?? null,
+    paymentMethod: row.payment_method ?? null,
+  })
 }
 
 export interface OrderCustomerTierSnapshot {

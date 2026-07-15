@@ -5,10 +5,10 @@ import {
   type Tables,
 } from '@garsonless/db'
 import { transitionKitchenOrder } from '@garsonless/application/orders'
+import { listKitchenOrders, readKitchenOrder } from '@garsonless/application/tables'
 import {
+  createKitchenBoardPort,
   createKitchenOrderPort,
-  listKitchenOrders,
-  readKitchenOrder,
   verifyKitchenActor,
 } from '@garsonless/db/server'
 import type { OrderStatus } from '@garsonless/domain/orders'
@@ -59,9 +59,14 @@ export async function getKitchenOrderAction(
   const valid = await verifyKitchenActor(restaurantId, kitchenToken)
   if (!valid) return { error: 'Invalid kitchen token' }
   try {
-    const data = await readKitchenOrder({ orderId, restaurantId })
-    if (!data) return { error: 'Order not found' }
-    return { order: data as Tables<'orders'> }
+    const result = await readKitchenOrder(
+      { actor: 'kitchen', restaurantId, stationId: 'expo' },
+      { orderId, restaurantId },
+      createKitchenBoardPort(),
+    )
+    if (!result.ok) return { error: result.error }
+    if (!result.value) return { error: 'Order not found' }
+    return { order: result.value as Tables<'orders'> }
   } catch {
     return { error: 'Orders unavailable' }
   }
@@ -76,7 +81,14 @@ export async function getKitchenOrdersAction(
   if (!parsed.success) return { error: 'Invalid input' }
   if (!await verifyKitchenActor(restaurantId, kitchenToken)) return { error: 'Invalid kitchen token' }
   try {
-    return { orders: (await listKitchenOrders(restaurantId)) as Tables<'orders'>[] }
+    const result = await listKitchenOrders(
+      { actor: 'kitchen', restaurantId, stationId: 'expo' },
+      restaurantId,
+      createKitchenBoardPort(),
+    )
+    return result.ok
+      ? { orders: result.value as Tables<'orders'>[] }
+      : { error: result.error }
   } catch {
     return { error: 'Orders unavailable' }
   }
