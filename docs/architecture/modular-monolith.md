@@ -39,10 +39,12 @@ Mevcut HTTP sözleşmesi, server-side fiyat çözümü, request-id idempotency's
 İyzico tahsilatı yazmasını; provider callback'inin de nakit/POS yazmasını
 reddeder.
 
-Mevcut public table UUID'si geçici table actor kimliği olarak command
-sınırındadır. QR token rotasyonu sonraki Tables & Kitchen diliminde bu alanı
-opaque, iptal edilebilir token ile değiştirir; route sözleşmesini yeniden
-tasarlamak gerekmez.
+Public masa akışları artık ham `tables.id` değerine güvenmez. Her masa için
+opaque ve iptal edilebilir bir QR token üretilir; route handler tokenı
+service-role RPC ile çözüp doğrulanmış `restaurantId` ve `tableId` bağlamını
+application command'e verir. Token rotasyonunda eski QR anında geçersiz olur.
+`table_sessions`, `orders` ve `payment_shares` için geniş anonim okumalar
+kaldırılmıştır; public durum yalnız token kapsamlı API'lerden okunur.
 
 ## Outbox
 
@@ -83,11 +85,15 @@ repo veya migration içine yazılmaz.
 
 ## Sonraki dilimler
 
-1. Tables/Kitchen: rotatable QR token, table-session command'leri ve KDS
-   transition portu.
-2. Read models: pano, analytics ve order-board query modülleri; tahsilat
+1. Outbox operasyonu: worker deploy, scheduler, retry/backoff, poison-event
+   görünürlüğü ve consumer idempotency runtime doğrulaması.
+2. Tables/Kitchen: table-session command'leri, service-request command'i ve
+   KDS transition/query portlarının tamamlanması. Rotatable QR token bölümü
+   tamamlandı.
+3. Read models: pano, analytics ve order-board query modülleri; tahsilat
    semantiği tek specification kaynağından türetilir.
-3. Menu, loyalty, customer, theme strangler geçişi ve büyük client shell'lerin
+4. Menu, loyalty, customer, theme strangler geçişi ve büyük client shell'lerin
    parçalanması.
-4. Eski session/OTP, geniş anon read'ler, compatibility barrel'leri ve
-   dağınık service-role importlarının retirement'ı.
+5. Eski session/OTP, compatibility barrel'leri ve dağınık service-role
+   importlarının retirement'ı. Geniş anon order/session/share okumaları
+   kaldırıldı.

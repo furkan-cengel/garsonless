@@ -1,10 +1,15 @@
-// These are domain semantics, not generated database types. Re-export them
-// here temporarily so existing consumers keep their import path while the
-// strangler migration moves to @garsonless/domain/orders.
-export {
-  ORDER_STATUS_TRANSITIONS,
-  canTransitionOrderStatus,
+// These are domain semantics, not generated database types. Keep concrete
+// runtime bindings here temporarily so existing browser consumers retain their
+// import path while the strangler migration moves them to @garsonless/domain.
+// A direct re-export confused Next's development module graph across the
+// workspace boundary, making these values appear absent after a cold restart.
+import {
+  ORDER_STATUS_TRANSITIONS as domainOrderStatusTransitions,
+  canTransitionOrderStatus as domainCanTransitionOrderStatus,
 } from '@garsonless/domain/orders'
+
+export const ORDER_STATUS_TRANSITIONS = domainOrderStatusTransitions
+export const canTransitionOrderStatus = domainCanTransitionOrderStatus
 export type { OrderStatus, PaymentMethod } from '@garsonless/domain/orders'
 
 export type RestaurantPlan = 'free' | 'starter' | 'pro' | 'enterprise'

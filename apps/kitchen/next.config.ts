@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@garsonless/ui', '@garsonless/db'],
+  transpilePackages: ['@garsonless/ui', '@garsonless/db', '@garsonless/domain'],
   experimental: {},
 }
 

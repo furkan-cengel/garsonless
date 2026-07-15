@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
     '@garsonless/ui',
     '@garsonless/design-engine',
     '@garsonless/db',
+    '@garsonless/domain',
     '@garsonless/ai',
   ],
   serverExternalPackages: ['iyzipay'],
