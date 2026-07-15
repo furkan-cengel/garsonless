@@ -467,7 +467,7 @@ export async function getDashboardKPIs(restaurantId: string): Promise<DashboardK
   const today = startOfRestaurantDay(tz)
   const yesterday = startOfDayNDaysAgo(tz, 1)
 
-  const [todayRes, yRes] = await Promise.all([
+  const [todayRes, yRes, todayCollectedRes, yesterdayCollectedRes] = await Promise.all([
     supabase
       .from('orders')
       .select('total, status, session_id, paid_at, payment_method')
@@ -481,14 +481,34 @@ export async function getDashboardKPIs(restaurantId: string): Promise<DashboardK
       .gte('created_at', yesterday.toISOString())
       .lt('created_at', today.toISOString())
       .is('deleted_at', null),
+    collectedOrdersFilter(
+      supabase
+        .from('orders')
+        .select('total, status, session_id, paid_at, payment_method')
+        .eq('restaurant_id', restaurantId)
+        .gte('paid_at', today.toISOString())
+        .is('deleted_at', null),
+    ),
+    collectedOrdersFilter(
+      supabase
+        .from('orders')
+        .select('total, status, session_id, paid_at, payment_method')
+        .eq('restaurant_id', restaurantId)
+        .gte('paid_at', yesterday.toISOString())
+        .lt('paid_at', today.toISOString())
+        .is('deleted_at', null),
+    ),
   ])
+
+  const queryError = todayRes.error ?? yRes.error ?? todayCollectedRes.error ?? yesterdayCollectedRes.error
+  if (queryError) throw new Error(`getDashboardKPIs: ${queryError.message}`)
 
   const tRows = (todayRes.data ?? []) as Tables<'orders'>[]
   const yRows = (yRes.data ?? []) as Tables<'orders'>[]
   const todayVolumeRows = tRows.filter(isOrderVolumeRow)
   const yesterdayVolumeRows = yRows.filter(isOrderVolumeRow)
-  const todayCollectedRows = tRows.filter(isCollectedOrder)
-  const yesterdayCollectedRows = yRows.filter(isCollectedOrder)
+  const todayCollectedRows = (todayCollectedRes.data ?? []) as Tables<'orders'>[]
+  const yesterdayCollectedRows = (yesterdayCollectedRes.data ?? []) as Tables<'orders'>[]
 
   const revenue = sumTotals(todayCollectedRows)
   const revenueYesterday = sumTotals(yesterdayCollectedRows)
@@ -509,19 +529,20 @@ export async function getHourlySales(restaurantId: string): Promise<HourlySale[]
   const tz = await getRestaurantTimezone(restaurantId)
   const today = startOfRestaurantDay(tz)
 
-  const { data } = await collectedOrdersFilter(
+  const { data, error } = await collectedOrdersFilter(
     supabase
       .from('orders')
-      .select('total, created_at')
+      .select('total, paid_at')
       .eq('restaurant_id', restaurantId)
-      .gte('created_at', today.toISOString())
+      .gte('paid_at', today.toISOString())
       .is('deleted_at', null),
   )
+  if (error) throw new Error(`getHourlySales: ${error.message}`)
 
   const byHour: Record<number, number> = {}
   for (let h = 0; h < 24; h++) byHour[h] = 0
   for (const row of (data ?? []) as Tables<'orders'>[]) {
-    const h = restaurantHour(row.created_at, tz)
+    const h = restaurantHour(row.paid_at!, tz)
     byHour[h] = (byHour[h] ?? 0) + (row.total ?? 0)
   }
   return Array.from({ length: 24 }, (_, h) => ({ hour: h, total: byHour[h] ?? 0 }))
@@ -533,7 +554,7 @@ export async function getActivityFeed(restaurantId: string): Promise<ActivityEve
   // getDashboardKPIs uses, so the feed and the KPI cards never disagree.
   const today = startOfRestaurantDay(await getRestaurantTimezone(restaurantId))
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('orders')
     .select('id, status, total, table_id, created_at')
     .eq('restaurant_id', restaurantId)
@@ -542,6 +563,7 @@ export async function getActivityFeed(restaurantId: string): Promise<ActivityEve
     .neq('status', 'cancelled')
     .order('created_at', { ascending: false })
     .limit(7)
+  if (error) throw new Error(`getActivityFeed: ${error.message}`)
 
   const orders = (data ?? []) as Tables<'orders'>[]
 
@@ -572,14 +594,15 @@ export async function getTopItems(restaurantId: string, range = 'day'): Promise<
   const supabase = await createDashboardServerClient()
   const { currentStart } = await rangeWindowFor(restaurantId, range)
 
-  const { data } = await collectedOrdersFilter(
+  const { data, error } = await collectedOrdersFilter(
     supabase
       .from('orders')
       .select('items')
       .eq('restaurant_id', restaurantId)
-      .gte('created_at', currentStart.toISOString())
+      .gte('paid_at', currentStart.toISOString())
       .is('deleted_at', null),
   )
+  if (error) throw new Error(`getTopItems: ${error.message}`)
 
   const counts = foldOrderItems((data ?? []) as Tables<'orders'>[])
 
@@ -613,14 +636,15 @@ export async function getPaymentBreakdown(restaurantId: string, range = 'week'):
   // P3: read the REAL per-order payment_method — no more İyzico-vs-Manuel
   // inference from order_payment_tokens presence. Paid + non-cancelled in range;
   // comp (İkram) is split out and never enters the collected (tahsilat) base.
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('orders')
     .select('total, payment_method')
     .eq('restaurant_id', restaurantId)
     .not('paid_at', 'is', null)
     .neq('status', 'cancelled')
-    .gte('created_at', currentStart.toISOString())
+    .gte('paid_at', currentStart.toISOString())
     .is('deleted_at', null)
+  if (error) throw new Error(`getPaymentBreakdown: ${error.message}`)
 
   const rows = (data ?? []) as Array<{ total: number | null; payment_method: string | null }>
 
@@ -662,18 +686,19 @@ export async function getProductReportData(restaurantId: string, range = 'week')
   const supabase = await createDashboardServerClient()
   const { currentStart, previousStart } = await rangeWindowFor(restaurantId, range)
 
-  const { data } = await collectedOrdersFilter(
+  const { data, error } = await collectedOrdersFilter(
     supabase
       .from('orders')
-      .select('items, created_at')
+      .select('items, paid_at')
       .eq('restaurant_id', restaurantId)
-      .gte('created_at', previousStart.toISOString())
+      .gte('paid_at', previousStart.toISOString())
       .is('deleted_at', null),
   )
+  if (error) throw new Error(`getProductReportData: ${error.message}`)
 
-  const rows = (data ?? []) as Tables<'orders'>[]
-  const current = foldOrderItems(rows, currentStart)
-  const previous = foldOrderItems(rows.filter((row) => new Date(row.created_at) < currentStart))
+  const rows = (data ?? []) as Array<{ items: unknown; paid_at: string }>
+  const current = foldOrderItems(rows.filter((row) => new Date(row.paid_at) >= currentStart))
+  const previous = foldOrderItems(rows.filter((row) => new Date(row.paid_at) < currentStart))
   const totalRevenue = Array.from(current.values()).reduce((sum, item) => sum + item.revenue, 0)
 
   let cumulative = 0
@@ -707,22 +732,23 @@ export async function getSalesOverTime(restaurantId: string, range: string): Pro
   const currentStart = isHourly ? startOfRestaurantDay(tz) : startOfDayNDaysAgo(tz, bucketCount - 1)
   const prevStart = isHourly ? startOfDayNDaysAgo(tz, 1) : startOfDayNDaysAgo(tz, 2 * bucketCount - 1)
 
-  const { data } = await collectedOrdersFilter(
+  const { data, error } = await collectedOrdersFilter(
     supabase
       .from('orders')
-      .select('total, created_at')
+      .select('total, paid_at')
       .eq('restaurant_id', restaurantId)
-      .gte('created_at', prevStart.toISOString())
+      .gte('paid_at', prevStart.toISOString())
       .is('deleted_at', null),
   )
-  const rows = (data ?? []) as Tables<'orders'>[]
+  if (error) throw new Error(`getSalesOverTime: ${error.message}`)
+  const rows = (data ?? []) as Array<{ total: number | null; paid_at: string }>
 
   if (isHourly) {
     const currentMap: Record<number, number> = {}
     const prevMap: Record<number, number> = {}
     for (const row of rows) {
-      const map = new Date(row.created_at) >= currentStart ? currentMap : prevMap
-      const h = restaurantHour(row.created_at, tz)
+      const map = new Date(row.paid_at) >= currentStart ? currentMap : prevMap
+      const h = restaurantHour(row.paid_at, tz)
       map[h] = (map[h] ?? 0) + (row.total ?? 0)
     }
     return Array.from({ length: 24 }, (_, h) => ({
@@ -738,8 +764,8 @@ export async function getSalesOverTime(restaurantId: string, range: string): Pro
   const currentMap: Record<string, number> = {}
   const prevMap: Record<string, number> = {}
   for (const row of rows) {
-    const key = restaurantDayKey(row.created_at, tz)
-    const map = new Date(row.created_at) >= currentStart ? currentMap : prevMap
+    const key = restaurantDayKey(row.paid_at, tz)
+    const map = new Date(row.paid_at) >= currentStart ? currentMap : prevMap
     map[key] = (map[key] ?? 0) + (row.total ?? 0)
   }
 
@@ -760,13 +786,14 @@ export async function getHeatmapData(restaurantId: string): Promise<HeatmapCell[
   const tz = await getRestaurantTimezone(restaurantId)
   const since = startOfDayNDaysAgo(tz, 30)
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('orders')
     .select('created_at')
     .eq('restaurant_id', restaurantId)
     .gte('created_at', since.toISOString())
     .is('deleted_at', null)
     .neq('status', 'cancelled')
+  if (error) throw new Error(`getHeatmapData: ${error.message}`)
 
   const rows = (data ?? []) as Tables<'orders'>[]
   const grid: Record<string, number> = {}
@@ -802,9 +829,9 @@ export async function getTablesReportData(restaurantId: string, range = 'week'):
     collectedOrdersFilter(
       supabase
         .from('orders')
-        .select('table_id, total, status')
+        .select('table_id, total, status, paid_at')
         .eq('restaurant_id', restaurantId)
-        .gte('created_at', since)
+        .gte('paid_at', since)
         .is('deleted_at', null)
         .not('table_id', 'is', null),
     ),
@@ -824,6 +851,9 @@ export async function getTablesReportData(restaurantId: string, range = 'week'):
       .eq('restaurant_id', restaurantId)
       .is('closed_at', null),
   ])
+
+  const reportError = tablesRes.error ?? ordersRes.error ?? closedRes.error ?? openRes.error
+  if (reportError) throw new Error(`getTablesReportData: ${reportError.message}`)
 
   const tables = (tablesRes.data ?? []) as Tables<'tables'>[]
   const orders = (ordersRes.data ?? []) as Tables<'orders'>[]
@@ -931,12 +961,13 @@ export async function getCancellationReport(restaurantId: string, range = 'week'
   const tz = await getRestaurantTimezone(restaurantId)
   const { currentStart, previousStart } = rangeWindow(tz, range)
   const svc = createServiceClient()
-  const { data } = await svc
+  const { data, error } = await svc
     .from('orders')
     .select('total, status, items, created_at')
     .eq('restaurant_id', restaurantId)
     .gte('created_at', previousStart.toISOString())
     .is('deleted_at', null)
+  if (error) throw new Error(`getCancellationReport: ${error.message}`)
 
   const rows = (data ?? []) as Array<{ total: number | null; status: string; items: unknown; created_at: string }>
   const cur = rows.filter((r) => new Date(r.created_at) >= currentStart)
@@ -991,7 +1022,7 @@ export async function getAbnormalCloseReport(restaurantId: string, range = 'week
   const svc = createServiceClient()
 
   // Abnormal = close_reason recorded AND not the system 'auto' sweep tag.
-  const { data: sessData } = await svc
+  const { data: sessData, error: sessionsError } = await svc
     .from('table_sessions')
     .select('id, table_id, closed_at, close_reason')
     .eq('restaurant_id', restaurantId)
@@ -999,6 +1030,7 @@ export async function getAbnormalCloseReport(restaurantId: string, range = 'week
     .neq('close_reason', 'auto')
     .not('closed_at', 'is', null)
     .gte('closed_at', previousStart.toISOString())
+  if (sessionsError) throw new Error(`getAbnormalCloseReport sessions: ${sessionsError.message}`)
 
   const sessions = (sessData ?? []) as Array<{ id: string; table_id: string; closed_at: string; close_reason: string }>
   if (sessions.length === 0) return empty
@@ -1008,24 +1040,26 @@ export async function getAbnormalCloseReport(restaurantId: string, range = 'week
 
   // Unpaid money abandoned = Σ total of UNPAID non-cancelled orders in those sessions.
   const unpaidBySession = new Map<string, number>()
-  const { data: ordData } = await svc
+  const { data: ordData, error: ordersError } = await svc
     .from('orders')
     .select('table_session_id, total')
     .in('table_session_id', sessions.map((s) => s.id))
     .is('paid_at', null)
     .neq('status', 'cancelled')
     .is('deleted_at', null)
+  if (ordersError) throw new Error(`getAbnormalCloseReport orders: ${ordersError.message}`)
   for (const o of (ordData ?? []) as Array<{ table_session_id: string | null; total: number | null }>) {
     if (!o.table_session_id) continue
     unpaidBySession.set(o.table_session_id, (unpaidBySession.get(o.table_session_id) ?? 0) + (o.total ?? 0))
   }
 
   const labelById = new Map<string, string>()
-  const { data: tbls } = await svc
+  const { data: tbls, error: tablesError } = await svc
     .from('tables')
     .select('id, label')
     .eq('restaurant_id', restaurantId)
     .in('id', [...new Set(sessions.map((s) => s.table_id))])
+  if (tablesError) throw new Error(`getAbnormalCloseReport tables: ${tablesError.message}`)
   for (const t of (tbls ?? []) as Array<{ id: string; label: string }>) labelById.set(t.id, t.label)
 
   const rows: AbnormalCloseRow[] = cur
@@ -1079,27 +1113,30 @@ export async function getStaffSettlementReport(restaurantId: string, range = 'we
 
   const { currentStart } = await rangeWindowFor(restaurantId, range)
   const svc = createServiceClient()
-  const { data } = await svc
+  const { data, error } = await svc
     .from('orders')
     .select('total, payment_method, settled_by')
     .eq('restaurant_id', restaurantId)
     .not('paid_at', 'is', null)
     .neq('status', 'cancelled')
-    .gte('created_at', currentStart.toISOString())
+    .gte('paid_at', currentStart.toISOString())
     .is('deleted_at', null)
+  if (error) throw new Error(`getStaffSettlementReport: ${error.message}`)
 
   const orders = (data ?? []) as Array<{ total: number | null; payment_method: string | null; settled_by: string | null }>
 
   // Name/permission resolution: owner (restaurants.owner_id) → owner email +
   // "Sahip"; member (restaurant_members.user_id) → email + granted sections;
   // settled_by NULL → İyzico system row; unresolved id → "Bilinmeyen kullanıcı".
-  const { data: rest } = await svc.from('restaurants').select('owner_id').eq('id', restaurantId).maybeSingle()
+  const { data: rest, error: restaurantError } = await svc.from('restaurants').select('owner_id').eq('id', restaurantId).maybeSingle()
+  if (restaurantError) throw new Error(`getStaffSettlementReport restaurant: ${restaurantError.message}`)
   const ownerId = (rest as { owner_id: string } | null)?.owner_id ?? null
   const members = await listTeamMembers(restaurantId)
   const memberMap = new Map(members.filter((m) => m.userId).map((m) => [m.userId as string, m]))
   let ownerEmail: string | null = null
   if (ownerId) {
-    const { data } = await svc.auth.admin.getUserById(ownerId)
+    const { data, error: ownerError } = await svc.auth.admin.getUserById(ownerId)
+    if (ownerError) throw new Error(`getStaffSettlementReport owner: ${ownerError.message}`)
     ownerEmail = data.user?.email ?? null
   }
 
@@ -1182,11 +1219,12 @@ export async function getLoyaltyReport(restaurantId: string, range = 'week'): Pr
 
   const { currentStart } = await rangeWindowFor(restaurantId, range)
   const svc = createServiceClient()
-  const { data } = await svc
+  const { data, error } = await svc
     .from('loyalty_transactions')
     .select('type, direction, delta, reason, created_at')
     .eq('restaurant_id', restaurantId)
     .gte('created_at', currentStart.toISOString())
+  if (error) throw new Error(`getLoyaltyReport: ${error.message}`)
 
   const rows = (data ?? []) as Array<{ type: string; direction: string; delta: number; reason: string }>
   const out = { ...empty, redemptionsByReason: [] as LoyaltyReport['redemptionsByReason'] }

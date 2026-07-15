@@ -25,7 +25,6 @@ import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { Tables, OrderStatus, MemberBalances } from '@garsonless/db'
 import { useCartStore } from '../../lib/store/useCartStore'
 import { useOrderStore } from '../../lib/store/useOrderStore'
-import { createMenuBrowserClient } from '../../lib/supabase'
 import { createMenuAuthBrowserClient } from '../../lib/supabase-browser'
 import { useWaiterCall } from '../../lib/hooks/useWaiterCall'
 import SplitBillModal from './components/SplitBillModal'
@@ -433,7 +432,8 @@ interface Props {
   items: MenuItem[]
   theme: GarsonlessTheme
   templateId: string
-  tableId?: string
+  /** Revocable public QR credential; internal table IDs never reach this client. */
+  tableToken?: string
   tableLabel?: string | null
   initialTableSession?: TableSessionInfo | null
   initialSessionOrders?: SessionOrderRow[]
@@ -491,7 +491,7 @@ export function MenuPageClient({
   items,
   theme,
   templateId,
-  tableId,
+  tableToken,
   tableLabel,
   initialTableSession = null,
   initialSessionOrders = [],
@@ -597,7 +597,7 @@ export function MenuPageClient({
   const deviceId = useCartStore((s) => s.deviceId)
 
   const cartItems = useCartStore((s) => s.items)
-  const storedTableId = useCartStore((s) => s.tableId)
+  const storedTableToken = useCartStore((s) => s.tableId)
   const subtotal = useCartStore((s) => s.subtotal)
   const addItem = useCartStore((s) => s.addItem)
   const removeItem = useCartStore((s) => s.removeItem)
@@ -609,13 +609,13 @@ export function MenuPageClient({
   // device's stored table. The adisyon (table bill) is keyed on the table
   // SESSION existing — not on the route param — so the "Hesap" chip shows on
   // /maf-lounge too when the device already has an open table.
-  const effectiveTableId = tableId ?? storedTableId
+  const effectiveTableToken = tableToken ?? storedTableToken
 
   const {
     callState: waiterCallState,
     callWaiter,
     sendServiceRequest,
-  } = useWaiterCall(restaurant.id, effectiveTableId ?? null)
+  } = useWaiterCall(effectiveTableToken ?? null)
 
   // Discount preview (server-computed; NO client money math). Debounced; refetched
   // when cart or requested redemption changes. Guests / non-redeemers → null.
@@ -698,7 +698,8 @@ export function MenuPageClient({
         return
       }
 
-      const response = await fetch(`/api/orders/status?orderId=${encodeURIComponent(state.orderId)}&sessionId=${encodeURIComponent(sessionId)}`)
+      if (!effectiveTableToken) return
+      const response = await fetch(`/api/orders/status?orderId=${encodeURIComponent(state.orderId)}&sessionId=${encodeURIComponent(sessionId)}&tableToken=${encodeURIComponent(effectiveTableToken)}`)
       const payload = await response.json() as { success: boolean; data?: { status: string; paid_at: string | null } }
       if (cancelled) return
 
@@ -718,31 +719,24 @@ export function MenuPageClient({
     }
     void restore()
     return () => { cancelled = true }
-  }, [sessionId])
+  }, [sessionId, effectiveTableToken])
 
   useEffect(() => {
-    if (tableId && tableId !== storedTableId) {
-      setStoreTableId(tableId)
+    if (tableToken && tableToken !== storedTableToken) {
+      setStoreTableId(tableToken)
     }
-  }, [tableId, storedTableId, setStoreTableId])
+  }, [tableToken, storedTableToken, setStoreTableId])
 
   useEffect(() => {
-    if (tableId || !storedTableId) return
+    if (tableToken || !storedTableToken) return
     let cancelled = false
     const validateStoredTable = async () => {
-      const supabase = createMenuBrowserClient()
-      const { data, error } = await supabase
-        .from('tables')
-        .select('id')
-        .eq('id', storedTableId)
-        .eq('restaurant_id', restaurant.id)
-        .is('deleted_at', null)
-        .maybeSingle()
-      if (!cancelled && !error && !data) setStoreTableId(null)
+      const response = await fetch(`/api/table-state?token=${encodeURIComponent(storedTableToken)}`, { cache: 'no-store' })
+      if (!cancelled && !response.ok) setStoreTableId(null)
     }
     void validateStoredTable()
     return () => { cancelled = true }
-  }, [restaurant.id, tableId, storedTableId, setStoreTableId])
+  }, [tableToken, storedTableToken, setStoreTableId])
 
   const handleAddToCart = useCallback(
     (
@@ -789,9 +783,8 @@ export function MenuPageClient({
 
   type OrderBreakdown = { subtotal: number; pointsDiscountAmount: number; finalTotal: number; pointsRedeemed: number; clamped: boolean }
   const orderBody = (requestId: string) => ({
-    restaurantId: restaurant.id,
-    slug: restaurant.slug, // server cross-checks slug→restaurant.id (anti-spoof)
-    tableId: effectiveTableId ?? null,
+    slug: restaurant.slug,
+    tableToken: effectiveTableToken ?? null,
     sessionId,
     requestId,
     items: cartItems.map((i) => ({
@@ -840,7 +833,7 @@ export function MenuPageClient({
     setOrder(json.data.orderId)
     setOrderView('sheet')
     prevPhaseRef.current = 0
-    if (effectiveTableId) void refreshBill()
+    if (effectiveTableToken) void refreshBill()
     if (member) void refetchBalances() // points were just debited
     clearCart()
     setRedeemPoints(0)
@@ -911,7 +904,7 @@ export function MenuPageClient({
     setOrder(json.data.orderId)
     setOrderView('bubble')
     prevPhaseRef.current = 0
-    if (effectiveTableId) void refreshBill()
+    if (effectiveTableToken) void refreshBill()
     if (member) void refetchBalances()
     clearCart()
     setRedeemPoints(0)
@@ -929,7 +922,8 @@ export function MenuPageClient({
       let last = ''
       const poll = async () => {
         try {
-          const res = await fetch(`/api/orders/status?orderId=${encodeURIComponent(oid)}&sessionId=${encodeURIComponent(sessionId)}`, { cache: 'no-store' })
+          if (!effectiveTableToken) return
+          const res = await fetch(`/api/orders/status?orderId=${encodeURIComponent(oid)}&sessionId=${encodeURIComponent(sessionId)}&tableToken=${encodeURIComponent(effectiveTableToken)}`, { cache: 'no-store' })
           const body = await res.json() as { success: boolean; data?: { status: OrderStatus; paid_at: string | null } }
           if (active && body.success && body.data && body.data.status !== last) {
             last = body.data.status
@@ -941,7 +935,7 @@ export function MenuPageClient({
       const timer = window.setInterval(() => void poll(), 3_000)
       return () => { active = false; window.clearInterval(timer) }
     },
-    [sessionId],
+    [sessionId, effectiveTableToken],
   )
 
   // Keep order status flowing into the store even while minimized to the bubble
@@ -989,8 +983,8 @@ export function MenuPageClient({
 
   // ─── Table bill (adisyon) ───
   const refreshBill = useCallback(async (): Promise<'open' | 'closed' | 'none'> => {
-    if (!effectiveTableId) return 'none'
-    const res = await fetch(`/api/table-state?restaurantId=${encodeURIComponent(restaurant.id)}&tableId=${encodeURIComponent(effectiveTableId)}`, { cache: 'no-store' })
+    if (!effectiveTableToken) return 'none'
+    const res = await fetch(`/api/table-state?token=${encodeURIComponent(effectiveTableToken)}`, { cache: 'no-store' })
     const payload = await res.json() as { success: boolean; data?: { session: { id: string; opened_at: string } | null; orders: Array<{ id: string; status: string; total: number; paid_at: string | null; created_at: string; items: unknown }> } }
     if (!payload.success) return 'none'
     const sessionRow = payload.data?.session ?? null
@@ -1011,7 +1005,7 @@ export function MenuPageClient({
       itemCount: Array.isArray(row.items) ? row.items.length : 0,
     })))
     return 'open'
-  }, [effectiveTableId, restaurant.id])
+  }, [effectiveTableToken])
 
   async function openBill() {
     setIsBillOpen(true)
@@ -1040,12 +1034,12 @@ export function MenuPageClient({
   }, [tableSessionId, refreshBill])
 
   // Non-table route gap-fill: when the device already has an open table (stored
-  // table hydrates after mount) but the page wasn't a /table/{id} SSR render,
-  // fetch the open session so the "Hesap" chip can appear. The /table/{id} path
+  // table token hydrates after mount) but the page wasn't a /table/{token} SSR render,
+  // fetch the open session so the "Hesap" chip can appear. The /table/{token} path
   // supplies initialTableSession via SSR, so we skip there (no double-fetch).
   useEffect(() => {
-    if (effectiveTableId && !initialTableSession) void refreshBill()
-  }, [effectiveTableId, initialTableSession, refreshBill])
+    if (effectiveTableToken && !initialTableSession) void refreshBill()
+  }, [effectiveTableToken, initialTableSession, refreshBill])
 
   const billSummary = (() => {
     const active = billOrders.filter((o) => o.status !== 'cancelled')
@@ -1179,7 +1173,7 @@ export function MenuPageClient({
           items={orderMeta?.items ?? []}
           total={orderMeta?.total ?? 0}
           closing={sheetClosing}
-          {...(effectiveTableId ? { onCallWaiter: callWaiter, waiterCallState } : {})}
+          {...(effectiveTableToken ? { onCallWaiter: callWaiter, waiterCallState } : {})}
         />
       </ThemeProvider>
     )
@@ -1230,7 +1224,7 @@ export function MenuPageClient({
             Seçili filtrelere uyan ürün yok.
           </div>
         ) : null}
-        tableId={effectiveTableId}
+        tableId={effectiveTableToken}
         {...(tableLabel ? { tableLabel } : {})}
         cartSummary={{
           count: cartItems.reduce((sum, item) => sum + item.quantity, 0),
@@ -1306,7 +1300,7 @@ export function MenuPageClient({
           closedNotice={billClosedNotice}
           refreshing={billRefreshing}
           onClose={closeBill}
-          {...(effectiveTableId ? { onCallWaiter: callWaiter, waiterCallState } : {})}
+          {...(effectiveTableToken ? { onCallWaiter: callWaiter, waiterCallState } : {})}
         />
       )}
 
@@ -1314,7 +1308,7 @@ export function MenuPageClient({
         <FloatingCartTrigger onClick={() => setIsCartOpen(true)} />
       )}
 
-      {effectiveTableId && !isCartOpen && !isBillOpen && !selectedItem && !isMemberOpen && !isSplitOpen && !paymentOrderId && (
+      {effectiveTableToken && !isCartOpen && !isBillOpen && !selectedItem && !isMemberOpen && !isSplitOpen && !paymentOrderId && (
         <ServiceRequestFab
           tableLabel={tableLabel ?? null}
           onRequest={sendServiceRequest}
@@ -1330,6 +1324,7 @@ export function MenuPageClient({
           orderId={paymentOrderId}
           total={paymentTotal}
           restaurantId={restaurant.id}
+          tableToken={effectiveTableToken!}
           restaurantName={restaurant.name}
           tableLabel={tableLabel ?? null}
           deviceId={deviceId}
@@ -1342,7 +1337,7 @@ export function MenuPageClient({
             setPaymentOrderId(null)
             setOrderView('sheet')
           }}
-          {...(effectiveTableId ? {
+          {...(effectiveTableToken ? {
             onPayAtTable: callWaiter,
             onDeferred: () => setOrderView('sheet'),
           } : {})}
@@ -1368,9 +1363,8 @@ export function MenuPageClient({
 
       {isSplitOpen && tableSessionId && (
         <SplitBillModal
-          restaurantId={restaurant.id}
           slug={restaurant.slug}
-          tableId={effectiveTableId!}
+          tableToken={effectiveTableToken!}
           tableSessionId={tableSessionId}
           onClose={() => setIsSplitOpen(false)}
         />

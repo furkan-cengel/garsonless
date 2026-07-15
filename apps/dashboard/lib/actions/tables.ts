@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
 import { createServiceClient, creditVisitsForSession, voidDeclaredSharesForSession } from '@garsonless/db'
+import { listActiveTableQrTokens, rotateActiveTableQrToken } from '@garsonless/db/server'
 import { assertAccess } from '../auth/access'
 
 const createTableSchema = z.object({
@@ -19,6 +20,11 @@ const updateTableSchema = z.object({
 })
 
 const deleteTableSchema = z.object({
+  restaurantId: z.string().uuid(),
+  tableId: z.string().uuid(),
+})
+
+const rotateTableQrTokenSchema = z.object({
   restaurantId: z.string().uuid(),
   tableId: z.string().uuid(),
 })
@@ -84,7 +90,7 @@ async function assertRestaurantOwner(
 export async function createTable(
   _prev: unknown,
   formData: FormData,
-): Promise<{ error: string } | { id: string }> {
+): Promise<{ error: string } | { id: string; token: string }> {
   const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
 
@@ -116,8 +122,12 @@ export async function createTable(
   const id = (data as { id: string } | null)?.id
   if (!id) return { error: 'Failed to create table' }
 
+  const tokens = await listActiveTableQrTokens(parsed.data.restaurantId)
+  const token = tokens[id]
+  if (!token) return { error: 'Yeni masa için QR bağlantısı oluşturulamadı.' }
+
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
-  return { id }
+  return { id, token }
 }
 
 export async function renameTable(
@@ -185,6 +195,26 @@ export async function deleteTable(
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   return { success: true }
+}
+
+/** Revoke the current public QR credential and issue a replacement atomically. */
+export async function rotateTableQrToken(input: unknown): Promise<{ error: string } | { token: string }> {
+  const parsed = rotateTableQrTokenSchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid QR rotation request' }
+  const gate = await assertAccess(parsed.data.restaurantId, 'tables')
+  if ('error' in gate) return { error: gate.error }
+  try {
+    const token = await rotateActiveTableQrToken({
+      restaurantId: parsed.data.restaurantId,
+      tableId: parsed.data.tableId,
+      revokedBy: gate.userId,
+    })
+    if (!token) return { error: 'Masa bulunamadı veya artık aktif değil.' }
+    revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
+    return { token }
+  } catch {
+    return { error: 'QR kodu döndürülemedi. Lütfen tekrar deneyin.' }
+  }
 }
 
 export async function saveQRStyle(

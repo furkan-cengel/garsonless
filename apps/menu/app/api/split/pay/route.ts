@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServiceClient } from '@garsonless/db'
+import { resolveActiveTableQrToken } from '@garsonless/db/server'
 import { createIyzicoClient, initializeCheckout } from '../../../../lib/iyzico'
 import { resolveIyzicoCredentials, attachPaymentTokenToShare } from '../../../../lib/payment-credentials'
 import { buildCheckoutAddresses } from '../../../../lib/checkout-address'
@@ -12,8 +13,7 @@ import { buildCheckoutAddresses } from '../../../../lib/checkout-address'
 
 const schema = z.object({
   shareId: z.string().uuid(),
-  restaurantId: z.string().uuid(),
-  slug: z.string().min(1).optional(),
+  tableToken: z.string().uuid(),
   buyerName: z.string().min(1).max(50),
   buyerSurname: z.string().min(1).max(50),
   buyerEmail: z.string().email(),
@@ -28,13 +28,12 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ pay
   try { body = await req.json() } catch { return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 }) }
   const parsed = schema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ success: false, error: parsed.error.issues[0]?.message ?? 'Invalid request' }, { status: 400 })
-  const { shareId, restaurantId, slug, buyerName, buyerSurname, buyerEmail, buyerPhone, deviceId } = parsed.data
+  const { shareId, tableToken, buyerName, buyerSurname, buyerEmail, buyerPhone, deviceId } = parsed.data
 
   const svc = createServiceClient()
-  if (slug) {
-    const { data: r } = await svc.from('restaurants').select('id').eq('slug', slug).is('deleted_at', null).maybeSingle()
-    if ((r as { id: string } | null)?.id !== restaurantId) return NextResponse.json({ success: false, error: 'Restaurant mismatch' }, { status: 400 })
-  }
+  const table = await resolveActiveTableQrToken(tableToken)
+  if (!table) return NextResponse.json({ success: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
+  const restaurantId = table.restaurantId
 
   // Read the share server-side (never trust client amount).
   const { data: shareRow } = await svc.from('payment_shares')
@@ -43,6 +42,9 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ pay
   const share = shareRow as { amount: number; status: string; method: string | null; table_session_id: string; restaurant_id: string } | null
   if (!share || share.restaurant_id !== restaurantId) return NextResponse.json({ success: false, error: 'Pay bulunamadı' }, { status: 404 })
   if (share.status !== 'declared') return NextResponse.json({ success: false, error: 'Bu pay zaten işlenmiş' }, { status: 409 })
+  const { data: session } = await svc.from('table_sessions').select('id')
+    .eq('id', share.table_session_id).eq('restaurant_id', restaurantId).eq('table_id', table.tableId).is('closed_at', null).maybeSingle()
+  if (!session) return NextResponse.json({ success: false, error: 'Payın bağlı olduğu masa bağlantısı artık geçersiz.' }, { status: 404 })
 
   // Remaining uncovered = session total − Σ settled shares.
   const { data: orderRows } = await svc.from('orders')

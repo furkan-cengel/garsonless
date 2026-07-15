@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
-import { createOrder, createServiceClient, type OrderDiscountBreakdown } from '@garsonless/db'
+import { placePublicOrder } from '@garsonless/application/orders'
+import { type OrderDiscountBreakdown } from '@garsonless/db'
+import { createPublicOrderPort, resolveActiveTableQrToken } from '@garsonless/db/server'
 import { getCustomerSession } from '../../../lib/customer-session'
 
 const orderItemSchema = z.object({
@@ -21,13 +23,8 @@ const orderItemSchema = z.object({
 })
 
 const createOrderSchema = z.object({
-  restaurantId: z.string().uuid(),
-  // Slug of the menu the order is placed from — cross-checked server-side
-  // against restaurantId so a tampered body can't inject orders into another
-  // restaurant (mirrors the /api/payment restaurant cross-check). Optional for
-  // back-compat; when present it MUST match.
   slug: z.string().min(1),
-  tableId: z.string().uuid(),
+  tableToken: z.string().uuid(),
   sessionId: z.string().uuid(),
   requestId: z.string().uuid(),
   items: z.array(orderItemSchema).min(1),
@@ -58,65 +55,55 @@ export async function POST(
     )
   }
 
-  // Anti-spoof: the slug is trusted (it's the URL the customer is ordering
-  // from); confirm it resolves to the restaurantId in the body. Mismatch → 400.
-  const svc = createServiceClient()
-  {
-    const { data: restRow } = await svc
-      .from('restaurants')
-      .select('id')
-      .eq('slug', parsed.data.slug)
-      .is('deleted_at', null)
-      .maybeSingle()
-    const resolvedId = (restRow as { id: string } | null)?.id ?? null
-    if (resolvedId !== parsed.data.restaurantId) {
-      return NextResponse.json({ success: false, error: 'Restaurant mismatch' }, { status: 400 })
-    }
-  }
-
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     ?? req.headers.get('x-real-ip')?.trim()
     ?? 'unknown'
+  const table = await resolveActiveTableQrToken(parsed.data.tableToken)
+  if (!table || table.restaurantSlug !== parsed.data.slug) {
+    return NextResponse.json({ success: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
+  }
+
   const keyHash = createHash('sha256')
     .update(`${ip}:${parsed.data.sessionId}:${req.headers.get('user-agent') ?? ''}`)
     .digest('hex')
-  const rpc = svc.rpc.bind(svc) as unknown as (
-    name: string,
-    args: Record<string, unknown>,
-  ) => Promise<{ data: unknown; error: { message: string } | null }>
-  const { data: allowed, error: rateError } = await rpc('consume_public_order_rate_limit', {
-    p_restaurant_id: parsed.data.restaurantId,
-    p_key_hash: keyHash,
-    p_max: 8,
-    p_window_seconds: 60,
-  })
-  if (rateError) {
-    return NextResponse.json({ success: false, error: 'Sipariş güvenlik kontrolü kullanılamıyor' }, { status: 503 })
-  }
-  if (allowed !== true) {
-    return NextResponse.json({ success: false, error: 'Çok fazla sipariş denemesi. Lütfen kısa süre sonra tekrar deneyin.' }, { status: 429 })
-  }
-
   // Link the order to a verified member (httpOnly cookie, same menu origin).
   // Covers BOTH place-order and pay-first. No cookie → guest, no redemption.
   const session = await getCustomerSession()
 
-  const result = await createOrder({
-    restaurantId: parsed.data.restaurantId,
-    tableId: parsed.data.tableId,
-    sessionId: parsed.data.sessionId,
-    requestId: parsed.data.requestId,
-    lines: parsed.data.items,
-    customerId: session?.customerId ?? null,
-    redeemPoints: session ? (parsed.data.redeemPoints ?? 0) : 0, // guests can't redeem
-    redeemStampClaim: session ? (parsed.data.redeemStampClaim ?? false) : false,
-    catalogItemId: session ? (parsed.data.catalogItemId ?? null) : null,
-  })
+  const result = await placePublicOrder(
+    {
+      actor: 'table-guest',
+      restaurantId: table.restaurantId,
+      tableToken: parsed.data.tableToken,
+      sessionId: parsed.data.sessionId,
+    },
+    {
+      restaurantId: table.restaurantId,
+      slug: parsed.data.slug,
+      tableToken: parsed.data.tableToken,
+      tableId: table.tableId,
+      sessionId: parsed.data.sessionId,
+      requestId: parsed.data.requestId,
+      lines: parsed.data.items,
+      customerId: session?.customerId ?? null,
+      redeemPoints: session ? (parsed.data.redeemPoints ?? 0) : 0, // guests can't redeem
+      redeemStampClaim: session ? (parsed.data.redeemStampClaim ?? false) : false,
+      catalogItemId: session ? (parsed.data.catalogItemId ?? null) : null,
+      rateLimitKey: keyHash,
+    },
+    createPublicOrderPort(),
+  )
 
   if (!result.ok) {
-    const status = result.error.startsWith('Failed to') ? 500 : 400
+    const status = result.error === 'Sipariş güvenlik kontrolü kullanılamıyor'
+      ? 503
+      : result.error.startsWith('Çok fazla sipariş')
+        ? 429
+        : result.error.startsWith('Failed to')
+          ? 500
+          : 400
     return NextResponse.json({ success: false, error: result.error }, { status })
   }
 
-  return NextResponse.json({ success: true, data: { orderId: result.orderId, breakdown: result.breakdown } })
+  return NextResponse.json({ success: true, data: { orderId: result.value.orderId, breakdown: result.value.breakdown as OrderDiscountBreakdown } })
 }

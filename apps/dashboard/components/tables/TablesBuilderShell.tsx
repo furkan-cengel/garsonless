@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import type { Tables } from '@garsonless/db'
-import { createTable, deleteTable, getOpenTableSessions, closeTableSession, renameTable, saveQRStyle } from '../../lib/actions/tables'
+import { createTable, deleteTable, getOpenTableSessions, closeTableSession, renameTable, rotateTableQrToken, saveQRStyle } from '../../lib/actions/tables'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
 import SettlementSheet from './SettlementSheet'
 import { getPendingServiceRequests, resolveServiceRequest } from '../../lib/actions/service-requests'
@@ -15,6 +15,7 @@ import DashboardIconRail from '../layout/IconRail'
 /* ─── Types ─────────────────────────────────────────────────── */
 interface TableItem {
   id: string
+  qrToken: string | null
   label: string
   slug: string
   orders: number
@@ -57,6 +58,7 @@ interface Props {
   restaurantName: string
   restaurantSlug: string
   initialTables: Tables<'tables'>[]
+  initialQrTokens: Record<string, string>
   initialOpenSessions: OpenSessionInfo[]
   initialSessionError?: string | null
   initialQRStyle?: unknown
@@ -86,10 +88,11 @@ function deriveSlug(label: string, index: number): string {
   return num ? num.padStart(2, '0') : String(index + 1).padStart(2, '0')
 }
 
-function mapDBTables(dbTables: Tables<'tables'>[], openSessions: OpenSessionInfo[]): TableItem[] {
+function mapDBTables(dbTables: Tables<'tables'>[], openSessions: OpenSessionInfo[], qrTokens: Record<string, string>): TableItem[] {
   const openByTable = new Map(openSessions.map((session) => [session.tableId, session]))
   return dbTables.map((t, i) => ({
     id: t.id,
+    qrToken: qrTokens[t.id] ?? null,
     label: t.label,
     slug: deriveSlug(t.label, i),
     orders: openByTable.get(t.id)?.orderCount ?? 0,
@@ -1044,6 +1047,7 @@ function TablesNav({ tables, setTables, activeId, setActiveId, restaurantId, ope
     const idx = tables.length
     const nextTable = {
       id: result.id,
+      qrToken: 'token' in result ? result.token : null,
       label,
       slug: deriveSlug(label, idx),
       orders: 0,
@@ -1267,8 +1271,9 @@ const MENU_ORIGIN = (
 ).replace(/\/+$/, '')
 
 function buildUrl(qr: QRConfig, table?: TableItem): string {
-  const tableId = table?.id && table.id !== 'placeholder' ? table.id : 'preview'
-  const url = new URL(`${qr.baseUrl}/table/${tableId}`)
+  // QR payloads contain a revocable token, never the internal table UUID.
+  const token = table?.qrToken ?? 'preview'
+  const url = new URL(`${qr.baseUrl}/table/${token}`)
   if (qr.utmSource) url.searchParams.set('utm_source', qr.utmSource)
   if (qr.utmMedium) url.searchParams.set('utm_medium', qr.utmMedium)
   if (qr.utmCampaign) url.searchParams.set('utm_campaign', qr.utmCampaign)
@@ -1686,12 +1691,13 @@ function GridCard({ qr, table }: { qr: QRConfig; table: TableItem }) {
 }
 
 /* ─── QRCanvas ──────────────────────────────────────────────── */
-function QRCanvas({ qr, table, tables, qrInstanceRef, health }: {
+function QRCanvas({ qr, table, tables, qrInstanceRef, health, onRotateToken }: {
   qr: QRConfig
   table?: TableItem
   tables: TableItem[]
   qrInstanceRef: React.RefObject<unknown>
   health: QRHealth
+  onRotateToken: (table: TableItem) => Promise<void>
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<'preview' | 'grid' | 'print'>('preview')
@@ -1807,6 +1813,15 @@ function QRCanvas({ qr, table, tables, qrInstanceRef, health }: {
             <span style={{ width: 6, height: 6, borderRadius: 999, background: 'currentColor', flexShrink: 0 }} />
             {health.message}
           </span>
+          {table && (
+            <button
+              type="button"
+              className="tb-hover"
+              onClick={() => { void onRotateToken(table) }}
+              title="Eski QR bağlantısını geçersiz kılıp yeni bir QR üretir"
+              style={{ ...btnGhost(), padding: '4px 8px', fontSize: 11 }}
+            >Yeni QR</button>
+          )}
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 2,
             background: 'var(--surface-3)', borderRadius: 7, padding: 3,
@@ -2597,11 +2612,11 @@ function HealthSuggestion({ children, last = false }: { children: React.ReactNod
 }
 
 /* ─── Root shell ────────────────────────────────────────────── */
-export default function TablesBuilderShell({ restaurantId, restaurantName, restaurantSlug, initialTables, initialOpenSessions, initialSessionError = null, initialQRStyle }: Props) {
+export default function TablesBuilderShell({ restaurantId, restaurantName, restaurantSlug, initialTables, initialQrTokens, initialOpenSessions, initialSessionError = null, initialQRStyle }: Props) {
   const baseQRUrl = `${MENU_ORIGIN}/${restaurantSlug}`
-  const [tables, setTables] = useState<TableItem[]>(() => mapDBTables(initialTables, initialOpenSessions))
+  const [tables, setTables] = useState<TableItem[]>(() => mapDBTables(initialTables, initialOpenSessions, initialQrTokens))
   const [activeId, setActiveId] = useState<string>(() => {
-    const mapped = mapDBTables(initialTables, initialOpenSessions)
+    const mapped = mapDBTables(initialTables, initialOpenSessions, initialQrTokens)
     return mapped[0]?.id ?? ''
   })
   // qr is DERIVED from an undo/redo history stack. setQR pushes a new entry
@@ -2640,6 +2655,15 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
   const canRedo = hist.index < hist.stack.length - 1
   const [saveState, setSaveState] = useState<SaveState>('saved')
   const [saveError, setSaveError] = useState<string | null>(null)
+  const handleRotateToken = useCallback(async (table: TableItem) => {
+    if (!window.confirm(`${table.label} için yeni QR oluşturulsun mu? Eski QR hemen geçersiz olur.`)) return
+    const result = await rotateTableQrToken({ restaurantId, tableId: table.id })
+    if ('error' in result) {
+      setSessionError(result.error)
+      return
+    }
+    setTables((current) => current.map((item) => item.id === table.id ? { ...item, qrToken: result.token } : item))
+  }, [restaurantId])
   // Shopify-style in-app mobile preview (phone mockup) — null = closed.
   const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
   const qrInstanceRef = useRef<unknown>(null)
@@ -2883,7 +2907,7 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
         <div className="tb-tables__workspace" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           <TablesIconRail restaurantId={restaurantId} />
           <TablesNav tables={tables} setTables={setTables} activeId={activeId} setActiveId={setActiveId} restaurantId={restaurantId} openSessions={openSessions} onCloseSession={handleCloseSession} pendingRequests={pendingRequests} onResolveRequest={handleResolveRequest} requestError={requestError} sessionError={sessionError} />
-          <QRCanvas qr={qr} table={activeTable} tables={tables} qrInstanceRef={qrInstanceRef} health={qrHealth} />
+          <QRCanvas qr={qr} table={activeTable} tables={tables} qrInstanceRef={qrInstanceRef} health={qrHealth} onRotateToken={handleRotateToken} />
           <QRProps qr={qr} setQR={setQR} replaceQR={replaceQR} beginQRChange={beginQRChange} tables={tables} saveState={saveState} saveError={saveError} onRetry={() => { void persistQR(qr) }} />
         </div>
         <StatusBar saveState={saveState} saveError={saveError} onRetry={() => { void persistQR(qr) }} tableCount={tables.length} activeCount={Object.keys(openSessions).length} />

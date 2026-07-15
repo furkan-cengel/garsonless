@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServiceRequest, SERVICE_REQUEST_TYPES } from '@garsonless/db'
+import { resolveActiveTableQrToken } from '@garsonless/db/server'
 
 const schema = z.object({
-  restaurantId: z.string().uuid(),
-  tableId: z.string().uuid(),
+  tableToken: z.string().uuid(),
   requestType: z.enum(SERVICE_REQUEST_TYPES),
 })
 
@@ -26,9 +26,11 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse>> {
     )
   }
 
+  const table = await resolveActiveTableQrToken(parsed.data.tableToken)
+  if (!table) return NextResponse.json({ ok: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
   const result = await createServiceRequest({
-    restaurantId: parsed.data.restaurantId,
-    tableId: parsed.data.tableId,
+    restaurantId: table.restaurantId,
+    tableId: table.tableId,
     requestType: parsed.data.requestType,
   })
 

@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { createServiceClient, markOrderPaidDB, listTeamMembers, readOrderLineSnapshots } from '@garsonless/db'
+import { settleOrder as settleOrderCommand } from '@garsonless/application/orders'
+import { listTeamMembers, readOrderLineSnapshots } from '@garsonless/db'
+import { createSettlementPort, readPaymentSharesForSettlement } from '@garsonless/db/server'
 import type { PaymentMethod } from '@garsonless/db'
 import { assertAccess, getUserRestaurantAccess } from '../auth/access'
 import { createDashboardServerClient } from '../supabase-server'
@@ -25,7 +27,8 @@ const settleSchema = z.object({
  * Gate: owner OR a member with the 'tables' section (assertAccess). A member
  * without 'tables', or any cross-tenant caller, is rejected before any write.
  *
- * Settlement itself is delegated to the P1 markOrderPaidDB, which is
+ * Settlement itself is delegated to the order application command, whose
+ * Supabase port uses the P1 markOrderPaidDB primitive. That primitive is
  * restaurant-scoped AND guarded by `paid_at IS NULL`: re-settling an already
  * paid order (incl. an İyzico one) affects 0 rows and never overwrites the
  * recorded method (idempotent / no-op). Payment only settles the bill; explicit
@@ -44,16 +47,19 @@ export async function settleOrder(
   const gate = await assertAccess(parsed.data.restaurantId, 'tables')
   if ('error' in gate) return { error: gate.error }
 
-  // settled_by = the staff user who collected (audit). markOrderPaidDB's
-  // restaurant scoping means even if a foreign orderId is passed, the
-  // `eq(restaurant_id)` won't match → "Order not found for this restaurant".
-  const { error } = await markOrderPaidDB(
-    parsed.data.orderId,
-    parsed.data.restaurantId,
-    parsed.data.method,
-    gate.userId,
+  // The adapter has already established the section permission. The command
+  // receives only a verified actor context, never browser-provided authority.
+  const result = await settleOrderCommand(
+    {
+      actor: 'dashboard-member',
+      userId: gate.userId,
+      restaurantId: parsed.data.restaurantId,
+      permissions: ['tables'],
+    },
+    parsed.data,
+    createSettlementPort(),
   )
-  if (error) return { error }
+  if (!result.ok) return { error: result.error }
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/orders`)
@@ -127,8 +133,7 @@ export async function getSessionSettlement(
   if ('error' in gate) return { error: gate.error }
 
   const supabase = await createDashboardServerClient()
-  const svc = createServiceClient()
-  const [{ data }, { data: shareData }] = await Promise.all([
+  const [{ data }, shareData] = await Promise.all([
     supabase
       .from('orders')
       .select('id, total, status, paid_at, payment_method, settled_by, created_at, items')
@@ -137,13 +142,7 @@ export async function getSessionSettlement(
       .is('deleted_at', null)
       .neq('status', 'cancelled')
       .order('created_at', { ascending: true }),
-    svc
-      .from('payment_shares')
-      .select('id, amount, method, status, label, settled_at, settled_by, created_at')
-      .eq('restaurant_id', restaurantId)
-      .eq('table_session_id', sessionId)
-      .neq('status', 'void')
-      .order('created_at', { ascending: true }),
+    readPaymentSharesForSettlement({ restaurantId, sessionId }),
   ])
 
   const rows = (data ?? []) as OrderRow[]

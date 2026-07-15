@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServiceClient, createShareDB } from '@garsonless/db'
+import { resolveActiveTableQrToken } from '@garsonless/db/server'
 import { getCustomerSession } from '../../../../lib/customer-session'
 
 // Customer declares a split share (card intent OR cash). Service-role, gated by
@@ -9,8 +10,8 @@ import { getCustomerSession } from '../../../../lib/customer-session'
 // items; free-splits take the client amount but validate it against the session.
 
 const schema = z.object({
-  restaurantId: z.string().uuid(),
-  slug: z.string().min(1).optional(),
+  slug: z.string().min(1),
+  tableToken: z.string().uuid(),
   tableSessionId: z.string().uuid(),
   method: z.enum(['iyzico', 'cash']),
   label: z.string().max(40).optional(),
@@ -29,22 +30,21 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ sha
   try { body = await req.json() } catch { return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 }) }
   const parsed = schema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ success: false, error: parsed.error.issues[0]?.message ?? 'Invalid request' }, { status: 400 })
-  const { restaurantId, slug, tableSessionId, method, label, amount, assignedItems } = parsed.data
+  const { slug, tableToken, tableSessionId, method, label, amount, assignedItems } = parsed.data
 
   const svc = createServiceClient()
-  // Anti-spoof: slug must resolve to restaurantId (same as /api/orders).
-  if (slug) {
-    const { data: r } = await svc.from('restaurants').select('id').eq('slug', slug).is('deleted_at', null).maybeSingle()
-    if ((r as { id: string } | null)?.id !== restaurantId) return NextResponse.json({ success: false, error: 'Restaurant mismatch' }, { status: 400 })
-  }
-  // Session must be OPEN and belong to the restaurant.
-  const { data: sessionRow } = await svc.from('table_sessions').select('id').eq('id', tableSessionId).eq('restaurant_id', restaurantId).is('closed_at', null).maybeSingle()
+  const table = await resolveActiveTableQrToken(tableToken)
+  if (!table || table.restaurantSlug !== slug) return NextResponse.json({ success: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
+  // Session must be OPEN and belong to the QR's table — a known session ID from
+  // another table cannot be used to create a payment share.
+  const { data: sessionRow } = await svc.from('table_sessions').select('id').eq('id', tableSessionId)
+    .eq('restaurant_id', table.restaurantId).eq('table_id', table.tableId).is('closed_at', null).maybeSingle()
   if (!sessionRow) return NextResponse.json({ success: false, error: 'Adisyon bulunamadı ya da kapanmış' }, { status: 404 })
 
   // Session order lines (server-authoritative) — used to derive item-split amounts
   // and cap free amounts at the session total.
   const { data: orderRows } = await svc.from('orders')
-    .select('id, total, items').eq('table_session_id', tableSessionId).eq('restaurant_id', restaurantId)
+    .select('id, total, items').eq('table_session_id', tableSessionId).eq('restaurant_id', table.restaurantId)
     .neq('status', 'cancelled').is('deleted_at', null)
   const orders = (orderRows ?? []) as Array<{ id: string; total: number; items: unknown }>
   const sessionTotal = orders.reduce((s, o) => s + (o.total ?? 0), 0)
@@ -76,7 +76,7 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ sha
   const session = await getCustomerSession()
 
   const { shareId, error } = await createShareDB({
-    restaurantId,
+    restaurantId: table.restaurantId,
     tableSessionId,
     amount: shareAmount,
     method,

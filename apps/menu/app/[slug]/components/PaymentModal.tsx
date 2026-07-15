@@ -8,6 +8,7 @@ interface Props {
   orderId: string
   total: number
   restaurantId: string
+  tableToken: string
   restaurantName: string
   tableLabel?: string | null
   deviceId: string
@@ -40,6 +41,7 @@ export default function PaymentModal({
   orderId,
   total,
   restaurantId,
+  tableToken,
   restaurantName,
   tableLabel,
   deviceId,
@@ -78,6 +80,7 @@ export default function PaymentModal({
           orderId,
           total,
           restaurantId,
+          tableToken,
           deviceId,
           buyerName: buyer.name.trim(),
           buyerSurname: buyer.surname.trim(),

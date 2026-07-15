@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@garsonless/application": "workspace:*",
     "@garsonless/db": "workspace:*",
     "@garsonless/design-engine": "workspace:*",
     "@garsonless/ui": "workspace:*",

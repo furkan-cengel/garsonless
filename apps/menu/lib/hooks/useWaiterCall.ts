@@ -11,7 +11,7 @@ const COOLDOWN_MS = 90_000
  * Shared waiter-call logic for the menu app. After a successful (or throttled)
  * call the button stays in 'called' for 90s, matching the server-side throttle.
  */
-export function useWaiterCall(restaurantId: string, tableId: string | null) {
+export function useWaiterCall(tableToken: string | null) {
   const [callState, setCallState] = useState<WaiterCallState>('idle')
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -20,7 +20,7 @@ export function useWaiterCall(restaurantId: string, tableId: string | null) {
   }, [])
 
   const sendServiceRequest = useCallback(async (requestType: ServiceRequestType) => {
-    if (!tableId) return false
+    if (!tableToken) return false
     if (requestType === 'waiter') {
       if (callState === 'called') return true
       if (callState !== 'idle') return false
@@ -30,7 +30,7 @@ export function useWaiterCall(restaurantId: string, tableId: string | null) {
       const res = await fetch('/api/service-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ restaurantId, tableId, requestType }),
+        body: JSON.stringify({ tableToken, requestType }),
       })
       const data = (await res.json()) as { ok: boolean }
       if (data.ok) {
@@ -48,7 +48,7 @@ export function useWaiterCall(restaurantId: string, tableId: string | null) {
       if (requestType === 'waiter') setCallState('idle')
       return false
     }
-  }, [restaurantId, tableId, callState])
+  }, [tableToken, callState])
 
   const callWaiter = useCallback(
     () => sendServiceRequest('waiter'),

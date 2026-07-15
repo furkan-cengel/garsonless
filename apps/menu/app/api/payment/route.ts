@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServiceClient } from '@garsonless/db'
+import { resolveActiveTableQrToken } from '@garsonless/db/server'
 import { createIyzicoClient, initializeCheckout } from '../../../lib/iyzico'
 import { resolveIyzicoCredentials, attachPaymentTokenToOrder } from '../../../lib/payment-credentials'
 import { buildCheckoutAddresses } from '../../../lib/checkout-address'
@@ -11,6 +12,7 @@ const paymentSchema = z.object({
   // order (server-authoritative). Kept for back-compat / display only.
   total: z.number().positive().optional(),
   restaurantId: z.string().uuid(),
+  tableToken: z.string().uuid(),
   buyerName: z.string().min(1).max(50),
   buyerSurname: z.string().min(1).max(50),
   buyerEmail: z.string().email(),
@@ -41,6 +43,7 @@ export async function POST(
   const {
     orderId,
     restaurantId,
+    tableToken,
     buyerName,
     buyerSurname,
     buyerEmail,
@@ -64,13 +67,17 @@ export async function POST(
   // SERVER-AUTHORITATIVE amount: read the order's stored total (post-discount).
   // The client-supplied `total` is never used for the charge.
   const svc = createServiceClient()
+  const table = await resolveActiveTableQrToken(tableToken)
+  if (!table || table.restaurantId !== restaurantId) {
+    return NextResponse.json({ success: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
+  }
   const { data: orderRow } = await svc
     .from('orders')
-    .select('total, restaurant_id')
+    .select('total, restaurant_id, table_id')
     .eq('id', orderId)
     .maybeSingle()
-  const order = orderRow as { total: number; restaurant_id: string } | null
-  if (!order || order.restaurant_id !== restaurantId) {
+  const order = orderRow as { total: number; restaurant_id: string; table_id: string | null } | null
+  if (!order || order.restaurant_id !== restaurantId || order.table_id !== table.tableId) {
     return NextResponse.json({ success: false, error: 'Sipariş bulunamadı' }, { status: 404 })
   }
   const { data: restaurantRow } = await svc

@@ -2,13 +2,16 @@
 
 import { z } from 'zod'
 import {
-  createServiceClient,
-  validateKitchenToken,
-  updateOrderStatusDB,
-  type OrderStatus,
   type Tables,
 } from '@garsonless/db'
-import { readOrderLineSnapshots } from '@garsonless/db/order-client'
+import { transitionKitchenOrder } from '@garsonless/application/orders'
+import {
+  createKitchenOrderPort,
+  listKitchenOrders,
+  readKitchenOrder,
+  verifyKitchenActor,
+} from '@garsonless/db/server'
+import type { OrderStatus } from '@garsonless/domain/orders'
 
 const updateSchema = z.object({
   orderId: z.string().uuid(),
@@ -28,37 +31,14 @@ export async function updateOrderStatusAction(
   const parsed = updateSchema.safeParse({ orderId, status, restaurantId, kitchenToken, stationScope })
   if (!parsed.success) return { error: 'Invalid input' }
 
-  const valid = await validateKitchenToken(restaurantId, kitchenToken)
+  const valid = await verifyKitchenActor(restaurantId, kitchenToken)
   if (!valid) return { error: 'Invalid kitchen token' }
-
-  const supabase = createServiceClient()
-  const { data } = await supabase
-    .from('orders')
-    .select('id, status, items')
-    .eq('id', orderId)
-    .eq('restaurant_id', restaurantId)
-    .maybeSingle()
-  if (!data) return { error: 'Order not found' }
-
-  const currentStatus = data.status as OrderStatus
-  const canStart = status === 'preparing'
-    && ['pending', 'pending_approval', 'sent_to_kitchen', 'paid'].includes(currentStatus)
-  const canFinish = status === 'ready' && currentStatus === 'preparing'
-  if (!canStart && !canFinish) return { error: 'Invalid kitchen status transition' }
-
-  const lines = readOrderLineSnapshots(data.items)
-  const stationKeys = new Set(lines.map((line) => line.station?.id ?? 'unassigned'))
-  if (stationScope !== 'expo') {
-    if (!stationKeys.has(stationScope)) return { error: 'Order does not belong to this station' }
-    if (status === 'ready' && (stationKeys.size !== 1 || !stationKeys.has(stationScope))) {
-      return { error: 'Çok istasyonlu siparişi Son Kontrol tamamlar' }
-    }
-  }
-
-  // Kitchen tokens can prepare food and mark it ready. Serving is a staff
-  // hand-off and remains available only through the authenticated dashboard.
-  const { error } = await updateOrderStatusDB(orderId, status, restaurantId)
-  if (error) return { error }
+  const result = await transitionKitchenOrder(
+    { actor: 'kitchen', restaurantId, stationId: stationScope },
+    { orderId, restaurantId, status: parsed.data.status },
+    createKitchenOrderPort(),
+  )
+  if (!result.ok) return { error: result.error }
   return { success: true }
 }
 
@@ -76,19 +56,15 @@ export async function getKitchenOrderAction(
   const parsed = fetchSchema.safeParse({ orderId, restaurantId, kitchenToken })
   if (!parsed.success) return { error: 'Invalid input' }
 
-  const valid = await validateKitchenToken(restaurantId, kitchenToken)
+  const valid = await verifyKitchenActor(restaurantId, kitchenToken)
   if (!valid) return { error: 'Invalid kitchen token' }
-
-  const supabase = createServiceClient()
-  const { data } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('id', orderId)
-    .eq('restaurant_id', restaurantId)
-    .maybeSingle()
-
-  if (!data) return { error: 'Order not found' }
-  return { order: data as Tables<'orders'> }
+  try {
+    const data = await readKitchenOrder({ orderId, restaurantId })
+    if (!data) return { error: 'Order not found' }
+    return { order: data as Tables<'orders'> }
+  } catch {
+    return { error: 'Orders unavailable' }
+  }
 }
 
 export async function getKitchenOrdersAction(
@@ -98,14 +74,10 @@ export async function getKitchenOrdersAction(
   const parsed = z.object({ restaurantId: z.string().uuid(), kitchenToken: z.string().min(1) })
     .safeParse({ restaurantId, kitchenToken })
   if (!parsed.success) return { error: 'Invalid input' }
-  if (!await validateKitchenToken(restaurantId, kitchenToken)) return { error: 'Invalid kitchen token' }
-
-  const supabase = createServiceClient()
-  const { data, error } = await supabase.from('orders').select('*')
-    .eq('restaurant_id', restaurantId)
-    .in('status', ['pending', 'pending_approval', 'sent_to_kitchen', 'paid', 'preparing', 'ready'])
-    .is('deleted_at', null)
-    .order('created_at')
-  if (error) return { error: 'Orders unavailable' }
-  return { orders: (data ?? []) as Tables<'orders'>[] }
+  if (!await verifyKitchenActor(restaurantId, kitchenToken)) return { error: 'Invalid kitchen token' }
+  try {
+    return { orders: (await listKitchenOrders(restaurantId)) as Tables<'orders'>[] }
+  } catch {
+    return { error: 'Orders unavailable' }
+  }
 }

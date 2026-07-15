@@ -48,3 +48,11 @@ entrypoint = "./functions/send-email-hook/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/send-email-hook/*.html" ]
+
+[functions.outbox-worker]
+enabled = true
+# The scheduled caller authenticates with OUTBOX_WORKER_SECRET rather than a
+# browser JWT. Keep the function service-only and do not expose the secret.
+verify_jwt = false
+import_map = "./functions/outbox-worker/deno.json"
+entrypoint = "./functions/outbox-worker/index.ts"

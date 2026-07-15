@@ -1,0 +1,23 @@
+{
+  "name": "@garsonless/application",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./orders": "./src/orders.ts"
+  },
+  "dependencies": {
+    "@garsonless/domain": "workspace:*"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "test": "tsx --test src/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
+    "typescript": "*"
+  }
+}

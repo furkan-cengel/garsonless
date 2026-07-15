@@ -6,9 +6,8 @@ import { formatTRY } from '@garsonless/ui'
 const fmt = formatTRY
 
 interface Props {
-  restaurantId: string
   slug: string
-  tableId: string
+  tableToken: string
   tableSessionId: string
   onClose: () => void
 }
@@ -26,7 +25,7 @@ interface Share {
 }
 interface Line { itemId: string; name: string; price: number; quantity: number; modifiersPriceDelta: number }
 
-export default function SplitBillModal({ restaurantId, slug, tableId, tableSessionId, onClose }: Props) {
+export default function SplitBillModal({ slug, tableToken, tableSessionId, onClose }: Props) {
   const [shares, setShares] = useState<Share[]>([])
   const [orders, setOrders] = useState<SessionOrder[]>([])
   const [mode, setMode] = useState<'items' | 'free'>('items')
@@ -43,12 +42,12 @@ export default function SplitBillModal({ restaurantId, slug, tableId, tableSessi
   const remaining = Math.round((sessionTotal - settled) * 100) / 100
 
   const loadState = useCallback(async () => {
-    const res = await fetch(`/api/table-state?restaurantId=${encodeURIComponent(restaurantId)}&tableId=${encodeURIComponent(tableId)}`, { cache: 'no-store' })
+    const res = await fetch(`/api/table-state?token=${encodeURIComponent(tableToken)}`, { cache: 'no-store' })
     const body = await res.json() as { success: boolean; data?: { session: { id: string } | null; shares: Share[]; orders: SessionOrder[] } }
     if (!body.success || body.data?.session?.id !== tableSessionId) return
     setShares(body.data.shares)
     setOrders(body.data.orders)
-  }, [restaurantId, tableId, tableSessionId])
+  }, [tableToken, tableSessionId])
 
   useEffect(() => {
     let alive = true
@@ -88,7 +87,7 @@ export default function SplitBillModal({ restaurantId, slug, tableId, tableSessi
   async function createShare(method: 'iyzico' | 'cash'): Promise<string | null> {
     setError('')
     if (myAmount <= 0) { setError('Önce payını seç ya da tutar gir.'); return null }
-    const bodyBase = { restaurantId, slug, tableSessionId, method, label: 'Payım' }
+    const bodyBase = { slug, tableToken, tableSessionId, method, label: 'Payım' }
     const body = mode === 'items' ? { ...bodyBase, assignedItems: assignedItemsPayload() } : { ...bodyBase, amount: myAmount }
     const res = await fetch('/api/split/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
     const json = (await res.json()) as { success: boolean; data?: { shareId: string }; error?: string }
@@ -103,7 +102,7 @@ export default function SplitBillModal({ restaurantId, slug, tableId, tableSessi
     if (!shareId) { setBusy(false); return }
     const res = await fetch('/api/split/pay', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ shareId, restaurantId, slug, buyerName: 'Misafir', buyerSurname: 'Musteri', buyerEmail: 'guest@masabu.co', buyerPhone: '+905000000000', deviceId: `dev-${Math.random().toString(36).slice(2)}` }),
+      body: JSON.stringify({ shareId, tableToken, buyerName: 'Misafir', buyerSurname: 'Musteri', buyerEmail: 'guest@masabu.co', buyerPhone: '+905000000000', deviceId: `dev-${Math.random().toString(36).slice(2)}` }),
     })
     const json = (await res.json()) as { success: boolean; data?: { paymentPageUrl: string }; error?: string }
     if (!json.success || !json.data) { setError(json.error ?? 'Ödeme başlatılamadı'); setBusy(false); return }

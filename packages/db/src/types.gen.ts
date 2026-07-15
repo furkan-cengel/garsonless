@@ -317,6 +317,94 @@ export type Database = {
         }
         Relationships: []
       }
+      domain_outbox: {
+        Row: {
+          aggregate_id: string
+          aggregate_type: string
+          attempts: number
+          available_at: string
+          created_at: string
+          event_type: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          occurred_at: string
+          payload: Json
+          processed_at: string | null
+          restaurant_id: string
+        }
+        Insert: {
+          aggregate_id: string
+          aggregate_type: string
+          attempts?: number
+          available_at?: string
+          created_at?: string
+          event_type: string
+          id?: string
+          idempotency_key: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          occurred_at?: string
+          payload?: Json
+          processed_at?: string | null
+          restaurant_id: string
+        }
+        Update: {
+          aggregate_id?: string
+          aggregate_type?: string
+          attempts?: number
+          available_at?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          idempotency_key?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          occurred_at?: string
+          payload?: Json
+          processed_at?: string | null
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "domain_outbox_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      domain_outbox_receipts: {
+        Row: {
+          consumer: string
+          outbox_id: string
+          processed_at: string
+        }
+        Insert: {
+          consumer: string
+          outbox_id: string
+          processed_at?: string
+        }
+        Update: {
+          consumer?: string
+          outbox_id?: string
+          processed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "domain_outbox_receipts_outbox_id_fkey"
+            columns: ["outbox_id"]
+            isOneToOne: false
+            referencedRelation: "domain_outbox"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kitchen_credentials: {
         Row: {
           created_at: string
@@ -1358,6 +1446,54 @@ export type Database = {
           },
         ]
       }
+      table_qr_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          restaurant_id: string
+          revoke_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          table_id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          restaurant_id: string
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          table_id: string
+          token?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          restaurant_id?: string
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          table_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "table_qr_tokens_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "table_qr_tokens_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       table_sessions: {
         Row: {
           close_reason: string | null
@@ -1491,6 +1627,36 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ack_domain_outbox: {
+        Args: { p_event_id: string; p_worker: string }
+        Returns: boolean
+      }
+      claim_domain_outbox: {
+        Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string }
+        Returns: {
+          aggregate_id: string
+          aggregate_type: string
+          attempts: number
+          available_at: string
+          created_at: string
+          event_type: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          occurred_at: string
+          payload: Json
+          processed_at: string | null
+          restaurant_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "domain_outbox"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_qr_stand_request_slot: {
         Args: {
           p_requested_by: string
@@ -1524,6 +1690,26 @@ export type Database = {
       delete_menu_category: {
         Args: { p_category_id: string; p_restaurant_id: string }
         Returns: undefined
+      }
+      enqueue_domain_outbox_event: {
+        Args: {
+          p_aggregate_id: string
+          p_aggregate_type: string
+          p_event_type: string
+          p_idempotency_key: string
+          p_payload: Json
+          p_restaurant_id: string
+        }
+        Returns: undefined
+      }
+      fail_domain_outbox: {
+        Args: {
+          p_delay_seconds?: number
+          p_error: string
+          p_event_id: string
+          p_worker: string
+        }
+        Returns: boolean
       }
       finalize_order_discount: {
         Args: {
@@ -1599,6 +1785,13 @@ export type Database = {
         Returns: boolean
       }
       is_staff_user: { Args: { p_user_id: string }; Returns: boolean }
+      list_active_table_qr_tokens: {
+        Args: { p_restaurant_id: string }
+        Returns: {
+          table_id: string
+          token: string
+        }[]
+      }
       menu_category_restaurant: {
         Args: { p_category_id: string }
         Returns: string
@@ -1637,6 +1830,24 @@ export type Database = {
       reorder_menu_categories: {
         Args: { p_ordered_ids: string[]; p_restaurant_id: string }
         Returns: undefined
+      }
+      resolve_active_table_qr_token: {
+        Args: { p_token: string }
+        Returns: {
+          restaurant_id: string
+          restaurant_slug: string
+          table_id: string
+          table_label: string
+        }[]
+      }
+      rotate_table_qr_token: {
+        Args: {
+          p_reason?: string
+          p_restaurant_id: string
+          p_revoked_by?: string
+          p_table_id: string
+        }
+        Returns: string
       }
       set_menu_items_availability: {
         Args: {

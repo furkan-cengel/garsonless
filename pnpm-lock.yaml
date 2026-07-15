@@ -50,6 +50,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.6)
+      '@garsonless/application':
+        specifier: workspace:*
+        version: link:../../packages/application
       '@garsonless/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -135,9 +138,15 @@ importers:
 
   apps/kitchen:
     dependencies:
+      '@garsonless/application':
+        specifier: workspace:*
+        version: link:../../packages/application
       '@garsonless/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@garsonless/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@garsonless/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -215,6 +224,9 @@ importers:
 
   apps/menu:
     dependencies:
+      '@garsonless/application':
+        specifier: workspace:*
+        version: link:../../packages/application
       '@garsonless/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -274,8 +286,30 @@ importers:
         specifier: '*'
         version: 5.9.3
 
+  packages/application:
+    dependencies:
+      '@garsonless/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.1
+      typescript:
+        specifier: '*'
+        version: 5.9.3
+
   packages/db:
     dependencies:
+      '@garsonless/application':
+        specifier: workspace:*
+        version: link:../application
+      '@garsonless/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@supabase/ssr':
         specifier: ^0.5.2
         version: 0.5.2(@supabase/supabase-js@2.105.4)
@@ -307,6 +341,18 @@ importers:
 
   packages/design-engine:
     devDependencies:
+      typescript:
+        specifier: '*'
+        version: 5.9.3
+
+  packages/domain:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.19
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.1
       typescript:
         specifier: '*'
         version: 5.9.3

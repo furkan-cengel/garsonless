@@ -52,7 +52,7 @@ const RANGES = [
   { id: 'day', label: 'Bugün' },
   { id: 'week', label: '7G' },
   { id: 'month', label: '30G' },
-  { id: 'quarter', label: 'Çeyrek' },
+  { id: 'quarter', label: '90G' },
   { id: 'year', label: 'Yıl' },
 ]
 
@@ -65,7 +65,7 @@ function rangePeriodLabel(range: string): string {
     day: 'Bugün',
     week: 'Son 7 gün',
     month: 'Son 30 gün',
-    quarter: 'Bu çeyrek',
+    quarter: 'Son 90 gün',
     year: 'Son 12 ay',
   } as Record<string, string>)[range] ?? 'Son 7 gün'
 }
@@ -75,7 +75,7 @@ function previousPeriodLabel(range: string): string {
     day: 'düne göre',
     week: 'önceki haftaya göre',
     month: 'önceki 30 güne göre',
-    quarter: 'önceki çeyreğe göre',
+    quarter: 'önceki 90 güne göre',
     year: 'geçen yıla göre',
   } as Record<string, string>)[range] ?? 'önceki döneme göre'
 }
@@ -131,6 +131,7 @@ export default function AnalyticsClient({
     sadakat: false,
   })
   const [isPending, startTransition] = useTransition()
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   function markReportLoaded(report: AnalyticsReportId) {
     setLoadedReports((prev) => ({
@@ -142,7 +143,12 @@ export default function AnalyticsClient({
 
   function loadReport(report: AnalyticsReportId, nextRange = range) {
     startTransition(async () => {
+      setLoadError(null)
       const data = await fetchAnalyticsReportData(restaurantId, nextRange, report)
+      if (data.error) {
+        setLoadError(data.error)
+        return
+      }
       setAnalyticsData((prev) => ({ ...prev, ...data }))
       markReportLoaded(report)
     })
@@ -249,6 +255,11 @@ export default function AnalyticsClient({
           <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 20px', color: 'var(--text)' }}>
             {REPORTS.find((r) => r.id === activeReport)?.label ?? 'Raporlar'}
           </h2>
+          {loadError && (
+            <div role="alert" style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, border: '1px solid var(--critical)', background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 13 }}>
+              {loadError} <button type="button" onClick={() => loadReport(activeReport)} style={{ marginLeft: 8, border: 0, background: 'transparent', color: 'inherit', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}>Tekrar dene</button>
+            </div>
+          )}
           {!activeReportLoaded && isPending && <ReportLoading />}
           {activeReport === 'sales' && activeReportLoaded && (
             <SalesReport
@@ -304,7 +315,10 @@ type LoadedAnalyticsData = {
 
 function csvCell(v: CsvValue): string {
   if (v === null) return ''
-  const s = String(v)
+  const raw = String(v)
+  // Prevent spreadsheet formula execution from user-controlled product/table
+  // names, staff emails and free-text close reasons when opened in Excel/Sheets.
+  const s = /^[\t ]*[=+\-@]/.test(raw) ? `'${raw}` : raw
   return /[",\n\r;]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s
 }
 
@@ -435,7 +449,7 @@ function buildReportCsv(
 
 function ReportLoading() {
   return (
-    <div style={{
+    <div role="status" aria-live="polite" style={{
       minHeight: 320,
       display: 'flex',
       alignItems: 'center',
@@ -467,7 +481,7 @@ function RangePicker({ value, onChange, loading }: { value: string; onChange: (v
 
 /* ── SALES REPORT ─────────────────────────────────── */
 function delta(current: number, prev: number): { text: string; down: boolean } {
-  if (prev === 0) return { text: current > 0 ? '+100%' : '—', down: false }
+  if (prev === 0) return { text: current > 0 ? 'Yeni' : '—', down: false }
   const pct = ((current - prev) / prev) * 100
   return { text: `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`, down: pct < 0 }
 }
@@ -533,8 +547,8 @@ function SalesReport({
         </Card>
       </div>
 
-      <Card title="En çok satan ürünler" subtitle="Bugün · tahsil edilmiş siparişler">
-        <TopItemsTable items={topItems} />
+      <Card title="En çok satan ürünler" subtitle={`${rangePeriodLabel(range)} · tahsil edilmiş siparişler`}>
+        <TopItemsTable items={topItems} period={rangePeriodLabel(range)} />
       </Card>
     </div>
   )
@@ -584,11 +598,11 @@ function KPISmall({
 const PAYMENT_COLORS = ['var(--chart-cat-1)', 'var(--chart-cat-2)', 'var(--chart-cat-3)', 'var(--chart-cat-4)', 'var(--chart-cat-5)']
 
 /* ── TOP ITEMS TABLE ──────────────────────────────── */
-function TopItemsTable({ items }: { items: TopItem[] }) {
+function TopItemsTable({ items, period }: { items: TopItem[]; period: string }) {
   if (items.length === 0) {
     return (
       <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-        Bugün henüz sipariş yok
+        {period} için tahsil edilmiş sipariş yok
       </div>
     )
   }

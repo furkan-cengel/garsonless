@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
+import { settleOrder as settleOrderCommand } from '@garsonless/application/orders'
 import { createIyzicoClient, retrieveCheckout } from '../../../../lib/iyzico'
 import { resolveCredentialsByPaymentToken, resolveCredentialsByShareToken } from '../../../../lib/payment-credentials'
-import { createServiceClient, markOrderPaidDB, settleShareDB } from '@garsonless/db'
+import { settleShareDB } from '@garsonless/db'
+import { createSettlementPort, recordPaymentReconciliation } from '@garsonless/db/server'
 
 async function recordReconciliation(input: {
   token: string
@@ -13,19 +15,14 @@ async function recordReconciliation(input: {
   detail?: Record<string, unknown>
 }) {
   const tokenHash = createHash('sha256').update(input.token).digest('hex')
-  const client = createServiceClient()
-  const table = client.from.bind(client) as unknown as (name: string) => {
-    insert: (row: Record<string, unknown>) => Promise<{ error: { message: string } | null }>
-  }
-  const { error } = await table('payment_reconciliation_events').insert({
-    restaurant_id: input.restaurantId ?? null,
-    order_id: input.orderId ?? null,
-    share_id: input.shareId ?? null,
-    provider_token_hash: tokenHash,
-    event_type: input.eventType,
-    detail: (input.detail ?? {}) as never,
+  await recordPaymentReconciliation({
+    restaurantId: input.restaurantId,
+    orderId: input.orderId,
+    shareId: input.shareId,
+    providerTokenHash: tokenHash,
+    eventType: input.eventType,
+    detail: input.detail,
   })
-  if (error) console.warn(JSON.stringify({ event: 'payment.callback.reconciliation_record_failed', error: error.message }))
 }
 
 // İyzico browser-POSTs into the PaymentModal iframe, so this route must
@@ -141,10 +138,14 @@ export async function POST(req: Request): Promise<NextResponse> {
           503,
         )
       }
-      const { error } = await markOrderPaidDB(orderId, restaurantId, 'iyzico')
-      if (error) {
-        console.warn(JSON.stringify({ event: 'payment.callback.mark_paid_failed', orderId, error }))
-        await recordReconciliation({ token, eventType: 'order_settlement_failed', restaurantId, orderId, detail: { error } })
+      const settlement = await settleOrderCommand(
+        { actor: 'payment-provider', restaurantId, provider: 'iyzico' },
+        { orderId, restaurantId, method: 'iyzico' },
+        createSettlementPort(),
+      )
+      if (!settlement.ok) {
+        console.warn(JSON.stringify({ event: 'payment.callback.mark_paid_failed', orderId, error: settlement.error }))
+        await recordReconciliation({ token, eventType: 'order_settlement_failed', restaurantId, orderId, detail: { error: settlement.error } })
         return callbackHtml(
           { type: 'PAYMENT_FAILED', reason: 'Ödeme alındı; ancak sipariş kaydı güncellenemedi. Destek ekibi bilgilendirildi.' },
           'Ödeme alındı; ancak siparişiniz güncellenemedi. Lütfen tekrar ödeme yapmayın ve işletmeye bildirin.',

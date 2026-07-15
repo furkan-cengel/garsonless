@@ -79,7 +79,9 @@ export async function updateOrderStatusDB(
   // status is a legal source for the target. Self-transitions are in the map
   // (idempotent no-op for double-clicks/retries); terminal states
   // (served/cancelled) have no exits. A bypassed client cannot skip stages.
-  const allowedFrom = ORDER_STATUS_TRANSITIONS[status] ?? []
+  // Repository builders expect a mutable array; the domain policy remains
+  // immutable and is copied at the infrastructure boundary.
+  const allowedFrom = [...(ORDER_STATUS_TRANSITIONS[status] ?? [])]
   if (allowedFrom.length === 0) return { error: `Illegal status transition to '${status}'` }
   const supabase = createServiceClient()
   const builder = supabase.from('orders') as unknown as ScopedUpdateBuilder

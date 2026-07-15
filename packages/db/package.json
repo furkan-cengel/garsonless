@@ -5,7 +5,12 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./order-client": "./src/order-client.ts"
+    "./order-client": "./src/order-client.ts",
+    "./browser": "./src/browser.ts",
+    "./server": {
+      "browser": "./src/server-browser-guard.ts",
+      "default": "./src/server.ts"
+    }
   },
   "scripts": {
     "lint": "eslint .",
@@ -23,6 +28,8 @@
     "seed:maf": "tsx src/seed-maf.ts"
   },
   "dependencies": {
+    "@garsonless/application": "workspace:*",
+    "@garsonless/domain": "workspace:*",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.2",
     "jose": "^6.2.3"
