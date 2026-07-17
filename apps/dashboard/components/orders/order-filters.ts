@@ -1,4 +1,4 @@
-import { orderHasPriorityService, readOrderLineSnapshots } from '@garsonless/db/order-client'
+import { orderHasPriorityService, readOrderLineSnapshots } from '@garsonless/db/browser'
 import type { Order } from './useOrdersRealtime'
 import { isActiveOrder, isCancelledOrder, isCompletedOrder, isLateOrder, isReadyWaitingOrder } from './order-status'
 

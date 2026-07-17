@@ -8,26 +8,18 @@ import {
   reorderKitchenStations,
   updateKitchenStation,
 } from '../../lib/actions/restaurant'
-import { S } from '../../lib/ui'
 
 interface Props {
   restaurantId: string
-  existingToken?: string | null
+  initialHasAccess?: boolean
   initialStations?: Tables<'kitchen_stations'>[]
 }
 
 const STATION_COLORS = ['#2e7d52', '#c8922a', '#2563eb', '#d9480f', '#8b5cf6', '#0f766e']
 
-export default function KitchenAccessSection({ restaurantId, existingToken, initialStations = [] }: Props) {
-  const [token, setToken] = useState(existingToken ?? '')
-  const [kitchenUrl, setKitchenUrl] = useState(
-    existingToken
-      ? `${process.env['NEXT_PUBLIC_KITCHEN_URL'] ?? 'http://localhost:3002'}/kitchen/${restaurantId}?token=${existingToken}`
-      : '',
-  )
-  const [qrDataUrl, setQrDataUrl] = useState('')
+export default function KitchenAccessSection({ restaurantId, initialHasAccess = false, initialStations = [] }: Props) {
+  const [hasAccess, setHasAccess] = useState(initialHasAccess)
   const [error, setError] = useState('')
-  const [copied, setCopied] = useState(false)
   const [stations, setStations] = useState(() => [...initialStations].sort((a, b) => a.position - b.position))
   const [stationName, setStationName] = useState('')
   const [stationColor, setStationColor] = useState(STATION_COLORS[0]!)
@@ -39,16 +31,8 @@ export default function KitchenAccessSection({ restaurantId, existingToken, init
     startTransition(async () => {
       const result = await generateKitchenToken(restaurantId)
       if ('error' in result) { setError(result.error); return }
-      setToken(result.token)
-      setKitchenUrl(result.kitchenUrl)
-      setQrDataUrl(result.qrDataUrl)
+      setHasAccess(true)
     })
-  }
-
-  function handleCopy() {
-    navigator.clipboard?.writeText(kitchenUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
   }
 
   function handleCreateStation(e: React.FormEvent) {
@@ -128,46 +112,14 @@ export default function KitchenAccessSection({ restaurantId, existingToken, init
       <section id="kitchen-stations" style={{ padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', scrollMarginTop: 80 }}>
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Mutfak Erişimi</div>
-        <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 3 }}>
-          Bu URL&apos;yi mutfak tabletinizle paylaşın. Giriş gerekmez.
+        <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 3, lineHeight: 1.45 }}>
+          Kalıcı erişim kodu artık tarayıcıya gösterilmez. Mutfak ekranı kısa ömürlü bir açılış biletiyle güvenli oturum kurar.
         </div>
       </div>
 
-      {token && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              readOnly
-              value={kitchenUrl}
-              style={{
-                flex: 1, height: 34, padding: '0 10px',
-                border: '1px solid var(--border)', borderRadius: 7,
-                background: 'var(--surface-2)', color: 'var(--text-2)',
-                fontSize: 12, outline: 'none', boxSizing: 'border-box',
-                ...S.mono,
-              }}
-            />
-            <button
-              type="button"
-              onClick={handleCopy}
-              style={{
-                height: 34, padding: '0 12px', flexShrink: 0,
-                border: '1px solid var(--border)', borderRadius: 7,
-                background: copied ? 'var(--positive-bg)' : 'var(--surface)',
-                color: copied ? 'var(--positive)' : 'var(--text-2)',
-                fontSize: 12.5, cursor: 'pointer', transition: 'all 150ms',
-              }}
-            >
-              {copied ? '✓ Kopyalandı' : 'Kopyala'}
-            </button>
-          </div>
-          {qrDataUrl && (
-            <img
-              src={qrDataUrl}
-              alt="Kitchen QR"
-              style={{ width: 120, height: 120, borderRadius: 10, border: '1px solid var(--border)' }}
-            />
-          )}
+      {hasAccess && (
+        <div style={{ padding: 12, borderRadius: 9, background: 'var(--positive-bg)', color: 'var(--positive)', fontSize: 12.5, marginBottom: 14 }}>
+          Mutfak erişimi hazır. Erişimi yenilemek açık KDS oturumlarını anında kapatır.
         </div>
       )}
 
@@ -175,19 +127,35 @@ export default function KitchenAccessSection({ restaurantId, existingToken, init
         <p style={{ fontSize: 12.5, color: 'var(--critical)', marginBottom: 12 }}>{error}</p>
       )}
 
-      <button
-        type="button"
-        onClick={handleGenerate}
-        disabled={isPending}
-        style={{
-          height: 36, padding: '0 16px', borderRadius: 7,
-          background: 'var(--surface)', border: '1px solid var(--border-strong)',
-          color: 'var(--text)', fontSize: 13, fontWeight: 500,
-          cursor: 'pointer', opacity: isPending ? 0.55 : 1,
-        }}
-      >
-        {isPending ? 'Oluşturuluyor…' : token ? 'Token yenile' : 'Mutfak token\'ı oluştur'}
-      </button>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {hasAccess && (
+          <a
+            href={`/api/kitchen/launch/${restaurantId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              height: 36, padding: '0 16px', borderRadius: 7, display: 'inline-flex',
+              alignItems: 'center', textDecoration: 'none', background: 'var(--action)',
+              color: 'var(--on-action)', fontSize: 13, fontWeight: 700,
+            }}
+          >
+            Mutfak ekranını aç
+          </a>
+        )}
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={isPending}
+          style={{
+            height: 36, padding: '0 16px', borderRadius: 7,
+            background: 'var(--surface)', border: '1px solid var(--border-strong)',
+            color: 'var(--text)', fontSize: 13, fontWeight: 500,
+            cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.55 : 1,
+          }}
+        >
+          {isPending ? 'Kaydediliyor…' : hasAccess ? 'Erişimi yenile' : 'Mutfak erişimi oluştur'}
+        </button>
+      </div>
       </section>
 
       <section style={{ padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)' }}>

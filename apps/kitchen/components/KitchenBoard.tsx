@@ -1,9 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import type { Tables, OrderStatus } from '@garsonless/db'
-import { readOrderLineSnapshots, sortOrdersByPriorityThenCreatedAt } from '@garsonless/db/order-client'
+import type { OrderStatus } from '@garsonless/db'
+import {
+  mergeKitchenOrderProjection,
+  type KitchenOrderProjection,
+  type KitchenOrderProjectionBatch,
+  type KitchenStationProjection,
+} from '@garsonless/application/tables'
+import { readOrderLineSnapshots, sortOrdersByPriorityThenCreatedAt } from '@garsonless/db/browser'
 import KitchenCard from './KitchenCard'
 import { getKitchenOrdersAction } from '../lib/actions/orders'
 
@@ -44,38 +50,68 @@ interface Restaurant {
 
 interface KitchenBoardProps {
   restaurant: Restaurant
-  initialOrders: Tables<'orders'>[]
+  initialOrderBatch: KitchenOrderProjectionBatch
   restaurantId: string
-  kitchenToken: string
   tableLabels?: Record<string, string>
-  stations: Tables<'kitchen_stations'>[]
+  stations: KitchenStationProjection[]
 }
 
 export default function KitchenBoard({
   restaurant,
-  initialOrders,
+  initialOrderBatch,
   restaurantId,
-  kitchenToken,
   tableLabels = {},
   stations,
 }: KitchenBoardProps) {
-  const [orders, setOrders] = useState<Tables<'orders'>[]>(() => sortOrdersByPriorityThenCreatedAt(initialOrders))
+  const [orders, setOrders] = useState<KitchenOrderProjection[]>(() =>
+    sortOrdersByPriorityThenCreatedAt(mergeKitchenOrderProjection([], initialOrderBatch)),
+  )
   const [activeStationId, setActiveStationId] = useState<'expo' | 'unassigned' | string>('expo')
   const [now, setNow] = useState('--:--')
+  const cursorRef = useRef(initialOrderBatch.cursor)
+  const inFlightRef = useRef(false)
+  const lastSnapshotAtRef = useRef(Date.now())
 
   useEffect(() => {
     let alive = true
-    const reconcile = async () => {
-      const result = await getKitchenOrdersAction(restaurantId, kitchenToken)
-      if (alive && 'orders' in result) setOrders(sortOrdersByPriorityThenCreatedAt(result.orders))
+    const reconcile = async (forceSnapshot = false) => {
+      if (inFlightRef.current) return
+      inFlightRef.current = true
+      try {
+        const snapshotDue = forceSnapshot || Date.now() - lastSnapshotAtRef.current >= 60_000
+        const result = await getKitchenOrdersAction(
+          restaurantId,
+          snapshotDue ? null : cursorRef.current,
+        )
+        if (alive && 'batch' in result) {
+          cursorRef.current = result.batch.cursor
+          if (result.batch.snapshot) lastSnapshotAtRef.current = Date.now()
+          setOrders((current) => sortOrdersByPriorityThenCreatedAt(
+            mergeKitchenOrderProjection(current, result.batch),
+          ))
+        }
+        if (alive && 'error' in result && result.error === 'Kitchen session expired') {
+          window.location.reload()
+        }
+      } finally {
+        inFlightRef.current = false
+      }
     }
     void reconcile()
     const timer = window.setInterval(() => void reconcile(), 2_000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void reconcile(true)
+    }
+    const onFocus = () => void reconcile(true)
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onFocus)
     return () => {
       alive = false
       window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onFocus)
     }
-  }, [restaurantId, kitchenToken])
+  }, [restaurantId])
 
   useEffect(() => {
     const updateClock = () => setNow(new Date().toLocaleTimeString('tr-TR', {
@@ -174,7 +210,6 @@ export default function KitchenBoard({
                       key={order.id}
                       order={order}
                       restaurantId={restaurantId}
-                      kitchenToken={kitchenToken}
                       activeStationId={activeStationId}
                       {...(order.table_id && tableLabels[order.table_id] ? { tableLabel: tableLabels[order.table_id] } : {})}
                     />

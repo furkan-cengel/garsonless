@@ -59,6 +59,9 @@ importers:
       '@garsonless/design-engine':
         specifier: workspace:*
         version: link:../../packages/design-engine
+      '@garsonless/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@garsonless/qr':
         specifier: workspace:*
         version: link:../../packages/qr
@@ -150,12 +153,6 @@ importers:
       '@garsonless/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@supabase/ssr':
-        specifier: ^0.5.2
-        version: 0.5.2(@supabase/supabase-js@2.105.4)
-      '@supabase/supabase-js':
-        specifier: ^2.47.2
-        version: 2.105.4
       framer-motion:
         specifier: ^12.4.7
         version: 12.38.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -233,6 +230,9 @@ importers:
       '@garsonless/design-engine':
         specifier: workspace:*
         version: link:../../packages/design-engine
+      '@garsonless/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@garsonless/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -288,6 +288,9 @@ importers:
 
   packages/application:
     dependencies:
+      '@garsonless/design-engine':
+        specifier: workspace:*
+        version: link:../design-engine
       '@garsonless/domain':
         specifier: workspace:*
         version: link:../domain
@@ -316,9 +319,6 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.47.2
         version: 2.105.4
-      jose:
-        specifier: ^6.2.3
-        version: 6.2.3
     devDependencies:
       '@types/node':
         specifier: ^22.10.7
@@ -1898,9 +1898,6 @@ packages:
   jiti@2.7.0:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
-
-  jose@6.2.3:
-    resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -4000,8 +3997,6 @@ snapshots:
       - supports-color
 
   jiti@2.7.0: {}
-
-  jose@6.2.3: {}
 
   js-tokens@4.0.0: {}
 

@@ -3,9 +3,17 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
-import { createServiceClient, resolveOrderLines, updateOrderStatusDB, cancelOrderDB, startOfDayNDaysAgo } from '@garsonless/db'
+import {
+  cancelDashboardOrder,
+  createDashboardOrder,
+  transitionDashboardOrder,
+} from '@garsonless/application/orders'
+import { startOfDayNDaysAgo } from '@garsonless/db/browser'
+import {
+  createDashboardOrderPort,
+  createDashboardOrderLifecyclePort,
+} from '@garsonless/db/server'
 import type { OrderStatus, Json } from '@garsonless/db'
-import { mut } from '../supabase-mut'
 import { assertAccess } from '../auth/access'
 import { getRestaurantTimezone } from '../queries'
 
@@ -33,13 +41,22 @@ export async function updateOrderStatus(
   const parsed = schema.safeParse({ orderId, status, restaurantId })
   if (!parsed.success) return { error: 'Invalid input' }
 
-  // Owner OR a member with 'orders'. updateOrderStatusDB scopes by restaurant_id,
-  // so a mismatched order returns not-found.
+  // The adapter resolves the user; application re-checks tenant + permission
+  // before the package-private atomic repository primitive can be reached.
   const gate = await assertAccess(restaurantId, 'orders')
   if ('error' in gate) return { error: gate.error }
 
-  const { error } = await updateOrderStatusDB(orderId, status, restaurantId)
-  if (error) return { error }
+  const result = await transitionDashboardOrder(
+    {
+      actor: 'dashboard-member',
+      userId: gate.userId,
+      restaurantId,
+      permissions: ['orders'],
+    },
+    { orderId, status, restaurantId },
+    createDashboardOrderLifecyclePort(),
+  )
+  if (!result.ok) return { error: result.error }
 
   revalidatePath(`/dashboard/${restaurantId}/orders`)
   return { success: true }
@@ -54,9 +71,7 @@ const cancelSchema = z.object({
 /**
  * THE dashboard cancel path. Rules by payment state:
  *  - İyzico-paid or split-paid → BLOCKED (typed error; refund/adjustment needs
- *    the provider/share ledger path). Also enforced atomically inside
- *    cancelOrderDB's WHERE — this pre-read is for a friendly early error, the
- *    DB guard is the real wall.
+ *    the provider/share ledger path). Also enforced atomically by the DB port.
  *  - cash/pos-paid → reason REQUIRED (min 3 chars): money was collected and is
  *    being refunded in person — the decision must be recorded.
  *  - unpaid → plain cancel (reason optional), loyalty refund identical to before.
@@ -73,35 +88,17 @@ export async function cancelOrder(
   const gate = await assertAccess(restaurantId, 'orders')
   if ('error' in gate) return { error: gate.error }
 
-  const supabase = createServiceClient()
-  const { data: row } = await supabase
-    .from('orders')
-    .select('paid_at, payment_method, status')
-    .eq('id', orderId)
-    .eq('restaurant_id', restaurantId)
-    .is('deleted_at', null)
-    .maybeSingle()
-  const order = row as { paid_at: string | null; payment_method: string | null; status: string } | null
-  if (!order) return { error: 'Order not found for this restaurant' }
-  if (order.status === 'cancelled') return { success: true } // idempotent no-op
-
-  const paid = order.paid_at !== null
-  if (paid && order.payment_method === 'iyzico') {
-    return { error: 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.' }
-  }
-  if (paid && order.payment_method === 'split') {
-    return { error: 'Bu sipariş hesap bölüşme ile ödendi — pay iadeleri/iptali ayrı iade akışı gerektirir.' }
-  }
-  const trimmedReason = parsed.data.reason?.trim() ?? ''
-  if (paid && (order.payment_method === 'cash' || order.payment_method === 'pos') && trimmedReason.length < 3) {
-    return { error: 'Ödenmiş siparişin iptali için gerekçe zorunlu (en az 3 karakter).' }
-  }
-
-  const { error } = await cancelOrderDB(orderId, restaurantId, {
-    reason: trimmedReason || null,
-    cancelledBy: gate.userId,
-  })
-  if (error) return { error }
+  const result = await cancelDashboardOrder(
+    {
+      actor: 'dashboard-member',
+      userId: gate.userId,
+      restaurantId,
+      permissions: ['orders'],
+    },
+    { orderId, restaurantId, reason: parsed.data.reason },
+    createDashboardOrderLifecyclePort(),
+  )
+  if (!result.ok) return { error: result.error }
 
   revalidatePath(`/dashboard/${restaurantId}/orders`)
   return { success: true }
@@ -171,56 +168,22 @@ export async function createOrderFromDashboard(
   const gate = await assertAccess(parsed.data.restaurantId, 'orders')
   if ('error' in gate) return { error: gate.error }
 
-  const supabase = await createDashboardServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-  const resolved = await resolveOrderLines(parsed.data.restaurantId, parsed.data.items)
-  if (!resolved.ok) return { error: resolved.error }
-
-  let tableSessionId: string | null = null
-  if (parsed.data.tableId) {
-    const { data: table } = await supabase
-      .from('tables')
-      .select('id')
-      .eq('id', parsed.data.tableId)
-      .eq('restaurant_id', parsed.data.restaurantId)
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    if (!table) return { error: 'Table not found for this restaurant' }
-
-    // The RPC is service-role only. Access and table ownership have already
-    // been validated above; using the shared primitive preserves its
-    // concurrent-open guard and attaches dashboard orders to the real adisyon.
-    const { data: sessionId, error: sessionError } = await createServiceClient()
-      .rpc('open_or_get_table_session', {
-        p_restaurant_id: parsed.data.restaurantId,
-        p_table_id: parsed.data.tableId,
-      })
-    if (sessionError || !sessionId) return { error: 'Failed to open table session' }
-    tableSessionId = sessionId
-  }
-
-  const { data, error } = await mut(supabase, 'orders')
-    .insert({
-      restaurant_id: parsed.data.restaurantId,
-      table_id: parsed.data.tableId,
-      table_session_id: tableSessionId,
-      items: resolved.snapshots as unknown as import('@garsonless/db').Json,
-      total: resolved.snapshots.reduce(
-        (sum, line) => sum + (line.price + line.modifiersPriceDelta) * line.quantity,
-        0,
-      ),
-      status: 'sent_to_kitchen' as OrderStatus,
-      session_id: user.id,
-    })
-    .select('id')
-    .single()
-
-  if (error) return { error: error.message }
-
-  const orderId = (data as { id: string } | null)?.id
-  if (!orderId) return { error: 'Failed to create order' }
+  const result = await createDashboardOrder(
+    {
+      actor: 'dashboard-member',
+      userId: gate.userId,
+      restaurantId: parsed.data.restaurantId,
+      permissions: ['orders'],
+    },
+    {
+      restaurantId: parsed.data.restaurantId,
+      tableId: parsed.data.tableId,
+      lines: parsed.data.items,
+    },
+    createDashboardOrderPort(),
+  )
+  if (!result.ok) return { error: result.error }
+  const { orderId } = result.value
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/orders`)
   revalidatePath(`/dashboard/${parsed.data.restaurantId}`)

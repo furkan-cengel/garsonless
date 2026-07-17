@@ -10,8 +10,8 @@ import {
   normalizeIngredients,
   normalizeMenuNumericText,
   toggleAllergenDeclaration,
-} from '@garsonless/db/order-client'
-import type { AllergenCode, MenuIngredient } from '@garsonless/db/order-client'
+} from '@garsonless/db/browser'
+import type { AllergenCode, MenuIngredient } from '@garsonless/db/browser'
 
 /* ============================================================
    Shared nutrition / allergen / dietary editor — used by the

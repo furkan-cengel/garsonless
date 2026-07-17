@@ -111,9 +111,7 @@ async function seed() {
         name: 'MAF Cafe Lounge',
         owner_id: ownerId,
         plan: 'pro',
-        settings: {
-          kitchen_token: MAF_KITCHEN_TOKEN,
-        },
+        settings: {},
       },
       { onConflict: 'slug' },
     )
@@ -122,6 +120,14 @@ async function seed() {
 
   const restaurantId: string = ok('Upsert restaurant', restError, restaurant!).id
   console.log(`  Restaurant ID: ${restaurantId}\n`)
+
+  const { error: kitchenCredentialError } = await supabase
+    .from('kitchen_credentials')
+    .upsert(
+      { restaurant_id: restaurantId, token: MAF_KITCHEN_TOKEN, updated_at: new Date().toISOString() },
+      { onConflict: 'restaurant_id' },
+    )
+  ok('Upsert kitchen credential', kitchenCredentialError)
 
   // ── 3. Tables (clear + re-insert) ────────────────────────────────────────
 
@@ -295,7 +301,7 @@ async function seed() {
   console.log(`\n   Menu:      http://localhost:3011/maf-lounge`)
   console.log(`   Table 1:   http://localhost:3011/maf-lounge/table/<tableId>`)
   console.log(`   Dashboard: http://localhost:3000`)
-  console.log(`   Kitchen:   http://localhost:3002/kitchen/${restaurantId}?token=${MAF_KITCHEN_TOKEN}\n`)
+  console.log('   Kitchen:   Dashboard → Siparişler → Mutfak ekranı (secure session exchange)\n')
 }
 
 seed().catch((err: unknown) => {

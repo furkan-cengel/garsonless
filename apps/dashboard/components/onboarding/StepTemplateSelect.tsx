@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { TEMPLATES, DEFAULT_THEME } from '@garsonless/design-engine'
 import type { TemplateId } from '@garsonless/design-engine'
-import { saveTheme } from '../../lib/actions/theme'
+import { publishTheme } from '../../lib/actions/theme'
 
 interface Props {
   restaurantId: string
@@ -31,7 +31,7 @@ export default function StepTemplateSelect({ restaurantId, onSelected }: Props) 
     setSaving(true)
     setError('')
     const config = TEMPLATES[selected] ?? DEFAULT_THEME
-    const result = await saveTheme(restaurantId, config)
+    const result = await publishTheme(restaurantId, config, selected)
     if ('error' in result) { setError(result.error); setSaving(false); return }
     onSelected(selected)
     setSaving(false)

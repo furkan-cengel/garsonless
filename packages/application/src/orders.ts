@@ -1,5 +1,5 @@
 import type { CommandContext, OrderStatus, PaymentMethod, Result } from '@garsonless/domain'
-import { err, hasSameRestaurant, ok } from '@garsonless/domain'
+import { err, evaluateOrderCancellation, hasSameRestaurant, ok } from '@garsonless/domain'
 
 export interface PublicOrderLine {
   itemId: string
@@ -98,6 +98,95 @@ export function allowDashboardSection(context: Extract<CommandContext, { actor: 
   return context.permissions.includes(section) ? ok(true) : err('Not authorized')
 }
 
+export interface DashboardOrderCancellationSnapshot {
+  status: string
+  paidAt: string | null
+  paymentMethod: string | null
+}
+
+export interface DashboardOrderLifecyclePort {
+  transitionStatus(input: {
+    orderId: string
+    restaurantId: string
+    status: OrderStatus
+  }): Promise<Result<null>>
+  readForCancellation(input: {
+    orderId: string
+    restaurantId: string
+  }): Promise<Result<DashboardOrderCancellationSnapshot>>
+  cancelOrder(input: {
+    orderId: string
+    restaurantId: string
+    reason: string | null
+    cancelledBy: string
+  }): Promise<Result<null>>
+}
+
+export interface DashboardOrderCreatePort {
+  createOrder(input: {
+    restaurantId: string
+    tableId: string | null
+    lines: PublicOrderLine[]
+    createdBy: string
+  }): Promise<Result<{ orderId: string }>>
+}
+
+function canManageOrders(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  restaurantId: string,
+): boolean {
+  return hasSameRestaurant(context, restaurantId) && context.permissions.includes('orders')
+}
+
+/** Creates a staff-entered order without exposing menu resolution, table
+ * session RPCs, or service-role writes to the dashboard action. */
+export async function createDashboardOrder(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  input: { restaurantId: string; tableId: string | null; lines: PublicOrderLine[] },
+  port: DashboardOrderCreatePort,
+): Promise<Result<{ orderId: string }>> {
+  if (!canManageOrders(context, input.restaurantId)) return err('Not authorized')
+  if (input.lines.length === 0) return err('Order must contain at least one item')
+  return port.createOrder({ ...input, createdBy: context.userId })
+}
+
+/** Dashboard-only status command; the repository performs the transition
+ * compare-and-set atomically against the canonical transition matrix. */
+export async function transitionDashboardOrder(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  input: { orderId: string; restaurantId: string; status: OrderStatus },
+  port: DashboardOrderLifecyclePort,
+): Promise<Result<null>> {
+  if (!canManageOrders(context, input.restaurantId)) return err('Not authorized')
+  if (input.status === 'cancelled' || input.status === 'paid') {
+    return err('Use the dedicated cancellation or settlement command')
+  }
+  return port.transitionStatus(input)
+}
+
+/** Owns staff cancellation preflight and audit derivation. The infrastructure
+ * adapter repeats payment guards atomically to close settle/cancel races. */
+export async function cancelDashboardOrder(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  input: { orderId: string; restaurantId: string; reason?: string | null },
+  port: DashboardOrderLifecyclePort,
+): Promise<Result<null>> {
+  if (!canManageOrders(context, input.restaurantId)) return err('Not authorized')
+
+  const snapshot = await port.readForCancellation(input)
+  if (!snapshot.ok) return snapshot
+  const decision = evaluateOrderCancellation({ ...snapshot.value, reason: input.reason ?? null })
+  if (!decision.allowed) return err(decision.error)
+  if (decision.alreadyCancelled) return ok(null)
+
+  return port.cancelOrder({
+    orderId: input.orderId,
+    restaurantId: input.restaurantId,
+    reason: decision.reason,
+    cancelledBy: context.userId,
+  })
+}
+
 export interface KitchenOrderSnapshot {
   id: string
   status: OrderStatus
@@ -106,7 +195,12 @@ export interface KitchenOrderSnapshot {
 
 export interface KitchenOrderPort {
   getOrder(input: { orderId: string; restaurantId: string }): Promise<KitchenOrderSnapshot | null>
-  updateStatus(input: { orderId: string; restaurantId: string; status: OrderStatus }): Promise<Result<null>>
+  updateStatus(input: {
+    orderId: string
+    restaurantId: string
+    stationId: string
+    status: OrderStatus
+  }): Promise<Result<null>>
 }
 
 /**
@@ -125,8 +219,8 @@ export async function transitionKitchenOrder(
   if (!order) return err('Order not found')
 
   const canStart = input.status === 'preparing'
-    && ['pending', 'pending_approval', 'sent_to_kitchen', 'paid'].includes(order.status)
-  const canFinish = input.status === 'ready' && order.status === 'preparing'
+    && ['pending', 'pending_approval', 'sent_to_kitchen', 'paid', 'preparing'].includes(order.status)
+  const canFinish = input.status === 'ready' && ['preparing', 'ready'].includes(order.status)
   if (!canStart && !canFinish) return err('Invalid kitchen status transition')
 
   const stationIds = new Set(order.stationIds)
@@ -137,5 +231,5 @@ export async function transitionKitchenOrder(
     }
   }
 
-  return port.updateStatus({ ...input })
+  return port.updateStatus({ ...input, stationId: context.stationId })
 }

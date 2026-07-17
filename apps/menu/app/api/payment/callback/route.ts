@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { settleOrder as settleOrderCommand } from '@garsonless/application/orders'
+import { settleProviderShare } from '@garsonless/application/splits'
 import { createIyzicoClient, retrieveCheckout } from '../../../../lib/iyzico'
 import { resolveCredentialsByPaymentToken, resolveCredentialsByShareToken } from '../../../../lib/payment-credentials'
-import { settleShareDB } from '@garsonless/db'
-import { createSettlementPort, recordPaymentReconciliation } from '@garsonless/db/server'
+import { createSettlementPort, createSplitPaymentPort, recordPaymentReconciliation } from '@garsonless/db/server'
 
 async function recordReconciliation(input: {
   token: string
@@ -15,7 +15,7 @@ async function recordReconciliation(input: {
   detail?: Record<string, unknown>
 }) {
   const tokenHash = createHash('sha256').update(input.token).digest('hex')
-  await recordPaymentReconciliation({
+  const recorded = await recordPaymentReconciliation({
     restaurantId: input.restaurantId,
     orderId: input.orderId,
     shareId: input.shareId,
@@ -23,6 +23,9 @@ async function recordReconciliation(input: {
     eventType: input.eventType,
     detail: input.detail,
   })
+  if (!recorded.ok) {
+    console.error(JSON.stringify({ event: 'payment.callback.reconciliation_record_failed', error: recorded.error }))
+  }
 }
 
 // İyzico browser-POSTs into the PaymentModal iframe, so this route must
@@ -88,13 +91,17 @@ export async function POST(req: Request): Promise<NextResponse> {
       const { paymentStatus: sStatus } = await retrieveCheckout(sClient, token)
       if (sStatus === 'SUCCESS') {
         // Card is real payment → settle the share (method already 'iyzico',
-        // settled_by null = system). settleShareDB stamps covered orders
+        // settled_by null = system). The repository stamps covered orders
         // paid+'split' if this crossed full coverage, but it does NOT close
         // the table. Idempotent on a re-fired callback.
-        const { error } = await settleShareDB(shareId, sRest)
-        if (error) {
-          console.warn(JSON.stringify({ event: 'payment.callback.share_settle_failed', shareId, error }))
-          await recordReconciliation({ token, eventType: 'share_settlement_failed', restaurantId: sRest, shareId, detail: { error } })
+        const settlement = await settleProviderShare(
+          { actor: 'payment-provider', restaurantId: sRest, provider: 'iyzico' },
+          { shareId, restaurantId: sRest },
+          createSplitPaymentPort(),
+        )
+        if (!settlement.ok) {
+          console.warn(JSON.stringify({ event: 'payment.callback.share_settle_failed', shareId, error: settlement.error }))
+          await recordReconciliation({ token, eventType: 'share_settlement_failed', restaurantId: sRest, shareId, detail: { error: settlement.error } })
           return callbackHtml(
             { type: 'PAYMENT_FAILED', reason: 'Ödeme alındı; ancak sipariş kaydı güncellenemedi. Destek ekibi bilgilendirildi.' },
             'Ödeme alındı; ancak hesabınız güncellenemedi. Lütfen tekrar ödeme yapmayın ve işletmeye bildirin.',

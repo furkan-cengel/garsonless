@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { getKitchenStationsForRestaurant, getRestaurantById } from '../../../../lib/queries'
 import { getUserRestaurantAccess, firstPermittedPath } from '../../../../lib/auth/access'
-import { listTeamMembers } from '@garsonless/db'
+import { listTeamMembers } from '@garsonless/db/server'
 import { createDashboardServerClient } from '../../../../lib/supabase-server'
 import SettingsForm from '../../../../components/settings/SettingsForm'
 
@@ -29,13 +29,13 @@ export default async function SettingsPage({ params }: Props) {
     isOwner ? getKitchenStationsForRestaurant(restaurantId) : Promise.resolve([]),
   ])
 
-  // GAP #1: kitchen token now lives in kitchen_credentials (owner-scoped, no anon).
+  // Only credential existence crosses the server/client boundary; the secret never does.
   const { data: kc } = await supabase
     .from('kitchen_credentials')
-    .select('token')
+    .select('restaurant_id')
     .eq('restaurant_id', restaurantId)
     .maybeSingle()
-  const kitchenToken = (kc as { token: string } | null)?.token ?? null
+  const hasKitchenAccess = kc !== null
 
   // Security activity log — read through the authenticated client so RLS scopes
   // it to the signed-in user's OWN events (user_id = auth.uid()) only.
@@ -58,7 +58,7 @@ export default async function SettingsPage({ params }: Props) {
     <SettingsForm
       restaurant={restaurant}
       user={user}
-      kitchenToken={kitchenToken}
+      hasKitchenAccess={hasKitchenAccess}
       kitchenStations={kitchenStations}
       securityEvents={securityEvents}
       isOwner={isOwner}

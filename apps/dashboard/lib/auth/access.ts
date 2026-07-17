@@ -4,7 +4,7 @@ import { createDashboardServerClient } from '../supabase-server'
 
 // The dashboard nav sections (verbatim from IconRail.tsx). These are the only
 // keys a member's `permissions` array may contain. NOT included on purpose:
-//   - 'kitchen' → the KDS is a separate app gated by a shared kitchen_token
+//   - 'kitchen' → the KDS is a separate app opened through a scoped session exchange
 //   - 'loyalty' → an owner-only sub-section inside Settings
 export const ALL_SECTIONS = [
   'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'theme', 'settings',

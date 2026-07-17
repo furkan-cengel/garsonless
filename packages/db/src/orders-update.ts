@@ -1,7 +1,7 @@
 import { createServiceClient } from './client'
-import { earnForOrder, refundCancelledLoyaltyOrder, shouldEarnOnSettlement } from './loyalty'
 import { ORDER_STATUS_TRANSITIONS } from './enums'
 import type { OrderStatus, PaymentMethod } from './enums'
+import { dispatchAggregateDomainEvents } from './outbox-consumer-port'
 
 // @supabase/supabase-js v2 resolves .update()/.select() as never[] when consumed
 // cross-package under strict TypeScript. Inline casts isolate the workaround here.
@@ -46,14 +46,6 @@ type OrderScopeLookupBuilder = {
       eq: (col: string, val: string) => {
         maybeSingle: () => Promise<{ data: { id: string } | null }>
       }
-    }
-  }
-}
-
-type KitchenTokenBuilder = {
-  select: (cols: string) => {
-    eq: (col: string, val: string) => {
-      maybeSingle: () => Promise<{ data: { token: string } | null }>
     }
   }
 }
@@ -105,12 +97,10 @@ export async function updateOrderStatusDB(
     return { error: `Illegal status transition: ${found.status} → ${status}` }
   }
 
-  // Loyalty earning on the 'served' trigger (best-effort; never throws). The
-  // config's earn_trigger gate inside earnForOrder ensures only the configured
-  // trigger actually credits.
-  if (status === 'served') {
-    await earnForOrder(orderId, 'served')
-  }
+  // The aggregate mutation already emitted order.status_changed in the same DB
+  // transaction. Consume it immediately for responsive UX; if this process
+  // dies, the durable worker retries the same idempotent event.
+  await dispatchAggregateDomainEvents({ aggregateId: orderId, eventTypes: ['order.status_changed'] })
   return { error: null }
 }
 
@@ -189,8 +179,7 @@ export async function cancelOrderDB(
     return { error: 'Sipariş iptal edilemedi' }
   }
 
-  // Idempotent loyalty refund — unchanged from the old cancel path.
-  await refundCancelledLoyaltyOrder(orderId)
+  await dispatchAggregateDomainEvents({ aggregateId: orderId, eventTypes: ['order.status_changed'] })
   return { error: null }
 }
 
@@ -260,25 +249,11 @@ export async function markOrderPaidDB(
     // paid_at already set → settled earlier (retry/re-callback) → no-op success.
   }
 
-  // Loyalty earning on the 'paid' trigger (best-effort; never throws). Only on a
-  // FRESH settlement, and NEVER for comp — İkram must not farm loyalty points.
-  if (shouldEarnOnSettlement(method, freshlySettled)) {
-    await earnForOrder(orderId, 'paid')
+  // Only the first settlement emits order.settled. The consumer owns the comp
+  // exclusion and earning trigger; retries merely find the existing receipt.
+  if (freshlySettled) {
+    await dispatchAggregateDomainEvents({ aggregateId: orderId, eventTypes: ['order.settled'] })
   }
 
   return { error: null }
-}
-
-// Kitchen token now lives in the service-role-only kitchen_credentials table
-// (GAP #1) — never in the anon-readable restaurants.settings blob.
-export async function validateKitchenToken(
-  restaurantId: string,
-  token: string,
-): Promise<boolean> {
-  if (!token) return false
-  const supabase = createServiceClient()
-  const builder = supabase.from('kitchen_credentials') as unknown as KitchenTokenBuilder
-  const { data } = await builder.select('token').eq('restaurant_id', restaurantId).maybeSingle()
-  if (!data) return false
-  return data.token === token
 }

@@ -4,7 +4,7 @@ import { assertAccess, getUserRestaurantAccess } from '../auth/access'
 import { getHourlySales, getPanoSnapshot, getRestaurantTimezone, getSalesOverTime, getTableStatuses } from '../queries'
 import type { TableStatusData } from '../queries'
 import type { PanoSnapshot } from '../queries'
-import { readOrderLineSnapshots, restaurantHour } from '@garsonless/db/order-client'
+import { readOrderLineSnapshots, restaurantHour } from '@garsonless/db/browser'
 import { readPanoTableDetail } from '@garsonless/application/read-models'
 import { createPanoTableDetailReadModelPort } from '@garsonless/db/server'
 

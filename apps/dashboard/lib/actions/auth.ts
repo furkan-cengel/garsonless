@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
-import { recordSecurityEvent } from '@garsonless/db'
+import { recordSecurityEvent } from '@garsonless/db/server'
 import { createDashboardServerClient } from '../supabase-server'
 import { readRequestMeta } from '../request-meta'
 

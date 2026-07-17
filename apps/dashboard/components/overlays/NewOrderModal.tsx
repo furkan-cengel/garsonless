@@ -11,7 +11,7 @@ import {
   type MenuIngredient,
   type MenuModifierGroup,
   type SelectedMenuModifier,
-} from '@garsonless/db/order-client'
+} from '@garsonless/db/browser'
 
 interface Props {
   restaurantId: string

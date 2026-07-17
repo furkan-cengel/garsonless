@@ -16,6 +16,8 @@ Comparable to Shopify in customization depth.
 - Packages:
   - `packages/ui` — Shared component library (shadcn base + custom)
   - `packages/design-engine` — Token system, theme resolver, CSS variable generator
+  - `packages/domain` — Browser-safe pure policies, value vocabularies and typed results
+  - `packages/application` — Actor/tenant-aware command and query orchestration ports
   - `packages/db` — Supabase client, types, migrations
   - `packages/ai` — Anthropic SDK wrapper, AI waiter prompts
   - `packages/qr` — QR generation with logo overlay
@@ -68,6 +70,332 @@ The design engine is the core differentiator. Every UI decision routes through i
 ### Kritik pending items
 
 - ⚠️ **`20260711020000_customer_restaurant_associations.sql` yalnız DEV'e uygulandı** — PROD deploy aşamasında uygulanacak PROD-at-deploy migration setine EKLENMELİ (yeni `customer_restaurants` tablosu + orders/loyalty ledger/consents backfill'i; insert'ler `on conflict do nothing` ile idempotent, PROD verisi üzerinde de çalışır).
+
+### Modüler monolith — KDS narrow projection + delta reconciliation ✅ (2026-07-17)
+
+- KDS'nin her 2 saniyede `orders.select('*')` yapan tam tablo okuması kaldırıldı.
+  Service-role-only `read_kitchen_order_projection` RPC'si yalnız dokuz alanı
+  döndürür: `id`, `status`, `table_id`, `items`, `customer_tier`, `paid_at`,
+  `created_at`, `updated_at`, `active`. Müşteri, ödeme, request ve settlement
+  alanları projection'a çıkmaz.
+- Snapshot cursor'ı uygulama saatiyle değil PostgreSQL `clock_timestamp()` ile
+  alınır. KDS 2 saniyelik çakışmasız delta poll yapar; terminal/silinen
+  siparişler `active=false` tombstone ile karttan düşer. Her 60 saniyede ve
+  pencere focus/visibility dönüşünde tam snapshot uzlaşması kaçırılmış deltayı
+  onarır.
+- Kitchen browser-safe anon Supabase client'ı, public Supabase env ihtiyacı ve
+  doğrudan SDK bağımlılıkları kaldırıldı. Tarayıcı yalnız HttpOnly kitchen
+  session'ıyla server action'a ulaşır; RPC anon/authenticated rollere kapalıdır.
+  Bu dilim Supabase push stream açmadan dar projection üzerinde yakın-gerçek
+  zamanlı delta consumer sağlar; gerçek push/SSE transport ayrı bir altyapı
+  kararıdır.
+- Gerçek DEV projection matrisi: snapshot **1 order / 9 alan / 0 hassas alan**;
+  update+insert deltası **2 satır**, terminal tombstone ve yeni insert doğru;
+  merge sonrası yalnız aktif sipariş; reconciliation **1 aktif sipariş**; anon
+  RPC **42501**. Gerçek local browser exchange **303**, board **200**, insert
+  görünme **1305 ms**, tombstone kaldırma **1815 ms**, console error **0**.
+  İki throwaway testin restaurant/order/table/credential/launch cleanup
+  sayaçlarının tamamı **0**.
+- `20260717020000_kitchen_order_projection.sql` DEV'e uygulandı ve generated
+  type'lar yenilendi. **PROD-at-deploy migration setine eklenmeli.** Verify:
+  application **47/47**, DB **109/109**, workspace typecheck temiz, lint **0
+  error** (marketing'de mevcut 2 `img` warning), dashboard+kitchen production
+  build temiz.
+- Sıradaki dilim: legacy table/kitchen compatibility kullanımını ölçmek ve
+  güvenle retirement yapmak. Push tabanlı KDS transport gerekirse ayrı backlog
+  fazıdır; mevcut doğruluk polling'e değil periyodik snapshot uzlaşmasına da
+  dayanır.
+
+### Modüler monolith — Single-use KDS launch receipt ✅ (2026-07-17)
+
+- 45 saniyelik KDS launch artifact'ı artık yalnız imzalı/kısa ömürlü değil,
+  tek kullanımlıktır. Sunucuda raw ticket yerine SHA-256 hash'i
+  `kitchen_session_launches` receipt tablosuna yazılır.
+- Exchange `consume_kitchen_launch_ticket` security-definer RPC'siyle receipt'i
+  atomik olarak tüketir. Aynı ticket replay'i reddedilir; iki paralel exchange
+  yarışında yalnız bir request session kazanır. Tablo ve RPC yalnız
+  `service_role` erişimine açıktır.
+- Legacy `?token=` temizleme middleware'e alındı; Next dev redirect payload'ı
+  dahil token yansıması yoktur. Temiz URL ve session-cookie akışı korunur.
+- Gerçek DEV: ilk exchange başarılı, replay **false**, paralel kazanan **1**,
+  anon read/RPC **42501**, raw credential exposure **false**; rotation eski
+  session ve ticket'ı reddetti, cleanup restaurant/credential/receipt **0**.
+  Local HTTP: legacy redirect **307** (reflection false), cross-tenant **401**,
+  exchange **303**, replay **401**, HttpOnly+SameSite=Lax cookie ve board **200**.
+- `20260717010000_single_use_kitchen_launch_tickets.sql` DEV'e uygulandı ve
+  generated type'lar yenilendi. **PROD-at-deploy migration setine eklenmeli.**
+  Verify: DB **109/109**, workspace typecheck temiz, lint **0 error**
+  (marketing'de mevcut 2 `img` warning), dashboard+kitchen production build
+  temiz.
+- Dar projection/delta consumer dilimi yukarıdaki 2026-07-17 fazında
+  tamamlandı. Sıradaki iş legacy table/kitchen compatibility ölçümü ve
+  retirement.
+
+### Modüler monolith — KDS secure session exchange ✅ (2026-07-16)
+
+- Kalıcı `kitchen_credentials.token` dashboard SSR/read-model, client prop,
+  query string ve server action argümanlarından çıkarıldı. Orders/settings UI
+  yalnız `hasKitchenAccess` boolean'ı görür; seed artık token'ı
+  `restaurants.settings` içine veya konsol URL'sine yazmaz.
+- Yetkili dashboard `GET /api/kitchen/launch/:restaurantId` çağrısı 45 saniyelik
+  tenant+purpose-bound imzalı launch artifact üretip KDS'ye POST eder. Kitchen
+  exchange route'u 8 saatlik restaurant-path-scoped `HttpOnly`, `SameSite=Lax`
+  cookie kurar ve temiz URL'ye 303 döner. Page ve action'lar cookie session'ını
+  güncel credential ile doğrular; rotation eski ticket ve session'ı anında
+  iptal eder. Legacy `?token=` temiz URL'ye redirect edilir ve HTML'e yansımaz.
+- Gerçek DEV: launch→exchange başarılı, credential artifact içinde yok;
+  cross-tenant replay false; launch-as-session false; rotation sonrası eski
+  session false/eski ticket false/yeni session true; cleanup restaurant ve
+  credential **0**. Local HTTP: legacy query auth false/reflection false,
+  cross-tenant exchange **401**, exchange **303**, cookie HttpOnly+SameSite=Lax,
+  authenticated clean KDS **200**.
+- Verify: DB **108/108**, application **44/44**, workspace typecheck temiz,
+  lint **0 error** (marketing'de mevcut 2 `img` warning), dashboard+kitchen
+  production build temiz. Migration yok.
+- Sonraki single-use receipt sertleştirmesi yukarıdaki 2026-07-17 diliminde
+  tamamlandı.
+
+### Modüler monolith — Atomic Tables & Kitchen boundaries ✅ (2026-07-16)
+
+- Anormal masa kapatma ile token'sız declared split intent temizliği
+  `close_table_session_atomic` içinde tek transaction oldu. Provider token'ı
+  bağlanmış veya aktif checkout lease'i olan pay varken kapanış
+  `payment_pending` ile fail-closed reddedilir; session açık ve pay declared
+  kalır. Önceki adaptörün provider-bound payı kapanıştan sonra yanlışlıkla
+  `void` edebilen toplu helper'ı kaldırıldı.
+- `create_table_service_request_atomic` aktif masa doğrulama, açık-session
+  association ve replay-safe insert'i transaction içine aldı. Kitchen yazısı
+  `transition_kitchen_order_atomic` ile order row lock altında tenant, station,
+  multi-station final inspection ve status transition policy'sini tekrar
+  doğrular; application preflight ile yazı arasındaki authority yarışı kapandı.
+- DEV runtime: üç RPC anon **42501**; paralel servis çağrısı **1 satır + 1
+  throttle**; provider-bound close **payment_pending**, session açık/share
+  declared; provider bırakıldıktan sonra abnormal close + share void + **1
+  table_session.closed outbox**; yanlış station **42501**; paralel ready retry
+  ikisi de idempotent ve persisted status `ready`. Cleanup restaurant/session/
+  order/share/request/outbox **0**.
+- `20260716100000_atomic_table_close_service_request_and_kitchen_transition.sql`
+  DEV'e uygulandı, generated type'lar yenilendi. **PROD-at-deploy migration
+  setine eklenmeli.** Verify: application **44/44**, workspace typecheck temiz,
+  lint **0 error** (marketing'de mevcut 2 `img` warning); dashboard/menu/kitchen
+  production build temiz.
+- Sıradaki güvenlik dilimi: KDS bearer token'ını query string/client prop/server
+  action argümanından çıkarıp kısa ömürlü httpOnly kitchen session exchange'ine
+  taşımak; sonra table/kitchen read-model ve legacy helper retirement ölçümü.
+
+### Modüler monolith — DB compatibility barrel retirement ✅ (2026-07-16)
+
+- Root `@garsonless/db` entrypoint'i artık yalnız type export eder. Runtime
+  yetenekleri açıkça `@garsonless/db/server`, `@garsonless/db/browser` veya
+  `@garsonless/domain/*` sınırından alınır.
+- App runtime call-site'ları explicit alt yollara taşındı; eski
+  `@garsonless/db/order-client` package export'u kaldırıldı. Service-role
+  repository/RPC adapter'ları yalnız server entrypoint'inde kaldı.
+- ESLint runtime root importunu error ile engeller, yalnız `import type`
+  kullanımına izin verir. Böylece belirsiz barrel üzerinden infrastructure
+  erişimi ve yanlışlıkla server kodunun client bundle'a çekilmesi önlenir.
+- Verify: workspace typecheck temiz; lint **0 error** (marketing'de mevcut 2
+  `img` warning); domain **24/24**, application **30/30**, db **106/106**;
+  dashboard, menu ve kitchen production build temiz. Migration yok.
+
+### Modüler monolith — Dashboard order lifecycle strangler ✅ (2026-07-16)
+
+- Dashboard order status ve cancel action'ları raw `updateOrderStatusDB` /
+  `cancelOrderDB` çağırmaz; `transitionDashboardOrder` ve
+  `cancelDashboardOrder` application command'lerinden geçer.
+- Command tenant + `orders` iznini porttan önce doğrular. Cancellation actor
+  kimliği trusted context'ten türetilir; online/split iade yasağı, nakit/POS
+  gerekçe zorunluluğu, normalization ve retry kararı
+  `@garsonless/domain/orders` sahibidir.
+- `createDashboardOrderLifecyclePort()` package-private atomik DB
+  primitive'lerine delegasyon yapar. Settle/cancel yarış koruması değişmedi;
+  raw lifecycle primitive'leri ve artık portlarla değiştirilmiş kullanılmayan
+  CRM/loyalty/campaign helper'ları public `@garsonless/db/server` yüzeyinden
+  kaldırıldı.
+- DEV throwaway runtime: cross-tenant transition `Not authorized`; geçerli
+  transition `sent_to_kitchen`; paid-cash gerekçesiz iptal ret, gerekçeli iptal
+  actor+reason audit ile başarılı, retry no-op; İyzico-paid iptal ret ve status
+  `served` kaldı. Cleanup `restaurantOrphans=0`, `orderOrphans=0`.
+- Verify: domain **27/27**, application **33/33**, db **106/106**; workspace
+  typecheck temiz; lint **0 error** (marketing'de mevcut 2 `img` warning);
+  dashboard, menu ve kitchen production build temiz. Migration yok.
+
+### Modüler monolith — Order create / checkout / split-payment strangler ✅ (2026-07-16)
+
+- Dashboard create action'ı `createDashboardOrder`; tek order checkout
+  `prepareOrderCheckout`; split beyan/checkout `declareSplitShare` ve
+  `prepareSplitCheckout` application command'lerinden geçer. Action/route'lar
+  raw service-role order/share sorgusu veya insert/update yapmaz.
+- Cash share yalnız tables yetkili dashboard actor'ıyla
+  `confirmDashboardCashShare`; online share yalnız İyzico provider context'iyle
+  `settleProviderShare` üzerinden kapanır. Actor audit'i request'ten alınmaz.
+- Duplicate item refs tekilleştirilir; beyan ve checkout persisted adisyon
+  bakiyesine clamp edilir. Credential/token mapping `payment-provider-port`,
+  share persistence `createSplitPaymentPort()` arkasındadır. Raw
+  `createShareDB`/`settleShareDB` public server export'undan kaldırıldı.
+- DEV throwaway runtime: cross-tenant create ret; server-derived ₺80 ve ₺40;
+  online finalize+retry; cash/provider authority kontrastı; iki order'da
+  `payment_method=split`; order/share token mapping geçti. Cleanup
+  `restaurants=0, orders=0, shares=0`.
+- Verify: domain **27/27**, application **39/39**, db **106/106**. Migration yok.
+
+### Modüler monolith — Atomic split checkout & settlement ✅ (2026-07-16)
+
+- `reserve_split_checkout` masa oturumunu kilitleyerek settled tutar + aktif
+  provider rezervasyonlarını tek snapshot'ta hesaplar. Paralel checkout'lar aynı
+  bakiyeyi iki kez ayıramaz; pre-token retry aynı rezervasyonu döndürür.
+- `attach_split_checkout_token` rezervasyon/token mapping'ini tenant-scoped RPC
+  ile bağlar. Token mapping başarısızsa menu route ödeme sayfasını fail-closed
+  reddeder ve bağlanmamış rezervasyonu bırakır. Token bağlandıktan sonra gerçek
+  callback ihtimali nedeniyle release yasaktır.
+- `settle_payment_share_atomic` share settlement, kesin tutar, order
+  `paid_at+split` finalizasyonu ve mevcut trigger üzerinden `order.settled`
+  outbox yazımını tek DB transaction'ında tamamlar. Nakit başka provider
+  rezervasyonunu tüketemez; callback retry idempotenttir. Eski iki-adımlı
+  `settleShareDB` silindi.
+- DEV migration'ları: `20260716070000_atomic_split_checkout_and_settlement.sql`
+  ve tam ödeme sonrası token'sız stale beyanları atomik `void` eden
+  `20260716080000_void_stale_split_intents.sql` uygulandı; generated type'lar
+  yenilendi. **İkisi de PROD-at-deploy migration setine eklenmeli.** Anon dört
+  RPC'ye kapalıdır.
+- Gerçek DEV throwaway yarış matrisi: iki paralel ₺80 checkout → **₺80+₺20**,
+  toplam **₺100**; release/reuse geçti, token-bound release ret; paralel settle
+  tek finalizasyon + **1 `order.settled` outbox**, retry idempotent; provider'a
+  ayrılmış ₺30'u nakit settle ret; iki stale niyet `void`; cross-tenant ret;
+  anon RPC **42501**. Cleanup
+  `restaurants=0, orders=0, shares=0, outbox=0`.
+- Verify: application **40/40**, db **106/106**; workspace typecheck temiz;
+  lint **0 error** (marketing'de mevcut 2 `img` warning); dashboard, menu ve
+  kitchen production build temiz.
+
+### Modüler monolith strangler — Menu ✅ (2026-07-15)
+
+- Saf alerjen/diyet/nutrition/review kuralları `@garsonless/domain/menu` sahibidir; DB eski export'ları compatibility için delegasyon yapar.
+- Kategori + ürün CRUD, kategori sırası ve bulk availability `@garsonless/application/menu` command'lerinden geçer. Tenant ve `menu` permission kontrolü infrastructure çağrısından önce yapılır.
+- Supabase sahiplik/pozisyon/RPC ayrıntıları `createMenuCommandPort()` ile `@garsonless/db/server` içindedir. `apps/dashboard/lib/actions/menu.ts` doğrudan `.from()`/`mut()` çağırmaz.
+- `20260715030000_menu_command_service_role.sql` DEV'e uygulandı: üç atomik menu RPC'si application adapter'ın service-role çağrısını kabul eder; anon execute hâlâ `42501`, authenticated eski `has_restaurant_section` kontrolünü korur. **PROD-at-deploy migration setine eklenmeli.**
+- DEV throwaway runtime: create category/item, partial nutrition update, allergen `contains/traces` dedupe, review actor/timestamp, availability, reorder, delete, cross-tenant ret ve anon RPC `42501` geçti; cleanup `restaurantOrphans=0`. Test Cafe B yalnız owner fixture okumak için kullanıldı, maf-lounge'a dokunulmadı.
+- Sıradaki strangler: customer identity/consent + campaigns → theme; ardından MenuManager/ThemeEditor büyük client shell parçalama ve legacy compatibility retirement.
+
+### Modüler monolith strangler — Loyalty read boundary ✅ (2026-07-15)
+
+- Tier, scope, puan/damga kazanım hesabı, `comp` kazanım yasağı ve indirim sırası (`free item → üye % → puan`) artık browser-safe `@garsonless/domain/loyalty` sahibidir. `packages/db/src/loyalty.ts` eski importları kırmamak için compatibility re-export tutar; saf kural kopyası taşımaz.
+- Supabase Auth ile doğrulanan müşteri `customer-member` context'ine çevrilir. Menu SSR, `/api/loyalty/balances` ve `/api/loyalty/preview-discount` yalnız `@garsonless/application/loyalty` query'lerini çağırır; service-role uygulama call-site'ından `createLoyaltyQueryPort()` ile `@garsonless/db/server` içine çekildi.
+- Guest preview application katmanında puan/damga/catalog redemption taleplerini sıfırlar; member context başka restaurant için replay edilirse repository çalışmadan reddedilir. Dashboard loyalty tier save doğrulaması doğrudan domain policy'sini kullanır.
+- Ledger yazma, settlement earning/refund, welcome/visit bonusları ve eski phone-OTP retirement bu ilk loyalty diliminde davranış korunması için DB persistence modülünde kaldı; sonraki write-strangler/retirement işi olarak açık.
+- DEV throwaway runtime: 500 spendable/lifetime puan + 4 damga → Gümüş; ₺100 sepette ₺10 üye + ₺10 puan indirimi → ₺80; guest aynı sepette ₺100 ve 0 redemption; cross-tenant replay reddedildi. Auth user + customer + restaurant temizlendi, `restaurantOrphans=0`, `customerOrphans=0`. Yeni migration gerekmedi.
+- Verify: domain 15/15, application 16/16, db 106/106; domain/application/db/menu/dashboard typecheck + lint temiz; menu ve dashboard production build geçti.
+
+### Modüler monolith strangler — Customer CRM boundary ✅ (2026-07-15)
+
+- PII maskeleme, CRM read-model tipleri ve segment sanitizasyonu `@garsonless/domain/customers` sahibidir; DB eski export'ları compatibility için delegasyon yapar.
+- Customers SSR liste/detayı, segment sayıları + CRUD ve manuel puan kredisi `@garsonless/application/customers` üzerinden `createCustomerApplicationPort()` / `@garsonless/db/server` sınırına taşındı. Dashboard customer call-site'ları doğrudan service-role CRM fonksiyonu çağırmaz.
+- Tenant ve `customers` permission kontrolü porttan önce yapılır; segment creator ve kredi granter kimlikleri actor context'ten türetilir. Cross-tenant replay port çalışmadan reddedilir.
+- DEV throwaway runtime: maskeli liste/detay, segment create→update→delete, 25 puan kredi, built-in counts ve cross-tenant ret geçti. Temizlik `restaurantOrphans=0`, `customerOrphans=0`, `segmentOrphans=0`; yeni migration gerekmedi.
+- Customer auth linking, consent persistence ve campaigns audience hâlâ mevcut DB compatibility yolundadır; bir sonraki customer write/identity diliminde application portuna alınacak.
+- Verify: domain 18/18, application 19/19, db 106/106; domain/application/db/dashboard/menu typecheck + lint temiz; dashboard ve menu production build geçti.
+
+### Modüler monolith strangler — Customer identity, consent & campaigns ✅ (2026-07-16)
+
+- First-login orchestration artık `@garsonless/application/customers` içindeki `ensureCustomerIdentity` sahibidir. Email normalizasyonu + provider name çözümü domain'dedir; Supabase `User` tipi application/domain sınırına girmez. Email dedupe/race linkleme, `app_metadata.user_type=customer`, restaurant association, welcome bonus ve consent persistence `createCustomerIdentityApplicationPort()` ile `@garsonless/db/server` arkasındadır.
+- Yan etki sırası korunur: customer link → JWT metadata damgası → restaurant association → idempotent welcome bonus → yalnız açıkça `true` olan consent'ler. Bonus ve consent login'i kırmayan best-effort davranışını korur; gerekli link/stamp/association adımları fail-closed kalır.
+- Member consent route'u `updateCustomerConsent` command'ini kullanır; doğrulanmış `customer-member` context'i başka tenant replay'ini port çalışmadan reddeder. Grant ve revoke yazımları CRM'nin `customer_restaurants` association'ını idempotent güncel tutar.
+- Campaign audience sözleşmesi ve metin/audience sanitizasyonu `@garsonless/domain/campaigns` sahibidir. Customers SSR ve campaign actions `@garsonless/application/campaigns` + `createCampaignApplicationPort()` kullanır; audit `createdBy` request gövdesinden değil actor context'inden türetilir. Mevcut senkron SMS provider davranışı korunmuştur; campaign outbox/async delivery ayrı write-side dilimidir.
+- DEV throwaway runtime: identity retry aynı customer id ve 1 satır; metadata `customer`; association 1; welcome bonus **1×15**; first-login consent yalnız `contact_data`; marketing grant sonrası audience **1 candidate / 1 eligible**; mock campaign **1 sent / 0 failed**; cross-tenant ret. Cleanup: restaurant/customer/campaign/consent/association orphan sayaçları **0**. Test Cafe B yalnız owner fixture okuması için kullanıldı, maf-lounge'a dokunulmadı.
+- Verify: domain **21/21**, application **23/23**, db **106/106**; db/menu/dashboard typecheck, workspace lint (0 error; marketing'de mevcut 2 `img` warning), menu + dashboard production build temiz. Yeni migration gerekmedi.
+- Açık retirement: legacy phone OTP route/session export'ları ve public DB compatibility barrel'i. Açık write-side: campaign provider gönderimini outbox consumer'a taşıma; loyalty settlement/visit/refund event consumer sınırı.
+
+### Modüler monolith strangler — Theme ✅ (2026-07-16)
+
+- Template doğrulama, token sanitizasyonu ve active/saved/preview çözümü kanonik browser-safe `@garsonless/design-engine/theme-policy` sahibidir. CSS'e taşınan renk/font değerleri doğrulanır, unknown alanlar atılır, sayı/collection sınırları uygulanır; editör SSR, menu layout, ana menu ve masa menu aynı resolver'ı kullanır.
+- Tema read/publish akışları `@garsonless/application/themes` üzerinden `createThemeApplicationPort()` / `@garsonless/db/server` sınırına taşındı. Tenant + `theme` izni porttan önce kontrol edilir; `updated_by` request'ten değil actor context'ten türetilir.
+- Template picker artık yalnız editor/preview rotasını açar; seçim tek başına canlı template'i değiştirmez. **Yayınla**, `theme_configs.tokens` + `updated_by` ile `restaurants.settings.active_template_id` değerini `publish_theme_config_atomic` RPC'sinde tek transaction'da yazar ve ilgisiz settings anahtarlarını korur.
+- `20260716010000_publish_theme_config_atomic.sql` DEV'e uygulandı, tipler üretildi. **PROD-at-deploy migration setine eklenmeli.** RPC public/anon/authenticated rollerine kapalı, yalnız service role'a açıktır.
+- DEV throwaway runtime: obsidian publish, settings marker koruma, CSS-shaped bg/font sanitizasyonu, publisher audit, retry'da **1 config**, ortak public read, cross-tenant ret, missing-restaurant rollback **0 orphan**, anon RPC `42501`; cleanup restaurant/theme config **0/0**. Test Cafe B yalnız owner fixture okuması için kullanıldı, maf-lounge'a dokunulmadı.
+- Verify: application **27/27**, db **106/106**; workspace typecheck tüm paketlerde temiz; lint **0 error** (marketing'de mevcut 2 `img` warning); dashboard + menu production build geçti.
+- Sıradaki dilimler: loyalty/campaign write-side outbox consumer'ları; `ThemeEditorClient`/`MenuManager` feature-state/view/command-hook parçalama; compatibility/session/OTP retirement.
+
+### Modüler monolith strangler — Loyalty & campaign write-side outbox ✅ (2026-07-16)
+
+- Typed domain event sözlüğü `@garsonless/domain/events`, receipt-first consumer orkestrasyonu `@garsonless/application/outbox` sahibidir. Settlement/served loyalty earn, cancellation refund, normal table-close visit ve welcome bonus call-site'ları artık doğrudan ledger yazmaz; ilgili outbox event'ini `loyalty-ledger` consumer'ına dispatch eder. `comp` ödeme event olarak teslim edilse bile domain policy gereği **0 earn** üretir.
+- Campaign send artık recipient snapshot + campaign + `campaign.delivery_requested` event'ini `queue_campaign_delivery_atomic` RPC'sinde atomik yazar. `campaign-sms` consumer recipient'ları claim/complete/finalize RPC'leriyle işler; receipt redelivery'yi no-op yapar. Provider çağrısı ortasında crash olan `processing` recipient otomatik yeniden gönderilmez; çift SMS yerine görünür failed/unknown sonucu korunur.
+- Dashboard'daki `/api/internal/outbox` Node consumer route'u `OUTBOX_WORKER_SECRET` ile korunur. Edge worker `OUTBOX_CONSUMER_URL` tanımsızken durable event'i ACK'lemek yerine `defer_domain_outbox` ile lease'i bırakır, claim attempt'ini geri alır ve bir saat erteler. DEV worker bu güvenli sürümle deploy edildi. PROD'da dashboard secret + Edge secret aynı olmalı ve `OUTBOX_CONSUMER_URL=https://<dashboard>/api/internal/outbox` kurulmalıdır.
+- DEV'e uygulanan ve **PROD-at-deploy setine eklenmesi gereken** migration'lar: `20260716020000_loyalty_campaign_outbox_consumers.sql`, `20260716030000_welcome_bonus_idempotency.sql`, `20260716040000_outbox_enqueue_service_role.sql`, `20260716050000_defer_unconfigured_outbox_consumer.sql`.
+- Gerçek DEV throwaway runtime: paid settlement **100 puan + 2 damga**, retry no-op; comp **0 earn**; normal close **1 ziyaret**; welcome retry **1×15**; cancel **1×20 refund**; campaign **1 sent / 1 provider attempt / 1 terminal event**, redelivery no-op; cross-tenant campaign RPC **42501**; 5 durable receipt. Safe rollout testi: `attempts=0`, `processed_at=null`, `locked_by=null`, future `available_at`, URL-not-configured hata kaydı. Cleanup restaurant/customer/campaign/ledger/outbox sayaçları **0**; Test Cafe B yalnız owner fixture okumasında kullanıldı, maf-lounge'a dokunulmadı.
+- Verify: domain **24/24**, application **30/30**, db **106/106**; workspace typecheck temiz; lint **0 error** (marketing'de mevcut 2 `img` warning); marketing/dashboard/menu/kitchen production build temiz.
+- Sıradaki dilim: büyük client shell'leri (`MenuManager`, `ThemeEditorClient`, `TablesBuilderShell`) feature-state/view/command-hook parçalarına ayırmak; ardından compatibility/session/OTP retirement.
+
+### Büyük client shell ayrıştırma — MenuManager dilimi ✅ (2026-07-16)
+
+- `MenuManager` CSV içe aktarma state'i, dosya/başlık/satır doğrulaması, kategori+ürün command orkestrasyonu, progress, hata raporu ve şablon indirme davranışı `use-menu-csv-import.ts` feature hook'una taşındı. Ana shell artık CSV server action çağrıları veya parse kuralı taşımıyor.
+- CSV başlangıç ve önizleme yüzeyleri `MenuCsvImportOverlays.tsx` presentational bileşenlerindedir. Kategori/sub-kategori seçimi, global arama görünürlüğü, panel kategorisi ve nav highlight türetimleri saf `deriveMenuManagerView` projection'ında tekleştirildi; 3 unit test parent+child fold, sub-category daraltma ve cross-category aramayı kilitliyor.
+- Ana `MenuManager.tsx` davranış değişmeden **2.840 → 2.328 satıra** indi. CSV import onayı runtime testte özellikle verilmedi; Test Cafe B owner session ile ekran **200**, başlangıç modalı görünür, geçerli dosya **1 hazır**, onay enabled, iptal kapanışı doğru ve browser console/page error **0**. Tenant verisine yazılmadı; maf-lounge'a dokunulmadı.
+- Verify: yeni view-model testleri **3/3**, dashboard typecheck, lint ve production build temiz. Migration yok. Sıradaki client-shell dilimi `ThemeEditorClient`; sonrasında `TablesBuilderShell`, kalan MenuManager edit/category workspace parçaları ve compatibility/session/OTP retirement.
+
+### Büyük client shell ayrıştırma — ThemeEditorClient preview dilimi ✅ (2026-07-16)
+
+- Tema preview iframe'inin origin sınırı, `PREVIEW_READY → FULL_THEME_UPDATE → THEME_APPLIED` handshake'i, request korelasyonu, 5 saniyelik degraded fallback ve güvenli reload davranışı `use-theme-preview-bridge.ts` feature hook'una taşındı. Ana editor shell artık window message listener'ı, timeout veya iframe request ref'i taşımıyor.
+- Iframe loading/ready yüzeyi `ThemePreviewSurface.tsx`, editor üst barı `ThemeEditorTopbar.tsx` salt-props view bileşenleridir. Undo/redo, dirty state ve publish command sahipliği ana orchestrator'da kaldı; route, postMessage sözleşmesi ve tema alanları değişmedi.
+- Ana `ThemeEditorClient.tsx` mevcut dirty çalışmaları koruyarak **4.980 → 4.710 satıra** indi. Origin guard testleri **2/2**, dashboard typecheck/lint/build temiz.
+- Test Cafe B owner session salt-okunur runtime: editor **200**, iframe handshake **ready**, mobil/masaüstü geçişi doğru, Header range değişikliği dirty state'i **1 değişiklik** yaptı ve preview `ready` kaldı; **0 write/publish request**, browser console/page error **0**. Test için açılan 3005/3013 süreçleri kapatıldı, tenant verisine yazılmadı.
+- Sıradaki client-shell dilimi `TablesBuilderShell`; ardından kalan `ThemeEditorClient` property/page-flow panelleri, MenuManager edit/category workspace parçaları ve compatibility/session/OTP retirement.
+
+### Büyük client shell ayrıştırma — TablesBuilderShell QR stil dilimi ✅ (2026-07-16)
+
+- QR stilinin normalize/default/URL/kontrast kuralları ile 60-snapshot history, slider coalescing, undo/redo ve redo-cut davranışı `tables-builder-model.ts` saf modülüne taşındı. Masa DB→view projection'ı ve açık-session fold'u da aynı browser-safe model sınırında; `TablesBuilderShell` artık bu kuralları tekrar etmiyor.
+- History, 650 ms autosave, latest-pending-save kuyruğu, unload guard ve QR okunabilirlik yaşam döngüsünün tek sahibi `use-qr-style-editor.ts` feature hook'udur. Okunabilirlik uyarısı `QRHealthDialog.tsx` salt-props view bileşenine ayrıldı; masa/session/realtime/payment akışları bu dilimde değiştirilmedi.
+- Ana `TablesBuilderShell.tsx` **2.982 → 2.639 satıra** indi. Saf model matrisi **5/5**: custom-domain kilidi + enum fallback, revocable-token URL/UTM encoding, undo sonrası redo-cut, slider'ın tek undo adımı olması, 60 history cap + gradient'in en zayıf kontrastı.
+- Test Cafe B owner-session runtime: route **200**, QR Studio mount, preset autosave ve undo autosave DB'de doğrulandı, redo yeniden erişilebilir, QR sağlık sonucu **4.8:1 / geçerli**, browser console error **0**. Test sonunda `settings.qr_style` snapshot'ı birebir geri yüklendi; orders/session verisine ve maf-lounge'a dokunulmadı.
+- Verify: dashboard typecheck, lint ve production build temiz. Migration yok. Sonraki canlı-state dilimi aşağıda tamamlandı.
+
+### Büyük client shell ayrıştırma — TablesBuilderShell canlı state dilimi ✅ (2026-07-16)
+
+- Açık adisyon aggregate yükleme, stale-response sequence guard, `table_sessions`/`orders`/`payment_shares` realtime invalidation debounce'u, pending service-request yükleme/resolve ve settlement-or-direct-close kararı `use-tables-live-state.ts` feature hook'una taşındı. Shell artık Supabase browser client, channel veya bu server action'ları doğrudan taşımıyor.
+- `applySessionsToTables`, `requestsByTable`, `removePendingRequest` ve para koruması `sessionRequiresSettlement` saf model kurallarıdır. Özellikle unpaid veya split-cash onayı bekleyen session'ın doğrudan kapanamaması hook ile UI arasında tekrar edilmez.
+- Ana `TablesBuilderShell.tsx` bu dilimde **2.639 → 2.520 satıra**, iki Tables dilimi toplamında **2.982 → 2.520 satıra** indi. Model matrisi **8/8**: önceki 5 QR kuralı + authoritative active/idle fold + pending-request group/remove + settlement guard.
+- Test Cafe B owner-session salt-okunur runtime: route **200**; DB **3 masa / 1 açık session / 0 pending request**, UI aynı; `tables-sessions:*` ve `tables-service-requests:*` topic'leri tek WebSocket'te, toplam **4 postgres_changes subscription** kurulu; browser console error **0**. Restaurant settings/tables/sessions/service_requests snapshot'ı değişmedi; maf-lounge'a dokunulmadı.
+- Verify: dashboard typecheck, lint ve production build temiz. Migration yok. Sıradaki client-shell dilimi `ThemeEditorClient` property/page-flow panelleri; ardından MenuManager edit/category workspace ve compatibility/session/OTP retirement.
+
+### Büyük client shell ayrıştırma — ThemeEditorClient property/page-flow dilimi ✅ (2026-07-16)
+
+- Sayfa akışının stored/legacy normalize kuralı, stale/duplicate blok temizliği, alt-kategori kapsamı, parent+child grup taşıma, bölüm ekleme/silme ve klavye hedef çözümü `theme-page-flow-model.ts` browser-safe saf modülüne taşındı. UI artık bu kuralları kendi event handler'larında tekrar etmiyor.
+- Sağ özellik panelinin tab sınıflandırması, geçerli-tab fallback'i ve Cards/Nav/Header/Cart/Announcement koşullu alan görünürlüğü `theme-editor-properties-model.ts` projection sınırındadır. Panel header/tab/scroll/footer kabuğu ve erişilebilir tab semantics'i `ThemePropertiesFrame.tsx` salt-props view bileşenine ayrıldı.
+- Ana `ThemeEditorClient.tsx` bu dilimde **4.710 → 4.430 satıra**, preview + property/page-flow dilimleri toplamında **4.980 → 4.430 satıra** indi. Saf model matrisi **13/13**: akış sanitize/legacy/category-scope/reorder/keyboard ile property tab/fallback ve conditional visibility kapıları.
+- Test Cafe B owner-session salt-okunur runtime: route **200**, **5** akış öğesi, Kategori Menüsü klavye ile yer değiştirdi, sağ panel `Navigasyon / Tasarım / Düzen / İçerik` olarak açıldı, preview **ready**, dirty göstergesi **1**, browser console/page error **0**. `theme_configs` snapshot digest'i test öncesi/sonrası birebir aynı; publish/write yapılmadı ve geçici 3005 süreci kapatıldı.
+- Verify: dashboard typecheck, lint ve production build temiz. Migration yok. Sıradaki client-shell dilimi `MenuManager` edit/category workspace; ardından kalan Theme property renderer alt bileşenleri ve compatibility/session/OTP retirement.
+
+### Büyük client shell ayrıştırma — MenuManager edit/category workspace dilimi ✅ (2026-07-16)
+
+- Kategori rail'i; arama sırasında parent görünürlüğü, aktif üst kategori, özet sayıları, add/edit/sub-category/delete yaşam döngüsü ve lazy DnD bağlantısıyla birlikte `MenuCategoryWorkspace.tsx` feature sınırına taşındı. Recursive kategori silme kapsamı `collectCategoryTreeIds` ile bütün descendant'ları kapsıyor; tek seviyeli eski toplama kaldırıldı.
+- Ürün editor dirty karşılaştırması `menu-item-editor-model.ts` saf snapshot kuralına alındı. Inherited VAT/station backing değerleri yalancı dirty üretmiyor; nutrition, images ve modifier gibi nested alanlar deterministik karşılaştırılıyor. Header/scroll/footer/overlay kabuğu `MenuItemEditorFrame.tsx`, ortak onay yüzeyi `MenuConfirmDialog.tsx` salt-props view bileşenleridir.
+- Ana `MenuManager.tsx` bu dilimde **2.328 → 1.921 satıra**, CSV + edit/category dilimleri toplamında **2.840 → 1.921 satıra** indi. Saf model matrisi **10/10**: category parent-search fold, recursive delete, reorder merge; editor clean/inherited/custom/nested dirty; mevcut menu view-model seçim/arama kuralları.
+- Test Cafe B owner-session salt-okunur runtime: route **200**, 3 ürün kartı; panel `aside` sınırı açıldı, yerel açıklama değişikliği dirty oldu, ikinci ürüne geçişte koruma dialog'u açıldı ve “Düzenlemeye dön” aynı ürünü korudu. `matcha` araması parent `Kahve`yi görünür tuttu. Browser console/page error **0**, mutation request **0**; **6 kategori / 8 ürün** DB digest'i önce/sonra aynı (`1e7a583ed3bd17b7`).
+- Verify: dashboard typecheck, lint ve production build temiz. Migration yok. Sıradaki client-shell dilimi kalan Theme property renderer alt bileşenleri; ardından compatibility/session/OTP retirement.
+
+### Büyük client shell ayrıştırma — ThemeEditorClient property renderer dilimi ✅ (2026-07-16)
+
+- Header, Kartlar, Navigasyon, Düzen, Tema, Sepet ve Duyuru sağ-panel renderer'ları ile ortak alan/renk/range/toggle/select kontrolleri `ThemePropertyPanels.tsx` salt-props UI sınırına taşındı. Ana shell artık yedi panelin görsel hiyerarşisini veya kontrol markup'ını taşımıyor.
+- Renk kontrastı, soft-color türetimi, güvenli control id üretimi ve header/footer sepet erişiminin karşılıklı dışlama kuralı `theme-property-renderer-model.ts` saf modelindedir. Geçersiz renk kontrastı fail-closed davranır; tiled seçimler gerçek `aria-pressed` semantiği taşır.
+- Ana `ThemeEditorClient.tsx` bu dilimde **4.430 → 3.631 satıra**, üç Theme dilimi toplamında **4.980 → 3.631 satıra** indi. Theme model matrisi **20/20**: yeni renderer kuralları 5/5, property projection 5/5, page-flow 8/8 ve preview bridge 2/2.
+- Test Cafe B owner-session salt-okunur runtime: route **200**, yedi renderer panelinin tamamı mount oldu; Sepet `İkon + Rozet` seçimi `aria-pressed=true` olurken `Floating Pill=false` kaldı, dirty göstergesi **1**, erişilebilirlik bölümü görünür ve preview **ready**. Mutation request **0**, browser console/page error **0**; theme snapshot digest'i önce/sonra aynı (`3b06e94672a3822a`).
+- Verify: dashboard typecheck, lint ve production build temiz. Migration yok. Sıradaki client-shell dilimi Theme section-settings renderer kontrolleri; ardından compatibility/session/OTP retirement.
+
+### Büyük client shell ayrıştırma — ThemeEditorClient section settings dilimi ✅ (2026-07-16)
+
+- Özel bölüm alanlarının text/textarea/color/range/select/toggle, ürün-kategori hedefi ve galeri yükleme yüzeyleri `ThemeSectionSettings.tsx` feature sınırına taşındı. Galeri kutuları artık gerçek erişilebilir butonlar; yükle/değiştir/kaldır aksiyonları ayrı adlandırıldı, tiled seçimler `aria-pressed` ve range değerleri ilişkili `output` kullanıyor.
+- Hedef türüne göre alan görünürlüğü, promo-slide default/kapı kuralları, combo kart+ikon sayısı, deterministik control id/etiket ve ürünlerin kategori bazlı gruplaması `theme-section-settings-model.ts` saf projection'ındadır. Bozuk sayısal stored değerler sınırlı fallback ile fail-closed davranır.
+- Ana `ThemeEditorClient.tsx` bu dilimde **3.631 → 3.011 satıra**, dört Theme dilimi toplamında **4.980 → 3.011 satıra** indi. Genişletilmiş Theme model matrisi **25/25** geçti.
+- Test Cafe B owner-session salt-okunur runtime: Hero Banner yerel olarak eklendi; category/link hedef kapıları sırasıyla **1/1** render edildi ve kategori alanı link seçiminde **0** oldu. Düzen sekmesinde **3 range + 3 output**, Tasarım'da **5 renk kontrolü**; Foto Galerisi'nde **6 erişilebilir upload butonu** doğrulandı. Preview **ready**, dirty göstergesi **1**, mutation request ve browser hatası **0**; theme digest önce/sonra aynı (`3b06e94672a3822a`).
+- Verify: dashboard typecheck, lint ve production build temiz. Migration yok. Sıradaki mimari dilim compatibility/session/OTP ve kalan eski public barrel/service-role import retirement'ı.
+
+### Compatibility/session/OTP retirement ✅ (2026-07-16)
+
+- Legacy telefon OTP request/verify/logout route'ları, dev-code echo yolu ve `packages/db/src/session.ts` içindeki `gl_member` JWT/cookie sistemi kaldırıldı. Customer identity yalnız Supabase Auth email OTP/OAuth + `customers.auth_user_id` linkiyle çözülür.
+- Menu boot instrumentation ve `CUSTOMER_SESSION_SECRET`/SMS env zorunluluğu kaldırıldı. SMS provider kampanya gönderimleri için korunur; `SmsPurpose` artık yalnız `campaign|test`, config guard auth secret'ı bilmez.
+- `createServiceClient` root `@garsonless/db` barrel'ından çıkarıldı; bütün app call-site'ları `@garsonless/db/server` sınırına taşındı. ESLint eski named importu error ile engeller. Geniş root compatibility barrel'ının diğer export'ları sonraki ölçümlü retirement diliminde kalır.
+- `20260716060000_retire_phone_otp.sql` DEV'e uygulandı ve generated type'lar yenilendi. Gerçek DB sorgusu `public.otp_codes` için `PGRST205`; migration **PROD-at-deploy setine eklenmeli**.
+- Runtime: menu production build `CUSTOMER_SESSION_SECRET` unset iken ayağa kalktı; üç eski loyalty route **404**, guest whoami **authenticated:false**, sahte `gl_member` yine false; `sutlacgullac@gmail.com` Supabase session'ı whoami **authenticated:true** ve Test Cafe B balances **200/ok** döndürdü.
+- Verify: db **106/106**, tüm workspace typecheck temiz, lint **0 error** (marketing'de mevcut 2 `img` warning), dashboard + menu production build temiz.
 
 ### Settings honesty hardening — in progress
 
@@ -256,7 +584,7 @@ Tüm analytics grafikleri el-yazması ham SVG/div idi (kütüphane yok); **garbl
 
 **Verify (Test Cafe B gerçek-auth; 6 ürün + peak-günlü seed → temizlendi):** typecheck 8/8, lint 0/0, prod build ✓. Runtime: line hover → TEK tooltip "1 Çar · Bu dönem ₺280 · Önceki dönem ₺0" (crosshair + adaptive axis, garble YOK); scatter at-rest → sabit etiket YOK, hover → TEK tooltip gerçek datum (Espresso · Adet 18 · %38 · ₺990 · A); Brush 7G/30G'de YOK, Çeyrek/Yıl'da VAR; kenar-hover tooltip viewport içinde (x=1239 w=160, clip yok); bubble'lar yeşil (var() çözüldü). **Donut/heatmap/diğerleri P1'de DOKUNULMADI** (scope temiz). **Test tuzağı:** range değişince "Rapor yükleniyor…" → brush/DOM assert'leri `waitForFunction(!includes('Rapor yükleniyor'))` ile beklemeli; `.recharts-scatter-symbol` getComputedStyle wrapper `<g>`'yi seçip yanlış rgb(0,0,0) döndürür — görsel/screenshot asıl kanıt.
 
-**P2 (`feat/analytics-charts-p2`) — kalan HOVER tier (3 grafik, P1 primitiflerini yeniden kullanır):** **Ödeme dağılımı donut** = recharts `PieChart`+`Pie` (innerRadius donut) + `Cell`(--chart-cat-*) + `activeShape` hover arc pop-out + legend row hover-dim; **yalnız `.collected` besleniyor** — İkram pie'da SLICE değil, tooltip'te datum değil (İkram context satırı ayrı, altta). **Saat×Gün heatmap** = CSS grid KALDI (recharts'ta heatmap yok) + hücre hover'da `FloatingTooltip` (`position:fixed` Card'ı aşar) "Gün · HH:00 · Sipariş N". **İptal-trend bar** = recharts `BarChart`; compaction caller'da kalır. Donut+bar `next/dynamic ssr:false`; heatmap normal import. `PAYMENT_COLORS` da tokenlendi (PaymentRows/MINIMAL kullanıyor). **Verify (comp+cancel+heatmap-cell seed → temizlendi):** typecheck 8/8, lint 0/0, build ✓ (analytics 126kB). **A (donut comp exclusion — para-kritik):** merkez collected ₺460 (comp ₺70 HARİÇ; sızsa 530), İkram AYRI, 4 arc = collected (comp arc yok), ring hover "Fiziksel POS · ₺205 · %43,6 · Adet 3" — İkram sızmıyor. **B:** heatmap "Sipariş 4" (DB birebir). **C:** bar "İptal 2" + KPI regresyonsuz. **D:** tek renderer (≤1 wrapper/chart). **Test tuzağı:** sayfada ≥2 recharts → `.recharts-tooltip-wrapper.first()` yanlış chart'ın boş wrapper'ını alır (chart'a scope'la); pie sector bbox merkezi donut DELİĞİNE düşer (ring yarıçapında hover'la). NOT: line total (₺360) vs donut (₺600) farkı P2 DEĞİL → pre-existing `getSalesOverTime` UTC-bucket tuhaflığı (ayrı iş). **P3:** Tables/Payments/Staff yatay bar + Sadakat listeleri → MINIMAL row-highlight.
+**P2 (`feat/analytics-charts-p2`) — kalan HOVER tier (3 grafik, P1 primitiflerini yeniden kullanır):** **Ödeme dağılımı donut** = recharts `PieChart`+`Pie` (innerRadius donut) + `Cell`(--chart-cat-\*) + `activeShape` hover arc pop-out + legend row hover-dim; **yalnız `.collected` besleniyor** — İkram pie'da SLICE değil, tooltip'te datum değil (İkram context satırı ayrı, altta). **Saat×Gün heatmap** = CSS grid KALDI (recharts'ta heatmap yok) + hücre hover'da `FloatingTooltip` (`position:fixed` Card'ı aşar) "Gün · HH:00 · Sipariş N". **İptal-trend bar** = recharts `BarChart`; compaction caller'da kalır. Donut+bar `next/dynamic ssr:false`; heatmap normal import. `PAYMENT_COLORS` da tokenlendi (PaymentRows/MINIMAL kullanıyor). **Verify (comp+cancel+heatmap-cell seed → temizlendi):** typecheck 8/8, lint 0/0, build ✓ (analytics 126kB). **A (donut comp exclusion — para-kritik):** merkez collected ₺460 (comp ₺70 HARİÇ; sızsa 530), İkram AYRI, 4 arc = collected (comp arc yok), ring hover "Fiziksel POS · ₺205 · %43,6 · Adet 3" — İkram sızmıyor. **B:** heatmap "Sipariş 4" (DB birebir). **C:** bar "İptal 2" + KPI regresyonsuz. **D:** tek renderer (≤1 wrapper/chart). **Test tuzağı:** sayfada ≥2 recharts → `.recharts-tooltip-wrapper.first()` yanlış chart'ın boş wrapper'ını alır (chart'a scope'la); pie sector bbox merkezi donut DELİĞİNE düşer (ring yarıçapında hover'la). NOT: line total (₺360) vs donut (₺600) farkı P2 DEĞİL → pre-existing `getSalesOverTime` UTC-bucket tuhaflığı (ayrı iş). **P3:** Tables/Payments/Staff yatay bar + Sadakat listeleri → MINIMAL row-highlight.
 
 ### Restoran-yerel-gün (timezone) sistemik düzeltmesi ✅ (2026-07-04) — Migration `20260704000000_restaurant_timezone.sql` (DEV'e push'lu; ⚠️ PROD-at-deploy listesi 7: 20260626/27/28/29/0702/**0704**)
 
@@ -286,15 +614,15 @@ Tüm analytics grafikleri el-yazması ham SVG/div idi (kütüphane yok); **garbl
 
 2. **Code-review düzeltmeleri (bc253e2 içinde):** (a) Fiş KDV dökümü artık İNDİRİMLİ bazdan — `computeVatBreakdown(lines, chargedTotal?)` indirimi oran kovalarına orantısal dağıtır, kalıntı en büyük kovaya, Σ==TOPLAM kuruş-kesin (5 DISCOUNT testi); ReceiptModal "Satır toplamı/İndirim" satırları basar. (b) `updateSettings` non-owner yazımı DENYlist→ALLOWLIST (`store/contact/hours/tax/languages/notifications/orders`) — 'settings'-üyesi themeSettings/pageBlocks yazamaz.
 
-3. **Masabu rebrand (790d5de + 0aa026c, merged+pushed):** TÜM user-facing copy garsonless→masabu (başlıklar, fiş, SMS şablonu "Masabu doğrulama kodunuz", üye kodu GRS-→MSB-, KVKK linki masabu.co/legal#kvkk [gerçek route: marketing /legal hash-tab], marketing e-postaları @masabu.co, domain hint'leri menu.masabu.co, MENU_BASE fallback, .env.production.example, HelpModal "Masabu'yu tanı"). **OUT-OF-SCOPE (bilerek dokunulmadı):** @garsonless/* paket adları (109 dosya), GarsonlessTheme tipi, JWT iss/aud (garsonless-menu/-customer), gl_member, localStorage key'leri (garsonless-cart/-active-order/-floor), keyframe/postMessage protokolleri, test-owner-b@garsonless.dev fixture'ı, Supabase proje etiketleri. **Logo asset'leri:** assets/brand/ → 4 app public/'ına favicon seti + site.webmanifest (metadata.icons ile), dashboard+marketing public/brand/ wordmark SVG'leri; tüm "m-kutusu+metin" lockup'ları gerçek wordmark <img>; **VisualPanel (auth hero) KOYU zemin → white-background varyantı yuvarlak plaka** (screenshot'la yakalandı); A4/fiş vektör SVG (baskı-keskin); marketing og-image.png 1200×630 + openGraph/metadataBase. Logo QR-mozaik "masabu." (siyah mürekkep + yeşil "bu.") → açık zeminde transparent, koyuda white-bg varyantı.
+3. **Masabu rebrand (790d5de + 0aa026c, merged+pushed):** TÜM user-facing copy garsonless→masabu (başlıklar, fiş, SMS şablonu "Masabu doğrulama kodunuz", üye kodu GRS-→MSB-, KVKK linki masabu.co/legal#kvkk [gerçek route: marketing /legal hash-tab], marketing e-postaları @masabu.co, domain hint'leri menu.masabu.co, MENU_BASE fallback, .env.production.example, HelpModal "Masabu'yu tanı"). **OUT-OF-SCOPE (bilerek dokunulmadı):** @garsonless/\* paket adları (109 dosya), GarsonlessTheme tipi, JWT iss/aud (garsonless-menu/-customer), gl_member, localStorage key'leri (garsonless-cart/-active-order/-floor), keyframe/postMessage protokolleri, test-owner-b@garsonless.dev fixture'ı, Supabase proje etiketleri. **Logo asset'leri:** assets/brand/ → 4 app public/'ına favicon seti + site.webmanifest (metadata.icons ile), dashboard+marketing public/brand/ wordmark SVG'leri; tüm "m-kutusu+metin" lockup'ları gerçek wordmark <img>; **VisualPanel (auth hero) KOYU zemin → white-background varyantı yuvarlak plaka** (screenshot'la yakalandı); A4/fiş vektör SVG (baskı-keskin); marketing og-image.png 1200×630 + openGraph/metadataBase. Logo QR-mozaik "masabu." (siyah mürekkep + yeşil "bu.") → açık zeminde transparent, koyuda white-bg varyantı.
 
-4. **Supabase Auth CANLI durumu (DEV yxsegwkzyiscrxiwdeuf):** (a) **Google provider AKTİF + gerçek OAuth smoke-test geçti** — fixture: `sutlacgullac@gmail.com` = auth.users `1b8c18d3-72c2-499f-a23b-f9918a014dc0`, providers=[google]; customers satırı YOK (F2 linking testinin hazır fixture'ı). (b) **customer_access_token_hook Auth ayarlarında KAYITLI ve CANLI** (P1 entry'sindeki "kayıtlı değil" notu ARTIK ESKİ): gerçek staff girişi (test-owner-b şifreyle) → JWT `user_type=staff`; fixture'a taze issuance → `user_type=customer`; sub/email/role/aud/iss bozulmadı. (c) **send-email-hook edge function (`259d244`) deploy'lu v1 ACTIVE** — standardwebhooks imza (v1,whsec_ prefix soyulur), TR konu/şablonlar (Masabu, 6-haneli kod büyük, "10 dakika" notu), Resend'e noreply@masabu.co; 401 imza/400 eksik/500 resend-hata/200 ok; `--no-verify-jwt` deploy + **config.toml [functions.send-email-hook] verify_jwt=false (KRİTİK: Auth hook POST'u JWT taşımaz; true olursa tüm auth e-postaları ölür)**. **Secrets SET'Lİ:** SEND_EMAIL_HOOK_SECRET + RESEND_API_KEY (supabase secrets list'te). **E2E KANITLI:** gerçek `signInWithOtp` → hook 200 → Resend kabul (masabu.co domain doğrulaması çalışıyor). Hook secret'sızken 500 "Hook not configured" (fail-safe). ⚠️ Hook PROJE-GENELİ: staff magic-link/reset mailleri de artık Resend'den — staff mail regresyonu P2/P3 matrisinde test edilmeli. ⚠️ Şablon "10 dakika" diyor ama Supabase email-OTP expiry default 1 SAAT — **AÇIK SORU: dashboard'dan 600sn'ye çekilecek Mİ (kullanıcı karar vermedi)**, yoksa şablon metni düzeltilmeli.
+4. **Supabase Auth CANLI durumu (DEV yxsegwkzyiscrxiwdeuf):** (a) **Google provider AKTİF + gerçek OAuth smoke-test geçti** — fixture: `sutlacgullac@gmail.com` = auth.users `1b8c18d3-72c2-499f-a23b-f9918a014dc0`, providers=[google]; customers satırı YOK (F2 linking testinin hazır fixture'ı). (b) **customer_access_token_hook Auth ayarlarında KAYITLI ve CANLI** (P1 entry'sindeki "kayıtlı değil" notu ARTIK ESKİ): gerçek staff girişi (test-owner-b şifreyle) → JWT `user_type=staff`; fixture'a taze issuance → `user_type=customer`; sub/email/role/aud/iss bozulmadı. (c) **send-email-hook edge function (`259d244`) deploy'lu v1 ACTIVE** — standardwebhooks imza (v1,whsec\_ prefix soyulur), TR konu/şablonlar (Masabu, 6-haneli kod büyük, "10 dakika" notu), Resend'e noreply@masabu.co; 401 imza/400 eksik/500 resend-hata/200 ok; `--no-verify-jwt` deploy + **config.toml [functions.send-email-hook] verify_jwt=false (KRİTİK: Auth hook POST'u JWT taşımaz; true olursa tüm auth e-postaları ölür)**. **Secrets SET'Lİ:** SEND_EMAIL_HOOK_SECRET + RESEND_API_KEY (supabase secrets list'te). **E2E KANITLI:** gerçek `signInWithOtp` → hook 200 → Resend kabul (masabu.co domain doğrulaması çalışıyor). Hook secret'sızken 500 "Hook not configured" (fail-safe). ⚠️ Hook PROJE-GENELİ: staff magic-link/reset mailleri de artık Resend'den — staff mail regresyonu P2/P3 matrisinde test edilmeli. ⚠️ Şablon "10 dakika" diyor ama Supabase email-OTP expiry default 1 SAAT — **AÇIK SORU: dashboard'dan 600sn'ye çekilecek Mİ (kullanıcı karar vermedi)**, yoksa şablon metni düzeltilmeli.
 
 5. **P2 audit (`94ad043`):** `docs/p2-customer-auth-audit.md` — 6 verifyCustomerSession çağrısının dosya:satır haritası (HİÇBİRİ phone claim'i okumaz), gl_member set/read/clear, otp_codes yalnız loyalty.ts'de (temiz DROP edilebilir), menu'de middleware YOKTU + @supabase/ssr kurulu-boştaydı, customers 2 satır (auth_user_id/email null), RLS/realtime'ın customer kimliğine SIFIR bağımlılığı, kritik implicit bağ: /api/orders→customer_id→sadakat (sessiz-guest regresyonu ana test).
 
 6. **P2 PLANI (onaylı, 3 faz):** F1 altyapı ✅ / F2 login UI + ensureCustomerForAuthUser / F3 6-site swap (3a düşük-risk 4'lü → 3b /api/orders İZOLE kendi runtime testiyle → 3c split/create + logout). Kilit kararlar: dual-read YOK (swap anında gl_member ölür; eski cookie = yalnız 2 test müşterisi); **eski verify-otp'nin YAN İŞLERİ (creditWelcomeBonus + recordConsent + ad) ensureCustomerForAuthUser'a TAŞINMALI yoksa yeni üyeler bonussuz/consent'siz doğar**; OTPScreen 6-kutu component'i aynen yeniden kullanılır; retirement P3 ayrı iş.
 
-7. **P2 F1 ✅ (`91c8270`):** `apps/menu/lib/supabase-server.ts` (createMenuServerClient — YALNIZ kimlik kaynağı, veri anon/service-role'da), `lib/supabase-browser.ts` (createMenuAuthBrowserClient — anon realtime client'tan AYRI), `middleware.ts` (getUser refresh + supabaseResponse cookie-race disiplini, redirect YOK, matcher _next/statik/brand hariç), `/api/auth/whoami` (salt-okuma probe + F2/F3 test çapası). **Verify:** fixture için gerçek session (admin generateLink magiclink→verifyOtp deseni — interaktif Google'sız gerçek issuance) + @supabase/ssr kendi serileştirmesiyle cookie → whoami 200 {email,userId}; **expires_at geçmişe çekilmiş session → hâlâ 200 + 3 ROTASYONLU auth-token Set-Cookie** (refresh propagation kanıtı); cookie'siz → authenticated:false; SSR 200×2 + 3 anon realtime kanal SUBSCRIBED + 0 konsol hatası; typecheck 8/8, lint 0/0, menu build ✓ (ƒ Middleware 89 kB). **Test tuzağı:** @supabase/ssr session cookie'si CHUNK'LANIR (sb-…-auth-token.0/.1) — doctoring/okuma için parçalar birleştirilip 'base64-' prefix'i soyulmalı; tek parça bazlı JSON.parse sessizce başarısız olur.
+7. **P2 F1 ✅ (`91c8270`):** `apps/menu/lib/supabase-server.ts` (createMenuServerClient — YALNIZ kimlik kaynağı, veri anon/service-role'da), `lib/supabase-browser.ts` (createMenuAuthBrowserClient — anon realtime client'tan AYRI), `middleware.ts` (getUser refresh + supabaseResponse cookie-race disiplini, redirect YOK, matcher \_next/statik/brand hariç), `/api/auth/whoami` (salt-okuma probe + F2/F3 test çapası). **Verify:** fixture için gerçek session (admin generateLink magiclink→verifyOtp deseni — interaktif Google'sız gerçek issuance) + @supabase/ssr kendi serileştirmesiyle cookie → whoami 200 {email,userId}; **expires_at geçmişe çekilmiş session → hâlâ 200 + 3 ROTASYONLU auth-token Set-Cookie** (refresh propagation kanıtı); cookie'siz → authenticated:false; SSR 200×2 + 3 anon realtime kanal SUBSCRIBED + 0 konsol hatası; typecheck 8/8, lint 0/0, menu build ✓ (ƒ Middleware 89 kB). **Test tuzağı:** @supabase/ssr session cookie'si CHUNK'LANIR (sb-…-auth-token.0/.1) — doctoring/okuma için parçalar birleştirilip 'base64-' prefix'i soyulmalı; tek parça bazlı JSON.parse sessizce başarısız olur.
 
 **SIRADAKİ İŞ — P2 F2 (onay bekliyor):** MemberSheet JoinScreen → AuthScreen (ad + email → signInWithOtp + Google butonu + gizli Apple + KVKK checkbox'ları default işaretsiz + "Şimdilik geç"); OTPScreen onVerify → supabase.auth.verifyOtp({email,token,type:'email'}); `apps/menu/app/auth/callback/route.ts` (OAuth exchangeCodeForSession); `POST /api/auth/ensure-customer`; `ensureCustomerForAuthUser` (packages/db, service-role): customers upsert onConflict auth_user_id + lower(email) dedupe + app_metadata.user_type='customer' damgası (admin.updateUserById, idempotent) + welcome bonus + consent taşıma. Sonra F3 (getCustomerSession() react-cache helper + kademeli swap). **Verify fixture'ları hazır:** Google kullanıcısı linklenmemiş; Test Cafe B owner şifresi apps/menu/.env.local TEST_OWNER_B_PASSWORD.
 
@@ -602,7 +930,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 
 ### Sprint 15 — Tiers + Visits + Reward Catalog + Rich Member Home ✅
 
-**Design ref: `ref/Membership_Loyalty.html` (join/OTP/member-home, 8 keyframes, 4 tiers, rewards, activity). 15a = tiers + lifetime points + visits + welcome bonus (data + config) ✅ (2026-06-15). 15b = rich member-home UI rebuild ✅ (2026-06-15). 15c = reward catalog redemption ✅ (2026-06-16). Sprint 15 COMPLETE. NOTE: theme-tokenized palette (var(--p-*)) + fixed gold #c8922a — NOT hard-coded green.**
+**Design ref: `ref/Membership_Loyalty.html` (join/OTP/member-home, 8 keyframes, 4 tiers, rewards, activity). 15a = tiers + lifetime points + visits + welcome bonus (data + config) ✅ (2026-06-15). 15b = rich member-home UI rebuild ✅ (2026-06-15). 15c = reward catalog redemption ✅ (2026-06-16). Sprint 15 COMPLETE. NOTE: theme-tokenized palette (var(--p-\*)) + fixed gold #c8922a — NOT hard-coded green.**
 
 **Phase 15c — reward catalog redemption (logged 2026-06-16):**
 
@@ -723,16 +1051,19 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 **Logged 2026-06-12**
 
 **Payment is a column, not a status:**
+
 - `orders.paid_at timestamptz` — İyzico callback sets ONLY paid_at via `markOrderPaidDB`; status stays in its kitchen stage. `'paid'` remains in the status CHECK for legacy rows; Kanban/KDS map legacy `paid` like `sent_to_kitchen`. ÖDENDİ chips everywhere read `paid_at != null || status==='paid'`.
 - Per-restaurant İyzico credentials: `payment_credentials` table (**NO anon RLS**; menu routes read via service role), sandbox/live mode → baseUrl, dashboard Settings→Payments real (masked last4, test via `apiTest`). `serverExternalPackages: ['iyzipay']` required in BOTH menu and dashboard next.config (SDK reads its resources dir at runtime). iyzipay API: `checkoutFormInitialize.create` / `checkoutForm.retrieve` (no `.initialize`, no `checkoutFormRetrieve`).
 - Callback flow: init writes `orders.payment_token` → callback resolves token→order→restaurant→credentials server-side, returns HTML page that postMessages `{type:'PAYMENT_SUCCESS'|'PAYMENT_FAILED'}` to the PaymentModal iframe (origin-checked). Local testing needs a cloudflared tunnel + `NEXT_PUBLIC_MENU_URL` (menu and callback must share the tunnel origin).
 
 **Table sessions (adisyon):**
+
 - `table_sessions` + `orders.table_session_id` — ⚠️ `orders.session_id` is the DEVICE/cart session (KPIs use it); do not confuse.
 - `open_or_get_table_session(restaurant_id, table_id)` RPC: lazy-open on first order, partial-unique-index race resolution, 8h-inactivity lazy auto-close. **EXECUTE revoked from anon/authenticated — service-role only.**
 - Customer: Header "Hesap · ₺X" chip + CartDrawer row → `TableBillSheet` (per-order status/ÖDENDİ, paid/unpaid breakdown); live via realtime filter `table_session_id=eq.{id}`; refresh-on-open detects restaurant close ("Adisyon kapatıldı"). Dashboard: TablesNav session chip + "Kapat" (unpaid override confirm); `deleteTable` closes open session.
 
 **Anon RLS (realtime depends on these — postgres_changes respects RLS):**
+
 - `anon_read_recent_orders`: orders SELECT, 24h window (without it customer realtime got zero events)
 - `anon_read_open_table_sessions`: open sessions only
 - `supabase_realtime` publication includes `orders` (added 2026-06-11; was missing entirely)
@@ -758,6 +1089,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 **Section library (16 sections):** registered in `SECTION_LIBRARY` + `SECTION_SETTING_SCHEMA` (ThemeEditorClient) + dispatch branches in `renderCustomSection` (default MenuPage). Settings stored as `theme.sectionSettings[sectionId]: Record<string,string>`; page order in `theme.pageBlocks`.
 
 **Key sections built this sprint:**
+
 - `daily-special` (Günün Özeli): product-select dropdown, corner ribbon (scrolling text, corner/size/speed configurable), real HH:MM:SS countdown; when timer expires the whole section unmounts (`DailySpecialOuter` returns null). Discounted price flows to cart: `CartItem.originalPrice`, `addItem(item, mods, groups, qty, originalPrice?)`, CartDrawer shows strikethrough + "İndirimli" badge; cart auto-opens after quick-add.
 - `promo-slider` (Kampanya Slider): 5 slide types (coupon+copy, flash countdown, freebie→category scroll, loyalty stamps, combo w/ auto discount %). Infinite loop via clone-of-first-slide technique (pos 0..N, snap to 0 after clone animation). Slides fit 150px height. Defaults: coupon+flash+combo enabled with no saved settings (`bool(key, true)` fallbacks).
 
@@ -776,6 +1108,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 **Goal:** Maximum visual diversity between AI-generated themes via 6 new structural fields: `headerLayout`, `categoryDisplay`, `cardStyle`, `itemNameStyle`, `priceDisplay`, `sectionHeading`. 8 personality preset templates replace the original 8.
 
 **New fields:**
+
 - `headerLayout: 'classic' | 'hero' | 'minimal-strip' | 'transparent'` — fundamentally changes header structure
 - `categoryDisplay: 'horizontal' | 'none' | 'fullscreen-tabs' | 'sidebar-fixed'` — full page geometry change
 - `cardStyle: 'default' | 'borderless' | 'image-hero' | 'pill-row'` — card surface treatment
@@ -784,6 +1117,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 - `sectionHeading: 'accent' | 'editorial' | 'catalog'` — section header style
 
 **Files changed:**
+
 - `packages/design-engine/src/schema.ts` — 6 new fields in GarsonlessTheme + DEFAULT_THEME
 - `packages/ui/src/menu/Header.tsx` — headerLayout branches (hero, minimal-strip, transparent, classic)
 - `packages/ui/src/menu/ProductCard.tsx` — cardStyle, itemNameStyle, priceDisplay
@@ -803,6 +1137,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 **Goal:** Three interconnected AI systems: (1) OCR Menu Importer — photo of a paper menu → structured categories/items + auto-suggested GarsonlessTheme; (2) AI Design Assistant — text prompt → theme generation; (3) Claude Design Mode — click any component in the preview iframe → AI-powered property suggestions via natural language comments.
 
 **Key decisions:**
+
 - System 1 uses Anthropic vision API (`claude-sonnet-4-20250514`), returns `{ menuData, theme, description, confidence }` as JSON
 - Image sent as base64 via multipart FormData → server converts to Anthropic vision block
 - MenuOCRModal 3 phases: upload (drag+drop) → processing (BrewBar + rotating messages) → review (editable table + PhonePreview)
@@ -810,6 +1145,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 - System 3 deferred until Systems 1+2 ship
 
 **Files changed:**
+
 - `apps/dashboard/app/api/generate-from-menu-photo/route.ts` — Anthropic vision + GarsonlessTheme generation
 - `apps/dashboard/components/menu/MenuOCRModal.tsx` — 3-phase OCR modal
 - `apps/dashboard/components/menu/MenuManager.tsx` — "📷 Menüden Aktar" button + OCR modal integration
@@ -828,6 +1164,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 **Goal:** Build every admin panel screen end-to-end: Pano overview, Orders Kanban, Menu Manager, Tables/QR builder, Analytics, Settings, layout shell, and landing page.
 
 **Key decisions:**
+
 - All dashboard pages wired to real Supabase data via server components; client components receive pre-fetched props
 - `PanoClient` subscribes to `orders` Realtime channel for live activity feed; KPI queries run on server
 - `OrderBoard` uses `useOrdersRealtime` hook + dnd-kit for drag-to-advance status; `updateOrderStatus` server action
@@ -840,6 +1177,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 - Marketing landing page (`apps/dashboard/app/page.tsx`) — ~80KB standalone client component
 
 **Files changed (key):**
+
 - `apps/dashboard/app/page.tsx` — marketing landing page
 - `apps/dashboard/app/dashboard/[restaurantId]/page.tsx` — Pano server page
 - `apps/dashboard/components/pano/PanoClient.tsx` — real KPIs, hourly chart, activity feed, top items, floor plan
@@ -863,6 +1201,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 **Goal:** Replace the CSS token + postMessage approach with a Shopify-inspired component-config JSON architecture. Every component owns its config schema; `COMPONENT_SCHEMAS` drives the editor UI; postMessage targets individual components.
 
 **Key decisions:**
+
 - `MenuPageConfig` is a flat JSON object (5 components: page, header, categoryNav, productCard, cartDrawer) — no more nested `ThemeTokens.brand/typography/shape/components`
 - `COMPONENT_SCHEMAS` is the schema-of-the-schema — each field has a `FieldType` that tells the dashboard how to render it (`color`, `radio`, `slider`, `toggle`, `font`)
 - `ThemeProvider` lives in `packages/ui` (not `apps/menu`) to avoid circular dependency; components call `useTheme()` directly
@@ -876,6 +1215,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 - 8 templates updated to `MenuPageConfig` format: minimal, noir, mercato, bento, beachside, steakhouse, fast, mezze
 
 **Files changed:**
+
 - `packages/design-engine/src/schema.ts` — `MenuPageConfig` + `DEFAULT_CONFIG`
 - `packages/design-engine/src/config-schema.ts` — `COMPONENT_SCHEMAS` (schema-of-the-schema)
 - `packages/design-engine/src/templates.ts` — 8 templates as `MenuPageConfig`
@@ -902,6 +1242,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 **Goal:** Branded QR code generation with custom colors/shape/logo + İyzico payment integration + split bill.
 
 **Key decisions:**
+
 - QR rounded shape: SVG output → inject `rx/ry` on all `<rect>` elements → Sharp PNG conversion
 - Logo from URL: `fetch()` URL → Buffer → Sharp composite (no local file path needed)
 - QR style saved to `restaurants.settings.qr_style` JSONB — no migration needed
@@ -923,6 +1264,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 **Goal:** Build the AI Waiter feature for the customer menu app — chat UI, streaming API route, tool use (add_to_cart, call_waiter, get_item_details, get_order_status), prompt caching, and dashboard settings panel.
 
 **Key decisions:**
+
 - Streaming via Anthropic SDK `messages.stream()` + `ReadableStream` SSE (no Vercel AI SDK)
 - Wire format: newline-delimited JSON — `{ type: 'delta'|'tool_use'|'tool_result'|'done'|'error', ... }`
 - Prompt caching: system prompt + menu JSON sent as `cache_control: { type: 'ephemeral' }` block — ~80% cost reduction on multi-turn chats
@@ -939,6 +1281,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 **Goal:** Wire up live order flow end-to-end: dashboard Kanban board, Kitchen Display System (KDS), PWA notifications, and Turkish status labels for customers.
 
 **Key decisions:**
+
 - Kitchen app is auth-free; access gated by `kitchenToken` stored in `restaurants.settings.kitchen_token` (existing JSONB), validated server-side before service-key operations
 - Realtime channel: `postgres_changes` on `orders` table filtered by `restaurant_id`
 - ServiceWorker in `apps/dashboard/public/sw.js` for Web Notification API
@@ -967,6 +1310,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 **Completed 2026-05-17**
 
 **Route structure**
+
 - `apps/menu/app/[slug]/layout.tsx` — server component: fetches theme_config, calls `generateThemeCSS()`, injects `<style>` + Google Fonts `<link>` tags (React 19 hoists both to `<head>`)
 - `apps/menu/app/[slug]/page.tsx` — server component: fetches restaurant, categories, items in parallel; passes to `MenuPageClient`
 - `apps/menu/app/[slug]/MenuPageClient.tsx` — `'use client'`: wires Zustand stores to all UI components
@@ -974,6 +1318,7 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 - `apps/menu/app/api/orders/route.ts` — `POST /api/orders` with Zod validation; delegates insert to `packages/db/src/orders.ts`
 
 **UI components (packages/ui/src/menu/)**
+
 - `Header` — logo, name, cart badge; 3 styles: minimal/hero/centered
 - `CategoryNav` — horizontal scroll tabs or pills; IntersectionObserver tracks active section; smooth scroll
 - `ProductCard` — vertical/horizontal layout; image, price, modifier badge; click opens modal or adds direct
@@ -982,12 +1327,30 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 - `OrderConfirmation` — animated success screen; subscribes to Supabase Realtime for status updates
 
 **State**
+
 - `useCartStore` — Zustand + persist; sessionId auto-generated with `crypto.randomUUID()`, survives page reload
 - `useOrderStore` — order id + status + isPlacing
 
 **Fixes applied**
+
 - `exactOptionalPropertyTypes: false` in `apps/menu/tsconfig.json` — Supabase v2 types incompatible with this flag
 - `createOrder()` helper in `packages/db/src/orders.ts` encapsulates the cross-package insert type workaround
 - `OrderStatus` + `RestaurantPlan` exported from `@garsonless/db`
 
 **Next:** Kitchen Display System, Supabase auth in dashboard, theme builder drag-and-drop UI
+
+### Modüler monolith — Atomic single-order checkout & reconciliation ✅ (2026-07-16)
+
+- Tek-order checkout `20260716090000_atomic_order_checkout_and_reconciliation.sql`
+  ile DB lease + immutable provider token modeline taşındı. Paralel başlangıçta
+  yalnız bir request kazanır; yanlış lease, token replacement ve token-bound
+  release reddedilir.
+- Provider-success/local-settlement hataları idempotent reconciliation queue +
+  claim/backoff/dead-letter üzerinden mevcut order/share settlement command'leriyle
+  yeniden işlenir. Mapping-missing raw token saklamadan otomatik çözülmez ve
+  görünür operasyon olayı olarak kalır.
+- DEV runtime: 1 winner/1 reject, duplicate event tek UUID, iki worker toplam
+  1 claim/1 resolve, anon RPC `42501`, cleanup 0. Migration PROD-at-deploy'dur.
+- Cron entegrasyonu için Edge secret'ında
+  `PAYMENT_RECONCILIATION_URL=https://<menu>/api/internal/payment-reconciliation`
+  ve menu deployment'ında ortak `OUTBOX_WORKER_SECRET` kurulmalıdır.

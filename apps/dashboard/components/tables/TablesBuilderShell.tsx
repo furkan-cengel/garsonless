@@ -2,57 +2,20 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import type { Tables } from '@garsonless/db'
-import { createTable, deleteTable, getOpenTableSessions, closeTableSession, renameTable, rotateTableQrToken, saveQRStyle } from '../../lib/actions/tables'
+import { createTable, deleteTable, renameTable, rotateTableQrToken } from '../../lib/actions/tables'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
 import SettlementSheet from './SettlementSheet'
-import { getPendingServiceRequests, resolveServiceRequest } from '../../lib/actions/service-requests'
-import { createDashboardBrowserClient } from '../../lib/supabase'
 import { useShell } from '../../lib/shell-context'
 import { InlineSpinner } from '@garsonless/ui'
 import { AppIconNodes, AppIcons } from '@garsonless/ui/icons'
 import DashboardIconRail from '../layout/IconRail'
+import { QRHealthDialog } from './QRHealthDialog'
+import { buildUrl, defaultQR, deriveTableSlug as deriveSlug, mapDBTables, qrContrast } from './tables-builder-model'
+import type { QRConfig, QRHealth, SaveState, TableItem } from './tables-builder-types'
+import { useQRStyleEditor } from './use-qr-style-editor'
+import { useTablesLiveState } from './use-tables-live-state'
 
 /* ─── Types ─────────────────────────────────────────────────── */
-interface TableItem {
-  id: string
-  qrToken: string | null
-  label: string
-  slug: string
-  orders: number
-  status: 'active' | 'idle' | 'paused'
-}
-
-interface QRConfig {
-  dotsType: string
-  eyeFrame: string
-  eyeBall: string
-  size: number
-  margin: number
-  ecl: string
-  colorType: string
-  fg: string
-  fg2: string
-  gradType: string
-  gradAngle: number
-  bg: string
-  bgTransparent: boolean
-  logo: string | null
-  logoSize: number
-  logoMargin: number
-  logoHideBg: boolean
-  frame: string
-  frameTitle: string
-  frameSubtitle: string
-  frameColor: string
-  baseUrl: string
-  utmSource: string
-  utmMedium: string
-  utmCampaign: string
-  autoLang: boolean
-  countdown: boolean
-  _presetId?: string
-}
-
 interface Props {
   restaurantId: string
   restaurantName: string
@@ -64,13 +27,6 @@ interface Props {
   initialQRStyle?: unknown
 }
 
-type SaveState = 'saved' | 'saving' | 'error'
-type QRHealth = {
-  state: 'checking' | 'valid' | 'warning' | 'invalid'
-  message: string
-  contrast: number
-}
-
 type QRCodeStylingCtor = typeof import('qr-code-styling').default
 
 let qrCodeStylingCtorPromise: Promise<QRCodeStylingCtor> | null = null
@@ -78,124 +34,6 @@ let qrCodeStylingCtorPromise: Promise<QRCodeStylingCtor> | null = null
 function loadQRCodeStyling(): Promise<QRCodeStylingCtor> {
   qrCodeStylingCtorPromise ??= import('qr-code-styling').then(mod => mod.default)
   return qrCodeStylingCtorPromise
-}
-
-/* ─── Helpers ───────────────────────────────────────────────── */
-function deriveSlug(label: string, index: number): string {
-  if (/bahçe/i.test(label)) return `b${String(index + 1).padStart(2, '0')}`
-  if (/bar/i.test(label)) return `ba${String.fromCharCode(64 + index + 1).toLowerCase()}`
-  const num = label.match(/\d+/)?.[0]
-  return num ? num.padStart(2, '0') : String(index + 1).padStart(2, '0')
-}
-
-function mapDBTables(dbTables: Tables<'tables'>[], openSessions: OpenSessionInfo[], qrTokens: Record<string, string>): TableItem[] {
-  const openByTable = new Map(openSessions.map((session) => [session.tableId, session]))
-  return dbTables.map((t, i) => ({
-    id: t.id,
-    qrToken: qrTokens[t.id] ?? null,
-    label: t.label,
-    slug: deriveSlug(t.label, i),
-    orders: openByTable.get(t.id)?.orderCount ?? 0,
-    status: openByTable.has(t.id) ? 'active' : 'idle',
-  }))
-}
-
-function sessionsByTable(sessions: OpenSessionInfo[]): Record<string, OpenSessionInfo> {
-  return Object.fromEntries(sessions.map((session) => [session.tableId, session]))
-}
-
-function defaultQR(baseUrl: string): QRConfig {
-  return {
-    dotsType: 'rounded',
-    eyeFrame: 'extra-rounded',
-    eyeBall: 'dot',
-    size: 600,
-    margin: 10,
-    ecl: 'H',
-    colorType: 'single',
-    fg: '#111113',
-    fg2: '#3b3b40',
-    gradType: 'linear',
-    gradAngle: 90,
-    bg: '#ffffff',
-    bgTransparent: false,
-    logo: null,
-    logoSize: 0.30,
-    logoMargin: 8,
-    logoHideBg: true,
-    frame: 'card',
-    frameTitle: 'Menüyü tara',
-    frameSubtitle: "QR'ı telefon kameranızla okutun",
-    frameColor: '#111113',
-    baseUrl,
-    utmSource: 'qr',
-    utmMedium: 'masa',
-    utmCampaign: '',
-    autoLang: true,
-    countdown: false,
-  }
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null
-}
-
-function readString(row: Record<string, unknown>, key: keyof QRConfig, fallback: string): string {
-  const value = row[key]
-  return typeof value === 'string' ? value : fallback
-}
-
-function readNumber(row: Record<string, unknown>, key: keyof QRConfig, fallback: number): number {
-  const value = row[key]
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
-}
-
-function readBoolean(row: Record<string, unknown>, key: keyof QRConfig, fallback: boolean): boolean {
-  const value = row[key]
-  return typeof value === 'boolean' ? value : fallback
-}
-
-function normalizeQRStyle(input: unknown, baseUrl: string): QRConfig {
-  const fallback = defaultQR(baseUrl)
-  const row = asRecord(input)
-  if (!row) return fallback
-
-  return {
-    dotsType: readString(row, 'dotsType', fallback.dotsType),
-    eyeFrame: readString(row, 'eyeFrame', fallback.eyeFrame),
-    eyeBall: readString(row, 'eyeBall', fallback.eyeBall),
-    size: Math.round(readNumber(row, 'size', fallback.size)),
-    margin: Math.round(readNumber(row, 'margin', fallback.margin)),
-    ecl: ['L', 'M', 'Q', 'H'].includes(readString(row, 'ecl', fallback.ecl))
-      ? readString(row, 'ecl', fallback.ecl)
-      : fallback.ecl,
-    colorType: readString(row, 'colorType', fallback.colorType) === 'gradient' ? 'gradient' : 'single',
-    fg: readString(row, 'fg', fallback.fg),
-    fg2: readString(row, 'fg2', fallback.fg2),
-    gradType: readString(row, 'gradType', fallback.gradType) === 'radial' ? 'radial' : 'linear',
-    gradAngle: Math.round(readNumber(row, 'gradAngle', fallback.gradAngle)),
-    bg: readString(row, 'bg', fallback.bg),
-    bgTransparent: readBoolean(row, 'bgTransparent', fallback.bgTransparent),
-    logo: typeof row.logo === 'string' ? row.logo : null,
-    logoSize: readNumber(row, 'logoSize', fallback.logoSize),
-    logoMargin: Math.round(readNumber(row, 'logoMargin', fallback.logoMargin)),
-    logoHideBg: readBoolean(row, 'logoHideBg', fallback.logoHideBg),
-    frame: readString(row, 'frame', fallback.frame),
-    frameTitle: readString(row, 'frameTitle', fallback.frameTitle),
-    frameSubtitle: readString(row, 'frameSubtitle', fallback.frameSubtitle),
-    frameColor: readString(row, 'frameColor', fallback.frameColor),
-    // The menu host is product-controlled. Never revive a legacy/custom value
-    // from restaurants.settings; custom domains belong to a future epic.
-    baseUrl: fallback.baseUrl,
-    utmSource: readString(row, 'utmSource', fallback.utmSource),
-    utmMedium: readString(row, 'utmMedium', fallback.utmMedium),
-    utmCampaign: readString(row, 'utmCampaign', fallback.utmCampaign),
-    autoLang: readBoolean(row, 'autoLang', fallback.autoLang),
-    countdown: readBoolean(row, 'countdown', fallback.countdown),
-    _presetId: typeof row._presetId === 'string' ? row._presetId : undefined,
-  }
 }
 
 /* ─── Constants ─────────────────────────────────────────────── */
@@ -1270,16 +1108,6 @@ const MENU_ORIGIN = (
     : process.env.NEXT_PUBLIC_MENU_BASE_URL ?? process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'
 ).replace(/\/+$/, '')
 
-function buildUrl(qr: QRConfig, table?: TableItem): string {
-  // QR payloads contain a revocable token, never the internal table UUID.
-  const token = table?.qrToken ?? 'preview'
-  const url = new URL(`${qr.baseUrl}/table/${token}`)
-  if (qr.utmSource) url.searchParams.set('utm_source', qr.utmSource)
-  if (qr.utmMedium) url.searchParams.set('utm_medium', qr.utmMedium)
-  if (qr.utmCampaign) url.searchParams.set('utm_campaign', qr.utmCampaign)
-  return url.toString()
-}
-
 function escapeXML(value: string): string {
   return value.replace(/[<>&"']/g, character => ({
     '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;',
@@ -1293,25 +1121,6 @@ function safeFilePart(value: string): string {
     .toLocaleLowerCase('tr-TR')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'masa'
-}
-
-function relativeLuminance(hex: string): number {
-  const channels = [hex.slice(1, 3), hex.slice(3, 5), hex.slice(5, 7)]
-    .map(channel => Number.parseInt(channel, 16) / 255)
-    .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
-  return channels[0]! * .2126 + channels[1]! * .7152 + channels[2]! * .0722
-}
-
-function contrastRatio(foreground: string, background: string): number {
-  const first = relativeLuminance(foreground)
-  const second = relativeLuminance(background)
-  return (Math.max(first, second) + .05) / (Math.min(first, second) + .05)
-}
-
-function qrContrast(qr: QRConfig): number {
-  const background = qr.bgTransparent ? '#ffffff' : qr.bg
-  const foregrounds = qr.colorType === 'gradient' ? [qr.fg, qr.fg2] : [qr.fg]
-  return Math.min(...foregrounds.map(color => contrastRatio(color, background)))
 }
 
 async function renderQRMarkup(qr: QRConfig, table?: TableItem): Promise<string> {
@@ -2600,17 +2409,6 @@ function MobilePreview({ src, title, onClose }: { src: string; title: string; on
   )
 }
 
-function HealthSuggestion({ children, last = false }: { children: React.ReactNode; last?: boolean }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9, padding: '9px 0', borderBottom: last ? 'none' : '1px solid var(--divider)', color: 'var(--text-2)', fontSize: 12, lineHeight: 1.45 }}>
-      <span aria-hidden="true" style={{ width: 18, height: 18, flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: 999, background: 'var(--warning-bg)', color: 'var(--warning)' }}>
-        <AppIcons.chevRight size={11} strokeWidth={2.4} />
-      </span>
-      <span>{children}</span>
-    </div>
-  )
-}
-
 /* ─── Root shell ────────────────────────────────────────────── */
 export default function TablesBuilderShell({ restaurantId, restaurantName, restaurantSlug, initialTables, initialQrTokens, initialOpenSessions, initialSessionError = null, initialQRStyle }: Props) {
   const baseQRUrl = `${MENU_ORIGIN}/${restaurantSlug}`
@@ -2619,272 +2417,58 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
     const mapped = mapDBTables(initialTables, initialOpenSessions, initialQrTokens)
     return mapped[0]?.id ?? ''
   })
-  // qr is DERIVED from an undo/redo history stack. setQR pushes a new entry
-  // (truncating any redo tail); undo/redo just move the pointer. The autosave
-  // effect keys on `qr`, so undo/redo persist too.
-  const [hist, setHist] = useState<{ stack: QRConfig[]; index: number }>(
-    () => ({ stack: [normalizeQRStyle(initialQRStyle, baseQRUrl)], index: 0 }),
-  )
-  const qr = hist.stack[hist.index]!
-  const setQR = useCallback((next: QRConfig) => {
-    setHist((h) => {
-      const stack = h.stack.slice(0, h.index + 1)
-      stack.push(next)
-      const capped = stack.length > 60 ? stack.slice(stack.length - 60) : stack
-      return { stack: capped, index: capped.length - 1 }
-    })
-  }, [])
-  const beginQRChange = useCallback(() => {
-    setHist((history) => {
-      const stack = history.stack.slice(0, history.index + 1)
-      stack.push({ ...stack[history.index]! })
-      const capped = stack.length > 60 ? stack.slice(stack.length - 60) : stack
-      return { stack: capped, index: capped.length - 1 }
-    })
-  }, [])
-  const replaceQR = useCallback((next: QRConfig) => {
-    setHist((history) => {
-      const stack = [...history.stack]
-      stack[history.index] = next
-      return { ...history, stack }
-    })
-  }, [])
-  const undo = useCallback(() => setHist((h) => (h.index > 0 ? { ...h, index: h.index - 1 } : h)), [])
-  const redo = useCallback(() => setHist((h) => (h.index < h.stack.length - 1 ? { ...h, index: h.index + 1 } : h)), [])
-  const canUndo = hist.index > 0
-  const canRedo = hist.index < hist.stack.length - 1
-  const [saveState, setSaveState] = useState<SaveState>('saved')
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const activeTable = tables.find((table) => table.id === activeId)
+  const {
+    openSessions,
+    sessionError,
+    reportSessionError,
+    refreshSessions,
+    settlementTarget,
+    dismissSettlement,
+    requestSessionClose,
+    pendingRequests,
+    requestError,
+    resolveRequest,
+  } = useTablesLiveState({
+    restaurantId,
+    initialOpenSessions,
+    initialSessionError,
+    setTables,
+  })
+  const {
+    qr,
+    setQR,
+    replaceQR,
+    beginQRChange,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    saveState,
+    saveError,
+    persist: persistQR,
+    health: qrHealth,
+    healthDialogOpen,
+    setHealthDialogOpen,
+  } = useQRStyleEditor({
+    restaurantId,
+    baseUrl: baseQRUrl,
+    initialStyle: initialQRStyle,
+    activeTable,
+    validate: validateRenderedQR,
+  })
   const handleRotateToken = useCallback(async (table: TableItem) => {
     if (!window.confirm(`${table.label} için yeni QR oluşturulsun mu? Eski QR hemen geçersiz olur.`)) return
     const result = await rotateTableQrToken({ restaurantId, tableId: table.id })
     if ('error' in result) {
-      setSessionError(result.error)
+      reportSessionError(result.error)
       return
     }
     setTables((current) => current.map((item) => item.id === table.id ? { ...item, qrToken: result.token } : item))
-  }, [restaurantId])
+  }, [reportSessionError, restaurantId])
   // Shopify-style in-app mobile preview (phone mockup) — null = closed.
   const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
   const qrInstanceRef = useRef<unknown>(null)
-  const activeTable = tables.find(t => t.id === activeId)
-  const [qrHealth, setQRHealth] = useState<QRHealth>({ state: 'checking', message: 'Okunabilirlik kontrol ediliyor', contrast: 0 })
-  const [healthDialogOpen, setHealthDialogOpen] = useState(false)
-  const healthWasInvalid = useRef(false)
-  const pendingQRSave = useRef<QRConfig | null>(null)
-  const qrSaveRunning = useRef(false)
-  const didMount = useRef(false)
-
-  const persistQR = useCallback(async (style: QRConfig) => {
-    pendingQRSave.current = style
-    if (qrSaveRunning.current) return
-    qrSaveRunning.current = true
-    try {
-      while (pendingQRSave.current) {
-        const next = pendingQRSave.current
-        pendingQRSave.current = null
-        setSaveState('saving')
-        setSaveError(null)
-        const result = await saveQRStyle(restaurantId, next)
-        if ('error' in result) {
-          setSaveState('error')
-          setSaveError(result.error)
-          if (!pendingQRSave.current) break
-          continue
-        }
-        if (!pendingQRSave.current) setSaveState('saved')
-      }
-    } finally {
-      qrSaveRunning.current = false
-    }
-  }, [restaurantId])
-
-  useEffect(() => {
-    if (!didMount.current) {
-      didMount.current = true
-      return
-    }
-    setSaveState('saving')
-    setSaveError(null)
-    const timer = window.setTimeout(() => {
-      void persistQR(qr)
-    }, 650)
-    return () => window.clearTimeout(timer)
-  }, [persistQR, qr])
-
-  useEffect(() => {
-    if (saveState === 'saved') return
-    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-      event.returnValue = ''
-    }
-    window.addEventListener('beforeunload', warnBeforeUnload)
-    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
-  }, [saveState])
-
-  useEffect(() => {
-    let cancelled = false
-    setQRHealth({ state: 'checking', message: 'Okunabilirlik kontrol ediliyor', contrast: qrContrast(qr) })
-    const timer = window.setTimeout(() => {
-      void validateRenderedQR(qr, activeTable).then((result) => {
-        if (!cancelled) setQRHealth(result)
-      }).catch((error: unknown) => {
-        console.error('[QR validation]', error)
-        if (!cancelled) setQRHealth({ state: 'invalid', message: 'Stil kaydedildi · okunabilirlik testi çalıştırılamadı', contrast: qrContrast(qr) })
-      })
-    }, 350)
-    return () => {
-      cancelled = true
-      window.clearTimeout(timer)
-    }
-  }, [activeTable, qr])
-
-  useEffect(() => {
-    if (qrHealth.state === 'invalid') {
-      if (!healthWasInvalid.current) setHealthDialogOpen(true)
-      healthWasInvalid.current = true
-      return
-    }
-    if (qrHealth.state === 'valid' || qrHealth.state === 'warning') {
-      healthWasInvalid.current = false
-      setHealthDialogOpen(false)
-    }
-  }, [qrHealth.state])
-
-  // Open adisyon (table session) totals per table
-  const [openSessions, setOpenSessions] = useState<Record<string, OpenSessionInfo>>(
-    () => sessionsByTable(initialOpenSessions),
-  )
-  const [sessionError, setSessionError] = useState<string | null>(initialSessionError)
-  // Active close-flow settlement sheet (set when closing an adisyon that still
-  // owes money; null = no sheet open)
-  const [settleSession, setSettleSession] = useState<{ session: OpenSessionInfo; label: string } | null>(null)
-  const sessionLoadSeq = useRef(0)
-
-  const loadSessions = useCallback(async () => {
-    const seq = ++sessionLoadSeq.current
-    const result = await getOpenTableSessions(restaurantId)
-    if (seq !== sessionLoadSeq.current) return
-    if (!Array.isArray(result)) {
-      setSessionError(result.error)
-      return
-    }
-    setSessionError(null)
-    const nextSessions = sessionsByTable(result)
-    setOpenSessions(nextSessions)
-    setTables((current) => current.map((table) => {
-      const session = nextSessions[table.id]
-      return {
-        ...table,
-        status: session ? 'active' : 'idle',
-        orders: session?.orderCount ?? 0,
-      }
-    }))
-  }, [restaurantId])
-
-  useEffect(() => { void loadSessions() }, [loadSessions])
-
-  // Keep table occupancy, order totals and settlement state live. Realtime
-  // events are only invalidation signals: the authoritative, access-gated
-  // server action recomputes the complete session aggregate after a short
-  // debounce, so partial payloads can never create a misleading total.
-  useEffect(() => {
-    const supabase = createDashboardBrowserClient()
-    let refreshTimer: number | null = null
-    const scheduleRefresh = () => {
-      if (refreshTimer !== null) window.clearTimeout(refreshTimer)
-      refreshTimer = window.setTimeout(() => {
-        refreshTimer = null
-        void loadSessions()
-      }, 180)
-    }
-    const channel = supabase
-      .channel(`tables-sessions:${restaurantId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'table_sessions', filter: `restaurant_id=eq.${restaurantId}` },
-        scheduleRefresh,
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
-        scheduleRefresh,
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'payment_shares', filter: `restaurant_id=eq.${restaurantId}` },
-        scheduleRefresh,
-      )
-      .subscribe()
-    return () => {
-      if (refreshTimer !== null) window.clearTimeout(refreshTimer)
-      void supabase.removeChannel(channel)
-    }
-  }, [restaurantId, loadSessions])
-
-  // Pending waiter calls per table (one chip per table)
-  const [pendingRequests, setPendingRequests] = useState<Record<string, Array<{ id: string; label: string }>>>({})
-  const [requestError, setRequestError] = useState<string | null>(null)
-
-  const loadPendingRequests = useCallback(async () => {
-    const result = await getPendingServiceRequests(restaurantId)
-    if (Array.isArray(result)) {
-      setRequestError(null)
-      const byTable: Record<string, Array<{ id: string; label: string }>> = {}
-      result.forEach((req) => {
-        byTable[req.tableId] = [...(byTable[req.tableId] ?? []), { id: req.id, label: req.label }]
-      })
-      setPendingRequests(byTable)
-    } else {
-      setRequestError(result.error)
-    }
-  }, [restaurantId])
-
-  useEffect(() => { void loadPendingRequests() }, [loadPendingRequests])
-
-  useEffect(() => {
-    const supabase = createDashboardBrowserClient()
-    const channel = supabase
-      .channel(`tables-service-requests:${restaurantId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'service_requests', filter: `restaurant_id=eq.${restaurantId}` },
-        () => { void loadPendingRequests() },
-      )
-      .subscribe()
-    return () => { void supabase.removeChannel(channel) }
-  }, [restaurantId, loadPendingRequests])
-
-  const handleResolveRequest = useCallback(async (requestId: string) => {
-    setRequestError(null)
-    const result = await resolveServiceRequest(requestId, restaurantId)
-    if ('error' in result) {
-      setRequestError(result.error)
-      void loadPendingRequests()
-      return
-    }
-    setPendingRequests((prev) => Object.fromEntries(
-      Object.entries(prev)
-        .map(([tableId, requests]) => [tableId, requests.filter(request => request.id !== requestId)] as const)
-        .filter(([, requests]) => requests.length > 0),
-    ))
-    void loadPendingRequests()
-  }, [restaurantId, loadPendingRequests])
-
-  const handleCloseSession = useCallback(async (session: OpenSessionInfo, label: string) => {
-    // Unpaid money on the adisyon → the settlement sheet forces a per-order
-    // decision (no silent drop). Fully-paid → close directly (no sheet).
-    if (session.unpaidTotal > 0 || session.splitDeclaredCashTotal > 0) {
-      setSettleSession({ session, label })
-      return
-    }
-    const result = await closeTableSession(session.sessionId, restaurantId)
-    if ('error' in result) {
-      setSessionError(result.error)
-      return
-    }
-    void loadSessions()
-  }, [restaurantId, loadSessions])
 
   return (
     <>
@@ -2906,76 +2490,30 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
         />
         <div className="tb-tables__workspace" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           <TablesIconRail restaurantId={restaurantId} />
-          <TablesNav tables={tables} setTables={setTables} activeId={activeId} setActiveId={setActiveId} restaurantId={restaurantId} openSessions={openSessions} onCloseSession={handleCloseSession} pendingRequests={pendingRequests} onResolveRequest={handleResolveRequest} requestError={requestError} sessionError={sessionError} />
+          <TablesNav tables={tables} setTables={setTables} activeId={activeId} setActiveId={setActiveId} restaurantId={restaurantId} openSessions={openSessions} onCloseSession={requestSessionClose} pendingRequests={pendingRequests} onResolveRequest={resolveRequest} requestError={requestError} sessionError={sessionError} />
           <QRCanvas qr={qr} table={activeTable} tables={tables} qrInstanceRef={qrInstanceRef} health={qrHealth} onRotateToken={handleRotateToken} />
           <QRProps qr={qr} setQR={setQR} replaceQR={replaceQR} beginQRChange={beginQRChange} tables={tables} saveState={saveState} saveError={saveError} onRetry={() => { void persistQR(qr) }} />
         </div>
         <StatusBar saveState={saveState} saveError={saveError} onRetry={() => { void persistQR(qr) }} tableCount={tables.length} activeCount={Object.keys(openSessions).length} />
-        {settleSession && (
+        {settlementTarget && (
           <SettlementSheet
             restaurantId={restaurantId}
-            session={settleSession.session}
-            tableLabel={settleSession.label}
-            onClose={() => setSettleSession(null)}
-            onSettled={() => void loadSessions()}
-            onSessionClosed={() => { setSettleSession(null); void loadSessions() }}
+            session={settlementTarget.session}
+            tableLabel={settlementTarget.label}
+            onClose={dismissSettlement}
+            onSettled={() => void refreshSessions()}
+            onSessionClosed={() => { dismissSettlement(); void refreshSessions() }}
           />
         )}
         {preview && (
           <MobilePreview src={preview.src} title={preview.title} onClose={() => setPreview(null)} />
         )}
-        {healthDialogOpen && qrHealth.state === 'invalid' && (
-          <div
-            role="presentation"
-            onMouseDown={() => setHealthDialogOpen(false)}
-            style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(17,17,19,.42)', backdropFilter: 'blur(3px)' }}
-          >
-            <div
-              role="alertdialog"
-              aria-modal="true"
-              aria-labelledby="qr-health-title"
-              aria-describedby="qr-health-description"
-              onMouseDown={(event) => event.stopPropagation()}
-              style={{ width: 'min(480px, 100%)', overflow: 'hidden', borderRadius: 18, border: '1px solid rgba(165,90,0,.22)', background: 'var(--surface)', boxShadow: '0 28px 80px rgba(17,17,19,.24)' }}
-            >
-              <div style={{ height: 4, background: 'linear-gradient(90deg, #d97706, #f0b44d)' }} />
-              <div style={{ padding: '20px 22px 18px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 13 }}>
-                  <div aria-hidden="true" style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 12, display: 'grid', placeItems: 'center', color: 'var(--warning)', background: 'var(--warning-bg)', border: '1px solid rgba(165,90,0,.13)' }}>
-                    <AppIcons.warn size={21} strokeWidth={2} />
-                  </div>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                      <span style={{ padding: '2px 7px', borderRadius: 999, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 10, fontWeight: 700, letterSpacing: '.03em', textTransform: 'uppercase' }}>Okunabilirlik</span>
-                      <span style={{ fontSize: 10.5, color: 'var(--positive)', fontWeight: 600 }}>Stil kaydedildi</span>
-                    </div>
-                    <div id="qr-health-title" style={{ fontSize: 17, fontWeight: 750, letterSpacing: '-.015em', color: 'var(--text)' }}>QR kodu güvenli okuma eşiğinin altında</div>
-                    <div id="qr-health-description" style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.55, color: 'var(--text-2)' }}>
-                      Bazı telefon kameraları bu tasarımı okumakta zorlanabilir. Baskıya almadan önce birkaç ayarı sadeleştirmenizi öneriyoruz.
-                    </div>
-                  </div>
-                  <button type="button" className="tb-hover" aria-label="Uyarıyı kapat" onClick={() => setHealthDialogOpen(false)} style={{ width: 30, height: 30, flexShrink: 0, display: 'grid', placeItems: 'center', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text-3)', cursor: 'pointer' }}>
-                    <AppIcons.x size={14} />
-                  </button>
-                </div>
-                <div style={{ marginTop: 17, padding: '4px 13px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-                  {qrHealth.contrast < 4 && <HealthSuggestion>Ön plan ve arka plan arasındaki renk farkını artırın.</HealthSuggestion>}
-                  {qr.logoSize > .36 && <HealthSuggestion>Logoyu küçültün veya çevresindeki boşluğu artırın.</HealthSuggestion>}
-                  {['dots', 'classy', 'classy-rounded'].includes(qr.dotsType) && <HealthSuggestion>Modül şeklini Kare veya Yuvarlak olarak sadeleştirin.</HealthSuggestion>}
-                  {['L', 'M'].includes(qr.ecl) && <HealthSuggestion>Hata düzeltme seviyesini Q (%25) veya H (%30) yapın.</HealthSuggestion>}
-                  {qr.margin < 16 && <HealthSuggestion>Kameranın sınırı ayırabilmesi için kenar boşluğunu artırın.</HealthSuggestion>}
-                  <HealthSuggestion last>Sonucun üst barda yeşile dönmesini bekleyin.</HealthSuggestion>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '13px 22px', borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>Değişiklikler otomatik kaydedilir</span>
-                <button type="button" className="tb-hover" onClick={() => setHealthDialogOpen(false)} style={{ ...btnPrimary(), height: 34, padding: '0 14px' }}>
-                  Ayarlara dön
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <QRHealthDialog
+          open={healthDialogOpen}
+          health={qrHealth}
+          qr={qr}
+          onClose={() => setHealthDialogOpen(false)}
+        />
       </div>
     </>
   )

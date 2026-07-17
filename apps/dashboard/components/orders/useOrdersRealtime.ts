@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createDashboardBrowserClient } from '../../lib/supabase'
-import type { OrderStatus } from '@garsonless/db/order-client'
+import type { OrderStatus } from '@garsonless/db/browser'
 
 export type Order = {
   id: string

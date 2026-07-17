@@ -32,6 +32,7 @@ export function serviceRequestLabel(value: unknown): string {
 export type TableSessionCloseOutcome =
   | 'not_found'
   | 'unpaid'
+  | 'payment_pending'
   | 'already_closed'
   | 'closed_normal'
   | 'closed_abnormal'

@@ -9,6 +9,17 @@ type OutboxEvent = {
 
 type FailResult = 'retry_scheduled' | 'dead_lettered' | 'lease_lost'
 
+const durableConsumer = (eventType: string): 'loyalty-ledger' | 'campaign-sms' | null => {
+  if (eventType === 'campaign.delivery_requested') return 'campaign-sms'
+  if ([
+    'order.status_changed',
+    'order.settled',
+    'table_session.closed',
+    'customer.welcome_bonus_requested',
+  ].includes(eventType)) return 'loyalty-ledger'
+  return null
+}
+
 const required = (name: string) => {
   const value = Deno.env.get(name)
   if (!value) throw new Error(`Missing ${name}`)
@@ -49,8 +60,49 @@ Deno.serve(async (req) => {
   let retryScheduled = 0
   let deadLettered = 0
   let leaseLost = 0
+  let deferred = 0
   for (const event of (data ?? []) as OutboxEvent[]) {
     try {
+      const consumer = durableConsumer(event.event_type)
+      if (consumer) {
+        const receipt = await supabase
+          .from('domain_outbox_receipts')
+          .select('outbox_id')
+          .eq('outbox_id', event.id)
+          .eq('consumer', consumer)
+          .maybeSingle()
+        if (receipt.error) throw receipt.error
+
+        if (!receipt.data) {
+          const consumerUrl = Deno.env.get('OUTBOX_CONSUMER_URL')
+          if (!consumerUrl) {
+            const release = await supabase.rpc('defer_domain_outbox', {
+              p_event_id: event.id,
+              p_worker: worker,
+              p_reason: `OUTBOX_CONSUMER_URL is not configured for ${consumer}`,
+              p_delay_seconds: 3600,
+            })
+            if (release.error || release.data !== true) {
+              throw release.error ?? new Error('Outbox lease was lost before deferral')
+            }
+            deferred += 1
+            continue
+          }
+          const response = await fetch(consumerUrl, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-outbox-secret': secret,
+            },
+            body: JSON.stringify({ eventId: event.id }),
+          })
+          if (!response.ok) {
+            const detail = await response.text().catch(() => '')
+            throw new Error(`Domain consumer ${consumer} failed (${response.status}): ${detail.slice(0, 300)}`)
+          }
+        }
+      }
+
       // This is the first idempotent operational projection. Realtime and the
       // dashboard's analytics remain source-of-truth reads today; separate
       // notification/KDS/analytics consumers can be added without changing
@@ -86,6 +138,35 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Provider-success/local-write failures use a separate recovery queue. The
+  // scheduled edge invocation also kicks that queue, while the application
+  // endpoint owns settlement commands and keeps provider semantics out of the
+  // generic outbox worker. Missing configuration is observable but does not
+  // interfere with domain-event delivery.
+  let reconciliation: Record<string, unknown> = { configured: false }
+  const reconciliationUrl = Deno.env.get('PAYMENT_RECONCILIATION_URL')
+  if (reconciliationUrl) {
+    try {
+      const response = await fetch(reconciliationUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-outbox-secret': secret,
+        },
+        body: JSON.stringify({ limit: 20 }),
+      })
+      const payload = await response.json().catch(() => ({})) as Record<string, unknown>
+      reconciliation = response.ok
+        ? { configured: true, ...payload }
+        : { configured: true, error: `HTTP ${response.status}`, detail: payload }
+    } catch (cause) {
+      reconciliation = {
+        configured: true,
+        error: cause instanceof Error ? cause.message : 'Reconciliation worker failed',
+      }
+    }
+  }
+
   return Response.json({
     claimed: (data ?? []).length,
     processed,
@@ -93,5 +174,7 @@ Deno.serve(async (req) => {
     retryScheduled,
     deadLettered,
     leaseLost,
+    deferred,
+    reconciliation,
   })
 })

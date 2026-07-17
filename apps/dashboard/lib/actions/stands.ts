@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 import { Resend } from 'resend'
-import { createServiceClient } from '@garsonless/db'
+import { createServiceClient } from '@garsonless/db/server'
 import { assertAccess } from '../auth/access'
 
 const requestStandsSchema = z.object({

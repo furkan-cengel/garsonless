@@ -39,19 +39,39 @@ export function canTransitionOrderStatus(from: OrderStatus, to: OrderStatus): bo
   return ORDER_STATUS_TRANSITIONS[to].includes(from)
 }
 
-export type DomainEventType =
-  | 'order.created'
-  | 'order.status_changed'
-  | 'order.settled'
-  | 'table_session.closed'
-  | 'service_request.created'
+export type OrderCancellationDecision =
+  | { allowed: true; reason: string | null; alreadyCancelled: boolean }
+  | { allowed: false; error: string }
 
-export interface DomainEvent<T extends DomainEventType = DomainEventType> {
-  type: T
-  restaurantId: string
-  aggregateType: T extends `order.${string}` ? 'order' : T extends `table_session.${string}` ? 'table_session' : 'service_request'
-  aggregateId: string
-  payload: Record<string, unknown>
+/**
+ * Pure preflight policy for staff cancellation. The database adapter mirrors
+ * the online/split guards atomically so a concurrent provider settlement can
+ * never race this read into an invalid cancelled+paid row.
+ */
+export function evaluateOrderCancellation(input: {
+  status: string
+  paidAt: string | null
+  paymentMethod: string | null
+  reason?: string | null
+}): OrderCancellationDecision {
+  const reason = input.reason?.trim().slice(0, 200) || null
+  if (input.status === 'cancelled') {
+    return { allowed: true, reason, alreadyCancelled: true }
+  }
+  if (input.paidAt !== null && input.paymentMethod === 'iyzico') {
+    return { allowed: false, error: 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.' }
+  }
+  if (input.paidAt !== null && input.paymentMethod === 'split') {
+    return { allowed: false, error: 'Bu sipariş hesap bölüşme ile ödendi — pay iadeleri/iptali ayrı iade akışı gerektirir.' }
+  }
+  if (
+    input.paidAt !== null
+    && (input.paymentMethod === 'cash' || input.paymentMethod === 'pos')
+    && (reason?.length ?? 0) < 3
+  ) {
+    return { allowed: false, error: 'Ödenmiş siparişin iptali için gerekçe zorunlu (en az 3 karakter).' }
+  }
+  return { allowed: true, reason, alreadyCancelled: false }
 }
 
 export function isCollectedOrder(input: {

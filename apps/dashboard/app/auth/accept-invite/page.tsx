@@ -1,4 +1,4 @@
-import { resolveInviteByToken } from '@garsonless/db'
+import { resolveInviteByToken } from '@garsonless/db/server'
 import { createDashboardServerClient } from '../../../lib/supabase-server'
 import AcceptInviteClient from '../../../components/auth/AcceptInviteClient'
 

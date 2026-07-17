@@ -4,8 +4,8 @@ import {
   isCollectedOrderRow, normalizeTimeZone,
   rangeWindow, startOfRestaurantDay, startOfDayNDaysAgo,
   restaurantDayKey, restaurantHour, restaurantWeekday,
-  type Tables,
-} from '@garsonless/db'
+} from '@garsonless/db/browser'
+import type { Tables } from '@garsonless/db'
 import { applyCollectedOrderFilter, createAnalyticsReadModelPort } from '@garsonless/db/server'
 import { getUserRestaurantAccess, assertAccess } from './auth/access'
 
@@ -341,16 +341,6 @@ export const getTablesForRestaurant = cache(async function getTablesForRestauran
     .is('deleted_at', null)
     .order('created_at')
   return data ?? []
-})
-
-export const getThemeConfigForRestaurant = cache(async function getThemeConfigForRestaurant(restaurantId: string): Promise<Tables<'theme_configs'> | null> {
-  const supabase = await createDashboardServerClient()
-  const { data } = await supabase
-    .from('theme_configs')
-    .select('*')
-    .eq('restaurant_id', restaurantId)
-    .single()
-  return data as Tables<'theme_configs'> | null
 })
 
 const ACTIVE_STATUSES = ['pending', 'pending_approval', 'sent_to_kitchen', 'preparing', 'ready', 'served']

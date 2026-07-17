@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import {
-  getMemberBalances,
+  customerActorContext,
+  readMemberLoyalty,
   type MemberBalances,
-} from '@garsonless/db'
+} from '@garsonless/application/loyalty'
+import { createLoyaltyQueryPort } from '@garsonless/db/server'
 import { getCustomerSession } from '../../../../lib/customer-session'
 
 type ApiResponse =
@@ -22,6 +24,13 @@ export async function GET(req: Request): Promise<NextResponse<ApiResponse>> {
     return NextResponse.json({ ok: false, error: 'Not a member' }, { status: 401 })
   }
 
-  const balances = await getMemberBalances(session.customerId, restaurantId)
-  return NextResponse.json({ ok: true, balances })
+  const result = await readMemberLoyalty(customerActorContext({
+    authUserId: session.authUserId,
+    customerId: session.customerId,
+    restaurantId,
+  }), createLoyaltyQueryPort())
+  if (!result.ok) {
+    return NextResponse.json({ ok: false, error: result.error }, { status: 403 })
+  }
+  return NextResponse.json({ ok: true, balances: result.value })
 }

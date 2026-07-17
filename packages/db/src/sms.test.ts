@@ -7,7 +7,6 @@ import { assertSmsConfig, getSmsProvider, __resetSmsProviderCacheForTests } from
 const KEYS = [
   'NODE_ENV',
   'SMS_PROVIDER',
-  'CUSTOMER_SESSION_SECRET',
   'NETGSM_USERCODE',
   'NETGSM_PASSWORD',
   'NETGSM_MSGHEADER',
@@ -37,39 +36,38 @@ function withEnv(overrides: Record<string, string | undefined>, fn: () => void):
   }
 }
 
-const SECRET = { CUSTOMER_SESSION_SECRET: 'test-secret' }
 const NETGSM_CREDS = { NETGSM_USERCODE: 'u', NETGSM_PASSWORD: 'p', NETGSM_MSGHEADER: 'GARSONLESS' }
 const TWILIO_CREDS = { TWILIO_ACCOUNT_SID: 'AC', TWILIO_AUTH_TOKEN: 't', TWILIO_FROM: '+1' }
 
 // ── assertSmsConfig ─────────────────────────────────────────────────────────
 
 test('assertSmsConfig: dev + mock is allowed (local dev must keep working)', () => {
-  withEnv({ NODE_ENV: 'development', SMS_PROVIDER: 'mock', ...SECRET }, () => {
+  withEnv({ NODE_ENV: 'development', SMS_PROVIDER: 'mock' }, () => {
     assert.doesNotThrow(() => assertSmsConfig())
   })
 })
 
 test('assertSmsConfig: PROD + mock THROWS (silent-outage killer)', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'mock', ...SECRET }, () => {
+  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'mock' }, () => {
     assert.throws(() => assertSmsConfig(), /mock provider under NODE_ENV=production/)
   })
 })
 
 test('assertSmsConfig: PROD + SMS_PROVIDER unset THROWS (default must not silently apply)', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: undefined, ...SECRET }, () => {
+  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: undefined }, () => {
     assert.throws(() => assertSmsConfig(), /mock provider under NODE_ENV=production/)
   })
 })
 
 test('assertSmsConfig: PROD + netgsm + full creds does NOT throw', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'netgsm', ...SECRET, ...NETGSM_CREDS }, () => {
+  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'netgsm', ...NETGSM_CREDS }, () => {
     assert.doesNotThrow(() => assertSmsConfig())
   })
 })
 
 test('assertSmsConfig: PROD + netgsm missing NETGSM_MSGHEADER THROWS', () => {
   withEnv(
-    { NODE_ENV: 'production', SMS_PROVIDER: 'netgsm', ...SECRET, NETGSM_USERCODE: 'u', NETGSM_PASSWORD: 'p' },
+    { NODE_ENV: 'production', SMS_PROVIDER: 'netgsm', NETGSM_USERCODE: 'u', NETGSM_PASSWORD: 'p' },
     () => {
       assert.throws(() => assertSmsConfig(), /NETGSM_MSGHEADER is not set/)
     },
@@ -77,40 +75,40 @@ test('assertSmsConfig: PROD + netgsm missing NETGSM_MSGHEADER THROWS', () => {
 })
 
 test('assertSmsConfig: PROD + twilio missing creds THROWS', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'twilio', ...SECRET }, () => {
+  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'twilio' }, () => {
     assert.throws(() => assertSmsConfig(), /SMS_PROVIDER=twilio but TWILIO_ACCOUNT_SID is not set/)
   })
 })
 
 test('assertSmsConfig: PROD + twilio + full creds does NOT throw', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'twilio', ...SECRET, ...TWILIO_CREDS }, () => {
+  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'twilio', ...TWILIO_CREDS }, () => {
     assert.doesNotThrow(() => assertSmsConfig())
   })
 })
 
-test('assertSmsConfig: missing CUSTOMER_SESSION_SECRET THROWS regardless of provider', () => {
+test('assertSmsConfig: customer session secret is retired from SMS validation', () => {
   withEnv({ NODE_ENV: 'development', SMS_PROVIDER: 'mock' }, () => {
-    assert.throws(() => assertSmsConfig(), /CUSTOMER_SESSION_SECRET is not set/)
+    assert.doesNotThrow(() => assertSmsConfig())
   })
 })
 
 // ── getSmsProvider defense-in-depth ─────────────────────────────────────────
 
 test('getSmsProvider: PROD + mock THROWS (before returning any provider)', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'mock', ...SECRET }, () => {
+  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'mock' }, () => {
     assert.throws(() => getSmsProvider(), /mock provider under NODE_ENV=production/)
   })
 })
 
 test('getSmsProvider: PROD + netgsm returns the netgsm provider (no throw)', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'netgsm', ...SECRET, ...NETGSM_CREDS }, () => {
+  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'netgsm', ...NETGSM_CREDS }, () => {
     const provider = getSmsProvider()
     assert.equal(provider.name, 'netgsm')
   })
 })
 
 test('getSmsProvider: dev + mock returns the mock provider (happy path unchanged)', () => {
-  withEnv({ NODE_ENV: 'development', SMS_PROVIDER: 'mock', ...SECRET }, () => {
+  withEnv({ NODE_ENV: 'development', SMS_PROVIDER: 'mock' }, () => {
     const provider = getSmsProvider()
     assert.equal(provider.name, 'mock')
   })

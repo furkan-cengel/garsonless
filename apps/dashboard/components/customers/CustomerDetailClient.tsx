@@ -2,7 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import type { CustomerTimelineEvent, RestaurantCustomerDetail } from '@garsonless/db'
+import type { CustomerTimelineEvent, RestaurantCustomerDetail } from '@garsonless/domain/customers'
 import { grantStoreCreditAction } from '../../lib/actions/customers'
 import { formatCurrency } from '../../lib/utils'
 import { I, S, btnGhost } from '../../lib/ui'

@@ -4,7 +4,7 @@ import type {
   MenuModifierGroup,
   MenuModifierOption,
   SelectedMenuModifier,
-} from '@garsonless/db/order-client'
+} from '@garsonless/db/browser'
 
 export type ModifierOption = MenuModifierOption
 export type ModifierGroup = MenuModifierGroup

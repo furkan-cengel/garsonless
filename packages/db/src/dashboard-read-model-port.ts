@@ -75,7 +75,7 @@ export function createOrdersBoardReadModelPort(): OrdersBoardReadModelPort<Dashb
 
       const { data: credential, error: credentialError } = await service
         .from('kitchen_credentials')
-        .select('token')
+        .select('restaurant_id')
         .eq('restaurant_id', restaurantId)
         .maybeSingle()
       if (credentialError) return err(`Mutfak erişimi yüklenemedi: ${credentialError.message}`)
@@ -83,7 +83,7 @@ export function createOrdersBoardReadModelPort(): OrdersBoardReadModelPort<Dashb
       return ok({
         orders,
         tables,
-        kitchenToken: (credential as { token: string } | null)?.token ?? null,
+        hasKitchenAccess: credential !== null,
       })
     },
   }

@@ -16,11 +16,13 @@ export type Database = {
     Tables: {
       campaign_recipients: {
         Row: {
+          attempts: number
           campaign_id: string
           created_at: string
           customer_id: string
           error: string | null
           id: string
+          locked_at: string | null
           phone: string
           provider_message_id: string | null
           restaurant_id: string
@@ -29,11 +31,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attempts?: number
           campaign_id: string
           created_at?: string
           customer_id: string
           error?: string | null
           id?: string
+          locked_at?: string | null
           phone: string
           provider_message_id?: string | null
           restaurant_id: string
@@ -42,11 +46,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attempts?: number
           campaign_id?: string
           created_at?: string
           customer_id?: string
           error?: string | null
           id?: string
+          locked_at?: string | null
           phone?: string
           provider_message_id?: string | null
           restaurant_id?: string
@@ -432,6 +438,44 @@ export type Database = {
             foreignKeyName: "kitchen_credentials_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kitchen_session_launches: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          restaurant_id: string
+          ticket_hash: string
+          updated_at: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          restaurant_id: string
+          ticket_hash: string
+          updated_at?: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          restaurant_id?: string
+          ticket_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kitchen_session_launches_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
           },
@@ -852,6 +896,9 @@ export type Database = {
         Row: {
           cancel_reason: string | null
           cancelled_by: string | null
+          checkout_amount: number | null
+          checkout_reservation_id: string | null
+          checkout_reserved_until: string | null
           created_at: string
           customer_id: string | null
           customer_tier: Json | null
@@ -877,6 +924,9 @@ export type Database = {
         Insert: {
           cancel_reason?: string | null
           cancelled_by?: string | null
+          checkout_amount?: number | null
+          checkout_reservation_id?: string | null
+          checkout_reserved_until?: string | null
           created_at?: string
           customer_id?: string | null
           customer_tier?: Json | null
@@ -902,6 +952,9 @@ export type Database = {
         Update: {
           cancel_reason?: string | null
           cancelled_by?: string | null
+          checkout_amount?: number | null
+          checkout_reservation_id?: string | null
+          checkout_reserved_until?: string | null
           created_at?: string
           customer_id?: string | null
           customer_tier?: Json | null
@@ -962,39 +1015,6 @@ export type Database = {
           },
         ]
       }
-      otp_codes: {
-        Row: {
-          attempts: number
-          code_hash: string
-          consumed_at: string | null
-          created_at: string
-          expires_at: string
-          id: string
-          ip: string | null
-          phone: string
-        }
-        Insert: {
-          attempts?: number
-          code_hash: string
-          consumed_at?: string | null
-          created_at?: string
-          expires_at: string
-          id?: string
-          ip?: string | null
-          phone: string
-        }
-        Update: {
-          attempts?: number
-          code_hash?: string
-          consumed_at?: string | null
-          created_at?: string
-          expires_at?: string
-          id?: string
-          ip?: string | null
-          phone?: string
-        }
-        Relationships: []
-      }
       payment_credentials: {
         Row: {
           api_key: string
@@ -1036,10 +1056,16 @@ export type Database = {
       payment_reconciliation_events: {
         Row: {
           attempts: number
+          available_at: string
           created_at: string
+          dead_lettered_at: string | null
           detail: Json
           event_type: string
           id: string
+          idempotency_key: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
           order_id: string | null
           provider_token_hash: string
           resolved_at: string | null
@@ -1050,10 +1076,16 @@ export type Database = {
         }
         Insert: {
           attempts?: number
+          available_at?: string
           created_at?: string
+          dead_lettered_at?: string | null
           detail?: Json
           event_type: string
           id?: string
+          idempotency_key: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
           order_id?: string | null
           provider_token_hash: string
           resolved_at?: string | null
@@ -1064,10 +1096,16 @@ export type Database = {
         }
         Update: {
           attempts?: number
+          available_at?: string
           created_at?: string
+          dead_lettered_at?: string | null
           detail?: Json
           event_type?: string
           id?: string
+          idempotency_key?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
           order_id?: string | null
           provider_token_hash?: string
           resolved_at?: string | null
@@ -1130,6 +1168,8 @@ export type Database = {
         Row: {
           amount: number
           assigned_items: Json | null
+          checkout_amount: number | null
+          checkout_reserved_until: string | null
           created_at: string
           customer_id: string | null
           id: string
@@ -1145,6 +1185,8 @@ export type Database = {
         Insert: {
           amount: number
           assigned_items?: Json | null
+          checkout_amount?: number | null
+          checkout_reserved_until?: string | null
           created_at?: string
           customer_id?: string | null
           id?: string
@@ -1160,6 +1202,8 @@ export type Database = {
         Update: {
           amount?: number
           assigned_items?: Json | null
+          checkout_amount?: number | null
+          checkout_reserved_until?: string | null
           created_at?: string
           customer_id?: string | null
           id?: string
@@ -1598,6 +1642,7 @@ export type Database = {
           restaurant_id: string
           tokens: Json
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           component_overrides?: Json
@@ -1606,6 +1651,7 @@ export type Database = {
           restaurant_id: string
           tokens?: Json
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           component_overrides?: Json
@@ -1614,6 +1660,7 @@ export type Database = {
           restaurant_id?: string
           tokens?: Json
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -1633,6 +1680,43 @@ export type Database = {
       ack_domain_outbox: {
         Args: { p_event_id: string; p_worker: string }
         Returns: boolean
+      }
+      attach_order_checkout_token: {
+        Args: {
+          p_order_id: string
+          p_reservation_id: string
+          p_restaurant_id: string
+          p_token: string
+        }
+        Returns: boolean
+      }
+      attach_split_checkout_token: {
+        Args: { p_restaurant_id: string; p_share_id: string; p_token: string }
+        Returns: boolean
+      }
+      claim_campaign_recipient: {
+        Args: { p_campaign_id: string; p_restaurant_id: string }
+        Returns: {
+          attempts: number
+          campaign_id: string
+          created_at: string
+          customer_id: string
+          error: string | null
+          id: string
+          locked_at: string | null
+          phone: string
+          provider_message_id: string | null
+          restaurant_id: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "campaign_recipients"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       claim_domain_outbox: {
         Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string }
@@ -1661,6 +1745,35 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      claim_payment_reconciliation: {
+        Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string }
+        Returns: {
+          attempts: number
+          available_at: string
+          created_at: string
+          dead_lettered_at: string | null
+          detail: Json
+          event_type: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          order_id: string | null
+          provider_token_hash: string
+          resolved_at: string | null
+          restaurant_id: string | null
+          share_id: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "payment_reconciliation_events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_qr_stand_request_slot: {
         Args: {
           p_requested_by: string
@@ -1681,6 +1794,23 @@ export type Database = {
         }
         Returns: string
       }
+      complete_campaign_recipient: {
+        Args: {
+          p_created_by: string
+          p_error: string
+          p_provider: string
+          p_provider_message_id: string
+          p_recipient_id: string
+          p_restaurant_id: string
+          p_segment_label: string
+          p_success: boolean
+        }
+        Returns: boolean
+      }
+      consume_kitchen_launch_ticket: {
+        Args: { p_restaurant_id: string; p_ticket_hash: string }
+        Returns: boolean
+      }
       consume_public_order_rate_limit: {
         Args: {
           p_key_hash: string
@@ -1690,7 +1820,24 @@ export type Database = {
         }
         Returns: boolean
       }
+      create_table_service_request_atomic: {
+        Args: {
+          p_request_type: string
+          p_restaurant_id: string
+          p_table_id: string
+        }
+        Returns: Json
+      }
       customer_access_token_hook: { Args: { event: Json }; Returns: Json }
+      defer_domain_outbox: {
+        Args: {
+          p_delay_seconds?: number
+          p_event_id: string
+          p_reason: string
+          p_worker: string
+        }
+        Returns: boolean
+      }
       delete_menu_category: {
         Args: { p_category_id: string; p_restaurant_id: string }
         Returns: undefined
@@ -1706,6 +1853,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      enqueue_payment_reconciliation: {
+        Args: {
+          p_detail?: Json
+          p_event_type: string
+          p_order_id: string
+          p_provider_token_hash: string
+          p_restaurant_id: string
+          p_share_id: string
+        }
+        Returns: string
+      }
       fail_domain_outbox: {
         Args: {
           p_delay_seconds?: number
@@ -1713,6 +1871,19 @@ export type Database = {
           p_event_id: string
           p_worker: string
         }
+        Returns: string
+      }
+      fail_payment_reconciliation: {
+        Args: {
+          p_delay_seconds?: number
+          p_error: string
+          p_event_id: string
+          p_worker: string
+        }
+        Returns: string
+      }
+      finalize_campaign_delivery: {
+        Args: { p_campaign_id: string; p_restaurant_id: string }
         Returns: string
       }
       finalize_order_discount: {
@@ -1820,6 +1991,35 @@ export type Database = {
         Args: { p_qr_style: Json; p_restaurant_id: string }
         Returns: undefined
       }
+      publish_theme_config_atomic: {
+        Args: {
+          p_published_by: string
+          p_restaurant_id: string
+          p_template_id: string
+          p_tokens: Json
+        }
+        Returns: string
+      }
+      queue_campaign_delivery_atomic: {
+        Args: {
+          p_builtin_segment: string
+          p_contacts: Json
+          p_created_by: string
+          p_custom_segment_id: string
+          p_message_body: string
+          p_name: string
+          p_restaurant_id: string
+          p_segment_definition: Json
+          p_segment_kind: string
+          p_segment_label: string
+          p_skipped_count: number
+        }
+        Returns: string
+      }
+      read_kitchen_order_projection: {
+        Args: { p_after?: string; p_restaurant_id: string }
+        Returns: Json
+      }
       redeem_loyalty: {
         Args: {
           p_customer: string
@@ -1843,6 +2043,18 @@ export type Database = {
           type: string
         }[]
       }
+      release_order_checkout_reservation: {
+        Args: {
+          p_order_id: string
+          p_reservation_id: string
+          p_restaurant_id: string
+        }
+        Returns: boolean
+      }
+      release_split_checkout_reservation: {
+        Args: { p_restaurant_id: string; p_share_id: string }
+        Returns: boolean
+      }
       reorder_menu_categories: {
         Args: { p_ordered_ids: string[]; p_restaurant_id: string }
         Returns: undefined
@@ -1850,6 +2062,24 @@ export type Database = {
       requeue_domain_outbox: {
         Args: { p_event_id: string; p_operator: string }
         Returns: boolean
+      }
+      reserve_order_checkout: {
+        Args: {
+          p_order_id: string
+          p_reservation_seconds?: number
+          p_restaurant_id: string
+          p_table_id: string
+        }
+        Returns: Json
+      }
+      reserve_split_checkout: {
+        Args: {
+          p_reservation_seconds?: number
+          p_restaurant_id: string
+          p_share_id: string
+          p_table_id: string
+        }
+        Returns: Json
       }
       resolve_active_table_qr_token: {
         Args: { p_token: string }
@@ -1859,6 +2089,10 @@ export type Database = {
           table_id: string
           table_label: string
         }[]
+      }
+      resolve_payment_reconciliation: {
+        Args: { p_event_id: string; p_worker: string }
+        Returns: boolean
       }
       rotate_table_qr_token: {
         Args: {
@@ -1877,6 +2111,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      settle_payment_share_atomic: {
+        Args: {
+          p_expected_method: string
+          p_restaurant_id: string
+          p_settled_by?: string
+          p_share_id: string
+        }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       soft_delete_table_atomic: {
@@ -1886,6 +2129,15 @@ export type Database = {
       sweep_fully_paid_idle_sessions: {
         Args: { p_idle_minutes?: number }
         Returns: number
+      }
+      transition_kitchen_order_atomic: {
+        Args: {
+          p_order_id: string
+          p_restaurant_id: string
+          p_station_id: string
+          p_target_status: string
+        }
+        Returns: boolean
       }
     }
     Enums: {

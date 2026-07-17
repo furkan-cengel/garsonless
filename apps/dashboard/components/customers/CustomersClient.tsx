@@ -6,12 +6,14 @@ import type {
   CampaignAudienceInput,
   CampaignAudiencePreview,
   CampaignSummary,
+} from '@garsonless/domain/campaigns'
+import type {
   CustomerSegmentDefinition,
   RestaurantCustomer,
   RestaurantCustomersPage,
   CustomerSegmentCounts,
   SavedCustomerSegment,
-} from '@garsonless/db'
+} from '@garsonless/domain/customers'
 import {
   createCustomerSegmentAction,
   deleteCustomerSegmentAction,

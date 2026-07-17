@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createServiceClient } from '@garsonless/db'
-import { resolveActiveTableQrToken } from '@garsonless/db/server'
+import { prepareSplitCheckout, releaseSplitCheckout } from '@garsonless/application/splits'
+import { createSplitPaymentPort, resolveActiveTableQrToken } from '@garsonless/db/server'
 import { createIyzicoClient, initializeCheckout } from '../../../../lib/iyzico'
 import { resolveIyzicoCredentials, attachPaymentTokenToShare } from '../../../../lib/payment-credentials'
 import { buildCheckoutAddresses } from '../../../../lib/checkout-address'
@@ -30,40 +30,36 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ pay
   if (!parsed.success) return NextResponse.json({ success: false, error: parsed.error.issues[0]?.message ?? 'Invalid request' }, { status: 400 })
   const { shareId, tableToken, buyerName, buyerSurname, buyerEmail, buyerPhone, deviceId } = parsed.data
 
-  const svc = createServiceClient()
   const table = await resolveActiveTableQrToken(tableToken)
   if (!table) return NextResponse.json({ success: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
   const restaurantId = table.restaurantId
-
-  // Read the share server-side (never trust client amount).
-  const { data: shareRow } = await svc.from('payment_shares')
-    .select('amount, status, method, table_session_id, restaurant_id')
-    .eq('id', shareId).maybeSingle()
-  const share = shareRow as { amount: number; status: string; method: string | null; table_session_id: string; restaurant_id: string } | null
-  if (!share || share.restaurant_id !== restaurantId) return NextResponse.json({ success: false, error: 'Pay bulunamadı' }, { status: 404 })
-  if (share.status !== 'declared') return NextResponse.json({ success: false, error: 'Bu pay zaten işlenmiş' }, { status: 409 })
-  const { data: session } = await svc.from('table_sessions').select('id')
-    .eq('id', share.table_session_id).eq('restaurant_id', restaurantId).eq('table_id', table.tableId).is('closed_at', null).maybeSingle()
-  if (!session) return NextResponse.json({ success: false, error: 'Payın bağlı olduğu masa bağlantısı artık geçersiz.' }, { status: 404 })
-
-  // Remaining uncovered = session total − Σ settled shares.
-  const { data: orderRows } = await svc.from('orders')
-    .select('total').eq('table_session_id', share.table_session_id).eq('restaurant_id', restaurantId)
-    .neq('status', 'cancelled').is('deleted_at', null)
-  const sessionTotal = ((orderRows ?? []) as Array<{ total: number }>).reduce((s, o) => s + (o.total ?? 0), 0)
-  const { data: settledRows } = await svc.from('payment_shares')
-    .select('amount').eq('table_session_id', share.table_session_id).eq('status', 'settled')
-  const settled = ((settledRows ?? []) as Array<{ amount: number }>).reduce((s, x) => s + (x.amount ?? 0), 0)
-  const remaining = Math.round((sessionTotal - settled) * 100) / 100
-  if (remaining <= 0) return NextResponse.json({ success: false, error: 'Hesap zaten kapandı' }, { status: 409 })
-
-  // THE clamp: never charge more than what's still owed.
-  const charge = Math.min(Number(share.amount), remaining)
-  if (!(charge > 0)) return NextResponse.json({ success: false, error: 'Geçersiz tutar' }, { status: 400 })
+  const prepared = await prepareSplitCheckout(
+    { actor: 'table-guest', restaurantId, tableId: table.tableId, tableToken },
+    { restaurantId, shareId },
+    createSplitPaymentPort(),
+  )
+  if (!prepared.ok) {
+    const status = prepared.error.includes('bulunamadı') || prepared.error.includes('geçersiz') ? 404 : 409
+    return NextResponse.json({ success: false, error: prepared.error }, { status })
+  }
+  const charge = prepared.value.amount
   const priceStr = charge.toFixed(2)
-
-  // Mark the share as card (method) so the callback settle is consistent.
-  await svc.from('payment_shares').update({ method: 'iyzico' }).eq('id', shareId).eq('status', 'declared')
+  const tableContext = { actor: 'table-guest' as const, restaurantId, tableId: table.tableId, tableToken }
+  const releaseReservation = async () => {
+    const released = await releaseSplitCheckout(
+      tableContext,
+      { restaurantId, shareId },
+      createSplitPaymentPort(),
+    )
+    if (!released.ok) {
+      console.warn(JSON.stringify({
+        event: 'payment.split_reservation.release_failed',
+        restaurantId,
+        shareId,
+        error: released.error,
+      }))
+    }
+  }
 
   const requestUrl = new URL(req.url)
   const forwardedHost = req.headers.get('x-forwarded-host') ?? req.headers.get('host')
@@ -74,14 +70,12 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ pay
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
 
   const credentials = await resolveIyzicoCredentials(restaurantId)
-  if (!credentials) return NextResponse.json({ success: false, error: 'Bu restoran için ödeme yapılandırılmamış' }, { status: 503 })
-  const { data: restaurantRow } = await svc
-    .from('restaurants')
-    .select('settings')
-    .eq('id', restaurantId)
-    .maybeSingle()
+  if (!credentials) {
+    await releaseReservation()
+    return NextResponse.json({ success: false, error: 'Bu restoran için ödeme yapılandırılmamış' }, { status: 503 })
+  }
   const checkoutAddress = buildCheckoutAddresses(
-    (restaurantRow as { settings: unknown } | null)?.settings,
+    prepared.value.restaurantSettings,
     `${buyerName} ${buyerSurname}`,
   )
 
@@ -95,9 +89,17 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ pay
       billingAddress: checkoutAddress.billingAddress,
       basketItems: [{ id: shareId, name: 'Hesap payı', category1: 'Food', itemType: 'VIRTUAL', price: priceStr }],
     })
-    await attachPaymentTokenToShare(shareId, result.token)
+    const mappingError = await attachPaymentTokenToShare(shareId, restaurantId, result.token)
+    if (mappingError) {
+      await releaseReservation()
+      return NextResponse.json(
+        { success: false, error: 'Ödeme oturumu güvenli biçimde başlatılamadı. Lütfen tekrar deneyin.' },
+        { status: 503 },
+      )
+    }
     return NextResponse.json({ success: true, data: { ...result, amount: charge } })
   } catch (err) {
+    await releaseReservation()
     const msg = err instanceof Error ? err.message : 'Payment initialization failed'
     return NextResponse.json({ success: false, error: msg }, { status: 500 })
   }

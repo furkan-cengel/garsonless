@@ -1,4 +1,4 @@
-import type { PaymentMethod } from '@garsonless/db/order-client'
+import type { PaymentMethod } from '@garsonless/db/browser'
 
 // ONE place the four payment methods get their TR label + badge palette, shared
 // by the orders board, the session settlement sheet, and any future surface so a

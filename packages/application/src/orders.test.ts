@@ -1,7 +1,44 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { KitchenOrderPort, PublicOrderPort } from './orders'
-import { placePublicOrder, settleOrder, transitionKitchenOrder } from './orders'
+import type { DashboardOrderCreatePort, DashboardOrderLifecyclePort, KitchenOrderPort, PublicOrderPort } from './orders'
+import {
+  cancelDashboardOrder,
+  createDashboardOrder,
+  placePublicOrder,
+  settleOrder,
+  transitionDashboardOrder,
+  transitionKitchenOrder,
+} from './orders'
+
+test('dashboard create derives the staff actor and rejects cross-tenant calls before the port', async () => {
+  let write: Parameters<DashboardOrderCreatePort['createOrder']>[0] | null = null
+  const port: DashboardOrderCreatePort = {
+    async createOrder(input) {
+      write = input
+      return { ok: true, value: { orderId: 'order' } }
+    },
+  }
+  const denied = await createDashboardOrder(
+    { actor: 'dashboard-member', restaurantId: 'a', userId: 'staff', permissions: ['orders'] },
+    { restaurantId: 'b', tableId: null, lines: [{ itemId: 'item', quantity: 1 }] },
+    port,
+  )
+  assert.deepEqual(denied, { ok: false, error: 'Not authorized' })
+  assert.equal(write, null)
+
+  const created = await createDashboardOrder(
+    { actor: 'dashboard-member', restaurantId: 'a', userId: 'staff', permissions: ['orders'] },
+    { restaurantId: 'a', tableId: 'table', lines: [{ itemId: 'item', quantity: 2 }] },
+    port,
+  )
+  assert.deepEqual(created, { ok: true, value: { orderId: 'order' } })
+  assert.deepEqual(write, {
+    restaurantId: 'a',
+    tableId: 'table',
+    lines: [{ itemId: 'item', quantity: 2 }],
+    createdBy: 'staff',
+  })
+})
 
 test('public order command rejects a mismatched verified table context before using the port', async () => {
   let touched = false
@@ -42,4 +79,91 @@ test('kitchen cannot finish a multi-station order outside final inspection', asy
   )
   assert.deepEqual(result, { ok: false, error: 'Çok istasyonlu siparişi Son Kontrol tamamlar' })
   assert.equal(wrote, false)
+})
+
+test('kitchen derives station scope for the atomic write and retries are idempotent', async () => {
+  let write: Parameters<KitchenOrderPort['updateStatus']>[0] | null = null
+  const port: KitchenOrderPort = {
+    async getOrder() { return { id: 'order', status: 'ready', stationIds: ['bar'] } },
+    async updateStatus(input) { write = input; return { ok: true, value: null } },
+  }
+  const result = await transitionKitchenOrder(
+    { actor: 'kitchen', restaurantId: 'restaurant', stationId: 'bar' },
+    { orderId: 'order', restaurantId: 'restaurant', status: 'ready' },
+    port,
+  )
+  assert.deepEqual(result, { ok: true, value: null })
+  assert.deepEqual(write, {
+    orderId: 'order',
+    restaurantId: 'restaurant',
+    stationId: 'bar',
+    status: 'ready',
+  })
+})
+
+function dashboardOrderPort(
+  overrides: Partial<DashboardOrderLifecyclePort> = {},
+): DashboardOrderLifecyclePort {
+  return {
+    async transitionStatus() { return { ok: true, value: null } },
+    async readForCancellation() {
+      return { ok: true, value: { status: 'served', paidAt: null, paymentMethod: null } }
+    },
+    async cancelOrder() { return { ok: true, value: null } },
+    ...overrides,
+  }
+}
+
+test('dashboard order lifecycle rejects cross-tenant and missing permission before ports', async () => {
+  let touched = false
+  const port = dashboardOrderPort({
+    async transitionStatus() { touched = true; return { ok: true, value: null } },
+  })
+  const crossTenant = await transitionDashboardOrder(
+    { actor: 'dashboard-member', restaurantId: 'a', userId: 'staff', permissions: ['orders'] },
+    { orderId: 'order', restaurantId: 'b', status: 'preparing' },
+    port,
+  )
+  const missingPermission = await transitionDashboardOrder(
+    { actor: 'dashboard-member', restaurantId: 'a', userId: 'staff', permissions: ['tables'] },
+    { orderId: 'order', restaurantId: 'a', status: 'preparing' },
+    port,
+  )
+  assert.deepEqual(crossTenant, { ok: false, error: 'Not authorized' })
+  assert.deepEqual(missingPermission, { ok: false, error: 'Not authorized' })
+  assert.equal(touched, false)
+})
+
+test('dashboard cancellation applies payment policy before the write port', async () => {
+  let cancelled = false
+  const online = await cancelDashboardOrder(
+    { actor: 'dashboard-member', restaurantId: 'a', userId: 'staff', permissions: ['orders'] },
+    { orderId: 'order', restaurantId: 'a', reason: 'refund' },
+    dashboardOrderPort({
+      async readForCancellation() {
+        return { ok: true, value: { status: 'served', paidAt: 'now', paymentMethod: 'iyzico' } }
+      },
+      async cancelOrder() { cancelled = true; return { ok: true, value: null } },
+    }),
+  )
+  assert.deepEqual(online, { ok: false, error: 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.' })
+  assert.equal(cancelled, false)
+})
+
+test('dashboard cancellation derives actor audit and normalized reason', async () => {
+  let write: Parameters<DashboardOrderLifecyclePort['cancelOrder']>[0] | null = null
+  const result = await cancelDashboardOrder(
+    { actor: 'dashboard-member', restaurantId: 'a', userId: 'staff', permissions: ['orders'] },
+    { orderId: 'order', restaurantId: 'a', reason: '  müşteri isteği  ' },
+    dashboardOrderPort({
+      async cancelOrder(input) { write = input; return { ok: true, value: null } },
+    }),
+  )
+  assert.deepEqual(result, { ok: true, value: null })
+  assert.deepEqual(write, {
+    orderId: 'order',
+    restaurantId: 'a',
+    reason: 'müşteri isteği',
+    cancelledBy: 'staff',
+  })
 })

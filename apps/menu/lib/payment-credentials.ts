@@ -2,7 +2,13 @@
 // Reads payment_credentials with the SERVICE ROLE client — this module must
 // only be imported from route handlers, never from client components.
 
-import { createServiceClient } from '@garsonless/db'
+import {
+  attachOrderPaymentToken,
+  attachSharePaymentToken,
+  readIyzicoCredentialRecord,
+  readOrderPaymentMapping,
+  readSharePaymentMapping,
+} from '@garsonless/db/server'
 
 export interface IyzicoCredentials {
   apiKey: string
@@ -36,22 +42,13 @@ function envFallback(reason: string, restaurantId: string | null): IyzicoCredent
 export async function resolveIyzicoCredentials(
   restaurantId: string,
 ): Promise<IyzicoCredentials | null> {
-  const supabase = createServiceClient()
-  const { data, error } = await supabase
-    .from('payment_credentials')
-    .select('api_key, secret_key, mode')
-    .eq('restaurant_id', restaurantId)
-    .eq('provider', 'iyzico')
-    .maybeSingle()
-
-  if (error) return envFallback(`credentials query failed: ${error.message}`, restaurantId)
-  if (!data) return envFallback('no credentials configured', restaurantId)
-
-  const row = data as { api_key: string; secret_key: string; mode: string }
+  const { record, error } = await readIyzicoCredentialRecord(restaurantId)
+  if (error) return envFallback(`credentials query failed: ${error}`, restaurantId)
+  if (!record) return envFallback('no credentials configured', restaurantId)
   return {
-    apiKey: row.api_key,
-    secretKey: row.secret_key,
-    baseUrl: row.mode === 'live' ? LIVE_URL : SANDBOX_URL,
+    apiKey: record.apiKey,
+    secretKey: record.secretKey,
+    baseUrl: record.mode === 'live' ? LIVE_URL : SANDBOX_URL,
     source: 'restaurant',
   }
 }
@@ -62,32 +59,18 @@ export async function resolveIyzicoCredentials(
 export async function resolveCredentialsByPaymentToken(
   token: string,
 ): Promise<{ credentials: IyzicoCredentials | null; orderId: string | null; restaurantId: string | null }> {
-  const supabase = createServiceClient()
-  const { data: tokenRow, error: tokErr } = await supabase
-    .from('order_payment_tokens')
-    .select('order_id')
-    .eq('token', token)
-    .maybeSingle()
-
-  const orderId = (tokenRow as { order_id: string } | null)?.order_id ?? null
-  if (tokErr || !orderId) {
+  const mapping = await readOrderPaymentMapping(token)
+  if (mapping.error || !mapping.orderId) {
     return {
       credentials: envFallback(
-        tokErr ? `token lookup failed: ${tokErr.message}` : 'no order found for payment token',
+        mapping.error ? `token lookup failed: ${mapping.error}` : 'no order found for payment token',
         null,
       ),
       orderId: null,
       restaurantId: null,
     }
   }
-
-  const { data: orderRow } = await supabase
-    .from('orders')
-    .select('restaurant_id')
-    .eq('id', orderId)
-    .is('deleted_at', null)
-    .maybeSingle()
-  const restaurantId = (orderRow as { restaurant_id: string } | null)?.restaurant_id ?? null
+  const { orderId, restaurantId } = mapping
   if (!restaurantId) {
     return { credentials: envFallback('order not found for payment token', null), orderId, restaurantId: null }
   }
@@ -99,31 +82,34 @@ export async function resolveCredentialsByPaymentToken(
   }
 }
 
-export async function attachPaymentTokenToOrder(orderId: string, token: string): Promise<void> {
-  const supabase = createServiceClient()
-  const builder = supabase.from('order_payment_tokens') as unknown as {
-    upsert: (row: Record<string, unknown>, opts: { onConflict: string }) => Promise<{ error: { message: string } | null }>
-  }
-  const { error } = await builder.upsert({ order_id: orderId, token }, { onConflict: 'order_id' })
+export async function attachPaymentTokenToOrder(
+  orderId: string,
+  restaurantId: string,
+  reservationId: string,
+  token: string,
+): Promise<string | null> {
+  const error = await attachOrderPaymentToken(orderId, restaurantId, reservationId, token)
   if (error) {
     console.warn(
-      JSON.stringify({ event: 'payment.token.attach_failed', orderId, error: error.message }),
+      JSON.stringify({ event: 'payment.token.attach_failed', orderId, error }),
     )
   }
+  return error
 }
 
 /** Split payment: token ↔ SHARE (mirror of attachPaymentTokenToOrder). The token
  *  lives in the service-role-only payment_share_tokens side table, never on the
  *  anon-readable share row and not in realtime. */
-export async function attachPaymentTokenToShare(shareId: string, token: string): Promise<void> {
-  const supabase = createServiceClient()
-  const builder = supabase.from('payment_share_tokens') as unknown as {
-    upsert: (row: Record<string, unknown>, opts: { onConflict: string }) => Promise<{ error: { message: string } | null }>
-  }
-  const { error } = await builder.upsert({ share_id: shareId, token }, { onConflict: 'share_id' })
+export async function attachPaymentTokenToShare(
+  shareId: string,
+  restaurantId: string,
+  token: string,
+): Promise<string | null> {
+  const error = await attachSharePaymentToken(shareId, restaurantId, token)
   if (error) {
-    console.warn(JSON.stringify({ event: 'payment.share_token.attach_failed', shareId, error: error.message }))
+    console.warn(JSON.stringify({ event: 'payment.share_token.attach_failed', shareId, error }))
   }
+  return error
 }
 
 /** Callback path for a SHARE token: token → payment_share_tokens → share →
@@ -132,21 +118,9 @@ export async function attachPaymentTokenToShare(shareId: string, token: string):
 export async function resolveCredentialsByShareToken(
   token: string,
 ): Promise<{ credentials: IyzicoCredentials | null; shareId: string | null; restaurantId: string | null }> {
-  const supabase = createServiceClient()
-  const { data: tokenRow } = await supabase
-    .from('payment_share_tokens')
-    .select('share_id')
-    .eq('token', token)
-    .maybeSingle()
-  const shareId = (tokenRow as { share_id: string } | null)?.share_id ?? null
+  const mapping = await readSharePaymentMapping(token)
+  const { shareId, restaurantId } = mapping
   if (!shareId) return { credentials: null, shareId: null, restaurantId: null }
-
-  const { data: shareRow } = await supabase
-    .from('payment_shares')
-    .select('restaurant_id')
-    .eq('id', shareId)
-    .maybeSingle()
-  const restaurantId = (shareRow as { restaurant_id: string } | null)?.restaurant_id ?? null
   if (!restaurantId) return { credentials: null, shareId, restaurantId: null }
 
   return { credentials: await resolveIyzicoCredentials(restaurantId), shareId, restaurantId }

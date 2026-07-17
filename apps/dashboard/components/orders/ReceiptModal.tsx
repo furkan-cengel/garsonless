@@ -1,6 +1,6 @@
 'use client'
 
-import { computeVatBreakdown, readOrderLineSnapshots, type PaymentMethod } from '@garsonless/db/order-client'
+import { computeVatBreakdown, readOrderLineSnapshots, type PaymentMethod } from '@garsonless/db/browser'
 import { I, S, btnPrimary, btnGhost } from '../../lib/ui'
 import { formatCurrency } from '../../lib/utils'
 import { paymentMethodBadge } from '../../lib/payment-method'

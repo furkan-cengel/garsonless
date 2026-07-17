@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ALLERGEN_LABELS } from '@garsonless/db/order-client'
+import { ALLERGEN_LABELS } from '@garsonless/db/browser'
 import type { MenuItem, ModifierGroup, SelectedModifier } from './types'
 import { formatTRY } from './formatCurrency'
 import { useTheme } from './ThemeContext'

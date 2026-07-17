@@ -9,7 +9,7 @@ export interface OrdersBoardTableRef {
 export interface OrdersBoardReadModel<TOrder> {
   orders: TOrder[]
   tables: OrdersBoardTableRef[]
-  kitchenToken: string | null
+  hasKitchenAccess: boolean
 }
 
 export interface OrdersBoardReadModelPort<TOrder> {

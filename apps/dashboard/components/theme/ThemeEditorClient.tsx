@@ -5,29 +5,45 @@ import { useRouter } from 'next/navigation'
 import { THEME_REGISTRY } from '@garsonless/ui'
 import type { SettingField, SettingsGroup } from '@garsonless/ui'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
-import { saveActiveTemplate, saveTheme } from '../../lib/actions/theme'
+import { publishTheme } from '../../lib/actions/theme'
 import { uploadLogo, removeLogo } from '../../lib/actions/restaurant'
-import { createDashboardBrowserClient } from '../../lib/supabase'
 import { useShell } from '../../lib/shell-context'
 import { I } from '../../lib/ui'
-
-type EditorTab = 'design' | 'layout' | 'content'
-type SectionFieldType = 'text' | 'textarea' | 'color' | 'range' | 'select' | 'url' | 'toggle' | 'product-select' | 'category-select' | 'heading'
-type PageBlock = { type: 'section' | 'category' | 'nav'; id: string }
-type PreviewStatus = 'preparing' | 'ready' | 'degraded'
-
-interface SectionSettingField {
-  key: string
-  label: string
-  type: SectionFieldType
-  editorTab: EditorTab
-  placeholder?: string
-  min?: number
-  max?: number
-  step?: number
-  unit?: string
-  options?: Array<{ value: string; label: string }>
-}
+import { ThemeEditorTopbar } from './ThemeEditorTopbar'
+import { ThemePropertiesFrame } from './ThemePropertiesFrame'
+import {
+  AnnouncementPropertyPanel,
+  CardPropertyPanel,
+  CartPropertyPanel,
+  HeaderPropertyPanel,
+  LayoutPropertyPanel,
+  NavPropertyPanel,
+  PropertyFieldEditor,
+  PropertySection,
+  ThemePropertyPanel,
+} from './ThemePropertyPanels'
+import { ThemePreviewSurface } from './ThemePreviewSurface'
+import { GalleryUploadPanel, SectionSettingsEditor } from './ThemeSectionSettings'
+import { useThemePreviewBridge } from './use-theme-preview-bridge'
+import {
+  EDITOR_TABS,
+  getAvailableEditorTabs,
+  getAvailableSectionTabs,
+  getVisibleThemeFields,
+  resolveEffectiveEditorTab,
+  type EditorTab,
+  type SectionSettingField,
+} from './theme-editor-properties-model'
+import {
+  addSectionToPageFlow,
+  buildPageBlocks,
+  getCategoryParentId,
+  getKeyboardMoveTarget,
+  normalizePageBlocksForCategoryScope,
+  pageBlockKey,
+  removeSectionFromPageFlow,
+  reorderPageBlocks,
+} from './theme-page-flow-model'
 
 interface Props {
   restaurantId: string
@@ -41,14 +57,8 @@ interface Props {
 }
 
 const SYSTEM_FONTS = new Set(['Georgia', 'Times New Roman', 'Arial', 'Helvetica', 'Verdana', 'Bodoni 72'])
-const EDITOR_TABS: Array<{ id: EditorTab; label: string }> = [
-  { id: 'design', label: 'Tasarım' },
-  { id: 'layout', label: 'Düzen' },
-  { id: 'content', label: 'İçerik' },
-]
 const THEME_GROUP_ID = 'theme'
 const THEME_GROUP_SOURCE_IDS = new Set(['colors', 'typography'])
-const PREVIEW_FALLBACK_MS = 5_000
 const EDITOR_INTERACTION_CSS = `
   [data-theme-editor-root] button:not(:disabled) {
     transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease, background-color 140ms ease, border-color 140ms ease !important;
@@ -107,6 +117,7 @@ const SECTION_LIBRARY = [
   { id: 'social-block', group: 'Site Sonu', label: 'Sosyal Medya', sub: 'Instagram, WhatsApp ve TikTok', icon: <I.arrow size={17} />, plan: 'free' },
   { id: 'footer', group: 'Site Sonu', label: 'Footer', sub: 'Adres, iletişim ve marka sonu', icon: <I.chevDown size={17} />, plan: 'free' },
 ] as const
+const SECTION_LIBRARY_IDS = SECTION_LIBRARY.map((section) => section.id)
 const SECTION_PLAN_META = {
   free: { label: 'FREE', bg: '#e6f7ef', fg: '#177a4b' },
   pro: { label: 'PRO', bg: '#fff2d9', fg: '#b66400' },
@@ -495,58 +506,6 @@ function fontCssValue(fontName: string, isDisplay = false) {
   return isDisplay ? `"${fontName}", cursive` : `"${fontName}", sans-serif`
 }
 
-function getFieldEditorTab(field: SettingField, groupId = ''): EditorTab {
-  if (field.editorTab) return field.editorTab
-  if (
-    groupId === 'layout' ||
-    field.id.includes('Layout') ||
-    field.id.includes('layout') ||
-    field.id.includes('Align') ||
-    field.id.includes('align') ||
-    field.id.includes('sticky') ||
-    field.id.includes('Height') ||
-    field.id.includes('cols') ||
-    field.id.includes('gap') ||
-    field.id.includes('pad') ||
-    field.id.includes('sectionGap') ||
-    field.themeField === 'headerPadY' ||
-    field.themeField === 'headerBottomGap' ||
-    field.themeField === 'headerBorder' ||
-    field.themeField === 'cardLayout' ||
-    field.themeField === 'cardImageAspect' ||
-    field.themeField === 'catnavStyle' ||
-    field.themeField === 'catnavVisualStyle' ||
-    field.themeField === 'cartStyle'
-  ) {
-    return 'layout'
-  }
-  if (
-    groupId === 'content' ||
-    field.type === 'text' ||
-    field.id.includes('Text') ||
-    field.id.includes('Tagline') ||
-    field.id.includes('Description') ||
-    field.id.includes('Show') ||
-    field.themeField === 'headerTagline' ||
-    field.themeField === 'pageDescription' ||
-    field.themeField === 'cartButtonText' ||
-    field.themeField === 'cartEmptyText' ||
-    field.themeField === 'announcementText' ||
-    field.themeField === 'announcementEnabled' ||
-    field.themeField === 'cardShowDesc' ||
-    field.themeField === 'cardShowTag' ||
-    field.themeField === 'cartShowBadge' ||
-    field.themeField === 'headerShowSearch' ||
-    field.themeField === 'headerShowLang' ||
-    field.themeField === 'headerShowMenu' ||
-    field.themeField === 'headerTableBadge' ||
-    field.themeField === 'headerShowBill'
-  ) {
-    return 'content'
-  }
-  return 'design'
-}
-
 function fieldToCSSValue(field: SettingField, value: unknown): string {
   const v = value as string | number | boolean
   if (field.type === 'color') return v as string
@@ -556,192 +515,6 @@ function fieldToCSSValue(field: SettingField, value: unknown): string {
     return fontCssValue(v as string, isDisplay)
   }
   return String(v)
-}
-
-function pageBlockKey(block: PageBlock) {
-  return `${block.type}:${block.id}`
-}
-
-function buildPageBlocks(theme: Partial<GarsonlessTheme>, menuCategories: Array<{ id: string; name: string; parentId?: string | null }>): PageBlock[] {
-  const categoryIds = new Set(menuCategories.map((category) => category.id))
-  const sectionIds = new Set<string>(SECTION_LIBRARY.map((section) => section.id))
-  const stored = (theme.pageBlocks ?? []).filter((block) =>
-    block.type === 'category'
-      ? categoryIds.has(block.id)
-      : block.type === 'nav'
-        ? block.id === 'category-nav'
-        : sectionIds.has(block.id),
-  )
-  const legacySections = (theme.sections ?? []).filter((id) => sectionIds.has(id))
-  const base = stored.length > 0
-    ? stored
-    : [
-        { type: 'nav' as const, id: 'category-nav' },
-        ...legacySections.map((id) => ({ type: 'section' as const, id })),
-        ...menuCategories.map((category) => ({ type: 'category' as const, id: category.id })),
-      ]
-  const seen = new Set<string>()
-  const unique = base.filter((block) => {
-    const key = pageBlockKey(block)
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-
-  if (!seen.has('nav:category-nav')) {
-    unique.unshift({ type: 'nav', id: 'category-nav' })
-    seen.add('nav:category-nav')
-  }
-
-  for (const category of menuCategories) {
-    const key = `category:${category.id}`
-    if (!seen.has(key)) {
-      unique.push({ type: 'category', id: category.id })
-      seen.add(key)
-    }
-  }
-
-  return unique
-}
-
-function getCategoryParentId(menuCategories: Array<{ id: string; parentId?: string | null }>, categoryId: string) {
-  return menuCategories.find((category) => category.id === categoryId)?.parentId ?? null
-}
-
-function normalizePageBlocksForCategoryScope(
-  blocks: PageBlock[],
-  menuCategories: Array<{ id: string; name: string; parentId?: string | null }>,
-) {
-  const childIds = new Set(menuCategories.filter((category) => category.parentId).map((category) => category.id))
-  const childrenByParent = new Map<string, PageBlock[]>()
-  const childBlockById = new Map(blocks.filter((block) => block.type === 'category' && childIds.has(block.id)).map((block) => [block.id, block]))
-
-  for (const block of blocks) {
-    if (block.type !== 'category' || !childIds.has(block.id)) continue
-    const parentId = getCategoryParentId(menuCategories, block.id)
-    if (!parentId) continue
-    const bucket = childrenByParent.get(parentId) ?? []
-    bucket.push(block)
-    childrenByParent.set(parentId, bucket)
-  }
-
-  const next: PageBlock[] = []
-  const appended = new Set<string>()
-  for (const block of blocks) {
-    if (block.type === 'category' && childIds.has(block.id)) continue
-    next.push(block)
-    if (block.type === 'category') {
-      for (const child of childrenByParent.get(block.id) ?? []) {
-        next.push(child)
-        appended.add(child.id)
-      }
-    }
-  }
-
-  for (const [id, child] of childBlockById.entries()) {
-    if (!appended.has(id)) next.push(child)
-  }
-  return next
-}
-
-const GALLERY_TILES: Array<{ key: string; label: string; span: 1 | 2 }> = [
-  { key: 'tile1Image', label: '1', span: 2 },
-  { key: 'tile2Image', label: '2', span: 1 },
-  { key: 'tile3Image', label: '3', span: 1 },
-  { key: 'tile4Image', label: '4', span: 1 },
-  { key: 'tile5Image', label: '5', span: 1 },
-  { key: 'tile6Image', label: '6', span: 1 },
-]
-
-function GalleryUploadPanel({
-  restaurantId,
-  values,
-  onChange,
-}: {
-  restaurantId: string
-  values: Record<string, string>
-  onChange: (key: string, value: string) => void
-}) {
-  const [uploading, setUploading] = useState<string | null>(null)
-  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
-
-  async function handleTileUpload(tileKey: string, e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
-    setUploading(tileKey)
-    const supabase = createDashboardBrowserClient()
-    const ext = file.name.split('.').pop() ?? 'jpg'
-    const path = `restaurants/${restaurantId}/gallery/${tileKey}-${Date.now()}.${ext}`
-    const { error } = await supabase.storage
-      .from('restaurant-assets')
-      .upload(path, file, { upsert: true })
-    if (!error) {
-      const { data } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
-      onChange(tileKey, data.publicUrl)
-    }
-    setUploading(null)
-  }
-
-  return (
-    <div style={{ marginBottom: 4 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gridAutoRows: 64, gap: 6, marginBottom: 8 }}>
-        {GALLERY_TILES.map((tile) => {
-          const imgUrl = values[tile.key] ?? ''
-          const isLoading = uploading === tile.key
-          return (
-            <div
-              key={tile.key}
-              style={{
-                gridColumn: tile.span === 2 ? 'span 2' : 'auto',
-                borderRadius: 8,
-                overflow: 'hidden',
-                position: 'relative',
-                background: imgUrl ? 'transparent' : 'var(--surface-3)',
-                border: `1.5px dashed ${imgUrl ? 'transparent' : 'var(--border)'}`,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              onClick={() => !isLoading && fileRefs.current[tile.key]?.click()}
-            >
-              <input
-                ref={(el) => { fileRefs.current[tile.key] = el }}
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={(e) => handleTileUpload(tile.key, e)}
-              />
-              {imgUrl ? (
-                <>
-                  <img src={imgUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onChange(tile.key, '') }}
-                    style={{
-                      position: 'absolute', top: 3, right: 3,
-                      width: 18, height: 18, borderRadius: 99,
-                      background: 'rgba(0,0,0,.55)', color: '#fff',
-                      border: 'none', cursor: 'pointer', fontSize: 9, fontWeight: 900,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
-                    }}
-                  >✕</button>
-                </>
-              ) : isLoading ? (
-                <span style={{ fontSize: 10, color: 'var(--text-3)' }}>…</span>
-              ) : (
-                <span style={{ fontSize: 18, color: 'var(--text-3)', lineHeight: 1 }}>+</span>
-              )}
-            </div>
-          )
-        })}
-      </div>
-      <p style={{ margin: 0, fontSize: 11, color: 'var(--text-3)', lineHeight: 1.4 }}>
-        Her kareye tıklayarak fotoğraf yükle · JPG, PNG, WEBP
-      </p>
-    </div>
-  )
 }
 
 export default function ThemeEditorClient({
@@ -755,8 +528,6 @@ export default function ThemeEditorClient({
   menuItems,
 }: Props) {
   const router = useRouter()
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-
   const entry = THEME_REGISTRY[templateId] ?? THEME_REGISTRY['default']!
   const schema: SettingsGroup[] = entry.SETTINGS_SCHEMA
 
@@ -785,7 +556,6 @@ export default function ThemeEditorClient({
   )
   const [activeEditorTab, setActiveEditorTab] = useState<EditorTab>('design')
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
-  const [activatingTemplateId, setActivatingTemplateId] = useState<string | null>(null)
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false)
   const [sectionSearch, setSectionSearch] = useState('')
   const [editorSearch, setEditorSearch] = useState('')
@@ -802,12 +572,8 @@ export default function ThemeEditorClient({
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [localLogoUrl, setLocalLogoUrl] = useState<string | null>(restaurantLogoUrl)
   const [logoUploading, setLogoUploading] = useState(false)
-  const [previewStatus, setPreviewStatus] = useState<PreviewStatus>('preparing')
   const revisionRef = useRef(0)
   const savedThemeRef = useRef<GarsonlessTheme>(initialTheme)
-  const previewRequestRef = useRef(0)
-  const pendingPreviewRequestRef = useRef<string | null>(null)
-  const previewFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const templateTriggerRef = useRef<HTMLButtonElement>(null)
   const sectionTriggerRef = useRef<HTMLButtonElement>(null)
   const templateCloseRef = useRef<HTMLButtonElement>(null)
@@ -819,7 +585,7 @@ export default function ThemeEditorClient({
     [entry.THEME_DEFAULTS, overrides],
   )
   const pageBlocks = useMemo(
-    () => normalizePageBlocksForCategoryScope(buildPageBlocks(mergedTheme, menuCategories), menuCategories),
+    () => normalizePageBlocksForCategoryScope(buildPageBlocks(mergedTheme, menuCategories, SECTION_LIBRARY_IDS), menuCategories),
     [mergedTheme, menuCategories],
   )
   const previewTheme = useMemo(
@@ -855,32 +621,6 @@ export default function ThemeEditorClient({
   function flashToast(message: string) {
     setToast(message)
     setTimeout(() => setToast(''), 2500)
-  }
-
-  const clearPreviewFallback = useCallback(() => {
-    if (previewFallbackTimerRef.current) {
-      clearTimeout(previewFallbackTimerRef.current)
-      previewFallbackTimerRef.current = null
-    }
-  }, [])
-
-  const armPreviewFallback = useCallback(() => {
-    clearPreviewFallback()
-    previewFallbackTimerRef.current = setTimeout(() => {
-      previewFallbackTimerRef.current = null
-      pendingPreviewRequestRef.current = null
-      setPreviewStatus((current) => current === 'preparing' ? 'degraded' : current)
-    }, PREVIEW_FALLBACK_MS)
-  }, [clearPreviewFallback])
-
-  function reloadPreviewFrame() {
-    const iframe = iframeRef.current
-    if (!iframe) return
-    setPreviewStatus('preparing')
-    pendingPreviewRequestRef.current = null
-    armPreviewFallback()
-    const currentSrc = iframe.src
-    iframe.src = currentSrc
   }
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -957,69 +697,23 @@ export default function ThemeEditorClient({
   }, [hasUnsavedChanges, setNavigationGuard])
 
   async function handleTemplateSelect(nextTemplateId: string) {
-    if (activatingTemplateId) return
     if (nextTemplateId === templateId) {
       closeTemplatePicker()
       return
     }
 
-    setActivatingTemplateId(nextTemplateId)
-    const result = await saveActiveTemplate(restaurantId, nextTemplateId)
-    setActivatingTemplateId(null)
-
-    if ('error' in result) {
-      flashToast(`Hata: ${result.error}`)
-      return
-    }
-
     closeTemplatePicker()
     router.push(`/dashboard/${restaurantId}/theme/${nextTemplateId}/edit`)
-    router.refresh()
   }
 
   const menuBaseUrl = process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'
   const previewUrl = `${menuBaseUrl.replace(/\/$/, '')}/${encodeURIComponent(restaurantSlug)}?preview=1&template=${encodeURIComponent(templateId)}`
-  const previewOrigin = getMessageTargetOrigin(previewUrl)
-
-  const postPreviewMessage = useCallback((message: Record<string, unknown>) => {
-    iframeRef.current?.contentWindow?.postMessage(message, previewOrigin)
-  }, [previewOrigin])
-
-  const sendFullTheme = useCallback((requestId?: string) => {
-    postPreviewMessage({ type: 'FULL_THEME_UPDATE', theme: previewTheme, requestId })
-  }, [postPreviewMessage, previewTheme])
-
-  useEffect(() => {
-    setPreviewStatus('preparing')
-    pendingPreviewRequestRef.current = null
-    armPreviewFallback()
-    return clearPreviewFallback
-  }, [armPreviewFallback, clearPreviewFallback, previewUrl])
-
-  useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      if (e.source !== iframeRef.current?.contentWindow) return
-      if (previewOrigin !== '*' && e.origin !== previewOrigin) return
-      const data = e.data as { type?: string; requestId?: string }
-      if (data.type === 'PREVIEW_READY') {
-        const requestId = `theme-preview-${++previewRequestRef.current}`
-        pendingPreviewRequestRef.current = requestId
-        setPreviewStatus('preparing')
-        armPreviewFallback()
-        sendFullTheme(requestId)
-      }
-      if (
-        data.type === 'THEME_APPLIED' &&
-        data.requestId === pendingPreviewRequestRef.current
-      ) {
-        pendingPreviewRequestRef.current = null
-        clearPreviewFallback()
-        setPreviewStatus('ready')
-      }
-    }
-    window.addEventListener('message', handler)
-    return () => window.removeEventListener('message', handler)
-  }, [armPreviewFallback, clearPreviewFallback, previewOrigin, sendFullTheme])
+  const {
+    iframeRef,
+    status: previewStatus,
+    postMessage: postPreviewMessage,
+    reload: reloadPreviewFrame,
+  } = useThemePreviewBridge({ previewUrl, theme: previewTheme })
 
   useEffect(() => {
     if (!templatePickerOpen && !sectionPickerOpen) return
@@ -1043,7 +737,7 @@ export default function ThemeEditorClient({
   const applyOverridesSnapshot = useCallback((snapshot: Partial<GarsonlessTheme>) => {
     setOverrides(snapshot)
     const nextMerged = { ...entry.THEME_DEFAULTS, ...snapshot } as GarsonlessTheme
-    const nextPageBlocks = normalizePageBlocksForCategoryScope(buildPageBlocks(nextMerged, menuCategories), menuCategories)
+    const nextPageBlocks = normalizePageBlocksForCategoryScope(buildPageBlocks(nextMerged, menuCategories, SECTION_LIBRARY_IDS), menuCategories)
     const nextTheme = {
       ...nextMerged,
       pageBlocks: nextPageBlocks,
@@ -1104,9 +798,7 @@ export default function ThemeEditorClient({
       return
     }
     const nextSections = [...activeSections, sectionId]
-    const nextBlocks = [...pageBlocks]
-    const navIndex = nextBlocks.findIndex((block) => block.type === 'nav')
-    nextBlocks.splice(navIndex >= 0 ? navIndex + 1 : 0, 0, { type: 'section', id: sectionId })
+    const nextBlocks = addSectionToPageFlow(pageBlocks, sectionId)
     updateThemePatch({
       sections: nextSections,
       pageBlocks: nextBlocks,
@@ -1121,7 +813,7 @@ export default function ThemeEditorClient({
     delete nextSettings[sectionId]
     updateThemePatch({
       sections: activeSections.filter((id) => id !== sectionId),
-      pageBlocks: pageBlocks.filter((block) => !(block.type === 'section' && block.id === sectionId)),
+      pageBlocks: removeSectionFromPageFlow(pageBlocks, sectionId),
       sectionSettings: nextSettings,
     })
     if (selectedSectionId === sectionId) setSelectedSectionId(null)
@@ -1162,55 +854,17 @@ export default function ThemeEditorClient({
 
   function reorderPageBlock(sourceKey: string, targetKey: string) {
     if (sourceKey === targetKey) return
-    const fromIndex = pageBlocks.findIndex((block) => pageBlockKey(block) === sourceKey)
-    const toIndex = pageBlocks.findIndex((block) => pageBlockKey(block) === targetKey)
-    if (fromIndex < 0 || toIndex < 0) return
-    const movedBlock = pageBlocks[fromIndex]
-    const targetBlock = pageBlocks[toIndex]
-    if (!movedBlock || !targetBlock) return
-
-    const movedParentId = movedBlock.type === 'category' ? getCategoryParentId(menuCategories, movedBlock.id) : null
-    const targetParentId = targetBlock.type === 'category' ? getCategoryParentId(menuCategories, targetBlock.id) : null
-
-    if (movedBlock.type === 'category' && movedParentId) {
-      if (targetBlock.type !== 'category' || targetParentId !== movedParentId) {
+    const result = reorderPageBlocks(pageBlocks, menuCategories, sourceKey, targetKey)
+    if (!result.ok) {
+      if (result.reason === 'child-scope') {
         flashToast('Alt kategoriler yalnızca kendi üst kategorisi altında sıralanabilir')
-        setDragBlockKey(null)
-        return
+      } else if (result.reason === 'nested-target') {
+        flashToast('Bu alan alt kategori kapsamı; üst öğeleri buraya taşıyamazsınız')
       }
-    }
-
-    if (targetBlock.type === 'category' && targetParentId && !(movedBlock.type === 'category' && movedParentId === targetParentId)) {
-      flashToast('Bu alan alt kategori kapsamı; üst öğeleri buraya taşıyamazsınız')
       setDragBlockKey(null)
       return
     }
-
-    if (movedBlock.type === 'category' && !movedParentId) {
-      const childIds = new Set(menuCategories.filter((category) => category.parentId === movedBlock.id).map((category) => category.id))
-      const movingKeys = new Set([pageBlockKey(movedBlock), ...Array.from(childIds).map((id) => `category:${id}`)])
-      const movingGroup = pageBlocks.filter((block) => movingKeys.has(pageBlockKey(block)))
-      if (movingGroup.length > 1) {
-        const withoutGroup = pageBlocks.filter((block) => !movingKeys.has(pageBlockKey(block)))
-        const targetTopKey = targetBlock.type === 'category' && targetParentId ? `category:${targetParentId}` : pageBlockKey(targetBlock)
-        const nextIndex = withoutGroup.findIndex((block) => pageBlockKey(block) === targetTopKey)
-        if (nextIndex < 0) return
-        const insertIndex = nextIndex + (fromIndex < toIndex ? 1 : 0)
-        withoutGroup.splice(insertIndex, 0, ...movingGroup)
-        updateThemePatch({
-          pageBlocks: withoutGroup,
-          sections: withoutGroup.filter((block) => block.type === 'section').map((block) => block.id),
-        })
-        setDragBlockKey(null)
-        flashToast(`${movingGroup[0]?.type === 'category' ? menuCategories.find((item) => item.id === movingGroup[0]?.id)?.name ?? 'Kategori' : 'Bölüm'} taşındı`)
-        return
-      }
-    }
-
-    const nextBlocks = [...pageBlocks]
-    const [moved] = nextBlocks.splice(fromIndex, 1)
-    if (!moved) return
-    nextBlocks.splice(toIndex, 0, moved)
+    const { blocks: nextBlocks, moved } = result
     updateThemePatch({
       pageBlocks: nextBlocks,
       sections: nextBlocks.filter((block) => block.type === 'section').map((block) => block.id),
@@ -1231,27 +885,15 @@ export default function ThemeEditorClient({
 
   function handlePageBlockKeyboardMove(sourceKey: string, direction: -1 | 1) {
     if (editorQuery) return
-    const source = pageBlocks.find((block) => pageBlockKey(block) === sourceKey)
-    if (!source) return
-    const sourceParentId = source.type === 'category' ? getCategoryParentId(menuCategories, source.id) : null
-    const scope = sourceParentId
-      ? pageBlocks.filter((block) => block.type === 'category' && getCategoryParentId(menuCategories, block.id) === sourceParentId)
-      : pageBlocks.filter((block) => block.type !== 'category' || !getCategoryParentId(menuCategories, block.id))
-    const currentIndex = scope.findIndex((block) => pageBlockKey(block) === sourceKey)
-    const targetBlock = scope[currentIndex + direction]
-    if (currentIndex < 0 || !targetBlock) return
-    reorderPageBlock(sourceKey, pageBlockKey(targetBlock))
+    const targetKey = getKeyboardMoveTarget(pageBlocks, menuCategories, sourceKey, direction)
+    if (!targetKey) return
+    reorderPageBlock(sourceKey, targetKey)
   }
 
   async function handleSave() {
     const savingRevision = revisionRef.current
     setSaving(true)
-    const result = await saveTheme(restaurantId, previewTheme, templateId)
-    if (!('error' in result)) {
-      // Publishing makes this template live — keep active_template_id in sync
-      // so the menu app and the editor agree on which tokens are current.
-      await saveActiveTemplate(restaurantId, templateId)
-    }
+    const result = await publishTheme(restaurantId, previewTheme, templateId)
     setSaving(false)
     if ('error' in result) {
       setToast(`Hata: ${result.error}`)
@@ -1297,41 +939,8 @@ export default function ThemeEditorClient({
   const activeAvailableTabs = getAvailableEditorTabs(activeFields, activeGroupData?.id)
   const sectionAvailableTabs = getAvailableSectionTabs(selectedSectionFields)
   const visibleEditorTabs = selectedSection ? sectionAvailableTabs : activeAvailableTabs
-  const effectiveEditorTab = visibleEditorTabs.some((tab) => tab.id === activeEditorTab)
-    ? activeEditorTab
-    : visibleEditorTabs[0]?.id ?? 'design'
-  const visibleFields = activeFields.filter((field) => {
-    const fieldKey = String(field.themeField)
-    if (fieldKey.startsWith('catnavVisual') && mergedTheme.catnavStyle !== 'visual') return false
-    if (fieldKey.startsWith('catnavOverlay') && (mergedTheme.catnavStyle !== 'visual' || mergedTheme.catnavVisualStyle !== 'overlay')) return false
-    if (activeGroupData?.id === 'nav' && mergedTheme.catnavStyle === 'visual' && [
-      'stickyNav', 'catnavAlign', 'catnavDensity', 'catnavItemGap', 'catnavFontSize',
-      'catnavActiveStyle', 'catnavAutoCenter', 'catnavEdgeFade',
-    ].includes(fieldKey)) return false
-    if (fieldKey === 'headerNameSize' && mergedTheme.headerLogoStyle === 'image') return false
-    if ((fieldKey === 'headerLogoSize' || fieldKey === 'logoShape' || fieldKey === 'logoShadow' || fieldKey === 'logoBorder' || fieldKey === 'logoBg') && mergedTheme.headerLogoStyle !== 'image') return false
-    if (activeGroupData?.id === 'cards') {
-      const layout = mergedTheme.cardLayout
-      const showImage = mergedTheme.cardShowImage ?? true
-      if (fieldKey === 'cardImageAspect' && (layout !== 'vertical' || !showImage)) return false
-      if ((fieldKey === 'cardImageFit' || fieldKey === 'cardImagePosition') && (layout === 'minimal' || !showImage)) return false
-      if (fieldKey === 'cardHorizontalImageWidth' && (layout !== 'horizontal' || !showImage)) return false
-      if (field.id === 'cardColumns' && layout !== 'vertical') return false
-      if ((fieldKey === 'cardCtaStyle' || fieldKey === 'cardCtaIcon') && layout === 'minimal') return false
-      if (fieldKey === 'cardCtaIcon' && mergedTheme.cardCtaStyle !== 'icon') return false
-      if (fieldKey === 'cardDescriptionLines' && !mergedTheme.cardShowDesc) return false
-    }
-    if (activeGroupData?.id === 'cart') {
-      const footer = mergedTheme.cartFooterTriggerStyle ?? 'pill'
-      if ((fieldKey === 'cartPillTone' || fieldKey === 'cartPillPosition') && footer !== 'pill') return false
-      if (fieldKey === 'cartShowBadge' && mergedTheme.cartHeaderTriggerStyle === 'none' && footer === 'none') return false
-    }
-    if (activeGroupData?.id === 'announcement') {
-      if (!mergedTheme.announcementEnabled && fieldKey !== 'announcementEnabled') return false
-      if (fieldKey === 'announcementSpeed' && mergedTheme.announcementStyle === 'static') return false
-    }
-    return getFieldEditorTab(field, activeGroupData?.id) === effectiveEditorTab
-  })
+  const effectiveEditorTab = resolveEffectiveEditorTab(visibleEditorTabs, activeEditorTab)
+  const visibleFields = getVisibleThemeFields(activeFields, activeGroupData?.id, mergedTheme, effectiveEditorTab)
   const visibleSectionFields = selectedSectionFields.filter((field) => field.editorTab === effectiveEditorTab)
   const filteredSections = SECTION_LIBRARY.filter((section) => {
     const matchesGroup = sectionGroup === 'Tümü' || section.group === sectionGroup
@@ -1445,129 +1054,23 @@ export default function ThemeEditorClient({
       background: 'var(--surface-inset)',
     }}>
       <style>{EDITOR_INTERACTION_CSS}</style>
-      <div style={{
-        minHeight: 52,
-        flexShrink: 0,
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '8px 16px',
-        padding: '8px 16px',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--surface)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: showFullTopbarCopy ? 12 : 8, minWidth: 0, flex: '1 1 260px' }}>
-          {/* Narrow topbar → compact m mark; wide → full wordmark (both real assets, light surface). */}
-          {showFullTopbarCopy
-            ? <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 18, width: 'auto', display: 'block', flexShrink: 0 }} />
-            : <img src="/brand/masabu-m-favicon-transparent.svg" alt="Masabu" style={{ width: 26, height: 26, display: 'block', flexShrink: 0 }} />}
-          {showFullTopbarCopy && <span style={{ color: 'var(--text-4)' }}>/</span>}
-          <span style={{ color: 'var(--text-2)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {restaurantName}
-          </span>
-          {showFullTopbarCopy && <span style={{ color: 'var(--text-4)' }}>/</span>}
-          <span style={{ fontWeight: 650, fontSize: 13, color: 'var(--text)' }}>Tema Düzenleyici</span>
-        </div>
-
-        <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          background: 'var(--surface-3)',
-          borderRadius: 9,
-          padding: 3,
-          gap: 2,
-          flex: '0 0 auto',
-        }}>
-          <SegmentButton
-            active={previewMode === 'mobile'}
-            icon={<PhoneIcon />}
-            label="Mobil"
-            onClick={() => setPreviewMode('mobile')}
-          />
-          <SegmentButton
-            active={previewMode === 'desktop'}
-            icon={<DesktopIcon />}
-            label="Masaüstü"
-            onClick={() => setPreviewMode('desktop')}
-          />
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap', flex: '1 1 320px' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--text-3)', fontSize: 12.5, whiteSpace: 'nowrap' }}>
-            <span style={{ width: 6, height: 6, borderRadius: 999, background: saveStatusColor }} />
-            {saveStatusText}
-          </span>
-          {hasUnsavedChanges && (
-            <span
-              title={unsavedFieldLabels.length > 0 ? unsavedFieldLabels.join(', ') : 'Tema yapısı değişti'}
-              style={{
-                height: 24,
-                padding: '0 8px',
-                border: '1px solid var(--border)',
-                borderRadius: 999,
-                background: '#fff7ed',
-                color: '#9a4d00',
-                display: 'inline-flex',
-                alignItems: 'center',
-                fontSize: 11.5,
-                fontWeight: 650,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {unsavedFieldLabels.length || 1} değişiklik
-            </span>
-          )}
-          <div style={{
-            height: 34,
-            display: 'inline-flex',
-            alignItems: 'center',
-            borderRight: '1px solid var(--border)',
-            paddingRight: 10,
-            gap: 2,
-          }}>
-            <IconButton
-              title="Geri al"
-              disabled={!canUndo}
-              onClick={handleUndo}
-            >
-              <UndoIcon />
-            </IconButton>
-            <IconButton
-              title="Yinele"
-              disabled={!canRedo}
-              onClick={handleRedo}
-            >
-              <RedoIcon />
-            </IconButton>
-            <IconButton
-              title="Son değişikliği geri al"
-              disabled={!canUndo}
-              onClick={handleUndo}
-            >
-              <HistoryIcon />
-            </IconButton>
-          </div>
-          <button type="button" onClick={handleOpenPreview} style={topbarButtonStyle}>
-            <EyeIcon />
-            {showFullTopbarCopy && 'Önizle'}
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            style={{
-              height: 34, padding: '0 18px', borderRadius: 8,
-              border: 'none', background: 'var(--text)',
-              color: '#fff', fontSize: 13, fontWeight: 700,
-              cursor: saving ? 'wait' : 'pointer',
-              opacity: saving ? 0.65 : 1,
-            }}
-          >
-            {saving ? 'Kaydediliyor...' : 'Yayınla'}
-          </button>
-        </div>
-      </div>
+      <ThemeEditorTopbar
+        restaurantName={restaurantName}
+        previewMode={previewMode}
+        showFullCopy={showFullTopbarCopy}
+        saveStatusText={saveStatusText}
+        saveStatusColor={saveStatusColor}
+        unsavedFieldLabels={unsavedFieldLabels}
+        hasUnsavedChanges={hasUnsavedChanges}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        saving={saving}
+        onPreviewModeChange={setPreviewMode}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onOpenPreview={handleOpenPreview}
+        onSave={handleSave}
+      />
 
       <div style={{
         flex: 1,
@@ -1929,88 +1432,36 @@ export default function ThemeEditorClient({
               mode={previewMode}
               scale={previewScale}
             >
-              <>
-                <iframe
-                  ref={iframeRef}
-                  src={previewUrl}
-                  style={{
-                    width: '100%', height: '100%', border: 'none',
-                    opacity: previewStatus === 'preparing' ? 0 : 1,
-                  }}
-                  data-preview-state={previewStatus}
-                  title="Menu Preview"
-                />
-                {previewStatus === 'preparing' && (
-                  <div
-                    aria-label="Önizleme hazırlanıyor"
-                    style={{
-                      position: 'absolute', inset: 0, zIndex: 2,
-                      display: 'grid', placeItems: 'center',
-                      background: previewTheme.bg,
-                      color: previewTheme.accent,
-                    }}
-                  >
-                    <div style={{
-                      width: 22, height: 22, borderRadius: 999,
-                      border: '2px solid currentColor',
-                      borderRightColor: 'transparent',
-                      animation: 'spin 700ms linear infinite',
-                    }} />
-                  </div>
-                )}
-              </>
+              <ThemePreviewSurface
+                iframeRef={iframeRef}
+                previewUrl={previewUrl}
+                status={previewStatus}
+                theme={previewTheme}
+              />
             </PhoneFrame>
           </div>
         </div>
 
-        <div style={{
-          width: rightPanelWidth, flexShrink: 0,
-          borderLeft: '1px solid var(--border)',
-          background: 'var(--surface)',
-          display: 'flex', flexDirection: 'column',
-          overflow: 'hidden',
-        }}>
-          <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--divider)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>
-                  {selectedSection?.label ?? activeGroupData?.label ?? 'Sayfa'}
-                </div>
-                <div style={{ marginTop: 2, fontSize: 12, color: 'var(--text-3)' }}>
-                  {selectedSection?.sub ?? getGroupHint(activeGroupData?.id)}
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 4, color: 'var(--text-3)' }}>
+        <ThemePropertiesFrame
+          width={rightPanelWidth}
+          title={selectedSection?.label ?? activeGroupData?.label ?? 'Sayfa'}
+          subtitle={selectedSection?.sub ?? getGroupHint(activeGroupData?.id)}
+          tabs={visibleEditorTabs}
+          activeTab={effectiveEditorTab}
+          onTabChange={handleEditorTabChange}
+          propertyCount={selectedSection ? visibleSectionFields.length : visibleFields.length}
+          onReset={handleResetCurrentSettings}
+          headerActions={
+            <>
                 <IconShell title="Ayarları kopyala" onClick={handleCopyCurrentSettings}>
                   <CopyIcon />
                 </IconShell>
                 <IconShell title="Varsayılana sıfırla" onClick={handleResetCurrentSettings}>
                   <HistoryIcon />
                 </IconShell>
-              </div>
-            </div>
-          </div>
-
-          {visibleEditorTabs.length > 0 && (
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--divider)', padding: '0 12px' }}>
-            {visibleEditorTabs.map((tab) => (
-              <button key={tab.id} type="button" onClick={() => handleEditorTabChange(tab.id)} style={{
-                padding: '11px 10px 10px',
-                border: 'none',
-                borderBottom: `2px solid ${effectiveEditorTab === tab.id ? 'var(--text)' : 'transparent'}`,
-                background: 'transparent',
-                color: effectiveEditorTab === tab.id ? 'var(--text)' : 'var(--text-2)',
-                fontSize: 12.5,
-                fontWeight: 650,
-                cursor: 'pointer',
-              }}>
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          )}
-
-          <div data-theme-properties style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+            </>
+          }
+        >
             {selectedSection && selectedSectionId ? (
               <>
                 <PropertySection title="Bölüm İçeriği" defaultOpen>
@@ -2168,33 +1619,7 @@ export default function ThemeEditorClient({
                 )}
               </>
             )}
-          </div>
-
-          <div style={{
-            minHeight: 44,
-            borderTop: '1px solid var(--divider)',
-            background: 'var(--surface-2)',
-            padding: '10px 14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <button type="button" style={{
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--text-2)',
-              textDecoration: 'underline',
-              textUnderlineOffset: 2,
-              fontSize: 12,
-              cursor: 'pointer',
-            }} onClick={handleResetCurrentSettings}>
-              Varsayılana sıfırla
-            </button>
-            <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
-              {selectedSection ? visibleSectionFields.length : visibleFields.length} özellik
-            </span>
-          </div>
-        </div>
+        </ThemePropertiesFrame>
       </div>
 
       {templatePickerOpen && (
@@ -2311,21 +1736,19 @@ export default function ThemeEditorClient({
                 {templateEntries.map((templateEntry) => {
                   const isCurrent = templateEntry.id === templateId
                   const templateTheme = isCurrent ? previewTheme : templateEntry.THEME_DEFAULTS
-                  const isActivating = activatingTemplateId === templateEntry.id
                   const copy = getTemplateCardCopy(templateEntry.id, templateEntry.name)
                   return (
                     <button
                       key={templateEntry.id}
                       type="button"
                       onClick={() => handleTemplateSelect(templateEntry.id)}
-                      disabled={!!activatingTemplateId}
                       style={{
                         textAlign: 'left',
                         border: `1.5px solid ${isCurrent ? 'var(--accent)' : 'var(--border)'}`,
                         borderRadius: 14,
                         background: 'var(--surface)',
                         overflow: 'hidden',
-                        cursor: activatingTemplateId ? 'wait' : 'pointer',
+                        cursor: 'pointer',
                         padding: 0,
                         boxShadow: isCurrent
                           ? '0 0 0 4px var(--accent-soft), 0 18px 40px rgba(20,25,31,.12)'
@@ -2429,7 +1852,7 @@ export default function ThemeEditorClient({
                             fontSize: 12,
                             fontWeight: 800,
                           }}>
-                            {isCurrent ? 'Aktif' : isActivating ? 'Açılıyor...' : 'Şablonu aç'}
+                            {isCurrent ? 'Düzenleniyor' : 'Şablonu aç'}
                           </span>
                         </div>
                       </div>
@@ -2845,14 +2268,6 @@ function buildThemeGroup(schema: SettingsGroup[]): SettingsGroup {
   }
 }
 
-function getAvailableEditorTabs(fields: SettingField[], groupId = '') {
-  return EDITOR_TABS.filter((tab) => fields.some((field) => getFieldEditorTab(field, groupId) === tab.id))
-}
-
-function getAvailableSectionTabs(fields: SectionSettingField[]) {
-  return EDITOR_TABS.filter((tab) => fields.some((field) => field.editorTab === tab.id))
-}
-
 function getGroupHint(id?: string) {
   if (!id) return 'Tüm sayfalara uygulanır'
   if (id === THEME_GROUP_ID) return 'Renkler ve yazı sistemi'
@@ -3138,1378 +2553,6 @@ function TemplateProductTile({ theme, title, price, tone }: { theme: GarsonlessT
   )
 }
 
-const HEADER_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
-  { title: 'Görünüm', ids: ['headerLogoStyle', 'headerNameSize', 'headerLogoSize', 'logoShape', 'logoBg', 'logoShadow', 'logoBorder', 'headerStyle'] },
-  { title: 'Yerleşim', ids: ['headerLayout', 'headerAlign', 'stickyHeader', 'headerHeight'] },
-  { title: 'Boşluk ve çizgi', ids: ['headerPadY', 'headerBottomGap', 'headerBorder'] },
-  { title: 'Görünür öğeler', ids: ['headerShowMenu', 'headerTableBadge', 'headerShowBill'] },
-  { title: 'İçerik', ids: ['headerTagline'] },
-]
-
-const HEADER_CONTROL_CSS = `
-  [data-modern-property-panel] .header-modern-range {
-    width: 100%; height: 20px; margin: 0; appearance: none; -webkit-appearance: none;
-    background: transparent; cursor: pointer;
-  }
-  [data-modern-property-panel] .header-modern-range::-webkit-slider-runnable-track {
-    height: 4px; border-radius: 999px; background: #dedfe2;
-  }
-  [data-modern-property-panel] .header-modern-range::-webkit-slider-thumb {
-    appearance: none; -webkit-appearance: none; width: 16px; height: 16px;
-    margin-top: -6px; border: 3px solid #fff; border-radius: 50%;
-    background: #111318; box-shadow: 0 1px 4px rgba(17,19,24,.28);
-  }
-  [data-modern-property-panel] .header-modern-range::-moz-range-track {
-    height: 4px; border-radius: 999px; background: #dedfe2;
-  }
-  [data-modern-property-panel] .header-modern-range::-moz-range-thumb {
-    width: 12px; height: 12px; border: 3px solid #fff; border-radius: 50%;
-    background: #111318; box-shadow: 0 1px 4px rgba(17,19,24,.28);
-  }
-  [data-modern-property-panel] .header-modern-range:focus-visible {
-    outline: 2px solid #111318; outline-offset: 3px; border-radius: 999px;
-  }
-`
-
-function HeaderPropertyPanel({ fields, getValue, onChange }: {
-  fields: SettingField[]
-  getValue: (field: SettingField) => unknown
-  onChange: (field: SettingField, value: unknown) => void
-}) {
-  return (
-    <div data-header-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
-      <style>{HEADER_CONTROL_CSS}</style>
-      {HEADER_FIELD_SECTIONS.map((section) => {
-        const sectionFields = section.ids
-          .map((id) => fields.find((field) => field.id === id))
-          .filter((field): field is SettingField => Boolean(field))
-        if (sectionFields.length === 0) return null
-        return (
-          <div key={section.title} style={{
-            padding: 14,
-            minWidth: 0,
-            maxWidth: '100%',
-            boxSizing: 'border-box',
-            border: '1px solid var(--border)',
-            borderRadius: 12,
-            background: 'var(--surface)',
-            boxShadow: '0 1px 2px rgba(20,25,31,.03)',
-          }}>
-            <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750, color: 'var(--text)' }}>
-              {section.title}
-            </div>
-            <div style={{ display: 'grid', gap: 12 }}>
-              {sectionFields.map((field) => (
-                <HeaderPropertyField
-                  key={field.id}
-                  field={field}
-                  value={getValue(field)}
-                  onChange={(value) => onChange(field, value)}
-                />
-              ))}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-const CARD_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
-  { title: 'Kart yüzeyi', ids: ['radius', 'shadow', 'border', 'cardHover', 'cardPlaceholderStyle'] },
-  { title: 'Aksiyon', ids: ['cardCtaStyle', 'cardCtaIcon'] },
-  { title: 'Kart düzeni', ids: ['cardLayout', 'cardColumns', 'cardDensity', 'cardPriceAlign'] },
-  { title: 'Görsel', ids: ['cardImageAspect', 'cardImageFit', 'cardImagePosition', 'cardHorizontalImageWidth'] },
-  { title: 'İçerik', ids: ['cardShowImage', 'cardShowDesc', 'cardShowTag', 'cardTitleLines', 'cardDescriptionLines'] },
-]
-
-function CardPropertyPanel({ fields, layout, getValue, onChange }: {
-  fields: SettingField[]
-  layout: GarsonlessTheme['cardLayout']
-  getValue: (field: SettingField) => unknown
-  onChange: (field: SettingField, value: unknown) => void
-}) {
-  return (
-    <div data-card-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
-      <style>{HEADER_CONTROL_CSS}</style>
-      {layout === 'minimal' && (
-        <div role="note" style={{ padding: '10px 12px', borderRadius: 10, background: '#f3f4f6', color: '#4b4f58', fontSize: 11.5, lineHeight: 1.45 }}>
-          Minimal düzende ürün görseli ve hızlı ekleme aksiyonu kullanılmaz.
-        </div>
-      )}
-      {CARD_FIELD_SECTIONS.map((section) => {
-        const sectionFields = section.ids.map((id) => fields.find((field) => field.id === id)).filter((field): field is SettingField => Boolean(field))
-        if (sectionFields.length === 0) return null
-        return (
-          <div key={section.title} style={{ padding: 14, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', boxShadow: '0 1px 2px rgba(20,25,31,.03)' }}>
-            <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750, color: 'var(--text)' }}>{section.title}</div>
-            <div style={{ display: 'grid', gap: 12 }}>
-              {sectionFields.map((field) => (
-                <div key={field.id}>
-                  <HeaderPropertyField field={field} value={getValue(field)} onChange={(value) => onChange(field, value)} />
-                  {field.id === 'cardShowDesc' && <div style={{ marginTop: 5, fontSize: 10.5, color: 'var(--text-3)' }}>Yalnız açıklaması olan ürünlerde görünür.</div>}
-                  {field.id === 'cardShowTag' && <div style={{ marginTop: 5, fontSize: 10.5, color: 'var(--text-3)' }}>Yalnız seçenek grubu olan ürünlerde görünür.</div>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-const NAV_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
-  { title: 'Görünüm', ids: ['catnavStyle', 'catnavActiveStyle', 'catnavFontSize'] },
-  { title: 'Yerleşim', ids: ['catnavAlign', 'catnavDensity', 'catnavItemGap', 'navTopGap', 'navBottomGap', 'stickyNav'] },
-  { title: 'Davranış ve içerik', ids: ['catnavShowCount', 'catnavAutoCenter', 'catnavEdgeFade'] },
-  { title: 'Görsel kartlar', ids: ['catnavVisualStyle', 'catnavVisualCardWidth', 'catnavVisualCardHeight', 'catnavVisualRadius'] },
-  { title: 'Fotoğraf overlay', ids: ['catnavOverlayTextPosition', 'catnavOverlayTextAlign', 'catnavOverlayTextColor', 'catnavOverlayColor', 'catnavOverlayOpacity', 'catnavOverlayBlur'] },
-]
-
-function NavPropertyPanel({ fields, visual, getValue, onChange }: {
-  fields: SettingField[]
-  visual: boolean
-  getValue: (field: SettingField) => unknown
-  onChange: (field: SettingField, value: unknown) => void
-}) {
-  return (
-    <div data-nav-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
-      <style>{HEADER_CONTROL_CSS}</style>
-      {visual && <div role="note" style={{ padding: '10px 12px', borderRadius: 10, background: '#f3f4f6', color: '#4b4f58', fontSize: 11.5, lineHeight: 1.45 }}>Görselli navigasyon kategori kartlarıyla çalışır; sticky ve aktif öğeyi ortalama ayarları yalnız yatay metin navigasyonunda kullanılır.</div>}
-      {NAV_FIELD_SECTIONS.map((section) => {
-        const sectionFields = section.ids.map((id) => fields.find((field) => field.id === id)).filter((field): field is SettingField => Boolean(field))
-        if (sectionFields.length === 0) return null
-        return (
-          <div key={section.title} style={{ padding: 14, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', boxShadow: '0 1px 2px rgba(20,25,31,.03)' }}>
-            <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750, color: 'var(--text)' }}>{section.title}</div>
-            <div style={{ display: 'grid', gap: 12 }}>{sectionFields.map((field) => <HeaderPropertyField key={field.id} field={field} value={getValue(field)} onChange={(value) => onChange(field, value)} />)}</div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-const LAYOUT_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
-  { title: 'Sayfa görünümü', ids: ['texture', 'textureStrength', 'sectionHeading', 'pageMaxWidth'] },
-  { title: 'Sayfa boşlukları', ids: ['pad', 'sectionGap', 'sectionHeadingTopGap', 'sectionHeadingBottomGap'] },
-  { title: 'Ürün grid’i', ids: ['gap'] },
-]
-
-function LayoutPropertyPanel({ fields, texture, getValue, onChange }: {
-  fields: SettingField[]
-  texture: GarsonlessTheme['texture']
-  getValue: (field: SettingField) => unknown
-  onChange: (field: SettingField, value: unknown) => void
-}) {
-  return (
-    <div data-layout-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
-      <style>{HEADER_CONTROL_CSS}</style>
-      {LAYOUT_FIELD_SECTIONS.map((section) => {
-        const sectionFields = section.ids
-          .map((id) => fields.find((field) => field.id === id))
-          .filter((field): field is SettingField => Boolean(field))
-          .filter((field) => field.id !== 'textureStrength' || texture !== 'solid')
-        if (sectionFields.length === 0) return null
-        return (
-          <div key={section.title} style={{ padding: 14, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', boxShadow: '0 1px 2px rgba(20,25,31,.03)' }}>
-            <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750, color: 'var(--text)' }}>{section.title}</div>
-            <div style={{ display: 'grid', gap: 12 }}>{sectionFields.map((field) => <HeaderPropertyField key={field.id} field={field} value={getValue(field)} onChange={(value) => onChange(field, value)} />)}</div>
-            {section.title === 'Ürün grid’i' && <div role="note" style={{ marginTop: 10, fontSize: 10.5, lineHeight: 1.45, color: 'var(--text-3)' }}>Sütun sayısı ve kart yapısı Kartlar → Düzen bölümünden yönetilir. Mobilde en fazla iki sütun gösterilir.</div>}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-const THEME_COLOR_IDS = ['bg', 'cardColor', 'textColor', 'mutedTextColor', 'accent', 'accentSoft', 'cta', 'ctaTextColor', 'borderColor', 'headerBg']
-
-function ThemePropertyPanel({ fields, getValue, onChange }: {
-  fields: SettingField[]
-  getValue: (field: SettingField) => unknown
-  onChange: (field: SettingField, value: unknown) => void
-}) {
-  const fieldMap = new Map(fields.map((field) => [field.id, field]))
-  const valueFor = (id: string, fallback: string) => String(fieldMap.get(id) ? getValue(fieldMap.get(id)!) : fallback)
-  const contrastPairs = [
-    ['Ana metin / Sayfa', valueFor('textColor', '#1c1d20'), valueFor('bg', '#ffffff')],
-    ['Ana metin / Kart', valueFor('textColor', '#1c1d20'), valueFor('cardColor', '#ffffff')],
-    ['Buton metni / Buton', valueFor('ctaTextColor', '#ffffff'), valueFor('cta', '#111111')],
-    ['Vurgu / Sayfa', valueFor('accent', '#111111'), valueFor('bg', '#ffffff')],
-  ] as const
-  const sections = [
-    { title: 'Renk sistemi', ids: THEME_COLOR_IDS },
-    { title: 'Tipografi', ids: ['displayFont', 'bodyFont', 'fs', 'lh'] },
-  ]
-  return (
-    <div data-theme-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
-      <style>{HEADER_CONTROL_CSS}</style>
-      {sections.map((section) => {
-        const sectionFields = section.ids.map((id) => fieldMap.get(id)).filter((field): field is SettingField => Boolean(field))
-        if (sectionFields.length === 0) return null
-        return (
-          <div key={section.title} style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', boxShadow: '0 1px 2px rgba(20,25,31,.03)' }}>
-            <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750 }}>{section.title}</div>
-            <div style={{ display: 'grid', gap: 12 }}>
-              {sectionFields.map((field) => field.type === 'color'
-                ? <ThemeColorField key={field.id} field={field} value={String(getValue(field) ?? field.default ?? '')} onChange={(value) => onChange(field, value)} />
-                : <HeaderPropertyField key={field.id} field={field} value={getValue(field)} onChange={(value) => onChange(field, value)} />)}
-            </div>
-            {section.title === 'Renk sistemi' && fieldMap.get('accentSoft') && (
-              <button type="button" onClick={() => onChange(fieldMap.get('accentSoft')!, deriveSoftColor(valueFor('accent', '#2e7d52')))} style={{ marginTop: 12, width: '100%', height: 34, border: '1px solid var(--border)', borderRadius: 8, background: '#fff', color: '#111318', cursor: 'pointer', fontSize: 11.5, fontWeight: 700 }}>Vurgu Soft’u otomatik üret</button>
-            )}
-          </div>
-        )
-      })}
-      <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)' }}>
-        <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 750 }}>Erişilebilirlik</div>
-        <div style={{ display: 'grid', gap: 7 }}>{contrastPairs.map(([label, fg, bg]) => {
-          const ratio = contrastRatio(fg, bg)
-          const pass = ratio >= 4.5
-          return <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 11.5, color: 'var(--text-2)' }}><span>{label}</span><strong style={{ color: pass ? '#18794e' : '#b42318' }}>{ratio.toFixed(2)}:1 · {pass ? 'Geçer' : 'Zayıf'}</strong></div>
-        })}</div>
-      </div>
-    </div>
-  )
-}
-
-const CART_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
-  { title: 'Sepete erişim', ids: ['cartHeaderTriggerStyle', 'cartFooterTriggerStyle', 'cartIcon', 'cartShowBadge'] },
-  { title: 'Alt tetikleyici', ids: ['cartPillTone', 'cartPillPosition', 'cartShowSubtotal', 'cartShowItemCount'] },
-  { title: 'Sepet çekmecesi', ids: ['cartDrawerTone'] },
-  { title: 'Metinler', ids: ['cartButtonText', 'cartEmptyText', 'cartPrimaryActionText'] },
-]
-
-function CartPropertyPanel({ fields, headerStyle, footerStyle, getValue, onChange, onPatch }: {
-  fields: SettingField[]
-  headerStyle: NonNullable<GarsonlessTheme['cartHeaderTriggerStyle']>
-  footerStyle: NonNullable<GarsonlessTheme['cartFooterTriggerStyle']>
-  getValue: (field: SettingField) => unknown
-  onChange: (field: SettingField, value: unknown) => void
-  onPatch: (patch: Partial<GarsonlessTheme>) => void
-}) {
-  const fieldById = new Map(fields.map((field) => [field.id, field]))
-  const safeChange = (field: SettingField, value: unknown) => {
-    if (field.id === 'cartHeaderTriggerStyle') {
-      onPatch({
-        cartHeaderTriggerStyle: value as GarsonlessTheme['cartHeaderTriggerStyle'],
-        cartFooterTriggerStyle: value !== 'none' ? 'none' : footerStyle === 'none' ? 'pill' : footerStyle,
-      })
-      return
-    }
-    if (field.id === 'cartFooterTriggerStyle') {
-      onPatch({
-        cartFooterTriggerStyle: value as GarsonlessTheme['cartFooterTriggerStyle'],
-        cartHeaderTriggerStyle: value !== 'none' ? 'none' : headerStyle === 'none' ? 'icon' : headerStyle,
-      })
-      return
-    }
-    onChange(field, value)
-  }
-  return (
-    <div data-cart-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
-      <style>{HEADER_CONTROL_CSS}</style>
-      <div role="note" style={{ padding: '10px 12px', borderRadius: 10, background: '#f3f4f6', color: '#4b4f58', fontSize: 11.5, lineHeight: 1.45 }}>Sepet girişi Header veya alt alanda gösterilir. Bir konumu seçtiğinde diğeri otomatik kapanır.</div>
-      {CART_FIELD_SECTIONS.map((section) => {
-        const sectionFields = section.ids.map((id) => fieldById.get(id)).filter((field): field is SettingField => Boolean(field))
-        if (sectionFields.length === 0) return null
-        return <div key={section.title} style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', boxShadow: '0 1px 2px rgba(20,25,31,.03)' }}>
-          <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750 }}>{section.title}</div>
-          <div style={{ display: 'grid', gap: 12 }}>{sectionFields.map((field) => <HeaderPropertyField key={field.id} field={field} value={getValue(field)} onChange={(value) => safeChange(field, value)} />)}</div>
-        </div>
-      })}
-    </div>
-  )
-}
-
-const ANNOUNCEMENT_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
-  { title: 'Durum ve içerik', ids: ['announcementEnabled', 'announcementText'] },
-  { title: 'Görünüm ve hareket', ids: ['announcementBg', 'announcementColor', 'announcementStyle', 'announcementSpeed'] },
-]
-
-function AnnouncementPropertyPanel({ fields, getValue, onChange }: {
-  fields: SettingField[]
-  getValue: (field: SettingField) => unknown
-  onChange: (field: SettingField, value: unknown) => void
-}) {
-  const fieldById = new Map(fields.map((field) => [field.id, field]))
-  const background = String(fieldById.get('announcementBg') ? getValue(fieldById.get('announcementBg')!) : '#111111')
-  const foreground = String(fieldById.get('announcementColor') ? getValue(fieldById.get('announcementColor')!) : '#ffffff')
-  const ratio = contrastRatio(foreground, background)
-  return (
-    <div data-announcement-property-panel data-modern-property-panel style={{ display: 'grid', gap: 14, minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
-      <style>{HEADER_CONTROL_CSS}</style>
-      {ANNOUNCEMENT_FIELD_SECTIONS.map((section) => {
-        const sectionFields = section.ids.map((id) => fieldById.get(id)).filter((field): field is SettingField => Boolean(field))
-        if (sectionFields.length === 0) return null
-        return <div key={section.title} style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', boxShadow: '0 1px 2px rgba(20,25,31,.03)' }}>
-          <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750 }}>{section.title}</div>
-          <div style={{ display: 'grid', gap: 12 }}>{sectionFields.map((field) => field.type === 'color'
-            ? <ThemeColorField key={field.id} field={field} value={String(getValue(field))} onChange={(value) => onChange(field, value)} />
-            : <HeaderPropertyField key={field.id} field={field} value={getValue(field)} onChange={(value) => onChange(field, value)} />)}</div>
-        </div>
-      })}
-      {fieldById.has('announcementBg') && fieldById.has('announcementColor') && (
-        <div role="status" style={{ padding: '10px 12px', border: `1px solid ${ratio >= 4.5 ? '#b7dfca' : '#f0b8b8'}`, borderRadius: 10, background: ratio >= 4.5 ? '#f0faf5' : '#fff4f4', color: ratio >= 4.5 ? '#18794e' : '#b42318', fontSize: 11.5, fontWeight: 700 }}>
-          Metin kontrastı {ratio.toFixed(2)}:1 · {ratio >= 4.5 ? 'Erişilebilir' : 'Kontrastı artırın'}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ThemeColorField({ field, value, onChange }: { field: SettingField; value: string; onChange: (value: string) => void }) {
-  const [draft, setDraft] = useState(value)
-  useEffect(() => setDraft(value), [value])
-  const valid = /^#[0-9a-fA-F]{6}$/.test(draft)
-  return (
-    <div>
-      <label style={{ display: 'block', marginBottom: 6, fontSize: 12.5, color: 'var(--text-2)' }}>{field.label}</label>
-      <div style={{ display: 'grid', gridTemplateColumns: '38px minmax(0,1fr)', border: `1px solid ${valid ? 'var(--border)' : '#d92d20'}`, borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
-        <input aria-label={`${field.label} renk seçici`} type="color" value={valid ? draft : '#000000'} onChange={(event) => { setDraft(event.target.value); onChange(event.target.value) }} style={{ width: 38, height: 34, padding: 2, border: 0, background: '#fff', cursor: 'pointer' }} />
-        <input aria-label={`${field.label} hex değeri`} value={draft} onChange={(event) => { const next = event.target.value; setDraft(next); if (/^#[0-9a-fA-F]{6}$/.test(next)) onChange(next) }} style={{ minWidth: 0, border: 0, borderLeft: '1px solid var(--border)', padding: '0 9px', fontFamily: 'monospace', fontSize: 12, outline: 0 }} />
-      </div>
-      {!valid && <div style={{ marginTop: 4, color: '#b42318', fontSize: 10.5 }}>Geçerli format: #RRGGBB</div>}
-    </div>
-  )
-}
-
-function rgbFromHex(hex: string) {
-  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null
-  return [Number.parseInt(hex.slice(1, 3), 16), Number.parseInt(hex.slice(3, 5), 16), Number.parseInt(hex.slice(5, 7), 16)] as const
-}
-
-function contrastRatio(foreground: string, background: string) {
-  const luminance = (hex: string) => {
-    const rgb = rgbFromHex(hex)
-    if (!rgb) return 0
-    const channels = rgb.map((channel) => { const value = channel / 255; return value <= .03928 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4 })
-    const [red = 0, green = 0, blue = 0] = channels
-    return .2126 * red + .7152 * green + .0722 * blue
-  }
-  const first = luminance(foreground)
-  const second = luminance(background)
-  return (Math.max(first, second) + .05) / (Math.min(first, second) + .05)
-}
-
-function deriveSoftColor(accent: string) {
-  const rgb = rgbFromHex(accent)
-  if (!rgb) return '#f1f2f3'
-  const mixed = rgb.map((channel) => Math.round(channel * .12 + 255 * .88))
-  return `#${mixed.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
-}
-
-function HeaderPropertyField({ field, value, onChange }: {
-  field: SettingField
-  value: unknown
-  onChange: (value: unknown) => void
-}) {
-  const controlId = `theme-field-${sanitizeId(field.id)}`
-  const tiledSelect = field.type === 'select' && [
-    'headerLogoStyle', 'headerStyle', 'headerLayout', 'headerAlign',
-    'cardLayout', 'cardDensity', 'cardPriceAlign', 'cardImageFit', 'cardImagePosition',
-    'cardHover', 'cardPlaceholderStyle', 'cardCtaStyle', 'cardCtaIcon',
-    'catnavStyle', 'catnavActiveStyle', 'catnavAlign', 'catnavDensity', 'catnavVisualStyle',
-    'texture', 'sectionHeading', 'pageMaxWidth',
-    'cartHeaderTriggerStyle', 'cartFooterTriggerStyle', 'cartIcon', 'cartPillTone', 'cartDrawerTone', 'cartPillPosition',
-    'announcementStyle',
-  ].includes(field.id)
-  if (tiledSelect) {
-    return (
-      <div>
-        <div style={{ marginBottom: 7, fontSize: 12.5, color: 'var(--text-2)' }}>{field.label}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(field.options?.length ?? 1, 3)}, minmax(0, 1fr))`, gap: 7, minWidth: 0 }}>
-          {field.options?.map((option) => {
-            const active = value === option.value
-            return (
-              <button key={String(option.value)} type="button" onClick={() => onChange(option.value)} style={{
-                minHeight: 54,
-                padding: '7px 5px',
-                minWidth: 0,
-                border: active ? '1.5px solid #111318' : '1px solid var(--border)',
-                borderRadius: 9,
-                background: active ? '#f1f2f3' : '#fff',
-                color: active ? '#111318' : 'var(--text-2)',
-                cursor: 'pointer',
-                fontSize: 11.5,
-                fontWeight: active ? 700 : 550,
-              }}>
-                <span aria-hidden="true" style={{ display: 'flex', justifyContent: 'center', marginBottom: 5, lineHeight: 1 }}>
-                  {headerOptionIcon(field.id, String(option.value))}
-                </span>
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    )
-  }
-  if (field.id === 'headerHeight') {
-    const height = Number(value ?? field.default ?? 64)
-    const presets = [{ label: 'Kompakt', value: 56 }, { label: 'Normal', value: 64 }, { label: 'Geniş', value: 80 }]
-    const customHeight = !presets.some((preset) => preset.value === height)
-    return (
-      <div>
-        <div style={{ marginBottom: 7, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 12.5, color: 'var(--text-2)' }}>
-          <span>Header yüksekliği</span>
-          {customHeight && (
-            <span style={{ padding: '2px 6px', borderRadius: 999, background: '#f1f2f3', color: '#111318', fontSize: 10.5, fontWeight: 700 }}>
-              Özel · {height}px
-            </span>
-          )}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7, marginBottom: 9 }}>
-          {presets.map((preset) => {
-            const active = height === preset.value
-            return (
-              <button key={preset.value} type="button" onClick={() => onChange(preset.value)} style={{
-                height: 48, borderRadius: 9, cursor: 'pointer',
-                border: active ? '1.5px solid #111318' : '1px solid var(--border)',
-                background: active ? '#f1f2f3' : '#fff',
-                color: active ? '#111318' : 'var(--text-2)', fontSize: 11.5,
-              }}>
-                <strong style={{ display: 'block' }}>{preset.label}</strong>{preset.value}px
-              </button>
-            )
-          })}
-        </div>
-        <HeaderRangeControl field={field} value={height} onChange={onChange} controlId={controlId} />
-      </div>
-    )
-  }
-  if (field.type === 'toggle') {
-    return (
-      <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <label htmlFor={controlId} style={{ minWidth: 0, fontSize: 12.5, color: 'var(--text-2)' }}>{field.label}</label>
-        <HeaderToggleControl controlId={controlId} value={Boolean(value)} onChange={onChange} label={field.label} />
-      </div>
-    )
-  }
-  if (field.type === 'range') {
-    return (
-      <div style={{ minWidth: 0 }}>
-        <label htmlFor={controlId} style={{ display: 'block', marginBottom: 7, fontSize: 12.5, color: 'var(--text-2)' }}>{field.label}</label>
-        <HeaderRangeControl field={field} value={Number(value ?? field.default ?? 0)} onChange={onChange} controlId={controlId} />
-      </div>
-    )
-  }
-  return (
-    <div style={{ minWidth: 0 }}>
-      <label htmlFor={controlId} style={{ display: 'block', marginBottom: 7, fontSize: 12.5, color: 'var(--text-2)' }}>
-        {field.label}
-      </label>
-      <PropertyControl field={field} value={value} onChange={onChange} controlId={controlId} />
-    </div>
-  )
-}
-
-function HeaderRangeControl({ field, value, onChange, controlId }: {
-  field: SettingField
-  value: number
-  onChange: (value: number) => void
-  controlId: string
-}) {
-  const min = field.min ?? 0
-  const max = field.max ?? 100
-  const step = field.step ?? 1
-  const clamp = (next: number) => Math.min(max, Math.max(min, next))
-  return (
-    <div style={{ minWidth: 0, display: 'grid', gridTemplateColumns: '28px minmax(0,1fr) 50px 28px', alignItems: 'center', gap: 6 }}>
-      <button type="button" aria-label={`${field.label} azalt`} onClick={() => onChange(clamp(value - step))} disabled={value <= min} style={headerRangeStepButtonStyle}>−</button>
-      <input id={controlId} className="header-modern-range" type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
-      <output htmlFor={controlId} style={{ height: 30, border: '1px solid var(--border)', borderRadius: 8, background: '#fff', color: '#111318', display: 'grid', placeItems: 'center', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
-        {value}{field.unit ?? ''}
-      </output>
-      <button type="button" aria-label={`${field.label} artır`} onClick={() => onChange(clamp(value + step))} disabled={value >= max} style={headerRangeStepButtonStyle}>+</button>
-    </div>
-  )
-}
-
-const headerRangeStepButtonStyle: React.CSSProperties = {
-  width: 28, height: 28, padding: 0, border: '1px solid var(--border)', borderRadius: 8,
-  background: '#fff', color: '#111318', cursor: 'pointer', fontSize: 16, lineHeight: 1,
-}
-
-function HeaderToggleControl({ controlId, value, onChange, label }: {
-  controlId: string
-  value: boolean
-  onChange: (value: boolean) => void
-  label: string
-}) {
-  return (
-    <button id={controlId} type="button" role="switch" aria-checked={value} aria-label={label} onClick={() => onChange(!value)} style={{
-      width: 38, height: 22, padding: 0, border: '1px solid #d7d9dd', borderRadius: 999,
-      background: value ? '#111318' : '#e7e8eb', position: 'relative', cursor: 'pointer', flexShrink: 0,
-      transition: 'background 150ms, border-color 150ms',
-    }}>
-      <span style={{
-        position: 'absolute', top: 2, left: value ? 18 : 2, width: 16, height: 16,
-        borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(17,19,24,.22)', transition: 'left 150ms',
-      }} />
-    </button>
-  )
-}
-
-function headerOptionIcon(fieldId: string, value: string) {
-  if (fieldId === 'headerStyle') return value === 'blur' ? <I.sparkles size={17} /> : <I.color size={17} />
-  if (fieldId === 'headerAlign') return value === 'center' ? <I.layout size={17} /> : <I.spacing size={17} />
-  if (fieldId === 'headerLayout') {
-    if (value === 'stacked') return <I.header size={17} />
-    if (value === 'center') return <I.layout size={17} />
-    if (value === 'compact') return <I.card size={17} />
-    return <I.spacing size={17} />
-  }
-  if (fieldId === 'headerLogoStyle') {
-    if (value === 'image') return <I.image size={17} />
-    if (value === 'wordmark') return <I.type size={17} />
-    return <I.header size={17} />
-  }
-  if (fieldId === 'cardLayout') return value === 'horizontal' ? <I.section size={17} /> : value === 'minimal' ? <I.page size={17} /> : <I.grid size={17} />
-  if (fieldId === 'cardDensity') return value === 'compact' ? <I.spacing size={17} /> : value === 'comfortable' ? <I.sparkles size={17} /> : <I.card size={17} />
-  if (fieldId === 'cardPriceAlign' || fieldId === 'catnavAlign') return value === 'right' ? <I.arrow size={17} /> : value === 'center' ? <I.layout size={17} /> : <I.chevLeft size={17} />
-  if (fieldId === 'cardImageFit' || fieldId === 'cardImagePosition' || fieldId === 'cardPlaceholderStyle') return <I.image size={17} />
-  if (fieldId === 'cardHover') return value === 'none' ? <I.close size={17} /> : value === 'lift' ? <I.arrow size={17} /> : <I.sparkles size={17} />
-  if (fieldId === 'cardCtaStyle') return value === 'none' ? <I.close size={17} /> : value === 'icon' ? <I.plus size={17} /> : <I.tag size={17} />
-  if (fieldId === 'cardCtaIcon') return value === 'cart' ? <I.cart size={17} /> : value === 'bag' ? <I.store size={17} /> : <I.plus size={17} />
-  if (fieldId === 'catnavStyle') return value === 'visual' ? <I.image size={17} /> : <I.nav size={17} />
-  if (fieldId === 'catnavActiveStyle') return value === 'underline' ? <I.spacing size={17} /> : value === 'dot' ? <I.more size={17} /> : <I.tag size={17} />
-  if (fieldId === 'catnavDensity') return value === 'compact' ? <I.spacing size={17} /> : <I.nav size={17} />
-  if (fieldId === 'catnavVisualStyle') return value === 'overlay' ? <I.image size={17} /> : <I.card size={17} />
-  if (fieldId === 'texture') return value === 'solid' ? <I.color size={17} /> : value === 'paper' ? <I.page size={17} /> : <I.sparkles size={17} />
-  if (fieldId === 'sectionHeading') return value === 'catalog' ? <I.page size={17} /> : value === 'editorial' ? <I.type size={17} /> : <I.color size={17} />
-  if (fieldId === 'pageMaxWidth') return value === 'none' ? <I.frame size={17} /> : <I.layout size={17} />
-  if (fieldId === 'cartHeaderTriggerStyle') return value === 'none' ? <I.close size={17} /> : value === 'icon' ? <I.cart size={17} /> : <I.receipt size={17} />
-  if (fieldId === 'cartFooterTriggerStyle') {
-    if (value === 'none') return <I.close size={17} />
-    if (value === 'bar') return <I.section size={17} />
-    if (value === 'fab') return <I.plus size={17} />
-    if (value === 'thumbs') return <I.image size={17} />
-    return <I.cart size={17} />
-  }
-  if (fieldId === 'cartIcon') return value === 'cart' ? <I.cart size={17} /> : value === 'bag' ? <I.store size={17} /> : <I.handPlatter size={17} />
-  if (fieldId === 'cartPillTone' || fieldId === 'cartDrawerTone') return value === 'light' || value === 'clean' ? <I.sparkles size={17} /> : <I.color size={17} />
-  if (fieldId === 'cartPillPosition') return value === 'edge' ? <I.spacing size={17} /> : <I.arrow size={17} />
-  if (fieldId === 'announcementStyle') return value === 'static' ? <I.page size={17} /> : value === 'marquee' ? <I.arrow size={17} /> : value === 'fade' ? <I.sparkles size={17} /> : <I.section size={17} />
-  return <I.sparkles size={17} />
-}
-
-function PropertySection({ title, children, defaultOpen = true }: {
-  title: string
-  children: React.ReactNode
-  defaultOpen?: boolean
-}) {
-  const [open, setOpen] = useState(defaultOpen)
-  return (
-    <div style={{ borderBottom: '1px solid var(--divider)' }}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          width: '100%',
-          height: 44,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 16px',
-          border: 'none',
-          background: 'transparent',
-          cursor: 'pointer',
-        }}
-      >
-        <span style={{ fontSize: 13, fontWeight: 750, color: 'var(--text)' }}>{title}</span>
-        <span style={{
-          color: 'var(--text-3)',
-          transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
-          transition: 'transform 120ms',
-        }}>
-          <ChevronDownIcon />
-        </span>
-      </button>
-      {open && <div style={{ padding: '0 16px 16px' }}>{children}</div>}
-    </div>
-  )
-}
-
-function PropertyFieldEditor({ field, value, onChange }: {
-  field: SettingField
-  value: unknown
-  onChange: (v: unknown) => void
-}) {
-  const controlId = `theme-field-${sanitizeId(field.id)}`
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '96px 1fr',
-      alignItems: field.type === 'toggle' ? 'center' : 'start',
-      gap: 10,
-      minHeight: 32,
-    }}>
-      <label htmlFor={controlId} style={{ paddingTop: field.type === 'toggle' ? 0 : 6, fontSize: 12.5, color: 'var(--text-2)' }}>
-        {field.label}
-      </label>
-      <PropertyControl field={field} value={value} onChange={onChange} controlId={controlId} />
-    </div>
-  )
-}
-
-function SectionSettingsEditor({ fields, values, menuCategories, menuItems, menuHref, onChange }: {
-  fields: SectionSettingField[]
-  values: Record<string, string>
-  menuCategories: Array<{ id: string; name: string }>
-  menuItems: Array<{ id: string; name: string; categoryId: string; categoryName: string }>
-  menuHref?: string
-  onChange: (key: string, value: string) => void
-}) {
-  const targetType = values['targetType'] || 'none'
-  const comboCount = Number(values['comboCount'] || 3)
-  const comboIconCounts = {
-    combo1: Number(values['combo1IconCount'] || 2),
-    combo2: Number(values['combo2IconCount'] || 2),
-    combo3: Number(values['combo3IconCount'] || 2),
-  }
-  const isPromoSlider = fields.some((f) => f.key === 'couponHeading')
-  const promoSlideOn = (prefix: string, fallback: boolean) => {
-    const v = values[`${prefix}Enabled`]
-    if (v === 'true') return true
-    if (v === 'false') return false
-    return fallback
-  }
-  const promoSlides: Array<{ prefix: string; defaultOn: boolean }> = [
-    { prefix: 'coupon', defaultOn: true },
-    { prefix: 'flash', defaultOn: true },
-    { prefix: 'freebie', defaultOn: false },
-    { prefix: 'loyalty', defaultOn: false },
-    { prefix: 'combo', defaultOn: true },
-  ]
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {fields.map((field) => {
-        if (field.key === 'targetId' && targetType !== 'category' && targetType !== 'product') return null
-        if (field.key === 'targetUrl' && targetType !== 'link') return null
-        if (isPromoSlider) {
-          const slide = promoSlides.find((s) =>
-            field.key.startsWith(s.prefix) &&
-            field.key !== `${s.prefix}Heading` &&
-            field.key !== `${s.prefix}Enabled`,
-          )
-          if (slide && !promoSlideOn(slide.prefix, slide.defaultOn)) return null
-        }
-        if (field.type === 'heading') {
-          return (
-            <div key={field.key} style={{
-              marginTop: 8,
-              paddingTop: 12,
-              borderTop: '1px solid var(--border-strong)',
-              fontSize: 11.5,
-              fontWeight: 700,
-              letterSpacing: '.06em',
-              color: 'var(--text-3)',
-              textTransform: 'uppercase',
-            }}>{field.label}</div>
-          )
-        }
-        if (field.key.startsWith('combo2') && comboCount < 2) return null
-        if (field.key.startsWith('combo3') && comboCount < 3) return null
-        if (field.key === 'combo1Icon2' && comboIconCounts.combo1 < 2) return null
-        if (field.key === 'combo1Icon3' && comboIconCounts.combo1 < 3) return null
-        if (field.key === 'combo2Icon2' && comboIconCounts.combo2 < 2) return null
-        if (field.key === 'combo2Icon3' && comboIconCounts.combo2 < 3) return null
-        if (field.key === 'combo3Icon2' && comboIconCounts.combo3 < 2) return null
-        if (field.key === 'combo3Icon3' && comboIconCounts.combo3 < 3) return null
-
-        const controlId = `section-field-${sanitizeId(field.key)}`
-        return (
-          <div
-            key={field.key}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '96px 1fr',
-              alignItems: 'start',
-              gap: 10,
-              minHeight: 32,
-            }}
-          >
-            <label htmlFor={controlId} style={{ paddingTop: 6, fontSize: 12.5, color: 'var(--text-2)' }}>
-              {field.key === 'targetId'
-                ? targetType === 'category' ? 'Kategori' : 'Ürün'
-                : field.label}
-            </label>
-            <SectionSettingControl
-              field={field}
-              value={
-                isPromoSlider && field.key.endsWith('Enabled') && !values[field.key]
-                  ? (promoSlides.find((s) => field.key === `${s.prefix}Enabled`)?.defaultOn ? 'true' : 'false')
-                  : (values[field.key] ?? '')
-              }
-              controlId={controlId}
-              targetType={targetType}
-              menuCategories={menuCategories}
-              menuItems={menuItems}
-              {...(menuHref ? { menuHref } : {})}
-              onChange={(value) => onChange(field.key, value)}
-            />
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function SectionSettingControl({ field, value, controlId, targetType, menuCategories, menuItems, menuHref, onChange }: {
-  field: SectionSettingField
-  value: string
-  controlId: string
-  targetType?: string
-  menuCategories?: Array<{ id: string; name: string }>
-  menuItems?: Array<{ id: string; name: string; categoryId: string; categoryName: string }>
-  menuHref?: string
-  onChange: (value: string) => void
-}) {
-  if (field.type === 'product-select') {
-    const items = menuItems ?? []
-    const grouped = items.reduce<Record<string, Array<{ id: string; name: string }>>>((acc, item) => {
-      const cat = item.categoryName
-      if (!acc[cat]) acc[cat] = []
-      acc[cat].push({ id: item.id, name: item.name })
-      return acc
-    }, {})
-    const menuLinkStyle = {
-      fontSize: 11.5,
-      color: 'var(--text-2)',
-      background: 'none',
-      border: 'none',
-      padding: 0,
-      cursor: 'pointer',
-      textDecoration: 'underline',
-      fontFamily: 'inherit',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 3,
-    } as const
-    if (items.length === 0 && menuHref) {
-      return (
-        <div style={{ fontSize: 12, color: 'var(--text-3)', padding: '8px 0' }}>
-          Henüz ürün yok —{' '}
-          <button type="button" style={menuLinkStyle} onClick={() => window.open(menuHref, '_blank', 'noopener')}>
-            Menü&apos;den ekle <I.arrow size={11} />
-          </button>
-        </div>
-      )
-    }
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <select
-          id={controlId}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            width: '100%', height: 36,
-            borderRadius: 7,
-            border: '1px solid var(--border-strong)',
-            background: 'var(--surface)',
-            color: value ? 'var(--text)' : 'var(--text-3)',
-            fontSize: 12.5, padding: '0 9px', cursor: 'pointer',
-          }}
-        >
-          <option value="">— Ürün seç —</option>
-          {Object.entries(grouped).map(([cat, catItems]) => (
-            <optgroup key={cat} label={cat}>
-              {catItems.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-        {value && menuHref && (
-          <button
-            type="button"
-            style={{ ...menuLinkStyle, alignSelf: 'flex-start' }}
-            onClick={() => window.open(menuHref, '_blank', 'noopener')}
-          >
-            Düzenle <I.arrow size={11} />
-          </button>
-        )}
-      </div>
-    )
-  }
-
-  if (field.type === 'category-select') {
-    return (
-      <select
-        id={controlId}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: '100%', height: 36,
-          borderRadius: 7,
-          border: '1px solid var(--border-strong)',
-          background: 'var(--surface)',
-          color: value ? 'var(--text)' : 'var(--text-3)',
-          fontSize: 12.5, padding: '0 9px', cursor: 'pointer',
-        }}
-      >
-        <option value="">— Kategori seç —</option>
-        {(menuCategories ?? []).map((category) => (
-          <option key={category.id} value={category.id}>{category.name}</option>
-        ))}
-      </select>
-    )
-  }
-
-  if (field.type === 'heading') return null
-
-  if (field.key === 'targetId' && (targetType === 'category' || targetType === 'product')) {
-    const options = targetType === 'category'
-      ? (menuCategories ?? []).map((category) => ({
-          value: category.id,
-          label: category.name,
-          meta: 'Kategori',
-        }))
-      : (menuItems ?? []).map((item) => ({
-          value: item.id,
-          label: item.name,
-          meta: item.categoryName,
-        }))
-
-    return (
-      <select
-        id={controlId}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: '100%',
-          height: 32,
-          borderRadius: 7,
-          border: '1px solid var(--border-strong)',
-          background: 'var(--surface)',
-          color: value ? 'var(--text)' : 'var(--text-3)',
-          fontSize: 12.5,
-          padding: '0 9px',
-          cursor: 'pointer',
-        }}
-      >
-        <option value="">
-          {targetType === 'category' ? 'Kategori seç' : 'Ürün seç'}
-        </option>
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}{opt.meta ? ` · ${opt.meta}` : ''}
-          </option>
-        ))}
-      </select>
-    )
-  }
-
-  if (field.type === 'color') {
-    const colorValue = value || field.placeholder || '#000000'
-    return (
-      <div style={{
-        height: 32,
-        display: 'flex',
-        alignItems: 'center',
-        border: '1px solid var(--border-strong)',
-        borderRadius: 7,
-        overflow: 'hidden',
-        background: 'var(--surface)',
-      }}>
-        <input
-          id={`${controlId}-color`}
-          type="color"
-          value={colorValue}
-          onChange={(e) => onChange(e.target.value)}
-          style={{ width: 34, height: 32, border: 'none', padding: 0, background: 'transparent', cursor: 'pointer' }}
-        />
-        <input
-          id={controlId}
-          type="text"
-          value={value}
-          placeholder={field.placeholder}
-          onChange={(e) => onChange(e.target.value)}
-          style={sectionInputStyle}
-        />
-      </div>
-    )
-  }
-
-  if (field.type === 'range' && 'themeField' in field && field.themeField === 'cols') {
-    const numVal = Number(value || 2)
-    const options = [
-      {
-        value: 1, label: '1',
-        icon: (
-          <svg width="28" height="22" viewBox="0 0 28 22" fill="none">
-            <rect x="3" y="3" width="22" height="16" rx="2.5" fill="currentColor" opacity="0.85" />
-          </svg>
-        ),
-      },
-      {
-        value: 2, label: '2',
-        icon: (
-          <svg width="28" height="22" viewBox="0 0 28 22" fill="none">
-            <rect x="3" y="3" width="10" height="16" rx="2.5" fill="currentColor" opacity="0.85" />
-            <rect x="15" y="3" width="10" height="16" rx="2.5" fill="currentColor" opacity="0.85" />
-          </svg>
-        ),
-      },
-      {
-        value: 3, label: '3',
-        icon: (
-          <svg width="28" height="22" viewBox="0 0 28 22" fill="none">
-            <rect x="2" y="3" width="7" height="16" rx="2" fill="currentColor" opacity="0.85" />
-            <rect x="10.5" y="3" width="7" height="16" rx="2" fill="currentColor" opacity="0.85" />
-            <rect x="19" y="3" width="7" height="16" rx="2" fill="currentColor" opacity="0.85" />
-          </svg>
-        ),
-      },
-    ]
-    return (
-      <div style={{ display: 'flex', gap: 6 }}>
-        {options.map((opt) => {
-          const active = numVal === opt.value
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              title={`${opt.value} sütun`}
-              onClick={() => onChange(String(opt.value))}
-              style={{
-                flex: 1,
-                height: 44,
-                border: active ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-                borderRadius: 9,
-                background: active ? 'var(--accent-soft)' : 'var(--surface-2)',
-                color: active ? 'var(--accent)' : 'var(--text-3)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 3,
-                cursor: 'pointer',
-                transition: 'border-color 120ms, background 120ms, color 120ms',
-              }}
-            >
-              {opt.icon}
-            </button>
-          )
-        })}
-      </div>
-    )
-  }
-
-  if (field.type === 'range') {
-    const fallback = field.min ?? 0
-    const numVal = Number(value || fallback)
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 32 }}>
-        <input
-          id={controlId}
-          type="range"
-          min={field.min}
-          max={field.max}
-          step={field.step}
-          value={numVal}
-          onChange={(e) => onChange(e.target.value)}
-          style={{ flex: 1, accentColor: 'var(--text)' }}
-        />
-        <span style={{
-          minWidth: 50,
-          textAlign: 'right',
-          border: '1px solid var(--border)',
-          borderRadius: 6,
-          padding: '3px 6px',
-          color: 'var(--text-2)',
-          fontSize: 12,
-        }}>
-          {numVal}{field.unit ?? ''}
-        </span>
-      </div>
-    )
-  }
-
-  if (field.type === 'select' && 'themeField' in field && field.themeField === 'logoShape') {
-    const current = (value as string) || 'rounded'
-    const shapes = [
-      { value: 'square', label: 'Kare', rx: 2 },
-      { value: 'rounded', label: 'Yuvarlak', rx: 8 },
-      { value: 'circle', label: 'Daire', rx: 18 },
-    ]
-    return (
-      <div style={{ display: 'flex', gap: 6 }}>
-        {shapes.map((s) => {
-          const active = current === s.value
-          return (
-            <button
-              key={s.value}
-              type="button"
-              title={s.label}
-              onClick={() => onChange(s.value)}
-              style={{
-                flex: 1, height: 44,
-                border: active ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-                borderRadius: 9,
-                background: active ? 'var(--accent-soft)' : 'var(--surface-2)',
-                color: active ? 'var(--accent)' : 'var(--text-3)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-                cursor: 'pointer',
-                transition: 'border-color 120ms, background 120ms, color 120ms',
-              }}
-            >
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <rect x="4" y="4" width="20" height="20" rx={s.rx} fill="currentColor" opacity="0.85" />
-              </svg>
-            </button>
-          )
-        })}
-      </div>
-    )
-  }
-
-  if (field.type === 'select') {
-    return (
-      <select
-        id={controlId}
-        value={value || field.options?.[0]?.value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: '100%',
-          height: 32,
-          borderRadius: 7,
-          border: '1px solid var(--border-strong)',
-          background: 'var(--surface)',
-          color: 'var(--text)',
-          fontSize: 12.5,
-          padding: '0 9px',
-          cursor: 'pointer',
-        }}
-      >
-        {(field.options ?? []).map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-    )
-  }
-
-  if (field.type === 'toggle') {
-    const boolVal = value === 'true'
-    return (
-      <button
-        type="button"
-        id={controlId}
-        role="switch"
-        aria-checked={boolVal}
-        onClick={() => onChange(boolVal ? 'false' : 'true')}
-        style={{
-          width: 38,
-          height: 22,
-          justifySelf: 'start',
-          borderRadius: 999,
-          border: 'none',
-          background: boolVal ? 'var(--text)' : 'var(--surface-3)',
-          position: 'relative',
-          cursor: 'pointer',
-        }}
-      >
-        <span style={{
-          position: 'absolute',
-          top: 3,
-          left: boolVal ? 19 : 3,
-          width: 16,
-          height: 16,
-          borderRadius: '50%',
-          background: '#fff',
-          boxShadow: '0 1px 3px rgba(0,0,0,.2)',
-          transition: 'left 150ms',
-        }} />
-      </button>
-    )
-  }
-
-  if (field.type === 'textarea') {
-    return (
-      <textarea
-        id={controlId}
-        value={value}
-        placeholder={field.placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        rows={3}
-        style={{
-          ...sectionInputStyle,
-          height: 70,
-          paddingTop: 8,
-          resize: 'vertical',
-          lineHeight: 1.35,
-        }}
-      />
-    )
-  }
-
-  return (
-    <input
-      id={controlId}
-      type={field.type === 'url' ? 'url' : 'text'}
-      value={value}
-      placeholder={field.placeholder}
-      onChange={(e) => onChange(e.target.value)}
-      style={sectionInputStyle}
-    />
-  )
-}
-
-function PropertyControl({ field, value, onChange, controlId }: {
-  field: SettingField
-  value: unknown
-  onChange: (v: unknown) => void
-  controlId: string
-}) {
-  if (field.type === 'color') {
-    return (
-      <div style={{
-        height: 32,
-        display: 'flex',
-        alignItems: 'center',
-        border: '1px solid var(--border-strong)',
-        borderRadius: 7,
-        overflow: 'hidden',
-        background: 'var(--surface)',
-      }}>
-        <input
-          id={`${controlId}-color`}
-          type="color"
-          value={value as string}
-          onChange={(e) => onChange(e.target.value)}
-          style={{ width: 34, height: 32, border: 'none', padding: 0, background: 'transparent', cursor: 'pointer' }}
-        />
-        <input
-          id={controlId}
-          type="text"
-          value={value as string}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            height: '100%',
-            border: 'none',
-            outline: 'none',
-            borderLeft: '1px solid var(--border-strong)',
-            padding: '0 9px',
-            fontSize: 12.5,
-            color: 'var(--text)',
-            background: 'transparent',
-          }}
-        />
-      </div>
-    )
-  }
-  if (field.type === 'range' && field.themeField === 'cols') {
-    const numVal = Number(value || 2)
-    return (
-      <div style={{ display: 'flex', gap: 6 }}>
-        {([1, 2, 3] as const).map((col) => {
-          const active = numVal === col
-          return (
-            <button
-              key={col}
-              type="button"
-              title={`${col} sütun`}
-              onClick={() => onChange(col)}
-              style={{
-                flex: 1, height: 44,
-                border: active ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-                borderRadius: 9,
-                background: active ? 'var(--accent-soft)' : 'var(--surface-2)',
-                color: active ? 'var(--accent)' : 'var(--text-3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer',
-                transition: 'border-color 120ms, background 120ms, color 120ms',
-              }}
-            >
-              <svg width="28" height="22" viewBox="0 0 28 22" fill="none">
-                {col === 1 && <rect x="3" y="3" width="22" height="16" rx="2.5" fill="currentColor" opacity="0.85" />}
-                {col === 2 && <><rect x="3" y="3" width="10" height="16" rx="2.5" fill="currentColor" opacity="0.85" /><rect x="15" y="3" width="10" height="16" rx="2.5" fill="currentColor" opacity="0.85" /></>}
-                {col === 3 && <><rect x="2" y="3" width="7" height="16" rx="2" fill="currentColor" opacity="0.85" /><rect x="10.5" y="3" width="7" height="16" rx="2" fill="currentColor" opacity="0.85" /><rect x="19" y="3" width="7" height="16" rx="2" fill="currentColor" opacity="0.85" /></>}
-              </svg>
-            </button>
-          )
-        })}
-      </div>
-    )
-  }
-  if (field.type === 'range') {
-    const fallback = field.default ?? field.min ?? 0
-    const parsed = Number(value ?? fallback)
-    const numVal = Number.isFinite(parsed) ? parsed : Number(fallback) || 0
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 32 }}>
-        <input
-          id={controlId}
-          type="range"
-          min={field.min}
-          max={field.max}
-          step={field.step}
-          value={numVal}
-          onChange={(e) => onChange(Number(e.target.value))}
-          style={{ flex: 1, accentColor: 'var(--text)' }}
-        />
-        <span style={{
-          minWidth: 46,
-          textAlign: 'right',
-          border: '1px solid var(--border)',
-          borderRadius: 6,
-          padding: '3px 6px',
-          color: 'var(--text-2)',
-          fontSize: 12,
-        }}>
-          {numVal}{field.unit ?? ''}
-        </span>
-      </div>
-    )
-  }
-  if (field.type === 'toggle') {
-    const boolVal = Boolean(value)
-    return (
-      <button
-        type="button"
-        id={controlId}
-        role="switch"
-        aria-checked={boolVal}
-        onClick={() => onChange(!boolVal)}
-        style={{
-          width: 38,
-          height: 22,
-          justifySelf: 'start',
-          borderRadius: 999,
-          border: 'none',
-          background: boolVal ? 'var(--text)' : 'var(--surface-3)',
-          position: 'relative',
-          cursor: 'pointer',
-        }}
-      >
-        <span style={{
-          position: 'absolute',
-          top: 3,
-          left: boolVal ? 19 : 3,
-          width: 16,
-          height: 16,
-          borderRadius: '50%',
-          background: '#fff',
-          boxShadow: '0 1px 3px rgba(0,0,0,.2)',
-          transition: 'left 150ms',
-        }} />
-      </button>
-    )
-  }
-  if (field.type === 'select' || field.type === 'font') {
-    return (
-      <select
-        id={controlId}
-        value={value as string}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: '100%',
-          height: 32,
-          borderRadius: 7,
-          border: '1px solid var(--border-strong)',
-          background: 'var(--surface)',
-          color: 'var(--text)',
-          fontSize: 12.5,
-          padding: '0 9px',
-          cursor: 'pointer',
-        }}
-      >
-        {(field.options ?? []).map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-    )
-  }
-  if (field.type === 'text') {
-    return (
-      <input
-        id={controlId}
-        type="text"
-        value={(value as string | undefined) ?? ''}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: '100%',
-          minWidth: 0,
-          height: 32,
-          borderRadius: 7,
-          border: '1px solid var(--border-strong)',
-          background: 'var(--surface)',
-          color: 'var(--text)',
-          fontSize: 12.5,
-          padding: '0 9px',
-          outline: 'none',
-        }}
-      />
-    )
-  }
-  return null
-}
-
-function SegmentButton({ active = false, icon, label, onClick }: {
-  active?: boolean
-  icon: React.ReactNode
-  label: string
-  onClick?: () => void
-}) {
-  return (
-    <button type="button" onClick={onClick} style={{
-      height: 30,
-      border: 'none',
-      borderRadius: 7,
-      background: active ? 'var(--surface)' : 'transparent',
-      color: active ? 'var(--text)' : 'var(--text-2)',
-      boxShadow: active ? 'var(--shadow-1)' : 'none',
-      padding: '0 12px',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 7,
-      fontSize: 13,
-      fontWeight: 650,
-      cursor: 'pointer',
-    }}>
-      {icon}
-      {label}
-    </button>
-  )
-}
-
-function IconButton({ children, title, disabled = false, onClick }: {
-  children: React.ReactNode
-  title: string
-  disabled?: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      disabled={disabled}
-      onClick={onClick}
-      style={{
-        width: 28,
-        height: 28,
-        border: 'none',
-        background: 'transparent',
-        color: disabled ? 'var(--text-4)' : 'var(--text-2)',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 7,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.45 : 1,
-      }}
-    >
-      {children}
-    </button>
-  )
-}
-
 function IconShell({ children, title, onClick }: {
   children: React.ReactNode
   title: string
@@ -4781,19 +2824,6 @@ const topbarButtonStyle: React.CSSProperties = {
   gap: 7,
 }
 
-const sectionInputStyle: React.CSSProperties = {
-  width: '100%',
-  minWidth: 0,
-  height: 32,
-  borderRadius: 7,
-  border: '1px solid var(--border-strong)',
-  background: 'var(--surface)',
-  color: 'var(--text)',
-  fontSize: 12.5,
-  padding: '0 9px',
-  outline: 'none',
-}
-
 const navGroupLabelStyle: React.CSSProperties = {
   padding: '7px 10px 6px',
   fontSize: 11,
@@ -4808,18 +2838,6 @@ function formatTime(date: Date) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date)
-}
-
-function getMessageTargetOrigin(url: string) {
-  try {
-    return new URL(url).origin
-  } catch {
-    return '*'
-  }
-}
-
-function sanitizeId(value: string) {
-  return value.replace(/[^a-zA-Z0-9_-]/g, '-')
 }
 
 function useViewportWidth() {
@@ -4868,9 +2886,6 @@ const zoomButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-function PhoneIcon() { return <I.phone size={17} /> }
-function DesktopIcon() { return <I.monitor size={17} /> }
-function EyeIcon() { return <I.eye size={17} /> }
 function SearchIcon() { return <I.search size={17} /> }
 function PageIcon() { return <I.page size={17} /> }
 function HeaderIcon() { return <I.header size={17} /> }
@@ -4882,13 +2897,10 @@ function ThemeIcon() { return <I.palette size={17} /> }
 function TypeIcon() { return <I.type size={17} /> }
 function LayoutIcon() { return <I.layout size={17} /> }
 function ChevronRightIcon() { return <I.chevRight size={17} /> }
-function ChevronDownIcon() { return <I.chevDown size={17} /> }
 function PlusIcon() { return <I.plus size={17} /> }
 function GlobeIcon() { return <I.globe size={17} /> }
 function CopyIcon() { return <I.copy size={17} /> }
 function HistoryIcon() { return <I.history size={17} /> }
-function UndoIcon() { return <I.undo size={17} /> }
-function RedoIcon() { return <I.redo size={17} /> }
 
 function LogoUploadCard({
   logoUrl,

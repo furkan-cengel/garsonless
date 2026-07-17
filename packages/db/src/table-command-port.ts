@@ -1,15 +1,14 @@
 import type {
   KitchenBoardPort,
+  KitchenOrderProjection,
+  KitchenOrderProjectionBatch,
   OpenTableSession,
   TableServiceRequestPort,
   TableSessionPort,
 } from '@garsonless/application/tables'
 import { err, ok, serviceRequestLabel, type Result, type TableSessionCloseOutcome } from '@garsonless/domain'
 import { createServiceClient } from './client'
-import { creditVisitsForSession, sortOrdersByPriorityThenCreatedAt } from './loyalty'
-import { createServiceRequest } from './service-requests'
-import { voidDeclaredSharesForSession } from './split'
-import type { Tables } from './types.gen'
+import { dispatchAggregateDomainEvents } from './outbox-consumer-port'
 
 export async function softDeleteTable(input: { restaurantId: string; tableId: string }) {
   const service = createServiceClient()
@@ -52,16 +51,21 @@ export function createTableSessionPort(): TableSessionPort {
         p_abnormal_reason: input.abnormalReason,
       })
       if (error) return err(error.message)
-      if (!['not_found', 'unpaid', 'already_closed', 'closed_normal', 'closed_abnormal'].includes(data ?? '')) {
+      if (!['not_found', 'unpaid', 'payment_pending', 'already_closed', 'closed_normal', 'closed_abnormal'].includes(data ?? '')) {
         return err('Adisyon kapatılamadı.')
       }
 
       const outcome = data as TableSessionCloseOutcome
       if (outcome === 'closed_normal') {
-        await creditVisitsForSession(input.sessionId)
+        await dispatchAggregateDomainEvents({
+          aggregateId: input.sessionId,
+          eventTypes: ['table_session.closed'],
+        })
       } else if (outcome === 'closed_abnormal') {
-        const voided = await voidDeclaredSharesForSession(input.sessionId, input.restaurantId)
-        if (voided.error) return err(voided.error)
+        await dispatchAggregateDomainEvents({
+          aggregateId: input.sessionId,
+          eventTypes: ['table_session.closed'],
+        })
       }
       return ok(outcome)
     },
@@ -122,8 +126,17 @@ export function createTableSessionPort(): TableSessionPort {
 export function createTableServiceRequestPort(): TableServiceRequestPort {
   return {
     async createRequest(input) {
-      const result = await createServiceRequest(input)
-      return result.ok ? ok({ throttled: result.throttled }) : err(result.error)
+      const service = createServiceClient()
+      const rpc = service.rpc.bind(service) as unknown as (
+        fn: 'create_table_service_request_atomic',
+        args: { p_restaurant_id: string; p_table_id: string; p_request_type: string },
+      ) => Promise<{ data: { throttled?: boolean } | null; error: { message: string } | null }>
+      const { data, error } = await rpc('create_table_service_request_atomic', {
+        p_restaurant_id: input.restaurantId,
+        p_table_id: input.tableId,
+        p_request_type: input.requestType,
+      })
+      return error ? err(error.message) : ok({ throttled: data?.throttled === true })
     },
     async resolveRequest(input) {
       const { data, error } = await createServiceClient()
@@ -159,46 +172,98 @@ export function createTableServiceRequestPort(): TableServiceRequestPort {
   }
 }
 
-type KitchenRestaurant = Pick<Tables<'restaurants'>, 'id' | 'name' | 'slug' | 'logo_url'>
-type KitchenStation = Tables<'kitchen_stations'>
-type KitchenOrder = Tables<'orders'>
+const KITCHEN_ORDER_STATUSES = new Set([
+  'pending',
+  'pending_approval',
+  'sent_to_kitchen',
+  'preparing',
+  'ready',
+  'served',
+  'paid',
+  'cancelled',
+])
 
-export function createKitchenBoardPort(): KitchenBoardPort<KitchenRestaurant, KitchenOrder, KitchenStation> {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function parseKitchenOrderBatch(value: unknown): Result<KitchenOrderProjectionBatch> {
+  if (!isRecord(value) || typeof value['cursor'] !== 'string' || typeof value['snapshot'] !== 'boolean') {
+    return err('Mutfak projection yanıtı geçersiz.')
+  }
+  const rawOrders = value['orders']
+  if (!Array.isArray(rawOrders)) return err('Mutfak projection siparişleri geçersiz.')
+
+  const orders: KitchenOrderProjection[] = []
+  for (const raw of rawOrders) {
+    if (
+      !isRecord(raw)
+      || typeof raw['id'] !== 'string'
+      || typeof raw['status'] !== 'string'
+      || !KITCHEN_ORDER_STATUSES.has(raw['status'])
+      || (raw['table_id'] !== null && typeof raw['table_id'] !== 'string')
+      || (raw['paid_at'] !== null && typeof raw['paid_at'] !== 'string')
+      || typeof raw['created_at'] !== 'string'
+      || typeof raw['updated_at'] !== 'string'
+      || typeof raw['active'] !== 'boolean'
+    ) {
+      return err('Mutfak projection satırı geçersiz.')
+    }
+    orders.push({
+      id: raw['id'],
+      status: raw['status'] as KitchenOrderProjection['status'],
+      table_id: raw['table_id'],
+      items: raw['items'],
+      customer_tier: raw['customer_tier'],
+      paid_at: raw['paid_at'],
+      created_at: raw['created_at'],
+      updated_at: raw['updated_at'],
+      active: raw['active'],
+    })
+  }
+  return ok({ cursor: value['cursor'], snapshot: value['snapshot'], orders })
+}
+
+async function readKitchenOrderProjection(input: {
+  restaurantId: string
+  after: string | null
+}): Promise<Result<KitchenOrderProjectionBatch>> {
+  const service = createServiceClient()
+  const rpc = service.rpc.bind(service) as unknown as (
+    fn: 'read_kitchen_order_projection',
+    args: { p_restaurant_id: string; p_after: string | null },
+  ) => Promise<{ data: unknown; error: { message: string } | null }>
+  const { data, error } = await rpc('read_kitchen_order_projection', {
+    p_restaurant_id: input.restaurantId,
+    p_after: input.after,
+  })
+  return error ? err(error.message) : parseKitchenOrderBatch(data)
+}
+
+export function createKitchenBoardPort(): KitchenBoardPort {
   return {
     async readBoard(restaurantId) {
       const service = createServiceClient()
-      const [restaurantResult, ordersResult, tablesResult, stationsResult] = await Promise.all([
+      const [restaurantResult, orderBatch, tablesResult, stationsResult] = await Promise.all([
         service.from('restaurants').select('id, name, slug, logo_url').eq('id', restaurantId).is('deleted_at', null).maybeSingle(),
-        service.from('orders').select('*').eq('restaurant_id', restaurantId)
-          .in('status', ['pending', 'pending_approval', 'sent_to_kitchen', 'paid', 'preparing', 'ready'])
-          .is('deleted_at', null).order('created_at'),
+        readKitchenOrderProjection({ restaurantId, after: null }),
         service.from('tables').select('id, label').eq('restaurant_id', restaurantId).is('deleted_at', null),
-        service.from('kitchen_stations').select('*').eq('restaurant_id', restaurantId).eq('is_active', true).order('position'),
+        service.from('kitchen_stations').select('id, name, color, position')
+          .eq('restaurant_id', restaurantId).eq('is_active', true).order('position'),
       ])
-      const firstError = restaurantResult.error ?? ordersResult.error ?? tablesResult.error ?? stationsResult.error
+      const firstError = restaurantResult.error ?? tablesResult.error ?? stationsResult.error
       if (firstError) return err(firstError.message)
+      if (!orderBatch.ok) return orderBatch
       const tableLabels = Object.fromEntries((tablesResult.data ?? []).map((row) => [row.id, row.label]))
       return ok({
-        restaurant: restaurantResult.data as KitchenRestaurant | null,
-        orders: sortOrdersByPriorityThenCreatedAt((ordersResult.data ?? []) as KitchenOrder[]),
+        restaurant: restaurantResult.data,
+        orderBatch: orderBatch.value,
         tableLabels,
-        stations: (stationsResult.data ?? []) as KitchenStation[],
+        stations: stationsResult.data ?? [],
       })
     },
-    async readOrder(input) {
-      const { data, error } = await createServiceClient().from('orders').select('*')
-        .eq('id', input.orderId).eq('restaurant_id', input.restaurantId).maybeSingle()
-      return error ? err(error.message) : ok(data as KitchenOrder | null)
-    },
-    async listOrders(restaurantId) {
-      const { data, error } = await createServiceClient().from('orders').select('*')
-        .eq('restaurant_id', restaurantId)
-        .in('status', ['pending', 'pending_approval', 'sent_to_kitchen', 'paid', 'preparing', 'ready'])
-        .is('deleted_at', null)
-        .order('created_at')
-      return error
-        ? err(error.message)
-        : ok(sortOrdersByPriorityThenCreatedAt((data ?? []) as KitchenOrder[]))
+    async readOrders(input) {
+      return readKitchenOrderProjection(input)
     },
   }
 }

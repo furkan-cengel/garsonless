@@ -5,11 +5,21 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./campaigns": "./src/campaigns.ts",
+    "./customers": "./src/customers.ts",
+    "./loyalty": "./src/loyalty.ts",
+    "./menu": "./src/menu.ts",
     "./orders": "./src/orders.ts",
+    "./outbox": "./src/outbox.ts",
+    "./payments": "./src/payments.ts",
+    "./payment-reconciliation": "./src/payment-reconciliation.ts",
     "./read-models": "./src/read-models.ts",
-    "./tables": "./src/tables.ts"
+    "./splits": "./src/splits.ts",
+    "./tables": "./src/tables.ts",
+    "./themes": "./src/themes.ts"
   },
   "dependencies": {
+    "@garsonless/design-engine": "workspace:*",
     "@garsonless/domain": "workspace:*"
   },
   "scripts": {

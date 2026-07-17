@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { COLLECTED_ORDER_SPEC, canTransitionOrderStatus, isCollectedOrder } from './orders'
+import {
+  COLLECTED_ORDER_SPEC,
+  canTransitionOrderStatus,
+  evaluateOrderCancellation,
+  isCollectedOrder,
+} from './orders'
 
 test('order transition matrix keeps terminal and payment states closed', () => {
   assert.equal(canTransitionOrderStatus('pending_approval', 'sent_to_kitchen'), true)
@@ -21,4 +26,33 @@ test('collected revenue specification preserves legacy null payment methods', ()
   assert.deepEqual(COLLECTED_ORDER_SPEC.excludedPaymentMethods, ['comp'])
   assert.equal(COLLECTED_ORDER_SPEC.includeNullPaymentMethod, true)
   assert.equal(isCollectedOrder({ status: 'served', paidAt: '2026-07-14T10:00:00Z', paymentMethod: null }), true)
+})
+
+test('online and split settlements require their dedicated refund paths', () => {
+  assert.deepEqual(
+    evaluateOrderCancellation({ status: 'served', paidAt: 'now', paymentMethod: 'iyzico' }),
+    { allowed: false, error: 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.' },
+  )
+  assert.deepEqual(
+    evaluateOrderCancellation({ status: 'served', paidAt: 'now', paymentMethod: 'split' }),
+    { allowed: false, error: 'Bu sipariş hesap bölüşme ile ödendi — pay iadeleri/iptali ayrı iade akışı gerektirir.' },
+  )
+})
+
+test('paid cash and pos cancellation requires a meaningful reason', () => {
+  assert.deepEqual(
+    evaluateOrderCancellation({ status: 'served', paidAt: 'now', paymentMethod: 'cash', reason: ' x ' }),
+    { allowed: false, error: 'Ödenmiş siparişin iptali için gerekçe zorunlu (en az 3 karakter).' },
+  )
+  assert.deepEqual(
+    evaluateOrderCancellation({ status: 'served', paidAt: 'now', paymentMethod: 'pos', reason: ' iade ' }),
+    { allowed: true, reason: 'iade', alreadyCancelled: false },
+  )
+})
+
+test('cancellation retry is an idempotent no-op', () => {
+  assert.deepEqual(
+    evaluateOrderCancellation({ status: 'cancelled', paidAt: null, paymentMethod: null }),
+    { allowed: true, reason: null, alreadyCancelled: true },
+  )
 })

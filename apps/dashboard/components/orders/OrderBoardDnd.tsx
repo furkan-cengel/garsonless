@@ -13,7 +13,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { canTransitionOrderStatus, type OrderStatus } from '@garsonless/db/order-client'
+import { canTransitionOrderStatus, type OrderStatus } from '@garsonless/db/browser'
 import type { Order } from './useOrdersRealtime'
 import OrderColumn from './OrderColumn'
 import OrderCard, { type OrderDensity } from './OrderCard'

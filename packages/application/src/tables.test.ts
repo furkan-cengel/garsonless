@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { TableServiceRequestPort, TableSessionPort } from './tables'
+import type {
+  KitchenBoardPort,
+  KitchenOrderProjection,
+  TableServiceRequestPort,
+  TableSessionPort,
+} from './tables'
 import {
   closeTableSession,
+  mergeKitchenOrderProjection,
+  readKitchenOrders,
   requestTableService,
   resolveTableServiceRequest,
 } from './tables'
@@ -27,6 +34,19 @@ test('table session close rejects cross-tenant replay before calling the port', 
   )
   assert.deepEqual(result, { ok: false, error: 'Not authorized' })
   assert.equal(touched, false)
+})
+
+test('table session close exposes payment-pending as a typed fail-closed outcome', async () => {
+  const port: TableSessionPort = {
+    async closeSession() { return { ok: true, value: 'payment_pending' } },
+    async listOpenSessions() { return { ok: true, value: [] } },
+  }
+  const result = await closeTableSession(
+    tableContext,
+    { sessionId: 'session', restaurantId: 'restaurant-a', abnormalReason: 'walkout' },
+    port,
+  )
+  assert.deepEqual(result, { ok: true, value: 'payment_pending' })
 })
 
 test('public service request binds restaurant, internal table and opaque token', async () => {
@@ -55,6 +75,63 @@ test('service request resolution requires tables permission', async () => {
   const result = await resolveTableServiceRequest(
     { ...tableContext, permissions: ['orders'] },
     { requestId: 'request', restaurantId: 'restaurant-a' },
+    port,
+  )
+  assert.deepEqual(result, { ok: false, error: 'Not authorized' })
+  assert.equal(touched, false)
+})
+
+const kitchenOrder = (input: Partial<KitchenOrderProjection> = {}): KitchenOrderProjection => ({
+  id: 'order-a',
+  status: 'preparing',
+  table_id: 'table-a',
+  items: [],
+  customer_tier: null,
+  paid_at: null,
+  created_at: '2026-07-17T08:00:00.000Z',
+  updated_at: '2026-07-17T08:00:00.000Z',
+  active: true,
+  ...input,
+})
+
+test('kitchen projection delta upserts active rows and removes tombstones', () => {
+  const current = [kitchenOrder(), kitchenOrder({ id: 'order-b' })]
+  const merged = mergeKitchenOrderProjection(current, {
+    cursor: '2026-07-17T08:01:00.000Z',
+    snapshot: false,
+    orders: [
+      kitchenOrder({ id: 'order-a', status: 'ready', updated_at: '2026-07-17T08:01:00.000Z' }),
+      kitchenOrder({ id: 'order-b', status: 'served', active: false }),
+      kitchenOrder({ id: 'order-c' }),
+    ],
+  })
+  assert.deepEqual(merged.map((order) => [order.id, order.status]), [
+    ['order-a', 'ready'],
+    ['order-c', 'preparing'],
+  ])
+})
+
+test('kitchen projection snapshot drops stale and inactive rows', () => {
+  const merged = mergeKitchenOrderProjection([kitchenOrder({ id: 'stale' })], {
+    cursor: '2026-07-17T08:01:00.000Z',
+    snapshot: true,
+    orders: [kitchenOrder({ id: 'fresh' }), kitchenOrder({ id: 'terminal', active: false })],
+  })
+  assert.deepEqual(merged.map((order) => order.id), ['fresh'])
+})
+
+test('kitchen projection rejects cross-tenant polling before touching the port', async () => {
+  let touched = false
+  const port: KitchenBoardPort = {
+    async readBoard() { throw new Error('not used') },
+    async readOrders() {
+      touched = true
+      return { ok: true, value: { cursor: '', snapshot: false, orders: [] } }
+    },
+  }
+  const result = await readKitchenOrders(
+    { actor: 'kitchen', restaurantId: 'restaurant-a', stationId: 'expo' },
+    { restaurantId: 'restaurant-b', after: null },
     port,
   )
   assert.deepEqual(result, { ok: false, error: 'Not authorized' })

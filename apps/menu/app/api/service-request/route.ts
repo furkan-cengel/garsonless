@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requestTableService } from '@garsonless/application/tables'
-import { SERVICE_REQUEST_TYPES } from '@garsonless/db'
+import { SERVICE_REQUEST_TYPES } from '@garsonless/domain/tables'
 import { createTableServiceRequestPort, resolveActiveTableQrToken } from '@garsonless/db/server'
 
 const schema = z.object({

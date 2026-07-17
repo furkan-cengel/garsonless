@@ -6,7 +6,7 @@ import { Resend } from 'resend'
 import {
   createInvite, resendInvite, updateMemberPermissions, setMemberStatus, removeMember,
   acceptInvite, TEAM_SECTIONS, type TeamSection,
-} from '@garsonless/db'
+} from '@garsonless/db/server'
 import { assertOwner, firstPermittedPath } from '../auth/access'
 import { createDashboardServerClient } from '../supabase-server'
 

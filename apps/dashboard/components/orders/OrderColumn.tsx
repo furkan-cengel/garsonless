@@ -3,7 +3,7 @@
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import type { Order } from './useOrdersRealtime'
-import { sortOrdersByPriorityThenCreatedAt, type OrderStatus } from '@garsonless/db/order-client'
+import { sortOrdersByPriorityThenCreatedAt, type OrderStatus } from '@garsonless/db/browser'
 import OrderCard, { type OrderDensity } from './OrderCard'
 
 interface ColumnDef {

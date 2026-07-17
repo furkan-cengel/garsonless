@@ -15,7 +15,7 @@ test('orders board rejects cross-tenant reads before invoking the repository', a
   const result = await readOrdersBoard(
     context,
     { restaurantId: 'restaurant-b', since: '2026-07-15T00:00:00Z' },
-    { async readBoard() { invoked = true; return ok({ orders: [], tables: [], kitchenToken: null }) } },
+    { async readBoard() { invoked = true; return ok({ orders: [], tables: [], hasKitchenAccess: false }) } },
   )
   assert.equal(result.ok, false)
   assert.equal(invoked, false)
@@ -25,7 +25,7 @@ test('orders board forwards a verified tenant read', async () => {
   const result = await readOrdersBoard(
     context,
     { restaurantId: 'restaurant-a', since: '2026-07-15T00:00:00Z' },
-    { async readBoard() { return ok({ orders: [{ id: 'order' }], tables: [], kitchenToken: null }) } },
+    { async readBoard() { return ok({ orders: [{ id: 'order' }], tables: [], hasKitchenAccess: false }) } },
   )
   assert.equal(result.ok, true)
   if (result.ok) assert.equal(result.value.orders.length, 1)

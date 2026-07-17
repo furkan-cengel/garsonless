@@ -5,7 +5,9 @@ import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
 import { slugify } from '../utils'
-import { sanitizeTiers, createServiceClient, type Json, type Tables } from '@garsonless/db'
+import type { Json, Tables } from '@garsonless/db'
+import { createServiceClient } from '@garsonless/db/server'
+import { sanitizeTiers } from '@garsonless/domain/loyalty'
 import { getUserRestaurantAccess } from '../auth/access'
 
 // ALLOWLIST of settings keys a non-owner 'settings' member may write through the
@@ -474,7 +476,7 @@ export async function reorderKitchenStations(
 
 export async function generateKitchenToken(
   restaurantId: string,
-): Promise<{ error: string } | { token: string; kitchenUrl: string; qrDataUrl: string }> {
+): Promise<{ error: string } | { success: true }> {
   const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
 
@@ -499,11 +501,7 @@ export async function generateKitchenToken(
 
   if (error) return { error: error.message }
 
-  const kitchenUrl = `${process.env['NEXT_PUBLIC_KITCHEN_URL'] ?? 'http://localhost:3002'}/kitchen/${restaurantId}?token=${token}`
-
-  const { generateQRDataURL } = await import('@garsonless/qr')
-  const qrDataUrl = await generateQRDataURL({ url: kitchenUrl, size: 256 })
-
   revalidatePath(`/dashboard/${restaurantId}/settings`)
-  return { token, kitchenUrl, qrDataUrl }
+  revalidatePath(`/dashboard/${restaurantId}/orders`)
+  return { success: true }
 }

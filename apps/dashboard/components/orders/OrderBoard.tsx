@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef, useCallback, useEffect, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
-import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, isCollectedOrderRow, orderHasPriorityService, ALLERGEN_LABELS, type OrderStatus } from '@garsonless/db/order-client'
+import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, isCollectedOrderRow, orderHasPriorityService, ALLERGEN_LABELS, type OrderStatus } from '@garsonless/db/browser'
 import { useOrdersRealtime } from './useOrdersRealtime'
 import type { Order } from './useOrdersRealtime'
 import type { NotificationPrefs } from '../../lib/notification-prefs'
@@ -550,7 +550,7 @@ interface Props {
   restaurantName: string
   initialOrders: Order[]
   tables: Array<{ id: string; label: string }>
-  kitchenToken?: string | null
+  hasKitchenAccess?: boolean
   receiptTax?: Record<string, unknown> | null
   notifPrefs: NotificationPrefs
   /** settings.orders.late_threshold_min (clamped 5–120, default 20). */
@@ -559,7 +559,7 @@ interface Props {
   initialSince: string
 }
 
-export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, kitchenToken, receiptTax, notifPrefs, lateThresholdMin, initialSince }: Props) {
+export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, hasKitchenAccess = false, receiptTax, notifPrefs, lateThresholdMin, initialSince }: Props) {
   const { orders, newOrderEvent, clearNewOrderEvent, updateOrderLocally, connectionStatus } =
     useOrdersRealtime(restaurantId, initialOrders, initialSince)
 
@@ -676,7 +676,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 
   // Cancel modal target — the modal enforces the payment rules client-side
   // (İyzico is blocked before this ever opens; cash/pos requires a reason);
-  // the cancelOrder action + cancelOrderDB re-enforce them server-side.
+  // the cancelOrder application command + DB port re-enforce them server-side.
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null)
 
   // Settle-from-board: resolve the order's open adisyon and open the Tables
@@ -806,13 +806,12 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         }
         right={
           <button
-            style={{ ...btnPrimary(), opacity: kitchenToken ? 1 : 0.5, cursor: kitchenToken ? 'pointer' : 'not-allowed' }}
-            disabled={!kitchenToken}
-            title={kitchenToken ? undefined : 'Ayarlar → Mutfak Ekranı bölümünden token oluşturun'}
+            style={{ ...btnPrimary(), opacity: hasKitchenAccess ? 1 : 0.5, cursor: hasKitchenAccess ? 'pointer' : 'not-allowed' }}
+            disabled={!hasKitchenAccess}
+            title={hasKitchenAccess ? undefined : 'Ayarlar → Mutfak Ekranı bölümünden erişim oluşturun'}
             onClick={() => {
-              if (!kitchenToken) return
-              const base = process.env['NEXT_PUBLIC_KITCHEN_URL'] ?? 'http://localhost:3002'
-              window.open(`${base}/kitchen/${restaurantId}?token=${kitchenToken}`, '_blank')
+              if (!hasKitchenAccess) return
+              window.open(`/api/kitchen/launch/${restaurantId}`, '_blank', 'noopener,noreferrer')
             }}
           >
             <I.monitor size={13} />Mutfak ekranı

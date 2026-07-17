@@ -1,5 +1,6 @@
 import type {
   CommandContext,
+  OrderStatus,
   Result,
   ServiceRequestType,
   TableSessionCloseOutcome,
@@ -126,43 +127,85 @@ export async function listPendingTableServiceRequests(
   return access.ok ? port.listPendingRequests(restaurantId) : access
 }
 
-export interface KitchenBoardPort<TRestaurant, TOrder, TStation> {
-  readBoard(restaurantId: string): Promise<Result<{
-    restaurant: TRestaurant | null
-    orders: TOrder[]
-    tableLabels: Record<string, string>
-    stations: TStation[]
-  }>>
-  readOrder(input: { orderId: string; restaurantId: string }): Promise<Result<TOrder | null>>
-  listOrders(restaurantId: string): Promise<Result<TOrder[]>>
+export interface KitchenRestaurantProjection {
+  id: string
+  name: string
+  slug: string
+  logo_url: string | null
 }
 
-export async function readKitchenBoard<TRestaurant, TOrder, TStation>(
+export interface KitchenStationProjection {
+  id: string
+  name: string
+  color: string
+  position: number
+}
+
+/** Deliberately excludes totals, customer identity, payment details, request
+ * ids and settlement metadata. This is the complete browser-visible KDS row. */
+export interface KitchenOrderProjection {
+  id: string
+  status: OrderStatus
+  table_id: string | null
+  items: unknown
+  customer_tier: unknown
+  paid_at: string | null
+  created_at: string
+  updated_at: string
+  active: boolean
+}
+
+export interface KitchenOrderProjectionBatch {
+  cursor: string
+  snapshot: boolean
+  orders: KitchenOrderProjection[]
+}
+
+export interface KitchenBoardPort {
+  readBoard(restaurantId: string): Promise<Result<{
+    restaurant: KitchenRestaurantProjection | null
+    orderBatch: KitchenOrderProjectionBatch
+    tableLabels: Record<string, string>
+    stations: KitchenStationProjection[]
+  }>>
+  readOrders(input: {
+    restaurantId: string
+    after: string | null
+  }): Promise<Result<KitchenOrderProjectionBatch>>
+}
+
+export async function readKitchenBoard(
   context: Extract<CommandContext, { actor: 'kitchen' }>,
   restaurantId: string,
-  port: KitchenBoardPort<TRestaurant, TOrder, TStation>,
+  port: KitchenBoardPort,
 ) {
   return hasSameRestaurant(context, restaurantId)
     ? port.readBoard(restaurantId)
     : err('Not authorized')
 }
 
-export async function readKitchenOrder<TRestaurant, TOrder, TStation>(
+export async function readKitchenOrders(
   context: Extract<CommandContext, { actor: 'kitchen' }>,
-  input: { orderId: string; restaurantId: string },
-  port: KitchenBoardPort<TRestaurant, TOrder, TStation>,
+  input: { restaurantId: string; after: string | null },
+  port: KitchenBoardPort,
 ) {
   return hasSameRestaurant(context, input.restaurantId)
-    ? port.readOrder(input)
+    ? port.readOrders(input)
     : err('Not authorized')
 }
 
-export async function listKitchenOrders<TRestaurant, TOrder, TStation>(
-  context: Extract<CommandContext, { actor: 'kitchen' }>,
-  restaurantId: string,
-  port: KitchenBoardPort<TRestaurant, TOrder, TStation>,
-) {
-  return hasSameRestaurant(context, restaurantId)
-    ? port.listOrders(restaurantId)
-    : err('Not authorized')
+/** Snapshot replaces the board. Delta batches upsert active rows and carry
+ * terminal/deleted tombstones so cards cannot linger after leaving KDS. */
+export function mergeKitchenOrderProjection(
+  current: readonly KitchenOrderProjection[],
+  batch: KitchenOrderProjectionBatch,
+): KitchenOrderProjection[] {
+  if (batch.snapshot) return batch.orders.filter((order) => order.active)
+
+  const merged = new Map(current.map((order) => [order.id, order]))
+  for (const order of batch.orders) {
+    if (order.active) merged.set(order.id, order)
+    else merged.delete(order.id)
+  }
+  return [...merged.values()]
 }

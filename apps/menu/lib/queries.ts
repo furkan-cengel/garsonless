@@ -1,11 +1,11 @@
-import { createClient } from '@garsonless/db'
+import { createClient } from '@garsonless/db/browser'
 import type { Tables } from '@garsonless/db'
 import type { MenuItem, MenuCategory } from '@garsonless/ui'
 import {
   normalizeAllergenCodes,
   normalizeIngredients,
   normalizeModifierGroups,
-} from '@garsonless/db/order-client'
+} from '@garsonless/db/browser'
 
 type PublicMenuItemRow = Pick<
   Tables<'menu_items'>,
@@ -93,18 +93,6 @@ export interface SessionOrderRow {
   paidAt: string | null
   createdAt: string
   itemCount: number
-}
-
-export async function getThemeConfig(
-  restaurantId: string,
-): Promise<Tables<'theme_configs'> | null> {
-  const supabase = createClient()
-  const { data } = await supabase
-    .from('theme_configs')
-    .select('*')
-    .eq('restaurant_id', restaurantId)
-    .single()
-  return data as Tables<'theme_configs'> | null
 }
 
 export async function getMenuCategories(restaurantId: string): Promise<MenuCategory[]> {

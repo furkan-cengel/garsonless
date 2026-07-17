@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import type { Tables, OrderStatus } from '@garsonless/db'
-import { ALLERGEN_LABELS, readOrderCustomerTierSnapshot, readOrderLineSnapshots } from '@garsonless/db/order-client'
+import type { OrderStatus } from '@garsonless/db'
+import type { KitchenOrderProjection } from '@garsonless/application/tables'
+import { ALLERGEN_LABELS, readOrderCustomerTierSnapshot, readOrderLineSnapshots } from '@garsonless/db/browser'
 import ElapsedTimer from './ElapsedTimer'
 import { updateOrderStatusAction } from '../lib/actions/orders'
 
@@ -27,14 +28,13 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 }
 
 interface KitchenCardProps {
-  order: Tables<'orders'>
+  order: KitchenOrderProjection
   restaurantId: string
-  kitchenToken: string
   activeStationId: 'expo' | 'unassigned' | string
   tableLabel?: string
 }
 
-export default function KitchenCard({ order, restaurantId, kitchenToken, activeStationId, tableLabel }: KitchenCardProps) {
+export default function KitchenCard({ order, restaurantId, activeStationId, tableLabel }: KitchenCardProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -68,9 +68,12 @@ export default function KitchenCard({ order, restaurantId, kitchenToken, activeS
       order.id,
       nextStatus,
       restaurantId,
-      kitchenToken,
       activeStationId,
     )
+    if ('error' in result && result.error === 'Kitchen session expired') {
+      window.location.reload()
+      return
+    }
     if ('error' in result) setError(result.error)
     setLoading(false)
   }

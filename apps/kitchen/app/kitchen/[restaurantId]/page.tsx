@@ -1,23 +1,23 @@
 import { readKitchenBoard } from '@garsonless/application/tables'
-import { createKitchenBoardPort, verifyKitchenActor } from '@garsonless/db/server'
+import { createKitchenBoardPort } from '@garsonless/db/server'
+import { redirect } from 'next/navigation'
 import KitchenBoard from '../../../components/KitchenBoard'
+import { hasValidKitchenSession } from '../../../lib/kitchen-session'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
-  searchParams: Promise<{ token?: string }>
+  searchParams: Promise<{ token?: string | string[] }>
 }
 
 export default async function KitchenPage({ params, searchParams }: Props) {
   const { restaurantId } = await params
-  const { token } = await searchParams
-
-  if (!token) {
-    return <ErrorScreen message="Erişim için token gerekli." detail="URL'ye ?token=... ekleyin." />
-  }
-
-  const valid = await verifyKitchenActor(restaurantId, token)
-  if (!valid) {
-    return <ErrorScreen message="Geçersiz token." detail="Dashboard'dan yeni bir token oluşturun." />
+  const query = await searchParams
+  // Legacy bearer URLs must not even reach the rendered RSC payload: Next.js
+  // serializes the current URL into its bootstrap data, which would otherwise
+  // reflect a stale credential despite no longer accepting it for auth.
+  if (query.token !== undefined) redirect(`/kitchen/${restaurantId}`)
+  if (!await hasValidKitchenSession(restaurantId)) {
+    return <ErrorScreen message="Mutfak oturumu gerekli." detail="Dashboard'dan Mutfak ekranını açın." />
   }
 
   const board = await readKitchenBoard(
@@ -26,7 +26,7 @@ export default async function KitchenPage({ params, searchParams }: Props) {
     createKitchenBoardPort(),
   )
   if (!board.ok) return <ErrorScreen message="Mutfak verileri yüklenemedi." detail={board.error} />
-  const { restaurant, orders, tableLabels, stations } = board.value
+  const { restaurant, orderBatch, tableLabels, stations } = board.value
 
   if (!restaurant) {
     return <ErrorScreen message="Restoran bulunamadı." detail={`ID: ${restaurantId}`} />
@@ -35,9 +35,8 @@ export default async function KitchenPage({ params, searchParams }: Props) {
   return (
     <KitchenBoard
       restaurant={restaurant}
-      initialOrders={orders}
+      initialOrderBatch={orderBatch}
       restaurantId={restaurantId}
-      kitchenToken={token}
       tableLabels={tableLabels}
       stations={stations}
     />

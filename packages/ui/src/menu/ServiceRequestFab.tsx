@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { AppIcons as I } from '../icons'
-import type { ServiceRequestType } from '@garsonless/db/order-client'
+import type { ServiceRequestType } from '@garsonless/db/browser'
 
 interface ServiceRequestFabProps {
   tableLabel?: string | null

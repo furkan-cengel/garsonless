@@ -31,11 +31,19 @@ export type PaymentProviderContext = {
   provider: 'iyzico'
 }
 
+export type CustomerActorContext = {
+  actor: 'customer-member'
+  authUserId: string
+  customerId: string
+  restaurantId: string
+}
+
 export type CommandContext =
   | DashboardActorContext
   | TableGuestContext
   | KitchenActorContext
   | PaymentProviderContext
+  | CustomerActorContext
 
 export function hasSameRestaurant(context: CommandContext, restaurantId: string): boolean {
   return context.restaurantId === restaurantId

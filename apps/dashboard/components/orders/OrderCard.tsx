@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, type OrderStatus, type PaymentMethod, type OrderLineSnapshot } from '@garsonless/db/order-client'
+import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, type OrderStatus, type PaymentMethod, type OrderLineSnapshot } from '@garsonless/db/browser'
 import type { Order } from './useOrdersRealtime'
 import { I, S, Tag } from '../../lib/ui'
 import { paymentMethodBadge } from '../../lib/payment-method'

@@ -1,76 +1,15 @@
-export { createClient, createServiceClient } from './client'
-export { createOrder, resolveOrderLines } from './orders'
-export type { CreateOrderInput, CreateOrderLine, OrderDiscountBreakdown } from './orders'
-export { updateOrderStatusDB, cancelOrderDB, markOrderPaidDB, validateKitchenToken } from './orders-update'
-export { computeVatBreakdown } from './order-tax'
-export type { VatBreakdown, VatBreakdownRate, VatLineInput } from './order-tax'
-export { createShareDB, settleShareDB, voidShareDB, voidDeclaredSharesForSession } from './split'
-export type { CreateShareInput } from './split'
-export { createServiceRequest } from './service-requests'
-export type { CreateServiceRequestInput } from './service-requests'
-export {
-  SERVICE_REQUEST_TYPES,
-  SERVICE_REQUEST_LABELS,
-  isServiceRequestType,
-  serviceRequestLabel,
-} from './service-request-types'
-export type { ServiceRequestType } from './service-request-types'
-export { recordSecurityEvent, getSecurityEvents } from './security'
-export type { SecurityEvent, SecurityEventType, RecordSecurityEventInput } from './security'
-export { ensureCustomerForAuthUser } from './customer-auth'
-export type { EnsureCustomerOptions, EnsureCustomerResult } from './customer-auth'
-export {
-  TEAM_SECTIONS, generateInviteToken, sanitizeTeamPermissions,
-  listTeamMembers, createInvite, resolveInviteByToken, acceptInvite,
-  updateMemberPermissions, setMemberStatus, removeMember, resendInvite,
-} from './team'
-export type {
-  TeamSection, MemberStatus, TeamMember, ResolvedInvite,
-  CreateInviteResult, AcceptInviteResult, ResendInviteResult,
-} from './team'
-export { normalizePhone } from './phone'
-export { getSmsProvider, MockSmsProvider, assertSmsConfig } from './sms'
-export type { SmsProvider, SmsSendOptions, SmsSendResult, SmsPurpose } from './sms'
-export {
-  requestOtp, verifyOtp, earnForOrder, getMemberBalances, NETWORK_SCOPE_KEY,
-  computeOrderDiscount, computePointsRedemption, computeDiscountStack, computeStampEarn, effectivePct, applyBonusStamps, shouldEarnOnSettlement, redeemForOrder,
-  refundCancelledLoyaltyOrder,
-  computeTier, creditVisitsForSession, creditWelcomeBonus, DEFAULT_TIERS, MAX_TIERS, sanitizeTiers, getLoyaltyScope,
-  snapshotOrderCustomerTier, readOrderCustomerTierSnapshot, orderHasPriorityService,
-  compareOrdersByPriorityThenCreatedAt, sortOrdersByPriorityThenCreatedAt,
-} from './loyalty'
-export type {
-  RequestOtpResult, VerifyOtpResult, MemberBalances, LoyaltyConfig,
-  DiscountResult, OrderLineInput, LoyaltyTier, CatalogReward, LoyaltyActivity,
-  OrderCustomerTierSnapshot, LoyaltyRefundResult,
-} from './loyalty'
-export {
-  getRestaurantCustomers, getRestaurantCustomerSegmentCounts, getRestaurantCustomerDetail, grantStoreCredit,
-  recordConsent, getConsentStatus, maskPhone,
-  listCustomerSegments, getCustomerSegment, createCustomerSegment,
-  updateCustomerSegment, deleteCustomerSegment,
-  sanitizeCustomerSegmentDefinition, isEmptyCustomerSegmentDefinition,
-} from './customers'
-export type {
-  RestaurantCustomer, RestaurantCustomersPage, RestaurantCustomerDetail,
-  CustomerTimelineEvent, CustomerSort, CustomerSegment, CustomerSegmentCounts,
-  CustomerSegmentDefinition, CustomerSegmentRule, CustomerSegmentOperator,
-  CustomerSegmentConsent, CustomerConsentType, SavedCustomerSegment,
-} from './customers'
-export {
-  listCampaigns, previewCampaignAudience, sendCampaign, sendCampaignTest,
-  sanitizeCampaignMessage,
-} from './campaigns'
-export type {
-  CampaignAudienceInput, CampaignAudiencePreview, CampaignSegmentKind,
-  CampaignStatus, CampaignSummary, SendCampaignResult,
-} from './campaigns'
-export {
-  signCustomerSession,
-  verifyCustomerSession,
-  CUSTOMER_SESSION_COOKIE,
-} from './session'
-export type { CustomerSession } from './session'
+/**
+ * Compatibility type barrel.
+ *
+ * Runtime capabilities intentionally live behind explicit boundaries:
+ * - `@garsonless/db/server`  — service-role repositories/RPC adapters
+ * - `@garsonless/db/browser` — anon client and browser-safe projections
+ * - `@garsonless/domain/*`   — business policies and vocabularies
+ *
+ * Keeping this entrypoint type-only prevents a client bundle or app adapter
+ * from reaching infrastructure through an ambiguous root import.
+ */
+
 export type {
   Database,
   Json,
@@ -79,32 +18,61 @@ export type {
   TablesUpdate,
 } from './types.gen'
 export type { OrderStatus, RestaurantPlan, PaymentMethod } from './enums'
-export { ORDER_STATUS_TRANSITIONS, canTransitionOrderStatus } from './enums'
-// Restaurant-local-day helpers — one source of truth for day boundaries/keys.
-export {
-  DEFAULT_TIMEZONE, startOfRestaurantDay, startOfDayNDaysAgo, rangeWindow,
-  restaurantDayKey, restaurantHour, restaurantWeekday, isValidTimeZone, normalizeTimeZone,
-} from './restaurant-time'
-export {
-  applyReviewInvalidatingPatch, calculateMarginPercent, getDietaryClaimsConflict,
-  moveListItem, normalizeMenuNumericText, parseMenuNumericInput,
-  separateAllergenDeclarations, toggleAllergenDeclaration,
+export type { CreateOrderInput, CreateOrderLine, OrderDiscountBreakdown } from './orders'
+export type { VatBreakdown, VatBreakdownRate, VatLineInput } from './order-tax'
+export type { CreateShareInput } from './split'
+export type { ServiceRequestType } from '@garsonless/domain/tables'
+export type { SecurityEvent, SecurityEventType, RecordSecurityEventInput } from './security'
+export type { EnsureCustomerOptions, EnsureCustomerResult } from './customer-auth'
+export type {
+  TeamSection,
+  MemberStatus,
+  TeamMember,
+  ResolvedInvite,
+  CreateInviteResult,
+  AcceptInviteResult,
+  ResendInviteResult,
+} from './team'
+export type {
+  MemberBalances,
+  LoyaltyConfig,
+  LoyaltyTier,
+  CatalogReward,
+  LoyaltyActivity,
+} from '@garsonless/domain/loyalty'
+export type {
+  DiscountResult,
+  OrderLineInput,
+  OrderCustomerTierSnapshot,
+  LoyaltyRefundResult,
+} from './loyalty'
+export type {
+  RestaurantCustomer,
+  RestaurantCustomersPage,
+  RestaurantCustomerDetail,
+  CustomerTimelineEvent,
+  CustomerSort,
+  CustomerSegment,
+  CustomerSegmentCounts,
+  CustomerSegmentDefinition,
+  CustomerSegmentRule,
+  CustomerSegmentOperator,
+  CustomerSegmentConsent,
+  CustomerConsentType,
+  SavedCustomerSegment,
+} from '@garsonless/domain/customers'
+export type {
+  CampaignAudienceInput,
+  CampaignAudiencePreview,
+  CampaignSegmentKind,
+  CampaignStatus,
+  CampaignSummary,
+} from '@garsonless/domain/campaigns'
+export type { SendCampaignResult } from './campaigns'
+export type {
+  DietaryClaims,
+  MenuNumericParseResult,
 } from './menu-nutrition'
-export type { DietaryClaims, MenuNumericParseResult } from './menu-nutrition'
-// The one collected-revenue (tahsilat) predicate — client-safe home in
-// order-client.ts, re-exported here for server queries.
-export { isCollectedOrderRow } from './order-client'
-export {
-  ALLERGEN_CODES,
-  ALLERGEN_LABELS,
-  normalizeAllergenCodes,
-  normalizeIngredients,
-  normalizeModifierGroups,
-  resolveModifierSelections,
-  buildOrderLineSnapshot,
-  readOrderLineSnapshot,
-  readOrderLineSnapshots,
-} from './menu-domain'
 export type {
   AllergenCode,
   MenuIngredient,

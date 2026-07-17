@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getRestaurantById, getRestaurantTimezone } from '../../../../lib/queries'
-import { startOfRestaurantDay } from '@garsonless/db'
+import { startOfRestaurantDay } from '@garsonless/db/browser'
 import { readOrdersBoard } from '@garsonless/application/read-models'
 import { createOrdersBoardReadModelPort } from '@garsonless/db/server'
 import OrderBoard from '../../../../components/orders/OrderBoard'
@@ -42,7 +42,7 @@ export default async function OrdersPage({ params }: Props) {
       restaurantName={restaurant.name}
       initialOrders={board.value.orders as Order[]}
       tables={board.value.tables}
-      kitchenToken={board.value.kitchenToken}
+      hasKitchenAccess={board.value.hasKitchenAccess}
       receiptTax={receiptTax}
       notifPrefs={readNotificationPrefs(restaurant.settings)}
       lateThresholdMin={readLateThresholdMin(restaurant.settings)}

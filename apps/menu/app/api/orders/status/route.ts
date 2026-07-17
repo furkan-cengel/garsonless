@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createServiceClient } from '@garsonless/db'
-import { resolveActiveTableQrToken } from '@garsonless/db/server'
+import { createServiceClient, resolveActiveTableQrToken } from '@garsonless/db/server'
 
 const Query = z.object({
   orderId: z.string().uuid(),

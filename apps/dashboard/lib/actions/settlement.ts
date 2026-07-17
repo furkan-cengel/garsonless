@@ -3,8 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { settleOrder as settleOrderCommand } from '@garsonless/application/orders'
-import { listTeamMembers, readOrderLineSnapshots } from '@garsonless/db'
-import { createSettlementPort, readPaymentSharesForSettlement } from '@garsonless/db/server'
+import { readOrderLineSnapshots } from '@garsonless/db/browser'
+import { createSettlementPort, listTeamMembers, readPaymentSharesForSettlement } from '@garsonless/db/server'
 import type { PaymentMethod } from '@garsonless/db'
 import { assertAccess, getUserRestaurantAccess } from '../auth/access'
 import { createDashboardServerClient } from '../supabase-server'
@@ -28,7 +28,7 @@ const settleSchema = z.object({
  * without 'tables', or any cross-tenant caller, is rejected before any write.
  *
  * Settlement itself is delegated to the order application command, whose
- * Supabase port uses the P1 markOrderPaidDB primitive. That primitive is
+ * Supabase port uses the package-private atomic settlement primitive. It is
  * restaurant-scoped AND guarded by `paid_at IS NULL`: re-settling an already
  * paid order (incl. an İyzico one) affects 0 rows and never overwrites the
  * recorded method (idempotent / no-op). Payment only settles the bill; explicit

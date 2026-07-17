@@ -296,6 +296,9 @@ export async function closeTableSession(
   const outcome = result.value
   if (outcome === 'not_found') return { error: 'Session not found for this restaurant' }
   if (outcome === 'unpaid') return { error: 'Ödenmemiş sipariş var — önce tahsil edin ya da bir sebeple anormal kapatın.' }
+  if (outcome === 'payment_pending') {
+    return { error: 'Bu masa için online ödeme sonucu bekleniyor. Ödeme tamamlanmadan veya mutabakat yapılmadan adisyon kapatılamaz.' }
+  }
   if (outcome === 'already_closed') return { success: true }
   if (outcome !== 'closed_normal' && outcome !== 'closed_abnormal') return { error: 'Adisyon kapatılamadı.' }
 

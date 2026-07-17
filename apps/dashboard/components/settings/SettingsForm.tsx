@@ -86,7 +86,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { id: 'payments',      label: 'Ödeme Yöntemleri', desc: 'İyzico ve tahsilat',    icon: SI.card },
       { id: 'loyalty',       label: 'Sadakat',          desc: 'Damga, puan, üyelik',   icon: SI.gift },
-      { id: 'kitchen',       label: 'Mutfak Ekranı',    desc: 'KDS erişim kodu',       icon: SI.cutlery },
+      { id: 'kitchen',       label: 'Mutfak Ekranı',    desc: 'KDS güvenli oturumu',   icon: SI.cutlery },
       { id: 'notifications', label: 'Bildirimler',      desc: 'E-posta, SMS, push',    icon: SI.bell },
     ],
   },
@@ -110,7 +110,7 @@ const SECTION_META: Record<SectionId, { label: string; desc: string; group: stri
   languages:     { label: 'Diller',         desc: 'Bu sürümde müşteri menüsü Türkçe çalışır; çeviri altyapısı yakında.', group: 'Mağaza' },
   payments:      { label: 'Ödeme Yöntemleri', desc: 'İyzico kart ödemesi ve personel tahsilatı akışlarını yönet.',      group: 'İşletme' },
   loyalty:       { label: 'Sadakat',        desc: 'Damga ve puan programını, kapsamı ve kazanım kurallarını ayarla.',  group: 'İşletme' },
-  kitchen:       { label: 'Mutfak Ekranı',  desc: 'Mutfak ekranı erişim kodunu yönet.',                                group: 'İşletme' },
+  kitchen:       { label: 'Mutfak Ekranı',  desc: 'Mutfak ekranının güvenli oturumunu ve istasyonlarını yönet.',        group: 'İşletme' },
   notifications: { label: 'Bildirimler',    desc: 'E-posta, SMS ve push bildirim tercihlerini ayarla.',                group: 'İşletme' },
   api:           { label: 'API & Webhooks', desc: 'Geliştirici API ve webhook altyapısı bu sürümde kapalı.',            group: 'Gelişmiş' },
   billing:       { label: 'Faturalama',     desc: 'Gerçek abonelik sistemi gelene kadar plan bilgisi salt okunur.',     group: 'Gelişmiş' },
@@ -353,17 +353,17 @@ function LoyaltySectionWrapper({ restaurant }: { restaurant: Tables<'restaurants
    ============================================================ */
 function KitchenSectionWrapper({
   restaurantId,
-  kitchenToken,
+  hasKitchenAccess,
   kitchenStations,
 }: {
   restaurantId: string
-  kitchenToken: string | null
+  hasKitchenAccess: boolean
   kitchenStations: Tables<'kitchen_stations'>[]
 }) {
   return (
     <KitchenAccessSection
       restaurantId={restaurantId}
-      existingToken={kitchenToken}
+      initialHasAccess={hasKitchenAccess}
       initialStations={kitchenStations}
     />
   )
@@ -418,8 +418,8 @@ function SettingsRow({ label, hint, children }: {
 interface Props {
   restaurant: Tables<'restaurants'>
   user: User | null
-  /** GAP #1: kitchen token, fetched server-side from kitchen_credentials. */
-  kitchenToken: string | null
+  /** Credential existence only; the secret remains server-side. */
+  hasKitchenAccess: boolean
   kitchenStations: Tables<'kitchen_stations'>[]
   /** The signed-in user's own security events (RLS-scoped, fetched server-side). */
   securityEvents: SecurityEventView[]
@@ -429,7 +429,7 @@ interface Props {
   teamMembers: TeamMember[]
 }
 
-export default function SettingsForm({ restaurant, user, kitchenToken, kitchenStations, securityEvents, isOwner, teamMembers }: Props) {
+export default function SettingsForm({ restaurant, user, hasKitchenAccess, kitchenStations, securityEvents, isOwner, teamMembers }: Props) {
   // A non-owner 'settings' member lands on a section they can see (workspace is owner-only).
   const [active, setActive] = useState<SectionId>(isOwner ? 'workspace' : 'profile')
 
@@ -439,7 +439,7 @@ export default function SettingsForm({ restaurant, user, kitchenToken, kitchenSt
     switch (active) {
       case 'workspace':     return <WorkspaceSection restaurant={restaurant} />
       case 'loyalty':       return <LoyaltySectionWrapper restaurant={restaurant} />
-      case 'kitchen':       return <KitchenSectionWrapper restaurantId={restaurant.id} kitchenToken={kitchenToken} kitchenStations={kitchenStations} />
+      case 'kitchen':       return <KitchenSectionWrapper restaurantId={restaurant.id} hasKitchenAccess={hasKitchenAccess} kitchenStations={kitchenStations} />
       case 'profile':       return <ProfileSection user={user} />
       case 'team':          return isOwner ? <TeamSection restaurantId={restaurant.id} ownerEmail={user?.email ?? ''} members={teamMembers} /> : null
       case 'store':         return <StoreSection restaurant={restaurant} />

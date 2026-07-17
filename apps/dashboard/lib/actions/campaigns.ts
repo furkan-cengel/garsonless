@@ -4,18 +4,30 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { assertAccess } from '../auth/access'
 import {
-  previewCampaignAudience,
-  sendCampaign,
-  sendCampaignTest,
-  type CampaignAudienceInput,
-  type CampaignAudiencePreview,
-  type CampaignSummary,
-  type CustomerSegment,
-} from '@garsonless/db'
+  previewCustomerCampaign,
+  sendCustomerCampaign,
+  sendCustomerCampaignTest,
+} from '@garsonless/application/campaigns'
+import { createCampaignApplicationPort } from '@garsonless/db/server'
+import type {
+  CampaignAudienceInput,
+  CampaignAudiencePreview,
+  CampaignSummary,
+} from '@garsonless/domain/campaigns'
+import type { CustomerSegment } from '@garsonless/domain/customers'
 
 // Phase 3: campaigns live in the Customers CRM → owner OR a member with 'customers'.
 async function assertOwner(restaurantId: string): Promise<{ userId: string } | { error: string }> {
   return assertAccess(restaurantId, 'customers')
+}
+
+function campaignActor(restaurantId: string, userId: string) {
+  return {
+    actor: 'dashboard-member' as const,
+    restaurantId,
+    userId,
+    permissions: ['customers'],
+  }
 }
 
 const builtInSegments = ['new', 'frequent', 'lapsed', 'consented'] as const
@@ -55,11 +67,12 @@ export async function previewCampaignAudienceAction(
   if ('error' in gate) return gate
   const audience = normalizeAudience(input)
   if (!audience) return { error: 'Hedef segment geçersiz' }
-  try {
-    return await previewCampaignAudience(restaurantId, audience)
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Alıcı sayısı hesaplanamadı' }
-  }
+  const result = await previewCustomerCampaign(
+    campaignActor(restaurantId, gate.userId),
+    { restaurantId, audience },
+    createCampaignApplicationPort(),
+  )
+  return result.ok ? result.value : { error: result.error }
 }
 
 export async function sendCampaignTestAction(
@@ -70,14 +83,13 @@ export async function sendCampaignTestAction(
   if ('error' in gate) return gate
   const parsed = testSchema.safeParse(input)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Test SMS geçersiz' }
-  const res = await sendCampaignTest({
+  const res = await sendCustomerCampaignTest(campaignActor(restaurantId, gate.userId), {
     restaurantId,
     phone: parsed.data.phone,
     message: parsed.data.message,
-    createdBy: gate.userId,
-  })
+  }, createCampaignApplicationPort())
   if (!res.ok) return { error: res.error }
-  return { success: true, ...(res.messageId ? { messageId: res.messageId } : {}) }
+  return { success: true, ...(res.value.messageId ? { messageId: res.value.messageId } : {}) }
 }
 
 export async function sendCampaignAction(
@@ -90,13 +102,12 @@ export async function sendCampaignAction(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Kampanya geçersiz' }
   const audience = normalizeAudience(parsed.data.audience)
   if (!audience) return { error: 'Hedef segment geçersiz' }
-  const res = await sendCampaign({
+  const res = await sendCustomerCampaign(campaignActor(restaurantId, gate.userId), {
     restaurantId,
     name: parsed.data.name,
     message: parsed.data.message,
     audience,
-    createdBy: gate.userId,
-  })
+  }, createCampaignApplicationPort())
   if (!res.ok) return { error: res.error, ...(res.preview ? { preview: res.preview } : {}) }
   revalidatePath(`/dashboard/${restaurantId}/customers`)
   return { success: true, campaign: res.campaign, preview: res.preview }

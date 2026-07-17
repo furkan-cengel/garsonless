@@ -7,88 +7,52 @@
 
 import { createServiceClient } from './client'
 import type { Json } from './types.gen'
-import { computeTier, getLoyaltyScope, getMemberBalances, type LoyaltyTier, type MemberBalances } from './loyalty'
+import { computeTier, getLoyaltyScope, getMemberBalances } from './loyalty'
+import {
+  isEmptyCustomerSegmentDefinition,
+  maskCustomerEmail,
+  maskCustomerPhone,
+  sanitizeCustomerSegmentDefinition,
+  type CustomerConsentType,
+  type CustomerListOptions,
+  type CustomerSegment,
+  type CustomerSegmentCounts,
+  type CustomerSegmentDefinition,
+  type CustomerTimelineEvent,
+  type RestaurantCustomer,
+  type RestaurantCustomerDetail,
+  type RestaurantCustomersPage,
+  type SavedCustomerSegment,
+} from '@garsonless/domain/customers'
+
+export {
+  isEmptyCustomerSegmentDefinition,
+  sanitizeCustomerSegmentDefinition,
+} from '@garsonless/domain/customers'
+export type {
+  CustomerConsentType,
+  CustomerListOptions,
+  CustomerSegment,
+  CustomerSegmentConsent,
+  CustomerSegmentCounts,
+  CustomerSegmentDefinition,
+  CustomerSegmentOperator,
+  CustomerSegmentRule,
+  CustomerSort,
+  CustomerTimelineEvent,
+  RestaurantCustomer,
+  RestaurantCustomerDetail,
+  RestaurantCustomersPage,
+  SavedCustomerSegment,
+} from '@garsonless/domain/customers'
 
 // ── phone masking (TR): +905321234567 → "0532 *** ** 67" ─────────────────────
 export function maskPhone(e164: string | null): string {
-  if (!e164) return '—'
-  const digits = e164.replace(/\D/g, '')
-  const national = digits.startsWith('90') ? '0' + digits.slice(2) : digits.startsWith('0') ? digits : '0' + digits
-  if (national.length < 7) return '*** ** **'
-  return `${national.slice(0, 4)} *** ** ${national.slice(-2)}`
+  return maskCustomerPhone(e164)
 }
 
 export function maskEmail(email: string | null): string {
-  if (!email) return '—'
-  const [local, domain] = email.split('@')
-  if (!local || !domain) return '***'
-  const visible = local.slice(0, Math.min(2, local.length))
-  return `${visible}${'*'.repeat(Math.max(3, local.length - visible.length))}@${domain}`
-}
-
-export interface RestaurantCustomer {
-  customerId: string
-  name: string | null
-  /** Masked unless open consent at this venue. */
-  phone: string
-  phoneMasked: boolean
-  email: string
-  emailMasked: boolean
-  authLinked: boolean
-  hasConsent: boolean
-  spend: number // paid-only ₺ at this venue
-  visits: number
-  points: number // spendable (scope_key)
-  lifetimePoints: number
-  tier: LoyaltyTier
-  tierIndex: number
-  lastSeen: string | null
-  firstSeen: string | null
-}
-
-export interface RestaurantCustomersPage {
-  customers: RestaurantCustomer[]
-  total: number
-  page: number
-  pageSize: number
-}
-
-export type CustomerSort = 'last_seen' | 'spend' | 'visits' | 'points' | 'joined'
-export type CustomerSegment = 'new' | 'frequent' | 'lapsed' | 'consented'
-export type CustomerSegmentCounts = Record<CustomerSegment, number>
-export type CustomerSegmentOperator = '>=' | '<='
-export type CustomerSegmentConsent = 'granted' | 'missing'
-
-export interface CustomerSegmentRule {
-  op: CustomerSegmentOperator
-  value: number
-}
-
-export interface CustomerSegmentDefinition {
-  consent?: CustomerSegmentConsent
-  last_seen_days?: CustomerSegmentRule
-  visits?: CustomerSegmentRule
-  spend?: CustomerSegmentRule
-  points?: CustomerSegmentRule
-  lifetime_points?: CustomerSegmentRule
-}
-
-export interface SavedCustomerSegment {
-  id: string
-  restaurantId: string
-  name: string
-  definition: CustomerSegmentDefinition
-  createdAt: string
-  updatedAt: string
-}
-
-interface ListOpts {
-  search?: string
-  segment?: CustomerSegment | null
-  customSegment?: CustomerSegmentDefinition | null
-  sort?: CustomerSort
-  page?: number
-  pageSize?: number
+  return maskCustomerEmail(email)
 }
 
 type RawRow = {
@@ -103,41 +67,6 @@ type RawRow = {
   last_seen: string | null
   first_seen: string | null
   total_count: number | string
-}
-
-type SegmentRuleKey = 'last_seen_days' | 'visits' | 'spend' | 'points' | 'lifetime_points'
-const SEGMENT_RULE_KEYS: SegmentRuleKey[] = ['last_seen_days', 'visits', 'spend', 'points', 'lifetime_points']
-
-function readRecord(value: unknown): Record<string, unknown> | null {
-  return value != null && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null
-}
-
-function sanitizeRule(value: unknown): CustomerSegmentRule | undefined {
-  const raw = readRecord(value)
-  if (!raw) return undefined
-  const op = raw['op']
-  const num = Number(raw['value'])
-  if (op !== '>=' && op !== '<=') return undefined
-  if (!Number.isFinite(num) || num < 0) return undefined
-  return { op, value: Math.floor(num * 100) / 100 }
-}
-
-export function sanitizeCustomerSegmentDefinition(input: unknown): CustomerSegmentDefinition {
-  const raw = readRecord(input)
-  if (!raw) return {}
-  const out: CustomerSegmentDefinition = {}
-  if (raw['consent'] === 'granted' || raw['consent'] === 'missing') out.consent = raw['consent']
-  for (const key of SEGMENT_RULE_KEYS) {
-    const rule = sanitizeRule(raw[key])
-    if (rule) out[key] = rule
-  }
-  return out
-}
-
-export function isEmptyCustomerSegmentDefinition(definition: CustomerSegmentDefinition): boolean {
-  return !definition.consent && SEGMENT_RULE_KEYS.every((key) => !definition[key])
 }
 
 function segmentDefinitionToJson(definition: CustomerSegmentDefinition): Json {
@@ -166,7 +95,7 @@ function mapSavedSegment(row: {
  *  the security-definer get_restaurant_customers fn, hard-filtered by venue. */
 export async function getRestaurantCustomers(
   restaurantId: string,
-  opts: ListOpts = {},
+  opts: CustomerListOptions = {},
 ): Promise<RestaurantCustomersPage> {
   const page = Math.max(1, Math.floor(opts.page ?? 1))
   const pageSize = Math.min(100, Math.max(1, Math.floor(opts.pageSize ?? 25)))
@@ -369,39 +298,6 @@ export async function deleteCustomerSegment(restaurantId: string, segmentId: str
   return Boolean(data)
 }
 
-export interface CustomerTimelineEvent {
-  id: string
-  at: string
-  kind: 'order' | 'ledger'
-  // order
-  amount?: number
-  status?: string
-  paid?: boolean
-  // ledger
-  type?: 'stamp' | 'points' | 'visit'
-  direction?: 'earn' | 'redeem' | 'refund'
-  delta?: number
-  reason?: string
-}
-
-export interface RestaurantCustomerDetail {
-  customerId: string
-  name: string | null
-  phone: string
-  phoneMasked: boolean
-  email: string
-  emailMasked: boolean
-  authLinked: boolean
-  hasConsent: boolean
-  joinedAt: string // global customers-row creation time (not auth-link time)
-  firstSeenAt: string | null
-  lastSeenAt: string | null
-  spend: number
-  visits: number
-  balances: MemberBalances | null
-  timeline: CustomerTimelineEvent[]
-}
-
 /** Has this customer a trusted relationship with this venue? Gate for detail +
  * grant so an owner can't probe arbitrary customer UUIDs or another venue. */
 async function hasActivityAtVenue(
@@ -530,8 +426,6 @@ export async function grantStoreCredit(params: {
 }
 
 // ── consent (per-restaurant) ─────────────────────────────────────────────────
-export type CustomerConsentType = 'contact_data' | 'marketing'
-
 export async function getConsentStatus(
   customerId: string,
   restaurantId: string,
@@ -577,7 +471,17 @@ export async function recordConsent(
       },
       { onConflict: 'customer_id,restaurant_id,consent_type' },
     )
-    return { ok: !error }
+    if (error) return { ok: false }
+
+    // Consent is itself restaurant-scoped customer activity. Keep the CRM
+    // association current for both grant and revoke operations.
+    const association = await supabase
+      .from('customer_restaurants')
+      .upsert(
+        { customer_id: customerId, restaurant_id: restaurantId, source: 'consent' },
+        { onConflict: 'customer_id,restaurant_id', ignoreDuplicates: true },
+      )
+    return { ok: !association.error }
   } catch {
     return { ok: false }
   }

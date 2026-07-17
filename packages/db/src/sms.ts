@@ -1,8 +1,7 @@
-// SMS provider abstraction. Mock remains the default/test provider; production
-// deployments can select Netgsm or Twilio via SMS_PROVIDER without changing
-// OTP or campaign call sites.
+// Campaign SMS provider abstraction. Customer authentication is handled by
+// Supabase Auth email/OAuth; this module is not part of the login path.
 
-export type SmsPurpose = 'otp' | 'campaign' | 'test'
+export type SmsPurpose = 'campaign' | 'test'
 
 export interface SmsSendOptions {
   purpose?: SmsPurpose
@@ -30,8 +29,7 @@ function truncateForLog(message: string): string {
   return message.length > 160 ? `${message.slice(0, 157)}...` : message
 }
 
-/** Logs the SMS server-side. Dev OTP echo is handled by the route and gated by
- *  NODE_ENV !== 'production'. */
+/** Logs campaign/test SMS server-side in local development. */
 export class MockSmsProvider implements SmsProvider {
   readonly name = 'mock'
 
@@ -115,32 +113,21 @@ function isProd(): boolean {
 
 /**
  * Fail-fast configuration guard (P1.1). The mock provider only console.logs —
- * if it were the resolved provider in production, every customer OTP would
- * silently vanish and auth would appear "up" while being completely broken.
- * That silent-outage mode is the single worst failure for a launch, so this
- * MUST throw rather than no-op.
- *
- * Called at boot from apps/menu instrumentation (crashes a misconfigured prod
- * deploy before it serves a single request) AND, as defense-in-depth, inside
- * getSmsProvider (covers any path that bypasses instrumentation).
+ * if it were the resolved provider in production, campaign sends would silently
+ * disappear. Provider adapters therefore fail closed rather than no-op.
  *
  * Checks:
- *  - CUSTOMER_SESSION_SECRET must be present (session signing dies without it).
  *  - In production, SMS_PROVIDER must not be mock/unset.
  *  - When a real provider is selected, its credentials must be present (so the
  *    misconfiguration surfaces at boot, not on the first customer's send).
  */
 export function assertSmsConfig(): void {
-  if (!process.env['CUSTOMER_SESSION_SECRET']) {
-    throw new Error('Auth misconfiguration: CUSTOMER_SESSION_SECRET is not set.')
-  }
-
   const which = resolveProviderName()
 
   if (isProd() && (which === 'mock' || which === '' || !process.env['SMS_PROVIDER'])) {
     throw new Error(
       `SMS misconfiguration: SMS_PROVIDER=${process.env['SMS_PROVIDER'] ? `'${which}'` : '(unset)'} ` +
-        `resolves to the mock provider under NODE_ENV=production. Real customer OTP delivery would ` +
+        `resolves to the mock provider under NODE_ENV=production. Campaign delivery would ` +
         `silently no-op. Set SMS_PROVIDER=netgsm (or twilio) with credentials.`,
     )
   }
@@ -165,7 +152,7 @@ export function getSmsProvider(): SmsProvider {
 
   // Defense-in-depth (runs BEFORE the cache): the mock only logs and must never
   // be the resolved provider in production — mirrors the boot-time
-  // assertSmsConfig guard so no bypass path can silently drop OTPs.
+  // assertSmsConfig guard so no bypass path can silently drop campaigns.
   if (isProd() && (which === 'mock' || which === '' || !process.env['SMS_PROVIDER'])) {
     throw new Error(
       `SMS misconfiguration: SMS_PROVIDER=${process.env['SMS_PROVIDER'] ? `'${which}'` : '(unset)'} ` +

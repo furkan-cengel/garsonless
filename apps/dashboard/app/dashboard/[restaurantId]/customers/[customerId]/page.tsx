@@ -1,7 +1,8 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { getRestaurantById } from '../../../../../lib/queries'
-import { getUserRestaurantAccess, firstPermittedPath } from '../../../../../lib/auth/access'
-import { getRestaurantCustomerDetail } from '@garsonless/db'
+import { assertAccess, requireSection } from '../../../../../lib/auth/access'
+import { readCustomerDetail } from '@garsonless/application/customers'
+import { createCustomerApplicationPort } from '@garsonless/db/server'
 import CustomerDetailClient from '../../../../../components/customers/CustomerDetailClient'
 
 interface Props {
@@ -10,17 +11,19 @@ interface Props {
 
 export default async function CustomerDetailPage({ params }: Props) {
   const { restaurantId, customerId } = await params
-  // INTERIM GUARD (Phase 2): detail loads customer PII via the service role —
-  // enforce the 'customers' section here (not RLS-gated).
-  const access = await getUserRestaurantAccess(restaurantId)
-  if (!access) notFound()
-  if (!access.isOwner && !access.permissions.includes('customers')) {
-    redirect(firstPermittedPath(restaurantId, access))
-  }
+  await requireSection(restaurantId, 'customers')
+  const gate = await assertAccess(restaurantId, 'customers')
+  if ('error' in gate) throw new Error(gate.error)
   const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
-  const detail = await getRestaurantCustomerDetail(restaurantId, customerId)
-  if (!detail) notFound()
+  const detail = await readCustomerDetail({
+    actor: 'dashboard-member',
+    restaurantId,
+    userId: gate.userId,
+    permissions: ['customers'],
+  }, { restaurantId, customerId }, createCustomerApplicationPort())
+  if (!detail.ok) throw new Error(detail.error)
+  if (!detail.value) notFound()
 
-  return <CustomerDetailClient restaurantId={restaurantId} restaurantName={restaurant.name} detail={detail} />
+  return <CustomerDetailClient restaurantId={restaurantId} restaurantName={restaurant.name} detail={detail.value} />
 }

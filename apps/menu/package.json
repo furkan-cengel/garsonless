@@ -13,6 +13,7 @@
     "@garsonless/application": "workspace:*",
     "@garsonless/db": "workspace:*",
     "@garsonless/design-engine": "workspace:*",
+    "@garsonless/domain": "workspace:*",
     "@garsonless/ui": "workspace:*",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.2",

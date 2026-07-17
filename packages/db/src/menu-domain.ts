@@ -1,40 +1,14 @@
-export const ALLERGEN_CODES = [
-  'gluten',
-  'crustaceans',
-  'eggs',
-  'fish',
-  'peanuts',
-  'soy',
-  'milk',
-  'tree_nuts',
-  'celery',
-  'mustard',
-  'sesame',
-  'sulphites',
-  'lupin',
-  'molluscs',
-] as const
+import {
+  normalizeAllergenCodes,
+  type AllergenCode,
+} from '@garsonless/domain/menu'
 
-export type AllergenCode = (typeof ALLERGEN_CODES)[number]
-
-export const ALLERGEN_LABELS: Record<AllergenCode, string> = {
-  gluten: 'Gluten',
-  crustaceans: 'Kabuklular',
-  eggs: 'Yumurta',
-  fish: 'Balık',
-  peanuts: 'Yer fıstığı',
-  soy: 'Soya',
-  milk: 'Süt',
-  tree_nuts: 'Sert kabuklu meyveler',
-  celery: 'Kereviz',
-  mustard: 'Hardal',
-  sesame: 'Susam',
-  sulphites: 'Kükürt dioksit ve sülfitler',
-  lupin: 'Acı bakla',
-  molluscs: 'Yumuşakçalar',
-}
-
-const ALLERGEN_SET = new Set<string>(ALLERGEN_CODES)
+export {
+  ALLERGEN_CODES,
+  ALLERGEN_LABELS,
+  normalizeAllergenCodes,
+} from '@garsonless/domain/menu'
+export type { AllergenCode } from '@garsonless/domain/menu'
 
 export interface MenuIngredient {
   id: string
@@ -156,13 +130,6 @@ function normalizeStationSnapshot(value: unknown): OrderLineStationSnapshot | nu
     name,
     color: /^#[0-9A-Fa-f]{6}$/.test(color) ? color : '#2e7d52',
   }
-}
-
-export function normalizeAllergenCodes(value: unknown): AllergenCode[] {
-  if (!Array.isArray(value)) return []
-  return [...new Set(value.filter((code): code is AllergenCode =>
-    typeof code === 'string' && ALLERGEN_SET.has(code),
-  ))]
 }
 
 export function normalizeIngredients(value: unknown): MenuIngredient[] {

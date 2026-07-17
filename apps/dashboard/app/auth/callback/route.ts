@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { recordSecurityEvent } from '@garsonless/db'
+import { recordSecurityEvent } from '@garsonless/db/server'
 import { createDashboardServerClient } from '../../../lib/supabase-server'
 import { parseForwardedIp } from '../../../lib/request-meta'
 

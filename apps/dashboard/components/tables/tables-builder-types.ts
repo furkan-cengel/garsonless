@@ -1,0 +1,57 @@
+export interface TableItem {
+  id: string
+  qrToken: string | null
+  label: string
+  slug: string
+  orders: number
+  status: 'active' | 'idle' | 'paused'
+}
+
+export interface QRConfig {
+  dotsType: string
+  eyeFrame: string
+  eyeBall: string
+  size: number
+  margin: number
+  ecl: string
+  colorType: string
+  fg: string
+  fg2: string
+  gradType: string
+  gradAngle: number
+  bg: string
+  bgTransparent: boolean
+  logo: string | null
+  logoSize: number
+  logoMargin: number
+  logoHideBg: boolean
+  frame: string
+  frameTitle: string
+  frameSubtitle: string
+  frameColor: string
+  baseUrl: string
+  utmSource: string
+  utmMedium: string
+  utmCampaign: string
+  autoLang: boolean
+  countdown: boolean
+  _presetId?: string
+}
+
+export type SaveState = 'saved' | 'saving' | 'error'
+
+export interface PendingTableRequestView {
+  id: string
+  label: string
+}
+
+export type QRHealth = {
+  state: 'checking' | 'valid' | 'warning' | 'invalid'
+  message: string
+  contrast: number
+}
+
+export interface QRHistory {
+  stack: QRConfig[]
+  index: number
+}

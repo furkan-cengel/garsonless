@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { readOrderLineSnapshots, type PaymentMethod } from '@garsonless/db/order-client'
+import { readOrderLineSnapshots, type PaymentMethod } from '@garsonless/db/browser'
 import { getOrderHistory, type HistoryOrder } from '../../lib/actions/orders'
 import { I, S, Tag, IconButton, btnGhost } from '../../lib/ui'
 import { formatCurrency } from '../../lib/utils'

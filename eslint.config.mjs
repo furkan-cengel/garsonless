@@ -63,6 +63,19 @@ export default tseslint.config(
   {
     files: ['**/*.{ts,tsx}'],
     rules: {
+      'no-restricted-imports': 'off',
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@garsonless/db',
+              allowTypeImports: true,
+              message: 'The root DB entrypoint is type-only. Use @garsonless/db/server, @garsonless/db/browser or @garsonless/domain/* for runtime imports.',
+            },
+          ],
+        },
+      ],
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
       '@typescript-eslint/no-unused-vars': [

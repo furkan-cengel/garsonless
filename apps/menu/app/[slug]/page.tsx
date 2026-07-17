@@ -1,9 +1,13 @@
 import { notFound } from 'next/navigation'
-import { getMemberBalances } from '@garsonless/db'
-import type { MemberBalances } from '@garsonless/db'
-import { getRestaurantBySlug, getThemeConfig, getMenuCategories, getMenuItems } from '../../lib/queries'
+import {
+  customerActorContext,
+  readMemberLoyalty,
+  type MemberBalances,
+} from '@garsonless/application/loyalty'
+import { readPublishedTheme } from '@garsonless/application/themes'
+import { createLoyaltyQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
+import { getRestaurantBySlug, getMenuCategories, getMenuItems } from '../../lib/queries'
 import { getCustomerSession } from '../../lib/customer-session'
-import { resolveMenuTheme } from '../../lib/resolve-theme'
 import { MenuPageClient } from './MenuPageClient'
 import type { MenuItem, MenuCategory } from '@garsonless/ui'
 
@@ -22,20 +26,20 @@ export default async function MenuPage({ params, searchParams }: Props) {
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) notFound()
 
-  const [themeConfig, categories] = await Promise.all([
-    getThemeConfig(restaurant.id),
+  const [themeResult, categories] = await Promise.all([
+    readPublishedTheme({
+      restaurantId: restaurant.id,
+      templateOverride: isPreview && previewTemplate ? previewTemplate : null,
+    }, createThemeApplicationPort()),
     getMenuCategories(restaurant.id),
   ])
+  if (!themeResult.ok) notFound()
 
   const items = await getMenuItems(categories.map((c) => c.id))
 
   // Resolved through the shared helper so the SSR layout's <style> and this
   // client initialTheme are always identical (no first-load color flash).
-  const { theme, templateId } = resolveMenuTheme({
-    settings: restaurant.settings as Record<string, unknown> | null,
-    themeTokens: themeConfig?.tokens,
-    templateOverride: isPreview && previewTemplate ? previewTemplate : null,
-  })
+  const { theme, templateId } = themeResult.value
 
   // Resolve a returning member from the Supabase Auth cookie, plus loyalty
   // balances (service-role, scoped to this customer + restaurant).
@@ -44,7 +48,12 @@ export default async function MenuPage({ params, searchParams }: Props) {
   const session = await getCustomerSession()
   if (session) {
     initialMember = { name: session.name }
-    initialMemberBalances = await getMemberBalances(session.customerId, restaurant.id)
+    const result = await readMemberLoyalty(customerActorContext({
+      authUserId: session.authUserId,
+      customerId: session.customerId,
+      restaurantId: restaurant.id,
+    }), createLoyaltyQueryPort())
+    initialMemberBalances = result.ok ? result.value : null
   }
 
   return (

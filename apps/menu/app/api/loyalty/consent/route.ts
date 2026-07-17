@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { recordConsent, getConsentStatus } from '@garsonless/db'
+import { updateCustomerConsent } from '@garsonless/application/customers'
+import { createCustomerConsentApplicationPort } from '@garsonless/db/server'
 import { getCustomerSession } from '../../../../lib/customer-session'
 
 const schema = z.object({
@@ -32,11 +33,19 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse>> {
   }
 
   const consentType = parsed.data.consentType ?? 'contact_data'
-  const res = await recordConsent(session.customerId, parsed.data.restaurantId, parsed.data.grant, 'member_sheet', consentType)
+  const res = await updateCustomerConsent({
+    actor: 'customer-member',
+    authUserId: session.authUserId,
+    customerId: session.customerId,
+    restaurantId: parsed.data.restaurantId,
+  }, {
+    restaurantId: parsed.data.restaurantId,
+    grant: parsed.data.grant,
+    consentType,
+    source: 'member_sheet',
+  }, createCustomerConsentApplicationPort())
   if (!res.ok) {
     return NextResponse.json({ ok: false, error: 'İzin güncellenemedi.' }, { status: 500 })
   }
-  const consentGiven = await getConsentStatus(session.customerId, parsed.data.restaurantId)
-  const marketingConsentGiven = await getConsentStatus(session.customerId, parsed.data.restaurantId, 'marketing')
-  return NextResponse.json({ ok: true, consentGiven, marketingConsentGiven })
+  return NextResponse.json({ ok: true, ...res.value })
 }

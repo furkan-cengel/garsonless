@@ -5,9 +5,14 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./campaigns": "./src/campaigns.ts",
     "./orders": "./src/orders.ts",
     "./tables": "./src/tables.ts",
     "./context": "./src/context.ts",
+    "./customers": "./src/customers.ts",
+    "./events": "./src/events.ts",
+    "./loyalty": "./src/loyalty.ts",
+    "./menu": "./src/menu.ts",
     "./result": "./src/result.ts"
   },
   "scripts": {

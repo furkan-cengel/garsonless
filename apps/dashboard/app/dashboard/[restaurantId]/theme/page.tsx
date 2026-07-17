@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
-import { TEMPLATES } from '@garsonless/design-engine'
-import { getRestaurantById } from '../../../../lib/queries'
-import { requireSection } from '../../../../lib/auth/access'
+import { readActiveThemeForDashboard } from '@garsonless/application/themes'
+import { createThemeApplicationPort } from '@garsonless/db/server'
+import { assertAccess, requireSection } from '../../../../lib/auth/access'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -10,14 +10,18 @@ interface Props {
 export default async function ThemePage({ params }: Props) {
   const { restaurantId } = await params
   await requireSection(restaurantId, 'theme')
-  const restaurant = await getRestaurantById(restaurantId)
-  if (!restaurant) notFound()
+  const gate = await assertAccess(restaurantId, 'theme')
+  if ('error' in gate) notFound()
+  const result = await readActiveThemeForDashboard({
+    actor: 'dashboard-member',
+    userId: gate.userId,
+    restaurantId,
+    permissions: ['theme'],
+  }, { restaurantId }, createThemeApplicationPort())
+  if (!result.ok) {
+    if (result.error === 'Restaurant not found') notFound()
+    throw new Error(result.error)
+  }
 
-  const settings = restaurant.settings as Record<string, unknown> | null
-  const configuredTemplateId = typeof settings?.['active_template_id'] === 'string'
-    ? settings['active_template_id']
-    : 'default'
-  const activeTemplateId = TEMPLATES[configuredTemplateId] ? configuredTemplateId : 'default'
-
-  redirect(`/dashboard/${restaurantId}/theme/${activeTemplateId}/edit`)
+  redirect(`/dashboard/${restaurantId}/theme/${result.value.templateId}/edit`)
 }

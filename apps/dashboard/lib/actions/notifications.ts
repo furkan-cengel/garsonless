@@ -2,7 +2,7 @@
 
 import { createDashboardServerClient } from '../supabase-server'
 import { assertMember } from '../auth/access'
-import { serviceRequestLabel } from '@garsonless/db'
+import { serviceRequestLabel } from '@garsonless/domain/tables'
 
 async function getAuthUser() {
   const supabase = await createDashboardServerClient()

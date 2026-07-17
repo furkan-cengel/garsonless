@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { ensureCustomerForAuthUser } from '@garsonless/db'
+import { ensureCustomerIdentity } from '@garsonless/application/customers'
+import { createCustomerIdentityApplicationPort } from '@garsonless/db/server'
 import { createMenuServerClient } from '../../../lib/supabase-server'
 
 export async function GET(request: Request) {
@@ -12,12 +13,17 @@ export async function GET(request: Request) {
   const { data, error } = await supabase.auth.exchangeCodeForSession(code)
   if (error || !data.user) return NextResponse.redirect(new URL(`${next}?authError=oauth`, url.origin))
 
-  const result = await ensureCustomerForAuthUser(data.user, {
+  const result = await ensureCustomerIdentity({
+    authUserId: data.user.id,
+    email: data.user.email ?? null,
+    userMetadata: data.user.user_metadata ?? {},
+    appMetadata: data.user.app_metadata ?? {},
+  }, {
     name: url.searchParams.get('name'),
     restaurantId: uuidOrUndefined(url.searchParams.get('restaurantId')),
     consent: url.searchParams.get('consent') === '1',
     marketingConsent: url.searchParams.get('marketingConsent') === '1',
-  })
+  }, createCustomerIdentityApplicationPort())
   return NextResponse.redirect(new URL(result.ok ? next : `${next}?authError=link`, url.origin))
 }
 

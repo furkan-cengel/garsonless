@@ -1,4 +1,4 @@
-import type { OrderStatus } from '@garsonless/db/order-client'
+import type { OrderStatus } from '@garsonless/db/browser'
 import type { Order } from './useOrdersRealtime'
 
 const ACTIVE_STATUSES = new Set<OrderStatus>([

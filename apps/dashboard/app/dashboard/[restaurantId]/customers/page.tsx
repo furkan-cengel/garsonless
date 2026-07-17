@@ -1,7 +1,13 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { getRestaurantById } from '../../../../lib/queries'
-import { getUserRestaurantAccess, firstPermittedPath } from '../../../../lib/auth/access'
-import { getRestaurantCustomers, getRestaurantCustomerSegmentCounts, listCampaigns, listCustomerSegments } from '@garsonless/db'
+import { assertAccess, requireSection } from '../../../../lib/auth/access'
+import { readCampaigns } from '@garsonless/application/campaigns'
+import {
+  readCustomerSegmentCounts,
+  readCustomerSegments,
+  readCustomers,
+} from '@garsonless/application/customers'
+import { createCampaignApplicationPort, createCustomerApplicationPort } from '@garsonless/db/server'
 import CustomersClient from '../../../../components/customers/CustomersClient'
 
 interface Props {
@@ -10,32 +16,39 @@ interface Props {
 
 export default async function CustomersPage({ params }: Props) {
   const { restaurantId } = await params
-  // INTERIM GUARD (Phase 2): customer PII below loads via the SERVICE ROLE, so it
-  // is NOT RLS-gated — the 'customers' section must be enforced here or a member
-  // without it would read PII. (Full per-route sweep is Phase 3.)
-  const access = await getUserRestaurantAccess(restaurantId)
-  if (!access) notFound()
-  if (!access.isOwner && !access.permissions.includes('customers')) {
-    redirect(firstPermittedPath(restaurantId, access))
-  }
+  await requireSection(restaurantId, 'customers')
+  const gate = await assertAccess(restaurantId, 'customers')
+  if ('error' in gate) throw new Error(gate.error)
   const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
 
-  const [initial, initialSegmentCounts, initialSegments, initialCampaigns] = await Promise.all([
-    getRestaurantCustomers(restaurantId, { sort: 'last_seen', page: 1, pageSize: 25 }),
-    getRestaurantCustomerSegmentCounts(restaurantId),
-    listCustomerSegments(restaurantId),
-    listCampaigns(restaurantId),
+  const actor = {
+    actor: 'dashboard-member' as const,
+    restaurantId,
+    userId: gate.userId,
+    permissions: ['customers'],
+  }
+  const port = createCustomerApplicationPort()
+
+  const [initialResult, countsResult, segmentsResult, campaignsResult] = await Promise.all([
+    readCustomers(actor, { restaurantId, sort: 'last_seen', page: 1, pageSize: 25 }, port),
+    readCustomerSegmentCounts(actor, restaurantId, port),
+    readCustomerSegments(actor, restaurantId, port),
+    readCampaigns(actor, { restaurantId }, createCampaignApplicationPort()),
   ])
+  if (!initialResult.ok) throw new Error(initialResult.error)
+  if (!countsResult.ok) throw new Error(countsResult.error)
+  if (!segmentsResult.ok) throw new Error(segmentsResult.error)
+  if (!campaignsResult.ok) throw new Error(campaignsResult.error)
 
   return (
     <CustomersClient
       restaurantId={restaurantId}
       restaurantName={restaurant.name}
-      initial={initial}
-      initialSegmentCounts={{ all: initial.total, ...initialSegmentCounts }}
-      initialSegments={initialSegments}
-      initialCampaigns={initialCampaigns}
+      initial={initialResult.value}
+      initialSegmentCounts={{ all: initialResult.value.total, ...countsResult.value }}
+      initialSegments={segmentsResult.value}
+      initialCampaigns={campaignsResult.value}
     />
   )
 }

@@ -1,8 +1,9 @@
 import { cache } from 'react'
-import { createServiceClient } from '@garsonless/db'
+import { resolveCustomerIdentityForAuthUser } from '@garsonless/db/server'
 import { createMenuServerClient } from './supabase-server'
 
 export interface CustomerSession {
+  authUserId: string
   customerId: string
   name: string | null
 }
@@ -17,13 +18,7 @@ export const getCustomerSession = cache(async (): Promise<CustomerSession | null
   const { data: { user }, error: authError } = await auth.auth.getUser()
   if (authError || !user) return null
 
-  const service = createServiceClient()
-  const { data, error } = await service
-    .from('customers')
-    .select('id, name')
-    .eq('auth_user_id', user.id)
-    .maybeSingle()
-
-  if (error || !data) return null
-  return { customerId: data.id, name: data.name }
+  const customer = await resolveCustomerIdentityForAuthUser(user.id)
+  if (!customer) return null
+  return { authUserId: user.id, ...customer }
 })

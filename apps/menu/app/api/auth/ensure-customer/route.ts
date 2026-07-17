@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { ensureCustomerForAuthUser } from '@garsonless/db'
+import { ensureCustomerIdentity } from '@garsonless/application/customers'
+import { createCustomerIdentityApplicationPort } from '@garsonless/db/server'
 import { createMenuServerClient } from '../../../../lib/supabase-server'
 
 const schema = z.object({
@@ -19,6 +20,11 @@ export async function POST(request: Request) {
   const { data: { user }, error } = await supabase.auth.getUser()
   if (error || !user) return NextResponse.json({ ok: false, error: 'Oturum bulunamadı.' }, { status: 401 })
 
-  const result = await ensureCustomerForAuthUser(user, parsed.data)
+  const result = await ensureCustomerIdentity({
+    authUserId: user.id,
+    email: user.email ?? null,
+    userMetadata: user.user_metadata ?? {},
+    appMetadata: user.app_metadata ?? {},
+  }, parsed.data, createCustomerIdentityApplicationPort())
   return NextResponse.json(result, { status: result.ok ? 200 : 409 })
 }

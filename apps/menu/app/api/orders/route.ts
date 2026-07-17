@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { placePublicOrder } from '@garsonless/application/orders'
-import { type OrderDiscountBreakdown } from '@garsonless/db'
+import type { OrderDiscountBreakdown } from '@garsonless/db'
 import { createPublicOrderPort, resolveActiveTableQrToken } from '@garsonless/db/server'
 import { getCustomerSession } from '../../../lib/customer-session'
 

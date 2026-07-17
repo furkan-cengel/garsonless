@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createServiceClient } from '@garsonless/db'
-import { resolveActiveTableQrToken } from '@garsonless/db/server'
+import { prepareOrderCheckout, releaseOrderCheckout } from '@garsonless/application/payments'
+import { createOrderCheckoutPort, resolveActiveTableQrToken } from '@garsonless/db/server'
 import { createIyzicoClient, initializeCheckout } from '../../../lib/iyzico'
 import { resolveIyzicoCredentials, attachPaymentTokenToOrder } from '../../../lib/payment-credentials'
 import { buildCheckoutAddresses } from '../../../lib/checkout-address'
@@ -64,40 +64,40 @@ export async function POST(
     : developmentOrigin
   const callbackUrl = `${appUrl}/api/payment/callback`
 
-  // SERVER-AUTHORITATIVE amount: read the order's stored total (post-discount).
-  // The client-supplied `total` is never used for the charge.
-  const svc = createServiceClient()
   const table = await resolveActiveTableQrToken(tableToken)
   if (!table || table.restaurantId !== restaurantId) {
     return NextResponse.json({ success: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
   }
-  const { data: orderRow } = await svc
-    .from('orders')
-    .select('total, restaurant_id, table_id')
-    .eq('id', orderId)
-    .maybeSingle()
-  const order = orderRow as { total: number; restaurant_id: string; table_id: string | null } | null
-  if (!order || order.restaurant_id !== restaurantId || order.table_id !== table.tableId) {
-    return NextResponse.json({ success: false, error: 'Sipariş bulunamadı' }, { status: 404 })
+  const prepared = await prepareOrderCheckout(
+    { actor: 'table-guest', restaurantId, tableId: table.tableId, tableToken },
+    { restaurantId, orderId },
+    createOrderCheckoutPort(),
+  )
+  if (!prepared.ok) {
+    const status = prepared.error.includes('bulunamadı') ? 404 : 400
+    return NextResponse.json({ success: false, error: prepared.error }, { status })
   }
-  const { data: restaurantRow } = await svc
-    .from('restaurants')
-    .select('settings')
-    .eq('id', restaurantId)
-    .maybeSingle()
+  const checkoutContext = { actor: 'table-guest' as const, restaurantId, tableId: table.tableId, tableToken }
+  const checkoutPort = createOrderCheckoutPort()
+  const releaseReservation = async () => {
+    const released = await releaseOrderCheckout(
+      checkoutContext,
+      { restaurantId, orderId, reservationId: prepared.value.reservationId },
+      checkoutPort,
+    )
+    if (!released.ok) console.warn(JSON.stringify({ event: 'payment.checkout.release_failed', orderId, error: released.error }))
+  }
   const checkoutAddress = buildCheckoutAddresses(
-    (restaurantRow as { settings: unknown } | null)?.settings,
+    prepared.value.restaurantSettings,
     `${buyerName} ${buyerSurname}`,
   )
-  const amount = Number(order.total)
-  if (!(amount > 0)) {
-    return NextResponse.json({ success: false, error: 'Geçersiz tutar' }, { status: 400 })
-  }
+  const amount = prepared.value.amount
   const priceStr = amount.toFixed(2)
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
 
   const credentials = await resolveIyzicoCredentials(restaurantId)
   if (!credentials) {
+    await releaseReservation()
     return NextResponse.json(
       { success: false, error: 'Bu restoran için ödeme yapılandırılmamış' },
       { status: 503 },
@@ -140,10 +140,23 @@ export async function POST(
       ],
     })
 
-    await attachPaymentTokenToOrder(orderId, result.token)
+    const mappingError = await attachPaymentTokenToOrder(
+      orderId,
+      restaurantId,
+      prepared.value.reservationId,
+      result.token,
+    )
+    if (mappingError) {
+      await releaseReservation()
+      return NextResponse.json(
+        { success: false, error: 'Ödeme oturumu güvenli biçimde başlatılamadı. Lütfen tekrar deneyin.' },
+        { status: 503 },
+      )
+    }
 
     return NextResponse.json({ success: true, data: result })
   } catch (err) {
+    await releaseReservation()
     const msg = err instanceof Error ? err.message : 'Payment initialization failed'
     return NextResponse.json({ success: false, error: msg }, { status: 500 })
   }

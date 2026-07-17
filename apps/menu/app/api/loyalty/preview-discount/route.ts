@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { computeOrderDiscount, resolveOrderLines } from '@garsonless/db'
+import { customerActorContext, previewLoyaltyDiscount } from '@garsonless/application/loyalty'
+import { createLoyaltyQueryPort, resolveOrderLines } from '@garsonless/db/server'
 import { getCustomerSession } from '../../../../lib/customer-session'
 
 const schema = z.object({
@@ -43,14 +44,21 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: resolved.error }, { status: 400 })
   }
 
-  const d = await computeOrderDiscount({
-    customerId: session?.customerId ?? null,
+  const result = await previewLoyaltyDiscount(session ? customerActorContext({
+    authUserId: session.authUserId,
+    customerId: session.customerId,
+    restaurantId: parsed.data.restaurantId,
+  }) : null, {
     restaurantId: parsed.data.restaurantId,
     lines: resolved.discountLines,
-    requestedPointsRedeem: session ? (parsed.data.redeemPoints ?? 0) : 0,
-    requestedStampClaim: session ? (parsed.data.redeemStampClaim ?? false) : false,
-    requestedCatalogReward: session && parsed.data.catalogItemId ? { itemId: parsed.data.catalogItemId } : null,
-  })
+    requestedPointsRedeem: parsed.data.redeemPoints ?? 0,
+    requestedStampClaim: parsed.data.redeemStampClaim ?? false,
+    requestedCatalogReward: parsed.data.catalogItemId ? { itemId: parsed.data.catalogItemId } : null,
+  }, createLoyaltyQueryPort())
+  if (!result.ok) {
+    return NextResponse.json({ ok: false, error: result.error }, { status: 403 })
+  }
+  const d = result.value
 
   // Public subset only (no scopeKey / pointsRate internals).
   return NextResponse.json({
