@@ -7,7 +7,8 @@
 
 import { createServiceClient } from './client'
 import type { Json } from './types.gen'
-import { computeTier, getLoyaltyScope, getMemberBalances } from './loyalty'
+import { computeTier } from '@garsonless/domain/loyalty'
+import { getLoyaltyScope, getMemberBalances } from './loyalty'
 import {
   isEmptyCustomerSegmentDefinition,
   maskCustomerEmail,
@@ -25,33 +26,12 @@ import {
   type SavedCustomerSegment,
 } from '@garsonless/domain/customers'
 
-export {
-  isEmptyCustomerSegmentDefinition,
-  sanitizeCustomerSegmentDefinition,
-} from '@garsonless/domain/customers'
-export type {
-  CustomerConsentType,
-  CustomerListOptions,
-  CustomerSegment,
-  CustomerSegmentConsent,
-  CustomerSegmentCounts,
-  CustomerSegmentDefinition,
-  CustomerSegmentOperator,
-  CustomerSegmentRule,
-  CustomerSort,
-  CustomerTimelineEvent,
-  RestaurantCustomer,
-  RestaurantCustomerDetail,
-  RestaurantCustomersPage,
-  SavedCustomerSegment,
-} from '@garsonless/domain/customers'
-
 // ── phone masking (TR): +905321234567 → "0532 *** ** 67" ─────────────────────
-export function maskPhone(e164: string | null): string {
+function maskPhone(e164: string | null): string {
   return maskCustomerPhone(e164)
 }
 
-export function maskEmail(email: string | null): string {
+function maskEmail(email: string | null): string {
   return maskCustomerEmail(email)
 }
 

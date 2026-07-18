@@ -14,6 +14,7 @@
   "dependencies": {
     "@garsonless/db": "workspace:*",
     "@garsonless/design-engine": "workspace:*",
+    "@garsonless/domain": "workspace:*",
     "lucide-react": "^1.21.0"
   },
   "peerDependencies": {

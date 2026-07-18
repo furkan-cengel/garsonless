@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prepareOrderCheckout, releaseOrderCheckout } from '@garsonless/application/payments'
-import { createOrderCheckoutPort, resolveActiveTableQrToken } from '@garsonless/db/server'
+import { resolvePublicTableContext } from '@garsonless/application/tables'
+import { createOrderCheckoutPort, createPublicTableQueryPort } from '@garsonless/db/server'
 import { createIyzicoClient, initializeCheckout } from '../../../lib/iyzico'
 import { resolveIyzicoCredentials, attachPaymentTokenToOrder } from '../../../lib/payment-credentials'
 import { buildCheckoutAddresses } from '../../../lib/checkout-address'
@@ -64,7 +65,11 @@ export async function POST(
     : developmentOrigin
   const callbackUrl = `${appUrl}/api/payment/callback`
 
-  const table = await resolveActiveTableQrToken(tableToken)
+  const tableResult = await resolvePublicTableContext(tableToken, createPublicTableQueryPort())
+  if (!tableResult.ok) {
+    return NextResponse.json({ success: false, error: 'Masa bağlantısı doğrulanamadı.' }, { status: 503 })
+  }
+  const table = tableResult.value
   if (!table || table.restaurantId !== restaurantId) {
     return NextResponse.json({ success: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
   }

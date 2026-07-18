@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { placePublicOrder } from '@garsonless/application/orders'
+import { resolvePublicTableContext } from '@garsonless/application/tables'
 import type { OrderDiscountBreakdown } from '@garsonless/db'
-import { createPublicOrderPort, resolveActiveTableQrToken } from '@garsonless/db/server'
+import { createPublicOrderPort, createPublicTableQueryPort } from '@garsonless/db/server'
 import { getCustomerSession } from '../../../lib/customer-session'
 
 const orderItemSchema = z.object({
@@ -58,7 +59,11 @@ export async function POST(
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     ?? req.headers.get('x-real-ip')?.trim()
     ?? 'unknown'
-  const table = await resolveActiveTableQrToken(parsed.data.tableToken)
+  const tableResult = await resolvePublicTableContext(parsed.data.tableToken, createPublicTableQueryPort())
+  if (!tableResult.ok) {
+    return NextResponse.json({ success: false, error: 'Masa bağlantısı doğrulanamadı.' }, { status: 503 })
+  }
+  const table = tableResult.value
   if (!table || table.restaurantSlug !== parsed.data.slug) {
     return NextResponse.json({ success: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
   }

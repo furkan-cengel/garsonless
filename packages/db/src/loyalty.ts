@@ -19,42 +19,10 @@ import {
 } from '@garsonless/domain/loyalty'
 import { snapshotOrderCustomerTier, type OrderCustomerTierSnapshot } from './order-client'
 
-export {
-  snapshotOrderCustomerTier,
-  readOrderCustomerTierSnapshot,
-  orderHasPriorityService,
-  compareOrdersByPriorityThenCreatedAt,
-  sortOrdersByPriorityThenCreatedAt,
-} from './order-client'
-export type { OrderCustomerTierSnapshot } from './order-client'
-export {
-  NETWORK_SCOPE_KEY,
-  DEFAULT_TIERS,
-  MAX_TIERS,
-  applyBonusStamps,
-  computeDiscountStack,
-  computePointsDelta,
-  computePointsRedemption,
-  computeStampDelta,
-  computeStampEarn,
-  computeTier,
-  effectivePct,
-  readLoyaltyConfig,
-  sanitizeTiers,
-  shouldEarnOnSettlement,
-} from '@garsonless/domain/loyalty'
-export type {
-  CatalogReward,
-  LoyaltyActivity,
-  LoyaltyConfig,
-  LoyaltyTier,
-  MemberBalances,
-} from '@garsonless/domain/loyalty'
-
 // ─── Earning ledger + balances ───────────────────────────────────────────────────
 
-// Pure loyalty economics live in @garsonless/domain/loyalty; this module
-// keeps compatibility exports while owning the service-role persistence.
+// Pure loyalty economics live in @garsonless/domain/loyalty. This module owns
+// only service-role persistence and orchestration helpers.
 type OrderItemLine = { itemId?: unknown; quantity?: unknown }
 
 /** Service-role read for CRM aggregation without N balance queries. */

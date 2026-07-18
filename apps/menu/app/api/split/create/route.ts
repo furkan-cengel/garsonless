@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { declareSplitShare } from '@garsonless/application/splits'
-import { createSplitPaymentPort, resolveActiveTableQrToken } from '@garsonless/db/server'
+import { resolvePublicTableContext } from '@garsonless/application/tables'
+import { createPublicTableQueryPort, createSplitPaymentPort } from '@garsonless/db/server'
 import { getCustomerSession } from '../../../../lib/customer-session'
 
 // Customer declares a split share (card intent OR cash). Service-role, gated by
@@ -30,7 +31,9 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ sha
   if (!parsed.success) return NextResponse.json({ success: false, error: parsed.error.issues[0]?.message ?? 'Invalid request' }, { status: 400 })
   const { slug, tableToken, tableSessionId, method, label, amount, assignedItems } = parsed.data
 
-  const table = await resolveActiveTableQrToken(tableToken)
+  const tableResult = await resolvePublicTableContext(tableToken, createPublicTableQueryPort())
+  if (!tableResult.ok) return NextResponse.json({ success: false, error: 'Masa bağlantısı doğrulanamadı.' }, { status: 503 })
+  const table = tableResult.value
   if (!table || table.restaurantSlug !== slug) return NextResponse.json({ success: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
   const session = await getCustomerSession()
   const result = await declareSplitShare(

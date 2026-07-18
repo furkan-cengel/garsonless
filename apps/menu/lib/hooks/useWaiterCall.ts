@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ServiceRequestType } from '@garsonless/db/browser'
+import type { ServiceRequestType } from '@garsonless/domain/tables'
 
 export type WaiterCallState = 'idle' | 'calling' | 'called'
 

@@ -54,6 +54,72 @@ export interface TableServiceRequestPort {
   listPendingRequests(restaurantId: string): Promise<Result<PendingTableServiceRequest[]>>
 }
 
+export type DeleteTableOutcome = 'deleted' | 'open_session' | 'not_found'
+
+export interface DashboardTablePort {
+  createTable(input: {
+    restaurantId: string
+    label: string
+  }): Promise<Result<{ id: string; token: string }>>
+  renameTable(input: {
+    restaurantId: string
+    tableId: string
+    label: string
+  }): Promise<Result<null>>
+  deleteTable(input: {
+    restaurantId: string
+    tableId: string
+  }): Promise<Result<DeleteTableOutcome>>
+  listQrTokens(restaurantId: string): Promise<Result<Record<string, string>>>
+  rotateQrToken(input: {
+    restaurantId: string
+    tableId: string
+    revokedBy: string
+  }): Promise<Result<string | null>>
+  readRestaurantSlug(restaurantId: string): Promise<Result<string | null>>
+  patchQrStyle(input: {
+    restaurantId: string
+    style: unknown
+  }): Promise<Result<null>>
+}
+
+export interface PublicTableContext {
+  restaurantId: string
+  restaurantSlug: string
+  tableId: string
+  tableLabel: string
+}
+
+export interface PublicTableState {
+  token: PublicTableContext
+  session: { id: string; opened_at: string } | null
+  orders: Array<{
+    id: string
+    status: string
+    total: number
+    paid_at: string | null
+    created_at: string
+    items: unknown
+  }>
+  shares: Array<{
+    id: string
+    amount: number
+    method: string | null
+    status: string
+    label: string | null
+  }>
+}
+
+export interface PublicTableQueryPort {
+  resolveContext(token: string): Promise<Result<PublicTableContext | null>>
+  readState(token: string): Promise<Result<PublicTableState | null>>
+  readOrderStatus(input: {
+    token: string
+    sessionId: string
+    orderId: string
+  }): Promise<Result<{ status: string; paid_at: string | null } | null>>
+}
+
 function requireDashboardTables(
   context: Extract<CommandContext, { actor: 'dashboard-member' }>,
   restaurantId: string,
@@ -62,6 +128,95 @@ function requireDashboardTables(
     return err('Not authorized')
   }
   return ok(true)
+}
+
+export async function createDashboardTable(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  input: { restaurantId: string; label: string },
+  port: DashboardTablePort,
+): Promise<Result<{ id: string; token: string }>> {
+  const access = requireDashboardTables(context, input.restaurantId)
+  return access.ok ? port.createTable(input) : access
+}
+
+export async function renameDashboardTable(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  input: { restaurantId: string; tableId: string; label: string },
+  port: DashboardTablePort,
+): Promise<Result<null>> {
+  const access = requireDashboardTables(context, input.restaurantId)
+  return access.ok ? port.renameTable(input) : access
+}
+
+export async function deleteDashboardTable(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  input: { restaurantId: string; tableId: string },
+  port: DashboardTablePort,
+): Promise<Result<DeleteTableOutcome>> {
+  const access = requireDashboardTables(context, input.restaurantId)
+  return access.ok ? port.deleteTable(input) : access
+}
+
+export async function listDashboardTableQrTokens(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  restaurantId: string,
+  port: DashboardTablePort,
+): Promise<Result<Record<string, string>>> {
+  const access = requireDashboardTables(context, restaurantId)
+  return access.ok ? port.listQrTokens(restaurantId) : access
+}
+
+export async function rotateDashboardTableQrToken(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  input: { restaurantId: string; tableId: string },
+  port: DashboardTablePort,
+): Promise<Result<string | null>> {
+  const access = requireDashboardTables(context, input.restaurantId)
+  return access.ok
+    ? port.rotateQrToken({ ...input, revokedBy: context.userId })
+    : access
+}
+
+export async function saveDashboardQrStyle(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  input: {
+    restaurantId: string
+    style: unknown
+    baseUrl: string
+    menuOrigin: string
+  },
+  port: DashboardTablePort,
+): Promise<Result<null>> {
+  const access = requireDashboardTables(context, input.restaurantId)
+  if (!access.ok) return access
+
+  const slug = await port.readRestaurantSlug(input.restaurantId)
+  if (!slug.ok) return slug
+  if (!slug.value) return err('Restaurant not found')
+  const expectedBaseUrl = `${input.menuOrigin.replace(/\/+$/, '')}/${slug.value}`
+  if (input.baseUrl !== expectedBaseUrl) return err('QR menu address cannot be changed')
+  return port.patchQrStyle({ restaurantId: input.restaurantId, style: input.style })
+}
+
+export async function resolvePublicTableContext(
+  token: string,
+  port: PublicTableQueryPort,
+): Promise<Result<PublicTableContext | null>> {
+  return port.resolveContext(token)
+}
+
+export async function readPublicTableState(
+  token: string,
+  port: PublicTableQueryPort,
+): Promise<Result<PublicTableState | null>> {
+  return port.readState(token)
+}
+
+export async function readPublicTableOrderStatus(
+  input: { token: string; sessionId: string; orderId: string },
+  port: PublicTableQueryPort,
+): Promise<Result<{ status: string; paid_at: string | null } | null>> {
+  return port.readOrderStatus(input)
 }
 
 export async function closeTableSession(

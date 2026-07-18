@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type {
+  DashboardTablePort,
   KitchenBoardPort,
   KitchenOrderProjection,
   TableServiceRequestPort,
@@ -8,10 +9,13 @@ import type {
 } from './tables'
 import {
   closeTableSession,
+  createDashboardTable,
   mergeKitchenOrderProjection,
   readKitchenOrders,
+  rotateDashboardTableQrToken,
   requestTableService,
   resolveTableServiceRequest,
+  saveDashboardQrStyle,
 } from './tables'
 
 const tableContext = {
@@ -20,6 +24,66 @@ const tableContext = {
   userId: 'staff',
   permissions: ['tables'],
 }
+
+function dashboardTablePort(overrides: Partial<DashboardTablePort> = {}): DashboardTablePort {
+  return {
+    async createTable() { return { ok: true, value: { id: 'table-a', token: 'token-a' } } },
+    async renameTable() { return { ok: true, value: null } },
+    async deleteTable() { return { ok: true, value: 'deleted' } },
+    async listQrTokens() { return { ok: true, value: {} } },
+    async rotateQrToken() { return { ok: true, value: 'token-b' } },
+    async readRestaurantSlug() { return { ok: true, value: 'cafe-a' } },
+    async patchQrStyle() { return { ok: true, value: null } },
+    ...overrides,
+  }
+}
+
+test('dashboard table create rejects cross-tenant replay before touching persistence', async () => {
+  let touched = false
+  const result = await createDashboardTable(
+    tableContext,
+    { restaurantId: 'restaurant-b', label: 'Masa 1' },
+    dashboardTablePort({
+      async createTable() { touched = true; return { ok: true, value: { id: 'table', token: 'token' } } },
+    }),
+  )
+  assert.deepEqual(result, { ok: false, error: 'Not authorized' })
+  assert.equal(touched, false)
+})
+
+test('dashboard QR rotation derives audit actor from trusted context', async () => {
+  let revokedBy = ''
+  const result = await rotateDashboardTableQrToken(
+    tableContext,
+    { restaurantId: 'restaurant-a', tableId: 'table-a' },
+    dashboardTablePort({
+      async rotateQrToken(input) {
+        revokedBy = input.revokedBy
+        return { ok: true, value: 'token-b' }
+      },
+    }),
+  )
+  assert.deepEqual(result, { ok: true, value: 'token-b' })
+  assert.equal(revokedBy, 'staff')
+})
+
+test('QR style command rejects a forged base URL before persistence', async () => {
+  let patched = false
+  const result = await saveDashboardQrStyle(
+    tableContext,
+    {
+      restaurantId: 'restaurant-a',
+      style: { baseUrl: 'https://evil.example/cafe-a' },
+      baseUrl: 'https://evil.example/cafe-a',
+      menuOrigin: 'https://menu.masabu.co',
+    },
+    dashboardTablePort({
+      async patchQrStyle() { patched = true; return { ok: true, value: null } },
+    }),
+  )
+  assert.deepEqual(result, { ok: false, error: 'QR menu address cannot be changed' })
+  assert.equal(patched, false)
+})
 
 test('table session close rejects cross-tenant replay before calling the port', async () => {
   let touched = false

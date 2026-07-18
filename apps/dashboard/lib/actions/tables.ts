@@ -2,16 +2,18 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { createDashboardServerClient } from '../supabase-server'
-import { mut } from '../supabase-mut'
-import { closeTableSession as closeTableSessionCommand, listOpenTableSessions } from '@garsonless/application/tables'
 import {
+  closeTableSession as closeTableSessionCommand,
+  createDashboardTable,
+  deleteDashboardTable,
+  listOpenTableSessions,
+  renameDashboardTable,
+  rotateDashboardTableQrToken,
+  saveDashboardQrStyle,
+} from '@garsonless/application/tables'
+import {
+  createDashboardTablePort,
   createTableSessionPort,
-  listActiveTableQrTokens,
-  patchRestaurantQrStyle,
-  readRestaurantSlug,
-  rotateActiveTableQrToken,
-  softDeleteTable,
 } from '@garsonless/db/server'
 import { assertAccess } from '../auth/access'
 
@@ -78,97 +80,43 @@ const MENU_ORIGIN = (
     : process.env.NEXT_PUBLIC_MENU_BASE_URL ?? process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'
 ).replace(/\/+$/, '')
 
-async function getAuthUser() {
-  const supabase = await createDashboardServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  return { supabase, user }
-}
-
-// Phase 3 section gate: owner OR a member with the 'tables' section.
-async function assertRestaurantOwner(
-  _supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
-  restaurantId: string,
-  _userId: string,
-) {
-  const gate = await assertAccess(restaurantId, 'tables')
-  return !('error' in gate)
-}
-
 export async function createTable(
   _prev: unknown,
   formData: FormData,
 ): Promise<{ error: string } | { id: string; token: string }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
-
   const parsed = createTableSchema.safeParse({
     restaurantId: formData.get('restaurantId'),
     label: formData.get('label'),
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
 
-  const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
-  if (!isOwner) return { error: 'Not authorized' }
-
-  const { data: duplicate } = await supabase
-    .from('tables')
-    .select('id')
-    .eq('restaurant_id', parsed.data.restaurantId)
-    .ilike('label', parsed.data.label)
-    .is('deleted_at', null)
-    .limit(1)
-  if ((duplicate ?? []).length > 0) return { error: 'Bu isimde aktif bir masa zaten var.' }
-
-  const { data, error } = await mut(supabase, 'tables')
-    .insert({ restaurant_id: parsed.data.restaurantId, label: parsed.data.label })
-    .select('id')
-    .single()
-
-  if (error) return { error: error.code === '23505' ? 'Bu isimde aktif bir masa zaten var.' : error.message }
-
-  const id = (data as { id: string } | null)?.id
-  if (!id) return { error: 'Failed to create table' }
-
-  const tokens = await listActiveTableQrTokens(parsed.data.restaurantId)
-  const token = tokens[id]
-  if (!token) return { error: 'Yeni masa için QR bağlantısı oluşturulamadı.' }
+  const gate = await assertAccess(parsed.data.restaurantId, 'tables')
+  if ('error' in gate) return { error: gate.error }
+  const result = await createDashboardTable(
+    { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['tables'] },
+    parsed.data,
+    createDashboardTablePort(),
+  )
+  if (!result.ok) return { error: result.error }
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
-  return { id, token }
+  return result.value
 }
 
 export async function renameTable(
   input: unknown,
 ): Promise<{ error: string } | { success: true }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
-
   const parsed = updateTableSchema.safeParse(input)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
 
-  const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
-  if (!isOwner) return { error: 'Not authorized' }
-
-  const { data: duplicate } = await supabase
-    .from('tables')
-    .select('id')
-    .eq('restaurant_id', parsed.data.restaurantId)
-    .neq('id', parsed.data.tableId)
-    .ilike('label', parsed.data.label)
-    .is('deleted_at', null)
-    .limit(1)
-  if ((duplicate ?? []).length > 0) return { error: 'Bu isimde aktif bir masa zaten var.' }
-
-  const now = new Date().toISOString()
-  const { data, error } = await mut(supabase, 'tables')
-    .update({ label: parsed.data.label, updated_at: now })
-    .eq('id', parsed.data.tableId)
-    .eq('restaurant_id', parsed.data.restaurantId)
-    .is('deleted_at', null)
-    .select('id')
-
-  if (error) return { error: error.code === '23505' ? 'Bu isimde aktif bir masa zaten var.' : error.message }
-  if (!data || data.length === 0) return { error: 'Table not found for this restaurant' }
+  const gate = await assertAccess(parsed.data.restaurantId, 'tables')
+  if ('error' in gate) return { error: gate.error }
+  const result = await renameDashboardTable(
+    { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['tables'] },
+    parsed.data,
+    createDashboardTablePort(),
+  )
+  if (!result.ok) return { error: result.error }
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   return { success: true }
@@ -177,20 +125,19 @@ export async function renameTable(
 export async function deleteTable(
   input: unknown,
 ): Promise<{ error: string } | { success: true }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
-
   const parsed = deleteTableSchema.safeParse(input)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
 
-  const isOwner = await assertRestaurantOwner(supabase, parsed.data.restaurantId, user.id)
-  if (!isOwner) return { error: 'Not authorized' }
-
-  const { data: outcome, error } = await softDeleteTable(parsed.data)
-
-  if (error) return { error: error.message }
-  if (outcome === 'open_session') return { error: 'Bu masada açık adisyon var. Önce adisyonu kapatın.' }
-  if (outcome !== 'deleted') return { error: 'Table not found for this restaurant' }
+  const gate = await assertAccess(parsed.data.restaurantId, 'tables')
+  if ('error' in gate) return { error: gate.error }
+  const result = await deleteDashboardTable(
+    { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['tables'] },
+    parsed.data,
+    createDashboardTablePort(),
+  )
+  if (!result.ok) return { error: result.error }
+  if (result.value === 'open_session') return { error: 'Bu masada açık adisyon var. Önce adisyonu kapatın.' }
+  if (result.value !== 'deleted') return { error: 'Table not found for this restaurant' }
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   return { success: true }
@@ -202,18 +149,15 @@ export async function rotateTableQrToken(input: unknown): Promise<{ error: strin
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid QR rotation request' }
   const gate = await assertAccess(parsed.data.restaurantId, 'tables')
   if ('error' in gate) return { error: gate.error }
-  try {
-    const token = await rotateActiveTableQrToken({
-      restaurantId: parsed.data.restaurantId,
-      tableId: parsed.data.tableId,
-      revokedBy: gate.userId,
-    })
-    if (!token) return { error: 'Masa bulunamadı veya artık aktif değil.' }
-    revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
-    return { token }
-  } catch {
-    return { error: 'QR kodu döndürülemedi. Lütfen tekrar deneyin.' }
-  }
+  const result = await rotateDashboardTableQrToken(
+    { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['tables'] },
+    parsed.data,
+    createDashboardTablePort(),
+  )
+  if (!result.ok) return { error: 'QR kodu döndürülemedi. Lütfen tekrar deneyin.' }
+  if (!result.value) return { error: 'Masa bulunamadı veya artık aktif değil.' }
+  revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
+  return { token: result.value }
 }
 
 export async function saveQRStyle(
@@ -226,24 +170,11 @@ export async function saveQRStyle(
   const parsed = qrStyleSchema.safeParse(style)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid QR style' }
 
-  let slug: string | null
-  try {
-    slug = await readRestaurantSlug(restaurantId)
-  } catch {
-    return { error: 'Restaurant could not be loaded' }
-  }
-  if (!slug) return { error: 'Restaurant not found' }
-
-  const expectedBaseUrl = `${MENU_ORIGIN}/${slug}`
-  if (parsed.data.baseUrl !== expectedBaseUrl) {
-    return { error: 'QR menu address cannot be changed' }
-  }
-
-  // Atomic JSONB patch: updating QR Studio can no longer overwrite a theme,
-  // notification or loyalty setting saved concurrently by another screen.
-  // The RPC is service-role only; this action's section gate remains the
-  // user-facing authorization boundary.
-  const result = await patchRestaurantQrStyle(restaurantId, parsed.data)
+  const result = await saveDashboardQrStyle(
+    { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['tables'] },
+    { restaurantId, style: parsed.data, baseUrl: parsed.data.baseUrl, menuOrigin: MENU_ORIGIN },
+    createDashboardTablePort(),
+  )
   if (!result.ok) return { error: result.error }
 
   revalidatePath(`/dashboard/${restaurantId}/tables`)

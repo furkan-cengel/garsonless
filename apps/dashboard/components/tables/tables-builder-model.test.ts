@@ -6,10 +6,14 @@ import {
   buildUrl,
   createQRHistory,
   defaultQR,
+  filterTables,
   normalizeQRStyle,
   pushQRHistory,
   qrContrast,
   removePendingRequest,
+  removeTableFromList,
+  replaceTableQrToken,
+  renameTableInList,
   requestsByTable,
   sessionRequiresSettlement,
   redoQRHistory,
@@ -32,6 +36,48 @@ test('persisted custom domaini canlandırmaz ve geçersiz enumları varsayılana
   assert.equal(normalized.colorType, 'single')
   assert.equal(normalized.gradType, 'linear')
   assert.equal(normalized.frameTitle, 'Masanız')
+})
+
+test('masa araması Türkçe etiketi ve kısa slug değerini normalize eder', () => {
+  const tables = [
+    { id: 'a', qrToken: 'a', label: 'İç Bahçe', slug: 'b01', orders: 0, status: 'idle' as const },
+    { id: 'b', qrToken: 'b', label: 'Bar', slug: 'ba', orders: 0, status: 'idle' as const },
+  ]
+
+  assert.deepEqual(filterTables(tables, '  İÇ  ').map((table) => table.id), ['a'])
+  assert.deepEqual(filterTables(tables, 'ba').map((table) => table.id), ['a', 'b'])
+  assert.equal(filterTables(tables, ''), tables)
+})
+
+test('rename sıra tabanlı slugı yeniler ve aktif masa silinince ilk kalan masayı seçer', () => {
+  const tables = [
+    { id: 'a', qrToken: 'a', label: 'Masa 1', slug: '01', orders: 0, status: 'idle' as const },
+    { id: 'b', qrToken: 'b', label: 'Masa 2', slug: '02', orders: 0, status: 'idle' as const },
+  ]
+  const renamed = renameTableInList(tables, 'b', 'Bahçe')
+  assert.equal(renamed[1]?.slug, 'b02')
+
+  assert.deepEqual(removeTableFromList(renamed, 'a', 'a'), {
+    tables: [renamed[1]],
+    activeId: 'b',
+  })
+  assert.equal(removeTableFromList(renamed, 'a', 'b').activeId, 'b')
+})
+
+test('QR token rotasyonu yalnız hedef masanın public credential değerini değiştirir', () => {
+  const tables = [
+    { id: 'a', qrToken: 'old-a', label: 'Masa 1', slug: '01', orders: 0, status: 'idle' as const },
+    { id: 'b', qrToken: 'old-b', label: 'Masa 2', slug: '02', orders: 0, status: 'idle' as const },
+  ]
+
+  const rotated = replaceTableQrToken(tables, 'a', 'new-a')
+
+  assert.deepEqual(rotated.map(({ id, qrToken }) => ({ id, qrToken })), [
+    { id: 'a', qrToken: 'new-a' },
+    { id: 'b', qrToken: 'old-b' },
+  ])
+  assert.notEqual(rotated, tables)
+  assert.equal(rotated[1], tables[1])
 })
 
 test('QR URL revocable token kullanır ve UTM özel karakterlerini encode eder', () => {

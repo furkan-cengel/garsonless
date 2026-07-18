@@ -172,6 +172,50 @@ single-use exchange sonrası board 200 açıldı; DB insert 1305 ms'de göründ�
 terminal update 1815 ms'de kartı kaldırdı ve browser console error üretmedi.
 `20260717020000_kitchen_order_projection.sql` PROD-at-deploy setine dahildir.
 
+Tables/Kitchen compatibility retirement diliminde dashboard masa CRUD, QR
+token listeleme/rotasyon ve stil kaydı `DashboardTablePort` arkasına alındı.
+Dashboard actor'ı tenant + `tables` izniyle application katmanında doğrulanır;
+rotation audit kimliği context'ten türetilir ve QR base URL yalnız doğrulanmış
+restaurant slug ile sabit menu origin'den üretilebilir. Menu table page ve
+table-state/order/order-status/payment/split/service-request route'ları raw QR
+helper'ı yerine `PublicTableQueryPort` kullanır. Bu port token, session ve order
+bağını dar projection ile çözer; order-status route'u service-role client
+oluşturmaz.
+
+Raw table CRUD/QR fonksiyonları `@garsonless/db/server` public entrypoint'inden
+çıkarılmıştır. DB adapter implementasyonu aynı atomik RPC'leri kullanmaya devam
+eder, fakat app katmanı bunları import edemez. DEV runtime'da açık-session delete
+fail-closed kaldı, rotation eski token'ı ve soft-delete yeni token'ı geçersiz
+kıldı; dört anon raw RPC denemesi `42501` aldı ve cleanup sıfır orphan bıraktı.
+Temiz KDS browser koşusunda delta insert 2298 ms, terminal tombstone removal
+1813 ms sürdü; console error oluşmadı. Bu retirement migration veya HTTP
+sözleşmesi değişikliği gerektirmedi.
+
+## Restaurant settings ve stand request boundary
+
+Dashboard app katmanı service-role client oluşturmaz. Generic restaurant
+settings ve notification patch'leri `patchRestaurantSettings` command'inden
+`RestaurantSettingsPort` adapter'ına gider. Dashboard context'inin açık
+`isOwner` authority bilgisi application katmanında owner-only key'ler ile
+settings-member allowlist'ini ayırır; tenant veya section uyuşmazlığı port
+çalışmadan reddedilir.
+
+`patch_restaurant_settings_atomic` service-role-only RPC'si top-level JSON patch
+merge'ini tek PostgreSQL update'ında yapar. UI'nın önce tüm settings belgesini
+okuyup sonra geri yazması gerekmez; bağımsız notification, theme, QR veya
+loyalty kaydı concurrent bir generic settings save tarafından silinmez. RPC'nin
+geniş service-role yetkisi yalnız typed DB adapter içinde kalır.
+
+Fiziksel stand talebi `requestQrStands` orchestration command'idir. DB portu
+güvenilir restoran adını okur, restaurant-scoped atomik throttle slotunu claim
+eder ve delivery başarısızlığında claim'i koşullu bırakır. Resend provider
+adapter'ı yalnız yapılandırılmış talebi HTML'e dönüştürür ve tüm serbest metni
+escape eder. Action FormData/Zod, actor çözümü ve result mapping dışında iş
+kuralı taşımaz. DEV yarış matrisinde paralel settings patch'leri korundu, stand
+replay'i provider'a ulaşmadan throttle edildi ve delivery failure claim'i sıfır
+orphan ile bıraktı. `20260717030000_atomic_restaurant_settings_patch.sql`
+PROD-at-deploy setine dahildir.
+
 DEV throwaway runtime matrisinde servis isteği create+replay throttle+resolve,
 normal close, unpaid close reddi, gerekçeli abnormal close ve tek-istasyon
 `sent_to_kitchen -> preparing -> ready` zinciri doğrulandı; tenant, QR, session,
@@ -253,6 +297,55 @@ image ve modifier alanları aynı kuraldan geçer. `MenuItemEditorFrame` panel
 header/scroll/footer/overlay kabuğunu, `MenuConfirmDialog` ortak doğrulama
 yüzeyini taşır. Ana shell ürün seçiminden çıkış korumasını ve command
 callback'lerini orkestre eder; panel chrome veya dirty equality kuralını taşımaz.
+
+Üçüncü MenuManager diliminde kategori silme/sıralama ile ürün hızlı/bulk yayın
+komutlarının optimistic state, rollback ve toast orkestrasyonu
+`use-menu-manager-commands` controller'ına taşındı. Recursive kategori ağacı
+kaldırma ve hedef ürün patch/fallback kuralları
+`menu-manager-command-model` saf projection'larıdır. Ana orchestrator bu server
+action'ları import etmez; kategori ve ürün view'larına yalnız typed controller
+callback'leri verir. Fitness testi action sahipliğinin shell'e dönmesini, saf
+modelin React/infrastructure bağımlılığı kazanmasını ve orchestrator'ın 1.875
+satır bütçesini aşmasını engeller.
+
+Dördüncü MenuManager diliminde varyant/modifier grupları, seçenek fiyat ve
+kalori farkları ile çoklu alerjen seçicinin bütün görsel yaşam döngüsü
+`MenuModifierGroupEditor` salt-props view sınırına taşındı. Bu view tenant,
+server action veya Supabase erişimi taşımaz; typed grup dizisini yalnız
+`onChange` ile üst editöre geri verir. `MenuManager` modifier state'ini dirty
+snapshot ve ürün kaydetme orkestrasyonuna bağlamaya devam eder, fakat alerjen
+dropdown ve seçenek editörü markup'ını sahiplenmez. Fitness testi bu izolasyonu
+ve ana orchestrator için sıkılaştırılan 1.500 satır bütçesini korur.
+
+Beşinci MenuManager diliminde ürün editörünün bütün feature state'i ve yaşam
+döngüsü `MenuItemEditPanel` sınırına taşındı. Ad/açıklama, fiyat/KDV/istasyon,
+nutrition, görsel ve modifier state'i; dirty snapshot, `beforeunload` koruması,
+storage upload ile save/delete action orkestrasyonu artık tek feature
+bileşenindedir. Ana shell yalnız seçili ürün projection'ını panele verir ve
+`onSaved`, `onDeleted`, `onDirtyChange` callback'leriyle liste/seçim state'ini
+uzlaştırır. Panel browser storage adapter'ını kullanabilir fakat service-role
+veya `@garsonless/db/server` erişimi taşımaz. Fitness bütçesi ana orchestrator
+için 900 satıra indirilmiştir.
+
+Altıncı MenuManager diliminde ürün workspace'i `MenuItemsWorkspace` feature
+sınırına taşındı. Grid/list modu, aktif/pasif filtreleri, alt-kategori tabları,
+toplu seçim yaşam döngüsü, hızlı fiyat/yayın aksiyonları ve kart/list/empty
+görünümleri aynı tenant-agnostic bileşendedir. Workspace yalnız ürün/category
+projection'ları ile typed callback'ler alır; server action, Supabase veya
+restaurant kimliği taşımaz. Ana shell hesaplanmış ürün listesini ve command
+controller callback'lerini bağlar. Orchestrator fitness bütçesi 450 satıra
+sıkılaştırılmıştır.
+
+Yedinci MenuManager diliminde kalan yerel shell state'i
+`use-menu-manager-shell-state` controller sınırına taşındı. Arama ve klavye
+odağı, kategori/alt-kategori/ürün seçimi, dirty editörden korumalı çıkış,
+toast/yeni-ürün state'i ve feature callback'lerinden dönen liste projection
+uzlaştırmaları bu hook'un sorumluluğundadır. Topbar, skeleton, empty ve toast
+yüzeyleri ise `MenuManagerChrome` salt-props view'larına ayrılmıştır. Her iki
+sınır da action, Supabase ve tenant kimliğinden bağımsızdır; ana `MenuManager`
+yalnız feature/controller bağlayan 226 satırlık bir composition root olarak
+kalır. Fitness testi bu delegasyonu ve 240 satırlık orchestrator bütçesini
+korur.
 
 `ThemeEditorClient` preview diliminde iframe iletişimi ayrı bir feature sınırına
 alındı. `useThemePreviewBridge`; hedef origin doğrulaması, preview handshake'i,
@@ -414,9 +507,10 @@ anon ret, başarısız publish rollback'i ile sıfır orphan cleanup doğrulanm�
 
 1. Yeni uygulama yazmaları application command olmadan doğrudan DB kuralı
    taşımaz.
-2. Service-role yalnız `@garsonless/db/server` için yeni kodda erişilebilir.
-   Root barrel `createServiceClient` export etmez; ESLint bu eski importu hata
-   olarak reddeder.
+2. Service-role client yalnız `packages/db` implementasyonlarının iç detayıdır.
+   App'ler `@garsonless/db/server` üzerinden typed port/adapter alır; ham
+   `createServiceClient` bu public yüzeyden de export edilmez ve ESLint olası
+   geri dönüşü hata olarak reddeder.
 3. Para, fiyat, indirim, sadakat ve order transition kararları saf policy veya
    atomik RPC'de tek sahipli olur.
 4. UI state iş kuralı değildir; büyük editor shell'leri feature state,
@@ -424,10 +518,10 @@ anon ret, başarısız publish rollback'i ile sıfır orphan cleanup doğrulanm�
 
 ## Sonraki dilimler
 
-1. DB içindeki eski compatibility wrapper'larını, çağrı sahibi domainlerin
-   repository implementasyonlarına dönüştürüp dosya bazında ölçümlü kaldırmak.
-   App runtime importları artık bu wrapper'lara root barrel üzerinden ulaşamaz.
-   Geniş anon order/session/share okumaları ve legacy customer session/OTP yolu
+1. Kalan büyük client orchestrator'ları ölçerek en yüksek coupling'e sahip
+   state/view/command parçalarını ayırmak ve mimari fitness testlerini CI
+   `check` kapısına sabitlemek. Geniş anon order/session/share okumaları,
+   legacy customer session/OTP yolu ve ölçülmüş DB compatibility facade'ları
    kaldırıldı.
 
 ## Legacy customer auth retirement
@@ -459,11 +553,225 @@ birini kullanır:
 - `@garsonless/db/browser`: anon client ve browser-safe read projection'ları,
 - `@garsonless/domain/*`: saf policy, vocabulary ve iş kuralları.
 
-Root `@garsonless/db` yalnız generated schema ve compatibility sözleşme tiplerini
+Root `@garsonless/db` yalnız generated schema ve geçişte gereken sözleşme tiplerini
 taşır. Böylece yanlışlıkla service-role üreticisinin client bundle'a çekilmesi ve
 app adapter'larının belirsiz infrastructure yüzeyine bağlanması derleme/lint
 aşamasında engellenir. Paket export map'inde eski `./order-client` yolu yoktur;
 mevcut tüm call-site'lar `./browser` sınırına taşınmıştır.
+
+2026-07-17 retirement diliminde `./browser` wildcard export'u da kaldırılıp
+explicit allowlist'e çevrildi. Service-request vocabulary doğrudan
+`@garsonless/domain/tables`, menu numeric/nutrition/review policy'leri doğrudan
+`@garsonless/domain/menu` sahibi oldu; DB facade dosyaları silindi. Loyalty,
+customers ve campaigns persistence modüllerindeki salt domain re-export'ları
+kaldırıldı. Sıfır tüketimli customer-auth facade'u emekli edildi ve
+`@garsonless/db/server` artık ham service-role client yayımlamıyor. Kaynak-seviye
+fitness testleri root'un type-only, browser'ın explicit/browser-safe ve server'ın
+port-only kalmasını sürekli doğrular.
+
+## Theme editor UI boundary
+
+Tema editörünün sol navigasyon ve sayfa-akışı görünümü
+`ThemeEditorSidebar` bileşenine ayrıldı. `ThemeEditorClient` artık bu bölümü
+render etmez; yalnız seçili grup/bölüm, arama, drag state ve page-flow
+command'lerini orkestre edip typed callback'lerle sidebar'a verir. Kategori
+scope ve sıralama kuralları `theme-page-flow-model` içinde tek kaynak olmaya
+devam eder.
+
+Kaynak-seviye fitness testi ana orchestrator'ın sidebar'ı yeniden içine
+almamasını, sidebar'ın ortak page-flow modelini kullanmasını ve ana dosyanın
+1.400 satırlık decomposition bütçesini aşmamasını doğrular.
+
+İkinci view diliminde template ve section picker modalları
+`ThemeEditorDialogs` içine çıkarıldı. Focus trap, modal layout, template kart
+metinleri ve plan rozetleri bu view sınırına aittir; modal state'i, template
+navigation command'i ve section ekleme command'i `ThemeEditorClient` içinde
+kalır. Büyük template/section preview çizimleri render callback ile verilir;
+böylece view ayrışırken tema registry veya command ownership'i kopyalanmaz.
+
+Üçüncü view diliminde template telefon çizimleri ve section mini-preview
+kataloğu `ThemeEditorPreviewCatalog` içine taşındı. Katalog yalnız typed tema/id
+girdisini JSX'e projekte eder; state, effect, action importu ve seçim command'i
+barındırmaz. Fitness testi bu render-only sözleşmeyi de korur.
+
+Bu üç dilim sonunda orchestrator 3.011 satırdan 1.772 satıra indi. Davranış ve
+persistence sözleşmesi değişmedi; sonraki UI strangler dilimleri için net bir
+view/command sınırı oluştu.
+
+Dördüncü dilimde section library, group listesi, yiyecek ikon seçenekleri ve
+section settings şeması `theme-editor-section-registry` saf veri kataloğuna
+ayrıldı. Registry React/JSX veya app action bağımlılığı taşımaz; ikonlar typed
+anahtar olarak tutulur ve yalnız dialog view katmanında component'e çözülür.
+Bütünlük testleri section id, group, field key, editor tab ve select option
+tekilliğini doğrular. Bu dilim sonunda orchestrator 1.379 satıra indi.
+
+Beşinci dilimde editörün değişiklik yaşam döngüsü
+`use-theme-editor-lifecycle` controller hook'una ayrıldı. Controller draft
+override'ları, bounded undo/redo geçmişini, dirty-state/navigation guard'ı,
+preview bridge mesajlaşmasını ve publish sırasında yeni revizyon oluşması
+yarışını tek yerde yönetir. `theme-editor-lifecycle-model` başlangıç override
+projeksiyonu, history sınırı ve kaydedilmiş baseline'a göre değişiklik
+etiketlerini React'ten bağımsız tutar. Orchestrator logo, dialog, page-flow ve
+property UI koordinasyonunun sahibi olmaya devam eder; service action ve preview
+bridge'i doğrudan çağırmaz. Kaynak-seviye fitness testi bu sahiplik ayrımını ve
+1.250 satırlık yeni bütçeyi korur. Bu dilim sonunda orchestrator 1.233 satıra
+indi.
+
+Altıncı dilimde preview çalışma alanı `ThemeEditorCanvas` salt-props view
+sınırına ayrıldı. Preview toolbar'ı, degraded durum göstergesi, erişilebilir
+zoom kontrolleri, mobil/masaüstü cihaz çerçevesi ve iframe yüzeyi artık ana
+orchestrator tarafından render edilmez. Viewport listener'ı, preview mode/scale
+state'i ve dış önizleme command'i `use-theme-editor-workspace` controller
+hook'una; breakpoint, panel genişliği, zoom clamp ve sığdırma ölçeği kuralları
+`theme-editor-workspace-model` saf modülüne aittir. Bu sınırlar action,
+Supabase ve tenant kimliği taşımaz. `ThemeEditorClient` 1.036 satıra indi ve
+fitness bütçesi 1.050 satıra sıkılaştırıldı.
+
+Yedinci dilimde sağ panel kompozisyonu `ThemeEditorPropertiesWorkspace`
+salt-props feature view'ına taşındı. Frame/tab/empty-state, section settings,
+özel renderer seçimi ve marka rengi alanları bu sınırda kalır; galeri ve logo
+gibi infrastructure kullanan feature'lar yalnız dışarıdan node/callback alarak
+bağlanır. Workspace action, Supabase client veya tenant kimliği taşımaz.
+
+Logo persistence ayrı `use-theme-editor-logo` controller hook'unun
+sorumluluğundadır; `ThemeLogoUploadCard` yalnız dosya seçimi ve erişilebilir
+önizleme yüzeyidir. Böylece ana orchestrator logo action'ını ve upload state'ini
+taşımaz. Bu dilim sonunda `ThemeEditorClient` 719 satıra indi ve fitness bütçesi
+750 satıra sıkılaştırıldı.
+
+Sekizinci dilimde navigation ve page-flow orkestrasyonu
+`use-theme-editor-navigation` controller hook'una ayrıldı. Seçili grup/bölüm,
+editor tab'ı, arama ve drag state'i; dialog focus/Escape yaşam döngüsü; template
+navigation, section add/remove/settings ve günlük özel expiry davranışı bu
+controller'a aittir. Reorder ve kategori-scope invariant'ları yine yalnız saf
+`theme-page-flow-model` tarafından üretilir. Controller app action, Supabase
+client veya persistence çağrısı taşımaz; yalnız lifecycle controller'ın verdiği
+typed theme patch callback'ine konuşur. Bu dilim sonunda `ThemeEditorClient`
+516 satıra indi ve fitness bütçesi 550 satıra sıkılaştırıldı.
+
+Dokuzuncu dilimde property panel'in kopyalama ve sıfırlama command'leri
+`use-theme-editor-property-commands` controller'ına ayrıldı. Clipboard payload,
+section settings removal ve group default patch kuralları browser API'lerinden
+bağımsız `theme-editor-property-command-model` içinde test edilir. Kayıt durum
+etiketi `theme-editor-shell-model` projection'ıdır; toast markup'ı
+`ThemeEditorToast` salt-props view'ında, sidebar grup/ikon üretimi ise
+`theme-editor-navigation-catalog` içinde kalır. Ana orchestrator navigator,
+confirm, tarih formatlama, toast markup'ı veya ikon katalog kuralı taşımaz. Bu
+dilim sonunda `ThemeEditorClient` 388 satıra indi ve fitness bütçesi 420 satıra
+sıkılaştırıldı.
+
+Onuncu dilimde kök editör yerleşimi, ortak interaction CSS'i ve toast slot'u
+`ThemeEditorShell` salt-props view'ına taşındı. Template ve section picker
+kompozisyonu `ThemeEditorDialogsLayer` içinde kalır; ana orchestrator dialog
+markup'ı veya preview katalog wiring'i üretmez. Defaults/override birleşimi,
+legacy page-block geçişi, kategori-scope normalizasyonu ve geçersiz section
+temizliği `theme-editor-preview-theme-model` saf projection'ında tek kaynak
+haline getirildi. Bu dilim sonunda `ThemeEditorClient` 307 satıra indi ve
+fitness bütçesi 330 satıra sıkılaştırıldı.
+
+## Analytics UI boundary
+
+Analytics ekranının ilk client-shell diliminde rapor/range seçimi, lazy yükleme,
+loaded/error/pending state'i ve owner-only Operasyon kapısı
+`use-analytics-reports` controller'ına ayrıldı. Controller server action'ı çağırır
+ancak report markup'ı taşımaz; istek sırası token'ı hızlı sekme/dönem
+değişimlerinde stale yanıtın yeni state'i ezmesini engeller.
+
+Report metadata, dönem etiketleri, ilk yüklenme projection'ı ve export readiness
+kuralları `analytics-report-model` içindeki browser-safe saf fonksiyonlardır.
+`AnalyticsReportShell` topbar, dönem seçici, owner'a göre filtrelenen sol
+navigasyon ve retry/loading chrome'unu salt props üzerinden render eder. CSV
+serialization ve browser download adapter'ı `analytics-report-export` sınırında
+kalır; spreadsheet formula injection koruması React'ten bağımsız test edilir.
+Bu dilim sonunda `AnalyticsClient` 1.403 satırdan 1.050 satıra indi ve fitness
+bütçesi 1.080 satıra sıkılaştırıldı.
+
+İkinci Analytics UI diliminde Satışlar ve Ödemeler rapor aileleri
+`AnalyticsSalesPaymentReports` feature view'ına taşındı. Trend/heatmap/donut
+renderer'ları, tahsilat KPI'ları, ürün sıralaması ve ikramın collected tabandan
+ayrı gösterilmesi bu typed view sınırında kalır; action, tenant kimliği veya
+Supabase bağımlılığı taşımaz. Ortak `AnalyticsCard` ve `AnalyticsKpi`
+presentation sözleşmeleri `AnalyticsReportPrimitives` modülüne ayrıldı ve diğer
+raporlar da aynı primitive'leri kullanır. Bu dilim sonunda `AnalyticsClient`
+790 satıra indi ve fitness bütçesi 820 satıra sıkılaştırıldı.
+
+Üçüncü Analytics UI diliminde owner-only Operasyon rapor ailesi
+`AnalyticsOperationsReport` feature view'ına ayrıldı. İptal trendi, anormal
+kapatma dökümü ve personel tahsilat tablosu typed projection'lar üzerinden
+render edilir; owner görünürlüğü controller'da, gerçek erişim kontrolü server
+query sınırında kalır. Audit delta tonu, trend compaction'ı ve otomatik provider
+satırını personel toplamından çıkarma kuralı `analytics-operations-model`
+içindeki saf fonksiyonların tek sorumluluğudur. Bu dilim sonunda
+`AnalyticsClient` 505 satıra indi ve fitness bütçesi 535 satıra
+sıkılaştırıldı.
+
+Dördüncü Analytics UI diliminde Ürünler rapor ailesi `AnalyticsItemsReport`
+feature view'ına ayrıldı. ABC tablosu, ürün karması scatter'ı ve hareket
+listeleri typed ürün projection'ları üzerinden render edilir; scatter'ın
+client-only lazy chart sınırı feature içinde kalır. KPI/A-B-C toplamları,
+yükselen/düşen seçimi ve delta etiketi `analytics-items-model` saf
+fonksiyonlarının sorumluluğudur; selection input dizisini değiştirmez. Bu dilim
+sonunda `AnalyticsClient` 307 satıra indi ve fitness bütçesi 335 satıra
+sıkılaştırıldı.
+
+Beşinci Analytics UI diliminde Masalar raporu `AnalyticsTablesReport` feature
+view'ına ayrıldı. Tahsilata göre immutable sıralama, aktif masa ile şu-an-açık
+oturum ayrımı, kapanan oturum devri ve devir-ağırlıklı süre
+`analytics-tables-model` saf projection'ında hesaplanır. Açık oturumlar devir
+ve süre hesabına katılmaz; işletme saatleri olmadan doluluk yüzdesi üretilmez.
+Bu dilim sonunda `AnalyticsClient` 218 satıra indi ve fitness bütçesi 245
+satıra sıkılaştırıldı.
+
+Altıncı Analytics UI diliminde Sadakat raporu `AnalyticsLoyaltyReport` feature
+view'ına ayrıldı. Damga, hoş geldin bonusu, iade, ikram ve ledger geçmişi typed
+projection üzerinden render edilir. Görünürlük/stat kartı üretimi ile bilinen
+redemption reason çevirisi ve bilinmeyen reason'ı ham koruma politikası
+`analytics-loyalty-model` içindeki saf fonksiyonların sorumluluğudur. İkram
+hareketi tahsilat toplamına karıştırılmaz. Bu dilim sonunda `AnalyticsClient`
+109 satıra indi ve fitness bütçesi 130 satıra sıkılaştırıldı.
+
+## Tables builder UI boundary
+
+Tables builder'ın QR style history/autosave ve okunabilirlik yaşam döngüsü
+`use-qr-style-editor`, açık session/realtime/service-request yaşam döngüsü
+`use-tables-live-state` sahibidir. Üçüncü ayrıştırma diliminde sağ QR Stüdyosu
+paneli `TablesQRProperties` callback-driven view sınırına taşındı. Bu view
+accordion ve form primitive'leriyle şekil, renk, logo, çerçeve ve URL/UTM
+sekmelerini render eder; server action, Supabase client, realtime channel veya
+feature hook'u çağırmaz.
+
+Dördüncü ayrıştırma diliminde sol masa navigasyonu `TablesNavigation`, add/rename/
+delete command orkestrasyonu `use-table-management` sınırına taşındı. View server
+action import etmez; controller persistence adapter'larını çağırır, arama ve
+liste projection kuralları browser-safe modelde kalır.
+
+Beşinci ayrıştırma diliminde QR çalışma yüzeyi `TablesQRCanvas`, browser export
+ve okunabilirlik adaptörleri `tables-qr-renderer` sınırına taşındı. Canvas view
+QR instance'ını ve yerel export state'ini sahiplenir; teknik renderer lazy QR
+library yükleme, SVG/raster dönüşümü, `jsQR` doğrulama ve print iframe'i yönetir.
+İki sınır da server action, Supabase veya tenant context import etmez.
+
+Altıncı ayrıştırma diliminde preset/save/undo/bildirim topbar'ı, otomatik-kayıt
+statusbar'ı ve telefon önizleme overlay'i `TablesBuilderChrome` view sınırına
+taşındı. Bu görünüm action, Supabase, realtime veya feature hook'u çağırmaz;
+yalnız mevcut notification projection'ı için dashboard shell context'ini okur.
+
+`TablesBuilderShell` settlement ve altı feature sınırının
+koordinasyonunu sürdürür. Kaynak-seviye fitness testi QR paneli, navigasyon veya
+canvas/chrome görünümünün shell'e geri gömülmesini; view katmanlarına
+infrastructure bağımlılığı eklenmesini ve shell'in 350 satır bütçesini aşmasını
+engeller. Altı dilim sonunda shell 2.982 satırdan 306 satıra indi; persistence ve runtime sözleşmeleri
+değişmedi.
+
+Yedinci ayrıştırma diliminde QR credential rotasyonunun hedef/onay/pending/error
+yaşam döngüsü `use-table-qr-token-rotation` controller'ına, erişilebilir ve
+yeniden-denenebilir onay yüzeyi `TablesQRRotationDialog` view'una taşındı. Root
+shell server action veya native browser confirm çağırmaz. Controller doğrulanmış
+dashboard action adapter'ını çağırır; başarılı token'ı saf `replaceTableQrToken`
+projection'ı ile yalnız hedef masaya uygular ve eşzamanlı ikinci rotasyonu
+engeller. Tenant gate'i ve atomik eski-token iptali application/DB sınırlarında
+kalmaya devam eder. Dialog/controller kompozisyonuyla root shell 317 satırdır ve
+350 satırlık bütçenin altındadır.
 
 ## Dashboard order lifecycle strangler
 

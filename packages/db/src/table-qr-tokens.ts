@@ -1,11 +1,10 @@
+import type {
+  PublicTableContext,
+  PublicTableQueryPort,
+  PublicTableState,
+} from '@garsonless/application/tables'
+import { err, ok } from '@garsonless/domain'
 import { createServiceClient } from './client'
-
-export interface ActiveTableQrToken {
-  restaurantId: string
-  restaurantSlug: string
-  tableId: string
-  tableLabel: string
-}
 
 type Rpc = (name: string, args: Record<string, unknown>) => Promise<{
   data: unknown
@@ -18,7 +17,7 @@ function rpc(): Rpc {
 }
 
 /** Resolve an opaque public credential at the server boundary. */
-export async function resolveActiveTableQrToken(token: string): Promise<ActiveTableQrToken | null> {
+async function resolveActiveTableQrToken(token: string): Promise<PublicTableContext | null> {
   const { data, error } = await rpc()('resolve_active_table_qr_token', { p_token: token })
   if (error || !Array.isArray(data) || data.length !== 1) return null
   const row = data[0] as Record<string, unknown>
@@ -64,15 +63,8 @@ export async function rotateActiveTableQrToken(input: {
   return typeof data === 'string' ? data : null
 }
 
-export interface PublicTableState {
-  token: ActiveTableQrToken
-  session: { id: string; opened_at: string } | null
-  orders: Array<{ id: string; status: string; total: number; paid_at: string | null; created_at: string; items: unknown }>
-  shares: Array<{ id: string; amount: number; method: string | null; status: string; label: string | null }>
-}
-
 /** Narrow service-side read model for a valid public table credential. */
-export async function readPublicTableState(token: string): Promise<PublicTableState | null> {
+async function readPublicTableState(token: string): Promise<PublicTableState | null> {
   const resolved = await resolveActiveTableQrToken(token)
   if (!resolved) return null
   const service = createServiceClient()
@@ -98,5 +90,53 @@ export async function readPublicTableState(token: string): Promise<PublicTableSt
     session,
     orders: (orders ?? []) as PublicTableState['orders'],
     shares: (shares ?? []) as PublicTableState['shares'],
+  }
+}
+
+export function createPublicTableQueryPort(): PublicTableQueryPort {
+  return {
+    async resolveContext(token) {
+      try {
+        return ok(await resolveActiveTableQrToken(token))
+      } catch (error) {
+        return err(error instanceof Error ? error.message : 'Masa bağlantısı doğrulanamadı.')
+      }
+    },
+    async readState(token) {
+      try {
+        return ok(await readPublicTableState(token))
+      } catch (error) {
+        return err(error instanceof Error ? error.message : 'Masa durumu yüklenemedi.')
+      }
+    },
+    async readOrderStatus(input) {
+      try {
+        const resolved = await resolveActiveTableQrToken(input.token)
+        if (!resolved) return ok(null)
+        const service = createServiceClient()
+        const { data: session, error: sessionError } = await service
+          .from('table_sessions')
+          .select('id')
+          .eq('id', input.sessionId)
+          .eq('restaurant_id', resolved.restaurantId)
+          .eq('table_id', resolved.tableId)
+          .maybeSingle()
+        if (sessionError) return err(sessionError.message)
+        if (!session) return ok(null)
+
+        const { data, error } = await service
+          .from('orders')
+          .select('status, paid_at')
+          .eq('id', input.orderId)
+          .eq('session_id', input.sessionId)
+          .eq('restaurant_id', resolved.restaurantId)
+          .is('deleted_at', null)
+          .maybeSingle()
+        if (error) return err(error.message)
+        return ok(data ? { status: data.status, paid_at: data.paid_at } : null)
+      } catch (error) {
+        return err(error instanceof Error ? error.message : 'Sipariş durumu yüklenemedi.')
+      }
+    },
   }
 }

@@ -5,25 +5,11 @@ import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { mut } from '../supabase-mut'
 import { slugify } from '../utils'
-import type { Json, Tables } from '@garsonless/db'
-import { createServiceClient } from '@garsonless/db/server'
+import type { Tables } from '@garsonless/db'
+import { patchRestaurantSettings } from '@garsonless/application/restaurants'
+import { createRestaurantSettingsPort } from '@garsonless/db/server'
 import { sanitizeTiers } from '@garsonless/domain/loyalty'
 import { getUserRestaurantAccess } from '../auth/access'
-
-// ALLOWLIST of settings keys a non-owner 'settings' member may write through the
-// generic updateSettings: plain store config only. Everything else (loyalty,
-// active_template_id, qr_style, ai_*, payment*, themeSettings/pageBlocks/
-// sectionSettings — the public menu's look — and any FUTURE key) is denied by
-// default. A denylist here would let every newly-added settings key leak to
-// members until someone remembered to list it (and already let a 'settings'-only
-// member rewrite theme keys without the 'theme' section) — allowlist inverts the
-// failure mode. Owners are unrestricted, as before.
-const NON_OWNER_SETTINGS_KEYS = new Set([
-  'store', 'contact', 'hours', 'tax', 'languages', 'notifications', 'orders',
-])
-function isNonOwnerWritableSettingsKey(key: string): boolean {
-  return NON_OWNER_SETTINGS_KEYS.has(key)
-}
 
 const createRestaurantSchema = z.object({
   name: z.string().min(1).max(100),
@@ -142,38 +128,24 @@ export async function updateSettings(
   restaurantId: string,
   settings: Record<string, unknown>,
 ): Promise<{ error: string } | { success: true }> {
-  // Owner OR a member with 'settings'.
+  const { user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
   const access = await getUserRestaurantAccess(restaurantId)
   if (!access || (!access.isOwner && !access.permissions.includes('settings'))) {
     return { error: 'Not authorized' }
   }
-  // A non-owner may write ONLY the allowlisted store-config keys (store/contact/
-  // hours/tax/languages/notifications/orders) — unknown or owner-only keys are
-  // rejected by default, not by enumeration.
-  if (!access.isOwner && !Object.keys(settings).every(isNonOwnerWritableSettingsKey)) {
-    return { error: 'Not authorized' }
-  }
-
-  // restaurants is owner-only RLS; write via service role (gate above is the
-  // authorization, key denylist prevents escalation).
-  const svc = createServiceClient()
-  const { data: existing } = await svc
-    .from('restaurants')
-    .select('settings')
-    .eq('id', restaurantId)
-    .is('deleted_at', null)
-    .maybeSingle()
-  if (!existing) return { error: 'Not found' }
-
-  const merged = {
-    ...((existing as { settings: Record<string, unknown> }).settings ?? {}),
-    ...settings,
-  }
-  const { error } = await svc
-    .from('restaurants')
-    .update({ settings: merged as unknown as Json })
-    .eq('id', restaurantId)
-  if (error) return { error: error.message }
+  const result = await patchRestaurantSettings(
+    {
+      actor: 'dashboard-member',
+      userId: user.id,
+      restaurantId,
+      permissions: access.permissions,
+      isOwner: access.isOwner,
+    },
+    { restaurantId, patch: settings },
+    createRestaurantSettingsPort(),
+  )
+  if (!result.ok) return { error: result.error }
 
   revalidatePath(`/dashboard/${restaurantId}/settings`)
   revalidateTag(`menu:${restaurantId}`)
@@ -196,30 +168,24 @@ export async function saveNotificationSettings(
   const parsed = notificationPrefsSchema.safeParse(prefs)
   if (!parsed.success) return { error: 'Geçersiz bildirim ayarları' }
 
-  // Owner OR a member with 'settings'. Writes ONLY the notifications key.
+  const { user } = await getAuthUser()
+  if (!user) return { error: 'Not authenticated' }
   const access = await getUserRestaurantAccess(restaurantId)
   if (!access || (!access.isOwner && !access.permissions.includes('settings'))) {
     return { error: 'Not authorized' }
   }
-
-  const svc = createServiceClient()
-  const { data: existing } = await svc
-    .from('restaurants')
-    .select('settings')
-    .eq('id', restaurantId)
-    .is('deleted_at', null)
-    .maybeSingle()
-  if (!existing) return { error: 'Not found' }
-
-  const merged = {
-    ...((existing as { settings: Record<string, unknown> }).settings ?? {}),
-    notifications: parsed.data,
-  }
-  const { error } = await svc
-    .from('restaurants')
-    .update({ settings: merged as unknown as Json })
-    .eq('id', restaurantId)
-  if (error) return { error: error.message }
+  const result = await patchRestaurantSettings(
+    {
+      actor: 'dashboard-member',
+      userId: user.id,
+      restaurantId,
+      permissions: access.permissions,
+      isOwner: access.isOwner,
+    },
+    { restaurantId, patch: { notifications: parsed.data } },
+    createRestaurantSettingsPort(),
+  )
+  if (!result.ok) return { error: result.error }
 
   revalidatePath(`/dashboard/${restaurantId}/settings`)
   // Orders board + shell read prefs from the restaurant row on next load.

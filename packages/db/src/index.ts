@@ -23,7 +23,7 @@ export type { VatBreakdown, VatBreakdownRate, VatLineInput } from './order-tax'
 export type { CreateShareInput } from './split'
 export type { ServiceRequestType } from '@garsonless/domain/tables'
 export type { SecurityEvent, SecurityEventType, RecordSecurityEventInput } from './security'
-export type { EnsureCustomerOptions, EnsureCustomerResult } from './customer-auth'
+export type { EnsureCustomerOptions, EnsureCustomerResult } from '@garsonless/domain/customers'
 export type {
   TeamSection,
   MemberStatus,
@@ -43,9 +43,9 @@ export type {
 export type {
   DiscountResult,
   OrderLineInput,
-  OrderCustomerTierSnapshot,
   LoyaltyRefundResult,
 } from './loyalty'
+export type { OrderCustomerTierSnapshot } from './order-client'
 export type {
   RestaurantCustomer,
   RestaurantCustomersPage,
@@ -68,11 +68,7 @@ export type {
   CampaignStatus,
   CampaignSummary,
 } from '@garsonless/domain/campaigns'
-export type { SendCampaignResult } from './campaigns'
-export type {
-  DietaryClaims,
-  MenuNumericParseResult,
-} from './menu-nutrition'
+export type { SendCampaignResult } from '@garsonless/domain/campaigns'
 export type {
   AllergenCode,
   MenuIngredient,

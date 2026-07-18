@@ -14,6 +14,7 @@
     "./payments": "./src/payments.ts",
     "./payment-reconciliation": "./src/payment-reconciliation.ts",
     "./read-models": "./src/read-models.ts",
+    "./restaurants": "./src/restaurants.ts",
     "./splits": "./src/splits.ts",
     "./tables": "./src/tables.ts",
     "./themes": "./src/themes.ts"

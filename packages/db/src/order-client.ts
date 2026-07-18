@@ -1,13 +1,6 @@
 import { isCollectedOrder } from '@garsonless/domain/orders'
 
 export type { OrderStatus, PaymentMethod } from './enums'
-export {
-  SERVICE_REQUEST_TYPES,
-  SERVICE_REQUEST_LABELS,
-  isServiceRequestType,
-  serviceRequestLabel,
-} from './service-request-types'
-export type { ServiceRequestType } from './service-request-types'
 export { computeVatBreakdown } from './order-tax'
 export type { VatBreakdown, VatBreakdownRate, VatLineInput } from './order-tax'
 export { ORDER_STATUS_TRANSITIONS, canTransitionOrderStatus } from './enums'
@@ -15,12 +8,6 @@ export {
   DEFAULT_TIMEZONE, startOfRestaurantDay, startOfDayNDaysAgo, rangeWindow,
   restaurantDayKey, restaurantHour, restaurantWeekday, isValidTimeZone, normalizeTimeZone,
 } from './restaurant-time'
-export {
-  applyReviewInvalidatingPatch, calculateMarginPercent, getDietaryClaimsConflict,
-  moveListItem, normalizeMenuNumericText, parseMenuNumericInput,
-  separateAllergenDeclarations, toggleAllergenDeclaration,
-} from './menu-nutrition'
-export type { DietaryClaims, MenuNumericParseResult } from './menu-nutrition'
 export {
   ALLERGEN_CODES,
   ALLERGEN_LABELS,

@@ -1991,6 +1991,10 @@ export type Database = {
         Args: { p_qr_style: Json; p_restaurant_id: string }
         Returns: undefined
       }
+      patch_restaurant_settings_atomic: {
+        Args: { p_patch: Json; p_restaurant_id: string }
+        Returns: boolean
+      }
       publish_theme_config_atomic: {
         Args: {
           p_published_by: string

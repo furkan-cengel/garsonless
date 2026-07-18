@@ -71,6 +71,108 @@ The design engine is the core differentiator. Every UI decision routes through i
 
 - ⚠️ **`20260711020000_customer_restaurant_associations.sql` yalnız DEV'e uygulandı** — PROD deploy aşamasında uygulanacak PROD-at-deploy migration setine EKLENMELİ (yeni `customer_restaurants` tablosu + orders/loyalty ledger/consents backfill'i; insert'ler `on conflict do nothing` ile idempotent, PROD verisi üzerinde de çalışır).
 
+### Modüler monolith — DB compatibility wrapper retirement ✅ (2026-07-17)
+
+- Service-request vocabulary ve menu nutrition/review/numeric policy'leri artık
+  `@garsonless/db/browser` üzerinden yeniden export edilmez. Dashboard/menu/ui
+  call-site'ları doğrudan `@garsonless/domain/tables` ve
+  `@garsonless/domain/menu` kullanır; eski `service-request-types.ts` ve
+  `menu-nutrition.ts` facade'ları ile yinelenen DB testleri silindi.
+- `packages/db/src/loyalty.ts` saf domain kurallarını ve order projection
+  helper'larını yeniden export etmez; yalnız service-role persistence ve
+  orchestration fonksiyonlarını taşır. Customer/campaign persistence
+  modüllerindeki salt domain re-export'ları da kaldırıldı.
+- Sıfır tüketimli `ensureCustomerForAuthUser` compatibility facade'u silindi.
+  Ham `createServiceClient` artık `@garsonless/db/server` public yüzeyinde yok;
+  yalnız DB implementasyonlarının package-private altyapısıdır. App doğrudan
+  service-role client kullanım sayısı **0** kalır.
+- `@garsonless/db/browser` wildcard yerine explicit allowlist export eder.
+  ESLint ham service client ve emekli domain-policy importlarını reddeder. Yeni
+  fitness suite root'un type-only, browser'ın explicit/browser-safe ve
+  server'ın port-only kalmasını; silinen facade'ların geri gelmemesini doğrular.
+- Verify: domain **27/27**, DB **104/104** (fitness **4/4** dahil), workspace
+  typecheck **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning),
+  dört production build ve güncel marka/KDS session sözleşmesiyle Playwright
+  smoke **4/4** temiz. Runtime export probe: browser client/order projection ve
+  server table port fonksiyon; raw service client yok; emekli browser export'u
+  yok. Migration veya DEV veri yazısı yok.
+- Sıradaki dilim: kalan büyük client orchestrator tail'lerini ölçüp en yüksek
+  coupling'e sahip parçayı feature-state/view/command-hook sınırına ayırmak;
+  ardından fitness testlerini CI `check` kapısına sabitlemek.
+
+### Modüler monolith — App-level service-role retirement ✅ (2026-07-17)
+
+- Dashboard app katmanındaki son üç `createServiceClient()` kullanımı
+  kaldırıldı. `updateSettings` ve `saveNotificationSettings`
+  `patchRestaurantSettings` application command'i ile
+  `createRestaurantSettingsPort()` DB adapter'ına; fiziksel stand akışı
+  `requestQrStands` command'i, `createStandRequestPort()` persistence adapter'ı
+  ve ayrı Resend notification adapter'ına taşındı. `apps/**` altında doğrudan
+  service-role client oluşturma sayısı artık **0**.
+- Dashboard actor context'i owner yetkisini açık `isOwner` alanıyla taşır.
+  Application command tenant + `settings` iznini tekrar doğrular; non-owner
+  generic settings patch'i yalnız `store/contact/hours/tax/languages/
+  notifications/orders` allowlist'ine açıktır. Owner-only veya gelecekte
+  eklenecek bilinmeyen key'ler member için fail-closed kalır.
+- Yeni `patch_restaurant_settings_atomic` RPC'si yalnız gönderilen top-level
+  JSON key'lerini DB içinde tek update ile birleştirir. Böylece eşzamanlı
+  settings/notification/theme/QR/loyalty yazıları eski read→merge→write
+  penceresinde birbirini ezmez. RPC yalnız service-role'a açıktır.
+- Stand request command'i gerçek restoran adını DB portundan çözer, throttle
+  actor'ını context `userId`'den türetir, 10 dakikalık claim'i provider
+  çağrısından önce alır ve email/provider hatasında aynı claim'i koşullu olarak
+  bırakır. HTML escaping ve Resend env/provider ayrıntıları application veya
+  action katmanına sızmaz.
+- Gerçek DEV throwaway matrisi: iki paralel settings patch'i ve mevcut marker
+  birlikte korundu; ilk stand talebi **1 provider call**, replay throttle;
+  sentetik delivery failure sonrası claim sayısı **0**; anon settings RPC
+  **42501**; cleanup restaurant/claim **0**. Gerçek mail gönderilmedi, provider
+  test double ile yalnız orchestration ve persistence doğrulandı.
+- `20260717030000_atomic_restaurant_settings_patch.sql` DEV'e uygulandı ve
+  generated type'lar yenilendi. **PROD-at-deploy migration setine eklenmeli.**
+  Verify: application **54/54**, DB **109/109**, workspace typecheck temiz,
+  lint **0 error** (marketing'de mevcut 2 `img` warning), dashboard production
+  build temiz.
+- Sıradaki dilim: DB modülleri içindeki eski compatibility wrapper/export
+  yüzeylerini ölçerek kaldırmak; ardından kalan büyük client orchestrator tail
+  parçalama ve architecture fitness/CI gate'leri.
+
+### Modüler monolith — Tables/Kitchen compatibility retirement ✅ (2026-07-17)
+
+- Dashboard masa CRUD, QR token listeleme/rotasyon ve QR stil kaydı artık
+  `@garsonless/application/tables` command'leri ile `DashboardTablePort`
+  üzerinden çalışır. Application katmanı tenant + `tables` iznini port
+  çağrısından önce doğrular; rotation audit aktörü yalnız güvenilir dashboard
+  context'inden türetilir ve sabit menu origin/restaurant slug kuralı UI
+  girdisine bırakılamaz.
+- Menu table page ile table-state, service-request, order, order-status,
+  payment ve split route'ları ham token helper'ı çağırmaz. Opaque QR token,
+  session ve order bağını dar `PublicTableQueryPort` çözer. Özellikle
+  `/api/orders/status` içindeki son doğrudan service-role order sorgusu
+  kaldırıldı.
+- Raw table CRUD/QR helper'ları `@garsonless/db/server` public API'sinden
+  çıkarıldı; yalnız DB adapter implementasyonu içinde kaldı. KDS board/read ve
+  transition akışları zaten typed application port sınırında olduğu için HTTP
+  sözleşmesi veya DB migration değişmedi.
+- Gerçek DEV throwaway matrisi: create/list/rename/style save başarılı; açık
+  session'da delete `open_session`, kapanıştan sonra `deleted`; token-scoped
+  state **1 order** ve status `sent_to_kitchen`; rotation sonrası eski token
+  `null`, yeni token geçerli; soft-delete sonrası token `null`; dört anonim
+  raw RPC replay'i **42501**. Cleanup restaurant/table/session/order/token
+  sayaçlarının tamamı **0**.
+- Temiz local KDS exchange **303**, board **200**, delta insert görünme **2298
+  ms**, terminal tombstone kaldırma **1813 ms**, console error **0**; cleanup
+  restaurant/order/table/credential/launch için **0**. İlk browser koşusundaki
+  stale Next dev süreci temiz restart ile ayrıştırıldı; backend projection
+  matrisi ayrıca snapshot/delta/tombstone ve anon **42501** ile geçti.
+- Verify: application **50/50**, DB **109/109**, workspace typecheck temiz,
+  lint **0 error** (marketing'de mevcut 2 `img` warning), dashboard + menu +
+  kitchen production build temiz. Migration yok.
+- Sıradaki dilim: app katmanında kalan ham service-role kaçışlarını
+  (`restaurant` ve fiziksel stand action'ları) typed application portlarına
+  taşımak; ardından DB içi compatibility wrapper retirement ve kalan büyük
+  client orchestrator parçalama.
+
 ### Modüler monolith — KDS narrow projection + delta reconciliation ✅ (2026-07-17)
 
 - KDS'nin her 2 saniyede `orders.select('*')` yapan tam tablo okuması kaldırıldı.
@@ -356,6 +458,47 @@ The design engine is the core differentiator. Every UI decision routes through i
 - Test Cafe B owner-session salt-okunur runtime: route **200**; DB **3 masa / 1 açık session / 0 pending request**, UI aynı; `tables-sessions:*` ve `tables-service-requests:*` topic'leri tek WebSocket'te, toplam **4 postgres_changes subscription** kurulu; browser console error **0**. Restaurant settings/tables/sessions/service_requests snapshot'ı değişmedi; maf-lounge'a dokunulmadı.
 - Verify: dashboard typecheck, lint ve production build temiz. Migration yok. Sıradaki client-shell dilimi `ThemeEditorClient` property/page-flow panelleri; ardından MenuManager edit/category workspace ve compatibility/session/OTP retirement.
 
+### Büyük client shell ayrıştırma — TablesBuilderShell QR Studio view dilimi ✅ (2026-07-17)
+
+- Sağ QR Stüdyosu panelinin accordion/field/slider/segmented/color/toggle
+  primitive'leri; şekil, renk, logo, çerçeve ve veri sekmeleri; logo küçültme
+  doğrulaması ve save-state görünümü `TablesQRProperties.tsx` callback-driven UI
+  sınırına taşındı.
+- Yeni view `QRConfig`, `TableItem`, `SaveState` ve typed callback'ler dışında
+  feature bağımlılığı taşımaz; server action, Supabase, realtime ve editor hook'u
+  import etmez. QR history/autosave `use-qr-style-editor`, canlı masa/session
+  akışı `use-tables-live-state`, root koordinasyonu `TablesBuilderShell` sahibi
+  olmaya devam eder.
+- `TablesBuilderShell.tsx` bu dilimde **2.520 → 1.956 satıra**, üç Tables
+  dilimi toplamında **2.982 → 1.956 satıra** indi. Kaynak-seviye fitness testi
+  panel delegasyonunu, callback-only view sınırını ve 2.000 satır shell bütçesini
+  korur. Persistence, QR token, export, masa CRUD ve session davranışı değişmedi;
+  migration yok.
+
+### Büyük client shell ayrıştırma — TablesBuilderShell masa yönetimi dilimi ✅ (2026-07-17)
+
+- Sol masa navigasyonu, arama, canlı session/servis isteği görünümü ve add/rename/delete etkileşimleri `TablesNavigation.tsx` feature view sınırına taşındı. View server action çağırmaz; yalnız yerel view sözleşmeleri, callback'ler ve `useTableManagement` controller'ı ile çalışır.
+- Masa CRUD server action orkestrasyonu ve pending/error form state'i `use-table-management.ts` sahibidir. Arama, rename projection'ı ve aktif masa silindikten sonraki seçim `tables-builder-model.ts` içindeki browser-safe saf kurallara ayrıldı; Türkçe arama ve slug eşleşmesi deterministik test edilir.
+- `TablesBuilderShell.tsx` bu dilimde **1.956 → 1.429 satıra**, dört Tables dilimi toplamında **2.982 → 1.429 satıra** indi. Kaynak-seviye fitness testi shell delegasyonunu, view/action ayrımını ve **1.450 satır** bütçesini korur. Tables matrisi **14/14** temizdir; masa CRUD persistence sözleşmesi, QR token, session/settlement ve realtime davranışı değişmedi, migration yok.
+
+### Büyük client shell ayrıştırma — TablesBuilderShell QR canvas/export dilimi ✅ (2026-07-17)
+
+- Tek/ızgara/baskı QR çalışma yüzeyi, lazy görünür kart render'ı, kopyalama, export progress/error state'i ve indirme menüsü `TablesQRCanvas.tsx` salt feature view sınırına taşındı. QR instance ref'i artık view'in iç detayıdır; root shell yalnız QR config, seçili masa, health ve token-rotation callback'i verir.
+- QR styling lazy-loader'ı, SVG kart üretimi, kamera-benzeri `jsQR` okunabilirlik testi, PNG/JPG/SVG indirme ve A4 yazdırma adaptörleri `tables-qr-renderer.ts` teknik sınırındadır. View ve renderer server action, Supabase, tenant context veya realtime bağımlılığı taşımaz. Export dosya adı Türkçe `İ/ı` karakterlerinde okunur ve güvenli normalize edilir; SVG metni escape testiyle korunur.
+- `TablesBuilderShell.tsx` bu dilimde **1.429 → 754 satıra**, beş Tables dilimi toplamında **2.982 → 754 satıra** indi. Fitness bütçesi **800 satıra** sıkılaştırıldı; Tables matrisi **18/18** temizdir. URL/token, okunabilirlik eşikleri, export formatları, persistence ve tenant verisi değişmedi; migration yok.
+
+### Büyük client shell ayrıştırma — TablesBuilderShell chrome view dilimi ✅ (2026-07-17)
+
+- Hazır stil/preset topbar'ı, save/undo/redo/bildirim/önizleme görünümü, otomatik-kayıt statusbar'ı ve telefon önizleme overlay'i `TablesBuilderChrome.tsx` view sınırına taşındı. Root shell yalnız editor, realtime, masa yönetimi, canvas, properties ve chrome feature'larını koordine eder.
+- Chrome görünümü server action, Supabase, realtime veya feature hook'u import etmez. Yalnız topbar'ın mevcut bildirim sayacı ve panel açma davranışı için dashboard `useShell` context'ini okur; token rotasyonu ve settlement komutları root shell'de kalır.
+- `TablesBuilderShell.tsx` bu dilimde **754 → 306 satıra**, altı Tables dilimi toplamında **2.982 → 306 satıra** indi. Fitness bütçesi **350 satıra** sıkılaştırıldı; Tables matrisi chrome delegasyonu ve infrastructure izolasyonunu da korur. UI davranışı, persistence, token/session akışları ve tenant verisi değişmedi; migration yok.
+
+### Büyük client shell ayrıştırma — QR token rotation controller dilimi ✅ (2026-07-17)
+
+- QR credential rotasyonunun onay/hedef/pending/error yaşam döngüsü ve `rotateTableQrToken` server-action orkestrasyonu `use-table-qr-token-rotation.ts` controller sınırına taşındı. Başarılı sonuç yalnız hedef masaya `replaceTableQrToken` saf projection'ı ile uygulanır; aynı anda ikinci komut çalıştırılmaz.
+- Native `window.confirm` kaldırıldı. `TablesQRRotationDialog.tsx` eski QR'ın hemen geçersiz kalacağını ve baskıların yenilenmesi gerektiğini açıkça anlatan erişilebilir `alertdialog` view'udur; action/infrastructure bağımlılığı taşımaz, action hatasını dialog içinde tutar ve yeniden denemeye izin verir.
+- Root shell token action'ını doğrudan import etmez; controller ve dialog'u koordine eder ve **317 satırla** 350 satırlık bütçenin altında kalır. Tables matrisi saf token projection'ı, controller/action sahipliği, double-submit guard'ı ve view izolasyonunu da kapsar. Server-side tenant gate'i, atomik credential rotasyonu, URL formatı ve migration durumu değişmedi.
+
 ### Büyük client shell ayrıştırma — ThemeEditorClient property/page-flow dilimi ✅ (2026-07-16)
 
 - Sayfa akışının stored/legacy normalize kuralı, stale/duplicate blok temizliği, alt-kategori kapsamı, parent+child grup taşıma, bölüm ekleme/silme ve klavye hedef çözümü `theme-page-flow-model.ts` browser-safe saf modülüne taşındı. UI artık bu kuralları kendi event handler'larında tekrar etmiyor.
@@ -371,6 +514,36 @@ The design engine is the core differentiator. Every UI decision routes through i
 - Ana `MenuManager.tsx` bu dilimde **2.328 → 1.921 satıra**, CSV + edit/category dilimleri toplamında **2.840 → 1.921 satıra** indi. Saf model matrisi **10/10**: category parent-search fold, recursive delete, reorder merge; editor clean/inherited/custom/nested dirty; mevcut menu view-model seçim/arama kuralları.
 - Test Cafe B owner-session salt-okunur runtime: route **200**, 3 ürün kartı; panel `aside` sınırı açıldı, yerel açıklama değişikliği dirty oldu, ikinci ürüne geçişte koruma dialog'u açıldı ve “Düzenlemeye dön” aynı ürünü korudu. `matcha` araması parent `Kahve`yi görünür tuttu. Browser console/page error **0**, mutation request **0**; **6 kategori / 8 ürün** DB digest'i önce/sonra aynı (`1e7a583ed3bd17b7`).
 - Verify: dashboard typecheck, lint ve production build temiz. Migration yok. Sıradaki client-shell dilimi kalan Theme property renderer alt bileşenleri; ardından compatibility/session/OTP retirement.
+
+### Büyük client shell ayrıştırma — MenuManager command controller dilimi ✅ (2026-07-17)
+
+- Kategori ağacı silme/sıralama, ürün hızlı fiyat-yayın güncellemesi ve bulk availability optimistic/rollback orkestrasyonu `use-menu-manager-commands.ts` controller sınırına taşındı. `MenuManager` bu dört server action'ı doğrudan import etmez; yalnız controller callback'lerini kategori ve ürün workspace'lerine bağlar.
+- Recursive kategori+ürün kaldırma/aktif-kategori fallback'i ile hedef ürün/seçili editor patch'i `menu-manager-command-model.ts` browser-safe saf projection'larıdır. Hızlı ürün update'i functional state yazar; eşzamanlı başka kart değişikliği stale snapshot ile ezilmez. Server hata rollback'i ve kullanıcı mesajları korunur.
+- `MenuManager.tsx` **1.921 → 1.852 satıra** indi ve yeni **1.875 satır** fitness bütçesiyle kilitlendi. Saf command-model matrisi recursive delete, aktif kategori koruma ve hedef ürün identity paylaşımını kapsar. HTTP/application port sözleşmesi, tenant gate'i, DB verisi ve migration durumu değişmedi.
+
+### Büyük client shell ayrıştırma — MenuManager option editor view dilimi ✅ (2026-07-17)
+
+- Varyant/modifier grup ve seçenek editörü; fiyat/kalori farkı, varsayılan seçenek ve çoklu alerjen dropdown yaşam döngüsüyle birlikte `MenuModifierGroupEditor.tsx` salt-props view sınırına taşındı. Bileşen yalnız typed grup dizisi + `onChange` alır; tenant kimliği, server action veya Supabase erişimi taşımaz.
+- `MenuManager` modifier state'ini ürün dirty snapshot'ına ve mevcut kayıt action'ına bağlamaya devam eder, ancak alerjen sözlüğü ve seçenek düzenleme markup'ını sahiplenmez. Ürün persistence/validation, HTTP ve application port sözleşmeleri değişmedi.
+- `MenuManager.tsx` **1.852 → 1.481 satıra**, tüm MenuManager dilimlerinde **2.840 → 1.481 satıra** indi. Kaynak-seviye fitness testi delegasyonu, view infrastructure izolasyonunu, listbox semantiğini ve sıkılaştırılan **1.500 satır** bütçesini korur. Migration ve tenant verisi değişikliği yok.
+
+### Büyük client shell ayrıştırma — MenuManager item editor feature dilimi ✅ (2026-07-17)
+
+- Ürün düzenleyicinin ad/açıklama, fiyat/KDV/istasyon, nutrition, görsel ve modifier state'i; dirty snapshot + `beforeunload` koruması, browser storage upload ve ürün save/delete orkestrasyonuyla birlikte `MenuItemEditPanel.tsx` feature sınırına taşındı.
+- Ana `MenuManager` ürün action'larını, storage client'ını, nutrition/modifier editörlerini veya dirty equality kuralını import etmez. Yalnız seçili ürünü panele verir; `onSaved`, `onDeleted` ve `onDirtyChange` callback'leriyle liste/seçim ve çıkış korumasını uzlaştırır. Feature panel service-role veya `@garsonless/db/server` erişimi taşımaz.
+- `MenuManager.tsx` **1.481 → 886 satıra**, tüm MenuManager dilimlerinde **2.840 → 886 satıra** indi. Menu fitness matrisi **18/18**; feature delegasyonu ve sıkılaştırılan **900 satır** orchestrator bütçesi kilitlidir. Persistence/validation/HTTP sözleşmesi, migration ve tenant verisi değişmedi.
+
+### Büyük client shell ayrıştırma — MenuManager product workspace dilimi ✅ (2026-07-17)
+
+- Ürün grid/list görünümü, aktif/pasif filtreleri, alt-kategori tabları, toplu seçim yaşam döngüsü, hızlı fiyat/yayın callback'leri ve kart/list/empty yüzeyleri `MenuItemsWorkspace.tsx` feature sınırına taşındı.
+- Workspace yalnız typed ürün/category projection'ları ve callback'ler alır; server action, Supabase veya restaurant kimliği taşımaz. Ana `MenuManager` hesaplanmış görünür ürünleri, seçili ürünü ve command controller'ın quick/bulk callback'lerini bağlar; kart markup'ı veya yerel filtre/seçim state'i taşımaz.
+- `MenuManager.tsx` **886 → 447 satıra**, tüm MenuManager dilimlerinde **2.840 → 447 satıra** indi. Menu fitness matrisi **19/19**; workspace infrastructure izolasyonu ve sıkılaştırılan **450 satır** orchestrator bütçesi kilitlidir. Persistence/validation/HTTP sözleşmesi, migration ve tenant verisi değişmedi.
+
+### Büyük client shell ayrıştırma — MenuManager shell state/chrome dilimi ✅ (2026-07-17)
+
+- Mounted yaşam döngüsü, arama ve `Cmd/Ctrl+K` odağı, kategori/alt-kategori/ürün seçimi, dirty editörden korumalı çıkış, toast ve yeni-ürün drawer state'i `use-menu-manager-shell-state.ts` controller sınırına taşındı. Liste projection uzlaştırmaları action adlarından ayrışan `addCategory`, `updateCategory`, `saveItem`, `removeItem` ve `createItem` callback'leriyle yapılır.
+- Topbar, skeleton, empty state ve toast yüzeyleri `MenuManagerChrome.tsx` salt-props view bileşenlerine ayrıldı. Bu view'lar tenant kimliği, server action veya Supabase erişimi taşımaz; ana shell yalnız command/controller, CSV ve feature callback'lerini bağlar.
+- `MenuManager.tsx` **447 → 226 satıra**, tüm MenuManager dilimlerinde **2.840 → 226 satıra** indi. Menu fitness matrisi **21/21**; shell-state ve chrome infrastructure izolasyonu ile sıkılaştırılan **240 satır** orchestrator bütçesi kilitlidir. Persistence/validation/HTTP sözleşmesi, migration ve tenant verisi değişmedi.
 
 ### Büyük client shell ayrıştırma — ThemeEditorClient property renderer dilimi ✅ (2026-07-16)
 
@@ -1354,3 +1527,201 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 - Cron entegrasyonu için Edge secret'ında
   `PAYMENT_RECONCILIATION_URL=https://<menu>/api/internal/payment-reconciliation`
   ve menu deployment'ında ortak `OUTBOX_WORKER_SECRET` kurulmalıdır.
+
+### Modüler monolith — Theme editor view decomposition ✅ (2026-07-17)
+
+- `ThemeEditorClient` içindeki sol navigasyon ve sayfa-akışı render yükü
+  `ThemeEditorSidebar` bileşenine çıkarıldı; ana dosya state/command
+  orkestratörü olarak kaldı.
+- Şablon ve bölüm seçici modallar `ThemeEditorDialogs` sınırına taşındı.
+  Modal layout, focus trap, template kart metinleri ve plan rozetleri view
+  katmanında; açık/kapalı state ve seçim command'leri orchestrator'da kaldı.
+- Şablon telefon çizimleri ile bölüm mini-preview kataloğu
+  `ThemeEditorPreviewCatalog` salt-render view modülüne ayrıldı. Bu modül state,
+  effect, action veya seçim command'i taşımaz; yalnız typed tema/id girdisini
+  görsele projekte eder.
+- Bölüm kütüphanesi, grup listesi, yiyecek ikon seçenekleri ve bölüm ayar şeması
+  `theme-editor-section-registry` saf veri kataloğuna taşındı. Registry JSX/UI
+  runtime'ı taşımaz; ikonları typed anahtar olarak saklar ve dialog view'ı bu
+  anahtarları gerçek ikon bileşenlerine çözer.
+- Page-flow sıralama ve kategori-scope kuralları mevcut saf
+  `theme-page-flow-model` üzerinden çalışmaya devam ediyor; persistence veya
+  kullanıcı davranışı değişmedi.
+- `theme-editor-architecture.test.ts` sınırın yeniden birleşmesini, ortak model
+  kullanımını, dialog erişilebilirliğini, preview kataloğunun render-only ve
+  section registry'nin saf veri kalmasını, ayrıca 1.400 satır orchestrator
+  bütçesini denetliyor. Registry bütünlük testleri benzersiz section/icon
+  değerleri, geçerli grup bağlantıları, editor tab'ları ve yinelenmeyen field
+  key'lerini koruyor. `ThemeEditorClient` 3.011 satırdan 1.379 satıra indi. Tema
+  model + mimari test matrisi 34/34, dashboard typecheck/lint ve production
+  build temiz geçti.
+- Draft override üretimi, 25 adımlık undo/redo geçmişi, dirty-state ve
+  navigation guard, preview bridge senkronizasyonu ve publish yarış kontrolü
+  `use-theme-editor-lifecycle` controller hook'una taşındı. Saf
+  `theme-editor-lifecycle-model` başlangıç patch'i, bounded history ve kayıtlı
+  baseline'a göre değişiklik etiketlerini test ediyor. `ThemeEditorClient` bu
+  dilimde 1.379 satırdan 1.233 satıra indi; lifecycle state/action sahipliği
+  kaynak-seviye fitness testiyle tekrar orchestrator'a sızmaya karşı korunuyor.
+- Preview çalışma alanının responsive eşikleri, panel genişlikleri ve zoom/sığdır
+  kuralları `theme-editor-workspace-model` saf projection'ına; viewport/mode/
+  scale yaşam döngüsü `use-theme-editor-workspace` controller hook'una taşındı.
+  Cihaz çerçevesi, preview toolbar'ı ve iframe yüzeyi `ThemeEditorCanvas`
+  salt-props view sınırındadır. `ThemeEditorClient` **1.233 → 1.036 satıra**
+  indi; Theme model + mimari matrisi **43/43** ve yeni orchestrator bütçesi
+  **1.050 satırdır**. Publish/preview mesaj sözleşmesi, migration ve tenant
+  verisi değişmedi.
+- Sağ property workspace'in frame, renderer seçimi, bölüm ayarları, empty-state
+  ve marka rengi kompozisyonu `ThemeEditorPropertiesWorkspace` salt-props view
+  sınırına taşındı. View ham `restaurantId`, action veya Supabase client taşımaz;
+  galeri ve logo feature yüzeyleri dışarıdan node/callback olarak bağlanır.
+- Logo upload/remove action ve yükleme state'i `use-theme-editor-logo` controller
+  hook'una, erişilebilir dosya seçici/önizleme yüzeyi `ThemeLogoUploadCard` view'ına
+  ayrıldı. Ana orchestrator artık restaurant logo action'larını import etmez.
+  `ThemeEditorClient` **1.036 → 719 satıra**, başlangıçtaki 4.980 satırdan toplam
+  **%85,6** küçülmeye indi. Theme matrisi **45/45**, orchestrator bütçesi
+  **750 satırdır**. Tema persistence ve tenant sözleşmesi değişmedi.
+- Grup/bölüm seçimi, editor tab state'i, template/section dialog yaşam döngüsü,
+  arama projection'ları, bölüm ekleme/çıkarma, günlük özel expiry kontrolü ve
+  page-flow drag/klavye command'leri `use-theme-editor-navigation` controller
+  hook'una taşındı. Controller sıralama invariant'larını kopyalamaz;
+  `theme-page-flow-model` saf kurallarını çağırır ve action/Supabase bağımlılığı
+  taşımaz. `ThemeEditorClient` **719 → 516 satıra**, başlangıçtaki 4.980
+  satırdan toplam **%89,6** küçülmeye indi; yeni fitness bütçesi **550 satırdır**.
+  Theme model + mimari matrisi **46/46**, workspace typecheck **10/10**, lint
+  **0 error** (marketing'deki mevcut 2 `img` warning) ve dashboard production
+  build temiz geçti. Migration veya tenant verisi değişmedi.
+- Property panel copy/reset akışı `use-theme-editor-property-commands`
+  controller'ına; clipboard ve reset patch projeksiyonları saf
+  `theme-editor-property-command-model` modülüne taşındı. Kayıt durum metni/renk
+  projeksiyonu `theme-editor-shell-model`, erişilebilir toast markup'ı
+  `ThemeEditorToast`, sidebar grup/ikon kataloğu ise
+  `theme-editor-navigation-catalog` sınırındadır. `ThemeEditorClient`
+  **516 → 388 satıra** indi; yeni fitness bütçesi **420 satırdır**. Saf command
+  ve shell model testleriyle birlikte Theme matrisi **54/54** oldu; workspace
+  typecheck **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning)
+  ve dashboard production build temiz geçti. Persistence, migration ve tenant
+  verisi değişmedi.
+- Kök editör yerleşimi ve ortak interaction CSS'i `ThemeEditorShell` view'ına,
+  template/section modal kompozisyonu `ThemeEditorDialogsLayer` sınırına
+  taşındı. Preview temasının defaults + override birleşimi, legacy page-block
+  normalizasyonu ve geçersiz section temizliği React'ten bağımsız
+  `theme-editor-preview-theme-model` içinde tek projection olarak test edilir.
+  `ThemeEditorClient` **388 → 307 satıra**, başlangıçtaki 4.980 satırdan toplam
+  **%93,8** küçülmeye indi; fitness bütçesi **330 satıra** sıkılaştırıldı. Theme
+  model + mimari matrisi **57/57**, workspace typecheck **10/10**, lint
+  **0 error** (marketing'deki mevcut 2 `img` warning) ve dashboard production
+  build temiz geçti. Persistence, migration ve tenant verisi değişmedi.
+- Local runtime'da login route'u 200, korumalı theme route'u 307 → login verdi.
+  Authenticated storage state/fixture bulunmadığı için dialogların gerçek
+  tarayıcı etkileşimi sonraki yetkili smoke turunda tekrar doğrulanmalıdır.
+
+### Büyük client shell ayrıştırma — Analytics lifecycle/chrome dilimi ✅ (2026-07-17)
+
+- Rapor/range seçimi, lazy server-action yükleme, loaded/error/pending state'i ve
+  owner-only Operasyon koruması `use-analytics-reports` controller'ına taşındı.
+  Hızlı sekme veya dönem değişiminde eski async yanıtın yeni state'i ezmemesi
+  için latest-request-wins uzlaştırması eklendi.
+- Report metadata, dönem etiketleri, ilk loaded projection'ı ve export
+  readiness kuralları browser-safe `analytics-report-model` içinde tek
+  kaynaktır. Topbar, erişilebilir dönem seçici, owner'a göre filtrelenen sol
+  navigasyon, retry/loading yüzeyi `AnalyticsReportShell` salt-props view'ına
+  ayrıldı.
+- CSV serialization/download `analytics-report-export` sınırına taşındı;
+  kullanıcı kontrollü ürün, masa, e-posta ve gerekçe değerleri spreadsheet
+  formül enjeksiyonuna karşı bağımsız test edilir. Rapor sorgusu, tahsilat/ikram
+  semantiği ve endpoint sözleşmesi değişmedi.
+- `AnalyticsClient` **1.403 → 1.050 satıra** indi; **1.080 satır** fitness
+  bütçesiyle kilitlendi. Yeni model/export/mimari matrisi **11/11**, workspace
+  typecheck **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning)
+  ve dashboard production build temiz geçti. Migration veya tenant verisi
+  değişmedi.
+
+### Büyük client shell ayrıştırma — Analytics satış/ödeme view dilimi ✅ (2026-07-17)
+
+- Satış KPI'ları, tahsilat trendi, saat×gün heatmap'i, ödeme donut'ı ve en çok
+  satan ürünler; Ödemeler raporunun tahsilat/ikram KPI ve yöntem kırılımıyla
+  birlikte `AnalyticsSalesPaymentReports` feature view'ına taşındı. Feature
+  yalnız typed query projection'ları alır; server action, tenant kimliği veya
+  Supabase erişimi taşımaz.
+- Ortak KPI ve rapor kartı markup'ı `AnalyticsReportPrimitives` salt-props
+  sınırına ayrıldı. Operasyon, Ürünler, Masalar ve Sadakat mevcut görsel
+  sözleşmeyi aynı primitive'ler üzerinden kullanmaya devam eder; ikram yine
+  collected taban/donut dışında kalır.
+- `AnalyticsClient` **1.050 → 790 satıra**, başlangıçtaki 1.403 satırdan toplam
+  **%43,7** küçülmeye indi; fitness bütçesi **820 satıra** sıkılaştırıldı.
+  Analytics model/export/mimari matrisi **13/13**, workspace typecheck
+  **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning) ve
+  dashboard production build temiz geçti. Migration veya tenant verisi
+  değişmedi.
+
+### Büyük client shell ayrıştırma — Analytics operasyon view dilimi ✅ (2026-07-17)
+
+- Owner-only iptal, anormal kapatma ve personel tahsilat rapor ailesi
+  `AnalyticsOperationsReport` feature view'ına taşındı. Feature yalnız typed
+  query projection'larını alır; owner görünürlüğü controller'da, gerçek yetki
+  kapısı server query sınırında kalır. View server action, tenant kimliği veya
+  Supabase erişimi taşımaz.
+- Audit KPI delta yönü/tonu, dönem içi iptal trendi compaction'ı ve sistem
+  tahsilatını personel toplamından çıkarma kuralı browser-safe
+  `analytics-operations-model` içinde tek kaynaktır. Bu para/personel denetim
+  kuralları React'ten bağımsız boundary testleriyle korunur.
+- `AnalyticsClient` **790 → 505 satıra**, başlangıçtaki 1.403 satırdan toplam
+  **%64,0** küçülmeye indi; fitness bütçesi **535 satıra** sıkılaştırıldı.
+  Analytics model/export/mimari matrisi **18/18**, workspace typecheck
+  **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning) ve
+  dashboard production build temiz geçti. Migration, endpoint, persistence
+  veya tenant verisi değişmedi.
+
+### Büyük client shell ayrıştırma — Analytics ürün view dilimi ✅ (2026-07-18)
+
+- Ürün KPI'ları, ABC tahsilat analizi, ürün karması scatter'ı ve
+  yükselen/düşen ürün listeleri `AnalyticsItemsReport` feature view'ına
+  taşındı. Scatter chart'ın `ssr:false` lazy-loading ve sabit yükseklik
+  rezervasyonu feature sınırında korunur; view action, tenant kimliği veya
+  Supabase erişimi taşımaz.
+- Toplam tahsilat/adet ve A/B/C sınıf toplamları tek geçişli
+  `projectProductReport`, hareket listeleri `selectProductMovers`, delta etiketi
+  `formatProductDelta` ile browser-safe `analytics-items-model` içinde tek
+  kaynaktır. Projection input dizisini mutasyona uğratmaz.
+- `AnalyticsClient` **505 → 307 satıra**, başlangıçtaki 1.403 satırdan toplam
+  **%78,1** küçülmeye indi; fitness bütçesi **335 satıra** sıkılaştırıldı.
+  Analytics model/export/mimari matrisi **23/23**, workspace typecheck
+  **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning) ve
+  dashboard production build temiz geçti. Migration, endpoint, persistence
+  veya tenant verisi değişmedi.
+
+### Büyük client shell ayrıştırma — Analytics masalar view dilimi ✅ (2026-07-18)
+
+- Masa raporunun boş durumu, tahsilat/devir KPI'ları ve masa sıralama çubukları
+  `AnalyticsTablesReport` feature view'ına taşındı. View yalnız typed
+  `TableReportRow` projection'ı alır; action, tenant kimliği veya Supabase
+  erişimi taşımaz.
+- Tahsilata göre immutable sıralama, ödemeli sipariş, aktif/açık masa ayrımı,
+  kapanan oturum devri, aktif masa başı tahsilat ve devir-ağırlıklı ortalama
+  süre `analytics-tables-model` içinde tek projection'dır. Açık oturumlar devir
+  veya süre hesabına katılmaz; işletme saatleri olmadan doluluk yüzdesi
+  üretilmez.
+- `AnalyticsClient` **307 → 218 satıra**, başlangıçtaki 1.403 satırdan toplam
+  **%84,5** küçülmeye indi; fitness bütçesi **245 satıra** sıkılaştırıldı.
+  Analytics model/export/mimari matrisi **28/28**, workspace typecheck
+  **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning) ve
+  dashboard production build temiz geçti. Migration, endpoint, persistence
+  veya tenant verisi değişmedi.
+
+### Büyük client shell ayrıştırma — Analytics sadakat view dilimi ✅ (2026-07-18)
+
+- Sadakat boş durumu, damga/bonus/iade özetleri, ikram hareketi ve ledger
+  geçmişi `AnalyticsLoyaltyReport` feature view'ına taşındı. View yalnız typed
+  `LoyaltyReport` verisi alır; action, tenant kimliği veya Supabase erişimi
+  taşımaz.
+- Görünürlük ve stat kartı projection'ı `projectLoyaltyReport`, bilinen
+  redemption reason çevirisi ile bilinmeyen ledger reason'ını ham koruma
+  politikası `resolveLoyaltyReasonLabel` üzerinden browser-safe
+  `analytics-loyalty-model` içinde tek kaynaktır. İkram hareketi tahsilata
+  dahil edilmeden açıkça gösterilir.
+- `AnalyticsClient` **218 → 109 satıra**, başlangıçtaki 1.403 satırdan toplam
+  **%92,2** küçülmeye indi; fitness bütçesi **130 satıra** sıkılaştırıldı.
+  Analytics model/export/mimari matrisi **34/34**, workspace typecheck
+  **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning) ve
+  dashboard production build temiz geçti. Migration, endpoint, persistence
+  veya tenant verisi değişmedi.

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { computePointsRedemption } from './loyalty'
+import { computePointsRedemption } from '@garsonless/domain/loyalty'
 
 // rate = points needed for ₺1 of discount (e.g. 10 → 10 puan = ₺1).
 

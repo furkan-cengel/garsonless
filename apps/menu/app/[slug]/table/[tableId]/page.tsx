@@ -5,10 +5,11 @@ import {
   type MemberBalances,
 } from '@garsonless/application/loyalty'
 import { readPublishedTheme } from '@garsonless/application/themes'
+import { readPublicTableState } from '@garsonless/application/tables'
 import { getRestaurantBySlug, getMenuCategories, getMenuItems } from '../../../../lib/queries'
 import { getCustomerSession } from '../../../../lib/customer-session'
 import { MenuPageClient } from '../../MenuPageClient'
-import { createLoyaltyQueryPort, createThemeApplicationPort, readPublicTableState } from '@garsonless/db/server'
+import { createLoyaltyQueryPort, createPublicTableQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
 
 // Reading the auth cookie makes this route dynamic anyway; align with the
 // slug page instead of a stale ISR bill/session snapshot.
@@ -23,7 +24,9 @@ export default async function TableMenuPage({ params }: Props) {
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) notFound()
 
-  const tableState = await readPublicTableState(tableId)
+  const tableStateResult = await readPublicTableState(tableId, createPublicTableQueryPort())
+  if (!tableStateResult.ok) throw new Error(tableStateResult.error)
+  const tableState = tableStateResult.value
   if (!tableState || tableState.token.restaurantId !== restaurant.id || tableState.token.restaurantSlug !== slug) notFound()
 
   const [themeResult, categories] = await Promise.all([

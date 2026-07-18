@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeDiscountStack, effectivePct } from './loyalty'
+import { computeDiscountStack, effectivePct } from '@garsonless/domain/loyalty'
 
 // Order: stamp-free → member % → points. Member % floored to whole ₺, on the
 // post-stamp amount. Points come off the remainder (rate = points per ₺1).

@@ -1,4 +1,5 @@
 import type {
+  DashboardTablePort,
   KitchenBoardPort,
   KitchenOrderProjection,
   KitchenOrderProjectionBatch,
@@ -9,8 +10,12 @@ import type {
 import { err, ok, serviceRequestLabel, type Result, type TableSessionCloseOutcome } from '@garsonless/domain'
 import { createServiceClient } from './client'
 import { dispatchAggregateDomainEvents } from './outbox-consumer-port'
+import {
+  listActiveTableQrTokens,
+  rotateActiveTableQrToken,
+} from './table-qr-tokens'
 
-export async function softDeleteTable(input: { restaurantId: string; tableId: string }) {
+async function softDeleteTable(input: { restaurantId: string; tableId: string }) {
   const service = createServiceClient()
   const rpc = service.rpc.bind(service) as unknown as (
     fn: 'soft_delete_table_atomic',
@@ -22,19 +27,116 @@ export async function softDeleteTable(input: { restaurantId: string; tableId: st
   })
 }
 
-export async function readRestaurantSlug(restaurantId: string): Promise<string | null> {
+async function readRestaurantSlug(restaurantId: string): Promise<string | null> {
   const { data, error } = await createServiceClient().from('restaurants')
     .select('slug').eq('id', restaurantId).is('deleted_at', null).maybeSingle()
   if (error) throw new Error(error.message)
   return data?.slug ?? null
 }
 
-export async function patchRestaurantQrStyle(restaurantId: string, style: unknown): Promise<Result<null>> {
+async function patchRestaurantQrStyle(restaurantId: string, style: unknown): Promise<Result<null>> {
   const { error } = await createServiceClient().rpc('patch_restaurant_qr_style', {
     p_restaurant_id: restaurantId,
     p_qr_style: style as never,
   })
   return error ? err(error.message) : ok(null)
+}
+
+export function createDashboardTablePort(): DashboardTablePort {
+  return {
+    async createTable(input) {
+      const service = createServiceClient()
+      const { data: duplicate, error: duplicateError } = await service
+        .from('tables')
+        .select('id')
+        .eq('restaurant_id', input.restaurantId)
+        .ilike('label', input.label)
+        .is('deleted_at', null)
+        .limit(1)
+      if (duplicateError) return err(duplicateError.message)
+      if ((duplicate ?? []).length > 0) return err('Bu isimde aktif bir masa zaten var.')
+
+      const { data, error } = await service
+        .from('tables')
+        .insert({ restaurant_id: input.restaurantId, label: input.label })
+        .select('id')
+        .single()
+      if (error) return err(error.code === '23505' ? 'Bu isimde aktif bir masa zaten var.' : error.message)
+      if (!data?.id) return err('Failed to create table')
+
+      try {
+        const tokens = await listActiveTableQrTokens(input.restaurantId)
+        const token = tokens[data.id]
+        return token
+          ? ok({ id: data.id, token })
+          : err('Yeni masa için QR bağlantısı oluşturulamadı.')
+      } catch (error_) {
+        return err(error_ instanceof Error ? error_.message : 'QR bağlantısı yüklenemedi.')
+      }
+    },
+
+    async renameTable(input) {
+      const service = createServiceClient()
+      const { data: duplicate, error: duplicateError } = await service
+        .from('tables')
+        .select('id')
+        .eq('restaurant_id', input.restaurantId)
+        .neq('id', input.tableId)
+        .ilike('label', input.label)
+        .is('deleted_at', null)
+        .limit(1)
+      if (duplicateError) return err(duplicateError.message)
+      if ((duplicate ?? []).length > 0) return err('Bu isimde aktif bir masa zaten var.')
+
+      const { data, error } = await service
+        .from('tables')
+        .update({ label: input.label, updated_at: new Date().toISOString() })
+        .eq('id', input.tableId)
+        .eq('restaurant_id', input.restaurantId)
+        .is('deleted_at', null)
+        .select('id')
+      if (error) return err(error.code === '23505' ? 'Bu isimde aktif bir masa zaten var.' : error.message)
+      return data && data.length > 0
+        ? ok(null)
+        : err('Table not found for this restaurant')
+    },
+
+    async deleteTable(input) {
+      const { data, error } = await softDeleteTable(input)
+      if (error) return err(error.message)
+      return data === 'deleted' || data === 'open_session'
+        ? ok(data)
+        : ok('not_found')
+    },
+
+    async listQrTokens(restaurantId) {
+      try {
+        return ok(await listActiveTableQrTokens(restaurantId))
+      } catch (error) {
+        return err(error instanceof Error ? error.message : 'QR bağlantıları yüklenemedi.')
+      }
+    },
+
+    async rotateQrToken(input) {
+      try {
+        return ok(await rotateActiveTableQrToken(input))
+      } catch (error) {
+        return err(error instanceof Error ? error.message : 'QR kodu döndürülemedi.')
+      }
+    },
+
+    async readRestaurantSlug(restaurantId) {
+      try {
+        return ok(await readRestaurantSlug(restaurantId))
+      } catch (error) {
+        return err(error instanceof Error ? error.message : 'Restaurant could not be loaded')
+      }
+    },
+
+    async patchQrStyle(input) {
+      return patchRestaurantQrStyle(input.restaurantId, input.style)
+    },
+  }
 }
 
 export function createTableSessionPort(): TableSessionPort {

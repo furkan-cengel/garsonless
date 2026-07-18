@@ -2,6 +2,14 @@ import type { Tables } from '@garsonless/db'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
 import type { PendingTableRequestView, QRConfig, QRHistory, TableItem } from './tables-builder-types'
 
+const PRODUCTION_MENU_ORIGIN = 'https://menu.masabu.co'
+
+export const MENU_ORIGIN = (
+  process.env.NODE_ENV === 'production'
+    ? PRODUCTION_MENU_ORIGIN
+    : process.env.NEXT_PUBLIC_MENU_BASE_URL ?? process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'
+).replace(/\/+$/, '')
+
 const MAX_HISTORY_ENTRIES = 60
 
 export function deriveTableSlug(label: string, index: number): string {
@@ -9,6 +17,38 @@ export function deriveTableSlug(label: string, index: number): string {
   if (/bar/i.test(label)) return `ba${String.fromCharCode(64 + index + 1).toLowerCase()}`
   const num = label.match(/\d+/)?.[0]
   return num ? num.padStart(2, '0') : String(index + 1).padStart(2, '0')
+}
+
+export function filterTables(tables: TableItem[], query: string): TableItem[] {
+  const normalizedQuery = query.trim().toLocaleLowerCase('tr-TR')
+  if (!normalizedQuery) return tables
+  return tables.filter((table) =>
+    table.label.toLocaleLowerCase('tr-TR').includes(normalizedQuery)
+    || table.slug.toLocaleLowerCase('tr-TR').includes(normalizedQuery),
+  )
+}
+
+export function renameTableInList(tables: TableItem[], tableId: string, label: string): TableItem[] {
+  return tables.map((table, index) => table.id === tableId
+    ? { ...table, label, slug: deriveTableSlug(label, index) }
+    : table,
+  )
+}
+
+export function replaceTableQrToken(tables: TableItem[], tableId: string, qrToken: string): TableItem[] {
+  return tables.map((table) => table.id === tableId ? { ...table, qrToken } : table)
+}
+
+export function removeTableFromList(
+  tables: TableItem[],
+  tableId: string,
+  activeId: string,
+): { tables: TableItem[]; activeId: string } {
+  const nextTables = tables.filter((table) => table.id !== tableId)
+  return {
+    tables: nextTables,
+    activeId: activeId === tableId ? nextTables[0]?.id ?? '' : activeId,
+  }
 }
 
 export function mapDBTables(dbTables: Tables<'tables'>[], openSessions: OpenSessionInfo[], qrTokens: Record<string, string>): TableItem[] {

@@ -4,14 +4,16 @@ import React from 'react'
 import {
   ALLERGEN_CODES,
   ALLERGEN_LABELS,
-  applyReviewInvalidatingPatch,
-  moveListItem,
   normalizeAllergenCodes,
   normalizeIngredients,
-  normalizeMenuNumericText,
-  toggleAllergenDeclaration,
 } from '@garsonless/db/browser'
 import type { AllergenCode, MenuIngredient } from '@garsonless/db/browser'
+import {
+  applyReviewInvalidatingPatch,
+  moveListItem,
+  normalizeMenuNumericText,
+  toggleAllergenDeclaration,
+} from '@garsonless/domain/menu'
 
 /* ============================================================
    Shared nutrition / allergen / dietary editor — used by the

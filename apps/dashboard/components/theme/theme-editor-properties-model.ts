@@ -4,6 +4,8 @@ import type { SettingField } from '@garsonless/ui'
 export type EditorTab = 'design' | 'layout' | 'content'
 export type SectionFieldType = 'text' | 'textarea' | 'color' | 'range' | 'select' | 'url' | 'toggle' | 'product-select' | 'category-select' | 'heading'
 
+export const THEME_EDITOR_THEME_GROUP_ID = 'theme'
+
 export interface SectionSettingField {
   key: string
   label: string

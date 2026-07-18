@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeTier, sanitizeTiers, DEFAULT_TIERS, MAX_TIERS } from './loyalty'
+import { computeTier, sanitizeTiers, DEFAULT_TIERS, MAX_TIERS } from '@garsonless/domain/loyalty'
 
 // DEFAULT_TIERS: Bronz 0, Gümüş 500, Altın 1000, Platin 2500.
 

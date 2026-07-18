@@ -15,21 +15,13 @@ import {
 import {
   getCustomerSegment,
   getRestaurantCustomers,
-  sanitizeCustomerSegmentDefinition,
-  type CustomerSegmentDefinition,
 } from './customers'
-import type { CustomerSegment } from '@garsonless/domain/customers'
+import {
+  sanitizeCustomerSegmentDefinition,
+  type CustomerSegment,
+  type CustomerSegmentDefinition,
+} from '@garsonless/domain/customers'
 import type { Json } from './types.gen'
-
-export type {
-  CampaignAudienceInput,
-  CampaignAudiencePreview,
-  CampaignSegmentKind,
-  CampaignStatus,
-  CampaignSummary,
-  SendCampaignResult,
-} from '@garsonless/domain/campaigns'
-export { sanitizeCampaignMessage } from '@garsonless/domain/campaigns'
 
 const PAGE_SIZE = 100
 

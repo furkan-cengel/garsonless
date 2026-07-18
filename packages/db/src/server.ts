@@ -1,5 +1,4 @@
 /** Server-only database boundary for app adapters and application ports. */
-export { createServiceClient } from './client'
 export { resolveOrderLines } from './orders'
 export { recordSecurityEvent } from './security'
 export {
@@ -24,6 +23,10 @@ export {
 export { createMenuCommandPort } from './menu-command-port'
 export { createLoyaltyQueryPort } from './loyalty-query-port'
 export { createThemeApplicationPort } from './theme-application-port'
+export {
+  createRestaurantSettingsPort,
+  createStandRequestPort,
+} from './restaurant-application-port'
 export {
   createDomainEventConsumerPort,
   dispatchAggregateDomainEvents,
@@ -67,16 +70,9 @@ export {
   readSharePaymentMapping,
 } from './payment-provider-port'
 export {
+  createDashboardTablePort,
   createKitchenBoardPort,
   createTableServiceRequestPort,
   createTableSessionPort,
-  patchRestaurantQrStyle,
-  readRestaurantSlug,
-  softDeleteTable,
 } from './table-command-port'
-export {
-  listActiveTableQrTokens,
-  readPublicTableState,
-  resolveActiveTableQrToken,
-  rotateActiveTableQrToken,
-} from './table-qr-tokens'
+export { createPublicTableQueryPort } from './table-qr-tokens'

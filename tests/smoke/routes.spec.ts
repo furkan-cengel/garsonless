@@ -20,7 +20,7 @@ test.describe('route smoke', () => {
   test('marketing home renders', async ({ request }) => {
     const response = await request.get(marketingURL)
     expect(response.status()).toBe(200)
-    expect(await response.text()).toMatch(/garsonless/i)
+    expect(await response.text()).toMatch(/masabu/i)
   })
 
   test('menu public route renders the smoke fixture', async ({ request }) => {
@@ -32,6 +32,6 @@ test.describe('route smoke', () => {
   test('kitchen route fails closed without token instead of crashing', async ({ request }) => {
     const response = await request.get(`${kitchenURL}/kitchen/00000000-0000-0000-0000-000000000000`)
     expect(response.status()).toBe(200)
-    expect(await response.text()).toMatch(/token gerekli/i)
+    expect(await response.text()).toMatch(/oturumu gerekli/i)
   })
 })

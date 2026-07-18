@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requestTableService } from '@garsonless/application/tables'
+import { requestTableService, resolvePublicTableContext } from '@garsonless/application/tables'
 import { SERVICE_REQUEST_TYPES } from '@garsonless/domain/tables'
-import { createTableServiceRequestPort, resolveActiveTableQrToken } from '@garsonless/db/server'
+import { createPublicTableQueryPort, createTableServiceRequestPort } from '@garsonless/db/server'
 
 const schema = z.object({
   tableToken: z.string().uuid(),
@@ -27,7 +27,9 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse>> {
     )
   }
 
-  const table = await resolveActiveTableQrToken(parsed.data.tableToken)
+  const tableResult = await resolvePublicTableContext(parsed.data.tableToken, createPublicTableQueryPort())
+  if (!tableResult.ok) return NextResponse.json({ ok: false, error: 'Masa bağlantısı doğrulanamadı.' }, { status: 503 })
+  const table = tableResult.value
   if (!table) return NextResponse.json({ ok: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
   const result = await requestTableService(
     {

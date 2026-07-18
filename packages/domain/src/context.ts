@@ -7,6 +7,8 @@ export type DashboardActorContext = {
   userId: string
   restaurantId: string
   permissions: readonly string[]
+  /** Explicit authority resolved by the dashboard adapter. Missing means member. */
+  isOwner?: boolean
 }
 
 export type TableGuestContext = {
