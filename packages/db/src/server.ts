@@ -1,6 +1,7 @@
 /** Server-only database boundary for app adapters and application ports. */
 export { resolveOrderLines } from './orders'
-export { recordSecurityEvent } from './security'
+export { recordSecurityEvent, TEAM_SECURITY_EVENT_TYPES } from './security'
+export type { TeamSecurityEventType } from './security'
 export {
   TEAM_SECTIONS,
   listTeamMembers,
@@ -21,6 +22,8 @@ export {
   createCustomerIdentityApplicationPort,
 } from './customer-auth-application-port'
 export { createMenuCommandPort } from './menu-command-port'
+export { createKitchenSettingsCommandPort } from './kitchen-settings-command-port'
+export { createTeamCommandPort } from './team-command-port'
 export { createLoyaltyQueryPort } from './loyalty-query-port'
 export { createThemeApplicationPort } from './theme-application-port'
 export {
@@ -51,6 +54,7 @@ export {
 export type {
   ThemeEditorCategoryRow,
   ThemeEditorItemRow,
+  TeamAuditEventRow,
 } from './dashboard-feature-read-model-port'
 export type { DashboardOrderReadRow } from './dashboard-read-model-port'
 export { createStructuredDashboardInsightsObserver } from './dashboard-read-model-observability'

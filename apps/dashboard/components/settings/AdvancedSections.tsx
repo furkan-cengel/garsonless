@@ -6,7 +6,7 @@ import type { Tables } from '@garsonless/db/types'
 import { I, S, Tag, btnGhost, btnPrimary } from '../../lib/ui'
 import { InlineSpinner } from '@garsonless/ui'
 import { SCard, FormRow, inputStyle } from './primitives'
-import { changePassword } from '../../lib/actions/auth'
+import { changePassword, sendPasswordResetEmail } from '../../lib/actions/auth'
 
 /* ── API & WEBHOOKS ───────────────────────────────── */
 export function ApiSection() {
@@ -95,14 +95,23 @@ function deviceSummary(ua: string | null): string {
   return os ? `${browser} · ${os}` : browser
 }
 
-export function SecuritySection({ events, userEmail }: { events: SecurityEventView[]; userEmail: string }) {
+function providerLabel(provider: string | null): string {
+  if (provider === 'google') return 'Google'
+  if (provider === 'apple') return 'Apple'
+  return 'giriş sağlayıcın'
+}
+
+export function SecuritySection({ events, userEmail, authProvider }: { events: SecurityEventView[]; userEmail: string; authProvider: string | null }) {
   const router = useRouter()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+  const [resetMessage, setResetMessage] = useState('')
   const [isPending, startTransition] = useTransition()
+  const [isResetPending, startResetTransition] = useTransition()
+  const usesExternalProvider = Boolean(authProvider && authProvider !== 'email')
 
   function handleChangePassword(e: React.FormEvent) {
     e.preventDefault()
@@ -116,11 +125,29 @@ export function SecuritySection({ events, userEmail }: { events: SecurityEventVi
     })
   }
 
+  function handleSendPasswordReset() {
+    setResetMessage('')
+    startResetTransition(async () => {
+      const res = await sendPasswordResetEmail()
+      setResetMessage('error' in res ? res.error : 'Şifre belirleme bağlantısını e-posta adresine gönderdik.')
+    })
+  }
+
   return (
     <>
-      {/* Real password change */}
+      {/* Password users can re-authenticate before changing; OAuth users use a
+          recovery link so a non-existent current password is never requested. */}
       <SCard title="Şifre" subtitle={`${userEmail} hesabının şifresini değiştir`}>
-        <form onSubmit={handleChangePassword}>
+        {usesExternalProvider ? (
+          <div style={{ padding: 18 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Bu hesap {providerLabel(authProvider)} ile giriş yapıyor</div>
+            <p style={{ margin: '5px 0 14px', fontSize: 12, color: 'var(--text-3)', lineHeight: 1.5 }}>Mevcut şifre istenmez. İstersen e-posta ile doğrudan giriş için yeni bir şifre belirleyebilirsin.</p>
+            <button type="button" onClick={handleSendPasswordReset} disabled={isResetPending} style={btnPrimary()}>
+              {isResetPending ? 'Gönderiliyor…' : 'Şifre belirleme e-postası gönder'}
+            </button>
+            {resetMessage && <div role="status" style={{ marginTop: 10, fontSize: 12, color: resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'var(--positive)' : 'var(--critical)' }}>{resetMessage}</div>}
+          </div>
+        ) : <form onSubmit={handleChangePassword}>
           <FormRow label="Mevcut şifre">
             <input type="password" value={current} onChange={e => setCurrent(e.target.value)} autoComplete="current-password" style={inputStyle({ width: 220 })} />
           </FormRow>
@@ -131,14 +158,18 @@ export function SecuritySection({ events, userEmail }: { events: SecurityEventVi
             <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" style={inputStyle({ width: 220 })} />
           </FormRow>
           <div style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
-              {error || (saved ? '✓ Şifre güncellendi' : 'Mevcut şifreni doğrulamamız gerekiyor')}
+            <span style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)', maxWidth: 280 }}>
+              {error || (saved ? '✓ Şifre güncellendi' : 'Mevcut şifreni doğrulamamız gerekiyor. Parolan yoksa e-posta ile belirleyebilirsin.')}
             </span>
-            <button type="submit" disabled={isPending || !current || !next || !confirm} style={btnPrimary()}>
-              {isPending ? <InlineSpinner size={13} color="var(--on-action)" /> : <I.lock size={13} />}{isPending ? 'Güncelleniyor…' : 'Şifre değiştir'}
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={handleSendPasswordReset} disabled={isResetPending} style={btnGhost({ height: 30, fontSize: 12 })}>{isResetPending ? 'Gönderiliyor…' : 'Şifre belirle'}</button>
+              <button type="submit" disabled={isPending || !current || !next || !confirm} style={btnPrimary()}>
+                {isPending ? <InlineSpinner size={13} color="var(--on-action)" /> : <I.lock size={13} />}{isPending ? 'Güncelleniyor…' : 'Şifre değiştir'}
+              </button>
+            </div>
           </div>
-        </form>
+          {resetMessage && <div role="status" style={{ padding: '0 18px 14px', fontSize: 12, color: resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'var(--positive)' : 'var(--critical)' }}>{resetMessage}</div>}
+        </form>}
       </SCard>
 
       {/* 2FA — not in v1, clearly disabled (no fake toggle) */}

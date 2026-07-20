@@ -1440,6 +1440,7 @@ export type Database = {
           event_type: string
           id: string
           ip: string | null
+          metadata: Json
           restaurant_id: string | null
           user_agent: string | null
           user_id: string
@@ -1449,6 +1450,7 @@ export type Database = {
           event_type: string
           id?: string
           ip?: string | null
+          metadata?: Json
           restaurant_id?: string | null
           user_agent?: string | null
           user_id: string
@@ -1458,6 +1460,7 @@ export type Database = {
           event_type?: string
           id?: string
           ip?: string | null
+          metadata?: Json
           restaurant_id?: string | null
           user_agent?: string | null
           user_id?: string

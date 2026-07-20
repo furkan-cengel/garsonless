@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { assertAccess } from '../auth/access'
+import { assertOwner } from '../auth/access'
 import {
   previewCustomerCampaign,
   sendCustomerCampaign,
@@ -16,17 +16,13 @@ import type {
 } from '@garsonless/domain/campaigns'
 import type { CustomerSegment } from '@garsonless/domain/customers'
 
-// Phase 3: campaigns live in the Customers CRM → owner OR a member with 'customers'.
-async function assertOwner(restaurantId: string): Promise<{ userId: string } | { error: string }> {
-  return assertAccess(restaurantId, 'customers')
-}
-
 function campaignActor(restaurantId: string, userId: string) {
   return {
     actor: 'dashboard-member' as const,
     restaurantId,
     userId,
     permissions: ['customers'],
+    isOwner: true,
   }
 }
 

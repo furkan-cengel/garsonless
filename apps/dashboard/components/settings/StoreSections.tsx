@@ -5,7 +5,8 @@ import type { Tables } from '@garsonless/db/types'
 import { I, S, Tag, btnPrimary } from '../../lib/ui'
 import { InlineSpinner } from '@garsonless/ui'
 import { SCard, FormRow, inputStyle } from './primitives'
-import { updateSettings } from '../../lib/actions/restaurant'
+import { saveBusinessHours, updateSettings } from '../../lib/actions/restaurant'
+import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
 
 /* ── STORE ────────────────────────────────────────── */
 function StoreField({
@@ -101,6 +102,7 @@ export function StoreSection({ restaurant }: { restaurant: Tables<'restaurants'>
       })
       if ('error' in result) { setError(result.error); return }
       setSaved(true)
+      notifySettingsSaved()
     })
   }
 
@@ -288,6 +290,7 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
 
   function update(key: string, patch: Partial<DaySchedule>) {
     setSaved(false)
+    notifySettingsDirty()
     setSchedule(prev => ({ ...prev, [key]: { ...prev[key]!, ...patch } }))
   }
 
@@ -296,9 +299,10 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
     setError('')
     setSaved(false)
     startTransition(async () => {
-      const result = await updateSettings(restaurant.id, { hours: schedule })
+      const result = await saveBusinessHours(restaurant.id, schedule)
       if ('error' in result) { setError(result.error); return }
       setSaved(true)
+      notifySettingsSaved()
     })
   }
 
@@ -306,7 +310,7 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
 
   return (
     <form onSubmit={handleSave}>
-      <SCard title="Haftalık program" subtitle="Müşteriler menüde bu saatleri görür">
+      <SCard title="Haftalık program" subtitle="Müşteriler menüde bu saatleri görür. Gece yarısını aşan saatler için ayrı vardiya desteği yakında.">
         {HOUR_DAYS.map((day, i) => {
           const s = schedule[day.key]!
           const isToday = i === todayIdx
@@ -321,6 +325,9 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
               <button
                 type="button"
                 onClick={() => update(day.key, { active: !s.active })}
+                role="switch"
+                aria-checked={s.active}
+                aria-label={`${day.label} ${s.active ? 'açık' : 'kapalı'}`}
                 style={{
                   width: 34, height: 20, borderRadius: 999,
                   background: s.active ? 'var(--text)' : 'var(--border-strong)',
@@ -406,6 +413,7 @@ export function TaxSection({ restaurant }: { restaurant: Tables<'restaurants'> }
       })
       if ('error' in result) { setError(result.error); return }
       setSaved(true)
+      notifySettingsSaved()
     })
   }
 

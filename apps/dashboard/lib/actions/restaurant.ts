@@ -7,9 +7,16 @@ import { mut } from '../supabase-mut'
 import { slugify } from '../utils'
 import type { Tables } from '@garsonless/db/types'
 import { patchRestaurantSettings } from '@garsonless/application/restaurants'
-import { createRestaurantSettingsPort } from '@garsonless/db/server'
+import {
+  createKitchenSettingsCommandPort,
+  createRestaurantSettingsPort,
+} from '@garsonless/db/server'
+import {
+  reorderKitchenStations as reorderKitchenStationsCommand,
+  rotateKitchenAccessCredential,
+} from '@garsonless/application/kitchen'
 import { sanitizeTiers } from '@garsonless/domain/loyalty'
-import { getUserRestaurantAccess } from '../auth/access'
+import { assertOwner, getUserRestaurantAccess } from '../auth/access'
 
 const createRestaurantSchema = z.object({
   name: z.string().min(1).max(100),
@@ -161,11 +168,65 @@ const notificationPrefsSchema = z.object({
   serviceRequestAlert: z.boolean(),
 })
 
-export async function saveNotificationSettings(
+const notificationSettingsSchema = z.object({
+  prefs: notificationPrefsSchema,
+  lateThresholdMin: z.number().int().min(5).max(120),
+})
+
+const businessTimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, 'Geçersiz saat')
+const businessDaySchema = z.object({
+  open: businessTimeSchema,
+  close: businessTimeSchema,
+  active: z.boolean(),
+})
+const businessHoursSchema = z.object({
+  mon: businessDaySchema,
+  tue: businessDaySchema,
+  wed: businessDaySchema,
+  thu: businessDaySchema,
+  fri: businessDaySchema,
+  sat: businessDaySchema,
+  sun: businessDaySchema,
+}).superRefine((hours, ctx) => {
+  for (const [day, value] of Object.entries(hours)) {
+    if (value.active && value.open >= value.close) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [day, 'close'],
+        message: 'Kapanış saati açılıştan sonra olmalı',
+      })
+    }
+  }
+})
+
+/**
+ * The current hours model represents one same-day interval per weekday. Reject
+ * malformed and overnight intervals rather than publishing an ambiguous menu
+ * state; split/overnight schedules need their own data-model epic.
+ */
+export async function saveBusinessHours(
   restaurantId: string,
-  prefs: unknown,
+  hours: unknown,
 ): Promise<{ error: string } | { success: true }> {
-  const parsed = notificationPrefsSchema.safeParse(prefs)
+  const parsed = businessHoursSchema.safeParse(hours)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Geçersiz çalışma saatleri' }
+  }
+  return updateSettings(restaurantId, { hours: parsed.data })
+}
+
+/**
+ * Persist every control in the Notifications section in one JSONB patch.
+ *
+ * The settings RPC merges the top-level keys atomically. Keeping preferences
+ * and the order-late threshold in the same command prevents a partial save
+ * where the first request succeeds and the second one fails.
+ */
+export async function saveNotificationPreferences(
+  restaurantId: string,
+  input: unknown,
+): Promise<{ error: string } | { success: true }> {
+  const parsed = notificationSettingsSchema.safeParse(input)
   if (!parsed.success) return { error: 'Geçersiz bildirim ayarları' }
 
   const { user } = await getAuthUser()
@@ -182,7 +243,13 @@ export async function saveNotificationSettings(
       permissions: access.permissions,
       isOwner: access.isOwner,
     },
-    { restaurantId, patch: { notifications: parsed.data } },
+    {
+      restaurantId,
+      patch: {
+        notifications: parsed.data.prefs,
+        orders: { late_threshold_min: parsed.data.lateThresholdMin },
+      },
+    },
     createRestaurantSettingsPort(),
   )
   if (!result.ok) return { error: result.error }
@@ -224,9 +291,8 @@ export async function saveLoyaltyConfig(
   const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
 
-  const { data: existing } = await supabase
-    .from('restaurants').select('settings').eq('id', restaurantId).eq('owner_id', user.id).single()
-  if (!existing) return { error: 'Not authorized' }
+  const access = await getUserRestaurantAccess(restaurantId)
+  if (!access?.isOwner) return { error: 'Not authorized' }
 
   const cfg = { ...loyalty }
 
@@ -268,10 +334,21 @@ export async function saveLoyaltyConfig(
     return [{ itemId, pointCost, ...tag }]
   })
 
-  const merged = { ...((existing as { settings: Record<string, unknown> }).settings ?? {}), loyalty: cfg }
-  const { error } = await mut(supabase, 'restaurants')
-    .update({ settings: merged }).eq('id', restaurantId).eq('owner_id', user.id)
-  if (error) return { error: error.message }
+  // Do not read/merge/write the complete settings JSON here. That former path
+  // could overwrite a concurrent Theme, QR or Settings update. The shared
+  // application command delegates to the atomic JSONB patch RPC instead.
+  const result = await patchRestaurantSettings(
+    {
+      actor: 'dashboard-member',
+      userId: user.id,
+      restaurantId,
+      permissions: access.permissions,
+      isOwner: true,
+    },
+    { restaurantId, patch: { loyalty: cfg } },
+    createRestaurantSettingsPort(),
+  )
+  if (!result.ok) return { error: result.error }
 
   revalidatePath(`/dashboard/${restaurantId}/settings`)
   revalidateTag(`menu:${restaurantId}`)
@@ -300,6 +377,8 @@ export async function removeLogo(
     .eq('owner_id', user.id)
   if (error) return { error: error.message }
   revalidatePath(`/dashboard/${restaurantId}`)
+  revalidatePath(`/dashboard/${restaurantId}/settings`)
+  revalidateTag(`menu:${restaurantId}`)
   return { success: true }
 }
 
@@ -326,12 +405,23 @@ export async function uploadLogo(
 
   const { data } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
 
-  await mut(supabase, 'restaurants')
+  const { data: updatedRows, error: updateError } = await mut(supabase, 'restaurants')
     .update({ logo_url: data.publicUrl })
     .eq('id', restaurantId)
     .eq('owner_id', user.id)
+    .select('id')
+
+  // Storage upload and restaurant metadata must either both succeed or report a
+  // failure. Roll back the new object when the owner-scoped row update did not
+  // land so the UI never claims that a logo was saved when it was not.
+  if (updateError || !updatedRows?.length) {
+    await supabase.storage.from('restaurant-assets').remove([path])
+    return { error: updateError?.message ?? 'Logo güncellenemedi' }
+  }
 
   revalidatePath(`/dashboard/${restaurantId}`)
+  revalidatePath(`/dashboard/${restaurantId}/settings`)
+  revalidateTag(`menu:${restaurantId}`)
   return { url: data.publicUrl }
 }
 
@@ -423,15 +513,19 @@ export async function reorderKitchenStations(
   if (!parsedRestaurantId.success || !parsedIds.success) return { error: 'Invalid input' }
 
   try {
-    const gate = await assertRestaurantOwner(parsedRestaurantId.data)
-    if (!gate.ok) return { error: gate.error }
-
-    await Promise.all(parsedIds.data.map((id, position) =>
-      mut(gate.supabase, 'kitchen_stations')
-        .update({ position })
-        .eq('id', id)
-        .eq('restaurant_id', parsedRestaurantId.data),
-    ))
+    const gate = await assertOwner(parsedRestaurantId.data)
+    if ('error' in gate) return gate
+    const result = await reorderKitchenStationsCommand({
+      actor: 'dashboard-member',
+      userId: gate.userId,
+      restaurantId: parsedRestaurantId.data,
+      permissions: ['settings'],
+      isOwner: true,
+    }, {
+      restaurantId: parsedRestaurantId.data,
+      orderedIds: parsedIds.data,
+    }, createKitchenSettingsCommandPort())
+    if (!result.ok) return { error: result.error }
 
     revalidatePath(`/dashboard/${parsedRestaurantId.data}/settings`)
     return { success: true }
@@ -443,31 +537,20 @@ export async function reorderKitchenStations(
 export async function generateKitchenToken(
   restaurantId: string,
 ): Promise<{ error: string } | { success: true }> {
-  const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
+  const parsedRestaurantId = z.string().uuid().safeParse(restaurantId)
+  if (!parsedRestaurantId.success) return { error: 'Invalid input' }
+  const gate = await assertOwner(parsedRestaurantId.data)
+  if ('error' in gate) return gate
+  const result = await rotateKitchenAccessCredential({
+    actor: 'dashboard-member',
+    userId: gate.userId,
+    restaurantId: parsedRestaurantId.data,
+    permissions: ['settings'],
+    isOwner: true,
+  }, { restaurantId: parsedRestaurantId.data }, createKitchenSettingsCommandPort())
+  if (!result.ok) return { error: result.error }
 
-  const { data: restaurant } = await supabase
-    .from('restaurants')
-    .select('id')
-    .eq('id', restaurantId)
-    .eq('owner_id', user.id)
-    .single()
-
-  if (!restaurant) return { error: 'Not authorized' }
-
-  const token = Array.from(crypto.getRandomValues(new Uint8Array(16)))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
-
-  // GAP #1: the kitchen token is a secret — store it in the service-role-only
-  // kitchen_credentials table, NOT in the anon-readable restaurants.settings.
-  // The RLS owner policy gates this write to the owner's own restaurant.
-  const { error } = await mut(supabase, 'kitchen_credentials')
-    .upsert({ restaurant_id: restaurantId, token, updated_at: new Date().toISOString() }, { onConflict: 'restaurant_id' })
-
-  if (error) return { error: error.message }
-
-  revalidatePath(`/dashboard/${restaurantId}/settings`)
-  revalidatePath(`/dashboard/${restaurantId}/orders`)
+  revalidatePath(`/dashboard/${parsedRestaurantId.data}/settings`)
+  revalidatePath(`/dashboard/${parsedRestaurantId.data}/orders`)
   return { success: true }
 }

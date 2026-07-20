@@ -22,5 +22,5 @@ export default async function CustomerDetailPage({ params }: Props) {
   if (!detail.ok) throw new Error(detail.error)
   if (!detail.value) notFound()
 
-  return <CustomerDetailClient restaurantId={restaurantId} restaurantName={restaurant.name} detail={detail.value} />
+  return <CustomerDetailClient restaurantId={restaurantId} restaurantName={restaurant.name} detail={detail.value} canGrantStoreCredit={actor.isOwner === true} />
 }

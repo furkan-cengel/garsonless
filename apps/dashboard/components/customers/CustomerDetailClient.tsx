@@ -62,10 +62,12 @@ export default function CustomerDetailClient({
   restaurantId,
   restaurantName,
   detail,
+  canGrantStoreCredit,
 }: {
   restaurantId: string
   restaurantName: string
   detail: RestaurantCustomerDetail
+  canGrantStoreCredit: boolean
 }) {
   const router = useRouter()
   const [points, setPoints] = useState('')
@@ -172,7 +174,7 @@ export default function CustomerDetailClient({
             </div>
           )}
 
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow-1)', padding: 20, marginBottom: 22 }}>
+          {canGrantStoreCredit && <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow-1)', padding: 20, marginBottom: 22 }}>
             <div style={{ fontSize: 15, fontWeight: 650, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: '#c8922a', display: 'inline-flex' }}><I.gift size={14} /></span>Puan / Kredi tanımla</div>
             <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 3, marginBottom: 14 }}>Manuel puan kredisi; müşterinin bakiyesine anında eklenir, hareketlerde görünür.</div>
             <div className="customer-grant-form" style={{ display: 'flex', gap: 10 }}>
@@ -204,7 +206,7 @@ export default function CustomerDetailClient({
               <button type="button" onClick={() => { setPoints(''); setNote('') }} style={{ ...btnGhost({ height: 28, padding: '0 12px', borderRadius: 99, fontSize: 12.5 }) }}>Temizle</button>
             </div>
             {msg && <div style={{ marginTop: 10, fontSize: 12.5, color: msg.kind === 'ok' ? 'var(--positive)' : 'var(--critical)' }}>{msg.text}</div>}
-          </div>
+          </div>}
 
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '.05em', marginBottom: 10 }}>HAREKETLER</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

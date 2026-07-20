@@ -194,6 +194,7 @@ function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
   const router = useRouter()
   const { getNavigationGuard } = useShell()
   const [confirmNavigation, setConfirmNavigation] = useState(false)
+  const [navigationGuardMessage, setNavigationGuardMessage] = useState<string | null>(null)
   const tooltipId = `rail-tooltip-${label.toLocaleLowerCase('tr-TR').replaceAll('ı', 'i').replaceAll('ş', 's')}`
   return (
     <div
@@ -222,6 +223,7 @@ function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
           const guardMessage = getNavigationGuard()
           if (guardMessage) {
             e.preventDefault()
+            setNavigationGuardMessage(guardMessage)
             setConfirmNavigation(true)
             return
           }
@@ -254,11 +256,12 @@ function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
       )}
       {confirmNavigation && (
         <UnsavedChangesDialog
-          description="Tema düzenleyicide yaptığın değişiklikler henüz yayınlanmadı. Çıkarsan bu değişiklikler kaybolacak."
+          description={navigationGuardMessage ?? 'Kaydedilmemiş değişiklikler var. Çıkarsan bu değişiklikler kaybolacak.'}
           discardLabel="Değişiklikleri sil ve çık"
-          onKeepEditing={() => setConfirmNavigation(false)}
+          onKeepEditing={() => { setConfirmNavigation(false); setNavigationGuardMessage(null) }}
           onDiscard={() => {
             setConfirmNavigation(false)
+            setNavigationGuardMessage(null)
             window.dispatchEvent(new Event('navigation-start'))
             router.push(href)
           }}

@@ -6,6 +6,7 @@
     "./campaigns": "./src/campaigns.ts",
     "./customers": "./src/customers.ts",
     "./dashboard-feature-read-models": "./src/dashboard-feature-read-models.ts",
+    "./kitchen": "./src/kitchen.ts",
     "./loyalty": "./src/loyalty.ts",
     "./menu": "./src/menu.ts",
     "./orders": "./src/orders.ts",
@@ -17,6 +18,7 @@
     "./settings": "./src/settings.ts",
     "./splits": "./src/splits.ts",
     "./tables": "./src/tables.ts",
+    "./team": "./src/team.ts",
     "./themes": "./src/themes.ts"
   },
   "dependencies": {

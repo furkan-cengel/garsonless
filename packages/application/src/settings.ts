@@ -5,27 +5,29 @@ import { authorizeDashboardFeatureRead } from './dashboard-feature-read-models'
  * Settings page read contract. The application layer decides whether owner-only
  * data is requested; the DB adapter only performs the resulting projections.
  */
-export interface DashboardSettingsReadModel<TStation, TTeamMember, TSecurityEvent> {
+export interface DashboardSettingsReadModel<TStation, TTeamMember, TSecurityEvent, TTeamAuditEvent> {
   hasKitchenAccess: boolean
   kitchenStations: TStation[]
   teamMembers: TTeamMember[]
+  /** Owner-visible, restaurant-scoped history of team administration. */
+  teamAuditEvents: TTeamAuditEvent[]
   securityEvents: TSecurityEvent[]
 }
 
-export interface DashboardSettingsReadModelPort<TStation, TTeamMember, TSecurityEvent> {
+export interface DashboardSettingsReadModelPort<TStation, TTeamMember, TSecurityEvent, TTeamAuditEvent> {
   readSettings(input: {
     restaurantId: string
     userId: string
     includeOwnerData: boolean
     operation: 'settings.snapshot'
-  }): Promise<Result<DashboardSettingsReadModel<TStation, TTeamMember, TSecurityEvent>>>
+  }): Promise<Result<DashboardSettingsReadModel<TStation, TTeamMember, TSecurityEvent, TTeamAuditEvent>>>
 }
 
-export async function readDashboardSettings<TStation, TTeamMember, TSecurityEvent>(
+export async function readDashboardSettings<TStation, TTeamMember, TSecurityEvent, TTeamAuditEvent>(
   context: DashboardActorContext,
   restaurantId: string,
-  port: DashboardSettingsReadModelPort<TStation, TTeamMember, TSecurityEvent>,
-): Promise<Result<DashboardSettingsReadModel<TStation, TTeamMember, TSecurityEvent>>> {
+  port: DashboardSettingsReadModelPort<TStation, TTeamMember, TSecurityEvent, TTeamAuditEvent>,
+): Promise<Result<DashboardSettingsReadModel<TStation, TTeamMember, TSecurityEvent, TTeamAuditEvent>>> {
   const access = authorizeDashboardFeatureRead(context, restaurantId, 'settings.snapshot')
   return access.ok
     ? port.readSettings({

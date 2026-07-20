@@ -19,7 +19,13 @@ export type { CreateOrderInput, CreateOrderLine, OrderDiscountBreakdown } from '
 export type { VatBreakdown, VatBreakdownRate, VatLineInput } from './order-tax'
 export type { CreateShareInput } from './split'
 export type { ServiceRequestType } from '@garsonless/domain/tables'
-export type { SecurityEvent, SecurityEventType, RecordSecurityEventInput } from './security'
+export type {
+  SecurityEvent,
+  SecurityEventMetadata,
+  SecurityEventType,
+  TeamSecurityEventType,
+  RecordSecurityEventInput,
+} from './security'
 export type { EnsureCustomerOptions, EnsureCustomerResult } from '@garsonless/domain/customers'
 export type {
   TeamSection,

@@ -37,6 +37,7 @@ export default async function SettingsPage({ params }: Props) {
       securityEvents={settings.value.securityEvents}
       isOwner={actor.isOwner === true}
       teamMembers={settings.value.teamMembers}
+      teamAuditEvents={settings.value.teamAuditEvents}
     />
   )
 }

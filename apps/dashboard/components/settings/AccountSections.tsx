@@ -6,6 +6,7 @@ import type { User } from '@supabase/supabase-js'
 import type { TeamMember } from '@garsonless/db/types'
 import { I, Tag, btnGhost, btnPrimary } from '../../lib/ui'
 import { SCard, FormRow, inputStyle } from './primitives'
+import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
 import { updateUserProfile } from '../../lib/actions/auth'
 import {
   inviteMember, updateMemberPermissionsAction, setMemberStatusAction,
@@ -52,6 +53,7 @@ export function ProfileSection({ user }: { user: User | null }) {
       const result = await updateUserProfile(fd)
       if ('error' in result) { setError(result.error); return }
       setSaved(true)
+      notifySettingsSaved()
     })
   }
 
@@ -114,6 +116,7 @@ export function ProfileSection({ user }: { user: User | null }) {
 /* ── TEAM (owner-only; real membership) ───────────── */
 function SectionCheckboxes({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
   function toggle(k: string) {
+    notifySettingsDirty()
     onChange(value.includes(k) ? value.filter(x => x !== k) : [...value, k])
   }
   return (
@@ -162,6 +165,7 @@ function MemberRow({ restaurantId, member }: { restaurantId: string; member: Tea
       if ('error' in res) { setMsg(res.error); return }
       if ('devInviteUrl' in res && res.devInviteUrl) setDevUrl(res.devInviteUrl)
       after?.()
+      notifySettingsSaved()
       router.refresh()
     })
   }
@@ -217,7 +221,37 @@ function MemberRow({ restaurantId, member }: { restaurantId: string; member: Tea
   )
 }
 
-export function TeamSection({ restaurantId, ownerEmail, members }: { restaurantId: string; ownerEmail: string; members: TeamMember[] }) {
+export interface TeamAuditEventView {
+  id: string
+  eventType: 'team_member_invited' | 'team_invite_resent' | 'team_member_permissions_updated' | 'team_member_disabled' | 'team_member_activated' | 'team_member_removed' | 'team_invite_accepted'
+  targetEmail: string | null
+  permissions: string[]
+  createdAt: string
+}
+
+const TEAM_AUDIT_LABEL: Record<TeamAuditEventView['eventType'], string> = {
+  team_member_invited: 'Ekip daveti oluşturuldu',
+  team_invite_resent: 'Davet yeniden gönderildi',
+  team_member_permissions_updated: 'Üye izinleri güncellendi',
+  team_member_disabled: 'Üye devre dışı bırakıldı',
+  team_member_activated: 'Üye etkinleştirildi',
+  team_member_removed: 'Üye ekipten çıkarıldı',
+  team_invite_accepted: 'Davet kabul edildi',
+}
+
+function teamAuditTime(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? ''
+    : new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(date)
+}
+
+export function TeamSection({ restaurantId, ownerEmail, members, auditEvents }: {
+  restaurantId: string
+  ownerEmail: string
+  members: TeamMember[]
+  auditEvents: TeamAuditEventView[]
+}) {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [perms, setPerms] = useState<string[]>([])
@@ -228,9 +262,16 @@ export function TeamSection({ restaurantId, ownerEmail, members }: { restaurantI
     setResult(null)
     startTransition(async () => {
       const res = await inviteMember(restaurantId, { email, permissions: perms })
-      if ('error' in res) { setResult({ ok: false, text: res.error }); return }
+      if ('error' in res) {
+        setResult({ ok: false, text: res.error })
+        // A provider failure still leaves a real pending invite behind so the
+        // owner can retry delivery from its row.
+        if (res.invitePending) router.refresh()
+        return
+      }
       setResult({ ok: true, text: 'Davet gönderildi.', url: res.devInviteUrl })
       setEmail(''); setPerms([])
+      notifySettingsSaved()
       router.refresh()
     })
   }
@@ -274,6 +315,32 @@ export function TeamSection({ restaurantId, ownerEmail, members }: { restaurantI
             Henüz ekip üyesi yok. Yukarıdan davet gönder.
           </div>
         )}
+      </SCard>
+
+      <SCard title="Ekip etkinliği" subtitle="Son 20 ekip ve izin değişikliği" style={{ marginTop: 16 }}>
+        {auditEvents.length === 0 ? (
+          <div style={{ padding: '20px 16px', fontSize: 12.5, color: 'var(--text-3)', textAlign: 'center' }}>
+            Henüz ekip yönetimi etkinliği yok.
+          </div>
+        ) : auditEvents.map((event, index) => (
+          <div key={event.id} style={{
+            padding: '11px 16px', display: 'flex', alignItems: 'flex-start', gap: 10,
+            borderBottom: index === auditEvents.length - 1 ? 'none' : '1px solid var(--divider)',
+          }}>
+            <span style={{
+              width: 28, height: 28, borderRadius: 999, flexShrink: 0,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              background: 'var(--surface-2)', color: 'var(--text-2)',
+            }}><I.users size={13} /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600 }}>{TEAM_AUDIT_LABEL[event.eventType]}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2, lineHeight: 1.45 }}>
+                {event.targetEmail ?? 'Bilinmeyen üye'} · {teamAuditTime(event.createdAt)}
+                {event.permissions.length > 0 && <> · {event.permissions.map(permission => TEAM_SECTION_LABEL[permission] ?? permission).join(', ')}</>}
+              </div>
+            </div>
+          </div>
+        ))}
       </SCard>
     </>
   )

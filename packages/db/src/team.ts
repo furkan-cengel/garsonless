@@ -1,13 +1,16 @@
 import { createHash, randomBytes } from 'node:crypto'
+import {
+  normalizeTeamEmail,
+  sanitizeTeamPermissions,
+  TEAM_SECTIONS,
+  type TeamMemberStatus,
+  type TeamSection,
+} from '@garsonless/domain/team'
 import { createServiceClient } from './client'
 
-// The grantable dashboard sections (kept in sync with the dashboard nav).
-export const TEAM_SECTIONS = [
-  'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'theme', 'settings',
-] as const
-export type TeamSection = (typeof TEAM_SECTIONS)[number]
-
-export type MemberStatus = 'invited' | 'active' | 'disabled'
+export { TEAM_SECTIONS }
+export type { TeamSection }
+export type MemberStatus = TeamMemberStatus
 
 export interface TeamMember {
   id: string
@@ -27,6 +30,12 @@ export interface ResolvedInvite {
   permissions: TeamSection[]
 }
 
+export interface TeamMemberCommandTarget {
+  email: string
+  permissions: TeamSection[]
+  status: MemberStatus
+}
+
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 function hashToken(token: string): string {
@@ -36,12 +45,6 @@ function hashToken(token: string): string {
 /** Random, URL-safe single-use invite token (the raw value is only emailed). */
 export function generateInviteToken(): string {
   return randomBytes(32).toString('hex')
-}
-
-export function sanitizeTeamPermissions(perms: unknown): TeamSection[] {
-  if (!Array.isArray(perms)) return []
-  const valid = perms.filter((p): p is TeamSection => typeof p === 'string' && (TEAM_SECTIONS as readonly string[]).includes(p))
-  return Array.from(new Set(valid))
 }
 
 interface MemberRow {
@@ -81,7 +84,7 @@ export async function listTeamMembers(restaurantId: string): Promise<TeamMember[
 }
 
 export type CreateInviteResult =
-  | { ok: true; token: string; memberId: string; email: string; reinvited: boolean }
+  | { ok: true; token: string; memberId: string; email: string; permissions: TeamSection[]; reinvited: boolean }
   | { ok: false; error: 'no_permissions' | 'already_member' | string }
 
 /**
@@ -96,7 +99,7 @@ export async function createInvite(input: {
   invitedBy: string
 }): Promise<CreateInviteResult> {
   const sb = createServiceClient()
-  const email = input.email.trim().toLowerCase()
+  const email = normalizeTeamEmail(input.email)
   const permissions = sanitizeTeamPermissions(input.permissions)
   if (permissions.length === 0) return { ok: false, error: 'no_permissions' }
 
@@ -122,7 +125,7 @@ export async function createInvite(input: {
       .update({ permissions, invite_token_hash: tokenHash, invite_expires_at: expires, invited_by: input.invitedBy, invited_at: now })
       .eq('id', ex.id)
     if (error) return { ok: false, error: error.message }
-    return { ok: true, token, memberId: ex.id, email, reinvited: true }
+    return { ok: true, token, memberId: ex.id, email, permissions, reinvited: true }
   }
 
   const { data: inserted, error } = await sb
@@ -140,7 +143,7 @@ export async function createInvite(input: {
     .select('id')
     .single()
   if (error || !inserted) return { ok: false, error: error?.message ?? 'insert_failed' }
-  return { ok: true, token, memberId: (inserted as { id: string }).id, email, reinvited: false }
+  return { ok: true, token, memberId: (inserted as { id: string }).id, email, permissions, reinvited: false }
 }
 
 /** Resolve a raw token → pending invite (hash match, status='invited', unexpired). */
@@ -165,7 +168,7 @@ export async function resolveInviteByToken(token: string): Promise<ResolvedInvit
 }
 
 export type AcceptInviteResult =
-  | { ok: true; restaurantId: string; permissions: TeamSection[] }
+  | { ok: true; restaurantId: string; email: string; permissions: TeamSection[] }
   | { ok: false; error: 'invalid_or_expired' | 'email_mismatch' | string; inviteEmail?: string }
 
 /**
@@ -197,7 +200,7 @@ export async function acceptInvite(input: {
     await sb.from('restaurant_members')
       .update({ status: 'disabled', invite_token_hash: null, invite_expires_at: null })
       .eq('id', resolved.memberId)
-    return { ok: true, restaurantId: resolved.restaurantId, permissions: resolved.permissions }
+    return { ok: true, restaurantId: resolved.restaurantId, email: resolved.email, permissions: resolved.permissions }
   }
 
   const { error } = await sb
@@ -205,52 +208,89 @@ export async function acceptInvite(input: {
     .update({ user_id: input.userId, status: 'active', accepted_at: new Date().toISOString(), invite_token_hash: null, invite_expires_at: null })
     .eq('id', resolved.memberId)
   if (error) return { ok: false, error: error.message }
-  return { ok: true, restaurantId: resolved.restaurantId, permissions: resolved.permissions }
+  return { ok: true, restaurantId: resolved.restaurantId, email: resolved.email, permissions: resolved.permissions }
 }
 
 /** Update a member's section permissions (service role; caller owner-gates). */
-export async function updateMemberPermissions(restaurantId: string, memberId: string, permissions: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function updateMemberPermissions(
+  restaurantId: string,
+  memberId: string,
+  permissions: unknown,
+): Promise<{ ok: true; target: TeamMemberCommandTarget } | { ok: false; error: string }> {
   const sb = createServiceClient()
-  const { error } = await sb
+  const sanitized = sanitizeTeamPermissions(permissions)
+  const { data, error } = await sb
     .from('restaurant_members')
-    .update({ permissions: sanitizeTeamPermissions(permissions) })
+    .update({ permissions: sanitized })
     .eq('id', memberId)
     .eq('restaurant_id', restaurantId)
-  return error ? { ok: false, error: error.message } : { ok: true }
+    .select('email, status')
+    .maybeSingle()
+  if (error) return { ok: false, error: error.message }
+  if (!data) return { ok: false, error: 'not_found' }
+  return {
+    ok: true,
+    target: {
+      email: (data as { email: string }).email,
+      permissions: sanitized,
+      status: (data as { status: MemberStatus }).status,
+    },
+  }
 }
 
-export async function setMemberStatus(restaurantId: string, memberId: string, status: 'active' | 'disabled'): Promise<{ ok: true } | { ok: false; error: string }> {
+/** A pending invite may only become active by accepting its single-use token. */
+export async function setMemberStatus(
+  restaurantId: string,
+  memberId: string,
+  status: 'active' | 'disabled',
+): Promise<{ ok: true; target: TeamMemberCommandTarget } | { ok: false; error: string }> {
   const sb = createServiceClient()
-  const { error } = await sb
+  const { data, error } = await sb
     .from('restaurant_members')
     .update({ status })
     .eq('id', memberId)
     .eq('restaurant_id', restaurantId)
-  return error ? { ok: false, error: error.message } : { ok: true }
+    .in('status', ['active', 'disabled'])
+    .select('email, permissions, status')
+    .maybeSingle()
+  if (error) return { ok: false, error: error.message }
+  if (!data) return { ok: false, error: 'not_found_or_pending_invite' }
+  const row = data as { email: string; permissions: unknown; status: MemberStatus }
+  return {
+    ok: true,
+    target: { email: row.email, permissions: sanitizeTeamPermissions(row.permissions), status: row.status },
+  }
 }
 
-export async function removeMember(restaurantId: string, memberId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function removeMember(
+  restaurantId: string,
+  memberId: string,
+): Promise<{ ok: true; target: { email: string } } | { ok: false; error: string }> {
   const sb = createServiceClient()
-  const { error } = await sb
+  const { data, error } = await sb
     .from('restaurant_members')
     .delete()
     .eq('id', memberId)
     .eq('restaurant_id', restaurantId)
-  return error ? { ok: false, error: error.message } : { ok: true }
+    .select('email')
+    .maybeSingle()
+  if (error) return { ok: false, error: error.message }
+  if (!data) return { ok: false, error: 'not_found' }
+  return { ok: true, target: { email: (data as { email: string }).email } }
 }
 
-export type ResendInviteResult = { ok: true; token: string; email: string } | { ok: false; error: 'not_pending' | string }
+export type ResendInviteResult = { ok: true; token: string; email: string; permissions: TeamSection[] } | { ok: false; error: 'not_pending' | string }
 
 /** Regenerate the token+expiry for a still-pending invite. */
 export async function resendInvite(restaurantId: string, memberId: string): Promise<ResendInviteResult> {
   const sb = createServiceClient()
   const { data } = await sb
     .from('restaurant_members')
-    .select('id, email, status')
+    .select('id, email, permissions, status')
     .eq('id', memberId)
     .eq('restaurant_id', restaurantId)
     .maybeSingle()
-  const row = data as { id: string; email: string; status: string } | null
+  const row = data as { id: string; email: string; permissions: unknown; status: string } | null
   if (!row || row.status !== 'invited') return { ok: false, error: 'not_pending' }
   const token = generateInviteToken()
   const { error } = await sb
@@ -259,5 +299,5 @@ export async function resendInvite(restaurantId: string, memberId: string): Prom
     .eq('id', memberId)
     .eq('restaurant_id', restaurantId)
   if (error) return { ok: false, error: error.message }
-  return { ok: true, token, email: row.email }
+  return { ok: true, token, email: row.email, permissions: sanitizeTeamPermissions(row.permissions) }
 }

@@ -34,7 +34,10 @@ export interface CampaignApplicationPort {
 }
 
 function requireCampaignAccess(context: DashboardActorContext, restaurantId: string): Result<true> {
-  return hasSameRestaurant(context, restaurantId) && context.permissions.includes('customers')
+  // SMS delivery exposes recipient contact data and incurs an external cost.
+  // CRM members may manage segments, but campaigns stay a restaurant-owner
+  // capability until there is a separately auditable marketing role.
+  return hasSameRestaurant(context, restaurantId) && context.isOwner === true
     ? { ok: true, value: true }
     : err('Not authorized')
 }

@@ -98,6 +98,7 @@ export default function CustomersClient({
   initialSegmentCounts,
   initialSegments,
   initialCampaigns,
+  canManageCampaigns,
 }: {
   restaurantId: string
   restaurantName: string
@@ -105,6 +106,7 @@ export default function CustomersClient({
   initialSegmentCounts: CustomerSegmentCounts & { all: number }
   initialSegments: SavedCustomerSegment[]
   initialCampaigns: CampaignSummary[]
+  canManageCampaigns: boolean
 }) {
   const router = useRouter()
   const [data, setData] = useState<RestaurantCustomersPage>(initial)
@@ -246,14 +248,20 @@ export default function CustomersClient({
               <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '5px 0 0' }}>Üyeler, sadakat bakiyeleri ve ziyaret geçmişi</p>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setCampaignOpen(true)} style={{ ...btnGhost({ height: 38, padding: '0 16px', borderRadius: 9, fontSize: 13.5 }) }}>
+              {canManageCampaigns && <button type="button" onClick={() => setCampaignOpen(true)} style={{ ...btnGhost({ height: 38, padding: '0 16px', borderRadius: 9, fontSize: 13.5 }) }}>
                 <I.bell size={14} />SMS kampanyası
-              </button>
+              </button>}
               <button type="button" onClick={openCreateFromCurrent} style={{ ...btnPrimary({ height: 38, padding: '0 16px', borderRadius: 9, fontSize: 13.5 }) }}>
                 <I.plus size={13} />Filtreyi kaydet
               </button>
             </div>
           </div>
+
+          {!canManageCampaigns && (
+            <div role="status" style={{ margin: '-6px 0 18px', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', color: 'var(--text-2)', fontSize: 12.5, lineHeight: 1.45 }}>
+              İletişim bilgileri güvenlik nedeniyle maskeli gösterilir. SMS kampanyası ve manuel puan/bakiye düzenlemeleri yalnız işletme sahibine açıktır.
+            </div>
+          )}
 
           <div className="customer-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 22 }}>
             <MiniStat label="Toplam müşteri" value={initialSegmentCounts.all.toLocaleString('tr-TR')} icon={<I.users size={15} />} />
@@ -338,7 +346,7 @@ export default function CustomersClient({
             </div>
           )}
 
-          {campaigns.length > 0 && (
+          {canManageCampaigns && campaigns.length > 0 && (
             <CampaignStrip campaigns={campaigns.slice(0, 3)} onOpen={() => setCampaignOpen(true)} />
           )}
 
@@ -385,7 +393,7 @@ export default function CustomersClient({
           onSave={handleSaveSegment}
         />
       )}
-      {campaignOpen && (
+      {canManageCampaigns && campaignOpen && (
         <CampaignModal
           restaurantId={restaurantId}
           savedSegments={savedSegments}

@@ -29,7 +29,9 @@ export default async function CustomersPage({ params }: Props) {
     readCustomers(actor, { restaurantId, sort: 'last_seen', page: 1, pageSize: 25 }, port),
     readCustomerSegmentCounts(actor, restaurantId, port),
     readCustomerSegments(actor, restaurantId, port),
-    readCampaigns(actor, { restaurantId }, createCampaignApplicationPort()),
+    actor.isOwner
+      ? readCampaigns(actor, { restaurantId }, createCampaignApplicationPort())
+      : Promise.resolve({ ok: true as const, value: [] }),
   ])
   if (!initialResult.ok) throw new Error(initialResult.error)
   if (!countsResult.ok) throw new Error(countsResult.error)
@@ -44,6 +46,7 @@ export default async function CustomersPage({ params }: Props) {
       initialSegmentCounts={{ all: initialResult.value.total, ...countsResult.value }}
       initialSegments={segmentsResult.value}
       initialCampaigns={campaignsResult.value}
+      canManageCampaigns={actor.isOwner === true}
     />
   )
 }

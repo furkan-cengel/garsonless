@@ -8,6 +8,7 @@ import {
   reorderKitchenStations,
   updateKitchenStation,
 } from '../../lib/actions/restaurant'
+import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
 
 interface Props {
   restaurantId: string
@@ -23,6 +24,7 @@ export default function KitchenAccessSection({ restaurantId, initialHasAccess = 
   const [stations, setStations] = useState(() => [...initialStations].sort((a, b) => a.position - b.position))
   const [stationName, setStationName] = useState('')
   const [stationColor, setStationColor] = useState(STATION_COLORS[0]!)
+  const [renewalConfirmationOpen, setRenewalConfirmationOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [stationPending, startStationTransition] = useTransition()
 
@@ -32,6 +34,8 @@ export default function KitchenAccessSection({ restaurantId, initialHasAccess = 
       const result = await generateKitchenToken(restaurantId)
       if ('error' in result) { setError(result.error); return }
       setHasAccess(true)
+      setRenewalConfirmationOpen(false)
+      notifySettingsSaved()
     })
   }
 
@@ -48,6 +52,7 @@ export default function KitchenAccessSection({ restaurantId, initialHasAccess = 
         if ('error' in result) { setError(result.error); return }
         setStations((prev) => [...prev, result.station].sort((a, b) => a.position - b.position))
         setStationName('')
+        notifySettingsSaved()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'İstasyon eklenemedi')
       }
@@ -58,6 +63,7 @@ export default function KitchenAccessSection({ restaurantId, initialHasAccess = 
     const current = stations.find((station) => station.id === id)
     if (!current) return
     const optimistic = { ...current, ...patch }
+    notifySettingsDirty()
     setStations((prev) => prev.map((station) => station.id === id ? optimistic : station))
     setError('')
     startStationTransition(async () => {
@@ -75,6 +81,7 @@ export default function KitchenAccessSection({ restaurantId, initialHasAccess = 
           return
         }
         setStations((prev) => prev.map((station) => station.id === id ? result.station : station).sort((a, b) => a.position - b.position))
+        notifySettingsSaved()
       } catch (err) {
         setStations((prev) => prev.map((station) => station.id === id ? current : station))
         setError(err instanceof Error ? err.message : 'İstasyon güncellenemedi')
@@ -83,14 +90,17 @@ export default function KitchenAccessSection({ restaurantId, initialHasAccess = 
   }
 
   function moveStation(id: string, direction: -1 | 1) {
+    if (stationPending) return
     const index = stations.findIndex((station) => station.id === id)
     const target = index + direction
     if (index < 0 || target < 0 || target >= stations.length) return
-    const next = [...stations]
+    const snapshot = stations
+    const next = [...snapshot]
     const [moved] = next.splice(index, 1)
     if (!moved) return
     next.splice(target, 0, moved)
     const reordered = next.map((station, position) => ({ ...station, position }))
+    notifySettingsDirty()
     setStations(reordered)
     setError('')
     startStationTransition(async () => {
@@ -98,11 +108,13 @@ export default function KitchenAccessSection({ restaurantId, initialHasAccess = 
         const result = await reorderKitchenStations(restaurantId, reordered.map((station) => station.id))
         if ('error' in result) {
           setError(result.error)
-          setStations(stations)
+          setStations(snapshot)
+          return
         }
+        notifySettingsSaved()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'İstasyon sırası kaydedilemedi')
-        setStations(stations)
+        setStations(snapshot)
       }
     })
   }
@@ -144,7 +156,11 @@ export default function KitchenAccessSection({ restaurantId, initialHasAccess = 
         )}
         <button
           type="button"
-          onClick={handleGenerate}
+          onClick={() => {
+            setError('')
+            if (hasAccess) setRenewalConfirmationOpen(true)
+            else void handleGenerate()
+          }}
           disabled={isPending}
           style={{
             height: 36, padding: '0 16px', borderRadius: 7,
@@ -156,6 +172,38 @@ export default function KitchenAccessSection({ restaurantId, initialHasAccess = 
           {isPending ? 'Kaydediliyor…' : hasAccess ? 'Erişimi yenile' : 'Mutfak erişimi oluştur'}
         </button>
       </div>
+      {renewalConfirmationOpen && (
+        <div
+          role="alertdialog"
+          aria-modal="false"
+          aria-labelledby="kitchen-access-renewal-title"
+          aria-describedby="kitchen-access-renewal-description"
+          style={{ marginTop: 14, padding: 14, border: '1px solid var(--warning-border, #e6c989)', borderRadius: 10, background: 'var(--warning-bg, #fff8e8)' }}
+        >
+          <div id="kitchen-access-renewal-title" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Mutfak erişimi yenilensin mi?</div>
+          <p id="kitchen-access-renewal-description" style={{ margin: '5px 0 12px', fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-2)' }}>
+            Bu işlem açık Mutfak Ekranı oturumlarını anında kapatır. Ekranı kullanan ekip üyeleri yeniden açılış yapmalıdır.
+          </p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => setRenewalConfirmationOpen(false)}
+              disabled={isPending}
+              style={confirmationButtonStyle(false, isPending)}
+            >
+              Vazgeç
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleGenerate()}
+              disabled={isPending}
+              style={confirmationButtonStyle(true, isPending)}
+            >
+              {isPending ? 'Yenileniyor…' : 'Erişimi yenile'}
+            </button>
+          </div>
+        </div>
+      )}
       </section>
 
       <section style={{ padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)' }}>
@@ -237,8 +285,8 @@ export default function KitchenAccessSection({ restaurantId, initialHasAccess = 
                 style={{ width: 36, height: 32, padding: 2, border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)' }}
               />
               <div style={{ display: 'flex', gap: 4 }}>
-                <button type="button" onClick={() => moveStation(station.id, -1)} disabled={index === 0} style={miniButton(index === 0)}>↑</button>
-                <button type="button" onClick={() => moveStation(station.id, 1)} disabled={index === stations.length - 1} style={miniButton(index === stations.length - 1)}>↓</button>
+                <button type="button" onClick={() => moveStation(station.id, -1)} disabled={stationPending || index === 0} style={miniButton(stationPending || index === 0)}>↑</button>
+                <button type="button" onClick={() => moveStation(station.id, 1)} disabled={stationPending || index === stations.length - 1} style={miniButton(stationPending || index === stations.length - 1)}>↓</button>
               </div>
               <button
                 type="button"
@@ -270,5 +318,20 @@ function miniButton(disabled: boolean): React.CSSProperties {
     color: 'var(--text-2)',
     cursor: disabled ? 'not-allowed' : 'pointer',
     opacity: disabled ? 0.4 : 1,
+  }
+}
+
+function confirmationButtonStyle(primary: boolean, disabled: boolean): React.CSSProperties {
+  return {
+    height: 34,
+    padding: '0 12px',
+    borderRadius: 7,
+    border: primary ? 'none' : '1px solid var(--border-strong)',
+    background: primary ? 'var(--action)' : 'var(--surface)',
+    color: primary ? 'var(--on-action)' : 'var(--text)',
+    fontSize: 12.5,
+    fontWeight: primary ? 700 : 500,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.55 : 1,
   }
 }

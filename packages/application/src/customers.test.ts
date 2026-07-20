@@ -68,7 +68,19 @@ test('custom segments are tenant-bound and resolved before listing', async () =>
   assert.equal(customSpend, 100)
 })
 
-test('segment and credit commands derive audit identity from the actor', async () => {
+test('customer members receive a masked contact projection while owners may receive consented contact data', async () => {
+  const adapter = port()
+  const projections: boolean[] = []
+  adapter.listCustomers = async (input) => {
+    projections.push(input.includeContactData)
+    return ok(emptyPage)
+  }
+  await readCustomers(context, { restaurantId: 'restaurant-a' }, adapter)
+  await readCustomers({ ...context, isOwner: true }, { restaurantId: 'restaurant-a' }, adapter)
+  assert.deepEqual(projections, [false, true])
+})
+
+test('segment and owner-only credit commands derive audit identity from the actor', async () => {
   const adapter = port()
   let creator = ''
   adapter.createSegment = async (input) => {
@@ -81,9 +93,23 @@ test('segment and credit commands derive audit identity from the actor', async (
     return ok({ granted: input.points })
   }
   await createCustomerSegment(context, { restaurantId: 'restaurant-a', name: ' VIP ', definition: {} }, adapter)
-  await grantCustomerStoreCredit(context, { restaurantId: 'restaurant-a', customerId: 'customer', points: 10.9 }, adapter)
+  await grantCustomerStoreCredit({ ...context, isOwner: true }, { restaurantId: 'restaurant-a', customerId: 'customer', points: 10.9 }, adapter)
   assert.equal(creator, 'staff-a')
   assert.equal(granter, 'staff-a')
+})
+
+test('customer members cannot grant manual store credit', async () => {
+  const adapter = port()
+  let called = false
+  adapter.grantStoreCredit = async () => {
+    called = true
+    return ok({ granted: 10 })
+  }
+  const result = await grantCustomerStoreCredit(context, {
+    restaurantId: 'restaurant-a', customerId: 'customer', points: 10,
+  }, adapter)
+  assert.deepEqual(result, err('Not authorized'))
+  assert.equal(called, false)
 })
 
 test('first-login preserves required ordering and only affirmative consent side effects', async () => {

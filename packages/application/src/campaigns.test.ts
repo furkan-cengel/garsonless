@@ -14,6 +14,7 @@ const actor = {
   userId: 'staff-a',
   restaurantId: 'restaurant-a',
   permissions: ['customers'],
+  isOwner: true,
 }
 
 const summary: CampaignSummary = {
@@ -37,7 +38,8 @@ test('campaign reads and writes reject cross-tenant and missing permission befor
   let called = false
   adapter.list = async () => { called = true; return ok([]) }
   assert.deepEqual(await readCampaigns(actor, { restaurantId: 'restaurant-b' }, adapter), err('Not authorized'))
-  assert.deepEqual(await previewCustomerCampaign({ ...actor, permissions: [] }, { restaurantId: 'restaurant-a', audience: {} }, adapter), err('Not authorized'))
+  assert.deepEqual(await previewCustomerCampaign({ ...actor, permissions: [], isOwner: false }, { restaurantId: 'restaurant-a', audience: {} }, adapter), err('Not authorized'))
+  assert.deepEqual(await sendCustomerCampaignTest({ ...actor, isOwner: false }, { restaurantId: 'restaurant-a', phone: '+905321234567', message: 'Merhaba' }, adapter), err('Not authorized'))
   assert.equal(called, false)
 })
 

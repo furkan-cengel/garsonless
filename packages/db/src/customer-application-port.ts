@@ -18,9 +18,9 @@ function failure(prefix: string, error: unknown): string {
 
 export function createCustomerApplicationPort(): CustomerApplicationPort {
   return {
-    async listCustomers({ restaurantId, ...options }) {
+    async listCustomers({ restaurantId, includeContactData, ...options }) {
       try {
-        return ok(await getRestaurantCustomers(restaurantId, options))
+        return ok(await getRestaurantCustomers(restaurantId, options, { includeContactData }))
       } catch (error) {
         return err(failure('Müşteriler yüklenemedi', error))
       }
@@ -67,9 +67,9 @@ export function createCustomerApplicationPort(): CustomerApplicationPort {
         return err(failure('Segment silinemedi', error))
       }
     },
-    async readDetail({ restaurantId, customerId }) {
+    async readDetail({ restaurantId, customerId, includeContactData }) {
       try {
-        return ok(await getRestaurantCustomerDetail(restaurantId, customerId))
+        return ok(await getRestaurantCustomerDetail(restaurantId, customerId, { includeContactData }))
       } catch (error) {
         return err(failure('Müşteri detayı yüklenemedi', error))
       }

@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { recordSecurityEvent } from '@garsonless/db/server'
 import { createDashboardServerClient } from '../supabase-server'
@@ -133,6 +134,59 @@ const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Mevcut şifre gerekli'),
   newPassword: z.string().min(8, 'Yeni şifre en az 8 karakter olmalı'),
 })
+
+const resetPasswordSchema = z.object({
+  newPassword: z.string().min(8, 'Yeni şifre en az 8 karakter olmalı'),
+})
+
+const PASSWORD_RECOVERY_COOKIE = 'dashboard_password_recovery'
+
+function passwordRecoveryRedirect(): string {
+  const base = process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000'
+  return `${base}/auth/callback?next=${encodeURIComponent('/auth/reset-password')}`
+}
+
+/** Sends a recovery link for passwordless email/OAuth users and for forgotten passwords. */
+export async function sendPasswordResetEmail(): Promise<{ error: string } | { success: true }> {
+  const supabase = await createDashboardServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.email) return { error: 'E-posta hesabı bulunamadı' }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+    redirectTo: passwordRecoveryRedirect(),
+  })
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+/**
+ * Only a session that arrived through the password-recovery callback may set a
+ * password without knowing the old one. A regular authenticated session must
+ * continue through changePassword and re-authenticate first.
+ */
+export async function setPasswordFromRecovery(
+  input: { newPassword: string },
+): Promise<{ error: string } | { success: true }> {
+  const parsed = resetPasswordSchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Geçersiz giriş' }
+
+  const cookieStore = await cookies()
+  if (!cookieStore.get(PASSWORD_RECOVERY_COOKIE)?.value) {
+    return { error: 'Bu bağlantının süresi dolmuş. Yeni bir şifre belirleme e-postası iste.' }
+  }
+
+  const supabase = await createDashboardServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Oturum bulunamadı' }
+
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.newPassword })
+  if (error) return { error: error.message }
+
+  cookieStore.delete(PASSWORD_RECOVERY_COOKIE)
+  const { ip, userAgent } = await readRequestMeta()
+  await recordSecurityEvent({ userId: user.id, eventType: 'password_change', ip, userAgent })
+  return { success: true }
+}
 
 export async function changePassword(
   input: { currentPassword: string; newPassword: string },

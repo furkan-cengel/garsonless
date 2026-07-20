@@ -147,7 +147,9 @@ export interface CustomerQueryInput extends Omit<CustomerListOptions, 'customSeg
 }
 
 export interface CustomerApplicationPort {
-  listCustomers(input: CustomerListOptions & { restaurantId: string }): Promise<Result<RestaurantCustomersPage>>
+  /** Contact fields are only projected for restaurant owners. The DB adapter
+   * must never expose full PII for a member-only customer query. */
+  listCustomers(input: CustomerListOptions & { restaurantId: string; includeContactData: boolean }): Promise<Result<RestaurantCustomersPage>>
   countSegments(input: { restaurantId: string }): Promise<Result<CustomerSegmentCounts>>
   listSegments(input: { restaurantId: string }): Promise<Result<SavedCustomerSegment[]>>
   getSegment(input: { restaurantId: string; segmentId: string }): Promise<Result<SavedCustomerSegment | null>>
@@ -164,7 +166,7 @@ export interface CustomerApplicationPort {
     definition: CustomerSegmentDefinition
   }): Promise<Result<SavedCustomerSegment | null>>
   deleteSegment(input: { restaurantId: string; segmentId: string }): Promise<Result<boolean>>
-  readDetail(input: { restaurantId: string; customerId: string }): Promise<Result<RestaurantCustomerDetail | null>>
+  readDetail(input: { restaurantId: string; customerId: string; includeContactData: boolean }): Promise<Result<RestaurantCustomerDetail | null>>
   grantStoreCredit(input: {
     restaurantId: string
     customerId: string
@@ -198,6 +200,7 @@ export async function readCustomers(
 
   return port.listCustomers({
     restaurantId: input.restaurantId,
+    includeContactData: context.isOwner === true,
     customSegment,
     page: Math.max(1, Math.floor(input.page ?? 1)),
     pageSize: Math.min(100, Math.max(1, Math.floor(input.pageSize ?? 25))),
@@ -231,7 +234,9 @@ export async function readCustomerDetail(
   port: CustomerApplicationPort,
 ): Promise<Result<RestaurantCustomerDetail | null>> {
   const access = requireCustomerAccess(context, input.restaurantId)
-  return access.ok ? port.readDetail(input) : access
+  return access.ok
+    ? port.readDetail({ ...input, includeContactData: context.isOwner === true })
+    : access
 }
 
 export async function grantCustomerStoreCredit(
@@ -241,6 +246,9 @@ export async function grantCustomerStoreCredit(
 ): Promise<Result<{ granted: number }>> {
   const access = requireCustomerAccess(context, input.restaurantId)
   if (!access.ok) return access
+  // Manual balance changes are financial actions.  A member with CRM access
+  // may work with segments, but can never credit a customer account.
+  if (context.isOwner !== true) return err('Not authorized')
   const points = Math.floor(input.points)
   if (!Number.isFinite(points) || points <= 0) return err('Geçersiz puan miktarı')
   if (points > 1_000_000) return err('Puan miktarı çok yüksek')

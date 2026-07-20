@@ -10,6 +10,7 @@ import {
   type LoyaltyTier,
 } from './loyalty-config'
 import { I as AppI } from '../../lib/ui'
+import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
 
 const TIER_COLORS = ['#b87333', '#8a9099', '#c8922a', '#5b7a86', '#3b82f6', '#a855f7']
 
@@ -49,7 +50,7 @@ function inputStyle(extra?: React.CSSProperties): React.CSSProperties {
   }
 }
 
-function Toggle({ on, onChange, size = 'md' }: { on: boolean; onChange: (on: boolean) => void; size?: 'md' | 'lg' }) {
+function Toggle({ on, onChange, size = 'md', ariaLabel = 'Ayarı aç veya kapat' }: { on: boolean; onChange: (on: boolean) => void; size?: 'md' | 'lg'; ariaLabel?: string }) {
   const w = size === 'lg' ? 42 : 34
   const h = size === 'lg' ? 24 : 20
   const k = h - 4
@@ -58,6 +59,7 @@ function Toggle({ on, onChange, size = 'md' }: { on: boolean; onChange: (on: boo
       type="button"
       role="switch"
       aria-checked={on}
+      aria-label={ariaLabel}
       onClick={() => onChange(!on)}
       style={{
         width: w,
@@ -272,7 +274,7 @@ function Module({
         {alwaysOn ? (
           <span style={{ fontSize: 11.5, color: 'var(--text-4)', fontWeight: 500 }}>Her zaman açık</span>
         ) : (
-          <Toggle on={on} onChange={onToggle ?? (() => undefined)} size="lg" />
+          <Toggle on={on} onChange={onToggle ?? (() => undefined)} size="lg" ariaLabel={`${title} ${on ? 'açık' : 'kapalı'}`} />
         )}
       </div>
       {on && <div style={{ padding: 20 }}>{children}</div>}
@@ -330,6 +332,7 @@ export default function LoyaltySection({ restaurantId, initial }: { restaurantId
   const patch = (p: Partial<LoyaltyConfig>) => {
     setCfg((c) => ({ ...c, ...p }))
     setDirty(true)
+    notifySettingsDirty()
     setSuccess(false)
     setError('')
   }
@@ -386,6 +389,7 @@ export default function LoyaltySection({ restaurantId, initial }: { restaurantId
       if ('error' in result) { setError(result.error); return }
       setDirty(false)
       setSuccess(true)
+      notifySettingsSaved()
     })
   }
 
@@ -573,7 +577,7 @@ export default function LoyaltySection({ restaurantId, initial }: { restaurantId
                         <NumberField value={tier.bonusStamps} min={0} max={20} width={70} onChange={(bonusStamps) => setTier(i, { bonusStamps: Math.floor(bonusStamps) })} />
                       </Perk>
                       <Perk label="Öncelikli servis">
-                        <Toggle on={tier.priorityService} onChange={(priorityService) => setTier(i, { priorityService })} />
+                        <Toggle on={tier.priorityService} onChange={(priorityService) => setTier(i, { priorityService })} ariaLabel={`${tier.name || `Seviye ${i + 1}`} için öncelikli servis ${tier.priorityService ? 'açık' : 'kapalı'}`} />
                       </Perk>
                     </div>
                     {err && <div style={{ fontSize: 11.5, color: 'var(--critical)', marginTop: 8 }}>{err}</div>}

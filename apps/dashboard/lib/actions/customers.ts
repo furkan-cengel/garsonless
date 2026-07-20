@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { assertAccess } from '../auth/access'
+import { assertAccess, getUserRestaurantAccess } from '../auth/access'
 import {
   createCustomerSegment as createCustomerSegmentCommand,
   deleteCustomerSegment as deleteCustomerSegmentCommand,
@@ -28,13 +28,18 @@ async function assertCustomerAccess(restaurantId: string): Promise<{ userId: str
 }
 
 async function getCustomerActor(restaurantId: string) {
-  const gate = await assertCustomerAccess(restaurantId)
+  const [gate, access] = await Promise.all([
+    assertCustomerAccess(restaurantId),
+    getUserRestaurantAccess(restaurantId),
+  ])
   if ('error' in gate) return gate
+  if (!access) return { error: 'Not authorized' }
   return {
     actor: 'dashboard-member' as const,
     restaurantId,
     userId: gate.userId,
     permissions: ['customers'],
+    isOwner: access.isOwner,
   }
 }
 

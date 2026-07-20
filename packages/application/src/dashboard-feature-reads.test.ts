@@ -150,10 +150,10 @@ test('settings read limits owner-only projections and rejects replay before the 
     includeOwnerData: boolean
     operation: 'settings.snapshot'
   }> = []
-  const port: DashboardSettingsReadModelPort<string, string, string> = {
+  const port: DashboardSettingsReadModelPort<string, string, string, string> = {
     async readSettings(input) {
       inputs.push(input)
-      return ok({ hasKitchenAccess: true, kitchenStations: [], teamMembers: [], securityEvents: [] })
+      return ok({ hasKitchenAccess: true, kitchenStations: [], teamMembers: [], teamAuditEvents: [], securityEvents: [] })
     },
   }
 

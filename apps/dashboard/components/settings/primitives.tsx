@@ -16,13 +16,16 @@ export function inputStyle(overrides?: CSSProperties): CSSProperties {
 
 // Controlled when `onChange` is provided (the parent owns the value); otherwise
 // falls back to internal state (back-compat for display-only toggles).
-export function Toggle({ on: initialOn, onChange, disabled }: { on?: boolean; onChange?: (v: boolean) => void; disabled?: boolean }) {
+export function Toggle({ on: initialOn, onChange, disabled, ariaLabel = 'Ayarı aç veya kapat' }: { on?: boolean; onChange?: (v: boolean) => void; disabled?: boolean; ariaLabel?: string }) {
   const [internal, setInternal] = useState(initialOn ?? false)
   const on = onChange ? (initialOn ?? false) : internal
   return (
     <button
       type="button"
       disabled={disabled}
+      role="switch"
+      aria-checked={on}
+      aria-label={ariaLabel}
       onClick={() => { if (onChange) onChange(!on); else setInternal(v => !v) }}
       style={{
         opacity: disabled ? 0.5 : 1,

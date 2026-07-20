@@ -76,7 +76,12 @@ function mapSavedSegment(row: {
 export async function getRestaurantCustomers(
   restaurantId: string,
   opts: CustomerListOptions = {},
+  visibility: { includeContactData?: boolean } = {},
 ): Promise<RestaurantCustomersPage> {
+  // Callers outside dashboard CRM (e.g. campaign delivery) retain the
+  // historical consent-gated projection. Dashboard member queries explicitly
+  // pass false through the application port, so the raw values never leave DB.
+  const includeContactData = visibility.includeContactData ?? true
   const page = Math.max(1, Math.floor(opts.page ?? 1))
   const pageSize = Math.min(100, Math.max(1, Math.floor(opts.pageSize ?? 25)))
   const scope = await getLoyaltyScope(restaurantId)
@@ -117,13 +122,14 @@ export async function getRestaurantCustomers(
     const lifetime = Number(r.lifetime_points)
     const { tier, tierIndex } = computeTier(lifetime, tiers)
     const identity = identities.get(r.customer_id)
+    const contactVisible = includeContactData && r.has_consent
     return {
       customerId: r.customer_id,
       name: r.name,
-      phone: r.has_consent ? (r.phone ?? '—') : maskPhone(r.phone),
-      phoneMasked: !r.has_consent,
-      email: r.has_consent ? (identity?.email ?? '—') : maskEmail(identity?.email ?? null),
-      emailMasked: !r.has_consent,
+      phone: contactVisible ? (r.phone ?? '—') : maskPhone(r.phone),
+      phoneMasked: !contactVisible,
+      email: contactVisible ? (identity?.email ?? '—') : maskEmail(identity?.email ?? null),
+      emailMasked: !contactVisible,
       authLinked: Boolean(identity?.auth_user_id),
       hasConsent: r.has_consent,
       spend: Number(r.spend),
@@ -299,6 +305,7 @@ async function hasActivityAtVenue(
 export async function getRestaurantCustomerDetail(
   restaurantId: string,
   customerId: string,
+  visibility: { includeContactData?: boolean } = {},
 ): Promise<RestaurantCustomerDetail | null> {
   const supabase = createServiceClient()
   if (!(await hasActivityAtVenue(supabase, restaurantId, customerId))) return null
@@ -348,13 +355,14 @@ export async function getRestaurantCustomerDetail(
     }),
   ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
 
+  const contactVisible = (visibility.includeContactData ?? true) && consentOpen
   return {
     customerId,
     name: customer.name,
-    phone: consentOpen ? (customer.phone ?? '—') : maskPhone(customer.phone),
-    phoneMasked: !consentOpen,
-    email: consentOpen ? (customer.email ?? '—') : maskEmail(customer.email),
-    emailMasked: !consentOpen,
+    phone: contactVisible ? (customer.phone ?? '—') : maskPhone(customer.phone),
+    phoneMasked: !contactVisible,
+    email: contactVisible ? (customer.email ?? '—') : maskEmail(customer.email),
+    emailMasked: !contactVisible,
     authLinked: Boolean(customer.auth_user_id),
     hasConsent: consentOpen,
     joinedAt: customer.created_at,

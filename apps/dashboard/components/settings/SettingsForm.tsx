@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import type { Tables } from '@garsonless/db/types'
 import { updateRestaurant, uploadLogo } from '../../lib/actions/restaurant'
@@ -8,6 +9,7 @@ import dynamic from 'next/dynamic'
 import { DEFAULT_TIERS, type LoyaltyTier, type CatalogReward } from './loyalty-config'
 import type { SecurityEventView } from './AdvancedSections'
 import type { TeamMember } from '@garsonless/db/types'
+import type { TeamAuditEventView } from './AccountSections'
 
 const KitchenAccessSection   = dynamic(() => import('./KitchenAccessSection'))
 const LoyaltySection         = dynamic(() => import('./LoyaltySection'))
@@ -23,7 +25,10 @@ const ApiSection             = dynamic(() => import('./AdvancedSections').then(m
 const SecuritySection        = dynamic(() => import('./AdvancedSections').then(m => ({ default: m.SecuritySection })))
 const BillingSection         = dynamic(() => import('./AdvancedSections').then(m => ({ default: m.BillingSection })))
 import PageTopBar from '../layout/PageTopBar'
+import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
+import { useShell } from '../../lib/shell-context'
 import { I, S, Tag, btnPrimary, btnGhost } from '../../lib/ui'
+import { notifySettingsSaved, SETTINGS_DIRTY_EVENT, SETTINGS_SAVED_EVENT } from './settings-dirty-state'
 
 /* ============================================================
    NAV STRUCTURE
@@ -189,10 +194,10 @@ function NavRow({ item, active, onClick }: { item: NavItem; active: boolean; onC
 /* ============================================================
    CONTENT WRAPPER
    ============================================================ */
-function ContentArea({ active, children }: { active: SectionId; children: React.ReactNode }) {
+function ContentArea({ active, children, onChangeCapture }: { active: SectionId; children: React.ReactNode; onChangeCapture?: () => void }) {
   const meta = SECTION_META[active]
   return (
-    <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg)', minWidth: 0 }}>
+    <div onChangeCapture={onChangeCapture} style={{ flex: 1, overflow: 'auto', background: 'var(--bg)', minWidth: 0 }}>
       <div style={{ maxWidth: active === 'loyalty' ? 880 : 760, margin: '0 auto', padding: '32px 32px 60px' }}>
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-3)', marginBottom: 6 }}>
@@ -213,11 +218,15 @@ function ContentArea({ active, children }: { active: SectionId; children: React.
    SECTION: WORKSPACE
    ============================================================ */
 function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
+  const router = useRouter()
   const [name, setName] = useState(restaurant.name)
   const [slug, setSlug] = useState(restaurant.slug)
+  const [logoUrl, setLogoUrl] = useState(restaurant.logo_url)
   const [error, setError] = useState('')
+  const [logoFeedback, setLogoFeedback] = useState('')
   const [saved, setSaved] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [isLogoPending, startLogoTransition] = useTransition()
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -231,16 +240,32 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
       const result = await updateRestaurant(fd)
       if ('error' in result) { setError(result.error); return }
       setSaved(true)
+      notifySettingsSaved()
     })
   }
 
   async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const fd = new FormData()
-    fd.append('file', file)
-    const result = await uploadLogo(restaurant.id, fd)
-    if ('error' in result) setError(result.error)
+    setError('')
+    setLogoFeedback('')
+    startLogoTransition(async () => {
+      const fd = new FormData()
+      fd.append('file', file)
+      const result = await uploadLogo(restaurant.id, fd)
+      if ('error' in result) {
+        setError(result.error)
+        return
+      }
+      // Public storage URLs may retain an image cache after an overwrite. The
+      // persisted value stays canonical; this preview-only version shows the
+      // just-uploaded asset immediately.
+      setLogoUrl(`${result.url}${result.url.includes('?') ? '&' : '?'}v=${Date.now()}`)
+      setLogoFeedback('✓ Logo güncellendi')
+      notifySettingsSaved()
+      router.refresh()
+      e.target.value = ''
+    })
   }
 
   const inp: React.CSSProperties = {
@@ -273,8 +298,8 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
             background: 'var(--surface-3)', border: '1px solid var(--border)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0,
           }}>
-            {restaurant.logo_url
-              ? <img src={restaurant.logo_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            {logoUrl
+              ? <img src={logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               : <span style={{ color: 'var(--text-4)', display: 'inline-flex' }}><I.cutlery size={24} /></span>}
           </div>
           <div>
@@ -282,10 +307,10 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
               display: 'inline-flex', alignItems: 'center', gap: 6,
               ...btnGhost(), cursor: 'pointer',
             }}>
-              <I.image size={13} />Logo değiştir
-              <input type="file" accept="image/*" onChange={handleLogoChange} style={{ display: 'none' }} />
+              <I.image size={13} />{isLogoPending ? 'Yükleniyor…' : 'Logo değiştir'}
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleLogoChange} disabled={isLogoPending} style={{ display: 'none' }} />
             </label>
-            <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>PNG, JPG veya SVG · max 2 MB</div>
+            <div style={{ fontSize: 11.5, color: logoFeedback ? 'var(--positive)' : 'var(--text-3)', marginTop: 6 }}>{logoFeedback || 'PNG, JPG, WEBP veya SVG · max 2 MB'}</div>
           </div>
         </div>
       </SettingsCard>
@@ -427,11 +452,53 @@ interface Props {
   isOwner: boolean
   /** Team members (owner-only; empty for non-owners). */
   teamMembers: TeamMember[]
+  /** Owner-only, restaurant-scoped team administration history. */
+  teamAuditEvents: TeamAuditEventView[]
 }
 
-export default function SettingsForm({ restaurant, user, hasKitchenAccess, kitchenStations, securityEvents, isOwner, teamMembers }: Props) {
+export default function SettingsForm({ restaurant, user, hasKitchenAccess, kitchenStations, securityEvents, isOwner, teamMembers, teamAuditEvents }: Props) {
+  const { setNavigationGuard } = useShell()
   // A non-owner 'settings' member lands on a section they can see (workspace is owner-only).
   const [active, setActive] = useState<SectionId>(isOwner ? 'workspace' : 'profile')
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [pendingSection, setPendingSection] = useState<SectionId | null>(null)
+
+  useEffect(() => {
+    setNavigationGuard(hasUnsavedChanges
+      ? 'Bu ayar bölümünde kaydedilmemiş değişiklikler var. Çıkarsan değişiklikler kaybolacak.'
+      : null)
+    return () => setNavigationGuard(null)
+  }, [hasUnsavedChanges, setNavigationGuard])
+
+  useEffect(() => {
+    const onSaved = () => setHasUnsavedChanges(false)
+    const onDirty = () => setHasUnsavedChanges(true)
+    window.addEventListener(SETTINGS_SAVED_EVENT, onSaved)
+    window.addEventListener(SETTINGS_DIRTY_EVENT, onDirty)
+    return () => {
+      window.removeEventListener(SETTINGS_SAVED_EVENT, onSaved)
+      window.removeEventListener(SETTINGS_DIRTY_EVENT, onDirty)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [hasUnsavedChanges])
+
+  function requestSectionChange(next: SectionId) {
+    if (next === active) return
+    if (hasUnsavedChanges) {
+      setPendingSection(next)
+      return
+    }
+    setActive(next)
+  }
 
   function renderContent() {
     // Defense in depth: never render an owner-only sub-section for a member.
@@ -441,7 +508,7 @@ export default function SettingsForm({ restaurant, user, hasKitchenAccess, kitch
       case 'loyalty':       return <LoyaltySectionWrapper restaurant={restaurant} />
       case 'kitchen':       return <KitchenSectionWrapper restaurantId={restaurant.id} hasKitchenAccess={hasKitchenAccess} kitchenStations={kitchenStations} />
       case 'profile':       return <ProfileSection user={user} />
-      case 'team':          return isOwner ? <TeamSection restaurantId={restaurant.id} ownerEmail={user?.email ?? ''} members={teamMembers} /> : null
+      case 'team':          return isOwner ? <TeamSection restaurantId={restaurant.id} ownerEmail={user?.email ?? ''} members={teamMembers} auditEvents={teamAuditEvents} /> : null
       case 'store':         return <StoreSection restaurant={restaurant} />
       case 'hours':         return <HoursSection restaurant={restaurant} />
       case 'tax':           return <TaxSection restaurant={restaurant} />
@@ -449,7 +516,7 @@ export default function SettingsForm({ restaurant, user, hasKitchenAccess, kitch
       case 'payments':      return <PaymentsSection restaurantId={restaurant.id} />
       case 'notifications': return <NotificationsSection restaurant={restaurant} />
       case 'api':           return <ApiSection />
-      case 'security':      return <SecuritySection events={securityEvents} userEmail={user?.email ?? ''} />
+      case 'security':      return <SecuritySection events={securityEvents} userEmail={user?.email ?? ''} authProvider={typeof user?.app_metadata?.provider === 'string' ? user.app_metadata.provider : null} />
       case 'billing':       return <BillingSection restaurant={restaurant} />
     }
   }
@@ -470,11 +537,23 @@ export default function SettingsForm({ restaurant, user, hasKitchenAccess, kitch
       />
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <SettingsNav active={active} onSelect={setActive} isOwner={isOwner} />
-        <ContentArea active={active}>
+        <SettingsNav active={active} onSelect={requestSectionChange} isOwner={isOwner} />
+        <ContentArea active={active} onChangeCapture={() => setHasUnsavedChanges(true)}>
           {renderContent()}
         </ContentArea>
       </div>
+      {pendingSection && (
+        <UnsavedChangesDialog
+          description="Bu ayar bölümünde kaydedilmemiş değişiklikler var. Geçersen değişiklikler kaybolacak."
+          discardLabel="Değişiklikleri sil ve geç"
+          onKeepEditing={() => setPendingSection(null)}
+          onDiscard={() => {
+            setHasUnsavedChanges(false)
+            setActive(pendingSection)
+            setPendingSection(null)
+          }}
+        />
+      )}
     </div>
   )
 }

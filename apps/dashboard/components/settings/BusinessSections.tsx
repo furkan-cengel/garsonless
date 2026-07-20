@@ -13,9 +13,10 @@ import {
   testPaymentCredentials,
   type PaymentCredsMeta,
 } from '../../lib/actions/payments'
-import { saveNotificationSettings, updateSettings } from '../../lib/actions/restaurant'
+import { saveNotificationPreferences } from '../../lib/actions/restaurant'
 import { readNotificationPrefs, type NotificationPrefs } from '../../lib/notification-prefs'
 import { readLateThresholdMin, clampLateThreshold, LATE_THRESHOLD_MIN_MIN, LATE_THRESHOLD_MIN_MAX } from '../../lib/orders-prefs'
+import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
 
 /* ── PAYMENTS ─────────────────────────────────────── */
 export function PaymentsSection({ restaurantId }: { restaurantId: string }) {
@@ -128,6 +129,7 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
     setSecretKey('')
     setEditing(false)
     setFeedback({ ok: true, text: 'Anahtarlar kaydedildi' })
+    notifySettingsSaved()
   }
 
   async function handleTest() {
@@ -150,6 +152,7 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
     }
     setMeta({ configured: false, mode: 'sandbox', apiKeyLast4: null, updatedAt: null })
     setFeedback({ ok: true, text: 'Anahtarlar kaldırıldı' })
+    notifySettingsSaved()
   }
 
   const configured = meta?.configured ?? false
@@ -309,19 +312,22 @@ export function NotificationsSection({ restaurant }: { restaurant: Tables<'resta
   function set(key: keyof NotificationPrefs, value: boolean) {
     setPrefs(prev => ({ ...prev, [key]: value }))
     setSaved(false)
+    notifySettingsDirty()
   }
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     startTransition(async () => {
-      const result = await saveNotificationSettings(restaurant.id, prefs)
-      if ('error' in result) { setError(result.error); return }
       const clamped = clampLateThreshold(Number(lateThreshold))
-      const thresholdResult = await updateSettings(restaurant.id, { orders: { late_threshold_min: clamped } })
-      if ('error' in thresholdResult) { setError(thresholdResult.error); return }
+      const result = await saveNotificationPreferences(restaurant.id, {
+        prefs,
+        lateThresholdMin: clamped,
+      })
+      if ('error' in result) { setError(result.error); return }
       setLateThreshold(String(clamped))
       setSaved(true)
+      notifySettingsSaved()
     })
   }
 
@@ -330,7 +336,7 @@ export function NotificationsSection({ restaurant }: { restaurant: Tables<'resta
       <SCard title="Bildirimler" subtitle="Sipariş ve garson çağrısı uyarılarını yönet">
         {NOTIFICATION_ROWS.map(row => (
           <FormRow key={row.key} label={row.label} hint={row.hint}>
-            <Toggle on={prefs[row.key]} onChange={value => set(row.key, value)} />
+            <Toggle on={prefs[row.key]} onChange={value => set(row.key, value)} ariaLabel={row.label} />
           </FormRow>
         ))}
         <FormRow label="Gecikme eşiği (dk)" hint="Mutfak aşamasında bu süreyi aşan sipariş panoda 'Geciken' sayılır (5–120)">

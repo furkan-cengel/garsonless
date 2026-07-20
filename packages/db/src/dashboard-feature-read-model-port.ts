@@ -6,6 +6,7 @@ import type { DashboardSettingsReadModelPort } from '@garsonless/application/set
 import { err, ok } from '@garsonless/domain/result'
 import { createServiceClient } from './client'
 import { DASHBOARD_FEATURE_READ_PROJECTIONS as projection } from './dashboard-feature-read-model-contract'
+import { TEAM_SECURITY_EVENT_TYPES, type TeamSecurityEventType } from './security'
 import { listTeamMembers, type TeamMember } from './team'
 import type { Tables } from './types.gen'
 
@@ -20,6 +21,27 @@ type SecurityEventRow = {
   ip: string | null
   userAgent: string | null
   createdAt: string
+}
+
+export interface TeamAuditEventRow {
+  id: string
+  eventType: TeamSecurityEventType
+  targetEmail: string | null
+  permissions: string[]
+  createdAt: string
+}
+
+function readTeamAuditMetadata(value: unknown): Pick<TeamAuditEventRow, 'targetEmail' | 'permissions'> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { targetEmail: null, permissions: [] }
+  }
+  const metadata = value as Record<string, unknown>
+  return {
+    targetEmail: typeof metadata['targetEmail'] === 'string' ? metadata['targetEmail'] : null,
+    permissions: Array.isArray(metadata['permissions'])
+      ? metadata['permissions'].filter((permission): permission is string => typeof permission === 'string')
+      : [],
+  }
 }
 
 function dbError(fallback: string, error: { message: string } | null) {
@@ -190,12 +212,13 @@ export function createDashboardTablesReadModelPort(): DashboardTablesReadModelPo
 export function createDashboardSettingsReadModelPort(): DashboardSettingsReadModelPort<
   KitchenStationRow,
   TeamMember,
-  SecurityEventRow
+  SecurityEventRow,
+  TeamAuditEventRow
 > {
   return {
     async readSettings({ restaurantId, userId, includeOwnerData }) {
       const service = createServiceClient()
-      const [credentialResult, securityResult, ownerResult] = await Promise.all([
+      const [credentialResult, securityResult, ownerResult, teamAuditResult] = await Promise.all([
         service.from('kitchen_credentials')
           .select(projection.kitchenCredential)
           .eq('restaurant_id', restaurantId)
@@ -203,6 +226,7 @@ export function createDashboardSettingsReadModelPort(): DashboardSettingsReadMod
         service.from('security_events')
           .select(projection.securityEvent)
           .eq('user_id', userId)
+          .in('event_type', ['login', 'password_change'])
           .order('created_at', { ascending: false })
           .limit(20),
         includeOwnerData
@@ -214,9 +238,18 @@ export function createDashboardSettingsReadModelPort(): DashboardSettingsReadMod
             listTeamMembers(restaurantId),
           ])
           : Promise.resolve(null),
+        includeOwnerData
+          ? service.from('security_events')
+            .select('id, event_type, metadata, created_at')
+            .eq('restaurant_id', restaurantId)
+            .in('event_type', [...TEAM_SECURITY_EVENT_TYPES])
+            .order('created_at', { ascending: false })
+            .limit(20)
+          : Promise.resolve(null),
       ])
       if (credentialResult.error) return err(dbError('Mutfak erişimi yüklenemedi', credentialResult.error))
       if (securityResult.error) return err(dbError('Güvenlik etkinlikleri yüklenemedi', securityResult.error))
+      if (teamAuditResult?.error) return err(dbError('Ekip etkinlikleri yüklenemedi', teamAuditResult.error))
 
       let kitchenStations: KitchenStationRow[] = []
       let teamMembers: TeamMember[] = []
@@ -231,6 +264,14 @@ export function createDashboardSettingsReadModelPort(): DashboardSettingsReadMod
         hasKitchenAccess: credentialResult.data !== null,
         kitchenStations,
         teamMembers,
+        teamAuditEvents: ((teamAuditResult?.data ?? []) as Array<{
+          id: string; event_type: TeamSecurityEventType; metadata: unknown; created_at: string
+        }>).map((row) => ({
+          id: row.id,
+          eventType: row.event_type,
+          ...readTeamAuditMetadata(row.metadata),
+          createdAt: row.created_at,
+        })),
         securityEvents: ((securityResult.data ?? []) as Array<{
           id: string; event_type: string; ip: string | null; user_agent: string | null; created_at: string
         }>).map((row) => ({
