@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { StaffSettlementRow } from '../../lib/queries'
+import type { StaffSettlementRow } from '../../lib/queries/analytics'
 import {
   compactCancellationTrend,
   projectOperationDelta,

@@ -10,6 +10,16 @@ export type OrderStatus =
 
 export type PaymentMethod = 'iyzico' | 'cash' | 'pos' | 'comp' | 'split'
 
+/** Orders that still participate in the live operational queue. */
+export const ACTIVE_ORDER_STATUSES: readonly OrderStatus[] = [
+  'pending',
+  'pending_approval',
+  'sent_to_kitchen',
+  'preparing',
+  'ready',
+  'served',
+]
+
 /**
  * Canonical collected-revenue specification. Database adapters translate this
  * data-only policy to PostgREST/SQL while browser code evaluates it directly.

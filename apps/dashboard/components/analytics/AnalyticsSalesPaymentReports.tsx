@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import type { CSSProperties } from 'react'
-import type { DashboardKPIs, DailySale, HeatmapCell, PaymentBreakdown, PaymentReport, TopItem } from '../../lib/queries'
+import type { DashboardKPIs, DailySale, HeatmapCell, PaymentBreakdown, PaymentReport, TopItem } from '../../lib/queries/analytics'
 import { formatCurrency } from '../../lib/utils'
 import HeatmapGrid from './chart-primitives/HeatmapGrid'
 import { AnalyticsCard, AnalyticsKpi } from './AnalyticsReportPrimitives'

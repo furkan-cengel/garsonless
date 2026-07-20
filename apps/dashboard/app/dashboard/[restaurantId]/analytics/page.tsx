@@ -1,12 +1,12 @@
 import { notFound } from 'next/navigation'
+import { getRestaurantById } from '../../../../lib/queries/restaurants'
 import {
-  getRestaurantById,
   getDashboardKPIs,
   getTopItems,
   getSalesOverTime,
   getHeatmapData,
   getPaymentBreakdown,
-} from '../../../../lib/queries'
+} from '../../../../lib/queries/analytics'
 import AnalyticsClient from '../../../../components/analytics/AnalyticsClient'
 import { requireSection } from '../../../../lib/auth/access'
 

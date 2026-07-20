@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
-import { getRestaurantById, getRestaurantTimezone } from '../../../../lib/queries'
+import { getRestaurantTimezone } from '../../../../lib/queries/insights-shared'
+import { getRestaurantById } from '../../../../lib/queries/restaurants'
 import { startOfRestaurantDay } from '@garsonless/db/browser'
 import { readOrdersBoard } from '@garsonless/application/read-models'
 import { createOrdersBoardReadModelPort } from '@garsonless/db/server'

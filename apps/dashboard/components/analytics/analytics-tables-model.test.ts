@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { TableReportRow } from '../../lib/queries'
+import type { TableReportRow } from '../../lib/queries/analytics'
 import { formatTableDwell, projectTablesReport } from './analytics-tables-model'
 
 function table(overrides: Partial<TableReportRow>): TableReportRow {

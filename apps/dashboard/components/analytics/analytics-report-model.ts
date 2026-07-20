@@ -9,7 +9,7 @@ import type {
   StaffSettlementReport,
   TableReportRow,
   TopItem,
-} from '../../lib/queries'
+} from '../../lib/queries/analytics'
 import type { AnalyticsReportId } from '../../lib/actions/analytics'
 
 export type AnalyticsRange = 'day' | 'week' | 'month' | 'quarter' | 'year'

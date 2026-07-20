@@ -1,7 +1,7 @@
 'use client'
 
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ReferenceLine, Cell } from 'recharts'
-import type { ProductReportItem } from '../../../lib/queries'
+import type { ProductReportItem } from '../../../lib/queries/analytics'
 import ChartFrame from './ChartFrame'
 import ChartTooltip, { type RechartsPayloadItem } from './ChartTooltip'
 import { axisTick, gridProps, bareAxis, tooltipWrapperStyle } from './axis'

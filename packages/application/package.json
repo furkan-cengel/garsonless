@@ -2,11 +2,10 @@
   "name": "@garsonless/application",
   "version": "0.0.0",
   "private": true,
-  "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
     "./campaigns": "./src/campaigns.ts",
     "./customers": "./src/customers.ts",
+    "./dashboard-feature-read-models": "./src/dashboard-feature-read-models.ts",
     "./loyalty": "./src/loyalty.ts",
     "./menu": "./src/menu.ts",
     "./orders": "./src/orders.ts",
@@ -15,6 +14,7 @@
     "./payment-reconciliation": "./src/payment-reconciliation.ts",
     "./read-models": "./src/read-models.ts",
     "./restaurants": "./src/restaurants.ts",
+    "./settings": "./src/settings.ts",
     "./splits": "./src/splits.ts",
     "./tables": "./src/tables.ts",
     "./themes": "./src/themes.ts"
@@ -25,7 +25,7 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "test": "tsx --test src/*.test.ts",
+    "test": "node --import tsx --test src/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

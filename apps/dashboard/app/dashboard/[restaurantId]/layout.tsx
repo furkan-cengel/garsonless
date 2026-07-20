@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import RestaurantShell, { RestaurantShellSkeleton } from '../../../components/layout/RestaurantShell'
 import NavigationProgress from '../../../components/layout/NavigationProgress'
 import NavigationPendingOverlay from '../../../components/layout/NavigationPendingOverlay'
-import { getRestaurantById, getRestaurantsForUser } from '../../../lib/queries'
+import { getRestaurantById, getRestaurantsForUser } from '../../../lib/queries/restaurants'
 import { getUserRestaurantAccess } from '../../../lib/auth/access'
 import { createDashboardServerClient } from '../../../lib/supabase-server'
 

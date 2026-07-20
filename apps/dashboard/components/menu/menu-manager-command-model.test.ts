@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import { patchMenuItemCollection, removeCategoryTreeFromMenu } from './menu-manager-command-model'
 
 const categories = [

@@ -3,8 +3,42 @@ import {
   hasSameRestaurant,
   ok,
   type DashboardActorContext,
+  type DashboardUserContext,
   type Result,
 } from '@garsonless/domain'
+import {
+  authorizeDashboardFeatureRead,
+  type DashboardFeatureReadOperation,
+} from './dashboard-feature-read-models'
+
+export interface DashboardRestaurantReadModelPort<TRestaurant> {
+  listAccessible(input: {
+    userId: string
+    operation: Extract<DashboardFeatureReadOperation, 'restaurant.portfolio'>
+  }): Promise<Result<TRestaurant[]>>
+  readById(input: {
+    restaurantId: string
+    operation: Extract<DashboardFeatureReadOperation, 'restaurant.detail'>
+  }): Promise<Result<TRestaurant | null>>
+}
+
+export async function listDashboardRestaurants<TRestaurant>(
+  context: DashboardUserContext,
+  port: DashboardRestaurantReadModelPort<TRestaurant>,
+): Promise<Result<TRestaurant[]>> {
+  return port.listAccessible({ userId: context.userId, operation: 'restaurant.portfolio' })
+}
+
+export async function readDashboardRestaurant<TRestaurant>(
+  context: DashboardActorContext,
+  restaurantId: string,
+  port: DashboardRestaurantReadModelPort<TRestaurant>,
+): Promise<Result<TRestaurant | null>> {
+  const access = authorizeDashboardFeatureRead(context, restaurantId, 'restaurant.detail')
+  return access.ok
+    ? port.readById({ restaurantId, operation: 'restaurant.detail' })
+    : access
+}
 
 const MEMBER_SETTINGS_KEYS = new Set([
   'store',

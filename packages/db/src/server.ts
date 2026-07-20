@@ -37,10 +37,52 @@ export {
 export { applyCollectedOrderFilter } from './order-query-spec'
 export {
   createAnalyticsReadModelPort,
+  createDashboardInsightsReadModelPort,
   createOrdersBoardReadModelPort,
   createPanoTableDetailReadModelPort,
 } from './dashboard-read-model-port'
+export {
+  createDashboardRestaurantReadModelPort,
+  createDashboardSettingsReadModelPort,
+  createDashboardTablesReadModelPort,
+  createMenuManagementReadModelPort,
+  createThemeMenuReferenceReadModelPort,
+} from './dashboard-feature-read-model-port'
+export type {
+  ThemeEditorCategoryRow,
+  ThemeEditorItemRow,
+} from './dashboard-feature-read-model-port'
 export type { DashboardOrderReadRow } from './dashboard-read-model-port'
+export { createStructuredDashboardInsightsObserver } from './dashboard-read-model-observability'
+export type {
+  DashboardInsightsObservabilityOptions,
+  StructuredDashboardInsightsObserverOptions,
+} from './dashboard-read-model-observability'
+export { createPersistentDashboardInsightsObserver } from './dashboard-read-model-observation-sink'
+export type { PersistentDashboardInsightsObserverOptions } from './dashboard-read-model-observation-sink'
+export {
+  DEFAULT_DASHBOARD_INSIGHTS_HEALTH_THRESHOLDS,
+  projectDashboardInsightsHealth,
+  readDashboardInsightsHealth,
+} from './dashboard-read-model-health'
+export type {
+  DashboardInsightsHealthAlert,
+  DashboardInsightsHealthOperationRollup,
+  DashboardInsightsHealthSnapshot,
+  DashboardInsightsHealthStatus,
+  DashboardInsightsHealthThresholds,
+  ReadDashboardInsightsHealthOptions,
+} from './dashboard-read-model-health'
+export {
+  buildDashboardInsightsHealthAlertPayload,
+  buildDashboardInsightsUnavailableAlertPayload,
+  deliverDashboardInsightsHealthAlert,
+} from './dashboard-read-model-health-alert'
+export type {
+  DashboardInsightsHealthAlertPayload,
+  DashboardInsightsMonitorStatus,
+  DeliverDashboardInsightsHealthAlertOptions,
+} from './dashboard-read-model-health-alert'
 export {
   createKitchenLaunchTicket,
   exchangeKitchenLaunchTicket,

@@ -8,7 +8,7 @@ import type {
   StaffSettlementReport,
   StaffSettlementRow,
   TopItem,
-} from '../../lib/queries'
+} from '../../lib/queries/analytics'
 import { formatCurrency } from '../../lib/utils'
 import { AnalyticsCard as Card, AnalyticsKpi as KPISmall } from './AnalyticsReportPrimitives'
 import {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import type { OrderStatus } from '@garsonless/db'
+import type { OrderStatus } from '@garsonless/db/types'
 import {
   mergeKitchenOrderProjection,
   type KitchenOrderProjection,

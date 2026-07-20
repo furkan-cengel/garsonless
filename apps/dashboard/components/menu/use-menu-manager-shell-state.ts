@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 
 type MenuCategory = Tables<'menu_categories'>
 type MenuItem = Tables<'menu_items'>

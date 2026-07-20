@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { MemberBalances, LoyaltyActivity } from '@garsonless/db'
+import type { MemberBalances, LoyaltyActivity } from '@garsonless/db/types'
 import { ML_STAMP_POP_KEYFRAME } from '@garsonless/ui'
 import { createMenuAuthBrowserClient } from '../../../lib/supabase-browser'
 

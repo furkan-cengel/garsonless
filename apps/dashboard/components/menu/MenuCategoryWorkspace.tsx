@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, lazy, useState, type ReactNode } from 'react'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 
 import { I, S } from '../../lib/ui'
 import CategoryForm from './CategoryForm'

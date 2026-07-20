@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { DashboardKPIs } from '../../lib/queries'
+import type { DashboardKPIs } from '../../lib/queries/analytics'
 import { buildAnalyticsReportCsv, escapeAnalyticsCsvCell } from './analytics-report-export'
 import { createInitialAnalyticsData, type AnalyticsInitialData } from './analytics-report-model'
 

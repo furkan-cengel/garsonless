@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { ProductReportItem } from '../../lib/queries'
+import type { ProductReportItem } from '../../lib/queries/analytics'
 import {
   formatProductDelta,
   projectProductReport,

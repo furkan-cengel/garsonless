@@ -1,8 +1,6 @@
 import { notFound } from 'next/navigation'
-import {
-  getRestaurantById,
-  getPanoSnapshot,
-} from '../../../lib/queries'
+import { getRestaurantById } from '../../../lib/queries/restaurants'
+import { getPanoSnapshot } from '../../../lib/queries/pano'
 import PanoClient from '../../../components/pano/PanoClient'
 import { requireSection } from '../../../lib/auth/access'
 
@@ -18,7 +16,7 @@ export default async function PanoPage({ params }: Props) {
 
   const [restaurant, snapshot] = await Promise.all([
     getRestaurantById(restaurantId),
-    getPanoSnapshot(restaurantId, isOwner),
+    getPanoSnapshot(restaurantId),
   ])
   if (!restaurant) notFound()
 

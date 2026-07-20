@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
-import { getMenuManagementData, getRestaurantById } from '../../../../lib/queries'
+import { getMenuManagementData } from '../../../../lib/queries/menu-management'
+import { getRestaurantById } from '../../../../lib/queries/restaurants'
 import MenuManager from '../../../../components/menu/MenuManager'
 import MenuLoadError from '../../../../components/menu/MenuLoadError'
 import { requireSection } from '../../../../lib/auth/access'

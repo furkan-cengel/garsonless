@@ -1,4 +1,4 @@
-import type { CancellationReport, StaffSettlementRow } from '../../lib/queries'
+import type { CancellationReport, StaffSettlementRow } from '../../lib/queries/analytics'
 
 export function projectOperationDelta(change: number | null, suffix = '%') {
   const isNew = change === null

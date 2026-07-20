@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import type { ReactNode } from 'react'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import { InlineSpinner } from '@garsonless/ui'
 import { I, S, Tag, btnGhost, btnPrimary } from '../../lib/ui'
 import { Toggle, SCard, FormRow, inputStyle } from './primitives'

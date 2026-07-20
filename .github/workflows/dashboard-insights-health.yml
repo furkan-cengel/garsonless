@@ -1,0 +1,47 @@
+name: Dashboard Insights Health
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dashboard-insights-health
+  cancel-in-progress: true
+
+jobs:
+  monitor-linked-dev:
+    name: Monitor linked DEV dashboard reads
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
+      DASHBOARD_INSIGHTS_ALERT_WEBHOOK_URL: ${{ secrets.DASHBOARD_INSIGHTS_ALERT_WEBHOOK_URL }}
+      DASHBOARD_INSIGHTS_HEALTH_ENVIRONMENT: linked-dev
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install monitoring dependencies
+        run: pnpm install --frozen-lockfile --filter @garsonless/db...
+
+      - name: Check dashboard insights health
+        run: pnpm --filter @garsonless/db health:dashboard-insights

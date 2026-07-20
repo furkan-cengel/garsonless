@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
 import SettlementSheet from './SettlementSheet'
 import { useShell } from '../../lib/shell-context'

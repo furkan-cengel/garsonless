@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import type { Database } from '@garsonless/db'
+import type { Database } from '@garsonless/db/types'
 
 /**
  * CUSTOMER-auth server client (P2): reads the Supabase session cookies so SSR

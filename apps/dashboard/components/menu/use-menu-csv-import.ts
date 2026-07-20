@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, type ChangeEvent } from 'react'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import {
   ALLERGEN_CODES,
   ALLERGEN_LABELS,

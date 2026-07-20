@@ -13,7 +13,7 @@ import {
 import Link from 'next/link'
 import { I, IconButton, S, btnGhost, btnPrimary } from '../../lib/ui'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
-import type { TableStatusData } from '../../lib/queries'
+import type { TableStatusData } from '../../lib/queries/pano'
 import { TableDetailModal, TableStatusBadge } from '../pano/TableStatusExperience'
 import SettlementSheet from '../tables/SettlementSheet'
 

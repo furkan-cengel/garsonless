@@ -1,7 +1,7 @@
 'use client'
 
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Brush } from 'recharts'
-import type { DailySale } from '../../../lib/queries'
+import type { DailySale } from '../../../lib/queries/analytics'
 import ChartFrame from './ChartFrame'
 import ChartTooltip, { type RechartsPayloadItem } from './ChartTooltip'
 import { axisTick, gridProps, chartMargin, bareAxis, tooltipWrapperStyle, CHART_MONO } from './axis'

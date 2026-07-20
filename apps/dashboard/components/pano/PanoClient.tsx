@@ -25,7 +25,7 @@ import type {
   TableStatusData,
   HeatmapCell,
   PaymentStatus,
-} from '../../lib/queries'
+} from '../../lib/queries/pano'
 import type { Section } from '../../lib/auth/access'
 
 type RealtimeStatus = 'connecting' | 'connected' | 'down'

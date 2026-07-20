@@ -1,7 +1,7 @@
 'use client'
 
 import { createBrowserClient } from '@supabase/ssr'
-import type { Database } from '@garsonless/db'
+import type { Database } from '@garsonless/db/types'
 
 /**
  * CUSTOMER-auth browser client (P2): cookie-backed via @supabase/ssr, so a

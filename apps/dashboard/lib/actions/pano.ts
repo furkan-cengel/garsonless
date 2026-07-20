@@ -1,9 +1,10 @@
 'use server'
 
-import { assertAccess, getUserRestaurantAccess } from '../auth/access'
-import { getHourlySales, getPanoSnapshot, getRestaurantTimezone, getSalesOverTime, getTableStatuses } from '../queries'
-import type { TableStatusData } from '../queries'
-import type { PanoSnapshot } from '../queries'
+import { assertAccess } from '../auth/access'
+import { getSalesOverTime } from '../queries/analytics'
+import { getRestaurantTimezone } from '../queries/insights-shared'
+import { getHourlySales, getPanoSnapshot, getTableStatuses } from '../queries/pano'
+import type { PanoSnapshot, TableStatusData } from '../queries/pano'
 import { readOrderLineSnapshots, restaurantHour } from '@garsonless/db/browser'
 import { readPanoTableDetail } from '@garsonless/application/read-models'
 import { createPanoTableDetailReadModelPort } from '@garsonless/db/server'
@@ -80,10 +81,8 @@ export async function fetchPanoSnapshot(
 ): Promise<{ error: string } | { snapshot: PanoSnapshot }> {
   const gate = await assertAccess(restaurantId, 'pano')
   if ('error' in gate) return { error: gate.error }
-  const access = await getUserRestaurantAccess(restaurantId)
-  if (!access) return { error: 'Not authorized' }
   try {
-    return { snapshot: await getPanoSnapshot(restaurantId, access.isOwner) }
+    return { snapshot: await getPanoSnapshot(restaurantId) }
   } catch {
     return { error: 'Pano verileri alınamadı.' }
   }
@@ -146,7 +145,7 @@ export async function fetchPanoChart(
     return finalize('day', 'Bugün', points)
   }
 
-  const series = await getSalesOverTime(restaurantId, range === 'week' ? 'week' : 'month')
+  const series = await getSalesOverTime(restaurantId, range === 'week' ? 'week' : 'month', 'pano')
   const points: PanoChartPoint[] = series.map((d) => ({ label: d.date, value: d.current }))
   return finalize(range, range === 'week' ? 'Son 7 gün' : 'Son 30 gün', points)
 }

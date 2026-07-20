@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import { I, S, Tag, btnGhost, btnPrimary } from '../../lib/ui'
 import { InlineSpinner } from '@garsonless/ui'
 import { SCard, FormRow, inputStyle } from './primitives'

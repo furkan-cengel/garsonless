@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useTransition } from 'react'
 import { InlineSpinner } from '@garsonless/ui'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import { normalizeMenuNumericText, parseMenuNumericInput } from '@garsonless/domain/menu'
 import { createItem } from '../../lib/actions/menu'
 import NutritionFields, { nutritionFromItem, appendNutritionToFormData, applyNutritionPatch, NutritionStatusPill, type NutritionState } from './NutritionFields'

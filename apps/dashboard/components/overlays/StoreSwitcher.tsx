@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import { I, S } from '../../lib/ui'
 
 const GRADIENTS = [

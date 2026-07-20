@@ -11,6 +11,14 @@ export type DashboardActorContext = {
   isOwner?: boolean
 }
 
+/** Authenticated dashboard identity before a restaurant has been selected.
+ * Portfolio reads may use this context; tenant-bound reads must first resolve
+ * a DashboardActorContext. */
+export type DashboardUserContext = {
+  actor: 'dashboard-user'
+  userId: string
+}
+
 export type TableGuestContext = {
   actor: 'table-guest'
   restaurantId: string

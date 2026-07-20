@@ -1,13 +1,10 @@
 /**
- * Compatibility type barrel.
+ * Explicit shared database type surface.
  *
  * Runtime capabilities intentionally live behind explicit boundaries:
  * - `@garsonless/db/server`  — service-role repositories/RPC adapters
  * - `@garsonless/db/browser` — anon client and browser-safe projections
  * - `@garsonless/domain/*`   — business policies and vocabularies
- *
- * Keeping this entrypoint type-only prevents a client bundle or app adapter
- * from reaching infrastructure through an ambiguous root import.
  */
 
 export type {

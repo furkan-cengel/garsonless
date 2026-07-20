@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import { I, Tag, btnGhost, btnPrimary } from '../../lib/ui'
 import { getMissingProductInfo, highlightText, tintFor } from './menu-manager-utils'
 

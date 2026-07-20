@@ -1,5 +1,5 @@
 import type { AnalyticsReportId } from '../../lib/actions/analytics'
-import type { DashboardKPIs } from '../../lib/queries'
+import type { DashboardKPIs } from '../../lib/queries/analytics'
 import {
   analyticsRangePeriodLabel,
   formatAnalyticsReportDate,

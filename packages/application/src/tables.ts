@@ -5,6 +5,7 @@ import type {
   ServiceRequestType,
   TableSessionCloseOutcome,
 } from '@garsonless/domain'
+import { authorizeDashboardFeatureRead } from './dashboard-feature-read-models'
 import {
   err,
   hasSameRestaurant,
@@ -83,6 +84,10 @@ export interface DashboardTablePort {
   }): Promise<Result<null>>
 }
 
+export interface DashboardTablesReadModelPort<TTable> {
+  readTables(input: { restaurantId: string; operation: 'tables.list' }): Promise<Result<TTable[]>>
+}
+
 export interface PublicTableContext {
   restaurantId: string
   restaurantSlug: string
@@ -128,6 +133,15 @@ function requireDashboardTables(
     return err('Not authorized')
   }
   return ok(true)
+}
+
+export async function readDashboardTables<TTable>(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  restaurantId: string,
+  port: DashboardTablesReadModelPort<TTable>,
+): Promise<Result<TTable[]>> {
+  const access = authorizeDashboardFeatureRead(context, restaurantId, 'tables.list')
+  return access.ok ? port.readTables({ restaurantId, operation: 'tables.list' }) : access
 }
 
 export async function createDashboardTable(

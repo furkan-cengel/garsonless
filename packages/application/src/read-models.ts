@@ -103,10 +103,124 @@ export interface AnalyticsReadModelPort {
   readLoyaltyRows(input: { restaurantId: string; since: string }): Promise<Result<AnalyticsLoyaltyRow[]>>
 }
 
+export type DashboardInsightsSection = 'pano' | 'analytics'
+
+export const DASHBOARD_INSIGHTS_OPERATIONS = [
+  'order-volume',
+  'collected-orders',
+  'table-refs',
+  'table-performance',
+  'pano-operational',
+] as const
+
+export type DashboardInsightsOperation = typeof DASHBOARD_INSIGHTS_OPERATIONS[number]
+
+export type DashboardInsightsQueryOutcome = 'success' | 'degraded' | 'failure'
+
+export interface DashboardInsightsQueryObservation {
+  operation: DashboardInsightsOperation
+  restaurantId: string
+  durationMs: number
+  outcome: DashboardInsightsQueryOutcome
+  issueCount: number
+  error?: string
+}
+
+/** Infrastructure output port; observers must never affect query results. */
+export interface DashboardInsightsQueryObserver {
+  observe(observation: DashboardInsightsQueryObservation): void | Promise<void>
+}
+
+export interface DashboardOrderVolumeRow {
+  id: string
+  total: number
+  status: string
+  sessionId: string | null
+  tableId: string | null
+  createdAt: string
+}
+
+export interface DashboardCollectedOrderRow {
+  total: number
+  paidAt: string
+  paymentMethod: string | null
+  createdAt: string
+  tableId: string | null
+  items: unknown
+}
+
+export interface DashboardInsightsTableRow {
+  id: string
+  label: string
+  deletedAt: string | null
+}
+
+export interface DashboardTablePerformanceSource {
+  tables: Array<{ id: string; label: string }>
+  orders: Array<{ tableId: string; total: number }>
+  closedSessions: Array<{ tableId: string; openedAt: string; closedAt: string }>
+  openTableIds: string[]
+}
+
+export interface PanoOperationalSource {
+  errors: string[]
+  tables: DashboardInsightsTableRow[]
+  openSessions: Array<{ id: string; tableId: string; openedAt: string }>
+  openSessionOrders: Array<{
+    tableSessionId: string | null
+    status: string
+    total: number
+    paidAt: string | null
+    createdAt: string
+  }>
+  sessionOpenings: Array<{ id: string; openedAt: string }>
+  activeOrderCount: number
+  paymentMode: string | null
+  paymentConfigured: boolean
+}
+
+export interface DashboardInsightsReadModelPort {
+  readOrderVolume(input: {
+    restaurantId: string
+    since: string
+    before?: string
+    limit?: number
+    excludeCancelled?: boolean
+  }): Promise<Result<DashboardOrderVolumeRow[]>>
+  readCollectedOrders(input: {
+    restaurantId: string
+    since: string
+    before?: string
+  }): Promise<Result<DashboardCollectedOrderRow[]>>
+  readTableRefs(input: {
+    restaurantId: string
+    includeDeleted?: boolean
+  }): Promise<Result<DashboardInsightsTableRow[]>>
+  readTablePerformance(input: {
+    restaurantId: string
+    since: string
+  }): Promise<Result<DashboardTablePerformanceSource>>
+  readPanoOperationalSource(input: {
+    restaurantId: string
+    sessionSince?: string
+    includePaymentStatus: boolean
+  }): Promise<Result<PanoOperationalSource>>
+}
+
 function allowRead(
   context: DashboardActorContext,
   restaurantId: string,
   section: 'orders' | 'tables',
+): Result<true> {
+  return hasSameRestaurant(context, restaurantId) && context.permissions.includes(section)
+    ? { ok: true, value: true }
+    : err('Not authorized')
+}
+
+function allowInsightsRead(
+  context: DashboardActorContext,
+  restaurantId: string,
+  section: DashboardInsightsSection,
 ): Result<true> {
   return hasSameRestaurant(context, restaurantId) && context.permissions.includes(section)
     ? { ok: true, value: true }
@@ -129,4 +243,69 @@ export async function readPanoTableDetail(
 ): Promise<Result<PanoTableDetailReadModel>> {
   const access = allowRead(context, input.restaurantId, 'tables')
   return access.ok ? port.readTableDetail(input) : access
+}
+
+export async function readDashboardOrderVolume(
+  context: DashboardActorContext,
+  input: {
+    restaurantId: string
+    section: DashboardInsightsSection
+    since: string
+    before?: string
+    limit?: number
+    excludeCancelled?: boolean
+  },
+  port: DashboardInsightsReadModelPort,
+): Promise<Result<DashboardOrderVolumeRow[]>> {
+  const access = allowInsightsRead(context, input.restaurantId, input.section)
+  if (!access.ok) return access
+  const { section: _section, ...query } = input
+  return port.readOrderVolume(query)
+}
+
+export async function readDashboardCollectedOrders(
+  context: DashboardActorContext,
+  input: { restaurantId: string; section: DashboardInsightsSection; since: string; before?: string },
+  port: DashboardInsightsReadModelPort,
+): Promise<Result<DashboardCollectedOrderRow[]>> {
+  const access = allowInsightsRead(context, input.restaurantId, input.section)
+  if (!access.ok) return access
+  const { section: _section, ...query } = input
+  return port.readCollectedOrders(query)
+}
+
+export async function readDashboardTablePerformance(
+  context: DashboardActorContext,
+  input: { restaurantId: string; since: string },
+  port: DashboardInsightsReadModelPort,
+): Promise<Result<DashboardTablePerformanceSource>> {
+  const access = allowInsightsRead(context, input.restaurantId, 'analytics')
+  return access.ok ? port.readTablePerformance(input) : access
+}
+
+export async function readDashboardTableRefs(
+  context: DashboardActorContext,
+  input: { restaurantId: string; section: DashboardInsightsSection; includeDeleted?: boolean },
+  port: DashboardInsightsReadModelPort,
+): Promise<Result<DashboardInsightsTableRow[]>> {
+  const access = allowInsightsRead(context, input.restaurantId, input.section)
+  if (!access.ok) return access
+  return port.readTableRefs(input.includeDeleted === undefined
+    ? { restaurantId: input.restaurantId }
+    : { restaurantId: input.restaurantId, includeDeleted: input.includeDeleted })
+}
+
+export async function readPanoOperationalSource(
+  context: DashboardActorContext,
+  input: { restaurantId: string; sessionSince?: string; includePaymentStatus: boolean },
+  port: DashboardInsightsReadModelPort,
+): Promise<Result<PanoOperationalSource>> {
+  const access = allowInsightsRead(context, input.restaurantId, 'pano')
+  if (!access.ok) return access
+  const trustedInput = {
+    restaurantId: input.restaurantId,
+    includePaymentStatus: context.isOwner === true && input.includePaymentStatus,
+    ...(input.sessionSince === undefined ? {} : { sessionSince: input.sessionSince }),
+  }
+  return port.readPanoOperationalSource(trustedInput)
 }

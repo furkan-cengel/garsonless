@@ -8,7 +8,7 @@ import type {
   TableReportRow,
   PaymentReport,
   ProductReportItem,
-} from '../../lib/queries'
+} from '../../lib/queries/analytics'
 import { AnalyticsItemsReport } from './AnalyticsItemsReport'
 import { AnalyticsLoyaltyReport } from './AnalyticsLoyaltyReport'
 import { AnalyticsOperationsReport } from './AnalyticsOperationsReport'

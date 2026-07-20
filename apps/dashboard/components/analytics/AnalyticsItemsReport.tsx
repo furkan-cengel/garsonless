@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import type { CSSProperties } from 'react'
-import type { ProductReportItem } from '../../lib/queries'
+import type { ProductReportItem } from '../../lib/queries/analytics'
 import { formatCurrency } from '../../lib/utils'
 import { AnalyticsCard as Card, AnalyticsKpi as KPISmall } from './AnalyticsReportPrimitives'
 import { analyticsRangeLabel as rangeLabel } from './analytics-report-model'

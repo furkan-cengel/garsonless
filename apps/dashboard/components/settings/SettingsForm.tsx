@@ -2,12 +2,12 @@
 
 import { useState, useTransition } from 'react'
 import type { User } from '@supabase/supabase-js'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import { updateRestaurant, uploadLogo } from '../../lib/actions/restaurant'
 import dynamic from 'next/dynamic'
 import { DEFAULT_TIERS, type LoyaltyTier, type CatalogReward } from './loyalty-config'
 import type { SecurityEventView } from './AdvancedSections'
-import type { TeamMember } from '@garsonless/db'
+import type { TeamMember } from '@garsonless/db/types'
 
 const KitchenAccessSection   = dynamic(() => import('./KitchenAccessSection'))
 const LoyaltySection         = dynamic(() => import('./LoyaltySection'))

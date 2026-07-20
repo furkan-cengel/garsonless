@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import { assertAccess } from '../auth/access'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import {
   ALLERGEN_CODES,
   getDietaryClaimsConflict,

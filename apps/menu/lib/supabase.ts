@@ -1,5 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr'
-import type { Database } from '@garsonless/db'
+import type { Database } from '@garsonless/db/types'
 
 export function createMenuBrowserClient() {
   return createBrowserClient<Database>(

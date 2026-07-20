@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { LoyaltyReport } from '../../lib/queries'
+import type { LoyaltyReport } from '../../lib/queries/analytics'
 import { projectLoyaltyReport, resolveLoyaltyReasonLabel } from './analytics-loyalty-model'
 
 function loyalty(overrides: Partial<LoyaltyReport> = {}): LoyaltyReport {

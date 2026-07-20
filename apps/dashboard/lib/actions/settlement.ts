@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { settleOrder as settleOrderCommand } from '@garsonless/application/orders'
 import { readOrderLineSnapshots } from '@garsonless/db/browser'
 import { createSettlementPort, listTeamMembers, readPaymentSharesForSettlement } from '@garsonless/db/server'
-import type { PaymentMethod } from '@garsonless/db'
+import type { PaymentMethod } from '@garsonless/db/types'
 import { assertAccess, getUserRestaurantAccess } from '../auth/access'
 import { createDashboardServerClient } from '../supabase-server'
 

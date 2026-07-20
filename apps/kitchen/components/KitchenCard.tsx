@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import type { OrderStatus } from '@garsonless/db'
+import type { OrderStatus } from '@garsonless/db/types'
 import type { KitchenOrderProjection } from '@garsonless/application/tables'
 import { ALLERGEN_LABELS, readOrderCustomerTierSnapshot, readOrderLineSnapshots } from '@garsonless/db/browser'
 import ElapsedTimer from './ElapsedTimer'

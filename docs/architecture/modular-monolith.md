@@ -30,6 +30,277 @@ UI / Route Handler / Server Action
 - Uygulamalar HTTP/UI adaptörüdür: schema doğrular, actor bağlamını kurar,
   command çağırır ve response döndürür.
 
+## Architecture quality gate
+
+Katman sınırları yalnız dokümantasyonla değil, root script ve CI fitness
+testleriyle korunur:
+
+- `pnpm test:architecture`: domain invariant'ları, application command/query
+  sözleşmeleri ve dashboard analytics/menu/tables/theme mimari testleri.
+- `pnpm check:ci`: lint + tüm workspace typecheck + architecture testleri + DB
+  contract/fitness testleri.
+- `pnpm check`: aynı CI kapısının ardından production build ve Playwright smoke
+  doğrulaması.
+
+`.github/workflows/architecture-ci.yml` pull request ve `main` push'larında
+frozen lockfile ile `check:ci` çalıştırır. Workflow yalnız `contents: read`
+iznine sahiptir, aynı ref'in eski koşusunu iptal eder ve pnpm store cache'ini
+lockfile üzerinden anahtarlar. Testler `node --import tsx --test` ile çalışır;
+runner böylece kısıtlı CI ortamlarında ek IPC socket'i açmaz.
+
+İlk gate baseline'ı 318 testtir: domain 27, application 54, dashboard
+architecture/model 133 ve DB 104. GitHub branch protection/ruleset içinde
+`Architecture gate` status check'i ayrıca required yapılmalıdır; workflow
+dosyası tek başına merge politikasını zorunlu kılmaz.
+
+## Dashboard insights read models
+
+Pano, Analytics ve Orders board aynı veri tabanını kullanır; fakat app
+katmanında Supabase sorgusu kurmaz. Orders board kendi portunu, Pano ve
+Analytics ise `DashboardInsightsReadModelPort` sözleşmesini kullanır:
+
+```text
+Dashboard page/action
+  -> trusted DashboardActorContext
+  -> application read query (tenant + section gate)
+  -> @garsonless/db/server read-model adapter
+  -> narrow Supabase projection
+```
+
+Pano/Analytics adapter'ı order volume, collected order, table reference, table
+performance ve Pano operational snapshot okumalarını açık tiplerle sunar.
+Owner-only payment credential durumu application katmanında trusted `isOwner`
+authority ile fail-closed korunur. App query modülü `orders`,
+`table_sessions` ve `payment_credentials` tablolarını doğrudan sorgulayamaz;
+architecture fitness testi bu sınırı denetler.
+
+Tahsilat semantiğinin tek sahibi domain'deki `COLLECTED_ORDER_SPEC`'tir. DB
+adapter bu specification'ı `applyCollectedOrderFilter` ile PostgREST sorgusuna
+çevirir; UI veya dashboard query helper'ı aynı kuralı tekrar yazmaz. Pano ve
+Analytics gelir zaman serileri tahsilat anını `paidAt` üzerinden yorumlar.
+Aktivite gibi dar kullanım senaryolarında limit ve iptal filtresi DB'ye itilir;
+metrik gerekmeyen masa durumu okumaları tarihsel session verisini çekmez.
+
+Read-side fiziksel olarak da feature sınırlarına ayrılmıştır:
+
+```text
+apps/dashboard/lib/
+  queries.ts                         # 221 satırlık compatibility facade
+  queries/
+    insights-shared.ts               # actor/tenant/timezone/ortak fold
+    analytics.ts                     # Analytics read queries
+    analytics-operations.ts          # owner/operasyon raporları
+    pano.ts                          # Pano snapshot ve widget query'leri
+```
+
+Yeni page ve action call-site'ları doğrudan feature modülünü import eder.
+`queries.ts` yalnız eski ve genel restaurant/menu/theme/table tüketicileri için
+geçici compatibility re-export'u taşır. Feature modüllerinin parent facade'a
+import yapması yasaktır; böylece circular dependency ve facade üzerinden
+gizlenen domain bağımlılığı oluşmaz. Architecture fitness testleri dosya satır
+bütçelerini, bu import yönünü ve app katmanında service-role/geniş tablo sorgusu
+yasağını birlikte denetler.
+
+Read-side repository/RPC projection contract'ları ile query
+latency/partial-failure telemetrisi aynı adapter sınırında tutulur. Amaç kolon
+veya semantik drift'ini production UI'da sessiz boş widget olarak görünmeden
+önce yakalamaktır.
+
+## Dashboard read-model contract ve gözlemlenebilirlik
+
+Dashboard insights repository'sinin seçtiği kolonlar
+`dashboard-read-model-contract.ts` içinde açık projection sözleşmeleridir.
+Adapter `.select('*')` kullanamaz; sözleşme testi her projection anahtarının
+adapter tarafından gerçekten tüketildiğini ve kolon setinin bilinçli değişiklik
+olmadan genişlemediğini doğrular.
+
+Her insights read aşağıdaki typed gözlemi üretir:
+
+```ts
+type DashboardInsightsQueryOutcome = "success" | "degraded" | "failure";
+
+interface DashboardInsightsQueryObservation {
+  operation: DashboardInsightsOperation;
+  restaurantId: string;
+  durationMs: number;
+  outcome: DashboardInsightsQueryOutcome;
+  issueCount: number;
+  error?: string;
+}
+```
+
+`pano-operational` birden çok bağımsız kaynağı birleştirdiği için Result başarılı
+olsa bile alt kaynak hatası varsa `degraded` olarak gözlenir. Repository Result
+hatası ve beklenmeyen exception `failure` olur. Observer çağrısı best-effort'tür;
+metric/log altyapısının çökmesi kullanıcı sorgusunu bozamaz. Varsayılan observer
+yalnız degraded/failure veya 1.000 ms üzeri okumaları server loguna structured
+event olarak yazar; başarılı hızlı okumalar loglanmaz.
+
+Kalıcı adapter `dashboard_query_observations` tablosunu kullanır. Yalnız
+`degraded`, `failure` veya varsayılan olarak 1.000 ms ve üzeri başarılı okumalar
+yazılır; normal hızlı sorgular depolama maliyeti üretmez. Tablo service-role
+sınırındadır, RLS açıktır ve anon/authenticated rollere policy verilmez. Sink
+insert'i veya structured-log fallback'i başarısız olsa bile query sonucu ve
+exception semantiği değişmez.
+
+`20260718010000_dashboard_query_observations.sql` DEV'e uygulanmıştır ve
+PROD-at-deploy migration setine eklenmelidir. Gerçek Test Cafe B matrisi order
+volume, collected order, table reference, table performance ve Pano operational
+projection'larını çalıştırdı; beşi de `success`, Pano kaynak hataları sıfırdı.
+İşaretli gerçek failure observation satırı service-role ile yazıldı, anon read
+reddedildi ve cleanup sonrasında orphan sayısı sıfır kaldı.
+
+`20260718020000_dashboard_query_observation_operations.sql` bu ham event
+kaynağının operasyonel sınırını tamamlar. `get_dashboard_query_observation_health`
+varsayılan 15 dakikalık ve en fazla 7 günlük pencerede operation bazlı aggregate
+sayılar ile p95 süre döndürür; restaurant kimliği ve ham error payload'u dışarı
+çıkmaz. RPC yalnız service-role'a açıktır. Application tarafındaki saf alarm
+projection'ı failure/degraded/p95 metriklerini warning ve critical eşiklerine
+çevirir; CLI health entrypoint'i alarm varsa non-zero exit üretir.
+
+Observation retention süresi 30 gündür. Service-role-only prune RPC'si pg_cron
+tarafından her gün 03:17 UTC'de çalıştırılır; job migration tekrarlarında aynı
+isimle yenilenir. Linked DEV runtime matrisinde Test Cafe B için p95 1.800 ms ve
+tek failure iki warning alarmı üretti, 31 günlük fixture prune edildi, anon health
+ve prune çağrıları reddedildi ve cleanup sonrası orphan sıfır kaldı. Her iki
+observation migration'ı PROD-at-deploy setinde birlikte uygulanmalıdır.
+
+Health entrypoint'i `.github/workflows/dashboard-insights-health.yml` ile her 15
+dakikada çalışan ve manuel tetiklenebilen deploy alarmına bağlanmıştır. Job
+warning/critical için non-zero, RPC erişilemezse `unavailable` sonucu üretir.
+Opsiyonel HTTPS webhook payload'u yalnız aggregate alert alanlarını ve
+deterministik fingerprint'i taşır; tenant kimliği ve ham altyapı hatası taşımaz.
+Webhook teslim hatası scheduler'da ayrı bir exit code ile görünür kalır. Workflow
+push sonrasında `DEV_SUPABASE_URL` ile `DEV_SUPABASE_SERVICE_ROLE_KEY` repo
+secret'larını gerektirir; webhook secret'ı opsiyoneldir.
+
+Dashboard'ın eski `lib/queries.ts` compatibility facade'ı da emekliye
+ayrılmıştır. Restaurant access, menu management, theme editor refs ve tables
+SSR okumaları ayrı feature query modüllerine taşınmış; Pano ve Analytics UI type
+tüketicileri doğrudan kendi feature girişlerine bağlanmıştır. Architecture
+fitness testi genel barrel'ın veya importsuz tek-file query topluluğunun geri
+gelmesini engeller.
+
+Bu feature girişlerinin içindeki doğrudan Supabase okumaları da sonraki
+strangler diliminde taşınmıştır. Restaurant portföyü, menu management,
+theme-editor referansları ve tables için güncel zincir şudur:
+
+```text
+apps/dashboard/lib/queries/<feature>
+  -> trusted dashboard user/member context adapter
+  -> @garsonless/application feature read handler
+  -> @garsonless/db/server feature read-model port
+  -> narrow Supabase projection
+```
+
+Portföy sorgusu yalnız authenticated user bağlamını kullanır; restaurant kapsamlı
+okumalar açık owner veya aktif membership ile kurulan `DashboardActorContext`
+gerektirir. Application katmanı restaurant eşitliğini ve `menu`, `theme` ya da
+`tables` section yetkisini tekrar kontrol eder. DB adapter'ı auth, permission
+ve HTTP bilgisi bilmez; yalnız repository/projection implementasyonudur.
+
+Bu sınır application ve DB contract testleriyle, dashboard architecture fitness
+testiyle ve Test Cafe B üzerinde yalnız-okunur runtime matrisiyle doğrulandı:
+restaurant/portfolio, menu (**4 kategori, 6 ürün, 0 istasyon**), theme (**4
+kategori, 6 ürün**) ve tables (**3**) yeni handler zincirinden döndü. Bu dilim
+migration veya tenant veri yazısı içermemektedir. Sıradaki operasyon dilimi
+settings ve customers SSR okumalarını aynı port sınırına almak, ardından kalan
+dashboard direct-query call-site'larını feature bazında emekliye ayırmaktır.
+
+Persistent observation tablosu ürün trafiğinin uzun vadeli metriği veya limitsiz
+audit deposu değildir.
+
+## Settings ve Customers SSR query sınırı
+
+Settings sayfasının ilk SSR snapshot'ı aynı actor-aware read sınırına alınmıştır:
+
+```text
+Settings page
+  -> getDashboardFeatureContext / authenticated-user adapter
+  -> readDashboardSettings (tenant + settings section policy)
+  -> createDashboardSettingsReadModelPort
+  -> kitchen credential, owner-only station/team ve user-scoped security event projections
+```
+
+Owner dışındaki `settings` üyeleri credential varlığını ve kendi güvenlik
+geçmişini görebilir; istasyon ve ekip listesi application katmanının verdiği
+`includeOwnerData` bayrağı olmadan adapter'dan hiç istenmez. Security event
+okuması service-role olsa da doğrulanmış dashboard user ID'sine açıkça
+scope'ludur; secret/credential değeri hiçbir zaman SSR props'a geçmez.
+
+Customers liste ve detay sayfaları halihazırdaki customer application portlarını
+kullanıyordu; bu dilimde bunların elle kurulmuş actor nesnesi ortak trusted
+`getDashboardFeatureContext` ile değiştirildi. Böylece customer query'leri de
+restaurant, menu, theme, tables ve settings ile aynı tenant/permission context
+çözümleme yolunu paylaşır.
+
+Test Cafe B read-only runtime turunda Settings snapshot'ı kitchen credential
+**var**, **0** station, **1** team member ve **20** security event; Customer
+liste portu **2** toplam kayıt ve ilk sayfada **1** kayıt döndürdü. Bu değişiklik
+migration veya tenant veri yazısı içermemektedir.
+
+## DB explicit type surface
+
+`@garsonless/db` artık kök entrypoint yayınlamaz. Shared generated schema ve
+database-adjacent type'lar yalnız `@garsonless/db/types` üzerinden alınır;
+runtime erişimi için tüketicinin kasıtlı olarak `server` veya `browser`
+seçmesi gerekir. Dashboard, menu, kitchen ve UI'daki type tüketimleri bu açık
+yola taşınmıştır.
+
+DB public-boundary testi `types` yüzeyinin type-only kalmasını, kök export'un
+geri gelmemesini ve uygulama kaynaklarının eski `@garsonless/db` import'una
+dönmemesini denetler. Böylece browser bundle'a yanlışlıkla server capability
+taşınması için bir belirsiz giriş noktası kalmaz.
+
+## Application root-barrel retirement
+
+`@garsonless/application` private paketi artık belirsiz bir kök barrel
+yayınlamaz. Dashboard, menu, kitchen ve DB adapter'ları bir use-case'i yalnız
+açık feature yolu üzerinden (`@garsonless/application/orders`,
+`@garsonless/application/tables` vb.) tüketir. Public-boundary testi hem kök
+export'un geri gelmesini hem de kök import kullanımını engeller.
+
+Bu değişiklik bir davranış veya veri dönüşümü değildir: bağımlılık yönünü
+görünür kılar ve yeni application feature'larının sahiplik yolunu zorunlu
+hale getirir. `@garsonless/db` type tüketimleri de artık açık `types`
+entrypoint'indedir.
+
+## Dashboard feature read contracts ve projection disiplini
+
+Dashboard feature read portları endpoint veya ekran adına bağlı belirsiz
+okumalar yerine ortak bir operation vocabulary taşır. Örnek operation'lar
+`restaurant.portfolio`, `menu.management`, `menu.kitchen-stations`,
+`theme.menu-references`, `tables.list` ve `settings.snapshot`tır.
+
+```text
+Dashboard SSR adapter
+  -> trusted DashboardActorContext
+  -> application read handler + operation policy
+  -> feature read-model port({ restaurantId, operation })
+  -> DB projection contract
+```
+
+Section izni application katmanında operation policy ile değerlendirilir; DB
+adapter yalnız doğrulanmış restaurant ve dar read-model girdisini uygular.
+Feature adapter sorgularındaki `select('*')` kullanımı kaldırılmıştır. Her
+projection açık alan listesiyle sabitlenir; masa projection'ı kullanılmayan
+`qr_code_url` kolonunu özellikle taşımaz. Böylece UI'da gereksiz veri yayılımı
+ve şema drift'i contract testinde görünür hale gelir.
+
+## Dashboard direct-read retirement
+
+Dashboard query feature ağacı için direct-read envanteri tamamlanmıştır.
+`insights-shared` içindeki son app-level `restaurants.timezone` sorgusu da
+mevcut restaurant read portu üzerinden çözülür. Query feature modülleri artık
+Supabase client, `.from()` veya `.rpc()` çağrısı kuramaz; architecture fitness
+testi bu yasağı query ağacının tamamında denetler.
+
+Dashboard uygulamasında kalan authenticated Supabase client kullanımları
+bilinçli HTTP/Auth adapter'larıdır: oturumdaki user'ı çözmek, OAuth code'u
+session'a çevirmek ve invite e-postasını signed-in identity ile karşılaştırmak.
+Bu çağrılar domain verisi veya service-role repository okuması değildir;
+application/DB read-model sınırı için bypass oluşturmaz.
+
 ## İlk strangler dilimi: sipariş ve ödeme
 
 `placePublicOrder` ve `settleOrder` komutları artık menu order route'u,
@@ -224,11 +495,12 @@ order, request, credential, station ve outbox kayıtları cascade ile temizlendi
 İkinci atomiklik matrisi ayrıca iki paralel servis çağrısında **1 satır + 1
 throttle**, provider-bound pay varken `payment_pending` + açık session + korunmuş
 share, provider bırakıldıktan sonra aynı transaction'da `void` + abnormal close
-+ tek close outbox, yanlış istasyonda DB `42501` ve paralel iki ready retry'ında
-tek kalıcı `ready` sonucu kanıtladı. Üç RPC anon için `42501`; cleanup restaurant,
-session, order, share, request ve outbox için sıfırdır. DEV'e uygulanan
-`20260716100000_atomic_table_close_service_request_and_kitchen_transition.sql`
-PROD-at-deploy migration setine eklenmelidir.
+
+- tek close outbox, yanlış istasyonda DB `42501` ve paralel iki ready retry'ında
+  tek kalıcı `ready` sonucu kanıtladı. Üç RPC anon için `42501`; cleanup restaurant,
+  session, order, share, request ve outbox için sıfırdır. DEV'e uygulanan
+  `20260716100000_atomic_table_close_service_request_and_kitchen_transition.sql`
+  PROD-at-deploy migration setine eklenmelidir.
 
 ## Read-model strangler dilimi
 
@@ -366,8 +638,10 @@ semantiği, scroll yüzeyi ve reset footer'ını salt-props view olarak taşır.
 ayrım theme registry sözleşmesini veya publish endpoint'ini değiştirmez.
 
 Theme editor'ın üçüncü diliminde Header, Kartlar, Navigasyon, Düzen, Tema,
-Sepet ve Duyuru renderer'ları ile ortak property kontrolleri
-`ThemePropertyPanels` view sınırına taşındı. Kontrast/soft-color hesapları,
+Sepet ve Duyuru renderer'ları `ThemePropertyPanels` view sınırına taşındı.
+Tekrar kullanılan renk/range/toggle/select/accordion kontrol markup'ı ise
+`ThemePropertyControls` sınırındadır; workspace bu kontrol CSS'ini tek kez
+yükler. Kontrast/soft-color hesapları,
 güvenli control id üretimi ve header/footer sepet erişiminin karşılıklı dışlama
 invariant'ı `theme-property-renderer-model.ts` saf modelindedir. Tiled kontroller
 `aria-pressed` ile seçim durumunu erişilebilir olarak duyurur. Ana shell panel

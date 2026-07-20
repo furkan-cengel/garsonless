@@ -1,5 +1,5 @@
 import { createClient } from '@garsonless/db/browser'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import type { MenuItem, MenuCategory } from '@garsonless/ui'
 import {
   normalizeAllergenCodes,

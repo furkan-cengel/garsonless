@@ -1,6 +1,6 @@
 'use client'
 
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import NewProductDrawer from './NewProductDrawer'
 import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import { useRouter } from 'next/navigation'

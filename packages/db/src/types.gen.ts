@@ -323,6 +323,47 @@ export type Database = {
         }
         Relationships: []
       }
+      dashboard_query_observations: {
+        Row: {
+          created_at: string
+          duration_ms: number
+          error: string | null
+          id: number
+          issue_count: number
+          operation: string
+          outcome: string
+          restaurant_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_ms: number
+          error?: string | null
+          id?: never
+          issue_count?: number
+          operation: string
+          outcome: string
+          restaurant_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number
+          error?: string | null
+          id?: never
+          issue_count?: number
+          operation?: string
+          outcome?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_query_observations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       domain_outbox: {
         Row: {
           aggregate_id: string
@@ -1913,6 +1954,21 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: boolean
       }
+      get_dashboard_query_observation_health: {
+        Args: { p_since?: string }
+        Returns: {
+          affected_restaurant_count: number
+          degraded_count: number
+          failure_count: number
+          issue_count: number
+          latest_observation_at: string
+          observation_count: number
+          oldest_observation_at: string
+          operation: string
+          p95_duration_ms: number
+          slow_success_count: number
+        }[]
+      }
       get_domain_outbox_health: {
         Args: never
         Returns: {
@@ -1995,6 +2051,7 @@ export type Database = {
         Args: { p_patch: Json; p_restaurant_id: string }
         Returns: boolean
       }
+      prune_dashboard_query_observations: { Args: never; Returns: number }
       publish_theme_config_atomic: {
         Args: {
           p_published_by: string

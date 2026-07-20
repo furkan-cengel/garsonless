@@ -6,6 +6,7 @@ import {
   ok,
   separateAllergenDeclarations,
 } from '@garsonless/domain'
+import { authorizeDashboardFeatureRead } from './dashboard-feature-read-models'
 
 export interface MenuCategoryDraft {
   restaurantId: string
@@ -88,11 +89,42 @@ export interface MenuCommandPort<TItem> {
   }): Promise<Result<null>>
 }
 
+export interface MenuManagementReadModel<TCategory, TItem, TStation> {
+  categories: TCategory[]
+  items: TItem[]
+  kitchenStations: TStation[]
+}
+
+export interface MenuManagementReadModelPort<TCategory, TItem, TStation> {
+  readManagementData(input: { restaurantId: string; operation: 'menu.management' }): Promise<Result<MenuManagementReadModel<TCategory, TItem, TStation>>>
+  readKitchenStations(input: { restaurantId: string; operation: 'menu.kitchen-stations' }): Promise<Result<TStation[]>>
+}
+
 function requireMenuAccess(context: DashboardActorContext, restaurantId: string): Result<true> {
   if (!hasSameRestaurant(context, restaurantId) || !context.permissions.includes('menu')) {
     return err('Not authorized')
   }
   return ok(true)
+}
+
+export async function readMenuManagement<TCategory, TItem, TStation>(
+  context: DashboardActorContext,
+  restaurantId: string,
+  port: MenuManagementReadModelPort<TCategory, TItem, TStation>,
+): Promise<Result<MenuManagementReadModel<TCategory, TItem, TStation>>> {
+  const access = authorizeDashboardFeatureRead(context, restaurantId, 'menu.management')
+  return access.ok ? port.readManagementData({ restaurantId, operation: 'menu.management' }) : access
+}
+
+export async function readMenuKitchenStations<TCategory, TItem, TStation>(
+  context: DashboardActorContext,
+  restaurantId: string,
+  port: MenuManagementReadModelPort<TCategory, TItem, TStation>,
+): Promise<Result<TStation[]>> {
+  const access = authorizeDashboardFeatureRead(context, restaurantId, 'menu.kitchen-stations')
+  return access.ok
+    ? port.readKitchenStations({ restaurantId, operation: 'menu.kitchen-stations' })
+    : access
 }
 
 function dietaryConflict(input: Partial<MenuItemDraft>, current?: MenuItemPolicyState): string | null {

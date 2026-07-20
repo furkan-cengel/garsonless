@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getRestaurantsForUser } from '../../lib/queries'
+import { getRestaurantsForUser } from '../../lib/queries/restaurants'
 import { getUserRestaurantAccess, firstPermittedPath } from '../../lib/auth/access'
 
 export default async function DashboardIndexPage() {

@@ -11,7 +11,7 @@ import {
   getAbnormalCloseReport,
   getStaffSettlementReport,
   getLoyaltyReport,
-} from '../queries'
+} from '../queries/analytics'
 import type {
   DailySale,
   HeatmapCell,
@@ -23,7 +23,7 @@ import type {
   AbnormalCloseReport,
   StaffSettlementReport,
   LoyaltyReport,
-} from '../queries'
+} from '../queries/analytics'
 import { assertAccess } from '../auth/access'
 
 const EMPTY_CANCELLATIONS: CancellationReport = { count: 0, lostAmount: 0, allOrders: 0, rate: 0, topItems: [], trend: [], deltaCount: 0, deltaLost: 0, deltaRate: 0 }

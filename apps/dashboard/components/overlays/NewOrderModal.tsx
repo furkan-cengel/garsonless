@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { I, S, btnPrimary, btnGhost, IconButton } from '../../lib/ui'
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import { createOrderFromDashboard } from '../../lib/actions/orders'
-import type { TableStatusData } from '../../lib/queries'
+import type { TableStatusData } from '../../lib/queries/pano'
 import {
   normalizeIngredients,
   normalizeModifierGroups,

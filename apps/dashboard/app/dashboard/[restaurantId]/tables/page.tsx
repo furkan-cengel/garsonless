@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
-import { getRestaurantById, getTablesForRestaurant } from '../../../../lib/queries'
+import { getRestaurantById } from '../../../../lib/queries/restaurants'
+import { getTablesForRestaurant } from '../../../../lib/queries/tables'
 import TablesBuilderShell from '../../../../components/tables/TablesBuilderShell'
 import { assertAccess, requireSection } from '../../../../lib/auth/access'
 import { getOpenTableSessions } from '../../../../lib/actions/tables'

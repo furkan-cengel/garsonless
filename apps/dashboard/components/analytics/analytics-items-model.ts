@@ -1,4 +1,4 @@
-import type { ProductReportItem } from '../../lib/queries'
+import type { ProductReportItem } from '../../lib/queries/analytics'
 
 export type ProductClassTotals = Record<ProductReportItem['abcClass'], number>
 

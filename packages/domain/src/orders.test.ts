@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  ACTIVE_ORDER_STATUSES,
   COLLECTED_ORDER_SPEC,
   canTransitionOrderStatus,
   evaluateOrderCancellation,
   isCollectedOrder,
 } from './orders'
+
+test('active order status vocabulary excludes terminal states', () => {
+  assert.equal(ACTIVE_ORDER_STATUSES.includes('cancelled'), false)
+  assert.equal(ACTIVE_ORDER_STATUSES.includes('paid'), false)
+  assert.equal(ACTIVE_ORDER_STATUSES.includes('served'), true)
+})
 
 test('order transition matrix keeps terminal and payment states closed', () => {
   assert.equal(canTransitionOrderStatus('pending_approval', 'sent_to_kitchen'), true)

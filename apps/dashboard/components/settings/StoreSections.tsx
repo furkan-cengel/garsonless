@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition, type CSSProperties, type ReactNode } from 'react'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import { I, S, Tag, btnPrimary } from '../../lib/ui'
 import { InlineSpinner } from '@garsonless/ui'
 import { SCard, FormRow, inputStyle } from './primitives'

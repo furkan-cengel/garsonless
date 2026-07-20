@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import { I, S, Tag } from '../../lib/ui'
 import { signOut } from '../../lib/actions/auth'
 

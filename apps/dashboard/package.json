@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test:architecture": "node --import tsx --test components/analytics/*.test.ts components/menu/*.test.ts components/tables/*.test.ts components/theme/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -43,6 +44,7 @@
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
     "tailwindcss": "^4.0.0",
+    "tsx": "^4.19.2",
     "typescript": "*"
   }
 }

@@ -1,10 +1,18 @@
 import type {
   AnalyticsReadModelPort,
+  DashboardInsightsReadModelPort,
   OrdersBoardReadModelPort,
   PanoTableDetailReadModelPort,
 } from '@garsonless/application/read-models'
-import { err, ok } from '@garsonless/domain'
+import { ACTIVE_ORDER_STATUSES, err, ok } from '@garsonless/domain'
 import { createServiceClient } from './client'
+import { DASHBOARD_INSIGHTS_PROJECTIONS } from './dashboard-read-model-contract'
+import { createPersistentDashboardInsightsObserver } from './dashboard-read-model-observation-sink'
+import {
+  withDashboardInsightsObservability,
+  type DashboardInsightsObservabilityOptions,
+} from './dashboard-read-model-observability'
+import { applyCollectedOrderFilter } from './order-query-spec'
 import { listTeamMembers } from './team'
 import type { Tables } from './types.gen'
 
@@ -278,4 +286,217 @@ export function createAnalyticsReadModelPort(): AnalyticsReadModelPort {
       })))
     },
   }
+}
+
+export function createDashboardInsightsReadModelPort(
+  observability: DashboardInsightsObservabilityOptions = {},
+): DashboardInsightsReadModelPort {
+  const port: DashboardInsightsReadModelPort = {
+    async readOrderVolume({ restaurantId, since, before, limit, excludeCancelled }) {
+      let query = createServiceClient()
+        .from('orders')
+        .select(DASHBOARD_INSIGHTS_PROJECTIONS.orderVolume)
+        .eq('restaurant_id', restaurantId)
+        .gte('created_at', since)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+      if (before) query = query.lt('created_at', before)
+      if (excludeCancelled) query = query.neq('status', 'cancelled')
+      if (limit) query = query.limit(limit)
+      const { data, error } = await query
+      if (error) return err(error.message)
+      return ok(((data ?? []) as Array<{
+        id: string
+        total: number | null
+        status: string
+        session_id: string | null
+        table_id: string | null
+        created_at: string
+      }>).map((row) => ({
+        id: row.id,
+        total: Number(row.total ?? 0),
+        status: row.status,
+        sessionId: row.session_id,
+        tableId: row.table_id,
+        createdAt: row.created_at,
+      })))
+    },
+
+    async readCollectedOrders({ restaurantId, since, before }) {
+      let query = applyCollectedOrderFilter(
+        createServiceClient()
+          .from('orders')
+          .select(DASHBOARD_INSIGHTS_PROJECTIONS.collectedOrders)
+          .eq('restaurant_id', restaurantId)
+          .gte('paid_at', since)
+          .is('deleted_at', null),
+      )
+      if (before) query = query.lt('paid_at', before)
+      const { data, error } = await query
+      if (error) return err(error.message)
+      return ok(((data ?? []) as Array<{
+        total: number | null
+        paid_at: string
+        payment_method: string | null
+        created_at: string
+        table_id: string | null
+        items: unknown
+      }>).map((row) => ({
+        total: Number(row.total ?? 0),
+        paidAt: row.paid_at,
+        paymentMethod: row.payment_method,
+        createdAt: row.created_at,
+        tableId: row.table_id,
+        items: row.items,
+      })))
+    },
+
+    async readTableRefs({ restaurantId, includeDeleted = false }) {
+      let query = createServiceClient()
+        .from('tables')
+        .select(DASHBOARD_INSIGHTS_PROJECTIONS.tableRefs)
+        .eq('restaurant_id', restaurantId)
+        .order('created_at')
+      if (!includeDeleted) query = query.is('deleted_at', null)
+      const { data, error } = await query
+      if (error) return err(error.message)
+      return ok(((data ?? []) as Array<{
+        id: string; label: string; deleted_at: string | null
+      }>).map((row) => ({ id: row.id, label: row.label, deletedAt: row.deleted_at })))
+    },
+
+    async readTablePerformance({ restaurantId, since }) {
+      const service = createServiceClient()
+      const [tablesResult, ordersResult, closedResult, openResult] = await Promise.all([
+        service.from('tables')
+          .select(DASHBOARD_INSIGHTS_PROJECTIONS.tablePerformanceTables)
+          .eq('restaurant_id', restaurantId)
+          .is('deleted_at', null)
+          .order('created_at'),
+        applyCollectedOrderFilter(
+          service.from('orders')
+            .select(DASHBOARD_INSIGHTS_PROJECTIONS.tablePerformanceOrders)
+            .eq('restaurant_id', restaurantId)
+            .gte('paid_at', since)
+            .is('deleted_at', null)
+            .not('table_id', 'is', null),
+        ),
+        service.from('table_sessions')
+          .select(DASHBOARD_INSIGHTS_PROJECTIONS.tablePerformanceClosedSessions)
+          .eq('restaurant_id', restaurantId)
+          .not('closed_at', 'is', null)
+          .gte('closed_at', since),
+        service.from('table_sessions')
+          .select(DASHBOARD_INSIGHTS_PROJECTIONS.tablePerformanceOpenSessions)
+          .eq('restaurant_id', restaurantId)
+          .is('closed_at', null),
+      ])
+      const error = tablesResult.error ?? ordersResult.error ?? closedResult.error ?? openResult.error
+      if (error) return err(error.message)
+      return ok({
+        tables: ((tablesResult.data ?? []) as Array<{ id: string; label: string }>),
+        orders: ((ordersResult.data ?? []) as Array<{ table_id: string | null; total: number | null }>)
+          .filter((row): row is { table_id: string; total: number | null } => row.table_id !== null)
+          .map((row) => ({ tableId: row.table_id, total: Number(row.total ?? 0) })),
+        closedSessions: ((closedResult.data ?? []) as Array<{
+          table_id: string; opened_at: string; closed_at: string
+        }>).map((row) => ({ tableId: row.table_id, openedAt: row.opened_at, closedAt: row.closed_at })),
+        openTableIds: ((openResult.data ?? []) as Array<{ table_id: string }>).map((row) => row.table_id),
+      })
+    },
+
+    async readPanoOperationalSource({ restaurantId, sessionSince, includePaymentStatus }) {
+      const service = createServiceClient()
+      const [tablesResult, sessionsResult, openingsResult, activeResult, paymentResult] = await Promise.all([
+        service.from('tables')
+          .select(DASHBOARD_INSIGHTS_PROJECTIONS.panoTables)
+          .eq('restaurant_id', restaurantId)
+          .order('created_at'),
+        service.from('table_sessions')
+          .select(DASHBOARD_INSIGHTS_PROJECTIONS.panoOpenSessions)
+          .eq('restaurant_id', restaurantId)
+          .is('closed_at', null),
+        sessionSince
+          ? service.from('table_sessions')
+            .select(DASHBOARD_INSIGHTS_PROJECTIONS.panoSessionOpenings)
+            .eq('restaurant_id', restaurantId)
+            .gte('opened_at', sessionSince)
+          : Promise.resolve({ data: [], error: null }),
+        service.from('orders')
+          .select(DASHBOARD_INSIGHTS_PROJECTIONS.panoActiveOrders, { count: 'exact', head: true })
+          .eq('restaurant_id', restaurantId)
+          .in('status', [...ACTIVE_ORDER_STATUSES])
+          .is('deleted_at', null),
+        includePaymentStatus
+          ? service.from('payment_credentials')
+            .select(DASHBOARD_INSIGHTS_PROJECTIONS.panoPaymentStatus)
+            .eq('restaurant_id', restaurantId)
+            .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+      ])
+
+      const errors: string[] = []
+      const record = (label: string, error: { message: string } | null | undefined) => {
+        if (error) errors.push(`${label}: ${error.message}`)
+      }
+      record('Masalar', tablesResult.error)
+      record('Açık oturumlar', sessionsResult.error)
+      record('Oturum metrikleri', openingsResult.error)
+      record('Aktif siparişler', activeResult.error)
+      record('Ödeme durumu', paymentResult.error)
+
+      const openSessions = ((sessionsResult.data ?? []) as Array<{
+        id: string; table_id: string; opened_at: string
+      }>).map((row) => ({ id: row.id, tableId: row.table_id, openedAt: row.opened_at }))
+      let openSessionOrders: Array<{
+        tableSessionId: string | null
+        status: string
+        total: number
+        paidAt: string | null
+        createdAt: string
+      }> = []
+      if (openSessions.length > 0) {
+        const { data, error } = await service.from('orders')
+          .select(DASHBOARD_INSIGHTS_PROJECTIONS.panoOpenSessionOrders)
+          .eq('restaurant_id', restaurantId)
+          .in('table_session_id', openSessions.map((session) => session.id))
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+        record('Açık oturum siparişleri', error)
+        openSessionOrders = ((data ?? []) as Array<{
+          table_session_id: string | null
+          status: string
+          total: number | null
+          paid_at: string | null
+          created_at: string
+        }>).map((row) => ({
+          tableSessionId: row.table_session_id,
+          status: row.status,
+          total: Number(row.total ?? 0),
+          paidAt: row.paid_at,
+          createdAt: row.created_at,
+        }))
+      }
+
+      const payment = paymentResult.data as { mode?: string | null } | null
+      return ok({
+        errors,
+        tables: ((tablesResult.data ?? []) as Array<{
+          id: string; label: string; deleted_at: string | null
+        }>).map((row) => ({ id: row.id, label: row.label, deletedAt: row.deleted_at })),
+        openSessions,
+        openSessionOrders,
+        sessionOpenings: ((openingsResult.data ?? []) as Array<{ id: string; opened_at: string }>)
+          .map((row) => ({ id: row.id, openedAt: row.opened_at })),
+        activeOrderCount: activeResult.count ?? 0,
+        paymentMode: payment?.mode ?? null,
+        paymentConfigured: includePaymentStatus && payment !== null,
+      })
+    },
+  }
+
+  return withDashboardInsightsObservability(port, {
+    ...observability,
+    observer: observability.observer ?? createPersistentDashboardInsightsObserver(),
+  })
 }

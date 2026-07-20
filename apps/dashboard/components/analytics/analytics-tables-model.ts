@@ -1,4 +1,4 @@
-import type { TableReportRow } from '../../lib/queries'
+import type { TableReportRow } from '../../lib/queries/analytics'
 
 export function formatTableDwell(minutes: number | null): string {
   if (minutes === null) return '—'

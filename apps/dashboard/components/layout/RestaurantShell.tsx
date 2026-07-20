@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import { serviceRequestLabel } from '@garsonless/domain/tables'
 import { ShellContext } from '../../lib/shell-context'
 import { createDashboardBrowserClient } from '../../lib/supabase'

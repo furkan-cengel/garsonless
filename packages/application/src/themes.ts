@@ -11,6 +11,7 @@ import {
   type DashboardActorContext,
   type Result,
 } from '@garsonless/domain'
+import { authorizeDashboardFeatureRead } from './dashboard-feature-read-models'
 
 export interface ThemeRestaurantSnapshot {
   slug: string
@@ -30,6 +31,18 @@ export interface ThemeApplicationPort {
   }): Promise<Result<{ slug: string }>>
 }
 
+export interface ThemeMenuReference<TCategory, TItem> {
+  categories: TCategory[]
+  items: TItem[]
+}
+
+export interface ThemeMenuReferenceReadModelPort<TCategory, TItem> {
+  readMenuReferences(input: {
+    restaurantId: string
+    operation: 'theme.menu-references'
+  }): Promise<Result<ThemeMenuReference<TCategory, TItem>>>
+}
+
 function requireThemeAccess(
   context: DashboardActorContext,
   restaurantId: string,
@@ -37,6 +50,17 @@ function requireThemeAccess(
   return hasSameRestaurant(context, restaurantId) && context.permissions.includes('theme')
     ? ok(true)
     : err('Not authorized')
+}
+
+export async function readThemeMenuReferences<TCategory, TItem>(
+  context: DashboardActorContext,
+  restaurantId: string,
+  port: ThemeMenuReferenceReadModelPort<TCategory, TItem>,
+): Promise<Result<ThemeMenuReference<TCategory, TItem>>> {
+  const access = authorizeDashboardFeatureRead(context, restaurantId, 'theme.menu-references')
+  return access.ok
+    ? port.readMenuReferences({ restaurantId, operation: 'theme.menu-references' })
+    : access
 }
 
 async function resolveFromPort(

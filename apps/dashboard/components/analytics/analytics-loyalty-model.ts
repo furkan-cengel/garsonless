@@ -1,4 +1,4 @@
-import type { LoyaltyReport } from '../../lib/queries'
+import type { LoyaltyReport } from '../../lib/queries/analytics'
 
 const REDEMPTION_REASON_LABELS: Record<string, string> = {
   redeem: 'Puan / damga kullanımı',

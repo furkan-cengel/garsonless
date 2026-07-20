@@ -1,4 +1,4 @@
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 
 interface MenuManagerViewInput {
   categories: Tables<'menu_categories'>[]

@@ -9,7 +9,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import type { MenuModifierGroup as ModifierGroup } from '@garsonless/db/browser'
 import { calculateMarginPercent } from '@garsonless/domain/menu'
 import { InlineSpinner } from '@garsonless/ui'

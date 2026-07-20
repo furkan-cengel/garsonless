@@ -1,5 +1,5 @@
 import type React from 'react'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import {
   normalizeIngredients,
   normalizeModifierGroups,

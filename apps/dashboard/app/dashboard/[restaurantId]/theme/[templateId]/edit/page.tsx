@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { readThemeForEditor } from '@garsonless/application/themes'
 import { createThemeApplicationPort } from '@garsonless/db/server'
-import { getThemeEditorMenuRefs } from '../../../../../../lib/queries'
+import { getThemeEditorMenuRefs } from '../../../../../../lib/queries/theme-editor'
 import ThemeEditorClientLoader from '../../../../../../components/theme/ThemeEditorClientLoader'
 import { assertAccess, requireSection } from '../../../../../../lib/auth/access'
 

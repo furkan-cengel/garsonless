@@ -2,7 +2,7 @@
 
 import { useCallback, useTransition } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import {
   deleteCategory,
   reorderCategories,

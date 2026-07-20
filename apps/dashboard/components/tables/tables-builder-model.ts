@@ -1,4 +1,4 @@
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
 import type { PendingTableRequestView, QRConfig, QRHistory, TableItem } from './tables-builder-types'
 

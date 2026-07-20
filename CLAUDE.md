@@ -70,6 +70,306 @@ The design engine is the core differentiator. Every UI decision routes through i
 ### Kritik pending items
 
 - ⚠️ **`20260711020000_customer_restaurant_associations.sql` yalnız DEV'e uygulandı** — PROD deploy aşamasında uygulanacak PROD-at-deploy migration setine EKLENMELİ (yeni `customer_restaurants` tablosu + orders/loyalty ledger/consents backfill'i; insert'ler `on conflict do nothing` ile idempotent, PROD verisi üzerinde de çalışır).
+- ⚠️ **`20260718010000_dashboard_query_observations.sql` yalnız DEV'e uygulandı** — PROD deploy aşamasında uygulanacak PROD-at-deploy migration setine EKLENMELİ (yalnız service-role erişimli anomaly/slow-query gözlem tablosu + tenant/zaman ve failure/degraded index'leri).
+- ⚠️ **`20260718020000_dashboard_query_observation_operations.sql` yalnız DEV'e uygulandı** — PROD deploy aşamasında uygulanacak PROD-at-deploy migration setine EKLENMELİ (15 dakikalık aggregate health rollup, service-role-only prune RPC'si ve 30 günlük günlük retention cron'u).
+- ⚠️ **Dashboard Insights Health workflow'u push sonrasında repo secret'larıyla aktive edilmeli** — `DEV_SUPABASE_URL` ve `DEV_SUPABASE_SERVICE_ROLE_KEY` zorunlu; `DASHBOARD_INSIGHTS_ALERT_WEBHOOK_URL` opsiyonel HTTPS alarm kanalıdır. Secret değerleri loglanmaz ve webhook payload'u tenant/ham hata taşımaz.
+
+### Modüler monolith — DB explicit type surface ✅ (2026-07-20)
+
+- `@garsonless/db` belirsiz kök entrypoint'i kaldırıldı. Ortak database
+  tipleri artık yalnız `@garsonless/db/types` üzerinden tüketilir; runtime
+  kabiliyetleri hâlâ yalnız `server` veya `browser` alt yollarındadır.
+- Dashboard, menu, kitchen ve UI içindeki **48** type import yeni entrypoint'e
+  taşındı. DB public-boundary testi hem kök export'un geri gelmesini hem de
+  uygulama kaynaklarında eski kök import'un yeniden kullanılmasını engeller.
+- Bu dilim yalnız dependency yönünü ve bundling güvenliğini iyileştirir;
+  migration, veri yazısı veya HTTP davranış değişikliği içermez.
+
+### Modüler monolith — Application root-barrel retirement ✅ (2026-07-20)
+
+- `@garsonless/application` kök entrypoint'i kaldırıldı. Private package'ın
+  uygulama tüketicileri zaten yalnız feature-alt yollarını kullanıyordu;
+  belirsiz wildcard public surface artık yoktur.
+- Yeni public-boundary testi, kök export'un veya `from '@garsonless/application'`
+  import'unun dashboard/menu/kitchen/DB katmanına yeniden girmesini engeller.
+- Sıradaki dilim: büyük UI feature shell'lerini command/query modellerine
+  ayırmayı sürdürmektir.
+
+### Modüler monolith — Dashboard feature read contracts & projection discipline ✅ (2026-07-20)
+
+- Dashboard feature okumaları artık ortak ve isimlendirilmiş bir operation
+  sözlüğü kullanır: `restaurant.portfolio`, `menu.management`, `tables.list`,
+  `settings.snapshot` vb. Tenant ve section politikası application katmanında
+  tek noktadan değerlendirilir; DB adapter'a ham endpoint niyeti sızmaz.
+- Feature read portlarının input sözleşmesi operation adını açıkça taşır. Bu,
+  yeni bir ekranın yanlış veya isimsiz bir repository erişimi eklemesini
+  contract/architecture testlerinde görünür kılar.
+- DB adapter'daki feature sorgularından geniş `select('*')` kullanımları
+  kaldırıldı; restoran, menu, istasyon ve masa için dar ve versioned projection
+  sözleşmeleri tanımlandı. `tables.qr_code_url` dead kolonu masa projection'ına
+  özellikle dahil değildir.
+- Bu dilim migration ve tenant veri yazısı içermez. Sıradaki dilim: legacy
+  compatibility/unused export retirement'i ve büyük UI feature shell'lerinin
+  aynı command/query sınırlarına kademeli ayrıştırılmasıdır.
+
+### Modüler monolith — Dashboard direct-read retirement ✅ (2026-07-20)
+
+- Dashboard SSR/query envanteri tamamlandı. Feature query modüllerinde kalan son
+  app-level tablo okuması (`restaurants.timezone`) mevcut restaurant read portuna
+  taşındı; `insights-shared` artık doğrudan Supabase client/`.from()` çağırmaz.
+- Dashboard app içindeki kalan `createDashboardServerClient` tüketimleri yalnız
+  Supabase Auth adapter sınırındadır: authenticated user çözümü, OAuth session
+  exchange ve invite identity eşleşmesi. Bunlar domain/read repository erişimi
+  değildir ve bu retirement diliminin dışında bilinçli olarak korunur.
+- Architecture test query feature ağacında service-role, authenticated-table
+  query ve RPC çağrılarının tekrar eklenmesini engeller.
+- Sıradaki dilim: read-model sözleşmelerini feature bazında standardize etmek
+  (dar projections, operation vocabularies, runtime/contract matrix) ve sonra
+  legacy compatibility/unused export temizliğine geçmek.
+
+### Modüler monolith — Settings & Customers SSR query boundary ✅ (2026-07-20)
+
+- Settings SSR snapshot'ı direct authenticated/service-role sorgulardan çıkarıldı.
+  `readDashboardSettings` application handler'ı tenant + `settings` section
+  yetkisini denetler; yalnız owner context'inde istasyon/ekip projection'ını
+  ister. Güvenlik geçmişi service-role adapter'ında doğrulanmış `userId` ile
+  dar olarak scope'lanır.
+- Customers liste/detay SSR sayfaları, elle oluşturulmuş dar actor nesnesi
+  yerine ortak `getDashboardFeatureContext` adapter'ını kullanır. Böylece
+  Settings, Customers ve önceki feature sayfaları aynı trusted context
+  çözümleme yolundadır.
+- Test Cafe B yalnız-okunur runtime: Settings için kitchen credential **var**,
+  **0** istasyon, **1** ekip üyesi ve **20** güvenlik olayı; Customers için
+  **2** toplam müşteri / ilk sayfada **1** kayıt döndü. Migration ve tenant
+  verisi yazılmadı.
+- Sıradaki dilim: kalan dashboard direct-query call-site'larını feature bazında
+  inventory çıkarıp application/DB query sınırına taşımak.
+
+### Modüler monolith — Dashboard SSR feature query ports ✅ (2026-07-20)
+
+- Restaurant portföyü, menu management, theme-editor referansları ve tables
+  SSR okumaları app içi doğrudan Supabase sorgusundan çıkarıldı. Her akış artık
+  `dashboard query adapter → @garsonless/application read handler →
+@garsonless/db/server read-model port` zincirini kullanır.
+- Dashboard adapter'ı authenticated user ile açık owner/aktif membership
+  bilgisinden trusted context üretir. Application handler restaurant eşitliğini
+  ve ilgili section yetkisini yeniden denetler; DB adapter yalnız dar
+  projection/repository sorumluluğu taşır.
+- Test Cafe B yalnız-okunur runtime turunda yeni portlar restaurant, portfolio,
+  menu (**4 kategori / 6 ürün / 0 istasyon**), theme (**4 / 6**) ve tables
+  (**3**) sonuçlarını başarıyla döndürdü. Tenant verisi veya migration
+  yazılmadı.
+- Sıradaki dilim: settings ve customers SSR okumalarını aynı actor-aware query
+  sınırına taşımak; ardından kalan dashboard direct-query call-site'larını
+  feature bazında emekliye ayırmak.
+
+### Modüler monolith — Deploy health alarm & query facade retirement ✅ (2026-07-20)
+
+- Dashboard query health entrypoint'i `.github/workflows/dashboard-insights-health.yml`
+  ile her **15 dakikada** ve manuel tetiklenebilir bir operasyonal alarma bağlandı.
+  Warning/critical health job'u non-zero yapar; health RPC erişilemezse ayrı
+  `unavailable` sonucu ve exit code üretir. Böylece GitHub Actions job sonucu
+  webhook olmasa da alarm kanalıdır.
+- Opsiyonel webhook adapter'ı yalnız HTTPS URL kabul eder, 5 saniyede timeout
+  olur ve yalnız aggregate alert vocabulariesini gönderir. Payload tenant ID,
+  restoran adı veya ham DB error içermez; environment + status + eşiklerden
+  deterministik fingerprint üretir. Webhook başarısızlığı scheduler'da ayrı exit
+  code ile görünür kalır.
+- İlk runtime turu health script'inin CommonJS altında top-level `await` yüzünden
+  başlayamadığını yakaladı. Entry `async main()` sınırına alındı; gerçek linked
+  DEV tekrarında **exit 0**, status **healthy**, operation **0**, alert **0**
+  döndü.
+- Dashboard `lib/queries.ts` compatibility barrel'ı tamamen silindi. Restaurant
+  access, menu management, theme editor refs ve tables okumaları sırasıyla
+  `queries/restaurants.ts`, `queries/menu-management.ts`,
+  `queries/theme-editor.ts` ve `queries/tables.ts` feature girişlerine taşındı.
+  Pano/Analytics type tüketicileri de doğrudan kendi feature modüllerine geçti;
+  eski genel barrel importu sıfırlandı.
+- Kullanılmayan legacy `getCategoriesForRestaurant` ve `getItemsForRestaurant`
+  helper'ları barrel ile birlikte emekliye ayrıldı. Architecture fitness testi
+  barrel'ın geri gelmesini, genel import kullanımını ve yeni feature dosyalarının
+  satır bütçelerini engeller.
+- Bu dilimde migration veya tenant veri yazısı yoktur. Workflow'un gerçek
+  schedule/webhook teslimi kod pushlandıktan ve repo secret'ları tanımlandıktan
+  sonra aktive olur.
+- Sıradaki dilim: restaurant/menu/theme/tables SSR feature okumalarını actor
+  context + application query portlarına almak; app katmanındaki doğrudan
+  Supabase sorgu sorumluluğunu DB adapter'larına taşımak.
+
+### Modüler monolith — Dashboard query health rollup & retention ✅ (2026-07-19)
+
+- Ham dashboard query observation'ları için service-role-only aggregate health
+  RPC'si eklendi. Varsayılan pencere **15 dakika**, izin verilen en geniş
+  lookback **7 gün**; sonuç tenant kimliği veya ham hata metni taşımadan yalnız
+  operation bazlı sayı, p95 süre ve zaman aralığı döndürür.
+- Alarm policy saf ve typed bir projection'dır: warning eşikleri failure **1**,
+  degraded **3**, p95 **1.500 ms**; critical eşikleri sırasıyla **5**, **10** ve
+  **3.000 ms**. Bilinmeyen operation'lar yok sayılır; monitor script'i warning
+  veya critical durumda non-zero exit ile deploy/cron entegrasyonuna hazırdır.
+- `prune_dashboard_query_observations()` yalnız service-role'a açıktır ve **30
+  günden eski** observation'ları siler. Migration pg_cron job'unu idempotent
+  biçimde her gün **03:17 UTC** için kurar; anon/authenticated execute yetkileri
+  açıkça kaldırılmıştır.
+- `20260718020000_dashboard_query_observation_operations.sql` linked DEV
+  geçmişinde mevcut; CLI 2.109.1 `db push` sonucu remote'un güncel olduğunu
+  doğruladı. Migration PROD-at-deploy setine eklenmelidir.
+- Gerçek Test Cafe B runtime matrisi health sonucunu **warning** üretti:
+  `order-volume` p95 **1.800 ms** ve `table-refs` failure **1** için iki beklenen
+  alarm oluştu. 31 günlük tek fixture prune edildi; anon health ve prune RPC
+  çağrıları reddedildi; cleanup sonrasında orphan observation sayısı **0**.
+- Verify: domain **28/28**, application **56/56**, dashboard architecture/model
+  **136/136**, DB **117/117**; toplam **337/337** test geçti. Workspace
+  typecheck **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning)
+  ve marketing/dashboard/menu/kitchen production build'leri temiz geçti.
+- Sıradaki dilim: health monitor entrypoint'ini deploy alarm kanalına bağlamak
+  ve compatibility facade'daki kalan genel read call-site'larını feature query
+  portlarına taşımak.
+
+### Modüler monolith — Dashboard query persistent telemetry & DEV runtime ✅ (2026-07-18)
+
+- Dashboard insights observer deploy ortamında kalıcı bir sink'e bağlandı.
+  Varsayılan adapter yalnız `degraded`, `failure` veya **1.000 ms ve üzeri**
+  sorguları `dashboard_query_observations` tablosuna yazar; hızlı başarılı
+  sorgular tabloyu ve logları şişirmez.
+- Kalıcı sink service-role sınırında kalır. Tablo RLS ile anon/authenticated
+  rollere kapalıdır; tenant/zaman ve anomaly/zaman index'leri operasyonel
+  incelemeyi destekler. Insert veya structured-log sink hatası read sonucunu
+  değiştirmez ve kullanıcı isteğine geri sızmaz.
+- Observer çıkış portu sync veya async implementasyon kabul eder. Read-model
+  adapter'ı gözlemi await ederken telemetry hatalarını fail-safe yutar; testte
+  collector veya clock inject edilebilir.
+- `20260718010000_dashboard_query_observations.sql` DEV'e uygulanıp linked
+  generated tipler yenilendi. Migration PROD-at-deploy setine eklenmelidir.
+- Gerçek Test Cafe B runtime matrisi beş projection'ı doğruladı: order volume
+  **25**, collected orders **16**, table refs **3**, table-performance'da **3
+  masa / 16 sipariş / 18 kapalı session / 1 açık masa**, Pano'da **3 masa / 1
+  açık session / 0 source error**. Beş query de `success` gözlendi.
+- Gerçek sink denemesinde işaretli failure satırı service-role ile yazıldı,
+  anon read reddedildi ve test sonunda satır silindi; orphan sayısı **0**.
+- Verify: domain **28/28**, application **56/56**, dashboard architecture/model
+  **136/136**, DB **112/112**; toplam **332/332** test geçti. Workspace
+  typecheck **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning)
+  ve marketing/dashboard/menu/kitchen production build'leri temiz geçti.
+- Sıradaki dilim: observation retention/health rollup ve deploy ortamı alarm
+  eşiklerini tanımlamak; ardından compatibility facade'daki kalan genel read
+  call-site'larını feature query portlarına taşımak.
+
+### Modüler monolith — Dashboard read-model contracts & observability ✅ (2026-07-18)
+
+- Dashboard insights adapter'ının Supabase projection'ları
+  `dashboard-read-model-contract.ts` içinde tek, dar ve pinli sözleşmeye
+  taşındı. Order volume, tahsilat, masa performansı ve Pano operasyon
+  kaynaklarının seçtiği kolonlar contract testi olmadan genişletilemez; wildcard
+  projection yasaktır.
+- Application katmanına typed `DashboardInsightsOperation`,
+  `DashboardInsightsQueryOutcome` ve `DashboardInsightsQueryObserver` çıkış
+  portu eklendi. Her aggregate read `durationMs`, tenant, operation ve
+  `success`/`degraded`/`failure` sonucunu üretir.
+- Pano operasyon read'i alt kaynaklardan bir kısmı başarısız olduğunda mevcut
+  partial UI davranışını korur ve gözlemde `degraded` olur. Result hataları ile
+  beklenmeyen exception'lar `failure` olarak raporlanır; telemetry observer
+  hatası hiçbir zaman read sonucunu veya exception semantiğini değiştirmez.
+- Default structured observer yalnız başarısız, degraded veya **1.000 ms ve
+  üzeri** yavaş sorguları server loguna `[dashboard-insights-query]` etiketiyle
+  yazar. Normal hızlı sorgular log gürültüsü üretmez; observer ve clock testte
+  inject edilebilir.
+- DB contract paketi dar projection kullanımı, latency ölçümü, partial failure,
+  Result/exception korunumu, telemetry fail-safety ve slow-query eşiği için 6
+  yeni test taşır. Dashboard fitness testi de contract + observability
+  bağlantısının adapter sınırında kaldığını doğrular.
+- Verify: domain **28/28**, application **56/56**, dashboard architecture/model
+  **136/136**, DB **110/110**; toplam **330/330** test geçti. Workspace
+  typecheck **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning)
+  ve marketing/dashboard/menu/kitchen production build'leri temiz geçti.
+  Migration veya tenant veri yazısı yok.
+- Sıradaki dilim: telemetry event'lerini deploy ortamındaki kalıcı metric/log
+  sink'ine bağlamak ve kritik read-model'lar için gerçek DEV projection/runtime
+  contract matrisi eklemek.
+
+### Modüler monolith — Dashboard query feature decomposition ✅ (2026-07-18)
+
+- `apps/dashboard/lib/queries.ts` içindeki Pano ve Analytics implementasyonları
+  fiziksel feature modüllerine ayrıldı. Ortak facade **1.449 satırdan 221
+  satıra** indi; mevcut tüketiciler için dar compatibility re-export'lar
+  korunurken Pano/Analytics page ve action'ları doğrudan feature girişlerini
+  kullanır.
+- Yeni sınırlar: `queries/analytics.ts` (357 satır),
+  `queries/analytics-operations.ts` (344), `queries/pano.ts` (436) ve
+  `queries/insights-shared.ts` (151). Actor/tenant çözümü, timezone penceresi,
+  typed read-model portları ve ortak fold yardımcıları shared modülün tek
+  sorumluluğudur.
+- Analytics operasyonel/owner-only raporları ayrı modülde tutulur. Feature
+  modülleri parent facade'a geri import yapamaz; app action/page call-site'ları
+  da compatibility facade yerine doğrudan ilgili feature modülünü kullanır.
+- Architecture fitness testi facade ve her feature dosyası için satır bütçesi,
+  parent-facade import yasağı, doğrudan service-role/geniş tablo sorgusu yasağı
+  ve application → DB read-model zincirini denetler.
+- Verify: domain **28/28**, application **56/56**, dashboard architecture/model
+  **135/135**, DB **104/104**; toplam **323/323** test geçti. Workspace
+  typecheck **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning)
+  ve marketing/dashboard/menu/kitchen production build'leri temiz geçti.
+  Migration veya tenant veri yazısı yok.
+- Sıradaki dilim: read-model repository/RPC contract testlerini ve query
+  latency/partial-failure gözlemlenebilirliğini güçlendirmek; veri projeksiyonu
+  veya semantik drift'ini UI'dan önce yakalamak.
+
+### Modüler monolith — Dashboard insights read-model boundary ✅ (2026-07-18)
+
+- Pano ve Analytics'in sipariş, tahsilat, masa performansı ve operasyonel
+  snapshot okumaları typed `DashboardInsightsReadModelPort` sınırına taşındı.
+  Orders board'un mevcut portuyla birlikte üç yoğun dashboard ekranı artık
+  application query + DB adapter yolunu kullanır.
+- Application katmanı tenant ile `pano`/`analytics` section yetkisini port
+  çağrısından önce doğrular. Pano ödeme provider durumu yalnız trusted owner
+  context'inde açılır; caller'ın `includePaymentStatus` isteği tek başına
+  yeterli değildir.
+- Dashboard `lib/queries.ts` artık `orders`, `table_sessions` veya
+  `payment_credentials` tablolarını doğrudan sorgulamaz; service-role client ve
+  PostgREST tahsilat filtresi app katmanından çıkarıldı. DB adapter dar
+  projection'lar kullanır ve tahsilat filtresini domain'deki tek
+  `COLLECTED_ORDER_SPEC` sözleşmesinden üretir.
+- Aktivite akışı DB'den yalnız son 7 iptal edilmemiş kaydı alır. Masa durum
+  sorgusu metrik gerekmeyen çağrıda tarihsel session opening'leri çekmez. Pano
+  gelir zaman serisi `paidAt` üzerinden hesaplandığı için Analytics ile aynı
+  tahsilat zaman semantiğini kullanır.
+- Architecture fitness testi app katmanında geniş tablo/service-role/filter
+  kullanımının geri gelmesini engeller ve application + DB port zincirini
+  doğrular.
+- Verify: domain **28/28**, application **56/56**, dashboard architecture/model
+  **134/134**, DB **104/104**; toplam **322/322** test geçti. Workspace
+  typecheck **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning)
+  ve marketing/dashboard/menu/kitchen production build'leri temiz geçti.
+  Migration veya tenant veri yazısı yok.
+- Sıradaki dilim: fiziksel modül ayrımıyla `apps/dashboard/lib/queries.ts`
+  içindeki Pano/Analytics query adapter'larını feature dosyalarına bölmek;
+  compatibility re-export ve mimari bütçe testleriyle büyük ortak query
+  modülünün yeniden büyümesini önlemek.
+
+### Modüler monolith — Architecture CI gate ✅ (2026-07-18)
+
+- Root kalite kapısı `check:ci` altında lint, workspace typecheck, domain,
+  application, dashboard architecture/model ve DB testlerini zorunlu çalıştırır.
+  `check` bu hızlı kapıyı production build ve smoke testinden önce çağırır;
+  dolayısıyla yerel ve CI sözleşmesi aynı komut zincirini kullanır.
+- Dashboard için analytics/menu/tables/theme mimari testlerini tek girişte
+  çalıştıran `test:architecture` script'i eklendi. Test runner'ları
+  `node --import tsx --test` kullanır; bu, `tsx --test` CLI'ının kısıtlı CI
+  ortamlarında açabildiği IPC socket bağımlılığını ortadan kaldırır.
+- `.github/workflows/architecture-ci.yml` PR'larda ve `main` push'larında
+  frozen-lockfile install + `pnpm check:ci` çalıştırır. Workflow read-only
+  permission, Node 24, pnpm cache, 20 dakikalık timeout ve aynı ref için eski
+  koşuyu iptal eden concurrency policy taşır.
+- Verify: domain **27/27**, application **54/54**, dashboard architecture/model
+  **133/133**, DB **104/104**; toplam **318/318** test geçti. Workspace
+  typecheck **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning)
+  ve marketing/dashboard/menu/kitchen production build'leri temiz geçti.
+  Migration veya tenant veri yazısı yok.
+- Push sonrasında GitHub branch protection/ruleset içinde
+  **Architecture gate** status check'inin required yapılması ayrıca gerekir;
+  workflow dosyasının varlığı tek başına merge'i zorunlu olarak engellemez.
+- Sıradaki dilim: dashboard Pano/Analytics/Orders read modellerini domain bazlı
+  query modüllerine ayırmak ve tahsilat gibi ortak semantiği tek specification
+  sınırına taşımak.
 
 ### Modüler monolith — DB compatibility wrapper retirement ✅ (2026-07-17)
 
@@ -112,7 +412,7 @@ The design engine is the core differentiator. Every UI decision routes through i
 - Dashboard actor context'i owner yetkisini açık `isOwner` alanıyla taşır.
   Application command tenant + `settings` iznini tekrar doğrular; non-owner
   generic settings patch'i yalnız `store/contact/hours/tax/languages/
-  notifications/orders` allowlist'ine açıktır. Owner-only veya gelecekte
+notifications/orders` allowlist'ine açıktır. Owner-only veya gelecekte
   eklenecek bilinmeyen key'ler member için fail-closed kalır.
 - Yeni `patch_restaurant_settings_atomic` RPC'si yalnız gönderilen top-level
   JSON key'lerini DB içinde tek update ile birleştirir. Böylece eşzamanlı
@@ -552,6 +852,11 @@ The design engine is the core differentiator. Every UI decision routes through i
 - Ana `ThemeEditorClient.tsx` bu dilimde **4.430 → 3.631 satıra**, üç Theme dilimi toplamında **4.980 → 3.631 satıra** indi. Theme model matrisi **20/20**: yeni renderer kuralları 5/5, property projection 5/5, page-flow 8/8 ve preview bridge 2/2.
 - Test Cafe B owner-session salt-okunur runtime: route **200**, yedi renderer panelinin tamamı mount oldu; Sepet `İkon + Rozet` seçimi `aria-pressed=true` olurken `Floating Pill=false` kaldı, dirty göstergesi **1**, erişilebilirlik bölümü görünür ve preview **ready**. Mutation request **0**, browser console/page error **0**; theme snapshot digest'i önce/sonra aynı (`3b06e94672a3822a`).
 - Verify: dashboard typecheck, lint ve production build temiz. Migration yok. Sıradaki client-shell dilimi Theme section-settings renderer kontrolleri; ardından compatibility/session/OTP retirement.
+
+### Büyük client shell ayrıştırma — Theme property control boundary ✅ (2026-07-20)
+
+- Header, Kartlar, Navigasyon, Düzen, Tema, Sepet ve Duyuru panellerinin ortak renk/range/toggle/select/accordion markup'ı `ThemePropertyControls.tsx` bileşenine ayrıldı. `ThemePropertyPanels.tsx` artık yalnız panel kompozisyonu, grup görünürlüğü ve panel-özel not/invariant bağlama sorumluluğunu taşır.
+- `ThemeEditorPropertiesWorkspace` range kontrol CSS'ini tek kez yükler; visual davranış ve control id sözleşmesi değişmez. Mimari test, panelin ortak kontrol implementasyonlarını geri almamasını ve control boundary'nin tenant/action/Supabase erişimi taşımamasını kilitler.
 
 ### Büyük client shell ayrıştırma — ThemeEditorClient section settings dilimi ✅ (2026-07-16)
 

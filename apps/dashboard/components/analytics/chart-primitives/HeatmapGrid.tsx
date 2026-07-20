@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useState } from 'react'
-import type { HeatmapCell } from '../../../lib/queries'
+import type { HeatmapCell } from '../../../lib/queries/analytics'
 import FloatingTooltip from './FloatingTooltip'
 import { TooltipCard } from './ChartTooltip'
 import { count } from './format'

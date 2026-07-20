@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from 'react'
 import { createCategory, updateCategory } from '../../lib/actions/menu'
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import { InlineSpinner } from '@garsonless/ui'
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 
 interface Props {
   restaurantId: string

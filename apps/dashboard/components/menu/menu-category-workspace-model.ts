@@ -1,4 +1,4 @@
-import type { Tables } from '@garsonless/db'
+import type { Tables } from '@garsonless/db/types'
 
 type Category = Tables<'menu_categories'>
 type MenuItem = Tables<'menu_items'>

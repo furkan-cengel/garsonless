@@ -22,7 +22,7 @@ import {
 import type { MenuItem, MenuCategory, OrderSummaryItem, BillOrder, DietaryFilter, StoreInfo } from '@garsonless/ui'
 import type { TableSessionInfo, SessionOrderRow } from '../../lib/queries'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
-import type { Tables, OrderStatus, MemberBalances } from '@garsonless/db'
+import type { Tables, OrderStatus, MemberBalances } from '@garsonless/db/types'
 import { useCartStore } from '../../lib/store/useCartStore'
 import { useOrderStore } from '../../lib/store/useOrderStore'
 import { createMenuAuthBrowserClient } from '../../lib/supabase-browser'

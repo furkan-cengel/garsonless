@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
-import type { TeamMember } from '@garsonless/db'
+import type { TeamMember } from '@garsonless/db/types'
 import { I, Tag, btnGhost, btnPrimary } from '../../lib/ui'
 import { SCard, FormRow, inputStyle } from './primitives'
 import { updateUserProfile } from '../../lib/actions/auth'

@@ -1,7 +1,7 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import type { TableReportRow } from '../../lib/queries'
+import type { TableReportRow } from '../../lib/queries/analytics'
 import { formatCurrency } from '../../lib/utils'
 import { AnalyticsCard as Card, AnalyticsKpi as KPISmall } from './AnalyticsReportPrimitives'
 import { analyticsRangePeriodLabel as rangePeriodLabel } from './analytics-report-model'

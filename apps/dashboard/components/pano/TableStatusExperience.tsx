@@ -8,7 +8,7 @@ import { closeTableSession } from '../../lib/actions/tables'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
 import { fetchPanoTableDetail } from '../../lib/actions/pano'
 import type { PanoTableDetail } from '../../lib/actions/pano'
-import type { TableStatusData } from '../../lib/queries'
+import type { TableStatusData } from '../../lib/queries/pano'
 
 const SettlementSheet = dynamic(() => import('../tables/SettlementSheet'))
 

@@ -2,10 +2,9 @@
   "name": "@garsonless/db",
   "version": "0.0.0",
   "private": true,
-  "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
     "./browser": "./src/browser.ts",
+    "./types": "./src/types.ts",
     "./server": {
       "browser": "./src/server-browser-guard.ts",
       "default": "./src/server.ts"
@@ -13,7 +12,7 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "test": "tsx --test src/*.test.ts",
+    "test": "node --import tsx --test src/*.test.ts",
     "typecheck": "tsc --noEmit",
     "db:migrate": "node scripts/migrate.mjs",
     "db:login": "supabase login",
@@ -24,6 +23,9 @@
     "db:status": "supabase migration list",
     "db:reset": "supabase db reset",
     "types:gen": "supabase gen types typescript --linked --schema public > src/types.gen.ts",
+    "verify:dashboard-insights": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-dashboard-insights-runtime.ts",
+    "verify:dashboard-insights-health": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-dashboard-insights-health-runtime.ts",
+    "health:dashboard-insights": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/check-dashboard-insights-health.ts",
     "seed:maf": "tsx src/seed-maf.ts"
   },
   "dependencies": {

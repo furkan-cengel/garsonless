@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { OrderStatus } from '@garsonless/db'
+import type { OrderStatus } from '@garsonless/db/types'
 import { formatTRY } from './formatCurrency'
 import { WaiterCallButton, type WaiterCallState } from './WaiterCallButton'
 

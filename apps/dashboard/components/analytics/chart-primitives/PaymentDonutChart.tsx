@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { PieChart, Pie, Cell, Tooltip, Sector, ResponsiveContainer } from 'recharts'
-import type { PaymentBreakdown } from '../../../lib/queries'
+import type { PaymentBreakdown } from '../../../lib/queries/analytics'
 import ChartTooltip, { type RechartsPayloadItem } from './ChartTooltip'
 import { tooltipWrapperStyle } from './axis'
 import { money, percent } from './format'

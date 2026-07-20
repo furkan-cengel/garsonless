@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { OrderStatus } from '@garsonless/db'
+import type { OrderStatus } from '@garsonless/db/types'
 import type { OrderSummaryItem } from '@garsonless/ui'
 
 export interface OrderMetaSnapshot {
