@@ -18,6 +18,7 @@ import { readNotificationPrefs, type NotificationPrefs } from '../../lib/notific
 import { readLateThresholdMin, clampLateThreshold, LATE_THRESHOLD_MIN_MIN, LATE_THRESHOLD_MIN_MAX } from '../../lib/orders-prefs'
 import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
 import { canUseFeature } from '@garsonless/domain/entitlements'
+import { useDashboardPushSubscription } from '../notifications/useDashboardPushSubscription'
 
 /* ── PAYMENTS ─────────────────────────────────────── */
 export function PaymentsSection({ restaurantId }: { restaurantId: string }) {
@@ -293,19 +294,22 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
 //   newOrderSound / newOrderPush  → useNotificationSW (beep + Web Notification)
 //   newOrderToast                 → OrderToast on the orders board
 //   serviceRequestAlert           → "Garson çağrısı" toast in the dashboard shell
+//   serviceRequestPush            → durable operating-system waiter-call alert
 // E-posta/SMS and the old "sessiz saatler" stub are omitted — no backing channel.
 const NOTIFICATION_ROWS: { key: keyof NotificationPrefs; label: string; hint: string }[] = [
   { key: 'newOrderSound',       label: 'Yeni sipariş sesi',      hint: 'Sipariş geldiğinde kısa bip sesi çalar' },
   { key: 'newOrderPush',        label: 'Masaüstü bildirimi',     hint: 'Tarayıcı/sistem bildirimi gösterir (izin gerekir)' },
   { key: 'newOrderToast',       label: 'Uygulama içi uyarı',     hint: 'Panelde yeni sipariş baloncuğu gösterir' },
   { key: 'serviceRequestAlert', label: 'Garson çağrısı uyarısı', hint: 'Müşteri garson çağırınca panelde uyarı gösterir' },
+  { key: 'serviceRequestPush',  label: 'Garson çağrısı bildirimi', hint: 'Panel kapalıyken de sistem bildirimi gönderir (izin gerekir)' },
 ]
 
 export function NotificationsSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
   const browserNotificationsEnabled = canUseFeature(restaurant.plan, 'browser_notifications')
+  const device = useDashboardPushSubscription(restaurant.id, browserNotificationsEnabled)
   const [prefs, setPrefs] = useState<NotificationPrefs>(() => ({
     ...readNotificationPrefs(restaurant.settings),
-    ...(!browserNotificationsEnabled ? { newOrderPush: false } : {}),
+    ...(!browserNotificationsEnabled ? { newOrderPush: false, serviceRequestPush: false } : {}),
   }))
   // Geciken eşiği (dk) — settings.orders.late_threshold_min; Siparişler
   // panosundaki "Geciken" uyarısını sürer (mutfak aşamasında geçen süre).
@@ -340,7 +344,7 @@ export function NotificationsSection({ restaurant }: { restaurant: Tables<'resta
     <form onSubmit={handleSave}>
       <SCard title="Bildirimler" subtitle="Sipariş ve garson çağrısı uyarılarını yönet">
         {NOTIFICATION_ROWS.map(row => {
-          const locked = row.key === 'newOrderPush' && !browserNotificationsEnabled
+          const locked = (row.key === 'newOrderPush' || row.key === 'serviceRequestPush') && !browserNotificationsEnabled
           return (
           <FormRow key={row.key} label={row.label} hint={row.hint}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -373,6 +377,32 @@ export function NotificationsSection({ restaurant }: { restaurant: Tables<'resta
           Uygulama içi uyarılar tüm paketlerde gerçek zamanlı çalışır. İşletim sistemi bildirimi Starter
           ve üstü paketlerde tarayıcı izniyle kullanılabilir. E-posta/SMS henüz desteklenmiyor.
         </div>
+        {browserNotificationsEnabled && (
+          <FormRow
+            label="Bu cihaz"
+            hint={device.status === 'subscribed'
+              ? 'Panel kapalıyken de seçtiğiniz sistem bildirimlerini alır'
+              : device.status === 'unconfigured'
+                ? 'Web Push anahtarı bu ortamda yapılandırılmamış'
+                : device.status === 'denied'
+                  ? 'Tarayıcı izni engellenmiş; site ayarlarından açın'
+                  : device.error ?? 'Bu tarayıcıyı dayanıklı bildirim teslimatına bağlayın'}
+          >
+            <button
+              type="button"
+              disabled={device.status === 'subscribing' || device.status === 'unconfigured' || device.status === 'denied'}
+              onClick={() => void (device.status === 'subscribed' ? device.unsubscribe() : device.subscribe())}
+              style={device.status === 'subscribed' ? btnGhost() : btnPrimary()}
+            >
+              {device.status === 'subscribed' ? <I.check size={13} /> : <I.bell size={13} />}
+              {device.status === 'subscribed'
+                ? 'Bu cihazı kapat'
+                : device.status === 'subscribing'
+                  ? 'Etkinleştiriliyor…'
+                  : 'Bu cihazı etkinleştir'}
+            </button>
+          </FormRow>
+        )}
       </SCard>
 
       <div style={{

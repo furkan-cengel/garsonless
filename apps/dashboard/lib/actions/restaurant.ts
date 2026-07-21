@@ -169,6 +169,7 @@ const notificationPrefsSchema = z.object({
   newOrderPush: z.boolean(),
   newOrderToast: z.boolean(),
   serviceRequestAlert: z.boolean(),
+  serviceRequestPush: z.boolean(),
 })
 
 const notificationSettingsSchema = z.object({
@@ -251,7 +252,10 @@ export async function saveNotificationPreferences(
   }
   if (!restaurant) return { error: 'Not authorized' }
   const restaurantPlan = (restaurant as unknown as { plan?: unknown }).plan
-  if (parsed.data.prefs.newOrderPush && !canUseFeature(restaurantPlan, 'browser_notifications')) {
+  if (
+    (parsed.data.prefs.newOrderPush || parsed.data.prefs.serviceRequestPush)
+    && !canUseFeature(restaurantPlan, 'browser_notifications')
+  ) {
     return dashboardActionFailure('PLAN_REQUIRED', {
       operation: 'notifications.settings.save',
       message: 'Masaüstü bildirimleri Starter ve üstü paketlerde kullanılabilir.',

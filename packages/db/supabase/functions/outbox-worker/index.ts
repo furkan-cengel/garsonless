@@ -20,6 +20,11 @@ const durableConsumer = (eventType: string): 'loyalty-ledger' | 'campaign-sms' |
   return null
 }
 
+const isDashboardPushEvent = (eventType: string) => [
+  'order.created',
+  'service_request.created',
+].includes(eventType)
+
 const required = (name: string) => {
   const value = Deno.env.get(name)
   if (!value) throw new Error(`Missing ${name}`)
@@ -61,6 +66,9 @@ Deno.serve(async (req) => {
   let deadLettered = 0
   let leaseLost = 0
   let deferred = 0
+  let pushDispatched = 0
+  let pushSkipped = 0
+  let pushUnconfigured = 0
   for (const event of (data ?? []) as OutboxEvent[]) {
     try {
       const consumer = durableConsumer(event.event_type)
@@ -99,6 +107,44 @@ Deno.serve(async (req) => {
           if (!response.ok) {
             const detail = await response.text().catch(() => '')
             throw new Error(`Domain consumer ${consumer} failed (${response.status}): ${detail.slice(0, 300)}`)
+          }
+        }
+      }
+
+      // Web Push is a second, independent fan-out consumer. Its endpoint owns
+      // per-subscription receipts, entitlement checks and provider retries;
+      // the generic worker only dispatches the outbox event. Missing rollout
+      // configuration is observable but does not block core order processing.
+      if (isDashboardPushEvent(event.event_type)) {
+        const pushReceipt = await supabase
+          .from('domain_outbox_receipts')
+          .select('outbox_id')
+          .eq('outbox_id', event.id)
+          .eq('consumer', 'dashboard-push')
+          .maybeSingle()
+        if (pushReceipt.error) throw pushReceipt.error
+
+        if (pushReceipt.data) {
+          pushSkipped += 1
+        } else {
+          const pushUrl = Deno.env.get('OUTBOX_PUSH_CONSUMER_URL')
+          if (!pushUrl) {
+            pushUnconfigured += 1
+          } else {
+            const response = await fetch(pushUrl, {
+              method: 'POST',
+              signal: AbortSignal.timeout(45_000),
+              headers: {
+                'content-type': 'application/json',
+                'x-outbox-secret': secret,
+              },
+              body: JSON.stringify({ eventId: event.id }),
+            })
+            if (!response.ok) {
+              const detail = await response.text().catch(() => '')
+              throw new Error(`Dashboard push consumer failed (${response.status}): ${detail.slice(0, 300)}`)
+            }
+            pushDispatched += 1
           }
         }
       }
@@ -175,6 +221,9 @@ Deno.serve(async (req) => {
     deadLettered,
     leaseLost,
     deferred,
+    pushDispatched,
+    pushSkipped,
+    pushUnconfigured,
     reconciliation,
   })
 })

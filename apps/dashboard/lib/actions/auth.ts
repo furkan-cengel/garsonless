@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { deleteDashboardPushSubscriptionsForUser } from '@garsonless/db/server'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { recordSecurityEvent } from '@garsonless/db/server'
@@ -82,6 +83,13 @@ export async function signUp(
 
 export async function signOut(): Promise<never> {
   const supabase = await createDashboardServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) {
+    // Prevent a shared browser from receiving tenant notifications after the
+    // dashboard identity signs out. Failure must never trap the user in a
+    // session; expired endpoints are also retired by provider 404/410.
+    await deleteDashboardPushSubscriptionsForUser(user.id)
+  }
   await supabase.auth.signOut()
   redirect('/auth/login')
 }

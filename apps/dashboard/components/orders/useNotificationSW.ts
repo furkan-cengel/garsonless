@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { Order } from './useOrdersRealtime'
 import { formatCurrency } from '../../lib/utils'
 import { claimOrderNotificationDelivery } from '../notifications/notification-delivery'
+import { useDashboardPushSubscription } from '../notifications/useDashboardPushSubscription'
 
 interface NewOrderChannels {
   /** Web Audio beep on a new order. */
@@ -17,14 +18,7 @@ interface NewOrderChannels {
 export function useNotificationSW(restaurantId: string, newOrder: Order | null, channels: NewOrderChannels) {
   const { sound, push, browserNotificationsEnabled } = channels
   const deliveredReceipts = useRef(new Set<string>())
-  const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>(() =>
-    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported',
-  )
-
-  const requestPermission = useCallback(async () => {
-    if (!browserNotificationsEnabled || !('Notification' in window)) return
-    setPermission(await Notification.requestPermission())
-  }, [browserNotificationsEnabled])
+  const subscription = useDashboardPushSubscription(restaurantId, browserNotificationsEnabled)
 
   // Register ServiceWorker on mount (cheap, fires no notification by itself).
   useEffect(() => {
@@ -64,7 +58,12 @@ export function useNotificationSW(restaurantId: string, newOrder: Order | null, 
     }
 
     // Desktop Web Notification via the ServiceWorker
-    if (browserNotificationsEnabled && push && 'serviceWorker' in navigator) {
+    if (
+      browserNotificationsEnabled
+      && push
+      && subscription.status !== 'subscribed'
+      && 'serviceWorker' in navigator
+    ) {
       if (!('Notification' in window) || Notification.permission !== 'granted') return
       navigator.serviceWorker.ready
         .then((reg) => {
@@ -80,7 +79,10 @@ export function useNotificationSW(restaurantId: string, newOrder: Order | null, 
         })
         .catch(() => {})
     }
-  }, [browserNotificationsEnabled, newOrder, push, restaurantId, sound])
+  }, [browserNotificationsEnabled, newOrder, push, restaurantId, sound, subscription.status])
 
-  return { permission, requestPermission }
+  return {
+    ...subscription,
+    requestPermission: subscription.subscribe,
+  }
 }

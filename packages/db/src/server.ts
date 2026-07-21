@@ -123,3 +123,9 @@ export {
   createTableSessionPort,
 } from './table-command-port'
 export { createPublicTableQueryPort } from './table-qr-tokens'
+export {
+  createDashboardPushPort,
+  deleteDashboardPushEndpoint,
+  deleteDashboardPushSubscriptionsForUser,
+  upsertDashboardPushSubscription,
+} from './dashboard-push-port'

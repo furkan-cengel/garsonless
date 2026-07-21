@@ -12,6 +12,7 @@
     "./orders": "./src/orders.ts",
     "./outbox": "./src/outbox.ts",
     "./payments": "./src/payments.ts",
+    "./push-notifications": "./src/push-notifications.ts",
     "./payment-reconciliation": "./src/payment-reconciliation.ts",
     "./read-models": "./src/read-models.ts",
     "./restaurants": "./src/restaurants.ts",

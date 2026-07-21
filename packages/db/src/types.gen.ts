@@ -323,6 +323,110 @@ export type Database = {
         }
         Relationships: []
       }
+      dashboard_push_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          last_error: string | null
+          outbox_id: string
+          sent_at: string | null
+          status: string
+          subscription_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          last_error?: string | null
+          outbox_id: string
+          sent_at?: string | null
+          status?: string
+          subscription_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          last_error?: string | null
+          outbox_id?: string
+          sent_at?: string | null
+          status?: string
+          subscription_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_push_deliveries_outbox_id_fkey"
+            columns: ["outbox_id"]
+            isOneToOne: false
+            referencedRelation: "domain_outbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dashboard_push_deliveries_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "dashboard_push_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dashboard_push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          disabled_at: string | null
+          endpoint: string
+          endpoint_hash: string
+          failure_count: number
+          id: string
+          last_success_at: string | null
+          p256dh: string
+          restaurant_id: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          disabled_at?: string | null
+          endpoint: string
+          endpoint_hash: string
+          failure_count?: number
+          id?: string
+          last_success_at?: string | null
+          p256dh: string
+          restaurant_id: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          disabled_at?: string | null
+          endpoint?: string
+          endpoint_hash?: string
+          failure_count?: number
+          id?: string
+          last_success_at?: string | null
+          p256dh?: string
+          restaurant_id?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_push_subscriptions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dashboard_query_observations: {
         Row: {
           created_at: string
@@ -2127,6 +2231,10 @@ export type Database = {
       release_split_checkout_reservation: {
         Args: { p_restaurant_id: string; p_share_id: string }
         Returns: boolean
+      }
+      reorder_kitchen_stations: {
+        Args: { p_ordered_ids: string[]; p_restaurant_id: string }
+        Returns: undefined
       }
       reorder_menu_categories: {
         Args: { p_ordered_ids: string[]; p_restaurant_id: string }

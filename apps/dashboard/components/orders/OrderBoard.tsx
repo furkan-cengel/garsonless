@@ -843,11 +843,26 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             )}
             <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-4)' }}>Hazır bekleme alarmı: 5 dk</span>
           </div>
-          {browserNotificationsEnabled && notifPrefs.newOrderPush && notification.permission !== 'granted' && notification.permission !== 'unsupported' && (
+          {browserNotificationsEnabled && notifPrefs.newOrderPush && notification.status !== 'subscribed' && notification.status !== 'unsupported' && (
             <div role="status" style={{ marginBottom: 12, padding: '9px 12px', borderRadius: 9, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
               <I.bell size={13} />
-              <span style={{ flex: 1 }}>{notification.permission === 'denied' ? 'Tarayıcı bildirimleri engellenmiş. Site ayarlarından izin verin.' : 'Yeni sipariş masaüstü bildirimlerini etkinleştirin.'}</span>
-              {notification.permission === 'default' && <button type="button" onClick={() => void notification.requestPermission()} style={{ ...btnGhost(), height: 28 }}>İzin ver</button>}
+              <span style={{ flex: 1 }}>
+                {notification.status === 'denied'
+                  ? 'Tarayıcı bildirimleri engellenmiş. Site ayarlarından izin verin.'
+                  : notification.status === 'unconfigured'
+                    ? 'Web Push bu ortamda henüz yapılandırılmamış.'
+                    : notification.error ?? 'Panel kapalıyken de yeni sipariş almak için bu cihazı etkinleştirin.'}
+              </span>
+              {notification.status !== 'denied' && notification.status !== 'unconfigured' && (
+                <button
+                  type="button"
+                  disabled={notification.status === 'subscribing'}
+                  onClick={() => void notification.requestPermission()}
+                  style={{ ...btnGhost(), height: 28 }}
+                >
+                  {notification.status === 'subscribing' ? 'Etkinleştiriliyor…' : 'Bu cihazı etkinleştir'}
+                </button>
+              )}
             </div>
           )}
           {/* New-café hero: ONLY when today has zero orders at all (not when a
