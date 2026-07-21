@@ -76,6 +76,28 @@ The design engine is the core differentiator. Every UI decision routes through i
 - ⚠️ **`20260721010000_dashboard_push_subscriptions.sql` yalnız linked DEV'e uygulandı** — dashboard Web Push teslimatı için subscription/delivery tablolarını ve own-user + tenant RLS politikalarını ekler. PROD deploy setine ancak push endpoint/worker environment'ları birlikte hazırlandığında eklenmelidir.
 - ⚠️ **`20260721020000_menu_items_anon_allergen_note_grant.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (`allergen_note` + `cross_contact_note` kolonlarını anon SELECT allowlist'ine ekler; bu grant olmadan public menü sorgusu 42501 alır ve menü boş görünür).
 
+### Master roadmap Faz 0 — SaaS ürün kuralları ADR'leri ✅ (2026-07-21)
+
+- Production master roadmap'i (Faz 0–9) benimsenmiştir; sıradaki büyük iş Faz 5
+  (SaaS billing + dunning), ön şartı olan Faz 0 ADR'leri `docs/adr/` altında
+  kilitlendi: [0001 plan/paket+trial+kota](docs/adr/0001-plan-paket-katalogu.md),
+  [0002 İyzico billing+dunning](docs/adr/0002-abonelik-billing-iyzico.md),
+  [0003 tenant lifecycle+suspend+retention](docs/adr/0003-tenant-lifecycle-ve-askiya-alma.md),
+  [0004 platform admin erişimi](docs/adr/0004-platform-admin-ve-destek-erisimi.md).
+- Kilitli kararlar (ürün sahibi onayıyla): paketler **free/starter/pro/enterprise**
+  (kod canonical), abonelik provider'ı **İyzico** (tek provider, port arkasında),
+  **14 gün Pro trial** → ödeme yoksa free'ye düşüş (suspend değil), dunning
+  **+14. günde otomatik suspend** (değerler ayarlanabilir platform politikası),
+  `cancelled` sonrası **90 gün** dondurulmuş saklama + fatura kayıtları 10 yıl,
+  platform admin **ayrı app** (`apps/platform-admin`) + ayrı aktör modeli +
+  zorunlu MFA + süreli read-only impersonation.
+- Roadmap durum haritası (2026-07-21): Faz 1 Pano ✅, Faz 2 hata çekirdeği ✅
+  (eksik: error_events/fingerprint read model + QR'a özel 404), Faz 3 foundation ✅
+  (eksik: subscriptions/usage tabloları + trial state + override + shadow mode),
+  Faz 4 Web Push ✅ (eksik: preferences/templates/inbox/deliveries genel modeli +
+  e-posta kanalı + dedupe), Faz 5/6 başlamadı. Önerilen sıradaki dilim: Faz 4'ün
+  genel bildirim modeli VEYA doğrudan Faz 5 veri modeli (ADR-0002).
+
 ### Public menü boş görünme düzeltmesi — anon kolon grant + hata dürüstlüğü ✅ (2026-07-21)
 
 - Kök neden: public menü sorgusu ([apps/menu/lib/queries.ts](apps/menu/lib/queries.ts)) `allergen_note`/`cross_contact_note` seçiyordu ama `20260704010000` anon kolon allowlist'i bu iki kolonu (sonradan `20260713010000` ile eklendiler) içermiyordu → PostgREST tüm select'i **42501** ile reddediyor, `getMenuItems` da error'ı yutup boş liste döndürüyordu. Tema önizleme ve masa QR sayfaları aynı sorguyu kullandığı için ikisinde birden ürünler kayboluyordu.
