@@ -18,7 +18,7 @@ const context = {
 
 function port(): ThemeApplicationPort {
   return {
-    readRestaurant: async () => ok({ slug: 'cafe-a', name: 'Cafe A', logoUrl: null, settings: { active_template_id: 'default' } }),
+    readRestaurant: async () => ok({ slug: 'cafe-a', name: 'Cafe A', logoUrl: null, settings: { active_template_id: 'default' }, plan: 'pro' }),
     readConfig: async () => ok({ ...DEFAULT_THEME, accent: '#123456', __template_id: 'default' }),
     publish: async ({ restaurantId }) => ok({ slug: restaurantId }),
   }
@@ -46,7 +46,7 @@ test('editor and public reads use the same template ownership policy', async () 
   assert.equal(editor.ok && editor.value.theme.accent, '#123456')
   assert.equal(publicRead.ok && publicRead.value.theme.accent, '#123456')
 
-  adapter.readRestaurant = async () => ok({ slug: 'cafe-a', name: 'Cafe A', logoUrl: null, settings: { active_template_id: 'obsidian' } })
+  adapter.readRestaurant = async () => ok({ slug: 'cafe-a', name: 'Cafe A', logoUrl: null, settings: { active_template_id: 'obsidian' }, plan: 'pro' })
   const otherTemplate = await readPublishedTheme({ restaurantId: 'restaurant-a' }, adapter)
   assert.equal(otherTemplate.ok && otherTemplate.value.theme.accent === '#123456', false)
 })
@@ -92,4 +92,32 @@ test('publish rejects invalid template and document before persistence', async (
     err('Invalid theme document'),
   )
   assert.equal(called, false)
+})
+
+test('publish enforces the advanced theme section entitlement on the server', async () => {
+  const adapter = port()
+  let published = false
+  adapter.readRestaurant = async () => ok({
+    slug: 'cafe-a',
+    name: 'Cafe A',
+    logoUrl: null,
+    settings: null,
+    plan: 'starter',
+  })
+  adapter.publish = async () => {
+    published = true
+    return ok({ slug: 'cafe-a' })
+  }
+
+  const result = await publishRestaurantTheme(context, {
+    restaurantId: 'restaurant-a',
+    templateId: 'default',
+    theme: {
+      ...DEFAULT_THEME,
+      pageBlocks: [{ type: 'section', id: 'gallery' }],
+    },
+  }, adapter)
+
+  assert.deepEqual(result, err('Plan feature unavailable'))
+  assert.equal(published, false)
 })

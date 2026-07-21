@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import type { KitchenSettingsCommandPort } from '@garsonless/application/kitchen'
-import { err, ok, type Result } from '@garsonless/domain'
+import { err, normalizeRestaurantPlan, ok, type Result } from '@garsonless/domain'
 import { createServiceClient } from './client'
 
 type KitchenSettingsRpc = (
@@ -21,6 +21,17 @@ function rotateToken(): string {
 
 export function createKitchenSettingsCommandPort(): KitchenSettingsCommandPort {
   return {
+    async readPlan(input) {
+      const { data, error } = await createServiceClient()
+        .from('restaurants')
+        .select('plan')
+        .eq('id', input.restaurantId)
+        .maybeSingle()
+      if (error) return err(error.message)
+      if (!data) return err('Restaurant not found')
+      return ok(normalizeRestaurantPlan((data as { plan: unknown }).plan))
+    },
+
     async reorderStations(input): Promise<Result<null>> {
       const { error } = await kitchenRpc()('reorder_kitchen_stations', {
         p_restaurant_id: input.restaurantId,

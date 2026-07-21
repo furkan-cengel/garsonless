@@ -24,6 +24,7 @@ async function main() {
       owner_id: fixture.owner_id,
       slug: `kitchen-browser-${suffix}`,
       name: `Kitchen browser ${suffix}`,
+      plan: 'pro',
       settings: { runtimeMarker: suffix },
     }).select('id').single()
     if (restaurantError || !restaurant) throw restaurantError ?? new Error('Restaurant unavailable')
@@ -49,8 +50,9 @@ async function main() {
     })
     if (initialOrderError) throw initialOrderError
 
-    const ticket = await createKitchenLaunchTicket(restaurantId)
-    assert(ticket, 'Kitchen launch ticket unavailable')
+    const launch = await createKitchenLaunchTicket(restaurantId)
+    assert(launch.kind === 'created', 'Kitchen launch ticket unavailable')
+    const ticket = launch.ticket
     browser = await chromium.launch({ headless: true })
     const context = await browser.newContext()
     const page = await context.newPage()

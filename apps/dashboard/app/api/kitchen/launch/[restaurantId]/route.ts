@@ -45,8 +45,17 @@ export async function GET(
   const kitchenOrigin = readKitchenOrigin()
   if (!kitchenOrigin) return new Response('Mutfak uygulaması yapılandırılmamış.', { status: 503 })
 
-  const ticket = await createKitchenLaunchTicket(restaurantId)
-  if (!ticket) return new Response('Mutfak erişimi henüz oluşturulmamış.', { status: 409 })
+  const launch = await createKitchenLaunchTicket(restaurantId)
+  if (launch.kind === 'plan_required') {
+    return new Response('Mutfak ekranı Pro paketiyle kullanılabilir.', { status: 403 })
+  }
+  if (launch.kind === 'credential_missing') {
+    return new Response('Mutfak erişimi henüz oluşturulmamış.', { status: 409 })
+  }
+  if (launch.kind === 'unavailable') {
+    return new Response('Mutfak erişimi şu anda doğrulanamadı.', { status: 503 })
+  }
+  const ticket = launch.ticket
 
   const action = new URL(`/kitchen/${restaurantId}/session`, kitchenOrigin).toString()
   const nonce = randomUUID().replaceAll('-', '')

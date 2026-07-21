@@ -27,7 +27,7 @@ const tableContext = {
 
 function dashboardTablePort(overrides: Partial<DashboardTablePort> = {}): DashboardTablePort {
   return {
-    async createTable() { return { ok: true, value: { id: 'table-a', token: 'token-a' } } },
+    async createTable() { return { ok: true, value: { kind: 'created', id: 'table-a', token: 'token-a' } } },
     async renameTable() { return { ok: true, value: null } },
     async deleteTable() { return { ok: true, value: 'deleted' } },
     async listQrTokens() { return { ok: true, value: {} } },
@@ -44,11 +44,22 @@ test('dashboard table create rejects cross-tenant replay before touching persist
     tableContext,
     { restaurantId: 'restaurant-b', label: 'Masa 1' },
     dashboardTablePort({
-      async createTable() { touched = true; return { ok: true, value: { id: 'table', token: 'token' } } },
+      async createTable() { touched = true; return { ok: true, value: { kind: 'created', id: 'table', token: 'token' } } },
     }),
   )
   assert.deepEqual(result, { ok: false, error: 'Not authorized' })
   assert.equal(touched, false)
+})
+
+test('dashboard table create preserves a typed plan-limit outcome for the HTTP adapter', async () => {
+  const result = await createDashboardTable(
+    tableContext,
+    { restaurantId: 'restaurant-a', label: 'Masa 4' },
+    dashboardTablePort({
+      async createTable() { return { ok: true, value: { kind: 'plan_limit', limit: 3 } } },
+    }),
+  )
+  assert.deepEqual(result, { ok: true, value: { kind: 'plan_limit', limit: 3 } })
 })
 
 test('dashboard QR rotation derives audit actor from trusted context', async () => {

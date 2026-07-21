@@ -25,6 +25,7 @@ async function main() {
       owner_id: fixture.owner_id,
       slug: `kitchen-session-${suffix}`,
       name: `Kitchen session ${suffix}`,
+      plan: 'pro',
       settings: { runtimeMarker: suffix },
     }).select('id').single()
     if (restaurantError || !restaurant) throw restaurantError ?? new Error('Restaurant unavailable')
@@ -37,8 +38,9 @@ async function main() {
     })
     if (credentialError) throw credentialError
 
-    const launch = await createKitchenLaunchTicket(restaurantId)
-    assert(launch, 'Launch ticket was not created')
+    const launchResult = await createKitchenLaunchTicket(restaurantId)
+    assert(launchResult.kind === 'created', 'Launch ticket was not created')
+    const launch = launchResult.ticket
     const session = await exchangeKitchenLaunchTicket(restaurantId, launch)
     assert(session, 'Launch ticket was not exchanged')
     const replayedSession = await exchangeKitchenLaunchTicket(restaurantId, launch)
@@ -51,6 +53,20 @@ async function main() {
     assert(!crossTenantReplay, 'Kitchen session crossed tenant boundary')
     assert(!launchAsSession, 'Launch artifact was accepted as a session')
 
+    const { error: downgradeError } = await service.from('restaurants')
+      .update({ plan: 'starter' })
+      .eq('id', restaurantId)
+    if (downgradeError) throw downgradeError
+    const blockedLaunch = await createKitchenLaunchTicket(restaurantId)
+    const oldSessionAfterDowngrade = await verifyKitchenSession(restaurantId, session)
+    assert(blockedLaunch.kind === 'plan_required', 'Starter plan created a kitchen launch ticket')
+    assert(!oldSessionAfterDowngrade, 'Starter downgrade left the KDS session valid')
+
+    const { error: upgradeError } = await service.from('restaurants')
+      .update({ plan: 'pro' })
+      .eq('id', restaurantId)
+    if (upgradeError) throw upgradeError
+
     const { error: rotationError } = await service.from('kitchen_credentials').update({
       token: randomBytes(32).toString('base64url'),
       updated_at: new Date().toISOString(),
@@ -62,8 +78,9 @@ async function main() {
     assert(!oldSessionAfterRotation, 'Credential rotation left the old session valid')
     assert(oldTicketAfterRotation === null, 'Credential rotation left the old launch ticket valid')
 
-    const rotatedLaunch = await createKitchenLaunchTicket(restaurantId)
-    assert(rotatedLaunch, 'Rotated launch ticket was not created')
+    const rotatedLaunchResult = await createKitchenLaunchTicket(restaurantId)
+    assert(rotatedLaunchResult.kind === 'created', 'Rotated launch ticket was not created')
+    const rotatedLaunch = rotatedLaunchResult.ticket
     const concurrentExchange = await Promise.all([
       exchangeKitchenLaunchTicket(restaurantId, rotatedLaunch),
       exchangeKitchenLaunchTicket(restaurantId, rotatedLaunch),
@@ -94,6 +111,10 @@ async function main() {
         anonReceiptConsume: anonReceiptConsume.error.code,
       },
       session: { validBeforeRotation, crossTenantReplay, launchAsSession },
+      planGate: {
+        starterLaunch: blockedLaunch.kind,
+        oldSessionAfterDowngrade,
+      },
       rotation: {
         oldSessionValid: oldSessionAfterRotation,
         oldTicketExchange: oldTicketAfterRotation !== null,

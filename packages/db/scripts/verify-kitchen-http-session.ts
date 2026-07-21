@@ -12,8 +12,9 @@ async function main() {
     .select('id, name').eq('slug', 'test-cafe-b').single()
   if (error || !restaurant) throw error ?? new Error('Test Cafe B unavailable')
 
-  const ticket = await createKitchenLaunchTicket(restaurant.id)
-  assert(ticket, 'Test Cafe B kitchen access is not configured')
+  const launch = await createKitchenLaunchTicket(restaurant.id)
+  assert(launch.kind === 'created', 'Test Cafe B kitchen access is not configured')
+  const ticket = launch.ticket
 
   const legacySecret = 'legacy-query-secret-must-not-authenticate'
   const legacyResponse = await fetch(`${baseUrl}/kitchen/${restaurant.id}?token=${legacySecret}`, {

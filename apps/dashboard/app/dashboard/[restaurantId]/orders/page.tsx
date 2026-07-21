@@ -9,6 +9,7 @@ import type { Order } from '../../../../components/orders/useOrdersRealtime'
 import { readNotificationPrefs } from '../../../../lib/notification-prefs'
 import { readLateThresholdMin } from '../../../../lib/orders-prefs'
 import { assertAccess, requireSection } from '../../../../lib/auth/access'
+import { canUseFeature } from '@garsonless/domain/entitlements'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -46,6 +47,7 @@ export default async function OrdersPage({ params }: Props) {
       hasKitchenAccess={board.value.hasKitchenAccess}
       receiptTax={receiptTax}
       notifPrefs={readNotificationPrefs(restaurant.settings)}
+      browserNotificationsEnabled={canUseFeature(restaurant.plan, 'browser_notifications')}
       lateThresholdMin={readLateThresholdMin(restaurant.settings)}
       initialSince={today.toISOString()}
     />

@@ -94,6 +94,7 @@ export {
   KITCHEN_SESSION_TTL_SECONDS,
   verifyKitchenSession,
 } from './kitchen-session'
+export type { KitchenLaunchTicketResult } from './kitchen-session'
 export {
   createDashboardOrderPort,
   createDashboardOrderLifecyclePort,

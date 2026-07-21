@@ -266,9 +266,11 @@ interface SectionPickerDialogProps {
   sections: readonly ThemeSectionOption[]
   visibleSections: readonly ThemeSectionOption[]
   activeSectionIds: readonly string[]
+  canAddAdvancedSections: boolean
   onSearchChange: (value: string) => void
   onGroupChange: (group: string) => void
   onAddSection: (sectionId: string) => void
+  onLockedSection: () => void
   onClose: () => void
   renderPreview: (sectionId: string) => ReactNode
 }
@@ -281,9 +283,11 @@ export function SectionPickerDialog({
   sections,
   visibleSections,
   activeSectionIds,
+  canAddAdvancedSections,
   onSearchChange,
   onGroupChange,
   onAddSection,
+  onLockedSection,
   onClose,
   renderPreview,
 }: SectionPickerDialogProps) {
@@ -425,20 +429,23 @@ export function SectionPickerDialog({
           }}>
             {visibleSections.map((section) => {
               const exists = activeSectionIds.includes(section.id)
+              const locked = section.plan === 'pro' && !canAddAdvancedSections
               const SectionIcon = I[section.icon]
               return (
                 <button
                   key={section.id}
                   type="button"
-                  onClick={() => onAddSection(section.id)}
+                  onClick={() => (locked ? onLockedSection() : onAddSection(section.id))}
+                  aria-disabled={locked}
+                  title={locked ? 'Pro pakette kullanılabilir' : undefined}
                   style={{
                     textAlign: 'left',
                     border: '1px solid var(--border)',
                     borderRadius: 14,
                     background: 'var(--surface)',
                     overflow: 'hidden',
-                    cursor: 'pointer',
-                    opacity: exists ? 0.82 : 1,
+                    cursor: locked ? 'not-allowed' : 'pointer',
+                    opacity: locked ? 0.58 : exists ? 0.82 : 1,
                     boxShadow: '0 1px 2px rgba(20,25,31,.05)',
                     padding: 0,
                     position: 'relative',
@@ -465,6 +472,11 @@ export function SectionPickerDialog({
                         <div style={{ marginTop: 5, color: 'var(--text-3)', fontSize: 13.5, lineHeight: 1.35 }}>
                           {section.sub}
                         </div>
+                        {locked && (
+                          <div style={{ marginTop: 8, color: '#b66400', fontSize: 12, fontWeight: 800 }}>
+                            Pro pakette kullanılabilir
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

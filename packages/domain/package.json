@@ -11,6 +11,8 @@
     "./context": "./src/context.ts",
     "./customers": "./src/customers.ts",
     "./events": "./src/events.ts",
+    "./errors": "./src/errors.ts",
+    "./entitlements": "./src/entitlements.ts",
     "./loyalty": "./src/loyalty.ts",
     "./menu": "./src/menu.ts",
     "./result": "./src/result.ts",

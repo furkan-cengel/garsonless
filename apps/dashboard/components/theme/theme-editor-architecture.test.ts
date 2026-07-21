@@ -111,6 +111,9 @@ test("theme editor orchestrator delegates picker dialogs to views and navigation
   );
   assert.match(dialogsLayerSource, /<TemplatePickerDialog/);
   assert.match(dialogsLayerSource, /<SectionPickerDialog/);
+  assert.match(clientSource, /canUseFeature\(restaurantPlan, 'theme_advanced_sections'\)/);
+  assert.match(dialogsLayerSource, /canAddAdvancedSections/);
+  assert.match(dialogsSource, /Pro pakette kullanılabilir/);
   assert.match(clientSource, /useThemeEditorNavigation/);
   assert.doesNotMatch(clientSource, /role="dialog"/);
   assert.doesNotMatch(

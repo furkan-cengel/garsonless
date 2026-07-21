@@ -5,10 +5,12 @@ import {
   type GarsonlessTheme,
 } from '@garsonless/design-engine'
 import {
+  canUseFeature,
   err,
   hasSameRestaurant,
   ok,
   type DashboardActorContext,
+  type RestaurantPlan,
   type Result,
 } from '@garsonless/domain'
 import { authorizeDashboardFeatureRead } from './dashboard-feature-read-models'
@@ -18,6 +20,26 @@ export interface ThemeRestaurantSnapshot {
   name: string
   logoUrl: string | null
   settings: Record<string, unknown> | null
+  plan: RestaurantPlan
+}
+
+/**
+ * Persisted identifiers of the Pro-only theme catalogue. The command checks
+ * them itself so a caller cannot bypass the dashboard's disabled UI state.
+ */
+const ADVANCED_THEME_SECTION_IDS = new Set([
+  'featured-scroll',
+  'chef-pick',
+  'combo-ribbon',
+  'discount-badge',
+  'promo-slider',
+  'gallery',
+])
+
+function usesAdvancedThemeSections(theme: GarsonlessTheme): boolean {
+  return (theme.pageBlocks ?? []).some(
+    (block) => block.type === 'section' && ADVANCED_THEME_SECTION_IDS.has(block.id),
+  )
 }
 
 export interface ThemeApplicationPort {
@@ -125,6 +147,17 @@ export async function publishRestaurantTheme(
   if (!isThemeTemplateId(input.templateId)) return err('Unknown theme template')
   const theme = sanitizeThemeTokens(input.theme, input.templateId)
   if (!theme) return err('Invalid theme document')
+
+  const restaurantResult = await port.readRestaurant({ restaurantId: input.restaurantId })
+  if (!restaurantResult.ok) return restaurantResult
+  if (!restaurantResult.value) return err('Restaurant not found')
+  if (
+    usesAdvancedThemeSections(theme)
+    && !canUseFeature(restaurantResult.value.plan, 'theme_advanced_sections')
+  ) {
+    return err('Plan feature unavailable')
+  }
+
   return port.publish({
     restaurantId: input.restaurantId,
     templateId: input.templateId,

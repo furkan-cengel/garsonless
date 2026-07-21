@@ -17,6 +17,7 @@ import { saveNotificationPreferences } from '../../lib/actions/restaurant'
 import { readNotificationPrefs, type NotificationPrefs } from '../../lib/notification-prefs'
 import { readLateThresholdMin, clampLateThreshold, LATE_THRESHOLD_MIN_MIN, LATE_THRESHOLD_MIN_MAX } from '../../lib/orders-prefs'
 import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
+import { canUseFeature } from '@garsonless/domain/entitlements'
 
 /* ── PAYMENTS ─────────────────────────────────────── */
 export function PaymentsSection({ restaurantId }: { restaurantId: string }) {
@@ -301,7 +302,11 @@ const NOTIFICATION_ROWS: { key: keyof NotificationPrefs; label: string; hint: st
 ]
 
 export function NotificationsSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
-  const [prefs, setPrefs] = useState<NotificationPrefs>(() => readNotificationPrefs(restaurant.settings))
+  const browserNotificationsEnabled = canUseFeature(restaurant.plan, 'browser_notifications')
+  const [prefs, setPrefs] = useState<NotificationPrefs>(() => ({
+    ...readNotificationPrefs(restaurant.settings),
+    ...(!browserNotificationsEnabled ? { newOrderPush: false } : {}),
+  }))
   // Geciken eşiği (dk) — settings.orders.late_threshold_min; Siparişler
   // panosundaki "Geciken" uyarısını sürer (mutfak aşamasında geçen süre).
   const [lateThreshold, setLateThreshold] = useState<string>(() => String(readLateThresholdMin(restaurant.settings)))
@@ -334,11 +339,22 @@ export function NotificationsSection({ restaurant }: { restaurant: Tables<'resta
   return (
     <form onSubmit={handleSave}>
       <SCard title="Bildirimler" subtitle="Sipariş ve garson çağrısı uyarılarını yönet">
-        {NOTIFICATION_ROWS.map(row => (
+        {NOTIFICATION_ROWS.map(row => {
+          const locked = row.key === 'newOrderPush' && !browserNotificationsEnabled
+          return (
           <FormRow key={row.key} label={row.label} hint={row.hint}>
-            <Toggle on={prefs[row.key]} onChange={value => set(row.key, value)} ariaLabel={row.label} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {locked && <Tag tone="neutral">Starter</Tag>}
+              <Toggle
+                on={prefs[row.key]}
+                disabled={locked}
+                onChange={value => set(row.key, value)}
+                ariaLabel={locked ? `${row.label}, Starter paketi gerekir` : row.label}
+              />
+            </div>
           </FormRow>
-        ))}
+          )
+        })}
         <FormRow label="Gecikme eşiği (dk)" hint="Mutfak aşamasında bu süreyi aşan sipariş panoda 'Geciken' sayılır (5–120)">
           <input
             type="number"
@@ -354,8 +370,8 @@ export function NotificationsSection({ restaurant }: { restaurant: Tables<'resta
           />
         </FormRow>
         <div style={{ padding: '12px 18px', fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
-          Bu uyarılar sipariş ve masa panellerinde gerçek zamanlı çalışır. E-posta/SMS bildirimleri
-          henüz desteklenmiyor.
+          Uygulama içi uyarılar tüm paketlerde gerçek zamanlı çalışır. İşletim sistemi bildirimi Starter
+          ve üstü paketlerde tarayıcı izniyle kullanılabilir. E-posta/SMS henüz desteklenmiyor.
         </div>
       </SCard>
 

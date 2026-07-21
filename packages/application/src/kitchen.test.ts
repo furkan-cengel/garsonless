@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { err, ok } from '@garsonless/domain'
+import { err, ok, type RestaurantPlan } from '@garsonless/domain'
 import {
   reorderKitchenStations,
   rotateKitchenAccessCredential,
@@ -15,8 +15,9 @@ const owner = {
   isOwner: true,
 }
 
-function port(): KitchenSettingsCommandPort {
+function port(plan: RestaurantPlan = 'pro'): KitchenSettingsCommandPort {
   return {
+    readPlan: async () => ok(plan),
     reorderStations: async () => ok(null),
     rotateAccessCredential: async () => ok(null),
   }
@@ -68,4 +69,18 @@ test('owner commands delegate the complete ordered station set and credential ro
     restaurantId: 'restaurant-a',
   }, base)).ok, true)
   assert.equal(rotated, true)
+})
+
+test('kitchen credential rotation is Pro-gated before persistence', async () => {
+  const base = port('starter')
+  let rotated = false
+  base.rotateAccessCredential = async () => {
+    rotated = true
+    return ok(null)
+  }
+
+  assert.deepEqual(await rotateKitchenAccessCredential(owner, {
+    restaurantId: 'restaurant-a',
+  }, base), err('Plan feature unavailable'))
+  assert.equal(rotated, false)
 })

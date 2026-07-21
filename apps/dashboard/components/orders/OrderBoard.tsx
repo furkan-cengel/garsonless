@@ -553,17 +553,22 @@ interface Props {
   hasKitchenAccess?: boolean
   receiptTax?: Record<string, unknown> | null
   notifPrefs: NotificationPrefs
+  browserNotificationsEnabled: boolean
   /** settings.orders.late_threshold_min (clamped 5–120, default 20). */
   lateThresholdMin: number
   /** Restaurant-local start-of-day used by SSR and reconnect reconciliation. */
   initialSince: string
 }
 
-export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, hasKitchenAccess = false, receiptTax, notifPrefs, lateThresholdMin, initialSince }: Props) {
+export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, hasKitchenAccess = false, receiptTax, notifPrefs, browserNotificationsEnabled, lateThresholdMin, initialSince }: Props) {
   const { orders, newOrderEvent, clearNewOrderEvent, updateOrderLocally, connectionStatus } =
     useOrdersRealtime(restaurantId, initialOrders, initialSince)
 
-  const notification = useNotificationSW(newOrderEvent, { sound: notifPrefs.newOrderSound, push: notifPrefs.newOrderPush })
+  const notification = useNotificationSW(restaurantId, newOrderEvent, {
+    sound: notifPrefs.newOrderSound,
+    push: notifPrefs.newOrderPush,
+    browserNotificationsEnabled,
+  })
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const selectedOrder = selectedOrderId ? orders.find((order) => order.id === selectedOrderId) ?? null : null
@@ -838,7 +843,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             )}
             <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-4)' }}>Hazır bekleme alarmı: 5 dk</span>
           </div>
-          {notifPrefs.newOrderPush && notification.permission !== 'granted' && notification.permission !== 'unsupported' && (
+          {browserNotificationsEnabled && notifPrefs.newOrderPush && notification.permission !== 'granted' && notification.permission !== 'unsupported' && (
             <div role="status" style={{ marginBottom: 12, padding: '9px 12px', borderRadius: 9, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
               <I.bell size={13} />
               <span style={{ flex: 1 }}>{notification.permission === 'denied' ? 'Tarayıcı bildirimleri engellenmiş. Site ayarlarından izin verin.' : 'Yeni sipariş masaüstü bildirimlerini etkinleştirin.'}</span>

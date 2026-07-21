@@ -16,6 +16,7 @@ import {
   createTableSessionPort,
 } from '@garsonless/db/server'
 import { assertAccess } from '../auth/access'
+import { dashboardActionFailure } from '../server-action-error'
 
 const createTableSchema = z.object({
   restaurantId: z.string().uuid(),
@@ -98,9 +99,15 @@ export async function createTable(
     createDashboardTablePort(),
   )
   if (!result.ok) return { error: result.error }
+  if (result.value.kind === 'plan_limit') {
+    return dashboardActionFailure('PLAN_REQUIRED', {
+      operation: 'tables.create',
+      message: `Mevcut planınız en fazla ${result.value.limit} aktif masa destekliyor. Daha fazla masa için planınızı yükseltebilirsiniz.`,
+    })
+  }
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
-  return result.value
+  return { id: result.value.id, token: result.value.token }
 }
 
 export async function renameTable(

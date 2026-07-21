@@ -26,6 +26,7 @@ export function AnalyticsReportShell({
   activeReport,
   range,
   isOwner,
+  hasAdvancedAnalytics,
   isPending,
   activeReportLoaded,
   canExport,
@@ -40,6 +41,7 @@ export function AnalyticsReportShell({
   activeReport: AnalyticsReportId
   range: AnalyticsRange
   isOwner: boolean
+  hasAdvancedAnalytics: boolean
   isPending: boolean
   activeReportLoaded: boolean
   canExport: boolean
@@ -50,7 +52,7 @@ export function AnalyticsReportShell({
   onExport: () => void
   children: ReactNode
 }) {
-  const visibleReports = getVisibleAnalyticsReports(isOwner)
+  const visibleReports = getVisibleAnalyticsReports(isOwner, hasAdvancedAnalytics)
   const activeLabel = ANALYTICS_REPORTS.find((report) => report.id === activeReport)?.label ?? 'Raporlar'
 
   return (

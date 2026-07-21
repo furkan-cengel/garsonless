@@ -32,6 +32,7 @@ async function main() {
         owner_id: fixture.owner_id,
         slug: `loyalty-strangler-${suffix}`,
         name: `Loyalty strangler ${suffix}`,
+        plan: 'pro',
         settings: {
           loyalty: {
             stamp_enabled: true,

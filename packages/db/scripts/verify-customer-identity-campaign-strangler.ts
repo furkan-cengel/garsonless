@@ -39,6 +39,7 @@ async function main() {
         owner_id: fixture.owner_id,
         slug: `identity-campaign-${suffix}`,
         name: `Identity campaign ${suffix}`,
+        plan: 'pro',
         settings: {
           loyalty: {
             stamp_enabled: false,

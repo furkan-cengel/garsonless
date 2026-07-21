@@ -12,7 +12,7 @@ export const ORDER_STATUS_TRANSITIONS = domainOrderStatusTransitions
 export const canTransitionOrderStatus = domainCanTransitionOrderStatus
 export type { OrderStatus, PaymentMethod } from '@garsonless/domain/orders'
 
-export type RestaurantPlan = 'free' | 'starter' | 'pro' | 'enterprise'
+export type { RestaurantPlan } from '@garsonless/domain/entitlements'
 
 // How an order was settled (orders.payment_method). null = unpaid OR legacy-paid.
 // 'comp' (İkram) is settled but ₺0 COLLECTED — excluded from ciro, reportable

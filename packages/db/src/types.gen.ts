@@ -1872,6 +1872,15 @@ export type Database = {
         }
         Returns: Json
       }
+      create_table_with_plan_limit: {
+        Args: { p_label: string; p_restaurant_id: string }
+        Returns: {
+          outcome: string
+          table_id: string
+          table_limit: number
+          token: string
+        }[]
+      }
       customer_access_token_hook: { Args: { event: Json }; Returns: Json }
       defer_domain_outbox: {
         Args: {

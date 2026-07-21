@@ -16,10 +16,12 @@ export function useAnalyticsReports({
   restaurantId,
   initialData,
   isOwner,
+  hasAdvancedAnalytics,
 }: {
   restaurantId: string
   initialData: AnalyticsInitialData
   isOwner: boolean
+  hasAdvancedAnalytics: boolean
 }) {
   const [activeReport, setActiveReport] = useState<AnalyticsReportId>('sales')
   const [range, setRange] = useState<AnalyticsRange>('week')
@@ -46,6 +48,7 @@ export function useAnalyticsReports({
 
   function changeReport(report: AnalyticsReportId) {
     if (report === 'operasyon' && !isOwner) return
+    if ((report === 'operasyon' || report === 'sadakat') && !hasAdvancedAnalytics) return
     setActiveReport(report)
     if (!loadedReports[report]) loadReport(report)
   }

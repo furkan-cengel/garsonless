@@ -42,6 +42,7 @@ interface Props {
   /** Sections the user may access (owner → all 8); drives the slim nav. */
   permissions: string[]
   isOwner: boolean
+  browserNotificationsEnabled: boolean
   children: ReactNode
 }
 
@@ -52,6 +53,7 @@ export default function RestaurantShell({
   userInitials,
   permissions,
   isOwner,
+  browserNotificationsEnabled,
   children,
 }: Props) {
   const pathname = usePathname()
@@ -200,7 +202,11 @@ export default function RestaurantShell({
       <ShellContext.Provider value={ctx}>
         {children}
         {overlay === 'notif' && (
-          <NotificationsPanel restaurantId={restaurantId} onClose={() => setOverlay(null)} />
+          <NotificationsPanel
+            restaurantId={restaurantId}
+            browserNotificationsEnabled={browserNotificationsEnabled}
+            onClose={() => setOverlay(null)}
+          />
         )}
         <ServiceRequestToast request={waiterToast} onDismiss={() => setWaiterToast(null)} />
       </ShellContext.Provider>
@@ -236,7 +242,11 @@ export default function RestaurantShell({
         />
       )}
       {overlay === 'notif' && (
-        <NotificationsPanel restaurantId={restaurantId} onClose={() => setOverlay(null)} />
+        <NotificationsPanel
+          restaurantId={restaurantId}
+          browserNotificationsEnabled={browserNotificationsEnabled}
+          onClose={() => setOverlay(null)}
+        />
       )}
       {overlay === 'help' && (
         <HelpModal onClose={() => setOverlay(null)} />

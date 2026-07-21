@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { saveLoyaltyConfig, getRewardItemChoices } from '../../lib/actions/restaurant'
+import { canUseFeature } from '@garsonless/domain'
 import {
   MAX_TIERS,
   TIER_PERK_DEFAULTS,
@@ -311,7 +312,16 @@ function Perk({ label, children }: { label: string; children: React.ReactNode })
   )
 }
 
-export default function LoyaltySection({ restaurantId, initial }: { restaurantId: string; initial: LoyaltyConfig }) {
+export default function LoyaltySection({
+  restaurantId,
+  plan,
+  initial,
+}: {
+  restaurantId: string
+  plan: unknown
+  initial: LoyaltyConfig
+}) {
+  const hasLoyaltyAccess = canUseFeature(plan, 'loyalty')
   const [cfg, setCfg] = useState<LoyaltyConfig>(initial)
   const [rewardChoices, setRewardChoices] = useState<Array<{ id: string; name: string }>>([])
   const [error, setError] = useState('')
@@ -338,13 +348,13 @@ export default function LoyaltySection({ restaurantId, initial }: { restaurantId
   }
 
   useEffect(() => {
-    if ((!cfg.stamp_enabled && !cfg.points_enabled) || rewardChoices.length > 0) return
+    if (!hasLoyaltyAccess || (!cfg.stamp_enabled && !cfg.points_enabled) || rewardChoices.length > 0) return
     let cancelled = false
     void getRewardItemChoices(restaurantId).then((res) => {
       if (!cancelled && 'items' in res) setRewardChoices(res.items)
     })
     return () => { cancelled = true }
-  }, [cfg.stamp_enabled, cfg.points_enabled, restaurantId, rewardChoices.length])
+  }, [cfg.stamp_enabled, cfg.points_enabled, hasLoyaltyAccess, restaurantId, rewardChoices.length])
 
   const setTier = (i: number, p: Partial<LoyaltyTier>) =>
     patch({ tiers: cfg.tiers.map((t, k) => (k === i ? { ...t, ...p } : t)) })
@@ -397,6 +407,38 @@ export default function LoyaltySection({ restaurantId, initial }: { restaurantId
   const hasTierDiscount = maxTierDiscount > 0
   const hasPriorityTier = cfg.tiers.some((t) => t.priorityService)
   const hasBonusStamps = cfg.tiers.some((t) => (t.bonusStamps ?? 0) > 0)
+
+  if (!hasLoyaltyAccess) {
+    return (
+      <section style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 16,
+        padding: 28,
+        boxShadow: 'var(--shadow-1)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+          <div style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            display: 'grid',
+            placeItems: 'center',
+            background: 'var(--accent-soft)',
+            color: 'var(--accent)',
+            flexShrink: 0,
+          }}>{I.crown}</div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 17, letterSpacing: '-0.01em' }}>Sadakat programı Pro pakette</h3>
+            <p style={{ margin: '7px 0 0', color: 'var(--text-3)', fontSize: 13.5, lineHeight: 1.55, maxWidth: 560 }}>
+              Damga, puan, üyelik indirimi ve hoş geldin bonusu yalnızca Pro pakette işler.
+              Kaydedilmiş ayarlarınız korunur; Pro&apos;ya geçtiğinizde tekrar etkinleştirebilirsiniz.
+            </p>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>

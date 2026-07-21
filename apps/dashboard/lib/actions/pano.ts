@@ -8,24 +8,9 @@ import type { PanoSnapshot, TableStatusData } from '../queries/pano'
 import { readOrderLineSnapshots, restaurantHour } from '@garsonless/db/browser'
 import { readPanoTableDetail } from '@garsonless/application/read-models'
 import { createPanoTableDetailReadModelPort } from '@garsonless/db/server'
+import type { PanoChartData, PanoChartPoint, PanoChartRange } from '../pano-chart-model'
 
-export type PanoChartRange = 'day' | 'week' | 'month'
-
-export interface PanoChartPoint {
-  label: string
-  value: number
-  /** the "now" bar (current hour) in the day view */
-  highlight?: boolean
-}
-
-export interface PanoChartData {
-  range: PanoChartRange
-  rangeLabel: string
-  points: PanoChartPoint[]
-  total: number
-  peakLabel: string
-  peakValue: number
-}
+export type { PanoChartData, PanoChartPoint, PanoChartRange } from '../pano-chart-model'
 
 export interface TableDetailItem {
   id: string

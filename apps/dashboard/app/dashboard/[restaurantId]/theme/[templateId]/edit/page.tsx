@@ -38,6 +38,7 @@ export default async function ThemeEditPage({ params }: Props) {
       restaurantSlug={restaurant.slug}
       restaurantName={restaurant.name}
       restaurantLogoUrl={restaurant.logoUrl}
+      restaurantPlan={restaurant.plan}
       templateId={templateId}
       initialTheme={initialTheme}
       menuCategories={menuCategories.map((category) => ({

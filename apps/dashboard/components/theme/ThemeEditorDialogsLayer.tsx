@@ -23,11 +23,13 @@ interface ThemeEditorDialogsLayerProps {
   sectionGroup: (typeof SECTION_GROUPS)[number]
   filteredSections: readonly ThemeSectionOption[]
   activeSections: readonly string[]
+  canAddAdvancedSections: boolean
   setSectionSearch: Dispatch<SetStateAction<string>>
   setSectionGroup: Dispatch<SetStateAction<(typeof SECTION_GROUPS)[number]>>
   onTemplateSelect: (templateId: string) => void
   onTemplateClose: () => void
   onSectionAdd: (sectionId: string) => void
+  onLockedSection: () => void
   onSectionClose: () => void
 }
 
@@ -43,11 +45,13 @@ export function ThemeEditorDialogsLayer({
   sectionGroup,
   filteredSections,
   activeSections,
+  canAddAdvancedSections,
   setSectionSearch,
   setSectionGroup,
   onTemplateSelect,
   onTemplateClose,
   onSectionAdd,
+  onLockedSection,
   onSectionClose,
 }: ThemeEditorDialogsLayerProps) {
   return (
@@ -74,9 +78,11 @@ export function ThemeEditorDialogsLayer({
           sections={SECTION_LIBRARY}
           visibleSections={filteredSections}
           activeSectionIds={activeSections}
+          canAddAdvancedSections={canAddAdvancedSections}
           onSearchChange={setSectionSearch}
           onGroupChange={(group) => setSectionGroup(group as (typeof SECTION_GROUPS)[number])}
           onAddSection={onSectionAdd}
+          onLockedSection={onLockedSection}
           onClose={onSectionClose}
           renderPreview={(sectionId) => <SectionMiniPreview id={sectionId} />}
         />

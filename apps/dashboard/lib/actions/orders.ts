@@ -16,6 +16,12 @@ import {
 import type { OrderStatus, Json } from '@garsonless/db/types'
 import { assertAccess } from '../auth/access'
 import { getRestaurantTimezone } from '../queries/insights-shared'
+import {
+  dashboardAccessFailure,
+  dashboardActionFailure,
+  dashboardOrderFailure,
+  type DashboardActionFailure,
+} from '../server-action-error'
 
 // 'cancelled' is deliberately NOT in this enum — cancellation has payment rules
 // (İyzico block, required reason for cash/pos-paid) and audit stamping, owned
@@ -37,26 +43,30 @@ export async function updateOrderStatus(
   orderId: string,
   status: OrderStatus,
   restaurantId: string,
-): Promise<{ error: string } | { success: true }> {
+): Promise<DashboardActionFailure | { success: true }> {
   const parsed = schema.safeParse({ orderId, status, restaurantId })
-  if (!parsed.success) return { error: 'Invalid input' }
+  if (!parsed.success) return dashboardActionFailure('VALIDATION_FAILED', { operation: 'orders.update-status' })
 
   // The adapter resolves the user; application re-checks tenant + permission
   // before the package-private atomic repository primitive can be reached.
   const gate = await assertAccess(restaurantId, 'orders')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return dashboardAccessFailure(gate.error, 'orders.update-status')
 
-  const result = await transitionDashboardOrder(
-    {
-      actor: 'dashboard-member',
-      userId: gate.userId,
-      restaurantId,
-      permissions: ['orders'],
-    },
-    { orderId, status, restaurantId },
-    createDashboardOrderLifecyclePort(),
-  )
-  if (!result.ok) return { error: result.error }
+  try {
+    const result = await transitionDashboardOrder(
+      {
+        actor: 'dashboard-member',
+        userId: gate.userId,
+        restaurantId,
+        permissions: ['orders'],
+      },
+      { orderId, status, restaurantId },
+      createDashboardOrderLifecyclePort(),
+    )
+    if (!result.ok) return dashboardOrderFailure(result.error, 'orders.update-status')
+  } catch (cause) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', { operation: 'orders.update-status', cause })
+  }
 
   revalidatePath(`/dashboard/${restaurantId}/orders`)
   return { success: true }
@@ -81,24 +91,28 @@ export async function cancelOrder(
   orderId: string,
   restaurantId: string,
   reason?: string,
-): Promise<{ error: string } | { success: true }> {
+): Promise<DashboardActionFailure | { success: true }> {
   const parsed = cancelSchema.safeParse({ orderId, restaurantId, reason })
-  if (!parsed.success) return { error: 'Geçersiz iptal isteği' }
+  if (!parsed.success) return dashboardActionFailure('VALIDATION_FAILED', { operation: 'orders.cancel' })
 
   const gate = await assertAccess(restaurantId, 'orders')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return dashboardAccessFailure(gate.error, 'orders.cancel')
 
-  const result = await cancelDashboardOrder(
-    {
-      actor: 'dashboard-member',
-      userId: gate.userId,
-      restaurantId,
-      permissions: ['orders'],
-    },
-    { orderId, restaurantId, reason: parsed.data.reason },
-    createDashboardOrderLifecyclePort(),
-  )
-  if (!result.ok) return { error: result.error }
+  try {
+    const result = await cancelDashboardOrder(
+      {
+        actor: 'dashboard-member',
+        userId: gate.userId,
+        restaurantId,
+        permissions: ['orders'],
+      },
+      { orderId, restaurantId, reason: parsed.data.reason },
+      createDashboardOrderLifecyclePort(),
+    )
+    if (!result.ok) return dashboardOrderFailure(result.error, 'orders.cancel')
+  } catch (cause) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', { operation: 'orders.cancel', cause })
+  }
 
   revalidatePath(`/dashboard/${restaurantId}/orders`)
   return { success: true }
@@ -122,9 +136,9 @@ export interface HistoryOrder {
  */
 export async function getOrderHistory(
   restaurantId: string,
-): Promise<{ error: string } | { orders: HistoryOrder[]; truncated: boolean }> {
+): Promise<DashboardActionFailure | { orders: HistoryOrder[]; truncated: boolean }> {
   const gate = await assertAccess(restaurantId, 'orders')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return dashboardAccessFailure(gate.error, 'orders.history')
 
   const supabase = await createDashboardServerClient()
   const since = startOfDayNDaysAgo(await getRestaurantTimezone(restaurantId), 30)
@@ -139,7 +153,7 @@ export async function getOrderHistory(
     .order('created_at', { ascending: false })
     .limit(201)
 
-  if (error) return { error: error.message }
+  if (error) return dashboardActionFailure('SERVICE_UNAVAILABLE', { operation: 'orders.history', cause: error })
   const rows = (data ?? []) as HistoryOrder[]
   return { orders: rows.slice(0, 200), truncated: rows.length > 200 }
 }
@@ -161,29 +175,34 @@ const createOrderSchema = z.object({
 
 export async function createOrderFromDashboard(
   input: z.infer<typeof createOrderSchema>,
-): Promise<{ error: string } | { orderId: string }> {
+): Promise<DashboardActionFailure | { orderId: string }> {
   const parsed = createOrderSchema.safeParse(input)
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+  if (!parsed.success) return dashboardActionFailure('VALIDATION_FAILED', { operation: 'orders.create' })
 
   const gate = await assertAccess(parsed.data.restaurantId, 'orders')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return dashboardAccessFailure(gate.error, 'orders.create')
 
-  const result = await createDashboardOrder(
-    {
-      actor: 'dashboard-member',
-      userId: gate.userId,
-      restaurantId: parsed.data.restaurantId,
-      permissions: ['orders'],
-    },
-    {
-      restaurantId: parsed.data.restaurantId,
-      tableId: parsed.data.tableId,
-      lines: parsed.data.items,
-    },
-    createDashboardOrderPort(),
-  )
-  if (!result.ok) return { error: result.error }
-  const { orderId } = result.value
+  let orderId: string
+  try {
+    const result = await createDashboardOrder(
+      {
+        actor: 'dashboard-member',
+        userId: gate.userId,
+        restaurantId: parsed.data.restaurantId,
+        permissions: ['orders'],
+      },
+      {
+        restaurantId: parsed.data.restaurantId,
+        tableId: parsed.data.tableId,
+        lines: parsed.data.items,
+      },
+      createDashboardOrderPort(),
+    )
+    if (!result.ok) return dashboardOrderFailure(result.error, 'orders.create')
+    orderId = result.value.orderId
+  } catch (cause) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', { operation: 'orders.create', cause })
+  }
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/orders`)
   revalidatePath(`/dashboard/${parsed.data.restaurantId}`)

@@ -49,3 +49,6 @@ export type { BillOrder } from './menu/TableBillSheet'
 export { THEME_REGISTRY, computeThemeVars } from './themes/index'
 export type { ThemeMenuPageProps, StoreInfo, SettingField, SettingOption, SettingsGroup, ThemeRegistryEntry } from './themes/index'
 export { DefaultMenuPage, SETTINGS_SCHEMA, THEME_DEFAULTS } from './themes/default'
+
+// Error boundaries
+export { RecoveryScreen } from './errors/RecoveryScreen'

@@ -31,6 +31,8 @@ interface Props {
   /** Operasyon is an owner-only AUDIT tab (staff emails + cash audit + fraud
       flags) — hidden from members; the queries re-check server-side anyway. */
   isOwner: boolean
+  /** Pro/Enterprise only. The action layer checks this again before data reads. */
+  hasAdvancedAnalytics: boolean
 }
 
 export default function AnalyticsClient({
@@ -44,10 +46,12 @@ export default function AnalyticsClient({
   paymentBreakdown,
   productReport,
   isOwner,
+  hasAdvancedAnalytics,
 }: Props) {
   const reports = useAnalyticsReports({
     restaurantId,
     isOwner,
+    hasAdvancedAnalytics,
     initialData: {
       salesOverTime,
       heatmapData,
@@ -71,6 +75,7 @@ export default function AnalyticsClient({
       activeReport={reports.activeReport}
       range={reports.range}
       isOwner={isOwner}
+      hasAdvancedAnalytics={hasAdvancedAnalytics}
       isPending={reports.isPending}
       activeReportLoaded={reports.activeReportLoaded}
       canExport={reports.canExport}

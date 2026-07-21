@@ -1,4 +1,5 @@
 import type { ThemeApplicationPort } from '@garsonless/application/themes'
+import { normalizeRestaurantPlan } from '@garsonless/domain/entitlements'
 import { err, ok } from '@garsonless/domain/result'
 import { createServiceClient } from './client'
 import type { Json } from './types.gen'
@@ -12,7 +13,7 @@ export function createThemeApplicationPort(): ThemeApplicationPort {
     async readRestaurant({ restaurantId }) {
       const { data, error } = await createServiceClient()
         .from('restaurants')
-        .select('slug, name, logo_url, settings')
+        .select('slug, name, logo_url, settings, plan')
         .eq('id', restaurantId)
         .is('deleted_at', null)
         .maybeSingle()
@@ -23,6 +24,7 @@ export function createThemeApplicationPort(): ThemeApplicationPort {
         name: (data as { name: string }).name,
         logoUrl: (data as { logo_url: string | null }).logo_url,
         settings: ((data as { settings: Json | null }).settings ?? null) as Record<string, unknown> | null,
+        plan: normalizeRestaurantPlan((data as { plan: unknown }).plan),
       })
     },
     async readConfig({ restaurantId }) {

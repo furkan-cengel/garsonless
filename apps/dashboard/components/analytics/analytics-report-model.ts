@@ -28,13 +28,14 @@ export const ANALYTICS_REPORTS: ReadonlyArray<{
   desc: string
   badge?: string
   ownerOnly?: boolean
+  requiresAdvancedAnalytics?: boolean
 }> = [
   { id: 'sales', label: 'Satışlar', desc: 'Tahsilat & hacim' },
   { id: 'items', label: 'Ürünler', desc: 'Ürün performansı' },
   { id: 'tables', label: 'Masalar', desc: 'Devir & tahsilat' },
   { id: 'payments', label: 'Ödemeler', desc: 'Yöntem dağılımı' },
-  { id: 'operasyon', label: 'Operasyon', desc: 'İptal · kaçak · tahsilat', badge: 'Yeni', ownerOnly: true },
-  { id: 'sadakat', label: 'Sadakat', desc: 'Puan · damga · ziyaret', badge: 'Yeni' },
+  { id: 'operasyon', label: 'Operasyon', desc: 'İptal · kaçak · tahsilat', badge: 'Pro', ownerOnly: true, requiresAdvancedAnalytics: true },
+  { id: 'sadakat', label: 'Sadakat', desc: 'Puan · damga · ziyaret', badge: 'Pro', requiresAdvancedAnalytics: true },
 ]
 
 export type AnalyticsData = {
@@ -113,8 +114,10 @@ export function canExportAnalyticsReport(
   return true
 }
 
-export function getVisibleAnalyticsReports(isOwner: boolean) {
-  return ANALYTICS_REPORTS.filter((report) => !report.ownerOnly || isOwner)
+export function getVisibleAnalyticsReports(isOwner: boolean, hasAdvancedAnalytics = true) {
+  return ANALYTICS_REPORTS.filter((report) =>
+    (!report.ownerOnly || isOwner) && (!report.requiresAdvancedAnalytics || hasAdvancedAnalytics),
+  )
 }
 
 export function analyticsRangeLabel(range: string): string {

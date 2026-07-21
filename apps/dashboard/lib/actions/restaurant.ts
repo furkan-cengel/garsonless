@@ -15,8 +15,11 @@ import {
   reorderKitchenStations as reorderKitchenStationsCommand,
   rotateKitchenAccessCredential,
 } from '@garsonless/application/kitchen'
+import { canUseFeature } from '@garsonless/domain'
 import { sanitizeTiers } from '@garsonless/domain/loyalty'
 import { assertOwner, getUserRestaurantAccess } from '../auth/access'
+import type { DashboardActionFailure } from '../server-action-error'
+import { dashboardActionFailure } from '../server-action-error'
 
 const createRestaurantSchema = z.object({
   name: z.string().min(1).max(100),
@@ -225,15 +228,34 @@ export async function saveBusinessHours(
 export async function saveNotificationPreferences(
   restaurantId: string,
   input: unknown,
-): Promise<{ error: string } | { success: true }> {
+): Promise<{ error: string } | DashboardActionFailure | { success: true }> {
   const parsed = notificationSettingsSchema.safeParse(input)
   if (!parsed.success) return { error: 'Geçersiz bildirim ayarları' }
 
-  const { user } = await getAuthUser()
+  const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
   const access = await getUserRestaurantAccess(restaurantId)
   if (!access || (!access.isOwner && !access.permissions.includes('settings'))) {
     return { error: 'Not authorized' }
+  }
+  const { data: restaurant, error: planError } = await supabase
+    .from('restaurants')
+    .select('plan')
+    .eq('id', restaurantId)
+    .maybeSingle()
+  if (planError) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'notifications.settings.save',
+      cause: planError,
+    })
+  }
+  if (!restaurant) return { error: 'Not authorized' }
+  const restaurantPlan = (restaurant as unknown as { plan?: unknown }).plan
+  if (parsed.data.prefs.newOrderPush && !canUseFeature(restaurantPlan, 'browser_notifications')) {
+    return dashboardActionFailure('PLAN_REQUIRED', {
+      operation: 'notifications.settings.save',
+      message: 'Masaüstü bildirimleri Starter ve üstü paketlerde kullanılabilir.',
+    })
   }
   const result = await patchRestaurantSettings(
     {
@@ -293,6 +315,17 @@ export async function saveLoyaltyConfig(
 
   const access = await getUserRestaurantAccess(restaurantId)
   if (!access?.isOwner) return { error: 'Not authorized' }
+
+  // Settings JSON may preserve a loyalty configuration after a downgrade, but
+  // it must not be editable/executable until the plan is upgraded again.
+  const { data: restaurant } = await supabase
+    .from('restaurants')
+    .select('plan')
+    .eq('id', restaurantId)
+    .maybeSingle()
+  if (!restaurant || !canUseFeature((restaurant as { plan?: unknown }).plan, 'loyalty')) {
+    return { error: 'Sadakat programı Pro paketiyle kullanılabilir.' }
+  }
 
   const cfg = { ...loyalty }
 
@@ -548,7 +581,13 @@ export async function generateKitchenToken(
     permissions: ['settings'],
     isOwner: true,
   }, { restaurantId: parsedRestaurantId.data }, createKitchenSettingsCommandPort())
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) {
+    return {
+      error: result.error === 'Plan feature unavailable'
+        ? 'Mutfak ekranı Pro paketiyle kullanılabilir.'
+        : result.error,
+    }
+  }
 
   revalidatePath(`/dashboard/${parsedRestaurantId.data}/settings`)
   revalidatePath(`/dashboard/${parsedRestaurantId.data}/orders`)

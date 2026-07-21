@@ -8,6 +8,7 @@ import { resolveServiceRequest } from '../../lib/actions/service-requests'
 
 interface Props {
   restaurantId: string
+  browserNotificationsEnabled: boolean
   onClose: () => void
 }
 
@@ -26,14 +27,21 @@ const ICON_META = {
   order: { bg: 'var(--info-bg)', fg: 'var(--info)', Icon: I.clipboard },
 } as const
 
-export default function NotificationsPanel({ restaurantId, onClose }: Props) {
+export default function NotificationsPanel({ restaurantId, browserNotificationsEnabled, onClose }: Props) {
   const router = useRouter()
   const [items, setItems] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<{ message: string; publicCode?: string } | null>(null)
 
   const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
     const result = await getNotifications(restaurantId)
-    if (Array.isArray(result)) setItems(result)
+    if (Array.isArray(result)) {
+      setItems(result)
+    } else {
+      setError({ message: result.error, publicCode: result.publicCode })
+    }
     setLoading(false)
   }, [restaurantId])
 
@@ -42,7 +50,12 @@ export default function NotificationsPanel({ restaurantId, onClose }: Props) {
   const handleResolve = useCallback(async (item: NotificationItem) => {
     if (!item.requestId) return
     setItems((prev) => prev.filter((n) => n.id !== item.id)) // optimistic
-    await resolveServiceRequest(item.requestId, restaurantId)
+    const result = await resolveServiceRequest(item.requestId, restaurantId)
+    if ('error' in result) {
+      setItems((prev) => prev.some((entry) => entry.id === item.id) ? prev : [item, ...prev])
+      setError({ message: 'Çağrı kapatılamadı. Lütfen tekrar deneyin.' })
+      return
+    }
     void load()
   }, [restaurantId, load])
 
@@ -80,6 +93,14 @@ export default function NotificationsPanel({ restaurantId, onClose }: Props) {
           {loading ? (
             <div style={{ padding: '32px 16px', textAlign: 'center', fontSize: 12.5, color: 'var(--text-3)' }}>
               Yükleniyor…
+            </div>
+          ) : error ? (
+            <div role="alert" style={{ padding: '32px 20px', textAlign: 'center' }}>
+              <div style={{ color: 'var(--critical)', marginBottom: 8, display: 'inline-flex' }}><I.warn size={25} /></div>
+              <div style={{ fontSize: 13, fontWeight: 650, color: 'var(--text)' }}>Bildirimler yüklenemedi</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.5 }}>{error.message}</div>
+              {error.publicCode && <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5 }}>Hata kodu: {error.publicCode}</div>}
+              <button type="button" onClick={() => void load()} style={{ marginTop: 14, ...btnRetry }}>Tekrar dene</button>
             </div>
           ) : items.length === 0 ? (
             <div style={{ padding: '40px 16px', textAlign: 'center' }}>
@@ -138,18 +159,37 @@ export default function NotificationsPanel({ restaurantId, onClose }: Props) {
           padding: '10px 16px', borderTop: '1px solid var(--divider)',
           background: 'var(--surface-2)', textAlign: 'center',
         }}>
-          <button
-            type="button"
-            onClick={goToOrders}
-            style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              fontSize: 12, fontWeight: 600, color: 'var(--text)',
-            }}
-          >
-            Tümünü gör →
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {!browserNotificationsEnabled && (
+              <span title="İşletim sistemi bildirimleri Starter paketinde açılır" style={{ fontSize: 10.5, color: 'var(--text-4)' }}>
+                Masaüstü bildirimi · Starter
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={goToOrders}
+              style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                fontSize: 12, fontWeight: 600, color: 'var(--text)',
+              }}
+            >
+              Tümünü gör →
+            </button>
+          </div>
         </div>
       </div>
     </div>
   )
 }
+
+const btnRetry = {
+  height: 30,
+  padding: '0 12px',
+  borderRadius: 7,
+  border: '1px solid var(--border-strong)',
+  background: 'var(--surface)',
+  color: 'var(--text)',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+} as const

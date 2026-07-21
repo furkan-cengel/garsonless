@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
+import { canUseFeature, normalizeRestaurantPlan, type RestaurantPlan } from '@garsonless/domain'
 import { createServiceClient } from './client'
 
 const ARTIFACT_VERSION = 1
@@ -103,15 +104,50 @@ async function readKitchenCredential(restaurantId: string): Promise<string | nul
   return (data as { token: string }).token
 }
 
+type KitchenAccess = { secret: string; plan: RestaurantPlan }
+
+async function readKitchenAccess(restaurantId: string): Promise<KitchenAccess | null> {
+  const service = createServiceClient()
+  const [credential, restaurant] = await Promise.all([
+    service
+      .from('kitchen_credentials')
+      .select('token')
+      .eq('restaurant_id', restaurantId)
+      .maybeSingle(),
+    service
+      .from('restaurants')
+      .select('plan')
+      .eq('id', restaurantId)
+      .maybeSingle(),
+  ])
+  if (credential.error || restaurant.error || !credential.data || !restaurant.data) return null
+  return {
+    secret: (credential.data as { token: string }).token,
+    plan: normalizeRestaurantPlan((restaurant.data as { plan: unknown }).plan),
+  }
+}
+
 export async function hasKitchenCredential(restaurantId: string): Promise<boolean> {
   return (await readKitchenCredential(restaurantId)) !== null
 }
 
-export async function createKitchenLaunchTicket(restaurantId: string): Promise<string | null> {
-  const secret = await readKitchenCredential(restaurantId)
-  if (!secret) return null
+export type KitchenLaunchTicketResult =
+  | { kind: 'created'; ticket: string }
+  | { kind: 'plan_required' }
+  | { kind: 'credential_missing' }
+  | { kind: 'unavailable' }
 
-  const ticket = signArtifact('launch', restaurantId, secret, KITCHEN_LAUNCH_TTL_SECONDS)
+export async function createKitchenLaunchTicket(
+  restaurantId: string,
+): Promise<KitchenLaunchTicketResult> {
+  const access = await readKitchenAccess(restaurantId)
+  if (!access) {
+    const credential = await readKitchenCredential(restaurantId)
+    return credential ? { kind: 'unavailable' } : { kind: 'credential_missing' }
+  }
+  if (!canUseFeature(access.plan, 'kitchen_display')) return { kind: 'plan_required' }
+
+  const ticket = signArtifact('launch', restaurantId, access.secret, KITCHEN_LAUNCH_TTL_SECONDS)
   const service = createServiceClient()
   const now = new Date()
   // Opportunistic tenant-scoped housekeeping; failure does not weaken the
@@ -126,29 +162,32 @@ export async function createKitchenLaunchTicket(restaurantId: string): Promise<s
     ticket_hash: hashArtifact(ticket),
     expires_at: new Date(now.getTime() + KITCHEN_LAUNCH_TTL_SECONDS * 1_000).toISOString(),
   })
-  return error ? null : ticket
+  return error ? { kind: 'unavailable' } : { kind: 'created', ticket }
 }
 
 export async function exchangeKitchenLaunchTicket(
   restaurantId: string,
   ticket: string,
 ): Promise<string | null> {
-  const secret = await readKitchenCredential(restaurantId)
-  if (!secret || !verifyArtifact(ticket, 'launch', restaurantId, secret)) return null
+  const access = await readKitchenAccess(restaurantId)
+  if (!access || !canUseFeature(access.plan, 'kitchen_display')) return null
+  if (!verifyArtifact(ticket, 'launch', restaurantId, access.secret)) return null
   const { data: consumed, error } = await createServiceClient().rpc('consume_kitchen_launch_ticket', {
     p_restaurant_id: restaurantId,
     p_ticket_hash: hashArtifact(ticket),
   })
   if (error || consumed !== true) return null
-  return signArtifact('session', restaurantId, secret, KITCHEN_SESSION_TTL_SECONDS)
+  return signArtifact('session', restaurantId, access.secret, KITCHEN_SESSION_TTL_SECONDS)
 }
 
 export async function verifyKitchenSession(
   restaurantId: string,
   session: string,
 ): Promise<boolean> {
-  const secret = await readKitchenCredential(restaurantId)
-  return secret !== null && verifyArtifact(session, 'session', restaurantId, secret)
+  const access = await readKitchenAccess(restaurantId)
+  return access !== null
+    && canUseFeature(access.plan, 'kitchen_display')
+    && verifyArtifact(session, 'session', restaurantId, access.secret)
 }
 
 // Pure helpers are intentionally package-private exports for contract tests.

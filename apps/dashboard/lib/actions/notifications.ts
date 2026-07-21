@@ -3,22 +3,13 @@
 import { createDashboardServerClient } from '../supabase-server'
 import { assertMember } from '../auth/access'
 import { serviceRequestLabel } from '@garsonless/domain/tables'
+import type { DashboardActionFailure } from '../server-action-error'
+import { dashboardAccessFailure, dashboardActionFailure } from '../server-action-error'
 
 async function getAuthUser() {
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   return { supabase, user }
-}
-
-// Phase 3 coarse gate: the new-order bell badge is visible to any active member
-// (owner or member of any section), not section-specific.
-async function assertRestaurantOwner(
-  _supabase: Awaited<ReturnType<typeof createDashboardServerClient>>,
-  restaurantId: string,
-  _userId: string,
-) {
-  const gate = await assertMember(restaurantId)
-  return !('error' in gate)
 }
 
 export interface NotificationItem {
@@ -36,12 +27,12 @@ const ORDER_NOTIF_STATUSES = ['pending', 'pending_approval', 'ready']
 /** Live notification feed merged from pending waiter calls + recent active orders. */
 export async function getNotifications(
   restaurantId: string,
-): Promise<NotificationItem[] | { error: string }> {
+): Promise<NotificationItem[] | DashboardActionFailure> {
   const { supabase, user } = await getAuthUser()
-  if (!user) return { error: 'Not authenticated' }
+  if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.feed')
 
-  const isOwner = await assertRestaurantOwner(supabase, restaurantId, user.id)
-  if (!isOwner) return { error: 'Not authorized' }
+  const gate = await assertMember(restaurantId)
+  if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.feed')
 
   const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString()
 
@@ -67,6 +58,15 @@ export async function getNotifications(
       .order('created_at', { ascending: false })
       .limit(20),
   ])
+
+  const queryError = reqRes.error ?? tablesRes.error ?? ordersRes.error
+  if (queryError) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'notifications.feed',
+      message: 'Bildirimler şu anda yüklenemiyor. Lütfen tekrar deneyin.',
+      cause: queryError,
+    })
+  }
 
   const labels: Record<string, string> = {}
   for (const t of (tablesRes.data ?? []) as Array<{ id: string; label: string }>) {

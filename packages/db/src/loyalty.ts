@@ -3,6 +3,7 @@
 // DB data (never client input), so points/stamps can't be inflated.
 
 import { createServiceClient } from './client'
+import { canUseFeature } from '@garsonless/domain'
 import {
   applyBonusStamps,
   computeDiscountStack,
@@ -24,6 +25,18 @@ import { snapshotOrderCustomerTier, type OrderCustomerTierSnapshot } from './ord
 // Pure loyalty economics live in @garsonless/domain/loyalty. This module owns
 // only service-role persistence and orchestration helpers.
 type OrderItemLine = { itemId?: unknown; quantity?: unknown }
+type RestaurantLoyaltyRecord = { settings: RawLoyaltySettings; plan: unknown }
+
+/**
+ * Configuration may remain stored after a downgrade, but it must never remain
+ * executable. Keeping the entitlement at this service-role boundary prevents
+ * an old settings JSONB document from minting or redeeming loyalty value.
+ */
+function readEntitledLoyaltyConfig(row: unknown) {
+  const restaurant = row as RestaurantLoyaltyRecord | null
+  if (!restaurant || !canUseFeature(restaurant.plan, 'loyalty')) return null
+  return readLoyaltyConfig(restaurant.settings ?? null)
+}
 
 /** Service-role read for CRM aggregation without N balance queries. */
 export async function getLoyaltyScope(restaurantId: string): Promise<{
@@ -33,10 +46,10 @@ export async function getLoyaltyScope(restaurantId: string): Promise<{
 } | null> {
   const { data: restaurant } = await createServiceClient()
     .from('restaurants')
-    .select('settings')
+    .select('settings, plan')
     .eq('id', restaurantId)
     .maybeSingle()
-  const config = readLoyaltyConfig((restaurant as { settings: RawLoyaltySettings } | null)?.settings ?? null)
+  const config = readEntitledLoyaltyConfig(restaurant)
   if (!config) return null
   return {
     scopeKey: loyaltyScopeKey(config, restaurantId),
@@ -71,11 +84,11 @@ export async function earnForOrderStrict(orderId: string, firedTrigger: 'paid' |
 
   const { data: restRow, error: restaurantError } = await supabase
     .from('restaurants')
-    .select('settings')
+    .select('settings, plan')
     .eq('id', order.restaurant_id)
     .maybeSingle()
   if (restaurantError) throw new Error(restaurantError.message)
-  const cfg = readLoyaltyConfig((restRow as { settings: RawLoyaltySettings } | null)?.settings ?? null)
+  const cfg = readEntitledLoyaltyConfig(restRow)
   if (!cfg) return
   if (!cfg.stamp_enabled && !cfg.points_enabled) return
   if (cfg.earn_trigger !== firedTrigger) return // only the configured trigger earns
@@ -187,8 +200,8 @@ export async function earnForOrder(orderId: string, firedTrigger: 'paid' | 'serv
 export async function getMemberBalances(customerId: string, restaurantId: string): Promise<MemberBalances | null> {
   const supabase = createServiceClient()
 
-  const { data: restRow } = await supabase.from('restaurants').select('settings').eq('id', restaurantId).maybeSingle()
-  const cfg = readLoyaltyConfig((restRow as { settings: RawLoyaltySettings } | null)?.settings ?? null)
+  const { data: restRow } = await supabase.from('restaurants').select('settings, plan').eq('id', restaurantId).maybeSingle()
+  const cfg = readEntitledLoyaltyConfig(restRow)
   if (!cfg) return null
 
   const scopeKey = loyaltyScopeKey(cfg, restaurantId)
@@ -305,11 +318,11 @@ export async function creditVisitsForSessionStrict(sessionId: string): Promise<v
 
   const { data: restRow, error: restaurantError } = await supabase
     .from('restaurants')
-    .select('settings')
+    .select('settings, plan')
     .eq('id', session.restaurant_id)
     .maybeSingle()
   if (restaurantError) throw new Error(restaurantError.message)
-  const cfg = readLoyaltyConfig((restRow as { settings: RawLoyaltySettings } | null)?.settings ?? null)
+  const cfg = readEntitledLoyaltyConfig(restRow)
   if (!cfg) return
   const scopeKey = loyaltyScopeKey(cfg, session.restaurant_id)
 
@@ -373,11 +386,11 @@ export async function creditWelcomeBonusStrict(customerId: string, restaurantId:
   const supabase = createServiceClient()
   const { data: restRow, error: restaurantError } = await supabase
     .from('restaurants')
-    .select('settings')
+    .select('settings, plan')
     .eq('id', restaurantId)
     .maybeSingle()
   if (restaurantError) throw new Error(restaurantError.message)
-  const cfg = readLoyaltyConfig((restRow as { settings: RawLoyaltySettings } | null)?.settings ?? null)
+  const cfg = readEntitledLoyaltyConfig(restRow)
   if (!cfg || cfg.welcome_bonus_points <= 0) return
   const scopeKey = loyaltyScopeKey(cfg, restaurantId)
 
@@ -508,10 +521,10 @@ export async function computeOrderDiscount(input: {
 
   const { data: restRow } = await supabase
     .from('restaurants')
-    .select('settings')
+    .select('settings, plan')
     .eq('id', input.restaurantId)
     .maybeSingle()
-  const cfg = readLoyaltyConfig((restRow as { settings: RawLoyaltySettings } | null)?.settings ?? null)
+  const cfg = readEntitledLoyaltyConfig(restRow)
   if (!cfg) return empty
   const scopeKey = loyaltyScopeKey(cfg, input.restaurantId)
   const balances = await getMemberBalances(input.customerId, input.restaurantId)
@@ -622,6 +635,14 @@ export async function redeemForOrder(params: {
   pointsExact?: boolean
 }): Promise<{ pointsDebited: number; stampsDebited: number }> {
   const supabase = createServiceClient()
+  const { data: restaurant } = await supabase
+    .from('restaurants')
+    .select('plan')
+    .eq('id', params.restaurantId)
+    .maybeSingle()
+  if (!canUseFeature((restaurant as { plan?: unknown } | null)?.plan, 'loyalty')) {
+    return { pointsDebited: 0, stampsDebited: 0 }
+  }
   const { data } = await supabase.rpc('redeem_loyalty', {
     p_customer: params.customerId,
     p_scope_key: params.scopeKey,

@@ -40,9 +40,12 @@ test('range changes reset every report and sales refresh also hydrates payments'
   assert.equal(loaded.payments, true)
 })
 
-test('owner-only report visibility and export completeness fail closed', () => {
+test('owner-only and Pro report visibility plus export completeness fail closed', () => {
   assert.equal(getVisibleAnalyticsReports(false).some((report) => report.id === 'operasyon'), false)
   assert.equal(getVisibleAnalyticsReports(true).some((report) => report.id === 'operasyon'), true)
+  assert.equal(getVisibleAnalyticsReports(true, false).some((report) => report.id === 'operasyon'), false)
+  assert.equal(getVisibleAnalyticsReports(true, false).some((report) => report.id === 'sadakat'), false)
+  assert.equal(getVisibleAnalyticsReports(true, true).some((report) => report.id === 'sadakat'), true)
 
   const data = createInitialAnalyticsData(initialData)
   const loaded = { ...createUnloadedReports(), operasyon: true, sadakat: true }

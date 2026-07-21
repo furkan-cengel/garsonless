@@ -92,7 +92,7 @@ const GROUPS: NavGroup[] = [
       { id: 'payments',      label: 'Ödeme Yöntemleri', desc: 'İyzico ve tahsilat',    icon: SI.card },
       { id: 'loyalty',       label: 'Sadakat',          desc: 'Damga, puan, üyelik',   icon: SI.gift },
       { id: 'kitchen',       label: 'Mutfak Ekranı',    desc: 'KDS güvenli oturumu',   icon: SI.cutlery },
-      { id: 'notifications', label: 'Bildirimler',      desc: 'E-posta, SMS, push',    icon: SI.bell },
+      { id: 'notifications', label: 'Bildirimler',      desc: 'Sipariş ve masa uyarıları', icon: SI.bell },
     ],
   },
   {
@@ -116,7 +116,7 @@ const SECTION_META: Record<SectionId, { label: string; desc: string; group: stri
   payments:      { label: 'Ödeme Yöntemleri', desc: 'İyzico kart ödemesi ve personel tahsilatı akışlarını yönet.',      group: 'İşletme' },
   loyalty:       { label: 'Sadakat',        desc: 'Damga ve puan programını, kapsamı ve kazanım kurallarını ayarla.',  group: 'İşletme' },
   kitchen:       { label: 'Mutfak Ekranı',  desc: 'Mutfak ekranının güvenli oturumunu ve istasyonlarını yönet.',        group: 'İşletme' },
-  notifications: { label: 'Bildirimler',    desc: 'E-posta, SMS ve push bildirim tercihlerini ayarla.',                group: 'İşletme' },
+  notifications: { label: 'Bildirimler',    desc: 'Sipariş, masa ve tarayıcı bildirim tercihlerini ayarla.',           group: 'İşletme' },
   api:           { label: 'API & Webhooks', desc: 'Geliştirici API ve webhook altyapısı bu sürümde kapalı.',            group: 'Gelişmiş' },
   billing:       { label: 'Faturalama',     desc: 'Gerçek abonelik sistemi gelene kadar plan bilgisi salt okunur.',     group: 'Gelişmiş' },
   security:      { label: 'Güvenlik',       desc: 'Şifre değişimi ve hesap güvenliği.',                                group: 'Gelişmiş' },
@@ -354,6 +354,7 @@ function LoyaltySectionWrapper({ restaurant }: { restaurant: Tables<'restaurants
   return (
     <LoyaltySection
       restaurantId={restaurant.id}
+      plan={restaurant.plan}
       initial={{
         stamp_enabled: bool('stamp_enabled', false),
         stamp_goal: numv('stamp_goal', 10),
@@ -378,16 +379,19 @@ function LoyaltySectionWrapper({ restaurant }: { restaurant: Tables<'restaurants
    ============================================================ */
 function KitchenSectionWrapper({
   restaurantId,
+  plan,
   hasKitchenAccess,
   kitchenStations,
 }: {
   restaurantId: string
+  plan: Tables<'restaurants'>['plan']
   hasKitchenAccess: boolean
   kitchenStations: Tables<'kitchen_stations'>[]
 }) {
   return (
     <KitchenAccessSection
       restaurantId={restaurantId}
+      plan={plan}
       initialHasAccess={hasKitchenAccess}
       initialStations={kitchenStations}
     />
@@ -506,7 +510,7 @@ export default function SettingsForm({ restaurant, user, hasKitchenAccess, kitch
     switch (active) {
       case 'workspace':     return <WorkspaceSection restaurant={restaurant} />
       case 'loyalty':       return <LoyaltySectionWrapper restaurant={restaurant} />
-      case 'kitchen':       return <KitchenSectionWrapper restaurantId={restaurant.id} hasKitchenAccess={hasKitchenAccess} kitchenStations={kitchenStations} />
+      case 'kitchen':       return <KitchenSectionWrapper restaurantId={restaurant.id} plan={restaurant.plan} hasKitchenAccess={hasKitchenAccess} kitchenStations={kitchenStations} />
       case 'profile':       return <ProfileSection user={user} />
       case 'team':          return isOwner ? <TeamSection restaurantId={restaurant.id} ownerEmail={user?.email ?? ''} members={teamMembers} auditEvents={teamAuditEvents} /> : null
       case 'store':         return <StoreSection restaurant={restaurant} />

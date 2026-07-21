@@ -57,11 +57,15 @@ export interface TableServiceRequestPort {
 
 export type DeleteTableOutcome = 'deleted' | 'open_session' | 'not_found'
 
+export type DashboardTableCreateOutcome =
+  | { kind: 'created'; id: string; token: string }
+  | { kind: 'plan_limit'; limit: number }
+
 export interface DashboardTablePort {
   createTable(input: {
     restaurantId: string
     label: string
-  }): Promise<Result<{ id: string; token: string }>>
+  }): Promise<Result<DashboardTableCreateOutcome>>
   renameTable(input: {
     restaurantId: string
     tableId: string
@@ -148,7 +152,7 @@ export async function createDashboardTable(
   context: Extract<CommandContext, { actor: 'dashboard-member' }>,
   input: { restaurantId: string; label: string },
   port: DashboardTablePort,
-): Promise<Result<{ id: string; token: string }>> {
+): Promise<Result<DashboardTableCreateOutcome>> {
   const access = requireDashboardTables(context, input.restaurantId)
   return access.ok ? port.createTable(input) : access
 }

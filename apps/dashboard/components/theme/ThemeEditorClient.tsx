@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { THEME_REGISTRY } from '@garsonless/ui'
 import type { SettingsGroup } from '@garsonless/ui'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
+import { canUseFeature, type RestaurantPlan } from '@garsonless/domain/entitlements'
 import { useShell } from '../../lib/shell-context'
 import { ThemeEditorTopbar } from './ThemeEditorTopbar'
 import { ThemeEditorCanvas } from './ThemeEditorCanvas'
@@ -31,6 +32,7 @@ interface Props {
   restaurantSlug: string
   restaurantName: string
   restaurantLogoUrl: string | null
+  restaurantPlan: RestaurantPlan
   templateId: string
   initialTheme: GarsonlessTheme
   menuCategories: Array<{ id: string; name: string; parentId?: string | null }>
@@ -42,12 +44,14 @@ export default function ThemeEditorClient({
   restaurantSlug,
   restaurantName,
   restaurantLogoUrl,
+  restaurantPlan,
   templateId,
   initialTheme,
   menuCategories,
   menuItems,
 }: Props) {
   const entry = THEME_REGISTRY[templateId] ?? THEME_REGISTRY['default']!
+  const canAddAdvancedSections = canUseFeature(restaurantPlan, 'theme_advanced_sections')
   const schema: SettingsGroup[] = entry.SETTINGS_SCHEMA
   const { setNavigationGuard } = useShell()
   const menuBaseUrl = process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'
@@ -295,11 +299,13 @@ export default function ThemeEditorClient({
         sectionGroup={sectionGroup}
         filteredSections={filteredSections}
         activeSections={activeSections}
+        canAddAdvancedSections={canAddAdvancedSections}
         setSectionSearch={setSectionSearch}
         setSectionGroup={setSectionGroup}
         onTemplateSelect={handleTemplateSelect}
         onTemplateClose={closeTemplatePicker}
         onSectionAdd={handleAddSection}
+        onLockedSection={() => flashToast('Bu bölüm Pro pakette kullanılabilir.')}
         onSectionClose={closeSectionPicker}
       />}
     />

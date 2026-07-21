@@ -48,8 +48,8 @@ async function main() {
       },
     }
     const { data: restaurants, error: restaurantError } = await service.from('restaurants').insert([
-      { owner_id: fixture.owner_id, slug: `outbox-${suffix}`, name: `Outbox ${suffix}`, settings: commonSettings },
-      { owner_id: fixture.owner_id, slug: `outbox-other-${suffix}`, name: `Outbox other ${suffix}`, settings: commonSettings },
+      { owner_id: fixture.owner_id, slug: `outbox-${suffix}`, name: `Outbox ${suffix}`, plan: 'pro', settings: commonSettings },
+      { owner_id: fixture.owner_id, slug: `outbox-other-${suffix}`, name: `Outbox other ${suffix}`, plan: 'pro', settings: commonSettings },
     ]).select('id, slug')
     if (restaurantError) throw restaurantError
     restaurantId = restaurants.find((row) => row.slug === `outbox-${suffix}`)?.id ?? ''

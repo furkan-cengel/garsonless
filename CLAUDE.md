@@ -858,6 +858,54 @@ notifications/orders` allowlist'ine açıktır. Owner-only veya gelecekte
 - Header, Kartlar, Navigasyon, Düzen, Tema, Sepet ve Duyuru panellerinin ortak renk/range/toggle/select/accordion markup'ı `ThemePropertyControls.tsx` bileşenine ayrıldı. `ThemePropertyPanels.tsx` artık yalnız panel kompozisyonu, grup görünürlüğü ve panel-özel not/invariant bağlama sorumluluğunu taşır.
 - `ThemeEditorPropertiesWorkspace` range kontrol CSS'ini tek kez yükler; visual davranış ve control id sözleşmesi değişmez. Mimari test, panelin ortak kontrol implementasyonlarını geri almamasını ve control boundary'nin tenant/action/Supabase erişimi taşımamasını kilitler.
 
+### Büyük client shell ayrıştırma — Pano overview boundary ✅ (2026-07-20)
+
+- Pano'nun KPI karşılaştırmaları, karşılama metni, izinli hızlı aksiyonları ve
+  gerçek sinyallerden türetilen bağlantı durumu `pano-view-model.ts` saf
+  projection modeline taşındı. Ödeme yapılandırması yalnız owner'a görünür;
+  realtime ve son sipariş durumu uydurulmadan aynı modelden türetilir.
+- KPI, en çok satanlar, yoğun saatler, hızlı işlemler, sistem sağlığı ve ortak
+  kart iskeleti `PanoOverviewWidgets.tsx` sunum sınırına alındı. Bu sınır action,
+  Supabase ve restoran kimliği taşımaz; ana shell yalnız gerçek zamanlı abonelik,
+  snapshot yenileme, yeni sipariş/floor-plan yaşam döngüsü ve command akışını
+  orkestre eder.
+- `PanoClient.tsx` **1.076 → 760 satıra** indi. Yeni model/architecture matrisi
+  KPI karşılaştırması, izin filtresi, gerçek health sinyalleri, tenant-agnostic
+  widget kuralı ve **780 satır** shell bütçesini kilitler. Verify: dashboard
+  architecture **147/147**, typecheck, lint ve production build temiz. Migration
+  veya tenant veri yazısı yok.
+
+### Büyük client shell ayrıştırma — Pano tahsilat grafiği controller/view dilimi ✅ (2026-07-20)
+
+- Tahsilat grafiğinin `Bugün / 7 gün / 30 gün` seçimi, server refresh'i,
+  hata/retry durumu ve stale-response sıralaması `use-pano-sales-chart.ts`
+  controller'ına taşındı. Başlangıçtaki saatlik SSR verisi `pano-chart-model.ts`
+  ile browser-safe olarak projekte edilir; client shell artık chart action'ını veya
+  transition state'ini doğrudan taşımaz.
+- SVG, klavye ile odaklanabilir veri çubukları, tooltip, `aria-pressed` aralık
+  seçimi ve legend yüzeyi `PanoSalesChart.tsx` sunum sınırındadır. Model, view
+  ve controller fitness testleri action/Supabase sızıntısını ve davranışsal
+  chart özetini korur.
+- `PanoClient.tsx` **760 → 570 satıra** indi (başlangıç shell'i **1.076**
+  satırdı). Dashboard architecture matrisi **150/150**, typecheck, lint ve
+  production build temiz; migration veya tenant veri yazısı yok.
+
+### Büyük client shell ayrıştırma — Pano canlı akış/controller dilimi ✅ (2026-07-20)
+
+- Pano snapshot yenilemesi, 250 ms debounce, tek restaurant-scoped realtime
+  channel, canlı feed patch'i, masa durumları ve bağlantı liveness'i
+  `use-pano-live-state.ts` controller'ının sorumluluğuna taşındı. Root shell
+  artık browser Supabase client'ı veya Pano snapshot/table server action'larını
+  doğrudan import etmez.
+- Canlı akışın durum/tooltip/boş-state görünümü `PanoActivityFeed.tsx` salt
+  view sınırında. `pending_approval → sent_to_kitchen` komutu,
+  action hata yüzeyi ve aynı sipariş için çift-submit guard'ı
+  `use-pano-order-approval.ts` controller'ında; view tenant kimliği veya action
+  erişimi taşımaz.
+- `PanoClient.tsx` **570 → 294 satıra** indi (başlangıç shell'i **1.076**
+  satırdı). Dashboard architecture matrisi **151/151**, typecheck, lint ve
+  production build temiz; migration veya tenant veri yazısı yok.
+
 ### Büyük client shell ayrıştırma — ThemeEditorClient section settings dilimi ✅ (2026-07-16)
 
 - Özel bölüm alanlarının text/textarea/color/range/select/toggle, ürün-kategori hedefi ve galeri yükleme yüzeyleri `ThemeSectionSettings.tsx` feature sınırına taşındı. Galeri kutuları artık gerçek erişilebilir butonlar; yükle/değiştir/kaldır aksiyonları ayrı adlandırıldı, tiled seçimler `aria-pressed` ve range değerleri ilişkili `output` kullanıyor.
@@ -2030,3 +2078,18 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   **10/10**, lint **0 error** (marketing'deki mevcut 2 `img` warning) ve
   dashboard production build temiz geçti. Migration, endpoint, persistence
   veya tenant verisi değişmedi.
+### Merkezi hata sözleşmesi ve kurtarma ekranları ✅ (2026-07-20)
+
+- `@garsonless/domain/errors` artık action hataları için sabit public destek kodları (`MAS-…`), güvenli kullanıcı metni ve retry semantiği taşıyor; server adapter dışındaki hiçbir katman provider/SQL hatası görmüyor.
+- Dashboard sipariş command’leri (`create`, `update-status`, `cancel`, `history`) label’lı hata zarfına geçti. Özel hata nedeni yalnız server logunda `DASH-…` referansıyla kalıyor; mevcut `{ error }` tüketicileri geriye uyumlu.
+- Dashboard, Menü ve Mutfak için modern, retry/home aksiyonlu `error.tsx`, `global-error.tsx` ve `not-found.tsx` sınırları `RecoveryScreen` üzerinden eklendi.
+
+### SaaS paket/entitlement kataloğu ✅ (2026-07-20)
+
+- `@garsonless/domain/entitlements` artık tek plan kaynağıdır: `free → starter → pro → enterprise`; eski marketing `business` ifadesi yalnız normalize edilir, bilinmeyen plan fail-closed olarak `free` davranır.
+- QR/menu/sipariş, tablo, rapor, tema, bildirim, KDS, sadakat, API/webhook/SSO gibi capability’ler ve tablo/şube/ekip üyesi limitleri browser-safe saf modelde testli tanımlıdır. `@garsonless/db` `RestaurantPlan` tipini bu canonical tanımdan alır.
+- İlk gerçek enforcement noktası tema yayınlamadır: Pro bölüm ID’leri hem editörde kilitlenir hem `publishRestaurantTheme` command’i tarafından plan kontrolüyle reddedilir. Tablo ekleme `create_table_with_plan_limit` RPC’sinde restaurant-row lock ile cap kontrolü + insert atomik olacak şekilde taşındı ve migration DEV’e uygulandı; geçici tenant runtime doğrulaması Free plan için `3 created + 1 plan_limit` sonucunu verdi ve temizlendi.
+- Mutfak ekranı ikinci gerçek capability gate’idir: credential üretimi owner + `kitchen_display` (Pro) kontrolünden geçer; launch ticket, ticket exchange ve her KDS session doğrulaması restaurant planını yeniden okur. Böylece downgrade yeni bileti reddeder ve açık KDS oturumunu anında geçersiz kılar. DEV runtime matrisi Pro açılış/replay/rotation ile Starter downgrade’ini doğruladı; temp restaurant, credential ve launch receipt satırları sıfır orphan ile temizlendi.
+- Sadakat üçüncü gerçek capability gate’idir: puan/damga scope ve bakiye okumaları, hoş geldin bonusu, sipariş kazanımı, ziyaret kredisi, indirim hesaplama ve redemption çağrısı service-role sınırında `loyalty` (Pro) yetkisini yeniden kontrol eder. Paket düşüşünde saklanan JSONB ayarları değer üretmez; dashboard ayar ekranı da kilitlenir. DEV runtime matrisi Starter’da `scope/balance=false`, `0 ledger`, `0 indirim`; aynı tenant Pro’ya yükselince `25 puan`, `10 puan redemption`, `₺99` final sonucu verdi; temp restaurant/customer sıfır orphan ile temizlendi.
+- Gelişmiş analitik dördüncü capability gate’idir: Free/Starter temel Satışlar, Ürünler, Masalar ve Ödemeler raporlarını kullanır; owner-only Operasyon ve Sadakat raporları `analytics_advanced` (Pro) ister. UI bu sekmeleri göstermese bile server action paketi tekrar okur ve replay çağrısına veri yerine güvenli plan hatası döner. Browser-safe görünürlük modeli test edildi; dashboard typecheck/lint/production build temiz geçti.
+- Tarayıcı bildirimi beşinci capability gate’idir: uygulama içi sipariş/garson çağrısı zili bütün paketlerde temel operasyon yüzeyi olarak kalır; yalnız işletim sistemi Web Notification kanalı `browser_notifications` (Starter+) ister. Ayar UI'ı Free planda kontrolü kapatır, server action replay isteğinde planı yeniden okur ve `MAS-PLAN-403` zarfıyla reddeder. Service worker yalnız entitlement + tercih birlikte açıkken kurulur; sipariş başına tenant-scope session receipt aynı realtime olayının yeniden bağlantı veya React effect tekrarında ses/push üretmesini engeller. Bildirim feed'i artık sorgu hatasını sessiz boş durum gibi göstermeyip `MAS-SVC-503` kodu ve yeniden-dene yüzeyi sunar.

@@ -46,33 +46,36 @@ export function createDashboardTablePort(): DashboardTablePort {
   return {
     async createTable(input) {
       const service = createServiceClient()
-      const { data: duplicate, error: duplicateError } = await service
-        .from('tables')
-        .select('id')
-        .eq('restaurant_id', input.restaurantId)
-        .ilike('label', input.label)
-        .is('deleted_at', null)
-        .limit(1)
-      if (duplicateError) return err(duplicateError.message)
-      if ((duplicate ?? []).length > 0) return err('Bu isimde aktif bir masa zaten var.')
+      const rpc = service.rpc.bind(service) as unknown as (
+        fn: 'create_table_with_plan_limit',
+        args: { p_restaurant_id: string; p_label: string },
+      ) => Promise<{
+        data: Array<{
+          outcome: string
+          table_id: string | null
+          token: string | null
+          table_limit: number | null
+        }> | null
+        error: { message: string } | null
+      }>
+      const { data, error } = await rpc('create_table_with_plan_limit', {
+        p_restaurant_id: input.restaurantId,
+        p_label: input.label,
+      })
+      if (error) return err(error.message)
 
-      const { data, error } = await service
-        .from('tables')
-        .insert({ restaurant_id: input.restaurantId, label: input.label })
-        .select('id')
-        .single()
-      if (error) return err(error.code === '23505' ? 'Bu isimde aktif bir masa zaten var.' : error.message)
-      if (!data?.id) return err('Failed to create table')
-
-      try {
-        const tokens = await listActiveTableQrTokens(input.restaurantId)
-        const token = tokens[data.id]
-        return token
-          ? ok({ id: data.id, token })
-          : err('Yeni masa için QR bağlantısı oluşturulamadı.')
-      } catch (error_) {
-        return err(error_ instanceof Error ? error_.message : 'QR bağlantısı yüklenemedi.')
+      const result = data?.[0]
+      if (!result) return err('Masa oluşturma sonucu alınamadı.')
+      if (result.outcome === 'plan_limit' && result.table_limit != null) {
+        return ok({ kind: 'plan_limit', limit: result.table_limit })
       }
+      if (result.outcome === 'duplicate_label') return err('Bu isimde aktif bir masa zaten var.')
+      if (result.outcome === 'restaurant_not_found') return err('Restaurant not found')
+      if (result.outcome === 'invalid_label') return err('Geçerli bir masa adı girin.')
+      if (result.outcome !== 'created' || !result.table_id || !result.token) {
+        return err('Yeni masa için QR bağlantısı oluşturulamadı.')
+      }
+      return ok({ kind: 'created', id: result.table_id, token: result.token })
     },
 
     async renameTable(input) {

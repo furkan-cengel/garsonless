@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import type { Tables } from '@garsonless/db/types'
+import { canUseFeature } from '@garsonless/domain'
 import {
   createKitchenStation,
   generateKitchenToken,
@@ -12,13 +13,15 @@ import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state
 
 interface Props {
   restaurantId: string
+  plan: Tables<'restaurants'>['plan']
   initialHasAccess?: boolean
   initialStations?: Tables<'kitchen_stations'>[]
 }
 
 const STATION_COLORS = ['#2e7d52', '#c8922a', '#2563eb', '#d9480f', '#8b5cf6', '#0f766e']
 
-export default function KitchenAccessSection({ restaurantId, initialHasAccess = false, initialStations = [] }: Props) {
+export default function KitchenAccessSection({ restaurantId, plan, initialHasAccess = false, initialStations = [] }: Props) {
+  const canUseKitchenDisplay = canUseFeature(plan, 'kitchen_display')
   const [hasAccess, setHasAccess] = useState(initialHasAccess)
   const [error, setError] = useState('')
   const [stations, setStations] = useState(() => [...initialStations].sort((a, b) => a.position - b.position))
@@ -129,7 +132,7 @@ export default function KitchenAccessSection({ restaurantId, initialHasAccess = 
         </div>
       </div>
 
-      {hasAccess && (
+      {canUseKitchenDisplay && hasAccess && (
         <div style={{ padding: 12, borderRadius: 9, background: 'var(--positive-bg)', color: 'var(--positive)', fontSize: 12.5, marginBottom: 14 }}>
           Mutfak erişimi hazır. Erişimi yenilemek açık KDS oturumlarını anında kapatır.
         </div>
@@ -139,8 +142,14 @@ export default function KitchenAccessSection({ restaurantId, initialHasAccess = 
         <p style={{ fontSize: 12.5, color: 'var(--critical)', marginBottom: 12 }}>{error}</p>
       )}
 
+      {!canUseKitchenDisplay && (
+        <div style={{ padding: 12, borderRadius: 9, background: 'var(--warning-bg, #fff8e8)', border: '1px solid var(--warning-border, #e6c989)', color: 'var(--text-2)', fontSize: 12.5, lineHeight: 1.5, marginBottom: 14 }}>
+          Mutfak ekranı Pro paketiyle kullanılabilir. Mevcut erişim kodları ve açık KDS oturumları paket yükseltilene kadar çalışmaz.
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {hasAccess && (
+        {canUseKitchenDisplay && hasAccess && (
           <a
             href={`/api/kitchen/launch/${restaurantId}`}
             target="_blank"
@@ -161,15 +170,15 @@ export default function KitchenAccessSection({ restaurantId, initialHasAccess = 
             if (hasAccess) setRenewalConfirmationOpen(true)
             else void handleGenerate()
           }}
-          disabled={isPending}
+          disabled={isPending || !canUseKitchenDisplay}
           style={{
             height: 36, padding: '0 16px', borderRadius: 7,
             background: 'var(--surface)', border: '1px solid var(--border-strong)',
             color: 'var(--text)', fontSize: 13, fontWeight: 500,
-            cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.55 : 1,
+            cursor: isPending || !canUseKitchenDisplay ? 'not-allowed' : 'pointer', opacity: isPending || !canUseKitchenDisplay ? 0.55 : 1,
           }}
         >
-          {isPending ? 'Kaydediliyor…' : hasAccess ? 'Erişimi yenile' : 'Mutfak erişimi oluştur'}
+          {isPending ? 'Kaydediliyor…' : canUseKitchenDisplay ? (hasAccess ? 'Erişimi yenile' : 'Mutfak erişimi oluştur') : 'Pro pakette kullanılabilir'}
         </button>
       </div>
       {renewalConfirmationOpen && (
