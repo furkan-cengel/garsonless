@@ -15,6 +15,7 @@
     "./entitlements": "./src/entitlements.ts",
     "./loyalty": "./src/loyalty.ts",
     "./menu": "./src/menu.ts",
+    "./notifications": "./src/notifications.ts",
     "./result": "./src/result.ts",
     "./team": "./src/team.ts"
   },

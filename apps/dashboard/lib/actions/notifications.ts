@@ -108,3 +108,92 @@ export async function getNotifications(
 
   return [...waiterItems, ...orderItems].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
+
+// ── Durable per-user inbox (notification_inbox) ─────────────────────────────
+// Written by the outbox `dashboard-inbox` consumer; read here scoped to the
+// authenticated user. The service-role reads always filter by the resolved
+// auth user id — RLS own-user select is defense in depth.
+
+export interface InboxNotificationItem {
+  id: string
+  category: string
+  severity: string
+  title: string
+  body: string
+  linkPath: string | null
+  readAt: string | null
+  createdAt: string
+}
+
+export interface InboxFeed {
+  items: InboxNotificationItem[]
+  unread: number
+}
+
+export async function getInboxFeed(
+  restaurantId: string,
+): Promise<InboxFeed | DashboardActionFailure> {
+  const { user } = await getAuthUser()
+  if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.inbox')
+
+  const gate = await assertMember(restaurantId)
+  if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.inbox')
+
+  const { listInboxNotifications, countUnreadInboxNotifications } = await import('@garsonless/db/server')
+  const [listed, unread] = await Promise.all([
+    listInboxNotifications({ restaurantId, userId: user.id }),
+    countUnreadInboxNotifications({ restaurantId, userId: user.id }),
+  ])
+  if (!listed.ok || !unread.ok) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'notifications.inbox',
+      message: 'Bildirimler şu anda yüklenemiyor. Lütfen tekrar deneyin.',
+      cause: !listed.ok ? listed.error : (!unread.ok ? unread.error : null),
+    })
+  }
+  return { items: listed.value, unread: unread.value }
+}
+
+export async function getUnreadInboxCount(
+  restaurantId: string,
+  categories?: string[],
+): Promise<{ unread: number } | DashboardActionFailure> {
+  const { user } = await getAuthUser()
+  if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.inbox-count')
+
+  const gate = await assertMember(restaurantId)
+  if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.inbox-count')
+
+  const { countUnreadInboxNotifications } = await import('@garsonless/db/server')
+  const unread = await countUnreadInboxNotifications({ restaurantId, userId: user.id, categories })
+  if (!unread.ok) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'notifications.inbox-count',
+      message: 'Bildirim sayacı yüklenemedi.',
+      cause: unread.error,
+    })
+  }
+  return { unread: unread.value }
+}
+
+export async function markInboxRead(
+  restaurantId: string,
+  ids?: string[],
+): Promise<{ ok: true } | DashboardActionFailure> {
+  const { user } = await getAuthUser()
+  if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.inbox-read')
+
+  const gate = await assertMember(restaurantId)
+  if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.inbox-read')
+
+  const { markInboxNotificationsRead } = await import('@garsonless/db/server')
+  const marked = await markInboxNotificationsRead({ restaurantId, userId: user.id, ids })
+  if (!marked.ok) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'notifications.inbox-read',
+      message: 'Bildirimler okundu olarak işaretlenemedi.',
+      cause: marked.error,
+    })
+  }
+  return { ok: true }
+}

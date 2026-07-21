@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { I, Tag } from '../../lib/ui'
-import { getNotifications, type NotificationItem } from '../../lib/actions/notifications'
+import {
+  getInboxFeed,
+  getNotifications,
+  markInboxRead,
+  type InboxNotificationItem,
+  type NotificationItem,
+} from '../../lib/actions/notifications'
 import { resolveServiceRequest } from '../../lib/actions/service-requests'
 
 interface Props {
@@ -30,19 +36,50 @@ const ICON_META = {
 export default function NotificationsPanel({ restaurantId, browserNotificationsEnabled, onClose }: Props) {
   const router = useRouter()
   const [items, setItems] = useState<NotificationItem[]>([])
+  const [inboxItems, setInboxItems] = useState<InboxNotificationItem[]>([])
+  const [inboxUnread, setInboxUnread] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<{ message: string; publicCode?: string } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const result = await getNotifications(restaurantId)
+    const [result, inbox] = await Promise.all([
+      getNotifications(restaurantId),
+      getInboxFeed(restaurantId),
+    ])
     if (Array.isArray(result)) {
       setItems(result)
     } else {
       setError({ message: result.error, publicCode: result.publicCode })
     }
+    // The durable inbox is additive history — its load failure must not take
+    // down the live actionable feed; it simply renders empty.
+    if ('items' in inbox) {
+      setInboxItems(inbox.items)
+      setInboxUnread(inbox.unread)
+    }
     setLoading(false)
+  }, [restaurantId])
+
+  const handleInboxClick = useCallback(async (item: InboxNotificationItem) => {
+    if (!item.readAt) {
+      setInboxItems((prev) => prev.map((entry) => entry.id === item.id
+        ? { ...entry, readAt: new Date().toISOString() }
+        : entry))
+      setInboxUnread((prev) => Math.max(0, prev - 1))
+      void markInboxRead(restaurantId, [item.id])
+    }
+    if (item.linkPath) {
+      onClose()
+      router.push(item.linkPath)
+    }
+  }, [restaurantId, onClose, router])
+
+  const handleMarkAllRead = useCallback(async () => {
+    setInboxItems((prev) => prev.map((entry) => entry.readAt ? entry : { ...entry, readAt: new Date().toISOString() }))
+    setInboxUnread(0)
+    void markInboxRead(restaurantId)
   }, [restaurantId])
 
   useEffect(() => { void load() }, [load])
@@ -85,6 +122,18 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
           display: 'flex', alignItems: 'center', gap: 8,
         }}>
           <span style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>Bildirimler</span>
+          {inboxUnread > 0 && (
+            <button
+              type="button"
+              onClick={() => void handleMarkAllRead()}
+              style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                fontSize: 11, fontWeight: 600, color: 'var(--text-3)', padding: 0,
+              }}
+            >
+              Tümünü okundu say
+            </button>
+          )}
           {items.length > 0 && <Tag tone="critical">{items.length}</Tag>}
         </div>
 
@@ -151,6 +200,51 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
                 </div>
               )
             })
+          )}
+
+          {/* Durable inbox history (notification_inbox) */}
+          {!loading && !error && inboxItems.length > 0 && (
+            <>
+              <div style={{
+                padding: '8px 16px 6px', fontSize: 10.5, fontWeight: 700,
+                letterSpacing: '.06em', textTransform: 'uppercase',
+                color: 'var(--text-4)', background: 'var(--surface-2)',
+                borderBottom: '1px solid var(--divider)',
+              }}>
+                Geçmiş
+              </div>
+              {inboxItems.map((n) => {
+                const unread = !n.readAt
+                const critical = n.severity === 'critical'
+                return (
+                  <div
+                    key={n.id}
+                    onClick={() => void handleInboxClick(n)}
+                    style={{
+                      padding: '10px 16px', display: 'flex', gap: 10,
+                      borderBottom: '1px solid var(--divider)',
+                      cursor: n.linkPath ? 'pointer' : 'default',
+                      alignItems: 'center',
+                      background: unread ? 'var(--surface-2)' : 'transparent',
+                    }}
+                  >
+                    <span
+                      aria-label={unread ? 'Okunmadı' : undefined}
+                      style={{
+                        width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                        background: unread ? (critical ? 'var(--critical)' : 'var(--info)') : 'transparent',
+                        border: unread ? 'none' : '1px solid var(--border)',
+                      }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: unread ? 700 : 500, lineHeight: 1.3 }}>{n.title}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 2 }}>{n.body}</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 4 }}>{relativeTime(n.createdAt)}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </>
           )}
         </div>
 

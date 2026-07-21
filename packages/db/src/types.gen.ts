@@ -1011,6 +1011,95 @@ export type Database = {
           },
         ]
       }
+      notification_inbox: {
+        Row: {
+          body: string
+          category: string
+          created_at: string
+          dedupe_key: string
+          id: string
+          link_path: string | null
+          outbox_id: string | null
+          read_at: string | null
+          recipient_user_id: string
+          restaurant_id: string
+          severity: string
+          title: string
+        }
+        Insert: {
+          body: string
+          category: string
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          link_path?: string | null
+          outbox_id?: string | null
+          read_at?: string | null
+          recipient_user_id: string
+          restaurant_id: string
+          severity?: string
+          title: string
+        }
+        Update: {
+          body?: string
+          category?: string
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          link_path?: string | null
+          outbox_id?: string | null
+          read_at?: string | null
+          recipient_user_id?: string
+          restaurant_id?: string
+          severity?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_inbox_outbox_id_fkey"
+            columns: ["outbox_id"]
+            isOneToOne: false
+            referencedRelation: "domain_outbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_inbox_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_preferences: {
+        Row: {
+          prefs: Json
+          restaurant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          prefs?: Json
+          restaurant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          prefs?: Json
+          restaurant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_payment_tokens: {
         Row: {
           created_at: string

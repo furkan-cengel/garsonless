@@ -15,6 +15,7 @@ import IconRail from './IconRail'
 import ServiceRequestToast from './ServiceRequestToast'
 import StoreSwitcher from '../overlays/StoreSwitcher'
 import NotificationsPanel from '../overlays/NotificationsPanel'
+import { getUnreadInboxCount } from '../../lib/actions/notifications'
 import HelpModal from '../overlays/HelpModal'
 import ProfileMenu from '../overlays/ProfileMenu'
 
@@ -61,6 +62,7 @@ export default function RestaurantShell({
   const [ordersBadge, setOrdersBadge] = useState(0)
   const [newOrderCount, setNewOrderCount] = useState(0)
   const [pendingReqCount, setPendingReqCount] = useState(0)
+  const [criticalUnread, setCriticalUnread] = useState(0)
   const [waiterToast, setWaiterToast] = useState<{ tableLabel: string; label: string } | null>(null)
   const tableLabelsRef = useRef<Record<string, string>>({})
   const navigationGuardRef = useRef<string | null>(null)
@@ -74,7 +76,10 @@ export default function RestaurantShell({
   useEffect(() => { serviceAlertRef.current = serviceRequestAlert }, [serviceRequestAlert])
 
   // Live unread = pending waiter calls + new orders today (derived, not persisted).
-  const notificationCount = newOrderCount + pendingReqCount
+  // Durable unread adds ONLY unmutable categories (billing/system) from the
+  // notification inbox — order/service_request entries are already counted
+  // live, so including them here would double-count the same occurrence.
+  const notificationCount = newOrderCount + pendingReqCount + criticalUnread
 
   const isFullScreen = pathname.includes('/tables')
 
@@ -122,6 +127,17 @@ export default function RestaurantShell({
       void supabase.removeChannel(channel)
     }
   }, [restaurantId])
+
+  // Durable unmutable notifications (billing/system): refreshed on mount and
+  // whenever the notifications overlay closes (entries may have been read).
+  useEffect(() => {
+    let cancelled = false
+    if (overlay === 'notif') return
+    void getUnreadInboxCount(restaurantId, ['billing', 'system']).then((result) => {
+      if (!cancelled && 'unread' in result) setCriticalUnread(result.unread)
+    })
+    return () => { cancelled = true }
+  }, [restaurantId, overlay])
 
   // Waiter-call notifications: load table labels once, then toast on each new request.
   useEffect(() => {

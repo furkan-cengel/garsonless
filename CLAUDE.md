@@ -75,6 +75,45 @@ The design engine is the core differentiator. Every UI decision routes through i
 - ⚠️ **Dashboard Insights Health workflow'u push sonrasında repo secret'larıyla aktive edilmeli** — `DEV_SUPABASE_URL` ve `DEV_SUPABASE_SERVICE_ROLE_KEY` zorunlu; `DASHBOARD_INSIGHTS_ALERT_WEBHOOK_URL` opsiyonel HTTPS alarm kanalıdır. Secret değerleri loglanmaz ve webhook payload'u tenant/ham hata taşımaz.
 - ⚠️ **`20260721010000_dashboard_push_subscriptions.sql` yalnız linked DEV'e uygulandı** — dashboard Web Push teslimatı için subscription/delivery tablolarını ve own-user + tenant RLS politikalarını ekler. PROD deploy setine ancak push endpoint/worker environment'ları birlikte hazırlandığında eklenmelidir.
 - ⚠️ **`20260721020000_menu_items_anon_allergen_note_grant.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (`allergen_note` + `cross_contact_note` kolonlarını anon SELECT allowlist'ine ekler; bu grant olmadan public menü sorgusu 42501 alır ve menü boş görünür).
+- ⚠️ **`20260721030000_notification_inbox.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (per-user `notification_inbox` + `notification_preferences`; own-user RLS, service-role-only yazma, anon revoke). Deploy'da Edge worker secret'ına `OUTBOX_INBOX_CONSUMER_URL` da eklenmelidir.
+
+### Faz 4 dilim 1 — Kalıcı bildirim inbox'ı + per-user tercih temeli ✅ (2026-07-21)
+
+- Yeni `@garsonless/domain/notifications` sözlüğü: kategori (`order`/`service_request`/`billing`/`system`),
+  severity, kanal, deterministik dedupe key ve **susturulamazlık kuralı**
+  (billing/system + her kategoride critical severity tercihle kapatılamaz;
+  bozuk tercih JSONB'si fail-open teslim eder). Domain testleri 6/6.
+- `20260721030000_notification_inbox.sql` linked DEV'e uygulandı:
+  `notification_inbox` (per-user satır, `unique(recipient, dedupe_key)` ile
+  replay-safe, own-user RLS select, yazılar yalnız service-role, anon revoke)
+  + `notification_preferences` (restaurant×user, prefs JSONB). ⚠️ **PROD-at-deploy
+  setine eklenmeli.**
+- `@garsonless/application/notifications` receipt-first `dashboard-inbox`
+  consumer'ı: outbox `order.created`/`service_request.created` event'ini owner +
+  section-yetkili aktif üyelere fan-out eder; tercihle susturulan alıcı `muted`
+  sayılır, insert hatasında receipt YAZILMAZ (retry-safe). Application testleri 6/6.
+- Edge outbox worker'a üçüncü bağımsız fan-out eklendi (`OUTBOX_INBOX_CONSUMER_URL`,
+  yapılandırılmamışsa `inboxUnconfigured` metriği ile görünür, core akışı bloke etmez).
+  Dashboard `/api/internal/inbox` route'u `OUTBOX_WORKER_SECRET` ile korunur.
+- Dashboard: `getInboxFeed`/`getUnreadInboxCount`/`markInboxRead` action'ları
+  (auth user'a scoped service-role okuma; RLS savunma katmanı). NotificationsPanel
+  canlı aksiyon feed'inin altında kalıcı **Geçmiş** bölümü, per-item okunmamış
+  noktası, tıklamada link_path navigasyonu + okundu işaretleme, "Tümünü okundu
+  say". Üst bar rozeti canlı sayaca yalnız **billing/system** kalıcı unread'ini
+  ekler (order/service_request canlıda zaten sayılıyor → çift sayım yok; Faz 5
+  dunning bildirimleri rozette otomatik görünecek).
+- Verify: domain **40/40**, application **88/88**, workspace typecheck **10/10**,
+  lint **0 error** (marketing'de mevcut 2 `img` warning), dashboard production
+  build temiz. Gerçek DEV runtime matrisi (`pnpm --filter @garsonless/db
+  verify:dashboard-inbox`) **8/8**: içerik+dedupe, replay duplicate, muted
+  tercih + receipt, kategori filtreli unread, yabancı-user mark-read no-op,
+  anon 42501, gerçek session RLS (sahibi 1 / yabancı authenticated 0), panel
+  projection; cleanup inbox/prefs/outbox orphan **0**.
+- Rollout notu: Edge worker secret'larına `OUTBOX_INBOX_CONSUMER_URL=
+  https://<dashboard>/api/internal/inbox` eklenmeli (push kanalıyla aynı kalıp).
+- Sıradaki dilim: e-posta kanalı (`notification_templates` + `notification_deliveries`
+  + Resend adapter + retry/dead-letter) ve tercih yönetimi UI'ı; ardından Faz 5
+  billing veri modeli.
 
 ### Master roadmap Faz 0 — SaaS ürün kuralları ADR'leri ✅ (2026-07-21)
 

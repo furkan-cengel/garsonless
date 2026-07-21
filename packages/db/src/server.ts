@@ -129,3 +129,10 @@ export {
   deleteDashboardPushSubscriptionsForUser,
   upsertDashboardPushSubscription,
 } from './dashboard-push-port'
+export {
+  countUnreadInboxNotifications,
+  createDashboardInboxPort,
+  listInboxNotifications,
+  markInboxNotificationsRead,
+  type InboxFeedItem,
+} from './dashboard-inbox-port'
