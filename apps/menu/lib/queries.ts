@@ -32,6 +32,21 @@ type PublicMenuItemRow = Pick<
   | 'position'
 >
 
+function assertNoMenuQueryError(
+  operation: string,
+  error: { code?: string; message?: string } | null,
+): void {
+  if (!error) return
+  // A failing public menu query is a deploy/grant bug, never "no products".
+  // Log the structured cause server-side and fail visibly instead of
+  // rendering an empty menu.
+  console.error(`[menu-public-query] ${operation} failed`, {
+    code: error.code ?? null,
+    message: error.message ?? null,
+  })
+  throw new Error(`Menu data could not be loaded (${operation})`)
+}
+
 function mapCategory(row: Tables<'menu_categories'>): MenuCategory {
   return {
     id: row.id,
@@ -97,20 +112,21 @@ export interface SessionOrderRow {
 
 export async function getMenuCategories(restaurantId: string): Promise<MenuCategory[]> {
   const supabase = createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('menu_categories')
     .select('*')
     .eq('restaurant_id', restaurantId)
     .eq('is_visible', true)
     .is('deleted_at', null)
     .order('position')
+  assertNoMenuQueryError('menu_categories.select', error)
   return (data ?? []).map(mapCategory)
 }
 
 export async function getMenuItems(categoryIds: string[]): Promise<MenuItem[]> {
   if (categoryIds.length === 0) return []
   const supabase = createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('menu_items')
     .select(`
       id,
@@ -139,5 +155,6 @@ export async function getMenuItems(categoryIds: string[]): Promise<MenuItem[]> {
     .eq('is_available', true)
     .is('deleted_at', null)
     .order('position')
+  assertNoMenuQueryError('menu_items.select', error)
   return (data ?? []).map(mapMenuItem)
 }

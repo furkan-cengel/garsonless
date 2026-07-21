@@ -73,6 +73,50 @@ The design engine is the core differentiator. Every UI decision routes through i
 - ⚠️ **`20260718010000_dashboard_query_observations.sql` yalnız DEV'e uygulandı** — PROD deploy aşamasında uygulanacak PROD-at-deploy migration setine EKLENMELİ (yalnız service-role erişimli anomaly/slow-query gözlem tablosu + tenant/zaman ve failure/degraded index'leri).
 - ⚠️ **`20260718020000_dashboard_query_observation_operations.sql` yalnız DEV'e uygulandı** — PROD deploy aşamasında uygulanacak PROD-at-deploy migration setine EKLENMELİ (15 dakikalık aggregate health rollup, service-role-only prune RPC'si ve 30 günlük günlük retention cron'u).
 - ⚠️ **Dashboard Insights Health workflow'u push sonrasında repo secret'larıyla aktive edilmeli** — `DEV_SUPABASE_URL` ve `DEV_SUPABASE_SERVICE_ROLE_KEY` zorunlu; `DASHBOARD_INSIGHTS_ALERT_WEBHOOK_URL` opsiyonel HTTPS alarm kanalıdır. Secret değerleri loglanmaz ve webhook payload'u tenant/ham hata taşımaz.
+- ⚠️ **`20260721010000_dashboard_push_subscriptions.sql` yalnız linked DEV'e uygulandı** — dashboard Web Push teslimatı için subscription/delivery tablolarını ve own-user + tenant RLS politikalarını ekler. PROD deploy setine ancak push endpoint/worker environment'ları birlikte hazırlandığında eklenmelidir.
+- ⚠️ **`20260721020000_menu_items_anon_allergen_note_grant.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (`allergen_note` + `cross_contact_note` kolonlarını anon SELECT allowlist'ine ekler; bu grant olmadan public menü sorgusu 42501 alır ve menü boş görünür).
+
+### Public menü boş görünme düzeltmesi — anon kolon grant + hata dürüstlüğü ✅ (2026-07-21)
+
+- Kök neden: public menü sorgusu ([apps/menu/lib/queries.ts](apps/menu/lib/queries.ts)) `allergen_note`/`cross_contact_note` seçiyordu ama `20260704010000` anon kolon allowlist'i bu iki kolonu (sonradan `20260713010000` ile eklendiler) içermiyordu → PostgREST tüm select'i **42501** ile reddediyor, `getMenuItems` da error'ı yutup boş liste döndürüyordu. Tema önizleme ve masa QR sayfaları aynı sorguyu kullandığı için ikisinde birden ürünler kayboluyordu.
+- `20260721020000_menu_items_anon_allergen_note_grant.sql` iki güvenli public disclosure text kolonunu anon grant'e ekledi; hassas kolonlar (`cost`, makrolar, settlement alanları) grant dışı kaldı ve gerçek anon probe ile **42501** olarak doğrulandı.
+- `getMenuItems`/`getMenuCategories` artık Supabase error'ını yutmaz: `assertNoMenuQueryError` yapılandırılmış `[menu-public-query]` server logu yazar ve fırlatır → menü error boundary'sine düşer, "ürün yok" yalanı biter.
+- Verify: gerçek anon REST probe **200 + ürünler** (öncesi 42501), hassas kolon probe **42501**; `localhost:3011/test-cafe-b` ve `?preview=1` SSR HTML'inde ürün adları render oldu; menu typecheck/lint temiz, DB suite **128/128**. Production build bu dilimde koşulmadı (canlı dev serverlar `.next` paylaştığı için); sıradaki build kapısında doğal olarak doğrulanır.
+
+### SaaS bildirimleri — dayanıklı Web Push teslimatı ✅ kod + DEV veri/route / ⏳ gerçek cihaz (2026-07-21)
+
+- Dashboard cihaz aboneliği artık tarayıcı izninden ibaret değildir: Web Push
+  endpoint'i sunucuya own-user + restaurant bağlamında kaydolur, logout sırasında
+  emekliye ayrılır ve permission/plan hataları kullanıcıya dürüst durum olarak
+  gösterilir. Starter ve üstü plan kapısı server action'da yeniden denetlenir.
+- `order.created` ve `service_request.created` outbox event'leri ayrı
+  `dashboard-push` consumer'ında işlenir. Yetkili alıcılar event'in bölümüne göre
+  (`orders`/`tables`) tekrar filtrelenir; preference kapalıysa veya eligible cihaz
+  yoksa deterministik no-op receipt yazılır.
+- Teslimat event+subscription bazında idempotenttir. Başarılı ve 404/410 gone
+  endpoint'ler tamamlanır, gone endpoint devre dışı bırakılır; transient provider
+  hataları receipt yazmadan retry'a bırakılır. Provider topic ve service-worker
+  notification tag'i aynı event kimliğini kullanarak UI tekrarını sınırlar.
+- Outbox worker yeni internal push consumer'ını bağımsız çağırır; URL henüz
+  configure edilmemişse core event consumer'ı bloke edilmez ve durum
+  `pushUnconfigured` metriğinde görünür kalır. Rollout sırası: migration → dashboard
+  VAPID/private endpoint env → worker `OUTBOX_PUSH_CONSUMER_URL` → kanal aktivasyonu.
+- Migration linked DEV'e uygulandı ve tipler gerçek şemadan yeniden üretildi. Test
+  Cafe B throwaway runtime matrisi: owner görünür **1**, aynı endpoint retry sonrası
+  satır **1**, unrelated kullanıcı **0**, anon/cross-tenant/delivery diagnostics
+  engelli, delivery replay unique violation **23505**, cleanup **0 subscription / 0
+  outbox orphan**.
+- Gerçek internal route + Web Push provider transient testi: yanlış worker secret
+  **401**; iki teslimat denemesi **503/503**; delivery `failed` ve attempts **2**;
+  consumer receipt **0**, endpoint enabled ve failure_count **2** kaldı. Böylece
+  transient hatanın ack edilmediği ve sonraki worker turuna bırakıldığı doğrulandı;
+  cleanup yine **0/0**.
+- Verify: application **82/82**, DB **128/128**, dashboard architecture **161/161**;
+  workspace typecheck **10/10**, ilgili lint'ler temiz ve dashboard production build
+  başarılı. Bu çalışma ortamında kullanılabilir browser backend olmadığı için gerçek
+  cihaz `subscribe → provider sent → OS notification → click-through` kanıtı manuel
+  browser gate olarak kalır; 410/gone ve sent dalları application contract testlerinde
+  kapsanır.
 
 ### Modüler monolith — DB explicit type surface ✅ (2026-07-20)
 
