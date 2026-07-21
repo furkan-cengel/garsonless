@@ -77,6 +77,39 @@ The design engine is the core differentiator. Every UI decision routes through i
 - ⚠️ **`20260721020000_menu_items_anon_allergen_note_grant.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (`allergen_note` + `cross_contact_note` kolonlarını anon SELECT allowlist'ine ekler; bu grant olmadan public menü sorgusu 42501 alır ve menü boş görünür).
 - ⚠️ **`20260721030000_notification_inbox.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (per-user `notification_inbox` + `notification_preferences`; own-user RLS, service-role-only yazma, anon revoke). Deploy'da Edge worker secret'ına `OUTBOX_INBOX_CONSUMER_URL` da eklenmelidir.
 - ⚠️ **`20260721040000_notification_email_channel.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (`notification_templates` + `notification_deliveries`, her ikisi service-role-only). Deploy'da Edge secret'a `OUTBOX_EMAIL_CONSUMER_URL`, dashboard env'e `RESEND_API_KEY`/`RESEND_FROM_EMAIL` gerekir.
+- ⚠️ **`20260721050000_notification_inbox_realtime.sql` yalnız DEV'e uygulandı** — PROD-at-deploy setine EKLENMELİ (`notification_inbox` supabase_realtime publication'a eklenir; zil rozetinin canlı düşmesi buna bağlı).
+
+### Faz 4 dilim 1 rozet revizyonu — zil = okunmamış inbox + realtime auth fix 🚧 (2026-07-21, gözle teyit bekliyor)
+
+**Kullanıcı gözle testte fark etti:** dilim-1'de zil rozeti "bugünkü bekleyen sipariş
++ kritik(billing/system) unread" gösteriyordu; "Geçmiş"teki okunmamış bildirimler
+okununca rozet düşmüyordu (kafa karıştırıcı). Klasik bildirim davranışına revize edildi.
+
+- **`notificationCount = inboxUnread`** — zil artık per-user `notification_inbox`
+  okunmamış sayısıdır (tüm kategoriler). Açıp okuyunca / "Tümünü okundu say" ile
+  düşer. Sol nav Siparişler ikonu badge'i (`ordersBadge` = bugünkü aktif sipariş)
+  operasyonel canlı iş sayacı olarak **AYRI** kaldı; zil ile artık karışmıyor.
+  `newOrderCount`/`pendingReqCount` zilden çıkarıldı (`pendingReqCount` tamamen
+  silindi; waiter toast korundu). [RestaurantShell.tsx](apps/dashboard/components/layout/RestaurantShell.tsx)
+- **KRİTİK realtime tuzağı (teşhis-temelli fix):** `notification_inbox` anon'a
+  tamamen kapalı. Realtime `postgres_changes` RLS'e uyduğu için socket'e
+  **authenticated JWT verilmezse event'ler sessizce düşer** —
+  `supabase.realtime.setAuth(session.access_token)` subscribe'dan ÖNCE çağrılır.
+  (Anon-okunabilir `orders`/`service_requests` bunu gerektirmediğinden diğer
+  badge'ler auth'suz çalışıyordu; bu yüzden zil güncellenmiyordu.) + 45s
+  güvenlik-ağı interval + orders INSERT'te 4s gecikmeli inbox refresh (Edge
+  worker'ın async yazımını yakalamak için).
+- `20260721050000_notification_inbox_realtime.sql` DEV'e uygulandı (publication'a
+  `notification_inbox` eklendi, idempotent). ⚠️ **PROD-at-deploy.**
+- **Dev kısıtı:** Edge worker localhost'ta yok → `order.created` inbox'a OTOMATİK
+  yazılmaz; `consumeDashboardInbox` elle tetiklenmeli. Prod'da Edge worker
+  `OUTBOX_INBOX_CONSUMER_URL` ile yazar → realtime anlık.
+- **⏳ AÇIK — gözle doğrulanmadı:** typecheck temiz; ama realtime auth fix'inin
+  canlı artış/düşüşü tarayıcıda TEYİT EDİLMEDİ (browser gate). Sunucu-tarafı
+  sayı (F5 sonrası `getUnreadInboxCount`) DB'de kanıtlı çalışıyor (owner 1
+  okunmamış). Realtime kanalının setAuth'la event alıp almadığı bir sonraki
+  gözle turda doğrulanmalı; alamıyorsa 45s interval yine de düşük gecikmeli
+  fallback sağlar.
 
 ### Faz 4 dilim 2 — E-posta bildirim kanalı (templates + deliveries + Resend) ✅ (2026-07-21)
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 import type { Tables } from '@garsonless/db/types'
@@ -60,9 +60,7 @@ export default function RestaurantShell({
   const pathname = usePathname()
   const [overlay, setOverlay] = useState<Overlay>(null)
   const [ordersBadge, setOrdersBadge] = useState(0)
-  const [newOrderCount, setNewOrderCount] = useState(0)
-  const [pendingReqCount, setPendingReqCount] = useState(0)
-  const [criticalUnread, setCriticalUnread] = useState(0)
+  const [inboxUnread, setInboxUnread] = useState(0)
   const [waiterToast, setWaiterToast] = useState<{ tableLabel: string; label: string } | null>(null)
   const tableLabelsRef = useRef<Record<string, string>>({})
   const navigationGuardRef = useRef<string | null>(null)
@@ -75,11 +73,12 @@ export default function RestaurantShell({
   const serviceAlertRef = useRef(serviceRequestAlert)
   useEffect(() => { serviceAlertRef.current = serviceRequestAlert }, [serviceRequestAlert])
 
-  // Live unread = pending waiter calls + new orders today (derived, not persisted).
-  // Durable unread adds ONLY unmutable categories (billing/system) from the
-  // notification inbox — order/service_request entries are already counted
-  // live, so including them here would double-count the same occurrence.
-  const notificationCount = newOrderCount + pendingReqCount + criticalUnread
+  // The bell badge is the durable notification model: unread entries in the
+  // per-user inbox, across all categories. It behaves like every other
+  // notification centre — it rises when a new notification lands and falls as
+  // the user reads them. (`newOrderCount`/`pendingReqCount` still drive the
+  // operational rail badge + waiter toast; they are NOT the bell count.)
+  const notificationCount = inboxUnread
 
   const isFullScreen = pathname.includes('/tables')
 
@@ -100,20 +99,27 @@ export default function RestaurantShell({
         .gte('created_at', todayStart.toISOString())
         .is('deleted_at', null)
       const rows = (data ?? []) as Array<{ status: string }>
-      if (!cancelled) {
-        setOrdersBadge(rows.length)
-        setNewOrderCount(rows.filter((row) => row.status === 'pending' || row.status === 'pending_approval').length)
-      }
+      if (!cancelled) setOrdersBadge(rows.length)
     }
 
     void refreshCount()
+
+    // A new order also produces an inbox notification via the async outbox
+    // consumer. This channel is anon-visible and therefore always fires, so
+    // piggyback a delayed unread refresh to catch the consumer's write even
+    // when the authenticated inbox stream is unavailable.
+    let inboxTimer: ReturnType<typeof setTimeout> | null = null
+    const scheduleInboxRefresh = () => {
+      if (inboxTimer) clearTimeout(inboxTimer)
+      inboxTimer = setTimeout(() => { refreshInboxUnread() }, 4_000)
+    }
 
     const channel = supabase
       .channel(`orders-badge:${restaurantId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
-        () => { void refreshCount() },
+        () => { void refreshCount(); scheduleInboxRefresh() },
       )
       .on(
         'postgres_changes',
@@ -128,16 +134,57 @@ export default function RestaurantShell({
     }
   }, [restaurantId])
 
-  // Durable unmutable notifications (billing/system): refreshed on mount and
-  // whenever the notifications overlay closes (entries may have been read).
-  useEffect(() => {
-    let cancelled = false
-    if (overlay === 'notif') return
-    void getUnreadInboxCount(restaurantId, ['billing', 'system']).then((result) => {
-      if (!cancelled && 'unread' in result) setCriticalUnread(result.unread)
+  // Unread notification inbox count drives the bell badge. Refreshed on mount,
+  // whenever the notifications overlay closes (entries may have just been
+  // read), and live via a realtime subscription on the user's own inbox rows
+  // (RLS scopes the stream to the signed-in user). In production the outbox
+  // inbox consumer inserts these rows; locally they arrive once the consumer
+  // is dispatched.
+  const refreshInboxUnread = useCallback(() => {
+    void getUnreadInboxCount(restaurantId).then((result) => {
+      if ('unread' in result) setInboxUnread(result.unread)
     })
-    return () => { cancelled = true }
-  }, [restaurantId, overlay])
+  }, [restaurantId])
+
+  useEffect(() => {
+    if (overlay === 'notif') return
+    refreshInboxUnread()
+  }, [refreshInboxUnread, overlay])
+
+  useEffect(() => {
+    const supabase = createDashboardBrowserClient()
+    let cancelled = false
+
+    // notification_inbox is fully closed to anon, so the realtime socket MUST
+    // carry the authenticated JWT or RLS silently drops every event. Set it
+    // explicitly before subscribing (the anon-readable tables never needed
+    // this, which is why the other badges worked without it).
+    const subscribe = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (cancelled) return null
+      if (data.session) supabase.realtime.setAuth(data.session.access_token)
+      return supabase
+        .channel(`inbox-badge:${restaurantId}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'notification_inbox', filter: `restaurant_id=eq.${restaurantId}` },
+          () => { refreshInboxUnread() },
+        )
+        .subscribe()
+    }
+    const channelPromise = subscribe()
+
+    // Safety net: the inbox row is written by an async outbox consumer, so a
+    // slow/absent realtime path must not leave the bell stale. Cheap head
+    // count every 45s.
+    const interval = setInterval(() => { refreshInboxUnread() }, 45_000)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+      void channelPromise.then((channel) => { if (channel) void supabase.removeChannel(channel) })
+    }
+  }, [restaurantId, refreshInboxUnread])
 
   // Waiter-call notifications: load table labels once, then toast on each new request.
   useEffect(() => {
@@ -159,16 +206,6 @@ export default function RestaurantShell({
     }
     void loadLabels()
 
-    const refreshPendingCount = async () => {
-      const { count } = await supabase
-        .from('service_requests')
-        .select('id', { count: 'exact', head: true })
-        .eq('restaurant_id', restaurantId)
-        .eq('status', 'pending')
-      if (!cancelled) setPendingReqCount(count ?? 0)
-    }
-    void refreshPendingCount()
-
     const channel = supabase
       .channel(`service-requests:${restaurantId}`)
       .on(
@@ -178,15 +215,10 @@ export default function RestaurantShell({
           const tableId = payload.new['table_id'] as string | undefined
           const label = (tableId && tableLabelsRef.current[tableId]) || 'Masa'
           const requestLabel = serviceRequestLabel(payload.new['request_type'])
-          // Badge count always refreshes; the toast alert respects the toggle.
+          // The waiter toast respects the alert toggle; the bell badge is fed
+          // by the durable inbox, not this live count.
           if (serviceAlertRef.current) setWaiterToast({ tableLabel: label, label: requestLabel })
-          void refreshPendingCount()
         },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'service_requests', filter: `restaurant_id=eq.${restaurantId}` },
-        () => { void refreshPendingCount() },
       )
       .subscribe()
 
