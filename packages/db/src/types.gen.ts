@@ -1011,6 +1011,78 @@ export type Database = {
           },
         ]
       }
+      notification_deliveries: {
+        Row: {
+          attempts: number
+          category: string
+          channel: string
+          created_at: string
+          dedupe_key: string
+          id: string
+          last_error: string | null
+          outbox_id: string | null
+          provider_message_id: string | null
+          recipient_address: string
+          recipient_user_id: string
+          restaurant_id: string
+          sent_at: string | null
+          status: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          category: string
+          channel: string
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          last_error?: string | null
+          outbox_id?: string | null
+          provider_message_id?: string | null
+          recipient_address: string
+          recipient_user_id: string
+          restaurant_id: string
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          category?: string
+          channel?: string
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          last_error?: string | null
+          outbox_id?: string | null
+          provider_message_id?: string | null
+          recipient_address?: string
+          recipient_user_id?: string
+          restaurant_id?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_deliveries_outbox_id_fkey"
+            columns: ["outbox_id"]
+            isOneToOne: false
+            referencedRelation: "domain_outbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_deliveries_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_inbox: {
         Row: {
           body: string
@@ -1099,6 +1171,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notification_templates: {
+        Row: {
+          body_html: string
+          category: string
+          channel: string
+          id: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          body_html: string
+          category: string
+          channel: string
+          id?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          body_html?: string
+          category?: string
+          channel?: string
+          id?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       order_payment_tokens: {
         Row: {

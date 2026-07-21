@@ -29,7 +29,8 @@
     "verify:dashboard-push-provider": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local PUSH_TEST_CONSUMER_SECRET=dashboard-push-runtime-secret node --import dotenv/config --import tsx scripts/verify-dashboard-push-provider-runtime.ts",
     "health:dashboard-insights": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/check-dashboard-insights-health.ts",
     "seed:maf": "tsx src/seed-maf.ts",
-    "verify:dashboard-inbox": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-dashboard-inbox-runtime.ts"
+    "verify:dashboard-inbox": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-dashboard-inbox-runtime.ts",
+    "verify:notification-email": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-notification-email-runtime.ts"
   },
   "dependencies": {
     "@garsonless/application": "workspace:*",

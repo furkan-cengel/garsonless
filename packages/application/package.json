@@ -10,6 +10,7 @@
     "./loyalty": "./src/loyalty.ts",
     "./menu": "./src/menu.ts",
     "./orders": "./src/orders.ts",
+    "./notification-emails": "./src/notification-emails.ts",
     "./notifications": "./src/notifications.ts",
     "./outbox": "./src/outbox.ts",
     "./payments": "./src/payments.ts",

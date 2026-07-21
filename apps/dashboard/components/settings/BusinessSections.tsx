@@ -14,6 +14,11 @@ import {
   type PaymentCredsMeta,
 } from '../../lib/actions/payments'
 import { saveNotificationPreferences } from '../../lib/actions/restaurant'
+import {
+  getMyEmailNotificationPrefs,
+  saveMyEmailNotificationPrefs,
+  type EmailNotificationPrefs,
+} from '../../lib/actions/notifications'
 import { readNotificationPrefs, type NotificationPrefs } from '../../lib/notification-prefs'
 import { readLateThresholdMin, clampLateThreshold, LATE_THRESHOLD_MIN_MIN, LATE_THRESHOLD_MIN_MAX } from '../../lib/orders-prefs'
 import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
@@ -304,6 +309,70 @@ const NOTIFICATION_ROWS: { key: keyof NotificationPrefs; label: string; hint: st
   { key: 'serviceRequestPush',  label: 'Garson çağrısı bildirimi', hint: 'Panel kapalıyken de sistem bildirimi gönderir (izin gerekir)' },
 ]
 
+// Per-user e-mail opt-in — writes notification_preferences for the signed-in
+// user (not the restaurant). Saves immediately on toggle; the outbox
+// notification-email consumer reads the same rows at delivery time.
+const EMAIL_PREF_ROWS: { key: keyof EmailNotificationPrefs; label: string; hint: string }[] = [
+  { key: 'order', label: 'Yeni sipariş e-postası', hint: 'Her yeni siparişte size e-posta gönderilir (kişisel tercih)' },
+  { key: 'service_request', label: 'Masa isteği e-postası', hint: 'Garson çağrılarında size e-posta gönderilir (kişisel tercih)' },
+]
+
+function EmailPrefsBlock({ restaurantId }: { restaurantId: string }) {
+  const [prefs, setEmailPrefs] = useState<EmailNotificationPrefs | null>(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    void getMyEmailNotificationPrefs(restaurantId).then((result) => {
+      if (cancelled) return
+      if ('order' in result) setEmailPrefs(result)
+      else setError(result.error)
+    })
+    return () => { cancelled = true }
+  }, [restaurantId])
+
+  const toggle = (key: keyof EmailNotificationPrefs, value: boolean) => {
+    if (!prefs) return
+    const next = { ...prefs, [key]: value }
+    const previous = prefs
+    setEmailPrefs(next)
+    setError('')
+    void saveMyEmailNotificationPrefs(restaurantId, next).then((result) => {
+      if ('error' in result) {
+        setEmailPrefs(previous)
+        setError(result.error)
+      }
+    })
+  }
+
+  return (
+    <>
+      <div style={{
+        padding: '10px 18px 4px', fontSize: 11, fontWeight: 700,
+        letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-4)',
+        borderTop: '1px solid var(--divider)',
+      }}>
+        E-posta bildirimleri (kişisel)
+      </div>
+      {EMAIL_PREF_ROWS.map(row => (
+        <FormRow key={row.key} label={row.label} hint={row.hint}>
+          <Toggle
+            on={prefs?.[row.key] ?? false}
+            disabled={prefs === null}
+            onChange={value => toggle(row.key, value)}
+            ariaLabel={row.label}
+          />
+        </FormRow>
+      ))}
+      {error && (
+        <div role="alert" style={{ padding: '4px 18px 8px', fontSize: 11.5, color: 'var(--critical)' }}>
+          {error}
+        </div>
+      )}
+    </>
+  )
+}
+
 export function NotificationsSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
   const browserNotificationsEnabled = canUseFeature(restaurant.plan, 'browser_notifications')
   const device = useDashboardPushSubscription(restaurant.id, browserNotificationsEnabled)
@@ -373,9 +442,11 @@ export function NotificationsSection({ restaurant }: { restaurant: Tables<'resta
             }}
           />
         </FormRow>
+        <EmailPrefsBlock restaurantId={restaurant.id} />
         <div style={{ padding: '12px 18px', fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
           Uygulama içi uyarılar tüm paketlerde gerçek zamanlı çalışır. İşletim sistemi bildirimi Starter
-          ve üstü paketlerde tarayıcı izniyle kullanılabilir. E-posta/SMS henüz desteklenmiyor.
+          ve üstü paketlerde tarayıcı izniyle kullanılabilir. E-posta bildirimleri kişiseldir ve varsayılan
+          olarak kapalıdır; kritik ödeme/servis e-postaları tercihle kapatılamaz. SMS henüz desteklenmiyor.
         </div>
         {browserNotificationsEnabled && (
           <FormRow

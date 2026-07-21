@@ -76,6 +76,48 @@ The design engine is the core differentiator. Every UI decision routes through i
 - ⚠️ **`20260721010000_dashboard_push_subscriptions.sql` yalnız linked DEV'e uygulandı** — dashboard Web Push teslimatı için subscription/delivery tablolarını ve own-user + tenant RLS politikalarını ekler. PROD deploy setine ancak push endpoint/worker environment'ları birlikte hazırlandığında eklenmelidir.
 - ⚠️ **`20260721020000_menu_items_anon_allergen_note_grant.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (`allergen_note` + `cross_contact_note` kolonlarını anon SELECT allowlist'ine ekler; bu grant olmadan public menü sorgusu 42501 alır ve menü boş görünür).
 - ⚠️ **`20260721030000_notification_inbox.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (per-user `notification_inbox` + `notification_preferences`; own-user RLS, service-role-only yazma, anon revoke). Deploy'da Edge worker secret'ına `OUTBOX_INBOX_CONSUMER_URL` da eklenmelidir.
+- ⚠️ **`20260721040000_notification_email_channel.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (`notification_templates` + `notification_deliveries`, her ikisi service-role-only). Deploy'da Edge secret'a `OUTBOX_EMAIL_CONSUMER_URL`, dashboard env'e `RESEND_API_KEY`/`RESEND_FROM_EMAIL` gerekir.
+
+### Faz 4 dilim 2 — E-posta bildirim kanalı (templates + deliveries + Resend) ✅ (2026-07-21)
+
+- Domain tercih modeli kanal-bazlı genelleştirildi: `readNotificationChannelPrefs(raw, 'inapp'|'email')`.
+  In-app fail-open (varsayılan açık), **e-posta mutable kategoriler için opt-in**
+  (varsayılan KAPALI — kimse sürpriz e-posta almaz); billing/system her kanalda
+  susturulamaz. Dilim-1 in-app API'ları compat wrapper olarak korundu. Domain 43/43.
+- `20260721040000_notification_email_channel.sql` linked DEV'e uygulandı:
+  `notification_templates` (kategori×kanal platform override'ı, servis-role-only)
+  + `notification_deliveries` (alıcı başına teslim satırı; `unique(recipient,
+  dedupe_key, channel)` = "aynı olaya 5 e-posta" imkânsız; PII adres snapshot'ı
+  → anon+authenticated tam revoke, gerçek session'la 42501 kanıtlı).
+  ⚠️ **PROD-at-deploy setine eklenmeli.**
+- `@garsonless/application/notification-emails` consumer'ı: receipt-first,
+  per-recipient durum makinesi (`sent`/`dead` terminal, `failed` → attempts+1
+  retry, **5 denemede dead-letter** ve event receipt ile tamamlanır; transient
+  hata receipt YAZMADAN err döner → outbox kendi backoff'uyla yeniden dener).
+  Template çözümü DB override → kod varsayılanı; `{{var}}` render HTML-escape'li.
+  Application 98/98 (10 yeni test: escape, opt-in/mute, retry, dead-letter cap,
+  duplicate, override).
+- Edge worker'a dördüncü bağımsız fan-out (`OUTBOX_EMAIL_CONSUMER_URL`,
+  yapılandırılmamışsa `emailUnconfigured` metriği); dashboard
+  `/api/internal/notification-email` route'u + Resend adapter'ı
+  (`RESEND_API_KEY`/`RESEND_FROM_EMAIL`; eksik config = failed outcome →
+  delivery kaydına düşer, core akış bloke olmaz).
+- Settings → Bildirimler'e **"E-posta bildirimleri (kişisel)"** bloğu: signed-in
+  kullanıcının kendi `notification_preferences` satırına yazan iki opt-in toggle
+  (yeni sipariş / masa isteği), toggle'da anında kayıt + hata rollback'i. Server
+  action merge'i diğer kanalların stored tercihine dokunmaz.
+- Verify: domain **43/43**, application **98/98**, workspace typecheck **10/10**,
+  lint **0 error**, dashboard production build temiz. Gerçek DEV runtime matrisi
+  (`pnpm --filter @garsonless/db verify:notification-email`, test-double
+  provider — gerçek e-posta gönderilmedi) **7/7**: varsayılan muted+receipt,
+  opt-in→tek gönderim+delivery satırı+provider id, replay duplicate, transient
+  hata→receipt'siz failed(1)→retry sent(2), 5-deneme dead-letter, DB template
+  override, anon+authenticated 42501. Cleanup **0 orphan**.
+- Rollout: Edge secret'a `OUTBOX_EMAIL_CONSUMER_URL=https://<dashboard>/api/internal/notification-email`
+  + dashboard'da `RESEND_API_KEY`/`RESEND_FROM_EMAIL`.
+- Sıradaki dilim: Faz 5 — billing veri modeli + İyzico SubscriptionBillingProvider
+  portu (ADR-0002); dunning bildirimleri bu e-posta kanalına `billing` kategorisiyle
+  bağlanacak (susturulamaz, şablonlu, delivery-takipli).
 
 ### Faz 4 dilim 1 — Kalıcı bildirim inbox'ı + per-user tercih temeli ✅ (2026-07-21)
 

@@ -136,3 +136,8 @@ export {
   markInboxNotificationsRead,
   type InboxFeedItem,
 } from './dashboard-inbox-port'
+export {
+  createNotificationEmailPort,
+  getNotificationPreferences,
+  upsertNotificationPreferences,
+} from './notification-email-port'

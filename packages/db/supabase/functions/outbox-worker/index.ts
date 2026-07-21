@@ -30,6 +30,11 @@ const isDashboardInboxEvent = (eventType: string) => [
   'service_request.created',
 ].includes(eventType)
 
+const isNotificationEmailEvent = (eventType: string) => [
+  'order.created',
+  'service_request.created',
+].includes(eventType)
+
 const required = (name: string) => {
   const value = Deno.env.get(name)
   if (!value) throw new Error(`Missing ${name}`)
@@ -77,6 +82,9 @@ Deno.serve(async (req) => {
   let inboxDispatched = 0
   let inboxSkipped = 0
   let inboxUnconfigured = 0
+  let emailDispatched = 0
+  let emailSkipped = 0
+  let emailUnconfigured = 0
   for (const event of (data ?? []) as OutboxEvent[]) {
     try {
       const consumer = durableConsumer(event.event_type)
@@ -194,6 +202,43 @@ Deno.serve(async (req) => {
         }
       }
 
+      // E-mail is a fourth independent fan-out. Its endpoint owns per-recipient
+      // delivery rows, opt-in preference checks, provider retries and
+      // dead-lettering; unconfigured rollout stays observable without blocking.
+      if (isNotificationEmailEvent(event.event_type)) {
+        const emailReceipt = await supabase
+          .from('domain_outbox_receipts')
+          .select('outbox_id')
+          .eq('outbox_id', event.id)
+          .eq('consumer', 'notification-email')
+          .maybeSingle()
+        if (emailReceipt.error) throw emailReceipt.error
+
+        if (emailReceipt.data) {
+          emailSkipped += 1
+        } else {
+          const emailUrl = Deno.env.get('OUTBOX_EMAIL_CONSUMER_URL')
+          if (!emailUrl) {
+            emailUnconfigured += 1
+          } else {
+            const response = await fetch(emailUrl, {
+              method: 'POST',
+              signal: AbortSignal.timeout(45_000),
+              headers: {
+                'content-type': 'application/json',
+                'x-outbox-secret': secret,
+              },
+              body: JSON.stringify({ eventId: event.id }),
+            })
+            if (!response.ok) {
+              const detail = await response.text().catch(() => '')
+              throw new Error(`Notification email consumer failed (${response.status}): ${detail.slice(0, 300)}`)
+            }
+            emailDispatched += 1
+          }
+        }
+      }
+
       // This is the first idempotent operational projection. Realtime and the
       // dashboard's analytics remain source-of-truth reads today; separate
       // notification/KDS/analytics consumers can be added without changing
@@ -272,6 +317,9 @@ Deno.serve(async (req) => {
     inboxDispatched,
     inboxSkipped,
     inboxUnconfigured,
+    emailDispatched,
+    emailSkipped,
+    emailUnconfigured,
     reconciliation,
   })
 })

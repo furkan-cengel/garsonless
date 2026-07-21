@@ -176,6 +176,88 @@ export async function getUnreadInboxCount(
   return { unread: unread.value }
 }
 
+// ── Per-user e-mail channel opt-in (notification_preferences) ───────────────
+// Mutable categories only: billing/system e-mails are unmutable by design and
+// never surface as a preference. The merge is server-side so other channels'
+// stored prefs are preserved.
+
+export interface EmailNotificationPrefs {
+  order: boolean
+  service_request: boolean
+}
+
+export async function getMyEmailNotificationPrefs(
+  restaurantId: string,
+): Promise<EmailNotificationPrefs | DashboardActionFailure> {
+  const { user } = await getAuthUser()
+  if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.email-prefs')
+
+  const gate = await assertMember(restaurantId)
+  if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.email-prefs')
+
+  const [{ getNotificationPreferences }, { readNotificationChannelPrefs }] = await Promise.all([
+    import('@garsonless/db/server'),
+    import('@garsonless/domain/notifications'),
+  ])
+  const stored = await getNotificationPreferences({ restaurantId, userId: user.id })
+  if (!stored.ok) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'notifications.email-prefs',
+      message: 'E-posta tercihleri yüklenemedi.',
+      cause: stored.error,
+    })
+  }
+  const prefs = readNotificationChannelPrefs(stored.value, 'email')
+  return { order: prefs.order, service_request: prefs.service_request }
+}
+
+export async function saveMyEmailNotificationPrefs(
+  restaurantId: string,
+  input: EmailNotificationPrefs,
+): Promise<{ ok: true } | DashboardActionFailure> {
+  const { user } = await getAuthUser()
+  if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.email-prefs-save')
+
+  const gate = await assertMember(restaurantId)
+  if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.email-prefs-save')
+
+  const { getNotificationPreferences, upsertNotificationPreferences } = await import('@garsonless/db/server')
+  const stored = await getNotificationPreferences({ restaurantId, userId: user.id })
+  if (!stored.ok) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'notifications.email-prefs-save',
+      message: 'E-posta tercihleri kaydedilemedi.',
+      cause: stored.error,
+    })
+  }
+  const existing = stored.value && typeof stored.value === 'object' && !Array.isArray(stored.value)
+    ? stored.value as Record<string, unknown>
+    : {}
+  const existingEmail = existing['email'] && typeof existing['email'] === 'object' && !Array.isArray(existing['email'])
+    ? existing['email'] as Record<string, unknown>
+    : {}
+  const saved = await upsertNotificationPreferences({
+    restaurantId,
+    userId: user.id,
+    prefs: {
+      ...existing,
+      email: {
+        ...existingEmail,
+        order: input.order === true,
+        service_request: input.service_request === true,
+      },
+    },
+  })
+  if (!saved.ok) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'notifications.email-prefs-save',
+      message: 'E-posta tercihleri kaydedilemedi.',
+      cause: saved.error,
+    })
+  }
+  return { ok: true }
+}
+
 export async function markInboxRead(
   restaurantId: string,
   ids?: string[],

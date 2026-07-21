@@ -42,26 +42,29 @@ export function notificationDedupeKey(eventType: string, aggregateId: string): s
 }
 
 /**
- * Per-user in-app category preferences, stored as JSONB. Unknown shapes
- * fail-open to "deliver": a corrupted preference row must never silently
- * black-hole operational notifications.
+ * Per-user per-channel category preferences, stored as JSONB shaped
+ * `{ inapp: {order: bool, ...}, email: {...} }`. Unknown shapes fall back to
+ * the channel's defaults: in-app fails open (a corrupted row must never
+ * black-hole operational notifications), while external channels like email
+ * are opt-in for mutable categories — nobody gets surprise e-mails.
  */
-export type NotificationInboxPrefs = Record<NotificationCategory, boolean>
+export type NotificationChannelPrefs = Record<NotificationCategory, boolean>
 
-export const DEFAULT_NOTIFICATION_INBOX_PREFS: NotificationInboxPrefs = {
-  order: true,
-  service_request: true,
-  billing: true,
-  system: true,
+export const NOTIFICATION_CHANNEL_DEFAULTS: Record<'inapp' | 'email', NotificationChannelPrefs> = {
+  inapp: { order: true, service_request: true, billing: true, system: true },
+  email: { order: false, service_request: false, billing: true, system: true },
 }
 
-export function readNotificationInboxPrefs(raw: unknown): NotificationInboxPrefs {
-  const prefs: NotificationInboxPrefs = { ...DEFAULT_NOTIFICATION_INBOX_PREFS }
+export function readNotificationChannelPrefs(
+  raw: unknown,
+  channel: 'inapp' | 'email',
+): NotificationChannelPrefs {
+  const prefs: NotificationChannelPrefs = { ...NOTIFICATION_CHANNEL_DEFAULTS[channel] }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return prefs
-  const inapp = (raw as Record<string, unknown>)['inapp']
-  if (!inapp || typeof inapp !== 'object' || Array.isArray(inapp)) return prefs
+  const channelPrefs = (raw as Record<string, unknown>)[channel]
+  if (!channelPrefs || typeof channelPrefs !== 'object' || Array.isArray(channelPrefs)) return prefs
   for (const category of NOTIFICATION_CATEGORIES) {
-    const value = (inapp as Record<string, unknown>)[category]
+    const value = (channelPrefs as Record<string, unknown>)[category]
     if (typeof value === 'boolean') prefs[category] = value
   }
   // Unmutable categories always deliver, whatever was stored.
@@ -70,12 +73,31 @@ export function readNotificationInboxPrefs(raw: unknown): NotificationInboxPrefs
   return prefs
 }
 
-/** The single in-app delivery decision: critical always lands; the rest follow prefs. */
+/** The single per-channel delivery decision: critical always lands; the rest follow prefs. */
+export function shouldDeliverOnChannel(
+  category: NotificationCategory,
+  severity: NotificationSeverity,
+  prefs: NotificationChannelPrefs,
+): boolean {
+  if (!isMutableNotification(category, severity)) return true
+  return prefs[category]
+}
+
+// ── In-app compatibility wrappers (slice-1 vocabulary) ──────────────────────
+
+export type NotificationInboxPrefs = NotificationChannelPrefs
+
+export const DEFAULT_NOTIFICATION_INBOX_PREFS: NotificationInboxPrefs =
+  NOTIFICATION_CHANNEL_DEFAULTS.inapp
+
+export function readNotificationInboxPrefs(raw: unknown): NotificationInboxPrefs {
+  return readNotificationChannelPrefs(raw, 'inapp')
+}
+
 export function shouldDeliverInApp(
   category: NotificationCategory,
   severity: NotificationSeverity,
   prefs: NotificationInboxPrefs,
 ): boolean {
-  if (!isMutableNotification(category, severity)) return true
-  return prefs[category]
+  return shouldDeliverOnChannel(category, severity, prefs)
 }
