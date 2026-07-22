@@ -118,6 +118,8 @@ export {
   createPlatformAdminTenantOperationsPort,
   readTenantOrderIngressStatus,
 } from './platform-admin-tenant-operations-port'
+export { createPlatformAdminTenantPlanManagementPort } from './platform-admin-tenant-plan-port'
+export { createPlatformAdminTenantBillingReadPort } from './platform-admin-billing-port'
 export { createSplitPaymentPort } from './split-command-port'
 export {
   attachOrderPaymentToken,

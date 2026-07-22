@@ -4,6 +4,11 @@ import {
   type PlatformTenantServiceControl,
 } from '@garsonless/application/platform-admin-tenant-operations'
 import {
+  readPlatformTenantBillingTimeline,
+  type PlatformTenantBillingTimeline,
+} from '@garsonless/application/platform-admin-billing'
+import {
+  createPlatformAdminTenantBillingReadPort,
   createPlatformAdminTenantOperationsPort,
   createPlatformAdminTenantReadPort,
 } from '@garsonless/db/server'
@@ -11,7 +16,7 @@ import { platformAdminCan, type PlatformAdminActorContext } from '@garsonless/do
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { PlatformShell } from '../../PlatformShell'
-import { changeTenantServiceStatus } from '../../actions'
+import { changeTenantPlan, changeTenantServiceStatus } from '../../actions'
 import { requirePlatformAdminActor } from '../../../lib/platform-admin-auth'
 import {
   formatDate,
@@ -20,6 +25,7 @@ import {
   SUBSCRIPTION_LABELS,
   subscriptionTone,
 } from '../../../lib/tenant-presentation'
+import { TenantBillingTimelinePanel } from './TenantBillingTimeline'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,9 +38,13 @@ export default async function TenantDetail({
 }) {
   const actor = await requirePlatformAdminActor()
   const { tenantId } = await params
-  const [result, controlResult] = await Promise.all([
+  const canReadBilling = platformAdminCan(actor, 'billing.manage')
+  const [result, controlResult, billingResult] = await Promise.all([
     readPlatformTenant(actor, tenantId, createPlatformAdminTenantReadPort()),
     readPlatformTenantServiceControl(actor, tenantId, createPlatformAdminTenantOperationsPort()),
+    canReadBilling
+      ? readPlatformTenantBillingTimeline(actor, tenantId, createPlatformAdminTenantBillingReadPort())
+      : Promise.resolve(null),
   ])
   const operation = (await searchParams).operation ?? null
   if (result.ok && !result.value) notFound()
@@ -45,6 +55,8 @@ export default async function TenantDetail({
         <section className="directory"><Link className="back-link" href="/">← İşletmelere dön</Link><section className="state-card" role="alert"><span className="state-icon">!</span><div><h2>İşletme özeti yüklenemedi</h2><p>Kimlik doğrulandı ancak güvenli tenant görünümü şu anda kullanılamıyor.</p></div></section></section>
       ) : result.value ? <TenantOverview
         actor={actor}
+        billingFailed={billingResult !== null && !billingResult.ok}
+        billingTimeline={billingResult?.ok ? billingResult.value : null}
         control={controlResult.ok ? controlResult.value : null}
         operation={operation}
         tenant={result.value}
@@ -61,17 +73,23 @@ const SERVICE_STATUS_LABELS = {
 
 function TenantOverview({
   actor,
+  billingFailed,
+  billingTimeline,
   control,
   operation,
   tenant,
 }: {
   actor: PlatformAdminActorContext
+  billingFailed: boolean
+  billingTimeline: PlatformTenantBillingTimeline | null
   control: PlatformTenantServiceControl | null
   operation: string | null
   tenant: PlatformTenantDetail
 }) {
   const status = tenant.subscription?.status ?? null
   const canManageLifecycle = platformAdminCan(actor, 'tenant.lifecycle.manage')
+  const canManagePlan = platformAdminCan(actor, 'catalog.manage')
+  const hasLiveSubscription = tenant.subscription !== null && tenant.subscription.status !== 'cancelled'
   const operationNotice = operation === 'updated'
     ? 'İşletmenin servis durumu güncellendi ve denetim kaydı oluşturuldu.'
     : operation === 'unchanged'
@@ -80,13 +98,23 @@ function TenantOverview({
         ? 'Bu işlem için ops veya superadmin yetkisi gerekir.'
         : operation === 'failed'
           ? 'Servis durumu değiştirilemedi. İşlem güvenli biçimde durduruldu.'
+          : operation === 'plan-updated'
+            ? 'İşletmenin paket projection’ı güncellendi ve denetim kaydı oluşturuldu.'
+            : operation === 'plan-unchanged'
+              ? 'İstenen paket zaten etkindi; denetim kaydı oluşturuldu.'
+              : operation === 'plan-forbidden'
+                ? 'Paket değişikliği yalnız superadmin yetkisiyle yapılabilir.'
+                : operation === 'plan-billing-managed'
+                  ? 'Bu işletmenin paketi canlı abonelik tarafından yönetiliyor. Provider doğrulaması olmadan yerel paket değiştirilemez.'
+                  : operation === 'plan-failed'
+                    ? 'Paket değiştirilemedi. İşlem güvenli biçimde durduruldu.'
           : null
   return (
     <section className="directory">
       <Link className="back-link" href="/">← İşletmelere dön</Link>
       <div className="page-heading detail-heading"><div><p className="eyebrow">İşletme özeti · /{tenant.slug}</p><h1>{tenant.name}</h1><p className="lead">PII ve provider ayrıntıları içermeyen platform sağlık ve erişim görünümü.</p></div><span className="read-only">Denetimli erişim</span></div>
 
-      {operationNotice ? <div className="operation-notice" data-tone={operation === 'failed' || operation === 'forbidden' ? 'danger' : 'success'} role="status">{operationNotice}</div> : null}
+      {operationNotice ? <div className="operation-notice" data-tone={operation === 'failed' || operation === 'forbidden' || operation === 'plan-failed' || operation === 'plan-forbidden' || operation === 'plan-billing-managed' ? 'danger' : 'success'} role="status">{operationNotice}</div> : null}
 
       <div className="metric-grid">
         <article className="metric"><span>Plan</span><strong>{PLAN_LABELS[tenant.plan]}</strong><small>Tenant projection</small></article>
@@ -121,6 +149,44 @@ function TenantOverview({
           </form>
         )}
       </article>
+
+      <article className="panel lifecycle-panel">
+        <div className="panel-heading"><div><p className="eyebrow">Paket kontrolü</p><h2>Tenant entitlement planı</h2></div></div>
+        {!canManagePlan ? (
+          <p className="empty-inline">Paket bilgisi salt okunurdur. Plan projection’ını yalnız superadmin değiştirebilir.</p>
+        ) : hasLiveSubscription ? (
+          <div className="guarded-operation" role="note">
+            <strong>Canlı abonelik provider tarafından yönetiliyor</strong>
+            <p>{PLAN_LABELS[tenant.plan]} planını doğrudan değiştirmek ödeme ve entitlement durumunu ayrıştırabilir. Paket değişikliği abonelik/provider akışından tamamlanmalıdır.</p>
+          </div>
+        ) : (
+          <form action={changeTenantPlan} className="lifecycle-form">
+            <input name="restaurantId" type="hidden" value={tenant.id} />
+            <label className="reason-field">
+              <span>Yeni paket</span>
+              <select defaultValue={tenant.plan} name="plan">
+                <option value="free">Ücretsiz</option>
+                <option value="starter">Starter</option>
+                <option value="pro">Pro</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
+              <small>Bu yol yalnız provider aboneliği olmayan tenant’larda manuel plan düzeltmesi veya sözleşmeli grant içindir.</small>
+            </label>
+            <label className="reason-field">
+              <span>İşlem gerekçesi</span>
+              <textarea maxLength={1000} minLength={10} name="reason" placeholder="En az 10 karakterle sözleşme veya düzeltme gerekçesini yazın…" required />
+              <small>Aktör, önceki/yeni plan, gerekçe ve server request ID append-only denetim kaydına yazılır.</small>
+            </label>
+            <div className="lifecycle-actions">
+              <button className="button primary" type="submit">Paketi güncelle</button>
+            </div>
+          </form>
+        )}
+      </article>
+
+      {platformAdminCan(actor, 'billing.manage') ? (
+        <TenantBillingTimelinePanel failed={billingFailed} timeline={billingTimeline} />
+      ) : null}
     </section>
   )
 }

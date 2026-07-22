@@ -50,9 +50,30 @@ test('platform mutation action re-resolves MFA actor and derives request id serv
   const actions = read('./app/actions.ts')
   assert.match(actions, /requirePlatformAdminActor/)
   assert.match(actions, /setPlatformTenantServiceStatus/)
+  assert.match(actions, /setPlatformTenantPlan/)
   assert.match(actions, /createPlatformAdminTenantOperationsPort/)
+  assert.match(actions, /createPlatformAdminTenantPlanManagementPort/)
   assert.match(actions, /randomUUID\(\)/)
   assert.doesNotMatch(actions, /formData\.get\(['"]requestId/)
+})
+
+test('tenant plan management is visibly superadmin-only and blocks live billing drift', () => {
+  const detail = read('./app/tenants/[tenantId]/page.tsx')
+  assert.match(detail, /platformAdminCan\(actor, 'catalog\.manage'\)/)
+  assert.match(detail, /changeTenantPlan/)
+  assert.match(detail, /hasLiveSubscription/)
+  assert.match(detail, /Canlı abonelik provider tarafından yönetiliyor/)
+  assert.match(detail, /minLength=\{10\}/)
+})
+
+test('finance timeline is role-gated and uses only the safe billing read port', () => {
+  const detail = read('./app/tenants/[tenantId]/page.tsx')
+  const timeline = read('./app/tenants/[tenantId]/TenantBillingTimeline.tsx')
+  assert.match(detail, /platformAdminCan\(actor, 'billing\.manage'\)/)
+  assert.match(detail, /readPlatformTenantBillingTimeline/)
+  assert.match(detail, /createPlatformAdminTenantBillingReadPort/)
+  assert.match(timeline, /Provider referansları, payload, hata metni ve müşteri PII bilgileri/)
+  assert.doesNotMatch(timeline, /provider_(event|attempt|checkout|payment|subscription)_ref|payload_sanitized|last_error|contact_email|identity_number/)
 })
 
 test('local platform development reuses the linked dashboard env without copying secrets', () => {

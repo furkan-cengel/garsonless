@@ -38,6 +38,8 @@
     "verify:platform-admin": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-admin-runtime.ts",
     "verify:platform-tenants": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-tenant-directory-runtime.ts",
     "verify:platform-tenant-operations": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-tenant-operations-runtime.ts",
+    "verify:platform-tenant-plans": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-tenant-plan-management-runtime.ts",
+    "verify:platform-tenant-billing": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-tenant-billing-runtime.ts",
     "bootstrap:platform-superadmin": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/bootstrap-platform-superadmin.ts"
   },
   "dependencies": {

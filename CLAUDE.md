@@ -2725,3 +2725,74 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   restaurant/control/order/table/category satırlarının tamamı `0 orphan` ile
   temizlendi. DB testleri generated tiplerden sonra tekrar **191/191** geçti.
   PROD ve deploy ortamına hiçbir değişiklik uygulanmadı.
+
+### Faz 6.4 — Denetimli tenant paket yönetimi ✅ (2026-07-22)
+
+- Paket yönetimi ADR-0002/0004 sınırına göre eklendi: `support`, `ops` ve
+  `finance` plan değiştiremez; yalnız AAL2 `superadmin` kapalı
+  `catalog.manage` yetkisiyle komutu çalıştırabilir. Finance rolü billing ve
+  dunning operasyonlarında kalır, ücretli entitlement grant edemez.
+- `@garsonless/application/platform-admin-tenant-plans`, tenant/plan/request
+  UUID, canonical `free | starter | pro | enterprise` sözleşmesi ve 10–1000
+  karakter gerekçeyi porttan önce doğrular. Aktör kimliği/rolü formdan değil
+  doğrulanmış platform context'inden, request ID server action'da üretilir;
+  altyapı ayrıntıları sabit kullanıcı-güvenli hatalara çöker.
+- `20260722140000_platform_tenant_plan_management.sql`, gerçek aktif
+  superadmin kimliğini ve rolünü DB'de tekrar doğrulayan service-role-only RPC
+  ekledi. Restaurant ve varsa canlı subscription satırı kilitlenir; provider
+  tarafından yönetilen canlı abonelikte farklı plan projection'ı
+  `platform_tenant_plan_billing_managed` ile fail-closed reddedilir. Değişiklik
+  ve no-op işlemleri before/after/reason/request-id ile aynı transaction'da
+  append-only platform audit loguna yazılır; request-id replay'i idempotenttir.
+- Platform tenant detayında plan güvenli biçimde görünür. Yalnız superadmin,
+  provider aboneliği olmayan tenant için sözleşmeli grant/düzeltme formunu
+  görür. Canlı abonelik varsa form yerine provider akışının yetkili olduğunu
+  açıklayan koruma yüzeyi çıkar; diğer roller salt-okunur kalır.
+- Statik kapanış: application **140/140**, DB **199/199**, platform architecture
+  **10/10**; application/DB/platform-admin typecheck ve lint, `git diff
+  --check` ve platform-admin production build temiz geçti.
+- Migration açık kullanıcı onayıyla linked DEV'e uygulandı ve generated DB
+  tipleri yenilendi. Gerçek throwaway tenant matrisinde support/ops/finance
+  uygulama katmanında `Not authorized` aldı ve persistence çağrısı **0** kaldı;
+  forged finance rolü ve anon RPC ayrı ayrı `42501` aldı. `free → pro`
+  başarılı, aynı request replay'i `duplicate=true` ve tek audit satırı,
+  `pro → pro` no-op ise ayrı denetim kaydı üretti. Canlı `active` subscription
+  eklendikten sonra `pro → enterprise` güvenli biçimde reddedildi; tenant planı
+  `pro`, reddedilen request audit sayısı **0** kaldı. Toplam **2** append-only
+  plan audit kaydı güvenlik kanıtı olarak korundu; throwaway restaurant,
+  billing customer ve subscription satırlarının tamamı `0 orphan` ile
+  temizlendi. PROD/deploy ortamına migration veya config uygulanmadı.
+
+### Faz 6.5a — Güvenli finans operasyon zaman çizelgesi ✅ (2026-07-22)
+
+- Platform tenant detayına finance ve superadmin için salt-okunur ödeme yaşam
+  döngüsü eklendi. Fatura, tahsilat denemesi, dunning, reconciliation, provider
+  event ve provider operation kayıtları tek zaman çizelgesinde; açık bakiye ve
+  operasyonel sayaçlar üst özet olarak gösterilir. Support/ops bu projection'ı
+  görmez ve application portuna ulaşamaz.
+- `@garsonless/application/platform-admin-billing`, AAL2 platform actor,
+  `billing.manage`, tenant UUID ve 1–100 kayıt sınırını persistence öncesinde
+  doğrular. DB adapter'ı yalnız kapalı status/action sözlüğünü, güvenli integer
+  TRY tutarlarını ve iç UUID/timestamp alanlarını kabul eder; bozuk projection
+  fail-closed kalır.
+- `20260722150000_platform_tenant_billing_timeline.sql`, aktif finance veya
+  superadmin kimliğini ve gönderilen rolü DB'de tekrar doğrulayan,
+  service-role-only security-definer RPC ekledi. Her kaynak ayrı tenant filtresi
+  taşır. Provider/customer referansları, contact/legal kimlik, payload/result
+  snapshot, idempotency/fingerprint ve ham hata metni projection'a hiç girmez.
+- Migration açık kullanıcı onayıyla linked DEV'e uygulandı; local/remote geçmiş
+  `20260722150000` dahil eşleşiyor ve generated tipler yenilendi. PROD veya
+  deploy ortamına migration/config uygulanmadı.
+- Gerçek throwaway runtime matrisinde support `Not authorized` aldı ve port
+  çağrısı **0** kaldı; forged finance rolü ve anon RPC `42501`, limit `101`
+  ise `22023` aldı. ₺149,90 açık bakiye; 1 açık fatura, 1 aktif dunning,
+  1 reconciliation ve 1 başarısız deneme okundu. Altı timeline kaynak türünün
+  tamamı geldi; gizli sentinel projection'da görünmedi. İkinci tenant `0` kayıt
+  ve `0` bakiye gördü; bütün geçici billing/restaurant satırları `0 orphan` ile
+  temizlendi.
+- Kapanış statik kapıları: application **144/144**, DB **206/206** ve
+  platform-admin architecture **11/11**; ilgili typecheck/lint, `git diff
+  --check` ve platform-admin production build temiz geçti. Bu oturumda browser
+  binding bulunmadığı için authenticated ekran görüntülü UI turu otomatik
+  çalıştırılamadı; DB/application runtime ve production render build kanıtları
+  tamamlandı.

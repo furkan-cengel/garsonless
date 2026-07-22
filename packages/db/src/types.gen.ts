@@ -3463,6 +3463,15 @@ export type Database = {
         Args: { p_restaurant_id: string }
         Returns: Json
       }
+      read_platform_admin_tenant_billing_timeline: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_limit?: number
+          p_restaurant_id: string
+        }
+        Returns: Json
+      }
       read_platform_admin_tenant_service_control: {
         Args: { p_restaurant_id: string }
         Returns: Json
@@ -3593,6 +3602,17 @@ export type Database = {
           p_restaurant_id: string
         }
         Returns: undefined
+      }
+      set_platform_admin_tenant_plan: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_plan: string
+          p_reason: string
+          p_request_id: string
+          p_restaurant_id: string
+        }
+        Returns: Json
       }
       set_platform_admin_tenant_service_status: {
         Args: {
