@@ -12,6 +12,7 @@ import { dispatchAggregateDomainEvents } from './outbox-consumer-port'
 import type { Json } from './types.gen'
 import { cancelOrderDB, markOrderPaidDB, updateOrderStatusDB } from './orders-update'
 import { readOrderLineSnapshots } from './menu-domain'
+import { readTenantOrderIngressStatus } from './platform-admin-tenant-operations-port'
 
 /** Supabase implementation of the public-order application port. */
 export function createPublicOrderPort(): PublicOrderPort {
@@ -41,6 +42,9 @@ export function createPublicOrderPort(): PublicOrderPort {
       if (error) return err('Sipariş güvenlik kontrolü kullanılamıyor')
       if (data !== true) return err('Çok fazla sipariş denemesi. Lütfen kısa süre sonra tekrar deneyin.')
       return ok(true)
+    },
+    async readOrderIngressStatus(restaurantId) {
+      return readTenantOrderIngressStatus(restaurantId)
     },
     async createOrder(input) {
       const result = await createOrder({
@@ -116,6 +120,9 @@ export function createDashboardOrderLifecyclePort(): DashboardOrderLifecyclePort
  * remain inside this infrastructure boundary. */
 export function createDashboardOrderPort(): DashboardOrderCreatePort {
   return {
+    async readOrderIngressStatus(restaurantId) {
+      return readTenantOrderIngressStatus(restaurantId)
+    },
     async createOrder(input) {
       const service = createServiceClient()
       const resolved = await resolveOrderLines(input.restaurantId, input.lines)

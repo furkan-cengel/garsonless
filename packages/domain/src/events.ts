@@ -15,6 +15,10 @@ export type DomainEventType =
   | 'invoice.created'
   | 'invoice.payment_failed'
   | 'invoice.paid'
+  | 'billing.retry_requested'
+  | 'billing.warning_3'
+  | 'billing.warning_7'
+  | 'billing.reconciliation_required'
   | 'tenant.suspended'
   | 'tenant.reactivated'
 
@@ -26,6 +30,7 @@ export type DomainAggregateType =
   | 'campaign'
   | 'billing_subscription'
   | 'billing_invoice'
+  | 'billing_reconciliation'
 
 interface EventBase<TType extends DomainEventType, TAggregate extends DomainAggregateType, TPayload> {
   id: string
@@ -49,6 +54,10 @@ export type DomainEvent =
   | EventBase<'invoice.created', 'billing_invoice', { subscriptionId: string; amountMinor: number; currency: 'TRY'; dueAt: string }>
   | EventBase<'invoice.payment_failed', 'billing_invoice', { subscriptionId: string; attemptId: string; failureCode: string | null }>
   | EventBase<'invoice.paid', 'billing_invoice', { subscriptionId: string; amountMinor: number; currency: 'TRY'; paidAt: string }>
+  | EventBase<'billing.retry_requested', 'billing_invoice', { subscriptionId: string; dunningRunId: string; amountMinor: number; currency: 'TRY'; dueAt: string }>
+  | EventBase<'billing.warning_3', 'billing_invoice', { subscriptionId: string; dunningRunId: string; amountMinor: number; currency: 'TRY'; dueAt: string }>
+  | EventBase<'billing.warning_7', 'billing_invoice', { subscriptionId: string; dunningRunId: string; amountMinor: number; currency: 'TRY'; dueAt: string }>
+  | EventBase<'billing.reconciliation_required', 'billing_reconciliation', { scope: string }>
   | EventBase<'tenant.suspended', 'billing_subscription', { reasonCode: string }>
   | EventBase<'tenant.reactivated', 'billing_subscription', { reasonCode: string }>
 

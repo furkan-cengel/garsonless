@@ -1,0 +1,29 @@
+{
+  "name": "@garsonless/platform-admin",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node --env-file-if-exists=../dashboard/.env.local node_modules/next/dist/bin/next dev --port 3004",
+    "build": "next build",
+    "start": "next start --port 3004",
+    "lint": "eslint .",
+    "test:architecture": "node --test platform-admin-architecture.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@garsonless/application": "workspace:*",
+    "@garsonless/db": "workspace:*",
+    "@garsonless/domain": "workspace:*",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.47.2",
+    "next": "^15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "*"
+  }
+}

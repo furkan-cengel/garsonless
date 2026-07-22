@@ -7,9 +7,18 @@ import {
 } from '@garsonless/domain/notifications'
 import { serviceRequestLabel } from '@garsonless/domain/tables'
 import { err, ok, type Result } from '@garsonless/domain'
+import {
+  BILLING_NOTIFICATION_EVENT_TYPES,
+  buildBillingNotificationContent,
+  type BillingNotificationEventType,
+} from './notifications'
 
 export const NOTIFICATION_EMAIL_CONSUMER = 'notification-email'
-export const NOTIFICATION_EMAIL_EVENT_TYPES = ['order.created', 'service_request.created'] as const
+export const NOTIFICATION_EMAIL_EVENT_TYPES = [
+  'order.created',
+  'service_request.created',
+  ...BILLING_NOTIFICATION_EVENT_TYPES,
+] as const
 export type NotificationEmailEventType = (typeof NOTIFICATION_EMAIL_EVENT_TYPES)[number]
 
 /** After this many provider attempts a delivery dead-letters instead of blocking the event. */
@@ -20,11 +29,15 @@ export function isNotificationEmailEventType(value: string): value is Notificati
 }
 
 export function emailCategoryForEvent(eventType: NotificationEmailEventType): NotificationCategory {
-  return eventType === 'order.created' ? 'order' : 'service_request'
+  if (eventType === 'order.created') return 'order'
+  if (eventType === 'service_request.created') return 'service_request'
+  return eventType === 'billing.reconciliation_required' ? 'system' : 'billing'
 }
 
-export function emailRecipientSection(eventType: NotificationEmailEventType): 'orders' | 'tables' {
-  return eventType === 'order.created' ? 'orders' : 'tables'
+export function emailRecipientSection(eventType: NotificationEmailEventType): 'orders' | 'tables' | null {
+  if (eventType === 'order.created') return 'orders'
+  if (eventType === 'service_request.created') return 'tables'
+  return null
 }
 
 export type NotificationEmailEvent = {
@@ -59,7 +72,8 @@ export interface NotificationEmailPort {
   hasReceipt(eventId: string): Promise<Result<boolean>>
   listRecipients(input: {
     restaurantId: string
-    section: 'orders' | 'tables'
+    /** null means owner-only for unmutable billing/system notices. */
+    section: 'orders' | 'tables' | null
   }): Promise<Result<NotificationEmailRecipient[]>>
   /** Platform template override for (category, email); null falls back to code defaults. */
   loadTemplate(category: NotificationCategory): Promise<Result<EmailTemplate | null>>
@@ -89,7 +103,7 @@ export interface NotificationEmailPort {
 
 // ── Templates ───────────────────────────────────────────────────────────────
 
-export const DEFAULT_EMAIL_TEMPLATES: Record<'order' | 'service_request', EmailTemplate> = {
+export const DEFAULT_EMAIL_TEMPLATES: Record<NotificationCategory, EmailTemplate> = {
   order: {
     subject: '{{restaurantName}} · Yeni sipariş ({{tableLabel}})',
     bodyHtml: [
@@ -105,6 +119,23 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<'order' | 'service_request', EmailT
       '<h2 style="margin:0 0 8px">Masa isteği</h2>',
       '<p style="margin:0 0 12px"><strong>{{restaurantName}}</strong> · {{tableLabel}} · {{requestLabel}}</p>',
       '<p style="margin:0;color:#666;font-size:13px">İsteği panodan kapatabilirsiniz.</p>',
+    ].join(''),
+  },
+  billing: {
+    subject: '{{restaurantName}} · {{title}}',
+    bodyHtml: [
+      '<h2 style="margin:0 0 8px">{{title}}</h2>',
+      '<p style="margin:0 0 12px"><strong>{{restaurantName}}</strong></p>',
+      '<p style="margin:0 0 12px">{{message}}</p>',
+      '<p style="margin:0;color:#666;font-size:13px">Faturalama bölümünden ayrıntıları ve güvenli aksiyonları görebilirsiniz.</p>',
+    ].join(''),
+  },
+  system: {
+    subject: '{{restaurantName}} · {{title}}',
+    bodyHtml: [
+      '<h2 style="margin:0 0 8px">{{title}}</h2>',
+      '<p style="margin:0 0 12px"><strong>{{restaurantName}}</strong></p>',
+      '<p style="margin:0">{{message}}</p>',
     ].join(''),
   },
 }
@@ -138,10 +169,17 @@ export function buildEmailVars(event: NotificationEmailEvent): Record<string, st
   if (event.type === 'order.created') {
     return { ...base, total: formatCurrency(event.payload['total']) }
   }
-  const requestType = typeof event.payload['requestType'] === 'string'
-    ? event.payload['requestType']
-    : 'waiter'
-  return { ...base, requestLabel: serviceRequestLabel(requestType) }
+  if (event.type === 'service_request.created') {
+    const requestType = typeof event.payload['requestType'] === 'string'
+      ? event.payload['requestType']
+      : 'waiter'
+    return { ...base, requestLabel: serviceRequestLabel(requestType) }
+  }
+  const content = buildBillingNotificationContent(
+    event.type as BillingNotificationEventType,
+    event.restaurantId,
+  )
+  return { ...base, title: content.title, message: content.body }
 }
 
 // ── Consumption ─────────────────────────────────────────────────────────────
@@ -154,7 +192,10 @@ export type NotificationEmailConsumption = {
   dead: number
 }
 
-const EMAIL_SEVERITY: NotificationSeverity = 'info'
+function emailSeverity(event: NotificationEmailEvent): NotificationSeverity {
+  if (event.type === 'order.created' || event.type === 'service_request.created') return 'info'
+  return buildBillingNotificationContent(event.type as BillingNotificationEventType, event.restaurantId).severity
+}
 
 /**
  * Durable per-recipient e-mail fan-out. Delivery state machine per recipient:
@@ -185,10 +226,10 @@ export async function consumeNotificationEmail(
   if (!recipients.ok) return recipients
 
   const category = emailCategoryForEvent(event.type)
+  const severity = emailSeverity(event)
   const override = await port.loadTemplate(category)
   if (!override.ok) return override
-  const template = override.value
-    ?? DEFAULT_EMAIL_TEMPLATES[category as 'order' | 'service_request']
+  const template = override.value ?? DEFAULT_EMAIL_TEMPLATES[category]
   const rendered = renderEmailTemplate(template, buildEmailVars(event))
   const dedupeKey = notificationDedupeKey(event.type, event.aggregateId)
 
@@ -199,7 +240,7 @@ export async function consumeNotificationEmail(
 
   for (const recipient of recipients.value) {
     const prefs = readNotificationChannelPrefs(recipient.prefs, 'email')
-    if (!recipient.email || !shouldDeliverOnChannel(category, EMAIL_SEVERITY, prefs)) {
+    if (!recipient.email || !shouldDeliverOnChannel(category, severity, prefs)) {
       muted += 1
       continue
     }

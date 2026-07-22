@@ -78,6 +78,7 @@ The design engine is the core differentiator. Every UI decision routes through i
 - ⚠️ **`20260721030000_notification_inbox.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (per-user `notification_inbox` + `notification_preferences`; own-user RLS, service-role-only yazma, anon revoke). Deploy'da Edge worker secret'ına `OUTBOX_INBOX_CONSUMER_URL` da eklenmelidir.
 - ⚠️ **`20260721040000_notification_email_channel.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (`notification_templates` + `notification_deliveries`, her ikisi service-role-only). Deploy'da Edge secret'a `OUTBOX_EMAIL_CONSUMER_URL`, dashboard env'e `RESEND_API_KEY`/`RESEND_FROM_EMAIL` gerekir.
 - ⚠️ **`20260721050000_notification_inbox_realtime.sql` yalnız DEV'e uygulandı** — PROD-at-deploy setine EKLENMELİ (`notification_inbox` supabase_realtime publication'a eklenir; zil rozetinin canlı düşmesi buna bağlı).
+- ⚠️ **SaaS billing `20260722010000`–`20260722080000` migration'ları yalnız linked DEV'e uygulandı; PROD'a uygulanmadı.** PROD-at-deploy setine sekiz migration birlikte ve sıralı eklenmeli. Edge rollout'ta `BILLING_MAINTENANCE_URL`, `OUTBOX_INBOX_CONSUMER_URL` ve `OUTBOX_EMAIL_CONSUMER_URL`; gerçek İyzico için ayrı `IYZICO_BILLING_*` anahtar/plan/fiyat env'leri zorunludur.
 
 ### Faz 4 dilim 1 rozet revizyonu — zil = okunmamış inbox + realtime auth fix 🚧 (2026-07-21, UI göz teyidi bekliyor)
 
@@ -2380,3 +2381,347 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 - PROD migration uygulanmadı. Provider webhook HTTP adapter'ı ve gerçek iyzico
   adapter'ı sonraki dilimdir; bu faz yalnız provider-bağımsız atomik çekirdeği
   hazırlar.
+
+### Faz 5.3 — İyzico subscription webhook + durable inbox ✅ (2026-07-22)
+
+- Dashboard'a node-runtime `POST /api/billing/iyzico/webhook` eklendi. Route
+  body'yi JSON'a çevirmeden önce raw byte olarak alır, 64 KiB sınırı uygular ve
+  yalnız `X-IYZ-SIGNATURE-V3` doğrulamasından sonra service-role persistence'a
+  geçer. Hata yanıtları provider/SQL ayrıntısı veya referans sızdırmaz.
+- `iyzico-subscription-webhook` adapter'ı resmi subscription imza bileşimini
+  HMAC-SHA256 + constant-time karşılaştırmayla doğrular; yalnız success/failure
+  order event'lerini kabul eder, gelecek timestamp ve hatalı/uzun referansları
+  fail-closed reddeder. SaaS secret'ları yalnız ayrı
+  `IYZICO_BILLING_MERCHANT_ID` / `IYZICO_BILLING_SECRET_KEY` env'lerinden gelir;
+  tenant sipariş ödemelerindeki generic `IYZICO_*` fallback kullanılmaz.
+- İyzico subscription webhook'u tutar taşımadığı için provider payload'ından
+  para okunmaz. `processSubscriptionBillingWebhook`, imzalı customer/
+  subscription/order referansını DB'de tek tenant ve invoice'a çözer; Faz 5.2
+  success/failure RPC'sine **kilitli yerel invoice `amount_due_minor`** değerini
+  gönderir.
+- `20260722030000_saas_billing_provider_inbox.sql` event'i allowlisted/redacted
+  projection + SHA-256 hash ile idempotent inbox'a yazar. Aynı provider event
+  id'sinin değiştirilmiş payload ile tekrarı conflict olur. Eşleşmeyen customer,
+  subscription/invoice veya cross-tenant referans para durumunu değiştirmez;
+  durable `billing_reconciliation_jobs` kaydı açar. Dispatch hatası backoff ile
+  failed/dead-letter yoluna alınır; ham webhook body hiçbir tabloya yazılmaz.
+- Migration linked DEV'e uygulandı, local/remote `20260722030000` eşleşti ve
+  generated tipler yenilendi. Statik doğrulama: application **106/106**, DB
+  **147/147**, dashboard architecture **167/167**, workspace typecheck
+  **10/10**, ilgili üç paketin lint'i ve dashboard production build temiz.
+- Gerçek DEV runtime (throwaway tenant, Test Cafe B yalnız owner fixture read):
+  anon inbox RPC `42501`; invalid signature **0 provider-event**; signed success
+  yerel **₺149,90** ile tek attempt; replay duplicate; signed failure yerel
+  **₺99,90** ile `past_due` + tek dunning; unmapped ve cross-tenant eventler
+  yalnız reconciliation; değiştirilmiş replay idempotency conflict. Event/job/
+  geçici tenant temizliği **0 orphan**.
+- PROD migration uygulanmadı. Gerçek İyzico hesabından webhook teslimi, merchant
+  panelinde V3 özelliğinin açılması ve platform checkout/customer/retry/cancel
+  API adapter'ları sonraki dilimdedir; bu faz provider'ın signed ingestion
+  yüzeyini ve atomik dispatch zincirini tamamlar.
+
+### Faz 5.4a — İyzico subscription capability adapter ✅ (2026-07-22)
+
+- `SubscriptionBillingProvider` gerçek İyzico subscription yeteneklerine göre
+  düzeltildi: hosted checkout müşteri profili + callback alır ve token/form
+  içeriği döndürür; callback sonucu token ile ayrıca retrieve edilir; retry
+  failure webhook'undaki order reference ile yapılır; cancel anlıktır.
+- Dashboard server adapter'ı customer/create-checkout/retrieve/retry/cancel
+  çağrılarını tek platform sınırında toplar. Timeout, allowlisted API origin,
+  referans uzunluğu, HTTPS callback ve checkout form boyutu fail-closed
+  doğrulanır; provider'ın serbest hata mesajı uygulama/UI'a taşınmaz.
+- SaaS anahtarları yalnız açık `IYZICO_BILLING_*` env'lerinden okunur. Tenant
+  sipariş ödeme credential'larına veya generic `IYZICO_*` env'lerine fallback
+  yoktur. Provider pricing-plan referansı ile lokal TRY minor-unit fiyatı
+  eşleşmeden checkout başlatılamaz.
+- Webhook route yalnız dar `SubscriptionBillingWebhookVerifier` yeteneğini
+  görür; checkout/customer yeteneği signed-ingestion katmanına yanlışlıkla
+  verilmez. ADR-0002 hosted checkout, retry ve immediate-cancel gerçekleriyle
+  güncellendi.
+- Doğrulama temiz: application/dashboard typecheck, dashboard lint, dashboard
+  production build ve dashboard architecture **173/173** geçti. Test adapter'ı
+  normalize müşteri girdisi, fiyat uyuşmazlığında sıfır provider çağrısı,
+  checkout retrieve, retry/cancel ve güvenli hata zarfını kanıtlıyor.
+- Bu dilim checkout'u kullanıcıya açmaz. Gerçek VKN/TCKN, telefon ve fatura
+  adresi için owner-gated onboarding/persistence; provider operasyon ledger'ı,
+  checkout callback route'u ve lokal retry/cancel orchestration Faz 5.4b'dir.
+  Platform sandbox API key/plan ref env'leri yerelde tanımlı olmadığı için gerçek
+  İyzico ağ çağrısı yapılmadı. PROD'a hiçbir migration/config uygulanmadı.
+
+### Faz 5.4b — Owner-gated billing operasyonları + checkout callback ✅ (2026-07-22)
+
+- Owner-only billing profil kaydı, hosted checkout başlatma/tamamlama, başarısız
+  fatura retry ve abonelik iptali `@garsonless/application/billing` command
+  sınırına alındı. Ham `restaurantId` veya client fiyatı güvenilir kabul
+  edilmiyor; dashboard action'ları önce `assertOwner` çalıştırıyor, TRY fiyatını
+  yalnız server `IYZICO_BILLING_*_AMOUNT_MINOR` konfigürasyonundan çözüyor.
+- `20260722040000_saas_billing_provider_operations.sql`, zorunlu fatura profili
+  alanlarını ve outbound provider çağrıları için durable
+  `billing_provider_operations` ledger'ını ekliyor. Checkout/retry/cancel
+  idempotency anahtarları immutable request fingerprint'iyle eşleştiriliyor;
+  replay provider'a ikinci kez gitmiyor. Provider başarılı olup lokal ledger
+  finalize edilemezse işlem başarı sayılmayıp `requires_reconciliation`
+  durumuna alınıyor.
+- Node-runtime checkout callback route'u yalnız 8 KiB URL-encoded body ve kısa
+  token kabul ediyor. Ham token idempotency anahtarına yazılmıyor; SHA-256 hash
+  kullanılıyor. Retrieve sonucu provider customer/subscription referanslarını,
+  `subscription.search` sonucu ilgili provider order/dönem referansını lokal
+  kayda eşliyor. Callback ödeme başarısı sayılmıyor; entitlement yalnız imzalı
+  payment webhook'uyla açılıyor.
+- İptal anlık provider semantiğiyle çalışıyor; başarılı lokal finalizasyon
+  subscription'ı `cancelled`, tenant plan projection'ını `free` yapıp lifecycle
+  ve outbox kaydını aynı transaction'da yazıyor. Retry yalnız doğrulanmış
+  failure webhook'undan saklanan provider order reference ile çağrılıyor.
+- Statik doğrulama temiz: application **111/111**, DB **152/152**, dashboard
+  architecture **179/179**, workspace typecheck **10/10**, ilgili lint'ler,
+  `git diff --check` ve dashboard production build geçti.
+- Migration linked DEV'e Faz 5 kapanışında uygulandı; PROD'a uygulanmadı.
+  Gerçek İyzico sandbox anahtarları yerelde tanımlı olmadığı için gerçek sağlayıcı
+  ağ çağrısı yapılmadı. Owner/member/cross-tenant, callback, retry/cancel ve
+  reconciliation/dunning zinciri DEV runtime matrisinde provider test-double ile
+  doğrulandı.
+
+### Faz 5.5 — Owner billing settings + tenant-scope projection ✅ (2026-07-22)
+
+- Ayarlar → Faturalama artık placeholder değildir. Yalnız doğrulanmış tenant
+  owner'ı mevcut plan/dönem/durum özetini, zorunlu fatura profilini ve son 12
+  abonelik faturasını görür; profil kaydı, hosted checkout, uygun gecikmiş
+  faturayı retry ve aboneliği anlık iptal komutları Faz 5.4b action sınırlarına
+  bağlanmıştır. Settings yetkili normal ekip üyesi bu bölümü navigasyonda
+  görmez; doğrudan query ile açma denemesi de owner görünürlüğünü aşamaz.
+- `readSubscriptionBillingSettings` trusted `DashboardActorContext` ve aynı
+  `restaurantId` olmadan DB portunu çağırmaz. Service-role-only
+  `read_subscription_billing_settings(uuid)` RPC'si profile/subscription/
+  invoice/attention projection'ını tenant filtresiyle döndürür; provider
+  customer/subscription/invoice referansları, ham provider payload'ı, internal
+  hata metni ve ödeme credential'ları sözleşmeye dahil değildir.
+- Provider checkout formu dashboard DOM'una HTML enjekte edilmez. İyzico'nun
+  hosted form içeriği `srcDoc` iframe'de `allow-same-origin` olmadan, dar sandbox
+  yetkileri ve `no-referrer` politikasıyla gösterilir. Callback başarı dönüşü
+  owner'ı yeniden Faturalama bölümüne getirir; entitlement yine yalnız imzalı
+  payment webhook'uyla açılır.
+- Billing projection'ı Result olarak hata verirse diğer settings bölümleri
+  çalışmaya devam eder; UI provider/SQL ayrıntısı yerine `MAS-SVC-503` ve
+  yeniden-dene yüzeyi gösterir. Server plan fiyatı public UI'a yalnız pozitif
+  integer TRY minor-unit olarak aktarılır; API secret ve provider plan ref'i
+  client projection'ına girmez.
+- Statik doğrulama temiz: application **112/112**, DB **156/156**, dashboard
+  architecture **183/183**, workspace typecheck **10/10**, application/DB/
+  dashboard lint, `git diff --check` öncesi production dashboard build temiz.
+- Migration `20260722050000_saas_billing_settings_projection.sql`, Faz 5.4b'nin
+  `20260722040000` migration'ıyla birlikte linked DEV'e uygulandı; PROD'a
+  uygulanmadı. Owner/member/cross-tenant projection ve güvenli reconciliation
+  görünürlüğü Faz 5 kapanış runtime matrisinde doğrulandı.
+
+### Faz 5.6 — Leased dunning + reconciliation + zorunlu billing bildirimleri ✅ (2026-07-22)
+
+- `processBillingMaintenanceBatch`, yalnız `platform-billing-worker` context'i
+  ile bounded dunning/reconciliation işi claim eder. Retry provider'a gitmeden
+  `billing_provider_operations` ledger'ında sabit `dunning:<run>:retry`
+  anahtarı + SHA-256 fingerprint ile claim edilir; replay başarılı/belirsiz
+  operasyonda ikinci provider çağrısı üretmez. Retry kabulü ödeme başarısı
+  değildir; yalnız imzalı payment webhook invoice'ı paid ve tenant'ı active
+  yapabilir.
+- `20260722060000_saas_billing_maintenance.sql`, `FOR UPDATE SKIP LOCKED`,
+  lease ownership ve bounded backoff ile retry → +3 → +7 → suspend durum
+  makinesini ekler. Paid/cancelled/manual-hold aggregate işi durdurur; final
+  uyarı grace-period'a, +14 gün ise tenant lifecycle/outbox ile atomik suspend
+  ve Free entitlement projection'ına geçer.
+- Provider başarısı/lokal finalize belirsizliği aynı transaction'da durable
+  `billing_reconciliation_jobs` kaydı üretir. Crash sonrası 15 dakika
+  `processing`, 24 saat `awaiting_callback` kalan outbound operasyonlar tekrar
+  gönderilmeden karantinaya alınır. Reconciliation consumer para durumunu
+  tahmin ederek düzeltmez; owner-only `billing.reconciliation_required`
+  manual-review olayı üretir.
+- Failure, retry, +3/+7 uyarı, reconciliation, paid, suspend ve reactivate
+  olayları dashboard inbox + e-posta kanallarında owner-only ve susturulamazdır.
+  Bu zorunlu consumer URL'lerinden biri eksikken Edge worker event'i ACK etmez;
+  receipt + outbox backoff ile daha sonra tekil teslim eder.
+- Dashboard internal maintenance route'u `OUTBOX_WORKER_SECRET` ve sıkı batch
+  şemasıyla korunur. Supabase worker her turda opsiyonel
+  `BILLING_MAINTENANCE_URL` endpoint'ini 45 saniye timeout ile tetikler.
+- Statik doğrulama: application **119/119**, DB **164/164**, domain **48/48**,
+  dashboard architecture **184/184**; workspace typecheck **10/10**, ilgili
+  lint'ler, `git diff --check` ve dashboard production build temiz geçti.
+  Migration linked DEV'e uygulandı; PROD'a uygulanmadı. Gerçek dunning zaman
+  çizelgesi, owner/member/cross-tenant, replay-safe retry, reconciliation ve
+  temizlik matrisi Faz 5 kapanışında çalıştırıldı.
+
+### Faz 5 kapanış — linked DEV runtime matrisi ✅ (2026-07-22)
+
+- `20260722040000`–`20260722060000` açık onayla linked DEV'e uygulandı. Runtime
+  testi, fatura profilinin TypeScript'te kabul edilen `+905…` biçimini DB'de
+  reddeden yanlış PostgreSQL regex sözleşmesini buldu. Uygulanmış migration
+  değiştirilmedi; forward-only `20260722070000_saas_billing_gsm_contract.sql`
+  constraint ve profile RPC regex'ini `^\+?[0-9]{10,15}$` ile düzeltti.
+- Owner settings projection'ı aynı belirsiz provider operasyonunu hem operation
+  hem reconciliation job olarak iki kez sayıyordu. Forward-only
+  `20260722080000_saas_billing_reconciliation_projection.sql`, aktif
+  `provider-operation:<id>` işi varsa operation satırını ikinci kez saymayarak
+  kullanıcıya tek güvenli inceleme kaydı gösteriyor. `20260722010000`–
+  `20260722080000` local/remote linked DEV migration geçmişi eşleşiyor.
+- Foundation runtime: anon/authenticated roller billing yüzeylerinde `42501`,
+  cross-tenant FK/unique/idempotency korumaları aktif; TRY minor-unit kaybı yok;
+  tüm throwaway billing/tenant satırları `0 orphan` ile temizlendi.
+- Transition runtime: invoice create/replay tek invoice + outbox; failure
+  `past_due` + tek dunning; success `paid` + active plan projection; geç failure
+  ve `manual_hold` entitlement'ı geri açmadı; bütün geçici satırlar `0 orphan`.
+- Webhook runtime: geçersiz imza `0 provider-event`; imzalı success/failure yerel
+  invoice tutarını kullandı; replay duplicate; değiştirilmiş replay conflict;
+  unmapped/cross-tenant event yalnız reconciliation açtı; temizlik `0 orphan`.
+- Maintenance runtime: service-role-only RPC'ler anon/authenticated rolleri
+  `42501` ile reddetti; iki worker yarışında yalnız ilk lease aldı; member ve
+  cross-tenant settings/retry fail-closed kaldı; retry replay'i tek provider
+  dispatch + tek operation + tek outbox üretti. Warning 3 → warning 7/grace →
+  suspend akışı tenant'ı Free projection'a düşürdü; paid invoice dunning'i
+  durdurdu; belirsiz provider sonucu yeniden charge edilmeden bir kez
+  reconciliation'a taşındı. Zorunlu billing/system eventleri yalnız owner
+  inbox'ına bir kez ulaştı ve settings tam bir güvenli inceleme kaydı gösterdi.
+  Ayrı cleanup sorgusunda `bill-maint-%` throwaway tenant sayısı `0` bulundu.
+- Kapanış statik kapıları: DB **164/164**, application **119/119**, domain
+  **48/48**, dashboard architecture **184/184**; workspace typecheck **10/10**,
+  DB/application/domain/dashboard lint ve dashboard production build temiz.
+- Lokal ortamda `IYZICO_BILLING_*`, `BILLING_MAINTENANCE_URL` ve iki outbox
+  consumer URL'si tanımlı değil. Bu nedenle gerçek İyzico sandbox ağ çağrısı ve
+  deploy edilmiş Edge worker turu yapılmadı; provider-independent akışlar gerçek
+  linked DEV DB + imzalı webhook verifier + provider test-double ile kanıtlandı.
+  PROD'a migration, secret, worker veya provider config uygulanmadı.
+
+### Faz 6.1 — Platform admin güvenlik temeli ✅ (2026-07-22)
+
+- Abonelik tahsilatı için gerçek sanal POS/provider aktivasyonu, şirket ve POS
+  hesabı hazır olana kadar bilinçli olarak ertelendi. Faz 5'in provider bağımsız
+  ledger, webhook, dunning ve entitlement altyapısı korunuyor; PROD/deploy yok.
+- Ayrı `apps/platform-admin` kontrol düzlemi eklendi. Dashboard owner/member
+  rolleri veya eski staff yardımcıları erişim üretmez; platform kimliği yalnız
+  `platform_admin_users` kaydı üzerinden `support | ops | finance | superadmin`
+  kapalı rol sözleşmesiyle çözülür.
+- Platform actor yalnız aktif kimlik ve Supabase AAL2 sonrasında üretilir. Giriş
+  yalnız e-posta/parola, devamında zorunlu TOTP'dir; self-signup ve sosyal giriş
+  yoktur. Yetkisiz kullanıcı ayrı erişim-reddi ekranına gider.
+- `20260722090000_platform_admin_foundation.sql`, platform kimlik tablosunu ve
+  reason/request-id/before/after zorunlu, update/delete trigger'ıyla append-only
+  audit tablosunu tanımlar. Tablolar ve identity RPC public/anon/authenticated
+  rollerinden tamamen revoke, yalnız service-role portuna açıktır. Provider/SQL
+  ayrıntıları sabit uygulama hatası arkasında kalır.
+- Domain **51/51**, application **123/123**, DB **172/172** ve platform-admin
+  architecture **3/3** testleri temiz geçti. Domain/application/DB/platform-admin
+  typecheck, ilgili lint'ler ve platform-admin production build temizdir.
+- Migration açık kullanıcı onayıyla linked DEV'e uygulandı ve generated DB
+  tipleri yenilendi; PROD'a uygulanmadı. Gerçek throwaway auth kullanıcısıyla
+  üyelik-yok reddi, anon/authenticated table+RPC `42501`, AAL1 MFA reddi, gerçek
+  TOTP sonrası AAL2 `ops` actor ve suspended fail-closed zinciri doğrulandı;
+  cleanup `platformAdminRows: 0` verdi. Kalıcı bootstrap admin oluşturulmadı.
+- Yerel app `/auth/login` HTTP `200`, kimliksiz `/` ise `/auth/login` için `307`
+  verdi. Bu oturumda bağlı görsel browser bulunmadığından ekran görüntülü UI
+  doğrulaması açık; `http://localhost:3004` geliştirici sunucusu çalışıyor.
+- Audit tablosunun append-only/reason/request-id sözleşmesi migration + statik DB
+  testinde kanıtlıdır. Bilinçli olarak kalıcı audit test kaydı bırakmamak için
+  update/delete runtime denemesi throwaway matrise dahil edilmedi.
+
+### Faz 6.2 — Salt-okunur tenant dizini ve güvenli işletme özeti ✅ (2026-07-22)
+
+- `@garsonless/application/platform-admin-tenants`, liste/arama/filtre/detail
+  okumalarını yalnız AAL2 `PlatformAdminActorContext` + `tenants.read` yetkisiyle
+  açar. Search 100 karakter, sayfa 1–400 ve page-size `10 | 25 | 50` ile
+  sınırlıdır; plan, subscription ve lifecycle filtreleri kapalı sözleşmedir.
+- `20260722100000_platform_admin_tenant_directory.sql`, service-role-only iki
+  RPC ile tenant planı, abonelik durumu, sınırlı fatura geçmişi, masa/ürün/ekip/
+  aktif sipariş/servis talebi sayıları ve reconciliation sayısını döndürür.
+  Owner kimliği/e-postası, billing contact, `restaurants.settings`, provider
+  referansları, ham payload ve hata metinleri projection'a hiç girmez.
+- Yeni `apps/platform-admin` ana ekranı arama + plan/abonelik/lifecycle filtreli
+  işletme dizinidir; `/tenants/[tenantId]` güvenli operasyon/billing özetidir.
+  Her iki yüzey açıkça **Salt okunur**dur; suspend/reactivate, paket değişimi ve
+  impersonation bu dilimde bilinçli olarak yoktur.
+- `20260722110000_platform_superadmin_bootstrap.sql`, yalnız boş bir platform
+  kimlik tablosunda ilk Masabu sahibini atomik olarak aktif `superadmin` yapar ve
+  aynı transaction'da reason + request-id içeren append-only audit yazar. Script
+  `PLATFORM_ADMIN_EMAIL` ile mevcut Supabase Auth kullanıcısını çözer; kullanıcı
+  e-postası açıkça verilmeden çalıştırılmaz. Sonraki admin/rol değişiklikleri bu
+  bootstrap yolundan yapılamaz.
+- İlk migration runtime turunda liste RPC'sindeki lateral alias hatası
+  (`bs.subscription_status`; gerçek alan `bs.status`) PostgreSQL `42703` ile
+  fail-closed yakalandı. Uygulanmış migration değiştirilmedi; ileri yönlü
+  `20260722120000_platform_admin_tenant_directory_status_fix.sql` RPC'yi
+  düzeltti ve aday tenant setini tek materialized CTE'de sabitledi.
+- `20260722100000`, `20260722110000` ve forward-only `20260722120000` açık
+  kullanıcı onayıyla linked DEV'e uygulandı; generated DB tipleri yenilendi.
+  Gerçek runtime matrisi 3 tenant okudu; anon liste/detail `42501`, geçersiz
+  filtre `22023` aldı; projection PII/provider payload sızdırmadı ve yüzey
+  read-only kaldı.
+- Statik kapanış: application **129/129**, DB **185/185**, platform architecture
+  **5/5**; application/DB/platform-admin typecheck ve ilgili lint'ler,
+  platform-admin production build temizdir.
+- Kalıcı platform sahibi olarak `mustafafurkancengel@gmail.com` onaylandı.
+  İlk bootstrap denemesi Auth kimliği olmadığı için hiçbir platform-admin/audit
+  satırı yazmadan güvenli biçimde durdu. Kullanıcı ortak Supabase Auth kimliğini
+  kendi parolasıyla oluşturduktan sonra bootstrap tekrarlandı: kimlik `active`
+  `superadmin`, audit `platform_admin.bootstrap`, `auditCount: 1` ve aynı
+  request-id ile doğrulandı. Dashboard onboarding yalnız Auth kimliği oluşturma
+  yolunun yan etkisiydi; platform sahibi restoran onboarding'ini tamamlamaz ve
+  ayrı `apps/platform-admin` kontrol düzlemini kullanır. İlk platform girişinde
+  ilk MFA ziyareti dev sunucusu çalışırken alınan production build'in `.next`
+  assetlerini değiştirmesi ve platform app'in yerel env yüklememesi nedeniyle
+  çıplak HTML + sonsuz `Hazırlanıyor…` gösterdi. Dev süreç temiz başlatıldı;
+  platform `dev` scripti artık secret kopyalamadan mevcut dashboard `.env.local`
+  dosyasını `--env-file-if-exists` ile kullanıyor. Login HTTP `200`, CSS ve JS
+  assetleri ayrı ayrı `200`; platform architecture **6/6**, typecheck ve lint
+  temiz. İlk gerçek enrollment'ta Supabase'in SVG data-URI'sinin satır sonuyla
+  bitmesi Next Image doğrulamasını tetikledi; `qr_code.trimEnd()` ile yalnız son
+  kontrol karakterleri normalize edildi ve regression kapısı eklendi. Bu ilk
+  hata geride `unverified` faktör bıraktı; Supabase bunu `data.totp` yerine
+  `data.all` içinde döndürdüğü için eski cleanup göremiyordu. Kurulum artık tüm
+  TOTP faktörlerini `data.all` üzerinden ayırıyor, yalnız verified faktörü tekrar
+  kullanıyor, yarım faktörü hata kontrollü unenroll edip yeni QR üretiyor.
+  Platform architecture **8/8**, typecheck ve lint temiz. Kullanıcı yenilenmiş
+  ekranda gerçek TOTP QR'ını taradı, authenticator koduyla AAL2'ye çıktı ve
+  platform-admin girişini gözle doğruladı. PROD/deploy'a hiçbir değişiklik
+  uygulanmadı.
+
+### Faz 6.3 — Tenant servis kontrolü ✅ (2026-07-22)
+
+- Platform operasyon durumu billing lifecycle'dan bilinçli olarak ayrıldı:
+  `active | suspended | manual_hold`. Böylece ödeme callback'i operasyonel veya
+  güvenlik amaçlı bir manuel bekletmeyi yanlışlıkla kaldıramaz. Kontrol satırı
+  olmayan mevcut tenant geriye uyumlu olarak `active` kabul edilir.
+- `@garsonless/application/platform-admin-tenant-operations`, okuma ve durum
+  değişikliğini typed command/port sınırına aldı. Okuma bütün kapalı platform
+  rollerine açıkken yazma yalnız `ops | superadmin` için açıktır; support ve
+  finance DB portuna ulaşmadan reddedilir. Tenant/status/request UUID ve 10–1000
+  karakter reason uygulama katmanında doğrulanır.
+- `20260722130000_platform_tenant_service_controls.sql`, public/anon/
+  authenticated erişimi tamamen kapalı `tenant_service_controls` tablosunu ve
+  service-role-only okuma/yazma RPC'lerini ekler. Yazma RPC'si gerçek platform
+  kimliğini/rolünü DB'de tekrar doğrular, tenant ve kontrol satırını kilitler,
+  request-id replay'ini idempotent işler ve before/after/reason/actor kaydını
+  aynı transaction'da append-only platform audit loguna yazar.
+- Platform tenant detayında güncel servis erişimi gösterilir. `ops` ve
+  `superadmin`, zorunlu açıklamayla sipariş alımını açabilir, manuel incelemeye
+  alabilir veya askıya alabilir; diğer roller salt-okunur kalır. Kontrol okuması
+  başarısızsa mutasyon butonları fail-closed görünmez.
+- Yeni sipariş girişleri aynı canonical kontrolü kullanır. Public QR siparişi ve
+  dashboard personel siparişi `suspended`/`manual_hold` durumunda yazmadan önce
+  durur; kontrol altyapısı okunamazsa da fail-closed davranır. Mevcut siparişlerin
+  hazırlanması, tahsilatı ve kapanışı etkilenmez; işletme menüsü görüntülenmeye
+  devam eder.
+- Statik kapanış: domain **52/52**, application **135/135**, dashboard
+  architecture **184/184**, platform architecture **9/9**, DB **191/191**;
+  workspace typecheck **11/11** temiz. Workspace lint `0 error` ile geçti (iki
+  mevcut marketing `<img>` uyarısı); platform-admin, menu ve dashboard
+  production build'leri temizdir.
+- `20260722130000` açık kullanıcı onayıyla linked DEV'e uygulandı; local/remote
+  migration geçmişi eşleşiyor ve generated DB tipleri kontrol tablosu ile iki
+  RPC'yi içeriyor. Gerçek throwaway tenant turunda support ve finance uygulama
+  katmanında reddedildi; forged DB rolü, anon tablo ve anon RPC ayrı ayrı
+  `42501` aldı. Aynı suspend request-id replay'i kabul edildi ama yalnız **1**
+  audit satırı yazdı.
+- Gerçek sipariş kontrastında suspended tenant için dashboard ve public QR
+  komutları aynı güvenli mesajla reddedildi ve `orders=0` kaldı. `manual_hold`
+  canonical ingress'te görüldü; `active` reaktivasyonu sonrası gerçek dashboard
+  siparişi oluşturuldu ve `orders=1` oldu. Runtime iki kez çalıştırıldı; son
+  kanıt turu **3** append-only lifecycle audit kaydı üretti. Audit kayıtları
+  ürünün değiştirilemez güvenlik kanıtı olduğu için bilerek korunur; throwaway
+  restaurant/control/order/table/category satırlarının tamamı `0 orphan` ile
+  temizlendi. DB testleri generated tiplerden sonra tekrar **191/191** geçti.
+  PROD ve deploy ortamına hiçbir değişiklik uygulanmadı.

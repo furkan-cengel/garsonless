@@ -103,6 +103,8 @@ export async function POST(
   if (!result.ok) {
     const status = result.error === 'Sipariş güvenlik kontrolü kullanılamıyor'
       ? 503
+      : result.error === 'İşletme şu anda yeni sipariş almıyor.'
+        ? 423
       : result.error.startsWith('Çok fazla sipariş')
         ? 429
         : result.error.startsWith('Failed to')

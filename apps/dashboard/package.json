@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:architecture": "node --import tsx --test components/analytics/*.test.ts components/errors/*.test.ts components/menu/*.test.ts components/notifications/*.test.ts components/pano/*.test.ts components/tables/*.test.ts components/theme/*.test.ts",
+    "test:architecture": "node --import tsx --test components/analytics/*.test.ts components/errors/*.test.ts components/menu/*.test.ts components/notifications/*.test.ts components/pano/*.test.ts components/tables/*.test.ts components/theme/*.test.ts lib/billing/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

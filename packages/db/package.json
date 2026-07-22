@@ -32,7 +32,13 @@
     "verify:dashboard-inbox": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-dashboard-inbox-runtime.ts",
     "verify:notification-email": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-notification-email-runtime.ts",
     "verify:saas-billing-foundation": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-saas-billing-foundation-runtime.ts",
-    "verify:saas-billing-transitions": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-saas-billing-transitions-runtime.ts"
+    "verify:saas-billing-transitions": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-saas-billing-transitions-runtime.ts",
+    "verify:saas-billing-webhook": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-saas-billing-webhook-runtime.ts",
+    "verify:saas-billing-maintenance": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-saas-billing-maintenance-runtime.ts",
+    "verify:platform-admin": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-admin-runtime.ts",
+    "verify:platform-tenants": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-tenant-directory-runtime.ts",
+    "verify:platform-tenant-operations": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-tenant-operations-runtime.ts",
+    "bootstrap:platform-superadmin": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/bootstrap-platform-superadmin.ts"
   },
   "dependencies": {
     "@garsonless/application": "workspace:*",

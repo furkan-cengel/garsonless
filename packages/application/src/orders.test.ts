@@ -13,6 +13,7 @@ import {
 test('dashboard create derives the staff actor and rejects cross-tenant calls before the port', async () => {
   let write: Parameters<DashboardOrderCreatePort['createOrder']>[0] | null = null
   const port: DashboardOrderCreatePort = {
+    async readOrderIngressStatus() { return 'active' },
     async createOrder(input) {
       write = input
       return { ok: true, value: { orderId: 'order' } }
@@ -44,6 +45,7 @@ test('public order command rejects a mismatched verified table context before us
   let touched = false
   const port: PublicOrderPort = {
     async resolveRestaurantIdBySlug() { touched = true; return 'restaurant' },
+    async readOrderIngressStatus() { return 'active' },
     async consumeRateLimit() { return { ok: true, value: true } },
     async createOrder() { throw new Error('unreachable') },
   }
@@ -54,6 +56,35 @@ test('public order command rejects a mismatched verified table context before us
   )
   assert.deepEqual(result, { ok: false, error: 'Invalid table context' })
   assert.equal(touched, false)
+})
+
+test('public and dashboard order ingress fail closed for platform holds', async () => {
+  let publicWrites = 0
+  const publicPort: PublicOrderPort = {
+    async resolveRestaurantIdBySlug() { return 'restaurant' },
+    async readOrderIngressStatus() { return 'manual_hold' },
+    async consumeRateLimit() { throw new Error('must not rate-limit a held tenant') },
+    async createOrder() { publicWrites += 1; return { ok: true, value: { orderId: 'order', breakdown: {} } } },
+  }
+  const publicResult = await placePublicOrder(
+    { actor: 'table-guest', restaurantId: 'restaurant', tableId: 'table', tableToken: 'token', sessionId: 'session' },
+    { restaurantId: 'restaurant', slug: 'cafe', tableToken: 'token', tableId: 'table', sessionId: 'session', requestId: 'request', lines: [{ itemId: 'item', quantity: 1 }], customerId: null, redeemPoints: 0, redeemStampClaim: false, catalogItemId: null, rateLimitKey: 'hash' },
+    publicPort,
+  )
+  assert.deepEqual(publicResult, { ok: false, error: 'İşletme şu anda yeni sipariş almıyor.' })
+  assert.equal(publicWrites, 0)
+
+  let dashboardWrites = 0
+  const dashboardResult = await createDashboardOrder(
+    { actor: 'dashboard-member', restaurantId: 'restaurant', userId: 'staff', permissions: ['orders'] },
+    { restaurantId: 'restaurant', tableId: null, lines: [{ itemId: 'item', quantity: 1 }] },
+    {
+      async readOrderIngressStatus() { return 'suspended' },
+      async createOrder() { dashboardWrites += 1; return { ok: true, value: { orderId: 'order' } } },
+    },
+  )
+  assert.deepEqual(dashboardResult, { ok: false, error: 'İşletme şu anda yeni sipariş almıyor.' })
+  assert.equal(dashboardWrites, 0)
 })
 
 test('settlement keeps provider and dashboard payment methods separate', async () => {

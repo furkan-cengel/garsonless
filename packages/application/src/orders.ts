@@ -33,6 +33,7 @@ export interface PlacePublicOrderResult {
 /** Infrastructure port: application code neither imports Supabase nor sees its client. */
 export interface PublicOrderPort {
   resolveRestaurantIdBySlug(slug: string): Promise<string | null>
+  readOrderIngressStatus(restaurantId: string): Promise<'active' | 'suspended' | 'manual_hold' | 'unavailable'>
   consumeRateLimit(input: { restaurantId: string; keyHash: string; max: number; windowSeconds: number }): Promise<Result<true>>
   createOrder(input: Omit<PlacePublicOrderCommand, 'slug' | 'rateLimitKey'>): Promise<Result<PlacePublicOrderResult>>
 }
@@ -53,6 +54,10 @@ export async function placePublicOrder(
 
   const resolvedRestaurantId = await port.resolveRestaurantIdBySlug(command.slug)
   if (resolvedRestaurantId !== command.restaurantId) return err('Restaurant mismatch')
+
+  const ingressStatus = await port.readOrderIngressStatus(command.restaurantId)
+  if (ingressStatus === 'unavailable') return err('Sipariş güvenlik kontrolü kullanılamıyor')
+  if (ingressStatus !== 'active') return err('İşletme şu anda yeni sipariş almıyor.')
 
   const rateLimit = await port.consumeRateLimit({
     restaurantId: command.restaurantId,
@@ -123,6 +128,7 @@ export interface DashboardOrderLifecyclePort {
 }
 
 export interface DashboardOrderCreatePort {
+  readOrderIngressStatus(restaurantId: string): Promise<'active' | 'suspended' | 'manual_hold' | 'unavailable'>
   createOrder(input: {
     restaurantId: string
     tableId: string | null
@@ -147,6 +153,9 @@ export async function createDashboardOrder(
 ): Promise<Result<{ orderId: string }>> {
   if (!canManageOrders(context, input.restaurantId)) return err('Not authorized')
   if (input.lines.length === 0) return err('Order must contain at least one item')
+  const ingressStatus = await port.readOrderIngressStatus(input.restaurantId)
+  if (ingressStatus === 'unavailable') return err('Sipariş güvenlik kontrolü kullanılamıyor')
+  if (ingressStatus !== 'active') return err('İşletme şu anda yeni sipariş almıyor.')
   return port.createOrder({ ...input, createdBy: context.userId })
 }
 

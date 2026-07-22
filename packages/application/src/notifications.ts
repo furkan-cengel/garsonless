@@ -9,7 +9,23 @@ import { serviceRequestLabel } from '@garsonless/domain/tables'
 import { err, ok, type Result } from '@garsonless/domain'
 
 export const DASHBOARD_INBOX_CONSUMER = 'dashboard-inbox'
-export const DASHBOARD_INBOX_EVENT_TYPES = ['order.created', 'service_request.created'] as const
+export const BILLING_NOTIFICATION_EVENT_TYPES = [
+  'invoice.payment_failed',
+  'billing.retry_requested',
+  'billing.warning_3',
+  'billing.warning_7',
+  'billing.reconciliation_required',
+  'invoice.paid',
+  'tenant.suspended',
+  'tenant.reactivated',
+] as const
+export type BillingNotificationEventType = (typeof BILLING_NOTIFICATION_EVENT_TYPES)[number]
+
+export const DASHBOARD_INBOX_EVENT_TYPES = [
+  'order.created',
+  'service_request.created',
+  ...BILLING_NOTIFICATION_EVENT_TYPES,
+] as const
 export type DashboardInboxEventType = (typeof DASHBOARD_INBOX_EVENT_TYPES)[number]
 
 export function isDashboardInboxEventType(value: string): value is DashboardInboxEventType {
@@ -49,7 +65,8 @@ export interface DashboardInboxPort {
   /** Owner + active members holding the section that matches the event. */
   listRecipients(input: {
     restaurantId: string
-    section: 'orders' | 'tables'
+    /** null means owner-only (mandatory billing/system communication). */
+    section: 'orders' | 'tables' | null
   }): Promise<Result<DashboardInboxRecipient[]>>
   /** Idempotent: conflicting (recipient, dedupe_key) rows are silently skipped. */
   insertEntries(entries: DashboardInboxEntry[]): Promise<Result<null>>
@@ -57,11 +74,15 @@ export interface DashboardInboxPort {
 }
 
 export function inboxCategoryForEvent(eventType: DashboardInboxEventType): NotificationCategory {
-  return eventType === 'order.created' ? 'order' : 'service_request'
+  if (eventType === 'order.created') return 'order'
+  if (eventType === 'service_request.created') return 'service_request'
+  return eventType === 'billing.reconciliation_required' ? 'system' : 'billing'
 }
 
-export function inboxRecipientSection(eventType: DashboardInboxEventType): 'orders' | 'tables' {
-  return eventType === 'order.created' ? 'orders' : 'tables'
+export function inboxRecipientSection(eventType: DashboardInboxEventType): 'orders' | 'tables' | null {
+  if (eventType === 'order.created') return 'orders'
+  if (eventType === 'service_request.created') return 'tables'
+  return null
 }
 
 function formatCurrency(value: unknown) {
@@ -87,15 +108,36 @@ export function buildInboxContent(event: DashboardInboxEvent): {
       severity: 'info',
     }
   }
-  const requestType = typeof event.payload['requestType'] === 'string'
-    ? event.payload['requestType']
-    : 'waiter'
-  return {
-    title: 'Masa isteği',
-    body: `${tableLabel} · ${serviceRequestLabel(requestType)}`,
-    linkPath: `/dashboard/${event.restaurantId}/tables`,
-    severity: 'info',
+  if (event.type === 'service_request.created') {
+    const requestType = typeof event.payload['requestType'] === 'string'
+      ? event.payload['requestType']
+      : 'waiter'
+    return {
+      title: 'Masa isteği',
+      body: `${tableLabel} · ${serviceRequestLabel(requestType)}`,
+      linkPath: `/dashboard/${event.restaurantId}/tables`,
+      severity: 'info',
+    }
   }
+  return buildBillingNotificationContent(event.type, event.restaurantId)
+}
+
+export function buildBillingNotificationContent(
+  eventType: BillingNotificationEventType,
+  restaurantId: string,
+): { title: string; body: string; linkPath: string; severity: NotificationSeverity } {
+  const linkPath = `/dashboard/${restaurantId}/settings?section=billing`
+  const content: Record<BillingNotificationEventType, { title: string; body: string; severity: NotificationSeverity }> = {
+    'invoice.payment_failed': { title: 'Abonelik ödemesi alınamadı', body: 'Ödeme yönteminizi kontrol edin. Hizmetiniz şimdilik açık kalmaya devam ediyor.', severity: 'warning' },
+    'billing.retry_requested': { title: 'Ödeme yeniden deneniyor', body: 'Abonelik ödemeniz otomatik olarak yeniden işleme alındı.', severity: 'warning' },
+    'billing.warning_3': { title: 'Ödeme gecikmesi devam ediyor', body: 'Kesinti yaşamamak için faturalama bilgilerinizi gözden geçirin.', severity: 'warning' },
+    'billing.warning_7': { title: 'Son ödeme uyarısı', body: 'Ödeme tamamlanmazsa hizmetiniz geçici olarak duraklatılacak.', severity: 'critical' },
+    'billing.reconciliation_required': { title: 'Ödeme durumu kontrol ediliyor', body: 'Kesinleşmemiş bir ödeme işlemini güvenli biçimde inceliyoruz. Aynı işlemi tekrar başlatmayın.', severity: 'warning' },
+    'invoice.paid': { title: 'Abonelik ödemeniz alındı', body: 'Ödemeniz başarıyla kaydedildi.', severity: 'info' },
+    'tenant.suspended': { title: 'Hizmet geçici olarak duraklatıldı', body: 'Yeni sipariş alımı durduruldu. Ödeme tamamlandığında hizmetiniz otomatik olarak açılacak.', severity: 'critical' },
+    'tenant.reactivated': { title: 'Hizmetiniz yeniden etkinleştirildi', body: 'Ödemeniz alındı ve yeni sipariş alımı tekrar açıldı.', severity: 'info' },
+  }
+  return { ...content[eventType], linkPath }
 }
 
 export type DashboardInboxConsumption = {

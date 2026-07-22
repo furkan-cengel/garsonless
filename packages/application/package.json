@@ -4,6 +4,7 @@
   "private": true,
   "exports": {
     "./billing": "./src/billing.ts",
+    "./billing-maintenance": "./src/billing-maintenance.ts",
     "./campaigns": "./src/campaigns.ts",
     "./customers": "./src/customers.ts",
     "./dashboard-feature-read-models": "./src/dashboard-feature-read-models.ts",
@@ -15,6 +16,9 @@
     "./notifications": "./src/notifications.ts",
     "./outbox": "./src/outbox.ts",
     "./payments": "./src/payments.ts",
+    "./platform-admin": "./src/platform-admin.ts",
+    "./platform-admin-tenant-operations": "./src/platform-admin-tenant-operations.ts",
+    "./platform-admin-tenants": "./src/platform-admin-tenants.ts",
     "./push-notifications": "./src/push-notifications.ts",
     "./payment-reconciliation": "./src/payment-reconciliation.ts",
     "./read-models": "./src/read-models.ts",

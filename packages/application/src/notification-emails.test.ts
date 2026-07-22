@@ -166,6 +166,26 @@ test('template override replaces the code default', async () => {
 test('code default templates exist for both operational categories', () => {
   assert.ok(DEFAULT_EMAIL_TEMPLATES.order.subject.includes('{{restaurantName}}'))
   assert.ok(DEFAULT_EMAIL_TEMPLATES.service_request.subject.includes('{{restaurantName}}'))
+  assert.ok(DEFAULT_EMAIL_TEMPLATES.billing.subject.includes('{{title}}'))
+  assert.ok(DEFAULT_EMAIL_TEMPLATES.system.bodyHtml.includes('{{message}}'))
+})
+
+test('mandatory billing email ignores a stored opt-out and renders safe billing copy', async () => {
+  const harness = makeHarness({
+    recipients: [{ userId: 'owner', email: 'owner@test.dev', prefs: { email: { billing: false } } }],
+  })
+  harness.port.loadEvent = async () => ok({
+    ...ORDER_EVENT,
+    type: 'billing.warning_7',
+    aggregateId: 'invoice-1',
+    tableLabel: null,
+    payload: {},
+  })
+  const result = await consumeNotificationEmail('evt-1', harness.port, harness.provider)
+  assert.ok(result.ok)
+  assert.equal(result.value.sent, 1)
+  assert.match(harness.sends[0]!.subject, /Son ödeme uyarısı/)
+  assert.match(harness.sends[0]!.html, /geçici olarak duraklatılacak/)
 })
 
 test('port failure surfaces as err', async () => {

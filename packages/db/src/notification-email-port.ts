@@ -109,7 +109,7 @@ export function createNotificationEmailPort(): NotificationEmailPort {
       }]
       for (const member of memberResult.data ?? []) {
         if (!member.user_id || member.user_id === ownerId) continue
-        if (!hasSection(member.permissions, input.section)) continue
+        if (!input.section || !hasSection(member.permissions, input.section)) continue
         recipients.push({
           userId: member.user_id,
           email: member.email ?? null,

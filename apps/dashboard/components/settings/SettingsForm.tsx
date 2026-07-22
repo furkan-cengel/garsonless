@@ -10,6 +10,8 @@ import { DEFAULT_TIERS, type LoyaltyTier, type CatalogReward } from './loyalty-c
 import type { SecurityEventView } from './AdvancedSections'
 import type { TeamMember } from '@garsonless/db/types'
 import type { TeamAuditEventView } from './AccountSections'
+import type { SubscriptionBillingSettings } from '@garsonless/application/billing'
+import type { BillingPlanPrices } from '../../lib/billing/subscription-billing-request'
 
 const KitchenAccessSection   = dynamic(() => import('./KitchenAccessSection'))
 const LoyaltySection         = dynamic(() => import('./LoyaltySection'))
@@ -23,7 +25,7 @@ const PaymentsSection        = dynamic(() => import('./BusinessSections').then(m
 const NotificationsSection   = dynamic(() => import('./BusinessSections').then(m => ({ default: m.NotificationsSection })))
 const ApiSection             = dynamic(() => import('./AdvancedSections').then(m => ({ default: m.ApiSection })))
 const SecuritySection        = dynamic(() => import('./AdvancedSections').then(m => ({ default: m.SecuritySection })))
-const BillingSection         = dynamic(() => import('./AdvancedSections').then(m => ({ default: m.BillingSection })))
+const BillingSection         = dynamic(() => import('./BillingSection'))
 import PageTopBar from '../layout/PageTopBar'
 import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import { useShell } from '../../lib/shell-context'
@@ -118,7 +120,7 @@ const SECTION_META: Record<SectionId, { label: string; desc: string; group: stri
   kitchen:       { label: 'Mutfak Ekranı',  desc: 'Mutfak ekranının güvenli oturumunu ve istasyonlarını yönet.',        group: 'İşletme' },
   notifications: { label: 'Bildirimler',    desc: 'Sipariş, masa ve tarayıcı bildirim tercihlerini ayarla.',           group: 'İşletme' },
   api:           { label: 'API & Webhooks', desc: 'Geliştirici API ve webhook altyapısı bu sürümde kapalı.',            group: 'Gelişmiş' },
-  billing:       { label: 'Faturalama',     desc: 'Gerçek abonelik sistemi gelene kadar plan bilgisi salt okunur.',     group: 'Gelişmiş' },
+  billing:       { label: 'Faturalama',     desc: 'Planını, fatura profilini ve abonelik ödemelerini yönet.',           group: 'Gelişmiş' },
   security:      { label: 'Güvenlik',       desc: 'Şifre değişimi ve hesap güvenliği.',                                group: 'Gelişmiş' },
 }
 
@@ -458,12 +460,26 @@ interface Props {
   teamMembers: TeamMember[]
   /** Owner-only, restaurant-scoped team administration history. */
   teamAuditEvents: TeamAuditEventView[]
+  /** Owner-only SaaS billing projection; provider references are excluded. */
+  billing: SubscriptionBillingSettings | null
+  billingLoadError: string | null
+  billingPlanPrices: BillingPlanPrices
+  initialSection?: SectionId
+  billingCheckoutState: 'success' | null
 }
 
-export default function SettingsForm({ restaurant, user, hasKitchenAccess, kitchenStations, securityEvents, isOwner, teamMembers, teamAuditEvents }: Props) {
+export default function SettingsForm({
+  restaurant, user, hasKitchenAccess, kitchenStations, securityEvents,
+  isOwner, teamMembers, teamAuditEvents, billing, billingLoadError,
+  billingPlanPrices, initialSection, billingCheckoutState,
+}: Props) {
   const { setNavigationGuard } = useShell()
   // A non-owner 'settings' member lands on a section they can see (workspace is owner-only).
-  const [active, setActive] = useState<SectionId>(isOwner ? 'workspace' : 'profile')
+  const [active, setActive] = useState<SectionId>(
+    initialSection && canSeeSection(initialSection, isOwner)
+      ? initialSection
+      : isOwner ? 'workspace' : 'profile',
+  )
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [pendingSection, setPendingSection] = useState<SectionId | null>(null)
 
@@ -521,7 +537,14 @@ export default function SettingsForm({ restaurant, user, hasKitchenAccess, kitch
       case 'notifications': return <NotificationsSection restaurant={restaurant} />
       case 'api':           return <ApiSection />
       case 'security':      return <SecuritySection events={securityEvents} userEmail={user?.email ?? ''} authProvider={typeof user?.app_metadata?.provider === 'string' ? user.app_metadata.provider : null} />
-      case 'billing':       return <BillingSection restaurant={restaurant} />
+      case 'billing':       return <BillingSection
+        restaurantId={restaurant.id}
+        restaurantPlan={restaurant.plan}
+        billing={billing}
+        loadError={billingLoadError}
+        planPrices={billingPlanPrices}
+        checkoutState={billingCheckoutState}
+      />
     }
   }
 

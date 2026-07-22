@@ -50,6 +50,22 @@ test('event → category/section/content mapping', () => {
   assert.equal(content.linkPath, '/dashboard/rest-1/orders')
 })
 
+test('billing notifications are owner-only, unmutable and link to billing settings', () => {
+  const event: DashboardInboxEvent = {
+    ...ORDER_EVENT,
+    type: 'billing.warning_7',
+    aggregateId: 'invoice-1',
+    tableLabel: null,
+    payload: {},
+  }
+  assert.equal(inboxCategoryForEvent(event.type), 'billing')
+  assert.equal(inboxRecipientSection(event.type), null)
+  const content = buildInboxContent(event)
+  assert.equal(content.severity, 'critical')
+  assert.match(content.title, /Son ödeme/)
+  assert.equal(content.linkPath, '/dashboard/rest-1/settings?section=billing')
+})
+
 test('happy path writes one entry per recipient with a stable dedupe key', async () => {
   const { port, inserted, receipts } = makePort({
     recipients: [{ userId: 'u1', prefs: null }, { userId: 'u2', prefs: null }],

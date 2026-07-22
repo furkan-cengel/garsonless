@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Tables } from '@garsonless/db/types'
 import { I, S, Tag, btnGhost, btnPrimary } from '../../lib/ui'
 import { InlineSpinner } from '@garsonless/ui'
 import { SCard, FormRow, inputStyle } from './primitives'
@@ -220,52 +219,6 @@ export function SecuritySection({ events, userEmail, authProvider }: { events: S
             </div>
           </div>
         ))}
-      </SCard>
-    </>
-  )
-}
-
-/* ── BILLING ──────────────────────────────────────── */
-export function BillingSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
-  const planLabel = restaurant.plan === 'enterprise'
-    ? 'Enterprise'
-    : restaurant.plan === 'pro'
-      ? 'Pro'
-      : restaurant.plan === 'starter'
-        ? 'Starter'
-        : 'Free'
-
-  return (
-    <>
-      <div style={{
-        padding: 18, marginBottom: 20,
-        background: 'var(--surface)', borderRadius: 14, color: 'var(--text)',
-        border: '1px solid var(--border)', overflow: 'hidden',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 12,
-            background: 'var(--surface-3)', color: 'var(--text)',
-            fontWeight: 800, fontSize: 14, letterSpacing: '.04em',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>{planLabel.slice(0, 3).toUpperCase()}</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ fontSize: 16, fontWeight: 700 }}>Mevcut plan: {planLabel}</div>
-              <Tag tone="neutral">Read-only</Tag>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 5, lineHeight: 1.5 }}>
-              Abonelik, kart saklama ve fatura geçmişi bu sürümde panele bağlı değildir. Plan değişikliği için destek ekibiyle ilerlenir.
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <SCard title="Fatura geçmişi ve ödeme yöntemi" subtitle="Subscription sistemi ayrı bir fazda açılacak">
-        <div style={{ padding: 18, fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5 }}>
-          Bu panelde şu an gerçek abonelik faturası, kayıtlı kart veya kullanım limiti gösterilmiyor.
-          Yanıltıcı demo faturalar kaldırıldı.
-        </div>
       </SCard>
     </>
   )

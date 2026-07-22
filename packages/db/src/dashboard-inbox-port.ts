@@ -86,8 +86,10 @@ export function createDashboardInboxPort(): DashboardInboxPort {
       if (!restaurantResult.data) return err('Dashboard inbox restaurant not found')
 
       const eligibleUsers = new Set<string>([restaurantResult.data.owner_id])
-      for (const member of memberResult.data ?? []) {
-        if (member.user_id && hasSection(member.permissions, input.section)) eligibleUsers.add(member.user_id)
+      if (input.section) {
+        for (const member of memberResult.data ?? []) {
+          if (member.user_id && hasSection(member.permissions, input.section)) eligibleUsers.add(member.user_id)
+        }
       }
 
       const prefsByUser = new Map<string, unknown>()

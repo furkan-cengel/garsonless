@@ -28,11 +28,38 @@ const isDashboardPushEvent = (eventType: string) => [
 const isDashboardInboxEvent = (eventType: string) => [
   'order.created',
   'service_request.created',
+  'invoice.payment_failed',
+  'billing.retry_requested',
+  'billing.warning_3',
+  'billing.warning_7',
+  'billing.reconciliation_required',
+  'invoice.paid',
+  'tenant.suspended',
+  'tenant.reactivated',
 ].includes(eventType)
 
 const isNotificationEmailEvent = (eventType: string) => [
   'order.created',
   'service_request.created',
+  'invoice.payment_failed',
+  'billing.retry_requested',
+  'billing.warning_3',
+  'billing.warning_7',
+  'billing.reconciliation_required',
+  'invoice.paid',
+  'tenant.suspended',
+  'tenant.reactivated',
+].includes(eventType)
+
+const isMandatoryBillingNotificationEvent = (eventType: string) => [
+  'invoice.payment_failed',
+  'billing.retry_requested',
+  'billing.warning_3',
+  'billing.warning_7',
+  'billing.reconciliation_required',
+  'invoice.paid',
+  'tenant.suspended',
+  'tenant.reactivated',
 ].includes(eventType)
 
 const required = (name: string) => {
@@ -183,6 +210,9 @@ Deno.serve(async (req) => {
           const inboxUrl = Deno.env.get('OUTBOX_INBOX_CONSUMER_URL')
           if (!inboxUrl) {
             inboxUnconfigured += 1
+            if (isMandatoryBillingNotificationEvent(event.event_type)) {
+              throw new Error('Mandatory billing inbox consumer is not configured')
+            }
           } else {
             const response = await fetch(inboxUrl, {
               method: 'POST',
@@ -220,6 +250,9 @@ Deno.serve(async (req) => {
           const emailUrl = Deno.env.get('OUTBOX_EMAIL_CONSUMER_URL')
           if (!emailUrl) {
             emailUnconfigured += 1
+            if (isMandatoryBillingNotificationEvent(event.event_type)) {
+              throw new Error('Mandatory billing email consumer is not configured')
+            }
           } else {
             const response = await fetch(emailUrl, {
               method: 'POST',
@@ -303,6 +336,34 @@ Deno.serve(async (req) => {
     }
   }
 
+  // SaaS subscription dunning and ambiguity escalation use their own leased
+  // worker endpoint. It advances only due rows; signed provider webhooks remain
+  // the sole authority for marking invoices paid/reactivating tenants.
+  let billingMaintenance: Record<string, unknown> = { configured: false }
+  const billingMaintenanceUrl = Deno.env.get('BILLING_MAINTENANCE_URL')
+  if (billingMaintenanceUrl) {
+    try {
+      const response = await fetch(billingMaintenanceUrl, {
+        method: 'POST',
+        signal: AbortSignal.timeout(45_000),
+        headers: {
+          'content-type': 'application/json',
+          'x-outbox-secret': secret,
+        },
+        body: JSON.stringify({ limit: 20 }),
+      })
+      const payload = await response.json().catch(() => ({})) as Record<string, unknown>
+      billingMaintenance = response.ok
+        ? { configured: true, ...payload }
+        : { configured: true, error: `HTTP ${response.status}`, detail: payload }
+    } catch (cause) {
+      billingMaintenance = {
+        configured: true,
+        error: cause instanceof Error ? cause.message : 'Billing maintenance worker failed',
+      }
+    }
+  }
+
   return Response.json({
     claimed: (data ?? []).length,
     processed,
@@ -321,5 +382,6 @@ Deno.serve(async (req) => {
     emailSkipped,
     emailUnconfigured,
     reconciliation,
+    billingMaintenance,
   })
 })

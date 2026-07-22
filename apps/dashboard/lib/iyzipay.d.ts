@@ -13,6 +13,8 @@ declare module 'iyzipay' {
     errorMessage?: string
   }
 
+  type IyzipayCallback = (err: Error | null, result: Record<string, unknown>) => void
+
   class Iyzipay {
     constructor(options: IyzipayOptions)
     apiTest: {
@@ -20,6 +22,20 @@ declare module 'iyzipay' {
         request: Record<string, never>,
         callback: (err: Error | null, result: ApiTestResult) => void,
       ): void
+    }
+    subscriptionCustomer: {
+      create(request: Record<string, unknown>, callback: IyzipayCallback): void
+    }
+    subscriptionCheckoutForm: {
+      initialize(request: Record<string, unknown>, callback: IyzipayCallback): void
+      retrieve(request: Record<string, unknown>, callback: IyzipayCallback): void
+    }
+    subscriptionPayment: {
+      retry(request: Record<string, unknown>, callback: IyzipayCallback): void
+    }
+    subscription: {
+      cancel(request: Record<string, unknown>, callback: IyzipayCallback): void
+      search(request: Record<string, unknown>, callback: IyzipayCallback): void
     }
   }
 

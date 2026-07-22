@@ -295,6 +295,46 @@ importers:
         specifier: '*'
         version: 5.9.3
 
+  apps/platform-admin:
+    dependencies:
+      '@garsonless/application':
+        specifier: workspace:*
+        version: link:../../packages/application
+      '@garsonless/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@garsonless/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@supabase/ssr':
+        specifier: ^0.5.2
+        version: 0.5.2(@supabase/supabase-js@2.105.4)
+      '@supabase/supabase-js':
+        specifier: ^2.47.2
+        version: 2.105.4
+      next:
+        specifier: ^15.1.6
+        version: 15.5.18(@babel/core@7.29.7)(@playwright/test@1.61.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.6(react@19.2.6)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.19
+      '@types/react':
+        specifier: ^19.0.7
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.0.3
+        version: 19.2.3(@types/react@19.2.14)
+      typescript:
+        specifier: '*'
+        version: 5.9.3
+
   packages/application:
     dependencies:
       '@garsonless/design-engine':

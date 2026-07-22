@@ -56,7 +56,7 @@ export default tseslint.config(
     },
     settings: {
       next: {
-        rootDir: ['apps/dashboard/', 'apps/menu/', 'apps/kitchen/', 'apps/marketing/'],
+        rootDir: ['apps/dashboard/', 'apps/menu/', 'apps/kitchen/', 'apps/marketing/', 'apps/platform-admin/'],
       },
     },
   },

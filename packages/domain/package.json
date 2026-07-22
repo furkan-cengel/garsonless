@@ -17,6 +17,7 @@
     "./loyalty": "./src/loyalty.ts",
     "./menu": "./src/menu.ts",
     "./notifications": "./src/notifications.ts",
+    "./platform-admin": "./src/platform-admin.ts",
     "./result": "./src/result.ts",
     "./team": "./src/team.ts"
   },

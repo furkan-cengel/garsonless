@@ -108,6 +108,16 @@ export {
   recordPaymentReconciliation,
 } from './payment-reconciliation-port'
 export { createSubscriptionBillingPersistencePort } from './subscription-billing-port'
+export { createSubscriptionBillingWebhookInboxPort } from './subscription-billing-webhook-port'
+export { createSubscriptionBillingOperationsPort } from './subscription-billing-operations-port'
+export { createSubscriptionBillingSettingsReadPort } from './subscription-billing-settings-port'
+export { createBillingMaintenancePort } from './billing-maintenance-port'
+export { createPlatformAdminIdentityPort } from './platform-admin-identity-port'
+export { createPlatformAdminTenantReadPort } from './platform-admin-tenant-read-port'
+export {
+  createPlatformAdminTenantOperationsPort,
+  readTenantOrderIngressStatus,
+} from './platform-admin-tenant-operations-port'
 export { createSplitPaymentPort } from './split-command-port'
 export {
   attachOrderPaymentToken,

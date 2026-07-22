@@ -49,6 +49,17 @@ export type PlatformBillingContext = {
   provider: 'iyzico'
 }
 
+/** Trusted cross-tenant scheduler identity. Unlike PlatformBillingContext this
+ * actor never receives a caller supplied tenant id; a service-role claim RPC
+ * leases due work and returns the tenant scope from durable storage. */
+export type PlatformBillingWorkerContext = {
+  actor: 'platform-billing-worker'
+  provider: 'iyzico'
+  workerId: string
+}
+
+export type { PlatformAdminActorContext } from './platform-admin'
+
 export type CustomerActorContext = {
   actor: 'customer-member'
   authUserId: string
@@ -62,8 +73,9 @@ export type CommandContext =
   | KitchenActorContext
   | PaymentProviderContext
   | PlatformBillingContext
+  | PlatformBillingWorkerContext
   | CustomerActorContext
 
 export function hasSameRestaurant(context: CommandContext, restaurantId: string): boolean {
-  return context.restaurantId === restaurantId
+  return 'restaurantId' in context && context.restaurantId === restaurantId
 }
