@@ -5,6 +5,7 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./billing": "./src/billing.ts",
     "./campaigns": "./src/campaigns.ts",
     "./orders": "./src/orders.ts",
     "./tables": "./src/tables.ts",

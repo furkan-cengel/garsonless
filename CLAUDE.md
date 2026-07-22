@@ -2309,3 +2309,74 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
 - Sadakat üçüncü gerçek capability gate’idir: puan/damga scope ve bakiye okumaları, hoş geldin bonusu, sipariş kazanımı, ziyaret kredisi, indirim hesaplama ve redemption çağrısı service-role sınırında `loyalty` (Pro) yetkisini yeniden kontrol eder. Paket düşüşünde saklanan JSONB ayarları değer üretmez; dashboard ayar ekranı da kilitlenir. DEV runtime matrisi Starter’da `scope/balance=false`, `0 ledger`, `0 indirim`; aynı tenant Pro’ya yükselince `25 puan`, `10 puan redemption`, `₺99` final sonucu verdi; temp restaurant/customer sıfır orphan ile temizlendi.
 - Gelişmiş analitik dördüncü capability gate’idir: Free/Starter temel Satışlar, Ürünler, Masalar ve Ödemeler raporlarını kullanır; owner-only Operasyon ve Sadakat raporları `analytics_advanced` (Pro) ister. UI bu sekmeleri göstermese bile server action paketi tekrar okur ve replay çağrısına veri yerine güvenli plan hatası döner. Browser-safe görünürlük modeli test edildi; dashboard typecheck/lint/production build temiz geçti.
 - Tarayıcı bildirimi beşinci capability gate’idir: uygulama içi sipariş/garson çağrısı zili bütün paketlerde temel operasyon yüzeyi olarak kalır; yalnız işletim sistemi Web Notification kanalı `browser_notifications` (Starter+) ister. Ayar UI'ı Free planda kontrolü kapatır, server action replay isteğinde planı yeniden okur ve `MAS-PLAN-403` zarfıyla reddeder. Service worker yalnız entitlement + tercih birlikte açıkken kurulur; sipariş başına tenant-scope session receipt aynı realtime olayının yeniden bağlantı veya React effect tekrarında ses/push üretmesini engeller. Bildirim feed'i artık sorgu hatasını sessiz boş durum gibi göstermeyip `MAS-SVC-503` kodu ve yeniden-dene yüzeyi sunar.
+
+### Faz 5.1 — SaaS billing foundation ✅ (2026-07-22)
+
+- SaaS abonelik tahsilatı, restoranların müşteri sipariş ödemelerinden ayrı bir
+  bounded context olarak başlatıldı. `@garsonless/domain/billing` TRY minor-unit
+  para tipi, lifecycle/invoice/attempt sözlükleri, fail-closed state geçişleri
+  ve DB'den yüklenen dunning politikasının sıralama invariant'larını taşır.
+- `@garsonless/application/billing` provider bağımsız
+  `SubscriptionBillingProvider` portunu ve doğrulanmış webhook event sınırını
+  tanımlar. Platform billing secret'ları veya tenant `payment_credentials`
+  verisi bu sözleşmenin girdisi değildir; ham webhook payload saklanmaz.
+- `20260722010000_saas_billing_foundation.sql` service-role-only billing
+  customer/subscription/invoice/payment-attempt/provider-event/reconciliation/
+  dunning/lifecycle tablolarını hazırlar. Para bigint minor-unit'tir; provider
+  event ve ödeme tekrarları idempotency anahtarlarıyla sınırlandırılır; lifecycle
+  audit tablosu append-only grant alır.
+- Composite foreign key'ler billing customer → subscription → invoice → attempt
+  zincirinde farklı tenant kimliklerinin yanlışlıkla birleştirilmesini DB
+  seviyesinde reddeder. Provider projection'ları allowlist/redacted isimli ve
+  64 KiB ile sınırlı JSON object olarak saklanır.
+- Billing outbox aggregate/event sözlüğü ayrıldı; bu dilim event üretmez.
+  Invoice/payment state + outbox atomik RPC'leri Faz 5.2 kapsamındadır. Mevcut
+  tenant'lara subscription/backfill veya plan değişikliği yapılmaz.
+- Statik doğrulama temiz: domain **48/48**, application **100/100**, DB
+  **133/133**; üç paketin lint'i ve 10 workspace projesinin typecheck'i geçti.
+  Migration linked DEV'e uygulandı ve `types.gen.ts` yenilendi.
+- Gerçek DEV runtime matrisi: service-role varsayılan politikayı okudu;
+  anon/authenticated roller **9/9** billing tablosunda `42501` aldı; cross-tenant
+  customer ve invoice kompozisyonu `23503`, ikinci canlı subscription, invoice/
+  attempt/provider-event replay ve ikinci dunning coordinator `23505` ile
+  reddedildi. TRY `14990` minor-unit olarak aynen saklandı. İki geçici tenant ve
+  tüm billing tabloları test sonunda **0 orphan** ile temizlendi.
+
+### Faz 5.2 — Atomik invoice/payment geçişleri + billing outbox ✅ (2026-07-22)
+
+- Zamanlanmış fatura üretimi için doğrulanmış `platform-billing`, provider
+  callback'leri için mevcut `payment-provider` actor context'i kullanılıyor.
+  `@garsonless/application/billing` tenant/context, TRY safe-integer, dönem,
+  timestamp ve idempotency girdilerini persistence'a ulaşmadan doğruluyor.
+- `create_subscription_invoice_atomic`,
+  `record_subscription_payment_failure_atomic` ve
+  `record_subscription_payment_success_atomic` service-role-only RPC'leri
+  aggregate satırlarını `FOR UPDATE` ile kilitliyor. Invoice/payment mutation,
+  append-only lifecycle audit, dunning coordinator ve `domain_outbox` event'i
+  tek PostgreSQL transaction'ında commit oluyor.
+- Invoice oluşturma replay'i tek satır ve tek `invoice.created` üretir; aynı
+  anahtarın farklı immutable payload ile kullanımı fail-closed reddedilir.
+  Failure aktif aboneliği `past_due` yapıp policy snapshot'lı tek dunning run
+  planlar. Geç gelen failure, paid invoice'ı geriye düşürmez.
+- Ödeme tarafında partial unique index invoice başına yalnız bir başarılı
+  attempt'e izin verir. İlk success invoice'ı paid, dunning'i stopped,
+  subscription/`restaurants.plan` entitlement projection'ını active yapar;
+  provider callback'i `manual_hold` veya terminal `cancelled` durumunu açamaz.
+  Yalnız gerçekten suspended durumdan dönen tenant için `tenant.reactivated`
+  event'i üretilir.
+- Service-role Supabase client uygulamalara sızmadı;
+  `createSubscriptionBillingPersistencePort` typed RPC sonucunu fail-closed
+  doğrulayan `@garsonless/db/server` adapter'ıdır. Ham webhook body migration,
+  port veya outbox payload'ına girmez.
+- Migration `20260722020000_saas_billing_atomic_transitions.sql` linked DEV'e
+  uygulandı ve generated tipler yenilendi. Statik doğrulama: domain **48/48**,
+  application **103/103**, DB **141/141**, workspace typecheck **10/10**.
+- Gerçek DEV runtime matrisi throwaway tenant'larla geçti: anon RPC `42501`;
+  create/replay tek invoice+outbox; failure `past_due` + tek attempt + tek
+  dunning; success `paid` + `active` + Pro projection + stopped dunning;
+  success sonrası late-failure no-regression; paid callback `manual_hold` ve
+  Free entitlement projection'ını açmadı. Outbox/lifecycle/dunning/event/
+  attempt/invoice/subscription/customer/restaurant temizliği **0 orphan**.
+- PROD migration uygulanmadı. Provider webhook HTTP adapter'ı ve gerçek iyzico
+  adapter'ı sonraki dilimdir; bu faz yalnız provider-bağımsız atomik çekirdeği
+  hazırlar.

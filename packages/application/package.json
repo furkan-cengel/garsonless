@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "exports": {
+    "./billing": "./src/billing.ts",
     "./campaigns": "./src/campaigns.ts",
     "./customers": "./src/customers.ts",
     "./dashboard-feature-read-models": "./src/dashboard-feature-read-models.ts",

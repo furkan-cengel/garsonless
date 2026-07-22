@@ -107,6 +107,7 @@ export {
   createPaymentReconciliationPort,
   recordPaymentReconciliation,
 } from './payment-reconciliation-port'
+export { createSubscriptionBillingPersistencePort } from './subscription-billing-port'
 export { createSplitPaymentPort } from './split-command-port'
 export {
   attachOrderPaymentToken,

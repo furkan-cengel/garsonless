@@ -1,4 +1,5 @@
 export * from './campaigns'
+export * from './billing'
 export * from './context'
 export * from './customers'
 export * from './events'

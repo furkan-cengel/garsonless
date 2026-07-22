@@ -1,4 +1,6 @@
 import type { PaymentMethod } from './orders'
+import type { SubscriptionStatus } from './billing'
+import type { RestaurantPlan } from './entitlements'
 
 export type DomainEventType =
   | 'order.created'
@@ -8,8 +10,22 @@ export type DomainEventType =
   | 'service_request.created'
   | 'customer.welcome_bonus_requested'
   | 'campaign.delivery_requested'
+  | 'subscription.trial_started'
+  | 'subscription.status_changed'
+  | 'invoice.created'
+  | 'invoice.payment_failed'
+  | 'invoice.paid'
+  | 'tenant.suspended'
+  | 'tenant.reactivated'
 
-export type DomainAggregateType = 'order' | 'table_session' | 'service_request' | 'customer' | 'campaign'
+export type DomainAggregateType =
+  | 'order'
+  | 'table_session'
+  | 'service_request'
+  | 'customer'
+  | 'campaign'
+  | 'billing_subscription'
+  | 'billing_invoice'
 
 interface EventBase<TType extends DomainEventType, TAggregate extends DomainAggregateType, TPayload> {
   id: string
@@ -28,6 +44,13 @@ export type DomainEvent =
   | EventBase<'service_request.created', 'service_request', Record<string, unknown>>
   | EventBase<'customer.welcome_bonus_requested', 'customer', { customerId: string }>
   | EventBase<'campaign.delivery_requested', 'campaign', { campaignId: string; createdBy: string | null; segmentLabel: string }>
+  | EventBase<'subscription.trial_started', 'billing_subscription', { plan: RestaurantPlan; trialEndsAt: string }>
+  | EventBase<'subscription.status_changed', 'billing_subscription', { from: SubscriptionStatus; to: SubscriptionStatus; reasonCode: string }>
+  | EventBase<'invoice.created', 'billing_invoice', { subscriptionId: string; amountMinor: number; currency: 'TRY'; dueAt: string }>
+  | EventBase<'invoice.payment_failed', 'billing_invoice', { subscriptionId: string; attemptId: string; failureCode: string | null }>
+  | EventBase<'invoice.paid', 'billing_invoice', { subscriptionId: string; amountMinor: number; currency: 'TRY'; paidAt: string }>
+  | EventBase<'tenant.suspended', 'billing_subscription', { reasonCode: string }>
+  | EventBase<'tenant.reactivated', 'billing_subscription', { reasonCode: string }>
 
 export type DurableConsumerName = 'loyalty-ledger' | 'campaign-sms'
 

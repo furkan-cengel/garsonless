@@ -14,6 +14,343 @@ export type Database = {
   }
   public: {
     Tables: {
+      billing_customers: {
+        Row: {
+          contact_email: string
+          created_at: string
+          id: string
+          legal_name: string
+          provider: string
+          provider_customer_ref: string | null
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          contact_email: string
+          created_at?: string
+          id?: string
+          legal_name: string
+          provider?: string
+          provider_customer_ref?: string | null
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          contact_email?: string
+          created_at?: string
+          id?: string
+          legal_name?: string
+          provider?: string
+          provider_customer_ref?: string | null
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_customers_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_platform_policies: {
+        Row: {
+          cancelled_retention_days: number
+          created_at: string
+          final_warning_after_days: number
+          id: string
+          pre_due_reminder_days: number
+          retry_after_days: number
+          second_warning_after_days: number
+          suspend_after_days: number
+          trial_days: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cancelled_retention_days: number
+          created_at?: string
+          final_warning_after_days: number
+          id?: string
+          pre_due_reminder_days: number
+          retry_after_days: number
+          second_warning_after_days: number
+          suspend_after_days: number
+          trial_days: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cancelled_retention_days?: number
+          created_at?: string
+          final_warning_after_days?: number
+          id?: string
+          pre_due_reminder_days?: number
+          retry_after_days?: number
+          second_warning_after_days?: number
+          suspend_after_days?: number
+          trial_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      billing_provider_events: {
+        Row: {
+          attempts: number
+          available_at: string
+          created_at: string
+          event_type: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          payload_hash: string
+          payload_sanitized: Json
+          processed_at: string | null
+          provider: string
+          provider_event_id: string
+          received_at: string
+          restaurant_id: string | null
+          status: string
+          subscription_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          available_at?: string
+          created_at?: string
+          event_type: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          payload_hash: string
+          payload_sanitized?: Json
+          processed_at?: string | null
+          provider?: string
+          provider_event_id: string
+          received_at?: string
+          restaurant_id?: string | null
+          status?: string
+          subscription_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          available_at?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          payload_hash?: string
+          payload_sanitized?: Json
+          processed_at?: string | null
+          provider?: string
+          provider_event_id?: string
+          received_at?: string
+          restaurant_id?: string | null
+          status?: string
+          subscription_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_provider_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_provider_events_restaurant_id_subscription_id_fkey"
+            columns: ["restaurant_id", "subscription_id"]
+            isOneToOne: false
+            referencedRelation: "billing_subscriptions"
+            referencedColumns: ["restaurant_id", "id"]
+          },
+          {
+            foreignKeyName: "billing_provider_events_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "billing_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_reconciliation_jobs: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          dedupe_key: string
+          discrepancy_code: string | null
+          id: string
+          last_error: string | null
+          local_snapshot: Json
+          locked_at: string | null
+          locked_by: string | null
+          provider: string
+          provider_snapshot_sanitized: Json
+          restaurant_id: string | null
+          scheduled_at: string
+          scope: string
+          started_at: string | null
+          status: string
+          subscription_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          dedupe_key: string
+          discrepancy_code?: string | null
+          id?: string
+          last_error?: string | null
+          local_snapshot?: Json
+          locked_at?: string | null
+          locked_by?: string | null
+          provider?: string
+          provider_snapshot_sanitized?: Json
+          restaurant_id?: string | null
+          scheduled_at?: string
+          scope: string
+          started_at?: string | null
+          status?: string
+          subscription_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          dedupe_key?: string
+          discrepancy_code?: string | null
+          id?: string
+          last_error?: string | null
+          local_snapshot?: Json
+          locked_at?: string | null
+          locked_by?: string | null
+          provider?: string
+          provider_snapshot_sanitized?: Json
+          restaurant_id?: string | null
+          scheduled_at?: string
+          scope?: string
+          started_at?: string | null
+          status?: string
+          subscription_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_reconciliation_jobs_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_reconciliation_jobs_restaurant_id_subscription_id_fkey"
+            columns: ["restaurant_id", "subscription_id"]
+            isOneToOne: false
+            referencedRelation: "billing_subscriptions"
+            referencedColumns: ["restaurant_id", "id"]
+          },
+          {
+            foreignKeyName: "billing_reconciliation_jobs_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "billing_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_subscriptions: {
+        Row: {
+          billing_anchor_day: number
+          billing_customer_id: string
+          cancel_at_period_end: boolean
+          cancelled_at: string | null
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          grace_ends_at: string | null
+          id: string
+          plan: string
+          provider: string
+          provider_subscription_ref: string | null
+          restaurant_id: string
+          scheduled_plan: string | null
+          status: string
+          suspended_at: string | null
+          trial_ends_at: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          billing_anchor_day?: number
+          billing_customer_id: string
+          cancel_at_period_end?: boolean
+          cancelled_at?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          grace_ends_at?: string | null
+          id?: string
+          plan: string
+          provider?: string
+          provider_subscription_ref?: string | null
+          restaurant_id: string
+          scheduled_plan?: string | null
+          status: string
+          suspended_at?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          billing_anchor_day?: number
+          billing_customer_id?: string
+          cancel_at_period_end?: boolean
+          cancelled_at?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          grace_ends_at?: string | null
+          id?: string
+          plan?: string
+          provider?: string
+          provider_subscription_ref?: string | null
+          restaurant_id?: string
+          scheduled_plan?: string | null
+          status?: string
+          suspended_at?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_subscriptions_restaurant_id_billing_customer_id_fkey"
+            columns: ["restaurant_id", "billing_customer_id"]
+            isOneToOne: false
+            referencedRelation: "billing_customers"
+            referencedColumns: ["restaurant_id", "id"]
+          },
+          {
+            foreignKeyName: "billing_subscriptions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_recipients: {
         Row: {
           attempts: number
@@ -556,6 +893,79 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "domain_outbox"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      dunning_runs: {
+        Row: {
+          attempts: number
+          created_at: string
+          current_step: string
+          id: string
+          invoice_id: string
+          last_action_at: string | null
+          last_error: string | null
+          next_action_at: string | null
+          policy_id: string
+          policy_snapshot: Json
+          restaurant_id: string
+          status: string
+          subscription_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          current_step?: string
+          id?: string
+          invoice_id: string
+          last_action_at?: string | null
+          last_error?: string | null
+          next_action_at?: string | null
+          policy_id?: string
+          policy_snapshot: Json
+          restaurant_id: string
+          status?: string
+          subscription_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          current_step?: string
+          id?: string
+          invoice_id?: string
+          last_action_at?: string | null
+          last_error?: string | null
+          next_action_at?: string | null
+          policy_id?: string
+          policy_snapshot?: Json
+          restaurant_id?: string
+          status?: string
+          subscription_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dunning_runs_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "billing_platform_policies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dunning_runs_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dunning_runs_restaurant_id_subscription_id_invoice_id_fkey"
+            columns: ["restaurant_id", "subscription_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_invoices"
+            referencedColumns: ["restaurant_id", "subscription_id", "id"]
           },
         ]
       }
@@ -1829,6 +2239,159 @@ export type Database = {
           },
         ]
       }
+      subscription_invoices: {
+        Row: {
+          amount_due_minor: number
+          amount_paid_minor: number
+          created_at: string
+          currency: string
+          due_at: string
+          failed_at: string | null
+          finalized_at: string | null
+          id: string
+          idempotency_key: string
+          paid_at: string | null
+          period_end: string
+          period_start: string
+          plan: string
+          provider: string
+          provider_invoice_ref: string | null
+          restaurant_id: string
+          status: string
+          subscription_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_due_minor: number
+          amount_paid_minor?: number
+          created_at?: string
+          currency?: string
+          due_at: string
+          failed_at?: string | null
+          finalized_at?: string | null
+          id?: string
+          idempotency_key: string
+          paid_at?: string | null
+          period_end: string
+          period_start: string
+          plan: string
+          provider?: string
+          provider_invoice_ref?: string | null
+          restaurant_id: string
+          status?: string
+          subscription_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_due_minor?: number
+          amount_paid_minor?: number
+          created_at?: string
+          currency?: string
+          due_at?: string
+          failed_at?: string | null
+          finalized_at?: string | null
+          id?: string
+          idempotency_key?: string
+          paid_at?: string | null
+          period_end?: string
+          period_start?: string
+          plan?: string
+          provider?: string
+          provider_invoice_ref?: string | null
+          restaurant_id?: string
+          status?: string
+          subscription_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_invoices_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_invoices_restaurant_id_subscription_id_fkey"
+            columns: ["restaurant_id", "subscription_id"]
+            isOneToOne: false
+            referencedRelation: "billing_subscriptions"
+            referencedColumns: ["restaurant_id", "id"]
+          },
+        ]
+      }
+      subscription_payment_attempts: {
+        Row: {
+          amount_minor: number
+          attempt_number: number
+          attempted_at: string
+          completed_at: string | null
+          created_at: string
+          currency: string
+          failure_code: string | null
+          failure_message: string | null
+          id: string
+          idempotency_key: string
+          invoice_id: string
+          provider: string
+          provider_attempt_ref: string | null
+          restaurant_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount_minor: number
+          attempt_number: number
+          attempted_at?: string
+          completed_at?: string | null
+          created_at?: string
+          currency?: string
+          failure_code?: string | null
+          failure_message?: string | null
+          id?: string
+          idempotency_key: string
+          invoice_id: string
+          provider?: string
+          provider_attempt_ref?: string | null
+          restaurant_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_minor?: number
+          attempt_number?: number
+          attempted_at?: string
+          completed_at?: string | null
+          created_at?: string
+          currency?: string
+          failure_code?: string | null
+          failure_message?: string | null
+          id?: string
+          idempotency_key?: string
+          invoice_id?: string
+          provider?: string
+          provider_attempt_ref?: string | null
+          restaurant_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_payment_attempts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_payment_attempts_restaurant_id_invoice_id_fkey"
+            columns: ["restaurant_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_invoices"
+            referencedColumns: ["restaurant_id", "id"]
+          },
+        ]
+      }
       table_qr_tokens: {
         Row: {
           created_at: string
@@ -1967,6 +2530,69 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_lifecycle_events: {
+        Row: {
+          actor_type: string
+          actor_user_id: string | null
+          created_at: string
+          from_status: string | null
+          id: string
+          metadata: Json
+          occurred_at: string
+          reason_code: string
+          reason_detail: string | null
+          request_id: string
+          restaurant_id: string
+          subscription_id: string | null
+          to_status: string
+        }
+        Insert: {
+          actor_type: string
+          actor_user_id?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          reason_code: string
+          reason_detail?: string | null
+          request_id: string
+          restaurant_id: string
+          subscription_id?: string | null
+          to_status: string
+        }
+        Update: {
+          actor_type?: string
+          actor_user_id?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          reason_code?: string
+          reason_detail?: string | null
+          request_id?: string
+          restaurant_id?: string
+          subscription_id?: string | null
+          to_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_lifecycle_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_lifecycle_events_restaurant_id_subscription_id_fkey"
+            columns: ["restaurant_id", "subscription_id"]
+            isOneToOne: false
+            referencedRelation: "billing_subscriptions"
+            referencedColumns: ["restaurant_id", "id"]
           },
         ]
       }
@@ -2155,6 +2781,19 @@ export type Database = {
           p_window_seconds?: number
         }
         Returns: boolean
+      }
+      create_subscription_invoice_atomic: {
+        Args: {
+          p_amount_minor: number
+          p_due_at: string
+          p_idempotency_key: string
+          p_period_end: string
+          p_period_start: string
+          p_plan: string
+          p_restaurant_id: string
+          p_subscription_id: string
+        }
+        Returns: Json
       }
       create_table_service_request_atomic: {
         Args: {
@@ -2383,6 +3022,34 @@ export type Database = {
       }
       read_kitchen_order_projection: {
         Args: { p_after?: string; p_restaurant_id: string }
+        Returns: Json
+      }
+      record_subscription_payment_failure_atomic: {
+        Args: {
+          p_amount_minor: number
+          p_failure_code: string
+          p_failure_message: string
+          p_idempotency_key: string
+          p_invoice_id: string
+          p_occurred_at: string
+          p_provider_attempt_ref: string
+          p_provider_event_id: string
+          p_restaurant_id: string
+          p_subscription_id: string
+        }
+        Returns: Json
+      }
+      record_subscription_payment_success_atomic: {
+        Args: {
+          p_amount_minor: number
+          p_idempotency_key: string
+          p_invoice_id: string
+          p_occurred_at: string
+          p_provider_attempt_ref: string
+          p_provider_event_id: string
+          p_restaurant_id: string
+          p_subscription_id: string
+        }
         Returns: Json
       }
       redeem_loyalty: {

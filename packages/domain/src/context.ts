@@ -41,6 +41,14 @@ export type PaymentProviderContext = {
   provider: 'iyzico'
 }
 
+/** Trusted recurring-billing worker context. This is deliberately distinct
+ * from provider callbacks: invoice generation is a platform responsibility. */
+export type PlatformBillingContext = {
+  actor: 'platform-billing'
+  restaurantId: string
+  provider: 'iyzico'
+}
+
 export type CustomerActorContext = {
   actor: 'customer-member'
   authUserId: string
@@ -53,6 +61,7 @@ export type CommandContext =
   | TableGuestContext
   | KitchenActorContext
   | PaymentProviderContext
+  | PlatformBillingContext
   | CustomerActorContext
 
 export function hasSameRestaurant(context: CommandContext, restaurantId: string): boolean {
