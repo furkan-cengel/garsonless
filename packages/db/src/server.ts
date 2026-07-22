@@ -132,6 +132,7 @@ export {
 export {
   countUnreadInboxNotifications,
   createDashboardInboxPort,
+  listPendingDashboardInboxEventIds,
   listInboxNotifications,
   markInboxNotificationsRead,
   type InboxFeedItem,

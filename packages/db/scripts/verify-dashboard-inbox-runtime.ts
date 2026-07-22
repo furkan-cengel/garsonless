@@ -13,6 +13,7 @@ import { consumeDashboardInbox } from '@garsonless/application/notifications'
 import {
   createDashboardInboxPort,
   countUnreadInboxNotifications,
+  listPendingDashboardInboxEventIds,
   listInboxNotifications,
   markInboxNotificationsRead,
 } from '../src/dashboard-inbox-port'
@@ -51,6 +52,16 @@ let restaurantId: string | null = null
 let throwawayUserId: string | null = null
 const outboxIds: string[] = []
 
+function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = 15_000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs)
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value) },
+      (error: unknown) => { clearTimeout(timer); reject(error) },
+    )
+  })
+}
+
 async function enqueue(eventType: 'order.created' | 'service_request.created', aggregateType: 'order' | 'service_request', payload: Record<string, unknown>) {
   const { data, error } = await admin.from('domain_outbox').insert({
     restaurant_id: restaurantId!,
@@ -88,6 +99,12 @@ async function main() {
 
   // A — order.created lands one entry for the owner with real content.
   const orderEvent = await enqueue('order.created', 'order', { total: 150, tableId: table!.id })
+  const pendingBefore = await listPendingDashboardInboxEventIds({
+    restaurantId,
+    aggregateId: orderEvent.aggregate_id,
+  })
+  assert(pendingBefore.ok)
+  assert.deepEqual(pendingBefore.value, [orderEvent.id])
   const first = await consumeDashboardInbox(orderEvent.id, port)
   assert(first.ok, `consume failed: ${first.ok ? '' : first.error}`)
   assert.deepEqual(first.value, { duplicate: false, recipients: 1, delivered: 1, muted: 0 })
@@ -102,6 +119,12 @@ async function main() {
   assert.equal(rows1![0]!.link_path, `/dashboard/${restaurantId}/orders`)
   assert.equal(rows1![0]!.dedupe_key, `order.created:${orderEvent.aggregate_id}`)
   assert.equal(rows1![0]!.read_at, null)
+  const pendingAfter = await listPendingDashboardInboxEventIds({
+    restaurantId,
+    aggregateId: orderEvent.aggregate_id,
+  })
+  assert(pendingAfter.ok)
+  assert.deepEqual(pendingAfter.value, [])
   console.log('A ✅ order.created → 1 entry, doğru içerik + dedupe key')
 
   // B — replay is a duplicate no-op.
@@ -174,12 +197,92 @@ async function main() {
   assert.equal(strangerRows.data!.length, 0)
   console.log('G ✅ gerçek session RLS: sahibi 1 satır, yabancı authenticated 0 satır')
 
-  // H — the read projection used by the panel.
+  // H — authenticated Realtime: RestaurantShell sets the session JWT before
+  // subscribing. Prove that both a consumer INSERT and the mark-read UPDATE
+  // reach the RLS-scoped channel without a page refresh.
+  const { data: ownerSession } = await ownerClient.auth.getSession()
+  assert(ownerSession.session, 'Expected owner session for Realtime auth')
+  await ownerClient.realtime.setAuth(ownerSession.session.access_token)
+
+  let resolveInsert!: (rowId: string) => void
+  let resolveUpdate!: (rowId: string) => void
+  let resolveOrderInsert!: (rowId: string) => void
+  const insertSeen = new Promise<string>((resolve) => { resolveInsert = resolve })
+  const updateSeen = new Promise<string>((resolve) => { resolveUpdate = resolve })
+  const orderInsertSeen = new Promise<string>((resolve) => { resolveOrderInsert = resolve })
+  const realtimeChannel = ownerClient
+    .channel(`inbox-runtime:${restaurantId}:${marker}`)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'notification_inbox', filter: `restaurant_id=eq.${restaurantId}` },
+      (payload) => resolveInsert(String(payload.new['id'])),
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'notification_inbox', filter: `restaurant_id=eq.${restaurantId}` },
+      (payload) => resolveUpdate(String(payload.new['id'])),
+    )
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
+      (payload) => resolveOrderInsert(String(payload.new['id'])),
+    )
+
+  try {
+    await withTimeout(new Promise<void>((resolve, reject) => {
+      realtimeChannel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') resolve()
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(`Realtime subscribe failed: ${status}`))
+      })
+    }), 'Realtime subscription')
+
+    const liveEvent = await enqueue('order.created', 'order', { total: 175, tableId: table!.id })
+    const liveConsumed = await consumeDashboardInbox(liveEvent.id, port)
+    assert(liveConsumed.ok && liveConsumed.value.delivered === 1)
+
+    const insertedId = await withTimeout(insertSeen, 'Realtime INSERT')
+    const liveRow = await admin.from('notification_inbox')
+      .select('id, read_at')
+      .eq('recipient_user_id', ownerId)
+      .eq('dedupe_key', `order.created:${liveEvent.aggregate_id}`)
+      .single()
+    assert.ifError(liveRow.error)
+    assert.equal(insertedId, liveRow.data!.id)
+    assert.equal(liveRow.data!.read_at, null)
+
+    const liveMarked = await markInboxNotificationsRead({
+      restaurantId,
+      userId: ownerId,
+      ids: [liveRow.data!.id],
+    })
+    assert(liveMarked.ok)
+    const updatedId = await withTimeout(updateSeen, 'Realtime UPDATE')
+    assert.equal(updatedId, liveRow.data!.id)
+
+    const orderId = randomUUID()
+    const { error: orderInsertError } = await admin.from('orders').insert({
+      id: orderId,
+      restaurant_id: restaurantId,
+      table_id: table!.id,
+      session_id: randomUUID(),
+      status: 'pending_approval',
+      items: [],
+      total: 42,
+    })
+    assert.ifError(orderInsertError)
+    assert.equal(await withTimeout(orderInsertSeen, 'Orders Realtime INSERT'), orderId)
+  } finally {
+    await ownerClient.removeChannel(realtimeChannel)
+    ownerClient.realtime.disconnect()
+  }
+  console.log('H ✅ setAuth(JWT) Realtime: inbox INSERT/UPDATE + orders INSERT anında ulaştı')
+
+  // I — the read projection used by the panel.
   const feed = await listInboxNotifications({ restaurantId, userId: ownerId })
-  assert(feed.ok && feed.value.length === 1)
+  assert(feed.ok && feed.value.length === 2)
   assert.equal(feed.value[0]!.title, 'Yeni sipariş')
   assert(feed.value[0]!.readAt !== null)
-  console.log('H ✅ panel feed projection doğru')
+  console.log('I ✅ panel feed projection doğru')
 }
 
 async function cleanup() {
@@ -201,7 +304,7 @@ async function cleanup() {
 }
 
 main()
-  .then(async () => { await cleanup(); console.log('\nDASHBOARD INBOX RUNTIME MATRIX ✅ 8/8') })
+  .then(async () => { await cleanup(); console.log('\nDASHBOARD INBOX RUNTIME MATRIX ✅ 9/9') })
   .catch(async (error) => {
     console.error('\nMATRIX FAILED:', error)
     await cleanup().catch((cleanupError) => console.error('CLEANUP FAILED:', cleanupError))

@@ -5,17 +5,17 @@ import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 import type { Tables } from '@garsonless/db/types'
 import { serviceRequestLabel } from '@garsonless/domain/tables'
+import { OPEN_ORDER_STATUSES } from '@garsonless/domain/orders'
 import { ShellContext } from '../../lib/shell-context'
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import { readNotificationPrefs } from '../../lib/notification-prefs'
 
-const ACTIVE_ORDER_STATUSES = ['pending', 'pending_approval', 'sent_to_kitchen', 'preparing', 'paid']
 import { Skeleton } from '../../lib/ui'
 import IconRail from './IconRail'
 import ServiceRequestToast from './ServiceRequestToast'
 import StoreSwitcher from '../overlays/StoreSwitcher'
 import NotificationsPanel from '../overlays/NotificationsPanel'
-import { getUnreadInboxCount } from '../../lib/actions/notifications'
+import { getUnreadInboxCount, syncDashboardInboxEvent } from '../../lib/actions/notifications'
 import HelpModal from '../overlays/HelpModal'
 import ProfileMenu from '../overlays/ProfileMenu'
 
@@ -82,21 +82,24 @@ export default function RestaurantShell({
 
   const isFullScreen = pathname.includes('/tables')
 
+  const refreshInboxUnread = useCallback(() => {
+    void getUnreadInboxCount(restaurantId).then((result) => {
+      if ('unread' in result) setInboxUnread(result.unread)
+    })
+  }, [restaurantId])
+
   useEffect(() => {
     const supabase = createDashboardBrowserClient()
     let cancelled = false
 
     const refreshCount = async () => {
-      // Same scope as the Orders page: today's orders only — stale test
-      // orders from previous days must not inflate the badge.
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
+      // Same operational scope as the Orders board: every order that still
+      // needs action, including work carried across restaurant-day rollover.
       const { data } = await supabase
         .from('orders')
         .select('status')
         .eq('restaurant_id', restaurantId)
-        .in('status', ACTIVE_ORDER_STATUSES)
-        .gte('created_at', todayStart.toISOString())
+        .in('status', [...OPEN_ORDER_STATUSES])
         .is('deleted_at', null)
       const rows = (data ?? []) as Array<{ status: string }>
       if (!cancelled) setOrdersBadge(rows.length)
@@ -105,34 +108,50 @@ export default function RestaurantShell({
     void refreshCount()
 
     // A new order also produces an inbox notification via the async outbox
-    // consumer. This channel is anon-visible and therefore always fires, so
-    // piggyback a delayed unread refresh to catch the consumer's write even
-    // when the authenticated inbox stream is unavailable.
-    let inboxTimer: ReturnType<typeof setTimeout> | null = null
-    const scheduleInboxRefresh = () => {
-      if (inboxTimer) clearTimeout(inboxTimer)
-      inboxTimer = setTimeout(() => { refreshInboxUnread() }, 4_000)
+    // consumer. Repair only that exact aggregate when the optional worker
+    // callback is unavailable; never backfill unrelated historical orders.
+    const syncInboxForOrder = (orderId: string | null) => {
+      if (!orderId) return
+      void syncDashboardInboxEvent(restaurantId, orderId).then((result) => {
+        if ('unread' in result) setInboxUnread(result.unread)
+      })
     }
 
-    const channel = supabase
-      .channel(`orders-badge:${restaurantId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
-        () => { void refreshCount(); scheduleInboxRefresh() },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
-        () => { void refreshCount() },
-      )
-      .subscribe()
+    // Global anon order reads were retired. Realtime also honours RLS, so the
+    // socket must carry the dashboard session JWT before this channel starts.
+    const subscribe = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (cancelled) return null
+      if (data.session) await supabase.realtime.setAuth(data.session.access_token)
+      return supabase
+        .channel(`orders-badge:${restaurantId}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
+          (payload: { new: Record<string, unknown> }) => {
+            void refreshCount()
+            syncInboxForOrder(typeof payload.new['id'] === 'string' ? payload.new['id'] : null)
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
+          () => { void refreshCount() },
+        )
+        .subscribe()
+    }
+    const channelPromise = subscribe()
+    // Reconnects can miss a change that occurred while the socket was down.
+    // Keep the operational badge eventually consistent without depending on
+    // a page refresh; Realtime remains the instant path.
+    const interval = setInterval(() => { void refreshCount() }, 45_000)
 
     return () => {
       cancelled = true
-      void supabase.removeChannel(channel)
+      clearInterval(interval)
+      void channelPromise.then((channel) => { if (channel) void supabase.removeChannel(channel) })
     }
-  }, [restaurantId])
+  }, [restaurantId, refreshInboxUnread])
 
   // Unread notification inbox count drives the bell badge. Refreshed on mount,
   // whenever the notifications overlay closes (entries may have just been
@@ -140,12 +159,6 @@ export default function RestaurantShell({
   // (RLS scopes the stream to the signed-in user). In production the outbox
   // inbox consumer inserts these rows; locally they arrive once the consumer
   // is dispatched.
-  const refreshInboxUnread = useCallback(() => {
-    void getUnreadInboxCount(restaurantId).then((result) => {
-      if ('unread' in result) setInboxUnread(result.unread)
-    })
-  }, [restaurantId])
-
   useEffect(() => {
     if (overlay === 'notif') return
     refreshInboxUnread()
@@ -162,7 +175,7 @@ export default function RestaurantShell({
     const subscribe = async () => {
       const { data } = await supabase.auth.getSession()
       if (cancelled) return null
-      if (data.session) supabase.realtime.setAuth(data.session.access_token)
+      if (data.session) await supabase.realtime.setAuth(data.session.access_token)
       return supabase
         .channel(`inbox-badge:${restaurantId}`)
         .on(

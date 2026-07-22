@@ -176,6 +176,72 @@ export async function getUnreadInboxCount(
   return { unread: unread.value }
 }
 
+export interface DashboardInboxSyncResult {
+  unread: number
+  consumed: number
+  failed: number
+}
+
+/**
+ * Self-healing fallback for optional inbox fan-out. The outbox worker remains
+ * primary; an authenticated dashboard Realtime event repairs only its matching
+ * aggregate when a local/unavailable callback caused fan-out to be skipped.
+ */
+export async function syncDashboardInboxEvent(
+  restaurantId: string,
+  aggregateId: string,
+): Promise<DashboardInboxSyncResult | DashboardActionFailure> {
+  const { user } = await getAuthUser()
+  if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.inbox-sync')
+
+  const gate = await assertMember(restaurantId)
+  if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.inbox-sync')
+
+  const [{ consumeDashboardInbox }, {
+    countUnreadInboxNotifications,
+    createDashboardInboxPort,
+    listPendingDashboardInboxEventIds,
+  }] = await Promise.all([
+    import('@garsonless/application/notifications'),
+    import('@garsonless/db/server'),
+  ])
+
+  const pending = await listPendingDashboardInboxEventIds({
+    restaurantId,
+    aggregateId,
+    limit: 5,
+  })
+  if (!pending.ok) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'notifications.inbox-sync',
+      message: 'Bildirimler şu anda eşitlenemiyor.',
+      cause: pending.error,
+    })
+  }
+
+  const port = createDashboardInboxPort()
+  let consumed = 0
+  let failed = 0
+  for (const eventId of pending.value) {
+    const result = await consumeDashboardInbox(eventId, port)
+    if (result.ok) consumed += result.value.duplicate ? 0 : 1
+    else {
+      failed += 1
+      console.error('[dashboard-inbox-sync]', { restaurantId, eventId, error: result.error })
+    }
+  }
+
+  const unread = await countUnreadInboxNotifications({ restaurantId, userId: user.id })
+  if (!unread.ok) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'notifications.inbox-sync-count',
+      message: 'Bildirim sayacı yüklenemedi.',
+      cause: unread.error,
+    })
+  }
+  return { unread: unread.value, consumed, failed }
+}
+
 // ── Per-user e-mail channel opt-in (notification_preferences) ───────────────
 // Mutable categories only: billing/system e-mails are unmutable by design and
 // never surface as a preference. The merge is server-side so other channels'

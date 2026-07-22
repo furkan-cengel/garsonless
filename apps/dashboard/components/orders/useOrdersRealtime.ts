@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import type { OrderStatus } from '@garsonless/db/browser'
+import { OPEN_ORDER_STATUSES } from '@garsonless/domain/orders'
 
 export type Order = {
   id: string
@@ -40,9 +41,16 @@ export function useOrdersRealtime(
 
   useEffect(() => {
     const supabase = createDashboardBrowserClient()
+    let cancelled = false
+    let channel: ReturnType<typeof supabase.channel> | null = null
 
-    const channel = supabase
-      .channel(`orders:${restaurantId}`)
+    const subscribe = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (cancelled) return
+      if (data.session) await supabase.realtime.setAuth(data.session.access_token)
+      if (cancelled) return
+
+      channel = supabase.channel(`orders:${restaurantId}`)
       .on(
         'postgres_changes',
         {
@@ -110,24 +118,34 @@ export function useOrdersRealtime(
           // Reconcile after the initial connection and every reconnect. Realtime
           // delivery is not a durable queue; rows missed while offline must be
           // fetched before the UI may honestly call itself live again.
-          const fresh: Order[] = []
-          let reconciliationFailed = false
           const pageSize = 500
-          for (let from = 0; ; from += pageSize) {
-            const { data, error } = await supabase
-              .from('orders')
-              .select('id, restaurant_id, table_id, table_session_id, status, items, total, discount_breakdown, customer_tier, paid_at, payment_method, created_at, sent_to_kitchen_at, ready_at, served_at, cancel_reason, deleted_at')
-              .eq('restaurant_id', restaurantId)
-              .gte('created_at', initialSince)
-              .is('deleted_at', null)
-              .order('created_at', { ascending: false })
-              .range(from, from + pageSize - 1)
-            if (error) { reconciliationFailed = true; break }
-            const page = (data ?? []) as Order[]
-            fresh.push(...page)
-            if (page.length < pageSize) break
+          const fetchPages = async (statuses: readonly string[], updatedSince?: string) => {
+            const rows: Order[] = []
+            for (let from = 0; ; from += pageSize) {
+              let query = supabase
+                .from('orders')
+                .select('id, restaurant_id, table_id, table_session_id, status, items, total, discount_breakdown, customer_tier, paid_at, payment_method, created_at, sent_to_kitchen_at, ready_at, served_at, cancel_reason, deleted_at')
+                .eq('restaurant_id', restaurantId)
+                .in('status', [...statuses])
+                .is('deleted_at', null)
+                .order('created_at', { ascending: false })
+              if (updatedSince) query = query.gte('updated_at', updatedSince)
+              const { data, error } = await query.range(from, from + pageSize - 1)
+              if (error) return null
+              const page = (data ?? []) as Order[]
+              rows.push(...page)
+              if (page.length < pageSize) break
+            }
+            return rows
           }
-          if (!reconciliationFailed) {
+
+          const [openOrders, terminalOrders] = await Promise.all([
+            fetchPages(OPEN_ORDER_STATUSES),
+            fetchPages(['served', 'cancelled'], initialSince),
+          ])
+          if (openOrders && terminalOrders) {
+            const fresh = [...openOrders, ...terminalOrders]
+              .sort((a, b) => b.created_at.localeCompare(a.created_at))
             knownIds.current = new Set(fresh.map((order) => order.id))
             setOrders(fresh)
           } else {
@@ -141,9 +159,13 @@ export function useOrdersRealtime(
           setConnectionStatus('connecting')
         }
       })
+    }
+
+    void subscribe()
 
     return () => {
-      void supabase.removeChannel(channel)
+      cancelled = true
+      if (channel) void supabase.removeChannel(channel)
     }
   }, [restaurantId, initialSince])
 

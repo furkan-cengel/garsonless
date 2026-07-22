@@ -20,6 +20,17 @@ export const ACTIVE_ORDER_STATUSES: readonly OrderStatus[] = [
   'served',
 ]
 
+/** Orders that still require an operational action on the dashboard board.
+ * Unlike a daily report, these remain visible across restaurant-day rollover. */
+export const OPEN_ORDER_STATUSES: readonly OrderStatus[] = [
+  'pending',
+  'pending_approval',
+  'sent_to_kitchen',
+  'preparing',
+  'paid',
+  'ready',
+]
+
 /**
  * Canonical collected-revenue specification. Database adapters translate this
  * data-only policy to PostgREST/SQL while browser code evaluates it directly.

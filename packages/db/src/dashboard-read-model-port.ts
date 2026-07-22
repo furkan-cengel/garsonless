@@ -4,7 +4,7 @@ import type {
   OrdersBoardReadModelPort,
   PanoTableDetailReadModelPort,
 } from '@garsonless/application/read-models'
-import { ACTIVE_ORDER_STATUSES, err, ok } from '@garsonless/domain'
+import { ACTIVE_ORDER_STATUSES, OPEN_ORDER_STATUSES, err, ok } from '@garsonless/domain'
 import { createServiceClient } from './client'
 import { DASHBOARD_INSIGHTS_PROJECTIONS } from './dashboard-read-model-contract'
 import { createPersistentDashboardInsightsObserver } from './dashboard-read-model-observation-sink'
@@ -43,20 +43,33 @@ export function createOrdersBoardReadModelPort(): OrdersBoardReadModelPort<Dashb
       const service = createServiceClient()
       const orders: DashboardOrderReadRow[] = []
 
-      for (let from = 0; ; from += pageSize) {
-        const { data, error } = await service
-          .from('orders')
-          .select(BOARD_ORDER_SELECT)
-          .eq('restaurant_id', restaurantId)
-          .gte('created_at', since)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false })
-          .range(from, from + pageSize - 1)
-        if (error) return err(`Siparişler yüklenemedi: ${error.message}`)
-        const page = (data ?? []) as DashboardOrderReadRow[]
-        orders.push(...page)
-        if (page.length < pageSize) break
+      const appendPages = async (statuses: readonly string[], updatedSince?: string) => {
+        for (let from = 0; ; from += pageSize) {
+          let query = service
+            .from('orders')
+            .select(BOARD_ORDER_SELECT)
+            .eq('restaurant_id', restaurantId)
+            .in('status', [...statuses])
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false })
+          if (updatedSince) query = query.gte('updated_at', updatedSince)
+          const { data, error } = await query.range(from, from + pageSize - 1)
+          if (error) return error.message
+          const page = (data ?? []) as DashboardOrderReadRow[]
+          orders.push(...page)
+          if (page.length < pageSize) break
+        }
+        return null
       }
+
+      // Open work is not a daily report: it must survive midnight. Terminal
+      // rows are bounded by their last transition so "Kapanan" remains a
+      // restaurant-local daily view.
+      const openError = await appendPages(OPEN_ORDER_STATUSES)
+      if (openError) return err(`Siparişler yüklenemedi: ${openError}`)
+      const terminalError = await appendPages(['served', 'cancelled'], since)
+      if (terminalError) return err(`Kapanan siparişler yüklenemedi: ${terminalError}`)
+      orders.sort((a, b) => b.created_at.localeCompare(a.created_at))
 
       const { data: liveTables, error: tablesError } = await service
         .from('tables')

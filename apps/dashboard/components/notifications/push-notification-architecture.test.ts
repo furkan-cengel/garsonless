@@ -34,3 +34,35 @@ test('logout retires server endpoints before destroying the auth session', () =>
   assert.ok(cleanup >= 0)
   assert.ok(signOut > cleanup)
 })
+
+test('shell authenticates RLS-scoped Realtime before orders and inbox subscriptions', () => {
+  const shell = source('../layout/RestaurantShell.tsx')
+  const authCalls = shell.match(/await supabase\.realtime\.setAuth\(data\.session\.access_token\)/g) ?? []
+  assert.equal(authCalls.length, 2)
+  assert.match(shell, /table: 'orders'/)
+  assert.match(shell, /table: 'notification_inbox'/)
+})
+
+test('orders board authenticates Realtime and carries unfinished work across day rollover', () => {
+  const hook = source('../orders/useOrdersRealtime.ts')
+  const adapter = source('../../../../packages/db/src/dashboard-read-model-port.ts')
+  const shell = source('../layout/RestaurantShell.tsx')
+
+  assert.match(hook, /await supabase\.realtime\.setAuth\(data\.session\.access_token\)/)
+  assert.match(hook, /fetchPages\(OPEN_ORDER_STATUSES\)/)
+  assert.match(hook, /fetchPages\(\['served', 'cancelled'\], initialSince\)/)
+  assert.match(adapter, /appendPages\(OPEN_ORDER_STATUSES\)/)
+  assert.match(adapter, /appendPages\(\['served', 'cancelled'\], since\)/)
+  assert.match(shell, /\.in\('status', \[\.\.\.OPEN_ORDER_STATUSES\]\)/)
+  assert.doesNotMatch(shell, /\.gte\('created_at', todayStart\.toISOString\(\)\)/)
+})
+
+test('order inbox self-heal is member-gated and aggregate-scoped', () => {
+  const action = source('../../lib/actions/notifications.ts')
+  const port = source('../../../../packages/db/src/dashboard-inbox-port.ts')
+  assert.match(action, /assertMember\(restaurantId\)/)
+  assert.match(action, /listPendingDashboardInboxEventIds\(\{\s*restaurantId,\s*aggregateId,/)
+  assert.match(port, /\.eq\('restaurant_id', input\.restaurantId\)/)
+  assert.match(port, /\.eq\('aggregate_id', input\.aggregateId\)/)
+  assert.match(port, /\.eq\('consumer', DASHBOARD_INBOX_CONSUMER\)/)
+})

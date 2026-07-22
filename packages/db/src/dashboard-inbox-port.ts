@@ -2,7 +2,11 @@ import type {
   DashboardInboxEvent,
   DashboardInboxPort,
 } from '@garsonless/application/notifications'
-import { isDashboardInboxEventType, DASHBOARD_INBOX_CONSUMER } from '@garsonless/application/notifications'
+import {
+  DASHBOARD_INBOX_CONSUMER,
+  DASHBOARD_INBOX_EVENT_TYPES,
+  isDashboardInboxEventType,
+} from '@garsonless/application/notifications'
 import { err, ok } from '@garsonless/domain'
 import { createServiceClient } from './client'
 
@@ -179,6 +183,43 @@ export async function countUnreadInboxNotifications(input: {
   if (input.categories && input.categories.length > 0) query = query.in('category', input.categories)
   const { count, error } = await query
   return error ? err(error.message) : ok(count ?? 0)
+}
+
+/**
+ * Bounded self-healing query for one aggregate observed live by the dashboard.
+ * The Edge worker remains the primary dispatcher; this returns only supported
+ * events for that aggregate that do not yet have a dashboard-inbox receipt,
+ * including an event already acknowledged while the optional endpoint was
+ * unavailable.
+ */
+export async function listPendingDashboardInboxEventIds(input: {
+  restaurantId: string
+  aggregateId: string
+  limit?: number
+}) {
+  const limit = Math.min(50, Math.max(1, input.limit ?? 25))
+  const { data: events, error: eventError } = await createServiceClient()
+    .from('domain_outbox')
+    .select('id')
+    .eq('restaurant_id', input.restaurantId)
+    .eq('aggregate_id', input.aggregateId)
+    .in('event_type', [...DASHBOARD_INBOX_EVENT_TYPES])
+    .order('occurred_at', { ascending: false })
+    .limit(limit)
+  if (eventError) return err(eventError.message)
+
+  const eventIds = (events ?? []).map((event) => event.id)
+  if (eventIds.length === 0) return ok<string[]>([])
+
+  const { data: receipts, error: receiptError } = await createServiceClient()
+    .from('domain_outbox_receipts')
+    .select('outbox_id')
+    .eq('consumer', DASHBOARD_INBOX_CONSUMER)
+    .in('outbox_id', eventIds)
+  if (receiptError) return err(receiptError.message)
+
+  const received = new Set((receipts ?? []).map((receipt) => receipt.outbox_id))
+  return ok(eventIds.filter((eventId) => !received.has(eventId)))
 }
 
 export async function markInboxNotificationsRead(input: {

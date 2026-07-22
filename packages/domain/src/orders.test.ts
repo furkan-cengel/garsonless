@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   ACTIVE_ORDER_STATUSES,
+  OPEN_ORDER_STATUSES,
   COLLECTED_ORDER_SPEC,
   canTransitionOrderStatus,
   evaluateOrderCancellation,
@@ -12,6 +13,14 @@ test('active order status vocabulary excludes terminal states', () => {
   assert.equal(ACTIVE_ORDER_STATUSES.includes('cancelled'), false)
   assert.equal(ACTIVE_ORDER_STATUSES.includes('paid'), false)
   assert.equal(ACTIVE_ORDER_STATUSES.includes('served'), true)
+})
+
+test('open dashboard orders carry across day rollover but exclude terminal states', () => {
+  assert.equal(OPEN_ORDER_STATUSES.includes('pending_approval'), true)
+  assert.equal(OPEN_ORDER_STATUSES.includes('paid'), true)
+  assert.equal(OPEN_ORDER_STATUSES.includes('ready'), true)
+  assert.equal(OPEN_ORDER_STATUSES.includes('served'), false)
+  assert.equal(OPEN_ORDER_STATUSES.includes('cancelled'), false)
 })
 
 test('order transition matrix keeps terminal and payment states closed', () => {

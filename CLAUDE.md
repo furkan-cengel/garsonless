@@ -79,7 +79,7 @@ The design engine is the core differentiator. Every UI decision routes through i
 - ⚠️ **`20260721040000_notification_email_channel.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (`notification_templates` + `notification_deliveries`, her ikisi service-role-only). Deploy'da Edge secret'a `OUTBOX_EMAIL_CONSUMER_URL`, dashboard env'e `RESEND_API_KEY`/`RESEND_FROM_EMAIL` gerekir.
 - ⚠️ **`20260721050000_notification_inbox_realtime.sql` yalnız DEV'e uygulandı** — PROD-at-deploy setine EKLENMELİ (`notification_inbox` supabase_realtime publication'a eklenir; zil rozetinin canlı düşmesi buna bağlı).
 
-### Faz 4 dilim 1 rozet revizyonu — zil = okunmamış inbox + realtime auth fix 🚧 (2026-07-21, gözle teyit bekliyor)
+### Faz 4 dilim 1 rozet revizyonu — zil = okunmamış inbox + realtime auth fix 🚧 (2026-07-21, UI göz teyidi bekliyor)
 
 **Kullanıcı gözle testte fark etti:** dilim-1'de zil rozeti "bugünkü bekleyen sipariş
 + kritik(billing/system) unread" gösteriyordu; "Geçmiş"teki okunmamış bildirimler
@@ -87,7 +87,7 @@ okununca rozet düşmüyordu (kafa karıştırıcı). Klasik bildirim davranış
 
 - **`notificationCount = inboxUnread`** — zil artık per-user `notification_inbox`
   okunmamış sayısıdır (tüm kategoriler). Açıp okuyunca / "Tümünü okundu say" ile
-  düşer. Sol nav Siparişler ikonu badge'i (`ordersBadge` = bugünkü aktif sipariş)
+  düşer. Sol nav Siparişler ikonu badge'i (`ordersBadge` = kapanmamış operasyonel sipariş)
   operasyonel canlı iş sayacı olarak **AYRI** kaldı; zil ile artık karışmıyor.
   `newOrderCount`/`pendingReqCount` zilden çıkarıldı (`pendingReqCount` tamamen
   silindi; waiter toast korundu). [RestaurantShell.tsx](apps/dashboard/components/layout/RestaurantShell.tsx)
@@ -98,18 +98,54 @@ okununca rozet düşmüyordu (kafa karıştırıcı). Klasik bildirim davranış
   (Anon-okunabilir `orders`/`service_requests` bunu gerektirmediğinden diğer
   badge'ler auth'suz çalışıyordu; bu yüzden zil güncellenmiyordu.) + 45s
   güvenlik-ağı interval + orders INSERT'te 4s gecikmeli inbox refresh (Edge
-  worker'ın async yazımını yakalamak için).
+  fallback'i. Orders INSERT sonrası yalnız aynı aggregate için inbox self-heal
+  çalışır; toplu/geçmiş backfill yapılmaz.
 - `20260721050000_notification_inbox_realtime.sql` DEV'e uygulandı (publication'a
   `notification_inbox` eklendi, idempotent). ⚠️ **PROD-at-deploy.**
-- **Dev kısıtı:** Edge worker localhost'ta yok → `order.created` inbox'a OTOMATİK
-  yazılmaz; `consumeDashboardInbox` elle tetiklenmeli. Prod'da Edge worker
-  `OUTBOX_INBOX_CONSUMER_URL` ile yazar → realtime anlık.
-- **⏳ AÇIK — gözle doğrulanmadı:** typecheck temiz; ama realtime auth fix'inin
-  canlı artış/düşüşü tarayıcıda TEYİT EDİLMEDİ (browser gate). Sunucu-tarafı
-  sayı (F5 sonrası `getUnreadInboxCount`) DB'de kanıtlı çalışıyor (owner 1
-  okunmamış). Realtime kanalının setAuth'la event alıp almadığı bir sonraki
-  gözle turda doğrulanmalı; alamıyorsa 45s interval yine de düşük gecikmeli
-  fallback sağlar.
+- **Dev/self-heal davranışı:** Edge worker localhost'ta yoksa dashboard'un
+  authenticated `orders` INSERT kanalı yalnız canlı gördüğü siparişin aggregate
+  id'si için receipt'siz `order.created` event'ini idempotent olarak inbox'a
+  dispatch eder. Geçmiş event'ler topluca backfill edilmez. Prod'da birincil yol
+  yine `OUTBOX_INBOX_CONSUMER_URL` worker fan-out'udur; shell onarımı güvenlik
+  ağı olarak kalır.
+- **✅ Realtime taşıma kanıtlandı (2026-07-21):** gerçek authenticated owner
+  session'ı + `setAuth(JWT)` ile RLS-scope kanal `SUBSCRIBED`; gerçek
+  `consumeDashboardInbox` yazımının `INSERT` event'i ve mark-read işleminin
+  `UPDATE` event'i yenilemesiz ulaştı. Runtime matrisi 9/9, cleanup
+  inbox/prefs/outbox = 0/0/0. Bu kontrol kalıcı olarak
+  `verify:dashboard-inbox` scriptine eklendi.
+- **✅ Sipariş rozeti kök neden + düzeltme (2026-07-22):** global anon order
+  SELECT'i `20260714030000_remove_global_anon_order_reads.sql` ile emekliye
+  ayrıldığı halde `RestaurantShell` orders Realtime kanalı anon socket ile
+  subscribe oluyordu; RLS event'i sessizce düşürdüğü için board 5 iken rail
+  badge 4'te kalabiliyordu. Kanal artık subscribe'dan önce
+  `await realtime.setAuth(session.access_token)` çağırıyor. Gerçek DEV
+  matrisi aynı authenticated socket'te inbox INSERT/UPDATE ile **orders INSERT**
+  event'ini yenilemesiz aldı; socket kopukken kaçan event için orders sayacına
+  45s güvenlik-ağı refresh'i eklendi. Matris 9/9 ve cleanup 0/0/0.
+- **✅ Gece yarısı taşıma semantiği (2026-07-22):** operasyonel açık sipariş
+  günlük rapor değildir. `pending`, `pending_approval`, `sent_to_kitchen`,
+  `preparing`, legacy `paid` ve `ready` satırları oluşturulma gününden bağımsız
+  board + rail sayacında kalır; yalnız `served/cancelled` satırları restoran
+  gününde `updated_at` ile sınırlandırılır. Böylece 23:59'da açılan iş 00:00'da
+  sessizce kaybolmaz. Canonical `OPEN_ORDER_STATUSES` domain sabiti shell,
+  SSR read-model ve reconnect reconciliation tarafından ortak kullanılır.
+  MAF read-only sorgusunda gerçek açık iş sayısı **7** bulundu: 1 pending
+  approval + 5 sent-to-kitchen + 1 preparing; sonuncusu 9 Temmuz'dan kalmış
+  çözülmemiş bir operasyonel satırdır ve kod artık bunu gizlemez.
+- **MAF gözlemi (2026-07-22, read-only):** son sipariş `39b0eb40…` için
+  `dashboard-inbox` receipt'i ve iki yetkili alıcı satırı mevcut. Owner'ın
+  önceki satırları 21:06'da okunmuş, yeni satır unread olduğu için zilin DB
+  değeri **1**; burada beklenen 2 değil. Asıl stale değer rail badge'iydi.
+- **⏳ AÇIK — yalnız UI göz teyidi:** bu Codex oturumunda Browser backend'i
+  bulunmadığı için gerçek zil pikselinin F5'te sunucu sayısını göstermesi,
+  event sonrası artması ve panelde okunduğunda düşmesi tarayıcıda tıklanarak
+  gözle teyit edilemedi. Veri, RLS, consumer ve Realtime taşıma zinciri gerçek
+  DEV'de kanıtlıdır; 45s interval ayrıca düşük gecikmeli fallback sağlar.
+  2026-07-22 tekrarında ilk runtime Realtime INSERT denemesi 15s timeout aldı,
+  cleanup 0/0/0 tamamlandı; hemen sonraki bağımsız tekrar **9/9** geçti. Bu
+  Realtime'ın tek başına durable queue olmadığını ve 45s reconciliation
+  fallback'inin gerekli olduğunu canlı olarak da gösterir.
 
 ### Faz 4 dilim 2 — E-posta bildirim kanalı (templates + deliveries + Resend) ✅ (2026-07-21)
 
