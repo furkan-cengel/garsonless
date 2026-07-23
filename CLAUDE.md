@@ -3047,3 +3047,33 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   architecture **16/16**, workspace typecheck **11/11**, lint **0 error** ve
   tam monorepo production build temiz geçti. Yalnız iki mevcut marketing
   `<img>` uyarısı sürüyor; PROD'a mutation/deploy yapılmadı.
+
+### Faz 7.3 — Cross-app deployment topolojisi ve release identity ✅ (2026-07-23)
+
+- Dashboard, menu, kitchen ve marketing origin'leri; platform-admin ve
+  outbox-worker dahil altı zorunlu runtime scope; ortak Supabase/worker
+  bağları; altı worker endpoint'i ve beş public callback route'u tek,
+  version'lanmış `config/production-topology.json` sözleşmesinde toplandı.
+  `pnpm prod:topology` yanlış origin, eksik route, çapraz uygulama secret/key
+  drift'i, yanlış endpoint ve DEV/yanlış Supabase project ref'ini secret
+  değerlerini yazdırmadan fail-closed reddeder.
+- Gerçek Edge Function koduyla yapılan çapraz kontrolde outbox worker'ın
+  built-in `SUPABASE_URL` kullandığı, önceki preflight örneğinin ise yanlışlıkla
+  browser değişkeni `NEXT_PUBLIC_SUPABASE_URL` beklediği bulundu. Production
+  env şablonu, scope validator'ı ve testler Edge runtime sözleşmesine göre
+  düzeltildi; uygulamalar arası Supabase ref eşitliği iki değişken adı için de
+  korunuyor.
+- `pnpm prod:release-evidence`, clean `main`, local `origin/main` eşitliği ve
+  PROD project ref kapılarını geçmeden artifact üretmez. Başarılı artifact;
+  commit SHA, package manager, quality gate listesi, lockfile SHA, migration
+  manifest SHA/sayısı, topology SHA, public origin/endpoint'ler ve tümünün
+  aggregate SHA-256 kimliğini deterministik ve secretsiz biçimde bağlar.
+- Platform-admin'in nihai public domain'i henüz ürün/deploy kararı olmadığı
+  için uydurulmadı; auth redirect allowlist ile birlikte runbook'ta açık PROD
+  blokajı olarak bırakıldı. Araçlar yalnız local dosya ve operatör kanıtı okur;
+  PROD'a erişim, migration, secret veya deploy işlemi yapmaz.
+- Kapanış kapıları: production preflight **7/7**, topology + release evidence
+  **10/10**, birleşik hedefli matris **16/16**, workspace `check:ci`, typecheck
+  ve beş Next.js uygulamasının production build'i temizdir. Workspace lint
+  **0 error** ile geçti; yalnız mevcut iki marketing `<img>` performans uyarısı
+  sürüyor.

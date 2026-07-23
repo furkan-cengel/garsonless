@@ -19,6 +19,13 @@ hiçbir Supabase projesine bağlanmaz, migration uygulamaz ve secret değerlerin
 | `MAS-DEP-008` | Remote geçmiş append-only local zincirle uyuşmuyor |
 | `MAS-DEP-009` | Deploy sonrası remote'da eksik migration var |
 | `MAS-DEP-010` | Remote kanıt metadata'sı eksik veya okunamıyor |
+| `MAS-DEP-011` | Release çalışma ağacı temiz değil |
+| `MAS-DEP-012` | App public origin'i onaylı topolojiyle uyuşmuyor |
+| `MAS-DEP-013` | Paylaşılan Supabase/worker değeri app'ler arasında farklı |
+| `MAS-DEP-014` | Worker endpoint URL'si gerçek route ile uyuşmuyor |
+| `MAS-DEP-015` | Topolojide tanımlı route dosyası repoda yok |
+| `MAS-DEP-016` | Release yanlış git branch'inden üretiliyor |
+| `MAS-DEP-017` | HEAD ile yerel origin branch ref'i eşleşmiyor |
 | `MAS-DEP-W01` | Capability bilinçli olarak bu turda kapalı |
 | `MAS-DEP-W02` | Remote migration geçmişi ayrıca doğrulanmalı |
 | `MAS-DEP-W03` | Deploy planında uygulanmayı bekleyen migration var |
@@ -123,10 +130,55 @@ alınır. Bu mod local/remote tam eşit değilse `MAS-DEP-009` ile başarısız 
 Yanlış/DEV project ref, remote-only version, sırası değişmiş geçmiş veya farklı
 local snapshot fail-closed reddedilir. Bu araç migration uygulamaz.
 
+## Cross-app deployment topolojisi
+
+`config/production-topology.json`, mevcut runtime bağlantılarının tek
+kaynağıdır: dashboard, menu ve kitchen origin'leri; dashboard/menu/marketing
+binding'leri; altı worker consumer endpoint'i; Supabase ve outbox shared-value
+grupları. Validator değerleri bellekte karşılaştırır fakat credential
+değerlerini çıktıya yazmaz.
+
+```bash
+corepack pnpm prod:topology -- \
+  --project-ref <PROD_PROJECT_REF> \
+  --env dashboard=apps/dashboard/.env.production \
+  --env menu=apps/menu/.env.production \
+  --env kitchen=apps/kitchen/.env.production \
+  --env marketing=apps/marketing/.env.production \
+  --env platform-admin=apps/platform-admin/.env.production \
+  --env outbox-worker=/tmp/outbox-worker.production.env
+```
+
+Kontrol; tüm Supabase URL/anon/service-role değerlerinin aynı projeye,
+dashboard-menu-kitchen linklerinin onaylı origin'lere ve Edge worker URL'lerinin
+repoda gerçekten bulunan route'lara bağlandığını kanıtlar. Edge Function
+runtime sözleşmesi `SUPABASE_URL` kullanır; `NEXT_PUBLIC_SUPABASE_URL` worker
+değeri değildir.
+
+## Release identity artifact'ı
+
+Tüm kapılar geçip release commit'i `main`e pushlandıktan sonra secret'sız ve
+deterministik artifact üretilir:
+
+```bash
+corepack pnpm prod:release-evidence -- \
+  --project-ref <PROD_PROJECT_REF> \
+  --output /tmp/masabu-release-evidence.json
+```
+
+Komut dirty worktree, yanlış branch veya `HEAD != origin/main` durumunda
+fail-closed durur. Artifact commit SHA, package manager, lockfile SHA-256,
+migration manifest SHA-256, topology SHA-256 ve public endpoint envanterini
+tek `artifactSha256` altında bağlar. Zaman damgası veya secret içermez; aynı
+release girdileri aynı artifact kimliğini üretir. Bu artifact kalite
+kontrollerinin yerine geçmez, hangi kaynakların doğrulandığını sabitler.
+
 ## Şimdiki açık blokajlar
 
 - SaaS abonelik İyzico canlı merchant/plan referansları hazır değil.
 - PROD migration geçmişi ve remote cron/Vault durumu henüz doğrulanmadı.
 - Platform-admin desktop/mobile ekran görüntülü son görsel smoke, bağlı Codex
   browser olmadığı için ertelendi.
+- Platform-admin için nihai public domain ve Supabase Auth redirect allowlist
+  kararı henüz topolojiye eklenmedi; kullanılmayan bir domain uydurulmadı.
 - PROD'a migration, Edge secret veya app deploy'u bu fazda yapılmaz.

@@ -89,3 +89,31 @@ test('migration inventory is ordered and has no duplicate timestamps', () => {
   assert.match(inventory.latest, /^\d{14}_/)
   assert.deepEqual(inventory.duplicates, [])
 })
+
+test('outbox worker validates the Edge runtime SUPABASE_URL contract', () => {
+  const env = {
+    SUPABASE_URL: `https://${PROD_REF}.supabase.co`,
+    SUPABASE_SERVICE_ROLE_KEY: `service-${LONG}`,
+    OUTBOX_WORKER_SECRET: LONG,
+    OUTBOX_CONSUMER_URL: 'https://app.masabu.co/api/internal/outbox',
+    OUTBOX_PUSH_CONSUMER_URL: 'https://app.masabu.co/api/internal/push',
+    OUTBOX_INBOX_CONSUMER_URL: 'https://app.masabu.co/api/internal/inbox',
+    OUTBOX_EMAIL_CONSUMER_URL: 'https://app.masabu.co/api/internal/notification-email',
+    PAYMENT_RECONCILIATION_URL: 'https://menu.masabu.co/api/internal/payment-reconciliation',
+    BILLING_MAINTENANCE_URL: 'https://app.masabu.co/api/internal/billing-maintenance',
+  }
+  const result = validateProductionConfig({
+    env,
+    scopes: ['outbox-worker'],
+    projectRef: PROD_REF,
+  })
+  assert.equal(result.ok, true)
+  assert.equal(result.errors.some((error) => error.key === 'NEXT_PUBLIC_SUPABASE_URL'), false)
+
+  const mismatch = validateProductionConfig({
+    env: { ...env, SUPABASE_URL: 'https://aaaaaaaaaaaaaaaaaaaa.supabase.co' },
+    scopes: ['outbox-worker'],
+    projectRef: PROD_REF,
+  })
+  assert.ok(mismatch.errors.some((error) => error.code === 'MAS-DEP-004'))
+})

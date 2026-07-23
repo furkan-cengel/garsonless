@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "origins": {
+    "dashboard": "https://app.masabu.co",
+    "menu": "https://menu.masabu.co",
+    "kitchen": "https://kitchen.masabu.co"
+  },
+  "requiredScopes": [
+    "dashboard",
+    "menu",
+    "kitchen",
+    "marketing",
+    "platform-admin",
+    "outbox-worker"
+  ],
+  "originBindings": [
+    ["dashboard", "NEXT_PUBLIC_APP_URL", "dashboard"],
+    ["dashboard", "NEXT_PUBLIC_MENU_URL", "menu"],
+    ["dashboard", "NEXT_PUBLIC_MENU_BASE_URL", "menu"],
+    ["dashboard", "KITCHEN_URL", "kitchen"],
+    ["dashboard", "NEXT_PUBLIC_KITCHEN_URL", "kitchen"],
+    ["menu", "NEXT_PUBLIC_APP_URL", "menu"],
+    ["menu", "NEXT_PUBLIC_MENU_URL", "menu"],
+    ["marketing", "NEXT_PUBLIC_DASHBOARD_URL", "dashboard"]
+  ],
+  "sharedValueGroups": [
+    {
+      "name": "supabase-url",
+      "members": [
+        ["dashboard", "NEXT_PUBLIC_SUPABASE_URL"],
+        ["menu", "NEXT_PUBLIC_SUPABASE_URL"],
+        ["kitchen", "NEXT_PUBLIC_SUPABASE_URL"],
+        ["platform-admin", "NEXT_PUBLIC_SUPABASE_URL"],
+        ["outbox-worker", "SUPABASE_URL"]
+      ]
+    },
+    {
+      "name": "supabase-anon-key",
+      "members": [
+        ["dashboard", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+        ["menu", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+        ["kitchen", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+        ["platform-admin", "NEXT_PUBLIC_SUPABASE_ANON_KEY"]
+      ]
+    },
+    {
+      "name": "supabase-service-role",
+      "members": [
+        ["dashboard", "SUPABASE_SERVICE_ROLE_KEY"],
+        ["menu", "SUPABASE_SERVICE_ROLE_KEY"],
+        ["kitchen", "SUPABASE_SERVICE_ROLE_KEY"],
+        ["platform-admin", "SUPABASE_SERVICE_ROLE_KEY"],
+        ["outbox-worker", "SUPABASE_SERVICE_ROLE_KEY"]
+      ]
+    },
+    {
+      "name": "outbox-worker-secret",
+      "members": [
+        ["dashboard", "OUTBOX_WORKER_SECRET"],
+        ["menu", "OUTBOX_WORKER_SECRET"],
+        ["outbox-worker", "OUTBOX_WORKER_SECRET"]
+      ]
+    }
+  ],
+  "endpoints": [
+    {
+      "name": "outbox-consumer",
+      "scope": "outbox-worker",
+      "envKey": "OUTBOX_CONSUMER_URL",
+      "origin": "dashboard",
+      "path": "/api/internal/outbox",
+      "routeFile": "apps/dashboard/app/api/internal/outbox/route.ts"
+    },
+    {
+      "name": "push-consumer",
+      "scope": "outbox-worker",
+      "envKey": "OUTBOX_PUSH_CONSUMER_URL",
+      "origin": "dashboard",
+      "path": "/api/internal/push",
+      "routeFile": "apps/dashboard/app/api/internal/push/route.ts"
+    },
+    {
+      "name": "inbox-consumer",
+      "scope": "outbox-worker",
+      "envKey": "OUTBOX_INBOX_CONSUMER_URL",
+      "origin": "dashboard",
+      "path": "/api/internal/inbox",
+      "routeFile": "apps/dashboard/app/api/internal/inbox/route.ts"
+    },
+    {
+      "name": "email-consumer",
+      "scope": "outbox-worker",
+      "envKey": "OUTBOX_EMAIL_CONSUMER_URL",
+      "origin": "dashboard",
+      "path": "/api/internal/notification-email",
+      "routeFile": "apps/dashboard/app/api/internal/notification-email/route.ts"
+    },
+    {
+      "name": "payment-reconciliation",
+      "scope": "outbox-worker",
+      "envKey": "PAYMENT_RECONCILIATION_URL",
+      "origin": "menu",
+      "path": "/api/internal/payment-reconciliation",
+      "routeFile": "apps/menu/app/api/internal/payment-reconciliation/route.ts"
+    },
+    {
+      "name": "billing-maintenance",
+      "scope": "outbox-worker",
+      "envKey": "BILLING_MAINTENANCE_URL",
+      "origin": "dashboard",
+      "path": "/api/internal/billing-maintenance",
+      "routeFile": "apps/dashboard/app/api/internal/billing-maintenance/route.ts"
+    }
+  ],
+  "derivedPublicRoutes": [
+    ["dashboard-auth-callback", "dashboard", "/auth/callback", "apps/dashboard/app/auth/callback/route.ts"],
+    ["dashboard-billing-callback", "dashboard", "/api/billing/iyzico/checkout/callback", "apps/dashboard/app/api/billing/iyzico/checkout/callback/route.ts"],
+    ["dashboard-billing-webhook", "dashboard", "/api/billing/iyzico/webhook", "apps/dashboard/app/api/billing/iyzico/webhook/route.ts"],
+    ["menu-auth-callback", "menu", "/auth/callback", "apps/menu/app/auth/callback/route.ts"],
+    ["menu-payment-callback", "menu", "/api/payment/callback", "apps/menu/app/api/payment/callback/route.ts"]
+  ]
+}
