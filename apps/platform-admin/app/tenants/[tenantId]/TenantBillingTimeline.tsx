@@ -3,14 +3,15 @@ import type {
   PlatformTenantBillingTimeline,
 } from '@garsonless/application/platform-admin-billing'
 import { interveneTenantDunning } from '../../actions'
+import { billingStatusLabel } from '../../../lib/tenant-presentation'
 
 const KIND_LABELS: Record<PlatformBillingTimelineItem['kind'], string> = {
   invoice: 'Fatura',
   payment_attempt: 'Tahsilat denemesi',
   dunning: 'Ödeme takibi',
   reconciliation: 'Mutabakat',
-  provider_event: 'Provider olayı',
-  provider_operation: 'Provider işlemi',
+  provider_event: 'Ödeme sağlayıcı olayı',
+  provider_operation: 'Ödeme sağlayıcı işlemi',
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -23,14 +24,14 @@ const ACTION_LABELS: Record<string, string> = {
   warning_7: '7. gün uyarısı',
   suspend: 'Hizmet askısı',
   subscription: 'Abonelik mutabakatı',
-  provider_event: 'Provider olayı mutabakatı',
-  tenant: 'Tenant mutabakatı',
+  provider_event: 'Ödeme sağlayıcı olayı mutabakatı',
+  tenant: 'İşletme mutabakatı',
   'checkout.completed': 'Ödeme oturumu tamamlandı',
   'invoice.payment_succeeded': 'Tahsilat başarılı',
   'invoice.payment_failed': 'Tahsilat başarısız',
   'subscription.cancelled': 'Abonelik iptal edildi',
   'subscription.updated': 'Abonelik güncellendi',
-  unknown: 'Bilinmeyen provider olayı',
+  unknown: 'Bilinmeyen ödeme sağlayıcı olayı',
   'checkout.initialize': 'Ödeme oturumu başlatma',
   'payment.retry': 'Tahsilatı yeniden deneme',
   'subscription.cancel': 'Abonelik iptali',
@@ -72,8 +73,8 @@ export function TenantBillingTimelinePanel({
   if (failed) {
     return (
       <article className="panel billing-timeline-panel">
-        <div className="panel-heading"><div><p className="eyebrow">Finans</p><h2>Ödeme ve dunning zaman çizelgesi</h2></div><span className="read-only">Salt okunur</span></div>
-        <p className="empty-inline" role="alert">Finans görünümü güvenli biçimde yüklenemedi. Diğer tenant verileri etkilenmedi.</p>
+        <div className="panel-heading"><div><p className="eyebrow">Finans</p><h2>Ödeme ve tahsilat takibi zaman çizelgesi</h2></div><span className="read-only">Salt okunur</span></div>
+        <p className="empty-inline" role="alert">Finans görünümü güvenli biçimde yüklenemedi. Diğer işletme verileri etkilenmedi.</p>
       </article>
     )
   }
@@ -89,7 +90,7 @@ export function TenantBillingTimelinePanel({
   return (
     <article className="panel billing-timeline-panel">
       <div className="panel-heading billing-heading">
-        <div><p className="eyebrow">Finans</p><h2>Ödeme ve dunning zaman çizelgesi</h2></div>
+        <div><p className="eyebrow">Finans</p><h2>Ödeme ve tahsilat takibi zaman çizelgesi</h2></div>
         <span className="read-only">Salt okunur</span>
       </div>
       <div className="billing-summary-grid">
@@ -100,7 +101,7 @@ export function TenantBillingTimelinePanel({
         <div><span>Başarısız deneme</span><strong>{summary.failedAttempts}</strong></div>
       </div>
       {timeline.items.length === 0 ? (
-        <p className="empty-inline">Henüz ödeme yaşam döngüsü kaydı yok.</p>
+        <p className="empty-inline">Henüz ödeme kaydı yok.</p>
       ) : (
         <div className="billing-timeline-list">
           {timeline.items.map((item) => {
@@ -117,7 +118,7 @@ export function TenantBillingTimelinePanel({
                   </div>
                 </div>
                 <div className="timeline-result">
-                  <span className="status" data-tone={itemTone(item)}>{item.status}</span>
+                  <span className="status" data-tone={itemTone(item)}>{billingStatusLabel(item.status)}</span>
                   {amount ? <strong>{amount}</strong> : null}
                 </div>
               </div>
@@ -125,14 +126,14 @@ export function TenantBillingTimelinePanel({
           })}
         </div>
       )}
-      <p className="billing-privacy-note">Provider referansları, payload, hata metni ve müşteri PII bilgileri bu görünümde yer almaz.</p>
+      <p className="billing-privacy-note">Ödeme sağlayıcı referansları, veri yükü, hata metni ve müşteri kişisel verileri bu görünümde yer almaz.</p>
       <div className="billing-intervention">
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Denetimli müdahale</p>
             <h3>Ödeme takibi zamanlaması</h3>
           </div>
-          <span className="read-only">Finance · Superadmin</span>
+          <span className="read-only">Finans · Süper yönetici</span>
         </div>
         {actionableDunning.length === 0 ? (
           <p className="empty-inline">Müdahale edilebilir aktif ödeme takibi yok.</p>
@@ -172,11 +173,11 @@ export function TenantBillingTimelinePanel({
             <label className="reason-field">
               <span>İşlem gerekçesi</span>
               <textarea maxLength={1000} minLength={10} name="reason" placeholder="Müşteri iletişimi, onay veya operasyon gerekçesini yazın…" required />
-              <small>Aktör, önceki/yeni zamanlama ve request ID append-only denetim kaydına yazılır.</small>
+              <small>İşlemi yapan kişi, önceki/yeni zamanlama ve işlem numarası değiştirilemez denetim kaydına yazılır.</small>
             </label>
             <div className="guarded-operation" role="note">
-              <strong>Ödeme otoritesi değişmez</strong>
-              <p>Bu işlem faturayı ödenmiş saymaz, paketi açmaz ve doğrudan tahsilat yapmaz. Yalnız mevcut güvenli worker’ın çalışma zamanını değiştirir; ödeme başarısını yine imzalı provider webhook’u belirler.</p>
+              <strong>Ödeme yetkisi değişmez</strong>
+              <p>Bu işlem faturayı ödenmiş saymaz, paketi açmaz ve doğrudan tahsilat yapmaz. Yalnızca mevcut güvenli işlemin çalışma zamanını değiştirir; ödeme başarısını yine ödeme sağlayıcının imzalı bildirimi belirler.</p>
             </div>
             <div className="lifecycle-actions">
               <button className="button primary" type="submit">Müdahaleyi kaydet</button>

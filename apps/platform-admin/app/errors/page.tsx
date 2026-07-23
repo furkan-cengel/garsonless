@@ -36,8 +36,8 @@ export default async function PlatformErrorsPage({
             <p className="eyebrow">Platform gözlemlenebilirliği</p>
             <h1>Hata merkezi</h1>
             <p className="lead">
-              Tenantlar arası sorunları güvenli hata kodu ve parmak iziyle izleyin.
-              Ham hata metni, payload, stack ve müşteri PII bilgileri gösterilmez.
+              İşletmeler arası sorunları güvenli hata kodu ve parmak iziyle izleyin.
+              Ham hata metni, veri yükü, teknik iz (stack) ve müşteri kişisel verileri gösterilmez.
             </p>
           </div>
           <span className="read-only">Salt okunur</span>
@@ -93,7 +93,7 @@ export default async function PlatformErrorsPage({
               <article className="metric"><span>Olay</span><strong>{result.value.eventCount}</strong><small>Seçili zaman aralığında</small></article>
               <article className="metric"><span>Parmak izi</span><strong>{result.value.fingerprintCount}</strong><small>Tekilleştirilmiş sorun</small></article>
               <article className="metric" data-tone={result.value.criticalFingerprintCount ? 'danger' : 'neutral'}><span>Kritik</span><strong>{result.value.criticalFingerprintCount}</strong><small>Kritik parmak izi</small></article>
-              <article className="metric"><span>Etkilenen işletme</span><strong>{result.value.affectedTenantCount}</strong><small>Tekil tenant</small></article>
+              <article className="metric"><span>Etkilenen işletme</span><strong>{result.value.affectedTenantCount}</strong><small>Farklı işletme sayısı</small></article>
             </div>
 
             {result.value.items.length === 0 ? (
@@ -123,7 +123,7 @@ export default async function PlatformErrorsPage({
                       </div>
                     </div>
                     <div className="error-stat"><span>Tekrar</span><strong>{item.occurrenceCount}</strong></div>
-                    <div className="error-stat"><span>Tenant</span><strong>{item.affectedTenantCount}</strong></div>
+                    <div className="error-stat"><span>İşletme</span><strong>{item.affectedTenantCount}</strong></div>
                     <div className="error-time"><span>Son görülme</span><strong>{formatDate(item.lastSeenAt)}</strong><small>İlk: {formatDate(item.firstSeenAt)}</small></div>
                     <div className="error-tenant">
                       {item.sampleTenant ? (

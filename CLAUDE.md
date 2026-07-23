@@ -2979,3 +2979,17 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   platform-admin architecture **16/16**, workspace typecheck **11/11** ve tam
   workspace production build temizdir. Workspace lint **0 error** ile geçti
   (yalnız iki mevcut marketing `<img>` uyarısı); `git diff --check` temizdir.
+
+### Faz 6 control-plane arayüz polish'i ✅ (2026-07-23)
+
+- Platform admin giriş, MFA, erişim reddi, tenant dizini/detayı, finans zaman
+  çizelgesi, entitlement istisnaları, KVKK operasyonları, destek görünümü ve
+  global hata merkezi; dashboard ile aynı siyah-beyaz görsel dil, tutarlı
+  tipografi/boşluklar ve Türkçe operasyon etiketleriyle yeniden düzenlendi.
+- Tenant planı, abonelik, lifecycle ve platform rol/status değerleri tek
+  presentation sözlüğünden insan-okunur gösteriliyor; mutasyon, yetki ve veri
+  erişim sözleşmeleri değiştirilmedi. Migration veya tenant verisi yazılmadı.
+- Platform-admin architecture **16/16**, typecheck, lint, production build ve
+  `git diff --check` temiz geçti. Codex'e bağlı uygulama içi browser
+  bulunamadığı için desktop/mobile ekran görüntülü görsel tur bu dilimde
+  çalıştırılmadı; bu doğrulama PROD hazırlığı öncesi açık smoke maddesidir.

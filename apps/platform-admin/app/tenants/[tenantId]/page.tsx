@@ -29,6 +29,7 @@ import { PlatformShell } from '../../PlatformShell'
 import { changeTenantPlan, changeTenantServiceStatus, startTenantImpersonation } from '../../actions'
 import { requirePlatformAdminActor } from '../../../lib/platform-admin-auth'
 import {
+  billingStatusLabel,
   formatDate,
   formatMoney,
   PLAN_LABELS,
@@ -69,7 +70,7 @@ export default async function TenantDetail({
   return (
     <PlatformShell actor={actor}>
       {!result.ok ? (
-        <section className="directory"><Link className="back-link" href="/">← İşletmelere dön</Link><section className="state-card" role="alert"><span className="state-icon">!</span><div><h2>İşletme özeti yüklenemedi</h2><p>Kimlik doğrulandı ancak güvenli tenant görünümü şu anda kullanılamıyor.</p></div></section></section>
+        <section className="directory"><Link className="back-link" href="/">← İşletmelere dön</Link><section className="state-card" role="alert"><span className="state-icon">!</span><div><h2>İşletme özeti yüklenemedi</h2><p>Kimlik doğrulandı ancak güvenli işletme görünümü şu anda kullanılamıyor.</p></div></section></section>
       ) : result.value ? <TenantOverview
         actor={actor}
         billingFailed={billingResult !== null && !billingResult.ok}
@@ -127,43 +128,43 @@ function TenantOverview({
     : operation === 'unchanged'
       ? 'İstenen servis durumu zaten etkindi; denetim kaydı oluşturuldu.'
       : operation === 'forbidden'
-        ? 'Bu işlem için ops veya superadmin yetkisi gerekir.'
+        ? 'Bu işlem için Operasyon veya Süper yönetici yetkisi gerekir.'
         : operation === 'failed'
           ? 'Servis durumu değiştirilemedi. İşlem güvenli biçimde durduruldu.'
           : operation === 'plan-updated'
-            ? 'İşletmenin paket projection’ı güncellendi ve denetim kaydı oluşturuldu.'
+            ? 'İşletmenin paketi güncellendi ve denetim kaydı oluşturuldu.'
             : operation === 'plan-unchanged'
               ? 'İstenen paket zaten etkindi; denetim kaydı oluşturuldu.'
               : operation === 'plan-forbidden'
-                ? 'Paket değişikliği yalnız superadmin yetkisiyle yapılabilir.'
+                ? 'Paket değişikliği yalnız Süper yönetici yetkisiyle yapılabilir.'
                 : operation === 'plan-billing-managed'
-                  ? 'Bu işletmenin paketi canlı abonelik tarafından yönetiliyor. Provider doğrulaması olmadan yerel paket değiştirilemez.'
+                  ? 'Bu işletmenin paketi canlı abonelik tarafından yönetiliyor. Ödeme sağlayıcı doğrulaması olmadan buradan paket değiştirilemez.'
                   : operation === 'plan-failed'
                     ? 'Paket değiştirilemedi. İşlem güvenli biçimde durduruldu.'
                     : operation === 'dunning-retry-scheduled'
-                      ? 'Ödeme takibi güvenli worker için şimdi yeniden sıraya alındı; ödeme sonucu değişmedi.'
+                      ? 'Ödeme takibi şimdi yeniden sıraya alındı; ödeme sonucu değişmedi.'
                       : operation === 'dunning-deferred'
-                        ? 'Ödeme takibi süreli olarak ertelendi ve denetim kaydı oluşturuldu.'
+                        ? 'Ödeme takibi belirli bir süre ertelendi ve denetim kaydı oluşturuldu.'
                         : operation === 'dunning-duplicate'
-                          ? 'Bu müdahale daha önce kaydedilmişti; ikinci bir değişiklik yapılmadı.'
+                          ? 'Bu işlem daha önce kaydedilmişti; ikinci bir değişiklik yapılmadı.'
                           : operation === 'dunning-forbidden'
-                            ? 'Ödeme takibi müdahalesi için finance veya superadmin yetkisi gerekir.'
+                            ? 'Ödeme takibi işlemi için Finans veya Süper yönetici yetkisi gerekir.'
                             : operation === 'dunning-busy'
-                              ? 'Ödeme takibi şu anda worker tarafından işleniyor. Çakışmayı önlemek için müdahale uygulanmadı.'
+                              ? 'Ödeme takibi şu anda arka planda işleniyor. Çakışmayı önlemek için işlem uygulanmadı.'
                               : operation === 'dunning-not-actionable'
-                                ? 'Bu fatura artık müdahale edilebilir bir ödeme takibi durumunda değil.'
+                                ? 'Bu fatura artık işlem yapılabilir bir ödeme takibi durumunda değil.'
                                 : operation === 'dunning-failed'
-                                ? 'Ödeme takibi müdahalesi uygulanamadı. İşlem güvenli biçimde durduruldu.'
+                                ? 'Ödeme takibi işlemi uygulanamadı. İşlem güvenli biçimde durduruldu.'
                                 : operation === 'entitlement-updated'
-                                  ? 'Süreli özellik erişimi kaydedildi ve denetim kaydı oluşturuldu.'
+                                  ? 'Geçici özellik izni kaydedildi ve denetim kaydı oluşturuldu.'
                                   : operation === 'entitlement-revoked'
-                                    ? 'Süreli özellik erişimi erken sonlandırıldı; paket kataloğu yeniden geçerli.'
+                                    ? 'Geçici özellik izni erken sonlandırıldı; erişim yeniden pakete göre belirlenir.'
                                     : operation === 'entitlement-duplicate'
-                                      ? 'Bu özellik erişimi işlemi daha önce kaydedilmişti; ikinci değişiklik yapılmadı.'
+                                      ? 'Bu özellik izni işlemi daha önce kaydedilmişti; ikinci değişiklik yapılmadı.'
                                       : operation === 'entitlement-forbidden'
-                                        ? 'Süreli özellik erişimi için ops veya superadmin yetkisi gerekir.'
+                                        ? 'Geçici özellik izni için Operasyon veya Süper yönetici yetkisi gerekir.'
                                         : operation === 'entitlement-failed'
-                                          ? 'Süreli özellik erişimi değiştirilemedi. İşlem güvenli biçimde durduruldu.'
+                                          ? 'Geçici özellik izni değiştirilemedi. İşlem güvenli biçimde durduruldu.'
                                           : operation === 'impersonation-ended'
                                             ? 'Salt-okunur işletme görünümü sonlandırıldı ve denetim kaydı oluşturuldu.'
                                             : operation === 'impersonation-forbidden'
@@ -173,11 +174,11 @@ function TenantOverview({
           : null
   const operationNotice = baseOperationNotice
     ?? (operation === 'privacy-erased'
-      ? 'Tenant müşteri PII bağları silindi; fatura ve anonim operasyon kayıtları korundu.'
+      ? 'İşletmenin müşteri kişisel veri bağları silindi; fatura ve anonimleştirilmiş operasyon kayıtları korundu.'
       : operation === 'privacy-erase-duplicate'
         ? 'Bu silme isteği daha önce tamamlanmıştı; ikinci bir değişiklik yapılmadı.'
         : operation === 'privacy-forbidden'
-          ? 'KVKK veri işlemleri yalnız superadmin yetkisiyle yapılabilir.'
+          ? 'KVKK veri işlemleri yalnız Süper yönetici yetkisiyle yapılabilir.'
           : operation === 'privacy-confirmation-invalid'
             ? 'Silme onay metni eşleşmedi; hiçbir veri değiştirilmedi.'
             : operation === 'privacy-erase-failed'
@@ -186,29 +187,29 @@ function TenantOverview({
   return (
     <section className="directory">
       <Link className="back-link" href="/">← İşletmelere dön</Link>
-      <div className="page-heading detail-heading"><div><p className="eyebrow">İşletme özeti · /{tenant.slug}</p><h1>{tenant.name}</h1><p className="lead">PII ve provider ayrıntıları içermeyen platform sağlık ve erişim görünümü.</p></div><span className="read-only">Denetimli erişim</span></div>
+      <div className="page-heading detail-heading"><div><p className="eyebrow">İşletme özeti · /{tenant.slug}</p><h1>{tenant.name}</h1><p className="lead">Kişisel veri ve ödeme sağlayıcı ayrıntıları içermeyen, güvenli işletme sağlık ve erişim özeti.</p></div><span className="read-only">Denetimli erişim</span></div>
 
       {operationNotice ? <div className="operation-notice" data-tone={operation === 'failed' || operation === 'forbidden' || operation === 'plan-failed' || operation === 'plan-forbidden' || operation === 'plan-billing-managed' || operation === 'dunning-failed' || operation === 'dunning-forbidden' || operation === 'dunning-busy' || operation === 'dunning-not-actionable' || operation === 'entitlement-failed' || operation === 'entitlement-forbidden' || operation === 'impersonation-forbidden' || operation === 'impersonation-invalid' || operation === 'impersonation-failed' || operation === 'impersonation-end-failed' || operation === 'privacy-forbidden' || operation === 'privacy-confirmation-invalid' || operation === 'privacy-erase-failed' ? 'danger' : 'success'} role="status">{operationNotice}</div> : null}
 
       <div className="metric-grid">
-        <article className="metric"><span>Plan</span><strong>{PLAN_LABELS[tenant.plan]}</strong><small>Tenant projection</small></article>
+        <article className="metric"><span>Plan</span><strong>{PLAN_LABELS[tenant.plan]}</strong><small>İşletmenin paketi</small></article>
         <article className="metric"><span>Abonelik</span><strong><span className="status" data-tone={subscriptionTone(status)}>{status ? SUBSCRIPTION_LABELS[status] : 'Abonelik yok'}</span></strong><small>Dönem sonu {formatDate(tenant.subscription?.currentPeriodEnd ?? null)}</small></article>
         <article className="metric"><span>Aktif sipariş</span><strong>{tenant.usage.activeOrders}</strong><small>Son sipariş {formatDate(tenant.activity.lastOrderAt)}</small></article>
-        <article className="metric"><span>İnceleme</span><strong>{tenant.attention.reconciliationCount}</strong><small>Billing reconciliation</small></article>
+        <article className="metric"><span>İnceleme</span><strong>{tenant.attention.reconciliationCount}</strong><small>Bekleyen ödeme incelemesi</small></article>
         <article className="metric"><span>Servis erişimi</span><strong><span className="status" data-tone={control?.status === 'active' ? 'success' : 'danger'}>{control ? SERVICE_STATUS_LABELS[control.status] : 'Yüklenemedi'}</span></strong><small>Yeni müşteri ve personel siparişleri</small></article>
       </div>
 
       <div className="detail-grid">
         <article className="panel"><div className="panel-heading"><div><p className="eyebrow">Kullanım</p><h2>Operasyon özeti</h2></div></div><dl className="definition-list"><div><dt>Masalar</dt><dd>{tenant.usage.tables}</dd></div><div><dt>Menü ürünleri</dt><dd>{tenant.usage.menuItems}</dd></div><div><dt>Aktif ekip üyeleri</dt><dd>{tenant.usage.teamMembers}</dd></div><div><dt>Açık servis talepleri</dt><dd>{tenant.usage.openServiceRequests}</dd></div><div><dt>Oluşturulma</dt><dd>{formatDate(tenant.createdAt)}</dd></div><div><dt>Son güncelleme</dt><dd>{formatDate(tenant.updatedAt)}</dd></div></dl></article>
-        <article className="panel"><div className="panel-heading"><div><p className="eyebrow">Faturalar</p><h2>Son 10 kayıt</h2></div></div>{tenant.invoices.length === 0 ? <p className="empty-inline">Henüz fatura kaydı yok.</p> : <div className="invoice-list">{tenant.invoices.map((invoice) => <div className="invoice-row" key={invoice.id}><div><strong>{formatMoney(invoice.amountDueMinor, invoice.currency)}</strong><small>{formatDate(invoice.createdAt)}</small></div><div className="invoice-right"><span className="status" data-tone={invoice.status === 'paid' ? 'success' : invoice.status === 'past_due' || invoice.status === 'uncollectible' ? 'danger' : 'neutral'}>{invoice.status}</span><small>Ödenen {formatMoney(invoice.amountPaidMinor, invoice.currency)}</small></div></div>)}</div>}</article>
+        <article className="panel"><div className="panel-heading"><div><p className="eyebrow">Faturalar</p><h2>Son 10 kayıt</h2></div></div>{tenant.invoices.length === 0 ? <p className="empty-inline">Henüz fatura kaydı yok.</p> : <div className="invoice-list">{tenant.invoices.map((invoice) => <div className="invoice-row" key={invoice.id}><div><strong>{formatMoney(invoice.amountDueMinor, invoice.currency)}</strong><small>{formatDate(invoice.createdAt)}</small></div><div className="invoice-right"><span className="status" data-tone={invoice.status === 'paid' ? 'success' : invoice.status === 'past_due' || invoice.status === 'uncollectible' ? 'danger' : 'neutral'}>{billingStatusLabel(invoice.status)}</span><small>Ödenen {formatMoney(invoice.amountPaidMinor, invoice.currency)}</small></div></div>)}</div>}</article>
       </div>
 
       {canImpersonate ? (
         <article className="panel lifecycle-panel support-view-panel">
           <div className="panel-heading"><div><p className="eyebrow">Destek görünümü</p><h2>İşletmeyi salt okunur incele</h2></div><span className="read-only">En fazla 60 dk</span></div>
           <div className="guarded-operation" role="note">
-            <strong>Tenant rolü veya yazma yetkisi oluşturulmaz</strong>
-            <p>Bu oturum yalnız PII içermeyen güvenli operasyon özetini açar. Menü, sipariş, ayar, ekip, ödeme veya tenant verisi değiştirilemez.</p>
+            <strong>İşletme rolü veya yazma yetkisi oluşturmaz</strong>
+            <p>Bu oturum yalnızca kişisel veri içermeyen güvenli operasyon özetini açar. Menü, sipariş, ayar, ekip, ödeme veya işletme verisi değiştirilemez.</p>
           </div>
           <form action={startTenantImpersonation} className="lifecycle-form">
             <input name="restaurantId" type="hidden" value={tenant.id} />
@@ -223,7 +224,7 @@ function TenantOverview({
             <label className="reason-field">
               <span>Destek gerekçesi</span>
               <textarea maxLength={1000} minLength={10} name="reason" placeholder="Destek talebi veya inceleme gerekçesini en az 10 karakterle yazın…" required />
-              <small>Başlangıç, bitiş, aktör, tenant ve süre append-only denetim kaydına yazılır.</small>
+              <small>Başlangıç, bitiş, işlemi yapan kişi, işletme ve süre değiştirilemez denetim kaydına yazılır.</small>
             </label>
             <div className="lifecycle-actions"><button className="button primary" type="submit">Salt-okunur görünümü aç</button></div>
           </form>
@@ -233,14 +234,14 @@ function TenantOverview({
       <article className="panel lifecycle-panel">
         <div className="panel-heading"><div><p className="eyebrow">Operasyon kontrolü</p><h2>Yeni sipariş erişimi</h2></div></div>
         {!control ? <p className="empty-inline">Servis durumu güvenli biçimde yüklenemedi; hiçbir işlem açılamadı.</p> : !canManageLifecycle ? (
-          <p className="empty-inline">Bu görünüm salt okunurdur. Servis erişimini yalnız ops veya superadmin değiştirebilir.</p>
+          <p className="empty-inline">Bu görünüm salt okunurdur. Servis erişimini yalnız Operasyon veya Süper yönetici değiştirebilir.</p>
         ) : (
           <form action={changeTenantServiceStatus} className="lifecycle-form">
             <input name="restaurantId" type="hidden" value={tenant.id} />
             <label className="reason-field">
               <span>İşlem gerekçesi</span>
               <textarea maxLength={1000} minLength={10} name="reason" placeholder="En az 10 karakterle operasyonel gerekçeyi yazın…" required />
-              <small>Gerekçe, aktör, önceki/yeni durum ve request ID append-only denetim kaydına yazılır.</small>
+              <small>Gerekçe, işlemi yapan kişi, önceki/yeni durum ve işlem numarası değiştirilemez denetim kaydına yazılır.</small>
             </label>
             <div className="lifecycle-actions">
               {control.status !== 'active' ? <button className="button primary" name="status" type="submit" value="active">Sipariş alımını aç</button> : null}
@@ -252,13 +253,13 @@ function TenantOverview({
       </article>
 
       <article className="panel lifecycle-panel">
-        <div className="panel-heading"><div><p className="eyebrow">Paket kontrolü</p><h2>Tenant entitlement planı</h2></div></div>
+        <div className="panel-heading"><div><p className="eyebrow">Paket kontrolü</p><h2>Paket ve özellik izinleri</h2></div></div>
         {!canManagePlan ? (
-          <p className="empty-inline">Paket bilgisi salt okunurdur. Plan projection’ını yalnız superadmin değiştirebilir.</p>
+          <p className="empty-inline">Paket bilgisi salt okunurdur. Paketi yalnız Süper yönetici değiştirebilir.</p>
         ) : hasLiveSubscription ? (
           <div className="guarded-operation" role="note">
-            <strong>Canlı abonelik provider tarafından yönetiliyor</strong>
-            <p>{PLAN_LABELS[tenant.plan]} planını doğrudan değiştirmek ödeme ve entitlement durumunu ayrıştırabilir. Paket değişikliği abonelik/provider akışından tamamlanmalıdır.</p>
+            <strong>Canlı abonelik ödeme sağlayıcı tarafından yönetiliyor</strong>
+            <p>{PLAN_LABELS[tenant.plan]} planını doğrudan değiştirmek ödeme ve erişim durumunu birbirinden ayırabilir. Paket değişikliği abonelik/ödeme sağlayıcı akışından tamamlanmalıdır.</p>
           </div>
         ) : (
           <form action={changeTenantPlan} className="lifecycle-form">
@@ -271,12 +272,12 @@ function TenantOverview({
                 <option value="pro">Pro</option>
                 <option value="enterprise">Enterprise</option>
               </select>
-              <small>Bu yol yalnız provider aboneliği olmayan tenant’larda manuel plan düzeltmesi veya sözleşmeli grant içindir.</small>
+              <small>Bu yol yalnızca ödeme sağlayıcı aboneliği olmayan işletmelerde elle paket düzeltmesi veya sözleşmeli tanımlama içindir.</small>
             </label>
             <label className="reason-field">
               <span>İşlem gerekçesi</span>
               <textarea maxLength={1000} minLength={10} name="reason" placeholder="En az 10 karakterle sözleşme veya düzeltme gerekçesini yazın…" required />
-              <small>Aktör, önceki/yeni plan, gerekçe ve server request ID append-only denetim kaydına yazılır.</small>
+              <small>İşlemi yapan kişi, önceki/yeni paket, gerekçe ve işlem numarası değiştirilemez denetim kaydına yazılır.</small>
             </label>
             <div className="lifecycle-actions">
               <button className="button primary" type="submit">Paketi güncelle</button>

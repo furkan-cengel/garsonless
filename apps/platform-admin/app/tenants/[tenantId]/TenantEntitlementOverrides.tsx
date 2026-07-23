@@ -43,16 +43,16 @@ export function TenantEntitlementOverrides({
   return (
     <article className="panel lifecycle-panel entitlement-panel">
       <div className="panel-heading billing-heading">
-        <div><p className="eyebrow">Özellik erişimi</p><h2>Süreli entitlement override</h2></div>
+        <div><p className="eyebrow">Özellik erişimi</p><h2>Geçici özellik izni</h2></div>
         <span className="read-only">En fazla 30 gün</span>
       </div>
 
       {failed ? (
-        <p className="empty-inline" role="alert">Override projection’ı güvenli biçimde yüklenemedi; yönetim işlemleri kapatıldı.</p>
+        <p className="empty-inline" role="alert">Özellik izinleri güvenli biçimde yüklenemedi; yönetim işlemleri kapatıldı.</p>
       ) : (
         <>
           <div className="entitlement-list">
-            {overrides.length === 0 ? <p className="empty-inline">Bu işletme için süreli istisna yok; erişimler yalnız paket kataloğundan gelir.</p> : overrides.map((override) => {
+            {overrides.length === 0 ? <p className="empty-inline">Bu işletme için geçici izin yok; erişimler yalnızca pakete göre belirlenir.</p> : overrides.map((override) => {
               const expired = Date.parse(override.expiresAt) <= now
               return (
                 <div className="entitlement-row" key={override.feature}>
@@ -66,7 +66,7 @@ export function TenantEntitlementOverrides({
                       <input name="restaurantId" type="hidden" value={restaurantId} />
                       <input name="action" type="hidden" value="revoke" />
                       <input name="feature" type="hidden" value={override.feature} />
-                      <input name="reason" type="hidden" value={`Süreli ${FEATURE_LABELS[override.feature]} istisnası erken sonlandırıldı`} />
+                      <input name="reason" type="hidden" value={`Geçici ${FEATURE_LABELS[override.feature]} izni erken sonlandırıldı`} />
                       <button className="button danger-button" type="submit">Erken sonlandır</button>
                     </form>
                   ) : null}
@@ -76,7 +76,7 @@ export function TenantEntitlementOverrides({
           </div>
 
           {!canManage ? (
-            <p className="billing-privacy-note">Bu görünüm salt okunurdur. Süreli istisnaları yalnız ops veya superadmin yönetebilir.</p>
+            <p className="billing-privacy-note">Bu görünüm salt okunurdur. Geçici izinleri yalnız Operasyon veya Süper yönetici yönetebilir.</p>
           ) : (
             <form action={changeTenantFeatureOverride} className="lifecycle-form">
               <input name="restaurantId" type="hidden" value={restaurantId} />
@@ -89,9 +89,9 @@ export function TenantEntitlementOverrides({
               <label className="reason-field">
                 <span>İşlem gerekçesi</span>
                 <textarea maxLength={1000} minLength={10} name="reason" placeholder="En az 10 karakterle sözleşme, destek veya güvenlik gerekçesini yazın…" required />
-                <small>Plan ve ödeme durumu değişmez. Süre sonunda erişim otomatik olarak paket kataloğuna döner; erken sonlandırma ayrıca denetlenir.</small>
+                <small>Paket ve ödeme durumu değişmez. Süre sonunda erişim otomatik olarak pakete göre belirlenir; erken sonlandırma ayrıca denetim kaydına yazılır.</small>
               </label>
-              <div className="lifecycle-actions"><button className="button primary" type="submit">Süreli erişimi kaydet</button></div>
+              <div className="lifecycle-actions"><button className="button primary" type="submit">Geçici izni kaydet</button></div>
             </form>
           )}
         </>

@@ -19,7 +19,7 @@ export function MfaChallenge() {
     void (async () => {
       const supabase = createPlatformAdminBrowserClient()
       const { data, error: listError } = await supabase.auth.mfa.listFactors()
-      if (listError) { setError('MFA bilgisi alınamadı.'); setBusy(false); return }
+      if (listError) { setError('İki adımlı doğrulama bilgisi alınamadı.'); setBusy(false); return }
       const totpFactors = data.all.filter((item) => item.factor_type === 'totp')
       const verified = totpFactors.find((item) => item.status === 'verified')
       if (verified) { setFactor({ id: verified.id, qr: null }); setBusy(false); return }

@@ -30,12 +30,12 @@ export default async function PlatformHome({
     <PlatformShell actor={actor}>
       <section className="directory">
         <div className="page-heading">
-          <div><p className="eyebrow">Tenant operasyonları</p><h1>İşletmeler</h1><p className="lead">Masabu’daki işletmelerin abonelik ve operasyon sağlığını güvenli bir özetten inceleyin.</p></div>
+          <div><p className="eyebrow">İşletme operasyonları</p><h1>İşletmeler</h1><p className="lead">Masabu’daki işletmelerin abonelik ve operasyon sağlığını güvenli bir özetten inceleyin.</p></div>
           <span className="read-only">Salt okunur</span>
         </div>
 
         <form className="filters" method="get">
-          <label className="search-field"><span>İşletme ara</span><input defaultValue={filters.search ?? ''} name="q" placeholder="İsim veya slug" /></label>
+          <label className="search-field"><span>İşletme ara</span><input defaultValue={filters.search ?? ''} name="q" placeholder="İsim veya kısa ad" /></label>
           <label><span>Plan</span><select defaultValue={filters.plan ?? ''} name="plan"><option value="">Tüm planlar</option>{RESTAURANT_PLANS.map((plan) => <option key={plan} value={plan}>{PLAN_LABELS[plan]}</option>)}</select></label>
           <label><span>Abonelik</span><select defaultValue={filters.subscriptionStatus ?? ''} name="status"><option value="">Tüm durumlar</option><option value="none">Abonelik yok</option>{SUBSCRIPTION_STATUSES.map((status) => <option key={status} value={status}>{SUBSCRIPTION_LABELS[status]}</option>)}</select></label>
           <label><span>Kayıt durumu</span><select defaultValue={filters.lifecycle ?? 'active'} name="lifecycle"><option value="active">Aktif işletmeler</option><option value="deleted">Silinmiş işletmeler</option><option value="all">Tümü</option></select></label>

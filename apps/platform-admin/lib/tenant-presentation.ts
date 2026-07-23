@@ -72,3 +72,27 @@ export function subscriptionTone(status: SubscriptionStatus | null): string {
   if (status === 'suspended' || status === 'cancelled' || status === 'manual_hold') return 'danger'
   return 'neutral'
 }
+
+export const PLATFORM_ROLE_LABELS: Record<string, string> = {
+  support: 'Destek',
+  ops: 'Operasyon',
+  finance: 'Finans',
+  superadmin: 'Süper yönetici',
+}
+
+export function platformRoleLabel(role: string): string {
+  return PLATFORM_ROLE_LABELS[role] ?? role
+}
+
+const BILLING_STATUS_LABELS: Record<string, string> = {
+  paid: 'Ödendi', past_due: 'Gecikti', uncollectible: 'Tahsil edilemedi',
+  open: 'Açık', draft: 'Taslak', void: 'İptal', pending: 'Bekliyor',
+  scheduled: 'Planlandı', failed: 'Başarısız', succeeded: 'Başarılı',
+  processed: 'İşlendi', processing: 'İşleniyor', resolved: 'Çözüldü',
+  completed: 'Tamamlandı', stopped: 'Durduruldu', dead_lettered: 'Teslim edilemedi',
+  discrepancy: 'Uyuşmazlık', requires_reconciliation: 'İnceleme gerekli',
+}
+
+export function billingStatusLabel(status: string): string {
+  return BILLING_STATUS_LABELS[status] ?? status
+}

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { PlatformAdminActorContext } from '@garsonless/domain/platform-admin'
 import { signOut } from './actions'
+import { platformRoleLabel } from '../lib/tenant-presentation'
 
 export function PlatformShell({
   actor,
@@ -20,7 +21,7 @@ export function PlatformShell({
           </nav>
         </div>
         <div className="topbar-actions">
-          <span className="badge">MFA · {actor.role}</span>
+          <span className="badge">2 adımlı doğrulama · {platformRoleLabel(actor.role)}</span>
           <form action={signOut}><button className="button" type="submit">Çıkış yap</button></form>
         </div>
       </header>
