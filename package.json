@@ -4,7 +4,7 @@
   "scripts": {
     "build": "corepack pnpm -r --if-present --workspace-concurrency=4 build",
     "check": "corepack pnpm check:ci && corepack pnpm build && corepack pnpm smoke",
-    "check:ci": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:architecture && corepack pnpm test:db && corepack pnpm test:prod-preflight && corepack pnpm test:prod-release && corepack pnpm test:prod-topology",
+    "check:ci": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:architecture && corepack pnpm test:db && corepack pnpm test:prod-preflight && corepack pnpm test:prod-release && corepack pnpm test:prod-topology && corepack pnpm test:prod-runtime",
     "check:visual": "corepack pnpm check && corepack pnpm visual:smoke",
     "dev": "corepack pnpm -r --parallel --if-present dev",
     "lint": "eslint .",
@@ -17,6 +17,7 @@
     "test:prod-preflight": "node --test scripts/production-readiness.test.mjs",
     "test:prod-release": "node --test scripts/migration-release.test.mjs",
     "test:prod-topology": "node --test scripts/deployment-topology.test.mjs scripts/release-evidence.test.mjs",
+    "test:prod-runtime": "node --test scripts/runtime-deployment.test.mjs",
     "typecheck": "corepack pnpm -r --if-present --workspace-concurrency=4 typecheck",
     "visual:auth": "playwright test --config=playwright.visual.config.ts --project=dashboard-desktop --project=dashboard-mobile",
     "visual:auth:setup": "playwright test --config=playwright.visual.config.ts --project=dashboard-auth-setup",
@@ -35,7 +36,10 @@
     "prod:migration-manifest": "node scripts/migration-release.mjs manifest",
     "prod:migration-drift": "node scripts/migration-release.mjs verify",
     "prod:topology": "node scripts/deployment-topology.mjs",
-    "prod:release-evidence": "node scripts/release-evidence.mjs"
+    "prod:runtime-manifest": "node scripts/runtime-deployment.mjs manifest",
+    "prod:runtime-verify": "node scripts/runtime-deployment.mjs verify",
+    "prod:release-evidence": "node scripts/release-evidence.mjs",
+    "prod:rehearse": "node scripts/release-rehearsal.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

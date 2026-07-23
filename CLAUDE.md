@@ -3077,3 +3077,34 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   ve beş Next.js uygulamasının production build'i temizdir. Workspace lint
   **0 error** ile geçti; yalnız mevcut iki marketing `<img>` performans uyarısı
   sürüyor.
+
+### Faz 7.4 — Edge/cron/Vault runtime kapısı ve local release provası ✅ (2026-07-23)
+
+- İki Supabase Edge Function (`outbox-worker`, `send-email-hook`), `pg_cron` /
+  `pg_net` / `vault` capability'leri, Auth Send Email Hook, iki Vault metadata
+  anahtarı, üç güvenli HTTP probe ve dört kanonik cron işi
+  `config/production-runtime.json` altında version'landı. Eski sweep komutunun
+  30 dakikalık ara hali değil, son migration'daki **180 dakika** eşiği tek
+  kanonik runtime durumu olarak tutulur.
+- `pnpm prod:runtime-manifest`, Supabase `config.toml`, function kaynakları,
+  import map'ler, Vault/scheduler migration'ları ve cron migration'larının
+  SHA-256 değerlerini secretsiz tek artifact'a bağlar. Kaynakta kullanılmayan
+  env adı, yanlış `verify_jwt`, eksik dosya veya migration'dan sapan cron
+  command/schedule `MAS-DEP-018/020/021` ile CI'da fail-closed durur.
+- `pnpm prod:runtime-verify`, operatörün son 24 saate ait güvenli PROD kanıtını
+  project ref'e bağlar. Kanıt yalnız function/secret isimleri, configured
+  boolean'ı, public URL, cron metadata ve probe HTTP durumlarını kabul eder;
+  secret/token/header/body/API key alanı `MAS-DEP-022` ile reddedilir.
+  Pre-deploy farkları `MAS-DEP-W04` planı, post-deploy farkları release hatasıdır.
+- Release identity artık runtime artifact SHA'sını da taşır.
+  `pnpm prod:rehearse`, release ve runtime SHA'larını dokuz adımlı rollout,
+  gerekli PROD kanıtları ve dört aşamalı rollback matrisiyle deterministik
+  `local-dry-run` artifact'ına bağlar. Migration hatasında down migration yok;
+  rollout durur ve forward-fix uygulanır. Artifact açıkça
+  `productionMutationPerformed: false` taşır.
+- Hedefli runtime/prova matrisi **10/10**, topology + release identity **10/10**,
+  production preflight **7/7**, migration release **6/6** ve tam workspace
+  `check:ci` temiz geçti. Beş Next.js uygulamasının production build'i başarılı;
+  yalnız iki mevcut marketing `<img>` performans uyarısı sürüyor. PROD runtime
+  evidence henüz alınmadı; hiçbir PROD bağlantısı, migration, secret veya deploy
+  işlemi yapılmadı.

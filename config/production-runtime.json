@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "requiredCapabilities": {
+    "extensions": ["pg_cron", "pg_net"],
+    "schemas": ["vault"]
+  },
+  "capabilitySources": [
+    {
+      "kind": "extension",
+      "name": "pg_cron",
+      "sourceMigration": "packages/db/supabase/migrations/20260715020000_domain_outbox_scheduler.sql"
+    },
+    {
+      "kind": "extension",
+      "name": "pg_net",
+      "sourceMigration": "packages/db/supabase/migrations/20260715020000_domain_outbox_scheduler.sql"
+    },
+    {
+      "kind": "schema",
+      "name": "vault",
+      "sourceMigration": "packages/db/supabase/migrations/20260715020000_domain_outbox_scheduler.sql"
+    }
+  ],
+  "edgeFunctions": [
+    {
+      "name": "outbox-worker",
+      "verifyJwt": false,
+      "entrypoint": "packages/db/supabase/functions/outbox-worker/index.ts",
+      "importMap": "packages/db/supabase/functions/outbox-worker/deno.json",
+      "urlTemplate": "https://{projectRef}.supabase.co/functions/v1/outbox-worker",
+      "requiredSecrets": [
+        "SUPABASE_URL",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "OUTBOX_WORKER_SECRET",
+        "OUTBOX_CONSUMER_URL",
+        "OUTBOX_PUSH_CONSUMER_URL",
+        "OUTBOX_INBOX_CONSUMER_URL",
+        "OUTBOX_EMAIL_CONSUMER_URL",
+        "PAYMENT_RECONCILIATION_URL",
+        "BILLING_MAINTENANCE_URL"
+      ]
+    },
+    {
+      "name": "send-email-hook",
+      "verifyJwt": false,
+      "entrypoint": "packages/db/supabase/functions/send-email-hook/index.ts",
+      "importMap": "packages/db/supabase/functions/send-email-hook/deno.json",
+      "urlTemplate": "https://{projectRef}.supabase.co/functions/v1/send-email-hook",
+      "requiredSecrets": ["SEND_EMAIL_HOOK_SECRET", "RESEND_API_KEY"]
+    }
+  ],
+  "authHooks": [
+    {
+      "name": "send-email",
+      "function": "send-email-hook",
+      "urlTemplate": "https://{projectRef}.supabase.co/functions/v1/send-email-hook",
+      "enabled": true
+    }
+  ],
+  "vaultSecrets": [
+    {
+      "name": "outbox_worker_url",
+      "kind": "url",
+      "expectedTemplate": "https://{projectRef}.supabase.co/functions/v1/outbox-worker",
+      "sourceMigration": "packages/db/supabase/migrations/20260715020000_domain_outbox_scheduler.sql"
+    },
+    {
+      "name": "outbox_worker_secret",
+      "kind": "secret",
+      "sourceMigration": "packages/db/supabase/migrations/20260715020000_domain_outbox_scheduler.sql"
+    }
+  ],
+  "cronJobs": [
+    {
+      "name": "domain-outbox-worker-every-minute",
+      "schedule": "* * * * *",
+      "command": "select public.invoke_domain_outbox_worker();",
+      "sourceMigration": "packages/db/supabase/migrations/20260715020000_domain_outbox_scheduler.sql"
+    },
+    {
+      "name": "sweep-fully-paid-idle-sessions",
+      "schedule": "*/10 * * * *",
+      "command": "select sweep_fully_paid_idle_sessions(180);",
+      "sourceMigration": "packages/db/supabase/migrations/20260627000000_sweep_threshold_3h.sql"
+    },
+    {
+      "name": "dashboard-query-observation-retention-daily",
+      "schedule": "17 3 * * *",
+      "command": "select public.prune_dashboard_query_observations();",
+      "sourceMigration": "packages/db/supabase/migrations/20260718020000_dashboard_query_observation_operations.sql"
+    },
+    {
+      "name": "platform-error-event-retention-daily",
+      "schedule": "31 3 * * *",
+      "command": "select public.prune_platform_error_events();",
+      "sourceMigration": "packages/db/supabase/migrations/20260722190000_platform_error_events.sql"
+    }
+  ],
+  "postDeployProbes": [
+    {
+      "name": "outbox-authorized-health",
+      "function": "outbox-worker",
+      "expectedStatus": 200
+    },
+    {
+      "name": "outbox-unauthorized-rejected",
+      "function": "outbox-worker",
+      "expectedStatus": 401
+    },
+    {
+      "name": "email-hook-invalid-signature-rejected",
+      "function": "send-email-hook",
+      "expectedStatus": 401
+    }
+  ],
+  "deploymentSteps": [
+    "quality-and-topology-gates",
+    "migration-pre-deploy-drift",
+    "database-migrations",
+    "edge-secrets",
+    "edge-functions",
+    "vault-metadata",
+    "cron-and-auth-hook",
+    "applications",
+    "post-deploy-drift-and-smoke"
+  ],
+  "rollbackDecisions": [
+    {
+      "stage": "before-database-migrations",
+      "action": "stop-release",
+      "database": "unchanged",
+      "scheduler": "unchanged"
+    },
+    {
+      "stage": "database-migrations",
+      "action": "stop-and-forward-fix",
+      "database": "never-run-down-migration",
+      "scheduler": "keep-disabled-until-verified"
+    },
+    {
+      "stage": "edge-functions-or-secrets",
+      "action": "restore-previous-function-version-and-secret-metadata",
+      "database": "keep-backward-compatible-schema",
+      "scheduler": "keep-or-disable-affected-job"
+    },
+    {
+      "stage": "applications-or-smoke",
+      "action": "rollback-apps-to-previous-commit",
+      "database": "keep-backward-compatible-schema",
+      "scheduler": "disable-only-if-worker-is-unsafe"
+    }
+  ]
+}

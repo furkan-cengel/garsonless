@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "projectRef": "<PROD_PROJECT_REF>",
+  "capturedAt": "<ISO_8601_UTC>",
+  "capabilities": {
+    "extensions": ["pg_cron", "pg_net"],
+    "schemas": ["vault"]
+  },
+  "edgeFunctions": [
+    {
+      "name": "outbox-worker",
+      "active": true,
+      "verifyJwt": false,
+      "url": "https://<PROD_PROJECT_REF>.supabase.co/functions/v1/outbox-worker",
+      "configuredSecretNames": [
+        "BILLING_MAINTENANCE_URL",
+        "OUTBOX_CONSUMER_URL",
+        "OUTBOX_EMAIL_CONSUMER_URL",
+        "OUTBOX_INBOX_CONSUMER_URL",
+        "OUTBOX_PUSH_CONSUMER_URL",
+        "OUTBOX_WORKER_SECRET",
+        "PAYMENT_RECONCILIATION_URL",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_URL"
+      ]
+    },
+    {
+      "name": "send-email-hook",
+      "active": true,
+      "verifyJwt": false,
+      "url": "https://<PROD_PROJECT_REF>.supabase.co/functions/v1/send-email-hook",
+      "configuredSecretNames": ["RESEND_API_KEY", "SEND_EMAIL_HOOK_SECRET"]
+    }
+  ],
+  "authHooks": [
+    {
+      "name": "send-email",
+      "enabled": true,
+      "url": "https://<PROD_PROJECT_REF>.supabase.co/functions/v1/send-email-hook"
+    }
+  ],
+  "vaultSecrets": [
+    {
+      "name": "outbox_worker_url",
+      "configured": true,
+      "url": "https://<PROD_PROJECT_REF>.supabase.co/functions/v1/outbox-worker"
+    },
+    {
+      "name": "outbox_worker_secret",
+      "configured": true
+    }
+  ],
+  "cronJobs": [
+    {
+      "name": "domain-outbox-worker-every-minute",
+      "active": true,
+      "schedule": "* * * * *",
+      "command": "select public.invoke_domain_outbox_worker();"
+    },
+    {
+      "name": "sweep-fully-paid-idle-sessions",
+      "active": true,
+      "schedule": "*/10 * * * *",
+      "command": "select sweep_fully_paid_idle_sessions(180);"
+    },
+    {
+      "name": "dashboard-query-observation-retention-daily",
+      "active": true,
+      "schedule": "17 3 * * *",
+      "command": "select public.prune_dashboard_query_observations();"
+    },
+    {
+      "name": "platform-error-event-retention-daily",
+      "active": true,
+      "schedule": "31 3 * * *",
+      "command": "select public.prune_platform_error_events();"
+    }
+  ],
+  "probes": [
+    { "name": "outbox-authorized-health", "status": 200 },
+    { "name": "outbox-unauthorized-rejected", "status": 401 },
+    { "name": "email-hook-invalid-signature-rejected", "status": 401 }
+  ]
+}

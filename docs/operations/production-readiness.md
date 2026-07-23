@@ -26,9 +26,17 @@ hiçbir Supabase projesine bağlanmaz, migration uygulamaz ve secret değerlerin
 | `MAS-DEP-015` | Topolojide tanımlı route dosyası repoda yok |
 | `MAS-DEP-016` | Release yanlış git branch'inden üretiliyor |
 | `MAS-DEP-017` | HEAD ile yerel origin branch ref'i eşleşmiyor |
+| `MAS-DEP-018` | Runtime sözleşmesi repo/function/migration kaynağıyla uyuşmuyor |
+| `MAS-DEP-019` | Runtime/release kanıtı yanlış, eski veya bütünlüğü bozuk |
+| `MAS-DEP-020` | Edge Function veya Auth Hook deployment'ı uyuşmuyor |
+| `MAS-DEP-021` | Cron job aktifliği, schedule veya command uyuşmuyor |
+| `MAS-DEP-022` | Vault/capability/secret metadata eksik veya kanıt secret içeriyor |
+| `MAS-DEP-023` | Güvenli post-deploy probe beklenen sonucu vermiyor |
+| `MAS-DEP-024` | Release identity ile runtime manifest aynı release'e bağlı değil |
 | `MAS-DEP-W01` | Capability bilinçli olarak bu turda kapalı |
 | `MAS-DEP-W02` | Remote migration geçmişi ayrıca doğrulanmalı |
 | `MAS-DEP-W03` | Deploy planında uygulanmayı bekleyen migration var |
+| `MAS-DEP-W04` | Pre-deploy runtime farkı rollout planında kapatılmalı |
 
 ## App preflight
 
@@ -155,6 +163,68 @@ repoda gerçekten bulunan route'lara bağlandığını kanıtlar. Edge Function
 runtime sözleşmesi `SUPABASE_URL` kullanır; `NEXT_PUBLIC_SUPABASE_URL` worker
 değeri değildir.
 
+## Edge Function, Vault ve cron runtime kapısı
+
+`config/production-runtime.json`, iki Edge Function'ın kaynak ve `verify_jwt`
+sözleşmesini, yalnız **isimleri** tutulan secret bağımlılıklarını, Auth Send
+Email Hook'u, Vault metadata'sını ve dört kanonik cron işini version'lar. Eski
+30 dakikalık sweep migration'ı kanonik değildir; son migration'ın komutu
+`sweep_fully_paid_idle_sessions(180)` olmalıdır.
+
+Deploy öncesi secretsiz runtime manifesti üretilir:
+
+```bash
+corepack pnpm prod:runtime-manifest -- \
+  --project-ref <PROD_PROJECT_REF> \
+  --output /tmp/masabu-runtime-manifest.json
+```
+
+Remote kanıt JSON'u secret **değeri**, token, Authorization header'ı veya API
+key içeremez. Yalnız function/secret isimleri, configured boolean'ı, public
+URL'ler, cron schedule/command ve güvenli HTTP probe durumları tutulur. Cron ve
+Vault isimleri aşağıdaki salt-okunur sorgularla alınabilir. Tam güvenli şema
+`docs/operations/production-runtime-evidence.example.json` dosyasındadır:
+
+```sql
+select extname from pg_extension where extname in ('pg_cron', 'pg_net');
+select nspname from pg_namespace where nspname = 'vault';
+select jobname, schedule, command, active
+from cron.job
+where jobname in (
+  'domain-outbox-worker-every-minute',
+  'sweep-fully-paid-idle-sessions',
+  'dashboard-query-observation-retention-daily',
+  'platform-error-event-retention-daily'
+)
+order by jobname;
+select name from vault.secrets
+where name in ('outbox_worker_url', 'outbox_worker_secret')
+order by name;
+```
+
+Kanıt üst seviyede `schemaVersion: 1`, doğru `projectRef` ve son 24 saate ait
+`capturedAt` taşır. `edgeFunctions`, `authHooks`, `vaultSecrets`, `cronJobs`
+ve `probes` listeleri runtime manifestindeki adlarla eşleşir. Pre-deploy farkı
+planlanabilir uyarı olarak görünür; post-deploy aynı farkı release hatası yapar:
+
+```bash
+corepack pnpm prod:runtime-verify -- \
+  --project-ref <PROD_PROJECT_REF> \
+  --evidence /tmp/prod-runtime-evidence.json \
+  --mode pre-deploy
+
+corepack pnpm prod:runtime-verify -- \
+  --project-ref <PROD_PROJECT_REF> \
+  --evidence /tmp/prod-runtime-evidence-after.json \
+  --mode post-deploy \
+  --output /tmp/prod-runtime-verification.json
+```
+
+Post-deploy probe seti yalnız yan etkisiz kontrollerden oluşur: worker doğru
+secret ile health GET'te `200`, secretsiz çağrıda `401`; e-posta hook'u geçersiz
+imzada `401`. Gerçek e-posta ve outbox teslimatı ayrıca iş-kritik smoke
+matrisinde doğrulanır.
+
 ## Release identity artifact'ı
 
 Tüm kapılar geçip release commit'i `main`e pushlandıktan sonra secret'sız ve
@@ -168,15 +238,37 @@ corepack pnpm prod:release-evidence -- \
 
 Komut dirty worktree, yanlış branch veya `HEAD != origin/main` durumunda
 fail-closed durur. Artifact commit SHA, package manager, lockfile SHA-256,
-migration manifest SHA-256, topology SHA-256 ve public endpoint envanterini
-tek `artifactSha256` altında bağlar. Zaman damgası veya secret içermez; aynı
+migration manifest SHA-256, topology SHA-256, runtime SHA-256 ve public endpoint
+envanterini tek `artifactSha256` altında bağlar. Zaman damgası veya secret içermez; aynı
 release girdileri aynı artifact kimliğini üretir. Bu artifact kalite
 kontrollerinin yerine geçmez, hangi kaynakların doğrulandığını sabitler.
+
+## Local release provası ve rollback matrisi
+
+Release identity üretildikten sonra aşağıdaki komut deploy yapmadan adım
+sırasını, mutasyon sınırlarını ve rollback kararlarını aynı commit/runtime
+SHA'larına bağlar:
+
+```bash
+corepack pnpm prod:rehearse -- \
+  --project-ref <PROD_PROJECT_REF> \
+  --release-evidence /tmp/masabu-release-evidence.json \
+  --output /tmp/masabu-release-rehearsal.json
+```
+
+Artifact her zaman `status: local-dry-run` ve
+`productionMutationPerformed: false` taşır; PROD kanıtı yerine geçmez.
+Migration sırasında down migration çalıştırılmaz: rollout durur ve forward-fix
+hazırlanır. Function/secret hatasında önceki function sürümü/metadata geri
+alınır ve etkilenen scheduler kapalı tutulur. App/smoke hatasında uygulama önceki
+commit'e döner; geriye uyumlu DB şeması korunur. Scheduler yalnız worker'ın
+güvensiz olduğu kanıtlanırsa devre dışı bırakılır.
 
 ## Şimdiki açık blokajlar
 
 - SaaS abonelik İyzico canlı merchant/plan referansları hazır değil.
-- PROD migration geçmişi ve remote cron/Vault durumu henüz doğrulanmadı.
+- PROD migration geçmişi ile remote Edge Function/cron/Vault/Auth Hook durumu
+  henüz kanıtlanmadı.
 - Platform-admin desktop/mobile ekran görüntülü son görsel smoke, bağlı Codex
   browser olmadığı için ertelendi.
 - Platform-admin için nihai public domain ve Supabase Auth redirect allowlist
