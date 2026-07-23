@@ -3204,3 +3204,29 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   workspace CI ve tüm uygulamaların production build'i geçti. Yalnız önceden
   var olan iki marketing `<img>` lint uyarısı sürüyor; hata yok. Gerçek PROD
   backup/PITR/restore provası, bağlantı, deploy veya mutation yapılmadı.
+
+### Faz 7.9 — Release candidate freeze + rollback artifact provenance ✅ (2026-07-23)
+
+- `production-release-candidate.mjs`, exact release/rehearsal/bundle kimliğine
+  bağlı fail-closed candidate şablonu ve doğrulama artifact'ı üretir. Varsayılan
+  şablon `pending`, tarihsiz ve bütün freeze/artifact kontrolleri `false`
+  olduğu için tek başına deploy onayı veremez.
+- Candidate kapanışı dashboard, menu, kitchen, marketing ve platform-admin ile
+  `outbox-worker`/`send-email-hook` için önceki source commit, immutable
+  artifact SHA-256, erişilebilirlik ve restore prosedürü ister. Önceki commit
+  candidate ile aynı olamaz; tek eksik/expanded/stale/mutating kanıt
+  `MAS-DEP-037/038` ile fail-closed reddedilir. Kanıt ömrü policy'de dört
+  saattir.
+- Bundle ve operatör evidence envanteri tek `production-release-contract.mjs`
+  kaynağına alındı. Bundle yedi source artifact taşımaya devam eder; gereken
+  operatör kanıtı altıya çıktı. Manuel GitHub workflow'u bundle yanında
+  tamamlanmamış candidate handoff şablonunu da üretir; secret, Environment,
+  Supabase bağlantısı veya deploy kullanmaz.
+- Final release kararı bundle policy kimliğini, ham candidate evidence SHA-256
+  değerini ve attestation binding'ini tekrar doğrular. Candidate freeze kapısı
+  geçmeden `go-to-deploy` veya `release-accepted` üretilemez.
+- Hedefli candidate **6/6**, release-decision **13/13**, bundle **8/8**, workflow
+  YAML parse, JSON sözleşmeleri, tam workspace CI ve beş Next.js production
+  build'i geçti. Yalnız önceden var olan iki marketing `<img>` lint uyarısı
+  sürüyor; hata yok. Gerçek PROD artifact envanteri, bağlantı, deploy veya
+  mutation yapılmadı.

@@ -11,18 +11,11 @@ import { buildRuntimeManifest, loadRuntimeSpec } from './runtime-deployment.mjs'
 import { buildSmokeManifest, loadSmokeSpec } from './business-smoke.mjs'
 import { loadReleasePolicy, validateReleasePolicy } from './production-release-decision.mjs'
 import { buildBackupRestoreEvidenceTemplate } from './production-release-handoff.mjs'
+import { RELEASE_BUNDLE_ARTIFACT_NAMES, REQUIRED_OPERATOR_EVIDENCE } from './production-release-contract.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const DEV_PROJECT_REF = 'yxsegwkzyiscrxiwdeuf'
-const ARTIFACT_NAMES = [
-  'migration-manifest.json',
-  'release-evidence.json',
-  'release-rehearsal.json',
-  'runtime-manifest.json',
-  'smoke-manifest.json',
-  'backup-restore-evidence.template.json',
-  'release-attestation.template.json',
-]
+const ARTIFACT_NAMES = RELEASE_BUNDLE_ARTIFACT_NAMES
 const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 
 function bundleError(code, message) {
@@ -124,6 +117,7 @@ export function buildReleaseBundle({
     releaseArtifactSha256: releaseEvidence.artifactSha256,
     rehearsalArtifactSha256: rehearsal.artifactSha256,
     backupRestoreEvidenceSha256: null,
+    releaseCandidateEvidenceSha256: null,
     enabledCapabilities: Object.fromEntries(Object.keys(policy.capabilityScopes).map((name) => [name, false])),
     approvals: Object.fromEntries(policy.requiredApprovals.map((name) => [name, false])),
   }
@@ -152,13 +146,7 @@ export function buildReleaseBundle({
     policySha256,
     productionMutationPerformed: false,
     artifacts,
-    requiredOperatorEvidence: [
-      'prod-migration-list.txt',
-      'prod-runtime-evidence.json',
-      'prod-smoke-evidence.json',
-      'prod-backup-restore-evidence.json',
-      'prod-release-attestation.json',
-    ],
+    requiredOperatorEvidence: [...REQUIRED_OPERATOR_EVIDENCE],
   }
   return { files, manifest: { ...manifest, artifactSha256: sha256(JSON.stringify(manifest)) } }
 }
@@ -216,6 +204,7 @@ export function verifyReleaseBundle(input) {
     || attestation.releaseArtifactSha256 !== releaseEvidence.artifactSha256
     || attestation.rehearsalArtifactSha256 !== rehearsal.artifactSha256
     || attestation.backupRestoreEvidenceSha256 !== null
+    || attestation.releaseCandidateEvidenceSha256 !== null
     || attestation.capturedAt !== null
     || Object.values(attestation.approvals ?? {}).some((value) => value !== false)
   ) {

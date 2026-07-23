@@ -45,6 +45,8 @@ hiçbir Supabase projesine bağlanmaz, migration uygulamaz ve secret değerlerin
 | `MAS-DEP-034` | Release bundle eksik, kirlenmiş ya da hash/iç bağ bütünlüğünü kaybetmiş |
 | `MAS-DEP-035` | Backup/restore kanıtı release kimliğiyle bağlı değil veya bütünlüğü bozuk |
 | `MAS-DEP-036` | Backup/restore provası eksik, eski ya da güvenli alan sözleşmesini ihlal ediyor |
+| `MAS-DEP-037` | Release candidate freeze/provenance kanıtı release veya bundle kimliğiyle bağlı değil |
+| `MAS-DEP-038` | Candidate freeze eksik, eski ya da rollback artifact envanteri doğrulanmamış |
 | `MAS-DEP-W01` | Capability bilinçli olarak bu turda kapalı |
 | `MAS-DEP-W02` | Remote migration geçmişi ayrıca doğrulanmalı |
 | `MAS-DEP-W03` | Deploy planında uygulanmayı bekleyen migration var |
@@ -355,6 +357,8 @@ corepack pnpm prod:release-decision -- \
   --runtime-evidence /tmp/prod-runtime-evidence.json \
   --smoke-evidence /tmp/prod-smoke-evidence.json \
   --backup-restore-evidence /tmp/prod-backup-restore-evidence.json \
+  --bundle-manifest /tmp/masabu-production-release/bundle-manifest.json \
+  --release-candidate-evidence /tmp/prod-release-candidate-evidence.json \
   --attestation /tmp/prod-release-attestation.json \
   --env dashboard=apps/dashboard/.env.production \
   --env menu=apps/menu/.env.production \
@@ -374,8 +378,8 @@ runtime farklarını `MAS-DEP-W04` ve deploy sonrası çalışacak smoke adımla
 çalıştırılır. Yalnız bütün kapılar tam geçtiğinde `release-accepted` oluşur;
 aksi durumda exit code 1 ve integrity-bound `no-go` artifact'ı üretilir.
 
-Karar artifact'ı release, rehearsal, policy, backup/restore kanıtı ve operatör
-attestation SHA-256 kimliklerini; capability durumlarını; gate sonuçlarını ve yalnız güvenli
+Karar artifact'ı release, rehearsal, policy, backup/restore, release candidate
+provenance ve operatör attestation SHA-256 kimliklerini; capability durumlarını; gate sonuçlarını ve yalnız güvenli
 hata/uyarı kodlarını taşır. Araç migration/deploy/rollback çalıştırmaz ve her
 zaman `productionMutationPerformed: false` yazar.
 
@@ -397,7 +401,7 @@ corepack pnpm prod:release-bundle -- verify \
 ```
 
 `bundle-manifest.json`, migration manifesti dahil yedi dosyanın byte boyutu ve SHA-256 değerini; release,
-rehearsal ve policy bağlarını; ayrıca operatörün sonradan toplaması gereken beş
+rehearsal ve policy bağlarını; ayrıca operatörün sonradan toplaması gereken altı
 gerçek PROD kanıtının **yalnız dosya adlarını** taşır. Paket dizini 0700,
 dosyalar 0600 yazılır; secret, e-posta, kişi adı, token, header/body veya
 provider cevabı pakete alınmaz. Tanımsız ekstra dosya ya da tek byte değişiklik
@@ -408,7 +412,8 @@ policy kaynaklarından beklenen paketi yeniden üretip byte-byte karşılaştır
 GitHub Actions'taki `Production Release Bundle` workflow'u yalnız manuel
 `workflow_dispatch`, exact `main`, exact checkout SHA ve
 `BUILD RELEASE BUNDLE` onayıyla çalışır. Önce tam CI + build kapılarını tekrar
-koşar, sonra aynı paketi 14 günlük artifact olarak yükler. Workflow hiçbir
+koşar, sonra aynı paketle fail-closed candidate handoff şablonunu 14 günlük
+artifact olarak yükler. Workflow hiçbir
 GitHub Environment/secret istemez; Supabase'e bağlanmaz, migration/deploy
 çalıştırmaz. İndirilen artifact, operatör kanıtları eklenmeden önce yukarıdaki
 `verify` komutuyla tekrar doğrulanır.
@@ -452,6 +457,44 @@ Final karar motoru aynı byte'ları yeniden hash'ler; attestation farklı bir
 restore kanıtına işaret ederse release her durumda `no-go` olur. Örnek güvenli
 şema `production-backup-restore-evidence.example.json` dosyasındadır.
 
+## Release candidate freeze ve rollback artifact provenance
+
+Kaynak-bound bundle doğrulandıktan sonra `prod:release-candidate`, candidate
+commit'ini donduran ve önceki sürüme ait immutable rollback artifact'larını
+kanıtlayan ayrı bir operatör sözleşmesi üretir. Varsayılan şablon `pending`,
+tarihsiz ve bütün kontrolleri `false` gelir; deploy izni vermez.
+
+```bash
+corepack pnpm prod:release-candidate -- template \
+  --project-ref <PROD_PROJECT_REF> \
+  --release-evidence /tmp/masabu-production-release/release-evidence.json \
+  --rehearsal /tmp/masabu-production-release/release-rehearsal.json \
+  --bundle-manifest /tmp/masabu-production-release/bundle-manifest.json \
+  --output /tmp/prod-release-candidate-evidence.template.json
+
+corepack pnpm prod:release-candidate -- verify \
+  --project-ref <PROD_PROJECT_REF> \
+  --release-evidence /tmp/masabu-production-release/release-evidence.json \
+  --rehearsal /tmp/masabu-production-release/release-rehearsal.json \
+  --bundle-manifest /tmp/masabu-production-release/bundle-manifest.json \
+  --evidence /tmp/prod-release-candidate-evidence.json \
+  --output /tmp/prod-release-candidate-verification.json
+```
+
+Kanıt; source commit'in pushlandığını, change-set'in dondurulduğunu, bundle
+bütünlüğünün yeniden doğrulandığını ve rollback artifact envanterinin
+toplandığını arar. Dashboard, menu, kitchen, marketing ve platform-admin ile
+`outbox-worker`/`send-email-hook` için önceki commit SHA'sı, immutable artifact
+SHA-256 değeri, erişilebilirlik ve restore prosedürü zorunludur. Önceki commit
+candidate commit ile aynı olamaz. Kanıt dört saatten eskiyse, fazladan alan
+taşıyorsa veya tek artifact eksikse `MAS-DEP-037/038` ile reddedilir.
+
+Ham candidate evidence SHA-256 değeri attestation içindeki
+`releaseCandidateEvidenceSha256` alanına yazılır. Final karar motoru hem bundle
+manifestini hem candidate kanıtını yeniden doğrular; farklı byte'lara verilen
+onay `no-go` olur. Çıktılar 0600, secretsiz ve mutation-free'dir. Güvenli örnek
+`production-release-candidate-evidence.example.json` dosyasındadır.
+
 ## Şimdiki açık blokajlar
 
 - SaaS abonelik İyzico canlı merchant/plan referansları hazır değil.
@@ -459,6 +502,8 @@ restore kanıtına işaret ederse release her durumda `no-go` olur. Örnek güve
   henüz kanıtlanmadı.
 - PROD backup/PITR doğrulaması ve izole restore provası henüz yapılmadı; bundle
   içindeki fail-closed şablon bu yüzden release onayı sayılamaz.
+- Önceki PROD app/Edge artifact SHA-256 envanteri henüz alınmadı; candidate
+  freeze şablonu bu yüzden `pending` kalmalı ve final karar `no-go` olmalıdır.
 - Platform-admin desktop/mobile ekran görüntülü son görsel smoke, bağlı Codex
   browser olmadığı için ertelendi.
 - Platform-admin için nihai public domain ve Supabase Auth redirect allowlist

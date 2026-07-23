@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "maxAttestationAgeMinutes": 60,
   "maxBackupRestoreEvidenceAgeHours": 24,
+  "maxReleaseCandidateEvidenceAgeHours": 4,
   "requiredScopes": [
     "dashboard",
     "menu",

@@ -47,7 +47,8 @@ test('bundle is deterministic, source-bound and mutation-free', () => {
   assert.deepEqual(first, second)
   assert.equal(first.manifest.productionMutationPerformed, false)
   assert.equal(first.manifest.artifacts.length, 7)
-  assert.equal(first.manifest.requiredOperatorEvidence.length, 5)
+  assert.equal(first.manifest.requiredOperatorEvidence.length, 6)
+  assert.ok(first.manifest.requiredOperatorEvidence.includes('prod-release-candidate-evidence.json'))
   assert.match(first.manifest.artifactSha256, /^[a-f0-9]{64}$/)
 })
 
@@ -57,6 +58,7 @@ test('attestation template is bound but cannot accidentally approve a release', 
   const backupRestore = JSON.parse(bundle.files['backup-restore-evidence.template.json'])
   assert.equal(template.capturedAt, null)
   assert.equal(template.backupRestoreEvidenceSha256, null)
+  assert.equal(template.releaseCandidateEvidenceSha256, null)
   assert.ok(Object.values(template.enabledCapabilities).every((value) => value === false))
   assert.ok(Object.values(template.approvals).every((value) => value === false))
   assert.equal(template.releaseArtifactSha256, bundle.manifest.releaseArtifactSha256)

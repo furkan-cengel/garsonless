@@ -12,6 +12,7 @@ import { buildRuntimeManifest, loadRuntimeSpec } from './runtime-deployment.mjs'
 import { buildSmokeManifest, loadSmokeSpec } from './business-smoke.mjs'
 import { evaluateReleaseDecision, loadReleasePolicy, runCli, validateReleasePolicy } from './production-release-decision.mjs'
 import { buildBackupRestoreEvidenceTemplate } from './production-release-handoff.mjs'
+import { buildReleaseCandidateEvidenceTemplate } from './production-release-candidate.mjs'
 
 const ROOT = new URL('..', import.meta.url).pathname
 const PROD_REF = 'svxvloeosiksqfadgkvo'
@@ -147,6 +148,48 @@ function fixture() {
     for (const key of Object.keys(backupRestoreEvidence[group])) backupRestoreEvidence[group][key] = true
   }
   const backupRestoreEvidenceRaw = `${JSON.stringify(backupRestoreEvidence, null, 2)}\n`
+  const bundleContents = {
+    schemaVersion: 1,
+    kind: 'masabu-production-release-bundle',
+    projectRef: PROD_REF,
+    commitSha: releaseEvidence.commitSha,
+    releaseArtifactSha256: releaseEvidence.artifactSha256,
+    rehearsalArtifactSha256: rehearsal.artifactSha256,
+    policySha256,
+    productionMutationPerformed: false,
+    artifacts: [
+      'migration-manifest.json', 'release-evidence.json', 'release-rehearsal.json',
+      'runtime-manifest.json', 'smoke-manifest.json',
+      'backup-restore-evidence.template.json', 'release-attestation.template.json',
+    ].map((name, index) => ({ name, sha256: String(index + 1).repeat(64), bytes: index + 1 })),
+    requiredOperatorEvidence: [
+      'prod-migration-list.txt', 'prod-runtime-evidence.json', 'prod-smoke-evidence.json',
+      'prod-backup-restore-evidence.json', 'prod-release-candidate-evidence.json',
+      'prod-release-attestation.json',
+    ],
+  }
+  const bundleManifest = { ...bundleContents, artifactSha256: sha256(JSON.stringify(bundleContents)) }
+  const releaseCandidateEvidence = buildReleaseCandidateEvidenceTemplate({
+    projectRef: PROD_REF,
+    releaseEvidence,
+    rehearsal,
+    bundleManifest,
+  })
+  releaseCandidateEvidence.status = 'frozen'
+  releaseCandidateEvidence.capturedAt = '2026-07-23T12:23:00.000Z'
+  for (const key of Object.keys(releaseCandidateEvidence.freeze)) releaseCandidateEvidence.freeze[key] = true
+  const artifactSeeds = ['b', 'c', 'd', 'e', 'f', '0', '1']
+  let artifactIndex = 0
+  for (const group of Object.values(releaseCandidateEvidence.rollbackArtifacts)) {
+    for (const artifact of Object.values(group)) {
+      const seed = artifactSeeds[artifactIndex++]
+      artifact.sourceCommitSha = seed.repeat(40)
+      artifact.artifactSha256 = seed.repeat(64)
+      artifact.available = true
+      artifact.restoreProcedureVerified = true
+    }
+  }
+  const releaseCandidateEvidenceRaw = `${JSON.stringify(releaseCandidateEvidence, null, 2)}\n`
   const attestation = {
     schemaVersion: 1,
     environment: 'production',
@@ -156,6 +199,7 @@ function fixture() {
     releaseArtifactSha256: releaseEvidence.artifactSha256,
     rehearsalArtifactSha256: rehearsal.artifactSha256,
     backupRestoreEvidenceSha256: sha256(backupRestoreEvidenceRaw),
+    releaseCandidateEvidenceSha256: sha256(releaseCandidateEvidenceRaw),
     enabledCapabilities: { 'order-card-payments': false, 'saas-billing': false, 'web-push': false, sms: false },
     approvals: Object.fromEntries(policy.requiredApprovals.map((name) => [name, true])),
   }
@@ -171,6 +215,9 @@ function fixture() {
     smokeEvidence: smokeEvidence(smokeManifest, releaseEvidence),
     backupRestoreEvidence,
     backupRestoreEvidenceRaw,
+    bundleManifest,
+    releaseCandidateEvidence,
+    releaseCandidateEvidenceRaw,
     attestation,
     attestationRaw: `${JSON.stringify(attestation, null, 2)}\n`,
     now: NOW,
@@ -183,6 +230,7 @@ test('release policy is closed, internally consistent and source controlled', ()
   assert.deepEqual(validateReleasePolicy(policy), { ok: true, errors: [] })
   assert.equal(policy.requiredScopes.length, 7)
   assert.equal(policy.requiredApprovals.length, 6)
+  assert.equal(policy.maxReleaseCandidateEvidenceAgeHours, 4)
 })
 
 test('release policy rejects missing warning modes and unknown smoke capability bindings', () => {
@@ -274,6 +322,17 @@ test('missing restore proof or mismatched attestation binding prevents release',
   assert.ok(result.errors.some((item) => item.subject === 'backup-restore-attestation-binding'))
 })
 
+test('unfrozen release candidate or mismatched provenance binding prevents release', () => {
+  const input = fixture()
+  input.releaseCandidateEvidence.freeze.changeSetFrozen = false
+  input.releaseCandidateEvidenceRaw = `${JSON.stringify(input.releaseCandidateEvidence, null, 2)}\n`
+  const result = evaluateReleaseDecision({ ...input, mode: 'post-deploy' })
+  assert.equal(result.decision, 'no-go')
+  assert.equal(result.gates.releaseCandidate, false)
+  assert.ok(result.errors.some((item) => item.code === 'MAS-DEP-038'))
+  assert.ok(result.errors.some((item) => item.subject === 'release-candidate-attestation-binding'))
+})
+
 test('decision artifact is deterministic for the same bound evidence', () => {
   const input = fixture()
   const first = evaluateReleaseDecision({ ...input, mode: 'post-deploy' })
@@ -290,8 +349,11 @@ test('CLI writes a safe 0600 post-deploy decision artifact', () => {
   input.smokeEvidence.capturedAt = capturedAt
   input.backupRestoreEvidence.capturedAt = capturedAt
   input.backupRestoreEvidenceRaw = `${JSON.stringify(input.backupRestoreEvidence, null, 2)}\n`
+  input.releaseCandidateEvidence.capturedAt = capturedAt
+  input.releaseCandidateEvidenceRaw = `${JSON.stringify(input.releaseCandidateEvidence, null, 2)}\n`
   input.attestation.capturedAt = capturedAt
   input.attestation.backupRestoreEvidenceSha256 = sha256(input.backupRestoreEvidenceRaw)
+  input.attestation.releaseCandidateEvidenceSha256 = sha256(input.releaseCandidateEvidenceRaw)
   try {
     const paths = {}
     const writeJson = (name, value) => {
@@ -304,6 +366,8 @@ test('CLI writes a safe 0600 post-deploy decision artifact', () => {
     writeJson('runtime', input.runtimeEvidence)
     writeJson('smoke', input.smokeEvidence)
     writeJson('backupRestore', input.backupRestoreEvidence)
+    writeJson('bundleManifest', input.bundleManifest)
+    writeJson('releaseCandidate', input.releaseCandidateEvidence)
     writeJson('attestation', input.attestation)
     paths.migrations = join(directory, 'migrations.txt')
     writeFileSync(paths.migrations, migrationText(createMigrationManifest(ROOT)))
@@ -312,6 +376,7 @@ test('CLI writes a safe 0600 post-deploy decision artifact', () => {
       '--release-evidence', paths.release, '--rehearsal', paths.rehearsal,
       '--migration-evidence', paths.migrations, '--runtime-evidence', paths.runtime,
       '--smoke-evidence', paths.smoke, '--backup-restore-evidence', paths.backupRestore,
+      '--bundle-manifest', paths.bundleManifest, '--release-candidate-evidence', paths.releaseCandidate,
       '--attestation', paths.attestation,
     ]
     for (const [scope, env] of Object.entries(input.envByScope)) {

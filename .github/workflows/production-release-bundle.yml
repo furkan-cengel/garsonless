@@ -68,11 +68,24 @@ jobs:
       - name: Verify release bundle integrity
         run: pnpm prod:release-bundle -- verify --input production-release-bundle
 
+      - name: Build fail-closed release candidate handoff template
+        env:
+          PROD_PROJECT_REF: ${{ inputs.project_ref }}
+        run: >-
+          pnpm prod:release-candidate -- template
+          --project-ref "$PROD_PROJECT_REF"
+          --release-evidence production-release-bundle/release-evidence.json
+          --rehearsal production-release-bundle/release-rehearsal.json
+          --bundle-manifest production-release-bundle/bundle-manifest.json
+          --output production-release-candidate.template.json
+
       - name: Upload safe release artifact
         uses: actions/upload-artifact@v4
         with:
           name: masabu-production-release-${{ github.sha }}
-          path: production-release-bundle
+          path: |
+            production-release-bundle
+            production-release-candidate.template.json
           if-no-files-found: error
           retention-days: 14
           include-hidden-files: false

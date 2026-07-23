@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "kind": "masabu-production-release-candidate-evidence",
+  "environment": "production",
+  "status": "frozen",
+  "projectRef": "<PROD_PROJECT_REF>",
+  "capturedAt": "2026-07-23T16:00:00.000Z",
+  "commitSha": "<40_HEX_RELEASE_COMMIT>",
+  "releaseArtifactSha256": "<64_HEX_RELEASE_SHA256>",
+  "rehearsalArtifactSha256": "<64_HEX_REHEARSAL_SHA256>",
+  "bundleManifestSha256": "<64_HEX_BUNDLE_MANIFEST_SHA256>",
+  "freeze": {
+    "sourceCommitPushed": true,
+    "changeSetFrozen": true,
+    "bundleIntegrityVerified": true,
+    "rollbackArtifactsCaptured": true
+  },
+  "rollbackArtifacts": {
+    "applications": {
+      "dashboard": { "sourceCommitSha": "<40_HEX_PREVIOUS_COMMIT>", "artifactSha256": "<64_HEX_ARTIFACT_SHA256>", "available": true, "restoreProcedureVerified": true },
+      "menu": { "sourceCommitSha": "<40_HEX_PREVIOUS_COMMIT>", "artifactSha256": "<64_HEX_ARTIFACT_SHA256>", "available": true, "restoreProcedureVerified": true },
+      "kitchen": { "sourceCommitSha": "<40_HEX_PREVIOUS_COMMIT>", "artifactSha256": "<64_HEX_ARTIFACT_SHA256>", "available": true, "restoreProcedureVerified": true },
+      "marketing": { "sourceCommitSha": "<40_HEX_PREVIOUS_COMMIT>", "artifactSha256": "<64_HEX_ARTIFACT_SHA256>", "available": true, "restoreProcedureVerified": true },
+      "platform-admin": { "sourceCommitSha": "<40_HEX_PREVIOUS_COMMIT>", "artifactSha256": "<64_HEX_ARTIFACT_SHA256>", "available": true, "restoreProcedureVerified": true }
+    },
+    "edgeFunctions": {
+      "outbox-worker": { "sourceCommitSha": "<40_HEX_PREVIOUS_COMMIT>", "artifactSha256": "<64_HEX_ARTIFACT_SHA256>", "available": true, "restoreProcedureVerified": true },
+      "send-email-hook": { "sourceCommitSha": "<40_HEX_PREVIOUS_COMMIT>", "artifactSha256": "<64_HEX_ARTIFACT_SHA256>", "available": true, "restoreProcedureVerified": true }
+    }
+  },
+  "productionMutationPerformed": false
+}
