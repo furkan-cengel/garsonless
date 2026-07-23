@@ -79,6 +79,7 @@ The design engine is the core differentiator. Every UI decision routes through i
 - ⚠️ **`20260721040000_notification_email_channel.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (`notification_templates` + `notification_deliveries`, her ikisi service-role-only). Deploy'da Edge secret'a `OUTBOX_EMAIL_CONSUMER_URL`, dashboard env'e `RESEND_API_KEY`/`RESEND_FROM_EMAIL` gerekir.
 - ⚠️ **`20260721050000_notification_inbox_realtime.sql` yalnız DEV'e uygulandı** — PROD-at-deploy setine EKLENMELİ (`notification_inbox` supabase_realtime publication'a eklenir; zil rozetinin canlı düşmesi buna bağlı).
 - ⚠️ **SaaS billing `20260722010000`–`20260722080000` migration'ları yalnız linked DEV'e uygulandı; PROD'a uygulanmadı.** PROD-at-deploy setine sekiz migration birlikte ve sıralı eklenmeli. Edge rollout'ta `BILLING_MAINTENANCE_URL`, `OUTBOX_INBOX_CONSUMER_URL` ve `OUTBOX_EMAIL_CONSUMER_URL`; gerçek İyzico için ayrı `IYZICO_BILLING_*` anahtar/plan/fiyat env'leri zorunludur.
+- ⚠️ **`20260722160000_platform_billing_dunning_interventions.sql` yalnız linked DEV'e uygulandı; PROD'a uygulanmadı.** PROD-at-deploy setine platform-admin migration'larıyla sıralı eklenmeli. Bu RPC ödeme sonucu üretmez; yalnız finance/superadmin için denetimli `retry_now` veya 1–30 günlük `defer` zamanlaması sağlar.
 
 ### Faz 4 dilim 1 rozet revizyonu — zil = okunmamış inbox + realtime auth fix 🚧 (2026-07-21, UI göz teyidi bekliyor)
 
@@ -2796,3 +2797,185 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   binding bulunmadığı için authenticated ekran görüntülü UI turu otomatik
   çalıştırılamadı; DB/application runtime ve production render build kanıtları
   tamamlandı.
+
+### Faz 6.5b — Denetimli dunning müdahaleleri ✅ (2026-07-22)
+
+- Platform tenant ödeme zaman çizelgesine yalnız AAL2 `finance` ve
+  `superadmin` için iki kapalı müdahale eklendi: işlemi güvenli biçimde hemen
+  yeniden sıraya alma (`retry_now`) ve yalnız ileri yönde 1–30 gün erteleme
+  (`defer`). Her işlemde 10–1000 karakter gerekçe zorunlu; actor, rol ve
+  request-id güvenilir server context'inden türetilir.
+- Bu yüzey **ödendi işaretleyemez**, invoice/subscription/entitlement durumunu
+  değiştiremez ve provider çağrısı başlatamaz. Çalışan worker lease'i, durmuş
+  dunning, tenant uyuşmazlığı ve ödeme takibine uygun olmayan kayıtlar
+  fail-closed reddedilir. UI bu yetki sınırını açıkça anlatır; support/ops
+  müdahale formunu görmez.
+- `20260722160000_platform_billing_dunning_interventions.sql`, aktif platform
+  kimliği ve gönderilen rolü DB'de yeniden doğrulayan service-role-only RPC
+  ekledi. Schedule satırı kilitlenir; before/after/reason/request-id aynı
+  transaction'da append-only audit'e yazılır ve aynı request-id replay'i tek
+  kayıt olarak döner. Migration açık kullanıcı onayıyla linked DEV'e
+  uygulandı, generated tipler yenilendi ve local/remote geçmiş eşleşti. PROD
+  veya deploy ortamına değişiklik uygulanmadı.
+- Gerçek throwaway DEV matrisinde ops uygulama katmanında reddedildi ve port
+  çağrısı **0** kaldı; forged finance rolü ve anon RPC ayrı ayrı `42501` aldı.
+  `retry_now` başarılı oldu, replay `duplicate=true` döndü ve audit sayısı
+  **1** kaldı. Aktif worker lease'i güvenli hata ve **0** audit ile reddedildi;
+  lease bırakıldıktan sonra 7 günlük erteleme başarıyla uygulandı. Cross-tenant
+  istek ve durmuş run reddedildi, reddedilen request audit sayıları **0** kaldı.
+- Ödeme otoritesi kontrastı gerçek DB sorgusuyla doğrulandı: invoice
+  `past_due`, `amount_paid_minor=0`, subscription `past_due` ve provider
+  operation sayısı **0** kaldı. Toplam **2** append-only müdahale audit kaydı
+  güvenlik kanıtı olarak korundu; throwaway restaurant, billing customer,
+  subscription, invoice ve dunning satırlarının tamamı `0 orphan` ile
+  temizlendi.
+- Kapanış statik kapıları: application **147/147**, DB **213/213** ve
+  platform-admin architecture **12/12**; generated tiplerden sonra ilgili
+  typecheck'ler ve workspace typecheck **11/11** temizdir. Workspace lint
+  **0 error** ile geçti (yalnız iki mevcut marketing `<img>` uyarısı);
+  platform-admin production build ve `git diff --check` temizdir.
+
+### Faz 6.6 — Süreli ve denetimli entitlement override ✅ (2026-07-22)
+
+- Paket kataloğu tek kalıcı yetki kaynağı olarak korundu; tenant planı veya
+  billing projection'ı değiştirilmeden en fazla 30 günlük `allow | deny`
+  istisnası eklendi. Runtime'da gerçekten kapısı bulunan yalnız beş özellik
+  yönetilebilir: tarayıcı bildirimleri, mutfak ekranı, sadakat, gelişmiş
+  raporlar ve gelişmiş tema bölümleri. UI'da etkisiz kalacak sahte override
+  oluşturulamaz.
+- `@garsonless/domain/entitlements`, plan + aktif override için tek
+  `EffectiveFeatureEntitlement` semantiğini taşır. Application command'leri
+  okuma için tüm platform rollerini, mutasyon için yalnız AAL2 `ops` ve
+  `superadmin` rollerini kabul eder; feature/decision/action, 1–30 gün, UUID ve
+  10–1000 karakter gerekçe porttan önce doğrulanır.
+- `20260722170000_tenant_feature_overrides.sql`, public/anon/authenticated
+  erişimi kapalı projection ile üç service-role-only RPC ekledi. Mutasyon DB'de
+  aktif exact-role kimliğini yeniden doğrular, tenant ve override satırını
+  kilitler, request-id replay'ini idempotent işler ve before/after/reason/actor
+  kaydını aynı transaction'da append-only platform audit'e yazar. Revoke veya
+  süre dolumu erişimi otomatik olarak canonical plana döndürür.
+- Platform tenant detayında mevcut/sona ermiş istisnalar salt-okunur görünür;
+  yalnız ops/superadmin geçici açma, kapatma ve erken sonlandırma yapabilir.
+  Dashboard settings, orders/shell push, analytics, theme editor, kitchen
+  launch/session ve tüm loyalty earn/redeem yolları aynı service-role effective
+  entitlement resolver'ına taşındı. Resolver veya projection okunamazsa kapı
+  fail-closed kalır.
+- Migration açık kullanıcı onayıyla yalnız linked DEV'e uygulandı; generated
+  DB tipleri yenilendi ve local/remote geçmiş `20260722170000` dahil eşleşti.
+  PROD/deploy ortamına migration veya config uygulanmadı.
+- Gerçek throwaway runtime matrisinde finance uygulama katmanında reddedildi ve
+  persistence çağrısı **0** kaldı; forged rol, anon RPC ve anon tablo okuması
+  ayrı ayrı `42501` aldı. Free planda loyalty baseline kapalıyken süreli allow
+  kapıyı açtı; aynı request replay'i `duplicate=true` ve audit **1** kaldı.
+  Revoke tekrar kapattı. Pro planda süreli deny kapıyı kapattı; kısa test süresi
+  dolunca erişim otomatik canonical Pro plana döndü. Toplam **3** append-only
+  audit kanıtı korundu; throwaway restaurant ve override projection'ı
+  **0 orphan** ile temizlendi.
+- Statik kapanış: domain **55/55**, application **151/151**, DB **225/225**,
+  dashboard architecture **184/184**, platform-admin architecture **13/13**;
+  ilgili typecheck/lint'ler, dashboard + platform-admin production build ve
+  `git diff --check` temizdir.
+
+### Faz 6.7 — Süreli salt-okunur platform destek görünümü ✅ (2026-07-22)
+
+- Tenant dashboard üyeliği veya owner kaydı üretmeyen, control-plane içinde
+  izole bir destek görünümü eklendi. AAL2 `support`, `ops` ve `superadmin`
+  yalnız doğrulanmış tenant projection'ını en fazla **60 dakika** inceleyebilir;
+  `finance` ve tenant aktörleri bu yetkiyi alamaz. Oturum 15/30/60 dakika,
+  zorunlu 10–1000 karakter gerekçeli ve her zaman aktör kimliğine bağlıdır.
+- Platform tenant detayındaki "İşletmeyi salt okunur incele" akışı ayrı bir
+  `/tenants/[tenantId]/view/[sessionId]` route'una gider. Bu yüzeyde tenant
+  mutasyon action'ı bulunmaz; plan, ödeme, entitlement, kullanıcı, sipariş veya
+  restoran ayarı değiştirilemez. Erken kapatma yalnız control-plane oturumunu
+  sonlandırır.
+- `20260722180000_platform_admin_read_only_impersonation.sql`, public/anon/
+  authenticated erişimi kapalı session tablosu ve read/start/end RPC'lerini
+  ekledi. DB aktif exact-role kimliğini yeniden doğrular, aynı aktör için tek
+  açık oturum uygular, süre dolumunu otomatik `expired` projekte eder ve
+  request-id replay'ini idempotent işler. Başlangıç/bitiş before/after/reason
+  kayıtları aynı transaction'da append-only platform audit'e yazılır.
+  `20260722181000_platform_admin_impersonation_service_cleanup.sql` yalnız
+  service-role test/operasyon temizliği için DELETE grant'i ekler; browser
+  rollerine hiçbir erişim açmaz.
+- Her iki migration açık kullanıcı onayıyla yalnız linked DEV
+  `yxsegwkzyiscrxiwdeuf` projesine uygulandı; local/remote geçmiş
+  `20260722181000` dahil eşleşiyor ve generated tipler yenilendi. PROD/deploy
+  ortamına migration veya config uygulanmadı.
+- Gerçek throwaway DEV matrisinde finance uygulama katmanında reddedildi ve
+  persistence çağrısı **0** kaldı; forged rol, anon RPC ve anon tablo okuması
+  ayrı ayrı `42501` aldı. Oturum başladı, start/end replay'leri
+  `duplicate=true` kaldı, eşzamanlı ikinci oturum reddedildi ve aktör için
+  restaurant membership sayısı **0** oldu. Erken kapatma `ended`, zorlanmış
+  süre sonu `expired`; replay'lerle birlikte toplam **3** immutable audit kaydı
+  oluştu. Throwaway session ve restaurant satırları **0 orphan** ile temizlendi.
+- Kapanış kapıları: domain **55/55**, application **155/155**, DB **230/230**,
+  platform-admin architecture **14/14**; workspace typecheck **11/11**,
+  platform-admin lint/build ve `git diff --check` temizdir.
+
+### Faz 6.8 — Global hata merkezi ✅ (2026-07-23)
+
+- Platform yöneticisi için tenantlar arası salt-okunur hata merkezi eklendi.
+  Görünüm uygulama, seviye ve 1 saat/24 saat/7 gün/30 gün penceresiyle
+  filtrelenir; toplam olay, tekilleştirilmiş fingerprint, kritik fingerprint ve
+  etkilenen tenant sayısını gösterir. Tüm AAL2 platform rolleri mevcut
+  `tenants.read` yetkisiyle okuyabilir; tenant kullanıcıları bu control-plane
+  yüzeyine erişemez.
+- Yeni domain sözleşmesi uygulama (`dashboard | menu | kitchen |
+  platform-admin | worker`), seviye (`warning | error | critical`), zaman
+  penceresi ve makine-kaynağı sözlüğünü fail-closed tutar. Application query
+  kapalı filtreleri persistence öncesi doğrular; altyapı ayrıntıları sabit
+  güvenli hataya çöker.
+- `20260722190000_platform_error_events.sql`, ham SQL/provider mesajı, stack,
+  payload veya müşteri PII tutmayan service-role-only event tablosu; deterministik
+  `app + source + publicCode` fingerprint'i; güvenli aggregate read RPC'si ve
+  30 günlük retention job'u ekler. Dashboard anomalik read-model gözlemleri bu
+  projection'a `MAS-SVC-503` ile aktarılır; hızlı/başarılı sorgular hata olayı
+  üretmez.
+- Statik kapılar temiz: domain **57/57**, application **159/159**, DB
+  **237/237**, platform-admin architecture **15/15**, workspace typecheck
+  **11/11**, platform-admin lint/build ve `git diff --check`.
+- `20260722190000_platform_error_events.sql` yalnız linked DEV'e uygulandı;
+  local/remote migration geçmişi eşleşiyor ve generated DB tipleri yenilendi.
+  Gerçek runtime matrisi aynı fingerprint'in iki olayda tek gruba düştüğünü
+  (`groupedOccurrences=2`), en yüksek severity'nin `critical`, etkilenen tenant
+  sayısının `1` ve fingerprint'in deterministik olduğunu doğruladı. Anon RPC
+  okuma/yazma ile doğrudan tablo okuması `42501`, geçersiz serbest hata girdisi
+  `22023` aldı; güvenli projection yasak alan içermedi ve temizlik sonrası kalan
+  satır sayısı `0` oldu. PROD/deploy ortamına hiçbir değişiklik uygulanmadı.
+
+### Faz 6.9 — Superadmin KVKK veri operasyonları ✅ (2026-07-23)
+
+- Tenant detayına yalnız AAL2 doğrulanmış `superadmin` ve `data.manage`
+  yetkisiyle açılan veri operasyonları paneli eklendi. Export ve silme
+  komutları server-generated request ID, zorunlu gerekçe ve silme için açık
+  `KVKK SİL` doğrulaması ister; gerekçe alanında PII tutulmaması UI'da ayrıca
+  belirtilir. Finance/ops/support ve tenant aktörleri application katmanında
+  persistence çağrısından önce fail-closed reddedilir.
+- Veri export'u tarayıcıya `no-store` JSON attachment olarak geçici döner;
+  operasyon tablosunda export içeriği veya müşteri PII'si değil yalnız güvenli
+  sayım özeti, aktör, zaman ve gerekçe kanıtı kalır. Aynı request ID replay'i
+  ikinci bir export/silme veya audit satırı üretmez.
+- Tenant kapsamlı silme müşteri bağlantıları, consent, loyalty ve kampanya
+  verisini kaldırır; sipariş ve faturalama kayıtlarını yasal/operasyonel kanıt
+  olarak koruyup müşteri bağını ayırır. Global customer kimliği başka tenant
+  tarafından kullanılıyorsa korunur, son tenant referansı kalkınca anonim hale
+  gelir. İlgisiz guest payment-share ve message-event kayıtları forward-fix ile
+  silme kapsamının dışında tutuldu.
+- `20260722200000_platform_tenant_privacy_operations.sql` ve kapsam düzeltmesi
+  `20260722201000_platform_tenant_privacy_erasure_scope.sql` yalnız linked DEV
+  `yxsegwkzyiscrxiwdeuf` projesine uygulandı; generated DB tipleri yenilendi.
+  Public/anon/authenticated tablo ve RPC erişimleri kapalıdır. PROD/deploy
+  ortamına migration veya config uygulanmadı.
+- Gerçek throwaway DEV matrisinde application reddi persistence çağrısını
+  **0** bıraktı; anon RPC/tablo ve forged-role denemeleri `42501`, geçersiz
+  girdi `22023` aldı. Export istenen PII'yi geçici payload'da içerirken kalıcı
+  audit kanıtı PII içermedi. Silme replay'i `duplicate=true`, operation ve
+  audit sayısı **1** kaldı; tenant link/consent/loyalty sayıları **0**, sipariş
+  korunmuş ve customer bağı ayrılmış, billing satırı **1** olarak korunmuştur.
+  Paylaşılan kimlik son tenant referansına kadar korundu, ardından anonimleşti.
+  İki throwaway tenant ve müşteri dahil değiştirilebilir test verisi **0
+  orphan** ile temizlendi; append-only audit kanıtı tasarım gereği korundu.
+- Kapanış kapıları: domain **59/59**, application **162/162**, DB **244/244**,
+  platform-admin architecture **16/16**, workspace typecheck **11/11** ve tam
+  workspace production build temizdir. Workspace lint **0 error** ile geçti
+  (yalnız iki mevcut marketing `<img>` uyarısı); `git diff --check` temizdir.
