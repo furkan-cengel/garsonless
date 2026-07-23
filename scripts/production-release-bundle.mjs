@@ -11,7 +11,11 @@ import { buildRuntimeManifest, loadRuntimeSpec } from './runtime-deployment.mjs'
 import { buildSmokeManifest, loadSmokeSpec } from './business-smoke.mjs'
 import { loadReleasePolicy, validateReleasePolicy } from './production-release-decision.mjs'
 import { buildBackupRestoreEvidenceTemplate } from './production-release-handoff.mjs'
-import { RELEASE_BUNDLE_ARTIFACT_NAMES, REQUIRED_OPERATOR_EVIDENCE } from './production-release-contract.mjs'
+import {
+  CONDITIONAL_OPERATOR_EVIDENCE,
+  RELEASE_BUNDLE_ARTIFACT_NAMES,
+  REQUIRED_OPERATOR_EVIDENCE,
+} from './production-release-contract.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const DEV_PROJECT_REF = 'yxsegwkzyiscrxiwdeuf'
@@ -118,6 +122,7 @@ export function buildReleaseBundle({
     rehearsalArtifactSha256: rehearsal.artifactSha256,
     backupRestoreEvidenceSha256: null,
     releaseCandidateEvidenceSha256: null,
+    releaseExecutionEvidenceSha256: null,
     enabledCapabilities: Object.fromEntries(Object.keys(policy.capabilityScopes).map((name) => [name, false])),
     approvals: Object.fromEntries(policy.requiredApprovals.map((name) => [name, false])),
   }
@@ -147,6 +152,7 @@ export function buildReleaseBundle({
     productionMutationPerformed: false,
     artifacts,
     requiredOperatorEvidence: [...REQUIRED_OPERATOR_EVIDENCE],
+    conditionalOperatorEvidence: [...CONDITIONAL_OPERATOR_EVIDENCE],
   }
   return { files, manifest: { ...manifest, artifactSha256: sha256(JSON.stringify(manifest)) } }
 }
@@ -205,6 +211,7 @@ export function verifyReleaseBundle(input) {
     || attestation.rehearsalArtifactSha256 !== rehearsal.artifactSha256
     || attestation.backupRestoreEvidenceSha256 !== null
     || attestation.releaseCandidateEvidenceSha256 !== null
+    || attestation.releaseExecutionEvidenceSha256 !== null
     || attestation.capturedAt !== null
     || Object.values(attestation.approvals ?? {}).some((value) => value !== false)
   ) {

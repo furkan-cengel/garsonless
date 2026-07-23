@@ -3230,3 +3230,62 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   build'i geçti. Yalnız önceden var olan iki marketing `<img>` lint uyarısı
   sürüyor; hata yok. Gerçek PROD artifact envanteri, bağlantı, deploy veya
   mutation yapılmadı.
+
+### Faz 7.10 — Yeniden başlatılabilir release execution journal ✅ (2026-07-23)
+
+- `production-release-execution.mjs`, doğrulanmış `go-to-deploy` kararı ile
+  exact bundle kimliğine bağlı yedi adımlı production execution planı üretir.
+  Değişiklik penceresi, migration, Edge runtime, uygulamalar, runtime health,
+  business smoke ve rollback hazırlığı adımları sıra dışı çalıştırılamaz.
+- Her deneme 0600 izinli, write-once bir receipt'tir; önceki receipt hash'ini,
+  benzersiz harici evidence SHA-256 değerini ve monoton zamanı taşır. Başarısız
+  adım journal'ı aynı adımın sonraki denemesinde duraklatır; receipt silme veya
+  üzerine yazma ile geçmiş değiştirilemez. Varsayılan execution penceresi 180
+  dakikadır.
+- Tamamlanmış execution evidence yalnız bütün receipt nesneleri, self-hash'ler
+  ve zincir tekrar doğrulanınca oluşur. Journal aracı deploy/migration yapmaz;
+  `toolProductionMutationPerformed: false` ile yalnız operatörün dışarıda
+  gerçekleştirdiği ve kanıtladığı mutating adımları kaydeder. Eksik, eski,
+  sıra dışı veya kurcalanmış journal `MAS-DEP-039/040/041` ile fail-closed
+  reddedilir.
+- `post-deploy` release kararı artık exact pre-deploy kararını, tamamlanmış
+  execution evidence hash'ini ve bunu bağlayan operatör attestation'ını ister.
+  Pre-deploy aşamasında execution alanı zorunlu olarak `null`; post-deploy
+  attestation zamanı execution tamamlanma zamanından eski olamaz. Release
+  bundle'ın operatör evidence envanteri yedi dosyaya çıktı.
+- Hedefli execution **6/6**, release-decision **15/15**, candidate **6/6** ve
+  bundle **8/8** olmak üzere production release regresyon matrisi **35/35**
+  geçti. Tam workspace CI ve beş Next.js production build'i temiz tamamlandı.
+  Yalnız önceden var olan iki marketing `<img>` lint uyarısı sürüyor; hata yok.
+  Gerçek PROD bağlantısı, deploy, migration veya mutation yapılmadı.
+
+### Faz 7.11 — Başarısız release recovery ve incident kapanış zinciri ✅ (2026-07-23)
+
+- `production-release-recovery.mjs`, yalnız son execution receipt'i `failed`
+  olan tamamlanmamış bir release için ayrı bir recovery journal'ı başlatır.
+  Mutation öncesi hata `abort-only`; migration, Edge veya uygulama adımına
+  dokunulmuş hata `rollback-required` olur. Geri alma planı yalnız gerçekten
+  denenmiş katmanlardan türetilir ve uygulama → Edge → veritabanı ters
+  sırasını korur; veritabanı adımı down migration varsaymaz.
+- Abort kararı, incident açılışı, koşullu trafik/rollback adımları, runtime ve
+  business-smoke tekrarları, incident kapanışı ve change-window kapanışı 0600
+  izinli write-once/hash-zincirli receipt'lerle kaydedilir. Başarısız recovery
+  denemesi geçmişi silmeden aynı adımın artan attempt'iyle devam eder; azami
+  recovery penceresi 120 dakikadır.
+- Recovery dizini başarısız execution planı/receipt'leri ile frozen candidate
+  evidence'ının 0600 kaynak kopyalarını taşır. Her `status`, `record` ve
+  `verify` çağrısı planı bu kaynaklardan yeniden üretir; kaynak, sıra, hash,
+  zaman veya incident closure drift'i `MAS-DEP-042/043/044` ile fail-closed
+  durur.
+- Final recovery evidence bütün plan ve receipt zincirini taşır; sonucu yalnız
+  `rolled-back` veya `aborted-no-mutation` olabilir ve daima
+  `releaseAccepted: false` kalır. Araç gerçek rollback/restore/trafik değişimi
+  yapmaz; yalnız dış işlemlerin secretsiz SHA-256 kanıtlarını kaydeder ve
+  `toolProductionMutationPerformed: false` bildirir.
+- Bundle sözleşmesi başarılı release'in yedi zorunlu operatör kanıtına ek
+  olarak `prod-release-recovery-evidence.json` dosyasını koşullu evidence diye
+  listeler. Recovery **6/6**, execution **6/6**, candidate **6/6**, decision
+  **16/16** ve bundle **8/8** olmak üzere release regresyon matrisi **42/42**
+  geçti. Tam workspace CI ve beş Next.js production build'i temiz tamamlandı;
+  yalnız önceden var olan iki marketing `<img>` uyarısı sürüyor. Gerçek PROD
+  bağlantısı, deploy, migration, rollback veya başka bir mutation yapılmadı.

@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
+  CONDITIONAL_OPERATOR_EVIDENCE,
   RELEASE_APPLICATIONS,
   RELEASE_BUNDLE_ARTIFACT_NAMES,
   RELEASE_EDGE_FUNCTIONS,
@@ -49,7 +50,8 @@ function verifySourceBindings({ projectRef, releaseEvidence, rehearsal, bundleMa
   const bundleKeys = [
     'schemaVersion', 'kind', 'projectRef', 'commitSha', 'releaseArtifactSha256',
     'rehearsalArtifactSha256', 'policySha256', 'productionMutationPerformed',
-    'artifacts', 'requiredOperatorEvidence', 'artifactSha256',
+    'artifacts', 'requiredOperatorEvidence', 'conditionalOperatorEvidence',
+    'artifactSha256',
   ]
   const artifactNames = Array.isArray(bundleManifest?.artifacts)
     ? bundleManifest.artifacts.map((item) => item?.name).sort()
@@ -81,6 +83,7 @@ function verifySourceBindings({ projectRef, releaseEvidence, rehearsal, bundleMa
     || !safeArtifacts
     || JSON.stringify(artifactNames) !== JSON.stringify([...RELEASE_BUNDLE_ARTIFACT_NAMES].sort())
     || JSON.stringify(bundleManifest.requiredOperatorEvidence) !== JSON.stringify(REQUIRED_OPERATOR_EVIDENCE)
+    || JSON.stringify(bundleManifest.conditionalOperatorEvidence) !== JSON.stringify(CONDITIONAL_OPERATOR_EVIDENCE)
   ) {
     throw candidateError('MAS-DEP-037', 'Release candidate kaynak bağları uyuşmuyor.')
   }
