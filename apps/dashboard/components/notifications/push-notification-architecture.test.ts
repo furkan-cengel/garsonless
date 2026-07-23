@@ -23,7 +23,7 @@ test('orders avoid a second local notification after durable subscription', () =
 test('subscription server action re-checks membership and paid entitlement', () => {
   const action = source('../../lib/actions/push-subscriptions.ts')
   assert.match(action, /assertMember\(restaurantId\)/)
-  assert.match(action, /canUseFeature\(plan, 'browser_notifications'\)/)
+  assert.match(action, /canRestaurantUseFeature\(\{ restaurantId, plan, feature: 'browser_notifications' \}\)/)
   assert.match(action, /endpointHash/)
 })
 

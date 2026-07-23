@@ -7,7 +7,7 @@ import NavigationPendingOverlay from '../../../components/layout/NavigationPendi
 import { getRestaurantById, getRestaurantsForUser } from '../../../lib/queries/restaurants'
 import { getUserRestaurantAccess } from '../../../lib/auth/access'
 import { createDashboardServerClient } from '../../../lib/supabase-server'
-import { canUseFeature } from '@garsonless/domain/entitlements'
+import { canRestaurantUseFeature } from '@garsonless/db/server'
 
 interface Props {
   children: ReactNode
@@ -27,6 +27,12 @@ export default async function RestaurantLayout({ children, params }: Props) {
 
   if (!restaurant || !access) notFound()
 
+  const browserNotificationsEnabled = await canRestaurantUseFeature({
+    restaurantId,
+    plan: restaurant.plan,
+    feature: 'browser_notifications',
+  })
+
   const userEmail = authData.user?.email ?? ''
   const local = userEmail.split('@')[0] ?? ''
   const parts = local.split(/[._-]/)
@@ -43,7 +49,7 @@ export default async function RestaurantLayout({ children, params }: Props) {
       userInitials={userInitials || 'U'}
       permissions={access.permissions}
       isOwner={access.isOwner}
-      browserNotificationsEnabled={canUseFeature(restaurant.plan, 'browser_notifications')}
+      browserNotificationsEnabled={browserNotificationsEnabled}
     >
       <NavigationProgress />
       <NavigationPendingOverlay />

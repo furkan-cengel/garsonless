@@ -343,7 +343,7 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
 /* ============================================================
    SECTION: LOYALTY (wrapper)
    ============================================================ */
-function LoyaltySectionWrapper({ restaurant }: { restaurant: Tables<'restaurants'> }) {
+function LoyaltySectionWrapper({ restaurant, featureAllowed }: { restaurant: Tables<'restaurants'>; featureAllowed: boolean }) {
   const s = restaurant.settings as Record<string, unknown>
   const raw = (s['loyalty'] ?? {}) as Record<string, unknown>
   const str = (k: string, d: string) => (typeof raw[k] === 'string' ? (raw[k] as string) : d)
@@ -356,7 +356,7 @@ function LoyaltySectionWrapper({ restaurant }: { restaurant: Tables<'restaurants
   return (
     <LoyaltySection
       restaurantId={restaurant.id}
-      plan={restaurant.plan}
+      featureAllowed={featureAllowed}
       initial={{
         stamp_enabled: bool('stamp_enabled', false),
         stamp_goal: numv('stamp_goal', 10),
@@ -381,19 +381,19 @@ function LoyaltySectionWrapper({ restaurant }: { restaurant: Tables<'restaurants
    ============================================================ */
 function KitchenSectionWrapper({
   restaurantId,
-  plan,
+  featureAllowed,
   hasKitchenAccess,
   kitchenStations,
 }: {
   restaurantId: string
-  plan: Tables<'restaurants'>['plan']
+  featureAllowed: boolean
   hasKitchenAccess: boolean
   kitchenStations: Tables<'kitchen_stations'>[]
 }) {
   return (
     <KitchenAccessSection
       restaurantId={restaurantId}
-      plan={plan}
+      featureAllowed={featureAllowed}
       initialHasAccess={hasKitchenAccess}
       initialStations={kitchenStations}
     />
@@ -466,12 +466,18 @@ interface Props {
   billingPlanPrices: BillingPlanPrices
   initialSection?: SectionId
   billingCheckoutState: 'success' | null
+  featureAccess: {
+    loyalty: boolean
+    kitchenDisplay: boolean
+    browserNotifications: boolean
+  }
 }
 
 export default function SettingsForm({
   restaurant, user, hasKitchenAccess, kitchenStations, securityEvents,
   isOwner, teamMembers, teamAuditEvents, billing, billingLoadError,
   billingPlanPrices, initialSection, billingCheckoutState,
+  featureAccess,
 }: Props) {
   const { setNavigationGuard } = useShell()
   // A non-owner 'settings' member lands on a section they can see (workspace is owner-only).
@@ -525,8 +531,8 @@ export default function SettingsForm({
     if (!canSeeSection(active, isOwner)) return null
     switch (active) {
       case 'workspace':     return <WorkspaceSection restaurant={restaurant} />
-      case 'loyalty':       return <LoyaltySectionWrapper restaurant={restaurant} />
-      case 'kitchen':       return <KitchenSectionWrapper restaurantId={restaurant.id} plan={restaurant.plan} hasKitchenAccess={hasKitchenAccess} kitchenStations={kitchenStations} />
+      case 'loyalty':       return <LoyaltySectionWrapper restaurant={restaurant} featureAllowed={featureAccess.loyalty} />
+      case 'kitchen':       return <KitchenSectionWrapper restaurantId={restaurant.id} featureAllowed={featureAccess.kitchenDisplay} hasKitchenAccess={hasKitchenAccess} kitchenStations={kitchenStations} />
       case 'profile':       return <ProfileSection user={user} />
       case 'team':          return isOwner ? <TeamSection restaurantId={restaurant.id} ownerEmail={user?.email ?? ''} members={teamMembers} auditEvents={teamAuditEvents} /> : null
       case 'store':         return <StoreSection restaurant={restaurant} />
@@ -534,7 +540,7 @@ export default function SettingsForm({
       case 'tax':           return <TaxSection restaurant={restaurant} />
       case 'languages':     return <LanguagesSection />
       case 'payments':      return <PaymentsSection restaurantId={restaurant.id} />
-      case 'notifications': return <NotificationsSection restaurant={restaurant} />
+      case 'notifications': return <NotificationsSection restaurant={restaurant} featureAllowed={featureAccess.browserNotifications} />
       case 'api':           return <ApiSection />
       case 'security':      return <SecuritySection events={securityEvents} userEmail={user?.email ?? ''} authProvider={typeof user?.app_metadata?.provider === 'string' ? user.app_metadata.provider : null} />
       case 'billing':       return <BillingSection

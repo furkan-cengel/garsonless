@@ -8,6 +8,7 @@ import { slugify } from '../utils'
 import type { Tables } from '@garsonless/db/types'
 import { patchRestaurantSettings } from '@garsonless/application/restaurants'
 import {
+  canRestaurantUseFeature,
   createKitchenSettingsCommandPort,
   createRestaurantSettingsPort,
 } from '@garsonless/db/server'
@@ -15,7 +16,6 @@ import {
   reorderKitchenStations as reorderKitchenStationsCommand,
   rotateKitchenAccessCredential,
 } from '@garsonless/application/kitchen'
-import { canUseFeature } from '@garsonless/domain'
 import { sanitizeTiers } from '@garsonless/domain/loyalty'
 import { assertOwner, getUserRestaurantAccess } from '../auth/access'
 import type { DashboardActionFailure } from '../server-action-error'
@@ -254,7 +254,7 @@ export async function saveNotificationPreferences(
   const restaurantPlan = (restaurant as unknown as { plan?: unknown }).plan
   if (
     (parsed.data.prefs.newOrderPush || parsed.data.prefs.serviceRequestPush)
-    && !canUseFeature(restaurantPlan, 'browser_notifications')
+    && !await canRestaurantUseFeature({ restaurantId, plan: restaurantPlan, feature: 'browser_notifications' })
   ) {
     return dashboardActionFailure('PLAN_REQUIRED', {
       operation: 'notifications.settings.save',
@@ -327,7 +327,11 @@ export async function saveLoyaltyConfig(
     .select('plan')
     .eq('id', restaurantId)
     .maybeSingle()
-  if (!restaurant || !canUseFeature((restaurant as { plan?: unknown }).plan, 'loyalty')) {
+  if (!restaurant || !await canRestaurantUseFeature({
+    restaurantId,
+    plan: (restaurant as { plan?: unknown }).plan,
+    feature: 'loyalty',
+  })) {
     return { error: 'Sadakat programı Pro paketiyle kullanılabilir.' }
   }
 

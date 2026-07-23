@@ -9,7 +9,7 @@ import {
 } from '../../../../lib/queries/analytics'
 import AnalyticsClient from '../../../../components/analytics/AnalyticsClient'
 import { requireSection } from '../../../../lib/auth/access'
-import { canUseFeature } from '@garsonless/domain'
+import { canRestaurantUseFeature } from '@garsonless/db/server'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -30,6 +30,11 @@ export default async function AnalyticsPage({ params }: Props) {
     getPaymentBreakdown(restaurantId, 'week'),
   ])
   if (!restaurant) notFound()
+  const hasAdvancedAnalytics = await canRestaurantUseFeature({
+    restaurantId,
+    plan: restaurant.plan,
+    feature: 'analytics_advanced',
+  })
 
   return (
     <AnalyticsClient
@@ -43,7 +48,7 @@ export default async function AnalyticsPage({ params }: Props) {
       paymentBreakdown={paymentBreakdown}
       productReport={[]}
       isOwner={access.isOwner}
-      hasAdvancedAnalytics={canUseFeature(restaurant.plan, 'analytics_advanced')}
+      hasAdvancedAnalytics={hasAdvancedAnalytics}
     />
   )
 }

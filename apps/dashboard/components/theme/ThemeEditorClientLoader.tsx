@@ -2,14 +2,13 @@
 
 import dynamic from 'next/dynamic'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
-import type { RestaurantPlan } from '@garsonless/domain/entitlements'
 
 interface Props {
   restaurantId: string
   restaurantSlug: string
   restaurantName: string
   restaurantLogoUrl: string | null
-  restaurantPlan: RestaurantPlan
+  canAddAdvancedSections: boolean
   templateId: string
   initialTheme: GarsonlessTheme
   menuCategories: Array<{ id: string; name: string; parentId?: string | null }>

@@ -3,8 +3,8 @@
 import { createHash } from 'node:crypto'
 import { headers } from 'next/headers'
 import { z } from 'zod'
-import { canUseFeature } from '@garsonless/domain/entitlements'
 import {
+  canRestaurantUseFeature,
   deleteDashboardPushEndpoint,
   upsertDashboardPushSubscription,
 } from '@garsonless/db/server'
@@ -60,7 +60,7 @@ async function authorizedPushContext(restaurantId: string) {
     return { ok: false as const, failure: dashboardAccessFailure('Not authorized', 'notifications.push.authorize') }
   }
   const plan = (restaurant as unknown as { plan: unknown }).plan
-  if (!canUseFeature(plan, 'browser_notifications')) {
+  if (!await canRestaurantUseFeature({ restaurantId, plan, feature: 'browser_notifications' })) {
     return { ok: false as const,
       failure: dashboardActionFailure('PLAN_REQUIRED', {
         operation: 'notifications.push.authorize',

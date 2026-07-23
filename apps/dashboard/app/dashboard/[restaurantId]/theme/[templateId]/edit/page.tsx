@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { readThemeForEditor } from '@garsonless/application/themes'
-import { createThemeApplicationPort } from '@garsonless/db/server'
+import { canRestaurantUseFeature, createThemeApplicationPort } from '@garsonless/db/server'
 import { getThemeEditorMenuRefs } from '../../../../../../lib/queries/theme-editor'
 import ThemeEditorClientLoader from '../../../../../../components/theme/ThemeEditorClientLoader'
 import { assertAccess, requireSection } from '../../../../../../lib/auth/access'
@@ -31,6 +31,11 @@ export default async function ThemeEditPage({ params }: Props) {
   const { restaurant, theme: initialTheme } = themeResult.value
   const menuCategories = menuRefs.categories
   const menuItems = menuRefs.items
+  const canAddAdvancedSections = await canRestaurantUseFeature({
+    restaurantId,
+    plan: restaurant.plan,
+    feature: 'theme_advanced_sections',
+  })
 
   return (
     <ThemeEditorClientLoader
@@ -38,7 +43,7 @@ export default async function ThemeEditPage({ params }: Props) {
       restaurantSlug={restaurant.slug}
       restaurantName={restaurant.name}
       restaurantLogoUrl={restaurant.logoUrl}
-      restaurantPlan={restaurant.plan}
+      canAddAdvancedSections={canAddAdvancedSections}
       templateId={templateId}
       initialTheme={initialTheme}
       menuCategories={menuCategories.map((category) => ({

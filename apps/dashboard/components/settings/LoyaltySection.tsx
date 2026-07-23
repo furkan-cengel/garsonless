@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { saveLoyaltyConfig, getRewardItemChoices } from '../../lib/actions/restaurant'
-import { canUseFeature } from '@garsonless/domain'
 import {
   MAX_TIERS,
   TIER_PERK_DEFAULTS,
@@ -314,14 +313,14 @@ function Perk({ label, children }: { label: string; children: React.ReactNode })
 
 export default function LoyaltySection({
   restaurantId,
-  plan,
+  featureAllowed,
   initial,
 }: {
   restaurantId: string
-  plan: unknown
+  featureAllowed: boolean
   initial: LoyaltyConfig
 }) {
-  const hasLoyaltyAccess = canUseFeature(plan, 'loyalty')
+  const hasLoyaltyAccess = featureAllowed
   const [cfg, setCfg] = useState<LoyaltyConfig>(initial)
   const [rewardChoices, setRewardChoices] = useState<Array<{ id: string; name: string }>>([])
   const [error, setError] = useState('')

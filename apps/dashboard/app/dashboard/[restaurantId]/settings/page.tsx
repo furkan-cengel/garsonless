@@ -5,6 +5,7 @@ import { getDashboardAuthenticatedUser, getDashboardFeatureContext } from '../..
 import { readDashboardSettings } from '@garsonless/application/settings'
 import { readSubscriptionBillingSettings } from '@garsonless/application/billing'
 import {
+  canRestaurantUseFeature,
   createDashboardSettingsReadModelPort,
   createSubscriptionBillingSettingsReadPort,
 } from '@garsonless/db/server'
@@ -32,11 +33,14 @@ export default async function SettingsPage({ params, searchParams }: Props) {
       permissions: [...actor.permissions] as Section[],
     }))
   }
-  const [settings, billing] = await Promise.all([
+  const [settings, billing, loyaltyAccess, kitchenDisplayAccess, browserNotificationsAccess] = await Promise.all([
     readDashboardSettings(actor, restaurantId, createDashboardSettingsReadModelPort()),
     actor.isOwner
       ? readSubscriptionBillingSettings(actor, restaurantId, createSubscriptionBillingSettingsReadPort())
       : Promise.resolve(null),
+    canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'loyalty' }),
+    canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'kitchen_display' }),
+    canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'browser_notifications' }),
   ])
   if (!settings.ok) throw new Error(settings.error)
 
@@ -55,6 +59,11 @@ export default async function SettingsPage({ params, searchParams }: Props) {
       billingPlanPrices={readBillingPlanPrices()}
       initialSection={actor.isOwner && query.section === 'billing' ? 'billing' : undefined}
       billingCheckoutState={query.checkout === 'success' ? 'success' : null}
+      featureAccess={{
+        loyalty: loyaltyAccess,
+        kitchenDisplay: kitchenDisplayAccess,
+        browserNotifications: browserNotificationsAccess,
+      }}
     />
   )
 }

@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react'
 import type { Tables } from '@garsonless/db/types'
-import { canUseFeature } from '@garsonless/domain'
 import {
   createKitchenStation,
   generateKitchenToken,
@@ -13,15 +12,15 @@ import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state
 
 interface Props {
   restaurantId: string
-  plan: Tables<'restaurants'>['plan']
+  featureAllowed: boolean
   initialHasAccess?: boolean
   initialStations?: Tables<'kitchen_stations'>[]
 }
 
 const STATION_COLORS = ['#2e7d52', '#c8922a', '#2563eb', '#d9480f', '#8b5cf6', '#0f766e']
 
-export default function KitchenAccessSection({ restaurantId, plan, initialHasAccess = false, initialStations = [] }: Props) {
-  const canUseKitchenDisplay = canUseFeature(plan, 'kitchen_display')
+export default function KitchenAccessSection({ restaurantId, featureAllowed, initialHasAccess = false, initialStations = [] }: Props) {
+  const canUseKitchenDisplay = featureAllowed
   const [hasAccess, setHasAccess] = useState(initialHasAccess)
   const [error, setError] = useState('')
   const [stations, setStations] = useState(() => [...initialStations].sort((a, b) => a.position - b.position))

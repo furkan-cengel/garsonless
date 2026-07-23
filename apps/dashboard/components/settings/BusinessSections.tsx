@@ -22,7 +22,6 @@ import {
 import { readNotificationPrefs, type NotificationPrefs } from '../../lib/notification-prefs'
 import { readLateThresholdMin, clampLateThreshold, LATE_THRESHOLD_MIN_MIN, LATE_THRESHOLD_MIN_MAX } from '../../lib/orders-prefs'
 import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
-import { canUseFeature } from '@garsonless/domain/entitlements'
 import { useDashboardPushSubscription } from '../notifications/useDashboardPushSubscription'
 
 /* ── PAYMENTS ─────────────────────────────────────── */
@@ -373,8 +372,8 @@ function EmailPrefsBlock({ restaurantId }: { restaurantId: string }) {
   )
 }
 
-export function NotificationsSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
-  const browserNotificationsEnabled = canUseFeature(restaurant.plan, 'browser_notifications')
+export function NotificationsSection({ restaurant, featureAllowed }: { restaurant: Tables<'restaurants'>; featureAllowed: boolean }) {
+  const browserNotificationsEnabled = featureAllowed
   const device = useDashboardPushSubscription(restaurant.id, browserNotificationsEnabled)
   const [prefs, setPrefs] = useState<NotificationPrefs>(() => ({
     ...readNotificationPrefs(restaurant.settings),

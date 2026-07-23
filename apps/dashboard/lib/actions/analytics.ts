@@ -26,7 +26,7 @@ import type {
 } from '../queries/analytics'
 import { assertAccess } from '../auth/access'
 import { createDashboardServerClient } from '../supabase-server'
-import { canUseFeature } from '@garsonless/domain'
+import { canRestaurantUseFeature } from '@garsonless/db/server'
 
 const EMPTY_CANCELLATIONS: CancellationReport = { count: 0, lostAmount: 0, allOrders: 0, rate: 0, topItems: [], trend: [], deltaCount: 0, deltaLost: 0, deltaRate: 0 }
 const EMPTY_ABNORMAL: AbnormalCloseReport = { count: 0, unpaidTotal: 0, rows: [], deltaCount: 0, deltaUnpaid: 0 }
@@ -83,7 +83,12 @@ async function hasAdvancedAnalyticsEntitlement(restaurantId: string): Promise<bo
     .select('plan')
     .eq('id', restaurantId)
     .maybeSingle()
-  return Boolean(restaurant && canUseFeature((restaurant as { plan?: unknown }).plan, 'analytics_advanced'))
+  if (!restaurant) return false
+  return canRestaurantUseFeature({
+    restaurantId,
+    plan: (restaurant as { plan?: unknown }).plan,
+    feature: 'analytics_advanced',
+  })
 }
 
 export async function fetchAnalyticsData(restaurantId: string, range: string): Promise<AnalyticsPayload> {
