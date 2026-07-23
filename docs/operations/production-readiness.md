@@ -16,8 +16,12 @@ hiçbir Supabase projesine bağlanmaz, migration uygulamaz ve secret değerlerin
 | `MAS-DEP-005` | Zayıf/kısa secret |
 | `MAS-DEP-006` | Geçersiz argüman veya kapalı sözleşme değeri |
 | `MAS-DEP-007` | Çakışan migration timestamp'i |
+| `MAS-DEP-008` | Remote geçmiş append-only local zincirle uyuşmuyor |
+| `MAS-DEP-009` | Deploy sonrası remote'da eksik migration var |
+| `MAS-DEP-010` | Remote kanıt metadata'sı eksik veya okunamıyor |
 | `MAS-DEP-W01` | Capability bilinçli olarak bu turda kapalı |
 | `MAS-DEP-W02` | Remote migration geçmişi ayrıca doğrulanmalı |
+| `MAS-DEP-W03` | Deploy planında uygulanmayı bekleyen migration var |
 
 ## App preflight
 
@@ -82,6 +86,42 @@ olarak açıkça ertelenir; sessizce etkin kabul edilmez.
    outbox/inbox/e-posta fan-out ve platform AAL2 smoke matrisi çalıştırılır.
 8. Hata merkezi, dead-letter/outbox gecikmesi, billing reconciliation ve
    dunning sayaçları gözlenir; başarısızlıkta rollout durdurulur.
+
+## Migration release manifesti ve drift kanıtı
+
+Release adayı sabitlendikten sonra deterministik migration manifesti üretilir.
+Manifest SQL içeriğinin SHA-256 değerini de taşıdığı için aynı version altında
+dosya değiştirilmesi release artifact karşılaştırmasında görünür olur:
+
+```bash
+corepack pnpm prod:migration-manifest -- --output /tmp/masabu-migrations.json
+```
+
+Remote kontrol ağ erişimi veya migration mutation'ı yapmaz. Operatör doğru
+linked PROD projesinde `supabase migration list` çıktısını alır ve kanıta
+secret olmayan iki metadata satırı ekler:
+
+```text
+# masabu-project-ref: <PROD_PROJECT_REF>
+# masabu-captured-at: 2026-07-23T12:00:00Z
+   Local          | Remote         | Time (UTC)
+   ... supabase migration list çıktısı ...
+```
+
+Deploy öncesinde remote geçmiş local zincirin append-only prefix'i olmalıdır;
+bekleyen migration'lar `MAS-DEP-W03` ile plan olarak listelenir:
+
+```bash
+corepack pnpm prod:migration-drift -- \
+  --remote-list /tmp/prod-migration-list.txt \
+  --project-ref <PROD_PROJECT_REF> \
+  --mode pre-deploy
+```
+
+Migration uygulandıktan sonra aynı kontrol `--mode post-deploy` ile tekrar
+alınır. Bu mod local/remote tam eşit değilse `MAS-DEP-009` ile başarısız olur.
+Yanlış/DEV project ref, remote-only version, sırası değişmiş geçmiş veya farklı
+local snapshot fail-closed reddedilir. Bu araç migration uygulamaz.
 
 ## Şimdiki açık blokajlar
 

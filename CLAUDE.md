@@ -3022,3 +3022,28 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   monorepo production build temizdir. Yalnız daha önce var olan iki marketing
   `<img>` performans uyarısı devam eder. PROD ortamında hiçbir mutation,
   migration, secret veya deploy işlemi yapılmadı.
+
+### Faz 7.2 — Migration release manifesti ve drift kapısı ✅ (2026-07-23)
+
+- `pnpm prod:migration-manifest`, sıralı local migration zincirini dosya ve
+  içerik SHA-256 değerleriyle deterministik bir release artifact'ına çevirir.
+  Mevcut **110** migration için aynı çalışma ağacında tekrarlanan üretimler aynı
+  aggregate SHA-256 değerini verir; aynı version altındaki SQL değişikliği de
+  artifact karşılaştırmasında görünür olur.
+- `pnpm prod:migration-drift`, operatörün sağladığı `supabase migration list`
+  kanıtını expected production project ref, capture zamanı ve local release
+  manifestiyle fail-closed doğrular. Kanıtın doğru PROD projesinden geldiği
+  metadata ile bağlanır; DEV/yanlış proje, boş/okunamayan çıktı, duplicate,
+  sırası bozulmuş, remote-only veya farklı local snapshot geçmişi reddedilir.
+- `pre-deploy` modu remote geçmişin local zincirin append-only prefix'i
+  olmasını ister ve bekleyen migration'ları `MAS-DEP-W03` olarak görünür
+  planlar. `post-deploy` modu tam eşitlik ister; eksik remote migration
+  `MAS-DEP-009` ile release'i başarısız kılar. Araç Supabase'e bağlanmaz,
+  migration uygulamaz ve secret işlemez.
+- `docs/operations/production-readiness.md` güvenli kanıt formatı, manifest,
+  deploy öncesi/sonrası komutları ve yeni `MAS-DEP-008/009/010/W03` kodlarıyla
+  genişletildi. Unit matrisi **6/6**, production preflight **6/6**, domain
+  **59/59**, application **162/162**, DB **244/244**, platform-admin
+  architecture **16/16**, workspace typecheck **11/11**, lint **0 error** ve
+  tam monorepo production build temiz geçti. Yalnız iki mevcut marketing
+  `<img>` uyarısı sürüyor; PROD'a mutation/deploy yapılmadı.
