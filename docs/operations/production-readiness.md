@@ -43,6 +43,8 @@ hiçbir Supabase projesine bağlanmaz, migration uygulamaz ve secret değerlerin
 | `MAS-DEP-032` | Final release kapısında allowlist dışı uyarı veya blokaj var |
 | `MAS-DEP-033` | Release bundle yanlış ref/CI olayı veya operatör niyetiyle başlatıldı |
 | `MAS-DEP-034` | Release bundle eksik, kirlenmiş ya da hash/iç bağ bütünlüğünü kaybetmiş |
+| `MAS-DEP-035` | Backup/restore kanıtı release kimliğiyle bağlı değil veya bütünlüğü bozuk |
+| `MAS-DEP-036` | Backup/restore provası eksik, eski ya da güvenli alan sözleşmesini ihlal ediyor |
 | `MAS-DEP-W01` | Capability bilinçli olarak bu turda kapalı |
 | `MAS-DEP-W02` | Remote migration geçmişi ayrıca doğrulanmalı |
 | `MAS-DEP-W03` | Deploy planında uygulanmayı bekleyen migration var |
@@ -352,6 +354,7 @@ corepack pnpm prod:release-decision -- \
   --migration-evidence /tmp/prod-migration-list.txt \
   --runtime-evidence /tmp/prod-runtime-evidence.json \
   --smoke-evidence /tmp/prod-smoke-evidence.json \
+  --backup-restore-evidence /tmp/prod-backup-restore-evidence.json \
   --attestation /tmp/prod-release-attestation.json \
   --env dashboard=apps/dashboard/.env.production \
   --env menu=apps/menu/.env.production \
@@ -371,8 +374,8 @@ runtime farklarını `MAS-DEP-W04` ve deploy sonrası çalışacak smoke adımla
 çalıştırılır. Yalnız bütün kapılar tam geçtiğinde `release-accepted` oluşur;
 aksi durumda exit code 1 ve integrity-bound `no-go` artifact'ı üretilir.
 
-Karar artifact'ı release, rehearsal, policy ve operatör attestation SHA-256
-kimliklerini; capability durumlarını; gate sonuçlarını ve yalnız güvenli
+Karar artifact'ı release, rehearsal, policy, backup/restore kanıtı ve operatör
+attestation SHA-256 kimliklerini; capability durumlarını; gate sonuçlarını ve yalnız güvenli
 hata/uyarı kodlarını taşır. Araç migration/deploy/rollback çalıştırmaz ve her
 zaman `productionMutationPerformed: false` yazar.
 
@@ -393,8 +396,8 @@ corepack pnpm prod:release-bundle -- verify \
   --input /tmp/masabu-production-release
 ```
 
-`bundle-manifest.json`, migration manifesti dahil altı dosyanın byte boyutu ve SHA-256 değerini; release,
-rehearsal ve policy bağlarını; ayrıca operatörün sonradan toplaması gereken dört
+`bundle-manifest.json`, migration manifesti dahil yedi dosyanın byte boyutu ve SHA-256 değerini; release,
+rehearsal ve policy bağlarını; ayrıca operatörün sonradan toplaması gereken beş
 gerçek PROD kanıtının **yalnız dosya adlarını** taşır. Paket dizini 0700,
 dosyalar 0600 yazılır; secret, e-posta, kişi adı, token, header/body veya
 provider cevabı pakete alınmaz. Tanımsız ekstra dosya ya da tek byte değişiklik
@@ -410,11 +413,52 @@ GitHub Environment/secret istemez; Supabase'e bağlanmaz, migration/deploy
 çalıştırmaz. İndirilen artifact, operatör kanıtları eklenmeden önce yukarıdaki
 `verify` komutuyla tekrar doğrulanır.
 
+## Operatör handoff ve backup/restore kapanışı
+
+Bundle içindeki `backup-restore-evidence.template.json` doğrudan kullanıma
+hazır değildir: `status=pending`, `capturedAt=null` ve bütün doğrulamalar
+`false` gelir. Bu fail-closed şablon exact project, commit, release ve rehearsal
+kimliklerine bağlıdır. Operatör PROD backup/PITR durumunu doğruladıktan ve
+üretimden izole bir hedefte restore provası yaptıktan sonra ayrı bir kanıt
+dosyası doldurur. Kanıt kişi adı/e-posta, proje erişim anahtarı, token, URL,
+header/body, provider cevabı veya müşteri verisi içermez.
+
+```bash
+corepack pnpm prod:handoff -- template \
+  --project-ref <PROD_PROJECT_REF> \
+  --release-evidence /tmp/masabu-production-release/release-evidence.json \
+  --rehearsal /tmp/masabu-production-release/release-rehearsal.json \
+  --output /tmp/prod-backup-restore-evidence.template.json
+
+corepack pnpm prod:handoff -- verify \
+  --project-ref <PROD_PROJECT_REF> \
+  --release-evidence /tmp/masabu-production-release/release-evidence.json \
+  --rehearsal /tmp/masabu-production-release/release-rehearsal.json \
+  --evidence /tmp/prod-backup-restore-evidence.json \
+  --output /tmp/prod-handoff-verification.json
+```
+
+Doğrulama; PITR/recovery point/retention, izole restore ve cleanup, şema ve
+tenant sınırı, kritik read-path smoke'u, önceki app/Edge artifact'ları,
+scheduler stop ve forward-fix prosedürlerini exact boolean sözleşmesiyle arar.
+Tek eksik kontrol, 24 saatten eski kanıt, PROD üzerinde restore mutasyonu veya
+release SHA sapması `MAS-DEP-035/036` ile kapanır. Başarılı doğrulama yalnız
+secretsiz `verified` artifact üretir; backup, restore, deploy veya rollback
+çalıştırmaz.
+
+Tamamlanan kanıtın ham dosya SHA-256 değeri
+`prod-release-attestation.json.backupRestoreEvidenceSha256` alanına yazılır.
+Final karar motoru aynı byte'ları yeniden hash'ler; attestation farklı bir
+restore kanıtına işaret ederse release her durumda `no-go` olur. Örnek güvenli
+şema `production-backup-restore-evidence.example.json` dosyasındadır.
+
 ## Şimdiki açık blokajlar
 
 - SaaS abonelik İyzico canlı merchant/plan referansları hazır değil.
 - PROD migration geçmişi ile remote Edge Function/cron/Vault/Auth Hook durumu
   henüz kanıtlanmadı.
+- PROD backup/PITR doğrulaması ve izole restore provası henüz yapılmadı; bundle
+  içindeki fail-closed şablon bu yüzden release onayı sayılamaz.
 - Platform-admin desktop/mobile ekran görüntülü son görsel smoke, bağlı Codex
   browser olmadığı için ertelendi.
 - Platform-admin için nihai public domain ve Supabase Auth redirect allowlist

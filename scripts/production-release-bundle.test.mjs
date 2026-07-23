@@ -46,19 +46,24 @@ test('bundle is deterministic, source-bound and mutation-free', () => {
   const second = buildReleaseBundle(fixture())
   assert.deepEqual(first, second)
   assert.equal(first.manifest.productionMutationPerformed, false)
-  assert.equal(first.manifest.artifacts.length, 6)
-  assert.equal(first.manifest.requiredOperatorEvidence.length, 4)
+  assert.equal(first.manifest.artifacts.length, 7)
+  assert.equal(first.manifest.requiredOperatorEvidence.length, 5)
   assert.match(first.manifest.artifactSha256, /^[a-f0-9]{64}$/)
 })
 
 test('attestation template is bound but cannot accidentally approve a release', () => {
   const bundle = buildReleaseBundle(fixture())
   const template = JSON.parse(bundle.files['release-attestation.template.json'])
+  const backupRestore = JSON.parse(bundle.files['backup-restore-evidence.template.json'])
   assert.equal(template.capturedAt, null)
+  assert.equal(template.backupRestoreEvidenceSha256, null)
   assert.ok(Object.values(template.enabledCapabilities).every((value) => value === false))
   assert.ok(Object.values(template.approvals).every((value) => value === false))
   assert.equal(template.releaseArtifactSha256, bundle.manifest.releaseArtifactSha256)
   assert.equal(template.rehearsalArtifactSha256, bundle.manifest.rehearsalArtifactSha256)
+  assert.equal(backupRestore.status, 'pending')
+  assert.equal(backupRestore.productionMutationPerformed, false)
+  assert.ok(Object.values(backupRestore.restoreDrill).every((value) => value === false))
 })
 
 test('written bundle verifies and uses restrictive local permissions', () => {

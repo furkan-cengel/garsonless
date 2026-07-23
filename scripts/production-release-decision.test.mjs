@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -10,11 +11,13 @@ import { loadTopologySpec } from './deployment-topology.mjs'
 import { buildRuntimeManifest, loadRuntimeSpec } from './runtime-deployment.mjs'
 import { buildSmokeManifest, loadSmokeSpec } from './business-smoke.mjs'
 import { evaluateReleaseDecision, loadReleasePolicy, runCli, validateReleasePolicy } from './production-release-decision.mjs'
+import { buildBackupRestoreEvidenceTemplate } from './production-release-handoff.mjs'
 
 const ROOT = new URL('..', import.meta.url).pathname
 const PROD_REF = 'svxvloeosiksqfadgkvo'
 const NOW = new Date('2026-07-23T12:30:00.000Z')
 const SECRET = 'x'.repeat(32)
+const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 
 function validEnvByScope() {
   const supabase = `https://${PROD_REF}.supabase.co`
@@ -137,6 +140,13 @@ function fixture() {
     smokeManifest,
   })
   const rehearsal = buildReleaseRehearsal({ projectRef: PROD_REF, releaseEvidence, runtimeManifest, runtimeSpec, smokeManifest })
+  const backupRestoreEvidence = buildBackupRestoreEvidenceTemplate({ projectRef: PROD_REF, releaseEvidence, rehearsal })
+  backupRestoreEvidence.status = 'passed'
+  backupRestoreEvidence.capturedAt = '2026-07-23T12:22:00.000Z'
+  for (const group of ['backup', 'restoreDrill', 'rollbackReadiness']) {
+    for (const key of Object.keys(backupRestoreEvidence[group])) backupRestoreEvidence[group][key] = true
+  }
+  const backupRestoreEvidenceRaw = `${JSON.stringify(backupRestoreEvidence, null, 2)}\n`
   const attestation = {
     schemaVersion: 1,
     environment: 'production',
@@ -145,6 +155,7 @@ function fixture() {
     commitSha: releaseEvidence.commitSha,
     releaseArtifactSha256: releaseEvidence.artifactSha256,
     rehearsalArtifactSha256: rehearsal.artifactSha256,
+    backupRestoreEvidenceSha256: sha256(backupRestoreEvidenceRaw),
     enabledCapabilities: { 'order-card-payments': false, 'saas-billing': false, 'web-push': false, sms: false },
     approvals: Object.fromEntries(policy.requiredApprovals.map((name) => [name, true])),
   }
@@ -158,6 +169,8 @@ function fixture() {
     migrationEvidence: parseMigrationListEvidence(migrationText(migrationManifest)),
     runtimeEvidence: runtimeEvidence(runtimeManifest),
     smokeEvidence: smokeEvidence(smokeManifest, releaseEvidence),
+    backupRestoreEvidence,
+    backupRestoreEvidenceRaw,
     attestation,
     attestationRaw: `${JSON.stringify(attestation, null, 2)}\n`,
     now: NOW,
@@ -250,6 +263,17 @@ test('operator and smoke capability states must agree', () => {
   assert.ok(result.errors.some((item) => item.code === 'MAS-DEP-030' && item.subject === 'capability:order-card-payments'))
 })
 
+test('missing restore proof or mismatched attestation binding prevents release', () => {
+  const input = fixture()
+  input.backupRestoreEvidence.restoreDrill.tenantIsolationVerified = false
+  input.backupRestoreEvidenceRaw = `${JSON.stringify(input.backupRestoreEvidence, null, 2)}\n`
+  const result = evaluateReleaseDecision({ ...input, mode: 'post-deploy' })
+  assert.equal(result.decision, 'no-go')
+  assert.equal(result.gates.backupRestore, false)
+  assert.ok(result.errors.some((item) => item.code === 'MAS-DEP-036'))
+  assert.ok(result.errors.some((item) => item.subject === 'backup-restore-attestation-binding'))
+})
+
 test('decision artifact is deterministic for the same bound evidence', () => {
   const input = fixture()
   const first = evaluateReleaseDecision({ ...input, mode: 'post-deploy' })
@@ -264,7 +288,10 @@ test('CLI writes a safe 0600 post-deploy decision artifact', () => {
   const capturedAt = new Date().toISOString()
   input.runtimeEvidence.capturedAt = capturedAt
   input.smokeEvidence.capturedAt = capturedAt
+  input.backupRestoreEvidence.capturedAt = capturedAt
+  input.backupRestoreEvidenceRaw = `${JSON.stringify(input.backupRestoreEvidence, null, 2)}\n`
   input.attestation.capturedAt = capturedAt
+  input.attestation.backupRestoreEvidenceSha256 = sha256(input.backupRestoreEvidenceRaw)
   try {
     const paths = {}
     const writeJson = (name, value) => {
@@ -276,6 +303,7 @@ test('CLI writes a safe 0600 post-deploy decision artifact', () => {
     writeJson('rehearsal', input.rehearsal)
     writeJson('runtime', input.runtimeEvidence)
     writeJson('smoke', input.smokeEvidence)
+    writeJson('backupRestore', input.backupRestoreEvidence)
     writeJson('attestation', input.attestation)
     paths.migrations = join(directory, 'migrations.txt')
     writeFileSync(paths.migrations, migrationText(createMigrationManifest(ROOT)))
@@ -283,7 +311,8 @@ test('CLI writes a safe 0600 post-deploy decision artifact', () => {
       '--mode', 'post-deploy', '--project-ref', PROD_REF,
       '--release-evidence', paths.release, '--rehearsal', paths.rehearsal,
       '--migration-evidence', paths.migrations, '--runtime-evidence', paths.runtime,
-      '--smoke-evidence', paths.smoke, '--attestation', paths.attestation,
+      '--smoke-evidence', paths.smoke, '--backup-restore-evidence', paths.backupRestore,
+      '--attestation', paths.attestation,
     ]
     for (const [scope, env] of Object.entries(input.envByScope)) {
       const path = join(directory, `${scope}.env`)

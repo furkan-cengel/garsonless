@@ -7,6 +7,7 @@ import { loadTopologySpec, validateDeploymentTopology } from './deployment-topol
 import { createMigrationManifest, parseMigrationListEvidence, verifyMigrationEvidence } from './migration-release.mjs'
 import { buildRuntimeManifest, loadRuntimeSpec, validateRuntimeEvidence } from './runtime-deployment.mjs'
 import { buildSmokeManifest, loadSmokeSpec, validateSmokeEvidence } from './business-smoke.mjs'
+import { validateBackupRestoreEvidence } from './production-release-handoff.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const POLICY_PATH = 'config/production-release-policy.json'
@@ -55,6 +56,9 @@ export function validateReleasePolicy(policy) {
   if (policy?.schemaVersion !== 1 || !Number.isInteger(policy?.maxAttestationAgeMinutes) || policy.maxAttestationAgeMinutes < 5) {
     errors.push(issue('MAS-DEP-029', 'release-policy', 'Policy sürümü veya attestation ömrü geçersiz.'))
   }
+  if (!Number.isInteger(policy?.maxBackupRestoreEvidenceAgeHours) || policy.maxBackupRestoreEvidenceAgeHours < 1) {
+    errors.push(issue('MAS-DEP-029', 'backup-restore-evidence-age', 'Backup/restore kanıt ömrü geçersiz.'))
+  }
   if (!uniqueStrings(policy?.requiredScopes) || !uniqueStrings(policy?.requiredApprovals)) {
     errors.push(issue('MAS-DEP-029', 'release-policy', 'Zorunlu scope ve approval listeleri benzersiz olmalı.'))
   }
@@ -93,7 +97,8 @@ function validateAttestation({ attestation, attestationRaw, policy, projectRef, 
   const errors = []
   const topKeys = [
     'schemaVersion', 'environment', 'projectRef', 'capturedAt', 'commitSha',
-    'releaseArtifactSha256', 'rehearsalArtifactSha256', 'enabledCapabilities', 'approvals',
+    'releaseArtifactSha256', 'rehearsalArtifactSha256', 'backupRestoreEvidenceSha256',
+    'enabledCapabilities', 'approvals',
   ]
   if (!hasExactKeys(attestation, topKeys)) {
     errors.push(issue('MAS-DEP-031', 'attestation', 'Operatör onayı yalnız izin verilen alanları içerebilir.'))
@@ -119,6 +124,7 @@ function validateAttestation({ attestation, attestationRaw, policy, projectRef, 
     || attestation?.commitSha !== releaseEvidence?.commitSha
     || attestation?.releaseArtifactSha256 !== releaseEvidence?.artifactSha256
     || attestation?.rehearsalArtifactSha256 !== rehearsal?.artifactSha256
+    || !/^[a-f0-9]{64}$/.test(attestation?.backupRestoreEvidenceSha256 ?? '')
   ) {
     errors.push(issue('MAS-DEP-030', 'attestation-bindings', 'Operatör onayı bu project/release/rehearsal kimliğine bağlı değil.'))
   }
@@ -181,6 +187,8 @@ export function evaluateReleaseDecision({
   migrationEvidence,
   runtimeEvidence,
   smokeEvidence,
+  backupRestoreEvidence,
+  backupRestoreEvidenceRaw,
   attestation,
   attestationRaw,
   now = new Date(),
@@ -245,6 +253,20 @@ export function evaluateReleaseDecision({
   errors.push(...smoke.errors)
   warnings.push(...smoke.warnings)
 
+  const backupRestore = validateBackupRestoreEvidence({
+    evidence: backupRestoreEvidence,
+    evidenceRaw: backupRestoreEvidenceRaw,
+    projectRef,
+    releaseEvidence,
+    rehearsal,
+    now,
+    maxAgeHours: policy.maxBackupRestoreEvidenceAgeHours,
+  })
+  errors.push(...backupRestore.errors)
+  if (attestation?.backupRestoreEvidenceSha256 !== backupRestore.sha256) {
+    errors.push(issue('MAS-DEP-035', 'backup-restore-attestation-binding', 'Operatör onayı exact backup/restore kanıtına bağlı değil.'))
+  }
+
   for (const [releaseCapability, smokeCapability] of Object.entries(policy.smokeCapabilityBindings ?? {})) {
     if (smokeEvidence?.enabledCapabilities?.[smokeCapability] !== capabilities[releaseCapability]) {
       errors.push(issue('MAS-DEP-030', `capability:${releaseCapability}`, 'Operatör, env preflight ve smoke capability durumları uyuşmuyor.'))
@@ -285,6 +307,7 @@ export function evaluateReleaseDecision({
     rehearsalArtifactSha256: rehearsal?.artifactSha256 ?? null,
     policySha256,
     attestationSha256: approval.sha256,
+    backupRestoreEvidenceSha256: backupRestore.sha256,
     enabledCapabilities: capabilities,
     gates: {
       sourcePolicy: policyResult.ok,
@@ -295,6 +318,7 @@ export function evaluateReleaseDecision({
       migrations: migration.ok,
       runtime: runtime.ok,
       smoke: smoke.ok,
+      backupRestore: backupRestore.ok && attestation?.backupRestoreEvidenceSha256 === backupRestore.sha256,
       operatorAttestation: approval.ok,
     },
     preflightScopes: preflightResults,
@@ -319,6 +343,7 @@ function parseArguments(argv) {
     else if (arg === '--migration-evidence') options.migrationEvidence = args[++index]
     else if (arg === '--runtime-evidence') options.runtimeEvidence = args[++index]
     else if (arg === '--smoke-evidence') options.smokeEvidence = args[++index]
+    else if (arg === '--backup-restore-evidence') options.backupRestoreEvidence = args[++index]
     else if (arg === '--attestation') options.attestation = args[++index]
     else if (arg === '--output') options.output = args[++index]
     else if (arg === '--env') {
@@ -339,7 +364,7 @@ function readJson(root, path, subject) {
 export function runCli(argv = process.argv.slice(2), root = ROOT) {
   try {
     const options = parseArguments(argv)
-    for (const name of ['projectRef', 'releaseEvidence', 'rehearsal', 'migrationEvidence', 'runtimeEvidence', 'smokeEvidence', 'attestation', 'output']) {
+    for (const name of ['projectRef', 'releaseEvidence', 'rehearsal', 'migrationEvidence', 'runtimeEvidence', 'smokeEvidence', 'backupRestoreEvidence', 'attestation', 'output']) {
       if (!options[name]) throw decisionError('MAS-DEP-006', `--${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)} zorunlu.`)
     }
     const { policy, sha256: policySha256 } = loadReleasePolicy(root)
@@ -349,6 +374,8 @@ export function runCli(argv = process.argv.slice(2), root = ROOT) {
     }
     const attestationPath = resolve(root, options.attestation)
     const attestationRaw = readFileSync(attestationPath, 'utf8')
+    const backupRestorePath = resolve(root, options.backupRestoreEvidence)
+    const backupRestoreEvidenceRaw = readFileSync(backupRestorePath, 'utf8')
     const result = evaluateReleaseDecision({
       mode: options.mode,
       projectRef: options.projectRef,
@@ -360,6 +387,8 @@ export function runCli(argv = process.argv.slice(2), root = ROOT) {
       migrationEvidence: parseMigrationListEvidence(readFileSync(resolve(root, options.migrationEvidence), 'utf8')),
       runtimeEvidence: readJson(root, options.runtimeEvidence, 'Runtime evidence'),
       smokeEvidence: readJson(root, options.smokeEvidence, 'Smoke evidence'),
+      backupRestoreEvidence: JSON.parse(backupRestoreEvidenceRaw),
+      backupRestoreEvidenceRaw,
       attestation: JSON.parse(attestationRaw),
       attestationRaw,
       root,

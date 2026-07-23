@@ -10,6 +10,7 @@ import { loadTopologySpec } from './deployment-topology.mjs'
 import { buildRuntimeManifest, loadRuntimeSpec } from './runtime-deployment.mjs'
 import { buildSmokeManifest, loadSmokeSpec } from './business-smoke.mjs'
 import { loadReleasePolicy, validateReleasePolicy } from './production-release-decision.mjs'
+import { buildBackupRestoreEvidenceTemplate } from './production-release-handoff.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const DEV_PROJECT_REF = 'yxsegwkzyiscrxiwdeuf'
@@ -19,6 +20,7 @@ const ARTIFACT_NAMES = [
   'release-rehearsal.json',
   'runtime-manifest.json',
   'smoke-manifest.json',
+  'backup-restore-evidence.template.json',
   'release-attestation.template.json',
 ]
 const sha256 = (value) => createHash('sha256').update(value).digest('hex')
@@ -112,6 +114,7 @@ export function buildReleaseBundle({
     smokeManifest,
   })
   const rehearsal = buildReleaseRehearsal({ projectRef, releaseEvidence, runtimeManifest, runtimeSpec, smokeManifest })
+  const backupRestoreTemplate = buildBackupRestoreEvidenceTemplate({ projectRef, releaseEvidence, rehearsal })
   const attestationTemplate = {
     schemaVersion: 1,
     environment: 'production',
@@ -120,6 +123,7 @@ export function buildReleaseBundle({
     commitSha,
     releaseArtifactSha256: releaseEvidence.artifactSha256,
     rehearsalArtifactSha256: rehearsal.artifactSha256,
+    backupRestoreEvidenceSha256: null,
     enabledCapabilities: Object.fromEntries(Object.keys(policy.capabilityScopes).map((name) => [name, false])),
     approvals: Object.fromEntries(policy.requiredApprovals.map((name) => [name, false])),
   }
@@ -129,6 +133,7 @@ export function buildReleaseBundle({
     'release-rehearsal.json': rehearsal,
     'runtime-manifest.json': runtimeManifest,
     'smoke-manifest.json': smokeManifest,
+    'backup-restore-evidence.template.json': backupRestoreTemplate,
     'release-attestation.template.json': attestationTemplate,
   }
   const files = Object.fromEntries(Object.entries(values).map(([name, value]) => [name, jsonFile(value)]))
@@ -151,6 +156,7 @@ export function buildReleaseBundle({
       'prod-migration-list.txt',
       'prod-runtime-evidence.json',
       'prod-smoke-evidence.json',
+      'prod-backup-restore-evidence.json',
       'prod-release-attestation.json',
     ],
   }
@@ -194,6 +200,7 @@ export function verifyReleaseBundle(input) {
   const rehearsal = JSON.parse(readFileSync(resolve(input, 'release-rehearsal.json'), 'utf8'))
   const runtimeManifest = JSON.parse(readFileSync(resolve(input, 'runtime-manifest.json'), 'utf8'))
   const smokeManifest = JSON.parse(readFileSync(resolve(input, 'smoke-manifest.json'), 'utf8'))
+  const backupRestore = JSON.parse(readFileSync(resolve(input, 'backup-restore-evidence.template.json'), 'utf8'))
   const attestation = JSON.parse(readFileSync(resolve(input, 'release-attestation.template.json'), 'utf8'))
   for (const [label, value] of Object.entries({ releaseEvidence, rehearsal, runtimeManifest, smokeManifest })) verifySelfHash(value, label)
   if (
@@ -208,10 +215,15 @@ export function verifyReleaseBundle(input) {
     || releaseEvidence.smoke?.sha256 !== smokeManifest.artifactSha256
     || attestation.releaseArtifactSha256 !== releaseEvidence.artifactSha256
     || attestation.rehearsalArtifactSha256 !== rehearsal.artifactSha256
+    || attestation.backupRestoreEvidenceSha256 !== null
     || attestation.capturedAt !== null
     || Object.values(attestation.approvals ?? {}).some((value) => value !== false)
   ) {
     throw bundleError('MAS-DEP-034', 'Release paketi iç bağları veya güvenli attestation şablonu geçersiz.')
+  }
+  const expectedBackupRestore = buildBackupRestoreEvidenceTemplate({ projectRef: manifest.projectRef, releaseEvidence, rehearsal })
+  if (JSON.stringify(backupRestore) !== JSON.stringify(expectedBackupRestore)) {
+    throw bundleError('MAS-DEP-034', 'Backup/restore handoff şablonu release kimliğiyle uyuşmuyor.')
   }
   return manifest
 }

@@ -6,6 +6,7 @@
   "commitSha": "<40_HEX_RELEASE_COMMIT>",
   "releaseArtifactSha256": "<64_HEX_RELEASE_SHA256>",
   "rehearsalArtifactSha256": "<64_HEX_REHEARSAL_SHA256>",
+  "backupRestoreEvidenceSha256": "<64_HEX_BACKUP_RESTORE_EVIDENCE_SHA256>",
   "enabledCapabilities": {
     "order-card-payments": false,
     "saas-billing": false,

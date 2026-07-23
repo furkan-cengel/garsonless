@@ -3185,3 +3185,22 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   production build'i temiz tamamlandı. Yalnız önceden var olan iki marketing
   `<img>` lint uyarısı sürüyor; hata yok. PROD bağlantısı, deploy veya mutation
   yapılmadı.
+
+### Faz 7.8 — Operatör handoff + backup/restore kanıt kapısı ✅ (2026-07-23)
+
+- Release/rehearsal kimliğine bağlı, kişi/secret/PII taşımayan yapılandırılmış
+  backup/restore kanıtı eklendi. Fail-closed şablon `pending`, tarihsiz ve bütün
+  kontrolleri `false` gelir; yalnız PITR/recovery/retention, izole restore,
+  schema/tenant/read-path/cleanup ve rollback hazırlığı eksiksiz olduğunda
+  doğrulanabilir.
+- `prod:handoff template|verify`, 24 saatlik freshness ve exact alan/binding
+  sözleşmesini `MAS-DEP-035/036` ile korur; güvenli 0600 doğrulama artifact'ı
+  dışında backup, restore, deploy veya PROD mutation çalıştırmaz.
+- Final release kararı artık ham backup/restore evidence SHA-256 değerini
+  operatör attestation'ına bağlar. Farklı, eksik veya başarısız restore kanıtı
+  `pre-deploy` ve `post-deploy` kararlarını `no-go` yapar. Release bundle yedi
+  kaynak artifact'ı ve tamamlanması gereken beş operatör kanıtını taşır.
+- Hedefli handoff **6/6**, release-decision **12/12**, bundle **8/8**, tam
+  workspace CI ve tüm uygulamaların production build'i geçti. Yalnız önceden
+  var olan iki marketing `<img>` lint uyarısı sürüyor; hata yok. Gerçek PROD
+  backup/PITR/restore provası, bağlantı, deploy veya mutation yapılmadı.

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "environment": "production",
+  "status": "passed",
+  "projectRef": "<PROD_PROJECT_REF>",
+  "capturedAt": "2026-07-23T12:00:00.000Z",
+  "commitSha": "<40_HEX_RELEASE_COMMIT>",
+  "releaseArtifactSha256": "<64_HEX_RELEASE_SHA256>",
+  "rehearsalArtifactSha256": "<64_HEX_REHEARSAL_SHA256>",
+  "backup": {
+    "pitrEnabled": true,
+    "latestRecoveryPointVerified": true,
+    "retentionPolicyVerified": true
+  },
+  "restoreDrill": {
+    "isolatedTarget": true,
+    "completed": true,
+    "schemaIntegrityVerified": true,
+    "tenantIsolationVerified": true,
+    "criticalReadPathsVerified": true,
+    "cleanupVerified": true
+  },
+  "rollbackReadiness": {
+    "previousAppArtifactAvailable": true,
+    "previousEdgeFunctionArtifactAvailable": true,
+    "schedulerStopProcedureVerified": true,
+    "forwardFixProcedureVerified": true
+  },
+  "productionMutationPerformed": false
+}
