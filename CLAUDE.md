@@ -2993,3 +2993,32 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   `git diff --check` temiz geçti. Codex'e bağlı uygulama içi browser
   bulunamadığı için desktop/mobile ekran görüntülü görsel tur bu dilimde
   çalıştırılmadı; bu doğrulama PROD hazırlığı öncesi açık smoke maddesidir.
+
+### Faz 7.1 — Production readiness preflight temeli ✅ (2026-07-23)
+
+- PROD'a bağlanmadan ve herhangi bir deploy/migration yapmadan çalışan,
+  fail-closed `pnpm prod:preflight` aracı eklendi. Dashboard, menu, kitchen,
+  marketing, platform-admin, outbox-worker ve send-email-hook scope'ları ile
+  kart ödemesi, SaaS billing, web-push ve SMS capability sözleşmelerini ayrı
+  ayrı doğrular; secret değerlerini hiçbir çıktıda göstermez.
+- Eksik/placeholder değer, local veya HTTPS olmayan URL, DEV Supabase hedefi,
+  zayıf secret, yanlış provider ve çakışan migration timestamp'i `MAS-DEP-*`
+  kodlarıyla deploy öncesinde engellenir. DEV ref'i `yxsegwkzyiscrxiwdeuf`
+  production hedefi olarak açıkça reddedilir; İyzico capability'leri sandbox
+  origin ile geçmez. Hazır olmayan SaaS billing sessizce açık sayılmaz,
+  `MAS-DEP-W01` ile ertelenmiş capability olarak görünür.
+- `.env.production.example` platform-admin, menu worker secret'ı, outbox
+  consumer URL'leri ve send-email-hook secret sözleşmeleriyle tamamlandı.
+  `docs/operations/production-readiness.md` deploy sırasını, hata kodlarını,
+  rollback/smoke kapılarını ve mevcut blokajları tek runbook'ta toplar.
+- Migration envanteri dinamik olarak **110** dosyayı doğruladı; ilk migration
+  `20260517000000_initial_schema.sql`, son migration
+  `20260722201000_platform_tenant_privacy_erasure_scope.sql` ve duplicate
+  timestamp sayısı **0**. Remote PROD migration geçmişi bu ağsız preflight'ın
+  dışında ve ayrıca kanıtlanması gereken `MAS-DEP-W02` kapısıdır.
+- Kapanış kapıları: production preflight **6/6**, domain **59/59**,
+  application **162/162**, DB **244/244**, platform-admin architecture
+  **16/16**, workspace typecheck **11/11**, workspace lint **0 error** ve tam
+  monorepo production build temizdir. Yalnız daha önce var olan iki marketing
+  `<img>` performans uyarısı devam eder. PROD ortamında hiçbir mutation,
+  migration, secret veya deploy işlemi yapılmadı.

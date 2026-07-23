@@ -4,7 +4,7 @@
   "scripts": {
     "build": "corepack pnpm -r --if-present --workspace-concurrency=4 build",
     "check": "corepack pnpm check:ci && corepack pnpm build && corepack pnpm smoke",
-    "check:ci": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:architecture && corepack pnpm test:db",
+    "check:ci": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:architecture && corepack pnpm test:db && corepack pnpm test:prod-preflight",
     "check:visual": "corepack pnpm check && corepack pnpm visual:smoke",
     "dev": "corepack pnpm -r --parallel --if-present dev",
     "lint": "eslint .",
@@ -14,6 +14,7 @@
     "test:dashboard-architecture": "corepack pnpm --filter @garsonless/dashboard test:architecture",
     "test:db": "corepack pnpm --filter @garsonless/db test",
     "test:domain": "corepack pnpm --filter @garsonless/domain test",
+    "test:prod-preflight": "node --test scripts/production-readiness.test.mjs",
     "typecheck": "corepack pnpm -r --if-present --workspace-concurrency=4 typecheck",
     "visual:auth": "playwright test --config=playwright.visual.config.ts --project=dashboard-desktop --project=dashboard-mobile",
     "visual:auth:setup": "playwright test --config=playwright.visual.config.ts --project=dashboard-auth-setup",
@@ -27,7 +28,8 @@
     "db:diff": "corepack pnpm --filter @garsonless/db db:diff",
     "db:status": "corepack pnpm --filter @garsonless/db db:status",
     "db:reset": "corepack pnpm --filter @garsonless/db db:reset",
-    "types:gen": "corepack pnpm --filter @garsonless/db types:gen"
+    "types:gen": "corepack pnpm --filter @garsonless/db types:gen",
+    "prod:preflight": "node scripts/production-readiness.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
