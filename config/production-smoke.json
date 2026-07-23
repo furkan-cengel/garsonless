@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "maxEvidenceAgeMinutes": 240,
+  "capabilities": [
+    "core",
+    "order-card-payments",
+    "saas-billing"
+  ],
+  "checks": [
+    {
+      "name": "dashboard-auth-boundary",
+      "category": "auth",
+      "capability": "core",
+      "target": { "origin": "dashboard", "path": "/auth/login" },
+      "sourcePaths": [
+        "apps/dashboard/app/auth/login/page.tsx",
+        "apps/dashboard/app/dashboard/page.tsx"
+      ],
+      "assertions": [
+        "login_route_200",
+        "private_route_redirects_to_login",
+        "error_contract_visible"
+      ]
+    },
+    {
+      "name": "public-menu-and-table-token",
+      "category": "menu",
+      "capability": "core",
+      "target": { "origin": "menu", "path": "/{restaurantSlug}/table/{tableToken}" },
+      "sourcePaths": [
+        "apps/menu/app/[slug]/table/[tableId]/page.tsx",
+        "apps/menu/app/api/table-state/route.ts"
+      ],
+      "assertions": [
+        "catalog_has_visible_items",
+        "valid_table_token_resolves",
+        "rotated_or_invalid_token_fails_closed"
+      ]
+    },
+    {
+      "name": "guest-order-attribution",
+      "category": "orders",
+      "capability": "core",
+      "sourcePaths": [
+        "apps/menu/app/api/orders/route.ts",
+        "packages/db/src/order-command-port.ts"
+      ],
+      "assertions": [
+        "order_created_once",
+        "table_and_tenant_match",
+        "customer_is_null",
+        "loyalty_ledger_rows_zero"
+      ]
+    },
+    {
+      "name": "member-order-and-loyalty",
+      "category": "orders",
+      "capability": "core",
+      "sourcePaths": [
+        "apps/menu/app/api/orders/route.ts",
+        "apps/menu/lib/customer-session.ts",
+        "packages/db/src/order-command-port.ts"
+      ],
+      "assertions": [
+        "authenticated_customer_linked",
+        "order_created_once",
+        "points_amount_matches_policy",
+        "stamp_amount_matches_policy",
+        "retry_has_no_duplicate_ledger"
+      ]
+    },
+    {
+      "name": "kitchen-transition-and-tenant-boundary",
+      "category": "kitchen",
+      "capability": "core",
+      "target": { "origin": "kitchen", "path": "/kitchen/{restaurantId}" },
+      "sourcePaths": [
+        "apps/kitchen/app/kitchen/[restaurantId]/page.tsx",
+        "apps/kitchen/lib/actions/orders.ts"
+      ],
+      "assertions": [
+        "missing_session_fails_closed",
+        "authorized_order_is_visible",
+        "legal_transition_succeeds_once",
+        "cross_tenant_transition_denied"
+      ]
+    },
+    {
+      "name": "outbox-inbox-email-fanout",
+      "category": "notifications",
+      "capability": "core",
+      "sourcePaths": [
+        "packages/db/supabase/functions/outbox-worker/index.ts",
+        "apps/dashboard/app/api/internal/inbox/route.ts",
+        "apps/dashboard/app/api/internal/notification-email/route.ts"
+      ],
+      "assertions": [
+        "outbox_event_claimed_once",
+        "inbox_delivery_created_once",
+        "email_delivery_terminal_or_retryable",
+        "replay_has_no_duplicate_delivery"
+      ]
+    },
+    {
+      "name": "platform-admin-aal2-and-cross-tenant",
+      "category": "platform-admin",
+      "capability": "core",
+      "sourcePaths": [
+        "apps/platform-admin/app/auth/mfa/page.tsx",
+        "apps/platform-admin/lib/platform-admin-auth.ts",
+        "packages/db/src/platform-admin-tenant-operations-port.ts"
+      ],
+      "assertions": [
+        "aal1_is_challenged",
+        "aal2_superadmin_can_read_tenant_directory",
+        "unauthorized_actor_denied",
+        "mutation_audit_recorded_without_pii"
+      ]
+    },
+    {
+      "name": "operational-observability",
+      "category": "operations",
+      "capability": "core",
+      "sourcePaths": [
+        "apps/platform-admin/app/errors/page.tsx",
+        "packages/db/src/platform-error-event-port.ts"
+      ],
+      "assertions": [
+        "error_event_has_public_code",
+        "outbox_lag_is_queryable",
+        "dead_letter_is_queryable",
+        "smoke_fixture_cleanup_zero"
+      ]
+    },
+    {
+      "name": "order-card-payment-idempotency",
+      "category": "payments",
+      "capability": "order-card-payments",
+      "sourcePaths": [
+        "apps/menu/app/api/payment/route.ts",
+        "apps/menu/app/api/payment/callback/route.ts",
+        "apps/menu/app/api/internal/payment-reconciliation/route.ts"
+      ],
+      "assertions": [
+        "payment_attempt_created_once",
+        "callback_replay_is_idempotent",
+        "settlement_amount_matches_order",
+        "reconciliation_has_no_unresolved_mismatch"
+      ]
+    },
+    {
+      "name": "saas-billing-dunning-lifecycle",
+      "category": "billing",
+      "capability": "saas-billing",
+      "sourcePaths": [
+        "apps/dashboard/app/api/billing/iyzico/webhook/route.ts",
+        "apps/dashboard/app/api/internal/billing-maintenance/route.ts",
+        "packages/db/src/billing-maintenance-port.ts"
+      ],
+      "assertions": [
+        "provider_event_processed_once",
+        "failed_collection_schedules_dunning",
+        "grace_expiry_suspends_tenant",
+        "successful_collection_restores_service"
+      ]
+    }
+  ]
+}

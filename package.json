@@ -4,7 +4,7 @@
   "scripts": {
     "build": "corepack pnpm -r --if-present --workspace-concurrency=4 build",
     "check": "corepack pnpm check:ci && corepack pnpm build && corepack pnpm smoke",
-    "check:ci": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:architecture && corepack pnpm test:db && corepack pnpm test:prod-preflight && corepack pnpm test:prod-release && corepack pnpm test:prod-topology && corepack pnpm test:prod-runtime",
+    "check:ci": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:architecture && corepack pnpm test:db && corepack pnpm test:prod-preflight && corepack pnpm test:prod-release && corepack pnpm test:prod-topology && corepack pnpm test:prod-runtime && corepack pnpm test:prod-smoke",
     "check:visual": "corepack pnpm check && corepack pnpm visual:smoke",
     "dev": "corepack pnpm -r --parallel --if-present dev",
     "lint": "eslint .",
@@ -18,6 +18,7 @@
     "test:prod-release": "node --test scripts/migration-release.test.mjs",
     "test:prod-topology": "node --test scripts/deployment-topology.test.mjs scripts/release-evidence.test.mjs",
     "test:prod-runtime": "node --test scripts/runtime-deployment.test.mjs",
+    "test:prod-smoke": "node --test scripts/business-smoke.test.mjs",
     "typecheck": "corepack pnpm -r --if-present --workspace-concurrency=4 typecheck",
     "visual:auth": "playwright test --config=playwright.visual.config.ts --project=dashboard-desktop --project=dashboard-mobile",
     "visual:auth:setup": "playwright test --config=playwright.visual.config.ts --project=dashboard-auth-setup",
@@ -39,7 +40,9 @@
     "prod:runtime-manifest": "node scripts/runtime-deployment.mjs manifest",
     "prod:runtime-verify": "node scripts/runtime-deployment.mjs verify",
     "prod:release-evidence": "node scripts/release-evidence.mjs",
-    "prod:rehearse": "node scripts/release-rehearsal.mjs"
+    "prod:rehearse": "node scripts/release-rehearsal.mjs",
+    "prod:smoke-manifest": "node scripts/business-smoke.mjs manifest",
+    "prod:smoke-verify": "node scripts/business-smoke.mjs verify"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

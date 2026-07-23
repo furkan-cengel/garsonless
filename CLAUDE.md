@@ -3108,3 +3108,34 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   yalnız iki mevcut marketing `<img>` performans uyarısı sürüyor. PROD runtime
   evidence henüz alınmadı; hiçbir PROD bağlantısı, migration, secret veya deploy
   işlemi yapılmadı.
+
+### Faz 7.5 — Release-bound iş-kritik smoke kapısı ✅ (2026-07-23)
+
+- Route smoke'un ötesindeki on ürün invariant'ı
+  `config/production-smoke.json` altında version'landı. Sekiz çekirdek kontrol;
+  auth sınırı, public menü/masa tokenı, guest ve member sipariş attribution'ı,
+  loyalty idempotency, KDS transition/tenant sınırı, outbox-inbox-e-posta
+  fan-out, platform-admin AAL2 ve operasyonel gözlemlenebilirliği kapsar.
+  Kart ödemesi ve SaaS billing ayrı capability kontrollüdür.
+- `pnpm prod:smoke-manifest`, her kontrolün uygulama kaynaklarını SHA-256 ile
+  topoloji hedeflerine bağlar. Eksik kaynak, tekrarlı assertion, bilinmeyen
+  capability veya yanlış origin `MAS-DEP-015/025/027` ile CI'da fail-closed
+  durur. Release identity artık smoke artifact SHA'sını ve kontrol sayısını da
+  taşır; local rehearsal aynı smoke SHA'ya bağlı değilse `MAS-DEP-024` alır.
+- `pnpm prod:smoke-verify`, en fazla dört saatlik operatör kanıtını production
+  project ref + commit + release + runtime + smoke SHA'larına bağlar. Kanıt
+  yalnız boolean assertion, duration ve capability durumu kabul eder; PII,
+  token, header/body, sipariş/masa/customer kimliği veya bilinmeyen alan
+  `MAS-DEP-028` ile reddedilir. Pre-deploy eksikleri `MAS-DEP-W05`, post-deploy
+  eksik/failed kontroller `MAS-DEP-026/027` ile release blokajıdır.
+- Henüz merchant hazır olmayan `order-card-payments` ve `saas-billing`
+  sessizce atlanmaz: capability `false` + kontrol `deferred` + yalnız
+  `CAPABILITY_DISABLED` reason code'u kabul edilir; capability açıldığı anda
+  bütün assertion'lar zorunlu olur. Güvenli operatör şeması ve snapshot/cleanup
+  disiplini `docs/operations/production-readiness.md` ile
+  `production-smoke-evidence.example.json` içinde belgelendi.
+- Hedefli smoke kontrat matrisi **12/12**, topology + release identity
+  **10/10** ve runtime/rehearsal **10/10** geçti. PROD smoke çalıştırılmadı;
+  production mutation/deploy yapılmadı. Tam `pnpm check:ci` ve beş Next.js
+  uygulamasını kapsayan workspace production build'i temiz geçti. Yalnız daha
+  önce var olan iki marketing `<img>` lint uyarısı devam ediyor; hata yok.

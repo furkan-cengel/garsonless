@@ -3,6 +3,8 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { buildRuntimeManifest, loadRuntimeSpec } from './runtime-deployment.mjs'
+import { buildSmokeManifest, loadSmokeSpec } from './business-smoke.mjs'
+import { loadTopologySpec } from './deployment-topology.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const DEV_PROJECT_REF = 'yxsegwkzyiscrxiwdeuf'
@@ -27,10 +29,13 @@ function verifyReleaseEvidence(evidence, projectRef) {
   }
 }
 
-export function buildReleaseRehearsal({ projectRef, releaseEvidence, runtimeManifest, runtimeSpec }) {
+export function buildReleaseRehearsal({ projectRef, releaseEvidence, runtimeManifest, runtimeSpec, smokeManifest }) {
   verifyReleaseEvidence(releaseEvidence, projectRef)
   if (runtimeManifest.projectRef !== projectRef || releaseEvidence.runtime?.sha256 !== runtimeManifest.artifactSha256) {
     throw rehearsalError('MAS-DEP-024', 'Release evidence ile runtime manifest aynı release sözleşmesine bağlı değil.')
+  }
+  if (smokeManifest.projectRef !== projectRef || releaseEvidence.smoke?.sha256 !== smokeManifest.artifactSha256) {
+    throw rehearsalError('MAS-DEP-024', 'Release evidence ile smoke manifest aynı release sözleşmesine bağlı değil.')
   }
   const steps = runtimeSpec.deploymentSteps.map((name, index) => ({
     order: index + 1,
@@ -51,6 +56,7 @@ export function buildReleaseRehearsal({ projectRef, releaseEvidence, runtimeMani
     commitSha: releaseEvidence.commitSha,
     releaseArtifactSha256: releaseEvidence.artifactSha256,
     runtimeArtifactSha256: runtimeManifest.artifactSha256,
+    smokeArtifactSha256: smokeManifest.artifactSha256,
     productionMutationPerformed: false,
     steps,
     rollbackDecisions: runtimeSpec.rollbackDecisions,
@@ -87,11 +93,15 @@ export function runCli(argv = process.argv.slice(2), root = ROOT) {
     const releaseEvidence = JSON.parse(readFileSync(resolve(root, options.releaseEvidence), 'utf8'))
     const { spec, sha256: specSha256 } = loadRuntimeSpec(root)
     const runtimeManifest = buildRuntimeManifest({ spec, specSha256, projectRef: options.projectRef, root })
-    const rehearsal = buildReleaseRehearsal({ projectRef: options.projectRef, releaseEvidence, runtimeManifest, runtimeSpec: spec })
+    const { spec: topologySpec, sha256: topologySha256 } = loadTopologySpec(root)
+    const { spec: smokeSpec, sha256: smokeSpecSha256 } = loadSmokeSpec(root)
+    const smokeManifest = buildSmokeManifest({ spec: smokeSpec, specSha256: smokeSpecSha256, topologySpec, topologySha256, projectRef: options.projectRef, root })
+    const rehearsal = buildReleaseRehearsal({ projectRef: options.projectRef, releaseEvidence, runtimeManifest, runtimeSpec: spec, smokeManifest })
     writeFileSync(resolve(root, options.output), `${JSON.stringify(rehearsal, null, 2)}\n`, { mode: 0o600 })
     console.log('Masabu local release rehearsal: PASS')
     console.log(`Commit: ${rehearsal.commitSha}`)
     console.log(`Runtime SHA-256: ${rehearsal.runtimeArtifactSha256}`)
+    console.log(`Smoke SHA-256: ${rehearsal.smokeArtifactSha256}`)
     console.log(`Rehearsal SHA-256: ${rehearsal.artifactSha256}`)
     console.log('Production mutation: none')
     console.log(`Output: ${options.output}`)

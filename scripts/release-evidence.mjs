@@ -6,11 +6,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createMigrationManifest } from './migration-release.mjs'
 import { loadTopologySpec } from './deployment-topology.mjs'
 import { buildRuntimeManifest, loadRuntimeSpec } from './runtime-deployment.mjs'
+import { buildSmokeManifest, loadSmokeSpec } from './business-smoke.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const DEV_PROJECT_REF = 'yxsegwkzyiscrxiwdeuf'
 const APPLICATIONS = ['dashboard', 'menu', 'kitchen', 'marketing', 'platform-admin']
-const QUALITY_GATES = ['check:ci', 'build', 'prod:preflight', 'prod:topology', 'prod:migration-drift', 'prod:runtime-verify']
+const QUALITY_GATES = ['check:ci', 'build', 'prod:preflight', 'prod:topology', 'prod:migration-drift', 'prod:runtime-verify', 'prod:smoke-verify']
 
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex')
@@ -31,6 +32,7 @@ export function buildReleaseEvidence({
   topologySpec,
   topologySha256,
   runtimeManifest,
+  smokeManifest,
 }) {
   if (!projectRef || !/^[a-z0-9]{20}$/.test(projectRef) || projectRef === DEV_PROJECT_REF) {
     throw releaseError('MAS-DEP-004', 'Production project ref geçersiz veya DEV projesine ait.')
@@ -38,7 +40,7 @@ export function buildReleaseEvidence({
   if (!/^[a-f0-9]{40}$/.test(commitSha)) {
     throw releaseError('MAS-DEP-006', 'Release commit SHA geçersiz.')
   }
-  if (!packageManager || !lockfileContents || !migrationManifest?.sha256 || !topologySha256 || !runtimeManifest?.artifactSha256) {
+  if (!packageManager || !lockfileContents || !migrationManifest?.sha256 || !topologySha256 || !runtimeManifest?.artifactSha256 || !smokeManifest?.artifactSha256) {
     throw releaseError('MAS-DEP-001', 'Release identity girdilerinden biri eksik.')
   }
 
@@ -76,6 +78,11 @@ export function buildReleaseEvidence({
       edgeFunctionCount: runtimeManifest.edgeFunctions.length,
       cronJobCount: runtimeManifest.cronJobs.length,
       vaultSecretCount: runtimeManifest.vaultSecrets.length,
+    },
+    smoke: {
+      sha256: smokeManifest.artifactSha256,
+      checkCount: smokeManifest.checks.length,
+      capabilities: smokeManifest.capabilities,
     },
   }
   return { ...identity, artifactSha256: sha256(JSON.stringify(identity)) }
@@ -130,6 +137,15 @@ export function runCli(argv = process.argv.slice(2), root = ROOT) {
       projectRef: options.projectRef,
       root,
     })
+    const { spec: smokeSpec, sha256: smokeSpecSha256 } = loadSmokeSpec(root)
+    const smokeManifest = buildSmokeManifest({
+      spec: smokeSpec,
+      specSha256: smokeSpecSha256,
+      topologySpec,
+      topologySha256,
+      projectRef: options.projectRef,
+      root,
+    })
     const evidence = buildReleaseEvidence({
       projectRef: options.projectRef,
       commitSha,
@@ -139,6 +155,7 @@ export function runCli(argv = process.argv.slice(2), root = ROOT) {
       topologySpec,
       topologySha256,
       runtimeManifest,
+      smokeManifest,
     })
     writeFileSync(resolve(root, options.output), `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 })
     console.log('Masabu release evidence: PASS')

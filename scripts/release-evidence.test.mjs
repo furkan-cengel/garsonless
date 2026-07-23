@@ -4,6 +4,7 @@ import { buildReleaseEvidence } from './release-evidence.mjs'
 import { createMigrationManifest } from './migration-release.mjs'
 import { loadTopologySpec } from './deployment-topology.mjs'
 import { buildRuntimeManifest, loadRuntimeSpec } from './runtime-deployment.mjs'
+import { buildSmokeManifest, loadSmokeSpec } from './business-smoke.mjs'
 
 const PROD_REF = 'svxvloeosiksqfadgkvo'
 const COMMIT = 'a'.repeat(40)
@@ -13,6 +14,8 @@ function fixture(overrides = {}) {
   const { spec: topologySpec, sha256: topologySha256 } = loadTopologySpec()
   const { spec: runtimeSpec, sha256: runtimeSpecSha256 } = loadRuntimeSpec()
   const runtimeManifest = buildRuntimeManifest({ spec: runtimeSpec, specSha256: runtimeSpecSha256, projectRef: PROD_REF })
+  const { spec: smokeSpec, sha256: smokeSpecSha256 } = loadSmokeSpec()
+  const smokeManifest = buildSmokeManifest({ spec: smokeSpec, specSha256: smokeSpecSha256, topologySpec, topologySha256, projectRef: PROD_REF })
   return {
     projectRef: PROD_REF,
     commitSha: COMMIT,
@@ -22,11 +25,12 @@ function fixture(overrides = {}) {
     topologySpec,
     topologySha256,
     runtimeManifest,
+    smokeManifest,
     ...overrides,
   }
 }
 
-test('release identity is deterministic and binds commit, lockfile, migrations, topology and runtime', () => {
+test('release identity is deterministic and binds commit, lockfile, migrations, topology, runtime and smoke', () => {
   const first = buildReleaseEvidence(fixture())
   const second = buildReleaseEvidence(fixture())
   assert.deepEqual(first, second)
@@ -35,11 +39,12 @@ test('release identity is deterministic and binds commit, lockfile, migrations, 
   assert.equal(first.topology.publicEndpoints.length, 11)
   assert.equal(first.runtime.edgeFunctionCount, 2)
   assert.equal(first.runtime.cronJobCount, 4)
+  assert.equal(first.smoke.checkCount, 10)
   assert.match(first.lockfileSha256, /^[a-f0-9]{64}$/)
   assert.match(first.artifactSha256, /^[a-f0-9]{64}$/)
 })
 
-test('lockfile, migration, topology or runtime changes alter the release identity', () => {
+test('lockfile, migration, topology, runtime or smoke changes alter the release identity', () => {
   const baseline = buildReleaseEvidence(fixture())
   const lockChanged = buildReleaseEvidence(fixture({ lockfileContents: 'lockfileVersion: changed\n' }))
   const migrationChanged = buildReleaseEvidence(fixture({
@@ -49,10 +54,14 @@ test('lockfile, migration, topology or runtime changes alter the release identit
   const runtimeChanged = buildReleaseEvidence(fixture({
     runtimeManifest: { ...fixture().runtimeManifest, artifactSha256: 'd'.repeat(64) },
   }))
+  const smokeChanged = buildReleaseEvidence(fixture({
+    smokeManifest: { ...fixture().smokeManifest, artifactSha256: 'e'.repeat(64) },
+  }))
   assert.notEqual(lockChanged.artifactSha256, baseline.artifactSha256)
   assert.notEqual(migrationChanged.artifactSha256, baseline.artifactSha256)
   assert.notEqual(topologyChanged.artifactSha256, baseline.artifactSha256)
   assert.notEqual(runtimeChanged.artifactSha256, baseline.artifactSha256)
+  assert.notEqual(smokeChanged.artifactSha256, baseline.artifactSha256)
 })
 
 test('evidence contains public deployment facts but no credential material', () => {

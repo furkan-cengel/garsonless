@@ -33,10 +33,15 @@ hiçbir Supabase projesine bağlanmaz, migration uygulamaz ve secret değerlerin
 | `MAS-DEP-022` | Vault/capability/secret metadata eksik veya kanıt secret içeriyor |
 | `MAS-DEP-023` | Güvenli post-deploy probe beklenen sonucu vermiyor |
 | `MAS-DEP-024` | Release identity ile runtime manifest aynı release'e bağlı değil |
+| `MAS-DEP-025` | Smoke sözleşmesi/kanıtı geçersiz, eski veya yanlış ortama ait |
+| `MAS-DEP-026` | Etkin capability için zorunlu smoke kontrolü eksik ya da başarısız |
+| `MAS-DEP-027` | Smoke assertion seti eksik, fazla veya false sonuç içeriyor |
+| `MAS-DEP-028` | Smoke kanıtı tekrarlı, bilinmeyen veya izin verilmeyen alan içeriyor |
 | `MAS-DEP-W01` | Capability bilinçli olarak bu turda kapalı |
 | `MAS-DEP-W02` | Remote migration geçmişi ayrıca doğrulanmalı |
 | `MAS-DEP-W03` | Deploy planında uygulanmayı bekleyen migration var |
 | `MAS-DEP-W04` | Pre-deploy runtime farkı rollout planında kapatılmalı |
+| `MAS-DEP-W05` | İş-kritik smoke kontrolü deploy sonrası tamamlanmayı bekliyor |
 
 ## App preflight
 
@@ -225,6 +230,60 @@ secret ile health GET'te `200`, secretsiz çağrıda `401`; e-posta hook'u geçe
 imzada `401`. Gerçek e-posta ve outbox teslimatı ayrıca iş-kritik smoke
 matrisinde doğrulanır.
 
+## İş-kritik smoke matrisi
+
+`config/production-smoke.json`, route smoke'tan farklı olarak gerçek ürün
+invariant'larını version'lar. Sekiz çekirdek kontrol her release için
+zorunludur: auth sınırı, public menü/masa tokenı, guest sipariş, üye siparişi ve
+sadakat, KDS transition/tenant sınırı, outbox-inbox-e-posta fan-out,
+platform-admin AAL2 ve operasyonel gözlemlenebilirlik. Kart ödemesi ile SaaS
+billing kontrolleri yalnız ilgili capability production'da etkinse zorunlu
+olur.
+
+Önce kaynak dosya hash'lerini ve topoloji hedeflerini taşıyan secretsiz manifest
+üretilir:
+
+```bash
+corepack pnpm prod:smoke-manifest -- \
+  --project-ref <PROD_PROJECT_REF> \
+  --output /tmp/masabu-smoke-manifest.json
+```
+
+Release sonrası dedicated smoke tenant ve throwaway kayıtlarla matris
+çalıştırılır. Test sonunda fixture sayısı sıfır olmalı; gerçek müşteri/işletme
+verisi değiştirilmez. Kanıt dosyasına e-posta, telefon, IP, user/order/table ID,
+token, header, body veya provider cevabı konmaz. Yalnız exact boolean assertion,
+kontrol süresi ve release kimlikleri kabul edilir. Örnek güvenli şema
+`docs/operations/production-smoke-evidence.example.json` dosyasındadır.
+
+Henüz açılmamış capability için kontrol sessizce atlanamaz: capability `false`,
+kontrol `deferred`, `reasonCode` ise tam olarak `CAPABILITY_DISABLED` olmalıdır.
+Capability `true` olduğunda bütün assertion'lar `true` değilse release durur.
+Kanıt en fazla dört saatlik olabilir ve commit + release + runtime + smoke
+SHA'larının tamamına bağlıdır:
+
+```bash
+# Deploy öncesi: tamamlanacak çekirdek kontroller MAS-DEP-W05 olarak planlanır.
+corepack pnpm prod:smoke-verify -- \
+  --project-ref <PROD_PROJECT_REF> \
+  --release-evidence /tmp/masabu-release-evidence.json \
+  --evidence /tmp/prod-smoke-evidence.json \
+  --mode pre-deploy
+
+# Deploy sonrası: eksik/failed/deferred çekirdek kontrol release'i bloklar.
+corepack pnpm prod:smoke-verify -- \
+  --project-ref <PROD_PROJECT_REF> \
+  --release-evidence /tmp/masabu-release-evidence.json \
+  --evidence /tmp/prod-smoke-evidence.json \
+  --mode post-deploy \
+  --output /tmp/prod-smoke-verification.json
+```
+
+Bu doğrulayıcı smoke işlemlerini kendi başına çalıştırmaz ve PROD'a yazmaz;
+operatörün kontrollü runtime turundan aldığı minimal kanıtı fail-closed
+doğrular. `order-card-payments` ve `saas-billing`, canlı merchant hazır olana
+kadar açıkça disabled/deferred kalır.
+
 ## Release identity artifact'ı
 
 Tüm kapılar geçip release commit'i `main`e pushlandıktan sonra secret'sız ve
@@ -238,7 +297,8 @@ corepack pnpm prod:release-evidence -- \
 
 Komut dirty worktree, yanlış branch veya `HEAD != origin/main` durumunda
 fail-closed durur. Artifact commit SHA, package manager, lockfile SHA-256,
-migration manifest SHA-256, topology SHA-256, runtime SHA-256 ve public endpoint
+migration manifest SHA-256, topology SHA-256, runtime SHA-256, iş-kritik smoke
+manifest SHA-256 ve public endpoint
 envanterini tek `artifactSha256` altında bağlar. Zaman damgası veya secret içermez; aynı
 release girdileri aynı artifact kimliğini üretir. Bu artifact kalite
 kontrollerinin yerine geçmez, hangi kaynakların doğrulandığını sabitler.
@@ -246,7 +306,7 @@ kontrollerinin yerine geçmez, hangi kaynakların doğrulandığını sabitler.
 ## Local release provası ve rollback matrisi
 
 Release identity üretildikten sonra aşağıdaki komut deploy yapmadan adım
-sırasını, mutasyon sınırlarını ve rollback kararlarını aynı commit/runtime
+sırasını, mutasyon sınırlarını ve rollback kararlarını aynı commit/runtime/smoke
 SHA'larına bağlar:
 
 ```bash

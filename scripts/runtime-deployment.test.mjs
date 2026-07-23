@@ -14,6 +14,7 @@ import {
   validateRuntimeEvidence,
   validateRuntimeSource,
 } from './runtime-deployment.mjs'
+import { buildSmokeManifest, loadSmokeSpec } from './business-smoke.mjs'
 
 const PROD_REF = 'svxvloeosiksqfadgkvo'
 const NOW = new Date('2026-07-23T12:00:00Z')
@@ -53,6 +54,8 @@ function validEvidence(manifest, capturedAt = NOW.toISOString()) {
 function releaseFixture(runtimeManifest) {
   const migrationManifest = createMigrationManifest()
   const { spec: topologySpec, sha256: topologySha256 } = loadTopologySpec()
+  const { spec: smokeSpec, sha256: smokeSpecSha256 } = loadSmokeSpec()
+  const smokeManifest = buildSmokeManifest({ spec: smokeSpec, specSha256: smokeSpecSha256, topologySpec, topologySha256, projectRef: PROD_REF })
   return buildReleaseEvidence({
     projectRef: PROD_REF,
     commitSha: 'a'.repeat(40),
@@ -62,6 +65,7 @@ function releaseFixture(runtimeManifest) {
     topologySpec,
     topologySha256,
     runtimeManifest,
+    smokeManifest,
   })
 }
 
@@ -162,22 +166,29 @@ test('runtime CLI writes secretless 0600 manifest and verifies a safe evidence f
 test('local rehearsal is deterministic, mutation-free and carries explicit forward-fix rollback decisions', () => {
   const { spec, manifest } = runtimeFixture()
   const releaseEvidence = releaseFixture(manifest)
-  const first = buildReleaseRehearsal({ projectRef: PROD_REF, releaseEvidence, runtimeManifest: manifest, runtimeSpec: spec })
-  const second = buildReleaseRehearsal({ projectRef: PROD_REF, releaseEvidence, runtimeManifest: manifest, runtimeSpec: spec })
+  const { spec: topologySpec, sha256: topologySha256 } = loadTopologySpec()
+  const { spec: smokeSpec, sha256: smokeSpecSha256 } = loadSmokeSpec()
+  const smokeManifest = buildSmokeManifest({ spec: smokeSpec, specSha256: smokeSpecSha256, topologySpec, topologySha256, projectRef: PROD_REF })
+  const first = buildReleaseRehearsal({ projectRef: PROD_REF, releaseEvidence, runtimeManifest: manifest, runtimeSpec: spec, smokeManifest })
+  const second = buildReleaseRehearsal({ projectRef: PROD_REF, releaseEvidence, runtimeManifest: manifest, runtimeSpec: spec, smokeManifest })
   assert.deepEqual(first, second)
   assert.equal(first.status, 'local-dry-run')
   assert.equal(first.productionMutationPerformed, false)
   assert.equal(first.steps.length, 9)
   assert.ok(first.rollbackDecisions.some((item) => item.database === 'never-run-down-migration'))
   assert.ok(first.requiredProductionEvidence.includes('runtime-post-deploy-evidence-and-probes'))
+  assert.equal(first.smokeArtifactSha256, smokeManifest.artifactSha256)
 })
 
 test('tampered release identity or a different runtime manifest cannot be rehearsed', () => {
   const { spec, manifest } = runtimeFixture()
+  const { spec: topologySpec, sha256: topologySha256 } = loadTopologySpec()
+  const { spec: smokeSpec, sha256: smokeSpecSha256 } = loadSmokeSpec()
+  const smokeManifest = buildSmokeManifest({ spec: smokeSpec, specSha256: smokeSpecSha256, topologySpec, topologySha256, projectRef: PROD_REF })
   const tampered = releaseFixture(manifest)
   tampered.commitSha = 'b'.repeat(40)
   assert.throws(
-    () => buildReleaseRehearsal({ projectRef: PROD_REF, releaseEvidence: tampered, runtimeManifest: manifest, runtimeSpec: spec }),
+    () => buildReleaseRehearsal({ projectRef: PROD_REF, releaseEvidence: tampered, runtimeManifest: manifest, runtimeSpec: spec, smokeManifest }),
     { code: 'MAS-DEP-019' },
   )
   const releaseEvidence = releaseFixture(manifest)
@@ -187,6 +198,7 @@ test('tampered release identity or a different runtime manifest cannot be rehear
       releaseEvidence,
       runtimeManifest: { ...manifest, artifactSha256: 'f'.repeat(64) },
       runtimeSpec: spec,
+      smokeManifest,
     }),
     { code: 'MAS-DEP-024' },
   )

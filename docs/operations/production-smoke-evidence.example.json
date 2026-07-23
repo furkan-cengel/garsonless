@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "environment": "production",
+  "projectRef": "<PROD_PROJECT_REF>",
+  "capturedAt": "<ISO-8601 UTC>",
+  "commitSha": "<40_HEX_COMMIT_SHA>",
+  "releaseArtifactSha256": "<64_HEX_RELEASE_SHA>",
+  "runtimeArtifactSha256": "<64_HEX_RUNTIME_SHA>",
+  "smokeArtifactSha256": "<64_HEX_SMOKE_SHA>",
+  "enabledCapabilities": {
+    "core": true,
+    "order-card-payments": false,
+    "saas-billing": false
+  },
+  "checks": [
+    {
+      "name": "dashboard-auth-boundary",
+      "status": "passed",
+      "durationMs": 120,
+      "assertions": {
+        "login_route_200": true,
+        "private_route_redirects_to_login": true,
+        "error_contract_visible": true
+      }
+    },
+    {
+      "name": "public-menu-and-table-token",
+      "status": "passed",
+      "durationMs": 120,
+      "assertions": {
+        "catalog_has_visible_items": true,
+        "valid_table_token_resolves": true,
+        "rotated_or_invalid_token_fails_closed": true
+      }
+    },
+    {
+      "name": "guest-order-attribution",
+      "status": "passed",
+      "durationMs": 120,
+      "assertions": {
+        "order_created_once": true,
+        "table_and_tenant_match": true,
+        "customer_is_null": true,
+        "loyalty_ledger_rows_zero": true
+      }
+    },
+    {
+      "name": "member-order-and-loyalty",
+      "status": "passed",
+      "durationMs": 120,
+      "assertions": {
+        "authenticated_customer_linked": true,
+        "order_created_once": true,
+        "points_amount_matches_policy": true,
+        "stamp_amount_matches_policy": true,
+        "retry_has_no_duplicate_ledger": true
+      }
+    },
+    {
+      "name": "kitchen-transition-and-tenant-boundary",
+      "status": "passed",
+      "durationMs": 120,
+      "assertions": {
+        "missing_session_fails_closed": true,
+        "authorized_order_is_visible": true,
+        "legal_transition_succeeds_once": true,
+        "cross_tenant_transition_denied": true
+      }
+    },
+    {
+      "name": "outbox-inbox-email-fanout",
+      "status": "passed",
+      "durationMs": 120,
+      "assertions": {
+        "outbox_event_claimed_once": true,
+        "inbox_delivery_created_once": true,
+        "email_delivery_terminal_or_retryable": true,
+        "replay_has_no_duplicate_delivery": true
+      }
+    },
+    {
+      "name": "platform-admin-aal2-and-cross-tenant",
+      "status": "passed",
+      "durationMs": 120,
+      "assertions": {
+        "aal1_is_challenged": true,
+        "aal2_superadmin_can_read_tenant_directory": true,
+        "unauthorized_actor_denied": true,
+        "mutation_audit_recorded_without_pii": true
+      }
+    },
+    {
+      "name": "operational-observability",
+      "status": "passed",
+      "durationMs": 120,
+      "assertions": {
+        "error_event_has_public_code": true,
+        "outbox_lag_is_queryable": true,
+        "dead_letter_is_queryable": true,
+        "smoke_fixture_cleanup_zero": true
+      }
+    },
+    {
+      "name": "order-card-payment-idempotency",
+      "status": "deferred",
+      "durationMs": 0,
+      "assertions": {},
+      "reasonCode": "CAPABILITY_DISABLED"
+    },
+    {
+      "name": "saas-billing-dunning-lifecycle",
+      "status": "deferred",
+      "durationMs": 0,
+      "assertions": {},
+      "reasonCode": "CAPABILITY_DISABLED"
+    }
+  ]
+}
