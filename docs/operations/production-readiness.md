@@ -41,6 +41,8 @@ hiçbir Supabase projesine bağlanmaz, migration uygulamaz ve secret değerlerin
 | `MAS-DEP-030` | Release/rehearsal/capability kanıt bağları uyuşmuyor |
 | `MAS-DEP-031` | Operatör attestation'ı eksik, eski veya izin verilmeyen alan içeriyor |
 | `MAS-DEP-032` | Final release kapısında allowlist dışı uyarı veya blokaj var |
+| `MAS-DEP-033` | Release bundle yanlış ref/CI olayı veya operatör niyetiyle başlatıldı |
+| `MAS-DEP-034` | Release bundle eksik, kirlenmiş ya da hash/iç bağ bütünlüğünü kaybetmiş |
 | `MAS-DEP-W01` | Capability bilinçli olarak bu turda kapalı |
 | `MAS-DEP-W02` | Remote migration geçmişi ayrıca doğrulanmalı |
 | `MAS-DEP-W03` | Deploy planında uygulanmayı bekleyen migration var |
@@ -373,6 +375,40 @@ Karar artifact'ı release, rehearsal, policy ve operatör attestation SHA-256
 kimliklerini; capability durumlarını; gate sonuçlarını ve yalnız güvenli
 hata/uyarı kodlarını taşır. Araç migration/deploy/rollback çalıştırmaz ve her
 zaman `productionMutationPerformed: false` yazar.
+
+## Mutation-free release bundle
+
+`pnpm prod:release-bundle`, aynı clean/pushlanmış `main` commit'ine bağlı
+release identity, runtime manifest, smoke manifest, local rehearsal ve henüz
+onay veremeyen attestation şablonunu tek dizinde üretir. Şablonun bütün
+approval alanları `false`, `capturedAt` alanı `null` gelir; dolayısıyla paket
+tek başına deploy veya `release-accepted` kararı veremez.
+
+```bash
+corepack pnpm prod:release-bundle -- build \
+  --project-ref <PROD_PROJECT_REF> \
+  --output /tmp/masabu-production-release
+
+corepack pnpm prod:release-bundle -- verify \
+  --input /tmp/masabu-production-release
+```
+
+`bundle-manifest.json`, migration manifesti dahil altı dosyanın byte boyutu ve SHA-256 değerini; release,
+rehearsal ve policy bağlarını; ayrıca operatörün sonradan toplaması gereken dört
+gerçek PROD kanıtının **yalnız dosya adlarını** taşır. Paket dizini 0700,
+dosyalar 0600 yazılır; secret, e-posta, kişi adı, token, header/body veya
+provider cevabı pakete alınmaz. Tanımsız ekstra dosya ya da tek byte değişiklik
+`MAS-DEP-034` ile reddedilir. `verify`, yalnız paketin kendi hash'lerine
+güvenmez; exact commit checkout'undaki lockfile, migration, runtime, smoke ve
+policy kaynaklarından beklenen paketi yeniden üretip byte-byte karşılaştırır.
+
+GitHub Actions'taki `Production Release Bundle` workflow'u yalnız manuel
+`workflow_dispatch`, exact `main`, exact checkout SHA ve
+`BUILD RELEASE BUNDLE` onayıyla çalışır. Önce tam CI + build kapılarını tekrar
+koşar, sonra aynı paketi 14 günlük artifact olarak yükler. Workflow hiçbir
+GitHub Environment/secret istemez; Supabase'e bağlanmaz, migration/deploy
+çalıştırmaz. İndirilen artifact, operatör kanıtları eklenmeden önce yukarıdaki
+`verify` komutuyla tekrar doğrulanır.
 
 ## Şimdiki açık blokajlar
 

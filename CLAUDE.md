@@ -3164,3 +3164,24 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   `<img>` lint uyarısı sürüyor; hata yok. PROD evidence/deploy/mutation
   yapılmadı; gerçek PROD girdileri olmadan araç bilinçli olarak nihai
   `release-accepted` kanıtı üretmez.
+
+### Faz 7.7 — Mutation-free release bundle ve manuel CI artifact ✅ (2026-07-23)
+
+- Clean ve origin ile eşit `main` commit'inden release evidence, runtime/smoke
+  manifestleri, local rehearsal ve bütün onayları `false` olan bağlı attestation
+  şablonunu tek secretsiz pakette üreten `production-release-bundle.mjs`
+  eklendi. Paket üretimi DEV ref, kirli ağaç, yanlış branch/ref veya CI SHA
+  farkında fail-closed durur.
+- `bundle-manifest.json` migration manifesti dahil altı dosyanın SHA-256 + byte envanterini ve release /
+  rehearsal / policy bağlarını taşır. Verifier eksik, fazla veya değişmiş tek
+  dosyayı `MAS-DEP-034` ile reddeder; üretim dizini 0700, dosyalar 0600 ve
+  `productionMutationPerformed: false` kalır.
+- `Production Release Bundle` GitHub workflow'u yalnız manuel exact-main
+  çalışır; tam CI + build sonrasında 14 günlük artifact yükler. Secret veya
+  GitHub Environment kullanmaz, Supabase'e bağlanmaz ve deploy/migration
+  çalıştırmaz.
+- Hedefli bundle matrisi **8/8**, release-decision regresyon matrisi **11/11**
+  geçti; workflow YAML parse kontrolü, tam workspace CI ve tüm uygulamaların
+  production build'i temiz tamamlandı. Yalnız önceden var olan iki marketing
+  `<img>` lint uyarısı sürüyor; hata yok. PROD bağlantısı, deploy veya mutation
+  yapılmadı.

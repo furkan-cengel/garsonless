@@ -1,0 +1,78 @@
+name: Production Release Bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_ref:
+        description: Production Supabase project ref (20 lowercase characters)
+        required: true
+        type: string
+      confirmation:
+        description: Type BUILD RELEASE BUNDLE (this workflow never deploys)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release-bundle-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  build-release-bundle:
+    name: Build mutation-free release bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Confirm mutation-free operator intent
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [ "$CONFIRMATION" != "BUILD RELEASE BUNDLE" ]; then
+            echo "MAS-DEP-033 confirmation: exact confirmation text is required"
+            exit 1
+          fi
+
+      - name: Check out exact release commit
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run release quality gates
+        run: pnpm check:ci
+
+      - name: Build all applications
+        run: pnpm build
+
+      - name: Build source-bound release bundle
+        env:
+          PROD_PROJECT_REF: ${{ inputs.project_ref }}
+        run: pnpm prod:release-bundle -- build --project-ref "$PROD_PROJECT_REF" --output production-release-bundle
+
+      - name: Verify release bundle integrity
+        run: pnpm prod:release-bundle -- verify --input production-release-bundle
+
+      - name: Upload safe release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: masabu-production-release-${{ github.sha }}
+          path: production-release-bundle
+          if-no-files-found: error
+          retention-days: 14
+          include-hidden-files: false

@@ -261,6 +261,10 @@ test('decision artifact is deterministic for the same bound evidence', () => {
 test('CLI writes a safe 0600 post-deploy decision artifact', () => {
   const directory = mkdtempSync(join(tmpdir(), 'masabu-release-decision-'))
   const input = fixture()
+  const capturedAt = new Date().toISOString()
+  input.runtimeEvidence.capturedAt = capturedAt
+  input.smokeEvidence.capturedAt = capturedAt
+  input.attestation.capturedAt = capturedAt
   try {
     const paths = {}
     const writeJson = (name, value) => {
