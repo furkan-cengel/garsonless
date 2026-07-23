@@ -1,9 +1,13 @@
 import type {
+  PlatformDunningIntervention,
+  PlatformDunningInterventionPort,
+  PlatformDunningInterventionResult,
   PlatformBillingTimelineItem,
   PlatformTenantBillingReadPort,
   PlatformTenantBillingTimeline,
 } from '@garsonless/application/platform-admin-billing'
 import {
+  PLATFORM_DUNNING_STATUSES,
   isPlatformBillingCurrency,
   isPlatformBillingTimelineAction,
   isPlatformBillingTimelineKind,
@@ -14,7 +18,7 @@ import { createServiceClient } from './client'
 
 type RpcResult = { data: unknown; error: { message: string } | null }
 export type PlatformTenantBillingRpc = (
-  name: 'read_platform_admin_tenant_billing_timeline',
+  name: 'read_platform_admin_tenant_billing_timeline' | 'intervene_platform_admin_billing_dunning',
   args: Record<string, unknown>,
 ) => PromiseLike<RpcResult>
 
@@ -47,6 +51,41 @@ function nullableUuid(value: unknown): string | null {
   if (value === null) return null
   if (typeof value !== 'string' || !UUID.test(value)) throw new Error('invalid uuid')
   return value
+}
+
+function boolean(value: unknown): boolean {
+  if (typeof value !== 'boolean') throw new Error('invalid boolean')
+  return value
+}
+
+function isIntervention(value: unknown): value is PlatformDunningIntervention {
+  return value === 'retry_now' || value === 'defer'
+}
+
+function parseIntervention(value: unknown): PlatformDunningInterventionResult {
+  const row = record(value)
+  if (
+    typeof row.restaurantId !== 'string' || !UUID.test(row.restaurantId)
+    || typeof row.invoiceId !== 'string' || !UUID.test(row.invoiceId)
+    || typeof row.runId !== 'string' || !UUID.test(row.runId)
+    || !isIntervention(row.intervention)
+    || !PLATFORM_DUNNING_STATUSES.includes(row.previousStatus as typeof PLATFORM_DUNNING_STATUSES[number])
+    || !PLATFORM_DUNNING_STATUSES.includes(row.status as typeof PLATFORM_DUNNING_STATUSES[number])
+    || typeof row.requestId !== 'string' || !UUID.test(row.requestId)
+  ) throw new Error('invalid dunning intervention')
+  return {
+    restaurantId: row.restaurantId,
+    invoiceId: row.invoiceId,
+    runId: row.runId,
+    intervention: row.intervention,
+    previousStatus: row.previousStatus as typeof PLATFORM_DUNNING_STATUSES[number],
+    status: row.status as typeof PLATFORM_DUNNING_STATUSES[number],
+    previousNextActionAt: nullableTimestamp(row.previousNextActionAt),
+    nextActionAt: timestamp(row.nextActionAt),
+    changed: boolean(row.changed),
+    duplicate: boolean(row.duplicate),
+    requestId: row.requestId,
+  }
 }
 
 function parseItem(value: unknown): PlatformBillingTimelineItem {
@@ -115,6 +154,35 @@ export function createPlatformAdminTenantBillingReadPort(
         return ok(parseTimeline(data))
       } catch {
         return err('platform_billing_timeline_query_failed')
+      }
+    },
+  }
+}
+
+export function createPlatformAdminDunningInterventionPort(
+  rpc: PlatformTenantBillingRpc = serviceRpc(),
+): PlatformDunningInterventionPort {
+  return {
+    async intervene(input) {
+      try {
+        const { data, error } = await rpc('intervene_platform_admin_billing_dunning', {
+          p_restaurant_id: input.restaurantId,
+          p_invoice_id: input.invoiceId,
+          p_actor_user_id: input.actorUserId,
+          p_actor_role: input.actorRole,
+          p_intervention: input.intervention,
+          p_defer_days: input.deferDays,
+          p_reason: input.reason,
+          p_request_id: input.requestId,
+        })
+        if (error) {
+          if (error.message.includes('platform_dunning_run_busy')) return err('platform_dunning_run_busy')
+          if (error.message.includes('platform_dunning_not_actionable')) return err('platform_dunning_not_actionable')
+          return err('platform_dunning_intervention_failed')
+        }
+        return ok(parseIntervention(data))
+      } catch {
+        return err('platform_dunning_intervention_failed')
       }
     },
   }

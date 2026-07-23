@@ -3,7 +3,7 @@
 // DB data (never client input), so points/stamps can't be inflated.
 
 import { createServiceClient } from './client'
-import { canUseFeature } from '@garsonless/domain'
+import { canRestaurantUseFeature } from './feature-entitlement-port'
 import {
   applyBonusStamps,
   computeDiscountStack,
@@ -32,9 +32,9 @@ type RestaurantLoyaltyRecord = { settings: RawLoyaltySettings; plan: unknown }
  * executable. Keeping the entitlement at this service-role boundary prevents
  * an old settings JSONB document from minting or redeeming loyalty value.
  */
-function readEntitledLoyaltyConfig(row: unknown) {
+async function readEntitledLoyaltyConfig(row: unknown, restaurantId: string) {
   const restaurant = row as RestaurantLoyaltyRecord | null
-  if (!restaurant || !canUseFeature(restaurant.plan, 'loyalty')) return null
+  if (!restaurant || !await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'loyalty' })) return null
   return readLoyaltyConfig(restaurant.settings ?? null)
 }
 
@@ -49,7 +49,7 @@ export async function getLoyaltyScope(restaurantId: string): Promise<{
     .select('settings, plan')
     .eq('id', restaurantId)
     .maybeSingle()
-  const config = readEntitledLoyaltyConfig(restaurant)
+  const config = await readEntitledLoyaltyConfig(restaurant, restaurantId)
   if (!config) return null
   return {
     scopeKey: loyaltyScopeKey(config, restaurantId),
@@ -88,7 +88,7 @@ export async function earnForOrderStrict(orderId: string, firedTrigger: 'paid' |
     .eq('id', order.restaurant_id)
     .maybeSingle()
   if (restaurantError) throw new Error(restaurantError.message)
-  const cfg = readEntitledLoyaltyConfig(restRow)
+  const cfg = await readEntitledLoyaltyConfig(restRow, order.restaurant_id)
   if (!cfg) return
   if (!cfg.stamp_enabled && !cfg.points_enabled) return
   if (cfg.earn_trigger !== firedTrigger) return // only the configured trigger earns
@@ -201,7 +201,7 @@ export async function getMemberBalances(customerId: string, restaurantId: string
   const supabase = createServiceClient()
 
   const { data: restRow } = await supabase.from('restaurants').select('settings, plan').eq('id', restaurantId).maybeSingle()
-  const cfg = readEntitledLoyaltyConfig(restRow)
+  const cfg = await readEntitledLoyaltyConfig(restRow, restaurantId)
   if (!cfg) return null
 
   const scopeKey = loyaltyScopeKey(cfg, restaurantId)
@@ -322,7 +322,7 @@ export async function creditVisitsForSessionStrict(sessionId: string): Promise<v
     .eq('id', session.restaurant_id)
     .maybeSingle()
   if (restaurantError) throw new Error(restaurantError.message)
-  const cfg = readEntitledLoyaltyConfig(restRow)
+  const cfg = await readEntitledLoyaltyConfig(restRow, session.restaurant_id)
   if (!cfg) return
   const scopeKey = loyaltyScopeKey(cfg, session.restaurant_id)
 
@@ -390,7 +390,7 @@ export async function creditWelcomeBonusStrict(customerId: string, restaurantId:
     .eq('id', restaurantId)
     .maybeSingle()
   if (restaurantError) throw new Error(restaurantError.message)
-  const cfg = readEntitledLoyaltyConfig(restRow)
+  const cfg = await readEntitledLoyaltyConfig(restRow, restaurantId)
   if (!cfg || cfg.welcome_bonus_points <= 0) return
   const scopeKey = loyaltyScopeKey(cfg, restaurantId)
 
@@ -524,7 +524,7 @@ export async function computeOrderDiscount(input: {
     .select('settings, plan')
     .eq('id', input.restaurantId)
     .maybeSingle()
-  const cfg = readEntitledLoyaltyConfig(restRow)
+  const cfg = await readEntitledLoyaltyConfig(restRow, input.restaurantId)
   if (!cfg) return empty
   const scopeKey = loyaltyScopeKey(cfg, input.restaurantId)
   const balances = await getMemberBalances(input.customerId, input.restaurantId)
@@ -640,7 +640,11 @@ export async function redeemForOrder(params: {
     .select('plan')
     .eq('id', params.restaurantId)
     .maybeSingle()
-  if (!canUseFeature((restaurant as { plan?: unknown } | null)?.plan, 'loyalty')) {
+  if (!await canRestaurantUseFeature({
+    restaurantId: params.restaurantId,
+    plan: (restaurant as { plan?: unknown } | null)?.plan,
+    feature: 'loyalty',
+  })) {
     return { pointsDebited: 0, stampsDebited: 0 }
   }
   const { data } = await supabase.rpc('redeem_loyalty', {

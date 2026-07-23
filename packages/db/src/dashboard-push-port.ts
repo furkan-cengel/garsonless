@@ -7,6 +7,7 @@ import type {
 import { isDashboardPushEventType, DASHBOARD_PUSH_CONSUMER } from '@garsonless/application/push-notifications'
 import { err, ok } from '@garsonless/domain'
 import { createServiceClient } from './client'
+import { canRestaurantUseFeature } from './feature-entitlement-port'
 
 export async function upsertDashboardPushSubscription(input: {
   restaurantId: string
@@ -82,6 +83,12 @@ export function createDashboardPushPort(): DashboardPushPort {
       if (restaurantError) return err(restaurantError.message)
       if (!restaurant) return err('Dashboard push restaurant not found')
 
+      const featureAllowed = await canRestaurantUseFeature({
+        restaurantId: row.restaurant_id,
+        plan: restaurant.plan,
+        feature: 'browser_notifications',
+      })
+
       const payload = object(row.payload)
       const tableId = typeof payload['tableId'] === 'string' ? payload['tableId'] : null
       let tableLabel: string | null = null
@@ -101,7 +108,7 @@ export function createDashboardPushPort(): DashboardPushPort {
         id: row.id,
         type: row.event_type,
         restaurantId: row.restaurant_id,
-        plan: restaurant.plan,
+        featureAllowed,
         settings: restaurant.settings,
         tableLabel,
         payload,

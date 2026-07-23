@@ -3,6 +3,7 @@ import { normalizeRestaurantPlan } from '@garsonless/domain/entitlements'
 import { err, ok } from '@garsonless/domain/result'
 import { createServiceClient } from './client'
 import type { Json } from './types.gen'
+import { canRestaurantUseFeature } from './feature-entitlement-port'
 
 function message(prefix: string, error: { message: string } | null): string {
   return error?.message ? `${prefix}: ${error.message}` : prefix
@@ -35,6 +36,9 @@ export function createThemeApplicationPort(): ThemeApplicationPort {
         .maybeSingle()
       if (error) return err(message('Tema ayarları okunamadı', error))
       return ok((data as { tokens: Json } | null)?.tokens ?? null)
+    },
+    async readFeatureAccess(input) {
+      return ok(await canRestaurantUseFeature(input))
     },
     async publish(input) {
       const service = createServiceClient()

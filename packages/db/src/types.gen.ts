@@ -2173,6 +2173,63 @@ export type Database = {
           },
         ]
       }
+      platform_admin_impersonation_sessions: {
+        Row: {
+          actor_role: string
+          actor_user_id: string
+          created_at: string
+          end_request_id: string | null
+          ended_at: string | null
+          expires_at: string
+          id: string
+          reason: string
+          restaurant_id: string
+          start_request_id: string
+          started_at: string
+        }
+        Insert: {
+          actor_role: string
+          actor_user_id: string
+          created_at?: string
+          end_request_id?: string | null
+          ended_at?: string | null
+          expires_at: string
+          id?: string
+          reason: string
+          restaurant_id: string
+          start_request_id: string
+          started_at?: string
+        }
+        Update: {
+          actor_role?: string
+          actor_user_id?: string
+          created_at?: string
+          end_request_id?: string | null
+          ended_at?: string | null
+          expires_at?: string
+          id?: string
+          reason?: string
+          restaurant_id?: string
+          start_request_id?: string
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_admin_impersonation_sessions_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "platform_admin_impersonation_sessions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_admin_users: {
         Row: {
           activated_at: string | null
@@ -2205,6 +2262,107 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      platform_error_events: {
+        Row: {
+          app: string
+          created_at: string
+          fingerprint: string
+          id: number
+          occurred_at: string
+          public_code: string
+          reference_id: string | null
+          restaurant_id: string | null
+          severity: string
+          source: string
+        }
+        Insert: {
+          app: string
+          created_at?: string
+          fingerprint: string
+          id?: never
+          occurred_at?: string
+          public_code: string
+          reference_id?: string | null
+          restaurant_id?: string | null
+          severity: string
+          source: string
+        }
+        Update: {
+          app?: string
+          created_at?: string
+          fingerprint?: string
+          id?: never
+          occurred_at?: string
+          public_code?: string
+          reference_id?: string | null
+          restaurant_id?: string | null
+          severity?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_error_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_tenant_privacy_operations: {
+        Row: {
+          completed_at: string
+          created_at: string
+          id: string
+          operation_type: string
+          reason: string
+          request_id: string
+          requested_by: string
+          restaurant_id: string
+          result_summary: Json
+          status: string
+        }
+        Insert: {
+          completed_at?: string
+          created_at?: string
+          id?: string
+          operation_type: string
+          reason: string
+          request_id: string
+          requested_by: string
+          restaurant_id: string
+          result_summary: Json
+          status: string
+        }
+        Update: {
+          completed_at?: string
+          created_at?: string
+          id?: string
+          operation_type?: string
+          reason?: string
+          request_id?: string
+          requested_by?: string
+          restaurant_id?: string
+          result_summary?: Json
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_tenant_privacy_operations_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "platform_tenant_privacy_operations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       public_order_rate_events: {
         Row: {
@@ -2756,6 +2914,57 @@ export type Database = {
           },
         ]
       }
+      tenant_feature_overrides: {
+        Row: {
+          created_at: string
+          decision: string
+          expires_at: string
+          feature: string
+          reason: string
+          request_id: string
+          restaurant_id: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          created_at?: string
+          decision: string
+          expires_at: string
+          feature: string
+          reason: string
+          request_id: string
+          restaurant_id: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          created_at?: string
+          decision?: string
+          expires_at?: string
+          feature?: string
+          reason?: string
+          request_id?: string
+          restaurant_id?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_feature_overrides_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_feature_overrides_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       tenant_lifecycle_events: {
         Row: {
           actor_type: string
@@ -2939,6 +3148,20 @@ export type Database = {
           p_reason: string
           p_request_id: string
           p_user_id: string
+        }
+        Returns: Json
+      }
+      change_platform_admin_tenant_feature_override: {
+        Args: {
+          p_action: string
+          p_actor_role: string
+          p_actor_user_id: string
+          p_decision: string
+          p_duration_days: number
+          p_feature: string
+          p_reason: string
+          p_request_id: string
+          p_restaurant_id: string
         }
         Returns: Json
       }
@@ -3145,6 +3368,16 @@ export type Database = {
         Args: { p_category_id: string; p_restaurant_id: string }
         Returns: undefined
       }
+      end_platform_admin_impersonation_session: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_reason: string
+          p_request_id: string
+          p_session_id: string
+        }
+        Returns: Json
+      }
       enqueue_domain_outbox_event: {
         Args: {
           p_aggregate_id: string
@@ -3167,6 +3400,16 @@ export type Database = {
         }
         Returns: string
       }
+      erase_platform_admin_tenant_privacy_data: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_reason: string
+          p_request_id: string
+          p_restaurant_id: string
+        }
+        Returns: Json
+      }
       escalate_billing_reconciliation: {
         Args: {
           p_discrepancy_code: string
@@ -3175,6 +3418,16 @@ export type Database = {
           p_worker: string
         }
         Returns: boolean
+      }
+      export_platform_admin_tenant_privacy_data: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_reason: string
+          p_request_id: string
+          p_restaurant_id: string
+        }
+        Returns: Json
       }
       fail_billing_dunning: {
         Args: {
@@ -3348,6 +3601,19 @@ export type Database = {
         }
         Returns: Json
       }
+      intervene_platform_admin_billing_dunning: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_defer_days: number
+          p_intervention: string
+          p_invoice_id: string
+          p_reason: string
+          p_request_id: string
+          p_restaurant_id: string
+        }
+        Returns: Json
+      }
       invoke_domain_outbox_worker: { Args: never; Returns: number }
       is_restaurant_owner: {
         Args: { p_restaurant_id: string }
@@ -3426,6 +3692,7 @@ export type Database = {
         Returns: Json
       }
       prune_dashboard_query_observations: { Args: never; Returns: number }
+      prune_platform_error_events: { Args: never; Returns: number }
       publish_theme_config_atomic: {
         Args: {
           p_published_by: string
@@ -3451,12 +3718,33 @@ export type Database = {
         }
         Returns: string
       }
+      read_active_tenant_feature_override: {
+        Args: { p_feature: string; p_restaurant_id: string }
+        Returns: Json
+      }
       read_kitchen_order_projection: {
         Args: { p_after?: string; p_restaurant_id: string }
         Returns: Json
       }
+      read_platform_admin_error_overview: {
+        Args: {
+          p_app?: string
+          p_limit?: number
+          p_severity?: string
+          p_window?: string
+        }
+        Returns: Json
+      }
       read_platform_admin_identity: {
         Args: { p_user_id: string }
+        Returns: Json
+      }
+      read_platform_admin_impersonation_session: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_session_id: string
+        }
         Returns: Json
       }
       read_platform_admin_tenant: {
@@ -3472,6 +3760,22 @@ export type Database = {
         }
         Returns: Json
       }
+      read_platform_admin_tenant_feature_overrides: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_restaurant_id: string
+        }
+        Returns: Json
+      }
+      read_platform_admin_tenant_privacy_operations: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_restaurant_id: string
+        }
+        Returns: Json
+      }
       read_platform_admin_tenant_service_control: {
         Args: { p_restaurant_id: string }
         Returns: Json
@@ -3479,6 +3783,18 @@ export type Database = {
       read_subscription_billing_settings: {
         Args: { p_restaurant_id: string }
         Returns: Json
+      }
+      record_platform_error_event: {
+        Args: {
+          p_app: string
+          p_occurred_at?: string
+          p_public_code: string
+          p_reference_id?: string
+          p_restaurant_id: string
+          p_severity: string
+          p_source: string
+        }
+        Returns: string
       }
       record_subscription_payment_failure_atomic: {
         Args: {
@@ -3639,6 +3955,17 @@ export type Database = {
       soft_delete_table_atomic: {
         Args: { p_restaurant_id: string; p_table_id: string }
         Returns: string
+      }
+      start_platform_admin_impersonation_session: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_duration_minutes: number
+          p_reason: string
+          p_request_id: string
+          p_restaurant_id: string
+        }
+        Returns: Json
       }
       sweep_fully_paid_idle_sessions: {
         Args: { p_idle_minutes?: number }

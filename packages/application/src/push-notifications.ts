@@ -1,4 +1,3 @@
-import { canUseFeature } from '@garsonless/domain/entitlements'
 import { serviceRequestLabel } from '@garsonless/domain/tables'
 import { err, ok, type Result } from '@garsonless/domain'
 
@@ -11,7 +10,8 @@ export type DashboardPushEvent = {
   id: string
   type: DashboardPushEventType
   restaurantId: string
-  plan: unknown
+  /** Resolved server-side from plan + active override. */
+  featureAllowed: boolean
   settings: unknown
   tableLabel: string | null
   payload: Record<string, unknown>
@@ -97,7 +97,7 @@ function readBoolean(settings: unknown, key: 'newOrderPush' | 'serviceRequestPus
 }
 
 export function shouldDispatchDashboardPush(event: DashboardPushEvent): boolean {
-  if (!canUseFeature(event.plan, 'browser_notifications')) return false
+  if (!event.featureAllowed) return false
   // Existing tenants already had new-order desktop notifications enabled by
   // default. The new waiter-call push channel is deliberately opt-in.
   return event.type === 'order.created'

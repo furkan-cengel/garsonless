@@ -2,6 +2,7 @@ import type {
   PlatformBillingTimelineItem,
   PlatformTenantBillingTimeline,
 } from '@garsonless/application/platform-admin-billing'
+import { interveneTenantDunning } from '../../actions'
 
 const KIND_LABELS: Record<PlatformBillingTimelineItem['kind'], string> = {
   invoice: 'Fatura',
@@ -61,9 +62,11 @@ function itemTone(item: PlatformBillingTimelineItem) {
 
 export function TenantBillingTimelinePanel({
   failed,
+  restaurantId,
   timeline,
 }: {
   failed: boolean
+  restaurantId: string
   timeline: PlatformTenantBillingTimeline | null
 }) {
   if (failed) {
@@ -78,6 +81,11 @@ export function TenantBillingTimelinePanel({
   if (!timeline) return null
 
   const summary = timeline.summary
+  const actionableDunning = timeline.items.filter((item) => (
+    item.kind === 'dunning'
+    && item.invoiceId !== null
+    && (item.status === 'scheduled' || item.status === 'failed')
+  ))
   return (
     <article className="panel billing-timeline-panel">
       <div className="panel-heading billing-heading">
@@ -118,6 +126,64 @@ export function TenantBillingTimelinePanel({
         </div>
       )}
       <p className="billing-privacy-note">Provider referansları, payload, hata metni ve müşteri PII bilgileri bu görünümde yer almaz.</p>
+      <div className="billing-intervention">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Denetimli müdahale</p>
+            <h3>Ödeme takibi zamanlaması</h3>
+          </div>
+          <span className="read-only">Finance · Superadmin</span>
+        </div>
+        {actionableDunning.length === 0 ? (
+          <p className="empty-inline">Müdahale edilebilir aktif ödeme takibi yok.</p>
+        ) : (
+          <form action={interveneTenantDunning} className="dunning-intervention-form">
+            <input name="restaurantId" type="hidden" value={restaurantId} />
+            <label className="reason-field">
+              <span>Takip kaydı</span>
+              <select name="invoiceId" required>
+                {actionableDunning.map((item) => (
+                  <option key={item.id} value={item.invoiceId ?? ''}>
+                    Fatura …{item.invoiceId?.slice(-8)} · {ACTION_LABELS[item.action] ?? item.action} · {formatDate(item.nextActionAt)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="dunning-command-grid">
+              <label className="reason-field">
+                <span>Müdahale</span>
+                <select defaultValue="retry_now" name="intervention">
+                  <option value="retry_now">Şimdi yeniden sırala</option>
+                  <option value="defer">Süreli erteleme</option>
+                </select>
+              </label>
+              <label className="reason-field">
+                <span>Erteleme süresi</span>
+                <select defaultValue="7" name="deferDays">
+                  <option value="1">1 gün</option>
+                  <option value="3">3 gün</option>
+                  <option value="7">7 gün</option>
+                  <option value="14">14 gün</option>
+                  <option value="30">30 gün</option>
+                </select>
+                <small>Yalnız “Süreli erteleme” seçildiğinde uygulanır.</small>
+              </label>
+            </div>
+            <label className="reason-field">
+              <span>İşlem gerekçesi</span>
+              <textarea maxLength={1000} minLength={10} name="reason" placeholder="Müşteri iletişimi, onay veya operasyon gerekçesini yazın…" required />
+              <small>Aktör, önceki/yeni zamanlama ve request ID append-only denetim kaydına yazılır.</small>
+            </label>
+            <div className="guarded-operation" role="note">
+              <strong>Ödeme otoritesi değişmez</strong>
+              <p>Bu işlem faturayı ödenmiş saymaz, paketi açmaz ve doğrudan tahsilat yapmaz. Yalnız mevcut güvenli worker’ın çalışma zamanını değiştirir; ödeme başarısını yine imzalı provider webhook’u belirler.</p>
+            </div>
+            <div className="lifecycle-actions">
+              <button className="button primary" type="submit">Müdahaleyi kaydet</button>
+            </div>
+          </form>
+        )}
+      </div>
     </article>
   )
 }

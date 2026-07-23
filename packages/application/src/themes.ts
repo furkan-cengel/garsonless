@@ -5,7 +5,6 @@ import {
   type GarsonlessTheme,
 } from '@garsonless/design-engine'
 import {
-  canUseFeature,
   err,
   hasSameRestaurant,
   ok,
@@ -45,6 +44,7 @@ function usesAdvancedThemeSections(theme: GarsonlessTheme): boolean {
 export interface ThemeApplicationPort {
   readRestaurant(input: { restaurantId: string }): Promise<Result<ThemeRestaurantSnapshot | null>>
   readConfig(input: { restaurantId: string }): Promise<Result<unknown | null>>
+  readFeatureAccess(input: { restaurantId: string; plan: RestaurantPlan; feature: 'theme_advanced_sections' }): Promise<Result<boolean>>
   publish(input: {
     restaurantId: string
     templateId: string
@@ -151,11 +151,14 @@ export async function publishRestaurantTheme(
   const restaurantResult = await port.readRestaurant({ restaurantId: input.restaurantId })
   if (!restaurantResult.ok) return restaurantResult
   if (!restaurantResult.value) return err('Restaurant not found')
-  if (
-    usesAdvancedThemeSections(theme)
-    && !canUseFeature(restaurantResult.value.plan, 'theme_advanced_sections')
-  ) {
-    return err('Plan feature unavailable')
+  if (usesAdvancedThemeSections(theme)) {
+    const featureAccess = await port.readFeatureAccess({
+      restaurantId: input.restaurantId,
+      plan: restaurantResult.value.plan,
+      feature: 'theme_advanced_sections',
+    })
+    if (!featureAccess.ok) return featureAccess
+    if (!featureAccess.value) return err('Plan feature unavailable')
   }
 
   return port.publish({

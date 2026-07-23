@@ -4,6 +4,7 @@ import type {
 } from '@garsonless/application/read-models'
 import { createServiceClient } from './client'
 import { createStructuredDashboardInsightsObserver } from './dashboard-read-model-observability'
+import { recordPlatformErrorEvent } from './platform-error-event-port'
 
 export interface PersistentDashboardInsightsObserverOptions {
   slowQueryThresholdMs?: number
@@ -25,6 +26,15 @@ async function persistDashboardInsightObservation(observation: DashboardInsights
     error: observation.error?.slice(0, 500) ?? null,
   })
   if (error) throw error
+  if (observation.outcome !== 'success') {
+    await recordPlatformErrorEvent({
+      restaurantId: observation.restaurantId,
+      app: 'dashboard',
+      source: `dashboard-query.${observation.operation}`,
+      publicCode: 'MAS-SVC-503',
+      severity: observation.outcome === 'failure' ? 'error' : 'warning',
+    })
+  }
 }
 
 /**
@@ -55,4 +65,3 @@ export function createPersistentDashboardInsightsObserver(
     },
   }
 }
-

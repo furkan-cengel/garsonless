@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import type { KitchenSettingsCommandPort } from '@garsonless/application/kitchen'
 import { err, normalizeRestaurantPlan, ok, type Result } from '@garsonless/domain'
 import { createServiceClient } from './client'
+import { canRestaurantUseFeature } from './feature-entitlement-port'
 
 type KitchenSettingsRpc = (
   name: 'reorder_kitchen_stations',
@@ -21,7 +22,7 @@ function rotateToken(): string {
 
 export function createKitchenSettingsCommandPort(): KitchenSettingsCommandPort {
   return {
-    async readPlan(input) {
+    async readFeatureAccess(input) {
       const { data, error } = await createServiceClient()
         .from('restaurants')
         .select('plan')
@@ -29,7 +30,11 @@ export function createKitchenSettingsCommandPort(): KitchenSettingsCommandPort {
         .maybeSingle()
       if (error) return err(error.message)
       if (!data) return err('Restaurant not found')
-      return ok(normalizeRestaurantPlan((data as { plan: unknown }).plan))
+      return ok(await canRestaurantUseFeature({
+        restaurantId: input.restaurantId,
+        plan: normalizeRestaurantPlan((data as { plan: unknown }).plan),
+        feature: input.feature,
+      }))
     },
 
     async reorderStations(input): Promise<Result<null>> {

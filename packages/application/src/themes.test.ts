@@ -20,6 +20,7 @@ function port(): ThemeApplicationPort {
   return {
     readRestaurant: async () => ok({ slug: 'cafe-a', name: 'Cafe A', logoUrl: null, settings: { active_template_id: 'default' }, plan: 'pro' }),
     readConfig: async () => ok({ ...DEFAULT_THEME, accent: '#123456', __template_id: 'default' }),
+    readFeatureAccess: async () => ok(true),
     publish: async ({ restaurantId }) => ok({ slug: restaurantId }),
   }
 }
@@ -108,6 +109,7 @@ test('publish enforces the advanced theme section entitlement on the server', as
     published = true
     return ok({ slug: 'cafe-a' })
   }
+  adapter.readFeatureAccess = async () => ok(false)
 
   const result = await publishRestaurantTheme(context, {
     restaurantId: 'restaurant-a',

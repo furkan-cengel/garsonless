@@ -40,6 +40,11 @@
     "verify:platform-tenant-operations": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-tenant-operations-runtime.ts",
     "verify:platform-tenant-plans": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-tenant-plan-management-runtime.ts",
     "verify:platform-tenant-billing": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-tenant-billing-runtime.ts",
+    "verify:platform-dunning-interventions": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-dunning-interventions-runtime.ts",
+    "verify:platform-entitlement-overrides": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-entitlement-overrides-runtime.ts",
+    "verify:platform-impersonation": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-impersonation-runtime.ts",
+    "verify:platform-errors": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-error-center-runtime.ts",
+    "verify:platform-privacy": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-privacy-runtime.ts",
     "bootstrap:platform-superadmin": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/bootstrap-platform-superadmin.ts"
   },
   "dependencies": {

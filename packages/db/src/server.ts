@@ -113,13 +113,27 @@ export { createSubscriptionBillingOperationsPort } from './subscription-billing-
 export { createSubscriptionBillingSettingsReadPort } from './subscription-billing-settings-port'
 export { createBillingMaintenancePort } from './billing-maintenance-port'
 export { createPlatformAdminIdentityPort } from './platform-admin-identity-port'
+export {
+  createPlatformErrorReadPort,
+  recordPlatformErrorEvent,
+} from './platform-error-event-port'
 export { createPlatformAdminTenantReadPort } from './platform-admin-tenant-read-port'
 export {
   createPlatformAdminTenantOperationsPort,
   readTenantOrderIngressStatus,
 } from './platform-admin-tenant-operations-port'
 export { createPlatformAdminTenantPlanManagementPort } from './platform-admin-tenant-plan-port'
-export { createPlatformAdminTenantBillingReadPort } from './platform-admin-billing-port'
+export { createPlatformAdminEntitlementPort } from './platform-admin-entitlement-port'
+export { createPlatformAdminImpersonationPort } from './platform-admin-impersonation-port'
+export { createPlatformAdminPrivacyPort } from './platform-admin-privacy-port'
+export {
+  canRestaurantUseFeature,
+  resolveRestaurantFeatureEntitlement,
+} from './feature-entitlement-port'
+export {
+  createPlatformAdminDunningInterventionPort,
+  createPlatformAdminTenantBillingReadPort,
+} from './platform-admin-billing-port'
 export { createSplitPaymentPort } from './split-command-port'
 export {
   attachOrderPaymentToken,

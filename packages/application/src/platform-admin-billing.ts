@@ -85,6 +85,48 @@ export interface PlatformTenantBillingReadPort {
   }): Promise<Result<PlatformTenantBillingTimeline>>
 }
 
+export const PLATFORM_DUNNING_INTERVENTIONS = ['retry_now', 'defer'] as const
+export type PlatformDunningIntervention = typeof PLATFORM_DUNNING_INTERVENTIONS[number]
+
+export type PlatformDunningInterventionResult = {
+  restaurantId: string
+  invoiceId: string
+  runId: string
+  intervention: PlatformDunningIntervention
+  previousStatus: typeof PLATFORM_DUNNING_STATUSES[number]
+  status: typeof PLATFORM_DUNNING_STATUSES[number]
+  previousNextActionAt: string | null
+  nextActionAt: string
+  changed: boolean
+  duplicate: boolean
+  requestId: string
+}
+
+export interface PlatformDunningInterventionPort {
+  intervene(input: {
+    restaurantId: string
+    invoiceId: string
+    actorUserId: string
+    actorRole: PlatformAdminActorContext['role']
+    intervention: PlatformDunningIntervention
+    deferDays: number | null
+    reason: string
+    requestId: string
+  }): Promise<Result<PlatformDunningInterventionResult>>
+}
+
+export type PlatformDunningInterventionError =
+  | 'Not authorized'
+  | 'Invalid tenant id'
+  | 'Invalid invoice id'
+  | 'Invalid intervention'
+  | 'Invalid defer period'
+  | 'Invalid operation reason'
+  | 'Invalid request id'
+  | 'Dunning run is currently being processed'
+  | 'Dunning run is not actionable'
+  | 'Dunning intervention could not be applied'
+
 export type PlatformTenantBillingReadError =
   | 'Not authorized'
   | 'Invalid tenant id'
@@ -109,6 +151,47 @@ export async function readPlatformTenantBillingTimeline(
     limit,
   })
   return result.ok ? result : err('Billing timeline could not be loaded')
+}
+
+export async function intervenePlatformBillingDunning(
+  actor: PlatformAdminActorContext,
+  input: {
+    restaurantId: string
+    invoiceId: string
+    intervention: PlatformDunningIntervention
+    deferDays?: number | null
+    reason: string
+    requestId: string
+  },
+  port: PlatformDunningInterventionPort,
+): Promise<Result<PlatformDunningInterventionResult, PlatformDunningInterventionError>> {
+  if (!platformAdminCan(actor, 'billing.manage')) return err('Not authorized')
+  if (!UUID.test(input.restaurantId)) return err('Invalid tenant id')
+  if (!UUID.test(input.invoiceId)) return err('Invalid invoice id')
+  if (!PLATFORM_DUNNING_INTERVENTIONS.includes(input.intervention)) return err('Invalid intervention')
+  if (!UUID.test(input.requestId)) return err('Invalid request id')
+  const reason = input.reason.trim()
+  if (reason.length < 10 || reason.length > 1000) return err('Invalid operation reason')
+
+  const deferDays = input.intervention === 'defer' ? input.deferDays ?? null : null
+  if (input.intervention === 'defer' && (!Number.isInteger(deferDays) || deferDays === null || deferDays < 1 || deferDays > 30)) {
+    return err('Invalid defer period')
+  }
+
+  const result = await port.intervene({
+    restaurantId: input.restaurantId,
+    invoiceId: input.invoiceId,
+    actorUserId: actor.userId,
+    actorRole: actor.role,
+    intervention: input.intervention,
+    deferDays,
+    reason,
+    requestId: input.requestId,
+  })
+  if (result.ok) return result
+  if (result.error === 'platform_dunning_run_busy') return err('Dunning run is currently being processed')
+  if (result.error === 'platform_dunning_not_actionable') return err('Dunning run is not actionable')
+  return err('Dunning intervention could not be applied')
 }
 
 export function isPlatformBillingTimelineKind(value: unknown): value is PlatformBillingTimelineKind {

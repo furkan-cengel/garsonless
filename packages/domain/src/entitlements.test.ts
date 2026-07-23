@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   BILLABLE_FEATURES,
+  canUseEffectiveFeature,
   canUseFeature,
+  getEffectiveFeatureEntitlement,
   getFeatureEntitlement,
   getPlanLimit,
   isWithinPlanLimit,
@@ -40,4 +42,38 @@ test('plan limits preserve unlimited enterprise and reject the next resource at 
   assert.equal(isWithinPlanLimit('free', 'tables', 3), false)
   assert.equal(getPlanLimit('enterprise', 'tables'), null)
   assert.equal(isWithinPlanLimit('enterprise', 'tables', 99_999), true)
+})
+
+test('an active allow override grants a plan-locked feature without mutating the plan', () => {
+  const entitlement = getEffectiveFeatureEntitlement('free', 'loyalty', {
+    feature: 'loyalty',
+    decision: 'allow',
+    expiresAt: '2026-07-24T12:00:00.000Z',
+  }, new Date('2026-07-22T12:00:00.000Z'))
+
+  assert.equal(entitlement.plan, 'free')
+  assert.equal(entitlement.allowed, true)
+  assert.equal(entitlement.source, 'override')
+  assert.equal(entitlement.override?.decision, 'allow')
+})
+
+test('an active deny override temporarily blocks a feature already included in the plan', () => {
+  assert.equal(canUseEffectiveFeature('enterprise', 'api_access', {
+    feature: 'api_access',
+    decision: 'deny',
+    expiresAt: '2026-07-24T12:00:00.000Z',
+  }, new Date('2026-07-22T12:00:00.000Z')), false)
+})
+
+test('expired, malformed and mismatched overrides fall back to the canonical plan', () => {
+  const now = new Date('2026-07-22T12:00:00.000Z')
+  assert.equal(canUseEffectiveFeature('free', 'loyalty', {
+    feature: 'loyalty', decision: 'allow', expiresAt: '2026-07-22T11:59:59.000Z',
+  }, now), false)
+  assert.equal(canUseEffectiveFeature('free', 'loyalty', {
+    feature: 'loyalty', decision: 'allow', expiresAt: 'not-a-date',
+  }, now), false)
+  assert.equal(canUseEffectiveFeature('pro', 'loyalty', {
+    feature: 'kitchen_display', decision: 'deny', expiresAt: '2026-07-24T12:00:00.000Z',
+  }, now), true)
 })

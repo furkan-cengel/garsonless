@@ -12,7 +12,13 @@ export function PlatformShell({
   return (
     <main className="shell">
       <header className="topbar">
-        <Link className="brand" href="/"><span className="brand-mark">M</span><span>Masabu Platform</span></Link>
+        <div className="topbar-start">
+          <Link className="brand" href="/"><span className="brand-mark">M</span><span>Masabu Platform</span></Link>
+          <nav aria-label="Platform bölümleri" className="platform-nav">
+            <Link href="/">İşletmeler</Link>
+            <Link href="/errors">Hata merkezi</Link>
+          </nav>
+        </div>
         <div className="topbar-actions">
           <span className="badge">MFA · {actor.role}</span>
           <form action={signOut}><button className="button" type="submit">Çıkış yap</button></form>

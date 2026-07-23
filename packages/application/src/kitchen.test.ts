@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { err, ok, type RestaurantPlan } from '@garsonless/domain'
+import { err, ok } from '@garsonless/domain'
 import {
   reorderKitchenStations,
   rotateKitchenAccessCredential,
@@ -15,9 +15,9 @@ const owner = {
   isOwner: true,
 }
 
-function port(plan: RestaurantPlan = 'pro'): KitchenSettingsCommandPort {
+function port(featureAllowed = true): KitchenSettingsCommandPort {
   return {
-    readPlan: async () => ok(plan),
+    readFeatureAccess: async () => ok(featureAllowed),
     reorderStations: async () => ok(null),
     rotateAccessCredential: async () => ok(null),
   }
@@ -72,7 +72,7 @@ test('owner commands delegate the complete ordered station set and credential ro
 })
 
 test('kitchen credential rotation is Pro-gated before persistence', async () => {
-  const base = port('starter')
+  const base = port(false)
   let rotated = false
   base.rotateAccessCredential = async () => {
     rotated = true

@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
-import { canUseFeature, normalizeRestaurantPlan, type RestaurantPlan } from '@garsonless/domain'
+import { normalizeRestaurantPlan, type RestaurantPlan } from '@garsonless/domain'
 import { createServiceClient } from './client'
+import { canRestaurantUseFeature } from './feature-entitlement-port'
 
 const ARTIFACT_VERSION = 1
 const CLOCK_SKEW_SECONDS = 30
@@ -145,7 +146,9 @@ export async function createKitchenLaunchTicket(
     const credential = await readKitchenCredential(restaurantId)
     return credential ? { kind: 'unavailable' } : { kind: 'credential_missing' }
   }
-  if (!canUseFeature(access.plan, 'kitchen_display')) return { kind: 'plan_required' }
+  if (!await canRestaurantUseFeature({ restaurantId, plan: access.plan, feature: 'kitchen_display' })) {
+    return { kind: 'plan_required' }
+  }
 
   const ticket = signArtifact('launch', restaurantId, access.secret, KITCHEN_LAUNCH_TTL_SECONDS)
   const service = createServiceClient()
@@ -170,7 +173,7 @@ export async function exchangeKitchenLaunchTicket(
   ticket: string,
 ): Promise<string | null> {
   const access = await readKitchenAccess(restaurantId)
-  if (!access || !canUseFeature(access.plan, 'kitchen_display')) return null
+  if (!access || !await canRestaurantUseFeature({ restaurantId, plan: access.plan, feature: 'kitchen_display' })) return null
   if (!verifyArtifact(ticket, 'launch', restaurantId, access.secret)) return null
   const { data: consumed, error } = await createServiceClient().rpc('consume_kitchen_launch_ticket', {
     p_restaurant_id: restaurantId,
@@ -186,7 +189,7 @@ export async function verifyKitchenSession(
 ): Promise<boolean> {
   const access = await readKitchenAccess(restaurantId)
   return access !== null
-    && canUseFeature(access.plan, 'kitchen_display')
+    && await canRestaurantUseFeature({ restaurantId, plan: access.plan, feature: 'kitchen_display' })
     && verifyArtifact(session, 'session', restaurantId, access.secret)
 }
 

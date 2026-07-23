@@ -1,10 +1,8 @@
 import {
-  canUseFeature,
   err,
   hasSameRestaurant,
   ok,
   type DashboardActorContext,
-  type RestaurantPlan,
   type Result,
 } from '@garsonless/domain'
 
@@ -14,7 +12,7 @@ import {
  * authority merely from a restaurant id supplied by the browser.
  */
 export interface KitchenSettingsCommandPort {
-  readPlan(input: { restaurantId: string }): Promise<Result<RestaurantPlan>>
+  readFeatureAccess(input: { restaurantId: string; feature: 'kitchen_display' }): Promise<Result<boolean>>
   reorderStations(input: {
     restaurantId: string
     orderedIds: string[]
@@ -56,9 +54,9 @@ export async function rotateKitchenAccessCredential(
   const access = requireKitchenOwner(context, input.restaurantId)
   if (!access.ok) return access
 
-  const plan = await port.readPlan(input)
-  if (!plan.ok) return err(plan.error)
-  if (!canUseFeature(plan.value, 'kitchen_display')) {
+  const featureAccess = await port.readFeatureAccess({ ...input, feature: 'kitchen_display' })
+  if (!featureAccess.ok) return err(featureAccess.error)
+  if (!featureAccess.value) {
     return err('Plan feature unavailable')
   }
 

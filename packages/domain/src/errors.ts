@@ -64,6 +64,16 @@ export const ERROR_DEFINITIONS = {
 } as const
 
 export type ErrorCode = keyof typeof ERROR_DEFINITIONS
+export type PublicErrorCode =
+  (typeof ERROR_DEFINITIONS)[keyof typeof ERROR_DEFINITIONS]['publicCode']
+
+export const PUBLIC_ERROR_CODES = Object.values(ERROR_DEFINITIONS).map(
+  (definition) => definition.publicCode,
+) as PublicErrorCode[]
+
+export function isPublicErrorCode(value: unknown): value is PublicErrorCode {
+  return typeof value === 'string' && PUBLIC_ERROR_CODES.includes(value as PublicErrorCode)
+}
 
 export type ActionFailure = {
   error: string

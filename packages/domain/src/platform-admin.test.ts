@@ -30,7 +30,7 @@ test('tenant service status vocabulary is closed', () => {
 test('role matrix matches the accepted platform-admin ADR', () => {
   assert.deepEqual(platformAdminCapabilities('support'), ['tenants.read', 'impersonation.read'])
   assert.deepEqual(platformAdminCapabilities('ops'), [
-    'tenants.read', 'tenant.lifecycle.manage', 'entitlements.override',
+    'tenants.read', 'impersonation.read', 'tenant.lifecycle.manage', 'entitlements.override',
   ])
   assert.deepEqual(platformAdminCapabilities('finance'), ['tenants.read', 'billing.manage'])
   assert.deepEqual(platformAdminCapabilities('superadmin'), PLATFORM_ADMIN_CAPABILITIES)

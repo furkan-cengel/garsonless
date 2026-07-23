@@ -34,7 +34,7 @@ export function isTenantServiceStatus(value: unknown): value is TenantServiceSta
 
 const ROLE_CAPABILITIES: Readonly<Record<PlatformAdminRole, readonly PlatformAdminCapability[]>> = {
   support: ['tenants.read', 'impersonation.read'],
-  ops: ['tenants.read', 'tenant.lifecycle.manage', 'entitlements.override'],
+  ops: ['tenants.read', 'impersonation.read', 'tenant.lifecycle.manage', 'entitlements.override'],
   finance: ['tenants.read', 'billing.manage'],
   superadmin: PLATFORM_ADMIN_CAPABILITIES,
 }

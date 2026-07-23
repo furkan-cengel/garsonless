@@ -15,7 +15,7 @@ const event: DashboardPushEvent = {
   id: '11111111-1111-4111-8111-111111111111',
   type: 'order.created',
   restaurantId: 'restaurant-1',
-  plan: 'starter',
+  featureAllowed: true,
   settings: { notifications: { newOrderPush: true } },
   tableLabel: 'Masa 4',
   payload: { total: 150 },
@@ -39,9 +39,9 @@ const sentProvider: DashboardPushProvider = {
   async send() { return { outcome: 'sent' } },
 }
 
-test('plan and explicit channel preferences gate durable push', () => {
+test('resolved entitlement and explicit channel preferences gate durable push', () => {
   assert.equal(shouldDispatchDashboardPush(event), true)
-  assert.equal(shouldDispatchDashboardPush({ ...event, plan: 'free' }), false)
+  assert.equal(shouldDispatchDashboardPush({ ...event, featureAllowed: false }), false)
   assert.equal(shouldDispatchDashboardPush({
     ...event,
     settings: { notifications: { newOrderPush: false } },
