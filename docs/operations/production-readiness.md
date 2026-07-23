@@ -37,6 +37,10 @@ hiçbir Supabase projesine bağlanmaz, migration uygulamaz ve secret değerlerin
 | `MAS-DEP-026` | Etkin capability için zorunlu smoke kontrolü eksik ya da başarısız |
 | `MAS-DEP-027` | Smoke assertion seti eksik, fazla veya false sonuç içeriyor |
 | `MAS-DEP-028` | Smoke kanıtı tekrarlı, bilinmeyen veya izin verilmeyen alan içeriyor |
+| `MAS-DEP-029` | Release policy veya integrity-bound artifact geçersiz |
+| `MAS-DEP-030` | Release/rehearsal/capability kanıt bağları uyuşmuyor |
+| `MAS-DEP-031` | Operatör attestation'ı eksik, eski veya izin verilmeyen alan içeriyor |
+| `MAS-DEP-032` | Final release kapısında allowlist dışı uyarı veya blokaj var |
 | `MAS-DEP-W01` | Capability bilinçli olarak bu turda kapalı |
 | `MAS-DEP-W02` | Remote migration geçmişi ayrıca doğrulanmalı |
 | `MAS-DEP-W03` | Deploy planında uygulanmayı bekleyen migration var |
@@ -323,6 +327,52 @@ hazırlanır. Function/secret hatasında önceki function sürümü/metadata ger
 alınır ve etkilenen scheduler kapalı tutulur. App/smoke hatasında uygulama önceki
 commit'e döner; geriye uyumlu DB şeması korunur. Scheduler yalnız worker'ın
 güvensiz olduğu kanıtlanırsa devre dışı bırakılır.
+
+## Tekil go/no-go release kararı
+
+`config/production-release-policy.json`, final karar için yedi runtime scope'u,
+dört opsiyonel capability'yi, altı zorunlu operatör onayını, warning
+allowlist'ini ve minimum rollback matrisi boyutunu version'lar. Karar aracı env
+değerlerini yalnız bellekte doğrular; çıktı secret, e-posta, kişi adı, token,
+header/body veya ham provider cevabı içermez.
+
+Önce `production-release-attestation.example.json` kopyalanır. Kimlik alanları
+release/prova artifact'larından doldurulur; capability'ler gerçekten PROD'da
+açık olacak durumu taşır. Onaylar kişi adı değil yalnız boolean operasyon
+durumu tutar ve en fazla 60 dakika geçerlidir.
+
+```bash
+corepack pnpm prod:release-decision -- \
+  --mode pre-deploy \
+  --project-ref <PROD_PROJECT_REF> \
+  --release-evidence /tmp/masabu-release-evidence.json \
+  --rehearsal /tmp/masabu-release-rehearsal.json \
+  --migration-evidence /tmp/prod-migration-list.txt \
+  --runtime-evidence /tmp/prod-runtime-evidence.json \
+  --smoke-evidence /tmp/prod-smoke-evidence.json \
+  --attestation /tmp/prod-release-attestation.json \
+  --env dashboard=apps/dashboard/.env.production \
+  --env menu=apps/menu/.env.production \
+  --env kitchen=apps/kitchen/.env.production \
+  --env marketing=apps/marketing/.env.production \
+  --env platform-admin=apps/platform-admin/.env.production \
+  --env outbox-worker=/tmp/outbox-worker.production.env \
+  --env send-email-hook=/tmp/send-email-hook.production.env \
+  --output /tmp/prod-release-decision.json
+```
+
+`pre-deploy` yalnız `go-to-deploy` üretebilir; bu sonuç deployment yapıldığı
+veya başarılı olduğu anlamına gelmez. Migration bekleyenleri `MAS-DEP-W03`,
+runtime farklarını `MAS-DEP-W04` ve deploy sonrası çalışacak smoke adımlarını
+`MAS-DEP-W05` olarak plan üzerinde tutar. Deployment sonrası aynı komut
+`--mode post-deploy` ve yeni migration/runtime/smoke kanıtlarıyla tekrar
+çalıştırılır. Yalnız bütün kapılar tam geçtiğinde `release-accepted` oluşur;
+aksi durumda exit code 1 ve integrity-bound `no-go` artifact'ı üretilir.
+
+Karar artifact'ı release, rehearsal, policy ve operatör attestation SHA-256
+kimliklerini; capability durumlarını; gate sonuçlarını ve yalnız güvenli
+hata/uyarı kodlarını taşır. Araç migration/deploy/rollback çalıştırmaz ve her
+zaman `productionMutationPerformed: false` yazar.
 
 ## Şimdiki açık blokajlar
 

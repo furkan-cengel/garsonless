@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "maxAttestationAgeMinutes": 60,
+  "requiredScopes": [
+    "dashboard",
+    "menu",
+    "kitchen",
+    "marketing",
+    "platform-admin",
+    "outbox-worker",
+    "send-email-hook"
+  ],
+  "capabilityScopes": {
+    "order-card-payments": ["menu"],
+    "saas-billing": ["dashboard"],
+    "web-push": ["dashboard", "outbox-worker"],
+    "sms": ["dashboard"]
+  },
+  "smokeCapabilityBindings": {
+    "order-card-payments": "order-card-payments",
+    "saas-billing": "saas-billing"
+  },
+  "requiredApprovals": [
+    "backupPitrVerified",
+    "rollbackOwnerAssigned",
+    "monitoringOwnerAssigned",
+    "changeWindowApproved",
+    "productionAccessVerified",
+    "incidentChannelReady"
+  ],
+  "allowedWarningCodes": {
+    "pre-deploy": [
+      "MAS-DEP-W01",
+      "MAS-DEP-W02",
+      "MAS-DEP-W03",
+      "MAS-DEP-W04",
+      "MAS-DEP-W05"
+    ],
+    "post-deploy": [
+      "MAS-DEP-W01",
+      "MAS-DEP-W02"
+    ]
+  },
+  "minimumRollbackDecisions": 4
+}

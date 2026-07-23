@@ -3139,3 +3139,28 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   production mutation/deploy yapılmadı. Tam `pnpm check:ci` ve beş Next.js
   uygulamasını kapsayan workspace production build'i temiz geçti. Yalnız daha
   önce var olan iki marketing `<img>` lint uyarısı devam ediyor; hata yok.
+
+### Faz 7.6 — Tekil go/no-go release karar motoru ✅ (2026-07-23)
+
+- Preflight, cross-app topology, migration drift, Edge/cron/Vault runtime,
+  iş-kritik smoke, release identity, local rehearsal/rollback ve operatör
+  attestation sonuçları `production-release-decision.mjs` içinde yeniden
+  doğrulanan tek fail-closed karara bağlandı. Araç önceki komutların PASS
+  metnine güvenmez; ham güvenli kanıtları kaynak manifestlerine karşı tekrar
+  değerlendirir.
+- Version'lanan `production-release-policy.json`; yedi zorunlu scope, dört
+  capability/env ilişkisi, iki smoke capability bağı, altı operasyon onayı,
+  warning allowlist'i ve minimum dört rollback kararı tanımlar. Capability
+  durumu operatör onayı, env preflight ve smoke arasında uyuşmazsa
+  `MAS-DEP-030` ile durur.
+- `pre-deploy` yalnız `go-to-deploy`, `post-deploy` yalnız bütün kapılar
+  eksiksizse `release-accepted` üretir. Hatalı artifact/policy
+  `MAS-DEP-029`, eski/eksik/PII alanlı attestation `MAS-DEP-031`, allowlist
+  dışı warning `MAS-DEP-032` ile `no-go` olur. Karar artifact'ı secret veya
+  kişi kimliği değil yalnız hash, boolean gate ve güvenli kod taşır; mode 0600
+  ve `productionMutationPerformed: false` sözleşmesi korunur.
+- Hedefli karar matrisi **11/11**, tam workspace CI ve tüm uygulamaların
+  production build'i temiz geçti. Yalnız önceden var olan iki marketing
+  `<img>` lint uyarısı sürüyor; hata yok. PROD evidence/deploy/mutation
+  yapılmadı; gerçek PROD girdileri olmadan araç bilinçli olarak nihai
+  `release-accepted` kanıtı üretmez.
