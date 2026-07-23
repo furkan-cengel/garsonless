@@ -9,6 +9,7 @@ import { buildRuntimeManifest, loadRuntimeSpec, validateRuntimeEvidence } from '
 import { buildSmokeManifest, loadSmokeSpec, validateSmokeEvidence } from './business-smoke.mjs'
 import { validateBackupRestoreEvidence } from './production-release-handoff.mjs'
 import { validateReleaseCandidateEvidence } from './production-release-candidate.mjs'
+import { validateReleaseExecutionEvidence } from './production-release-execution.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const POLICY_PATH = 'config/production-release-policy.json'
@@ -63,6 +64,12 @@ export function validateReleasePolicy(policy) {
   if (!Number.isInteger(policy?.maxReleaseCandidateEvidenceAgeHours) || policy.maxReleaseCandidateEvidenceAgeHours < 1) {
     errors.push(issue('MAS-DEP-029', 'release-candidate-evidence-age', 'Release candidate kanıt ömrü geçersiz.'))
   }
+  if (!Number.isInteger(policy?.maxReleaseExecutionDurationMinutes) || policy.maxReleaseExecutionDurationMinutes < 30) {
+    errors.push(issue('MAS-DEP-029', 'release-execution-duration', 'Release execution azami süre politikası geçersiz.'))
+  }
+  if (!Number.isInteger(policy?.maxReleaseRecoveryDurationMinutes) || policy.maxReleaseRecoveryDurationMinutes < 30) {
+    errors.push(issue('MAS-DEP-029', 'release-recovery-duration', 'Release recovery azami süre politikası geçersiz.'))
+  }
   if (!uniqueStrings(policy?.requiredScopes) || !uniqueStrings(policy?.requiredApprovals)) {
     errors.push(issue('MAS-DEP-029', 'release-policy', 'Zorunlu scope ve approval listeleri benzersiz olmalı.'))
   }
@@ -97,12 +104,13 @@ export function validateReleasePolicy(policy) {
   return { ok: errors.length === 0, errors }
 }
 
-function validateAttestation({ attestation, attestationRaw, policy, projectRef, releaseEvidence, rehearsal, now }) {
+function validateAttestation({ attestation, attestationRaw, policy, projectRef, releaseEvidence, rehearsal, mode, now }) {
   const errors = []
   const topKeys = [
     'schemaVersion', 'environment', 'projectRef', 'capturedAt', 'commitSha',
     'releaseArtifactSha256', 'rehearsalArtifactSha256', 'backupRestoreEvidenceSha256',
     'releaseCandidateEvidenceSha256',
+    'releaseExecutionEvidenceSha256',
     'enabledCapabilities', 'approvals',
   ]
   if (!hasExactKeys(attestation, topKeys)) {
@@ -131,6 +139,9 @@ function validateAttestation({ attestation, attestationRaw, policy, projectRef, 
     || attestation?.rehearsalArtifactSha256 !== rehearsal?.artifactSha256
     || !/^[a-f0-9]{64}$/.test(attestation?.backupRestoreEvidenceSha256 ?? '')
     || !/^[a-f0-9]{64}$/.test(attestation?.releaseCandidateEvidenceSha256 ?? '')
+    || (mode === 'pre-deploy'
+      ? attestation?.releaseExecutionEvidenceSha256 !== null
+      : !/^[a-f0-9]{64}$/.test(attestation?.releaseExecutionEvidenceSha256 ?? ''))
   ) {
     errors.push(issue('MAS-DEP-030', 'attestation-bindings', 'Operatör onayı bu project/release/rehearsal kimliğine bağlı değil.'))
   }
@@ -198,6 +209,9 @@ export function evaluateReleaseDecision({
   bundleManifest,
   releaseCandidateEvidence,
   releaseCandidateEvidenceRaw,
+  preDeployDecision,
+  releaseExecutionEvidence,
+  releaseExecutionEvidenceRaw,
   attestation,
   attestationRaw,
   now = new Date(),
@@ -294,6 +308,43 @@ export function evaluateReleaseDecision({
     errors.push(issue('MAS-DEP-037', 'release-candidate-attestation-binding', 'Operatör onayı exact release candidate kanıtına bağlı değil.'))
   }
 
+  let releaseExecution = { ok: mode === 'pre-deploy', errors: [], sha256: null }
+  if (mode === 'post-deploy') {
+    const preDeployErrors = []
+    const preDeployIntegrity = verifyHashedArtifact(preDeployDecision, 'MAS-DEP-041', 'pre-deploy-decision', preDeployErrors)
+    if (preDeployIntegrity && (
+      preDeployDecision?.mode !== 'pre-deploy'
+      || preDeployDecision?.decision !== 'go-to-deploy'
+      || preDeployDecision?.projectRef !== projectRef
+      || preDeployDecision?.commitSha !== releaseEvidence?.commitSha
+      || preDeployDecision?.releaseArtifactSha256 !== releaseEvidence?.artifactSha256
+      || preDeployDecision?.rehearsalArtifactSha256 !== rehearsal?.artifactSha256
+      || preDeployDecision?.backupRestoreEvidenceSha256 !== backupRestore.sha256
+      || preDeployDecision?.releaseCandidateEvidenceSha256 !== releaseCandidate.sha256
+      || preDeployDecision?.productionMutationPerformed !== false
+      || Object.values(preDeployDecision?.gates ?? {}).some((value) => value !== true)
+    )) preDeployErrors.push(issue('MAS-DEP-041', 'pre-deploy-decision-bindings', 'Post-deploy kabulü exact go-to-deploy kararına bağlı değil.'))
+    errors.push(...preDeployErrors)
+    releaseExecution = validateReleaseExecutionEvidence({
+      evidence: releaseExecutionEvidence,
+      evidenceRaw: releaseExecutionEvidenceRaw,
+      projectRef,
+      releaseEvidence,
+      rehearsal,
+      bundleManifest,
+      preDeployDecision,
+      now,
+      maxDurationMinutes: policy.maxReleaseExecutionDurationMinutes,
+    })
+    errors.push(...releaseExecution.errors)
+    if (attestation?.releaseExecutionEvidenceSha256 !== releaseExecution.sha256) {
+      errors.push(issue('MAS-DEP-041', 'release-execution-attestation-binding', 'Operatör onayı exact execution kanıtına bağlı değil.'))
+    }
+    if (Date.parse(attestation?.capturedAt ?? '') < Date.parse(releaseExecutionEvidence?.completedAt ?? '')) {
+      errors.push(issue('MAS-DEP-041', 'release-execution-attestation-time', 'Post-deploy operatör onayı execution tamamlanmadan önce verilmiş.'))
+    }
+  }
+
   for (const [releaseCapability, smokeCapability] of Object.entries(policy.smokeCapabilityBindings ?? {})) {
     if (smokeEvidence?.enabledCapabilities?.[smokeCapability] !== capabilities[releaseCapability]) {
       errors.push(issue('MAS-DEP-030', `capability:${releaseCapability}`, 'Operatör, env preflight ve smoke capability durumları uyuşmuyor.'))
@@ -313,7 +364,7 @@ export function evaluateReleaseDecision({
     })
     errors.push(...bindings.errors)
   }
-  const approval = validateAttestation({ attestation, attestationRaw, policy, projectRef, releaseEvidence, rehearsal, now })
+  const approval = validateAttestation({ attestation, attestationRaw, policy, projectRef, releaseEvidence, rehearsal, mode, now })
   errors.push(...approval.errors)
 
   const allowedWarnings = new Set(policy.allowedWarningCodes?.[mode] ?? [])
@@ -336,6 +387,8 @@ export function evaluateReleaseDecision({
     attestationSha256: approval.sha256,
     backupRestoreEvidenceSha256: backupRestore.sha256,
     releaseCandidateEvidenceSha256: releaseCandidate.sha256,
+    preDeployDecisionSha256: mode === 'post-deploy' ? preDeployDecision?.artifactSha256 ?? null : null,
+    releaseExecutionEvidenceSha256: mode === 'post-deploy' ? releaseExecution.sha256 : null,
     enabledCapabilities: capabilities,
     gates: {
       sourcePolicy: policyResult.ok,
@@ -348,6 +401,8 @@ export function evaluateReleaseDecision({
       smoke: smoke.ok,
       backupRestore: backupRestore.ok && attestation?.backupRestoreEvidenceSha256 === backupRestore.sha256,
       releaseCandidate: releaseCandidate.ok && attestation?.releaseCandidateEvidenceSha256 === releaseCandidate.sha256,
+      releaseExecution: mode === 'pre-deploy'
+        || (releaseExecution.ok && attestation?.releaseExecutionEvidenceSha256 === releaseExecution.sha256),
       operatorAttestation: approval.ok,
     },
     preflightScopes: preflightResults,
@@ -375,6 +430,8 @@ function parseArguments(argv) {
     else if (arg === '--backup-restore-evidence') options.backupRestoreEvidence = args[++index]
     else if (arg === '--bundle-manifest') options.bundleManifest = args[++index]
     else if (arg === '--release-candidate-evidence') options.releaseCandidateEvidence = args[++index]
+    else if (arg === '--pre-deploy-decision') options.preDeployDecision = args[++index]
+    else if (arg === '--release-execution-evidence') options.releaseExecutionEvidence = args[++index]
     else if (arg === '--attestation') options.attestation = args[++index]
     else if (arg === '--output') options.output = args[++index]
     else if (arg === '--env') {
@@ -409,6 +466,17 @@ export function runCli(argv = process.argv.slice(2), root = ROOT) {
     const backupRestoreEvidenceRaw = readFileSync(backupRestorePath, 'utf8')
     const releaseCandidatePath = resolve(root, options.releaseCandidateEvidence)
     const releaseCandidateEvidenceRaw = readFileSync(releaseCandidatePath, 'utf8')
+    let preDeployDecision
+    let releaseExecutionEvidence
+    let releaseExecutionEvidenceRaw
+    if (options.mode === 'post-deploy') {
+      for (const name of ['preDeployDecision', 'releaseExecutionEvidence']) {
+        if (!options[name]) throw decisionError('MAS-DEP-006', `post-deploy için --${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)} zorunlu.`)
+      }
+      preDeployDecision = readJson(root, options.preDeployDecision, 'Pre-deploy decision')
+      releaseExecutionEvidenceRaw = readFileSync(resolve(root, options.releaseExecutionEvidence), 'utf8')
+      releaseExecutionEvidence = JSON.parse(releaseExecutionEvidenceRaw)
+    }
     const result = evaluateReleaseDecision({
       mode: options.mode,
       projectRef: options.projectRef,
@@ -425,6 +493,9 @@ export function runCli(argv = process.argv.slice(2), root = ROOT) {
       bundleManifest: readJson(root, options.bundleManifest, 'Bundle manifest'),
       releaseCandidateEvidence: JSON.parse(releaseCandidateEvidenceRaw),
       releaseCandidateEvidenceRaw,
+      preDeployDecision,
+      releaseExecutionEvidence,
+      releaseExecutionEvidenceRaw,
       attestation: JSON.parse(attestationRaw),
       attestationRaw,
       root,

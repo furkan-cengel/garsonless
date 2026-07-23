@@ -14,7 +14,12 @@ export const REQUIRED_OPERATOR_EVIDENCE = Object.freeze([
   'prod-smoke-evidence.json',
   'prod-backup-restore-evidence.json',
   'prod-release-candidate-evidence.json',
+  'prod-release-execution-evidence.json',
   'prod-release-attestation.json',
+])
+
+export const CONDITIONAL_OPERATOR_EVIDENCE = Object.freeze([
+  'prod-release-recovery-evidence.json',
 ])
 
 export const RELEASE_APPLICATIONS = Object.freeze([

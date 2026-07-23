@@ -58,8 +58,10 @@ function releaseFixture() {
     requiredOperatorEvidence: [
       'prod-migration-list.txt', 'prod-runtime-evidence.json', 'prod-smoke-evidence.json',
       'prod-backup-restore-evidence.json', 'prod-release-candidate-evidence.json',
+      'prod-release-execution-evidence.json',
       'prod-release-attestation.json',
     ],
+    conditionalOperatorEvidence: ['prod-release-recovery-evidence.json'],
   }
   const bundleManifest = { ...bundle, artifactSha256: sha256(JSON.stringify(bundle)) }
   return { projectRef: PROD_REF, releaseEvidence, rehearsal, bundleManifest }

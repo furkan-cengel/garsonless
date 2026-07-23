@@ -47,6 +47,12 @@ hiçbir Supabase projesine bağlanmaz, migration uygulamaz ve secret değerlerin
 | `MAS-DEP-036` | Backup/restore provası eksik, eski ya da güvenli alan sözleşmesini ihlal ediyor |
 | `MAS-DEP-037` | Release candidate freeze/provenance kanıtı release veya bundle kimliğiyle bağlı değil |
 | `MAS-DEP-038` | Candidate freeze eksik, eski ya da rollback artifact envanteri doğrulanmamış |
+| `MAS-DEP-039` | Execution planı bundle/go-to-deploy kimliğiyle bağlı değil veya bütünlüğü bozuk |
+| `MAS-DEP-040` | Adım makbuzu sırası, attempt veya hash zinciri geçersiz |
+| `MAS-DEP-041` | Execution tamamlanmamış, süreyi aşmış veya post-deploy karar bağı uyuşmuyor |
+| `MAS-DEP-042` | Recovery kaynağı başarısız execution/candidate kimliğiyle bağlı değil |
+| `MAS-DEP-043` | Recovery receipt sırası, attempt veya hash zinciri geçersiz |
+| `MAS-DEP-044` | Recovery/incident kapanışı eksik, süreyi aşmış veya bütünlüğü bozuk |
 | `MAS-DEP-W01` | Capability bilinçli olarak bu turda kapalı |
 | `MAS-DEP-W02` | Remote migration geçmişi ayrıca doğrulanmalı |
 | `MAS-DEP-W03` | Deploy planında uygulanmayı bekleyen migration var |
@@ -375,7 +381,17 @@ veya başarılı olduğu anlamına gelmez. Migration bekleyenleri `MAS-DEP-W03`,
 runtime farklarını `MAS-DEP-W04` ve deploy sonrası çalışacak smoke adımlarını
 `MAS-DEP-W05` olarak plan üzerinde tutar. Deployment sonrası aynı komut
 `--mode post-deploy` ve yeni migration/runtime/smoke kanıtlarıyla tekrar
-çalıştırılır. Yalnız bütün kapılar tam geçtiğinde `release-accepted` oluşur;
+çalıştırılır. Post-deploy çağrısına ayrıca pre-deploy karar artifact'ı ve
+tamamlanmış execution evidence eklenir:
+
+```bash
+  --pre-deploy-decision /tmp/prod-release-decision.json \
+  --release-execution-evidence /tmp/prod-release-execution-evidence.json
+```
+
+Post-deploy attestation içindeki `releaseExecutionEvidenceSha256` alanı bu
+dosyanın ham SHA-256 değerine çevrilir; pre-deploy attestation'da alan `null`
+kalır. Yalnız bütün kapılar tam geçtiğinde `release-accepted` oluşur;
 aksi durumda exit code 1 ve integrity-bound `no-go` artifact'ı üretilir.
 
 Karar artifact'ı release, rehearsal, policy, backup/restore, release candidate
@@ -401,8 +417,9 @@ corepack pnpm prod:release-bundle -- verify \
 ```
 
 `bundle-manifest.json`, migration manifesti dahil yedi dosyanın byte boyutu ve SHA-256 değerini; release,
-rehearsal ve policy bağlarını; ayrıca operatörün sonradan toplaması gereken altı
-gerçek PROD kanıtının **yalnız dosya adlarını** taşır. Paket dizini 0700,
+rehearsal ve policy bağlarını; ayrıca operatörün sonradan toplaması gereken yedi
+zorunlu PROD kanıtının ve yalnız başarısız execution'da oluşan koşullu recovery
+kanıtının **yalnız dosya adlarını** taşır. Paket dizini 0700,
 dosyalar 0600 yazılır; secret, e-posta, kişi adı, token, header/body veya
 provider cevabı pakete alınmaz. Tanımsız ekstra dosya ya da tek byte değişiklik
 `MAS-DEP-034` ile reddedilir. `verify`, yalnız paketin kendi hash'lerine
@@ -495,6 +512,107 @@ manifestini hem candidate kanıtını yeniden doğrular; farklı byte'lara veril
 onay `no-go` olur. Çıktılar 0600, secretsiz ve mutation-free'dir. Güvenli örnek
 `production-release-candidate-evidence.example.json` dosyasındadır.
 
+## Yeniden başlatılabilir release execution journal
+
+`go-to-deploy` kararı deploy'u kendi başına çalıştırmaz. Gerçek değişiklik
+penceresi açıldığında `prod:release-execution`, exact bundle ve pre-deploy
+kararına bağlı 0700 bir journal dizini oluşturur. Araç Supabase, deployment
+provider veya uygulamalara bağlanmaz; yalnız dışarıda gerçekleştirilen adımların
+secretsiz SHA-256 kanıt makbuzlarını 0600 ve write-once olarak kaydeder.
+
+```bash
+corepack pnpm prod:release-execution -- init \
+  --project-ref <PROD_PROJECT_REF> \
+  --bundle-manifest /tmp/masabu-production-release/bundle-manifest.json \
+  --pre-deploy-decision /tmp/prod-release-decision.json \
+  --output /tmp/masabu-release-execution
+
+corepack pnpm prod:release-execution -- status \
+  --input /tmp/masabu-release-execution
+
+corepack pnpm prod:release-execution -- record \
+  --input /tmp/masabu-release-execution \
+  --step change-window-open \
+  --status succeeded \
+  --evidence-sha256 <64_HEX_SAFE_EVIDENCE_ARTIFACT_SHA256>
+
+corepack pnpm prod:release-execution -- verify \
+  --input /tmp/masabu-release-execution \
+  --output /tmp/prod-release-execution-evidence.json
+```
+
+Kanonik sıra: change window, migration, Edge runtime, beş uygulama, runtime
+health, iş-kritik smoke ve rollback hazırlığının tekrar doğrulanmasıdır. Her
+makbuz önceki makbuz SHA'sını taşır. Sıra dışı adım, aynı sequence'e yarışan
+ikinci yazım, tekrar kullanılan dış kanıt, monoton olmayan zaman veya değişmiş
+tek byte `MAS-DEP-039/040` ile durur. Başarısız makbuz zinciri silmez; journal
+aynı adımı artırılmış `attempt` ile bekler ve buradan güvenle devam eder.
+
+Tam zincir policy'deki 180 dakikalık pencere içinde bitmedikçe verify
+`completed` üretemez (`MAS-DEP-041`). Evidence gerçek mutating adımların
+kaydedildiğini dürüstçe `recordedProductionMutationPerformed: true` ile gösterir;
+journal aracının kendisi yine `toolProductionMutationPerformed: false` kalır.
+Final post-deploy karar bu evidence'ı, ham dosya hash'ini ve ilk
+`go-to-deploy` kararını yeniden doğrular. Güvenli şema örneği
+`production-release-execution-evidence.example.json` dosyasındadır.
+
+## Başarısız release abort/rollback journal'ı
+
+Execution'ın son write-once receipt'i `failed` olduğunda normal journal
+silinmez veya geriye sarılmaz. `prod:release-recovery`, exact execution planı,
+başarısız son receipt'i ve frozen candidate içindeki önceki immutable artifact
+envanterini yeniden doğrulayıp ayrı bir 0700 recovery journal'ı başlatır:
+
+```bash
+corepack pnpm prod:release-recovery -- init \
+  --execution-journal /tmp/masabu-release-execution \
+  --release-candidate-evidence /tmp/prod-release-candidate-evidence.json \
+  --output /tmp/masabu-release-recovery
+
+corepack pnpm prod:release-recovery -- status \
+  --input /tmp/masabu-release-recovery
+
+corepack pnpm prod:release-recovery -- record \
+  --input /tmp/masabu-release-recovery \
+  --step release-abort-declared \
+  --status succeeded \
+  --evidence-sha256 <64_HEX_SAFE_EVIDENCE_ARTIFACT_SHA256>
+
+corepack pnpm prod:release-recovery -- verify \
+  --input /tmp/masabu-release-recovery \
+  --output /tmp/prod-release-recovery-evidence.json
+```
+
+Plan, execution'da gerçekten denenmiş katmanlardan türetilir. Henüz mutation
+adımına gelmeden oluşan hata `abort-only` olur; trafik/app/Edge/database geri
+alma adımları uydurulmaz. Migration, Edge veya uygulama deployment'ına
+dokunulduysa `rollback-required` olur ve trafik containment ardından yalnız
+gereken artifact/recovery adımları ters sırada eklenir. Migration geri alma
+adımı bilinçli olarak “down migration” varsaymaz; operatörün doğrulanmış
+PITR/restore veya forward-fix kararının dış kanıtını ister.
+
+Recovery dizini başarısız execution planı/receipt'leri ile frozen candidate
+kanıtının 0600 izinli, write-once kaynak kopyalarını da tutar. Her `status`,
+`record` ve `verify` çağrısı recovery planını bu kopyalardan yeniden üretir;
+kaynakta veya planda tek byte değişiklik yeni bir receipt yazılmadan önce
+durdurulur.
+
+Abort kararı, incident açılışı, koşullu mutating recovery adımları, runtime
+health, business smoke, incident kapanışı ve change-window kapanışı ayrı
+write-once/hash-zincirli receipt'lerdir. Başarısız recovery denemesi aynı adımın
+artan attempt'iyle sürer; receipt silme/üzerine yazma yasaktır. Tam zincir
+policy'deki 120 dakikalık pencere içinde kapanmadıkça `rolled-back` veya
+`aborted-no-mutation` kanıtı üretilemez (`MAS-DEP-042/043/044`). Her iki sonuç
+da `releaseAccepted: false` taşır; recovery hiçbir zaman başarısız release'i
+kabul edilmiş release'e çeviremez.
+
+Araç gerçek rollback, trafik değişikliği veya veritabanı restore'u çalıştırmaz;
+yalnız dış işlemlerin secretsiz SHA-256 kanıtlarını kaydeder ve her zaman
+`toolProductionMutationPerformed: false` kalır. Güvenli şema örneği
+`production-release-recovery-evidence.example.json` dosyasındadır. Bu dosya
+başarılı release'in zorunlu evidence setine dahil değildir; bundle manifestinde
+koşullu evidence olarak listelenir.
+
 ## Şimdiki açık blokajlar
 
 - SaaS abonelik İyzico canlı merchant/plan referansları hazır değil.
@@ -504,6 +622,10 @@ onay `no-go` olur. Çıktılar 0600, secretsiz ve mutation-free'dir. Güvenli ö
   içindeki fail-closed şablon bu yüzden release onayı sayılamaz.
 - Önceki PROD app/Edge artifact SHA-256 envanteri henüz alınmadı; candidate
   freeze şablonu bu yüzden `pending` kalmalı ve final karar `no-go` olmalıdır.
+- Gerçek PROD execution journal henüz başlatılmadı; `go-to-deploy` kararı ve
+  değişiklik penceresi olmadan execution evidence üretilemez.
+- Gerçek PROD execution başarısızlığı olmadığı için recovery journal da
+  başlatılmadı; örnek dosya rollback yapıldığına dair kanıt sayılmaz.
 - Platform-admin desktop/mobile ekran görüntülü son görsel smoke, bağlı Codex
   browser olmadığı için ertelendi.
 - Platform-admin için nihai public domain ve Supabase Auth redirect allowlist

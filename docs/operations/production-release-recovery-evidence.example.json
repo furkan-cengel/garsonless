@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 1,
+  "kind": "masabu-production-release-recovery-evidence",
+  "status": "aborted-no-mutation",
+  "projectRef": "<PROD_PROJECT_REF>",
+  "commitSha": "<40_HEX_RELEASE_COMMIT>",
+  "plan": {
+    "schemaVersion": 1,
+    "kind": "masabu-production-release-recovery-plan",
+    "environment": "production",
+    "projectRef": "<PROD_PROJECT_REF>",
+    "createdAt": "2026-07-23T18:02:00.000Z",
+    "commitSha": "<40_HEX_RELEASE_COMMIT>",
+    "releaseArtifactSha256": "<64_HEX_RELEASE_SHA256>",
+    "bundleManifestSha256": "<64_HEX_BUNDLE_SHA256>",
+    "preDeployDecisionSha256": "<64_HEX_PRE_DEPLOY_DECISION_SHA256>",
+    "sourceExecutionPlanSha256": "<64_HEX_EXECUTION_PLAN_SHA256>",
+    "sourceExecutionLastReceiptSha256": "<64_HEX_FAILED_EXECUTION_RECEIPT_SHA256>",
+    "sourceExecutionFailureEvidenceSha256": "<64_HEX_FAILURE_EVIDENCE_SHA256>",
+    "releaseCandidateEvidenceSha256": "<64_HEX_RELEASE_CANDIDATE_EVIDENCE_SHA256>",
+    "failureStepKey": "change-window-open",
+    "recoveryMode": "abort-only",
+    "productionMutationRiskDetected": false,
+    "attemptedExecutionSteps": [
+      "change-window-open"
+    ],
+    "steps": [
+      {
+        "position": 1,
+        "key": "release-abort-declared",
+        "label": "Release iptalini ilan et",
+        "mutatesProduction": false,
+        "evidenceKind": "operator-abort-decision"
+      },
+      {
+        "position": 2,
+        "key": "incident-opened",
+        "label": "Incident kaydını aç",
+        "mutatesProduction": false,
+        "evidenceKind": "incident-record"
+      },
+      {
+        "position": 3,
+        "key": "runtime-health-reverified",
+        "label": "Runtime sağlığını yeniden doğrula",
+        "mutatesProduction": false,
+        "evidenceKind": "runtime-recovery-verification"
+      },
+      {
+        "position": 4,
+        "key": "business-smoke-reverified",
+        "label": "İş-kritik smoke matrisini yeniden doğrula",
+        "mutatesProduction": false,
+        "evidenceKind": "smoke-recovery-verification"
+      },
+      {
+        "position": 5,
+        "key": "incident-closed",
+        "label": "Incident kaydını kanıtla ve kapat",
+        "mutatesProduction": false,
+        "evidenceKind": "incident-closure"
+      },
+      {
+        "position": 6,
+        "key": "change-window-closed",
+        "label": "Değişiklik penceresini kapat",
+        "mutatesProduction": false,
+        "evidenceKind": "operator-window-closure"
+      }
+    ],
+    "toolProductionMutationPerformed": false,
+    "artifactSha256": "<64_HEX_RECOVERY_PLAN_SHA256>"
+  },
+  "startedAt": "2026-07-23T18:03:00.000Z",
+  "completedAt": "2026-07-23T18:13:00.000Z",
+  "receiptCount": 6,
+  "lastReceiptSha256": "<64_HEX_RECOVERY_RECEIPT_6_SHA256>",
+  "completedSteps": [
+    "release-abort-declared",
+    "incident-opened",
+    "runtime-health-reverified",
+    "business-smoke-reverified",
+    "incident-closed",
+    "change-window-closed"
+  ],
+  "receipts": [
+    {
+      "schemaVersion": 1,
+      "kind": "masabu-production-release-recovery-step-receipt",
+      "projectRef": "<PROD_PROJECT_REF>",
+      "planArtifactSha256": "<64_HEX_RECOVERY_PLAN_SHA256>",
+      "sequence": 1,
+      "stepPosition": 1,
+      "stepKey": "release-abort-declared",
+      "attempt": 1,
+      "status": "succeeded",
+      "capturedAt": "2026-07-23T18:03:00.000Z",
+      "evidenceArtifactSha256": "<64_HEX_ABORT_DECISION_EVIDENCE_SHA256>",
+      "previousReceiptSha256": null,
+      "productionMutationPerformed": false,
+      "receiptSha256": "<64_HEX_RECOVERY_RECEIPT_1_SHA256>"
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "masabu-production-release-recovery-step-receipt",
+      "projectRef": "<PROD_PROJECT_REF>",
+      "planArtifactSha256": "<64_HEX_RECOVERY_PLAN_SHA256>",
+      "sequence": 2,
+      "stepPosition": 2,
+      "stepKey": "incident-opened",
+      "attempt": 1,
+      "status": "succeeded",
+      "capturedAt": "2026-07-23T18:04:00.000Z",
+      "evidenceArtifactSha256": "<64_HEX_INCIDENT_EVIDENCE_SHA256>",
+      "previousReceiptSha256": "<64_HEX_RECOVERY_RECEIPT_1_SHA256>",
+      "productionMutationPerformed": false,
+      "receiptSha256": "<64_HEX_RECOVERY_RECEIPT_2_SHA256>"
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "masabu-production-release-recovery-step-receipt",
+      "projectRef": "<PROD_PROJECT_REF>",
+      "planArtifactSha256": "<64_HEX_RECOVERY_PLAN_SHA256>",
+      "sequence": 3,
+      "stepPosition": 3,
+      "stepKey": "runtime-health-reverified",
+      "attempt": 1,
+      "status": "succeeded",
+      "capturedAt": "2026-07-23T18:07:00.000Z",
+      "evidenceArtifactSha256": "<64_HEX_RUNTIME_RECOVERY_EVIDENCE_SHA256>",
+      "previousReceiptSha256": "<64_HEX_RECOVERY_RECEIPT_2_SHA256>",
+      "productionMutationPerformed": false,
+      "receiptSha256": "<64_HEX_RECOVERY_RECEIPT_3_SHA256>"
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "masabu-production-release-recovery-step-receipt",
+      "projectRef": "<PROD_PROJECT_REF>",
+      "planArtifactSha256": "<64_HEX_RECOVERY_PLAN_SHA256>",
+      "sequence": 4,
+      "stepPosition": 4,
+      "stepKey": "business-smoke-reverified",
+      "attempt": 1,
+      "status": "succeeded",
+      "capturedAt": "2026-07-23T18:10:00.000Z",
+      "evidenceArtifactSha256": "<64_HEX_SMOKE_RECOVERY_EVIDENCE_SHA256>",
+      "previousReceiptSha256": "<64_HEX_RECOVERY_RECEIPT_3_SHA256>",
+      "productionMutationPerformed": false,
+      "receiptSha256": "<64_HEX_RECOVERY_RECEIPT_4_SHA256>"
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "masabu-production-release-recovery-step-receipt",
+      "projectRef": "<PROD_PROJECT_REF>",
+      "planArtifactSha256": "<64_HEX_RECOVERY_PLAN_SHA256>",
+      "sequence": 5,
+      "stepPosition": 5,
+      "stepKey": "incident-closed",
+      "attempt": 1,
+      "status": "succeeded",
+      "capturedAt": "2026-07-23T18:12:00.000Z",
+      "evidenceArtifactSha256": "<64_HEX_INCIDENT_CLOSURE_EVIDENCE_SHA256>",
+      "previousReceiptSha256": "<64_HEX_RECOVERY_RECEIPT_4_SHA256>",
+      "productionMutationPerformed": false,
+      "receiptSha256": "<64_HEX_RECOVERY_RECEIPT_5_SHA256>"
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "masabu-production-release-recovery-step-receipt",
+      "projectRef": "<PROD_PROJECT_REF>",
+      "planArtifactSha256": "<64_HEX_RECOVERY_PLAN_SHA256>",
+      "sequence": 6,
+      "stepPosition": 6,
+      "stepKey": "change-window-closed",
+      "attempt": 1,
+      "status": "succeeded",
+      "capturedAt": "2026-07-23T18:13:00.000Z",
+      "evidenceArtifactSha256": "<64_HEX_WINDOW_CLOSURE_EVIDENCE_SHA256>",
+      "previousReceiptSha256": "<64_HEX_RECOVERY_RECEIPT_5_SHA256>",
+      "productionMutationPerformed": false,
+      "receiptSha256": "<64_HEX_RECOVERY_RECEIPT_6_SHA256>"
+    }
+  ],
+  "incidentEvidenceSha256": "<64_HEX_INCIDENT_EVIDENCE_SHA256>",
+  "incidentClosureEvidenceSha256": "<64_HEX_INCIDENT_CLOSURE_EVIDENCE_SHA256>",
+  "releaseAccepted": false,
+  "recordedRecoveryMutationPerformed": false,
+  "toolProductionMutationPerformed": false,
+  "errors": [],
+  "artifactSha256": "<64_HEX_RECOVERY_EVIDENCE_SHA256>"
+}

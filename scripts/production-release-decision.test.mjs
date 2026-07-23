@@ -13,6 +13,13 @@ import { buildSmokeManifest, loadSmokeSpec } from './business-smoke.mjs'
 import { evaluateReleaseDecision, loadReleasePolicy, runCli, validateReleasePolicy } from './production-release-decision.mjs'
 import { buildBackupRestoreEvidenceTemplate } from './production-release-handoff.mjs'
 import { buildReleaseCandidateEvidenceTemplate } from './production-release-candidate.mjs'
+import {
+  RELEASE_EXECUTION_STEPS,
+  buildExecutionVerification,
+  buildReleaseExecutionPlan,
+  buildReleaseExecutionReceipt,
+  evaluateExecutionReceipts,
+} from './production-release-execution.mjs'
 
 const ROOT = new URL('..', import.meta.url).pathname
 const PROD_REF = 'svxvloeosiksqfadgkvo'
@@ -165,8 +172,10 @@ function fixture() {
     requiredOperatorEvidence: [
       'prod-migration-list.txt', 'prod-runtime-evidence.json', 'prod-smoke-evidence.json',
       'prod-backup-restore-evidence.json', 'prod-release-candidate-evidence.json',
+      'prod-release-execution-evidence.json',
       'prod-release-attestation.json',
     ],
+    conditionalOperatorEvidence: ['prod-release-recovery-evidence.json'],
   }
   const bundleManifest = { ...bundleContents, artifactSha256: sha256(JSON.stringify(bundleContents)) }
   const releaseCandidateEvidence = buildReleaseCandidateEvidenceTemplate({
@@ -200,10 +209,11 @@ function fixture() {
     rehearsalArtifactSha256: rehearsal.artifactSha256,
     backupRestoreEvidenceSha256: sha256(backupRestoreEvidenceRaw),
     releaseCandidateEvidenceSha256: sha256(releaseCandidateEvidenceRaw),
+    releaseExecutionEvidenceSha256: null,
     enabledCapabilities: { 'order-card-payments': false, 'saas-billing': false, 'web-push': false, sms: false },
     approvals: Object.fromEntries(policy.requiredApprovals.map((name) => [name, true])),
   }
-  return {
+  const base = {
     projectRef: PROD_REF,
     policy,
     policySha256,
@@ -223,6 +233,40 @@ function fixture() {
     now: NOW,
     root: ROOT,
   }
+  const preDeployDecision = evaluateReleaseDecision({ ...base, mode: 'pre-deploy' })
+  assert.equal(preDeployDecision.decision, 'go-to-deploy')
+  const executionPlan = buildReleaseExecutionPlan({
+    projectRef: PROD_REF,
+    bundleManifest,
+    preDeployDecision,
+    now: new Date('2026-07-23T12:25:30.000Z'),
+  })
+  const executionReceipts = []
+  for (const [index, step] of RELEASE_EXECUTION_STEPS.entries()) {
+    const evaluation = evaluateExecutionReceipts({ plan: executionPlan, receipts: executionReceipts, now: NOW })
+    executionReceipts.push(buildReleaseExecutionReceipt({
+      plan: executionPlan,
+      sequence: index + 1,
+      step,
+      attempt: evaluation.nextAttempt,
+      status: 'succeeded',
+      capturedAt: new Date(Date.parse('2026-07-23T12:26:00.000Z') + index * 30_000).toISOString(),
+      evidenceArtifactSha256: String(index + 2).repeat(64),
+      previousReceiptSha256: evaluation.lastReceiptSha256,
+    }))
+  }
+  const releaseExecutionEvidence = buildExecutionVerification({ plan: executionPlan, receipts: executionReceipts, now: NOW })
+  const releaseExecutionEvidenceRaw = `${JSON.stringify(releaseExecutionEvidence, null, 2)}\n`
+  attestation.capturedAt = '2026-07-23T12:29:30.000Z'
+  attestation.releaseExecutionEvidenceSha256 = sha256(releaseExecutionEvidenceRaw)
+  return {
+    ...base,
+    preDeployDecision,
+    releaseExecutionEvidence,
+    releaseExecutionEvidenceRaw,
+    attestation,
+    attestationRaw: `${JSON.stringify(attestation, null, 2)}\n`,
+  }
 }
 
 test('release policy is closed, internally consistent and source controlled', () => {
@@ -231,6 +275,8 @@ test('release policy is closed, internally consistent and source controlled', ()
   assert.equal(policy.requiredScopes.length, 7)
   assert.equal(policy.requiredApprovals.length, 6)
   assert.equal(policy.maxReleaseCandidateEvidenceAgeHours, 4)
+  assert.equal(policy.maxReleaseExecutionDurationMinutes, 180)
+  assert.equal(policy.maxReleaseRecoveryDurationMinutes, 120)
 })
 
 test('release policy rejects missing warning modes and unknown smoke capability bindings', () => {
@@ -244,8 +290,22 @@ test('release policy rejects missing warning modes and unknown smoke capability 
   assert.ok(result.errors.some((item) => item.subject === 'unknown-capability'))
 })
 
+test('release policy rejects an unsafe recovery duration', () => {
+  const { policy } = fixture()
+  policy.maxReleaseRecoveryDurationMinutes = 0
+  const result = validateReleasePolicy(policy)
+  assert.equal(result.ok, false)
+  assert.ok(result.errors.some((item) => (
+    item.code === 'MAS-DEP-029'
+    && item.subject === 'release-recovery-duration'
+  )))
+})
+
 test('complete pre-deploy evidence produces go-to-deploy without claiming a deployment', () => {
-  const result = evaluateReleaseDecision({ ...fixture(), mode: 'pre-deploy' })
+  const input = fixture()
+  input.attestation.releaseExecutionEvidenceSha256 = null
+  input.attestationRaw = `${JSON.stringify(input.attestation, null, 2)}\n`
+  const result = evaluateReleaseDecision({ ...input, mode: 'pre-deploy' })
   assert.equal(result.decision, 'go-to-deploy')
   assert.equal(result.productionMutationPerformed, false)
   assert.ok(Object.values(result.gates).every(Boolean))
@@ -333,6 +393,25 @@ test('unfrozen release candidate or mismatched provenance binding prevents relea
   assert.ok(result.errors.some((item) => item.subject === 'release-candidate-attestation-binding'))
 })
 
+test('missing, incomplete or mismatched execution journal prevents post-deploy acceptance', () => {
+  const input = fixture()
+  input.releaseExecutionEvidence.status = 'incomplete'
+  input.releaseExecutionEvidenceRaw = `${JSON.stringify(input.releaseExecutionEvidence, null, 2)}\n`
+  const result = evaluateReleaseDecision({ ...input, mode: 'post-deploy' })
+  assert.equal(result.decision, 'no-go')
+  assert.equal(result.gates.releaseExecution, false)
+  assert.ok(result.errors.some((item) => item.code === 'MAS-DEP-041'))
+})
+
+test('post-deploy attestation cannot predate completed execution', () => {
+  const input = fixture()
+  input.attestation.capturedAt = '2026-07-23T12:28:00.000Z'
+  input.attestationRaw = `${JSON.stringify(input.attestation, null, 2)}\n`
+  const result = evaluateReleaseDecision({ ...input, mode: 'post-deploy' })
+  assert.equal(result.decision, 'no-go')
+  assert.ok(result.errors.some((item) => item.subject === 'release-execution-attestation-time'))
+})
+
 test('decision artifact is deterministic for the same bound evidence', () => {
   const input = fixture()
   const first = evaluateReleaseDecision({ ...input, mode: 'post-deploy' })
@@ -354,6 +433,36 @@ test('CLI writes a safe 0600 post-deploy decision artifact', () => {
   input.attestation.capturedAt = capturedAt
   input.attestation.backupRestoreEvidenceSha256 = sha256(input.backupRestoreEvidenceRaw)
   input.attestation.releaseCandidateEvidenceSha256 = sha256(input.releaseCandidateEvidenceRaw)
+  input.attestation.releaseExecutionEvidenceSha256 = null
+  input.attestationRaw = `${JSON.stringify(input.attestation, null, 2)}\n`
+  input.preDeployDecision = evaluateReleaseDecision({ ...input, mode: 'pre-deploy', now: new Date() })
+  assert.equal(input.preDeployDecision.decision, 'go-to-deploy')
+  const executionStart = Date.now() - 8_000
+  const executionPlan = buildReleaseExecutionPlan({
+    projectRef: PROD_REF,
+    bundleManifest: input.bundleManifest,
+    preDeployDecision: input.preDeployDecision,
+    now: new Date(executionStart),
+  })
+  const executionReceipts = []
+  for (const [index, step] of RELEASE_EXECUTION_STEPS.entries()) {
+    const evaluation = evaluateExecutionReceipts({ plan: executionPlan, receipts: executionReceipts })
+    executionReceipts.push(buildReleaseExecutionReceipt({
+      plan: executionPlan,
+      sequence: index + 1,
+      step,
+      attempt: evaluation.nextAttempt,
+      status: 'succeeded',
+      capturedAt: new Date(executionStart + (index + 1) * 1_000).toISOString(),
+      evidenceArtifactSha256: String(index + 2).repeat(64),
+      previousReceiptSha256: evaluation.lastReceiptSha256,
+    }))
+  }
+  input.releaseExecutionEvidence = buildExecutionVerification({ plan: executionPlan, receipts: executionReceipts })
+  input.releaseExecutionEvidenceRaw = `${JSON.stringify(input.releaseExecutionEvidence, null, 2)}\n`
+  input.attestation.capturedAt = new Date().toISOString()
+  input.attestation.releaseExecutionEvidenceSha256 = sha256(input.releaseExecutionEvidenceRaw)
+  input.attestationRaw = `${JSON.stringify(input.attestation, null, 2)}\n`
   try {
     const paths = {}
     const writeJson = (name, value) => {
@@ -368,6 +477,8 @@ test('CLI writes a safe 0600 post-deploy decision artifact', () => {
     writeJson('backupRestore', input.backupRestoreEvidence)
     writeJson('bundleManifest', input.bundleManifest)
     writeJson('releaseCandidate', input.releaseCandidateEvidence)
+    writeJson('preDeployDecision', input.preDeployDecision)
+    writeJson('releaseExecution', input.releaseExecutionEvidence)
     writeJson('attestation', input.attestation)
     paths.migrations = join(directory, 'migrations.txt')
     writeFileSync(paths.migrations, migrationText(createMigrationManifest(ROOT)))
@@ -377,6 +488,7 @@ test('CLI writes a safe 0600 post-deploy decision artifact', () => {
       '--migration-evidence', paths.migrations, '--runtime-evidence', paths.runtime,
       '--smoke-evidence', paths.smoke, '--backup-restore-evidence', paths.backupRestore,
       '--bundle-manifest', paths.bundleManifest, '--release-candidate-evidence', paths.releaseCandidate,
+      '--pre-deploy-decision', paths.preDeployDecision, '--release-execution-evidence', paths.releaseExecution,
       '--attestation', paths.attestation,
     ]
     for (const [scope, env] of Object.entries(input.envByScope)) {
