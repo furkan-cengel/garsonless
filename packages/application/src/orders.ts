@@ -6,6 +6,15 @@ export interface PublicOrderLine {
   quantity: number
   selectedModifiers?: Array<{ group_id: string; option_id: string; quantity?: number }>
   removedIngredientIds?: string[]
+  combo?: {
+    instanceId: string
+    sectionInstanceId: string
+    comboIndex: number
+  }
+  promotion?: {
+    sectionInstanceId: string
+    kind: 'discount-badge' | 'daily-special'
+  }
 }
 
 export interface PlacePublicOrderCommand {

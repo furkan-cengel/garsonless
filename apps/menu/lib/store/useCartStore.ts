@@ -24,6 +24,8 @@ interface CartState {
     quantity: number,
     originalPrice?: number,
     removedIngredientIds?: string[],
+    combo?: CartItem['combo'],
+    promotion?: CartItem['promotion'],
   ) => void
   removeItem: (cartId: string) => void
   updateQuantity: (cartId: string, quantity: number) => void
@@ -42,7 +44,7 @@ export const useCartStore = create<CartState>()(
 
       setTableId: (tableId) => set({ tableId }),
 
-      addItem: (item, modifiers, modifierGroups, quantity, originalPrice, removedIngredientIds = []) => {
+      addItem: (item, modifiers, modifierGroups, quantity, originalPrice, removedIngredientIds = [], combo, promotion) => {
         const modifiersPriceDelta = modifiers.reduce((total, sel) => {
           for (const group of modifierGroups) {
             const option = group.options.find((o) => o.id === sel.option_id)
@@ -74,7 +76,9 @@ export const useCartStore = create<CartState>()(
         const existingIndex = get().items.findIndex(
           (ci) => ci.itemId === item.id &&
             JSON.stringify(ci.modifiers) === serializedModifiers &&
-            JSON.stringify([...(ci.removedIngredientIds ?? [])].sort()) === serializedRemovals,
+            JSON.stringify([...(ci.removedIngredientIds ?? [])].sort()) === serializedRemovals &&
+            (ci.combo?.instanceId ?? null) === (combo?.instanceId ?? null) &&
+            (ci.promotion?.sectionInstanceId ?? null) === (promotion?.sectionInstanceId ?? null),
         )
 
         if (existingIndex >= 0) {
@@ -102,6 +106,8 @@ export const useCartStore = create<CartState>()(
             : Math.max(0, Math.round(item.energy_kcal + calorieDelta)),
           imageUrl: item.images?.[0] ?? null,
           ...(originalPrice !== undefined && originalPrice !== item.price ? { originalPrice } : {}),
+          ...(combo ? { combo } : {}),
+          ...(promotion ? { promotion } : {}),
         }
 
         set((state) => ({ items: [...state.items, cartItem] }))
@@ -130,7 +136,7 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: 'garsonless-cart',
-      version: 2,
+      version: 4,
       migrate: (persisted) => {
         const state = persisted as Partial<CartState> & { items?: Partial<CartItem>[] }
         return {

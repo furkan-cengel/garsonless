@@ -25,6 +25,7 @@ export { createMenuCommandPort } from './menu-command-port'
 export { createKitchenSettingsCommandPort } from './kitchen-settings-command-port'
 export { createTeamCommandPort } from './team-command-port'
 export { createLoyaltyQueryPort } from './loyalty-query-port'
+export { createFeaturedProductsReadPort } from './featured-products-read-port'
 export { createThemeApplicationPort } from './theme-application-port'
 export {
   createRestaurantSettingsPort,

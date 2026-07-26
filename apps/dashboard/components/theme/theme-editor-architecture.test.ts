@@ -13,8 +13,12 @@ const dialogsSource = readFileSync(
   `${directory}/ThemeEditorDialogs.tsx`,
   "utf8",
 );
-const previewCatalogSource = readFileSync(
-  `${directory}/ThemeEditorPreviewCatalog.tsx`,
+const canonicalSectionPreviewSource = readFileSync(
+  `${directory}/CanonicalSectionPreview.tsx`,
+  "utf8",
+);
+const customSectionRendererSource = readFileSync(
+  `${directory}/../../../../packages/ui/src/themes/default/sections/CustomSectionRenderer.tsx`,
   "utf8",
 );
 const sectionRegistrySource = readFileSync(
@@ -44,6 +48,30 @@ const propertyPanelsSource = readFileSync(
 );
 const propertyControlsSource = readFileSync(
   `${directory}/ThemePropertyControls.tsx`,
+  "utf8",
+);
+const cardPropertyOptionIconSource = readFileSync(
+  `${directory}/CardPropertyOptionIcon.tsx`,
+  "utf8",
+);
+const cardLayoutOptionIconSource = readFileSync(
+  `${directory}/CardLayoutOptionIcon.tsx`,
+  "utf8",
+);
+const navigationOptionIconSource = readFileSync(
+  `${directory}/NavigationOptionIcon.tsx`,
+  "utf8",
+);
+const headerOptionIconSource = readFileSync(
+  `${directory}/HeaderOptionIcon.tsx`,
+  "utf8",
+);
+const layoutOptionIconSource = readFileSync(
+  `${directory}/LayoutOptionIcon.tsx`,
+  "utf8",
+);
+const cartOptionIconSource = readFileSync(
+  `${directory}/CartOptionIcon.tsx`,
   "utf8",
 );
 const logoControllerSource = readFileSync(
@@ -85,6 +113,16 @@ const previewThemeModelSource = readFileSync(
   "utf8",
 );
 
+test("section catalogue gives an unconfigured promo slider a safe mock preview", () => {
+  assert.match(canonicalSectionPreviewSource, /buildPromoSliderCatalogMock/);
+  assert.match(
+    canonicalSectionPreviewSource,
+    /sectionId === 'promo-slider' && derivedActiveCampaigns\.length === 0/,
+  );
+  assert.match(canonicalSectionPreviewSource, /sourceMode: 'active'/);
+  assert.match(canonicalSectionPreviewSource, /activeCampaignIds: ''/);
+});
+
 test("theme editor orchestrator delegates sidebar rendering", () => {
   assert.match(clientSource, /import \{ ThemeEditorSidebar \}/);
   assert.match(clientSource, /<ThemeEditorSidebar/);
@@ -102,6 +140,195 @@ test("theme editor sidebar keeps page-flow behavior behind the shared model", ()
   assert.match(sidebarSource, /aria-label="Tema bölümlerinde ara"/);
 });
 
+test("page-flow hover belongs to the outer row instead of the inner label button", () => {
+  assert.match(sidebarSource, /data-page-flow-select/);
+  assert.match(shellSource, /\[data-page-flow-select\]:not\(:disabled\):hover/);
+  assert.match(shellSource, /box-shadow: none !important/);
+  assert.match(shellSource, /transform: none !important/);
+});
+
+test("card property tiles use the dedicated twelve-icon SVG set", () => {
+  assert.match(propertyControlsSource, /CardPropertyOptionIcon/);
+  for (const fieldId of [
+    "cardHover",
+    "cardPlaceholderStyle",
+    "cardCtaStyle",
+    "cardCtaIcon",
+  ]) {
+    assert.match(cardPropertyOptionIconSource, new RegExp(fieldId));
+  }
+  for (const value of [
+    "none",
+    "lift",
+    "glow",
+    "neutral",
+    "accent",
+    "outline",
+    "icon",
+    "pill",
+    "full",
+    "plus",
+    "cart",
+    "bag",
+  ]) {
+    assert.match(cardPropertyOptionIconSource, new RegExp(`value === "${value}"`));
+  }
+});
+
+test("card layout and property chrome use the dedicated nineteen-icon SVG set", () => {
+  assert.match(propertyControlsSource, /CardLayoutOptionIcon/);
+  assert.match(propertyControlsSource, /ThemeEditorControlIcon/);
+  for (const fieldId of [
+    "cardLayout",
+    "cardDensity",
+    "cardPriceAlign",
+    "cardImageFit",
+    "cardImagePosition",
+  ]) {
+    assert.match(cardLayoutOptionIconSource, new RegExp(fieldId));
+  }
+  for (const value of [
+    "vertical",
+    "horizontal",
+    "minimal",
+    "compact",
+    "normal",
+    "spacious",
+    "left",
+    "right",
+    "cover",
+    "contain",
+    "top",
+    "center",
+    "bottom",
+  ]) {
+    assert.match(cardLayoutOptionIconSource, new RegExp(`value === "${value}"`));
+  }
+  for (const name of ["copy", "history", "menu", "down", "minus", "plus"]) {
+    assert.match(cardLayoutOptionIconSource, new RegExp(`name === "${name}"`));
+  }
+});
+
+test("navigation design and layout tiles use the dedicated twenty-icon SVG set", () => {
+  assert.match(propertyControlsSource, /NavigationOptionIcon/);
+  for (const fieldId of [
+    "catnavStyle",
+    "catnavActiveStyle",
+    "catnavAlign",
+    "catnavDensity",
+  ]) {
+    assert.match(navigationOptionIconSource, new RegExp(fieldId));
+  }
+  for (const value of [
+    "pills",
+    "visual",
+    "underline",
+    "segmented",
+    "dots",
+    "outlined",
+    "filled",
+    "soft",
+    "outline",
+    "left",
+    "center",
+    "spread",
+    "compact",
+    "normal",
+    "comfortable",
+  ]) {
+    assert.match(navigationOptionIconSource, new RegExp(`value === "${value}"`));
+  }
+});
+
+test("header design and layout tiles use the dedicated option SVG set", () => {
+  assert.match(propertyControlsSource, /HeaderOptionIcon/);
+  for (const fieldId of [
+    "headerLogoStyle",
+    "headerStyle",
+    "headerLayout",
+    "headerAlign",
+  ]) {
+    assert.match(headerOptionIconSource, new RegExp(fieldId));
+  }
+  for (const value of [
+    "display",
+    "wordmark",
+    "image",
+    "solid",
+    "blur",
+    "split",
+    "center",
+    "stacked",
+    "compact",
+    "left",
+  ]) {
+    assert.match(headerOptionIconSource, new RegExp(`value === "${value}"`));
+  }
+  for (const name of ["copy", "history", "down", "minus", "plus"]) {
+    assert.match(cardLayoutOptionIconSource, new RegExp(`name === "${name}"`));
+  }
+});
+
+test("layout panel tiles use the dedicated option SVG set", () => {
+  assert.match(propertyControlsSource, /LayoutOptionIcon/);
+  for (const fieldId of ["texture", "sectionHeading", "pageMaxWidth"]) {
+    assert.match(layoutOptionIconSource, new RegExp(fieldId));
+  }
+  for (const value of [
+    "solid",
+    "grid",
+    "noise",
+    "accent",
+    "editorial",
+    "catalog",
+    "none",
+    "960",
+    "1200",
+  ]) {
+    assert.match(layoutOptionIconSource, new RegExp(`value === "${value}"`));
+  }
+  for (const name of ["copy", "history", "down", "minus", "plus"]) {
+    assert.match(cardLayoutOptionIconSource, new RegExp(`name === "${name}"`));
+  }
+});
+
+test("cart design and layout tiles use the dedicated option SVG set", () => {
+  assert.match(propertyControlsSource, /CartOptionIcon/);
+  for (const fieldId of [
+    "cartHeaderTriggerStyle",
+    "cartFooterTriggerStyle",
+    "cartIcon",
+    "cartPillTone",
+    "cartDrawerTone",
+    "cartPillPosition",
+  ]) {
+    assert.match(cartOptionIconSource, new RegExp(fieldId));
+  }
+  for (const value of [
+    "none",
+    "icon",
+    "pill",
+    "bar",
+    "fab",
+    "thumbs",
+    "cart",
+    "bag",
+    "basket",
+    "dark",
+    "accent",
+    "light",
+    "clean",
+    "accentHeader",
+    "floating",
+    "edge",
+  ]) {
+    assert.match(cartOptionIconSource, new RegExp(`value === "${value}"`));
+  }
+  for (const name of ["copy", "history", "down"]) {
+    assert.match(cardLayoutOptionIconSource, new RegExp(`name === "${name}"`));
+  }
+});
+
 test("theme editor orchestrator delegates picker dialogs to views and navigation state to its controller", () => {
   assert.match(clientSource, /import \{ ThemeEditorDialogsLayer \}/);
   assert.match(clientSource, /<ThemeEditorDialogsLayer/);
@@ -109,12 +336,12 @@ test("theme editor orchestrator delegates picker dialogs to views and navigation
     clientSource,
     /<TemplatePickerDialog|<SectionPickerDialog/,
   );
-  assert.match(dialogsLayerSource, /<TemplatePickerDialog/);
   assert.match(dialogsLayerSource, /<SectionPickerDialog/);
+  assert.doesNotMatch(dialogsLayerSource, /TemplatePickerDialog|ThemeTemplateOption/);
   assert.match(clientSource, /canAddAdvancedSections: boolean/);
   assert.doesNotMatch(clientSource, /canUseFeature\(/);
   assert.match(dialogsLayerSource, /canAddAdvancedSections/);
-  assert.match(dialogsSource, /Pro pakette kullanılabilir/);
+  assert.match(clientSource, /Bu bölüm Pro pakette kullanılabilir/);
   assert.match(clientSource, /useThemeEditorNavigation/);
   assert.doesNotMatch(clientSource, /role="dialog"/);
   assert.doesNotMatch(
@@ -122,9 +349,14 @@ test("theme editor orchestrator delegates picker dialogs to views and navigation
     /setTemplatePickerOpen|setSectionPickerOpen|lastFocusedBeforeDialogRef/,
   );
   assert.match(dialogsSource, /function trapDialogFocus/);
-  assert.match(dialogsSource, /aria-label="Şablonlar"/);
-  assert.match(dialogsSource, /aria-label="Bölüm ekle"/);
+  assert.match(dialogsSource, /aria-labelledby="section-picker-title"/);
   assert.match(dialogsSource, /aria-label="Eklenecek bölüm ara"/);
+  assert.match(
+    dialogsSource,
+    /const primaryDisabled = !selected \|\| selectedPlanned \|\| Boolean\(selected\.singleton && selectedExists\)/,
+  );
+  assert.match(dialogsSource, /disabled=\{primaryDisabled\}/);
+  assert.match(dialogsSource, /Geliştiriliyor/);
 });
 
 test("theme editor delegates selection, dialog and page-flow commands to one navigation controller", () => {
@@ -133,7 +365,7 @@ test("theme editor delegates selection, dialog and page-flow commands to one nav
   assert.match(navigationSource, /reorderPageBlocks/);
   assert.match(navigationSource, /getKeyboardMoveTarget/);
   assert.match(navigationSource, /lastFocusedBeforeDialogRef/);
-  assert.match(navigationSource, /daily-special/);
+  assert.doesNotMatch(navigationSource, /dailySpecialTimer|dailySpecialInstanceId/);
   assert.doesNotMatch(navigationSource, /lib\/actions|createClient|supabase/i);
   assert.doesNotMatch(
     clientSource,
@@ -145,23 +377,23 @@ test("theme editor delegates selection, dialog and page-flow commands to one nav
   );
 });
 
-test("theme editor orchestrator delegates picker preview drawings to a render-only catalog", () => {
-  assert.match(dialogsLayerSource, /from '\.\/ThemeEditorPreviewCatalog'/);
-  assert.match(dialogsLayerSource, /<TemplateShowcasePreview/);
-  assert.match(dialogsLayerSource, /<SectionMiniPreview/);
+test("section picker previews the canonical public-menu renderer instead of a mock catalog", () => {
+  assert.match(dialogsLayerSource, /from '\.\/CanonicalSectionPreview'/);
+  assert.match(dialogsLayerSource, /<CanonicalSectionPreview/);
   assert.doesNotMatch(
     clientSource,
     /ThemeEditorPreviewCatalog|<TemplateShowcasePreview|<SectionMiniPreview/,
   );
-  assert.doesNotMatch(clientSource, /function ClassicTemplatePhone/);
-  assert.doesNotMatch(clientSource, /function SectionMiniPreview/);
-  assert.match(previewCatalogSource, /export function TemplateShowcasePreview/);
-  assert.match(previewCatalogSource, /export function SectionMiniPreview/);
-  assert.doesNotMatch(previewCatalogSource, /useState|useEffect|useReducer/);
-  assert.doesNotMatch(
-    previewCatalogSource,
-    /lib\/actions|publishTheme|onSelect/,
-  );
+  assert.match(canonicalSectionPreviewSource, /CustomSectionRenderer/);
+  assert.match(canonicalSectionPreviewSource, /computeThemeVars/);
+  assert.match(canonicalSectionPreviewSource, /readStoreInfo/);
+  assert.match(canonicalSectionPreviewSource, /normalizeModifierGroups/);
+  assert.match(canonicalSectionPreviewSource, /items=\{items\}/);
+  assert.match(canonicalSectionPreviewSource, /storeInfo=\{storeInfo\}/);
+  assert.doesNotMatch(canonicalSectionPreviewSource, /lib\/actions|publishTheme|createClient/);
+  assert.match(customSectionRendererSource, /export function CustomSectionRenderer/);
+  assert.match(customSectionRendererSource, /sectionId === 'hero-banner'/);
+  assert.match(customSectionRendererSource, /sectionId === 'footer'/);
 });
 
 test("theme editor orchestrator imports static section definitions from a typed registry", () => {
@@ -170,6 +402,7 @@ test("theme editor orchestrator imports static section definitions from a typed 
   assert.doesNotMatch(clientSource, /^const SECTION_SETTING_SCHEMA/m);
   assert.match(sectionRegistrySource, /export const SECTION_LIBRARY =/);
   assert.match(sectionRegistrySource, /export const SECTION_SETTING_SCHEMA:/);
+  assert.match(sectionRegistrySource, /status: 'planned'/);
   assert.doesNotMatch(
     sectionRegistrySource,
     /<I\.|ReactNode|from '\.\.\/\.\.\/lib\/ui'/,

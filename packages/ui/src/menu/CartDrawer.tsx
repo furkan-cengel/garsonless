@@ -24,6 +24,7 @@ export interface CartDiscountPreview {
   catalogDiscountAmount: number
   catalogItemName: string | null
   finalTotal: number
+  loyaltySuppressedByPromotion?: boolean
 }
 
 export interface CartStampReward {
@@ -94,6 +95,7 @@ export function CartDrawer({
   const rewardName = discountPreview?.rewardItemName ?? stampReward?.rewardName ?? 'ürün'
   const hasDiscount = stampDiscount > 0 || catalogDiscount > 0 || memberDiscount > 0 || pointsDiscount > 0
   const displayTotal = discountPreview ? discountPreview.finalTotal : total
+  const loyaltySuppressedByPromotion = discountPreview?.loyaltySuppressedByPromotion ?? false
   const { theme } = useTheme()
   const radius = theme.radius
   const drawerTone = theme.cartDrawerTone ?? 'clean'
@@ -305,9 +307,20 @@ export function CartDrawer({
                             )}
                           </div>
                         )}
+                        {item.promotion?.quantityStep === 2 && (
+                          <div
+                            data-component="cart-buy-two-pay-one"
+                            style={{
+                              width: 'fit-content', margin: '-2px 0 9px', padding: '4px 8px', borderRadius: 999,
+                              background: 'var(--p-accent-soft)', color: 'var(--p-accent)', fontSize: 10.5, fontWeight: 850,
+                            }}
+                          >
+                            2 al 1 öde · ikili paket
+                          </div>
+                        )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                           <button
-                            onClick={() => onUpdateQuantity(item.cartId, item.quantity - 1)}
+                            onClick={() => onUpdateQuantity(item.cartId, item.quantity - (item.promotion?.quantityStep ?? 1))}
                             style={{
                               height: 44, width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
                               border: 'none', borderRadius: 999,
@@ -318,7 +331,7 @@ export function CartDrawer({
                             {item.quantity}
                           </span>
                           <button
-                            onClick={() => onUpdateQuantity(item.cartId, item.quantity + 1)}
+                            onClick={() => onUpdateQuantity(item.cartId, item.quantity + (item.promotion?.quantityStep ?? 1))}
                             style={{
                               height: 44, width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
                               border: 'none', borderRadius: 999,
@@ -348,7 +361,7 @@ export function CartDrawer({
                 background: 'color-mix(in srgb, var(--p-card) 94%, transparent)',
                 boxShadow: '0 -12px 28px rgba(15,23,42,.06)',
               }}>
-                {stampReward && stampReward.cardFull && (
+                {!loyaltySuppressedByPromotion && stampReward && stampReward.cardFull && (
                   stampReward.rewardInCart ? (
                     <button
                       type="button"
@@ -376,7 +389,7 @@ export function CartDrawer({
                   )
                 )}
 
-                {catalogReward && (
+                {!loyaltySuppressedByPromotion && catalogReward && (
                   <div data-component="cart-catalog-reward" style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 12, background: 'var(--p-accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--p-accent)' }}>🎁 Bedava {catalogReward.itemName}</div>
@@ -389,7 +402,29 @@ export function CartDrawer({
                   </div>
                 )}
 
-                {!catalogReward && pointsRedeem && maxRedeemTl > 0 && (
+                {loyaltySuppressedByPromotion && (
+                  <div
+                    role="status"
+                    data-component="cart-promotion-stacking-notice"
+                    style={{
+                      marginBottom: 12,
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      border: '1px solid color-mix(in srgb, var(--p-accent) 24%, transparent)',
+                      background: 'var(--p-accent-soft)',
+                      color: 'var(--p-text-2)',
+                      fontSize: 11.5,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    <strong style={{ display: 'block', color: 'var(--p-text)', fontSize: 12.5, marginBottom: 2 }}>
+                      Kampanya uygulanıyor
+                    </strong>
+                    Bu seçim yalnız kampanya fiyatıyla sunulduğu için üye indirimi ve ödüller bu siparişte birleştirilemez.
+                  </div>
+                )}
+
+                {!loyaltySuppressedByPromotion && !catalogReward && pointsRedeem && maxRedeemTl > 0 && (
                   <div data-component="cart-points-redeem" style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 12, background: 'var(--p-accent-soft)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                       <div style={{ minWidth: 0 }}>

@@ -24,9 +24,8 @@ export default async function SlugLayout({ children, params }: Props) {
   const themeResult = await readPublishedTheme({ restaurantId: restaurant.id }, createThemeApplicationPort())
   if (!themeResult.ok) notFound()
   // Resolve identically to page.tsx so the SSR <style> matches the client's
-  // initialTheme (no first-load color flash). Layouts can't read searchParams,
-  // so the SSR style uses the saved active template; a preview `?template=`
-  // override is a client-only concern handled by the (opacity-gated) editor iframe.
+  // initialTheme (no first-load color flash). Masabu exposes one canonical menu
+  // template; the editor changes its tokens instead of swapping renderers.
   const { theme } = themeResult.value
 
   const themeCSS = applyGarsonlessTheme(theme)

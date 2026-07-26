@@ -8,6 +8,7 @@ import { readPublishedTheme } from '@garsonless/application/themes'
 import { readPublicTableState } from '@garsonless/application/tables'
 import { getRestaurantBySlug, getMenuCategories, getMenuItems } from '../../../../lib/queries'
 import { getCustomerSession } from '../../../../lib/customer-session'
+import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../../../lib/featured-products'
 import { MenuPageClient } from '../../MenuPageClient'
 import { createLoyaltyQueryPort, createPublicTableQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
 
@@ -29,9 +30,11 @@ export default async function TableMenuPage({ params }: Props) {
   const tableState = tableStateResult.value
   if (!tableState || tableState.token.restaurantId !== restaurant.id || tableState.token.restaurantSlug !== slug) notFound()
 
-  const [themeResult, categories] = await Promise.all([
-    readPublishedTheme({ restaurantId: restaurant.id }, createThemeApplicationPort()),
+  const themePort = createThemeApplicationPort()
+  const [themeResult, categories, featuredRanking] = await Promise.all([
+    readPublishedTheme({ restaurantId: restaurant.id }, themePort),
     getMenuCategories(restaurant.id),
+    getFeaturedProductRanking(restaurant.id, restaurant.timezone),
   ])
   if (!themeResult.ok) notFound()
   const tableSession = tableState.session
@@ -46,7 +49,10 @@ export default async function TableMenuPage({ params }: Props) {
     itemCount: Array.isArray(row.items) ? row.items.length : 0,
   }))
 
-  const items = await getMenuItems(categories.map((c) => c.id))
+  const items = applyFeaturedProductRanking(
+    await getMenuItems(categories.map((c) => c.id)),
+    featuredRanking,
+  )
 
   // Resolve a returning member from the Supabase Auth cookie, plus loyalty
   // balances — same pattern as the slug page; guests stay null.
@@ -64,6 +70,15 @@ export default async function TableMenuPage({ params }: Props) {
   }
 
   const { theme, templateId } = themeResult.value
+  // Entitlement and section presence are deliberately separate: the client
+  // decides presence from the current (including live-preview) theme, while
+  // this server result remains the authoritative PRO-plan gate.
+  const requestButtonsAccess = await themePort.readFeatureAccess({
+    restaurantId: restaurant.id,
+    plan: themeResult.value.restaurant.plan,
+    feature: 'theme_advanced_sections',
+  })
+  const requestButtonsEnabled = requestButtonsAccess?.ok === true && requestButtonsAccess.value
 
   return (
     <MenuPageClient
@@ -78,6 +93,7 @@ export default async function TableMenuPage({ params }: Props) {
       initialSessionOrders={sessionOrders}
       initialMember={initialMember}
       initialMemberBalances={initialMemberBalances}
+      requestButtonsEnabled={requestButtonsEnabled}
     />
   )
 }

@@ -1,4 +1,5 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { CANONICAL_THEME_ID } from '@garsonless/design-engine'
 import { readThemeForEditor } from '@garsonless/application/themes'
 import { canRestaurantUseFeature, createThemeApplicationPort } from '@garsonless/db/server'
 import { getThemeEditorMenuRefs } from '../../../../../../lib/queries/theme-editor'
@@ -12,6 +13,9 @@ interface Props {
 export default async function ThemeEditPage({ params }: Props) {
   const { restaurantId, templateId } = await params
   await requireSection(restaurantId, 'theme')
+  if (templateId !== CANONICAL_THEME_ID) {
+    redirect(`/dashboard/${restaurantId}/theme/${CANONICAL_THEME_ID}/edit`)
+  }
   const gate = await assertAccess(restaurantId, 'theme')
   if ('error' in gate) notFound()
 
@@ -46,18 +50,38 @@ export default async function ThemeEditPage({ params }: Props) {
       canAddAdvancedSections={canAddAdvancedSections}
       templateId={templateId}
       initialTheme={initialTheme}
+      restaurantSettings={restaurant.settings}
       menuCategories={menuCategories.map((category) => ({
         id: category.id,
         name: category.name,
         parentId: category.parent_id ?? null,
+        imageUrl: category.image_url ?? null,
       }))}
       menuItems={menuItems.map((item) => {
-        const category = menuCategories.find((cat) => cat.id === item.category_id)
+        const category = menuCategories.find((candidate) => candidate.id === item.category_id)
         return {
           id: item.id,
-          name: item.name,
           categoryId: item.category_id,
           categoryName: category?.name ?? 'Kategorisiz',
+          name: item.name,
+          description: item.description,
+          price: Number(item.price),
+          images: item.images,
+          ingredients: item.ingredients,
+          energyKcal: item.energy_kcal,
+          containsAllergens: item.contains_allergens,
+          mayContainAllergens: item.may_contain_allergens,
+          allergenNote: item.allergen_note,
+          crossContactNote: item.cross_contact_note,
+          containsAlcohol: item.contains_alcohol,
+          containsPork: item.contains_pork,
+          isVegetarian: item.is_vegetarian,
+          isVegan: item.is_vegan,
+          isHalal: item.is_halal,
+          foodInfoReviewedAt: item.food_info_reviewed_at,
+          modifierGroups: item.modifier_groups,
+          isAvailable: item.is_available,
+          position: item.position,
         }
       })}
     />

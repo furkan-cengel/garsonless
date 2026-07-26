@@ -2,6 +2,10 @@
 
 import dynamic from 'next/dynamic'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
+import type {
+  ThemeEditorPreviewCategory,
+  ThemeEditorPreviewItem,
+} from './CanonicalSectionPreview'
 
 interface Props {
   restaurantId: string
@@ -11,8 +15,9 @@ interface Props {
   canAddAdvancedSections: boolean
   templateId: string
   initialTheme: GarsonlessTheme
-  menuCategories: Array<{ id: string; name: string; parentId?: string | null }>
-  menuItems: Array<{ id: string; name: string; categoryId: string; categoryName: string }>
+  restaurantSettings: Record<string, unknown> | null
+  menuCategories: ThemeEditorPreviewCategory[]
+  menuItems: ThemeEditorPreviewItem[]
 }
 
 const ThemeEditorClient = dynamic(() => import('./ThemeEditorClient'), {

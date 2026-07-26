@@ -105,6 +105,148 @@ export function normalizeMenuNumericText(value: string): string {
   return value.replace(',', '.').replace(/[^\d.-]/g, '')
 }
 
+/** Parses an optional merchant-entered bundle price. Empty/zero values mean
+ * "use the catalogue total"; malformed or negative values fail closed. */
+export function parseBundlePrice(value: unknown): number | null {
+  if (typeof value !== 'string' && typeof value !== 'number') return null
+  const normalized = String(value).trim().replace(/\s/g, '').replace(',', '.').replace(/[^\d.-]/g, '')
+  if (!normalized) return null
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) / 100 : null
+}
+
+export type SectionPromotionPricing =
+  | { kind: 'percentage'; percentage: number; price: number; savings: number }
+  | { kind: 'fixed-price'; percentage: number; price: number; savings: number }
+  | {
+      kind: 'buy-2-pay-1'
+      percentage: 50
+      /** Effective unit price used by the existing order-line model. */
+      price: number
+      /** Savings per unit; the campaign card exposes the full pair saving. */
+      savings: number
+      quantity: 2
+      originalTotal: number
+      totalPrice: number
+    }
+
+export type SectionCampaignTiming =
+  | { enabled: false; active: true; endsAtMs: null; remainingMs: null; valid: true }
+  | { enabled: true; active: boolean; endsAtMs: number; remainingMs: number; valid: true }
+  | { enabled: true; active: false; endsAtMs: null; remainingMs: 0; valid: false }
+
+/**
+ * Resolves a persisted absolute campaign deadline. The editor stores ISO-8601
+ * values, so browser and server evaluate the same instant regardless of their
+ * timezone. Invalid enabled schedules fail closed on the server.
+ */
+export function resolveSectionCampaignTiming(input: {
+  enabled: unknown
+  endsAt: unknown
+  now?: number
+}): SectionCampaignTiming {
+  const enabled = input.enabled === true || input.enabled === 'true'
+  if (!enabled) {
+    return { enabled: false, active: true, endsAtMs: null, remainingMs: null, valid: true }
+  }
+
+  const rawEndsAt = typeof input.endsAt === 'string' ? input.endsAt.trim() : ''
+  const endsAtMs = rawEndsAt ? Date.parse(rawEndsAt) : Number.NaN
+  if (!Number.isFinite(endsAtMs)) {
+    return { enabled: true, active: false, endsAtMs: null, remainingMs: 0, valid: false }
+  }
+
+  const now = Number.isFinite(input.now) ? Number(input.now) : Date.now()
+  const remainingMs = Math.max(0, endsAtMs - now)
+  return {
+    enabled: true,
+    active: remainingMs > 0,
+    endsAtMs,
+    remainingMs,
+    valid: true,
+  }
+}
+
+/**
+ * Resolves a merchant-configured section promotion against a catalogue price.
+ * Both the menu renderer and the server-side order resolver use this rule so
+ * the displayed amount cannot drift from the amount accepted at checkout.
+ */
+export function resolveSectionPromotionPrice(input: {
+  catalogPrice: number
+  mode: unknown
+  percentage?: unknown
+  fixedPrice?: unknown
+}): SectionPromotionPricing | null {
+  const catalogPrice = Math.round(Number(input.catalogPrice) * 100) / 100
+  if (!Number.isFinite(catalogPrice) || catalogPrice <= 0) return null
+
+  if (input.mode === 'buy-2-pay-1') {
+    const catalogCents = Math.round(catalogPrice * 100)
+    // Never charge more than the advertised single-product price for a pair.
+    // Odd kuruş values are rounded down by one kuruş in the customer's favour.
+    const effectiveUnitCents = Math.floor(catalogCents / 2)
+    if (effectiveUnitCents <= 0) return null
+    const price = effectiveUnitCents / 100
+    const totalPrice = (effectiveUnitCents * 2) / 100
+    return {
+      kind: 'buy-2-pay-1',
+      percentage: 50,
+      price,
+      savings: Math.round((catalogPrice - price) * 100) / 100,
+      quantity: 2,
+      originalTotal: Math.round(catalogPrice * 2 * 100) / 100,
+      totalPrice,
+    }
+  }
+
+  if (input.mode === 'fixed-price') {
+    const price = parseBundlePrice(input.fixedPrice)
+    if (price === null || price >= catalogPrice) return null
+    const savings = Math.round((catalogPrice - price) * 100) / 100
+    return {
+      kind: 'fixed-price',
+      price,
+      savings,
+      percentage: Math.max(1, Math.min(99, Math.round((savings / catalogPrice) * 100))),
+    }
+  }
+
+  const percentage = Number(input.percentage)
+  if (!Number.isFinite(percentage) || percentage < 1 || percentage > 90) return null
+  const normalizedPercentage = Math.round(percentage)
+  const price = Math.round(catalogPrice * (100 - normalizedPercentage)) / 100
+  if (price <= 0 || price >= catalogPrice) return null
+  return {
+    kind: 'percentage',
+    percentage: normalizedPercentage,
+    price,
+    savings: Math.round((catalogPrice - price) * 100) / 100,
+  }
+}
+
+/** Distributes a bundle total over its products in exact cents. This lets the
+ * existing cart/order-line model remain intact while the sum is guaranteed to
+ * equal the merchant's configured bundle price. Modifier deltas are separate. */
+export function allocateBundlePrice(prices: number[], bundlePrice: number): number[] {
+  if (prices.length === 0) return []
+  const targetCents = Math.max(0, Math.round(bundlePrice * 100))
+  const sourceCents = prices.map((price) => Math.max(0, Math.round(price * 100)))
+  const sourceTotal = sourceCents.reduce((sum, price) => sum + price, 0)
+  if (sourceTotal === 0) {
+    const base = Math.floor(targetCents / prices.length)
+    return prices.map((_, index) => (base + (index < targetCents % prices.length ? 1 : 0)) / 100)
+  }
+  let allocated = 0
+  return sourceCents.map((price, index) => {
+    const cents = index === sourceCents.length - 1
+      ? targetCents - allocated
+      : Math.floor((targetCents * price) / sourceTotal)
+    allocated += cents
+    return cents / 100
+  })
+}
+
 export function separateAllergenDeclarations(
   containsValue: unknown,
   tracesValue: unknown,

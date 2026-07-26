@@ -73,6 +73,7 @@ export interface OrderLineSnapshot {
   itemId: string
   name: string
   price: number
+  originalPrice?: number
   quantity: number
   modifiers: ResolvedOrderModifier[]
   modifiersPriceDelta: number

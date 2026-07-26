@@ -8,29 +8,6 @@ export interface ConfigReaders {
   targetHref: () => string
 }
 
-export interface DailySpecialConfig {
-  heroImage: string
-  title: string
-  body: string
-  displayPrice: string
-  priceOverride: number | null
-  oldPrice: string
-  accentColor: string
-  chefNote: string
-  timerValue: string
-  timerBg: string
-  timerColor: string
-  ctaText: string
-  eyebrow: string
-  bgStart: string
-  bgEnd: string
-  bgColor: string
-  radius: number
-  ribbonCorner: 'tl' | 'tr'
-  ribbonSize: 'sm' | 'md' | 'lg'
-  ribbonSpeed: number
-}
-
 export interface PromoCouponConfig {
   enabled: boolean
   eyebrow: string
@@ -39,6 +16,10 @@ export interface PromoCouponConfig {
   code: string
   bgStart: string
   bgEnd: string
+  textColor: string
+  accentColor: string
+  buttonBgColor: string
+  buttonTextColor: string
 }
 
 export interface PromoFlashConfig {
@@ -46,7 +27,13 @@ export interface PromoFlashConfig {
   chip: string
   title: string
   accentText: string
-  timer: string
+  countdownEnabled: boolean
+  expiresAtMs?: number
+  countdownLabel: string
+  bgStart: string
+  bgEnd: string
+  textColor: string
+  accentColor: string
 }
 
 export interface PromoFreebieConfig {
@@ -57,6 +44,12 @@ export interface PromoFreebieConfig {
   emoji: string
   ctaText: string
   categoryId: string
+  bgStart: string
+  bgEnd: string
+  textColor: string
+  accentColor: string
+  buttonBgColor: string
+  buttonTextColor: string
 }
 
 export interface PromoLoyaltyConfig {
@@ -64,6 +57,10 @@ export interface PromoLoyaltyConfig {
   title: string
   filled: number
   total: number
+  bgStart: string
+  bgEnd: string
+  textColor: string
+  accentColor: string
 }
 
 export interface PromoComboConfig {
@@ -74,9 +71,16 @@ export interface PromoComboConfig {
   imageUrl: string
   price: string
   oldPrice: string
+  bgStart: string
+  bgEnd: string
+  textColor: string
+  accentColor: string
+  imageFit: 'cover' | 'contain'
+  imagePosition: 'top' | 'center' | 'bottom'
 }
 
 export interface PromoSliderConfig {
+  sourceMode: 'active' | 'mixed' | 'manual'
   autoplay: boolean
   interval: number
   indicator: 'dots' | 'bars'

@@ -1,6 +1,15 @@
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { ComponentType, ReactNode } from 'react'
-import type { MenuCategory, MenuItem } from '../menu/types'
+import type { MenuCategory, MenuItem, SectionPromotionContext } from '../menu/types'
+
+export interface ComboAddRequest {
+  sectionInstanceId: string
+  comboIndex: number
+  title: string
+  items: MenuItem[]
+  catalogTotal: number
+  total: number
+}
 
 export interface ThemeMenuPageProps {
   categories: MenuCategory[]
@@ -14,7 +23,8 @@ export interface ThemeMenuPageProps {
   cartSummary?: { count: number; subtotal: number }
   onOpenCart?: () => void
   items?: MenuItem[]
-  onQuickAdd?: (item: MenuItem, originalPrice?: number) => void
+  onQuickAdd?: (item: MenuItem, originalPrice?: number, promotion?: SectionPromotionContext) => void
+  onAddCombo?: (combo: ComboAddRequest) => void
   billSummary?: { total: number; count: number } | null
   onOpenBill?: (() => void) | undefined
   memberSummary?: MemberChipSummary | null

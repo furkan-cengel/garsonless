@@ -33,6 +33,10 @@ export interface MenuItem {
   modifier_groups: ModifierGroup[]
   is_available: boolean
   position: number
+  /** Server-derived ranking used only by the automatic Featured section. */
+  featuredRank?: number
+  featuredSalesQuantity?: number
+  featuredSalesSource?: 'today' | 'previous-day'
 }
 
 export interface MenuCategory {
@@ -43,6 +47,19 @@ export interface MenuCategory {
   is_visible: boolean
   image_url?: string | null
   parent_id?: string | null
+}
+
+/**
+ * Identifies a promotion rendered by a published custom section. The client
+ * only carries the section identity; the server re-resolves the product and
+ * price from the published theme before accepting an order.
+ */
+export interface SectionPromotionContext {
+  sectionInstanceId: string
+  kind: 'discount-badge' | 'daily-special'
+  /** Client-side cart controls advance in this many units. The server derives
+   * and validates the authoritative step from the published section. */
+  quantityStep?: number
 }
 
 export interface CartItem {
@@ -59,4 +76,10 @@ export interface CartItem {
   energyKcal: number | null
   imageUrl: string | null
   originalPrice?: number
+  combo?: {
+    instanceId: string
+    sectionInstanceId: string
+    comboIndex: number
+  }
+  promotion?: SectionPromotionContext
 }

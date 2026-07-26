@@ -24,6 +24,7 @@ export function useThemePreviewBridge({ previewUrl, theme }: ThemePreviewBridgeO
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const requestSequenceRef = useRef(0)
   const pendingRequestRef = useRef<string | null>(null)
+  const previewReadyRef = useRef(false)
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [status, setStatus] = useState<ThemePreviewStatus>('preparing')
   const targetOrigin = getThemePreviewTargetOrigin(previewUrl)
@@ -62,6 +63,7 @@ export function useThemePreviewBridge({ previewUrl, theme }: ThemePreviewBridgeO
   }, [armFallback])
 
   useEffect(() => {
+    previewReadyRef.current = false
     setStatus('preparing')
     pendingRequestRef.current = null
     armFallback()
@@ -75,6 +77,7 @@ export function useThemePreviewBridge({ previewUrl, theme }: ThemePreviewBridgeO
 
       const data = event.data as { type?: string; requestId?: string }
       if (data.type === 'PREVIEW_READY') {
+        previewReadyRef.current = true
         const requestId = `theme-preview-${++requestSequenceRef.current}`
         pendingRequestRef.current = requestId
         setStatus('preparing')
@@ -93,6 +96,14 @@ export function useThemePreviewBridge({ previewUrl, theme }: ThemePreviewBridgeO
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
   }, [armFallback, clearFallback, sendFullTheme, targetOrigin])
+
+  // Keep the iframe aligned with React state as well as the imperative editor
+  // commands. A command can race with an iframe reload/HMR cycle; the next
+  // previewTheme render must still become the source of truth.
+  useEffect(() => {
+    if (!previewReadyRef.current) return
+    postMessage({ type: 'FULL_THEME_UPDATE', theme })
+  }, [postMessage, theme])
 
   return {
     iframeRef,

@@ -81,6 +81,51 @@ The design engine is the core differentiator. Every UI decision routes through i
 - ⚠️ **SaaS billing `20260722010000`–`20260722080000` migration'ları yalnız linked DEV'e uygulandı; PROD'a uygulanmadı.** PROD-at-deploy setine sekiz migration birlikte ve sıralı eklenmeli. Edge rollout'ta `BILLING_MAINTENANCE_URL`, `OUTBOX_INBOX_CONSUMER_URL` ve `OUTBOX_EMAIL_CONSUMER_URL`; gerçek İyzico için ayrı `IYZICO_BILLING_*` anahtar/plan/fiyat env'leri zorunludur.
 - ⚠️ **`20260722160000_platform_billing_dunning_interventions.sql` yalnız linked DEV'e uygulandı; PROD'a uygulanmadı.** PROD-at-deploy setine platform-admin migration'larıyla sıralı eklenmeli. Bu RPC ödeme sonucu üretmez; yalnız finance/superadmin için denetimli `retry_now` veya 1–30 günlük `defer` zamanlaması sağlar.
 
+### Tema editörü — canonical menü + gerçek Bölüm Ekle kataloğu ✅ (2026-07-23, commit bekliyor)
+
+- Ürün kararı: **tek menü şablonu `default`**. Theme registry, onboarding,
+  dashboard route'u ve server-side publish komutu canonical kimliği zorlar;
+  `Taste of Spain` ve diğer seçim ekranları kaldırıldı. Legacy template id'leri
+  okunurken tenant renk/font token'ları kaybolmadan `default` menüye normalize
+  edilir; eski id ile editor/publish denemesi reddedilir.
+- `Bölüm ekle` 1040×680 kompakt seçim deneyimine dönüştürüldü: arama, kategori,
+  iki sütunlu katalog, seçili bölüm detayı ve tek footer aksiyonu. Doğru veri/
+  aksiyon bağlantısı tamamlanmayan 6 bölüm açıkça **Geliştiriliyor** görünür ve
+  gerçek `disabled` durumuyla eklenemez; Pro ve daha önce eklenen durumları ayrı
+  gösterilir.
+- Sahte `ThemeEditorPreviewCatalog` kaldırıldı. Katalog ve QR menü artık aynı
+  `CustomSectionRenderer` bileşenini kullanır; editörde görünen hazır bölüm ile
+  yayındaki bölüm için tek render kaynağı vardır. Katalog önizlemesi ayrıca
+  gerçek ürün adı/açıklaması/fiyatı/görseli ile restoranın saat ve iletişim
+  ayarlarını aynı read-model üzerinden alır; public menüdeki `readStoreInfo`
+  normalizasyonu da ortaklaştırıldı.
+- Verify: design-engine/application/ui/dashboard typecheck temiz; dört paket
+  ile menu typecheck temiz; dashboard/menu/ui/db/application lint temiz;
+  menu + dashboard production build temiz; tema mimari testleri
+  23/23, application theme testleri 5/5. In-app browser backend bulunmadığı için
+  modalın son piksel/tıklama teyidi kullanıcı tarayıcısında bekliyor.
+
+#### Bölüm örnekleri + kategori kapsamı ✅ (2026-07-24, commit bekliyor)
+
+- Aynı katalog bölümü birden fazla kez eklenebilir; her örnek ayrı `id`, ortak
+  `sectionId`, bağımsız içerik/tasarım ayarı ve görünürlük kapsamı taşır. Yeni
+  örnek ilk bölümün ayarlarını başlangıç olarak kopyalar, sonraki değişiklikler
+  birbirine sızmaz.
+- Bölüm Davranışı artık `Tüm menü`, `Ana kategori ekranı` veya `Seçili
+  kategoriler` seçeneklerini sunar. Seçili üst kategorinin tüm alt soyuna
+  uygulanması isteğe bağlıdır; kapsam hem klasik uzun menüde hem görselli
+  kategori akışında aynı saf policy ile çözülür. Eski bölümler görünürlük alanı
+  olmadığı için geriye uyumlu şekilde tüm menüde görünmeye devam eder.
+- Şefin Seçimi bölüm yüzeyi ile ürün kartı yüzeyi ayrıldı: ürün kartı arka plan,
+  kenarlık, başlık, yardımcı metin, fiyat ve görsel zemini ayrı ayrı
+  özelleştirilebilir; bölüm arka planı kartlara sızmaz.
+- Verify: design-engine/ui/dashboard/menu typecheck temiz; dashboard tema dahil
+  mimari testleri **206/206**, kapsam sözleşmesi **14/14**, Chef Pick render
+  testleri **7/7**; dashboard ve menu production build temiz. Yerel dashboard
+  `/` ve menu `/maf-lounge?preview=1` HTTP 200. In-app Browser backend'i bu
+  oturumda sunulmadığı için son kategori tıklama/görsel teyidi kullanıcı
+  tarayıcısında bekliyor.
+
 ### Faz 4 dilim 1 rozet revizyonu — zil = okunmamış inbox + realtime auth fix 🚧 (2026-07-21, UI göz teyidi bekliyor)
 
 **Kullanıcı gözle testte fark etti:** dilim-1'de zil rozeti "bugünkü bekleyen sipariş
@@ -3289,3 +3334,58 @@ Stale 4-commit ürün/nutrition branch'i güncel `main` üzerine gerçek rebase 
   geçti. Tam workspace CI ve beş Next.js production build'i temiz tamamlandı;
   yalnız önceden var olan iki marketing `<img>` uyarısı sürüyor. Gerçek PROD
   bağlantısı, deploy, migration, rollback veya başka bir mutation yapılmadı.
+
+### Bölüm Ekle sonrası teknik borç paketi ⏳ (2026-07-25)
+
+Bu paket, Tema Düzenleyici'deki **Bölüm Ekle** bileşenleri ve bunların gerçek
+menu runtime akışları tamamlandıktan hemen sonra ele alınacak. Bölüm Ekle işi
+bitmeden bu paket için kapsam genişletilmemeli.
+
+Öncelik sırası:
+
+1. **Spain retirement'ı atomik tamamla:** silinmiş Spain UI dosyalarına rağmen
+   yaşayan `cardVariant: 'spain'`, template, ProductCard ve cart dallarını
+   kaldır; persist edilmiş eski tenant değerlerini güvenle `default`a normalize
+   et ve compatibility regresyon testi ekle.
+2. **Legacy spinner tokenlarını düzelt:** public spinner API'sindeki `--brand`,
+   `--ink`, `--accent` ailesini semantik design-engine tokenlarına taşı. En sık
+   kullanılan `InlineSpinner` zaten `currentColor` ile güvenli; aktif risk
+   özellikle `BrewBar` ve legacy token kullanan diğer public bileşenlerdir.
+3. **Gelir/operasyon UI testlerini güçlendir:** menu için ürün açma, modifier,
+   quick-add, sepet, ödeme ve auth; kitchen için istasyon filtresi, realtime,
+   durum geçişi, kopma/yeniden bağlanma senaryolarını doğrula. Application/domain
+   testleri mevcut olduğundan hedef doğrudan UI kontrat boşluğudur.
+4. **Design-engine doğrudan testleri:** theme-policy allowlist/sanitization,
+   template canonicalization, eski tenant fallback'i ve CSS token fallback
+   davranışlarını paket içinde test et.
+5. **QR option üretimini tekleştir:** renderer ve canvas'taki yinelenen QR config
+   ile toplam dokuz `as any` kullanımını typed adapter/helper altında birleştir.
+6. **Semantik renk auditi:** önce CategoryNav ve TablesBuilderShell; ardından
+   ThemePropertyPanels. Ham hex değerleri topluca değiştirme—tenant teması,
+   ürün/kampanya semantiği ve editor fallback renklerini ayrı sınıflandır.
+7. **`@theme` temizliği öncesi utility envanteri çıkar:** blokları doğrudan
+   silme; örneğin menu root ekranındaki `text-text-muted` hâlâ buradan üretiliyor.
+   Kullanıcıları semantik tokenlara taşıdıktan sonra gerçekten dead köprüyü kaldır.
+
+Not: 25 Temmuz audit'inde ana teşhisler doğrulandı; ancak “tüm `@theme` ölü”,
+“Kitchen tamamen testsiz” ve “her ham hex tema sızıntısıdır” yorumları kapsamı
+abartan sonuçlar olarak işaretlendi. Uygulama sırasında bu nüanslar korunmalı.
+
+### Kombo indirimi / üyelik avantajı birleşim politikası 🚧 (2026-07-25)
+
+- Kombo Şerit'teki her kombo için `İndirim Birleşimi` ayarı eklendi:
+  `stack` (kombo fiyatı + üyelik avantajları) ve `combo-only` (yalnız kombo
+  fiyatı). Eski/persist edilmiş tenant davranışı bozulmasın diye varsayılan
+  `stack`.
+- `combo-only` yalnız özel kombo fiyatı katalog toplamından gerçekten düşükse
+  etkinleşir. Tam fiyatlı komboda üyelik avantajı yanlışlıkla kapanmaz.
+- Kural yayınlanmış tema ayarından sunucuda doğrulanır. İndirim önizlemesi ve
+  sipariş hesabı aynı sonucu kullanır; istemci bunu aşamaz. Birleştirme kapalı
+  siparişte üye indirimi, puan kullanımı, katalog/stamp ödülü uygulanmaz; buna
+  rağmen `orders.customer_id` korunur.
+- Sepet, üyelik kontrollerini gizleyip kampanya ile üyelik avantajlarının bu
+  siparişte birleşmediğini açıklayan durum mesajı gösterir.
+- DB testleri **250/250**, dashboard architecture testleri **208/208**;
+  dashboard/menu/db/ui typecheck ve lint temiz. Değişiklikler henüz
+  commit/push edilmedi; çalışma ağacındaki diğer Bölüm Ekle değişiklikleriyle
+  birlikte dikkatli kapsamlanmalı.

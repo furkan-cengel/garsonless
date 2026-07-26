@@ -39,6 +39,7 @@ export type {
   MenuItem,
   ModifierGroup,
   ModifierOption,
+  SectionPromotionContext,
   SelectedModifier,
 } from './menu/types'
 
@@ -46,9 +47,15 @@ export type { OrderSummaryItem } from './menu/OrderConfirmation'
 export type { BillOrder } from './menu/TableBillSheet'
 
 // Theme system
-export { THEME_REGISTRY, computeThemeVars } from './themes/index'
-export type { ThemeMenuPageProps, StoreInfo, SettingField, SettingOption, SettingsGroup, ThemeRegistryEntry } from './themes/index'
-export { DefaultMenuPage, SETTINGS_SCHEMA, THEME_DEFAULTS } from './themes/default'
+export { THEME_REGISTRY, computeThemeVars, readStoreInfo } from './themes/index'
+export { CANONICAL_THEME_ID } from '@garsonless/design-engine'
+export type { ComboAddRequest, ThemeMenuPageProps, StoreInfo, SettingField, SettingOption, SettingsGroup, ThemeRegistryEntry } from './themes/index'
+export { CustomSectionRenderer, DefaultMenuPage, SETTINGS_SCHEMA, THEME_DEFAULTS } from './themes/default'
+export type { CustomSectionRendererProps } from './themes/default'
+export { deriveActivePromoSliderCampaigns, selectPromoSliderCampaigns } from './themes/default'
+export type { PromoSliderCampaign, PromoSliderCampaignKind } from './themes/default'
+export { CHEF_SECTION_ICON_OPTIONS, ChefSectionIcon, isChefSectionIconName } from './themes/default'
+export type { ChefSectionIconName } from './themes/default'
 
 // Error boundaries
 export { RecoveryScreen } from './errors/RecoveryScreen'

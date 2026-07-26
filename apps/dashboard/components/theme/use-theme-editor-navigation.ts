@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from 'react'
-import { useRouter } from 'next/navigation'
-import type { GarsonlessTheme } from '@garsonless/design-engine'
-import { THEME_REGISTRY } from '@garsonless/ui'
-import type { SettingField, SettingsGroup, ThemeRegistryEntry } from '@garsonless/ui'
+import {
+  getSectionDefinitionId,
+  getUniqueSectionDefinitionIds,
+  type GarsonlessTheme,
+  type ThemeSectionVisibility,
+} from '@garsonless/design-engine'
+import type { SettingField, SettingsGroup } from '@garsonless/ui'
 import {
   getAvailableEditorTabs,
   getAvailableSectionTabs,
@@ -28,6 +31,10 @@ import {
   type MenuCategory,
   type PageBlock,
 } from './theme-page-flow-model'
+import {
+  getTimedSectionInstances,
+  pruneExpiredTimedSections,
+} from './theme-timed-section-model'
 
 type EditorNavGroup = {
   title: string
@@ -35,8 +42,6 @@ type EditorNavGroup = {
 }
 
 interface ThemeEditorNavigationOptions {
-  restaurantId: string
-  templateId: string
   schema: SettingsGroup[]
   themeGroupData: SettingsGroup
   navGroups: EditorNavGroup[]
@@ -50,21 +55,20 @@ interface ThemeEditorNavigationOptions {
 interface ThemeEditorNavigationResult {
   activeGroup: string
   activeEditorTab: EditorTab
-  templatePickerOpen: boolean
   sectionPickerOpen: boolean
   sectionSearch: string
   editorSearch: string
   editorQuery: string
   sectionGroup: (typeof SECTION_GROUPS)[number]
   selectedSectionId: string | null
+  selectedSectionDefinitionId: string | null
+  selectedSectionBlock: PageBlock | null
   dragBlockKey: string | null
-  templateTriggerRef: RefObject<HTMLButtonElement | null>
   sectionTriggerRef: RefObject<HTMLButtonElement | null>
-  templateCloseRef: RefObject<HTMLButtonElement | null>
   sectionCloseRef: RefObject<HTMLButtonElement | null>
   pageBlocks: PageBlock[]
   activeSections: string[]
-  templateEntries: ThemeRegistryEntry[]
+  activeSectionDefinitionIds: string[]
   activeGroupData: SettingsGroup | undefined
   filteredNavGroups: EditorNavGroup[]
   selectedSection: (typeof SECTION_LIBRARY)[number] | null | undefined
@@ -75,19 +79,17 @@ interface ThemeEditorNavigationResult {
   visibleSectionFields: SectionSettingField[]
   filteredSections: Array<(typeof SECTION_LIBRARY)[number]>
   filteredPageBlocks: PageBlock[]
-  setTemplatePickerOpen: Dispatch<SetStateAction<boolean>>
   setSectionSearch: Dispatch<SetStateAction<string>>
   setEditorSearch: Dispatch<SetStateAction<string>>
   setSectionGroup: Dispatch<SetStateAction<(typeof SECTION_GROUPS)[number]>>
   setDragBlockKey: Dispatch<SetStateAction<string | null>>
   setActiveEditorTab: Dispatch<SetStateAction<EditorTab>>
-  closeTemplatePicker: () => void
   openSectionPicker: () => void
   closeSectionPicker: () => void
-  selectTemplate: (nextTemplateId: string) => void
   addSection: (sectionId: string) => void
   removeSection: (sectionId: string) => void
   changeSectionSetting: (sectionId: string, key: string, value: string) => void
+  changeSectionVisibility: (visibility: ThemeSectionVisibility) => void
   dropPageBlock: (targetKey: string) => void
   movePageBlock: (sourceKey: string, direction: -1 | 1) => void
   selectGroup: (groupId: string) => void
@@ -95,8 +97,6 @@ interface ThemeEditorNavigationResult {
 }
 
 export function useThemeEditorNavigation({
-  restaurantId,
-  templateId,
   schema,
   themeGroupData,
   navGroups,
@@ -106,23 +106,19 @@ export function useThemeEditorNavigation({
   updateThemePatch,
   flashToast,
 }: ThemeEditorNavigationOptions): ThemeEditorNavigationResult {
-  const router = useRouter()
   const [activeGroup, setActiveGroup] = useState(() =>
     schema.some((group) => ['colors', 'typography'].includes(group.id))
       ? THEME_EDITOR_THEME_GROUP_ID
       : schema[0]?.id ?? '',
   )
   const [activeEditorTab, setActiveEditorTab] = useState<EditorTab>('design')
-  const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false)
   const [sectionSearch, setSectionSearch] = useState('')
   const [editorSearch, setEditorSearch] = useState('')
   const [sectionGroup, setSectionGroup] = useState<(typeof SECTION_GROUPS)[number]>('Tümü')
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
   const [dragBlockKey, setDragBlockKey] = useState<string | null>(null)
-  const templateTriggerRef = useRef<HTMLButtonElement>(null)
   const sectionTriggerRef = useRef<HTMLButtonElement>(null)
-  const templateCloseRef = useRef<HTMLButtonElement>(null)
   const sectionCloseRef = useRef<HTMLButtonElement>(null)
   const lastFocusedBeforeDialogRef = useRef<HTMLElement | null>(null)
 
@@ -131,12 +127,14 @@ export function useThemeEditorNavigation({
     () => pageBlocks.filter((block) => block.type === 'section').map((block) => block.id),
     [pageBlocks],
   )
+  const activeSectionDefinitionIds = useMemo(
+    () => pageBlocks.flatMap((block) => {
+      const id = getSectionDefinitionId(block)
+      return id ? [id] : []
+    }),
+    [pageBlocks],
+  )
   const editorQuery = editorSearch.trim().toLocaleLowerCase('tr')
-  const templateEntries = useMemo(() => Object.values(THEME_REGISTRY).sort((a, b) => {
-    if (a.id === templateId) return -1
-    if (b.id === templateId) return 1
-    return 0
-  }), [templateId])
 
   const activeGroupData = activeGroup === THEME_EDITOR_THEME_GROUP_ID
     ? themeGroupData
@@ -152,14 +150,20 @@ export function useThemeEditorNavigation({
     }))
     .filter((group) => group.items.length > 0)
   const activeFields = activeGroupData?.fields ?? []
-  const selectedSection = selectedSectionId
-    ? SECTION_LIBRARY.find((section) => section.id === selectedSectionId)
+  const selectedSectionBlock = selectedSectionId
+    ? pageBlocks.find((block) => block.type === 'section' && block.id === selectedSectionId) ?? null
+    : null
+  const selectedSectionDefinitionId = selectedSectionBlock
+    ? getSectionDefinitionId(selectedSectionBlock)
+    : null
+  const selectedSection = selectedSectionDefinitionId
+    ? SECTION_LIBRARY.find((section) => section.id === selectedSectionDefinitionId)
     : null
   const selectedSectionSettings = selectedSectionId
     ? (mergedTheme.sectionSettings?.[selectedSectionId] ?? {})
     : {}
-  const selectedSectionFields = selectedSectionId
-    ? (SECTION_SETTING_SCHEMA[selectedSectionId] ?? SECTION_SETTING_SCHEMA.default ?? [])
+  const selectedSectionFields = selectedSectionDefinitionId
+    ? (SECTION_SETTING_SCHEMA[selectedSectionDefinitionId] ?? SECTION_SETTING_SCHEMA.default ?? [])
     : []
   const activeAvailableTabs = getAvailableEditorTabs(activeFields, activeGroupData?.id)
   const sectionAvailableTabs = getAvailableSectionTabs(selectedSectionFields)
@@ -176,7 +180,7 @@ export function useThemeEditorNavigation({
   const filteredPageBlocks = editorQuery
     ? pageBlocks.filter((block) => {
         const preset = block.type === 'section'
-          ? SECTION_LIBRARY.find((item) => item.id === block.id)
+          ? SECTION_LIBRARY.find((item) => item.id === getSectionDefinitionId(block))
           : null
         const category = block.type === 'category'
           ? menuCategories.find((item) => item.id === block.id)
@@ -189,13 +193,6 @@ export function useThemeEditorNavigation({
         return label.toLocaleLowerCase('tr').includes(editorQuery)
       })
     : pageBlocks
-
-  const closeTemplatePicker = useCallback(() => {
-    setTemplatePickerOpen(false)
-    requestAnimationFrame(() => {
-      ;(lastFocusedBeforeDialogRef.current ?? templateTriggerRef.current)?.focus()
-    })
-  }, [])
 
   const openSectionPicker = useCallback(() => {
     lastFocusedBeforeDialogRef.current = document.activeElement instanceof HTMLElement
@@ -211,77 +208,94 @@ export function useThemeEditorNavigation({
     })
   }, [])
 
-  const selectTemplate = useCallback((nextTemplateId: string) => {
-    if (nextTemplateId === templateId) {
-      closeTemplatePicker()
-      return
-    }
-    closeTemplatePicker()
-    router.push(`/dashboard/${restaurantId}/theme/${nextTemplateId}/edit`)
-  }, [closeTemplatePicker, restaurantId, router, templateId])
-
   useEffect(() => {
-    if (!templatePickerOpen && !sectionPickerOpen) return
-    const closeRef = templatePickerOpen ? templateCloseRef : sectionCloseRef
-    requestAnimationFrame(() => closeRef.current?.focus())
+    if (!sectionPickerOpen) return
+    requestAnimationFrame(() => sectionCloseRef.current?.focus())
     const handler = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
-      if (templatePickerOpen) closeTemplatePicker()
-      if (sectionPickerOpen) closeSectionPicker()
+      closeSectionPicker()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [closeSectionPicker, closeTemplatePicker, sectionPickerOpen, templatePickerOpen])
+  }, [closeSectionPicker, sectionPickerOpen])
 
   const addSection = useCallback((sectionId: string) => {
-    if (activeSections.includes(sectionId)) {
-      setSectionPickerOpen(false)
-      setSelectedSectionId(sectionId)
-      return
-    }
     const nextBlocks = addSectionToPageFlow(pageBlocks, sectionId)
+    const addedBlock = nextBlocks.find(
+      (block) => block.type === 'section' && !activeSections.includes(block.id),
+    )
+    if (!addedBlock) return
+    const isAdditionalInstance = addedBlock.id !== sectionId
+    const nextSectionSettings = isAdditionalInstance
+      ? {
+          ...(mergedTheme.sectionSettings ?? {}),
+          [addedBlock.id]: {
+            ...(mergedTheme.sectionSettings?.[sectionId] ?? {}),
+          },
+        }
+      : mergedTheme.sectionSettings
     updateThemePatch({
-      sections: [...activeSections, sectionId],
+      sections: getUniqueSectionDefinitionIds(nextBlocks),
       pageBlocks: nextBlocks,
+      ...(isAdditionalInstance ? { sectionSettings: nextSectionSettings } : {}),
     })
     setSectionPickerOpen(false)
     setActiveEditorTab('content')
-    setSelectedSectionId(sectionId)
-  }, [activeSections, pageBlocks, updateThemePatch])
+    setSelectedSectionId(addedBlock.id)
+  }, [activeSections, mergedTheme.sectionSettings, pageBlocks, updateThemePatch])
 
   const removeSection = useCallback((sectionId: string) => {
     const nextSettings = { ...(mergedTheme.sectionSettings ?? {}) }
     delete nextSettings[sectionId]
     updateThemePatch({
-      sections: activeSections.filter((id) => id !== sectionId),
+      sections: getUniqueSectionDefinitionIds(removeSectionFromPageFlow(pageBlocks, sectionId)),
       pageBlocks: removeSectionFromPageFlow(pageBlocks, sectionId),
       sectionSettings: nextSettings,
     })
     if (selectedSectionId === sectionId) setSelectedSectionId(null)
-  }, [activeSections, mergedTheme.sectionSettings, pageBlocks, selectedSectionId, updateThemePatch])
+  }, [mergedTheme.sectionSettings, pageBlocks, selectedSectionId, updateThemePatch])
 
-  const hasDailySpecial = activeSections.includes('daily-special')
-  const dailySpecialTimer = (mergedTheme.sectionSettings?.['daily-special']?.['timer'] as string | undefined) ?? ''
+  const timedSectionInstances = useMemo(
+    () => getTimedSectionInstances(pageBlocks, mergedTheme.sectionSettings),
+    [mergedTheme.sectionSettings, pageBlocks],
+  )
 
   useEffect(() => {
-    if (!hasDailySpecial) return
-    const match = dailySpecialTimer.match(/^(\d{1,2}):(\d{2})$/)
-    if (!match) return
-    const isExpired = () => {
-      const target = new Date()
-      target.setHours(Number(match[1]), Number(match[2]), 0, 0)
-      return target.getTime() - Date.now() <= 0
+    if (timedSectionInstances.length === 0) return
+    let timeout: number | undefined
+
+    const reconcileExpiredSections = () => {
+      const now = Date.now()
+      const result = pruneExpiredTimedSections(pageBlocks, mergedTheme.sectionSettings, now)
+      if (result.expiredIds.length > 0) {
+        const expired = new Set(result.expiredIds)
+        updateThemePatch({
+          sections: getUniqueSectionDefinitionIds(result.pageBlocks),
+          pageBlocks: result.pageBlocks,
+          sectionSettings: result.sectionSettings,
+        })
+        setSelectedSectionId((current) => current && expired.has(current) ? null : current)
+        flashToast('Süresi dolan kampanya sayfa akışından kaldırıldı')
+        return
+      }
+
+      const nextExpiry = Math.min(...timedSectionInstances.map((section) => section.endsAtMs))
+      const delay = Math.min(Math.max(50, nextExpiry - now + 50), 2_147_000_000)
+      timeout = window.setTimeout(reconcileExpiredSections, delay)
     }
-    if (isExpired()) {
-      removeSection('daily-special')
-      return
+
+    reconcileExpiredSections()
+    return () => {
+      if (timeout !== undefined) window.clearTimeout(timeout)
     }
-    const timer = setInterval(() => {
-      if (isExpired()) removeSection('daily-special')
-    }, 1_000)
-    return () => clearInterval(timer)
-  }, [dailySpecialTimer, hasDailySpecial, removeSection])
+  }, [
+    flashToast,
+    mergedTheme.sectionSettings,
+    pageBlocks,
+    timedSectionInstances,
+    updateThemePatch,
+  ])
 
   const changeSectionSetting = useCallback((sectionId: string, key: string, value: string) => {
     const currentSettings = mergedTheme.sectionSettings?.[sectionId] ?? {}
@@ -298,6 +312,17 @@ export function useThemeEditorNavigation({
     })
   }, [mergedTheme.sectionSettings, updateThemePatch])
 
+  const changeSectionVisibility = useCallback((visibility: ThemeSectionVisibility) => {
+    if (!selectedSectionId) return
+    updateThemePatch({
+      pageBlocks: pageBlocks.map((block) =>
+        block.type === 'section' && block.id === selectedSectionId
+          ? { ...block, visibility }
+          : block,
+      ),
+    })
+  }, [pageBlocks, selectedSectionId, updateThemePatch])
+
   const reorderPageBlock = useCallback((sourceKey: string, targetKey: string) => {
     if (sourceKey === targetKey) return
     const result = reorderPageBlocks(pageBlocks, menuCategories, sourceKey, targetKey)
@@ -313,14 +338,14 @@ export function useThemeEditorNavigation({
     const { blocks: nextBlocks, moved } = result
     updateThemePatch({
       pageBlocks: nextBlocks,
-      sections: nextBlocks.filter((block) => block.type === 'section').map((block) => block.id),
+      sections: getUniqueSectionDefinitionIds(nextBlocks),
     })
     setDragBlockKey(null)
     const movedLabel = moved.type === 'category'
       ? menuCategories.find((item) => item.id === moved.id)?.name ?? 'Kategori'
       : moved.type === 'nav'
         ? 'Kategori Menüsü'
-        : SECTION_LIBRARY.find((item) => item.id === moved.id)?.label ?? 'Bölüm'
+        : SECTION_LIBRARY.find((item) => item.id === getSectionDefinitionId(moved))?.label ?? 'Bölüm'
     flashToast(`${movedLabel} taşındı`)
   }, [flashToast, menuCategories, pageBlocks, updateThemePatch])
 
@@ -361,21 +386,20 @@ export function useThemeEditorNavigation({
   return {
     activeGroup,
     activeEditorTab,
-    templatePickerOpen,
     sectionPickerOpen,
     sectionSearch,
     editorSearch,
     editorQuery,
     sectionGroup,
     selectedSectionId,
+    selectedSectionDefinitionId,
+    selectedSectionBlock,
     dragBlockKey,
-    templateTriggerRef,
     sectionTriggerRef,
-    templateCloseRef,
     sectionCloseRef,
     pageBlocks,
     activeSections,
-    templateEntries,
+    activeSectionDefinitionIds,
     activeGroupData,
     filteredNavGroups,
     selectedSection,
@@ -386,19 +410,17 @@ export function useThemeEditorNavigation({
     visibleSectionFields,
     filteredSections,
     filteredPageBlocks,
-    setTemplatePickerOpen,
     setSectionSearch,
     setEditorSearch,
     setSectionGroup,
     setDragBlockKey,
     setActiveEditorTab,
-    closeTemplatePicker,
     openSectionPicker,
     closeSectionPicker,
-    selectTemplate,
     addSection,
     removeSection,
     changeSectionSetting,
+    changeSectionVisibility,
     dropPageBlock,
     movePageBlock,
     selectGroup,

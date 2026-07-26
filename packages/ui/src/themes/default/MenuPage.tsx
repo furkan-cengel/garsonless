@@ -8,23 +8,16 @@ import type { ThemeMenuPageProps } from '../types'
 import type { MenuCategory } from '../../menu/types'
 import type { CSSProperties } from 'react'
 import { ArrowLeft } from 'lucide-react'
-import { HeroSection } from './sections/HeroSection'
-import { PromoStripSection } from './sections/PromoStripSection'
-import { ChefPickSection } from './sections/ChefPickSection'
-import { ComboRibbonSection } from './sections/ComboRibbonSection'
-import { DiscountBadgeSection } from './sections/DiscountBadgeSection'
-import { GallerySection } from './sections/GallerySection'
-import { PromoSliderBlock } from './sections/PromoSliderSection'
-import { DailySpecialBlock } from './sections/DailySpecialSection'
+import { CustomSectionRenderer } from './sections/CustomSectionRenderer'
+import { deriveActivePromoSliderCampaigns } from './sections/promoSliderCampaignModel'
 import {
-  ModeTabsSection,
-  AddressBarSection,
-  QuickLinksSection,
-  InfoCardSection,
-  InfoBlockSection,
-} from './sections/MiscSections'
+  getSectionDefinitionId,
+  getSectionVisibility,
+  isSectionBlockVisibleInContext,
+  type ThemePageBlock,
+} from '@garsonless/design-engine'
 
-export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFilters, orderStatus, filterEmptyState, tableId, tableLabel, cartSummary, onOpenCart, items, onQuickAdd, billSummary, onOpenBill, memberSummary, onOpenMember, memberLoyalty, storeInfo }: ThemeMenuPageProps) {
+export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFilters, orderStatus, filterEmptyState, tableId, tableLabel, cartSummary, onOpenCart, items, onQuickAdd, onAddCombo, billSummary, onOpenBill, memberSummary, onOpenMember, memberLoyalty, storeInfo }: ThemeMenuPageProps) {
   const { theme, restaurantName } = useTheme()
   const visualNav = theme.catnavStyle === 'visual'
   const orderedCategories = useMemo(() => {
@@ -329,50 +322,39 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
     )
   }
 
-  function renderCustomSection(sectionId: string) {
-    const config: Record<string, string> = theme.sectionSettings?.[sectionId] ?? {}
+  const visibilityCategories = useMemo(
+    () => categories.map((category) => ({ id: category.id, parentId: category.parent_id ?? null })),
+    [categories],
+  )
 
-    if (sectionId === 'hero-note' || sectionId === 'hero-banner') {
-      return <HeroSection key={sectionId} sectionId={sectionId} config={config} restaurantName={restaurantName} pageDescription={theme.pageDescription} />
-    }
-    if (sectionId === 'mode-tabs') {
-      return <ModeTabsSection key={sectionId} config={config} />
-    }
-    if (sectionId === 'address-bar' || sectionId === 'search') {
-      return <AddressBarSection key={sectionId} sectionId={sectionId} config={config} />
-    }
-    if (sectionId === 'promo-strip') {
-      return <PromoStripSection key={sectionId} config={config} />
-    }
-    if (sectionId === 'quick-links' || sectionId === 'cat-pills' || sectionId === 'cat-underline' || sectionId === 'cat-images') {
-      return <QuickLinksSection key={sectionId} categories={categories} />
-    }
-    if (sectionId === 'chef-pick') {
-      return <ChefPickSection key={sectionId} config={config} />
-    }
-    if (sectionId === 'chef-picks' || sectionId === 'featured-scroll' || sectionId === 'minimal-list') {
-      return <InfoCardSection key={sectionId} sectionId={sectionId} />
-    }
-    if (sectionId === 'combo-ribbon') {
-      return <ComboRibbonSection key={sectionId} config={config} />
-    }
-    if (sectionId === 'discount-badge') {
-      return <DiscountBadgeSection key={sectionId} config={config} />
-    }
-    if (sectionId === 'promo-slider') {
-      return <PromoSliderBlock key={sectionId} config={config} memberLoyalty={memberLoyalty ?? null} />
-    }
-    if (sectionId === 'daily-special') {
-      return <DailySpecialBlock key={sectionId} config={config} items={items} {...(onQuickAdd ? { onQuickAdd } : {})} />
-    }
-    if (sectionId === 'gallery') {
-      return <GallerySection key={sectionId} config={config} />
-    }
-    if (sectionId === 'reviews' || sectionId === 'hours' || sectionId === 'allergens' || sectionId === 'service-info' || sectionId === 'request-buttons' || sectionId === 'waiter-call' || sectionId === 'wifi-info' || sectionId === 'bill-summary' || sectionId === 'social-block' || sectionId === 'footer') {
-      return <InfoBlockSection key={sectionId} sectionId={sectionId} config={config} restaurantName={restaurantName} storeInfo={storeInfo ?? null} />
-    }
-
-    return null
+  function renderCustomSection(
+    block: ThemePageBlock,
+    context: { view: 'home' } | { view: 'category'; categoryId: string },
+  ) {
+    const sectionId = getSectionDefinitionId(block)
+    if (!sectionId || !isSectionBlockVisibleInContext(block, context, visibilityCategories)) return null
+    const config: Record<string, string> = theme.sectionSettings?.[block.id]
+      ?? theme.sectionSettings?.[sectionId]
+      ?? {}
+    return (
+      <CustomSectionRenderer
+        key={block.id}
+        sectionId={sectionId}
+        sectionInstanceId={block.id}
+        config={config}
+        theme={theme}
+        categories={categories}
+        restaurantName={restaurantName}
+        {...(theme.pageDescription ? { pageDescription: theme.pageDescription } : {})}
+        memberLoyalty={memberLoyalty ?? null}
+        activeCampaigns={activePromoSliderCampaigns}
+        {...(items ? { items } : {})}
+        {...(onQuickAdd ? { onQuickAdd } : {})}
+        {...(onAddCombo ? { onAddCombo } : {})}
+        {...(onOpenCart ? { onOpenCart } : {})}
+        storeInfo={storeInfo ?? null}
+      />
+    )
   }
 
   function renderVisualTrail() {
@@ -399,7 +381,10 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
     )
   }
 
-  const categoryById = new Map(categories.map((category) => [category.id, category]))
+  const categoryById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category])),
+    [categories],
+  )
   const pageBlocks = useMemo(() => {
     const categoryIds = new Set(categories.map((category) => category.id))
     const stored = theme.pageBlocks?.filter((block) =>
@@ -407,7 +392,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
       block.type === 'nav' ||
       (block.type === 'category' && categoryById.has(block.id)),
     ) ?? []
-    const result = stored.length > 0
+    const result: ThemePageBlock[] = stored.length > 0
       ? (stored.some((block) => block.type === 'nav')
           ? stored
           : [{ type: 'nav' as const, id: 'category-nav' }, ...stored])
@@ -437,6 +422,14 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
     }
     return normalized
   }, [categories, categoryById, theme.pageBlocks, theme.sections])
+  const activePromoSliderCampaigns = useMemo(
+    () => deriveActivePromoSliderCampaigns({
+      pageBlocks,
+      sectionSettings: theme.sectionSettings ?? {},
+      items: items ?? [],
+    }),
+    [items, pageBlocks, theme.sectionSettings],
+  )
 
   return (
     <div suppressHydrationWarning style={{ minHeight: '100dvh', backgroundColor: 'var(--p-bg)', ...textureStyle }}>
@@ -444,7 +437,13 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
       {orderStatus}
       <main style={{ paddingBottom: 96, width: '100%', maxWidth: pageMaxWidth, marginInline: 'auto' }}>
         {pageBlocks.map((block) => {
-          if (block.type === 'section') return renderCustomSection(block.id)
+          if (block.type === 'section') {
+            if (!visualNav && getSectionVisibility(block).mode === 'categories') return null
+            const context = visualNav && visualStage !== 'roots'
+              ? { view: 'category' as const, categoryId: visualStage === 'products' ? activeVisualCategoryId : activeVisualRootId }
+              : { view: 'home' as const }
+            return renderCustomSection(block, context)
+          }
           if (block.type === 'nav') {
             if (visualNav) {
               return (
@@ -487,8 +486,15 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
           if (visualNav) return null
           const category = categoryById.get(block.id)
           if (!category) return null
-          const section = renderSection(category)
-          return section
+          const scopedSections = pageBlocks
+            .filter((candidate) => candidate.type === 'section' && getSectionVisibility(candidate).mode === 'categories')
+            .map((candidate) => renderCustomSection(candidate, { view: 'category', categoryId: category.id }))
+          return (
+            <div key={`category-flow-${category.id}`} style={{ display: 'contents' }}>
+              {scopedSections}
+              {renderSection(category)}
+            </div>
+          )
         })}
       </main>
       {visualNav && (

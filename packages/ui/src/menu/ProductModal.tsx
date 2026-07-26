@@ -17,9 +17,14 @@ interface ProductModalProps {
     quantity: number,
     removedIngredientIds: string[],
   ) => void
+  contextLabel?: string
+  contextTitle?: string
+  lockQuantity?: boolean
+  submitLabel?: string
+  closeAfterAdd?: boolean
 }
 
-export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) {
+export function ProductModal({ item, onClose, onAddToCart, contextLabel, contextTitle, lockQuantity = false, submitLabel, closeAfterAdd = true }: ProductModalProps) {
   const { theme } = useTheme()
   const [selections, setSelections] = useState<Record<string, SelectedModifier[]>>({})
   const [removedIngredientIds, setRemovedIngredientIds] = useState<string[]>([])
@@ -122,7 +127,7 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
   const handleAddToCart = () => {
     if (!isValid) return
     onAddToCart(item, allModifiers, quantity, removedIngredientIds)
-    onClose()
+    if (closeAfterAdd) onClose()
   }
 
   return (
@@ -177,6 +182,8 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
           )}
 
           <div style={{ padding: 18 }}>
+            {contextLabel && <div style={{ marginBottom: 5, color: 'var(--p-accent)', fontSize: 11, fontWeight: 850, letterSpacing: '.06em', textTransform: 'uppercase' }}>{contextLabel}</div>}
+            {contextTitle && <div style={{ marginBottom: 12, color: 'var(--p-text-2)', fontSize: 13, fontWeight: 650 }}>{contextTitle}</div>}
             <h2 style={{ margin: 0, fontFamily: 'var(--p-display)', fontSize: 24, lineHeight: 1.12, fontWeight: 800, color: 'var(--p-text)' }}>{item.name}</h2>
             {(item.is_vegan || item.is_vegetarian || item.is_halal) && (
               <div style={{ marginTop: 8 }}>
@@ -378,7 +385,7 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
 
         <div style={{ padding: 18, borderTop: '1px solid rgba(15,23,42,.08)', background: 'rgba(255,255,255,.96)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {!lockQuantity ? <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                 aria-label="Decrease quantity"
@@ -414,7 +421,7 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
               >
                 +
               </button>
-            </div>
+            </div> : <span style={{ fontSize: 13, color: 'var(--p-text-2)', fontWeight: 700 }}>Kombo ürünü · 1 adet</span>}
             <span style={{ fontSize: 18, fontWeight: 850, color: 'var(--p-text)' }}>{priceFormatted}</span>
           </div>
           <button
@@ -434,7 +441,7 @@ export function ProductModal({ item, onClose, onAddToCart }: ProductModalProps) 
               transition: 'opacity 150ms ease',
             }}
           >
-            Sepete ekle
+            {submitLabel ?? 'Sepete ekle'}
           </button>
         </div>
       </motion.div>

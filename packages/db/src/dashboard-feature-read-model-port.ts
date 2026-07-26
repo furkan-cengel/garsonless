@@ -151,17 +151,35 @@ export function createMenuManagementReadModelPort(): MenuManagementReadModelPort
   }
 }
 
-export interface ThemeEditorCategoryRow {
-  id: string
-  name: string
-  parent_id: string | null
-}
+export type ThemeEditorCategoryRow = Pick<
+  MenuCategoryRow,
+  'id' | 'name' | 'parent_id' | 'image_url'
+>
 
-export interface ThemeEditorItemRow {
-  id: string
-  name: string
-  category_id: string
-}
+export type ThemeEditorItemRow = Pick<
+  MenuItemRow,
+  | 'id'
+  | 'category_id'
+  | 'name'
+  | 'description'
+  | 'price'
+  | 'images'
+  | 'ingredients'
+  | 'energy_kcal'
+  | 'contains_allergens'
+  | 'may_contain_allergens'
+  | 'allergen_note'
+  | 'cross_contact_note'
+  | 'contains_alcohol'
+  | 'contains_pork'
+  | 'is_vegetarian'
+  | 'is_vegan'
+  | 'is_halal'
+  | 'food_info_reviewed_at'
+  | 'modifier_groups'
+  | 'is_available'
+  | 'position'
+>
 
 export function createThemeMenuReferenceReadModelPort(): ThemeMenuReferenceReadModelPort<
   ThemeEditorCategoryRow,
@@ -171,7 +189,7 @@ export function createThemeMenuReferenceReadModelPort(): ThemeMenuReferenceReadM
     async readMenuReferences({ restaurantId }) {
       const service = createServiceClient()
       const { data: categories, error: categoryError } = await service.from('menu_categories')
-        .select('id, name, parent_id')
+        .select('id, name, parent_id, image_url')
         .eq('restaurant_id', restaurantId)
         .is('deleted_at', null)
         .order('position')
@@ -181,14 +199,14 @@ export function createThemeMenuReferenceReadModelPort(): ThemeMenuReferenceReadM
       if (categoryRows.length === 0) return ok({ categories: [], items: [] })
 
       const { data: items, error: itemError } = await service.from('menu_items')
-        .select('id, name, category_id')
+        .select(projection.menuItem)
         .in('category_id', categoryRows.map((category) => category.id))
         .is('deleted_at', null)
         .order('position')
       if (itemError) return err(dbError('Tema ürün referansları yüklenemedi', itemError))
       return ok({
         categories: categoryRows,
-        items: (items ?? []) as ThemeEditorItemRow[],
+        items: (items ?? []) as unknown as ThemeEditorItemRow[],
       })
     },
   }

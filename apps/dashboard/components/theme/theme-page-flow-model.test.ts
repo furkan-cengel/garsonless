@@ -76,8 +76,55 @@ test('section commands insert after navigation and remove cleanly', () => {
     'section:hero-banner',
     'category:coffee',
   ])
-  assert.strictEqual(addSectionToPageFlow(added, 'hero-banner'), added)
+  const duplicated = addSectionToPageFlow(added, 'hero-banner')
+  assert.deepEqual(duplicated.slice(0, 3), [
+    { type: 'nav', id: 'category-nav' },
+    { type: 'section', id: 'hero-banner--2', sectionId: 'hero-banner' },
+    { type: 'section', id: 'hero-banner' },
+  ])
   assert.deepEqual(removeSectionFromPageFlow(added, 'hero-banner'), initial)
+})
+
+test('global request buttons remain a singleton in page flow', () => {
+  const initial: PageBlock[] = [
+    { type: 'nav', id: 'category-nav' },
+    { type: 'category', id: 'coffee' },
+  ]
+
+  const once = addSectionToPageFlow(initial, 'request-buttons')
+  const twice = addSectionToPageFlow(once, 'request-buttons')
+
+  assert.deepEqual(twice, once)
+  assert.equal(
+    once.filter((block) => block.type === 'section' && block.id === 'request-buttons').length,
+    1,
+  )
+})
+
+test('stored duplicate section instances preserve their definition and visibility scope', () => {
+  const blocks = buildPageBlocks({
+    pageBlocks: [
+      { type: 'nav', id: 'category-nav' },
+      { type: 'section', id: 'hero-banner', visibility: { mode: 'home' } },
+      {
+        type: 'section',
+        id: 'hero-banner--2',
+        sectionId: 'hero-banner',
+        visibility: { mode: 'categories', categoryIds: ['coffee'], includeChildren: true },
+      },
+    ],
+  }, categories, ['hero-banner'])
+
+  assert.deepEqual(blocks.slice(0, 3), [
+    { type: 'nav', id: 'category-nav' },
+    { type: 'section', id: 'hero-banner', visibility: { mode: 'home' } },
+    {
+      type: 'section',
+      id: 'hero-banner--2',
+      sectionId: 'hero-banner',
+      visibility: { mode: 'categories', categoryIds: ['coffee'], includeChildren: true },
+    },
+  ])
 })
 
 test('child categories cannot escape their parent scope', () => {

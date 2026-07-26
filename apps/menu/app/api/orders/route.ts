@@ -16,6 +16,15 @@ const orderItemSchema = z.object({
     quantity: z.number().int().positive().optional(),
   })).optional(),
   removedIngredientIds: z.array(z.string().min(1)).optional(),
+  combo: z.object({
+    instanceId: z.string().uuid(),
+    sectionInstanceId: z.string().min(1).max(128),
+    comboIndex: z.number().int().min(1).max(3),
+  }).optional(),
+  promotion: z.object({
+    sectionInstanceId: z.string().min(1).max(128),
+    kind: z.enum(['discount-badge', 'daily-special']),
+  }).optional(),
   // Persisted pre-migration carts may still send these; the DB resolver ignores them.
   modifiers: z.array(z.record(z.unknown())).optional(),
   name: z.string().optional(),

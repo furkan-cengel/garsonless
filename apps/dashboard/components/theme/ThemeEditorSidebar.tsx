@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode, RefObject } from 'react'
+import { getSectionDefinitionId, getSectionVisibility } from '@garsonless/design-engine'
 import { I } from '../../lib/ui'
 import { getCategoryParentId, pageBlockKey, type MenuCategory, type PageBlock } from './theme-page-flow-model'
 
@@ -181,8 +182,9 @@ export function ThemeEditorSidebar({
             )}
             {visiblePageBlocks.map((block) => {
               const key = pageBlockKey(block)
+              const sectionDefinitionId = getSectionDefinitionId(block)
               const preset = block.type === 'section'
-                ? sectionLibrary.find((item) => item.id === block.id)
+                ? sectionLibrary.find((item) => item.id === sectionDefinitionId)
                 : null
               const category = block.type === 'category'
                 ? menuCategories.find((item) => item.id === block.id)
@@ -193,7 +195,7 @@ export function ThemeEditorSidebar({
               const isChildCategory = Boolean(categoryParentId)
               const selected = block.type === 'section' && selectedSectionId === block.id
               const label = block.type === 'section'
-                ? preset?.label ?? block.id
+                ? preset?.label ?? sectionDefinitionId ?? block.id
                 : block.type === 'nav'
                   ? 'Kategori Menüsü'
                   : category?.name ?? block.id
@@ -241,6 +243,7 @@ export function ThemeEditorSidebar({
                   )}
                   <span aria-hidden style={{ color: 'var(--text-4)', fontSize: 13, letterSpacing: -2 }}>⋮⋮</span>
                   <button
+                    data-page-flow-select
                     type="button"
                     onClick={() => onSelectPageBlock(block)}
                     style={{
@@ -268,7 +271,7 @@ export function ThemeEditorSidebar({
                       <span style={{ display: 'block', fontSize: 13, fontWeight: 650 }}>{label}</span>
                       <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-3)', marginTop: 1 }}>
                         {block.type === 'section'
-                          ? preset?.sub ?? 'Özel bölüm'
+                          ? `${getSectionScopeLabel(block)} · ${preset?.sub ?? 'Özel bölüm'}`
                           : block.type === 'nav'
                             ? 'Kaydırılabilir kategori navigasyonu'
                             : isChildCategory
@@ -346,6 +349,16 @@ export function ThemeEditorSidebar({
       </div>
     </aside>
   )
+}
+
+function getSectionScopeLabel(block: PageBlock) {
+  const visibility = getSectionVisibility(block)
+  if (visibility.mode === 'home') return 'Ana ekranda'
+  if (visibility.mode === 'categories') {
+    const count = visibility.categoryIds?.length ?? 0
+    return count > 0 ? `${count} kategoride` : 'Kategori seçilmedi'
+  }
+  return 'Tüm menüde'
 }
 
 const navGroupLabelStyle = {

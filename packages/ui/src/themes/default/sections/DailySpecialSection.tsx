@@ -1,350 +1,322 @@
-import { useEffect, useState } from 'react'
+'use client'
+
+import React, { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { MenuItem } from '../../../menu/types'
+import type { GarsonlessTheme } from '@garsonless/design-engine'
+import {
+  resolveSectionCampaignTiming,
+  resolveSectionPromotionPrice,
+} from '@garsonless/domain/menu'
+import { AppIcons } from '../../../icons'
 import { formatTRY } from '../../../menu/formatCurrency'
-import { makeReaders, customSectionShell, parseCountdownTarget } from '../lib/sectionHelpers'
-import type { DailySpecialConfig } from '../lib/sectionTypes'
+import type { MenuItem, SectionPromotionContext } from '../../../menu/types'
+import { customSectionShell, makeReaders } from '../lib/sectionHelpers'
 
-function DailySpecialOuter({
+type DailySpecialTheme = Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor'>
+
+const BUTTON_SIZE = { small: 34, medium: 40, large: 46 } as const
+
+export function DailySpecialBlock({
+  sectionInstanceId,
   config,
-  product,
+  items = [],
   onQuickAdd,
-  sectionStyle,
+  theme,
 }: {
-  config: DailySpecialConfig
-  product: MenuItem | null
-  onQuickAdd?: (item: MenuItem, originalPrice?: number) => void
-  sectionStyle: CSSProperties
+  sectionInstanceId: string
+  config: Record<string, string>
+  items?: MenuItem[]
+  onQuickAdd?: (item: MenuItem, originalPrice?: number, promotion?: SectionPromotionContext) => void
+  theme?: DailySpecialTheme
 }) {
-  const [expired, setExpired] = useState(false)
+  const { text, number, bool } = makeReaders(config)
+  const productId = config.productId?.trim() ?? ''
+  const item = items.find((candidate) => candidate.id === productId && candidate.is_available)
+  const discountMode = text('discountMode', 'none')
+  const hasPromotion = discountMode !== 'none'
+  const pricing = item && hasPromotion
+    ? resolveSectionPromotionPrice({
+        catalogPrice: item.price,
+        mode: discountMode,
+        percentage: config.discountPercent ?? '20',
+        ...(config.campaignPrice !== undefined ? { fixedPrice: config.campaignPrice } : {}),
+      })
+    : null
+  const timing = resolveSectionCampaignTiming({
+    enabled: config.countdownEnabled,
+    endsAt: config.campaignEndsAt,
+  })
 
-  useEffect(() => {
-    const target = parseCountdownTarget(config.timerValue)
-    if (!target) return
-    const tick = () => { if (target.getTime() - Date.now() <= 0) setExpired(true) }
-    tick()
-    const id = setInterval(tick, 1_000)
-    return () => clearInterval(id)
-  }, [config.timerValue])
+  if (timing.enabled && timing.valid && !timing.active) return null
 
-  if (expired) return null
+  const layout = text('layout', 'split') === 'stack' ? 'stack' : 'split'
+  const showImage = bool('showImage', true)
+  const imageFit = text('imageFit', 'cover') === 'contain' ? 'contain' : 'cover'
+  const imagePosition = text('imagePosition', 'center')
+  const surface = text('bgColor', '#fdf6ec')
+  const contentSurface = text('cardColor', '#ffffff')
+  const textColor = text('textColor', '#1c2618')
+  const mutedColor = text('mutedColor', textColor)
+  const accent = text('accentColor', '#a13b7a')
+  const radius = number('radius', 20)
+  const cardRadius = number('cardRadius', 16)
+  const padding = number('padding', 16)
+  const imageSize = Math.min(180, Math.max(76, number('imageSize', layout === 'stack' ? 150 : 122)))
+  const ctaMode = text('ctaMode', 'inherit') === 'custom' ? 'custom' : 'inherit'
+  const buttonStyle = ctaMode === 'inherit' ? (theme?.cardCtaStyle ?? 'pill') : text('buttonStyle', 'pill')
+  const buttonIcon = ctaMode === 'inherit' ? (theme?.cardCtaIcon ?? 'plus') : text('buttonIcon', 'plus')
+  const buttonSizeName = text('buttonSize', 'medium') as keyof typeof BUTTON_SIZE
+  const buttonSize = BUTTON_SIZE[buttonSizeName] ?? BUTTON_SIZE.medium
+  const buttonBackground = ctaMode === 'inherit' ? 'var(--p-cta)' : text('buttonBgColor', accent)
+  const buttonColor = ctaMode === 'inherit' ? 'var(--p-cta-text)' : text('buttonTextColor', '#ffffff')
+  const title = config.title?.trim() || item?.name || 'Günün özeli'
+  const body = config.body?.trim() || item?.description || 'Bugün mutfağın öne çıkan lezzeti.'
+  const policyCombines = text('discountPolicy', 'combine-loyalty') !== 'promotion-only'
+  const priceReady = !hasPromotion || Boolean(pricing)
+  const isReady = Boolean(item && priceReady && timing.active)
+
+  const addToCart = () => {
+    if (!item || !priceReady || !timing.active || !onQuickAdd) return
+    if (!pricing) {
+      onQuickAdd(item)
+      return
+    }
+    onQuickAdd(
+      { ...item, price: pricing.price },
+      item.price,
+      { sectionInstanceId, kind: 'daily-special' },
+    )
+  }
 
   return (
-    <section data-component="custom-section" style={sectionStyle}>
-      <div style={{ borderRadius: config.radius, background: config.bgColor, padding: 16 }}>
-        <DailySpecialSection
-          config={config}
-          product={product}
-          {...(onQuickAdd ? { onQuickAdd } : {})}
-        />
+    <section
+      id={`custom-section-${sectionInstanceId}`}
+      data-component="custom-section"
+      data-section-kind="daily-special"
+      data-promotion-state={isReady ? 'ready' : 'configuration-required'}
+      style={customSectionShell}
+    >
+      <style>{`
+        .garsonless-daily-special {
+          container-type: inline-size;
+          transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+        }
+        .garsonless-daily-special:hover { transform: translateY(-2px); box-shadow: var(--p-shadow); }
+        .garsonless-daily-layout {
+          display: grid;
+          grid-template-columns: var(--daily-grid-columns);
+          gap: var(--daily-grid-gap);
+        }
+        .garsonless-daily-media {
+          align-self: start;
+          width: 100%;
+          height: var(--daily-image-size);
+          min-height: 0;
+          overflow: hidden;
+        }
+        .garsonless-daily-layout[data-layout="split"] .garsonless-daily-media {
+          aspect-ratio: 1 / 1;
+        }
+        @container (max-width: 330px) {
+          .garsonless-daily-layout[data-layout="split"] {
+            --daily-grid-columns: minmax(0, 1fr) !important;
+            --daily-grid-gap: 12px !important;
+          }
+          .garsonless-daily-layout[data-layout="split"] .garsonless-daily-media {
+            aspect-ratio: 16 / 9;
+            height: auto;
+            max-height: 156px;
+          }
+        }
+        .garsonless-daily-add { transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease; }
+        .garsonless-daily-add:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 8px 18px -12px var(--daily-accent); }
+        .garsonless-daily-add:not(:disabled):active { transform: scale(.97); }
+        .garsonless-daily-add:focus-visible { outline: 2px solid var(--daily-accent); outline-offset: 3px; }
+        .garsonless-daily-timer { contain: layout paint; font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1, "zero" 1; }
+        @media (prefers-reduced-motion: reduce) {
+          .garsonless-daily-special, .garsonless-daily-add { transition: none !important; }
+          .garsonless-daily-special:hover, .garsonless-daily-add:not(:disabled):hover { transform: none; }
+        }
+      `}</style>
+      <div
+        className="garsonless-daily-special garsonless-daily-layout"
+        data-layout={layout}
+        style={{
+          '--daily-accent': accent,
+          '--daily-grid-columns': layout === 'split' && showImage ? `${imageSize}px minmax(0, 1fr)` : 'minmax(0, 1fr)',
+          '--daily-grid-gap': `${layout === 'split' ? 15 : 12}px`,
+          '--daily-image-size': `${imageSize}px`,
+          padding,
+          borderRadius: radius,
+          border: `1px solid color-mix(in srgb, ${accent} 22%, transparent)`,
+          background: surface,
+          color: textColor,
+          overflow: 'hidden',
+          boxShadow: '0 2px 10px color-mix(in srgb, var(--p-text) 6%, transparent)',
+        } as CSSProperties}
+      >
+        {showImage && (
+          <div
+            className="garsonless-daily-media"
+            data-daily-media="true"
+            style={{
+              borderRadius: Math.min(cardRadius, 14),
+              background: `color-mix(in srgb, ${accent} 9%, ${contentSurface})`,
+            }}
+          >
+            {item?.images[0] ? (
+              <img
+                src={item.images[0]}
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: imageFit, objectPosition: imagePosition, display: 'block' }}
+              />
+            ) : (
+              <div aria-hidden style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: accent, opacity: .6 }}>
+                <AppIcons.image size={26} />
+              </div>
+            )}
+          </div>
+        )}
+
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 7 }}>
+            <span style={{ color: accent, fontSize: 9.5, fontWeight: 900, letterSpacing: '.14em', textTransform: 'uppercase' }}>
+              {config.eyebrow?.trim() || 'GÜNÜN ÖZELİ'}
+            </span>
+            {pricing && (
+              <span style={{ padding: '2px 6px', borderRadius: 999, background: `color-mix(in srgb, ${accent} 10%, ${contentSurface})`, color: accent, fontSize: 9, fontWeight: 850, lineHeight: 1.35 }}>
+                %{pricing.percentage} avantaj
+              </span>
+            )}
+          </div>
+          <h2 style={{ margin: '5px 0 0', fontFamily: 'var(--p-display)', fontSize: 23, lineHeight: 1.08, letterSpacing: '-.02em', color: textColor }}>
+            {title}
+          </h2>
+          {body && (
+            <p style={{ margin: '7px 0 0', color: mutedColor, opacity: .72, fontSize: 12, lineHeight: 1.42, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+              {body}
+            </p>
+          )}
+          {config.chefNote?.trim() && (
+            <p style={{ margin: '8px 0 0', paddingLeft: 9, borderLeft: `2px solid ${accent}`, color: mutedColor, opacity: .76, fontFamily: 'var(--p-display)', fontSize: 11, fontStyle: 'italic', lineHeight: 1.4 }}>
+              {config.chefNote.trim()}
+            </p>
+          )}
+
+          {timing.enabled && timing.valid && timing.endsAtMs !== null && (
+            <DailyCountdown
+              endsAtMs={timing.endsAtMs}
+              label={config.countdownLabel?.trim() || 'Bugün sona eriyor'}
+              background={text('timerBgColor', contentSurface)}
+              color={text('timerTextColor', accent)}
+            />
+          )}
+
+          {item && priceReady && timing.active ? (
+            <div style={{ marginTop: 12, padding: '10px 11px', borderRadius: cardRadius, background: contentSurface, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minWidth: 0 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 7 }}>
+                  <strong style={{ color: textColor, fontSize: 17, lineHeight: 1 }}>
+                    {formatTRY(pricing?.price ?? item.price)}
+                  </strong>
+                  {pricing && <del style={{ color: mutedColor, opacity: .55, fontSize: 12, fontWeight: 700 }}>{formatTRY(item.price)}</del>}
+                </div>
+                {pricing && <span style={{ display: 'block', marginTop: 4, color: accent, fontSize: 10.5, fontWeight: 800 }}>{formatTRY(pricing.savings)} kazanç</span>}
+              </div>
+              <button
+                type="button"
+                className="garsonless-daily-add"
+                data-cta-source={ctaMode}
+                data-cta-icon={buttonIcon}
+                disabled={!onQuickAdd}
+                aria-label={`${item.name} ürününü${pricing ? ' günün özeli fiyatıyla' : ''} sepete ekle`}
+                onClick={addToCart}
+                style={{
+                  minWidth: buttonStyle === 'icon' ? buttonSize : Math.max(74, buttonSize * 1.9),
+                  height: buttonSize,
+                  padding: buttonStyle === 'icon' ? 0 : '0 13px',
+                  border: 0,
+                  borderRadius: buttonStyle === 'full' ? 10 : 999,
+                  background: buttonBackground,
+                  color: buttonColor,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  fontFamily: 'var(--p-body)',
+                  fontSize: 11.5,
+                  fontWeight: 850,
+                  cursor: onQuickAdd ? 'pointer' : 'default',
+                  flexShrink: 0,
+                }}
+              >
+                <DailyCtaIcon kind={buttonIcon} size={Math.max(15, Math.round(buttonSize * .43))} />
+                {buttonStyle !== 'icon' && <span>{config.cta?.trim() || 'Sepete ekle'}</span>}
+              </button>
+            </div>
+          ) : (
+            <div role="status" style={{ marginTop: 12, padding: '11px 12px', borderRadius: cardRadius, border: `1px dashed color-mix(in srgb, ${accent} 38%, transparent)`, background: contentSurface, color: mutedColor, fontSize: 11.5, lineHeight: 1.4 }}>
+              {!item
+                ? 'Günün özeli için satışta olan bir ürün seçin.'
+                : timing.enabled && !timing.valid
+                  ? 'Süreli yayın için geçerli bir bitiş tarihi ve saati seçin.'
+                  : 'Kampanya fiyatı ürünün normal fiyatından düşük olmalı.'}
+            </div>
+          )}
+
+          {pricing && isReady && (
+            <p style={{ margin: '8px 2px 0', color: mutedColor, opacity: .58, fontSize: 9.5, lineHeight: 1.35 }}>
+              {policyCombines ? 'Üyelik avantajlarıyla birlikte kullanılabilir.' : 'Bu özel fiyat diğer üyelik indirimleriyle birleşmez.'}
+            </p>
+          )}
+        </div>
       </div>
     </section>
   )
 }
 
-function DailySpecialSection({
-  config,
-  product,
-  onQuickAdd,
-}: {
-  config: DailySpecialConfig
-  product: MenuItem | null
-  onQuickAdd?: (item: MenuItem, originalPrice?: number) => void
-}) {
-  const isRealCountdown = Boolean(parseCountdownTarget(config.timerValue))
-  const [timeLeft, setTimeLeft] = useState<{ h: number; m: number; s: number } | null>(null)
+function DailyCountdown({ endsAtMs, label, background, color }: { endsAtMs: number; label: string; background: string; color: string }) {
+  const timerRef = useRef<HTMLDivElement>(null)
+  const [remainingMs, setRemainingMs] = useState(() => Math.max(0, endsAtMs - Date.now()))
 
   useEffect(() => {
-    const target = parseCountdownTarget(config.timerValue)
-    if (!target) { setTimeLeft(null); return }
-    const tick = () => {
-      const diff = target.getTime() - Date.now()
-      if (diff <= 0) { setTimeLeft({ h: 0, m: 0, s: 0 }); return }
-      setTimeLeft({
-        h: Math.floor(diff / 3_600_000),
-        m: Math.floor((diff % 3_600_000) / 60_000),
-        s: Math.floor((diff % 60_000) / 1_000),
-      })
+    let interval: number | undefined
+    const update = () => {
+      const next = Math.max(0, endsAtMs - Date.now())
+      setRemainingMs(next)
+      if (next === 0) {
+        const section = timerRef.current?.closest<HTMLElement>('section[data-section-kind="daily-special"]')
+        if (section) section.hidden = true
+        if (interval !== undefined) window.clearInterval(interval)
+      }
     }
-    tick()
-    const id = setInterval(tick, 1_000)
-    return () => clearInterval(id)
-  }, [config.timerValue])
-
-  function handleAddToCart() {
-    if (!product || !onQuickAdd) return
-    const hasDiscount = config.priceOverride !== null && config.priceOverride !== product.price
-    const effectiveItem: MenuItem = hasDiscount
-      ? { ...product, price: config.priceOverride! }
-      : product
-    onQuickAdd(effectiveItem, hasDiscount ? product.price : undefined)
-  }
-
-  const showTimer = Boolean(config.timerValue)
-  const expired = isRealCountdown && timeLeft !== null && timeLeft.h === 0 && timeLeft.m === 0 && timeLeft.s === 0
-
-  if (expired) return null
+    update()
+    if (endsAtMs > Date.now()) interval = window.setInterval(update, 1000)
+    return () => { if (interval !== undefined) window.clearInterval(interval) }
+  }, [endsAtMs])
 
   return (
-    <>
-      <style>{`
-        @keyframes ds-corner-scroll {
-          from { transform: translateX(0); }
-          to   { transform: translateX(-50%); }
-        }
-        @keyframes ds-colon-pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.2; }
-        }
-        @keyframes ds-live-pulse {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.5); opacity: 0.5; }
-        }
-      `}</style>
-
-      <div style={{
-        borderRadius: config.radius,
-        overflow: 'hidden',
-        position: 'relative',
-        border: `1.5px solid ${config.accentColor}`,
-        background: 'var(--p-card)',
-        boxShadow: 'var(--p-shadow)',
-      }}>
-        {/* Hero image */}
-        <div style={{
-          height: 160,
-          position: 'relative',
-          background: config.heroImage
-            ? `url("${config.heroImage}") center/cover`
-            : `linear-gradient(135deg, ${config.bgStart}, ${config.bgEnd})`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 64,
-          overflow: 'hidden',
-        }}>
-          {!config.heroImage && '🍽'}
-
-          {/* Corner ribbon (çentik) */}
-          {(() => {
-            const sizes = {
-              sm: { n: 90,  w: 110, top: 22, tlLeft: -25, trLeft: 5,  fs: 8,  pad: '4px 0' },
-              md: { n: 110, w: 138, top: 27, tlLeft: -32, trLeft: 4,  fs: 10, pad: '5px 0' },
-              lg: { n: 130, w: 165, top: 32, tlLeft: -39, trLeft: 5,  fs: 12, pad: '7px 0' },
-            }
-            const sz = sizes[config.ribbonSize] ?? sizes.md
-            const isTR = config.ribbonCorner === 'tr'
-            const containerPos = isTR ? { top: 0 as const, right: 0 as const } : { top: 0 as const, left: 0 as const }
-            return (
-              <div style={{
-                position: 'absolute', ...containerPos,
-                width: sz.n, height: sz.n,
-                overflow: 'hidden',
-                zIndex: 3,
-                pointerEvents: 'none',
-              }}>
-                <div style={{
-                  position: 'absolute',
-                  top: sz.top,
-                  left: isTR ? sz.trLeft : sz.tlLeft,
-                  width: sz.w,
-                  overflow: 'hidden',
-                  background: config.accentColor,
-                  transform: `rotate(${isTR ? 45 : -45}deg)`,
-                  boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    width: 'max-content',
-                    animation: `ds-corner-scroll ${config.ribbonSpeed}s linear infinite`,
-                    padding: sz.pad,
-                  }}>
-                    {Array.from({ length: 8 }).map((_, i) => (
-                      <span key={i} style={{
-                        color: '#fff',
-                        fontSize: sz.fs,
-                        fontWeight: 700,
-                        letterSpacing: '0.07em',
-                        textTransform: 'uppercase',
-                        whiteSpace: 'nowrap',
-                        padding: '0 10px',
-                      }}>
-                        {config.eyebrow || 'GÜNÜN ÖZELİ'}&nbsp;✦
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
-
-          {/* Countdown badge — Fix 2 */}
-          {showTimer && (
-            <div style={{
-              position: 'absolute', bottom: 10, right: 10,
-              background: config.timerBg,
-              backdropFilter: 'blur(8px)',
-              borderRadius: 10,
-              padding: '6px 10px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}>
-              {/* Live pulse dot */}
-              <div style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: '#ff4444', flexShrink: 0,
-                animation: 'ds-live-pulse 1.5s ease-in-out infinite',
-              }} />
-              {isRealCountdown && timeLeft ? (
-                /* HH:MM:SS boxes */
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                  {([
-                    { value: String(timeLeft.h).padStart(2, '0'), label: 'SA' },
-                    { value: String(timeLeft.m).padStart(2, '0'), label: 'DK' },
-                    { value: String(timeLeft.s).padStart(2, '0'), label: 'SN' },
-                  ] as const).map((unit, i) => (
-                    <span key={unit.label} style={{ display: 'inline-flex', alignItems: 'center' }}>
-                      {i > 0 && (
-                        <span style={{
-                          color: config.timerColor, fontSize: 16, fontWeight: 700, opacity: 0.6,
-                          lineHeight: 1, margin: '0 2px',
-                          animation: 'ds-colon-pulse 1s ease-in-out infinite',
-                        }}>:</span>
-                      )}
-                      <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 26 }}>
-                        <span style={{
-                          color: config.timerColor, fontSize: 18, fontWeight: 700, lineHeight: 1,
-                          fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace',
-                        }}>{unit.value}</span>
-                        <span style={{
-                          color: config.timerColor, fontSize: 8, opacity: 0.55,
-                          letterSpacing: '0.1em', marginTop: 1,
-                        }}>{unit.label}</span>
-                      </span>
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                /* Plain text */
-                <span style={{ color: config.timerColor, fontSize: 12, fontWeight: 600 }}>
-                  {config.timerValue}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Content */}
-        <div style={{ padding: 18 }}>
-          <div style={{
-            fontFamily: 'var(--p-display)',
-            fontSize: 26, color: config.accentColor, lineHeight: 1.1, fontWeight: 700,
-          }}>
-            {config.title}
-          </div>
-          {config.body && (
-            <div style={{ fontSize: 12.5, color: 'var(--p-text-2)', marginTop: 6, lineHeight: 1.5 }}>
-              {config.body}
-            </div>
-          )}
-          {config.chefNote && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              marginTop: 12, padding: '8px 10px',
-              background: 'var(--p-accent-soft)', borderRadius: 10,
-            }}>
-              <span style={{ fontSize: 18 }}>👨‍🍳</span>
-              <span style={{ fontSize: 11.5, color: config.accentColor, fontStyle: 'italic', fontFamily: 'Fraunces, Georgia, serif' }}>
-                {config.chefNote}
-              </span>
-            </div>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontSize: 24, fontWeight: 850, color: 'var(--p-text)' }}>{config.displayPrice}</span>
-              {config.oldPrice && (
-                <span style={{ fontSize: 13, color: 'var(--p-text-2)', textDecoration: 'line-through' }}>
-                  {config.oldPrice.startsWith('₺') ? config.oldPrice : `₺${config.oldPrice}`}
-                </span>
-              )}
-            </div>
-            {product && onQuickAdd ? (
-              <button
-                type="button"
-                onClick={handleAddToCart}
-                style={{
-                  background: config.accentColor, color: '#fff', border: 'none',
-                  borderRadius: 99, padding: '11px 22px',
-                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                  fontFamily: 'var(--p-body)',
-                }}
-              >
-                {config.ctaText}
-              </button>
-            ) : (
-              <a href="#" style={{
-                background: config.accentColor, color: '#fff',
-                borderRadius: 99, padding: '11px 22px',
-                fontSize: 14, fontWeight: 700, textDecoration: 'none',
-              }}>
-                {config.ctaText}
-              </a>
-            )}
-          </div>
-        </div>
-      </div>
-    </>
+    <div ref={timerRef} role="timer" aria-live="off" className="garsonless-daily-timer" style={{ marginTop: 10, minHeight: 52, padding: '8px 10px', borderRadius: 12, background, color, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 10, fontSize: 10.5, fontWeight: 750 }}>
+      <span style={{ minWidth: 0, opacity: .76, lineHeight: 1.4 }}>{label}</span>
+      <strong style={{ width: '14ch', whiteSpace: 'nowrap', textAlign: 'right', fontSize: 12, lineHeight: 1, letterSpacing: '.04em' }}>
+        {formatCountdown(remainingMs)}
+      </strong>
+    </div>
   )
 }
 
-export function DailySpecialBlock({
-  config,
-  items,
-  onQuickAdd,
-}: {
-  config: Record<string, string>
-  items?: MenuItem[] | undefined
-  onQuickAdd?: (item: MenuItem, originalPrice?: number) => void
-}) {
-  const { text, number } = makeReaders(config)
-  const productId = text('productId', '')
-  const product = productId ? (items ?? []).find((item) => item.id === productId) ?? null : null
-  const priceRaw = text('price', '')
-  const priceOverride = priceRaw ? parseFloat(priceRaw.replace(/[^0-9.]/g, '')) : null
-  const displayPrice = priceRaw
-    ? (priceRaw.startsWith('₺') ? priceRaw : `₺${priceRaw}`)
-    : product ? formatTRY(product.price) : '₺0'
+function formatCountdown(remainingMs: number) {
+  const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000))
+  const days = Math.floor(totalSeconds / 86_400)
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600)
+  const minutes = Math.floor((totalSeconds % 3_600) / 60)
+  const seconds = totalSeconds % 60
+  const clock = [hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':')
+  return days > 0 ? `${days} gün · ${clock}` : clock
+}
 
-  const cfg: DailySpecialConfig = {
-    heroImage: text('imageUrl', '') || (product?.images[0] ?? ''),
-    title: text('title', '') || product?.name || 'Günün Özeli',
-    body: text('body', '') || product?.description || '',
-    displayPrice,
-    priceOverride: Number.isFinite(priceOverride) ? priceOverride : null,
-    oldPrice: text('oldPrice', ''),
-    accentColor: text('accentColor', 'var(--p-accent)'),
-    chefNote: text('chefNote', ''),
-    timerValue: text('timer', ''),
-    timerBg: text('timerBg', 'rgba(0,0,0,0.75)'),
-    timerColor: text('timerColor', '#ffffff'),
-    ctaText: text('cta', 'Sepete ekle'),
-    eyebrow: text('eyebrow', 'GÜNÜN ÖZELİ'),
-    bgStart: text('bgStart', 'var(--p-accent-soft)'),
-    bgEnd: text('bgEnd', 'var(--p-cta)'),
-    bgColor: text('bgColor', 'var(--p-card)'),
-    radius: number('radius', 18),
-    ribbonCorner: (text('ribbonCorner', 'tl') || 'tl') as 'tl' | 'tr',
-    ribbonSize: (text('ribbonSize', 'md') || 'md') as 'sm' | 'md' | 'lg',
-    ribbonSpeed: number('ribbonSpeed', 8),
-  }
-
-  return (
-    <DailySpecialOuter
-      config={cfg}
-      product={product ?? null}
-      sectionStyle={customSectionShell}
-      {...(onQuickAdd ? { onQuickAdd } : {})}
-    />
-  )
+function DailyCtaIcon({ kind, size }: { kind: string; size: number }) {
+  if (kind === 'cart') return <AppIcons.cart size={size} aria-hidden="true" />
+  if (kind === 'bag') return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M5 8h14l-1 12H6L5 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>
+  return <AppIcons.plus size={size} aria-hidden="true" />
 }

@@ -1,4 +1,9 @@
-export type { GarsonlessTheme } from './schema'
+export type {
+  GarsonlessTheme,
+  ThemePageBlock,
+  ThemeSectionVisibility,
+  ThemeSectionVisibilityMode,
+} from './schema'
 export { DEFAULT_THEME } from './schema'
 
 export type {
@@ -12,6 +17,7 @@ export type {
 export { DEFAULT_CONFIG } from './schema'
 
 export { TEMPLATES } from './templates'
+export { CANONICAL_THEME_ID } from './theme-policy'
 export type { TemplateId } from './templates'
 export {
   isThemeTemplateId,
@@ -19,6 +25,17 @@ export {
   resolveTheme,
   sanitizeThemeTokens,
 } from './theme-policy'
+
+export {
+  getSectionDefinitionId,
+  getSectionVisibility,
+  getUniqueSectionDefinitionIds,
+  isSectionBlockVisibleInContext,
+} from './section-blocks'
+export type {
+  SectionVisibilityCategory,
+  SectionVisibilityContext,
+} from './section-blocks'
 
 export {
   applyGarsonlessTheme,

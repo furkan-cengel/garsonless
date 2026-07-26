@@ -1,4 +1,6 @@
 import {
+  CANONICAL_THEME_ID,
+  getSectionDefinitionId,
   isThemeTemplateId,
   resolveTheme,
   sanitizeThemeTokens,
@@ -33,11 +35,15 @@ const ADVANCED_THEME_SECTION_IDS = new Set([
   'discount-badge',
   'promo-slider',
   'gallery',
+  'request-buttons',
 ])
 
 function usesAdvancedThemeSections(theme: GarsonlessTheme): boolean {
   return (theme.pageBlocks ?? []).some(
-    (block) => block.type === 'section' && ADVANCED_THEME_SECTION_IDS.has(block.id),
+    (block) => {
+      const sectionId = getSectionDefinitionId(block)
+      return sectionId !== null && ADVANCED_THEME_SECTION_IDS.has(sectionId)
+    },
   )
 }
 
@@ -112,8 +118,8 @@ export async function readThemeForEditor(
 ): Promise<Result<{ theme: GarsonlessTheme; templateId: string; restaurant: ThemeRestaurantSnapshot }>> {
   const access = requireThemeAccess(context, input.restaurantId)
   if (!access.ok) return access
-  if (!isThemeTemplateId(input.templateId)) return err('Unknown theme template')
-  return resolveFromPort({ restaurantId: input.restaurantId, templateOverride: input.templateId }, port)
+  if (input.templateId !== CANONICAL_THEME_ID) return err('Unknown theme template')
+  return resolveFromPort({ restaurantId: input.restaurantId, templateOverride: CANONICAL_THEME_ID }, port)
 }
 
 export async function readActiveThemeForDashboard(
@@ -144,8 +150,8 @@ export async function publishRestaurantTheme(
 ): Promise<Result<{ slug: string }>> {
   const access = requireThemeAccess(context, input.restaurantId)
   if (!access.ok) return access
-  if (!isThemeTemplateId(input.templateId)) return err('Unknown theme template')
-  const theme = sanitizeThemeTokens(input.theme, input.templateId)
+  if (input.templateId !== CANONICAL_THEME_ID) return err('Unknown theme template')
+  const theme = sanitizeThemeTokens(input.theme, CANONICAL_THEME_ID)
   if (!theme) return err('Invalid theme document')
 
   const restaurantResult = await port.readRestaurant({ restaurantId: input.restaurantId })
@@ -163,7 +169,7 @@ export async function publishRestaurantTheme(
 
   return port.publish({
     restaurantId: input.restaurantId,
-    templateId: input.templateId,
+    templateId: CANONICAL_THEME_ID,
     theme,
     publishedBy: context.userId,
   })

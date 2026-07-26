@@ -2,6 +2,8 @@ import { createServiceClient } from './client'
 import type { Json } from './types.gen'
 import type { OrderStatus } from './enums'
 import { computeOrderDiscount, type OrderLineInput } from './loyalty'
+import { resolveComboPriceOverrides, type ComboCatalogItem } from './combo-order-pricing'
+import { resolveDiscountBadgePriceOverrides } from './discount-badge-order-pricing'
 import {
   buildOrderLineSnapshot,
   type OrderLineSnapshot,
@@ -20,6 +22,15 @@ export interface CreateOrderLine {
   name?: string
   price?: number
   modifiersPriceDelta?: number
+  combo?: {
+    instanceId: string
+    sectionInstanceId: string
+    comboIndex: number
+  }
+  promotion?: {
+    sectionInstanceId: string
+    kind: 'discount-badge' | 'daily-special'
+  }
 }
 
 export interface CreateOrderInput {
@@ -67,6 +78,11 @@ type MenuItemRowForOrder = Omit<ResolvableMenuItem, 'vat_rate' | 'kitchenStation
   kitchen_station_id: string | null
 }
 type KitchenStationForOrder = OrderLineStationSnapshot & { is_active: boolean; position: number }
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
 
 function incomingSelections(line: CreateOrderLine): SelectedMenuModifier[] {
   const value = line.selectedModifiers ?? line.modifiers
@@ -92,7 +108,7 @@ export async function resolveOrderLines(
   restaurantId: string,
   inputLines: CreateOrderLine[],
 ): Promise<
-  | { ok: true; snapshots: OrderLineSnapshot[]; discountLines: OrderLineInput[] }
+  | { ok: true; snapshots: OrderLineSnapshot[]; discountLines: OrderLineInput[]; loyaltyStackingAllowed: boolean }
   | { ok: false; error: string }
 > {
   const supabase = createServiceClient()
@@ -143,10 +159,56 @@ export async function resolveOrderLines(
       },
     ]),
   )
+
+  let promotionalPricesByLine = new Map<number, number>()
+  let loyaltyStackingAllowed = true
+  if (inputLines.some((line) => line.combo && line.promotion)) {
+    return { ok: false, error: 'Bir ürün aynı anda birden fazla kampanyaya bağlanamaz.' }
+  }
+  if (inputLines.some((line) => line.combo || line.promotion)) {
+    const [{ data: themeConfig, error: themeError }, { data: comboCatalog, error: comboCatalogError }] = await Promise.all([
+      supabase
+        .from('theme_configs')
+        .select('tokens')
+        .eq('restaurant_id', restaurantId)
+        .maybeSingle(),
+      supabase
+        .from('menu_items')
+        .select('id, price, position, is_available')
+        .in('category_id', categoryIds)
+        .is('deleted_at', null),
+    ])
+    if (themeError || comboCatalogError) return { ok: false, error: 'Kampanya doğrulanamadı.' }
+    const tokens = recordValue((themeConfig as { tokens?: unknown } | null)?.tokens) ?? {}
+    const catalogItems = (comboCatalog ?? []) as ComboCatalogItem[]
+    if (inputLines.some((line) => line.combo)) {
+      const comboResolution = resolveComboPriceOverrides({
+        lines: inputLines,
+        tokens,
+        catalogItems,
+      })
+      if (!comboResolution.ok) return comboResolution
+      promotionalPricesByLine = comboResolution.pricesByLine
+      loyaltyStackingAllowed = comboResolution.loyaltyStackingAllowed
+    }
+    if (inputLines.some((line) => line.promotion)) {
+      const promotionResolution = resolveDiscountBadgePriceOverrides({
+        lines: inputLines,
+        tokens,
+        catalogItems,
+      })
+      if (!promotionResolution.ok) return promotionResolution
+      for (const [lineIndex, price] of promotionResolution.pricesByLine) {
+        promotionalPricesByLine.set(lineIndex, price)
+      }
+      loyaltyStackingAllowed = loyaltyStackingAllowed && promotionResolution.loyaltyStackingAllowed
+    }
+  }
+
   const snapshots: OrderLineSnapshot[] = []
   const discountLines: OrderLineInput[] = []
 
-  for (const line of inputLines) {
+  for (const [lineIndex, line] of inputLines.entries()) {
     const item = byId.get(line.itemId)
     if (!item) return { ok: false, error: 'Menu item is not available' }
     const built = buildOrderLineSnapshot({
@@ -156,15 +218,23 @@ export async function resolveOrderLines(
       removedIngredientIds: line.removedIngredientIds ?? [],
     })
     if (!built.ok) return built
-    snapshots.push(built.snapshot)
+    const promotionalPrice = promotionalPricesByLine.get(lineIndex)
+    snapshots.push(promotionalPrice === undefined
+      ? built.snapshot
+      : {
+          ...built.snapshot,
+          price: promotionalPrice,
+          ...(promotionalPrice !== item.price ? { originalPrice: item.price } : {}),
+        })
     discountLines.push({
       itemId: item.id,
       quantity: line.quantity,
       modifiersPriceDelta: built.snapshot.modifiersPriceDelta,
+      ...(promotionalPrice !== undefined ? { basePriceOverride: promotionalPrice } : {}),
     })
   }
 
-  return { ok: true, snapshots, discountLines }
+  return { ok: true, snapshots, discountLines, loyaltyStackingAllowed }
 }
 
 export async function createOrder(
@@ -211,7 +281,7 @@ export async function createOrder(
   // SERVER-AUTHORITATIVE discount: subtotal recomputed from DB prices, points
   // validated against the real balance. Client totals are never trusted.
   const discount = await computeOrderDiscount({
-    customerId,
+    customerId: resolved.loyaltyStackingAllowed ? customerId : null,
     restaurantId: input.restaurantId,
     lines: resolved.discountLines,
     requestedPointsRedeem: input.redeemPoints ?? 0,

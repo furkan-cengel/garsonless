@@ -1,12 +1,18 @@
-import type { GarsonlessTheme } from '@garsonless/design-engine'
+import {
+  getSectionDefinitionId,
+  type GarsonlessTheme,
+  type ThemePageBlock,
+} from '@garsonless/design-engine'
 
-export type PageBlock = { type: 'section' | 'category' | 'nav'; id: string }
+export type PageBlock = ThemePageBlock
 
 export type MenuCategory = {
   id: string
   name: string
   parentId?: string | null
 }
+
+const SINGLETON_SECTION_IDS = new Set(['request-buttons'])
 
 export type PageFlowReorderResult =
   | { ok: true; blocks: PageBlock[]; moved: PageBlock }
@@ -28,7 +34,7 @@ export function buildPageBlocks(
       ? categoryIds.has(block.id)
       : block.type === 'nav'
         ? block.id === 'category-nav'
-        : sectionIds.has(block.id),
+        : block.type === 'section' && sectionIds.has(getSectionDefinitionId(block) ?? ''),
   )
   const legacySections = (theme.sections ?? []).filter((id) => sectionIds.has(id))
   const base: PageBlock[] = stored.length > 0
@@ -106,11 +112,33 @@ export function normalizePageBlocksForCategoryScope(
   return next
 }
 
-export function addSectionToPageFlow(blocks: PageBlock[], sectionId: string) {
-  if (blocks.some((block) => block.type === 'section' && block.id === sectionId)) return blocks
+export function createSectionInstanceId(blocks: PageBlock[], sectionId: string) {
+  if (SINGLETON_SECTION_IDS.has(sectionId)) return sectionId
+  if (!blocks.some((block) => block.type === 'section' && block.id === sectionId)) return sectionId
+  let suffix = 2
+  while (blocks.some((block) => block.type === 'section' && block.id === `${sectionId}--${suffix}`)) {
+    suffix += 1
+  }
+  return `${sectionId}--${suffix}`
+}
+
+export function addSectionToPageFlow(
+  blocks: PageBlock[],
+  sectionId: string,
+  instanceId = createSectionInstanceId(blocks, sectionId),
+) {
+  if (
+    SINGLETON_SECTION_IDS.has(sectionId) &&
+    blocks.some((block) => block.type === 'section' && getSectionDefinitionId(block) === sectionId)
+  ) return blocks
+  if (blocks.some((block) => block.type === 'section' && block.id === instanceId)) return blocks
   const next = [...blocks]
   const navIndex = next.findIndex((block) => block.type === 'nav')
-  next.splice(navIndex >= 0 ? navIndex + 1 : 0, 0, { type: 'section', id: sectionId })
+  next.splice(navIndex >= 0 ? navIndex + 1 : 0, 0, {
+    type: 'section',
+    id: instanceId,
+    ...(instanceId !== sectionId ? { sectionId } : {}),
+  })
   return next
 }
 

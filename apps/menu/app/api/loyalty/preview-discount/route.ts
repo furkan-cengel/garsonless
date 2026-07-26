@@ -15,6 +15,15 @@ const schema = z.object({
       quantity: z.number().int().positive().optional(),
     })).optional(),
     removedIngredientIds: z.array(z.string()).optional(),
+    combo: z.object({
+      instanceId: z.string().uuid(),
+      sectionInstanceId: z.string().min(1).max(128),
+      comboIndex: z.number().int().min(1).max(3),
+    }).optional(),
+    promotion: z.object({
+      sectionInstanceId: z.string().min(1).max(128),
+      kind: z.enum(['discount-badge', 'daily-special']),
+    }).optional(),
     modifiers: z.array(z.record(z.unknown())).optional(),
     modifiersPriceDelta: z.number().optional(),
   })).min(1),
@@ -44,11 +53,12 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: resolved.error }, { status: 400 })
   }
 
-  const result = await previewLoyaltyDiscount(session ? customerActorContext({
+  const loyaltyContext = session && resolved.loyaltyStackingAllowed ? customerActorContext({
     authUserId: session.authUserId,
     customerId: session.customerId,
     restaurantId: parsed.data.restaurantId,
-  }) : null, {
+  }) : null
+  const result = await previewLoyaltyDiscount(loyaltyContext, {
     restaurantId: parsed.data.restaurantId,
     lines: resolved.discountLines,
     requestedPointsRedeem: parsed.data.redeemPoints ?? 0,
@@ -76,6 +86,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       catalogPointsCost: d.catalogPointsCost,
       catalogItemName: d.catalogItemName,
       finalTotal: d.finalTotal,
+      loyaltySuppressedByPromotion: Boolean(session && !resolved.loyaltyStackingAllowed),
     },
   })
 }

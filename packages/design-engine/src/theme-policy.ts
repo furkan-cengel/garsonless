@@ -1,6 +1,8 @@
 import { DEFAULT_THEME, type GarsonlessTheme, type ThemePageBlock } from './schema'
 import { TEMPLATES } from './templates'
 
+export const CANONICAL_THEME_ID = 'default' as const
+
 const MAX_THEME_BYTES = 128 * 1024
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i
 const FONT_NAME = /^[\p{L}\p{N} .,'_-]{1,80}$/u
@@ -78,14 +80,46 @@ function safeString(value: unknown, max = 500): string | null {
 
 function sanitizePageBlocks(value: unknown): ThemePageBlock[] | null {
   if (!Array.isArray(value)) return null
-  return value.slice(0, 200).flatMap((entry) => {
-    if (!isRecord(entry)) return []
+  const blocks: ThemePageBlock[] = []
+  for (const entry of value.slice(0, 200)) {
+    if (!isRecord(entry)) continue
     const type = entry['type']
     const id = safeString(entry['id'], 100)
-    return id && (type === 'section' || type === 'category' || type === 'nav')
-      ? [{ type, id }]
-      : []
-  })
+    if (!id || (type !== 'section' && type !== 'category' && type !== 'nav')) continue
+    if (type !== 'section') {
+      blocks.push({ type, id })
+      continue
+    }
+
+    const sectionId = safeString(entry['sectionId'], 100)
+    const rawVisibility = entry['visibility']
+    let visibility: ThemePageBlock['visibility']
+    if (isRecord(rawVisibility)) {
+      const mode = rawVisibility['mode']
+      if (mode === 'all' || mode === 'home' || mode === 'categories') {
+        const categoryIds = Array.isArray(rawVisibility['categoryIds'])
+          ? rawVisibility['categoryIds'].slice(0, 100).flatMap((candidate) => {
+              const categoryId = safeString(candidate, 100)
+              return categoryId ? [categoryId] : []
+            })
+          : undefined
+        visibility = {
+          mode,
+          ...(categoryIds ? { categoryIds: Array.from(new Set(categoryIds)) } : {}),
+          ...(typeof rawVisibility['includeChildren'] === 'boolean'
+            ? { includeChildren: rawVisibility['includeChildren'] }
+            : {}),
+        }
+      }
+    }
+    blocks.push({
+      type,
+      id,
+      ...(sectionId ? { sectionId } : {}),
+      ...(visibility ? { visibility } : {}),
+    })
+  }
+  return blocks
 }
 
 function sanitizeSectionSettings(value: unknown): Record<string, Record<string, string>> | null {
@@ -108,7 +142,10 @@ export function isThemeTemplateId(value: unknown): value is string {
 }
 
 export function normalizeThemeTemplateId(value: unknown): string {
-  return isThemeTemplateId(value) ? value : 'default'
+  // Legacy ids remain readable so existing theme token rows can be migrated
+  // without data loss, but every runtime surface now uses one canonical menu.
+  void value
+  return CANONICAL_THEME_ID
 }
 
 /**
@@ -123,7 +160,7 @@ export function sanitizeThemeTokens(input: unknown, templateId: string): Garsonl
     return null
   }
 
-  const base = { ...DEFAULT_THEME, ...TEMPLATES[templateId] } as GarsonlessTheme
+  const base = { ...DEFAULT_THEME, ...TEMPLATES[CANONICAL_THEME_ID] } as GarsonlessTheme
   const result = { ...base } as Record<string, unknown>
   const allowed = new Set(Object.keys(DEFAULT_THEME))
 
@@ -191,14 +228,14 @@ export function resolveTheme(args: {
   const templateId = args.templateOverride == null
     ? savedTemplateId
     : normalizeThemeTemplateId(args.templateOverride)
-  const base = { ...DEFAULT_THEME, ...TEMPLATES[templateId] }
+  const base = { ...DEFAULT_THEME, ...TEMPLATES[CANONICAL_THEME_ID] }
   const raw = args.themeTokens
   const rawTemplateId = isRecord(raw) && typeof raw['__template_id'] === 'string'
     ? raw['__template_id']
     : null
-  const legacyDefault = rawTemplateId === null && templateId === 'default'
-  const theme = (rawTemplateId === templateId || legacyDefault)
-    ? sanitizeThemeTokens(raw, templateId) ?? base
+  const compatibleStoredTheme = rawTemplateId === null || isThemeTemplateId(rawTemplateId)
+  const theme = compatibleStoredTheme
+    ? sanitizeThemeTokens(raw, CANONICAL_THEME_ID) ?? base
     : base
   return { theme, templateId }
 }

@@ -18,10 +18,22 @@ import {
   THEME_REGISTRY,
   DietaryFilterBar,
   itemMatchesDietaryFilters,
+  readStoreInfo,
 } from '@garsonless/ui'
-import type { MenuItem, MenuCategory, OrderSummaryItem, BillOrder, DietaryFilter, StoreInfo } from '@garsonless/ui'
+import type {
+  BillOrder,
+  ComboAddRequest,
+  DietaryFilter,
+  MenuCategory,
+  MenuItem,
+  OrderSummaryItem,
+  SectionPromotionContext,
+  SelectedModifier,
+} from '@garsonless/ui'
+import { allocateBundlePrice } from '@garsonless/domain/menu'
+import type { ServiceRequestType } from '@garsonless/domain/tables'
 import type { TableSessionInfo, SessionOrderRow } from '../../lib/queries'
-import type { GarsonlessTheme } from '@garsonless/design-engine'
+import { getSectionDefinitionId, type GarsonlessTheme } from '@garsonless/design-engine'
 import type { Tables, OrderStatus, MemberBalances } from '@garsonless/db/types'
 import { useCartStore } from '../../lib/store/useCartStore'
 import { useOrderStore } from '../../lib/store/useOrderStore'
@@ -426,6 +438,52 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
   )
 }
 
+interface RequestButtonsOverlayProps {
+  enabled: boolean
+  tableToken: string | null
+  tableLabel: string | null
+  hidden: boolean
+  onRequest: (type: ServiceRequestType) => Promise<boolean>
+}
+
+/**
+ * Resolve the global request tool from the live ThemeContext instead of the
+ * server-rendered theme prop. Theme Editor updates that context over postMessage,
+ * so newly-added request buttons become visible without publishing or reloading.
+ */
+function RequestButtonsOverlay({
+  enabled,
+  tableToken,
+  tableLabel,
+  hidden,
+  onRequest,
+}: RequestButtonsOverlayProps) {
+  const { theme: liveTheme, isPreview } = useTheme()
+  const config = useMemo(() => {
+    const block = (liveTheme.pageBlocks ?? []).find(
+      (candidate) => candidate.type === 'section' && getSectionDefinitionId(candidate) === 'request-buttons',
+    )
+    if (block) {
+      return liveTheme.sectionSettings?.[block.id]
+        ?? liveTheme.sectionSettings?.['request-buttons']
+        ?? {}
+    }
+    return liveTheme.sections?.includes('request-buttons')
+      ? (liveTheme.sectionSettings?.['request-buttons'] ?? {})
+      : null
+  }, [liveTheme.pageBlocks, liveTheme.sectionSettings, liveTheme.sections])
+
+  if (!enabled || config === null || (!tableToken && !isPreview) || hidden) return null
+
+  return (
+    <ServiceRequestFab
+      tableLabel={tableLabel}
+      onRequest={isPreview ? async () => true : onRequest}
+      config={config}
+    />
+  )
+}
+
 interface Props {
   restaurant: Tables<'restaurants'>
   categories: MenuCategory[]
@@ -440,49 +498,27 @@ interface Props {
   initialMember?: { name: string | null } | null
   initialMemberBalances?: MemberBalances | null
   isPreview?: boolean
+  /** Server-resolved plan/override entitlement for the global request tool. */
+  requestButtonsEnabled?: boolean
 }
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+interface PendingComboSelection {
+  modifiers: SelectedModifier[]
+  removedIngredientIds: string[]
 }
 
-function cleanString(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined
-  const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : undefined
+interface PendingCombo {
+  request: ComboAddRequest
+  instanceId: string
+  pricedItems: MenuItem[]
+  configurationIndices: number[]
+  cursor: number
+  selections: Record<number, PendingComboSelection>
 }
 
-function readStoreInfo(settings: unknown): StoreInfo | null {
-  if (!isPlainRecord(settings)) return null
-  const rawContact = isPlainRecord(settings['contact']) ? settings['contact'] : null
-  const rawHours = isPlainRecord(settings['hours']) ? settings['hours'] : null
-
-  const contact: NonNullable<StoreInfo['contact']> = {}
-  if (rawContact) {
-    for (const key of ['phone', 'email', 'website', 'address', 'district', 'city', 'zip', 'instagram', 'facebook', 'tiktok', 'whatsapp'] as const) {
-      const value = cleanString(rawContact[key])
-      if (value) contact[key] = value
-    }
-  }
-
-  const hours: NonNullable<StoreInfo['hours']> = {}
-  if (rawHours) {
-    for (const [day, value] of Object.entries(rawHours)) {
-      if (!isPlainRecord(value)) continue
-      const open = cleanString(value['open'])
-      const close = cleanString(value['close'])
-      const active = typeof value['active'] === 'boolean' ? value['active'] : Boolean(open && close)
-      hours[day] = { ...(open ? { open } : {}), ...(close ? { close } : {}), active }
-    }
-  }
-
-  const hasContact = Object.keys(contact).length > 0
-  const hasHours = Object.keys(hours).length > 0
-  if (!hasContact && !hasHours) return null
-  return {
-    ...(hasContact ? { contact } : {}),
-    ...(hasHours ? { hours } : {}),
-  }
+interface PendingPromotion {
+  originalPrice: number
+  promotion: SectionPromotionContext
 }
 
 export function MenuPageClient({
@@ -498,8 +534,11 @@ export function MenuPageClient({
   initialMember = null,
   initialMemberBalances = null,
   isPreview = false,
+  requestButtonsEnabled = false,
 }: Props) {
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
+  const [pendingCombo, setPendingCombo] = useState<PendingCombo | null>(null)
+  const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null)
   const [dietaryFilters, setDietaryFilters] = useState<DietaryFilter[]>([])
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [paymentOrderId, setPaymentOrderId] = useState<string | null>(null)
@@ -544,7 +583,7 @@ export function MenuPageClient({
   // 15c: active catalog reward claim (the menu-item id), or null.
   const [catalogItemId, setCatalogItemId] = useState<string | null>(null)
   const [discountPreview, setDiscountPreview] = useState<
-    { subtotal: number; memberDiscountAmount: number; memberDiscountPct: number; memberTierName: string | null; pointsDiscountAmount: number; stampDiscountAmount: number; rewardItemName: string | null; catalogDiscountAmount: number; catalogItemName: string | null; catalogPointsCost: number; finalTotal: number } | null
+    { subtotal: number; memberDiscountAmount: number; memberDiscountPct: number; memberTierName: string | null; pointsDiscountAmount: number; stampDiscountAmount: number; rewardItemName: string | null; catalogDiscountAmount: number; catalogItemName: string | null; catalogPointsCost: number; finalTotal: number; loyaltySuppressedByPromotion?: boolean } | null
   >(null)
 
   const refetchBalances = useCallback(async () => {
@@ -632,6 +671,8 @@ export function MenuPageClient({
               quantity: i.quantity,
               selectedModifiers: i.modifiers,
               removedIngredientIds: i.removedIngredientIds,
+              ...(i.combo ? { combo: i.combo } : {}),
+              ...(i.promotion ? { promotion: i.promotion } : {}),
             })),
             redeemPoints,
             redeemStampClaim: claimStamp,
@@ -641,7 +682,7 @@ export function MenuPageClient({
         if (!res.ok) return
         const json = (await res.json()) as {
           ok: boolean
-          preview?: { subtotal: number; memberDiscountAmount: number; memberDiscountPct: number; memberTierName: string | null; pointsDiscountAmount: number; stampDiscountAmount: number; rewardItemName: string | null; catalogDiscountAmount: number; catalogItemName: string | null; catalogPointsCost: number; finalTotal: number }
+          preview?: { subtotal: number; memberDiscountAmount: number; memberDiscountPct: number; memberTierName: string | null; pointsDiscountAmount: number; stampDiscountAmount: number; rewardItemName: string | null; catalogDiscountAmount: number; catalogItemName: string | null; catalogPointsCost: number; finalTotal: number; loyaltySuppressedByPromotion?: boolean }
         }
         if (json.ok && json.preview) setDiscountPreview(json.preview)
       } catch { /* preview is best-effort */ }
@@ -751,17 +792,148 @@ export function MenuPageClient({
   )
 
   const handleOpenProduct = useCallback((item: MenuItem) => {
+    setPendingPromotion(null)
     setSelectedItem(item)
   }, [])
 
-  const handleQuickAdd = useCallback((item: MenuItem, originalPrice?: number) => {
+  const handleQuickAdd = useCallback((item: MenuItem, originalPrice?: number, promotion?: SectionPromotionContext) => {
+    const quantityStep = promotion?.quantityStep ?? 1
     if (item.modifier_groups.length > 0 || item.ingredients.some((ingredient) => ingredient.removable)) {
+      setPendingPromotion(promotion ? { originalPrice: originalPrice ?? item.price, promotion } : null)
       setSelectedItem(item)
     } else {
-      addItem(item, [], [], 1, originalPrice)
+      addItem(item, [], [], quantityStep, originalPrice, [], undefined, promotion)
       setIsCartOpen(true)
     }
   }, [addItem])
+
+  const addResolvedComboToCart = useCallback((combo: PendingCombo) => {
+    combo.pricedItems.forEach((pricedItem, index) => {
+      const selection = combo.selections[index] ?? { modifiers: [], removedIngredientIds: [] }
+      const catalogItem = combo.request.items[index]
+      if (!catalogItem) return
+      addItem(
+        pricedItem,
+        selection.modifiers,
+        catalogItem.modifier_groups,
+        1,
+        catalogItem.price,
+        selection.removedIngredientIds,
+        {
+          instanceId: combo.instanceId,
+          sectionInstanceId: combo.request.sectionInstanceId,
+          comboIndex: combo.request.comboIndex,
+        },
+      )
+    })
+    setPendingCombo(null)
+    setSelectedItem(null)
+    setIsCartOpen(true)
+  }, [addItem])
+
+  const handleAddCombo = useCallback((request: ComboAddRequest) => {
+    setPendingPromotion(null)
+    const allocatedPrices = allocateBundlePrice(
+      request.items.map((item) => item.price),
+      request.total,
+    )
+    const pricedItems = request.items.map((item, index) => ({
+      ...item,
+      price: allocatedPrices[index] ?? item.price,
+    }))
+    const configurationIndices = request.items.flatMap((item, index) =>
+      item.modifier_groups.length > 0 || item.ingredients.some((ingredient) => ingredient.removable)
+        ? [index]
+        : [],
+    )
+    const combo: PendingCombo = {
+      request,
+      instanceId: crypto.randomUUID(),
+      pricedItems,
+      configurationIndices,
+      cursor: 0,
+      selections: {},
+    }
+    if (configurationIndices.length === 0) {
+      addResolvedComboToCart(combo)
+      return
+    }
+    setPendingCombo(combo)
+    setSelectedItem(pricedItems[configurationIndices[0]!] ?? null)
+  }, [addResolvedComboToCart])
+
+  const handleModalAdd = useCallback((
+    item: MenuItem,
+    modifiers: SelectedModifier[],
+    quantity: number,
+    removedIngredientIds: string[],
+  ) => {
+    if (!pendingCombo) {
+      if (pendingPromotion) {
+        addItem(
+          item,
+          modifiers,
+          item.modifier_groups,
+          quantity * (pendingPromotion.promotion.quantityStep ?? 1),
+          pendingPromotion.originalPrice,
+          removedIngredientIds,
+          undefined,
+          pendingPromotion.promotion,
+        )
+        setPendingPromotion(null)
+        setIsCartOpen(true)
+      } else {
+        handleAddToCart(item, modifiers, quantity, removedIngredientIds)
+      }
+      return
+    }
+
+    const itemIndex = pendingCombo.configurationIndices[pendingCombo.cursor]
+    if (itemIndex === undefined) return
+    const nextSelections = {
+      ...pendingCombo.selections,
+      [itemIndex]: { modifiers, removedIngredientIds },
+    }
+    const nextCursor = pendingCombo.cursor + 1
+    if (nextCursor >= pendingCombo.configurationIndices.length) {
+      addResolvedComboToCart({ ...pendingCombo, selections: nextSelections })
+      return
+    }
+    const nextCombo = { ...pendingCombo, cursor: nextCursor, selections: nextSelections }
+    setPendingCombo(nextCombo)
+    const nextItemIndex = nextCombo.configurationIndices[nextCursor]
+    setSelectedItem(nextItemIndex === undefined ? null : nextCombo.pricedItems[nextItemIndex] ?? null)
+  }, [addItem, addResolvedComboToCart, handleAddToCart, pendingCombo, pendingPromotion])
+
+  const handleCartQuantity = useCallback((cartId: string, quantity: number) => {
+    const target = cartItems.find((item) => item.cartId === cartId)
+    if (!target?.combo) {
+      const step = target?.promotion?.quantityStep ?? 1
+      const normalizedQuantity = quantity <= 0
+        ? 0
+        : Math.max(step, Math.round(quantity / step) * step)
+      updateQuantity(cartId, normalizedQuantity)
+      return
+    }
+    for (const item of cartItems) {
+      if (item.combo?.instanceId === target.combo.instanceId) {
+        updateQuantity(item.cartId, quantity)
+      }
+    }
+  }, [cartItems, updateQuantity])
+
+  const handleCartRemove = useCallback((cartId: string) => {
+    const target = cartItems.find((item) => item.cartId === cartId)
+    if (!target?.combo) {
+      removeItem(cartId)
+      return
+    }
+    for (const item of cartItems) {
+      if (item.combo?.instanceId === target.combo.instanceId) {
+        removeItem(item.cartId)
+      }
+    }
+  }, [cartItems, removeItem])
 
   // 15c: claim a catalog reward → ensure the reward item is in the cart (add one
   // if missing), set the catalog intent (server validates + debits), drop any
@@ -792,6 +964,8 @@ export function MenuPageClient({
       quantity: i.quantity,
       selectedModifiers: i.modifiers,
       removedIngredientIds: i.removedIngredientIds,
+      ...(i.combo ? { combo: i.combo } : {}),
+      ...(i.promotion ? { promotion: i.promotion } : {}),
     })),
     redeemPoints,
     redeemStampClaim: claimStamp,
@@ -1129,7 +1303,7 @@ export function MenuPageClient({
       <>
         {catItems.map((item) => {
           const cartQuantity = cartItems
-            .filter((ci) => ci.itemId === item.id)
+            .filter((ci) => ci.itemId === item.id && !ci.combo && !ci.promotion)
             .reduce((sum, ci) => sum + ci.quantity, 0)
           return (
             <ProductCard
@@ -1139,12 +1313,12 @@ export function MenuPageClient({
               onQuickAdd={handleQuickAdd}
               cartQuantity={cartQuantity}
               onIncrement={() => {
-                const existing = cartItems.find((ci) => ci.itemId === item.id)
+                const existing = cartItems.find((ci) => ci.itemId === item.id && !ci.combo && !ci.promotion)
                 if (existing) updateQuantity(existing.cartId, existing.quantity + 1)
                 else addItem(item, [], [], 1)
               }}
               onDecrement={() => {
-                const existing = cartItems.find((ci) => ci.itemId === item.id)
+                const existing = cartItems.find((ci) => ci.itemId === item.id && !ci.combo && !ci.promotion)
                 if (!existing) return
                 if (existing.quantity > 1) updateQuantity(existing.cartId, existing.quantity - 1)
                 else removeItem(existing.cartId)
@@ -1233,6 +1407,7 @@ export function MenuPageClient({
         onOpenCart={() => setIsCartOpen(true)}
         items={filteredItems}
         onQuickAdd={handleQuickAdd}
+        onAddCombo={handleAddCombo}
         billSummary={billSummary}
         onOpenBill={() => { void openBill() }}
         memberSummary={loyaltyEnabled ? {
@@ -1256,8 +1431,21 @@ export function MenuPageClient({
 
       <ProductModal
         item={selectedItem}
-        onClose={() => setSelectedItem(null)}
-        onAddToCart={handleAddToCart}
+        onClose={() => {
+          setSelectedItem(null)
+          setPendingCombo(null)
+          setPendingPromotion(null)
+        }}
+        onAddToCart={handleModalAdd}
+        contextLabel={pendingCombo ? `Kombo ${pendingCombo.cursor + 1}/${pendingCombo.configurationIndices.length}` : pendingPromotion ? 'Kampanyalı ürün' : undefined}
+        contextTitle={pendingCombo?.request.title ?? (pendingPromotion ? 'Seçeneklerinizi tamamlayın' : undefined)}
+        lockQuantity={Boolean(pendingCombo)}
+        submitLabel={pendingCombo
+          ? pendingCombo.cursor + 1 < pendingCombo.configurationIndices.length
+            ? 'Seçimi kaydet ve devam et'
+            : 'Komboyu sepete ekle'
+          : undefined}
+        closeAfterAdd={!pendingCombo}
       />
 
       <CartDrawer
@@ -1265,8 +1453,8 @@ export function MenuPageClient({
         items={cartItems}
         isPlacing={isPlacing}
         onClose={() => setIsCartOpen(false)}
-        onUpdateQuantity={updateQuantity}
-        onRemoveItem={removeItem}
+        onUpdateQuantity={handleCartQuantity}
+        onRemoveItem={handleCartRemove}
         onPlaceOrder={handlePlaceOrder}
         onPay={handlePayClick}
         onSplitBill={() => { setIsCartOpen(false); setIsSplitOpen(true) }}
@@ -1308,12 +1496,13 @@ export function MenuPageClient({
         <FloatingCartTrigger onClick={() => setIsCartOpen(true)} />
       )}
 
-      {effectiveTableToken && !isCartOpen && !isBillOpen && !selectedItem && !isMemberOpen && !isSplitOpen && !paymentOrderId && (
-        <ServiceRequestFab
-          tableLabel={tableLabel ?? null}
-          onRequest={sendServiceRequest}
-        />
-      )}
+      <RequestButtonsOverlay
+        enabled={requestButtonsEnabled}
+        tableToken={effectiveTableToken ?? null}
+        tableLabel={tableLabel ?? null}
+        hidden={isCartOpen || isBillOpen || Boolean(selectedItem) || isMemberOpen || isSplitOpen || Boolean(paymentOrderId)}
+        onRequest={sendServiceRequest}
+      />
 
       {orderId && orderStatus && orderView === 'bubble' && toastPhase !== null && (
         <OrderToastNotification phase={toastPhase} onOpen={openOrderSheet} />

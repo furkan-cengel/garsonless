@@ -6,13 +6,89 @@ import {
   getDietaryClaimsConflict,
   normalizeAllergenCodes,
   normalizeMenuNumericText,
+  parseBundlePrice,
+  allocateBundlePrice,
   parseMenuNumericInput,
+  resolveSectionPromotionPrice,
+  resolveSectionCampaignTiming,
   separateAllergenDeclarations,
   toggleAllergenDeclaration,
 } from './menu'
 
 test('normalizes only supported allergen codes', () => {
   assert.deepEqual(normalizeAllergenCodes(['milk', 'invalid', 'milk', 'eggs']), ['milk', 'eggs'])
+})
+
+test('parses and allocates merchant bundle prices without losing cents', () => {
+  assert.equal(parseBundlePrice('₺ 200,50'), 200.5)
+  assert.equal(parseBundlePrice(''), null)
+  assert.equal(parseBundlePrice('-1'), null)
+  const allocated = allocateBundlePrice([100, 200, 300], 199.99)
+  assert.equal(Math.round(allocated.reduce((sum, price) => sum + price, 0) * 100), 19999)
+  assert.deepEqual(allocateBundlePrice([0, 0, 0], 1), [0.34, 0.33, 0.33])
+})
+
+test('resolves percentage and localized fixed-price section promotions in exact cents', () => {
+  assert.deepEqual(
+    resolveSectionPromotionPrice({ catalogPrice: 199.9, mode: 'percentage', percentage: '25' }),
+    { kind: 'percentage', percentage: 25, price: 149.93, savings: 49.97 },
+  )
+  assert.deepEqual(
+    resolveSectionPromotionPrice({ catalogPrice: 200, mode: 'fixed-price', fixedPrice: '129,90' }),
+    { kind: 'fixed-price', percentage: 35, price: 129.9, savings: 70.1 },
+  )
+})
+
+test('resolves a real two-for-one pair without overcharging odd kuruş prices', () => {
+  assert.deepEqual(
+    resolveSectionPromotionPrice({ catalogPrice: 185, mode: 'buy-2-pay-1' }),
+    {
+      kind: 'buy-2-pay-1',
+      percentage: 50,
+      price: 92.5,
+      savings: 92.5,
+      quantity: 2,
+      originalTotal: 370,
+      totalPrice: 185,
+    },
+  )
+  assert.deepEqual(
+    resolveSectionPromotionPrice({ catalogPrice: 10.01, mode: 'buy-2-pay-1' }),
+    {
+      kind: 'buy-2-pay-1',
+      percentage: 50,
+      price: 5,
+      savings: 5.01,
+      quantity: 2,
+      originalTotal: 20.02,
+      totalPrice: 10,
+    },
+  )
+})
+
+test('campaign timing uses one absolute deadline and fails closed when malformed', () => {
+  const now = Date.parse('2026-07-25T12:00:00.000Z')
+  assert.deepEqual(resolveSectionCampaignTiming({ enabled: false, endsAt: '', now }), {
+    enabled: false, active: true, endsAtMs: null, remainingMs: null, valid: true,
+  })
+  assert.deepEqual(resolveSectionCampaignTiming({ enabled: true, endsAt: 'invalid', now }), {
+    enabled: true, active: false, endsAtMs: null, remainingMs: 0, valid: false,
+  })
+  assert.deepEqual(resolveSectionCampaignTiming({ enabled: 'true', endsAt: '2026-07-25T13:00:00.000Z', now }), {
+    enabled: true,
+    active: true,
+    endsAtMs: Date.parse('2026-07-25T13:00:00.000Z'),
+    remainingMs: 3_600_000,
+    valid: true,
+  })
+  assert.equal(resolveSectionCampaignTiming({ enabled: true, endsAt: '2026-07-25T11:00:00.000Z', now }).active, false)
+})
+
+test('fails closed for malformed, zero or non-discounted section promotions', () => {
+  assert.equal(resolveSectionPromotionPrice({ catalogPrice: 200, mode: 'percentage', percentage: 0 }), null)
+  assert.equal(resolveSectionPromotionPrice({ catalogPrice: 200, mode: 'percentage', percentage: 91 }), null)
+  assert.equal(resolveSectionPromotionPrice({ catalogPrice: 200, mode: 'fixed-price', fixedPrice: '200' }), null)
+  assert.equal(resolveSectionPromotionPrice({ catalogPrice: 200, mode: 'fixed-price', fixedPrice: 'abc' }), null)
 })
 
 test('rejects contradictory dietary claims', () => {

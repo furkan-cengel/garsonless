@@ -1,8 +1,21 @@
 // ── Flat theme (canonical) ────────────────────────────────────────────────────
 
+export type ThemeSectionVisibilityMode = 'all' | 'home' | 'categories'
+
+export interface ThemeSectionVisibility {
+  mode: ThemeSectionVisibilityMode
+  categoryIds?: string[]
+  includeChildren?: boolean
+}
+
 export interface ThemePageBlock {
   type: 'section' | 'category' | 'nav'
+  /** Stable block instance id. Legacy section blocks use the definition id. */
   id: string
+  /** Section definition id when the instance id differs from its component type. */
+  sectionId?: string
+  /** Optional placement scope. Missing metadata preserves the legacy all-menu behavior. */
+  visibility?: ThemeSectionVisibility
 }
 
 export interface GarsonlessTheme {

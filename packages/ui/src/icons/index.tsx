@@ -1,5 +1,6 @@
 /// <reference path="./lucide-deep.d.ts" />
 
+import React from 'react'
 import type { CSSProperties, ReactElement } from 'react'
 import type { LucideIcon, LucideProps } from 'lucide-react'
 import Armchair from 'lucide-react/dist/esm/icons/armchair.mjs'

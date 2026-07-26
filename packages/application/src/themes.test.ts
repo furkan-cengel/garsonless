@@ -40,7 +40,7 @@ test('theme reads reject cross-tenant and missing permission before the port', a
   assert.equal(called, false)
 })
 
-test('editor and public reads use the same template ownership policy', async () => {
+test('editor and public reads resolve legacy template ids onto the canonical menu without losing tokens', async () => {
   const adapter = port()
   const editor = await readThemeForEditor(context, { restaurantId: 'restaurant-a', templateId: 'default' }, adapter)
   const publicRead = await readPublishedTheme({ restaurantId: 'restaurant-a' }, adapter)
@@ -49,7 +49,12 @@ test('editor and public reads use the same template ownership policy', async () 
 
   adapter.readRestaurant = async () => ok({ slug: 'cafe-a', name: 'Cafe A', logoUrl: null, settings: { active_template_id: 'obsidian' }, plan: 'pro' })
   const otherTemplate = await readPublishedTheme({ restaurantId: 'restaurant-a' }, adapter)
-  assert.equal(otherTemplate.ok && otherTemplate.value.theme.accent === '#123456', false)
+  assert.equal(otherTemplate.ok && otherTemplate.value.templateId, 'default')
+  assert.equal(otherTemplate.ok && otherTemplate.value.theme.accent, '#123456')
+  assert.deepEqual(
+    await readThemeForEditor(context, { restaurantId: 'restaurant-a', templateId: 'spain' }, adapter),
+    err('Unknown theme template'),
+  )
 })
 
 test('publish sanitizes CSS-shaped values and derives audit identity from actor', async () => {
@@ -89,6 +94,10 @@ test('publish rejects invalid template and document before persistence', async (
     err('Unknown theme template'),
   )
   assert.deepEqual(
+    await publishRestaurantTheme(context, { restaurantId: 'restaurant-a', templateId: 'spain', theme: DEFAULT_THEME }, adapter),
+    err('Unknown theme template'),
+  )
+  assert.deepEqual(
     await publishRestaurantTheme(context, { restaurantId: 'restaurant-a', templateId: 'default', theme: null }, adapter),
     err('Invalid theme document'),
   )
@@ -116,7 +125,7 @@ test('publish enforces the advanced theme section entitlement on the server', as
     templateId: 'default',
     theme: {
       ...DEFAULT_THEME,
-      pageBlocks: [{ type: 'section', id: 'gallery' }],
+      pageBlocks: [{ type: 'section', id: 'request-buttons' }],
     },
   }, adapter)
 

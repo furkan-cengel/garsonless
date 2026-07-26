@@ -435,6 +435,7 @@ export interface OrderLineInput {
   itemId: string
   quantity: number
   modifiersPriceDelta: number
+  basePriceOverride?: number
 }
 
 export interface DiscountResult {
@@ -493,7 +494,7 @@ export async function computeOrderDiscount(input: {
   }
   let subtotal = 0
   for (const l of input.lines) {
-    const base = priceById.get(l.itemId) ?? 0
+    const base = l.basePriceOverride ?? priceById.get(l.itemId) ?? 0
     subtotal += (base + (Number(l.modifiersPriceDelta) || 0)) * (Number(l.quantity) || 0)
   }
   subtotal = Math.max(0, Math.round(subtotal * 100) / 100)
@@ -544,7 +545,9 @@ export async function computeOrderDiscount(input: {
     balances.stamps >= cfg.stamp_goal
   ) {
     const inCart = input.lines.some((l) => l.itemId === cfg.reward_item_id && (Number(l.quantity) || 0) > 0)
-    const rewardPrice = priceById.get(cfg.reward_item_id) ?? 0
+    const rewardPrice = input.lines.find((line) => line.itemId === cfg.reward_item_id)?.basePriceOverride
+      ?? priceById.get(cfg.reward_item_id)
+      ?? 0
     if (inCart && rewardPrice > 0) {
       stampDiscountAmount = rewardPrice
       stampsConsumed = cfg.stamp_goal
@@ -564,7 +567,9 @@ export async function computeOrderDiscount(input: {
   if (reqCatalogId && cfg.points_enabled) {
     const entry = cfg.reward_catalog.find((r) => r.itemId === reqCatalogId)
     const inCart = input.lines.some((l) => l.itemId === reqCatalogId && (Number(l.quantity) || 0) > 0)
-    const itemPrice = priceById.get(reqCatalogId) ?? 0
+    const itemPrice = input.lines.find((line) => line.itemId === reqCatalogId)?.basePriceOverride
+      ?? priceById.get(reqCatalogId)
+      ?? 0
     if (entry && inCart && itemPrice > 0 && balances.points >= entry.pointCost) {
       catalogDiscountAmount = itemPrice
       catalogPointsCost = entry.pointCost

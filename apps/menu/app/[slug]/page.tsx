@@ -8,6 +8,7 @@ import { readPublishedTheme } from '@garsonless/application/themes'
 import { createLoyaltyQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
 import { getRestaurantBySlug, getMenuCategories, getMenuItems } from '../../lib/queries'
 import { getCustomerSession } from '../../lib/customer-session'
+import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../lib/featured-products'
 import { MenuPageClient } from './MenuPageClient'
 import type { MenuItem, MenuCategory } from '@garsonless/ui'
 
@@ -26,20 +27,35 @@ export default async function MenuPage({ params, searchParams }: Props) {
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) notFound()
 
-  const [themeResult, categories] = await Promise.all([
+  const themePort = createThemeApplicationPort()
+  const [themeResult, categories, featuredRanking] = await Promise.all([
     readPublishedTheme({
       restaurantId: restaurant.id,
       templateOverride: isPreview && previewTemplate ? previewTemplate : null,
-    }, createThemeApplicationPort()),
+    }, themePort),
     getMenuCategories(restaurant.id),
+    getFeaturedProductRanking(restaurant.id, restaurant.timezone),
   ])
   if (!themeResult.ok) notFound()
 
-  const items = await getMenuItems(categories.map((c) => c.id))
+  const items = applyFeaturedProductRanking(
+    await getMenuItems(categories.map((c) => c.id)),
+    featuredRanking,
+  )
 
   // Resolved through the shared helper so the SSR layout's <style> and this
   // client initialTheme are always identical (no first-load color flash).
   const { theme, templateId } = themeResult.value
+  // Resolve the entitlement independently from the published section list.
+  // Theme preview can add the global request tool through the live bridge
+  // before it is published; tying access to the persisted blocks would leave
+  // the preview stuck at `false` until a hard reload after publishing.
+  const requestButtonsAccess = await themePort.readFeatureAccess({
+    restaurantId: restaurant.id,
+    plan: themeResult.value.restaurant.plan,
+    feature: 'theme_advanced_sections',
+  })
+  const requestButtonsEnabled = requestButtonsAccess?.ok === true && requestButtonsAccess.value
 
   // Resolve a returning member from the Supabase Auth cookie, plus loyalty
   // balances (service-role, scoped to this customer + restaurant).
@@ -66,6 +82,7 @@ export default async function MenuPage({ params, searchParams }: Props) {
       initialMember={initialMember}
       initialMemberBalances={initialMemberBalances}
       isPreview={isPreview}
+      requestButtonsEnabled={requestButtonsEnabled}
     />
   )
 }

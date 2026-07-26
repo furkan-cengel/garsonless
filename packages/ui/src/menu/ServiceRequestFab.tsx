@@ -3,33 +3,68 @@
 import { useEffect, useRef, useState } from 'react'
 import { AppIcons as I } from '../icons'
 import type { ServiceRequestType } from '@garsonless/domain/tables'
+import { resolveServiceRequestFabConfig } from './serviceRequestFabConfig'
+import type { ServiceRequestIcon } from './serviceRequestFabConfig'
 
 interface ServiceRequestFabProps {
   tableLabel?: string | null
   onRequest: (type: ServiceRequestType) => Promise<boolean>
+  config?: Record<string, string>
 }
 
-const REQUESTS: Array<{
-  type: Exclude<ServiceRequestType, 'waiter'>
-  label: string
-  Icon: typeof I.bell
-}> = [
-  { type: 'clean_table', label: 'Masam temizlensin', Icon: I.spray },
-  { type: 'change_ashtray', label: 'Küllük değişsin', Icon: I.cigarette },
-  { type: 'table_service', label: 'Servis istiyorum', Icon: I.handPlatter },
-  { type: 'water', label: 'Su istiyorum', Icon: I.glassWater },
-  { type: 'bill', label: 'Hesap istiyorum', Icon: I.receipt },
-]
+const REQUEST_ICONS: Record<Exclude<ServiceRequestIcon, 'none' | 'custom'>, typeof I.bell> = {
+  bell: I.bell,
+  spray: I.spray,
+  cigarette: I.cigarette,
+  'hand-platter': I.handPlatter,
+  'glass-water': I.glassWater,
+  receipt: I.receipt,
+}
 
-export function ServiceRequestFab({ tableLabel, onRequest }: ServiceRequestFabProps) {
+function RequestIcon({ name, size, customIconUrl }: {
+  name: ServiceRequestIcon
+  size: number
+  customIconUrl?: string | null
+}) {
+  if (name === 'none') return null
+  if (name === 'custom') {
+    return customIconUrl ? (
+      <img
+        src={customIconUrl}
+        alt=""
+        aria-hidden="true"
+        style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}
+      />
+    ) : <I.image size={size} />
+  }
+  const Icon = REQUEST_ICONS[name]
+  return <Icon size={size} />
+}
+
+export function ServiceRequestFab({ tableLabel, onRequest, config = {} }: ServiceRequestFabProps) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState<ServiceRequestType | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const resolved = resolveServiceRequestFabConfig(config)
+  const waiter = resolved.requests.find((request) => request.type === 'waiter')
+  const quickRequests = resolved.requests.filter((request) => request.type !== 'waiter')
+  const fabSize = resolved.size === 'compact' ? 52 : resolved.size === 'large' ? 64 : 58
+  const sideStyle = resolved.position === 'left' ? { left: 18 } : { right: 18 }
+  const dialogSideStyle = resolved.position === 'left' ? { left: 16 } : { right: 16 }
 
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current)
   }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open])
 
   async function send(type: ServiceRequestType, label: string) {
     if (pending) return
@@ -42,8 +77,25 @@ export function ServiceRequestFab({ tableLabel, onRequest }: ServiceRequestFabPr
     timerRef.current = setTimeout(() => setFeedback(null), 3200)
   }
 
+  if (resolved.requests.length === 0) return null
+
   return (
     <>
+      <style>{`
+        [data-service-request-row] {
+          transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+        }
+        [data-service-request-row]:not(:disabled):hover {
+          background: var(--p-accent-soft) !important;
+          border-color: color-mix(in srgb, var(--p-accent) 34%, var(--p-border)) !important;
+          transform: translateY(-1px);
+        }
+        [data-service-request-row]:focus-visible,
+        [data-service-request-primary]:focus-visible {
+          outline: 2px solid var(--p-accent);
+          outline-offset: 2px;
+        }
+      `}</style>
       {open && (
         <button
           type="button"
@@ -62,8 +114,8 @@ export function ServiceRequestFab({ tableLabel, onRequest }: ServiceRequestFabPr
         aria-hidden={!open}
         style={{
           position: 'fixed',
-          right: 16,
-          bottom: 'calc(170px + env(safe-area-inset-bottom, 0px))',
+          ...dialogSideStyle,
+          bottom: `calc(${resolved.bottomOffset + fabSize + 16}px + env(safe-area-inset-bottom, 0px))`,
           zIndex: 48,
           width: 'min(292px, calc(100vw - 32px))',
           borderRadius: 16,
@@ -73,66 +125,89 @@ export function ServiceRequestFab({ tableLabel, onRequest }: ServiceRequestFabPr
           boxShadow: '0 24px 56px -20px rgba(0,0,0,.42)',
           opacity: open ? 1 : 0,
           transform: open ? 'translateY(0) scale(1)' : 'translateY(10px) scale(.97)',
-          transformOrigin: 'bottom right',
+          transformOrigin: `bottom ${resolved.position}`,
           pointerEvents: open ? 'auto' : 'none',
           transition: 'opacity 160ms ease, transform 200ms cubic-bezier(.2,.8,.2,1)',
           fontFamily: 'var(--p-body)',
         }}
       >
         <div style={{ padding: '14px 14px 12px' }}>
-          <strong style={{ display: 'block', color: 'var(--p-text)', fontSize: 14.5 }}>Nasıl yardımcı olalım?</strong>
+          <strong style={{ display: 'block', color: 'var(--p-text)', fontSize: 14.5 }}>{resolved.title}</strong>
           <span style={{ display: 'block', marginTop: 3, color: 'var(--p-text-2)', fontSize: 11.5 }}>
-            {tableLabel ?? 'Masanız'} · isteğiniz doğrudan ekibe iletilir
+            {tableLabel ?? 'Masanız'} · {resolved.subtitle}
           </span>
-          <button
-            type="button"
-            disabled={pending !== null}
-            onClick={() => void send('waiter', 'Garson çağrısı')}
-            style={{
-              width: '100%', height: 46, marginTop: 12, border: 0, borderRadius: 10,
-              background: 'var(--p-accent)', color: '#fff', cursor: pending ? 'wait' : 'pointer',
-              display: 'flex', alignItems: 'center', gap: 10, padding: '0 13px',
-              fontFamily: 'inherit', fontSize: 13.5, fontWeight: 750,
-            }}
-          >
-            <I.bell size={18} />
-            <span style={{ flex: 1, textAlign: 'left' }}>
-              {pending === 'waiter' ? 'İletiliyor…' : 'Garsonu çağır'}
-            </span>
-            <I.chevRight size={16} />
-          </button>
-        </div>
-
-        <div style={{ padding: '2px 14px 6px', color: 'var(--p-text-2)', fontSize: 10.5, fontWeight: 750 }}>
-          Hızlı istekler
-        </div>
-        <div style={{ padding: '0 8px 8px' }}>
-          {REQUESTS.map(({ type, label, Icon }) => (
+          {waiter ? (
             <button
-              key={type}
+              data-service-request-primary
               type="button"
               disabled={pending !== null}
-              onClick={() => void send(type, label)}
+              onClick={() => void send('waiter', waiter.label)}
               style={{
-                width: '100%', minHeight: 48, border: 0, borderRadius: 8,
-                background: 'transparent', color: 'var(--p-text)',
-                display: 'flex', alignItems: 'center', gap: 11, padding: '6px 8px',
-                cursor: pending ? 'wait' : 'pointer', fontFamily: 'inherit',
+                width: '100%', height: 46, marginTop: 12, border: 0, borderRadius: 10,
+                background: 'var(--p-accent)', color: '#fff', cursor: pending ? 'wait' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 10, padding: '0 13px',
+                fontFamily: 'inherit', fontSize: 13.5, fontWeight: 750,
               }}
             >
-              <span style={{
-                width: 34, height: 34, borderRadius: 8, flexShrink: 0,
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                background: 'var(--p-accent-soft)', color: 'var(--p-accent)',
-              }}>
-                <Icon size={17} />
+              <span
+                aria-hidden="true"
+                style={{ width: 18, height: 18, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                {waiter.icon !== 'none' ? <RequestIcon name={waiter.icon} customIconUrl={waiter.customIconUrl} size={18} /> : null}
               </span>
-              <span style={{ flex: 1, textAlign: 'left', fontSize: 13, fontWeight: 650 }}>
-                {pending === type ? 'İletiliyor…' : label}
+              <span style={{ flex: 1, textAlign: 'left' }}>
+                {pending === 'waiter' ? 'İletiliyor…' : waiter.label}
               </span>
+              <I.chevRight size={16} />
             </button>
-          ))}
+          ) : null}
         </div>
+
+        {quickRequests.length > 0 ? (
+          <div style={{ padding: '2px 14px 6px', color: 'var(--p-text-2)', fontSize: 10.5, fontWeight: 750 }}>
+            {resolved.quickHeading}
+          </div>
+        ) : null}
+        {quickRequests.length > 0 ? (
+          <div style={{ padding: '0 8px 8px' }}>
+            {quickRequests.map(({ type, label, icon, customIconUrl }) => (
+              <button
+                data-service-request-row
+                key={type}
+                type="button"
+                disabled={pending !== null}
+                onClick={() => void send(type, label)}
+                style={{
+                  width: '100%', minHeight: 50, border: '1px solid var(--p-border)', borderRadius: 10,
+                  background: 'var(--p-card)', color: 'var(--p-text)',
+                  display: 'flex', alignItems: 'center', gap: 11, padding: '6px 8px',
+                  cursor: pending ? 'wait' : 'pointer', fontFamily: 'inherit',
+                  marginBottom: 6,
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    // Keep the leading action slot visible even when the tenant
+                    // intentionally selects "İkonsuz". Removing the surface as
+                    // well as the glyph makes that row look like a different
+                    // control and shifts the visual hierarchy.
+                    background: icon === 'none' ? 'var(--p-bg)' : 'var(--p-accent-soft)',
+                    border: icon === 'none' ? '1px dashed var(--p-border)' : '1px solid transparent',
+                    color: 'var(--p-accent)',
+                  }}
+                >
+                  {icon !== 'none' ? <RequestIcon name={icon} customIconUrl={customIconUrl} size={17} /> : null}
+                </span>
+                <span style={{ flex: 1, textAlign: 'left', fontSize: 13, fontWeight: 650 }}>
+                  {pending === type ? 'İletiliyor…' : label}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <button
@@ -142,11 +217,11 @@ export function ServiceRequestFab({ tableLabel, onRequest }: ServiceRequestFabPr
         onClick={() => setOpen((current) => !current)}
         style={{
           position: 'fixed',
-          right: 18,
-          bottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
+          ...sideStyle,
+          bottom: `calc(${resolved.bottomOffset}px + env(safe-area-inset-bottom, 0px))`,
           zIndex: 49,
-          width: 58,
-          height: 58,
+          width: fabSize,
+          height: fabSize,
           borderRadius: '50%',
           border: 0,
           background: open ? 'var(--p-text)' : 'var(--p-accent)',

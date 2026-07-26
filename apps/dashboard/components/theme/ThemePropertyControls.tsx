@@ -4,6 +4,15 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { SettingField } from "@garsonless/ui";
 
 import { I } from "../../lib/ui";
+import {
+  CardLayoutOptionIcon,
+  ThemeEditorControlIcon,
+} from "./CardLayoutOptionIcon";
+import { CardPropertyOptionIcon } from "./CardPropertyOptionIcon";
+import { CartOptionIcon } from "./CartOptionIcon";
+import { HeaderOptionIcon } from "./HeaderOptionIcon";
+import { LayoutOptionIcon } from "./LayoutOptionIcon";
+import { NavigationOptionIcon } from "./NavigationOptionIcon";
 import { sanitizePropertyControlId } from "./theme-property-renderer-model";
 
 export const THEME_PROPERTY_CONTROL_CSS = `
@@ -392,7 +401,7 @@ function HeaderRangeControl({
         disabled={value <= min}
         style={headerRangeStepButtonStyle}
       >
-        −
+        <ThemeEditorControlIcon name="minus" size={18} />
       </button>
       <input
         id={controlId}
@@ -428,7 +437,7 @@ function HeaderRangeControl({
         disabled={value >= max}
         style={headerRangeStepButtonStyle}
       >
-        +
+        <ThemeEditorControlIcon name="plus" size={18} />
       </button>
     </div>
   );
@@ -497,142 +506,70 @@ function HeaderToggleControl({
 }
 
 function headerOptionIcon(fieldId: string, value: string) {
-  if (fieldId === "headerStyle")
-    return value === "blur" ? <I.sparkles size={17} /> : <I.color size={17} />;
-  if (fieldId === "headerAlign")
-    return value === "center" ? (
-      <I.layout size={17} />
-    ) : (
-      <I.spacing size={17} />
-    );
-  if (fieldId === "headerLayout") {
-    if (value === "stacked") return <I.header size={17} />;
-    if (value === "center") return <I.layout size={17} />;
-    if (value === "compact") return <I.card size={17} />;
-    return <I.spacing size={17} />;
-  }
-  if (fieldId === "headerLogoStyle") {
-    if (value === "image") return <I.image size={17} />;
-    if (value === "wordmark") return <I.type size={17} />;
-    return <I.header size={17} />;
-  }
-  if (fieldId === "cardLayout")
-    return value === "horizontal" ? (
-      <I.section size={17} />
-    ) : value === "minimal" ? (
-      <I.page size={17} />
-    ) : (
-      <I.grid size={17} />
-    );
-  if (fieldId === "cardDensity")
-    return value === "compact" ? (
-      <I.spacing size={17} />
-    ) : value === "comfortable" ? (
-      <I.sparkles size={17} />
-    ) : (
-      <I.card size={17} />
-    );
-  if (fieldId === "cardPriceAlign" || fieldId === "catnavAlign")
-    return value === "right" ? (
-      <I.arrow size={17} />
-    ) : value === "center" ? (
-      <I.layout size={17} />
-    ) : (
-      <I.chevLeft size={17} />
-    );
+  const cartIcon = <CartOptionIcon fieldId={fieldId} value={value} />;
   if (
+    fieldId === "cartHeaderTriggerStyle" ||
+    fieldId === "cartFooterTriggerStyle" ||
+    fieldId === "cartIcon" ||
+    fieldId === "cartPillTone" ||
+    fieldId === "cartDrawerTone" ||
+    fieldId === "cartPillPosition"
+  ) {
+    return cartIcon;
+  }
+  const layoutIcon = <LayoutOptionIcon fieldId={fieldId} value={value} />;
+  if (
+    fieldId === "texture" ||
+    fieldId === "sectionHeading" ||
+    fieldId === "pageMaxWidth"
+  ) {
+    return layoutIcon;
+  }
+  const headerIcon = <HeaderOptionIcon fieldId={fieldId} value={value} />;
+  if (
+    fieldId === "headerLogoStyle" ||
+    fieldId === "headerStyle" ||
+    fieldId === "headerLayout" ||
+    fieldId === "headerAlign"
+  ) {
+    return headerIcon;
+  }
+  const navigationIcon = (
+    <NavigationOptionIcon fieldId={fieldId} value={value} />
+  );
+  if (
+    fieldId === "catnavStyle" ||
+    fieldId === "catnavActiveStyle" ||
+    fieldId === "catnavAlign" ||
+    fieldId === "catnavDensity"
+  ) {
+    return navigationIcon;
+  }
+  const cardLayoutIcon = (
+    <CardLayoutOptionIcon fieldId={fieldId} value={value} />
+  );
+  if (
+    fieldId === "cardLayout" ||
+    fieldId === "cardDensity" ||
+    fieldId === "cardPriceAlign" ||
     fieldId === "cardImageFit" ||
-    fieldId === "cardImagePosition" ||
-    fieldId === "cardPlaceholderStyle"
-  )
-    return <I.image size={17} />;
-  if (fieldId === "cardHover")
-    return value === "none" ? (
-      <I.close size={17} />
-    ) : value === "lift" ? (
-      <I.arrow size={17} />
-    ) : (
-      <I.sparkles size={17} />
-    );
-  if (fieldId === "cardCtaStyle")
-    return value === "none" ? (
-      <I.close size={17} />
-    ) : value === "icon" ? (
-      <I.plus size={17} />
-    ) : (
-      <I.tag size={17} />
-    );
-  if (fieldId === "cardCtaIcon")
-    return value === "cart" ? (
-      <I.cart size={17} />
-    ) : value === "bag" ? (
-      <I.store size={17} />
-    ) : (
-      <I.plus size={17} />
-    );
-  if (fieldId === "catnavStyle")
-    return value === "visual" ? <I.image size={17} /> : <I.nav size={17} />;
-  if (fieldId === "catnavActiveStyle")
-    return value === "underline" ? (
-      <I.spacing size={17} />
-    ) : value === "dot" ? (
-      <I.more size={17} />
-    ) : (
-      <I.tag size={17} />
-    );
-  if (fieldId === "catnavDensity")
-    return value === "compact" ? <I.spacing size={17} /> : <I.nav size={17} />;
+    fieldId === "cardImagePosition"
+  ) {
+    return cardLayoutIcon;
+  }
+  const cardOptionIcon = (
+    <CardPropertyOptionIcon fieldId={fieldId} value={value} />
+  );
+  if (
+    fieldId === "cardHover" ||
+    fieldId === "cardPlaceholderStyle" ||
+    fieldId === "cardCtaStyle" ||
+    fieldId === "cardCtaIcon"
+  ) {
+    return cardOptionIcon;
+  }
   if (fieldId === "catnavVisualStyle")
     return value === "overlay" ? <I.image size={17} /> : <I.card size={17} />;
-  if (fieldId === "texture")
-    return value === "solid" ? (
-      <I.color size={17} />
-    ) : value === "paper" ? (
-      <I.page size={17} />
-    ) : (
-      <I.sparkles size={17} />
-    );
-  if (fieldId === "sectionHeading")
-    return value === "catalog" ? (
-      <I.page size={17} />
-    ) : value === "editorial" ? (
-      <I.type size={17} />
-    ) : (
-      <I.color size={17} />
-    );
-  if (fieldId === "pageMaxWidth")
-    return value === "none" ? <I.frame size={17} /> : <I.layout size={17} />;
-  if (fieldId === "cartHeaderTriggerStyle")
-    return value === "none" ? (
-      <I.close size={17} />
-    ) : value === "icon" ? (
-      <I.cart size={17} />
-    ) : (
-      <I.receipt size={17} />
-    );
-  if (fieldId === "cartFooterTriggerStyle") {
-    if (value === "none") return <I.close size={17} />;
-    if (value === "bar") return <I.section size={17} />;
-    if (value === "fab") return <I.plus size={17} />;
-    if (value === "thumbs") return <I.image size={17} />;
-    return <I.cart size={17} />;
-  }
-  if (fieldId === "cartIcon")
-    return value === "cart" ? (
-      <I.cart size={17} />
-    ) : value === "bag" ? (
-      <I.store size={17} />
-    ) : (
-      <I.handPlatter size={17} />
-    );
-  if (fieldId === "cartPillTone" || fieldId === "cartDrawerTone")
-    return value === "light" || value === "clean" ? (
-      <I.sparkles size={17} />
-    ) : (
-      <I.color size={17} />
-    );
-  if (fieldId === "cartPillPosition")
-    return value === "edge" ? <I.spacing size={17} /> : <I.arrow size={17} />;
   if (fieldId === "announcementStyle")
     return value === "static" ? (
       <I.page size={17} />
@@ -683,7 +620,7 @@ export function PropertySection({
             transition: "transform 120ms",
           }}
         >
-          <I.chevDown size={17} />
+          <ThemeEditorControlIcon name="menu" size={17} />
         </span>
       </button>
       {open && <div style={{ padding: "0 16px 16px" }}>{children}</div>}
@@ -962,28 +899,46 @@ function PropertyControl({
   }
   if (field.type === "select" || field.type === "font")
     return (
-      <select
-        id={controlId}
-        value={value as string}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: "100%",
-          height: 32,
-          borderRadius: 7,
-          border: "1px solid var(--border-strong)",
-          background: "var(--surface)",
-          color: "var(--text)",
-          fontSize: 12.5,
-          padding: "0 9px",
-          cursor: "pointer",
-        }}
-      >
-        {(field.options ?? []).map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+      <span style={{ position: "relative", display: "block", minWidth: 0 }}>
+        <select
+          id={controlId}
+          value={value as string}
+          onChange={(e) => onChange(e.target.value)}
+          style={{
+            width: "100%",
+            height: 32,
+            appearance: "none",
+            borderRadius: 7,
+            border: "1px solid var(--border-strong)",
+            background: "var(--surface)",
+            color: "var(--text)",
+            fontSize: 12.5,
+            padding: "0 32px 0 9px",
+            cursor: "pointer",
+          }}
+        >
+          {(field.options ?? []).map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: "50%",
+            right: 8,
+            display: "grid",
+            placeItems: "center",
+            color: "var(--text-2)",
+            pointerEvents: "none",
+            transform: "translateY(-50%)",
+          }}
+        >
+          <ThemeEditorControlIcon name="down" size={16} />
+        </span>
+      </span>
     );
   if (field.type === "text")
     return (

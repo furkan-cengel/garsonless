@@ -1,8 +1,6 @@
 'use client'
-
 import { useMemo } from 'react'
-import { THEME_REGISTRY } from '@garsonless/ui'
-import type { SettingsGroup } from '@garsonless/ui'
+import { CANONICAL_THEME_ID, THEME_REGISTRY, type SettingsGroup } from '@garsonless/ui'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { useShell } from '../../lib/shell-context'
 import { ThemeEditorTopbar } from './ThemeEditorTopbar'
@@ -11,21 +9,18 @@ import { ThemeEditorDialogsLayer } from './ThemeEditorDialogsLayer'
 import { ThemeEditorPropertiesWorkspace } from './ThemeEditorPropertiesWorkspace'
 import { ThemeEditorShell } from './ThemeEditorShell'
 import { ThemeEditorSidebar } from './ThemeEditorSidebar'
-import { GalleryUploadPanel } from './ThemeSectionSettings'
+import { ChefPickIconUploadPanels, GalleryUploadPanel, PromoSliderImageUploadPanel, SectionImageUploadPanel, ServiceRequestIconUploadPanels } from './ThemeSectionSettings'
 import { ThemeLogoUploadCard } from './ThemeLogoUploadCard'
 import { useThemeEditorLifecycle } from './use-theme-editor-lifecycle'
 import { useThemeEditorLogo } from './use-theme-editor-logo'
 import { useThemeEditorNavigation } from './use-theme-editor-navigation'
 import { useThemeEditorPropertyCommands } from './use-theme-editor-property-commands'
 import { useThemeEditorWorkspace } from './use-theme-editor-workspace'
-import {
-  buildEditorNavigation,
-  buildThemeSettingsGroup,
-} from './theme-editor-navigation-catalog'
+import { buildEditorNavigation, buildThemeSettingsGroup } from './theme-editor-navigation-catalog'
 import { getThemeEditorSaveStatus } from './theme-editor-shell-model'
 import { createThemeEditorPreviewDeriver } from './theme-editor-preview-theme-model'
 import { SECTION_LIBRARY } from './theme-editor-section-registry'
-
+import type { ThemeEditorPreviewCategory, ThemeEditorPreviewItem } from './CanonicalSectionPreview'
 interface Props {
   restaurantId: string
   restaurantSlug: string
@@ -34,8 +29,9 @@ interface Props {
   canAddAdvancedSections: boolean
   templateId: string
   initialTheme: GarsonlessTheme
-  menuCategories: Array<{ id: string; name: string; parentId?: string | null }>
-  menuItems: Array<{ id: string; name: string; categoryId: string; categoryName: string }>
+  restaurantSettings: Record<string, unknown> | null
+  menuCategories: ThemeEditorPreviewCategory[]
+  menuItems: ThemeEditorPreviewItem[]
 }
 
 export default function ThemeEditorClient({
@@ -46,14 +42,15 @@ export default function ThemeEditorClient({
   canAddAdvancedSections,
   templateId,
   initialTheme,
+  restaurantSettings,
   menuCategories,
   menuItems,
 }: Props) {
-  const entry = THEME_REGISTRY[templateId] ?? THEME_REGISTRY['default']!
+  const entry = THEME_REGISTRY[CANONICAL_THEME_ID]!
   const schema: SettingsGroup[] = entry.SETTINGS_SCHEMA
   const { setNavigationGuard } = useShell()
   const menuBaseUrl = process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'
-  const previewUrl = `${menuBaseUrl.replace(/\/$/, '')}/${encodeURIComponent(restaurantSlug)}?preview=1&template=${encodeURIComponent(templateId)}`
+  const previewUrl = `${menuBaseUrl.replace(/\/$/, '')}/${encodeURIComponent(restaurantSlug)}?preview=1`
   const derivePreviewTheme = useMemo(
     () => createThemeEditorPreviewDeriver(entry.THEME_DEFAULTS, menuCategories),
     [entry.THEME_DEFAULTS, menuCategories],
@@ -117,20 +114,19 @@ export default function ThemeEditorClient({
   const navGroups = buildEditorNavigation(schema, entry.name)
   const {
     activeGroup,
-    templatePickerOpen,
     sectionPickerOpen,
     sectionSearch,
     editorSearch,
     editorQuery,
     sectionGroup,
     selectedSectionId,
+    selectedSectionDefinitionId,
+    selectedSectionBlock,
     dragBlockKey,
     sectionTriggerRef,
-    templateCloseRef,
     sectionCloseRef,
     pageBlocks,
-    activeSections,
-    templateEntries,
+    activeSectionDefinitionIds,
     activeGroupData,
     filteredNavGroups,
     selectedSection,
@@ -146,20 +142,17 @@ export default function ThemeEditorClient({
     setSectionGroup,
     setDragBlockKey,
     setActiveEditorTab,
-    closeTemplatePicker,
     openSectionPicker,
     closeSectionPicker,
-    selectTemplate: handleTemplateSelect,
     addSection: handleAddSection,
     removeSection: handleRemoveSection,
     changeSectionSetting: handleSectionSettingChange,
+    changeSectionVisibility: handleSectionVisibilityChange,
     dropPageBlock: handlePageBlockDrop,
     movePageBlock: handlePageBlockKeyboardMove,
     selectGroup,
     selectPageBlock,
   } = useThemeEditorNavigation({
-    restaurantId,
-    templateId,
     schema,
     themeGroupData,
     navGroups,
@@ -169,10 +162,7 @@ export default function ThemeEditorClient({
     updateThemePatch,
     flashToast,
   })
-  const {
-    copyCurrentSettings: handleCopyCurrentSettings,
-    resetCurrentSettings: handleResetCurrentSettings,
-  } = useThemeEditorPropertyCommands({
+  const { copyCurrentSettings: handleCopyCurrentSettings, resetCurrentSettings: handleResetCurrentSettings } = useThemeEditorPropertyCommands({
     activeGroup,
     activeGroupData,
     selectedSectionId,
@@ -249,12 +239,14 @@ export default function ThemeEditorClient({
         activeGroupData={activeGroupData}
         selectedSection={selectedSection}
         selectedSectionId={selectedSectionId}
+        selectedSectionBlock={selectedSectionBlock}
         selectedSectionSettings={selectedSectionSettings}
         visibleEditorTabs={visibleEditorTabs}
         effectiveEditorTab={effectiveEditorTab}
         visibleFields={visibleFields}
         visibleSectionFields={visibleSectionFields}
-        mergedTheme={mergedTheme}
+        // Campaign controls must read the normalized instance-scoped page flow.
+        mergedTheme={previewTheme}
         overrides={overrides}
         defaults={entry.THEME_DEFAULTS}
         schema={schema}
@@ -269,8 +261,35 @@ export default function ThemeEditorClient({
             onRemove={handleLogoRemove}
           />
         ) : undefined}
-        galleryPanel={selectedSectionId === 'gallery' && effectiveEditorTab === 'design' ? (
+        sectionMediaPanel={effectiveEditorTab === 'design' && selectedSectionId && selectedSectionDefinitionId === 'gallery' ? (
           <GalleryUploadPanel
+            restaurantId={restaurantId}
+            values={selectedSectionSettings}
+            onChange={(key, value) => handleSectionSettingChange(selectedSectionId, key, value)}
+          />
+        ) : effectiveEditorTab === 'design' && selectedSectionId && selectedSectionDefinitionId === 'hero-banner' ? (
+          <SectionImageUploadPanel
+            restaurantId={restaurantId}
+            sectionId={selectedSectionId}
+            label="Hero Banner"
+            value={selectedSectionSettings.imageUrl ?? ''}
+            onChange={(value) => handleSectionSettingChange(selectedSectionId, 'imageUrl', value)}
+          />
+        ) : effectiveEditorTab === 'design' && selectedSectionId && selectedSectionDefinitionId === 'promo-slider' ? (
+          <PromoSliderImageUploadPanel
+            restaurantId={restaurantId}
+            sectionId={selectedSectionId}
+            values={selectedSectionSettings}
+            onChange={(key, value) => handleSectionSettingChange(selectedSectionId, key, value)}
+          />
+        ) : effectiveEditorTab === 'design' && selectedSectionId && selectedSectionDefinitionId === 'chef-pick' ? (
+          <ChefPickIconUploadPanels
+            restaurantId={restaurantId}
+            values={selectedSectionSettings}
+            onChange={(key, value) => handleSectionSettingChange(selectedSectionId, key, value)}
+          />
+        ) : effectiveEditorTab === 'content' && selectedSectionId && selectedSectionDefinitionId === 'request-buttons' ? (
+          <ServiceRequestIconUploadPanels
             restaurantId={restaurantId}
             values={selectedSectionSettings}
             onChange={(key, value) => handleSectionSettingChange(selectedSectionId, key, value)}
@@ -284,24 +303,23 @@ export default function ThemeEditorClient({
         onSectionSettingChange={(key, value) => {
           if (selectedSectionId) handleSectionSettingChange(selectedSectionId, key, value)
         }}
+        onSectionVisibilityChange={handleSectionVisibilityChange}
       />}
       dialogs={<ThemeEditorDialogsLayer
-        templatePickerOpen={templatePickerOpen}
         sectionPickerOpen={sectionPickerOpen}
-        templateCloseRef={templateCloseRef}
         sectionCloseRef={sectionCloseRef}
-        templateId={templateId}
         previewTheme={previewTheme}
-        templateEntries={templateEntries}
+        restaurantName={restaurantName}
+        restaurantSettings={restaurantSettings}
+        menuCategories={menuCategories}
+        menuItems={menuItems}
         sectionSearch={sectionSearch}
         sectionGroup={sectionGroup}
         filteredSections={filteredSections}
-        activeSections={activeSections}
+        activeSections={activeSectionDefinitionIds}
         canAddAdvancedSections={canAddAdvancedSections}
         setSectionSearch={setSectionSearch}
         setSectionGroup={setSectionGroup}
-        onTemplateSelect={handleTemplateSelect}
-        onTemplateClose={closeTemplatePicker}
         onSectionAdd={handleAddSection}
         onLockedSection={() => flashToast('Bu bölüm Pro pakette kullanılabilir.')}
         onSectionClose={closeSectionPicker}

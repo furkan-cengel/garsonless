@@ -45,6 +45,13 @@ const EDITOR_INTERACTION_CSS = `
     background: var(--surface-3) !important;
     box-shadow: inset 3px 0 0 var(--text-3);
   }
+  [data-theme-editor-root] [data-page-flow-select]:not(:disabled):hover,
+  [data-theme-editor-root] [data-page-flow-select]:not(:disabled):active {
+    background: transparent !important;
+    box-shadow: none !important;
+    filter: none !important;
+    transform: none !important;
+  }
   @media (prefers-reduced-motion: reduce) {
     [data-theme-editor-root] button,
     [data-theme-editor-root] [data-page-flow-row] { transition: none !important; }

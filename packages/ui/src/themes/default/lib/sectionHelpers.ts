@@ -21,7 +21,9 @@ export function parseCountdownTarget(value: string): Date | null {
 export function makeReaders(config: Record<string, string>): ConfigReaders {
   const text = (key: string, fallback: string) => config[key]?.trim() || fallback
   const number = (key: string, fallback: number) => {
-    const parsed = Number(config[key])
+    const raw = config[key]?.trim()
+    if (!raw) return fallback
+    const parsed = Number(raw)
     return Number.isFinite(parsed) ? parsed : fallback
   }
   const bool = (key: string, fallback = false) => {
@@ -30,14 +32,27 @@ export function makeReaders(config: Record<string, string>): ConfigReaders {
     return fallback
   }
   const targetHref = () => {
-    const targetType = text('targetType', 'none')
-    const targetId = text('targetId', '')
-    const targetUrl = text('targetUrl', '')
-    if (targetType === 'category' && targetId) return `#section-${targetId}`
-    if (targetType === 'product' && targetId) return `#product-${targetId}`
-    if (targetType === 'cart') return '#cart'
-    if (targetType === 'link' && targetUrl) return targetUrl
-    return '#'
+    const target = resolveSectionTarget(config)
+    return target.kind === 'anchor' || target.kind === 'external' ? target.href : '#'
   }
   return { text, number, bool, targetHref }
+}
+
+export type SectionTarget =
+  | { kind: 'none' }
+  | { kind: 'cart' }
+  | { kind: 'anchor'; href: string }
+  | { kind: 'external'; href: string }
+
+/** Resolve editor-owned CTA settings into a safe, actionable menu target. */
+export function resolveSectionTarget(config: Record<string, string>): SectionTarget {
+  const targetType = config.targetType?.trim() || 'none'
+  const targetId = config.targetId?.trim() || ''
+  const targetUrl = config.targetUrl?.trim() || ''
+
+  if (targetType === 'category' && targetId) return { kind: 'anchor', href: `#section-${targetId}` }
+  if (targetType === 'product' && targetId) return { kind: 'anchor', href: `#product-${targetId}` }
+  if (targetType === 'cart') return { kind: 'cart' }
+  if (targetType === 'link' && /^https?:\/\//i.test(targetUrl)) return { kind: 'external', href: targetUrl }
+  return { kind: 'none' }
 }
