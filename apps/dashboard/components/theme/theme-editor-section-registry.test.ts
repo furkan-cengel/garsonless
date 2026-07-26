@@ -19,15 +19,15 @@ test('section registry keeps unique ids and valid group references', () => {
   }
 })
 
-test('section catalog pairs request buttons with gallery and hours with wifi', () => {
+test('section catalog pairs hours with gallery and request buttons with wifi', () => {
   const sectionIds = SECTION_LIBRARY.map((section) => section.id)
 
   assert.deepEqual(sectionIds.slice(8, 14), [
     'gallery',
-    'request-buttons',
+    'hours',
     'allergens',
     'reviews',
-    'hours',
+    'request-buttons',
     'wifi-info',
   ])
 })
