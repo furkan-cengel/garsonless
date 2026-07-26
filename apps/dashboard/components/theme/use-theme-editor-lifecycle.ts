@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { GarsonlessTheme } from '@garsonless/design-engine'
+import { resolveMenuActionPlacements, type GarsonlessTheme } from '@garsonless/design-engine'
 import type { SettingField, SettingsGroup } from '@garsonless/ui'
 import { publishTheme } from '../../lib/actions/theme'
 import {
@@ -135,7 +135,23 @@ export function useThemeEditorLifecycle({
   }, [applyOverridesSnapshot, flashToast, overrides, redoStack])
 
   const handleFieldChange = useCallback((field: SettingField, value: unknown) => {
-    const nextOverrides = { ...overrides, [field.themeField]: value }
+    let nextOverrides = { ...overrides, [field.themeField]: value }
+    if (field.themeField === 'memberPlacement' || field.themeField === 'cartPlacement' || field.themeField === 'servicePlacement') {
+      const projected = derivePreviewTheme(nextOverrides)
+      const placements = resolveMenuActionPlacements(projected)
+      const adjusted = {
+        memberPlacement: placements.member,
+        cartPlacement: placements.cart,
+        servicePlacement: placements.service,
+      } as const
+      const moved = (['memberPlacement', 'cartPlacement', 'servicePlacement'] as const).some(
+        (key) => projected[key] !== adjusted[key],
+      )
+      if (moved) {
+        nextOverrides = { ...nextOverrides, ...adjusted }
+        flashToast('Header en fazla iki hızlı aksiyon taşır; düşük öncelikli aksiyon Drawer’a alındı')
+      }
+    }
     rememberOverrides(overrides)
     markDirty()
     setOverrides(nextOverrides)
@@ -148,7 +164,7 @@ export function useThemeEditorLifecycle({
     }
 
     postPreviewMessage({ type: 'FULL_THEME_UPDATE', theme: derivePreviewTheme(nextOverrides) })
-  }, [derivePreviewTheme, markDirty, overrides, postPreviewMessage, rememberOverrides])
+  }, [derivePreviewTheme, flashToast, markDirty, overrides, postPreviewMessage, rememberOverrides])
 
   const updateThemePatch = useCallback((patch: Partial<GarsonlessTheme>) => {
     const nextOverrides = { ...overrides, ...patch }

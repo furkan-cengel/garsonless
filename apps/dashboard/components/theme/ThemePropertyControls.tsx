@@ -129,12 +129,40 @@ export function HeaderPropertyField({
   onChange: (value: unknown) => void;
 }) {
   const controlId = `theme-field-${sanitizePropertyControlId(field.id)}`;
+  const segmentedSelect = field.type === "select" && [
+    "memberPlacement",
+    "billPlacement",
+    "cartPlacement",
+    "servicePlacement",
+  ].includes(field.id);
+  if (segmentedSelect) {
+    return (
+      <div>
+        <div style={{ marginBottom: 7, fontSize: 12.5, color: "var(--text-2)" }}>{field.label}</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, padding: 3, borderRadius: 10, background: "var(--surface-3)" }}>
+          {field.options?.map((option) => {
+            const active = value === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onChange(option.value)}
+                style={{ minHeight: 34, flex: "1 1 76px", padding: "0 8px", borderRadius: 8, border: active ? "1px solid var(--border-strong)" : "1px solid transparent", background: active ? "var(--surface)" : "transparent", color: active ? "var(--text)" : "var(--text-2)", boxShadow: active ? "0 1px 2px rgba(20,25,31,.08)" : "none", fontSize: 11, fontWeight: active ? 750 : 600, cursor: "pointer" }}
+              >{option.label}</button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
   const tiledSelect =
     field.type === "select" &&
     [
       "headerLogoStyle",
       "headerStyle",
       "headerLayout",
+      "headerPreset",
       "headerAlign",
       "cardLayout",
       "cardDensity",
@@ -526,6 +554,9 @@ function headerOptionIcon(fieldId: string, value: string) {
     return layoutIcon;
   }
   const headerIcon = <HeaderOptionIcon fieldId={fieldId} value={value} />;
+  if (fieldId === "headerPreset") {
+    return <HeaderOptionIcon fieldId="headerLayout" value={value === "standard" ? "center" : value === "brand" ? "split" : "compact"} />;
+  }
   if (
     fieldId === "headerLogoStyle" ||
     fieldId === "headerStyle" ||

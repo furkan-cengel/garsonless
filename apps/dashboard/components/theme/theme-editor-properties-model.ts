@@ -124,8 +124,10 @@ export function getVisibleThemeFields(
     }
     if (groupId === 'cart') {
       const footer = theme.cartFooterTriggerStyle ?? 'pill'
+      if (fieldKey === 'cartHeaderTriggerStyle' && theme.cartPlacement !== 'header') return false
+      if (fieldKey === 'cartFooterTriggerStyle' && theme.cartPlacement !== 'footer') return false
       if ((fieldKey === 'cartPillTone' || fieldKey === 'cartPillPosition') && footer !== 'pill') return false
-      if (fieldKey === 'cartShowBadge' && theme.cartHeaderTriggerStyle === 'none' && footer === 'none') return false
+      if (fieldKey === 'cartShowBadge' && theme.cartPlacement !== 'header' && theme.cartPlacement !== 'footer') return false
     }
     if (groupId === 'announcement') {
       if (!theme.announcementEnabled && fieldKey !== 'announcementEnabled') return false

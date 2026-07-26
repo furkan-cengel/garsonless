@@ -94,3 +94,25 @@ test('theme policy preserves safe instance definitions and category scope', () =
     },
   ])
 })
+
+test('theme policy preserves valid drawer placement and drops invalid placement', () => {
+  const theme = sanitizeThemeTokens({
+    pageBlocks: [
+      { type: 'section', id: 'wifi-info', placement: 'drawer' },
+      { type: 'section', id: 'hours', placement: 'sidebar' },
+      { type: 'section', id: 'legacy' },
+    ],
+    drawerPreset: 'editorial',
+    drawerSide: 'right',
+    drawerWidth: 410,
+  }, 'default')
+
+  assert.deepEqual(theme?.pageBlocks, [
+    { type: 'section', id: 'wifi-info', placement: 'drawer' },
+    { type: 'section', id: 'hours' },
+    { type: 'section', id: 'legacy' },
+  ])
+  assert.equal(theme?.drawerPreset, 'editorial')
+  assert.equal(theme?.drawerSide, 'right')
+  assert.equal(theme?.drawerWidth, 410)
+})

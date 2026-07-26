@@ -90,6 +90,7 @@ interface ThemeEditorNavigationResult {
   removeSection: (sectionId: string) => void
   changeSectionSetting: (sectionId: string, key: string, value: string) => void
   changeSectionVisibility: (visibility: ThemeSectionVisibility) => void
+  changeSectionPlacement: (placement: 'page' | 'drawer') => void
   dropPageBlock: (targetKey: string) => void
   movePageBlock: (sourceKey: string, direction: -1 | 1) => void
   selectGroup: (groupId: string) => void
@@ -323,6 +324,17 @@ export function useThemeEditorNavigation({
     })
   }, [pageBlocks, selectedSectionId, updateThemePatch])
 
+  const changeSectionPlacement = useCallback((placement: 'page' | 'drawer') => {
+    if (!selectedSectionId) return
+    updateThemePatch({
+      pageBlocks: pageBlocks.map((block) =>
+        block.type === 'section' && block.id === selectedSectionId
+          ? { ...block, placement }
+          : block,
+      ),
+    })
+  }, [pageBlocks, selectedSectionId, updateThemePatch])
+
   const reorderPageBlock = useCallback((sourceKey: string, targetKey: string) => {
     if (sourceKey === targetKey) return
     const result = reorderPageBlocks(pageBlocks, menuCategories, sourceKey, targetKey)
@@ -421,6 +433,7 @@ export function useThemeEditorNavigation({
     removeSection,
     changeSectionSetting,
     changeSectionVisibility,
+    changeSectionPlacement,
     dropPageBlock,
     movePageBlock,
     selectGroup,

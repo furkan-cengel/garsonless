@@ -21,6 +21,7 @@ import {
   AnnouncementPropertyPanel,
   CardPropertyPanel,
   CartPropertyPanel,
+  DrawerPropertyPanel,
   HeaderPropertyPanel,
   LayoutPropertyPanel,
   NavPropertyPanel,
@@ -70,9 +71,9 @@ interface ThemeEditorPropertiesWorkspaceProps {
   onReset: () => void;
   onCopy: () => void;
   onFieldChange: (field: SettingField, value: unknown) => void;
-  onPatch: (patch: Partial<GarsonlessTheme>) => void;
   onSectionSettingChange: (key: string, value: string) => void;
   onSectionVisibilityChange: (visibility: ThemeSectionVisibility) => void;
+  onSectionPlacementChange: (placement: 'page' | 'drawer') => void;
 }
 
 export function ThemeEditorPropertiesWorkspace({
@@ -100,9 +101,9 @@ export function ThemeEditorPropertiesWorkspace({
   onReset,
   onCopy,
   onFieldChange,
-  onPatch,
   onSectionSettingChange,
   onSectionVisibilityChange,
+  onSectionPlacementChange,
 }: ThemeEditorPropertiesWorkspaceProps) {
   const selectedSectionDefinitionId = selectedSectionBlock
     ? getSectionDefinitionId(selectedSectionBlock)
@@ -194,6 +195,34 @@ export function ThemeEditorPropertiesWorkspace({
             </PropertySection>
             <PropertySection title="Bölüm Davranışı" defaultOpen={false}>
               {selectedSectionBlock && !selectedSectionIsGlobal ? (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={fieldLabelStyle}>Konum</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+                    {([['page', 'Sayfa'], ['drawer', 'Menü Drawer']] as const).map(([placement, label]) => {
+                      const active = (selectedSectionBlock.placement ?? 'page') === placement;
+                      return (
+                        <button
+                          key={placement}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => onSectionPlacementChange(placement)}
+                          style={{
+                            minHeight: 38,
+                            borderRadius: 9,
+                            border: `1px solid ${active ? "var(--text)" : "var(--border)"}`,
+                            background: active ? "var(--surface-inset)" : "var(--surface)",
+                            color: "var(--text)",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >{label}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+              {selectedSectionBlock && !selectedSectionIsGlobal && selectedSectionBlock.placement !== "drawer" ? (
                 <SectionVisibilityEditor
                   block={selectedSectionBlock}
                   categories={menuCategories}
@@ -202,7 +231,7 @@ export function ThemeEditorPropertiesWorkspace({
               ) : null}
               <div style={{ ...messageStyle, marginTop: 10 }}>
                 {selectedSectionIsGlobal
-                  ? "Bu araç kategori bağımsızdır. Zil, masa QR menüsünün tüm kategori görünümlerinde sabit görünür; konum ve istekler yukarıdaki ayarlardan yönetilir."
+                  ? "Bu araç kategori bağımsızdır. Konumu Header → Aksiyon Konumları bölümünden; istek türleri ve metinleri yukarıdaki ayarlardan yönetilir."
                   : "Bölüm sırasını sol panelden değiştirebilirsin. Görünürlük seçimi ve sıra önizlemeye anında yansır."}
               </div>
             </PropertySection>
@@ -214,8 +243,14 @@ export function ThemeEditorPropertiesWorkspace({
               defaultOpen
             >
               {logoCard}
-              {activeGroup === "header" && visibleFields.length > 0 ? (
+              {activeGroup.startsWith("header") && visibleFields.length > 0 ? (
                 <HeaderPropertyPanel
+                  fields={visibleFields}
+                  getValue={getValue}
+                  onChange={onFieldChange}
+                />
+              ) : activeGroup === "drawer" && visibleFields.length > 0 ? (
+                <DrawerPropertyPanel
                   fields={visibleFields}
                   getValue={getValue}
                   onChange={onFieldChange}
@@ -251,11 +286,8 @@ export function ThemeEditorPropertiesWorkspace({
               ) : activeGroup === "cart" && visibleFields.length > 0 ? (
                 <CartPropertyPanel
                   fields={visibleFields}
-                  headerStyle={mergedTheme.cartHeaderTriggerStyle ?? "none"}
-                  footerStyle={mergedTheme.cartFooterTriggerStyle ?? "pill"}
                   getValue={getValue}
                   onChange={onFieldChange}
-                  onPatch={onPatch}
                 />
               ) : activeGroup === "announcement" && visibleFields.length > 0 ? (
                 <AnnouncementPropertyPanel

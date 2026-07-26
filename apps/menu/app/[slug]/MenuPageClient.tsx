@@ -33,7 +33,7 @@ import type {
 import { allocateBundlePrice } from '@garsonless/domain/menu'
 import type { ServiceRequestType } from '@garsonless/domain/tables'
 import type { TableSessionInfo, SessionOrderRow } from '../../lib/queries'
-import { getSectionDefinitionId, type GarsonlessTheme } from '@garsonless/design-engine'
+import { getSectionDefinitionId, resolveMenuActionPlacements, type GarsonlessTheme } from '@garsonless/design-engine'
 import type { Tables, OrderStatus, MemberBalances } from '@garsonless/db/types'
 import { useCartStore } from '../../lib/store/useCartStore'
 import { useOrderStore } from '../../lib/store/useOrderStore'
@@ -71,6 +71,8 @@ function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
   const pillTone = theme.cartPillTone ?? 'dark'
   const spainBar = theme.cardVariant === 'spain'
   const spainActionLabel = theme.cartButtonText || 'Pay'
+
+  if (resolveMenuActionPlacements(theme).cart !== 'footer') return null
 
   if (spainBar) {
     if (footerStyle === 'fab') {
@@ -444,6 +446,8 @@ interface RequestButtonsOverlayProps {
   tableLabel: string | null
   hidden: boolean
   onRequest: (type: ServiceRequestType) => Promise<boolean>
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 /**
@@ -457,6 +461,8 @@ function RequestButtonsOverlay({
   tableLabel,
   hidden,
   onRequest,
+  open,
+  onOpenChange,
 }: RequestButtonsOverlayProps) {
   const { theme: liveTheme, isPreview } = useTheme()
   const config = useMemo(() => {
@@ -473,13 +479,18 @@ function RequestButtonsOverlay({
       : null
   }, [liveTheme.pageBlocks, liveTheme.sectionSettings, liveTheme.sections])
 
-  if (!enabled || config === null || (!tableToken && !isPreview) || hidden) return null
+  if (!enabled || config === null || (!tableToken && !isPreview) || (hidden && !open)) return null
+
+  const placements = resolveMenuActionPlacements(liveTheme)
 
   return (
     <ServiceRequestFab
       tableLabel={tableLabel}
       onRequest={isPreview ? async () => true : onRequest}
       config={config}
+      trigger={placements.service === 'floating' ? 'floating' : 'none'}
+      open={open}
+      onOpenChange={onOpenChange}
     />
   )
 }
@@ -555,6 +566,7 @@ export function MenuPageClient({
   const [member, setMember] = useState<{ name: string | null } | null>(initialMember)
   const [memberBalances, setMemberBalances] = useState<MemberBalances | null>(initialMemberBalances)
   const [isMemberOpen, setIsMemberOpen] = useState(false)
+  const [isServiceRequestsOpen, setIsServiceRequestsOpen] = useState(false)
   const storeInfo = useMemo(() => readStoreInfo(restaurant.settings), [restaurant.settings])
   const loyaltyConfig = (restaurant.settings as Record<string, unknown> | null)?.['loyalty'] as
     | {
@@ -1423,6 +1435,8 @@ export function MenuPageClient({
           } : {}),
         } : null}
         onOpenMember={loyaltyEnabled ? () => setIsMemberOpen(true) : undefined}
+        onServiceRequest={isPreview ? async () => true : sendServiceRequest}
+        onOpenServiceRequests={() => setIsServiceRequestsOpen(true)}
         memberLoyalty={member && memberBalances && memberBalances.stampEnabled
           ? { filled: memberBalances.stamps, total: memberBalances.stampGoal }
           : null}
@@ -1502,6 +1516,8 @@ export function MenuPageClient({
         tableLabel={tableLabel ?? null}
         hidden={isCartOpen || isBillOpen || Boolean(selectedItem) || isMemberOpen || isSplitOpen || Boolean(paymentOrderId)}
         onRequest={sendServiceRequest}
+        open={isServiceRequestsOpen}
+        onOpenChange={setIsServiceRequestsOpen}
       />
 
       {orderId && orderStatus && orderView === 'bubble' && toastPhase !== null && (

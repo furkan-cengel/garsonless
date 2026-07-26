@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { AppIcons as I } from '../../../icons'
 import { resolveServiceRequestFabConfig } from '../../../menu/serviceRequestFabConfig'
@@ -17,10 +18,12 @@ import { DailySpecialBlock } from './DailySpecialSection'
 import type { PromoSliderCampaign } from './promoSliderCampaignModel'
 import {
   AddressBarSection,
+  HoursInfoSection,
   InfoBlockSection,
   InfoCardSection,
   ModeTabsSection,
   QuickLinksSection,
+  WifiInfoSection,
 } from './MiscSections'
 
 export interface CustomSectionRendererProps {
@@ -167,13 +170,13 @@ export function CustomSectionRenderer({
     )
   }
   if (sectionId === 'gallery') return <GallerySection config={config} />
+  if (sectionId === 'hours') return <HoursInfoSection storeInfo={storeInfo ?? null} />
+  if (sectionId === 'wifi-info') return <WifiInfoSection config={config} catalogMock={renderContext === 'catalog'} />
   if (
     sectionId === 'reviews' ||
-    sectionId === 'hours' ||
     sectionId === 'allergens' ||
     sectionId === 'service-info' ||
     sectionId === 'waiter-call' ||
-    sectionId === 'wifi-info' ||
     sectionId === 'bill-summary' ||
     sectionId === 'social-block' ||
     sectionId === 'footer'

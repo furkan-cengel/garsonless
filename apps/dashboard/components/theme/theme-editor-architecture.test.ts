@@ -386,7 +386,8 @@ test("section picker previews the canonical public-menu renderer instead of a mo
   );
   assert.match(canonicalSectionPreviewSource, /CustomSectionRenderer/);
   assert.match(canonicalSectionPreviewSource, /computeThemeVars/);
-  assert.match(canonicalSectionPreviewSource, /readStoreInfo/);
+  assert.match(canonicalSectionPreviewSource, /sectionId === 'hours'/);
+  assert.match(canonicalSectionPreviewSource, /readStoreInfo\(restaurantSettings\)/);
   assert.match(canonicalSectionPreviewSource, /normalizeModifierGroups/);
   assert.match(canonicalSectionPreviewSource, /items=\{items\}/);
   assert.match(canonicalSectionPreviewSource, /storeInfo=\{storeInfo\}/);
@@ -402,7 +403,7 @@ test("theme editor orchestrator imports static section definitions from a typed 
   assert.doesNotMatch(clientSource, /^const SECTION_SETTING_SCHEMA/m);
   assert.match(sectionRegistrySource, /export const SECTION_LIBRARY =/);
   assert.match(sectionRegistrySource, /export const SECTION_SETTING_SCHEMA:/);
-  assert.match(sectionRegistrySource, /status: 'planned'/);
+  assert.doesNotMatch(sectionRegistrySource, /status: 'planned'/);
   assert.doesNotMatch(
     sectionRegistrySource,
     /<I\.|ReactNode|from '\.\.\/\.\.\/lib\/ui'/,

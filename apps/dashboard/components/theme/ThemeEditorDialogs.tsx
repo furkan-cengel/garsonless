@@ -335,8 +335,10 @@ export function SectionPickerDialog({
         <footer className="section-picker-footer" style={footerStyle}>
           <div className="section-picker-status" style={footerStatusStyle}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ ...statusDotStyle, background: '#2f8f5b' }} />{readyCount} hazır</span>
-            <span style={{ width: 1, height: 12, background: 'var(--border)' }} />
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ ...statusDotStyle, background: '#e0a33a' }} />{plannedCount} geliştiriliyor</span>
+            {plannedCount > 0 && <>
+              <span style={{ width: 1, height: 12, background: 'var(--border)' }} />
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ ...statusDotStyle, background: '#e0a33a' }} />{plannedCount} geliştiriliyor</span>
+            </>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button className="section-picker-secondary" type="button" onClick={onClose} style={secondaryButtonStyle}>Vazgeç</button>

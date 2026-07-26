@@ -17,7 +17,7 @@ import {
   type ThemePageBlock,
 } from '@garsonless/design-engine'
 
-export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFilters, orderStatus, filterEmptyState, tableId, tableLabel, cartSummary, onOpenCart, items, onQuickAdd, onAddCombo, billSummary, onOpenBill, memberSummary, onOpenMember, memberLoyalty, storeInfo }: ThemeMenuPageProps) {
+export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFilters, orderStatus, filterEmptyState, tableId, tableLabel, cartSummary, onOpenCart, items, onQuickAdd, onAddCombo, billSummary, onOpenBill, memberSummary, onOpenMember, onServiceRequest, onOpenServiceRequests, memberLoyalty, storeInfo }: ThemeMenuPageProps) {
   const { theme, restaurantName } = useTheme()
   const visualNav = theme.catnavStyle === 'visual'
   const orderedCategories = useMemo(() => {
@@ -433,11 +433,39 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
 
   return (
     <div suppressHydrationWarning style={{ minHeight: '100dvh', backgroundColor: 'var(--p-bg)', ...textureStyle }}>
-      <Header tableId={tableId ?? null} tableName={tableLabel ?? null} categories={orderedCategories} cartSummary={cartSummary} onOpenCart={onOpenCart} billSummary={billSummary ?? null} onOpenBill={onOpenBill} memberSummary={memberSummary ?? null} onOpenMember={onOpenMember} />
+      <Header
+        tableId={tableId ?? null}
+        tableName={tableLabel ?? null}
+        categories={orderedCategories}
+        {...(categoryMeta ? { categoryMeta } : {})}
+        onCategorySelect={(categoryId) => {
+          if (!visualNav) {
+            document.getElementById(`section-${categoryId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            return
+          }
+          const category = categoryById.get(categoryId)
+          if (!category) return
+          const rootId = category.parent_id ?? category.id
+          const children = orderedCategories.filter((candidate) => candidate.parent_id === rootId)
+          setActiveVisualRootId(rootId)
+          setActiveVisualCategoryId(category.id)
+          setVisualStage(category.parent_id || children.length === 0 ? 'products' : 'children')
+        }}
+        cartSummary={cartSummary}
+        onOpenCart={onOpenCart}
+        billSummary={billSummary ?? null}
+        onOpenBill={onOpenBill}
+        memberSummary={memberSummary ?? null}
+        onOpenMember={onOpenMember}
+        onServiceRequest={onServiceRequest}
+        onOpenServiceRequests={onOpenServiceRequests}
+        storeInfo={storeInfo ?? null}
+      />
       {orderStatus}
       <main style={{ paddingBottom: 96, width: '100%', maxWidth: pageMaxWidth, marginInline: 'auto' }}>
         {pageBlocks.map((block) => {
           if (block.type === 'section') {
+            if (block.placement === 'drawer') return null
             if (!visualNav && getSectionVisibility(block).mode === 'categories') return null
             const context = visualNav && visualStage !== 'roots'
               ? { view: 'category' as const, categoryId: visualStage === 'products' ? activeVisualCategoryId : activeVisualRootId }

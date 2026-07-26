@@ -18,6 +18,11 @@ export { DEFAULT_CONFIG } from './schema'
 
 export { TEMPLATES } from './templates'
 export { CANONICAL_THEME_ID } from './theme-policy'
+export {
+  resolveMenuActionPlacements,
+  type MenuActionCapabilities,
+  type MenuActionPlacements,
+} from './menu-action-placement'
 export type { TemplateId } from './templates'
 export {
   isThemeTemplateId,

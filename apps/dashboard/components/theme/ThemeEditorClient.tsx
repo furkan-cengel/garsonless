@@ -3,12 +3,9 @@ import { useMemo } from 'react'
 import { CANONICAL_THEME_ID, THEME_REGISTRY, type SettingsGroup } from '@garsonless/ui'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { useShell } from '../../lib/shell-context'
-import { ThemeEditorTopbar } from './ThemeEditorTopbar'
-import { ThemeEditorCanvas } from './ThemeEditorCanvas'
-import { ThemeEditorDialogsLayer } from './ThemeEditorDialogsLayer'
-import { ThemeEditorPropertiesWorkspace } from './ThemeEditorPropertiesWorkspace'
-import { ThemeEditorShell } from './ThemeEditorShell'
-import { ThemeEditorSidebar } from './ThemeEditorSidebar'
+import { ThemeEditorTopbar } from './ThemeEditorTopbar'; import { ThemeEditorCanvas } from './ThemeEditorCanvas'
+import { ThemeEditorDialogsLayer } from './ThemeEditorDialogsLayer'; import { ThemeEditorPropertiesWorkspace } from './ThemeEditorPropertiesWorkspace'
+import { ThemeEditorShell } from './ThemeEditorShell'; import { ThemeEditorSidebar } from './ThemeEditorSidebar'
 import { ChefPickIconUploadPanels, GalleryUploadPanel, PromoSliderImageUploadPanel, SectionImageUploadPanel, ServiceRequestIconUploadPanels } from './ThemeSectionSettings'
 import { ThemeLogoUploadCard } from './ThemeLogoUploadCard'
 import { useThemeEditorLifecycle } from './use-theme-editor-lifecycle'
@@ -16,6 +13,7 @@ import { useThemeEditorLogo } from './use-theme-editor-logo'
 import { useThemeEditorNavigation } from './use-theme-editor-navigation'
 import { useThemeEditorPropertyCommands } from './use-theme-editor-property-commands'
 import { useThemeEditorWorkspace } from './use-theme-editor-workspace'
+import { useThemeEditorDrawerPreview } from './use-theme-editor-drawer-preview'
 import { buildEditorNavigation, buildThemeSettingsGroup } from './theme-editor-navigation-catalog'
 import { getThemeEditorSaveStatus } from './theme-editor-shell-model'
 import { createThemeEditorPreviewDeriver } from './theme-editor-preview-theme-model'
@@ -33,7 +31,6 @@ interface Props {
   menuCategories: ThemeEditorPreviewCategory[]
   menuItems: ThemeEditorPreviewItem[]
 }
-
 export default function ThemeEditorClient({
   restaurantId,
   restaurantSlug,
@@ -148,6 +145,7 @@ export default function ThemeEditorClient({
     removeSection: handleRemoveSection,
     changeSectionSetting: handleSectionSettingChange,
     changeSectionVisibility: handleSectionVisibilityChange,
+    changeSectionPlacement: handleSectionPlacementChange,
     dropPageBlock: handlePageBlockDrop,
     movePageBlock: handlePageBlockKeyboardMove,
     selectGroup,
@@ -162,6 +160,7 @@ export default function ThemeEditorClient({
     updateThemePatch,
     flashToast,
   })
+  useThemeEditorDrawerPreview({ activeGroup, iframeRef, previewStatus, previewUrl, selectedSectionDefinitionId, selectedSectionPlacement: selectedSectionBlock?.placement })
   const { copyCurrentSettings: handleCopyCurrentSettings, resetCurrentSettings: handleResetCurrentSettings } = useThemeEditorPropertyCommands({
     activeGroup,
     activeGroupData,
@@ -299,11 +298,11 @@ export default function ThemeEditorClient({
         onReset={handleResetCurrentSettings}
         onCopy={handleCopyCurrentSettings}
         onFieldChange={handleFieldChange}
-        onPatch={updateThemePatch}
         onSectionSettingChange={(key, value) => {
           if (selectedSectionId) handleSectionSettingChange(selectedSectionId, key, value)
         }}
         onSectionVisibilityChange={handleSectionVisibilityChange}
+        onSectionPlacementChange={handleSectionPlacementChange}
       />}
       dialogs={<ThemeEditorDialogsLayer
         sectionPickerOpen={sectionPickerOpen}

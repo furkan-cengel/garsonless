@@ -83,6 +83,13 @@ The design engine is the core differentiator. Every UI decision routes through i
 
 ### Tema editörü — canonical menü + gerçek Bölüm Ekle kataloğu ✅ (2026-07-23, commit bekliyor)
 
+#### Shopify tarzı özelleştirilebilir Menü Çekmecesi ✅ (2026-07-26, commit bekliyor)
+
+- Tema ağacında Header altında `Logo ve Marka` ile `Menü Çekmecesi` ayrıldı; drawer'a taşınan bölümler ayrıca `Menü Çekmecesi İçeriği` altında görünür. Drawer veya drawer çocuğu seçildiğinde preview mesaj köprüsü çekmeceyi açar ve bilgi accordion'unu seçili bölüme getirir.
+- `ThemePageBlock.placement` eklendi. Yeni Wi-Fi ve çalışma saatleri drawer'a eklenir; placement içermeyen eski kayıtlar geriye uyumlu biçimde sayfada kalır. Request buttons drawer'a taşınırsa eski FAB kapanır ve yalnız gerçek callback'i bulunan servis aksiyonları drawer footer'ında gösterilir.
+- Drawer ayarları Modern/Minimal/Editoryal preset, tam yükseklik/header altı konum, sağ/sol taraf, ton, genişlik, radius, gölge, perde, yoğunluk, ikon/aktif satır, tipografi ve içerik/müşteri merkezi görünürlüklerini kapsar. Kategori araması gerçek filtreler; klasik ve görsel navigasyon aynı callback hattını kullanır; Wi-Fi ağ adı/şifre ayrı kopyalanır ve saatler güncel günü öne çıkarır.
+- Verify: design-engine/ui/menu/dashboard typecheck temiz; UI ve dashboard lint temiz; dashboard mimari testleri **228/228**; menu production build temiz. Playwright'ta canlı `/maf-lounge?preview=1` ve referans HTML 480×820 çekildi; canlı drawer 370×820 ölçüldü, 0 console error, Escape ile kapanma geçti. Menü dev server yeniden başlatıldı ve `localhost:3011` üzerinde çalışıyor.
+
 - Ürün kararı: **tek menü şablonu `default`**. Theme registry, onboarding,
   dashboard route'u ve server-side publish komutu canonical kimliği zorlar;
   `Taste of Spain` ve diğer seçim ekranları kaldırıldı. Legacy template id'leri
@@ -3389,3 +3396,24 @@ abartan sonuçlar olarak işaretlendi. Uygulama sırasında bu nüanslar korunma
   dashboard/menu/db/ui typecheck ve lint temiz. Değişiklikler henüz
   commit/push edilmedi; çalışma ağacındaki diğer Bölüm Ekle değişiklikleriyle
   birlikte dikkatli kapsamlanmalı.
+
+### Header ve müşteri aksiyonları tek-yüzey modeli ✅ (2026-07-26)
+
+- Header taşma (`…`) popover'ı kaldırıldı. `standard`, `brand` ve `compact`
+  presetleri; 44×44 ana aksiyon hedefleri ve yalnız masa bağlamında görünen
+  34 px durum barı eklendi. `below-header` Drawer konumu artık ana header ile
+  masa barının birleşik yüksekliğini kullanıyor.
+- Üyelik, hesap, sepet ve servis için canonical placement alanları eklendi.
+  Runtime aynı aksiyonu yalnız seçilmiş Header/Drawer/Footer/Floating yüzeyinde
+  gösteriyor; eksik callback/veri kontrolü görünmez kılıyor. Header kapasitesi
+  `Sepet > Servis > Üyelik` önceliğiyle iki aksiyon.
+- Tema düzenleyici ağacı `Header > Logo ve Marka / Yerleşim ve Yüzey / Masa
+  Durum Barı / Aksiyon Konumları / Menü Çekmecesi` hiyerarşisine taşındı.
+  Eski layout, Drawer toggle, cart trigger ve request-buttons yerleşimleri
+  sanitizer içinde geriye uyumlu olarak yeni modele çevriliyor.
+- Servis sheet'i Header, Drawer ve Floating tetikleyicileri arasında ortak;
+  Escape, focus trap, focus restore ve body scroll kilidi doğrulandı.
+- Dashboard architecture testleri **238/238**, design-engine/UI/menu/dashboard
+  typecheck ve lint, ayrıca menu production build temiz geçti. Playwright
+  320/390/480/768 px matrisinde yatay taşma, iki-aksiyon kapasitesi, 44 px
+  hedefler, masa barı + Drawer hizası ve tek-yüzey davranışını doğruladı.

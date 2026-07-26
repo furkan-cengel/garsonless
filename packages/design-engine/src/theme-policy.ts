@@ -23,6 +23,11 @@ const STRING_OPTIONS: Partial<Record<keyof GarsonlessTheme, readonly string[]>> 
   motion: ['full', 'reduced', 'none'],
   headerAlign: ['left', 'center'],
   headerLayout: ['split', 'center', 'stacked', 'compact'],
+  headerPreset: ['standard', 'brand', 'compact'],
+  memberPlacement: ['header', 'drawer', 'hidden'],
+  billPlacement: ['header', 'drawer', 'hidden'],
+  cartPlacement: ['header', 'drawer', 'footer', 'hidden'],
+  servicePlacement: ['header', 'drawer', 'floating', 'hidden'],
   headerLogoStyle: ['display', 'wordmark', 'image'],
   headerStyle: ['solid', 'blur'],
   catnavStyle: ['pills', 'visual', 'underline', 'segmented', 'dots', 'outlined'],
@@ -54,6 +59,16 @@ const STRING_OPTIONS: Partial<Record<keyof GarsonlessTheme, readonly string[]>> 
   logoBg: ['none', 'white', 'accent'],
   sectionHeading: ['accent', 'editorial', 'catalog'],
   pageMaxWidth: ['none', '960', '1200'],
+  drawerPreset: ['modern', 'minimal', 'editorial'],
+  drawerPosition: ['full', 'below-header'],
+  drawerSide: ['left', 'right'],
+  drawerTone: ['brand', 'surface', 'dark'],
+  drawerShadow: ['soft', 'strong', 'none'],
+  drawerDensity: ['compact', 'comfortable'],
+  drawerIconStyle: ['soft', 'filled', 'outline'],
+  drawerActiveStyle: ['soft', 'bar', 'filled'],
+  drawerFontRole: ['body', 'display'],
+  drawerTextCase: ['default', 'uppercase'],
 }
 
 const NUMBER_RANGES: Partial<Record<keyof GarsonlessTheme, readonly [number, number]>> = {
@@ -68,6 +83,8 @@ const NUMBER_RANGES: Partial<Record<keyof GarsonlessTheme, readonly [number, num
   headerNameSize: [12, 80], headerLogoSize: [16, 120], navTopGap: [0, 96],
   navBottomGap: [0, 96], categoryGridTopGap: [0, 120],
   sectionHeadingTopGap: [0, 120], sectionHeadingBottomGap: [0, 120],
+  drawerWidth: [260, 440], drawerRadius: [0, 36], drawerOverlayOpacity: [0, 80],
+  drawerOverlayBlur: [0, 12], drawerTopFontSize: [12, 20], drawerSubFontSize: [11, 18],
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -92,6 +109,9 @@ function sanitizePageBlocks(value: unknown): ThemePageBlock[] | null {
     }
 
     const sectionId = safeString(entry['sectionId'], 100)
+    const placement = entry['placement'] === 'page' || entry['placement'] === 'drawer'
+      ? entry['placement']
+      : undefined
     const rawVisibility = entry['visibility']
     let visibility: ThemePageBlock['visibility']
     if (isRecord(rawVisibility)) {
@@ -117,6 +137,7 @@ function sanitizePageBlocks(value: unknown): ThemePageBlock[] | null {
       id,
       ...(sectionId ? { sectionId } : {}),
       ...(visibility ? { visibility } : {}),
+      ...(placement ? { placement } : {}),
     })
   }
   return blocks
@@ -214,6 +235,38 @@ export function sanitizeThemeTokens(input: unknown, templateId: string): Garsonl
       const text = safeString(value)
       if (text !== null) result[key] = text
     }
+  }
+
+  if (!Object.hasOwn(input, 'headerPreset') && typeof input['headerLayout'] === 'string') {
+    result['headerPreset'] = input['headerLayout'] === 'compact'
+      ? 'compact'
+      : input['headerLayout'] === 'center'
+        ? 'standard'
+        : 'brand'
+  }
+  if (!Object.hasOwn(input, 'headerShowContextBar') && typeof input['headerTableBadge'] === 'boolean') {
+    result['headerShowContextBar'] = input['headerTableBadge']
+  }
+  if (!Object.hasOwn(input, 'memberPlacement') && Object.hasOwn(input, 'drawerShowMember')) {
+    result['memberPlacement'] = input['drawerShowMember'] === false ? 'header' : 'drawer'
+  }
+  if (!Object.hasOwn(input, 'billPlacement') && (Object.hasOwn(input, 'drawerShowBill') || Object.hasOwn(input, 'headerShowBill'))) {
+    result['billPlacement'] = input['drawerShowBill'] === true
+      ? 'drawer'
+      : input['headerShowBill'] === true ? 'header' : 'hidden'
+  }
+  if (!Object.hasOwn(input, 'cartPlacement') && (
+    Object.hasOwn(input, 'cartHeaderTriggerStyle') || Object.hasOwn(input, 'cartFooterTriggerStyle') || Object.hasOwn(input, 'drawerShowCart')
+  )) {
+    result['cartPlacement'] = typeof input['cartHeaderTriggerStyle'] === 'string' && input['cartHeaderTriggerStyle'] !== 'none'
+      ? 'header'
+      : typeof input['cartFooterTriggerStyle'] === 'string' && input['cartFooterTriggerStyle'] !== 'none'
+        ? 'footer'
+        : input['drawerShowCart'] === true ? 'drawer' : 'hidden'
+  }
+  if (!Object.hasOwn(input, 'servicePlacement') && Array.isArray(input['pageBlocks'])) {
+    const requestBlock = input['pageBlocks'].find((block) => isRecord(block) && block['type'] === 'section' && (block['sectionId'] ?? block['id']) === 'request-buttons')
+    if (isRecord(requestBlock)) result['servicePlacement'] = requestBlock['placement'] === 'drawer' ? 'drawer' : 'floating'
   }
 
   return result as unknown as GarsonlessTheme

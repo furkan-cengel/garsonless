@@ -6,7 +6,6 @@ import type { SettingField } from "@garsonless/ui";
 import {
   contrastRatio,
   deriveSoftColor,
-  resolveCartTriggerPatch,
 } from "./theme-property-renderer-model";
 import {
   HeaderPropertyField,
@@ -31,7 +30,7 @@ const HEADER_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
   },
   {
     title: "Yerleşim",
-    ids: ["headerLayout", "headerAlign", "stickyHeader", "headerHeight"],
+    ids: ["headerPreset", "headerAlign", "stickyHeader", "headerHeight"],
   },
   {
     title: "Boşluk ve çizgi",
@@ -39,9 +38,35 @@ const HEADER_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
   },
   {
     title: "Görünür öğeler",
-    ids: ["headerShowMenu", "headerTableBadge", "headerShowBill"],
+    ids: ["headerShowMenu", "headerShowContextBar"],
   },
+  { title: "Aksiyon konumları", ids: ["memberPlacement", "billPlacement", "cartPlacement", "servicePlacement"] },
   { title: "İçerik", ids: ["headerTagline"] },
+];
+
+const DRAWER_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
+  { title: "Hazır stil", ids: ["drawerPreset"] },
+  {
+    title: "Görünüm",
+    ids: ["drawerTone", "drawerWidth", "drawerRadius", "drawerShadow", "drawerOverlayOpacity", "drawerOverlayBlur"],
+  },
+  { title: "Yerleşim", ids: ["drawerPosition", "drawerSide"] },
+  {
+    title: "Kategori satırları",
+    ids: ["drawerDensity", "drawerShowIcons", "drawerIconStyle", "drawerShowCounts", "drawerShowDescriptions", "drawerActiveStyle"],
+  },
+  {
+    title: "Tipografi",
+    ids: ["drawerTopFontSize", "drawerSubFontSize", "drawerFontRole", "drawerTextCase"],
+  },
+  {
+    title: "İçerik",
+    ids: ["drawerShowSearch", "drawerShowBrand", "drawerShowStatus", "drawerShowTable"],
+  },
+  {
+    title: "Müşteri merkezi",
+    ids: [],
+  },
 ];
 
 const CARD_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
@@ -289,6 +314,17 @@ function HeaderPropertyPanel(props: FieldPanelProps) {
   );
 }
 
+function DrawerPropertyPanel(props: FieldPanelProps) {
+  return (
+    <div data-drawer-property-panel data-modern-property-panel style={panelLayout}>
+      <InfoNote>
+        Drawer içeriğini Bölüm Ekle alanından taşıyabilir; canlı konumunu, görünümünü ve yalnız kullanılabilir müşteri aksiyonlarını buradan düzenleyebilirsiniz.
+      </InfoNote>
+      <PanelFields sections={DRAWER_FIELD_SECTIONS} {...props} />
+    </div>
+  );
+}
+
 function CardPropertyPanel({
   layout,
   ...props
@@ -468,30 +504,10 @@ function ThemePropertyPanel({ fields, getValue, onChange }: FieldPanelProps) {
 
 function CartPropertyPanel({
   fields,
-  headerStyle,
-  footerStyle,
   getValue,
   onChange,
-  onPatch,
-}: FieldPanelProps & {
-  headerStyle: NonNullable<GarsonlessTheme["cartHeaderTriggerStyle"]>;
-  footerStyle: NonNullable<GarsonlessTheme["cartFooterTriggerStyle"]>;
-  onPatch: (patch: Partial<GarsonlessTheme>) => void;
-}) {
+}: FieldPanelProps) {
   const fieldById = new Map(fields.map((field) => [field.id, field]));
-  const safeChange = (field: SettingField, value: unknown) => {
-    const patch = resolveCartTriggerPatch({
-      fieldId: field.id,
-      value,
-      headerStyle,
-      footerStyle,
-    });
-    if (patch) {
-      onPatch(patch);
-      return;
-    }
-    onChange(field, value);
-  };
   return (
     <div
       data-cart-property-panel
@@ -499,8 +515,8 @@ function CartPropertyPanel({
       style={panelLayout}
     >
       <InfoNote>
-        Sepet girişi Header veya alt alanda gösterilir. Bir konumu seçtiğinde
-        diğeri otomatik kapanır.
+        Sepetin yüzeyi Header → Aksiyon Konumları bölümünden seçilir. Burada
+        yalnız seçili yüzeyin görünümü düzenlenir.
       </InfoNote>
       {CART_FIELD_SECTIONS.map((section) => {
         const sectionFields = section.ids
@@ -518,7 +534,7 @@ function CartPropertyPanel({
                   key={field.id}
                   field={field}
                   value={getValue(field)}
-                  onChange={(value) => safeChange(field, value)}
+                  onChange={(value) => onChange(field, value)}
                 />
               ))}
             </div>
@@ -649,6 +665,7 @@ export {
   CardPropertyPanel,
   CartPropertyPanel,
   HeaderPropertyPanel,
+  DrawerPropertyPanel,
   LayoutPropertyPanel,
   NavPropertyPanel,
   PropertyFieldEditor,

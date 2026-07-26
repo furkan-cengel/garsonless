@@ -138,6 +138,7 @@ export function addSectionToPageFlow(
     type: 'section',
     id: instanceId,
     ...(instanceId !== sectionId ? { sectionId } : {}),
+    ...(['hours', 'wifi-info'].includes(sectionId) ? { placement: 'drawer' as const } : {}),
   })
   return next
 }

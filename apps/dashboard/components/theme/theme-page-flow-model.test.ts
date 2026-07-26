@@ -101,6 +101,16 @@ test('global request buttons remain a singleton in page flow', () => {
   )
 })
 
+test('new information sections default to drawer while legacy sections stay on page', () => {
+  const initial: PageBlock[] = [{ type: 'nav', id: 'category-nav' }]
+  assert.equal(addSectionToPageFlow(initial, 'wifi-info')[1]?.placement, 'drawer')
+  assert.equal(addSectionToPageFlow(initial, 'hours')[1]?.placement, 'drawer')
+  assert.equal(addSectionToPageFlow(initial, 'hero-banner')[1]?.placement, undefined)
+
+  const legacy = buildPageBlocks({ pageBlocks: [{ type: 'section', id: 'wifi-info' }] }, categories, ['wifi-info'])
+  assert.equal(legacy.find((block) => block.type === 'section')?.placement, undefined)
+})
+
 test('stored duplicate section instances preserve their definition and visibility scope', () => {
   const blocks = buildPageBlocks({
     pageBlocks: [

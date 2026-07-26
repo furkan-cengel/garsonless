@@ -16,6 +16,8 @@ export interface ThemePageBlock {
   sectionId?: string
   /** Optional placement scope. Missing metadata preserves the legacy all-menu behavior. */
   visibility?: ThemeSectionVisibility
+  /** Missing preserves legacy page rendering; newly added drawer-capable sections set this explicitly. */
+  placement?: 'page' | 'drawer'
 }
 
 export interface GarsonlessTheme {
@@ -48,6 +50,12 @@ export interface GarsonlessTheme {
   stickyNav: boolean
   headerAlign: 'left' | 'center'
   headerLayout?: 'split' | 'center' | 'stacked' | 'compact'
+  headerPreset?: 'standard' | 'brand' | 'compact'
+  headerShowContextBar?: boolean
+  memberPlacement?: 'header' | 'drawer' | 'hidden'
+  billPlacement?: 'header' | 'drawer' | 'hidden'
+  cartPlacement?: 'header' | 'drawer' | 'footer' | 'hidden'
+  servicePlacement?: 'header' | 'drawer' | 'floating' | 'hidden'
   headerLogoStyle: 'display' | 'wordmark' | 'image'
   headerShowSearch: boolean
   headerShowLang: boolean
@@ -122,6 +130,33 @@ export interface GarsonlessTheme {
   headerShowMenu: boolean
   headerNameSize: number
   headerLogoSize?: number
+  drawerPreset?: 'modern' | 'minimal' | 'editorial'
+  drawerPosition?: 'full' | 'below-header'
+  drawerSide?: 'left' | 'right'
+  drawerTone?: 'brand' | 'surface' | 'dark'
+  drawerWidth?: number
+  drawerRadius?: number
+  drawerShadow?: 'soft' | 'strong' | 'none'
+  drawerOverlayOpacity?: number
+  drawerOverlayBlur?: number
+  drawerDensity?: 'compact' | 'comfortable'
+  drawerIconStyle?: 'soft' | 'filled' | 'outline'
+  drawerActiveStyle?: 'soft' | 'bar' | 'filled'
+  drawerTopFontSize?: number
+  drawerSubFontSize?: number
+  drawerFontRole?: 'body' | 'display'
+  drawerTextCase?: 'default' | 'uppercase'
+  drawerShowSearch?: boolean
+  drawerShowBrand?: boolean
+  drawerShowStatus?: boolean
+  drawerShowTable?: boolean
+  drawerShowCounts?: boolean
+  drawerShowDescriptions?: boolean
+  drawerShowIcons?: boolean
+  drawerShowCart?: boolean
+  drawerShowMember?: boolean
+  drawerShowService?: boolean
+  drawerShowBill?: boolean
   logoShape?: 'square' | 'rounded' | 'circle'
   logoShadow?: boolean
   logoBorder?: boolean
@@ -165,6 +200,12 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   stickyNav: true,
   headerAlign: 'left',
   headerLayout: 'split',
+  headerPreset: 'standard',
+  headerShowContextBar: true,
+  memberPlacement: 'drawer',
+  billPlacement: 'drawer',
+  cartPlacement: 'footer',
+  servicePlacement: 'drawer',
   headerLogoStyle: 'display',
   headerShowSearch: true,
   headerShowLang: false,
@@ -208,7 +249,7 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   cardCtaIcon: 'plus',
   cardPlaceholderStyle: 'neutral',
   cartStyle: 'pill',
-  cartHeaderTriggerStyle: 'none',
+  cartHeaderTriggerStyle: 'icon',
   cartFooterTriggerStyle: 'pill',
   cartIcon: 'cart',
   cartShowBadge: true,
@@ -239,6 +280,33 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   headerShowMenu: true,
   headerNameSize: 28,
   headerLogoSize: 40,
+  drawerPreset: 'modern',
+  drawerPosition: 'full',
+  drawerSide: 'left',
+  drawerTone: 'brand',
+  drawerWidth: 370,
+  drawerRadius: 22,
+  drawerShadow: 'strong',
+  drawerOverlayOpacity: 48,
+  drawerOverlayBlur: 2,
+  drawerDensity: 'comfortable',
+  drawerIconStyle: 'soft',
+  drawerActiveStyle: 'bar',
+  drawerTopFontSize: 14,
+  drawerSubFontSize: 13,
+  drawerFontRole: 'body',
+  drawerTextCase: 'default',
+  drawerShowSearch: true,
+  drawerShowBrand: true,
+  drawerShowStatus: true,
+  drawerShowTable: true,
+  drawerShowCounts: true,
+  drawerShowDescriptions: true,
+  drawerShowIcons: true,
+  drawerShowCart: true,
+  drawerShowMember: true,
+  drawerShowService: true,
+  drawerShowBill: true,
   logoShape: 'rounded',
   logoShadow: false,
   logoBorder: false,

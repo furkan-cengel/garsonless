@@ -11,11 +11,9 @@ export const SECTION_LIBRARY = [
   { id: 'daily-special', group: 'Promosyon', label: 'Günün Özeli', sub: 'Tek ürün + şef notu + sayaç', icon: 'clock', plan: 'free', status: 'ready' },
   { id: 'promo-slider', group: 'Promosyon', label: 'Kampanya Slider', sub: 'Dönen kampanya kartları (kupon, flash, combo…)', icon: 'section', plan: 'pro', status: 'ready' },
   { id: 'gallery', group: 'Bağlam', label: 'Foto Galerisi', sub: 'Mekan kareleri grid görünümü', icon: 'image', plan: 'pro', status: 'ready' },
-  { id: 'hours', group: 'Bağlam', label: 'Çalışma Saatleri', sub: 'İşletme ayarlarındaki güncel saatler', icon: 'clock', plan: 'free', status: 'ready' },
-  { id: 'allergens', group: 'Bağlam', label: 'Alerjen Bilgileri', sub: 'Menüden türetilen diyet ve alerjen özeti', icon: 'warn', plan: 'free', status: 'planned' },
-  { id: 'reviews', group: 'Bağlam', label: 'Yorumlar', sub: 'Doğrulanmış müşteri yorumları', icon: 'star', plan: 'free', status: 'planned' },
   { id: 'request-buttons', group: 'Etkileşim', label: 'İstek Butonları', sub: 'Masadan ekibe iletilen özelleştirilebilir hızlı istekler', icon: 'bell', plan: 'pro', status: 'ready', singleton: true, global: true },
-  { id: 'wifi-info', group: 'Etkileşim', label: 'Wi-Fi Bilgisi', sub: 'Güvenli ağ paylaşım kartı', icon: 'globe', plan: 'free', status: 'planned' },
+  { id: 'hours', group: 'Bağlam', label: 'Çalışma Saatleri', sub: 'İşletme ayarlarındaki güncel saatler', icon: 'clock', plan: 'free', status: 'ready' },
+  { id: 'wifi-info', group: 'Etkileşim', label: 'Wi-Fi Bilgisi', sub: 'Menü çekmecesinde güvenli ağ paylaşımı', icon: 'globe', plan: 'free', status: 'ready' },
   { id: 'social-block', group: 'Site Sonu', label: 'Sosyal Medya', sub: 'İşletme ayarlarındaki sosyal hesaplar', icon: 'arrow', plan: 'free', status: 'ready' },
   { id: 'footer', group: 'Site Sonu', label: 'Footer', sub: 'Adres, iletişim ve marka sonu', icon: 'chevDown', plan: 'free', status: 'ready' },
 ] as const
@@ -108,6 +106,11 @@ export const SERVICE_REQUEST_ICON_OPTIONS = [
   { value: 'none', label: 'İkonsuz' },
 ]
 export const SECTION_SETTING_SCHEMA: Record<string, SectionSettingField[]> = {
+  'wifi-info': [
+    { key: 'networkName', label: 'Ağ Adı', type: 'text', editorTab: 'content', placeholder: 'Örn. MAF Guest' },
+    { key: 'password', label: 'Wi-Fi Şifresi', type: 'text', editorTab: 'content', placeholder: 'Misafir ağı şifresi' },
+    { key: 'note', label: 'Kısa Not', type: 'textarea', editorTab: 'content', placeholder: 'Bağlantı hakkında ek bilgi' },
+  ],
   'request-buttons': [
     { key: 'title', label: 'Pencere Başlığı', type: 'text', editorTab: 'content', placeholder: 'Nasıl yardımcı olalım?' },
     { key: 'subtitle', label: 'Pencere Açıklaması', type: 'text', editorTab: 'content', placeholder: 'İsteğiniz doğrudan ekibe iletilir' },

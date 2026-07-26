@@ -19,17 +19,27 @@ test('section registry keeps unique ids and valid group references', () => {
   }
 })
 
-test('section catalog pairs hours with gallery and request buttons with wifi', () => {
+test('section catalog places request buttons before hours and omits retired placeholders', () => {
   const sectionIds = SECTION_LIBRARY.map((section) => section.id)
 
-  assert.deepEqual(sectionIds.slice(8, 14), [
+  assert.deepEqual(sectionIds.slice(8, 12), [
     'gallery',
-    'hours',
-    'allergens',
-    'reviews',
     'request-buttons',
+    'hours',
     'wifi-info',
   ])
+  const catalogIds = new Set<string>(sectionIds)
+  assert.equal(catalogIds.has('allergens'), false)
+  assert.equal(catalogIds.has('reviews'), false)
+})
+
+test('wifi is a ready drawer section with editable guest-network fields', () => {
+  const wifi = SECTION_LIBRARY.find((section) => section.id === 'wifi-info')
+  assert.equal(wifi?.status, 'ready')
+  assert.deepEqual(
+    SECTION_SETTING_SCHEMA['wifi-info']?.map((field) => field.key),
+    ['networkName', 'password', 'note'],
+  )
 })
 
 test('section setting schemas keep unique keys and valid editor tabs', () => {

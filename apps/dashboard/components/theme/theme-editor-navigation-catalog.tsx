@@ -3,11 +3,22 @@ import { I } from '../../lib/ui'
 import { THEME_EDITOR_THEME_GROUP_ID } from './theme-editor-properties-model'
 
 const THEME_GROUP_SOURCE_IDS = new Set(['colors', 'typography'])
+const HEADER_GROUP_IDS = new Set(['header', 'header-layout', 'header-context', 'header-actions', 'drawer'])
 
 export function buildEditorNavigation(schema: SettingsGroup[], themeName: string) {
   const visibleSchema = schema.filter((group) => !THEME_GROUP_SOURCE_IDS.has(group.id))
-  const splitIndex = Math.ceil(visibleSchema.length / 2)
-  const structure = visibleSchema.slice(0, splitIndex).map(toNavigationItem)
+  const headerGroups = visibleSchema.filter((group) => HEADER_GROUP_IDS.has(group.id))
+  const remaining = visibleSchema.filter((group) => !HEADER_GROUP_IDS.has(group.id))
+  const splitIndex = Math.ceil(remaining.length / 2)
+  const structure = [
+    ...headerGroups.map((group) => ({
+      ...toNavigationItem(group),
+      label: group.id === 'header' ? 'Logo ve Marka' : group.label,
+      parentLabel: 'Header',
+      depth: 1,
+    })),
+    ...remaining.slice(0, splitIndex).map(toNavigationItem),
+  ]
   const style = [
     ...(schema.some((group) => THEME_GROUP_SOURCE_IDS.has(group.id))
       ? [{
@@ -17,7 +28,7 @@ export function buildEditorNavigation(schema: SettingsGroup[], themeName: string
           icon: <I.palette size={17} />,
         }]
       : []),
-    ...visibleSchema.slice(splitIndex).map(toNavigationItem),
+    ...remaining.slice(splitIndex).map(toNavigationItem),
   ]
 
   return [
@@ -60,6 +71,7 @@ function getNavigationSubtitle(id: string, label: string) {
 
 function getNavigationIcon(id: string) {
   if (id.includes('header') || id.includes('topbar')) return <I.header size={17} />
+  if (id === 'drawer') return <I.menu size={17} />
   if (id.includes('cat') || id.includes('menu')) return <I.section size={17} />
   if (id.includes('card') || id.includes('dish')) return <I.card size={17} />
   if (id.includes('cart') || id.includes('payment')) return <I.cart size={17} />

@@ -1,6 +1,7 @@
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { ComponentType, ReactNode } from 'react'
 import type { MenuCategory, MenuItem, SectionPromotionContext } from '../menu/types'
+import type { ServiceRequestType } from '@garsonless/domain/tables'
 
 export interface ComboAddRequest {
   sectionInstanceId: string
@@ -29,6 +30,8 @@ export interface ThemeMenuPageProps {
   onOpenBill?: (() => void) | undefined
   memberSummary?: MemberChipSummary | null
   onOpenMember?: (() => void) | undefined
+  onServiceRequest?: ((type: ServiceRequestType) => Promise<boolean>) | undefined
+  onOpenServiceRequests?: (() => void) | undefined
   /** Real member loyalty for the promo-slider loyalty slide (null → demo values). */
   memberLoyalty?: { filled: number; total: number } | null
   storeInfo?: StoreInfo | null

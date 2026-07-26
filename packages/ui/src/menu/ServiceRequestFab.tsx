@@ -10,6 +10,9 @@ interface ServiceRequestFabProps {
   tableLabel?: string | null
   onRequest: (type: ServiceRequestType) => Promise<boolean>
   config?: Record<string, string>
+  trigger?: 'floating' | 'none'
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 const REQUEST_ICONS: Record<Exclude<ServiceRequestIcon, 'none' | 'custom'>, typeof I.bell> = {
@@ -41,11 +44,19 @@ function RequestIcon({ name, size, customIconUrl }: {
   return <Icon size={size} />
 }
 
-export function ServiceRequestFab({ tableLabel, onRequest, config = {} }: ServiceRequestFabProps) {
-  const [open, setOpen] = useState(false)
+export function ServiceRequestFab({ tableLabel, onRequest, config = {}, trigger = 'floating', open: controlledOpen, onOpenChange }: ServiceRequestFabProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = (next: boolean | ((current: boolean) => boolean)) => {
+    const value = typeof next === 'function' ? next(open) : next
+    if (controlledOpen === undefined) setInternalOpen(value)
+    onOpenChange?.(value)
+  }
   const [pending, setPending] = useState<ServiceRequestType | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
   const resolved = resolveServiceRequestFabConfig(config)
   const waiter = resolved.requests.find((request) => request.type === 'waiter')
   const quickRequests = resolved.requests.filter((request) => request.type !== 'waiter')
@@ -59,11 +70,32 @@ export function ServiceRequestFab({ tableLabel, onRequest, config = {} }: Servic
 
   useEffect(() => {
     if (!open) return
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    requestAnimationFrame(() => {
+      dialogRef.current?.querySelector<HTMLElement>('button:not(:disabled)')?.focus()
+    })
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Tab' && dialogRef.current) {
+        const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), [tabindex="0"]'))
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (!first || !last) return
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+      const previous = previousFocusRef.current
+      const fallback = document.querySelector<HTMLElement>('[aria-label="Menüyü aç"]')
+      if (previous?.isConnected && !previous.closest('[inert]')) previous.focus()
+      else fallback?.focus()
+    }
   }, [open])
 
   async function send(type: ServiceRequestType, label: string) {
@@ -109,13 +141,16 @@ export function ServiceRequestFab({ tableLabel, onRequest, config = {} }: Servic
       )}
 
       <div
+        ref={dialogRef}
         role="dialog"
         aria-label="Garson ve hızlı istekler"
         aria-hidden={!open}
+        inert={!open}
+        tabIndex={-1}
         style={{
           position: 'fixed',
           ...dialogSideStyle,
-          bottom: `calc(${resolved.bottomOffset + fabSize + 16}px + env(safe-area-inset-bottom, 0px))`,
+          bottom: `calc(${trigger === 'floating' ? resolved.bottomOffset + fabSize + 16 : 16}px + env(safe-area-inset-bottom, 0px))`,
           zIndex: 48,
           width: 'min(292px, calc(100vw - 32px))',
           borderRadius: 16,
@@ -210,7 +245,7 @@ export function ServiceRequestFab({ tableLabel, onRequest, config = {} }: Servic
         ) : null}
       </div>
 
-      <button
+      {trigger === 'floating' && <button
         type="button"
         aria-label={open ? 'Hızlı istekleri kapat' : 'Garson çağır ve hızlı istekler'}
         aria-expanded={open}
@@ -235,7 +270,7 @@ export function ServiceRequestFab({ tableLabel, onRequest, config = {} }: Servic
         }}
       >
         {open ? <I.close size={23} /> : <I.bell size={23} />}
-      </button>
+      </button>}
 
       {feedback && (
         <div

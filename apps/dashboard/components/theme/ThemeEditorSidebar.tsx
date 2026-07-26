@@ -12,6 +12,8 @@ type EditorNavGroup = {
     label: string
     sub: string
     icon: ReactNode
+    parentLabel?: string
+    depth?: number
   }>
 }
 
@@ -137,9 +139,14 @@ export function ThemeEditorSidebar({
         {navGroups.map((group, groupIndex) => (
           <div key={group.title} style={{ marginTop: groupIndex === 0 ? 8 : 18 }}>
             <div style={navGroupLabelStyle}>{group.title}</div>
-            {group.items.map((item) => (
+            {group.items.map((item, itemIndex) => (
+              <div key={item.id}>
+              {item.parentLabel && group.items[itemIndex - 1]?.parentLabel !== item.parentLabel && (
+                <div style={{ margin: '5px 10px 4px', fontSize: 12.5, fontWeight: 750, color: 'var(--text)' }}>
+                  {item.parentLabel}
+                </div>
+              )}
               <button
-                key={item.id}
                 type="button"
                 onClick={() => onSelectGroup(item.id)}
                 style={{
@@ -149,7 +156,7 @@ export function ThemeEditorSidebar({
                   alignItems: 'center',
                   gap: 10,
                   textAlign: 'left',
-                  padding: '8px 10px',
+                  padding: item.depth ? '8px 10px 8px 22px' : '8px 10px',
                   border: 'none',
                   borderRadius: 8,
                   background: activeGroup === item.id ? 'var(--surface-inset)' : 'transparent',
@@ -168,6 +175,7 @@ export function ThemeEditorSidebar({
                 </span>
                 {activeGroup === item.id && <I.chevRight size={17} />}
               </button>
+              </div>
             ))}
           </div>
         ))}
@@ -180,7 +188,7 @@ export function ThemeEditorSidebar({
                 Arama sırasında sıralama kapalıdır. Taşımak için aramayı temizleyin.
               </div>
             )}
-            {visiblePageBlocks.map((block) => {
+            {[...visiblePageBlocks.filter((block) => block.placement !== 'drawer'), ...visiblePageBlocks.filter((block) => block.placement === 'drawer')].map((block, blockIndex, orderedBlocks) => {
               const key = pageBlockKey(block)
               const sectionDefinitionId = getSectionDefinitionId(block)
               const preset = block.type === 'section'
@@ -193,6 +201,8 @@ export function ThemeEditorSidebar({
                 ? getCategoryParentId(menuCategories, block.id)
                 : null
               const isChildCategory = Boolean(categoryParentId)
+              const isDrawerSection = block.type === 'section' && block.placement === 'drawer'
+              const startsDrawerGroup = isDrawerSection && orderedBlocks[blockIndex - 1]?.placement !== 'drawer'
               const selected = block.type === 'section' && selectedSectionId === block.id
               const label = block.type === 'section'
                 ? preset?.label ?? sectionDefinitionId ?? block.id
@@ -201,9 +211,11 @@ export function ThemeEditorSidebar({
                   : category?.name ?? block.id
 
               return (
+                <div key={key}>
+                {startsDrawerGroup && <div style={{ ...navGroupLabelStyle, marginTop: 16 }}>Menü Çekmecesi İçeriği</div>}
                 <div
-                  key={key}
                   data-page-flow-row
+                  data-drawer-flow-row={isDrawerSection || undefined}
                   role="group"
                   aria-label={`${label} akış öğesi`}
                   draggable={!editorQuery}
@@ -216,7 +228,7 @@ export function ThemeEditorSidebar({
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
-                    padding: isChildCategory ? '6px 10px 6px 34px' : '7px 10px',
+                    padding: isChildCategory ? '6px 10px 6px 34px' : isDrawerSection ? '7px 10px 7px 22px' : '7px 10px',
                     borderRadius: 8,
                     background: selected ? 'var(--surface-inset)' : 'transparent',
                     color: selected ? 'var(--text)' : 'var(--text-2)',
@@ -271,7 +283,7 @@ export function ThemeEditorSidebar({
                       <span style={{ display: 'block', fontSize: 13, fontWeight: 650 }}>{label}</span>
                       <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-3)', marginTop: 1 }}>
                         {block.type === 'section'
-                          ? `${getSectionScopeLabel(block)} · ${preset?.sub ?? 'Özel bölüm'}`
+                          ? `${isDrawerSection ? 'Menü Drawer' : getSectionScopeLabel(block)} · ${preset?.sub ?? 'Özel bölüm'}`
                           : block.type === 'nav'
                             ? 'Kaydırılabilir kategori navigasyonu'
                             : isChildCategory
@@ -315,6 +327,7 @@ export function ThemeEditorSidebar({
                       ×
                     </button>
                   )}
+                </div>
                 </div>
               )
             })}

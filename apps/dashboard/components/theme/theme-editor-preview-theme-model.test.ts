@@ -4,7 +4,7 @@ import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { createThemeEditorPreviewDeriver } from './theme-editor-preview-theme-model'
 
 const defaults = {
-  sections: ['reviews'],
+  sections: ['hours'],
   pageBlocks: [],
 } as unknown as GarsonlessTheme
 
@@ -18,12 +18,12 @@ test('preview derivation migrates legacy sections and keeps categories complete'
   const preview = derive({})
   assert.deepEqual(preview.pageBlocks, [
     { type: 'nav', id: 'category-nav' },
-    { type: 'section', id: 'reviews' },
+    { type: 'section', id: 'hours' },
     { type: 'category', id: 'coffee' },
     { type: 'category', id: 'matcha' },
     { type: 'category', id: 'dessert' },
   ])
-  assert.deepEqual(preview.sections, ['reviews'])
+  assert.deepEqual(preview.sections, ['hours'])
 })
 
 test('preview derivation removes invalid sections and normalizes child scope', () => {

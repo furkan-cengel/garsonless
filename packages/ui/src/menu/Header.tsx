@@ -1,90 +1,31 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { GarsonlessTheme } from '@garsonless/design-engine'
+import { getSectionDefinitionId, resolveMenuActionPlacements, type GarsonlessTheme } from '@garsonless/design-engine'
 import { useTheme } from './ThemeContext'
 import { AnnouncementBar } from './AnnouncementBar'
 import { formatTRY } from './formatCurrency'
 import { ML_STAMP_POP_KEYFRAME } from './keyframes'
+import type { MenuCategory } from './types'
+import type { StoreInfo } from '../themes/types'
+import { NavDrawer } from './NavDrawer'
+import type { ServiceRequestType } from '@garsonless/domain/tables'
+import { AppIcons as I } from '../icons'
 
 const HEADER_RESPONSIVE_CSS = `
 ${ML_STAMP_POP_KEYFRAME}
-  [data-component="header"] [data-header-more] {
-    display: none;
-    position: relative;
-    flex-shrink: 0;
-  }
-  [data-component="header"] [data-header-more] > summary {
-    width: 34px;
-    height: 34px;
-    border-radius: 999px;
-    background: var(--p-accent-soft);
-    color: var(--p-accent);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    list-style: none;
-  }
-  [data-component="header"] [data-header-more] > summary::-webkit-details-marker {
-    display: none;
-  }
-  [data-component="header"] [data-header-more] > summary:focus-visible {
-    outline: 2px solid var(--p-accent);
-    outline-offset: 2px;
-  }
-  [data-component="header"] [data-header-more-popover] {
-    position: absolute;
-    z-index: 30;
-    top: calc(100% + 8px);
-    right: 0;
-    min-width: 176px;
-    padding: 6px;
-    border: 1px solid var(--p-border, rgba(0,0,0,.08));
-    border-radius: 12px;
-    background: var(--p-bg, #fff);
-    box-shadow: 0 14px 36px rgba(20,25,31,.16);
-  }
-  [data-component="header"] [data-header-more-popover] > button,
-  [data-component="header"] [data-header-more-popover] > div {
-    width: 100%;
-    min-height: 42px;
-    padding: 0 10px;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--p-text, #1c1d20);
-    font: 600 13px var(--p-body);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    white-space: nowrap;
-  }
-  [data-component="header"] [data-header-more-popover] > button {
-    cursor: pointer;
-  }
-  [data-component="header"] [data-header-more-popover] > button:hover,
-  [data-component="header"] [data-header-more-popover] > button:focus-visible {
-    background: var(--p-accent-soft);
-    outline: none;
-  }
-  [data-component="header"] [data-header-more-popover] span {
-    color: var(--p-text-2);
-    font-weight: 500;
-  }
-  [data-component="header"] [data-header-more-popover] [data-overflow-priority="secondary"] {
-    display: none;
+  [data-header-action] { min-width:44px; height:44px; }
+  @container menu-header (max-width: 480px) {
+    [data-header-action-label] { display:none; }
+    [data-header-cart-label] { display:none; }
+    [data-header-action] { width:44px; padding-inline:0 !important; }
   }
   @container menu-header (max-width: 420px) {
-    [data-component="header"] [data-action-priority="secondary"] {
-      display: none;
-    }
-    [data-component="header"] [data-header-more][data-has-secondary="true"] {
-      display: block;
-    }
-    [data-component="header"] [data-header-more-popover] [data-overflow-priority="secondary"] {
-      display: flex;
+    [data-header-cart-action] {
+      width:44px !important;
+      min-width:44px !important;
+      padding-inline:0 !important;
+      justify-content:center;
     }
   }
 `
@@ -92,7 +33,9 @@ ${ML_STAMP_POP_KEYFRAME}
 interface HeaderProps {
   tableId?: string | null
   tableName?: string | null
-  categories?: { id: string; name: string }[]
+  categories?: MenuCategory[]
+  categoryMeta?: Record<string, { imageUrl?: string | null; itemCount?: number }> | undefined
+  onCategorySelect?: ((categoryId: string) => void) | undefined
   cartSummary?: { count: number; subtotal: number } | undefined
   onOpenCart?: (() => void) | undefined
   /** Open table bill (adisyon) summary — renders a chip next to the table badge. */
@@ -112,45 +55,54 @@ interface HeaderProps {
     welcomeBonus?: number
   } | null
   onOpenMember?: (() => void) | undefined
+  storeInfo?: StoreInfo | null | undefined
+  onServiceRequest?: ((type: ServiceRequestType) => Promise<boolean>) | undefined
+  onOpenServiceRequests?: (() => void) | undefined
 }
 
-export function Header({ tableId, tableName, categories, cartSummary, onOpenCart, billSummary, onOpenBill, memberSummary, onOpenMember }: HeaderProps) {
-  const { theme, restaurantName, logoUrl } = useTheme()
+export function Header({ tableId, tableName, categories, categoryMeta, onCategorySelect, cartSummary, onOpenCart, billSummary, onOpenBill, memberSummary, onOpenMember, storeInfo, onServiceRequest, onOpenServiceRequests }: HeaderProps) {
+  const { theme, isPreview, restaurantName, logoUrl } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [editorDrawerSectionId, setEditorDrawerSectionId] = useState<string | null>(null)
   const headerRef = useRef<HTMLElement>(null)
-  const moreMenuRef = useRef<HTMLDetailsElement>(null)
   const cartCount = cartSummary?.count ?? 0
   const cartSubtotal = cartSummary?.subtotal ?? 0
-  const layout = theme.headerLayout ?? (theme.headerAlign === 'center' ? 'center' : 'split')
-  const isSplit = layout === 'split'
-  const isCenter = layout === 'center'
-  const isStacked = layout === 'stacked'
-  const isCompact = layout === 'compact'
+  const legacyLayout = theme.headerLayout ?? (theme.headerAlign === 'center' ? 'center' : 'split')
+  const preset = theme.headerPreset ?? (legacyLayout === 'compact' ? 'compact' : legacyLayout === 'center' ? 'standard' : 'brand')
+  const isSplit = preset === 'brand'
+  const isCenter = preset === 'standard'
+  const isCompact = preset === 'compact'
   const compact = isCompact
   const rowLayout = isSplit || isCompact
-  const rowBrandAlignment = theme.headerAlign === 'center' ? 'center' : 'flex-start'
-  const showHeaderCartIcon = theme.cartHeaderTriggerStyle === 'icon' && Boolean(onOpenCart)
-  const showHeaderCartPill = theme.cartHeaderTriggerStyle === 'pill' && Boolean(onOpenCart) && cartCount > 0
-  // Missing on legacy saved themes means true: existing tenants keep the bill
-  // chip until they explicitly turn the new independent control off.
-  const showBill = theme.headerShowBill ?? true
-  const hasBillChip = Boolean(showBill && billSummary && billSummary.count > 0 && onOpenBill)
-  // Row layouts host the bill chip + hamburger inside the right action cluster
-  // (utility tier); center/stacked keep their original placements.
-  const actionsHoldBill = rowLayout && hasBillChip
-  const actionsHoldMenu = isSplit && theme.headerShowMenu
-  const hasMemberAction = Boolean(memberSummary && onOpenMember)
-  const hasSecondaryAction = hasMemberAction
-  const hasOverflowAction = hasSecondaryAction
-  const closeMoreMenu = () => {
-    if (moreMenuRef.current) moreMenuRef.current.open = false
-  }
+  const rowBrandAlignment = isSplit ? 'flex-start' : 'center'
+  const hasServiceRequests = Boolean(theme.pageBlocks?.some((block) => block.type === 'section' && getSectionDefinitionId(block) === 'request-buttons') || theme.sections?.includes('request-buttons'))
   // Never render a raw UUID — use the human label, else a short id form.
   const tableLabel = tableName
     ? `${tableName} · Açık`
     : tableId
       ? `Masa ${tableId.slice(0, 4).toUpperCase()} · Açık`
       : null
+  const placements = resolveMenuActionPlacements(theme, {
+    member: Boolean(memberSummary && onOpenMember),
+    bill: Boolean(tableLabel && onOpenBill),
+    cart: Boolean(onOpenCart),
+    service: Boolean(hasServiceRequests && (onOpenServiceRequests || onServiceRequest)),
+  })
+  const showHeaderCartIcon = placements.cart === 'header' && theme.cartHeaderTriggerStyle !== 'pill' && Boolean(onOpenCart)
+  const showHeaderCartPill = placements.cart === 'header' && theme.cartHeaderTriggerStyle === 'pill' && Boolean(onOpenCart)
+  const hasBillChip = Boolean(placements.bill === 'header' && billSummary && billSummary.count > 0 && onOpenBill)
+  useEffect(() => {
+    if (!isPreview) return
+    const parentOrigin = document.referrer ? new URL(document.referrer).origin : null
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== window.parent || !parentOrigin || event.origin !== parentOrigin) return
+      if (!event.data || event.data.type !== 'OPEN_NAV_DRAWER') return
+      setEditorDrawerSectionId(typeof event.data.sectionId === 'string' ? event.data.sectionId : null)
+      setMenuOpen(true)
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [isPreview])
   const stickyStyle: React.CSSProperties = theme.stickyHeader
     ? { position: 'sticky', top: 0, zIndex: 20 }
     : { position: 'relative' }
@@ -171,8 +123,8 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
       aria-label="Menüyü aç"
       onClick={() => setMenuOpen(true)}
       style={{
-        width: 34,
-        height: 34,
+        width: 44,
+        height: 44,
         borderRadius: 999,
         background: 'var(--p-accent-soft)',
         color: 'var(--p-accent)',
@@ -197,21 +149,21 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
         display: 'inline-flex',
         alignItems: 'center',
         gap: 4,
-        height: actionsHoldBill ? 30 : 'auto',
-        fontSize: actionsHoldBill ? 11.5 : compact ? 10 : 11,
+        height: 30,
+        fontSize: compact ? 10.5 : 11.5,
         fontWeight: 700,
         color: 'var(--p-accent)',
         // Outlined (vs the filled member chip) so the two money/membership
         // chips read as distinct controls even when adjacent.
-        background: actionsHoldBill ? 'transparent' : 'var(--p-accent-soft)',
-        border: actionsHoldBill ? '1px solid color-mix(in srgb, var(--p-accent) 35%, transparent)' : 'none',
-        padding: actionsHoldBill ? '0 11px' : '2px 9px',
+        background: 'var(--p-accent-soft)',
+        border: 'none',
+        padding: '0 10px',
         borderRadius: 999,
         cursor: 'pointer',
         whiteSpace: 'nowrap',
         fontFamily: 'inherit',
         flexShrink: 0,
-        marginRight: actionsHoldBill ? 6 : 0,
+        marginRight: 0,
       }}
     >
       Hesap · {formatTRY(billSummary!.total)}
@@ -235,7 +187,7 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
     prevStampsRef.current = memberStamps
     if (memberStamps !== null && prev !== null && memberStamps > prev) setStampPop((t) => t + 1)
   }, [memberStamps])
-  const memberChip = memberSummary && onOpenMember ? (() => {
+  const memberChip = placements.member === 'header' && memberSummary && onOpenMember ? (() => {
     const isMember = memberIsMember
     const showPoints = memberSummary.pointsEnabled && typeof memberSummary.points === 'number'
     const label = !isMember
@@ -251,7 +203,7 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
         onClick={onOpenMember}
         aria-label={isMember ? 'Üyelik' : 'Üye ol'}
         style={{
-          height: 30, padding: '0 11px', borderRadius: 999,
+          height: 44, minWidth: 44, padding: '0 12px', borderRadius: 999,
           display: 'inline-flex', alignItems: 'center', gap: 5,
           fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit',
           background: 'var(--p-accent-soft)', color: 'var(--p-accent)',
@@ -263,7 +215,7 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
         {isMember && memberSummary.tierColor && (
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: memberSummary.tierColor, flexShrink: 0 }} />
         )}
-        {label}
+        <span data-header-action-label>{label}</span>
       </button>
     )
   })() : null
@@ -275,14 +227,24 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
       display: 'flex',
       gap: 8,
       alignItems: 'center',
-      justifyContent: isStacked ? 'center' : 'flex-end',
+      justifyContent: 'flex-end',
       flexWrap: 'nowrap',
       minWidth: 0,
       maxWidth: '100%',
-      justifySelf: isCenter ? 'end' : isStacked ? 'center' : rowLayout ? 'end' : 'center',
+      justifySelf: 'end',
     }}>
-      {actionsHoldBill && <span data-action-priority="primary">{billChip}</span>}
-      {memberChip && <span data-action-priority="secondary">{memberChip}</span>}
+      {memberChip && <span data-action-priority="secondary" data-header-action>{memberChip}</span>}
+      {placements.service === 'header' && hasServiceRequests && onOpenServiceRequests && (
+        <button
+          type="button"
+          data-header-action
+          aria-label="Servis isteklerini aç"
+          onClick={onOpenServiceRequests}
+          style={{ width: 44, height: 44, borderRadius: 999, border: '1px solid var(--p-border)', background: 'var(--p-card)', color: 'var(--p-accent)', display: 'grid', placeItems: 'center', cursor: 'pointer', flexShrink: 0 }}
+        >
+          <I.bell size={19} />
+        </button>
+      )}
       {showHeaderCartIcon && (
         <button
           type="button"
@@ -290,8 +252,8 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
           onClick={onOpenCart}
           style={{
             position: 'relative',
-            width: 34,
-            height: 34,
+            width: 44,
+            height: 44,
             borderRadius: 999,
             background: '#fff',
             color: 'var(--p-text)',
@@ -313,8 +275,10 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
           type="button"
           aria-label="Sepeti aç"
           onClick={onOpenCart}
+          data-header-action
+          data-header-cart-action
           style={{
-            height: 36,
+            height: 44,
             borderRadius: 999,
             border: 'none',
             background: 'var(--p-accent)',
@@ -339,7 +303,7 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
-          }}>{formatHeaderMoney(cartSubtotal)}</span>
+          }} data-header-cart-label>{cartCount > 0 ? formatHeaderMoney(cartSubtotal) : 'Sepet'}</span>
           <span style={{
             position: 'relative',
             width: 25,
@@ -352,49 +316,27 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
             flexShrink: 0,
           }}>
             <CartIconSvg kind={theme.cartIcon} color="currentColor" size={14} />
-            {theme.cartShowBadge && <CartBadge count={cartCount} small tone="gold" />}
+            {theme.cartShowBadge && cartCount > 0 && <CartBadge count={cartCount} small tone="gold" />}
           </span>
         </button>
       )}
-      {actionsHoldMenu && menuButton}
-      {hasOverflowAction && (
-        <details
-          ref={moreMenuRef}
-          data-header-more
-          data-has-secondary={hasSecondaryAction ? 'true' : 'false'}
-        >
-          <summary aria-label="Daha fazla" title="Daha fazla">
-            <MoreIcon />
-          </summary>
-          <div role="menu" aria-label="Diğer header işlemleri" data-header-more-popover>
-            {memberChip && (
-              <button data-overflow-priority="secondary" type="button" role="menuitem" onClick={() => { closeMoreMenu(); onOpenMember?.() }}>
-                {memberIsMember ? 'Üyelik' : 'Üye ol'}
-                {!memberIsMember && memberWelcomeBonus > 0 && <span>+{memberWelcomeBonus} puan</span>}
-                {memberShowStamp && <span>☕ {memberStamps}/{memberStampGoal}</span>}
-              </button>
-            )}
-          </div>
-        </details>
-      )}
     </div>
   )
-  const inlineBillChip = actionsHoldBill ? null : billChip
-  const tableBadge = theme.headerTableBadge && tableLabel ? (
-    <div style={{
-      fontSize: compact ? 10.5 : 11.5,
-      color: 'var(--p-text-2)',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 6,
-      marginTop: compact ? 0 : 4,
-      whiteSpace: 'nowrap',
+  const showContextBar = (theme.headerShowContextBar ?? theme.headerTableBadge) && Boolean(tableLabel)
+  const contextBar = showContextBar ? (
+    <div data-header-context-bar style={{
+      width: '100%', minHeight: 34, padding: '0 16px', boxSizing: 'border-box',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      borderTop: '1px solid var(--p-border)', background: 'color-mix(in srgb,var(--p-bg) 72%,var(--p-card))',
+      color: 'var(--p-text-2)', fontSize: 11.5, fontWeight: 650,
     }}>
-      <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--p-cta)', flexShrink: 0 }} />
-      {tableLabel}
-      {inlineBillChip}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0, whiteSpace: 'nowrap' }}>
+        <i aria-hidden style={{ width: 7, height: 7, borderRadius: 99, background: 'var(--p-cta)', flexShrink: 0 }} />
+        {tableLabel?.replace(' · Açık', '')}
+      </span>
+      {hasBillChip ? billChip : <span style={{ color: 'var(--p-accent)' }}>{billSummary?.count ? 'Adisyon açık' : 'Masa hazır'}</span>}
     </div>
-  ) : inlineBillChip
+  ) : null
   const brandBlock = (
     <div style={{
       display: 'flex',
@@ -418,11 +360,10 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
           restaurantName={restaurantName}
           logoUrl={logoUrl}
           compact={compact}
-          centered
-          maxLines={isCenter || isStacked ? 2 : 1}
+          centered={isCenter}
+          maxLines={isCenter ? 2 : 1}
         />
       </div>
-      {tableBadge}
       {theme.headerTagline && (
         <p style={{
           fontSize: compact ? 10.5 : 11,
@@ -447,40 +388,35 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
       <header
         ref={headerRef}
         data-component="header"
-        data-header-layout={layout}
+        data-header-layout={preset}
         style={{
           background: theme.headerStyle === 'blur' ? 'rgba(255,255,255,.8)' : theme.headerBg,
           backdropFilter: theme.headerStyle === 'blur' ? 'blur(10px)' : 'none',
           WebkitBackdropFilter: theme.headerStyle === 'blur' ? 'blur(10px)' : 'none',
           ...stickyStyle,
-          minHeight: theme.headerHeight + 'px',
+          minHeight: (isCompact ? Math.min(theme.headerHeight, 56) : theme.headerHeight) + 'px',
           boxSizing: 'border-box',
-          padding: `${theme.headerPadY ?? 8}px 16px`,
+          padding: 0,
           marginBottom: theme.headerBottomGap ?? 0,
-          display: 'grid',
-          // split: the hamburger lives in the right action cluster (utility
-          // tier) so the restaurant name owns the leading edge.
-          gridTemplateColumns: isSplit
-            ? 'minmax(0,1fr) auto'
-            : isCenter
-              ? '40px 1fr 40px'
-              : isCompact
-                ? 'minmax(0,1fr) auto'
-                : '1fr',
-          alignItems: isStacked ? 'center' : 'center',
-          justifyItems: isStacked ? 'center' : 'stretch',
-          columnGap: (isSplit || isCompact) ? 10 : isCenter ? 8 : 0,
-          rowGap: isStacked ? 10 : isCenter ? 0 : 6,
+          display: 'flex',
+          flexDirection: 'column',
           borderBottom: theme.headerBorder ? '1px solid var(--p-border, rgba(0,0,0,0.08))' : 'none',
           overflow: 'visible',
           containerType: 'inline-size',
           containerName: 'menu-header',
         }}
       >
-        {isCenter && menuButton}
-        {brandBlock}
-        {headerActions}
-        {isStacked && theme.headerShowMenu && menuButton}
+        <div data-header-main style={{
+          width: '100%', minHeight: (isCompact ? Math.min(theme.headerHeight, 56) : theme.headerHeight) + 'px',
+          boxSizing: 'border-box', padding: `${isCompact ? Math.min(theme.headerPadY ?? 8, 6) : theme.headerPadY ?? 8}px 16px`,
+          display: 'grid', alignItems: 'center', columnGap: 10,
+          gridTemplateColumns: isCenter ? 'minmax(88px,1fr) minmax(0,auto) minmax(88px,1fr)' : 'auto minmax(0,1fr) auto',
+        }}>
+          <span style={{ display: 'flex', justifyContent: 'flex-start' }}>{menuButton}</span>
+          {brandBlock}
+          {headerActions}
+        </div>
+        {contextBar}
       </header>
 
       <style>{HEADER_RESPONSIVE_CSS}</style>
@@ -491,107 +427,25 @@ export function Header({ tableId, tableName, categories, cartSummary, onOpenCart
           onClose={() => setMenuOpen(false)}
           restaurantName={restaurantName}
           categories={categories}
+          categoryMeta={categoryMeta}
+          tableId={tableId}
+          tableName={tableName}
+          billSummary={billSummary}
+          onOpenBill={onOpenBill}
+          storeInfo={storeInfo}
+          pageBlocks={theme.pageBlocks}
+          sectionSettings={theme.sectionSettings}
+          onCategorySelect={onCategorySelect}
+          cartSummary={cartSummary}
+          onOpenCart={onOpenCart}
+          memberSummary={memberSummary}
+          onOpenMember={onOpenMember}
+          onServiceRequest={onServiceRequest}
+          onOpenServiceRequests={onOpenServiceRequests}
+          placements={placements}
+          editorExpandedSectionId={editorDrawerSectionId}
         />
       )}
-    </>
-  )
-}
-
-function NavDrawer({ open, onClose, restaurantName, categories }: {
-  open: boolean
-  onClose: () => void
-  restaurantName: string
-  categories?: { id: string; name: string }[] | undefined
-}) {
-  return (
-    <>
-      <div
-        aria-hidden="true"
-        onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 998,
-          background: 'rgba(0,0,0,0.3)',
-          opacity: open ? 1 : 0,
-          pointerEvents: open ? 'auto' : 'none',
-          transition: 'opacity 300ms',
-        }}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Navigasyon menüsü"
-        style={{
-          position: 'fixed', top: 0, left: 0, bottom: 0, width: 280,
-          background: 'var(--p-bg, #fff)',
-          boxShadow: '4px 0 24px rgba(0,0,0,0.12)',
-          zIndex: 999,
-          transform: open ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 300ms cubic-bezier(0.4,0,0.2,1)',
-          display: 'flex', flexDirection: 'column',
-          overflowY: 'auto',
-        }}
-      >
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 20px',
-          borderBottom: '1px solid var(--p-border, rgba(0,0,0,0.08))',
-          flexShrink: 0,
-        }}>
-          <span style={{
-            fontFamily: 'var(--p-display)', fontSize: 20,
-            color: 'var(--p-accent)', lineHeight: 1,
-          }}>{restaurantName}</span>
-          <button
-            type="button"
-            aria-label="Kapat"
-            onClick={onClose}
-            style={{
-              width: 32, height: 32, borderRadius: 999,
-              background: 'rgba(0,0,0,0.06)', border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--p-text, #1c1d20)',
-              flexShrink: 0,
-            }}
-          >
-            <CloseIcon />
-          </button>
-        </div>
-
-        <nav style={{ flex: 1, padding: '8px 0' }}>
-          {categories && categories.length > 0
-            ? categories.map(cat => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => {
-                  document.getElementById(`section-${cat.id}`)?.scrollIntoView({ behavior: 'smooth' })
-                  onClose()
-                }}
-                style={{
-                  width: '100%', textAlign: 'left',
-                  padding: '14px 20px',
-                  background: 'transparent', border: 'none',
-                  borderBottom: '1px solid var(--p-border, rgba(0,0,0,0.05))',
-                  cursor: 'pointer',
-                  fontFamily: 'var(--p-body)', fontSize: 15, fontWeight: 500,
-                  color: 'var(--p-text, #1c1d20)',
-                  display: 'block',
-                }}
-              >
-                {cat.name}
-              </button>
-            ))
-            : [68, 52, 80].map((w, i) => (
-              <div key={i} style={{
-                margin: '14px 20px',
-                height: 16, borderRadius: 6,
-                background: 'rgba(0,0,0,0.08)',
-                width: `${w}%`,
-              }} />
-            ))
-          }
-        </nav>
-      </div>
     </>
   )
 }
@@ -751,24 +605,6 @@ function HamburgerIcon() {
       <line x1="4" y1="7" x2="20" y2="7" />
       <line x1="4" y1="12" x2="20" y2="12" />
       <line x1="4" y1="17" x2="20" y2="17" />
-    </svg>
-  )
-}
-
-function MoreIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <circle cx="5" cy="12" r="1.7" />
-      <circle cx="12" cy="12" r="1.7" />
-      <circle cx="19" cy="12" r="1.7" />
-    </svg>
-  )
-}
-
-function CloseIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-      <path d="m6 6 12 12M18 6 6 18" />
     </svg>
   )
 }
