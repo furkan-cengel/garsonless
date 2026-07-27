@@ -10,6 +10,7 @@ import {
   OrderConfirmation,
   OrderBubble,
   OrderToastNotification,
+  orderStatusPhase,
   ServiceRequestFab,
   TableBillSheet,
   useTheme,
@@ -43,13 +44,6 @@ import SplitBillModal from './components/SplitBillModal'
 import MemberSheet from './components/MemberSheet'
 
 const PaymentModal = dynamic(() => import('./components/PaymentModal'))
-
-function statusPhase(status: OrderStatus): number {
-  if (status === 'preparing') return 1
-  if (status === 'ready') return 2
-  if (status === 'served') return 3
-  return 0
-}
 
 function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
   const { theme } = useTheme()
@@ -657,7 +651,7 @@ export function MenuPageClient({
         useOrderStore.getState().reset()
         return
       }
-      prevPhaseRef.current = statusPhase(fetched)
+      prevPhaseRef.current = orderStatusPhase(fetched)
       useOrderStore.getState().setStatus(fetched)
       if (row?.paid_at) {
         const { meta, setMeta } = useOrderStore.getState()
@@ -1041,7 +1035,7 @@ export function MenuPageClient({
       prevPhaseRef.current = null
       return
     }
-    const phase = statusPhase(orderStatus)
+    const phase = orderStatusPhase(orderStatus)
     const prev = prevPhaseRef.current
     prevPhaseRef.current = phase
     if (prev === null || phase <= prev) return
@@ -1279,7 +1273,7 @@ export function MenuPageClient({
         )}
         orderStatus={orderId && orderStatus && orderView === 'bubble' ? (
           <OrderBubble
-            phase={statusPhase(orderStatus)}
+            phase={orderStatusPhase(orderStatus)}
             unseen={unseen}
             justChanged={bubbleWiggle}
             onOpen={openOrderSheet}

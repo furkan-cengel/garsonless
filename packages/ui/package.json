@@ -9,6 +9,7 @@
   },
   "scripts": {
     "lint": "eslint .",
+    "test": "node --import tsx --test src/menu/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
     "@types/node": "^22.10.7",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
+    "tsx": "^4.20.6",
     "typescript": "*"
   }
 }

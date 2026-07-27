@@ -25,6 +25,7 @@ export {
   readableFooterForeground,
   OrderConfirmation,
   OrderBubble,
+  orderStatusPhase,
   ServiceRequestFab,
   OrderToastNotification,
   TableBillSheet,
@@ -35,6 +36,7 @@ export {
   ML_STAMP_POP_KEYFRAME,
 } from './menu/index'
 export type { DietaryFilter } from './menu/index'
+export type { OrderTrackingPhase } from './menu/index'
 
 export type {
   CartItem,

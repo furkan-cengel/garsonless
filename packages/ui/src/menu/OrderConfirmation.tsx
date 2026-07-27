@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { OrderStatus } from '@garsonless/db/types'
+import { orderStatusPhase } from './orderStatusPhase'
 import { formatTRY } from './formatCurrency'
 import { WaiterCallButton, type WaiterCallState } from './WaiterCallButton'
 
@@ -41,14 +42,6 @@ const STEPS = [
   { key: 'ready', label: 'Hazır', sub: 'Servise hazır' },
   { key: 'served', label: 'Servis edildi', sub: 'Afiyet olsun!' },
 ] as const
-
-function statusPhase(status: OrderStatus): number {
-  if (status === 'preparing') return 1
-  if (status === 'ready') return 2
-  if (status === 'served') return 3
-  // pending / pending_approval / paid / sent_to_kitchen
-  return 0
-}
 
 const SURFACE = 'var(--p-card, #ffffff)'
 const LINE = 'rgba(0,0,0,0.08)'
@@ -296,7 +289,7 @@ export function OrderConfirmation({
     return unsubscribe
   }, [orderId, onSubscribeRealtime])
 
-  const phase = statusPhase(status)
+  const phase = orderStatusPhase(status)
   const shortCode = `#${orderId.slice(-4).toUpperCase()}`
   const timeText = createdAt
     ? `${new Date(createdAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}'te alındı`

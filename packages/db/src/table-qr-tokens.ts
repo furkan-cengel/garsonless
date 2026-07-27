@@ -114,22 +114,16 @@ export function createPublicTableQueryPort(): PublicTableQueryPort {
         const resolved = await resolveActiveTableQrToken(input.token)
         if (!resolved) return ok(null)
         const service = createServiceClient()
-        const { data: session, error: sessionError } = await service
-          .from('table_sessions')
-          .select('id')
-          .eq('id', input.sessionId)
-          .eq('restaurant_id', resolved.restaurantId)
-          .eq('table_id', resolved.tableId)
-          .maybeSingle()
-        if (sessionError) return err(sessionError.message)
-        if (!session) return ok(null)
-
+        // `orders.session_id` is the guest device session sent at checkout.
+        // It is intentionally distinct from `orders.table_session_id`, which
+        // is created server-side by open_or_get_table_session.
         const { data, error } = await service
           .from('orders')
           .select('status, paid_at')
           .eq('id', input.orderId)
           .eq('session_id', input.sessionId)
           .eq('restaurant_id', resolved.restaurantId)
+          .eq('table_id', resolved.tableId)
           .is('deleted_at', null)
           .maybeSingle()
         if (error) return err(error.message)
