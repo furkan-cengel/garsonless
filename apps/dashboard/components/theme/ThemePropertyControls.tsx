@@ -187,7 +187,7 @@ export function HeaderPropertyField({
       "cartPillTone",
       "cartDrawerTone",
       "cartPillPosition",
-      "announcementStyle",
+      "footerTone",
     ].includes(field.id);
   if (tiledSelect) {
     return (
@@ -601,16 +601,8 @@ function headerOptionIcon(fieldId: string, value: string) {
   }
   if (fieldId === "catnavVisualStyle")
     return value === "overlay" ? <I.image size={17} /> : <I.card size={17} />;
-  if (fieldId === "announcementStyle")
-    return value === "static" ? (
-      <I.page size={17} />
-    ) : value === "marquee" ? (
-      <I.arrow size={17} />
-    ) : value === "fade" ? (
-      <I.sparkles size={17} />
-    ) : (
-      <I.section size={17} />
-    );
+  if (fieldId === "footerTone")
+    return value === "surface" ? <I.card size={17} /> : value === "brand" ? <I.palette size={17} /> : <I.layout size={17} />;
   return <I.sparkles size={17} />;
 }
 

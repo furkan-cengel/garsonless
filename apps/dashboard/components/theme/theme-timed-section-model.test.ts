@@ -56,13 +56,13 @@ test('expired campaign is removed from page flow and settings, then re-adds as a
       campaignEndsAt: '2026-07-25T12:00:00.000Z',
       productId: 'latte',
     },
-    announcement: { text: 'Açığız' },
+    'promo-strip': { text: 'Açığız' },
   }, deadline)
 
   assert.deepEqual(result.expiredIds, ['discount-badge'])
   assert.deepEqual(result.pageBlocks, [blocks[0], blocks[2]])
   assert.equal(result.sectionSettings['discount-badge'], undefined)
-  assert.deepEqual(result.sectionSettings.announcement, { text: 'Açığız' })
+  assert.deepEqual(result.sectionSettings['promo-strip'], { text: 'Açığız' })
   assert.deepEqual(addSectionToPageFlow(result.pageBlocks, 'discount-badge'), [
     blocks[0],
     blocks[1],

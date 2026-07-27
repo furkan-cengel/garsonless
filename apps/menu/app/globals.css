@@ -70,10 +70,3 @@
   --radius-card: 12px;
   --radius-button: 8px;
 }
-@media (prefers-reduced-motion: reduce) {
-  .announcement-motion {
-    animation: none !important;
-    transform: none !important;
-    opacity: 1 !important;
-  }
-}

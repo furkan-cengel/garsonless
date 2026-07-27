@@ -31,6 +31,10 @@ test('section catalog places request buttons before hours and omits retired plac
   const catalogIds = new Set<string>(sectionIds)
   assert.equal(catalogIds.has('allergens'), false)
   assert.equal(catalogIds.has('reviews'), false)
+  assert.equal(catalogIds.has('social-block'), false)
+  assert.equal(catalogIds.has('footer'), false)
+  assert.equal(sectionIds.length, 12)
+  assert.equal(SECTION_GROUPS.includes('Site Sonu' as never), false)
 })
 
 test('wifi is a ready drawer section with editable guest-network fields', () => {

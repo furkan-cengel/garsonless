@@ -177,11 +177,9 @@ export function CustomSectionRenderer({
     sectionId === 'allergens' ||
     sectionId === 'service-info' ||
     sectionId === 'waiter-call' ||
-    sectionId === 'bill-summary' ||
-    sectionId === 'social-block' ||
-    sectionId === 'footer'
+    sectionId === 'bill-summary'
   ) {
-    return <InfoBlockSection sectionId={sectionId} config={config} restaurantName={restaurantName} storeInfo={storeInfo ?? null} />
+    return <InfoBlockSection sectionId={sectionId} config={config} storeInfo={storeInfo ?? null} />
   }
 
   return null

@@ -116,12 +116,13 @@ export interface GarsonlessTheme {
   sections?: string[]
   pageBlocks?: ThemePageBlock[]
   sectionSettings?: Record<string, Record<string, string>>
-  announcementEnabled: boolean
-  announcementText: string
-  announcementBg: string
-  announcementColor: string
-  announcementStyle: 'static' | 'marquee' | 'fade' | 'slide'
-  announcementSpeed: number
+  footerEnabled: boolean
+  footerTone: 'surface' | 'brand' | 'dark'
+  footerShowLogo: boolean
+  footerShowAddress: boolean
+  footerShowContact: boolean
+  footerShowSocial: boolean
+  footerShowCopyright: boolean
   headerHeight: number
   headerPadY?: number
   headerBottomGap?: number
@@ -266,12 +267,13 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   sections: [],
   pageBlocks: [],
   sectionSettings: {},
-  announcementEnabled: false,
-  announcementText: 'Hoş geldiniz! 🎉',
-  announcementBg: '#1a1a1a',
-  announcementColor: '#ffffff',
-  announcementStyle: 'marquee',
-  announcementSpeed: 3,
+  footerEnabled: true,
+  footerTone: 'surface',
+  footerShowLogo: true,
+  footerShowAddress: true,
+  footerShowContact: true,
+  footerShowSocial: true,
+  footerShowCopyright: true,
   headerHeight: 64,
   headerPadY: 8,
   headerBottomGap: 0,

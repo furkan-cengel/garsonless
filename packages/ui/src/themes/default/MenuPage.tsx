@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTheme } from '../../menu/ThemeContext'
 import { Header } from '../../menu/Header'
+import { MenuFooter } from '../../menu/MenuFooter'
 import { CategoryNav } from '../../menu/CategoryNav'
 import type { ThemeMenuPageProps } from '../types'
 import type { MenuCategory } from '../../menu/types'
@@ -462,7 +463,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
         storeInfo={storeInfo ?? null}
       />
       {orderStatus}
-      <main style={{ paddingBottom: 96, width: '100%', maxWidth: pageMaxWidth, marginInline: 'auto' }}>
+      <main style={{ paddingBottom: theme.footerEnabled ? Math.max(24, theme.sectionGap) : 96, width: '100%', maxWidth: pageMaxWidth, marginInline: 'auto' }}>
         {pageBlocks.map((block) => {
           if (block.type === 'section') {
             if (block.placement === 'drawer') return null
@@ -525,6 +526,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
           )
         })}
       </main>
+      <MenuFooter storeInfo={storeInfo ?? null} cartCount={cartSummary?.count ?? 0} />
       {visualNav && (
         <style>{`
           @keyframes garsonless-category-fade {

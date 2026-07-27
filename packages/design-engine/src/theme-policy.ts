@@ -6,11 +6,12 @@ export const CANONICAL_THEME_ID = 'default' as const
 const MAX_THEME_BYTES = 128 * 1024
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i
 const FONT_NAME = /^[\p{L}\p{N} .,'_-]{1,80}$/u
+const REMOVED_SECTION_DEFINITION_IDS = new Set(['social-block', 'footer'])
 
 const COLOR_KEYS = new Set([
   'bg', 'accent', 'accentSoft', 'cta', 'cardColor', 'textColor',
   'mutedTextColor', 'ctaTextColor', 'borderColor', 'catnavOverlayTextColor',
-  'catnavOverlayColor', 'announcementBg', 'announcementColor', 'headerBg',
+  'catnavOverlayColor', 'headerBg',
 ])
 
 const FONT_KEYS = new Set(['bodyFont', 'displayFont'])
@@ -54,7 +55,7 @@ const STRING_OPTIONS: Partial<Record<keyof GarsonlessTheme, readonly string[]>> 
   cartPillPosition: ['floating', 'edge'],
   cartPillTone: ['dark', 'accent', 'light'],
   cartDrawerTone: ['clean', 'accentHeader'],
-  announcementStyle: ['static', 'marquee', 'fade', 'slide'],
+  footerTone: ['surface', 'brand', 'dark'],
   logoShape: ['square', 'rounded', 'circle'],
   logoBg: ['none', 'white', 'accent'],
   sectionHeading: ['accent', 'editorial', 'catalog'],
@@ -78,7 +79,7 @@ const NUMBER_RANGES: Partial<Record<keyof GarsonlessTheme, readonly [number, num
   catnavVisualRadius: [0, 80], catnavOverlayOpacity: [0, 100],
   catnavOverlayBlur: [0, 32], catnavItemGap: [0, 48], catnavFontSize: [10, 28],
   cardTitleLines: [1, 3], cardDescriptionLines: [1, 3],
-  cardHorizontalImageWidth: [48, 240], announcementSpeed: [1, 20],
+  cardHorizontalImageWidth: [48, 240],
   headerHeight: [40, 180], headerPadY: [0, 64], headerBottomGap: [0, 96],
   headerNameSize: [12, 80], headerLogoSize: [16, 120], navTopGap: [0, 96],
   navBottomGap: [0, 96], categoryGridTopGap: [0, 120],
@@ -109,6 +110,7 @@ function sanitizePageBlocks(value: unknown): ThemePageBlock[] | null {
     }
 
     const sectionId = safeString(entry['sectionId'], 100)
+    if (REMOVED_SECTION_DEFINITION_IDS.has(sectionId ?? id)) continue
     const placement = entry['placement'] === 'page' || entry['placement'] === 'drawer'
       ? entry['placement']
       : undefined
@@ -143,10 +145,14 @@ function sanitizePageBlocks(value: unknown): ThemePageBlock[] | null {
   return blocks
 }
 
-function sanitizeSectionSettings(value: unknown): Record<string, Record<string, string>> | null {
+function sanitizeSectionSettings(
+  value: unknown,
+  removedSectionInstanceIds: ReadonlySet<string>,
+): Record<string, Record<string, string>> | null {
   if (!isRecord(value)) return null
   const result: Record<string, Record<string, string>> = {}
   for (const [sectionId, rawSettings] of Object.entries(value).slice(0, 100)) {
+    if (REMOVED_SECTION_DEFINITION_IDS.has(sectionId) || removedSectionInstanceIds.has(sectionId)) continue
     if (sectionId.length > 100 || !isRecord(rawSettings)) continue
     const settings: Record<string, string> = {}
     for (const [key, rawValue] of Object.entries(rawSettings).slice(0, 50)) {
@@ -184,6 +190,15 @@ export function sanitizeThemeTokens(input: unknown, templateId: string): Garsonl
   const base = { ...DEFAULT_THEME, ...TEMPLATES[CANONICAL_THEME_ID] } as GarsonlessTheme
   const result = { ...base } as Record<string, unknown>
   const allowed = new Set(Object.keys(DEFAULT_THEME))
+  const removedSectionInstanceIds = new Set<string>()
+  if (Array.isArray(input['pageBlocks'])) {
+    for (const entry of input['pageBlocks']) {
+      if (!isRecord(entry) || entry['type'] !== 'section') continue
+      const id = safeString(entry['id'], 100)
+      const sectionId = safeString(entry['sectionId'], 100)
+      if (id && REMOVED_SECTION_DEFINITION_IDS.has(sectionId ?? id)) removedSectionInstanceIds.add(id)
+    }
+  }
 
   for (const [key, value] of Object.entries(input)) {
     if (!allowed.has(key) || value === undefined) continue
@@ -201,7 +216,7 @@ export function sanitizeThemeTokens(input: unknown, templateId: string): Garsonl
     if (key === 'sections') {
       if (Array.isArray(value)) result[key] = value.slice(0, 100).flatMap((entry) => {
         const id = safeString(entry, 100)
-        return id ? [id] : []
+        return id && !REMOVED_SECTION_DEFINITION_IDS.has(id) ? [id] : []
       })
       continue
     }
@@ -211,7 +226,7 @@ export function sanitizeThemeTokens(input: unknown, templateId: string): Garsonl
       continue
     }
     if (key === 'sectionSettings') {
-      const settings = sanitizeSectionSettings(value)
+      const settings = sanitizeSectionSettings(value, removedSectionInstanceIds)
       if (settings) result[key] = settings
       continue
     }

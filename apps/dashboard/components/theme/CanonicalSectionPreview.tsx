@@ -221,7 +221,7 @@ export function CanonicalSectionPreview({
           showLabels: 'true',
         }
       : config
-  const usesStoreInfo = sectionId === 'hours' || sectionId === 'social-block' || sectionId === 'footer'
+  const usesStoreInfo = sectionId === 'hours'
   const storeInfo = usesStoreInfo ? readStoreInfo(restaurantSettings) : null
   const frameRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)

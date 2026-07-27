@@ -62,8 +62,7 @@ export function getFieldEditorTab(field: SettingField, groupId = ''): EditorTab 
     field.themeField === 'pageDescription' ||
     field.themeField === 'cartButtonText' ||
     field.themeField === 'cartEmptyText' ||
-    field.themeField === 'announcementText' ||
-    field.themeField === 'announcementEnabled' ||
+    field.themeField === 'footerEnabled' ||
     field.themeField === 'cardShowDesc' ||
     field.themeField === 'cardShowTag' ||
     field.themeField === 'cartShowBadge' ||
@@ -129,9 +128,8 @@ export function getVisibleThemeFields(
       if ((fieldKey === 'cartPillTone' || fieldKey === 'cartPillPosition') && footer !== 'pill') return false
       if (fieldKey === 'cartShowBadge' && theme.cartPlacement !== 'header' && theme.cartPlacement !== 'footer') return false
     }
-    if (groupId === 'announcement') {
-      if (!theme.announcementEnabled && fieldKey !== 'announcementEnabled') return false
-      if (fieldKey === 'announcementSpeed' && theme.announcementStyle === 'static') return false
+    if (groupId === 'footer') {
+      if (!theme.footerEnabled && fieldKey !== 'footerEnabled') return false
     }
     return getFieldEditorTab(field, groupId) === editorTab
   })

@@ -13,6 +13,7 @@ import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down.mjs'
 import ChevronLeft from 'lucide-react/dist/esm/icons/chevron-left.mjs'
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right.mjs'
 import CircleHelp from 'lucide-react/dist/esm/icons/circle-help.mjs'
+import CircleUserRound from 'lucide-react/dist/esm/icons/circle-user-round.mjs'
 import ClipboardList from 'lucide-react/dist/esm/icons/clipboard-list.mjs'
 import Clock from 'lucide-react/dist/esm/icons/clock.mjs'
 import CodeXml from 'lucide-react/dist/esm/icons/code-xml.mjs'
@@ -24,6 +25,7 @@ import Download from 'lucide-react/dist/esm/icons/download.mjs'
 import Droplet from 'lucide-react/dist/esm/icons/droplet.mjs'
 import Eye from 'lucide-react/dist/esm/icons/eye.mjs'
 import EyeOff from 'lucide-react/dist/esm/icons/eye-off.mjs'
+import ExternalLink from 'lucide-react/dist/esm/icons/external-link.mjs'
 import FileText from 'lucide-react/dist/esm/icons/file-text.mjs'
 import Frame from 'lucide-react/dist/esm/icons/frame.mjs'
 import Gift from 'lucide-react/dist/esm/icons/gift.mjs'
@@ -40,16 +42,20 @@ import Link2 from 'lucide-react/dist/esm/icons/link-2.mjs'
 import LockKeyhole from 'lucide-react/dist/esm/icons/lock-keyhole.mjs'
 import LogOut from 'lucide-react/dist/esm/icons/log-out.mjs'
 import Mail from 'lucide-react/dist/esm/icons/mail.mjs'
+import MapPin from 'lucide-react/dist/esm/icons/map-pin.mjs'
 import Megaphone from 'lucide-react/dist/esm/icons/megaphone.mjs'
 import Menu from 'lucide-react/dist/esm/icons/menu.mjs'
+import MessageCircle from 'lucide-react/dist/esm/icons/message-circle.mjs'
 import Monitor from 'lucide-react/dist/esm/icons/monitor.mjs'
 import MoreHorizontal from 'lucide-react/dist/esm/icons/more-horizontal.mjs'
+import Music2 from 'lucide-react/dist/esm/icons/music-2.mjs'
 import Navigation from 'lucide-react/dist/esm/icons/navigation.mjs'
 import Paintbrush from 'lucide-react/dist/esm/icons/paintbrush.mjs'
 import Palette from 'lucide-react/dist/esm/icons/palette.mjs'
 import PanelTop from 'lucide-react/dist/esm/icons/panel-top.mjs'
 import PanelsTopLeft from 'lucide-react/dist/esm/icons/panels-top-left.mjs'
 import Play from 'lucide-react/dist/esm/icons/play.mjs'
+import Phone from 'lucide-react/dist/esm/icons/phone.mjs'
 import Plus from 'lucide-react/dist/esm/icons/plus.mjs'
 import Printer from 'lucide-react/dist/esm/icons/printer.mjs'
 import QrCode from 'lucide-react/dist/esm/icons/qr-code.mjs'
@@ -75,6 +81,7 @@ import Type from 'lucide-react/dist/esm/icons/type.mjs'
 import Undo2 from 'lucide-react/dist/esm/icons/undo-2.mjs'
 import Upload from 'lucide-react/dist/esm/icons/upload.mjs'
 import User from 'lucide-react/dist/esm/icons/user.mjs'
+import UserRoundPlus from 'lucide-react/dist/esm/icons/user-round-plus.mjs'
 import Users from 'lucide-react/dist/esm/icons/users.mjs'
 import Utensils from 'lucide-react/dist/esm/icons/utensils.mjs'
 import X from 'lucide-react/dist/esm/icons/x.mjs'
@@ -139,6 +146,11 @@ export const AppIcons = {
   monitor: icon(Monitor),
   phone: icon(Smartphone),
   mail: icon(Mail),
+  phoneCall: icon(Phone),
+  mapPin: icon(MapPin),
+  externalLink: icon(ExternalLink),
+  messageCircle: icon(MessageCircle),
+  music: icon(Music2),
   lock: icon(LockKeyhole),
   logout: icon(LogOut),
   zoomIn: icon(ZoomIn),
@@ -168,6 +180,8 @@ export const AppIcons = {
   grid: icon(Grid3x3),
   users: icon(Users),
   user: icon(User),
+  userCircle: icon(CircleUserRound),
+  userPlus: icon(UserRoundPlus),
 
   store: icon(Store),
   clock: icon(Clock),

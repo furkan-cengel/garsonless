@@ -176,3 +176,33 @@ final result: passed
 The current handoff is the Section Catalogue and Information Preview update documented above. Catalogue order/removal, settings-backed hours, meaningful preview content, live rerender focus retention, Escape dismissal, component tests, architecture tests, lint, typecheck and the menu production build all pass.
 
 final result: passed
+
+# Global Minimal Footer Visual QA
+
+- Source visual truth: user-approved Global Minimal Footer plan, 2026-07-27
+- Implementation: `packages/ui/src/menu/MenuFooter.tsx`
+- Implementation screenshot: not captured — the in-app Browser reported no available browser backend
+- Target viewports: 320, 390 and 768 CSS px
+- Automated evidence: footer render/normalization/contrast tests, canonicalization tests, dashboard architecture suite, UI suite, package lint/typechecks and menu production build
+- Live server health: `/maf-lounge?preview=1` returned HTTP 200 on localhost:3011 after the production build
+
+## Implemented response
+
+1. Retired addable Social Media and Footer blocks are removed from the section catalogue and legacy theme flows are canonicalized away.
+2. The global Announcement settings and runtime bar are removed; the left editor navigation now exposes one global Footer group.
+3. The Footer renders once after page content, omits unavailable data, uses normalized safe contact/social links and reserves bottom clearance for fixed cart/service controls.
+4. Content visibility and Surface/Brand/Dark tone controls update through the canonical theme contract. Selecting Footer sends a scoped preview message that scrolls the menu to the global footer.
+
+## Residual test gap
+
+- Capture and compare the enabled Footer at 320, 390 and 768 px with complete and sparse store data.
+- Verify the editor scroll-to-footer interaction and live tone/content changes in a signed-in preview.
+- Confirm fixed cart and floating service controls do not cover the last footer link at each target viewport.
+
+final result: blocked
+
+# Current Build Gate — Global Minimal Footer
+
+The implementation and automated acceptance gates pass. Visual and signed-in editor interaction evidence remains blocked until an in-app Browser backend is available; therefore this gate is not marked passed.
+
+final result: blocked

@@ -27,16 +27,16 @@ test('initial override projection keeps changed fields and structural editor sta
   const initial = theme({
     accentColor: '#23814f',
     surfaceColor: '#ffffff',
-    sections: ['announcement'],
-    pageBlocks: [{ type: 'section', id: 'announcement' }],
-    sectionSettings: { announcement: { text: 'Merhaba' } },
+    sections: ['promo-strip'],
+    pageBlocks: [{ type: 'section', id: 'promo-strip' }],
+    sectionSettings: { 'promo-strip': { text: 'Merhaba' } },
   })
 
   assert.deepEqual(createThemeOverrides(initial, defaults, schema), {
     accentColor: '#23814f',
-    sections: ['announcement'],
-    pageBlocks: [{ type: 'section', id: 'announcement' }],
-    sectionSettings: { announcement: { text: 'Merhaba' } },
+    sections: ['promo-strip'],
+    pageBlocks: [{ type: 'section', id: 'promo-strip' }],
+    sectionSettings: { 'promo-strip': { text: 'Merhaba' } },
   })
 })
 
