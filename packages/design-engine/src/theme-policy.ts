@@ -19,7 +19,6 @@ const FONT_KEYS = new Set(['bodyFont', 'displayFont'])
 const STRING_OPTIONS: Partial<Record<keyof GarsonlessTheme, readonly string[]>> = {
   shadow: ['none', 'soft', 'hard'],
   border: ['none', 'hair', 'solid'],
-  cardVariant: ['default', 'spain'],
   texture: ['solid', 'noise', 'grid'],
   motion: ['full', 'reduced', 'none'],
   headerAlign: ['left', 'center'],
@@ -298,12 +297,9 @@ export function resolveTheme(args: {
     : normalizeThemeTemplateId(args.templateOverride)
   const base = { ...DEFAULT_THEME, ...TEMPLATES[CANONICAL_THEME_ID] }
   const raw = args.themeTokens
-  const rawTemplateId = isRecord(raw) && typeof raw['__template_id'] === 'string'
-    ? raw['__template_id']
-    : null
-  const compatibleStoredTheme = rawTemplateId === null || isThemeTemplateId(rawTemplateId)
-  const theme = compatibleStoredTheme
-    ? sanitizeThemeTokens(raw, CANONICAL_THEME_ID) ?? base
-    : base
+  // Stored template ids are legacy metadata only. The payload is always
+  // sanitized against the canonical vocabulary so tenant colors/fonts survive
+  // retirement of an old template without reviving its renderer.
+  const theme = sanitizeThemeTokens(raw, CANONICAL_THEME_ID) ?? base
   return { theme, templateId }
 }

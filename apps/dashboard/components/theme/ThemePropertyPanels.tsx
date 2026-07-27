@@ -486,7 +486,7 @@ function ThemePropertyPanel({ fields, getValue, onChange }: FieldPanelProps) {
                 }}
               >
                 <span>{label}</span>
-                <strong style={{ color: pass ? "#18794e" : "#b42318" }}>
+                <strong style={{ color: pass ? "var(--positive)" : "var(--critical)" }}>
                   {ratio.toFixed(2)}:1 · {pass ? "Geçer" : "Zayıf"}
                 </strong>
               </div>
@@ -588,8 +588,8 @@ function InfoNote({ children }: { children: string }) {
       style={{
         padding: "10px 12px",
         borderRadius: 10,
-        background: "#f3f4f6",
-        color: "#4b4f58",
+        background: "var(--surface-3)",
+        color: "var(--text-2)",
         fontSize: 11.5,
         lineHeight: 1.45,
       }}
@@ -612,8 +612,8 @@ const softColorButtonStyle = {
   height: 34,
   border: "1px solid var(--border)",
   borderRadius: 8,
-  background: "#fff",
-  color: "#111318",
+  background: "var(--surface)",
+  color: "var(--text)",
   cursor: "pointer",
   fontSize: 11.5,
   fontWeight: 700,

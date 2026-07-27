@@ -101,7 +101,6 @@ export const THEME_DEFAULTS: GarsonlessTheme = {
   mutedTextColor: '#6c6f76',
   ctaTextColor: '#ffffff',
   borderColor: '#e3e4e7',
-  cardVariant: 'default',
   texture: 'solid',
   textureStrength: 4,
   motion: 'full',

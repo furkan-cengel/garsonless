@@ -36,33 +36,8 @@ interface Props {
 const CSS_VARS = `
 .tb-tables * { box-sizing: border-box; }
 .tb-tables {
-  --bg: #f6f6f7;
-  --surface: #ffffff;
-  --surface-2: #fafafa;
-  --surface-3: #f3f3f4;
-  --surface-inset: #ececef;
-  --border: #e7e7ea;
-  --border-strong: #d6d7db;
-  --divider: #efeff1;
-  --text: #111113;
-  --text-2: #5b5d63;
-  --text-3: #8b8d94;
-  --text-4: #b3b4ba;
-  --text-inv: #ffffff;
-  --action: #18181b;
-  --action-hover: #27272a;
-  --on-action: #ffffff;
-  --positive: #137a4d;
-  --positive-bg: #e6f4ec;
-  --warning: #a55a00;
-  --warning-bg: #fef3e2;
-  --critical: #b42318;
-  --critical-bg: #fde7e5;
-  --accent: #2f6f4e;
-  --accent-soft: #eaf3ed;
-  --shadow-1: 0 1px 0 rgba(17,17,19,.04), 0 1px 2px rgba(17,17,19,.04);
-  --shadow-2: 0 1px 0 rgba(17,17,19,.04), 0 4px 12px rgba(17,17,19,.06);
-  --shadow-pop: 0 8px 24px rgba(17,17,19,.10), 0 2px 6px rgba(17,17,19,.06);
+  --text-inv: var(--on-action);
+  --action-hover: color-mix(in srgb, var(--action) 88%, white);
   --topbar: 52px;
   --rail: 56px;
   --nav: 260px;
@@ -86,8 +61,8 @@ const CSS_VARS = `
 .tb-tables input, .tb-tables select { font-family: inherit; }
 .tb-tables ::-webkit-scrollbar { width: 10px; height: 10px; }
 .tb-tables ::-webkit-scrollbar-track { background: transparent; }
-.tb-tables ::-webkit-scrollbar-thumb { background: #d8d9dc; border-radius: 8px; border: 2px solid var(--surface); }
-.tb-tables ::-webkit-scrollbar-thumb:hover { background: #b8b9bd; }
+.tb-tables ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; border: 2px solid var(--surface); }
+.tb-tables ::-webkit-scrollbar-thumb:hover { background: var(--text-4); }
 @media (max-width: 900px) {
   .tb-tables {
     --topbar: 52px;

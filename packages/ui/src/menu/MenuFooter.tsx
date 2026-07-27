@@ -144,7 +144,7 @@ export function MenuFooter({ storeInfo, cartCount = 0 }: { storeInfo?: StoreInfo
   const socialLinks = (theme.footerShowSocial ?? true) ? normalizeFooterSocialLinks(contact) : []
   const palette = footerPalette(theme)
   const needsActionClearance = (
-    theme.cartPlacement === 'footer' && (cartCount > 0 || theme.cardVariant === 'spain')
+    theme.cartPlacement === 'footer' && cartCount > 0
   ) || theme.servicePlacement === 'floating'
 
   return (

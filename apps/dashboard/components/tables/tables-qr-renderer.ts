@@ -4,6 +4,16 @@ import { buildUrl, qrContrast } from './tables-builder-model'
 import type { QRConfig, QRHealth, TableItem } from './tables-builder-types'
 
 type QRCodeStylingCtor = typeof import('qr-code-styling').default
+type QRCodeStylingOptions = NonNullable<ConstructorParameters<QRCodeStylingCtor>[0]>
+type DotType = NonNullable<NonNullable<QRCodeStylingOptions['dotsOptions']>['type']>
+type CornerSquareType = NonNullable<NonNullable<QRCodeStylingOptions['cornersSquareOptions']>['type']>
+type CornerDotType = NonNullable<NonNullable<QRCodeStylingOptions['cornersDotOptions']>['type']>
+type ErrorCorrectionLevel = NonNullable<NonNullable<QRCodeStylingOptions['qrOptions']>['errorCorrectionLevel']>
+
+const DOT_TYPES = new Set<DotType>(['dots', 'rounded', 'classy', 'classy-rounded', 'square', 'extra-rounded'])
+const CORNER_SQUARE_TYPES = new Set<CornerSquareType>(['dot', 'square', 'extra-rounded', 'dots', 'rounded', 'classy', 'classy-rounded'])
+const CORNER_DOT_TYPES = new Set<CornerDotType>(['dot', 'square', 'dots', 'rounded', 'classy', 'classy-rounded', 'extra-rounded'])
+const ERROR_CORRECTION_LEVELS = new Set<ErrorCorrectionLevel>(['L', 'M', 'Q', 'H'])
 
 let qrCodeStylingCtorPromise: Promise<QRCodeStylingCtor> | null = null
 
@@ -11,7 +21,7 @@ export function loadQRCodeStyling(): Promise<QRCodeStylingCtor> {
   qrCodeStylingCtorPromise ??= import('qr-code-styling').then(mod => mod.default)
   return qrCodeStylingCtorPromise
 }
-export function colorOpts(qr: QRConfig): object {
+export function colorOpts(qr: QRConfig): NonNullable<QRCodeStylingOptions['dotsOptions']> {
   if (qr.colorType === 'single') return { color: qr.fg }
   if (qr.gradType === 'linear') {
     return {
@@ -27,6 +37,44 @@ export function colorOpts(qr: QRConfig): object {
       type: 'radial',
       colorStops: [{ offset: 0, color: qr.fg }, { offset: 1, color: qr.fg2 }],
     },
+  }
+}
+
+function enumValue<T extends string>(values: ReadonlySet<T>, value: string, fallback: T): T {
+  return values.has(value as T) ? value as T : fallback
+}
+
+export function buildQRCodeStylingOptions(
+  qr: QRConfig,
+  input: { width: number; height: number; data: string; margin: number; logoMargin: number },
+): QRCodeStylingOptions {
+  return {
+    width: input.width,
+    height: input.height,
+    type: 'svg',
+    data: input.data,
+    margin: input.margin,
+    qrOptions: { errorCorrectionLevel: enumValue(ERROR_CORRECTION_LEVELS, qr.ecl, 'M') },
+    image: qr.logo ?? undefined,
+    imageOptions: {
+      hideBackgroundDots: qr.logoHideBg,
+      imageSize: qr.logoSize,
+      margin: input.logoMargin,
+      crossOrigin: 'anonymous',
+    },
+    dotsOptions: {
+      type: enumValue(DOT_TYPES, qr.dotsType, 'rounded'),
+      ...colorOpts(qr),
+    },
+    cornersSquareOptions: {
+      type: enumValue(CORNER_SQUARE_TYPES, qr.eyeFrame, 'extra-rounded'),
+      color: qr.fg,
+    },
+    cornersDotOptions: {
+      type: enumValue(CORNER_DOT_TYPES, qr.eyeBall, 'dot'),
+      color: qr.fg,
+    },
+    backgroundOptions: { color: qr.bgTransparent ? 'transparent' : qr.bg },
   }
 }
 
@@ -48,22 +96,13 @@ export function safeFilePart(value: string): string {
 
 async function renderQRMarkup(qr: QRConfig, table?: TableItem): Promise<string> {
   const QRCodeStyling = await loadQRCodeStyling()
-  const instance = new QRCodeStyling({
-    width: qr.size, height: qr.size, type: 'svg',
-    data: buildUrl(qr, table), margin: qr.margin,
-    qrOptions: { errorCorrectionLevel: qr.ecl as 'L' | 'M' | 'Q' | 'H' },
-    image: qr.logo ?? undefined,
-    imageOptions: {
-      hideBackgroundDots: qr.logoHideBg,
-      imageSize: qr.logoSize,
-      margin: qr.logoMargin,
-      crossOrigin: 'anonymous',
-    },
-    dotsOptions: { type: qr.dotsType as any, ...colorOpts(qr) as object },
-    cornersSquareOptions: { type: qr.eyeFrame as any, color: qr.fg },
-    cornersDotOptions: { type: qr.eyeBall as any, color: qr.fg },
-    backgroundOptions: { color: qr.bgTransparent ? 'transparent' : qr.bg },
-  })
+  const instance = new QRCodeStyling(buildQRCodeStylingOptions(qr, {
+    width: qr.size,
+    height: qr.size,
+    data: buildUrl(qr, table),
+    margin: qr.margin,
+    logoMargin: qr.logoMargin,
+  }))
   const blob = await instance.getRawData('svg')
   if (!blob) throw new Error('QR SVG oluşturulamadı')
   const markup = blob instanceof Blob

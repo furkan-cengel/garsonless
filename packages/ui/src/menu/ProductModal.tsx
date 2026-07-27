@@ -45,6 +45,15 @@ export function ProductModal({ item, onClose, onAddToCart, contextLabel, context
     setSelections(defaults)
   }, [item])
 
+  useEffect(() => {
+    if (!item) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [item, onClose])
+
   if (!item) return null
 
   const isValid = item.modifier_groups.every((group) => {
@@ -148,6 +157,9 @@ export function ProductModal({ item, onClose, onAddToCart, contextLabel, context
       />
       <motion.div
         key="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="product-modal-title"
         style={{
           position: 'fixed',
           left: 0,
@@ -184,7 +196,7 @@ export function ProductModal({ item, onClose, onAddToCart, contextLabel, context
           <div style={{ padding: 18 }}>
             {contextLabel && <div style={{ marginBottom: 5, color: 'var(--p-accent)', fontSize: 11, fontWeight: 850, letterSpacing: '.06em', textTransform: 'uppercase' }}>{contextLabel}</div>}
             {contextTitle && <div style={{ marginBottom: 12, color: 'var(--p-text-2)', fontSize: 13, fontWeight: 650 }}>{contextTitle}</div>}
-            <h2 style={{ margin: 0, fontFamily: 'var(--p-display)', fontSize: 24, lineHeight: 1.12, fontWeight: 800, color: 'var(--p-text)' }}>{item.name}</h2>
+            <h2 id="product-modal-title" style={{ margin: 0, fontFamily: 'var(--p-display)', fontSize: 24, lineHeight: 1.12, fontWeight: 800, color: 'var(--p-text)' }}>{item.name}</h2>
             {(item.is_vegan || item.is_vegetarian || item.is_halal) && (
               <div style={{ marginTop: 8 }}>
                 <DietaryBadges item={item} />

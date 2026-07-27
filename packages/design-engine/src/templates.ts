@@ -45,25 +45,6 @@ export const TEMPLATES: Record<string, GarsonlessTheme> = {
     headerBorder: true,
   },
 
-  // Premium Mediterranean — fixed glass app bar, horizontal menu cards, list products
-  spain: {
-    bg: '#fdf9f4', bodyFont: 'Hanken Grotesk', displayFont: 'Hanken Grotesk', cardVariant: 'spain',
-    fs: 16, lh: 150, radius: 12, shadow: 'none', border: 'none',
-    accent: '#000000', accentSoft: '#e6e2dd', cta: '#000000',
-    texture: 'solid', motion: 'reduced', showSelection: false,
-    cols: 1, gap: 20, pad: 24, sectionGap: 32,
-    stickyHeader: true, stickyNav: false,
-    headerAlign: 'center', headerLogoStyle: 'wordmark',
-    headerShowSearch: false, headerShowLang: true, headerTableBadge: false, headerStyle: 'blur',
-    catnavStyle: 'pills', catnavShowIcons: true, catnavShowCount: false,
-    cardLayout: 'horizontal', cardImageAspect: '1:1', cardShowDesc: true, cardShowTag: false, cardCtaStyle: 'pill',
-    cartStyle: 'banner', cartIcon: 'cart', cartShowBadge: true,
-    sectionHeading: 'catalog',
-    ...FOOTER_DEFAULTS,
-    ...HEADER_DEFAULTS,
-    headerBg: '#fdf9f4', headerNameSize: 28,
-  },
-
   // Dark, dramatic — hero header, borderless cards, editorial section headings
   obsidian: {
     bg: '#0a0a0a', bodyFont: 'Inter', displayFont: 'Playfair Display',

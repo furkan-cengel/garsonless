@@ -21,7 +21,7 @@ test.describe('public visual smoke', () => {
     const failures = await collectPageFailures(page)
     const response = await page.goto(marketingURL, { waitUntil: 'domcontentloaded' })
     expect(response?.status()).toBe(200)
-    await expect(page.getByText(/garsonless/i).first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: /garson beklemeden/i })).toBeVisible()
     await assertVisualHealth(page, testInfo, 'marketing-home')
     expect(failures).toEqual([])
   })
@@ -33,6 +33,15 @@ test.describe('public visual smoke', () => {
     })
     expect(response?.status()).toBe(200)
     await assertVisualHealth(page, testInfo, 'menu-fixture', { minTextLength: 16 })
+
+    const firstProduct = page.locator('[data-component="card"]').first()
+    await expect(firstProduct).toBeVisible()
+    await firstProduct.click()
+    const productDialog = page.getByRole('dialog', { name: /.+/ }).last()
+    await expect(productDialog).toBeVisible()
+    await expect(productDialog.getByRole('button', { name: /sepete ekle/i })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(productDialog).toBeHidden()
     expect(failures).toEqual([])
   })
 
@@ -42,7 +51,7 @@ test.describe('public visual smoke', () => {
       waitUntil: 'domcontentloaded',
     })
     expect(response?.status()).toBe(200)
-    await expect(page.getByText(/token gerekli/i)).toBeVisible()
+    await expect(page.getByText(/mutfak oturumu gerekli/i)).toBeVisible()
     await assertVisualHealth(page, testInfo, 'kitchen-token-required', { minTextLength: 16, minVisibleCount: 3 })
     expect(failures).toEqual([])
   })

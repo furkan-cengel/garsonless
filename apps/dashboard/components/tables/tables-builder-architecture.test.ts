@@ -46,6 +46,9 @@ test('tables builder delegates QR canvas and browser export rendering', () => {
   assert.match(canvasSource, /downloadTableCard|printTableCards|loadQRCodeStyling/)
   assert.doesNotMatch(canvasSource, /lib\/actions|createClient|supabase|restaurantId|useTablesLiveState/i)
   assert.match(rendererSource, /export async function validateRenderedQR/)
+  assert.match(rendererSource, /export function buildQRCodeStylingOptions/)
+  assert.match(canvasSource, /buildQRCodeStylingOptions/)
+  assert.doesNotMatch(`${canvasSource}\n${rendererSource}`, /as any/)
   assert.doesNotMatch(rendererSource, /lib\/actions|createClient|supabase|restaurantId|useTablesLiveState/i)
 })
 

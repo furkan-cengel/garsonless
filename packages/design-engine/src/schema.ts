@@ -37,7 +37,6 @@ export interface GarsonlessTheme {
   mutedTextColor?: string
   ctaTextColor?: string
   borderColor?: string
-  cardVariant?: 'default' | 'spain'
   texture: 'solid' | 'noise' | 'grid'
   textureStrength?: number
   motion: 'full' | 'reduced' | 'none'
@@ -188,7 +187,6 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   mutedTextColor: '#6c6f76',
   ctaTextColor: '#ffffff',
   borderColor: '#e3e4e7',
-  cardVariant: 'default',
   texture: 'solid',
   textureStrength: 4,
   motion: 'full',

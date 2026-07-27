@@ -100,7 +100,7 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
         zIndex: theme.stickyNav ? 10 : undefined,
         overflowX: 'auto',
         scrollbarWidth: 'none',
-        borderBottom: style === 'underline' ? '1px solid rgba(0,0,0,.08)' : 'none',
+        borderBottom: style === 'underline' ? '1px solid var(--p-border)' : 'none',
         maskImage: theme.catnavEdgeFade && (scrollEdges.left || scrollEdges.right)
           ? `linear-gradient(90deg, ${scrollEdges.left ? 'transparent 0, #000 18px' : '#000 0'}, #000 calc(100% - 18px), ${scrollEdges.right ? 'transparent 100%' : '#000 100%'})`
           : undefined,
@@ -120,7 +120,7 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
           width: align === 'spread' ? '100%' : 'max-content',
           justifyContent: align === 'spread' ? 'space-between' : undefined,
           gap,
-          background: style === 'segmented' ? 'rgba(0,0,0,.06)' : 'transparent',
+          background: style === 'segmented' ? 'var(--p-accent-soft)' : 'transparent',
           padding: style === 'segmented' ? 3 : 0,
           borderRadius: style === 'segmented' ? 9 : 0,
         }}>
@@ -190,7 +190,7 @@ function NavItem({
       <button {...a11y} data-cat={cat.id} onClick={onClick} style={{
         ...base, padding: '5px 11px', borderRadius: 7,
         fontSize, fontWeight: isActive ? 600 : 500,
-        background: isActive ? (activeStyle === 'soft' ? 'var(--p-accent-soft)' : '#fff') : 'transparent',
+        background: isActive ? (activeStyle === 'soft' ? 'var(--p-accent-soft)' : 'var(--p-card)') : 'transparent',
         color: isActive ? acc : 'var(--p-text-2)',
         boxShadow: isActive ? '0 1px 2px rgba(0,0,0,.06)' : 'none',
       }}>{cat.name}{countSuffix}</button>
@@ -208,8 +208,8 @@ function NavItem({
         flexDirection: 'column',
         alignItems: 'stretch',
         background: isActive ? acc : 'var(--p-card)',
-        color: isActive ? '#fff' : 'var(--p-text-2)',
-        border: isActive ? 'none' : '1px solid #e3e4e7',
+        color: isActive ? 'var(--p-cta-text)' : 'var(--p-text-2)',
+        border: isActive ? 'none' : '1px solid var(--p-border)',
         overflow: 'hidden',
         boxShadow: isActive ? '0 10px 22px -14px color-mix(in srgb, var(--p-accent) 80%, #000), var(--p-shadow)' : 'var(--p-shadow)',
       }}>
@@ -222,8 +222,8 @@ function NavItem({
             placeItems: 'center',
             background: meta?.imageUrl
               ? `url("${meta.imageUrl}") center/cover`
-              : 'linear-gradient(135deg, #f3f4f6 0%, #e6e7eb 100%)',
-            color: '#bfc1c6',
+              : 'linear-gradient(135deg, var(--p-card) 0%, var(--p-accent-soft) 100%)',
+            color: 'var(--p-text-2)',
             position: 'relative',
           }}
         >
@@ -252,7 +252,7 @@ function NavItem({
             fontSize: 12.5,
             lineHeight: 1.2,
             fontWeight: isActive ? 850 : 750,
-            color: isActive ? '#fff' : 'var(--p-accent)',
+            color: isActive ? 'var(--p-cta-text)' : 'var(--p-accent)',
           }}>
             {cat.name}
           </span>
@@ -261,7 +261,7 @@ function NavItem({
               fontSize: 10.5,
               lineHeight: 1.2,
               fontWeight: 650,
-              color: isActive ? 'rgba(255,255,255,.72)' : 'var(--p-text-2)',
+              color: isActive ? 'color-mix(in srgb, var(--p-cta-text) 72%, transparent)' : 'var(--p-text-2)',
             }}>
               {meta?.itemCount ?? index + 1} ürün
             </span>
@@ -275,9 +275,9 @@ function NavItem({
       <button {...a11y} data-cat={cat.id} onClick={onClick} style={{
         ...base, padding: '5px 11px', borderRadius: 6,
         fontSize, fontWeight: isActive ? 600 : 500,
-        background: '#fff',
+        background: 'var(--p-card)',
         color: isActive ? acc : 'var(--p-text-2)',
-        border: `1px solid ${isActive ? acc : '#e3e4e7'}`,
+        border: `1px solid ${isActive ? acc : 'var(--p-border)'}`,
       }}>{cat.name}{countSuffix}</button>
     )
   }
@@ -299,8 +299,8 @@ function NavItem({
       ...base, padding: '6px 12px', borderRadius: 999,
       fontSize, fontWeight: isActive ? 600 : 500,
       background: isActive ? (activeStyle === 'filled' ? acc : activeStyle === 'soft' ? 'var(--p-accent-soft)' : 'transparent') : 'transparent',
-      color: isActive ? (activeStyle === 'filled' ? '#fff' : acc) : 'var(--p-text-2)',
-      border: `1px solid ${isActive && activeStyle === 'outline' ? acc : isActive && activeStyle === 'filled' ? 'transparent' : '#e3e4e7'}`,
+      color: isActive ? (activeStyle === 'filled' ? 'var(--p-cta-text)' : acc) : 'var(--p-text-2)',
+      border: `1px solid ${isActive && activeStyle === 'outline' ? acc : isActive && activeStyle === 'filled' ? 'transparent' : 'var(--p-border)'}`,
     }}>{cat.name}{countSuffix}</button>
   )
 }

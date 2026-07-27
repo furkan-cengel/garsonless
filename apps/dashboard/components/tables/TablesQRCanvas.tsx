@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { AppIconNodes } from '@garsonless/ui/icons'
 import { buildUrl } from './tables-builder-model'
 import type { QRConfig, QRHealth, TableItem } from './tables-builder-types'
-import { colorOpts, downloadTableCard, loadQRCodeStyling, printTableCards } from './tables-qr-renderer'
+import { buildQRCodeStylingOptions, downloadTableCard, loadQRCodeStyling, printTableCards } from './tables-qr-renderer'
 
 const I = {
   check: AppIconNodes.check,
@@ -193,17 +193,13 @@ function GridCard({ qr, table }: { qr: QRConfig; table: TableItem }) {
     const run = async () => {
       const QRCodeStyling = await loadQRCodeStyling()
       if (cancelled || !hostRef.current) return
-      const inst = new QRCodeStyling({
-        width: 180, height: 180, type: 'svg', margin: qr.margin / 2,
+      const inst = new QRCodeStyling(buildQRCodeStylingOptions(qr, {
+        width: 180,
+        height: 180,
         data: buildUrl(qr, table),
-        qrOptions: { errorCorrectionLevel: qr.ecl as 'L' | 'M' | 'Q' | 'H' },
-        image: qr.logo ?? undefined,
-        imageOptions: { hideBackgroundDots: qr.logoHideBg, imageSize: qr.logoSize, margin: qr.logoMargin / 2, crossOrigin: 'anonymous' },
-        dotsOptions: { type: qr.dotsType as any, ...colorOpts(qr) as object },
-        cornersSquareOptions: { type: qr.eyeFrame as any, color: qr.fg },
-        cornersDotOptions: { type: qr.eyeBall as any, color: qr.fg },
-        backgroundOptions: { color: qr.bgTransparent ? 'transparent' : qr.bg },
-      })
+        margin: qr.margin / 2,
+        logoMargin: qr.logoMargin / 2,
+      }))
       if (hostRef.current) {
         hostRef.current.innerHTML = ''
         inst.append(hostRef.current)
@@ -250,28 +246,17 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
       const QRCodeStyling = await loadQRCodeStyling()
       if (cancelled || !hostRef.current) return
       const url = buildUrl(qr, table)
-      const cfg = {
-        width: PREVIEW_SIZE, height: PREVIEW_SIZE,
-        type: 'svg' as const,
+      const cfg = buildQRCodeStylingOptions(qr, {
+        width: PREVIEW_SIZE,
+        height: PREVIEW_SIZE,
         data: url,
         margin: Math.round(qr.margin * PREVIEW_SIZE / 600),
-        qrOptions: { errorCorrectionLevel: qr.ecl as 'L' | 'M' | 'Q' | 'H' },
-        image: qr.logo ?? undefined,
-        imageOptions: {
-          hideBackgroundDots: qr.logoHideBg,
-          imageSize: qr.logoSize,
-          margin: Math.round(qr.logoMargin * PREVIEW_SIZE / 600),
-          crossOrigin: 'anonymous' as const,
-        },
-        dotsOptions: { type: qr.dotsType as any, ...colorOpts(qr) as object },
-        cornersSquareOptions: { type: qr.eyeFrame as any, color: qr.fg },
-        cornersDotOptions: { type: qr.eyeBall as any, color: qr.fg },
-        backgroundOptions: { color: qr.bgTransparent ? 'transparent' : qr.bg },
-      };
-      (qrInstanceRef as React.MutableRefObject<unknown>).current = new QRCodeStyling(cfg)
+        logoMargin: Math.round(qr.logoMargin * PREVIEW_SIZE / 600),
+      })
+      qrInstanceRef.current = new QRCodeStyling(cfg)
       if (hostRef.current) {
         hostRef.current.innerHTML = ''
-        ;(qrInstanceRef as React.MutableRefObject<{ append: (el: HTMLElement) => void }>).current.append(hostRef.current)
+        ;(qrInstanceRef.current as { append: (el: HTMLElement) => void }).append(hostRef.current)
       }
     }
     void run()
