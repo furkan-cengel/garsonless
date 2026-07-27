@@ -1,0 +1,58 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "scripts/**/*.{mjs,ts}",
+    "tests/**/*.{mjs,ts}",
+    "playwright.config.ts",
+    "playwright.visual.config.ts",
+    "eslint.config.mjs"
+  ],
+  "project": ["*.{ts,mjs}", "scripts/**/*.{mjs,ts}", "tests/**/*.{mjs,ts}"],
+  "ignore": [
+    "**/.next/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/node_modules/**",
+    "packages/db/src/types.gen.ts",
+    "packages/db/supabase/**",
+    "tests/visual/dashboard-auth.setup.ts"
+  ],
+  "ignoreDependencies": ["tailwindcss"],
+  "workspaces": {
+    "apps/*": {
+      "entry": [
+        "app/**/*.{ts,tsx}",
+        "middleware.ts",
+        "next.config.{js,mjs,ts}",
+        "components/**/*.test.{ts,tsx,mjs}",
+        "lib/**/*.test.{ts,tsx,mjs}",
+        "*.test.mjs"
+      ],
+      "project": ["**/*.{ts,tsx,mjs}"]
+    },
+    "packages/application": {
+      "entry": ["src/*.ts"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "packages/db": {
+      "entry": ["src/{browser,server,types}.ts", "scripts/**/*.{ts,mjs}"],
+      "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{ts,mjs}"]
+    },
+    "packages/domain": {
+      "entry": ["src/*.ts"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "packages/design-engine": {
+      "entry": ["src/index.ts", "src/**/*.test.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "packages/qr": {
+      "entry": ["src/index.ts", "src/**/*.test.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "packages/ui": {
+      "entry": ["src/index.ts", "src/icons/index.tsx", "src/**/*.test.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}"]
+    }
+  }
+}

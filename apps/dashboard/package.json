@@ -18,11 +18,9 @@
     "@garsonless/db": "workspace:*",
     "@garsonless/design-engine": "workspace:*",
     "@garsonless/domain": "workspace:*",
-    "@garsonless/qr": "workspace:*",
     "@garsonless/ui": "workspace:*",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.2",
-    "@tanstack/react-query": "^5.66.0",
     "@types/papaparse": "^5.5.2",
     "iyzipay": "2.0.67",
     "jsqr": "^1.4.0",
@@ -30,14 +28,12 @@
     "papaparse": "^5.5.3",
     "qr-code-styling": "^1.9.2",
     "react": "^19.0.0",
-    "react-colorful": "^5.6.1",
     "react-dom": "^19.0.0",
     "recharts": "2.15.4",
     "resend": "^6.12.3",
-    "sharp": "^0.35.3",
+    "server-only": "^0.0.1",
     "web-push": "^3.6.7",
-    "zod": "^3.24.1",
-    "zustand": "^5.0.3"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

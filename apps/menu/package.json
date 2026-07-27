@@ -17,7 +17,6 @@
     "@garsonless/ui": "workspace:*",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.2",
-    "@tanstack/react-query": "^5.66.0",
     "framer-motion": "^12.4.7",
     "iyzipay": "^2.0.67",
     "next": "^15.5.21",

@@ -6,6 +6,8 @@
     "check": "corepack pnpm check:ci && corepack pnpm build && corepack pnpm smoke",
     "check:ci": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:architecture && corepack pnpm test:db && corepack pnpm test:prod-preflight && corepack pnpm test:prod-release && corepack pnpm test:prod-topology && corepack pnpm test:prod-runtime && corepack pnpm test:prod-smoke && corepack pnpm test:prod-handoff && corepack pnpm test:prod-candidate && corepack pnpm test:prod-execution && corepack pnpm test:prod-recovery && corepack pnpm test:prod-decision && corepack pnpm test:prod-bundle",
     "check:visual": "corepack pnpm check && corepack pnpm visual:smoke",
+    "deadcode": "knip",
+    "deadcode:report": "knip --reporter compact",
     "dev": "corepack pnpm -r --parallel --if-present dev",
     "lint": "eslint .",
     "smoke": "playwright test",
@@ -63,8 +65,8 @@
     "eslint": "^10.5.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.6.0",
+    "knip": "^6.29.0",
     "prettier": "^3.4.2",
-    "turbo": "^2.3.3",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.61.1"
   },

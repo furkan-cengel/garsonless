@@ -6,9 +6,8 @@ const nextConfig: NextConfig = {
     '@garsonless/design-engine',
     '@garsonless/db',
     '@garsonless/domain',
-    '@garsonless/qr',
   ],
-  serverExternalPackages: ['sharp', 'iyzipay'],
+  serverExternalPackages: ['iyzipay'],
 }
 
 export default nextConfig
