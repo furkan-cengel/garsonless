@@ -5,6 +5,7 @@ import {
   deleteCustomerSegment,
   getCustomerSegment,
   getRestaurantCustomerDetail,
+  getRestaurantCustomerTimeline,
   getRestaurantCustomerSegmentCounts,
   getRestaurantCustomers,
   grantStoreCredit,
@@ -74,10 +75,17 @@ export function createCustomerApplicationPort(): CustomerApplicationPort {
         return err(failure('Müşteri detayı yüklenemedi', error))
       }
     },
+    async readTimeline({ restaurantId, customerId, cursor }) {
+      try {
+        return ok(await getRestaurantCustomerTimeline(restaurantId, customerId, cursor))
+      } catch (error) {
+        return err(failure('Müşteri hareketleri yüklenemedi', error))
+      }
+    },
     async grantStoreCredit(input) {
       try {
         const result = await grantStoreCredit(input)
-        return result.ok ? ok({ granted: result.granted }) : err(result.error)
+        return result.ok ? ok({ granted: result.granted, replayed: result.replayed }) : err(result.error)
       } catch (error) {
         return err(failure('Puan tanımlanamadı', error))
       }

@@ -42,19 +42,3 @@ export const DEFAULT_TIERS: LoyaltyTier[] = [
   { name: 'Altın', min: 1000, color: '#c8922a', ...TIER_PERK_DEFAULTS },
   { name: 'Platin', min: 2500, color: '#5b7a86', ...TIER_PERK_DEFAULTS },
 ]
-
-export const LOYALTY_DEFAULTS: LoyaltyConfig = {
-  stamp_enabled: false,
-  stamp_goal: 10,
-  stamp_reward_text: '',
-  reward_item_id: null,
-  points_enabled: false,
-  points_per_lira: 1,
-  points_redeem_rate: 100,
-  scope: 'restaurant',
-  earn_trigger: 'paid',
-  member_discount_pct: 0,
-  welcome_bonus_points: 0,
-  tiers: DEFAULT_TIERS,
-  reward_catalog: [],
-}

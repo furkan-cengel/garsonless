@@ -11,11 +11,20 @@ import {
 } from './analytics-report-model'
 
 const initialData: AnalyticsInitialData = {
+  rangeKpis: {
+    revenue: 0, previousRevenue: 0, orders: 0, previousOrders: 0,
+    paidOrders: 0, previousPaidOrders: 0, avgBasket: 0, sessions: 0, previousSessions: 0,
+  },
   salesOverTime: [],
   heatmapData: [],
   tableStats: [],
   topItems: [],
-  paymentBreakdown: { collected: [], comp: { amount: 0, count: 0 }, collectedTotal: 0, collectedCount: 0 },
+  paymentBreakdown: {
+    collected: [], comp: { amount: 0, count: 0 }, collectedTotal: 0, collectedCount: 0,
+    financials: { grossSales: 0, discountTotal: 0, netSales: 0, vatTotal: 0, netOfVatTotal: 0, unknownVatGross: 0, unattributedAmount: 0 },
+    refunds: { total: 0, count: 0, fullCount: 0, partialCount: 0, netCollected: 0, byMethod: [] },
+    coverage: { monetaryRefunds: true, serviceFees: false, tips: false },
+  },
   productReport: [],
 }
 

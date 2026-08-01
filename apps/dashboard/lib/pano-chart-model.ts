@@ -24,6 +24,21 @@ export const PANO_CHART_RANGES: ReadonlyArray<{ label: string; range: PanoChartR
   { label: '30 gün', range: 'month' },
 ]
 
+export type PanoChartNavigationKey = 'ArrowLeft' | 'ArrowRight' | 'Home' | 'End'
+
+export function navigatePanoChartIndex(
+  currentIndex: number,
+  pointCount: number,
+  key: PanoChartNavigationKey,
+): number {
+  if (pointCount <= 0) return 0
+  const current = Math.max(0, Math.min(currentIndex, pointCount - 1))
+  if (key === 'Home') return 0
+  if (key === 'End') return pointCount - 1
+  if (key === 'ArrowLeft') return (current - 1 + pointCount) % pointCount
+  return (current + 1) % pointCount
+}
+
 export function hourInTimezone(timezone: string, now = new Date()): number {
   return Number(new Intl.DateTimeFormat('en-GB', {
     timeZone: timezone,

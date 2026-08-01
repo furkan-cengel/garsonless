@@ -7,6 +7,25 @@ import { z } from 'zod'
 import { recordSecurityEvent } from '@garsonless/db/server'
 import { createDashboardServerClient } from '../supabase-server'
 import { readRequestMeta } from '../request-meta'
+import { sanitizeServerDiagnostic } from '../server-log-redaction'
+
+function publicAuthError(
+  error: { code?: string; status?: number },
+  operation: string,
+  fallback: string,
+): string {
+  console.error('[dashboard-auth-failure]', { operation }, sanitizeServerDiagnostic(error))
+  switch (error.code) {
+    case 'invalid_credentials': return 'E-posta veya şifre hatalı.'
+    case 'email_not_confirmed': return 'Devam etmek için e-posta adresini doğrula.'
+    case 'user_already_exists':
+    case 'email_exists': return 'Bu e-posta adresiyle zaten bir hesap var.'
+    case 'weak_password': return 'Şifre güvenlik gereksinimlerini karşılamıyor.'
+    case 'over_email_send_rate_limit': return 'Çok fazla e-posta isteği gönderildi. Lütfen daha sonra tekrar dene.'
+    case 'same_password': return 'Yeni şifre mevcut şifreden farklı olmalı.'
+    default: return fallback
+  }
+}
 
 const signInSchema = z.object({
   email: z.string().email(),
@@ -36,7 +55,7 @@ export async function signIn(
 
   const supabase = await createDashboardServerClient()
   const { data, error } = await supabase.auth.signInWithPassword(parsed.data)
-  if (error) return { error: error.message }
+  if (error) return { error: publicAuthError(error, 'auth.sign-in', 'Giriş yapılamadı. Lütfen tekrar deneyin.') }
 
   // Best-effort security audit (never blocks the login).
   if (data.user) {
@@ -72,7 +91,7 @@ export async function signUp(
     ...parsed.data,
     options: { emailRedirectTo: callbackUrl },
   })
-  if (error) return { error: error.message }
+  if (error) return { error: publicAuthError(error, 'auth.sign-up', 'Hesap oluşturulamadı. Lütfen tekrar deneyin.') }
 
   // If the project doesn't require email confirmation, signUp returns a live
   // session → go straight to `next` (e.g. accept-invite). Otherwise the
@@ -108,7 +127,7 @@ export async function sendMagicLink(
     email: parsed.data.email,
     options: { emailRedirectTo: `${process.env['NEXT_PUBLIC_APP_URL']}/auth/callback` },
   })
-  if (error) return { error: error.message }
+  if (error) return { error: publicAuthError(error, 'auth.magic-link', 'Giriş bağlantısı gönderilemedi. Lütfen tekrar deneyin.') }
 
   return { success: true }
 }
@@ -133,7 +152,7 @@ export async function updateUserProfile(
 
   const supabase = await createDashboardServerClient()
   const { error } = await supabase.auth.updateUser({ data: parsed.data })
-  if (error) return { error: error.message }
+  if (error) return { error: publicAuthError(error, 'auth.profile-update', 'Profil güncellenemedi. Lütfen tekrar deneyin.') }
 
   return { success: true }
 }
@@ -163,7 +182,7 @@ export async function sendPasswordResetEmail(): Promise<{ error: string } | { su
   const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
     redirectTo: passwordRecoveryRedirect(),
   })
-  if (error) return { error: error.message }
+  if (error) return { error: publicAuthError(error, 'auth.password-reset-email', 'Şifre yenileme e-postası gönderilemedi.') }
   return { success: true }
 }
 
@@ -188,7 +207,7 @@ export async function setPasswordFromRecovery(
   if (!user) return { error: 'Oturum bulunamadı' }
 
   const { error } = await supabase.auth.updateUser({ password: parsed.data.newPassword })
-  if (error) return { error: error.message }
+  if (error) return { error: publicAuthError(error, 'auth.password-recovery-update', 'Şifre güncellenemedi. Yeni bağlantı isteyin.') }
 
   cookieStore.delete(PASSWORD_RECOVERY_COOKIE)
   const { ip, userAgent } = await readRequestMeta()
@@ -217,7 +236,7 @@ export async function changePassword(
   if (reauthError) return { error: 'Mevcut şifre hatalı' }
 
   const { error: updateError } = await supabase.auth.updateUser({ password: parsed.data.newPassword })
-  if (updateError) return { error: updateError.message }
+  if (updateError) return { error: publicAuthError(updateError, 'auth.password-change', 'Şifre güncellenemedi. Lütfen tekrar deneyin.') }
 
   // Best-effort security audit (never blocks the change).
   const { ip, userAgent } = await readRequestMeta()

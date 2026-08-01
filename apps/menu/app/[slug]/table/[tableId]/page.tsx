@@ -31,10 +31,11 @@ export default async function TableMenuPage({ params }: Props) {
   if (!tableState || tableState.token.restaurantId !== restaurant.id || tableState.token.restaurantSlug !== slug) notFound()
 
   const themePort = createThemeApplicationPort()
-  const [themeResult, categories, featuredRanking] = await Promise.all([
+  const [themeResult, categories, featuredRanking, session] = await Promise.all([
     readPublishedTheme({ restaurantId: restaurant.id }, themePort),
     getMenuCategories(restaurant.id),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
+    getCustomerSession(),
   ])
   if (!themeResult.ok) notFound()
   const tableSession = tableState.session
@@ -49,35 +50,35 @@ export default async function TableMenuPage({ params }: Props) {
     itemCount: Array.isArray(row.items) ? row.items.length : 0,
   }))
 
-  const items = applyFeaturedProductRanking(
-    await getMenuItems(categories.map((c) => c.id)),
-    featuredRanking,
-  )
-
   // Resolve a returning member from the Supabase Auth cookie, plus loyalty
   // balances — same pattern as the slug page; guests stay null.
   let initialMember: { name: string | null } | null = null
   let initialMemberBalances: MemberBalances | null = null
-  const session = await getCustomerSession()
+  const [menuItems, requestButtonsAccess, memberBalancesResult] = await Promise.all([
+    getMenuItems(restaurant.id, categories.map((category) => category.id)),
+    themePort.readFeatureAccess({
+      restaurantId: restaurant.id,
+      plan: themeResult.value.restaurant.plan,
+      feature: 'theme_advanced_sections',
+    }),
+    session
+      ? readMemberLoyalty(customerActorContext({
+          authUserId: session.authUserId,
+          customerId: session.customerId,
+          restaurantId: restaurant.id,
+        }), createLoyaltyQueryPort())
+      : Promise.resolve(null),
+  ])
+  const items = applyFeaturedProductRanking(menuItems, featuredRanking)
   if (session) {
     initialMember = { name: session.name }
-    const result = await readMemberLoyalty(customerActorContext({
-      authUserId: session.authUserId,
-      customerId: session.customerId,
-      restaurantId: restaurant.id,
-    }), createLoyaltyQueryPort())
-    initialMemberBalances = result.ok ? result.value : null
+    initialMemberBalances = memberBalancesResult?.ok ? memberBalancesResult.value : null
   }
 
   const { theme, templateId } = themeResult.value
   // Entitlement and section presence are deliberately separate: the client
   // decides presence from the current (including live-preview) theme, while
   // this server result remains the authoritative PRO-plan gate.
-  const requestButtonsAccess = await themePort.readFeatureAccess({
-    restaurantId: restaurant.id,
-    plan: themeResult.value.restaurant.plan,
-    feature: 'theme_advanced_sections',
-  })
   const requestButtonsEnabled = requestButtonsAccess?.ok === true && requestButtonsAccess.value
 
   return (

@@ -21,6 +21,14 @@ const customSectionRendererSource = readFileSync(
   `${directory}/../../../../packages/ui/src/themes/default/sections/CustomSectionRenderer.tsx`,
   "utf8",
 );
+const menuFooterSource = readFileSync(
+  `${directory}/../../../../packages/ui/src/menu/MenuFooter.tsx`,
+  "utf8",
+);
+const footerPreviewSource = readFileSync(
+  `${directory}/use-theme-editor-drawer-preview.ts`,
+  "utf8",
+);
 const sectionRegistrySource = readFileSync(
   `${directory}/theme-editor-section-registry.ts`,
   "utf8",
@@ -394,7 +402,18 @@ test("section picker previews the canonical public-menu renderer instead of a mo
   assert.doesNotMatch(canonicalSectionPreviewSource, /lib\/actions|publishTheme|createClient/);
   assert.match(customSectionRendererSource, /export function CustomSectionRenderer/);
   assert.match(customSectionRendererSource, /sectionId === 'hero-banner'/);
-  assert.match(customSectionRendererSource, /sectionId === 'footer'/);
+  assert.doesNotMatch(customSectionRendererSource, /sectionId === 'footer'|sectionId === 'social-block'/);
+});
+
+test("global footer replaces announcement and retired addable footer blocks", () => {
+  assert.match(menuFooterSource, /data-component="footer"/);
+  assert.match(menuFooterSource, /normalizeFooterContactLinks/);
+  assert.match(menuFooterSource, /normalizeFooterSocialLinks/);
+  assert.match(propertyPanelsSource, /FooterPropertyPanel/);
+  assert.doesNotMatch(propertyPanelsSource, /AnnouncementPropertyPanel/);
+  assert.doesNotMatch(sectionRegistrySource, /id: 'social-block'|id: 'footer'/);
+  assert.match(clientSource, /useThemeEditorDrawerPreview/);
+  assert.match(footerPreviewSource, /SCROLL_TO_COMPONENT/);
 });
 
 test("theme editor orchestrator imports static section definitions from a typed registry", () => {

@@ -54,8 +54,17 @@ export interface RestaurantSettingsPort {
   patchSettings(input: {
     restaurantId: string
     patch: Record<string, unknown>
-  }): Promise<Result<'updated' | 'not_found'>>
+    expectedSettings: Record<string, unknown>
+    requestId: string
+  }): Promise<Result<RestaurantSettingsPatchPersistenceResult>>
 }
+
+export type RestaurantSettingsPatchPersistenceResult =
+  | { outcome: 'saved'; idempotent: boolean; settings: Record<string, unknown>; conflictKeys: string[] }
+  | { outcome: 'conflict'; idempotent: boolean; settings: Record<string, unknown>; conflictKeys: string[] }
+  | { outcome: 'not_found'; idempotent: boolean; settings: Record<string, unknown>; conflictKeys: string[] }
+
+export type RestaurantSettingsPatchResult = Exclude<RestaurantSettingsPatchPersistenceResult, { outcome: 'not_found' }>
 
 export type StandType = 'basic' | 'premium' | 'custom'
 
@@ -101,9 +110,14 @@ function requireSection(
 
 export async function patchRestaurantSettings(
   context: DashboardActorContext,
-  input: { restaurantId: string; patch: Record<string, unknown> },
+  input: {
+    restaurantId: string
+    patch: Record<string, unknown>
+    expectedSettings: Record<string, unknown>
+    requestId: string
+  },
   port: RestaurantSettingsPort,
-): Promise<Result<null>> {
+): Promise<Result<RestaurantSettingsPatchResult>> {
   const access = requireSection(context, input.restaurantId, 'settings')
   if (!access.ok) return access
   if (
@@ -112,11 +126,16 @@ export async function patchRestaurantSettings(
   ) {
     return err('Not authorized')
   }
-  if (Object.keys(input.patch).length === 0) return ok(null)
+  if (Object.keys(input.patch).length === 0) {
+    return ok({ outcome: 'saved', idempotent: true, settings: {}, conflictKeys: [] })
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.requestId)) {
+    return err('Invalid settings request')
+  }
 
   const updated = await port.patchSettings(input)
   if (!updated.ok) return updated
-  return updated.value === 'updated' ? ok(null) : err('Not found')
+  return updated.value.outcome === 'not_found' ? err('Not found') : ok(updated.value)
 }
 
 export async function requestQrStands(

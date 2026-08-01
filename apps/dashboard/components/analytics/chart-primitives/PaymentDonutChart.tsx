@@ -6,6 +6,7 @@ import type { PaymentBreakdown } from '../../../lib/queries/analytics'
 import ChartTooltip, { type RechartsPayloadItem } from './ChartTooltip'
 import { tooltipWrapperStyle } from './axis'
 import { money, percent } from './format'
+import AccessibleChartData from './AccessibleChartData'
 
 const CAT = ['var(--chart-cat-1)', 'var(--chart-cat-2)', 'var(--chart-cat-3)', 'var(--chart-cat-4)', 'var(--chart-cat-5)']
 
@@ -42,7 +43,7 @@ export default function PaymentDonutChart({ segments }: { segments: PaymentBreak
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
       <div style={{ position: 'relative', width: '100%', height: 176 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
+          <PieChart role="img" aria-label="Ödeme yöntemlerine göre tahsilat dağılımı" accessibilityLayer>
             <Pie
               data={segments} dataKey="amount" nameKey="label"
               cx="50%" cy="50%" innerRadius="62%" outerRadius="94%"
@@ -68,16 +69,34 @@ export default function PaymentDonutChart({ segments }: { segments: PaymentBreak
       </div>
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {segments.map((seg, i) => (
-          <div key={seg.key}
+          <button key={seg.key} type="button"
             onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(null)}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'default', opacity: active === null || active === i ? 1 : 0.5, transition: 'opacity .12s' }}>
+            onFocus={() => setActive(i)} onBlur={() => setActive(null)}
+            aria-label={`${seg.label}: ${money(seg.amount)}, ${percent(seg.pct)}, ${seg.count} ödeme`}
+            style={{ minHeight: 44, padding: '0 4px', border: 0, borderRadius: 6, background: 'transparent', width: '100%', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', opacity: active === null || active === i ? 1 : 0.5, transition: 'opacity .12s' }}>
             <span style={{ width: 8, height: 8, borderRadius: 2, background: CAT[i % CAT.length] }} />
             <span style={{ flex: 1, fontSize: 12, color: 'var(--text)' }}>{seg.label}</span>
             <span style={{ fontFamily: "'Geist Mono', ui-monospace, monospace", fontSize: 11, color: 'var(--text-3)' }}>{percent(seg.pct)}</span>
             <span style={{ fontFamily: "'Geist Mono', ui-monospace, monospace", fontSize: 11.5, fontWeight: 600, minWidth: 74, textAlign: 'right', color: 'var(--text)' }}>{money(seg.amount)}</span>
-          </div>
+          </button>
         ))}
       </div>
+      <AccessibleChartData
+        caption="Ödeme yöntemi dağılımı"
+        summary={`${totalCount} ödemede toplam ${money(total)} tahsil edildi.`}
+        columns={[
+          { key: 'label', label: 'Yöntem' },
+          { key: 'amount', label: 'Tutar', align: 'right' },
+          { key: 'share', label: 'Pay', align: 'right' },
+          { key: 'count', label: 'Adet', align: 'right' },
+        ]}
+        rows={segments.map((segment) => ({
+          label: segment.label,
+          amount: money(segment.amount),
+          share: percent(segment.pct),
+          count: segment.count,
+        }))}
+      />
     </div>
   )
 }

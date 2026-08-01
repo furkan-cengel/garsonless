@@ -6,6 +6,7 @@ import {
   type ActionFailure,
   type ErrorCode,
 } from '@garsonless/domain/errors'
+import { sanitizeServerDiagnostic } from './server-log-redaction'
 
 type DashboardFailureOptions = {
   operation: string
@@ -38,7 +39,7 @@ export function dashboardActionFailure(
   }
 
   if (cause) {
-    console.error('[dashboard-action-failure]', log, cause)
+    console.error('[dashboard-action-failure]', log, sanitizeServerDiagnostic(cause))
   } else {
     console.warn('[dashboard-action-failure]', log)
   }

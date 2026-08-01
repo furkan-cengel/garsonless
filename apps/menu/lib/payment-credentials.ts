@@ -1,6 +1,6 @@
 // Server-only: resolves İyzico credentials for a restaurant.
-// Reads payment_credentials with the SERVICE ROLE client — this module must
-// only be imported from route handlers, never from client components.
+// Reads the encrypted tenant vault through the SERVICE ROLE adapter — this
+// module must only be imported from route handlers, never client components.
 
 import {
   attachOrderPaymentToken,
@@ -14,37 +14,25 @@ export interface IyzicoCredentials {
   apiKey: string
   secretKey: string
   baseUrl: string
-  source: 'restaurant' | 'env'
+  source: 'restaurant'
 }
 
 const SANDBOX_URL = 'https://sandbox-api.iyzipay.com'
 const LIVE_URL = 'https://api.iyzipay.com'
 
-function envFallback(reason: string, restaurantId: string | null): IyzicoCredentials | null {
-  const apiKey = process.env['IYZICO_API_KEY']
-  const secretKey = process.env['IYZICO_SECRET_KEY']
-  if (!apiKey || !secretKey) return null
-  console.warn(
-    JSON.stringify({
-      event: 'payment.credentials.env_fallback',
-      reason,
-      restaurantId,
-    }),
-  )
-  return {
-    apiKey,
-    secretKey,
-    baseUrl: process.env['IYZICO_BASE_URL'] ?? SANDBOX_URL,
-    source: 'env',
-  }
+function credentialResolutionFailed(reason: string): null {
+  // Stable reason codes only: raw adapter/provider errors and tenant IDs never
+  // enter logs. Global platform credentials are not a safe tenant fallback.
+  console.warn(JSON.stringify({ event: 'payment.credentials.unavailable', reason }))
+  return null
 }
 
 export async function resolveIyzicoCredentials(
   restaurantId: string,
 ): Promise<IyzicoCredentials | null> {
   const { record, error } = await readIyzicoCredentialRecord(restaurantId)
-  if (error) return envFallback(`credentials query failed: ${error}`, restaurantId)
-  if (!record) return envFallback('no credentials configured', restaurantId)
+  if (error) return credentialResolutionFailed(error)
+  if (!record) return credentialResolutionFailed('payment_credential_not_configured')
   return {
     apiKey: record.apiKey,
     secretKey: record.secretKey,
@@ -62,17 +50,14 @@ export async function resolveCredentialsByPaymentToken(
   const mapping = await readOrderPaymentMapping(token)
   if (mapping.error || !mapping.orderId) {
     return {
-      credentials: envFallback(
-        mapping.error ? `token lookup failed: ${mapping.error}` : 'no order found for payment token',
-        null,
-      ),
+      credentials: credentialResolutionFailed(mapping.error ? 'payment_token_lookup_failed' : 'payment_order_not_found'),
       orderId: null,
       restaurantId: null,
     }
   }
   const { orderId, restaurantId } = mapping
   if (!restaurantId) {
-    return { credentials: envFallback('order not found for payment token', null), orderId, restaurantId: null }
+    return { credentials: credentialResolutionFailed('payment_order_not_found'), orderId, restaurantId: null }
   }
 
   return {
@@ -90,9 +75,7 @@ export async function attachPaymentTokenToOrder(
 ): Promise<string | null> {
   const error = await attachOrderPaymentToken(orderId, restaurantId, reservationId, token)
   if (error) {
-    console.warn(
-      JSON.stringify({ event: 'payment.token.attach_failed', orderId, error }),
-    )
+    console.warn(JSON.stringify({ event: 'payment.token.attach_failed' }))
   }
   return error
 }
@@ -107,7 +90,7 @@ export async function attachPaymentTokenToShare(
 ): Promise<string | null> {
   const error = await attachSharePaymentToken(shareId, restaurantId, token)
   if (error) {
-    console.warn(JSON.stringify({ event: 'payment.share_token.attach_failed', shareId, error }))
+    console.warn(JSON.stringify({ event: 'payment.share_token.attach_failed' }))
   }
   return error
 }

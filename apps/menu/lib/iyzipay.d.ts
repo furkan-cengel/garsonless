@@ -68,11 +68,14 @@ declare module 'iyzipay' {
     errorCode?: string
     errorMessage?: string
     paymentStatus?: string
-    price?: string
-    paidPrice?: string
+    price?: string | number
+    paidPrice?: string | number
     currency?: string
     basketId?: string
     conversationId?: string
+    paymentId?: string
+    token?: string
+    signature?: string
   }
 
   // Resource names mirror the SDK's auto-loaded lib/resources/*.js files:

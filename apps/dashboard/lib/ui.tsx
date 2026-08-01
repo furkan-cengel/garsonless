@@ -1,9 +1,9 @@
 import type { CSSProperties, ReactNode } from 'react'
-import type { AppIcon as Icon, AppIconProps as SvgProps } from '@garsonless/ui/icons'
+import type { AppIcon as Icon } from '@garsonless/ui/icons'
 import { AppIcons as I } from '@garsonless/ui/icons'
 
 export { I }
-export type { Icon, SvgProps }
+export type { Icon }
 
 /* ============================================================
    STYLE CONSTANTS
@@ -77,11 +77,16 @@ interface IconButtonProps {
   onClick?: () => void
   active?: boolean
   size?: number
+  className?: string
+  initialFocus?: boolean
 }
 
-export function IconButton({ icon, ariaLabel, onClick, active, size = 28 }: IconButtonProps) {
+export function IconButton({ icon, ariaLabel, onClick, active, size = 28, className, initialFocus = false }: IconButtonProps) {
   return (
     <button
+      type="button"
+      className={className}
+      data-modal-initial-focus={initialFocus ? '' : undefined}
       aria-label={ariaLabel}
       onClick={onClick}
       onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-3)' }}
@@ -103,38 +108,6 @@ export function IconButton({ icon, ariaLabel, onClick, active, size = 28 }: Icon
     >
       {icon}
     </button>
-  )
-}
-
-interface StatusBarProps {
-  device?: 'mobile' | 'desktop'
-  zoom?: number
-}
-
-export function StatusBar({ device = 'mobile', zoom = 100 }: StatusBarProps) {
-  const dims = device === 'mobile' ? '390 × 844' : '1440 × 900'
-  return (
-    <div style={{
-      height: 'var(--statusbar)',
-      flexShrink: 0,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0 14px',
-      borderTop: '1px solid var(--border)',
-      background: 'var(--surface)',
-      fontSize: 11.5,
-      color: 'var(--text-3)',
-    }}>
-      <span>Otomatik kayıt açık</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, ...S.mono }}>
-        <span>{dims}</span>
-        <span style={{ color: 'var(--text-4)' }}>·</span>
-        <span>%{zoom}</span>
-        <span style={{ color: 'var(--text-4)' }}>·</span>
-        <span>tr-TR</span>
-      </div>
-    </div>
   )
 }
 

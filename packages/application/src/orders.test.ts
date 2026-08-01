@@ -141,6 +141,7 @@ function dashboardOrderPort(
       return { ok: true, value: { status: 'served', paidAt: null, paymentMethod: null } }
     },
     async cancelOrder() { return { ok: true, value: null } },
+    async cancelPaidManualOrder() { return { ok: true, value: null } },
     ...overrides,
   }
 }
@@ -165,6 +166,19 @@ test('dashboard order lifecycle rejects cross-tenant and missing permission befo
   assert.equal(touched, false)
 })
 
+test('dashboard lifecycle fails closed when an untyped caller supplies payment or cancellation', async () => {
+  let touched = false
+  const port = dashboardOrderPort({
+    async transitionStatus() { touched = true; return { ok: true, value: null } },
+  })
+  const context = { actor: 'dashboard-member' as const, restaurantId: 'a', userId: 'staff', permissions: ['orders'] }
+  const paid = await transitionDashboardOrder(context, { orderId: 'order', restaurantId: 'a', status: 'paid' as never }, port)
+  const cancelled = await transitionDashboardOrder(context, { orderId: 'order', restaurantId: 'a', status: 'cancelled' as never }, port)
+  assert.deepEqual(paid, { ok: false, error: 'Use the dedicated cancellation or settlement command' })
+  assert.deepEqual(cancelled, { ok: false, error: 'Use the dedicated cancellation or settlement command' })
+  assert.equal(touched, false)
+})
+
 test('dashboard cancellation applies payment policy before the write port', async () => {
   let cancelled = false
   const online = await cancelDashboardOrder(
@@ -177,7 +191,7 @@ test('dashboard cancellation applies payment policy before the write port', asyn
       async cancelOrder() { cancelled = true; return { ok: true, value: null } },
     }),
   )
-  assert.deepEqual(online, { ok: false, error: 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.' })
+  assert.deepEqual(online, { ok: false, error: 'Bu sipariş online ödendi — doğrulanmış İyzico iade akışını kullanın.' })
   assert.equal(cancelled, false)
 })
 
@@ -196,5 +210,32 @@ test('dashboard cancellation derives actor audit and normalized reason', async (
     restaurantId: 'a',
     reason: 'müşteri isteği',
     cancelledBy: 'staff',
+  })
+})
+
+test('paid cash/POS cancellation is owner-only and uses the atomic refund port', async () => {
+  let write: Parameters<DashboardOrderLifecyclePort['cancelPaidManualOrder']>[0] | null = null
+  const repository = dashboardOrderPort({
+    async readForCancellation() {
+      return { ok: true, value: { status: 'served', paidAt: 'now', paymentMethod: 'cash' } }
+    },
+    async cancelPaidManualOrder(input) { write = input; return { ok: true, value: null } },
+  })
+  const member = await cancelDashboardOrder(
+    { actor: 'dashboard-member', restaurantId: 'a', userId: 'staff', permissions: ['orders'] },
+    { orderId: 'order', restaurantId: 'a', reason: 'Müşteri talebi' },
+    repository,
+  )
+  assert.deepEqual(member, { ok: false, error: 'Paid cash/POS cancellation and refund is owner-only' })
+  assert.equal(write, null)
+
+  const owner = await cancelDashboardOrder(
+    { actor: 'dashboard-member', restaurantId: 'a', userId: 'owner', permissions: ['orders'], isOwner: true },
+    { orderId: 'order', restaurantId: 'a', reason: ' Müşteri talebi ' },
+    repository,
+  )
+  assert.equal(owner.ok, true)
+  assert.deepEqual(write, {
+    orderId: 'order', restaurantId: 'a', reason: 'Müşteri talebi', cancelledBy: 'owner',
   })
 })

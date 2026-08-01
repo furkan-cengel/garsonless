@@ -152,6 +152,12 @@ export function ThemeProvider({ children, initialTheme, isPreview = false, initi
       if (event.source !== window.parent) return
       if (parentOrigin && event.origin !== parentOrigin) return
       const data = event.data as Record<string, unknown>
+      if (data?.type === 'SCROLL_TO_COMPONENT' && data.component === 'footer') {
+        requestAnimationFrame(() => {
+          document.querySelector<HTMLElement>('[data-component="footer"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        })
+        return
+      }
       if (data?.type === 'CSS_VARS_UPDATE') {
         const vars = data.vars as Record<string, string> | undefined
         if (vars) {

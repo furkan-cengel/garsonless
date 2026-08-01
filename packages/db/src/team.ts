@@ -73,13 +73,15 @@ function mapMember(row: MemberRow): TeamMember {
 const MEMBER_COLS = 'id, user_id, email, permissions, status, invited_at, accepted_at'
 
 /** All members of a restaurant (service role; caller owner-gates). No token hash. */
-export async function listTeamMembers(restaurantId: string): Promise<TeamMember[]> {
+export async function listTeamMembers(restaurantId: string, signal?: AbortSignal): Promise<TeamMember[]> {
   const sb = createServiceClient()
-  const { data } = await sb
+  let query = sb
     .from('restaurant_members')
     .select(MEMBER_COLS)
     .eq('restaurant_id', restaurantId)
     .order('invited_at', { ascending: true })
+  if (signal) query = query.abortSignal(signal)
+  const { data } = await query
   return ((data ?? []) as MemberRow[]).map(mapMember)
 }
 

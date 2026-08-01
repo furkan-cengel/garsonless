@@ -1,19 +1,21 @@
 import {
-  rangeWindow,
+  restaurantCalendarDayCount,
   startOfDayNDaysAgo,
   restaurantDayKey,
   restaurantHour,
 } from '@garsonless/db/browser'
 import { assertAccess, getUserRestaurantAccess } from '../auth/access'
+import { summarizeCancelledFinancials } from '../analytics-financial-model'
 import {
   analyticsReadModel,
+  analyticsOrderReadFilters,
   COMP_METHOD,
   foldOrderItems,
   getRestaurantTimezone,
   rangeWindowFor,
-  sumTotals,
   type TopItem,
 } from './insights-shared'
+import { coerceAnalyticsQuery, type AnalyticsQuery } from '../analytics-filter-contract'
 
 /* ══════════════════════════════════════════════════════════════════════════
    OPERASYON reports (Wave-1 Phase A) — read-only, range-aware, OWNER-ONLY.
@@ -43,17 +45,18 @@ function pctChange(cur: number, prev: number): number | null {
 // window only. Uses the SAME shared restaurant-local helpers as getSalesOverTime
 // — one source of truth for day/hour bucketing, not a second (formerly separate,
 // server-local) localDateKey implementation.
-function bucketCounts(timestamps: string[], range: string, tz: string): Array<{ date: string; count: number }> {
-  if (range === 'day') {
+function bucketCounts(timestamps: string[], tz: string, currentStart: Date, currentEnd: Date): Array<{ date: string; count: number }> {
+  const lastCurrentInstant = new Date(Math.max(currentStart.getTime(), currentEnd.getTime() - 1))
+  const days = restaurantCalendarDayCount(restaurantDayKey(currentStart, tz), restaurantDayKey(lastCurrentInstant, tz))
+  if (days === 1) {
     const byHour: Record<number, number> = {}
     for (const t of timestamps) { const h = restaurantHour(t, tz); byHour[h] = (byHour[h] ?? 0) + 1 }
     return Array.from({ length: 24 }, (_, h) => ({ date: `${h.toString().padStart(2, '0')}:00`, count: byHour[h] ?? 0 }))
   }
-  const days = ({ week: 7, month: 30, quarter: 90, year: 365 } as Record<string, number>)[range] ?? 7
   const byDay: Record<string, number> = {}
   for (const t of timestamps) { const key = restaurantDayKey(t, tz); byDay[key] = (byDay[key] ?? 0) + 1 }
   return Array.from({ length: days }, (_, i) => {
-    const dayStart = startOfDayNDaysAgo(tz, days - 1 - i) // i=0 → oldest … last → today
+    const dayStart = startOfDayNDaysAgo(tz, -i, currentStart)
     return {
       date: dayStart.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', timeZone: tz }),
       count: byDay[restaurantDayKey(dayStart, tz)] ?? 0,
@@ -64,7 +67,11 @@ function bucketCounts(timestamps: string[], range: string, tz: string): Array<{ 
 // ── 1. İptal raporu ──────────────────────────────────────────────────────────
 export interface CancellationReport {
   count: number
-  lostAmount: number             // Σ total of cancelled orders (never collected)
+  lostAmount: number             // Σ total of cancelled orders without paid_at
+  collectedCancelledCount: number
+  collectedCancelledAmount: number
+  compCancelledCount: number
+  compCancelledAmount: number
   allOrders: number              // denominator = every non-deleted order in window
   rate: number                   // cancelled / all %, current window
   topItems: TopItem[]            // folded from cancelled orders' items JSON
@@ -74,15 +81,40 @@ export interface CancellationReport {
   deltaRate: number | null       // percentage-POINT delta of the rate
 }
 
-export async function getCancellationReport(restaurantId: string, range = 'week'): Promise<CancellationReport> {
-  const empty: CancellationReport = { count: 0, lostAmount: 0, allOrders: 0, rate: 0, topItems: [], trend: [], deltaCount: 0, deltaLost: 0, deltaRate: 0 }
+export async function getCancellationReport(restaurantId: string, range: string | AnalyticsQuery = 'week', asOf = new Date()): Promise<CancellationReport> {
+  const empty: CancellationReport = {
+    count: 0,
+    lostAmount: 0,
+    collectedCancelledCount: 0,
+    collectedCancelledAmount: 0,
+    compCancelledCount: 0,
+    compCancelledAmount: 0,
+    allOrders: 0,
+    rate: 0,
+    topItems: [],
+    trend: [],
+    deltaCount: 0,
+    deltaLost: 0,
+    deltaRate: 0,
+  }
   if (!(await isOwnerViewer(restaurantId))) return empty
 
+  const query = coerceAnalyticsQuery(range)
   const tz = await getRestaurantTimezone(restaurantId)
-  const { currentStart, previousStart } = rangeWindow(tz, range)
+  const { currentStart, previousStart, currentEnd } = await rangeWindowFor(restaurantId, query, asOf)
+  // Cancellation is itself the report's status dimension. Applying the global
+  // lifecycle filter here (for example `ready`) removes every cancelled order
+  // and turns the report into a false zero. Source and payment filters remain
+  // report-wide AND filters; only the incompatible status dimension is ignored.
+  const filters = analyticsOrderReadFilters({
+    ...query,
+    filters: { ...query.filters, status: 'all' },
+  })
   const result = await analyticsReadModel.readCancellationOrders({
     restaurantId,
     since: previousStart.toISOString(),
+    before: currentEnd.toISOString(),
+    filters,
   })
   if (!result.ok) throw new Error(`getCancellationReport: ${result.error}`)
   const rows = result.value.map((row) => ({ ...row, created_at: row.createdAt }))
@@ -92,7 +124,9 @@ export async function getCancellationReport(restaurantId: string, range = 'week'
   const prevCancelled = prev.filter((r) => r.status === 'cancelled')
 
   const count = curCancelled.length
-  const lostAmount = sumTotals(curCancelled)
+  const cancellationFinancials = summarizeCancelledFinancials(curCancelled)
+  const previousCancellationFinancials = summarizeCancelledFinancials(prevCancelled)
+  const { lostAmount } = cancellationFinancials
   const allOrders = cur.length
   const rate = allOrders > 0 ? Math.round((count / allOrders) * 1000) / 10 : 0
   const prevAll = prev.length
@@ -104,18 +138,24 @@ export async function getCancellationReport(restaurantId: string, range = 'week'
     .slice(0, 5)
 
   return {
-    count, lostAmount, allOrders, rate,
+    count,
+    lostAmount,
+    collectedCancelledCount: cancellationFinancials.collectedCancelledCount,
+    collectedCancelledAmount: cancellationFinancials.collectedCancelledAmount,
+    compCancelledCount: cancellationFinancials.compCancelledCount,
+    compCancelledAmount: cancellationFinancials.compCancelledAmount,
+    allOrders,
+    rate,
     topItems,
-    trend: bucketCounts(curCancelled.map((r) => r.created_at), range, tz),
+    trend: bucketCounts(curCancelled.map((r) => r.created_at), tz, currentStart, currentEnd),
     deltaCount: pctChange(count, prevCancelled.length),
-    deltaLost: pctChange(lostAmount, sumTotals(prevCancelled)),
+    deltaLost: pctChange(lostAmount, previousCancellationFinancials.lostAmount),
     deltaRate: Math.round((rate - prevRate) * 10) / 10,
   }
 }
 
 // ── 2. Anormal kapatma / kaçak ───────────────────────────────────────────────
-export interface AbnormalCloseRow {
-  sessionId: string
+interface AbnormalCloseRow {
   tableLabel: string
   closedAt: string
   reason: string                 // RAW staff-typed free text (no structured categories exist)
@@ -130,14 +170,15 @@ export interface AbnormalCloseReport {
   deltaUnpaid: number | null
 }
 
-export async function getAbnormalCloseReport(restaurantId: string, range = 'week'): Promise<AbnormalCloseReport> {
+export async function getAbnormalCloseReport(restaurantId: string, range: string | AnalyticsQuery = 'week', asOf = new Date()): Promise<AbnormalCloseReport> {
   const empty: AbnormalCloseReport = { count: 0, unpaidTotal: 0, rows: [], deltaCount: 0, deltaUnpaid: 0 }
   if (!(await isOwnerViewer(restaurantId))) return empty
 
-  const { currentStart, previousStart } = await rangeWindowFor(restaurantId, range)
+  const { currentStart, previousStart, currentEnd } = await rangeWindowFor(restaurantId, range, asOf)
   const result = await analyticsReadModel.readAbnormalCloseData({
     restaurantId,
     since: previousStart.toISOString(),
+    before: currentEnd.toISOString(),
   })
   if (!result.ok) throw new Error(`getAbnormalCloseReport: ${result.error}`)
   const sessions = result.value.sessions.map((session) => ({
@@ -162,7 +203,6 @@ export async function getAbnormalCloseReport(restaurantId: string, range = 'week
 
   const rows: AbnormalCloseRow[] = cur
     .map((s) => ({
-      sessionId: s.id,
       tableLabel: labelById.get(s.table_id) ?? 'Masa',
       closedAt: s.closed_at,
       reason: s.close_reason,
@@ -185,7 +225,6 @@ export async function getAbnormalCloseReport(restaurantId: string, range = 'week
 
 // ── 3. Personel tahsilat performansı ─────────────────────────────────────────
 export interface StaffSettlementRow {
-  settledBy: string | null       // user_id, or null for the İyzico system row
   label: string                  // owner/member email, "İyzico (otomatik)", or "Bilinmeyen kullanıcı"
   role: 'owner' | 'member' | 'system' | 'unknown'
   sections: string[] | null      // member's granted sections (permissions); null otherwise
@@ -203,16 +242,19 @@ export interface StaffSettlementReport {
   totalCollected: number
 }
 
-export async function getStaffSettlementReport(restaurantId: string, range = 'week'): Promise<StaffSettlementReport> {
+export async function getStaffSettlementReport(restaurantId: string, range: string | AnalyticsQuery = 'week', asOf = new Date()): Promise<StaffSettlementReport> {
   const empty: StaffSettlementReport = { rows: [], totalCollected: 0 }
   // OWNER-ONLY (see block comment above): emails + per-person cash audit + the
   // high-cash flag must never be readable by the audited staff themselves.
   if (!(await isOwnerViewer(restaurantId))) return empty
 
-  const { currentStart } = await rangeWindowFor(restaurantId, range)
+  const { currentStart, currentEnd } = await rangeWindowFor(restaurantId, range, asOf)
+  const filters = analyticsOrderReadFilters(range)
   const result = await analyticsReadModel.readStaffSettlementData({
     restaurantId,
     since: currentStart.toISOString(),
+    before: currentEnd.toISOString(),
+    filters,
   })
   if (!result.ok) throw new Error(`getStaffSettlementReport: ${result.error}`)
   const { orders, ownerId, ownerEmail, members } = result.value
@@ -242,7 +284,6 @@ export async function getStaffSettlementReport(restaurantId: string, range = 'we
     else if (memberMap.has(key)) { const m = memberMap.get(key)!; label = m.email; role = 'member'; sections = m.permissions }
     const cardCash = agg.cash + agg.pos
     return {
-      settledBy: key === SYSTEM ? null : key,
       label, role, sections,
       cash: agg.cash, pos: agg.pos, otherCollected: agg.otherCollected,
       compAmount: agg.compAmount, compCount: agg.compCount,
@@ -285,7 +326,7 @@ export interface LoyaltyReport {
   comp: { amount: number; count: number }
 }
 
-export async function getLoyaltyReport(restaurantId: string, range = 'week'): Promise<LoyaltyReport> {
+export async function getLoyaltyReport(restaurantId: string, range: string | AnalyticsQuery = 'week', asOf = new Date()): Promise<LoyaltyReport> {
   const empty: LoyaltyReport = {
     pointsIssued: 0, pointsRedeemed: 0, redeemRate: 0, pointsRefunded: 0,
     stampsIssued: 0, stampsRedeemed: 0, stampsRefunded: 0,
@@ -295,10 +336,11 @@ export async function getLoyaltyReport(restaurantId: string, range = 'week'): Pr
   const gate = await assertAccess(restaurantId, 'analytics')
   if ('error' in gate) return empty
 
-  const { currentStart } = await rangeWindowFor(restaurantId, range)
+  const { currentStart, currentEnd } = await rangeWindowFor(restaurantId, range, asOf)
   const result = await analyticsReadModel.readLoyaltyRows({
     restaurantId,
     since: currentStart.toISOString(),
+    before: currentEnd.toISOString(),
   })
   if (!result.ok) throw new Error(`getLoyaltyReport: ${result.error}`)
   const rows = result.value
@@ -339,6 +381,3 @@ export async function getLoyaltyReport(restaurantId: string, range = 'week'): Pr
 
   return out
 }
-
-
-

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { getPanoGreeting, getPanoHealthChecks, getPanoKpiCards, getPanoQuickActions } from './pano-view-model'
+import { getPanoGreeting, getPanoHealthChecks, getPanoKpiCards } from './pano-view-model'
 
 const kpis = {
   revenue: 320,
@@ -15,12 +15,25 @@ const kpis = {
   sessionsYesterday: 6,
 }
 
+const operational = {
+  orderSummary: { pending: 2, preparing: 3 },
+  tables: [{
+    id: 'table-1', label: 'Masa 1', status: 'late' as const, time: 50, total: 320,
+    sessionId: 'session-1', openedAt: '2026-07-29T08:00:00.000Z', unpaidTotal: 500,
+    splitSettledTotal: 180, splitDeclaredCashTotal: 0, orderCount: 2, hasUnfinished: false,
+  }],
+  serviceRequests: [{ id: 'request-1', tableId: 'table-1', createdAt: '', requestType: 'bill' as const }],
+  canAnalytics: true,
+  canOrders: true,
+  canTables: true,
+}
+
 test('Pano model derives greeting and KPI comparison cards from one snapshot', () => {
   assert.equal(getPanoGreeting('Europe/Istanbul', new Date('2026-07-20T06:00:00.000Z')), 'Günaydın')
   assert.equal(getPanoGreeting('Europe/Istanbul', new Date('2026-07-20T12:00:00.000Z')), 'İyi günler')
   assert.equal(getPanoGreeting('Europe/Istanbul', new Date('2026-07-20T18:00:00.000Z')), 'İyi akşamlar')
 
-  const cards = getPanoKpiCards(kpis, 'restaurant-1')
+  const cards = getPanoKpiCards(kpis, 'restaurant-1', operational)
   assert.equal(cards.length, 4)
   assert.deepEqual(cards[0], {
     label: 'Tahsil edilen ciro',
@@ -31,16 +44,44 @@ test('Pano model derives greeting and KPI comparison cards from one snapshot', (
     featured: true,
     href: '/dashboard/restaurant-1/analytics',
   })
-  assert.equal(cards[1]?.href, '/dashboard/restaurant-1/orders')
-  assert.equal(cards[2]?.value, '₺80')
+  assert.deepEqual(cards.slice(1).map((card) => ({ label: card.label, value: card.value })), [
+    { label: 'Açık hesap', value: '₺320' },
+    { label: 'Bekleyen sipariş', value: '2' },
+    { label: 'Dikkat gereken masa', value: '1' },
+  ])
+  assert.equal(cards[2]?.href, '/dashboard/restaurant-1/orders')
 })
 
-test('Pano quick actions are derived from trusted section permissions', () => {
-  const memberActions = getPanoQuickActions('restaurant-1', ['menu', 'orders'], false)
-  assert.deepEqual(memberActions.map((action) => action.key), ['menu', 'orders'])
+test('Pano zero-baseline trends avoid misleading percentages', () => {
+  const cards = getPanoKpiCards({
+    ...kpis,
+    revenue: 100,
+    revenueYesterday: 0,
+    paidOrders: 1,
+    paidOrdersYesterday: 0,
+    sessions: 0,
+    sessionsYesterday: 0,
+  }, 'restaurant-1', operational)
+  assert.equal(cards[0]?.delta, 'Yeni')
+})
 
-  const ownerActions = getPanoQuickActions('restaurant-1', [], true)
-  assert.deepEqual(ownerActions.map((action) => action.key), ['menu', 'tables', 'theme', 'orders', 'analytics'])
+test('Pano declining trend keeps direction in the arrow without a duplicate minus sign', () => {
+  const cards = getPanoKpiCards({ ...kpis, revenue: 0, revenueYesterday: 320 }, 'restaurant-1', operational)
+  assert.equal(cards[0]?.trend, 'down')
+  assert.equal(cards[0]?.delta, '100%')
+})
+
+test('Pano KPI links respect trusted section permissions', () => {
+  const cards = getPanoKpiCards(kpis, 'restaurant-1', {
+    ...operational,
+    canAnalytics: false,
+    canOrders: false,
+    canTables: false,
+  })
+  assert.equal(cards[0]?.href, undefined)
+  assert.equal(cards[1]?.href, undefined)
+  assert.equal(cards[2]?.href, undefined)
+  assert.equal(cards[3]?.href, '#pano-attention')
 })
 
 test('Pano health model only reports real payment, realtime and order-liveness signals', () => {
@@ -48,27 +89,45 @@ test('Pano health model only reports real payment, realtime and order-liveness s
   const checks = getPanoHealthChecks({
     paymentStatus: { configured: true, mode: 'test' },
     isOwner: true,
-    realtime: 'connected',
+    realtime: 'live',
+    updatedAt: new Date('2026-07-20T11:59:30.000Z'),
     lastOrderAt: '2026-07-20T11:55:00.000Z',
     now,
   })
 
   assert.deepEqual(checks, [
     { label: 'İyzico ödeme', status: 'warn', detail: 'Test modu (sandbox)' },
-    { label: 'Gerçek zamanlı', status: 'ok', detail: 'Canlı bağlantı açık' },
+    { label: 'Canlı veri', status: 'ok', detail: 'Bağlı · son başarılı az önce' },
     { label: 'Son sipariş', status: 'ok', detail: '5 dk önce' },
   ])
 
   const memberChecks = getPanoHealthChecks({
     paymentStatus: { configured: false, mode: 'test' },
     isOwner: false,
-    realtime: 'down',
+    realtime: 'offline',
+    updatedAt: new Date('2026-07-20T11:55:00.000Z'),
     lastOrderAt: null,
     now,
   })
 
   assert.deepEqual(memberChecks, [
-    { label: 'Gerçek zamanlı', status: 'down', detail: 'Bağlantı yok' },
+    { label: 'Canlı veri', status: 'down', detail: 'Çevrimdışı · son başarılı 5 dk önce' },
     { label: 'Son sipariş', status: 'idle', detail: 'Henüz sipariş yok' },
   ])
+})
+
+test('Pano health exposes stale and refresh-error states without hiding last success', () => {
+  const base = {
+    paymentStatus: null,
+    isOwner: false,
+    lastOrderAt: null,
+    updatedAt: new Date('2026-07-20T11:58:00.000Z'),
+    now: new Date('2026-07-20T12:00:00.000Z'),
+  }
+  assert.deepEqual(getPanoHealthChecks({ ...base, realtime: 'stale' })[0], {
+    label: 'Canlı veri', status: 'warn', detail: 'Güncelleme gecikti · son başarılı 2 dk önce',
+  })
+  assert.deepEqual(getPanoHealthChecks({ ...base, realtime: 'error' })[0], {
+    label: 'Canlı veri', status: 'down', detail: 'Yenileme başarısız · son başarılı 2 dk önce',
+  })
 })

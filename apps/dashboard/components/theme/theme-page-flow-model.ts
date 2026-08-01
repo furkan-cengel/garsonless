@@ -112,7 +112,7 @@ export function normalizePageBlocksForCategoryScope(
   return next
 }
 
-export function createSectionInstanceId(blocks: PageBlock[], sectionId: string) {
+function createSectionInstanceId(blocks: PageBlock[], sectionId: string) {
   if (SINGLETON_SECTION_IDS.has(sectionId)) return sectionId
   if (!blocks.some((block) => block.type === 'section' && block.id === sectionId)) return sectionId
   let suffix = 2

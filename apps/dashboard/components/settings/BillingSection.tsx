@@ -17,6 +17,7 @@ import {
   startBillingCheckoutAction,
 } from '../../lib/actions/billing'
 import { I, Tag, btnGhost, btnPrimary } from '../../lib/ui'
+import { useModalDialogFocus } from '../overlays/use-modal-dialog-focus'
 import { notifySettingsSaved } from './settings-dirty-state'
 import { SCard, inputStyle } from './primitives'
 
@@ -111,20 +112,21 @@ function AddressFields({ title, value, onChange }: {
 }
 
 function HostedCheckoutDialog({ content, onClose }: { content: string; onClose: () => void }) {
+  const dialogRef = useModalDialogFocus(onClose)
   return (
     <div
       role="presentation"
       onMouseDown={onClose}
       style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(15,23,42,.48)', backdropFilter: 'blur(4px)', display: 'grid', placeItems: 'center', padding: 24 }}
     >
-      <div role="dialog" aria-modal="true" aria-labelledby="billing-checkout-title" onMouseDown={(event) => event.stopPropagation()} style={{ width: 'min(720px, 100%)', height: 'min(760px, 92vh)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: '0 24px 70px rgba(15,23,42,.24)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="billing-checkout-title" onMouseDown={(event) => event.stopPropagation()} style={{ width: 'min(720px, 100%)', height: 'min(760px, 92vh)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: '0 24px 70px rgba(15,23,42,.24)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--divider)', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--surface-3)', display: 'grid', placeItems: 'center' }}><I.card size={17} /></div>
           <div style={{ flex: 1 }}>
             <div id="billing-checkout-title" style={{ fontSize: 14, fontWeight: 700 }}>Güvenli ödeme</div>
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>Kart bilgileri İyzico’nun barındırdığı formda girilir; Masabu kart verisini görmez.</div>
           </div>
-          <button type="button" aria-label="Ödeme penceresini kapat" onClick={onClose} style={btnGhost({ width: 32, padding: 0, justifyContent: 'center' })}><I.close size={15} /></button>
+          <button data-dialog-initial-focus type="button" aria-label="Ödeme penceresini kapat" onClick={onClose} style={btnGhost({ width: 32, padding: 0, justifyContent: 'center' })}><I.close size={15} /></button>
         </div>
         <iframe
           title="İyzico abonelik ödeme formu"
@@ -132,6 +134,12 @@ function HostedCheckoutDialog({ content, onClose }: { content: string; onClose: 
           sandbox="allow-forms allow-scripts allow-popups allow-top-navigation-by-user-activation"
           referrerPolicy="no-referrer"
           style={{ flex: 1, width: '100%', border: 0, background: '#fff' }}
+        />
+        <span
+          tabIndex={0}
+          aria-hidden="true"
+          onFocus={() => dialogRef.current?.querySelector<HTMLElement>('[data-dialog-initial-focus]')?.focus()}
+          style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)' }}
         />
       </div>
     </div>
@@ -281,13 +289,13 @@ export default function BillingSection({
       )}
 
       <SCard title="Plan seçimi" subtitle="Kart bilgileri yalnız İyzico’nun güvenli ödeme formunda alınır">
-        <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+        <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
           {PAID_PLANS.map((plan) => {
             const selected = selectedPlan === plan
             return (
-              <button key={plan} type="button" aria-pressed={selected} onClick={() => setSelectedPlan(plan)} style={{ padding: 14, borderRadius: 10, border: selected ? '1.5px solid var(--text)' : '1px solid var(--border)', background: selected ? 'var(--surface-inset)' : 'var(--surface)', textAlign: 'left', cursor: 'pointer' }}>
+              <button key={plan} type="button" aria-pressed={selected} onClick={() => setSelectedPlan(plan)} style={{ minWidth: 0, padding: 14, borderRadius: 10, border: selected ? '1.5px solid var(--text)' : '1px solid var(--border)', background: selected ? 'var(--surface-inset)' : 'var(--surface)', textAlign: 'left', cursor: 'pointer' }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{PLAN_DEFINITIONS[plan].label}</div>
-                <div style={{ fontSize: 16, fontWeight: 750, marginTop: 8 }}>{planPrices[plan] ? `${money(planPrices[plan]!)}/ay` : 'Fiyat yapılandırılmadı'}</div>
+                <div style={{ fontSize: 16, fontWeight: 750, marginTop: 8, overflowWrap: 'anywhere' }}>{planPrices[plan] ? `${money(planPrices[plan]!)}/ay` : 'Fiyat yapılandırılmadı'}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 5 }}>{PLAN_DEFINITIONS[plan].limits.tables ?? 'Sınırsız'} masa · {PLAN_DEFINITIONS[plan].limits.teamMembers ?? 'Sınırsız'} ekip üyesi</div>
               </button>
             )
@@ -325,7 +333,7 @@ export default function BillingSection({
       </SCard>
 
       {showCancel && (
-        <div role="alertdialog" aria-modal="true" aria-labelledby="billing-cancel-title" style={{ marginTop: 16, padding: 16, borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--critical-bg)', borderLeft: '3px solid var(--critical)' }}>
+        <div role="alertdialog" aria-modal="false" aria-labelledby="billing-cancel-title" style={{ marginTop: 16, padding: 16, borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--critical-bg)', borderLeft: '3px solid var(--critical)' }}>
           <div id="billing-cancel-title" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--critical)' }}>Aboneliği hemen iptal et?</div>
           <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-2)', margin: '5px 0 12px' }}>İyzico aboneliği anında iptal edilir ve işletme Free plana döner. Ücretli özellikler hemen kapanabilir.</p>
           <div style={{ display: 'flex', gap: 8 }}>

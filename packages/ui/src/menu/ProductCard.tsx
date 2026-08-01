@@ -4,7 +4,8 @@ import { useState } from 'react'
 import type { MenuItem } from './types'
 import { useTheme } from './ThemeContext'
 import { formatTRY } from './formatCurrency'
-import { DietaryBadges, hasAllergenInformation } from './FoodInfoBadges'
+import { DietaryBadges, ProductAllergenSummary, hasAllergenInformation } from './FoodInfoBadges'
+import { isProductConfigurable } from './productConfiguration'
 
 interface ProductCardProps {
   item: MenuItem
@@ -14,6 +15,7 @@ interface ProductCardProps {
   cartQuantity?: number
   onIncrement?: () => void
   onDecrement?: () => void
+  imagePriority?: boolean
 }
 
 const ASPECT_MAP: Record<string, string> = {
@@ -41,39 +43,28 @@ function FoodMeta({ item }: { item: MenuItem }) {
         )}
         <DietaryBadges item={item} compact />
       </div>
-      {hasAllergenNotice && (
-        <span style={{
-          alignSelf: 'flex-start',
-          padding: '3px 6px',
-          borderRadius: 5,
-          background: '#fff2df',
-          color: '#7a4300',
-          fontSize: 9.5,
-          fontWeight: 800,
-          lineHeight: 1.2,
-        }}>
-          Alerjen bilgisi var
-        </span>
-      )}
+      {hasAllergenNotice && <ProductAllergenSummary item={item} />}
     </div>
   )
 }
 
-export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, onIncrement, onDecrement }: ProductCardProps) {
+export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, onIncrement, onDecrement, imagePriority = false }: ProductCardProps) {
   const { theme } = useTheme()
   const [hovered, setHovered] = useState(false)
   const effectiveCols = cols ?? theme.cols
   const narrow = effectiveCols >= 3
   const horizontal = !narrow && theme.cardLayout === 'horizontal'
   const minimal = theme.cardLayout === 'minimal'
-  const spainList = horizontal && theme.cardVariant === 'spain'
   const aspect = narrow ? '1/1' : (ASPECT_MAP[theme.cardImageAspect] ?? '4/3')
   const shadow = SHADOW_MAP[theme.shadow] ?? SHADOW_MAP.soft
-  const hasModifiers = item.modifier_groups.length > 0
+  const hasModifiers = isProductConfigurable(item)
   const inCart = cartQuantity > 0
   const nameColor = 'var(--p-accent)'
   const nameFontSize = 13.5
   const showImage = theme.cardShowImage ?? true
+  const imageUrl = item.images[0] ?? null
+  const hasProductImage = imageUrl !== null
+  const mediaVisible = showImage
   const titleLines = Number(theme.cardTitleLines ?? 2)
   const descriptionLines = Number(theme.cardDescriptionLines ?? 2)
   const density = theme.cardDensity ?? 'normal'
@@ -87,7 +78,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, 
     : {}
 
   const cardBase: React.CSSProperties = {
-    background: spainList ? 'var(--p-accent-soft)' : 'var(--p-card)',
+    background: 'var(--p-card)',
     borderRadius: `${theme.radius}px`,
     overflow: 'hidden',
     position: 'relative',
@@ -101,11 +92,6 @@ export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, 
   const hoverProps = {
     onMouseEnter: () => setHovered(true),
     onMouseLeave: () => setHovered(false),
-  }
-
-  const handleQuickAdd = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    onQuickAdd(item)
   }
 
   if (minimal) {
@@ -142,212 +128,17 @@ export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, 
     )
   }
 
-  if (spainList) {
-    return (
-      <div
-        id={`product-${item.id}`}
-        data-component="card"
-        style={{
-          ...cardBase,
-          minHeight: 132,
-          display: 'flex',
-          flexDirection: 'row',
-          transition: 'transform 120ms ease',
-        }}
-        {...hoverProps}
-      >
-        <CardOpenButton itemName={item.name} onOpen={() => onOpen(item)} radius={theme.radius} />
-        <div style={{
-          width: showImage ? (theme.cardHorizontalImageWidth ?? 128) : 0,
-          flexShrink: 0,
-          background: theme.cardPlaceholderStyle === 'accent' ? 'var(--p-accent-soft)' : theme.cardPlaceholderStyle === 'outline' ? 'transparent' : 'linear-gradient(135deg, #ddd9d5 0%, #e6e2dd 100%)',
-          display: showImage ? 'flex' : 'none',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#747878',
-          position: 'relative',
-          overflow: 'hidden',
-        }}>
-          {showImage && item.images[0] ? (
-            <img
-              src={item.images[0]}
-              alt={item.name}
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: theme.cardImageFit ?? 'cover', objectPosition: theme.cardImagePosition ?? 'center' }}
-            />
-          ) : showImage ? (
-            <ImagePlaceholderIcon />
-          ) : null}
-          {theme.cardShowTag && hasModifiers && (
-            <span style={{
-              position: 'absolute',
-              top: 8,
-              left: 8,
-              borderRadius: 999,
-              background: 'rgba(255,255,255,.82)',
-              color: '#1c1c19',
-              padding: '4px 8px',
-              fontSize: 10,
-              lineHeight: 1,
-              fontWeight: 800,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-            }}>
-              Chef
-            </span>
-          )}
-        </div>
-        <div style={{
-          padding: density === 'compact' ? 9 : density === 'spacious' ? 16 : 12,
-          flex: 1,
-          minWidth: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-        }}>
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-              <h4 style={{
-                margin: 0,
-                fontSize: 20,
-                lineHeight: '28px',
-                fontWeight: 600,
-                color: '#1c1c19',
-                minWidth: 0,
-                overflow: 'hidden',
-                display: '-webkit-box',
-                WebkitLineClamp: titleLines,
-                WebkitBoxOrient: 'vertical',
-              }}>
-                {item.name}
-              </h4>
-              <span style={{
-                color: '#1c1c19',
-                fontSize: 18,
-                lineHeight: '26px',
-                fontWeight: 400,
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}>
-                {formatTRY(item.price)}
-              </span>
-            </div>
-            {theme.cardShowDesc && item.description && (
-              <p style={{
-                margin: '8px 0 0',
-                color: '#444748',
-                fontSize: 14,
-                lineHeight: '20px',
-                letterSpacing: '0.05em',
-                fontWeight: 500,
-                overflow: 'hidden',
-                display: '-webkit-box',
-                WebkitLineClamp: descriptionLines,
-                WebkitBoxOrient: 'vertical',
-              }}>
-                {item.description}
-              </p>
-            )}
-            <FoodMeta item={item} />
-          </div>
-          <div
-            style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 12, position: 'relative', zIndex: 2 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {inCart ? (
-              <>
-                <button
-                  type="button"
-                  aria-label={`${item.name} adedini azalt`}
-                  onClick={(e) => { e.stopPropagation(); onDecrement?.() }}
-                  style={spainCircleButton(false)}
-                >
-                  −
-                </button>
-                <span style={{ fontSize: 16, lineHeight: '24px', fontWeight: 700, color: '#1c1c19' }}>
-                  {cartQuantity}
-                </span>
-                <button
-                  type="button"
-                  aria-label={`${item.name} adedini artır`}
-                  onClick={(e) => { e.stopPropagation(); onIncrement?.() }}
-                  style={spainCircleButton(true)}
-                >
-                  +
-                </button>
-              </>
-            ) : theme.cardCtaStyle === 'icon' ? (
-              <button
-                type="button"
-                aria-label={`${item.name} sepete ekle`}
-                onClick={handleQuickAdd}
-                style={spainCircleButton(true)}
-              >
-                <CardCtaIcon kind={theme.cardCtaIcon ?? 'plus'} />
-              </button>
-            ) : theme.cardCtaStyle === 'full' ? (
-              <button
-                type="button"
-                aria-label={`${item.name} sepete ekle`}
-                onClick={handleQuickAdd}
-                style={{
-                  height: 32,
-                  border: 'none',
-                  borderRadius: 8,
-                  background: 'var(--p-cta)',
-                  color: 'var(--p-cta-text)',
-                  padding: '0 18px',
-                  fontSize: 14,
-                  lineHeight: '20px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Add to order
-              </button>
-            ) : (
-              <button
-                type="button"
-                aria-label={`${item.name} sepete ekle`}
-                onClick={handleQuickAdd}
-                style={{
-                  minWidth: 74,
-                  height: 32,
-                  border: 'none',
-                  borderRadius: 999,
-                  background: 'var(--p-cta)',
-                  color: 'var(--p-cta-text)',
-                  padding: '0 16px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 5,
-                  fontSize: 14,
-                  lineHeight: '20px',
-                  letterSpacing: '0.05em',
-                  fontWeight: 650,
-                  cursor: 'pointer',
-                }}
-              >
-                <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
-                Add
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div
       id={`product-${item.id}`}
       data-component="card"
+      data-image-state={hasProductImage ? 'available' : 'missing'}
       style={{ ...cardBase, display: 'flex', flexDirection: horizontal ? 'row' : 'column' }}
       {...hoverProps}
     >
       <CardOpenButton itemName={item.name} onOpen={() => onOpen(item)} radius={theme.radius} />
-      {showImage && <div style={{
-        ...(horizontal ? { width: spainList ? 128 : (theme.cardHorizontalImageWidth ?? 92), minHeight: spainList ? 132 : undefined, flexShrink: 0 } : { aspectRatio: aspect, width: '100%' }),
+      {mediaVisible && <div style={{
+        ...(horizontal ? { width: theme.cardHorizontalImageWidth ?? 92, flexShrink: 0 } : { aspectRatio: aspect, width: '100%' }),
         background: theme.cardPlaceholderStyle === 'accent'
           ? 'var(--p-accent-soft)'
           : theme.cardPlaceholderStyle === 'outline'
@@ -357,9 +148,12 @@ export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, 
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: '#bfc1c6', position: 'relative', overflow: 'hidden',
       }}>
-        {item.images[0] ? (
+        {hasProductImage ? (
           <img
-            src={item.images[0]} alt={item.name}
+            src={imageUrl} alt={item.name}
+            loading={imagePriority ? 'eager' : 'lazy'}
+            fetchPriority={imagePriority ? 'high' : 'auto'}
+            decoding="async"
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: theme.cardImageFit ?? 'cover', objectPosition: theme.cardImagePosition ?? 'center' }}
           />
         ) : (
@@ -384,16 +178,24 @@ export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, 
           }}>{cartQuantity}</div>
         )}
       </div>}
-      <div style={{ padding: spainList ? 12 : contentPadding, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+      <div style={{ padding: contentPadding, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+        {!mediaVisible && theme.cardShowTag && hasModifiers && (
+          <span style={{
+            alignSelf: 'flex-start', marginBottom: 7,
+            background: 'var(--p-accent-soft)', color: 'var(--p-accent)',
+            fontSize: narrow ? 9 : 10, fontWeight: 700, letterSpacing: '.02em',
+            padding: narrow ? '2px 5px' : '3px 7px', borderRadius: 999,
+          }}>Seçenekler</span>
+        )}
         <div style={{
-          fontWeight: spainList ? 600 : 700, color: nameColor, fontSize: spainList ? 20 : nameFontSize, lineHeight: spainList ? '28px' : 1.2,
+          fontWeight: 700, color: nameColor, fontSize: nameFontSize, lineHeight: 1.2,
           overflow: 'hidden',
           display: '-webkit-box' as React.CSSProperties['display'],
           WebkitLineClamp: narrow ? 1 : titleLines,
           WebkitBoxOrient: 'vertical',
         } as React.CSSProperties}>{item.name}</div>
         {!narrow && theme.cardShowDesc && item.description && (
-          <div style={{ fontSize: spainList ? 14 : 11.5, color: 'var(--p-text-2)', marginTop: spainList ? 8 : 3, flex: 1, lineHeight: spainList ? '20px' : 1.35, overflow: 'hidden', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: descriptionLines }}>
+          <div style={{ fontSize: 11.5, color: 'var(--p-text-2)', marginTop: 3, flex: 1, lineHeight: 1.35, overflow: 'hidden', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: descriptionLines }}>
             {item.description}
           </div>
         )}
@@ -428,7 +230,7 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
   iconKind?: 'plus' | 'cart' | 'bag'
 }) {
   const inCart = cartQuantity > 0
-  const btnSz = narrow ? 18 : 22
+  const btnSz = 44
 
   const stepper = (
     <div
@@ -458,14 +260,16 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
       }}>{cartQuantity}</span>
       <button
         type="button"
+        disabled={cartQuantity >= 99}
         aria-label={`${item.name} adedini artır`}
         onClick={(e) => { e.stopPropagation(); onIncrement?.() }}
         style={{
           width: btnSz, height: btnSz, border: 'none',
           background: 'rgba(0,0,0,0.15)', borderRadius: '50%',
           color: 'var(--p-cta-text)', fontSize: narrow ? 13 : 15,
-          cursor: 'pointer', display: 'flex', alignItems: 'center',
+          cursor: cartQuantity >= 99 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center',
           justifyContent: 'center', padding: 0, lineHeight: 1,
+          opacity: cartQuantity >= 99 ? 0.5 : 1,
         }}
       >+</button>
     </div>
@@ -495,9 +299,9 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{formatTRY(item.price)}</span>
             )}
-            <button style={{
+            <button type="button" style={{
               background: 'var(--p-cta)', color: 'var(--p-cta-text)', border: 'none',
-              padding: '7px 0', borderRadius: 8, cursor: 'pointer',
+              minHeight: 44, padding: '7px 0', borderRadius: 8, cursor: 'pointer',
               fontSize: 12, fontWeight: 600, width: '100%',
             }} aria-label={`${item.name} sepete ekle`} onClick={(e) => { e.stopPropagation(); onQuickAdd?.() }}>Sepete ekle</button>
           </>
@@ -517,9 +321,9 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
           }}>{formatTRY(item.price)}</span>
         )}
         {inCart ? stepper : (
-          <button style={{
+          <button type="button" style={{
             background: 'var(--p-cta)', color: 'var(--p-cta-text)', border: 'none',
-            padding: narrow ? '3px 8px' : '4px 11px',
+            minWidth: 44, minHeight: 44, padding: narrow ? '3px 8px' : '4px 11px',
             borderRadius: 999, cursor: 'pointer',
             fontSize: narrow ? 11 : 11.5, fontWeight: 600,
             flexShrink: 0,
@@ -540,8 +344,8 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
         }}>{formatTRY(item.price)}</span>
       )}
       {inCart ? stepper : (
-        <button style={{
-          width: 28, height: 28, borderRadius: 999, border: 'none',
+        <button type="button" style={{
+          width: 44, height: 44, borderRadius: 999, border: 'none',
           background: 'var(--p-cta)', color: 'var(--p-cta-text)', cursor: 'pointer',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 2px 6px rgba(15,17,21,.16)',
@@ -569,32 +373,14 @@ function CardOpenButton({ itemName, onOpen, radius }: { itemName: string; onOpen
 }
 
 function CardCtaIcon({ kind }: { kind: 'plus' | 'cart' | 'bag' }) {
-  if (kind === 'cart') return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 4h2l2 11h10l2-8H6"/><circle cx="9" cy="19" r="1"/><circle cx="17" cy="19" r="1"/></svg>
-  if (kind === 'bag') return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 8h14l-1 12H6L5 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M12 5v14M5 12h14" /></svg>
-}
-
-function spainCircleButton(filled: boolean): React.CSSProperties {
-  return {
-    width: 32,
-    height: 32,
-    borderRadius: '50%',
-    border: filled ? 'none' : '1px solid #c4c7c7',
-    background: filled ? 'var(--p-cta)' : 'transparent',
-    color: filled ? 'var(--p-cta-text)' : '#444748',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 20,
-    lineHeight: 1,
-    cursor: 'pointer',
-    padding: 0,
-  }
+  if (kind === 'cart') return <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 4h2l2 11h10l2-8H6"/><circle cx="9" cy="19" r="1"/><circle cx="17" cy="19" r="1"/></svg>
+  if (kind === 'bag') return <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 8h14l-1 12H6L5 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>
+  return <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M12 5v14M5 12h14" /></svg>
 }
 
 function ImagePlaceholderIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
       <rect x="3" y="4" width="18" height="16" rx="2" />
       <circle cx="9" cy="10" r="1.7" />
       <path d="m4 18 5-5 4 4 3-3 4 4" />

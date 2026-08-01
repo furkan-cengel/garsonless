@@ -18,7 +18,7 @@ import {
 import { ThemeEditorControlIcon } from "./CardLayoutOptionIcon";
 import { ThemePropertiesFrame } from "./ThemePropertiesFrame";
 import {
-  AnnouncementPropertyPanel,
+  FooterPropertyPanel,
   CardPropertyPanel,
   CartPropertyPanel,
   DrawerPropertyPanel,
@@ -289,8 +289,8 @@ export function ThemeEditorPropertiesWorkspace({
                   getValue={getValue}
                   onChange={onFieldChange}
                 />
-              ) : activeGroup === "announcement" && visibleFields.length > 0 ? (
-                <AnnouncementPropertyPanel
+              ) : activeGroup === "footer" && visibleFields.length > 0 ? (
+                <FooterPropertyPanel
                   fields={visibleFields}
                   getValue={getValue}
                   onChange={onFieldChange}
@@ -317,7 +317,7 @@ export function ThemeEditorPropertiesWorkspace({
             </PropertySection>
             {effectiveEditorTab === "design" &&
               activeGroup !== THEME_EDITOR_THEME_GROUP_ID &&
-              activeGroup !== "announcement" && (
+              activeGroup !== "footer" && (
                 <PropertySection title="Marka rengi" defaultOpen={false}>
                   <div
                     style={{

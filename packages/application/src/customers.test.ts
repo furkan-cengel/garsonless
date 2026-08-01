@@ -5,6 +5,8 @@ import {
   createCustomerSegment,
   ensureCustomerIdentity,
   grantCustomerStoreCredit,
+  readCustomerDetail,
+  readCustomerTimeline,
   readCustomers,
   updateCustomerConsent,
   type CustomerApplicationPort,
@@ -34,7 +36,8 @@ function port(): CustomerApplicationPort {
     updateSegment: async () => ok(null),
     deleteSegment: async () => ok(false),
     readDetail: async () => ok(null),
-    grantStoreCredit: async (input) => ok({ granted: input.points }),
+    readTimeline: async () => ok(null),
+    grantStoreCredit: async (input) => ok({ granted: input.points, replayed: false }),
   }
 }
 
@@ -80,6 +83,49 @@ test('customer members receive a masked contact projection while owners may rece
   assert.deepEqual(projections, [false, true])
 })
 
+test('customer detail is tenant-bound and keeps member PII projection closed', async () => {
+  const adapter = port()
+  const projections: boolean[] = []
+  let calls = 0
+  adapter.readDetail = async (input) => {
+    calls += 1
+    projections.push(input.includeContactData)
+    return ok(null)
+  }
+  assert.deepEqual(await readCustomerDetail(context, {
+    restaurantId: 'restaurant-b', customerId: 'foreign-customer',
+  }, adapter), err('Not authorized'))
+  await readCustomerDetail(context, { restaurantId: 'restaurant-a', customerId: 'customer-a' }, adapter)
+  await readCustomerDetail({ ...context, isOwner: true }, {
+    restaurantId: 'restaurant-a', customerId: 'customer-a',
+  }, adapter)
+  assert.equal(calls, 2)
+  assert.deepEqual(projections, [false, true])
+})
+
+test('customer timeline cursor remains tenant-bound and bounded before persistence', async () => {
+  const adapter = port()
+  let calls = 0
+  let receivedCursor: string | null | undefined
+  adapter.readTimeline = async (input) => {
+    calls += 1
+    receivedCursor = input.cursor
+    return ok({ events: [], hasMore: false, nextCursor: null })
+  }
+  assert.deepEqual(await readCustomerTimeline(context, {
+    restaurantId: 'restaurant-b', customerId: 'foreign-customer', cursor: 'cursor',
+  }, adapter), err('Not authorized'))
+  assert.deepEqual(await readCustomerTimeline(context, {
+    restaurantId: 'restaurant-a', customerId: 'customer-a', cursor: 'x'.repeat(513),
+  }, adapter), err('Geçersiz hareket imleci'))
+  const result = await readCustomerTimeline(context, {
+    restaurantId: 'restaurant-a', customerId: 'customer-a', cursor: 'opaque-cursor',
+  }, adapter)
+  assert.deepEqual(result, ok({ events: [], hasMore: false, nextCursor: null }))
+  assert.equal(calls, 1)
+  assert.equal(receivedCursor, 'opaque-cursor')
+})
+
 test('segment and owner-only credit commands derive audit identity from the actor', async () => {
   const adapter = port()
   let creator = ''
@@ -88,14 +134,19 @@ test('segment and owner-only credit commands derive audit identity from the acto
     return ok({ id: 'segment', restaurantId: input.restaurantId, name: input.name, definition: input.definition, createdAt: 'now', updatedAt: 'now' })
   }
   let granter = ''
+  let requestId = ''
   adapter.grantStoreCredit = async (input) => {
     granter = input.grantedBy
-    return ok({ granted: input.points })
+    requestId = input.requestId
+    return ok({ granted: input.points, replayed: false })
   }
   await createCustomerSegment(context, { restaurantId: 'restaurant-a', name: ' VIP ', definition: {} }, adapter)
-  await grantCustomerStoreCredit({ ...context, isOwner: true }, { restaurantId: 'restaurant-a', customerId: 'customer', points: 10.9 }, adapter)
+  await grantCustomerStoreCredit({ ...context, isOwner: true }, {
+    restaurantId: 'restaurant-a', customerId: 'customer', requestId: 'b7e9d88d-5a25-4a66-951f-4ea3ded5b8fb', points: 10.9,
+  }, adapter)
   assert.equal(creator, 'staff-a')
   assert.equal(granter, 'staff-a')
+  assert.equal(requestId, 'b7e9d88d-5a25-4a66-951f-4ea3ded5b8fb')
 })
 
 test('customer members cannot grant manual store credit', async () => {
@@ -103,12 +154,26 @@ test('customer members cannot grant manual store credit', async () => {
   let called = false
   adapter.grantStoreCredit = async () => {
     called = true
-    return ok({ granted: 10 })
+    return ok({ granted: 10, replayed: false })
   }
   const result = await grantCustomerStoreCredit(context, {
-    restaurantId: 'restaurant-a', customerId: 'customer', points: 10,
+    restaurantId: 'restaurant-a', customerId: 'customer', requestId: 'b7e9d88d-5a25-4a66-951f-4ea3ded5b8fb', points: 10,
   }, adapter)
   assert.deepEqual(result, err('Not authorized'))
+  assert.equal(called, false)
+})
+
+test('manual credit rejects a malformed request id before persistence', async () => {
+  const adapter = port()
+  let called = false
+  adapter.grantStoreCredit = async () => {
+    called = true
+    return ok({ granted: 10, replayed: false })
+  }
+  const result = await grantCustomerStoreCredit({ ...context, isOwner: true }, {
+    restaurantId: 'restaurant-a', customerId: 'customer', requestId: 'retry-me', points: 10,
+  }, adapter)
+  assert.deepEqual(result, err('Geçersiz istek kimliği'))
   assert.equal(called, false)
 })
 
@@ -116,7 +181,7 @@ test('first-login preserves required ordering and only affirmative consent side 
   const calls: string[] = []
   const identityPort: CustomerIdentityPort = {
     async upsertIdentity(input) {
-      calls.push(`upsert:${input.email}:${input.name}`)
+      calls.push(`upsert:${input.email}:${input.name}:${input.verifiedPhone ?? 'none'}`)
       return { ok: true, customer: { id: 'customer-a', email: input.email, name: input.name } }
     },
     async stampCustomerRole() { calls.push('stamp'); return ok(null) },
@@ -127,6 +192,7 @@ test('first-login preserves required ordering and only affirmative consent side 
   const result = await ensureCustomerIdentity({
     authUserId: 'auth-a',
     email: ' MEMBER@EXAMPLE.COM ',
+    phone: '+905321234567',
     userMetadata: { full_name: ' Ada ' },
     appMetadata: { provider: 'email' },
   }, {
@@ -136,7 +202,7 @@ test('first-login preserves required ordering and only affirmative consent side 
   }, identityPort)
   assert.equal(result.ok, true)
   assert.deepEqual(calls, [
-    'upsert:member@example.com:Ada',
+    'upsert:member@example.com:Ada:+905321234567',
     'stamp',
     'associate',
     'bonus',

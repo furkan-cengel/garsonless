@@ -19,6 +19,24 @@ function baseDashboard(overrides = {}) {
     RESEND_API_KEY: `re_${LONG}`,
     RESEND_FROM_EMAIL: 'Masabu <noreply@masabu.co>',
     RESEND_STANDS_TO_EMAIL: 'stands@masabu.co',
+    SAAS_BILLING_ENABLED: 'false',
+    ...overrides,
+  }
+}
+
+function billing(overrides = {}) {
+  return {
+    SAAS_BILLING_ENABLED: 'true',
+    IYZICO_BILLING_MERCHANT_ID: 'merchant-live',
+    IYZICO_BILLING_API_KEY: LONG,
+    IYZICO_BILLING_SECRET_KEY: LONG,
+    IYZICO_BILLING_BASE_URL: 'https://api.iyzipay.com',
+    IYZICO_BILLING_STARTER_PLAN_REF: 'starter-live',
+    IYZICO_BILLING_STARTER_AMOUNT_MINOR: '14990',
+    IYZICO_BILLING_PRO_PLAN_REF: 'pro-live',
+    IYZICO_BILLING_PRO_AMOUNT_MINOR: '29990',
+    IYZICO_BILLING_ENTERPRISE_PLAN_REF: 'enterprise-live',
+    IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR: '59990',
     ...overrides,
   }
 }
@@ -65,21 +83,54 @@ test('paid capabilities require live provider origins and complete contracts', (
   const result = validateProductionConfig({
     env: {
       ...baseDashboard(),
-      IYZICO_BILLING_MERCHANT_ID: 'merchant-live',
-      IYZICO_BILLING_API_KEY: LONG,
-      IYZICO_BILLING_SECRET_KEY: LONG,
-      IYZICO_BILLING_BASE_URL: 'https://sandbox-api.iyzipay.com',
-      IYZICO_BILLING_STARTER_PLAN_REF: 'starter-live',
-      IYZICO_BILLING_STARTER_AMOUNT_MINOR: '14990',
-      IYZICO_BILLING_PRO_PLAN_REF: 'pro-live',
-      IYZICO_BILLING_PRO_AMOUNT_MINOR: '29990',
-      IYZICO_BILLING_ENTERPRISE_PLAN_REF: 'enterprise-live',
-      IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR: '59990',
+      ...billing({ IYZICO_BILLING_BASE_URL: 'https://sandbox-api.iyzipay.com' }),
     },
     scopes: ['dashboard'], capabilities: ['saas-billing'], projectRef: PROD_REF,
   })
   assert.equal(result.ok, false)
   assert.ok(result.errors.some((error) => error.key === 'IYZICO_BILLING_BASE_URL'))
+})
+
+test('SaaS billing capability passes only a complete live callback contract', () => {
+  const result = validateProductionConfig({
+    env: { ...baseDashboard(), ...billing() },
+    scopes: ['dashboard'], capabilities: ['saas-billing'], projectRef: PROD_REF,
+  })
+  assert.equal(result.ok, true)
+  assert.deepEqual(result.errors, [])
+})
+
+test('SaaS billing rejects ambiguous plan refs, unsafe amounts and non-origin callback bases', () => {
+  const result = validateProductionConfig({
+    env: {
+      ...baseDashboard({ NEXT_PUBLIC_APP_URL: 'https://app.masabu.co/dashboard?source=deploy' }),
+      ...billing({
+        IYZICO_BILLING_PRO_PLAN_REF: 'starter-live',
+        IYZICO_BILLING_PRO_AMOUNT_MINOR: '29.99',
+        IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR: '9007199254740992',
+      }),
+    },
+    scopes: ['dashboard'], capabilities: ['saas-billing'], projectRef: PROD_REF,
+  })
+  assert.equal(result.ok, false)
+  assert.ok(result.errors.some((error) => error.key === 'IYZICO_BILLING_*_PLAN_REF'))
+  assert.ok(result.errors.some((error) => error.key === 'IYZICO_BILLING_PRO_AMOUNT_MINOR'))
+  assert.ok(result.errors.some((error) => error.key === 'IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR'))
+  assert.ok(result.errors.some((error) => error.key === 'NEXT_PUBLIC_APP_URL'))
+})
+
+test('dashboard deployment must explicitly align the billing switch with capability selection', () => {
+  const omittedCapability = validateProductionConfig({
+    env: { ...baseDashboard(), ...billing() },
+    scopes: ['dashboard'], projectRef: PROD_REF,
+  })
+  assert.ok(omittedCapability.errors.some((error) => error.key === 'SAAS_BILLING_ENABLED'))
+
+  const disabledCapability = validateProductionConfig({
+    env: { ...baseDashboard(), ...billing(), SAAS_BILLING_ENABLED: 'false' },
+    scopes: ['dashboard'], capabilities: ['saas-billing'], projectRef: PROD_REF,
+  })
+  assert.ok(disabledCapability.errors.some((error) => error.key === 'SAAS_BILLING_ENABLED'))
 })
 
 test('migration inventory is ordered and has no duplicate timestamps', () => {

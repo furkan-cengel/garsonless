@@ -25,6 +25,34 @@ export interface OpenTableSession {
   hasUnfinished: boolean
 }
 
+export interface TableTransferHistoryItem {
+  id: string
+  kind: 'table_move' | 'account_transfer' | 'item_transfer'
+  sourceTableId: string
+  targetTableId: string
+  sourceSessionId: string
+  targetSessionId: string
+  status: 'active' | 'undone' | 'locked'
+  requestId: string
+  sourceSessionClosed: boolean
+  targetSessionCreated: boolean
+  createdBy: string
+  createdAt: string
+  undoneBy: string | null
+  undoneAt: string | null
+  lockReason: string | null
+  orderCount: number
+}
+
+export type TableTransferKind = TableTransferHistoryItem['kind']
+export type TableTransferOutcome = { operationId: string; idempotent: boolean; error?: string }
+
+export interface TableOrderItemTransferSelection {
+  orderId: string
+  lineIndex: number
+  quantity: number
+}
+
 export interface PendingTableServiceRequest {
   id: string
   tableId: string
@@ -40,6 +68,12 @@ export interface TableSessionPort {
     abnormalReason: string | null
   }): Promise<Result<TableSessionCloseOutcome>>
   listOpenSessions(restaurantId: string): Promise<Result<OpenTableSession[]>>
+  moveSession(input: { restaurantId: string; sourceTableId: string; targetTableId: string; actorId: string; requestId: string }): Promise<Result<TableTransferOutcome>>
+  transferOrders(input: { restaurantId: string; sourceTableId: string; targetTableId: string; orderIds: string[]; actorId: string; requestId: string }): Promise<Result<TableTransferOutcome>>
+  transferOrderItems(input: { restaurantId: string; sourceTableId: string; targetTableId: string; selections: TableOrderItemTransferSelection[]; actorId: string; requestId: string }): Promise<Result<TableTransferOutcome>>
+  readTransferKind(input: { restaurantId: string; operationId: string }): Promise<Result<TableTransferKind | null>>
+  undoTransfer(input: { restaurantId: string; operationId: string; actorId: string }): Promise<Result<TableTransferOutcome>>
+  listTransferHistory(restaurantId: string): Promise<Result<TableTransferHistoryItem[]>>
 }
 
 export interface TableServiceRequestPort {
@@ -61,15 +95,55 @@ export type DashboardTableCreateOutcome =
   | { kind: 'created'; id: string; token: string }
   | { kind: 'plan_limit'; limit: number }
 
+export interface DashboardQrStyleSnapshot {
+  revision: number
+  style: unknown
+}
+
+export type DashboardQrStylePatchOutcome =
+  | { kind: 'saved'; snapshot: DashboardQrStyleSnapshot }
+  | { kind: 'conflict'; snapshot: DashboardQrStyleSnapshot }
+
+export type TableLayoutShape = 'square' | 'rectangle'
+export type TableLayoutRotation = 0 | 90
+
+export interface TableLayoutEntry {
+  tableId: string
+  xBp: number | null
+  yBp: number | null
+  shape: TableLayoutShape
+  rotation: TableLayoutRotation
+  seatCount: number
+}
+
+export interface TableLayoutWriteEntry extends Omit<TableLayoutEntry, 'xBp' | 'yBp'> {
+  xBp: number
+  yBp: number
+}
+
+export interface TableLayoutSnapshot {
+  revision: number
+  initializedAt: string | null
+  entries: TableLayoutEntry[]
+}
+
+export type TableLayoutSaveOutcome =
+  | { kind: 'saved'; idempotent: boolean; snapshot: TableLayoutSnapshot }
+  | { kind: 'conflict'; idempotent: false; snapshot: TableLayoutSnapshot }
+
 export interface DashboardTablePort {
   createTable(input: {
     restaurantId: string
     label: string
+    floorLabel?: string | null
+    areaLabel?: string | null
   }): Promise<Result<DashboardTableCreateOutcome>>
   renameTable(input: {
     restaurantId: string
     tableId: string
     label: string
+    floorLabel?: string | null
+    areaLabel?: string | null
   }): Promise<Result<null>>
   deleteTable(input: {
     restaurantId: string
@@ -80,12 +154,22 @@ export interface DashboardTablePort {
     restaurantId: string
     tableId: string
     revokedBy: string
+    requestId: string
   }): Promise<Result<string | null>>
   readRestaurantSlug(restaurantId: string): Promise<Result<string | null>>
   patchQrStyle(input: {
     restaurantId: string
     style: unknown
-  }): Promise<Result<null>>
+    expectedRevision: number
+  }): Promise<Result<DashboardQrStylePatchOutcome>>
+  readLayout(restaurantId: string): Promise<Result<TableLayoutSnapshot | null>>
+  saveLayout(input: {
+    restaurantId: string
+    expectedRevision: number
+    requestId: string
+    actorId: string
+    entries: TableLayoutWriteEntry[]
+  }): Promise<Result<TableLayoutSaveOutcome>>
 }
 
 export interface DashboardTablesReadModelPort<TTable> {
@@ -150,7 +234,7 @@ export async function readDashboardTables<TTable>(
 
 export async function createDashboardTable(
   context: Extract<CommandContext, { actor: 'dashboard-member' }>,
-  input: { restaurantId: string; label: string },
+  input: { restaurantId: string; label: string; floorLabel?: string | null; areaLabel?: string | null },
   port: DashboardTablePort,
 ): Promise<Result<DashboardTableCreateOutcome>> {
   const access = requireDashboardTables(context, input.restaurantId)
@@ -159,7 +243,7 @@ export async function createDashboardTable(
 
 export async function renameDashboardTable(
   context: Extract<CommandContext, { actor: 'dashboard-member' }>,
-  input: { restaurantId: string; tableId: string; label: string },
+  input: { restaurantId: string; tableId: string; label: string; floorLabel?: string | null; areaLabel?: string | null },
   port: DashboardTablePort,
 ): Promise<Result<null>> {
   const access = requireDashboardTables(context, input.restaurantId)
@@ -186,7 +270,7 @@ export async function listDashboardTableQrTokens(
 
 export async function rotateDashboardTableQrToken(
   context: Extract<CommandContext, { actor: 'dashboard-member' }>,
-  input: { restaurantId: string; tableId: string },
+  input: { restaurantId: string; tableId: string; requestId: string },
   port: DashboardTablePort,
 ): Promise<Result<string | null>> {
   const access = requireDashboardTables(context, input.restaurantId)
@@ -200,20 +284,42 @@ export async function saveDashboardQrStyle(
   input: {
     restaurantId: string
     style: unknown
-    baseUrl: string
-    menuOrigin: string
+    expectedRevision: number
   },
   port: DashboardTablePort,
-): Promise<Result<null>> {
+): Promise<Result<DashboardQrStylePatchOutcome>> {
   const access = requireDashboardTables(context, input.restaurantId)
   if (!access.ok) return access
 
-  const slug = await port.readRestaurantSlug(input.restaurantId)
-  if (!slug.ok) return slug
-  if (!slug.value) return err('Restaurant not found')
-  const expectedBaseUrl = `${input.menuOrigin.replace(/\/+$/, '')}/${slug.value}`
-  if (input.baseUrl !== expectedBaseUrl) return err('QR menu address cannot be changed')
-  return port.patchQrStyle({ restaurantId: input.restaurantId, style: input.style })
+  return port.patchQrStyle({
+    restaurantId: input.restaurantId,
+    style: input.style,
+    expectedRevision: input.expectedRevision,
+  })
+}
+
+export async function readDashboardTableLayout(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  restaurantId: string,
+  port: DashboardTablePort,
+): Promise<Result<TableLayoutSnapshot | null>> {
+  const access = requireDashboardTables(context, restaurantId)
+  return access.ok ? port.readLayout(restaurantId) : access
+}
+
+export async function saveDashboardTableLayout(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  input: {
+    restaurantId: string
+    expectedRevision: number
+    requestId: string
+    entries: TableLayoutWriteEntry[]
+  },
+  port: DashboardTablePort,
+): Promise<Result<TableLayoutSaveOutcome>> {
+  const access = requireDashboardTables(context, input.restaurantId)
+  if (!access.ok) return access
+  return port.saveLayout({ ...input, actorId: context.userId })
 }
 
 export async function resolvePublicTableContext(
@@ -260,6 +366,68 @@ export async function listOpenTableSessions(
 ): Promise<Result<OpenTableSession[]>> {
   const access = requireDashboardTables(context, restaurantId)
   return access.ok ? port.listOpenSessions(restaurantId) : access
+}
+
+export async function moveTableSession(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  input: { restaurantId: string; sourceTableId: string; targetTableId: string; requestId: string },
+  port: TableSessionPort,
+): Promise<Result<TableTransferOutcome>> {
+  const access = requireDashboardTables(context, input.restaurantId)
+  return access.ok ? port.moveSession({ ...input, actorId: context.userId }) : access
+}
+
+export async function transferTableOrders(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  input: { restaurantId: string; sourceTableId: string; targetTableId: string; orderIds: string[]; requestId: string },
+  port: TableSessionPort,
+): Promise<Result<TableTransferOutcome>> {
+  if (!hasSameRestaurant(context, input.restaurantId) || !context.permissions.includes('orders')) return err('Not authorized')
+  if (input.orderIds.length === 0 || new Set(input.orderIds).size !== input.orderIds.length) return err('Geçerli sipariş seçin.')
+  return port.transferOrders({ ...input, actorId: context.userId })
+}
+
+export async function transferTableOrderItems(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  input: { restaurantId: string; sourceTableId: string; targetTableId: string; selections: TableOrderItemTransferSelection[]; requestId: string },
+  port: TableSessionPort,
+): Promise<Result<TableTransferOutcome>> {
+  if (!hasSameRestaurant(context, input.restaurantId) || !context.permissions.includes('orders')) return err('Not authorized')
+  if (input.selections.length === 0 || input.selections.length > 500) return err('Geçerli ürün seçin.')
+  const keys = new Set<string>()
+  for (const selection of input.selections) {
+    if (!selection.orderId || !Number.isInteger(selection.lineIndex) || selection.lineIndex < 0
+      || !Number.isInteger(selection.quantity) || selection.quantity < 1 || selection.quantity > 99) {
+      return err('Geçersiz ürün seçimi.')
+    }
+    const key = `${selection.orderId}:${selection.lineIndex}`
+    if (keys.has(key)) return err('Aynı ürün satırı birden fazla kez seçilemez.')
+    keys.add(key)
+  }
+  return port.transferOrderItems({ ...input, actorId: context.userId })
+}
+
+export async function undoTableTransfer(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>,
+  input: { restaurantId: string; operationId: string },
+  port: TableSessionPort,
+): Promise<Result<TableTransferOutcome>> {
+  if (!hasSameRestaurant(context, input.restaurantId)) return err('Not authorized')
+
+  const kind = await port.readTransferKind(input)
+  if (!kind.ok) return kind
+  if (!kind.value) return err('Taşıma işlemi bulunamadı.')
+
+  const requiredPermission = kind.value === 'table_move' ? 'tables' : 'orders'
+  if (!context.permissions.includes(requiredPermission)) return err('Not authorized')
+  return port.undoTransfer({ restaurantId: input.restaurantId, operationId: input.operationId, actorId: context.userId })
+}
+
+export async function listTableTransferHistory(
+  context: Extract<CommandContext, { actor: 'dashboard-member' }>, restaurantId: string, port: TableSessionPort,
+): Promise<Result<TableTransferHistoryItem[]>> {
+  if (!hasSameRestaurant(context, restaurantId) || !context.permissions.some((permission) => permission === 'tables' || permission === 'orders')) return err('Not authorized')
+  return port.listTransferHistory(restaurantId)
 }
 
 export async function requestTableService(

@@ -7,6 +7,10 @@ const callback = readFileSync(
   new URL('../../app/api/billing/iyzico/checkout/callback/route.ts', import.meta.url),
   'utf8',
 )
+const webhook = readFileSync(
+  new URL('../../app/api/billing/iyzico/webhook/route.ts', import.meta.url),
+  'utf8',
+)
 const maintenance = readFileSync(
   new URL('../../app/api/internal/billing-maintenance/route.ts', import.meta.url),
   'utf8',
@@ -17,6 +21,10 @@ const settingsPage = readFileSync(
 )
 const settingsForm = readFileSync(
   new URL('../../components/settings/SettingsForm.tsx', import.meta.url),
+  'utf8',
+)
+const settingsSections = readFileSync(
+  new URL('../../components/settings/settings-sections.ts', import.meta.url),
   'utf8',
 )
 const billingSection = readFileSync(
@@ -36,6 +44,8 @@ test('billing mutations resolve owner authority before provider configuration or
 
 test('checkout price and callback origin are server-derived instead of client supplied', () => {
   assert.match(actions, /amount: \{ minor: config\.plans\[parsed\.data\.plan\]\.amountMinor, currency: 'TRY' \}/)
+  assert.match(actions, /expectedProviderPlanRef: config\.plans\[parsed\.data\.plan\]\.referenceCode/)
+  assert.match(actions, /providerPlanRef: config\.plans\[parsed\.data\.plan\]\.referenceCode/)
   assert.match(actions, /billingCheckoutCallbackUrl\(process\.env\['NEXT_PUBLIC_APP_URL'\]\)/)
   assert.doesNotMatch(actions, /input\.amount|input\.callbackUrl/)
 })
@@ -45,7 +55,17 @@ test('checkout callback is bounded, token-hashed and never returns provider diag
   assert.match(callback, /createHash\('sha256'\)\.update\(token\)/)
   assert.match(callback, /MAS-PAY-409/)
   assert.match(callback, /MAS-SVC-503/)
+  assert.match(callback, /isBillingCallbackMediaType/)
+  assert.match(callback, /sanitizeServerDiagnostic\(cause\)/)
+  assert.match(callback, /cache-control', 'no-store'/)
   assert.doesNotMatch(callback, /result\.error/)
+})
+
+test('billing webhook rejects the wrong media type and marks every response no-store', () => {
+  assert.match(webhook, /isBillingWebhookMediaType/)
+  assert.match(webhook, /BILLING_WEBHOOK_UNSUPPORTED_MEDIA_TYPE/)
+  assert.match(webhook, /BILLING_WEBHOOK_INVALID_BODY/)
+  assert.match(webhook, /cache-control', 'no-store'/)
 })
 
 test('billing settings are read only for a verified owner and degrade without breaking other settings', () => {
@@ -53,7 +73,11 @@ test('billing settings are read only for a verified owner and degrade without br
   assert.match(settingsPage, /readSubscriptionBillingSettings\(actor, restaurantId, createSubscriptionBillingSettingsReadPort\(\)\)/)
   assert.match(settingsPage, /billing=\{billing\?\.ok \? billing\.value : null\}/)
   assert.match(settingsPage, /billingLoadError=\{billing && !billing\.ok \? billing\.error : null\}/)
-  assert.match(settingsForm, /const OWNER_ONLY_SECTIONS:[^\n]+\['workspace', 'team', 'payments', 'loyalty', 'kitchen', 'api', 'billing'\]/)
+  assert.match(settingsForm, /canAccessSettingsSection\(id, isOwner\)/)
+  assert.match(settingsSections, /const OWNER_ONLY_SETTINGS_SECTIONS = new Set<SettingsSectionId>/)
+  for (const section of ['workspace', 'team', 'payments', 'loyalty', 'kitchen', 'api', 'billing']) {
+    assert.match(settingsSections, new RegExp(`'${section}'`))
+  }
 })
 
 test('owner checkout UI keeps provider HTML isolated and omits provider diagnostics', () => {
@@ -66,9 +90,9 @@ test('owner checkout UI keeps provider HTML isolated and omits provider diagnost
 })
 
 test('successful provider return opens the owner billing section instead of losing context', () => {
-  assert.match(settingsPage, /query\.section === 'billing' \? 'billing' : undefined/)
+  assert.match(settingsPage, /const initialSection = resolveSettingsSection\(query\.section, actor\.isOwner === true\)/)
   assert.match(settingsPage, /query\.checkout === 'success' \? 'success' : null/)
-  assert.match(settingsForm, /useState<SectionId>\(\s*initialSection && canSeeSection\(initialSection, isOwner\)/)
+  assert.match(settingsForm, /useState<SectionId>\(initialSection\)/)
 })
 
 test('billing maintenance authenticates before parsing and uses both durable worker ports', () => {

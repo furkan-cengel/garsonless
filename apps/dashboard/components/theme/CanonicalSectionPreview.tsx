@@ -7,7 +7,9 @@ import {
   computeThemeVars,
   CustomSectionRenderer,
   deriveActivePromoSliderCampaigns,
+  getDefiniteAllergens,
   readStoreInfo,
+  sortAllergenCodes,
 } from '@garsonless/ui'
 import type { MenuCategory, MenuItem, PromoSliderCampaign } from '@garsonless/ui'
 import {
@@ -74,7 +76,7 @@ function previewPrice(item: MenuItem | undefined, fallback: number) {
  * configured a campaign. These records are catalogue-only and never enter
  * the saved theme or the public menu data flow.
  */
-export function buildPromoSliderCatalogMock(items: MenuItem[]): PromoSliderCampaign[] {
+function buildPromoSliderCatalogMock(items: MenuItem[]): PromoSliderCampaign[] {
   const first = items[0]
   const second = items[1] ?? first
   const firstPrice = previewPrice(first, 180)
@@ -97,6 +99,8 @@ export function buildPromoSliderCatalogMock(items: MenuItem[]): PromoSliderCampa
       backgroundColor: 'var(--p-card)',
       accentColor: 'var(--p-accent)',
       textColor: 'var(--p-text)',
+      allergens: first ? getDefiniteAllergens(first) : [],
+      hasCrossContact: Boolean(first && (first.may_contain_allergens.length > 0 || first.cross_contact_note)),
     },
     {
       id: 'catalog-discount',
@@ -112,6 +116,8 @@ export function buildPromoSliderCatalogMock(items: MenuItem[]): PromoSliderCampa
       backgroundColor: 'var(--p-accent-soft)',
       accentColor: 'var(--p-accent)',
       textColor: 'var(--p-text)',
+      allergens: second ? getDefiniteAllergens(second) : [],
+      hasCrossContact: Boolean(second && (second.may_contain_allergens.length > 0 || second.cross_contact_note)),
     },
     {
       id: 'catalog-combo',
@@ -127,6 +133,8 @@ export function buildPromoSliderCatalogMock(items: MenuItem[]): PromoSliderCampa
       backgroundColor: 'var(--p-card)',
       accentColor: 'var(--p-button)',
       textColor: 'var(--p-text)',
+      allergens: sortAllergenCodes([...(first ? getDefiniteAllergens(first) : []), ...(second ? getDefiniteAllergens(second) : [])]),
+      hasCrossContact: Boolean([first, second].some((item) => item && (item.may_contain_allergens.length > 0 || item.cross_contact_note))),
     },
   ]
 }
@@ -221,7 +229,7 @@ export function CanonicalSectionPreview({
           showLabels: 'true',
         }
       : config
-  const usesStoreInfo = sectionId === 'hours' || sectionId === 'social-block' || sectionId === 'footer'
+  const usesStoreInfo = sectionId === 'hours'
   const storeInfo = usesStoreInfo ? readStoreInfo(restaurantSettings) : null
   const frameRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)

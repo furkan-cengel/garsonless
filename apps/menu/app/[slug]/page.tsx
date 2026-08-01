@@ -28,20 +28,16 @@ export default async function MenuPage({ params, searchParams }: Props) {
   if (!restaurant) notFound()
 
   const themePort = createThemeApplicationPort()
-  const [themeResult, categories, featuredRanking] = await Promise.all([
+  const [themeResult, categories, featuredRanking, session] = await Promise.all([
     readPublishedTheme({
       restaurantId: restaurant.id,
       templateOverride: isPreview && previewTemplate ? previewTemplate : null,
     }, themePort),
     getMenuCategories(restaurant.id),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
+    getCustomerSession(),
   ])
   if (!themeResult.ok) notFound()
-
-  const items = applyFeaturedProductRanking(
-    await getMenuItems(categories.map((c) => c.id)),
-    featuredRanking,
-  )
 
   // Resolved through the shared helper so the SSR layout's <style> and this
   // client initialTheme are always identical (no first-load color flash).
@@ -50,26 +46,31 @@ export default async function MenuPage({ params, searchParams }: Props) {
   // Theme preview can add the global request tool through the live bridge
   // before it is published; tying access to the persisted blocks would leave
   // the preview stuck at `false` until a hard reload after publishing.
-  const requestButtonsAccess = await themePort.readFeatureAccess({
-    restaurantId: restaurant.id,
-    plan: themeResult.value.restaurant.plan,
-    feature: 'theme_advanced_sections',
-  })
+  const [menuItems, requestButtonsAccess, memberBalancesResult] = await Promise.all([
+    getMenuItems(restaurant.id, categories.map((category) => category.id)),
+    themePort.readFeatureAccess({
+      restaurantId: restaurant.id,
+      plan: themeResult.value.restaurant.plan,
+      feature: 'theme_advanced_sections',
+    }),
+    session
+      ? readMemberLoyalty(customerActorContext({
+          authUserId: session.authUserId,
+          customerId: session.customerId,
+          restaurantId: restaurant.id,
+        }), createLoyaltyQueryPort())
+      : Promise.resolve(null),
+  ])
+  const items = applyFeaturedProductRanking(menuItems, featuredRanking)
   const requestButtonsEnabled = requestButtonsAccess?.ok === true && requestButtonsAccess.value
 
   // Resolve a returning member from the Supabase Auth cookie, plus loyalty
   // balances (service-role, scoped to this customer + restaurant).
   let initialMember: { name: string | null } | null = null
   let initialMemberBalances: MemberBalances | null = null
-  const session = await getCustomerSession()
   if (session) {
     initialMember = { name: session.name }
-    const result = await readMemberLoyalty(customerActorContext({
-      authUserId: session.authUserId,
-      customerId: session.customerId,
-      restaurantId: restaurant.id,
-    }), createLoyaltyQueryPort())
-    initialMemberBalances = result.ok ? result.value : null
+    initialMemberBalances = memberBalancesResult?.ok ? memberBalancesResult.value : null
   }
 
   return (

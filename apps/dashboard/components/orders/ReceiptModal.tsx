@@ -4,6 +4,7 @@ import { computeVatBreakdown, readOrderLineSnapshots, type PaymentMethod } from 
 import { I, S, btnPrimary, btnGhost } from '../../lib/ui'
 import { formatCurrency } from '../../lib/utils'
 import { paymentMethodBadge } from '../../lib/payment-method'
+import { AccessibleDialog } from '../tables/AccessibleDialog'
 
 export interface ReceiptOrder {
   id: string
@@ -39,16 +40,18 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
   const taxAddress = taxText(tax?.['address'])
 
   return (
-    <div
-      onClick={onClose}
+    <AccessibleDialog
+      labelledBy="order-receipt-title"
+      onClose={onClose}
+      className="order-receipt-overlay"
       style={{
-        position: 'fixed', inset: 0, zIndex: 110,
+        position: 'fixed', inset: 0, zIndex: 210,
         background: 'rgba(17,17,19,.5)', backdropFilter: 'blur(3px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
       }}
     >
-      <style dangerouslySetInnerHTML={{ __html: '@media print{body *{visibility:hidden!important}.receipt-print,.receipt-print *{visibility:visible!important}.receipt-print{position:absolute;left:0;top:0;box-shadow:none!important}}' }} />
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 340, maxHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+      <style dangerouslySetInnerHTML={{ __html: '@media print{body *{visibility:hidden!important}.receipt-print,.receipt-print *{visibility:visible!important}.receipt-print{position:absolute;left:0;top:0;box-shadow:none!important}}@media(max-width:390px){.order-receipt-overlay{padding:12px!important}.order-receipt-shell,.receipt-print,.order-receipt-actions{width:100%!important}}' }} />
+      <div className="order-receipt-shell" style={{ width: 340, maxWidth: '100%', maxHeight: '94dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
         <div className="receipt-print" style={{
           width: 320, background: '#fff', borderRadius: 6, boxShadow: 'var(--shadow-pop)',
           overflow: 'auto', padding: '22px 24px',
@@ -58,7 +61,7 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
           <div style={{ textAlign: 'center', borderBottom: '1.5px dashed #cfcfcf', paddingBottom: 14 }}>
             {/* Real wordmark — receipt is white (screen + print), vector stays sharp when printed. */}
             <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 20, width: 'auto', display: 'block', margin: '0 auto 8px' }} />
-            <div style={{ fontFamily: 'system-ui, sans-serif', fontWeight: 700, fontSize: 15 }}>{restaurantName}</div>
+            <div id="order-receipt-title" style={{ fontFamily: 'system-ui, sans-serif', fontWeight: 700, fontSize: 15 }}>{restaurantName} sipariş fişi</div>
             {(company || taxNumber || taxOffice || taxAddress) && (
               <div style={{ marginTop: 8, fontSize: 9.5, color: '#666', lineHeight: 1.45 }}>
                 {company && <div>{company}</div>}
@@ -127,14 +130,14 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, width: 320 }}>
-          <button onClick={onClose} style={{ flex: 1, ...btnGhost(), justifyContent: 'center' }}>Kapat</button>
-          <button onClick={() => window.print()} style={{ flex: 2, ...btnPrimary(), justifyContent: 'center' }}>
+        <div className="order-receipt-actions" style={{ display: 'flex', gap: 8, width: 320 }}>
+          <button type="button" data-modal-initial-focus onClick={onClose} style={{ flex: 1, minHeight: 44, ...btnGhost(), justifyContent: 'center' }}>Kapat</button>
+          <button type="button" onClick={() => window.print()} style={{ flex: 2, minHeight: 44, ...btnPrimary(), justifyContent: 'center' }}>
             <I.history size={14} />Yazdır
           </button>
         </div>
       </div>
-    </div>
+    </AccessibleDialog>
   )
 }
 

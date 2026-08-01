@@ -63,6 +63,7 @@ function getNavigationSubtitle(id: string, label: string) {
   if (id.includes('menu')) return 'Kaydırılabilir kartlar'
   if (id.includes('dish')) return 'Ürün listesi'
   if (id.includes('payment')) return 'Alt ödeme akışı'
+  if (id === 'footer') return 'Sosyal medya ve iletişim'
   if (id === 'colors') return 'Marka renkleri'
   if (id === 'typography') return 'Font ve ölçek'
   if (id === 'layout') return 'Izgara ve boşluk'
@@ -75,6 +76,7 @@ function getNavigationIcon(id: string) {
   if (id.includes('cat') || id.includes('menu')) return <I.section size={17} />
   if (id.includes('card') || id.includes('dish')) return <I.card size={17} />
   if (id.includes('cart') || id.includes('payment')) return <I.cart size={17} />
+  if (id === 'footer') return <I.layout size={17} />
   if (id.includes('color') || id.includes('surface')) return <I.color size={17} />
   if (id.includes('type') || id.includes('welcome')) return <I.type size={17} />
   if (id.includes('layout') || id.includes('spacing')) return <I.layout size={17} />

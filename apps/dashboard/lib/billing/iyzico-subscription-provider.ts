@@ -3,16 +3,16 @@ import type {
   SubscriptionBillingCustomer,
   SubscriptionBillingProvider,
 } from '@garsonless/application/billing'
-import type { RestaurantPlan } from '@garsonless/domain/entitlements'
 import { err, ok, type Result } from '@garsonless/domain/result'
+import {
+  readIyzicoSubscriptionProviderConfig,
+  type IyzicoSubscriptionProviderConfig,
+} from './iyzico-subscription-config'
 
-const SANDBOX_URL = 'https://sandbox-api.iyzipay.com'
-const LIVE_URL = 'https://api.iyzipay.com'
 const MAX_PROVIDER_REFERENCE = 200
 const MAX_CHECKOUT_CONTENT_BYTES = 512 * 1024
 const DEFAULT_TIMEOUT_MS = 15_000
 
-type PaidPlan = Exclude<RestaurantPlan, 'free'>
 type ProviderResponse = Record<string, unknown>
 type ProviderCallback = (error: Error | null, response: ProviderResponse) => void
 
@@ -33,59 +33,13 @@ export type IyzicoSubscriptionClient = {
   }
 }
 
-export type IyzicoSubscriptionProviderConfig = {
-  apiKey: string
-  secretKey: string
-  baseUrl: typeof SANDBOX_URL | typeof LIVE_URL
-  plans: Record<PaidPlan, { referenceCode: string; amountMinor: number }>
-}
+export { readIyzicoSubscriptionProviderConfig }
+export type { IyzicoSubscriptionProviderConfig }
 
 type ProviderOptions = {
   client?: IyzicoSubscriptionClient
   timeoutMs?: number
   now?: () => number
-}
-
-function requiredEnv(name: string): string {
-  const value = process.env[name]?.trim()
-  if (!value) throw new Error(`${name} is required for SaaS subscription billing`)
-  return value
-}
-
-function amountEnv(name: string): number {
-  const value = Number(requiredEnv(name))
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new Error(`${name} must be a positive TRY minor-unit integer`)
-  }
-  return value
-}
-
-/** Platform credentials are deliberately explicit. There is no fallback to
- * the per-restaurant order-payment IYZICO_* configuration. */
-export function readIyzicoSubscriptionProviderConfig(): IyzicoSubscriptionProviderConfig {
-  const baseUrl = requiredEnv('IYZICO_BILLING_BASE_URL')
-  if (baseUrl !== SANDBOX_URL && baseUrl !== LIVE_URL) {
-    throw new Error('IYZICO_BILLING_BASE_URL must be an approved iyzico API origin')
-  }
-  return {
-    apiKey: requiredEnv('IYZICO_BILLING_API_KEY'),
-    secretKey: requiredEnv('IYZICO_BILLING_SECRET_KEY'),
-    baseUrl,
-    plans: {
-      starter: {
-        referenceCode: requiredEnv('IYZICO_BILLING_STARTER_PLAN_REF'),
-        amountMinor: amountEnv('IYZICO_BILLING_STARTER_AMOUNT_MINOR'),
-      },
-      pro: {
-        referenceCode: requiredEnv('IYZICO_BILLING_PRO_PLAN_REF'),
-        amountMinor: amountEnv('IYZICO_BILLING_PRO_AMOUNT_MINOR'),
-      },
-      enterprise: {
-        referenceCode: requiredEnv('IYZICO_BILLING_ENTERPRISE_PLAN_REF'),
-        amountMinor: amountEnv('IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR'),
-      },
-    },
-  }
 }
 
 function string(value: unknown): string | null {
@@ -264,11 +218,17 @@ export function createIyzicoSubscriptionBillingProvider(
         || Buffer.byteLength(checkoutContent, 'utf8') > MAX_CHECKOUT_CONTENT_BYTES) {
         return err('Iyzico subscription checkout response is invalid')
       }
-      return ok({ providerCheckoutRef, checkoutContent, expiresAt: null })
+      return ok({
+        providerCheckoutRef,
+        providerPlanRef: plan.referenceCode,
+        checkoutContent,
+        expiresAt: null,
+      })
     },
 
     async retrieveCheckout(input) {
-      if (!reference(input.providerCheckoutRef) || !input.idempotencyKey.trim()) {
+      if (!reference(input.providerCheckoutRef) || !reference(input.expectedProviderPlanRef)
+        || !input.idempotencyKey.trim()) {
         return err('Iyzico subscription checkout reference is invalid')
       }
       const response = await invoke((callback) => client.subscriptionCheckoutForm.retrieve({
@@ -283,6 +243,9 @@ export function createIyzicoSubscriptionBillingProvider(
       const status = checkoutStatus(data?.subscriptionStatus)
       if (!providerCustomerRef || !providerSubscriptionRef || !providerPlanRef || !status) {
         return err('Iyzico subscription checkout result is invalid')
+      }
+      if (providerPlanRef !== input.expectedProviderPlanRef) {
+        return err('Iyzico subscription checkout plan does not match the claimed operation')
       }
       const search = await invoke((callback) => client.subscription.search({
         locale: 'tr',

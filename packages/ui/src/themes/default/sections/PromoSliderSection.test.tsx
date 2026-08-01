@@ -29,6 +29,8 @@ test('active campaign cards expose countdown state and preserve long combo title
       backgroundColor: '#fdf6ec',
       accentColor: '#a13b7a',
       textColor: '#1c2618',
+      allergens: ['milk'],
+      hasCrossContact: false,
       expiresAtMs,
       countdownLabel: 'Son saatler',
     },
@@ -45,6 +47,8 @@ test('active campaign cards expose countdown state and preserve long combo title
       backgroundColor: '#ee6c4d',
       accentColor: '#e86b3d',
       textColor: '#ffffff',
+      allergens: [],
+      hasCrossContact: true,
     },
   ]
 

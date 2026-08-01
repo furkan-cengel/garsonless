@@ -3,6 +3,7 @@ import { err, ok, type EnsureCustomerResult } from '@garsonless/domain'
 import { createServiceClient } from './client'
 import { getConsentStatus, recordConsent } from './customers'
 import { requestWelcomeBonus } from './outbox-consumer-port'
+import { normalizePhone } from './phone'
 
 type CustomerRow = {
   id: string
@@ -15,82 +16,27 @@ async function upsertCustomerIdentity(input: {
   authUserId: string
   email: string
   name: string | null
+  verifiedPhone: string | null
 }): Promise<EnsureCustomerResult> {
   const supabase = createServiceClient()
-  const emailPattern = input.email.replace(/[\\%_]/g, '\\$&')
-  const verifiedAt = new Date().toISOString()
-  const named = input.name ? { name: input.name } : {}
-
-  const findLinked = async (): Promise<CustomerRow | null> => {
-    const { data } = await supabase
-      .from('customers')
-      .select('id, auth_user_id, email, name')
-      .eq('auth_user_id', input.authUserId)
-      .maybeSingle()
-    return data as CustomerRow | null
-  }
-
-  let customer = await findLinked()
-  if (!customer) {
-    const { data } = await supabase
-      .from('customers')
-      .select('id, auth_user_id, email, name')
-      .ilike('email', emailPattern)
-      .maybeSingle()
-    customer = data as CustomerRow | null
-  }
-
-  if (customer?.auth_user_id && customer.auth_user_id !== input.authUserId) {
-    return { ok: false, error: 'Bu e-posta başka bir müşteri hesabına bağlı.' }
-  }
-
-  if (customer) {
-    const { data, error } = await supabase
-      .from('customers')
-      .update({ auth_user_id: input.authUserId, email: input.email, verified_at: verifiedAt, ...named })
-      .eq('id', customer.id)
-      .select('id, auth_user_id, email, name')
-      .single()
-    if (error || !data) return { ok: false, error: 'Müşteri hesabı bağlanamadı.' }
-    customer = data as CustomerRow
-  } else {
-    const { data, error } = await supabase
-      .from('customers')
-      .upsert(
-        { auth_user_id: input.authUserId, email: input.email, verified_at: verifiedAt, ...named },
-        { onConflict: 'auth_user_id' },
-      )
-      .select('id, auth_user_id, email, name')
-      .single()
-
-    if (!error && data) {
-      customer = data as CustomerRow
-    } else {
-      // Email OTP and OAuth may race on the normalized-email unique index.
-      customer = await findLinked()
-      if (!customer) {
-        const { data: racedEmail } = await supabase
-          .from('customers')
-          .select('id, auth_user_id, email, name')
-          .ilike('email', emailPattern)
-          .maybeSingle()
-        const raced = racedEmail as CustomerRow | null
-        if (!raced || (raced.auth_user_id && raced.auth_user_id !== input.authUserId)) {
-          return { ok: false, error: 'Müşteri hesabı oluşturulamadı.' }
-        }
-        const { data: linked, error: linkError } = await supabase
-          .from('customers')
-          .update({ auth_user_id: input.authUserId, email: input.email, verified_at: verifiedAt, ...named })
-          .eq('id', raced.id)
-          .select('id, auth_user_id, email, name')
-          .single()
-        if (linkError || !linked) return { ok: false, error: 'Müşteri hesabı bağlanamadı.' }
-        customer = linked as CustomerRow
-      }
+  const verifiedPhone = normalizePhone(input.verifiedPhone)
+  const { data, error } = await supabase.rpc('claim_customer_identity_atomic', {
+    p_auth_user_id: input.authUserId,
+    p_email: input.email,
+    p_name: input.name ?? '',
+    ...(verifiedPhone ? { p_verified_phone: verifiedPhone } : {}),
+  })
+  const customer = data?.[0] as Pick<CustomerRow, 'id' | 'email' | 'name'> | undefined
+  if (error || !customer) {
+    if (error?.code === 'GL002') {
+      return { ok: false, error: 'Bu kimliklerin sadakat geçmişi otomatik birleştirilemedi.' }
     }
+    if (error?.code === '23505' || error?.code === '42501') {
+      return { ok: false, error: 'Bu doğrulanmış kimlik başka bir müşteri hesabına bağlı.' }
+    }
+    return { ok: false, error: 'Müşteri hesabı bağlanamadı.' }
   }
-
-  return { ok: true, customer: { id: customer.id, email: input.email, name: customer.name } }
+  return { ok: true, customer: { id: customer.id, email: customer.email ?? input.email, name: customer.name } }
 }
 
 export function createCustomerIdentityApplicationPort(): CustomerIdentityPort {

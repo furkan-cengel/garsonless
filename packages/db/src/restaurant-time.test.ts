@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  customRangeWindow,
   startOfRestaurantDay, rangeWindow, restaurantDayKey, restaurantHour,
   restaurantWeekday, normalizeTimeZone, startOfDayNDaysAgo, DEFAULT_TIMEZONE,
 } from './restaurant-time'
@@ -45,9 +46,36 @@ test('rangeWindow — current/previous instants, fixed now', () => {
   // week = 7 calendar days ending today; currentStart = 2026-06-28 00:00 IST = 06-27T21:00Z
   assert.equal(iso(wk.currentStart), '2026-06-27T21:00:00.000Z')
   assert.equal(iso(wk.previousStart), '2026-06-20T21:00:00.000Z') // 13 days back
+  assert.equal(iso(wk.currentEnd), iso(now))
   const day = rangeWindow('Europe/Istanbul', 'day', now)
   assert.equal(iso(day.currentStart), '2026-07-03T21:00:00.000Z') // today 00:00 IST
   assert.equal(iso(day.previousStart), '2026-07-02T21:00:00.000Z') // yesterday 00:00 IST
+  assert.equal(iso(day.currentEnd), iso(now))
+})
+
+test('yesterday and calendar month keep restaurant-local exclusive boundaries', () => {
+  const now = new Date('2026-07-30T10:00:00Z')
+  const yesterday = rangeWindow('Europe/Istanbul', 'yesterday', now)
+  assert.equal(iso(yesterday.previousStart), '2026-07-27T21:00:00.000Z')
+  assert.equal(iso(yesterday.currentStart), '2026-07-28T21:00:00.000Z')
+  assert.equal(iso(yesterday.currentEnd), '2026-07-29T21:00:00.000Z')
+
+  const month = rangeWindow('Europe/Istanbul', 'calendar_month', now)
+  assert.equal(iso(month.currentStart), '2026-06-30T21:00:00.000Z')
+  assert.equal(iso(month.currentEnd), iso(now))
+  assert.equal(iso(month.previousStart), '2026-05-31T21:00:00.000Z')
+})
+
+test('custom range includes the complete to-day and creates an equal previous window', () => {
+  const window = customRangeWindow(
+    'Europe/Istanbul',
+    '2026-07-01',
+    '2026-07-03',
+    new Date('2026-07-30T10:00:00Z'),
+  )
+  assert.equal(iso(window.previousStart), '2026-06-27T21:00:00.000Z')
+  assert.equal(iso(window.currentStart), '2026-06-30T21:00:00.000Z')
+  assert.equal(iso(window.currentEnd), '2026-07-03T21:00:00.000Z')
 })
 
 test('DST — Berlin spring-forward day is 23h, absolute midnights correct', () => {

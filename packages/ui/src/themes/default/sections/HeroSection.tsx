@@ -119,6 +119,9 @@ export function HeroSection({
           <img
             alt=""
             src={imageUrl}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
             style={{
               flex: '0 0 38%',
               width: '38%',

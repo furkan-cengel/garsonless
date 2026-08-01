@@ -1,8 +1,8 @@
 'use client'
 
 import { useRef, useState, useTransition } from 'react'
-import { createCategory, updateCategory } from '../../lib/actions/menu'
-import { createDashboardBrowserClient } from '../../lib/supabase'
+import { createCategory, updateCategory, uploadMenuImage } from '../../lib/actions/menu'
+import { prepareMenuImage } from '../../lib/menu-image-client'
 import { InlineSpinner } from '@garsonless/ui'
 import type { Tables } from '@garsonless/db/types'
 
@@ -43,15 +43,21 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
     event.target.value = ''
     setUploading(true)
     setError('')
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const categoryKey = existing?.id ?? crypto.randomUUID()
-    const path = `restaurants/${restaurantId}/categories/${categoryKey}/${Date.now()}.${ext}`
-    const supabase = createDashboardBrowserClient()
-    const { error: uploadError } = await supabase.storage.from('restaurant-assets').upload(path, file, { upsert: true })
-    if (uploadError) { setError(uploadError.message); setUploading(false); return }
-    const { data } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
-    setImageUrl(data.publicUrl)
-    setUploading(false)
+    try {
+      const prepared = await prepareMenuImage(file)
+      const fd = new FormData()
+      fd.append('restaurantId', restaurantId)
+      fd.append('entityId', existing?.id ?? crypto.randomUUID())
+      fd.append('kind', 'categories')
+      fd.append('file', prepared)
+      const result = await uploadMenuImage(fd)
+      if ('error' in result) setError(result.error)
+      else setImageUrl(result.url)
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Görsel yüklenemedi.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -205,7 +211,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
             cursor: 'pointer', opacity: isPending ? 0.55 : 1,
           }}
         >
-          {isPending ? <InlineSpinner size={13} color="var(--on-action)" /> : existing ? 'Kaydet' : 'Ekle'}
+          {isPending ? <><InlineSpinner size={13} color="var(--on-action)" />Kaydediliyor…</> : existing ? 'Kaydet' : 'Ekle'}
         </button>
         <button
           className="category-form-action category-form-cancel"

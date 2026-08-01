@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto'
 import type { SubscriptionBillingProfile } from '@garsonless/application/billing'
 import type { RestaurantPlan } from '@garsonless/domain/entitlements'
 import { z } from 'zod'
+import { readIyzicoSubscriptionBillingRuntimeConfig } from './iyzico-subscription-config'
 
-export const paidPlanSchema = z.enum(['starter', 'pro', 'enterprise'])
+const paidPlanSchema = z.enum(['starter', 'pro', 'enterprise'])
 export type PaidBillingPlan = Exclude<RestaurantPlan, 'free'>
 
 const optionalText = (max: number) => z.string().trim().max(max).nullable()
@@ -44,18 +45,20 @@ export const cancellationRequestSchema = z.object({ requestId: z.string().uuid()
 export type BillingPlanPrices = Record<PaidBillingPlan, number | null>
 
 /** Public display prices only. Provider plan references and credentials remain
- * in the provider config; an invalid/missing amount renders as unavailable. */
+ * server-side; an incomplete checkout/webhook contract renders every paid plan
+ * unavailable so the UI cannot advertise an unusable billing path. */
 export function readBillingPlanPrices(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): BillingPlanPrices {
-  const amount = (name: string): number | null => {
-    const value = Number(env[name])
-    return Number.isSafeInteger(value) && value > 0 ? value : null
-  }
-  return {
-    starter: amount('IYZICO_BILLING_STARTER_AMOUNT_MINOR'),
-    pro: amount('IYZICO_BILLING_PRO_AMOUNT_MINOR'),
-    enterprise: amount('IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR'),
+  try {
+    const { provider } = readIyzicoSubscriptionBillingRuntimeConfig(env)
+    return {
+      starter: provider.plans.starter.amountMinor,
+      pro: provider.plans.pro.amountMinor,
+      enterprise: provider.plans.enterprise.amountMinor,
+    }
+  } catch {
+    return { starter: null, pro: null, enterprise: null }
   }
 }
 
@@ -82,9 +85,24 @@ export function billingPeriod(now: Date): {
   }
 }
 
+export function billingDashboardUrl(
+  path: string,
+  baseUrl: string | undefined,
+  nodeEnv: string | undefined = process.env.NODE_ENV,
+): URL {
+  const fallback = nodeEnv === 'production' ? null : 'http://localhost:3000'
+  const configured = baseUrl?.trim() || fallback
+  if (!configured) throw new Error('Dashboard callback origin is required')
+  const base = new URL(configured)
+  const local = nodeEnv !== 'production' && base.protocol === 'http:'
+    && ['localhost', '127.0.0.1'].includes(base.hostname)
+  if ((base.protocol !== 'https:' && !local) || base.username || base.password
+    || base.pathname !== '/' || base.search || base.hash) {
+    throw new Error('Dashboard callback origin is invalid')
+  }
+  return new URL(path, base)
+}
+
 export function billingCheckoutCallbackUrl(baseUrl: string | undefined): string {
-  const url = new URL('/api/billing/iyzico/checkout/callback', baseUrl ?? 'http://localhost:3000')
-  const local = url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname)
-  if (url.protocol !== 'https:' && !local) throw new Error('Dashboard callback origin is invalid')
-  return url.toString()
+  return billingDashboardUrl('/api/billing/iyzico/checkout/callback', baseUrl).toString()
 }

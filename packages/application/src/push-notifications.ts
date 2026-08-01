@@ -15,6 +15,7 @@ export type DashboardPushEvent = {
   settings: unknown
   tableLabel: string | null
   payload: Record<string, unknown>
+  aggregateId: string
 }
 
 export type DashboardPushSubscription = {
@@ -30,7 +31,7 @@ export type DashboardPushPayload = {
   icon: string
   badge: string
   tag: string
-  data: { eventId: string; url: string }
+  data: { eventId: string; orderId?: string; url: string }
 }
 
 export type DashboardPushProviderResult =
@@ -98,6 +99,7 @@ function readBoolean(settings: unknown, key: 'newOrderPush' | 'serviceRequestPus
 
 export function shouldDispatchDashboardPush(event: DashboardPushEvent): boolean {
   if (!event.featureAllowed) return false
+  if (event.type === 'order.created' && event.payload['source'] !== 'customer') return false
   // Existing tenants already had new-order desktop notifications enabled by
   // default. The new waiter-call push channel is deliberately opt-in.
   return event.type === 'order.created'
@@ -125,8 +127,8 @@ export function buildDashboardPushPayload(event: DashboardPushEvent): DashboardP
       body: [tableLabel, formatCurrency(event.payload['total'])].filter(Boolean).join(' · '),
       icon: '/icon.svg',
       badge: '/icon.svg',
-      tag: `order:${event.id}`,
-      data: { eventId: event.id, url: `/dashboard/${event.restaurantId}/orders` },
+      tag: `order:${event.aggregateId}`,
+      data: { eventId: event.id, orderId: event.aggregateId, url: `/dashboard/${event.restaurantId}/orders` },
     }
   }
 

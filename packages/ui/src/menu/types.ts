@@ -9,7 +9,7 @@ import type {
 export type ModifierOption = MenuModifierOption
 export type ModifierGroup = MenuModifierGroup
 export type SelectedModifier = SelectedMenuModifier
-export type { AllergenCode, MenuIngredient }
+export type { AllergenCode }
 
 export interface MenuItem {
   id: string
@@ -33,6 +33,8 @@ export interface MenuItem {
   modifier_groups: ModifierGroup[]
   is_available: boolean
   position: number
+  /** Manually ordered product ids shown in the product-detail upsell. */
+  recommended_item_ids?: string[]
   /** Server-derived ranking used only by the automatic Featured section. */
   featuredRank?: number
   featuredSalesQuantity?: number
@@ -73,6 +75,8 @@ export interface CartItem {
   modifierNames: string[]
   removedIngredientIds: string[]
   removedIngredientNames: string[]
+  productNote?: string
+  recommendationSourceItemId?: string
   energyKcal: number | null
   imageUrl: string | null
   originalPrice?: number

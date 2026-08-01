@@ -3,6 +3,7 @@
 import { useEffect, type ChangeEvent, type CSSProperties, type RefObject } from 'react'
 import PageTopBar from '../layout/PageTopBar'
 import { I, btnGhost, btnPrimary } from '../../lib/ui'
+import { deriveMenuManagerEmptyState } from './menu-manager-view-model'
 
 export function MenuManagerTopBar({
   restaurantName,
@@ -11,10 +12,12 @@ export function MenuManagerTopBar({
   searchFocused,
   searchInputRef,
   importFileInputRef,
+  categoryCount,
   onSearchChange,
   onSearchFocusChange,
   onImportFileChange,
   onOpenImport,
+  onOpenAddCategory,
   onOpenAddItem,
 }: {
   restaurantName: string
@@ -23,12 +26,17 @@ export function MenuManagerTopBar({
   searchFocused: boolean
   searchInputRef: RefObject<HTMLInputElement | null>
   importFileInputRef: RefObject<HTMLInputElement | null>
+  categoryCount: number
   onSearchChange: (value: string) => void
   onSearchFocusChange: (focused: boolean) => void
   onImportFileChange: (event: ChangeEvent<HTMLInputElement>) => void
   onOpenImport: () => void
+  onOpenAddCategory: () => void
   onOpenAddItem: () => void
 }) {
+  const creationState = deriveMenuManagerEmptyState({ categoryCount, itemCount: 0 })
+  const requiresCategory = creationState.action === 'add-category'
+
   return (
     <PageTopBar
       restaurantName={restaurantName}
@@ -36,7 +44,7 @@ export function MenuManagerTopBar({
       center={(
         <div style={{
           width: 'min(420px, 34vw)', minWidth: 300, display: 'flex', alignItems: 'center', gap: 8,
-          height: 32, padding: '0 12px',
+          height: 44, padding: '0 12px',
           background: 'var(--surface-3)', borderRadius: 8, color: 'var(--text-3)',
         }}>
           <I.search size={14} />
@@ -85,9 +93,9 @@ export function MenuManagerTopBar({
           <button
             className="menu-top-action menu-top-action-primary"
             style={btnPrimary({ whiteSpace: 'nowrap' })}
-            onClick={onOpenAddItem}
+            onClick={requiresCategory ? onOpenAddCategory : onOpenAddItem}
           >
-            <I.plus size={13} />Yeni ürün
+            <I.plus size={13} />{requiresCategory ? 'Kategori ekle' : 'Yeni ürün'}
           </button>
         </>
       )}
@@ -95,7 +103,18 @@ export function MenuManagerTopBar({
   )
 }
 
-export function MenuManagerEmptyPanel() {
+export function MenuManagerEmptyPanel({
+  categoryCount,
+  itemCount,
+  onAddCategory,
+  onAddItem,
+}: {
+  categoryCount: number
+  itemCount: number
+  onAddCategory: () => void
+  onAddItem: () => void
+}) {
+  const state = deriveMenuManagerEmptyState({ categoryCount, itemCount })
   return (
     <div style={{
       width: 'var(--props)', flexShrink: 0,
@@ -108,10 +127,19 @@ export function MenuManagerEmptyPanel() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: 'var(--text-2)', marginBottom: 14,
       }}><I.cutlery size={24} /></div>
-      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Bir ürün seç</div>
+      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{state.title}</div>
       <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: 220 }}>
-        Düzenlemek istediğin ürünü tıkla.
+        {state.description}
       </div>
+      {state.action !== 'select-item' && (
+        <button
+          type="button"
+          onClick={state.action === 'add-category' ? onAddCategory : onAddItem}
+          style={btnPrimary({ marginTop: 16, justifyContent: 'center' })}
+        >
+          <I.plus size={13} />{state.action === 'add-category' ? 'Kategori ekle' : 'Yeni ürün'}
+        </button>
+      )}
     </div>
   )
 }

@@ -43,6 +43,7 @@ function validEnvByScope() {
       RESEND_API_KEY: `resend-${SECRET}`,
       RESEND_FROM_EMAIL: 'Masabu <noreply@masabu.co>',
       RESEND_STANDS_TO_EMAIL: 'stands@masabu.co',
+      SAAS_BILLING_ENABLED: 'false',
     },
     menu: {
       NEXT_PUBLIC_SUPABASE_URL: supabase,

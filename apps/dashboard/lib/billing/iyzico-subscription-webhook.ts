@@ -4,6 +4,10 @@ import type {
   VerifiedSubscriptionBillingEvent,
 } from '@garsonless/application/billing'
 import { err, ok, type Result } from '@garsonless/domain/result'
+import {
+  readIyzicoSubscriptionWebhookConfig,
+  type IyzicoSubscriptionWebhookConfig,
+} from './iyzico-subscription-config'
 
 const MAX_WEBHOOK_BYTES = 64 * 1024
 const MAX_REFERENCE_LENGTH = 200
@@ -12,10 +16,8 @@ const SUPPORTED_EVENTS = new Map([
   ['subscription.order.failure', 'invoice.payment_failed'],
 ] as const)
 
-export type IyzicoSubscriptionWebhookConfig = {
-  merchantId: string
-  secretKey: string
-}
+export { readIyzicoSubscriptionWebhookConfig }
+export type { IyzicoSubscriptionWebhookConfig }
 
 type IyzicoSubscriptionWebhookPayload = {
   iyziReferenceCode: string
@@ -24,21 +26,6 @@ type IyzicoSubscriptionWebhookPayload = {
   subscriptionReferenceCode: string
   orderReferenceCode: string
   customerReferenceCode: string
-}
-
-function requiredEnv(name: 'IYZICO_BILLING_MERCHANT_ID' | 'IYZICO_BILLING_SECRET_KEY'): string {
-  const value = process.env[name]?.trim()
-  if (!value) throw new Error(`${name} is required for the SaaS billing webhook`)
-  return value
-}
-
-/** Uses platform subscription credentials only. The generic IYZICO_* tenant
- * payment fallback is intentionally not accepted here. */
-export function readIyzicoSubscriptionWebhookConfig(): IyzicoSubscriptionWebhookConfig {
-  return {
-    merchantId: requiredEnv('IYZICO_BILLING_MERCHANT_ID'),
-    secretKey: requiredEnv('IYZICO_BILLING_SECRET_KEY'),
-  }
 }
 
 function object(value: unknown): Record<string, unknown> | null {

@@ -4,6 +4,7 @@ import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { AppIcons } from '../../../icons'
 import { formatTRY } from '../../../menu/formatCurrency'
 import type { MenuItem } from '../../../menu/types'
+import { ProductAllergenSummary } from '../../../menu/FoodInfoBadges'
 import { customSectionShell, makeReaders } from '../lib/sectionHelpers'
 import { resolveChefPickItems } from './chefPickModel'
 import { ChefSectionIcon, isChefSectionIconName } from './ChefSectionIcon'
@@ -188,6 +189,7 @@ export function ChefPickSection({
                         src={item.images[0]}
                         alt=""
                         loading="lazy"
+                        decoding="async"
                         style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                       />
                     ) : (
@@ -205,6 +207,7 @@ export function ChefPickSection({
                         {item.description}
                       </p>
                     )}
+                    <ProductAllergenSummary item={item} style={{marginTop:5}} />
                     <div style={{ color: priceColor, fontSize: 13, fontWeight: 800, marginTop: showDescription ? 5 : 3 }}>
                       {formatTRY(item.price)}
                     </div>

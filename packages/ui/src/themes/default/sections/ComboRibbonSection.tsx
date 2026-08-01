@@ -3,6 +3,7 @@ import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { AppIcons } from '../../../icons'
 import { formatTRY } from '../../../menu/formatCurrency'
 import type { MenuItem } from '../../../menu/types'
+import { ProductAllergenSummary } from '../../../menu/FoodInfoBadges'
 import type { ComboAddRequest } from '../../types'
 import { customSectionShell, makeReaders } from '../lib/sectionHelpers'
 import { resolveComboRibbonGroups } from './comboRibbonModel'
@@ -161,7 +162,7 @@ export function ComboRibbonSection({
                       {showImages && (
                         <div style={{ width: imageSize, height: imageSize, flexShrink: 0, borderRadius: text('imageShape', 'rounded') === 'circle' ? 999 : 9, overflow: 'hidden', background: 'rgba(255,255,255,.18)', display: 'grid', placeItems: 'center' }}>
                           {item.images[0] ? (
-                            <img src={item.images[0]} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                            <img src={item.images[0]} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                           ) : (
                             <AppIcons.image size={18} aria-hidden="true" />
                           )}
@@ -169,6 +170,7 @@ export function ComboRibbonSection({
                       )}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {showItemNames && <div style={{ fontSize: 12.5, fontWeight: 750, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>}
+                        <ProductAllergenSummary item={item} maxVisible={3} style={{marginTop:3}} />
                         <div style={{ marginTop: showItemNames ? 2 : 0, fontSize: 11.5, fontWeight: 750, opacity: .82 }}>{formatTRY(item.price)}</div>
                       </div>
                     </div>

@@ -3,10 +3,20 @@ import type { Order } from './useOrdersRealtime'
 import { isActiveOrder, isCancelledOrder, isCompletedOrder, isLateOrder, isReadyWaitingOrder } from './order-status'
 
 export type FilterId = 'all' | 'active' | 'attention' | 'late' | 'ready_wait' | 'unpaid' | 'priority' | 'done' | 'cancelled'
+export type OrderSourceFilter = 'all' | Order['source']
 
 export const FILTER_LABELS: Record<FilterId, string> = {
   all: 'Tümü', active: 'Aktif', attention: 'Dikkat gerekiyor', late: 'Geciken', ready_wait: 'Servis bekleyen',
   unpaid: 'Ödenmemiş', priority: 'Öncelikli', done: 'Tamamlandı', cancelled: 'İptal',
+}
+
+export const ORDER_SOURCE_LABELS: Record<Order['source'], string> = {
+  customer: 'QR menü',
+  staff: 'Personel',
+}
+
+export function orderMatchesSource(order: Order, source: OrderSourceFilter): boolean {
+  return source === 'all' || order.source === source
 }
 
 export function orderMatchesView(order: Order, filter: FilterId, lateThresholdMin: number, now: number): boolean {
@@ -25,7 +35,7 @@ export function orderStationNames(order: Order): string[] {
   return [...new Set(readOrderLineSnapshots(order.items).map(line => line.station?.name).filter((name): name is string => Boolean(name)))]
 }
 
-export function normalizeOrderSearch(search: string): string {
+function normalizeOrderSearch(search: string): string {
   return search.trim().replace(/^#/, '').toLocaleLowerCase('tr-TR')
 }
 
@@ -37,7 +47,9 @@ export function orderMatchesSearch(order: Order, tableLabel: string, search: str
     order.id,
     tableLabel,
     order.payment_method ?? '',
-    ...lines.flatMap(line => [line.name, line.station?.name ?? '']),
+    ORDER_SOURCE_LABELS[order.source],
+    order.source,
+    ...lines.flatMap(line => [line.name, line.station?.name ?? '', line.productNote ?? '']),
   ].join(' ').toLocaleLowerCase('tr-TR')
   return searchable.includes(query)
 }

@@ -13,6 +13,18 @@ declare module 'iyzipay' {
     errorMessage?: string
   }
 
+  interface RefundV2Result {
+    status?: string
+    errorCode?: string
+    errorMessage?: string
+    conversationId?: string
+    paymentId?: string
+    price?: string | number
+    currency?: string
+    refundHostReference?: string
+    signature?: string
+  }
+
   type IyzipayCallback = (err: Error | null, result: Record<string, unknown>) => void
 
   class Iyzipay {
@@ -21,6 +33,18 @@ declare module 'iyzipay' {
       retrieve(
         request: Record<string, never>,
         callback: (err: Error | null, result: ApiTestResult) => void,
+      ): void
+    }
+    refundV2: {
+      create(
+        request: {
+          locale: 'tr' | 'en'
+          conversationId: string
+          paymentId: string
+          price: string
+          currency: 'TRY'
+        },
+        callback: (err: Error | null, result: RefundV2Result) => void,
       ): void
     }
     subscriptionCustomer: {

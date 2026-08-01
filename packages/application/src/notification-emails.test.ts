@@ -20,7 +20,7 @@ const ORDER_EVENT: NotificationEmailEvent = {
   aggregateId: 'order-1',
   restaurantName: 'Test Cafe',
   tableLabel: 'Masa 3',
-  payload: { total: 150 },
+  payload: { total: 150, source: 'customer' },
 }
 
 type DeliveryState = { status: 'pending' | 'sent' | 'failed' | 'dead'; attempts: number }

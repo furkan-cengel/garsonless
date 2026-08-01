@@ -1,9 +1,9 @@
 import {
   startOfRestaurantDay,
   startOfDayNDaysAgo,
+  restaurantCalendarDayCount,
   restaurantDayKey,
   restaurantHour,
-  restaurantWeekday,
 } from '@garsonless/db/browser'
 import {
   readDashboardCollectedOrders,
@@ -14,9 +14,15 @@ import {
 import { ACTIVE_ORDER_STATUSES } from '@garsonless/domain'
 import { assertAccess } from '../auth/access'
 import {
+  aggregateCollectedFinancials,
+} from '../analytics-financial-model'
+import { aggregateRefundSummary, type PaymentReport } from '../analytics-payment-model'
+export type { PaymentBreakdown, PaymentReport } from '../analytics-payment-model'
+import {
   analyticsReadModel,
+  analyticsOrderReadFilters,
   COMP_METHOD,
-  foldOrderItems,
+  getAnalyticsCoreMetrics,
   getInsightsContext,
   getRestaurantTimezone,
   insightsReadModel,
@@ -24,26 +30,13 @@ import {
   rangeWindowFor,
   sumTotals,
   type DashboardKPIs,
+  type AnalyticsCoreMetrics,
   type TopItem,
 } from './insights-shared'
+import { coerceAnalyticsQuery, type AnalyticsQuery } from '../analytics-filter-contract'
+import { getAnalyticsRangeKPIs } from './analytics-range-kpis-query'
 
-export type { DashboardKPIs, TopItem } from './insights-shared'
-
-export interface PaymentBreakdown {
-  key: string
-  label: string
-  amount: number
-  count: number
-  /** Share of the collected base. Comp is never part of this base. */
-  pct: number
-}
-
-export interface PaymentReport {
-  collected: PaymentBreakdown[]
-  comp: { amount: number; count: number }
-  collectedTotal: number
-  collectedCount: number
-}
+export type { AnalyticsRangeKPIs, DashboardKPIs, TopItem } from './insights-shared'
 
 export interface ProductReportItem {
   name: string
@@ -83,15 +76,16 @@ export async function getDashboardKPIs(
   section: DashboardInsightsSection = 'analytics',
 ): Promise<DashboardKPIs> {
   const tz = await getRestaurantTimezone(restaurantId)
-  const today = startOfRestaurantDay(tz)
-  const yesterday = startOfDayNDaysAgo(tz, 1)
+  const currentEnd = new Date()
+  const today = startOfRestaurantDay(tz, currentEnd)
+  const yesterday = startOfDayNDaysAgo(tz, 1, currentEnd)
   const context = await getInsightsContext(restaurantId, section)
   const [volumeResult, collectedResult] = await Promise.all([
     readDashboardOrderVolume(context, {
-      restaurantId, section, since: yesterday.toISOString(),
+      restaurantId, section, since: yesterday.toISOString(), before: currentEnd.toISOString(),
     }, insightsReadModel),
     readDashboardCollectedOrders(context, {
-      restaurantId, section, since: yesterday.toISOString(),
+      restaurantId, section, since: yesterday.toISOString(), before: currentEnd.toISOString(),
     }, insightsReadModel),
   ])
   if (!volumeResult.ok) throw new Error(`getDashboardKPIs: ${volumeResult.error}`)
@@ -120,17 +114,16 @@ export async function getDashboardKPIs(
   return { revenue, revenueYesterday, orders, ordersYesterday, paidOrders, paidOrdersYesterday, activeOrders, avgBasket, sessions, sessionsYesterday }
 }
 
-export async function getTopItems(restaurantId: string, range = 'day'): Promise<TopItem[]> {
-  const { currentStart } = await rangeWindowFor(restaurantId, range)
-  const context = await getInsightsContext(restaurantId, 'analytics')
-  const result = await readDashboardCollectedOrders(context, {
-    restaurantId, section: 'analytics', since: currentStart.toISOString(),
-  }, insightsReadModel)
-  if (!result.ok) throw new Error(`getTopItems: ${result.error}`)
-  const counts = foldOrderItems(result.value)
-
-  return Array.from(counts.entries())
-    .map(([name, v]) => ({ name, ...v }))
+export async function getTopItems(
+  restaurantId: string,
+  range: string | AnalyticsQuery = 'day',
+  asOf = new Date(),
+  coreSource?: AnalyticsCoreMetrics,
+): Promise<TopItem[]> {
+  const source = coreSource ?? await getAnalyticsCoreMetrics(restaurantId, range, asOf)
+  return source.products
+    .filter((item) => item.period === 'current')
+    .map(({ name, count, revenue }) => ({ name, count, revenue }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 5)
 }
@@ -145,20 +138,45 @@ const COLLECTED_METHOD_LABELS: Record<string, string> = {
   unknown: 'Bilinmiyor (eski)',
 }
 
-export async function getPaymentBreakdown(restaurantId: string, range = 'week'): Promise<PaymentReport> {
-  const empty: PaymentReport = { collected: [], comp: { amount: 0, count: 0 }, collectedTotal: 0, collectedCount: 0 }
+export async function getPaymentBreakdown(restaurantId: string, range: string | AnalyticsQuery = 'week', asOf = new Date()): Promise<PaymentReport> {
+  const empty: PaymentReport = {
+    collected: [],
+    comp: { amount: 0, count: 0 },
+    collectedTotal: 0,
+    collectedCount: 0,
+    financials: {
+      grossSales: 0,
+      discountTotal: 0,
+      netSales: 0,
+      vatTotal: 0,
+      netOfVatTotal: 0,
+      unknownVatGross: 0,
+      unattributedAmount: 0,
+    },
+    refunds: { total: 0, count: 0, fullCount: 0, partialCount: 0, netCollected: 0, byMethod: [] },
+    coverage: { monetaryRefunds: true, serviceFees: false, tips: false },
+  }
 
   // Owner OR a member with 'analytics' (reads order aggregates via the service
   // role — so this app-layer gate, not RLS, is the protection).
   const gate = await assertAccess(restaurantId, 'analytics')
   if ('error' in gate) return empty
 
-  const { currentStart } = await rangeWindowFor(restaurantId, range)
-  const result = await analyticsReadModel.readPaymentOrders({
-    restaurantId,
-    since: currentStart.toISOString(),
-  })
+  const { currentStart, currentEnd } = await rangeWindowFor(restaurantId, range, asOf)
+  const filters = analyticsOrderReadFilters(range)
+  const [result, refundResult] = await Promise.all([
+    analyticsReadModel.readPaymentOrders({
+      restaurantId, since: currentStart.toISOString(), before: currentEnd.toISOString(), filters,
+    }),
+    analyticsReadModel.readRefunds({
+      restaurantId, since: currentStart.toISOString(), before: currentEnd.toISOString(), filters,
+    }),
+  ])
   if (!result.ok) throw new Error(`getPaymentBreakdown: ${result.error}`)
+  // Refund reporting is an independently deployable ledger. Keep collection
+  // analytics available when that read is temporarily unavailable, but expose
+  // the missing coverage explicitly so no consumer can mistake it for ₺0.
+  const monetaryRefundsAvailable = refundResult.ok
 
   const collectedGroups: Record<string, { key: string; label: string; amount: number; count: number }> = {
     iyzico: { key: 'iyzico', label: COLLECTED_METHOD_LABELS['iyzico']!, amount: 0, count: 0 },
@@ -186,23 +204,35 @@ export async function getPaymentBreakdown(restaurantId: string, range = 'week'):
 
   const collectedTotal = Object.values(collectedGroups).reduce((sum, g) => sum + g.amount, 0)
   const collectedCount = Object.values(collectedGroups).reduce((sum, g) => sum + g.count, 0)
+  const financials = aggregateCollectedFinancials(
+    result.value.filter((row) => row.paymentMethod !== COMP_METHOD),
+  )
   const collected = Object.values(collectedGroups)
     .filter((g) => g.count > 0)
     .map((g) => ({ ...g, pct: collectedTotal > 0 ? Math.round((g.amount / collectedTotal) * 1000) / 10 : 0 }))
     .sort((a, b) => b.amount - a.amount)
 
-  return { collected, comp, collectedTotal, collectedCount }
+  const refunds = aggregateRefundSummary(refundResult.ok ? refundResult.value : [], collectedTotal)
+
+  return {
+    collected,
+    comp,
+    collectedTotal,
+    collectedCount,
+    financials,
+    refunds,
+    coverage: { monetaryRefunds: monetaryRefundsAvailable, serviceFees: false, tips: false },
+  }
 }
 
-export async function getProductReportData(restaurantId: string, range = 'week'): Promise<ProductReportItem[]> {
-  const { currentStart, previousStart } = await rangeWindowFor(restaurantId, range)
-  const context = await getInsightsContext(restaurantId, 'analytics')
-  const result = await readDashboardCollectedOrders(context, {
-    restaurantId, section: 'analytics', since: previousStart.toISOString(),
-  }, insightsReadModel)
-  if (!result.ok) throw new Error(`getProductReportData: ${result.error}`)
-  const current = foldOrderItems(result.value.filter((row) => new Date(row.paidAt) >= currentStart))
-  const previous = foldOrderItems(result.value.filter((row) => new Date(row.paidAt) < currentStart))
+export async function getProductReportData(restaurantId: string, range: string | AnalyticsQuery = 'week', asOf = new Date()): Promise<ProductReportItem[]> {
+  const source = await getAnalyticsCoreMetrics(restaurantId, range, asOf)
+  const current = new Map(source.products
+    .filter((item) => item.period === 'current')
+    .map((item) => [item.name, { count: item.count, revenue: item.revenue }]))
+  const previous = new Map(source.products
+    .filter((item) => item.period === 'previous')
+    .map((item) => [item.name, { count: item.count, revenue: item.revenue }]))
   const totalRevenue = Array.from(current.values()).reduce((sum, item) => sum + item.revenue, 0)
 
   let cumulative = 0
@@ -227,21 +257,55 @@ export async function getProductReportData(restaurantId: string, range = 'week')
 
 export async function getSalesOverTime(
   restaurantId: string,
-  range: string,
+  range: string | AnalyticsQuery,
   section: DashboardInsightsSection = 'analytics',
+  asOf = new Date(),
+  coreSource?: AnalyticsCoreMetrics,
 ): Promise<DailySale[]> {
   const tz = await getRestaurantTimezone(restaurantId)
-
-  const isHourly = range === 'day'
-  const bucketCount = isHourly ? 24 : ({ week: 7, month: 30, quarter: 90, year: 365 } as Record<string, number>)[range] ?? 7
-
-  // Restaurant-local window boundaries (UTC instants).
-  const currentStart = isHourly ? startOfRestaurantDay(tz) : startOfDayNDaysAgo(tz, bucketCount - 1)
-  const prevStart = isHourly ? startOfDayNDaysAgo(tz, 1) : startOfDayNDaysAgo(tz, 2 * bucketCount - 1)
+  const query = coerceAnalyticsQuery(range)
+  const { currentStart, previousStart, currentEnd } = await rangeWindowFor(restaurantId, query, asOf)
+  const lastCurrentInstant = new Date(Math.max(currentStart.getTime(), currentEnd.getTime() - 1))
+  const bucketCount = restaurantCalendarDayCount(
+    restaurantDayKey(currentStart, tz),
+    restaurantDayKey(lastCurrentInstant, tz),
+  )
+  const isHourly = bucketCount === 1
+  if (section === 'analytics') {
+    const source = coreSource ?? await getAnalyticsCoreMetrics(restaurantId, query, asOf)
+    if (isHourly) {
+      const currentMap = new Map(source.sales
+        .filter((row) => row.period === 'current')
+        .map((row) => [row.hour, row.total]))
+      const previousMap = new Map(source.sales
+        .filter((row) => row.period === 'previous')
+        .map((row) => [row.hour, row.total]))
+      return Array.from({ length: 24 }, (_, hour) => ({
+        date: `${hour.toString().padStart(2, '0')}:00`,
+        current: currentMap.get(hour) ?? 0,
+        prev: previousMap.get(hour) ?? 0,
+      }))
+    }
+    const currentMap = new Map(source.sales
+      .filter((row) => row.period === 'current')
+      .map((row) => [row.day, row.total]))
+    const previousMap = new Map(source.sales
+      .filter((row) => row.period === 'previous')
+      .map((row) => [row.day, row.total]))
+    return Array.from({ length: bucketCount }, (_, i) => {
+      const dayStart = startOfDayNDaysAgo(tz, -i, currentStart)
+      const prevDayStart = startOfDayNDaysAgo(tz, -i, previousStart)
+      return {
+        date: dayStart.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', timeZone: tz }),
+        current: currentMap.get(restaurantDayKey(dayStart, tz)) ?? 0,
+        prev: previousMap.get(restaurantDayKey(prevDayStart, tz)) ?? 0,
+      }
+    })
+  }
 
   const context = await getInsightsContext(restaurantId, section)
   const result = await readDashboardCollectedOrders(context, {
-    restaurantId, section, since: prevStart.toISOString(),
+    restaurantId, section, since: previousStart.toISOString(), before: currentEnd.toISOString(),
   }, insightsReadModel)
   if (!result.ok) throw new Error(`getSalesOverTime: ${result.error}`)
   const rows = result.value
@@ -273,9 +337,8 @@ export async function getSalesOverTime(
   }
 
   return Array.from({ length: bucketCount }, (_, i) => {
-    const daysAgo = bucketCount - 1 - i // i=0 → oldest day … last → today
-    const dayStart = startOfDayNDaysAgo(tz, daysAgo)
-    const prevDayStart = startOfDayNDaysAgo(tz, daysAgo + bucketCount)
+    const dayStart = startOfDayNDaysAgo(tz, -i, currentStart)
+    const prevDayStart = startOfDayNDaysAgo(tz, -i, previousStart)
     return {
       date: dayStart.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', timeZone: tz }),
       current: currentMap[restaurantDayKey(dayStart, tz)] ?? 0,
@@ -284,38 +347,47 @@ export async function getSalesOverTime(
   })
 }
 
-export async function getHeatmapData(restaurantId: string): Promise<HeatmapCell[]> {
-  const tz = await getRestaurantTimezone(restaurantId)
-  const since = startOfDayNDaysAgo(tz, 30)
-  const context = await getInsightsContext(restaurantId, 'analytics')
-  const result = await readDashboardOrderVolume(context, {
-    restaurantId, section: 'analytics', since: since.toISOString(),
-  }, insightsReadModel)
-  if (!result.ok) throw new Error(`getHeatmapData: ${result.error}`)
-  const rows = result.value.filter(isOrderVolumeRow)
-  const grid: Record<string, number> = {}
-
-  for (const row of rows) {
-    const day = restaurantWeekday(row.createdAt, tz)
-    const hour = restaurantHour(row.createdAt, tz)
-    const k = `${day}-${hour}`
-    grid[k] = (grid[k] ?? 0) + 1
-  }
-
-  const cells: HeatmapCell[] = []
-  for (let day = 0; day < 7; day++) {
-    for (let hour = 8; hour <= 22; hour++) {
-      cells.push({ day, hour, count: grid[`${day}-${hour}`] ?? 0 })
-    }
-  }
-  return cells
+export async function getHeatmapData(
+  restaurantId: string,
+  range: string | AnalyticsQuery = 'month',
+  asOf = new Date(),
+  coreSource?: AnalyticsCoreMetrics,
+): Promise<HeatmapCell[]> {
+  const source = coreSource ?? await getAnalyticsCoreMetrics(restaurantId, range, asOf)
+  return source.heatmap
 }
 
-export async function getTablesReportData(restaurantId: string, range = 'week'): Promise<TableReportRow[]> {
-  const { currentStart } = await rangeWindowFor(restaurantId, range)
+/** One explicit aggregate read per sales request. Route handlers do not rely
+ * on React render-cache behavior for query-count correctness. */
+export async function getAnalyticsSalesReportData(
+  restaurantId: string,
+  range: string | AnalyticsQuery,
+  asOf = new Date(),
+) {
+  const [core, paymentBreakdown] = await Promise.all([
+    getAnalyticsCoreMetrics(restaurantId, range, asOf),
+    getPaymentBreakdown(restaurantId, range, asOf),
+  ])
+  const [rangeKpis, salesOverTime, heatmapData, topItems] = await Promise.all([
+    getAnalyticsRangeKPIs(restaurantId, range, asOf, core),
+    getSalesOverTime(restaurantId, range, 'analytics', asOf, core),
+    getHeatmapData(restaurantId, range, asOf, core),
+    getTopItems(restaurantId, range, asOf, core),
+  ])
+  return { rangeKpis, salesOverTime, heatmapData, topItems, paymentBreakdown }
+}
+
+export async function getTablesReportData(restaurantId: string, range: string | AnalyticsQuery = 'week', asOf = new Date()): Promise<TableReportRow[]> {
+  const { currentStart, currentEnd } = await rangeWindowFor(restaurantId, range, asOf)
+  const filters = analyticsOrderReadFilters(range)
   const since = currentStart.toISOString()
   const context = await getInsightsContext(restaurantId, 'analytics')
-  const result = await readDashboardTablePerformance(context, { restaurantId, since }, insightsReadModel)
+  const result = await readDashboardTablePerformance(context, {
+    restaurantId,
+    since,
+    before: currentEnd.toISOString(),
+    filters,
+  }, insightsReadModel)
   if (!result.ok) throw new Error(`getTablesReportData: ${result.error}`)
   const { tables, orders, closedSessions } = result.value
   const openTables = new Set(result.value.openTableIds)
@@ -355,3 +427,4 @@ export async function getTablesReportData(restaurantId: string, range = 'week'):
 }
 
 export * from './analytics-operations'
+export * from './analytics-range-kpis-query'

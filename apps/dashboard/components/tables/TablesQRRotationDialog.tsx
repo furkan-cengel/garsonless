@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect } from 'react'
 import { AppIconNodes } from '@garsonless/ui/icons'
 import type { TableItem } from './tables-builder-types'
+import { AccessibleDialog } from './AccessibleDialog'
 
 export function TablesQRRotationDialog({
   table,
@@ -17,23 +17,15 @@ export function TablesQRRotationDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
-  useEffect(() => {
-    if (!table || rotating) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onCancel, rotating, table])
-
   if (!table) return null
 
   return (
-    <div
-      role="presentation"
-      onMouseDown={(event) => {
-        if (!rotating && event.currentTarget === event.target) onCancel()
-      }}
+    <AccessibleDialog
+      role="alertdialog"
+      labelledBy="qr-rotation-title"
+      describedBy="qr-rotation-description"
+      onClose={onCancel}
+      closeDisabled={rotating}
       style={{
         position: 'fixed', inset: 0, zIndex: 110, padding: 20,
         display: 'grid', placeItems: 'center',
@@ -41,10 +33,6 @@ export function TablesQRRotationDialog({
       }}
     >
       <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="qr-rotation-title"
-        aria-describedby="qr-rotation-description"
         style={{
           width: 'min(440px, 100%)', padding: 20,
           border: '1px solid var(--border)', borderRadius: 16,
@@ -84,10 +72,11 @@ export function TablesQRRotationDialog({
           <button
             type="button"
             className="tb-hover"
+            data-modal-initial-focus
             onClick={onCancel}
             disabled={rotating}
             style={{
-              height: 34, padding: '0 13px', borderRadius: 8,
+              minHeight: 44, padding: '0 13px', borderRadius: 8,
               border: '1px solid var(--border-strong)', background: 'var(--surface)',
               color: 'var(--text)', fontSize: 12.5, fontWeight: 600,
               cursor: rotating ? 'not-allowed' : 'pointer',
@@ -99,7 +88,7 @@ export function TablesQRRotationDialog({
             onClick={onConfirm}
             disabled={rotating}
             style={{
-              height: 34, padding: '0 14px', borderRadius: 8,
+              minHeight: 44, padding: '0 14px', borderRadius: 8,
               border: '1px solid var(--critical)', background: 'var(--critical)',
               color: '#fff', fontSize: 12.5, fontWeight: 650,
               cursor: rotating ? 'wait' : 'pointer', opacity: rotating ? .72 : 1,
@@ -107,6 +96,6 @@ export function TablesQRRotationDialog({
           >{rotating ? 'Oluşturuluyor…' : 'Eski QR’ı iptal et'}</button>
         </div>
       </div>
-    </div>
+    </AccessibleDialog>
   )
 }

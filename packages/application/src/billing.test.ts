@@ -265,9 +265,17 @@ function operationsPort(calls: string[]): SubscriptionBillingOperationsPort {
       calls.push('mark-checkout')
       return ok(true)
     },
+    bindCheckoutProviderPlan: async ({ expectedProviderPlanRef }) => {
+      calls.push(`bind-plan:${expectedProviderPlanRef}`)
+      return ok(true)
+    },
     findCheckoutCallback: async () => {
       calls.push('find-checkout')
-      return ok({ operationId: 'operation-checkout', restaurantId: 'restaurant-1', invoiceId: 'operation-checkout' })
+      return ok({
+        operationId: 'operation-checkout', restaurantId: 'restaurant-1',
+        invoiceId: 'operation-checkout', requestedPlan: 'pro',
+        expectedProviderPlanRef: 'provider-plan-1',
+      })
     },
     finalizeCheckout: async () => {
       calls.push('finalize-checkout')
@@ -308,10 +316,13 @@ function capabilityProvider(calls: string[]): SubscriptionBillingProvider {
   const provider = providerWith(validEvent)
   provider.createCheckout = async () => {
     calls.push('provider-checkout')
-    return ok({ providerCheckoutRef: 'checkout-token', checkoutContent: '<form>hosted</form>', expiresAt: null })
+    return ok({
+      providerCheckoutRef: 'checkout-token', providerPlanRef: 'provider-plan-1',
+      checkoutContent: '<form>hosted</form>', expiresAt: null,
+    })
   }
-  provider.retrieveCheckout = async () => {
-    calls.push('provider-retrieve')
+  provider.retrieveCheckout = async ({ expectedProviderPlanRef }) => {
+    calls.push(`provider-retrieve:${expectedProviderPlanRef}`)
     return ok({
       providerCustomerRef: 'provider-customer-1',
       providerSubscriptionRef: 'provider-subscription-1',
@@ -341,6 +352,7 @@ test('owner-only billing profile and checkout reject unauthorized contexts befor
     restaurantId: 'restaurant-1', profile: billingProfile, plan: 'pro', amount: baseAmount,
     periodStart: '2026-07-22T10:00:00.000Z', periodEnd: '2026-08-22T10:00:00.000Z',
     dueAt: '2026-07-22T10:00:00.000Z', callbackUrl: 'https://app.masabu.co/api/billing/callback',
+    expectedProviderPlanRef: 'provider-plan-1',
     idempotencyKey: 'checkout-1', requestFingerprint: fingerprint,
   }, operationsPort(calls), capabilityProvider(calls)), {
     ok: false, error: 'Billing owner context required',
@@ -356,10 +368,13 @@ test('checkout is claimed before one hosted provider dispatch and duplicate clai
     restaurantId: 'restaurant-1', profile: billingProfile, plan: 'pro' as const, amount: baseAmount,
     periodStart: '2026-07-22T10:00:00.000Z', periodEnd: '2026-08-22T10:00:00.000Z',
     dueAt: '2026-07-22T10:00:00.000Z', callbackUrl: 'https://app.masabu.co/api/billing/callback',
+    expectedProviderPlanRef: 'provider-plan-1',
     idempotencyKey: 'checkout-1', requestFingerprint: fingerprint,
   }
   assert.equal((await startSubscriptionCheckout(billingOwner, input, port, provider)).ok, true)
-  assert.deepEqual(calls, ['prepare-checkout', 'provider-checkout', 'mark-checkout'])
+  assert.deepEqual(calls, [
+    'prepare-checkout', 'bind-plan:provider-plan-1', 'provider-checkout', 'mark-checkout',
+  ])
 
   calls.length = 0
   port.prepareCheckout = async (value) => ok({
@@ -381,7 +396,7 @@ test('checkout callback maps the provider order and quarantines non-active resul
   assert.equal((await completeSubscriptionCheckout({
     providerCheckoutRef: 'checkout-token', idempotencyKey: 'callback-1',
   }, port, provider)).ok, true)
-  assert.deepEqual(calls, ['find-checkout', 'provider-retrieve', 'finalize-checkout'])
+  assert.deepEqual(calls, ['find-checkout', 'provider-retrieve:provider-plan-1', 'finalize-checkout'])
 
   calls.length = 0
   provider.retrieveCheckout = async () => ok({
@@ -394,6 +409,45 @@ test('checkout callback maps the provider order and quarantines non-active resul
     providerCheckoutRef: 'checkout-token', idempotencyKey: 'callback-2',
   }, port, provider), { ok: false, error: 'Billing checkout is not active' })
   assert.deepEqual(calls, ['find-checkout', 'reconcile:operation-checkout'])
+})
+
+test('checkout never dispatches before durable plan binding and quarantines provider drift', async () => {
+  const calls: string[] = []
+  const port = operationsPort(calls)
+  const provider = capabilityProvider(calls)
+  const input = {
+    restaurantId: 'restaurant-1', profile: billingProfile, plan: 'pro' as const, amount: baseAmount,
+    periodStart: '2026-07-22T10:00:00.000Z', periodEnd: '2026-08-22T10:00:00.000Z',
+    dueAt: '2026-07-22T10:00:00.000Z', callbackUrl: 'https://app.masabu.co/api/billing/callback',
+    expectedProviderPlanRef: 'provider-plan-1',
+    idempotencyKey: 'checkout-1', requestFingerprint: fingerprint,
+  }
+
+  port.bindCheckoutProviderPlan = async () => ({ ok: false, error: 'binding unavailable' })
+  assert.deepEqual(await startSubscriptionCheckout(billingOwner, input, port, provider), {
+    ok: false, error: 'Billing checkout provider plan binding requires reconciliation',
+  })
+  assert.deepEqual(calls, ['prepare-checkout', 'reconcile:operation-checkout'])
+
+  calls.length = 0
+  port.bindCheckoutProviderPlan = async ({ expectedProviderPlanRef }) => {
+    calls.push(`bind-plan:${expectedProviderPlanRef}`)
+    return ok(true)
+  }
+  provider.createCheckout = async () => {
+    calls.push('provider-checkout')
+    return ok({
+      providerCheckoutRef: 'checkout-token', providerPlanRef: 'provider-plan-enterprise',
+      checkoutContent: '<form>hosted</form>', expiresAt: null,
+    })
+  }
+  assert.deepEqual(await startSubscriptionCheckout(billingOwner, input, port, provider), {
+    ok: false, error: 'Billing checkout provider plan mismatch',
+  })
+  assert.deepEqual(calls, [
+    'prepare-checkout', 'bind-plan:provider-plan-1', 'provider-checkout',
+    'reconcile:operation-checkout',
+  ])
 })
 
 test('retry and immediate cancellation use claimed references and complete the durable operation', async () => {

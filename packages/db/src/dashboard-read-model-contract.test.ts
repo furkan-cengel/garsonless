@@ -15,20 +15,33 @@ import { createPersistentDashboardInsightsObserver } from './dashboard-read-mode
 
 function createPort(overrides: Partial<DashboardInsightsReadModelPort> = {}): DashboardInsightsReadModelPort {
   return {
+    async readAnalyticsCoreMetrics() {
+      return ok({
+        currentOrders: 0, previousOrders: 0, currentSessions: 0, previousSessions: 0,
+        currentRevenue: 0, previousRevenue: 0, currentPaidOrders: 0, previousPaidOrders: 0,
+        sales: [], heatmap: [], products: [],
+      })
+    },
     async readOrderVolume() { return ok([]) },
     async readCollectedOrders() { return ok([]) },
     async readTableRefs() { return ok([]) },
     async readTablePerformance() {
       return ok({ tables: [], orders: [], closedSessions: [], openTableIds: [] })
     },
+    async readPanoMetrics() {
+      return ok({
+        revenue: 0, revenueYesterday: 0, orders: 0, ordersYesterday: 0,
+        paidOrders: 0, paidOrdersYesterday: 0, activeOrders: 0, pendingOrders: 0, preparingOrders: 0,
+        sessions: 0, sessionsYesterday: 0, hourlySales: [], recentOrders: [],
+        topItems: [], heatmap: [],
+      })
+    },
     async readPanoOperationalSource() {
       return ok({
         errors: [],
         tables: [],
-        openSessions: [],
-        openSessionOrders: [],
-        sessionOpenings: [],
-        activeOrderCount: 0,
+        openTableSessions: [],
+        pendingServiceRequests: [],
         paymentMode: null,
         paymentConfigured: false,
       })
@@ -48,10 +61,10 @@ test('dashboard insight projections stay narrow and every contract is used by th
     tablePerformanceOpenSessions: 'table_id',
     panoTables: 'id, label, deleted_at',
     panoOpenSessions: 'id, table_id, opened_at',
-    panoSessionOpenings: 'id, opened_at',
-    panoActiveOrders: 'id',
     panoPaymentStatus: 'mode',
-    panoOpenSessionOrders: 'table_session_id, status, total, paid_at, created_at',
+    panoOpenSessionOrders: 'table_session_id, status, total, paid_at',
+    panoOpenSessionShares: 'table_session_id, amount, method, status',
+    panoOpenServiceRequests: 'id, table_id, created_at, request_type',
   })
 
   const adapterSource = readFileSync(new URL('./dashboard-read-model-port.ts', import.meta.url), 'utf8')
@@ -92,10 +105,8 @@ test('pano partial failures are observable as degraded reads', async () => {
       return ok({
         errors: ['Masalar: timeout', 'Aktif siparişler: unavailable'],
         tables: [],
-        openSessions: [],
-        openSessionOrders: [],
-        sessionOpenings: [],
-        activeOrderCount: 0,
+        openTableSessions: [],
+        pendingServiceRequests: [],
         paymentMode: null,
         paymentConfigured: false,
       })

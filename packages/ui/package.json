@@ -5,10 +5,16 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./icons": "./src/icons/index.tsx"
+    "./icons": "./src/icons/index.tsx",
+    "./menu/CartDrawer": "./src/menu/CartDrawer.tsx",
+    "./menu/OrderConfirmation": "./src/menu/OrderConfirmation.tsx",
+    "./menu/ProductModal": "./src/menu/ProductModal.tsx",
+    "./menu/TableBillSheet": "./src/menu/TableBillSheet.tsx",
+    "./themes/default/MenuPage": "./src/themes/default/MenuPage.tsx"
   },
   "scripts": {
     "lint": "eslint .",
+    "test": "node --import tsx --test src/menu/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -26,6 +32,7 @@
     "@types/node": "^22.10.7",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
+    "tsx": "^4.20.6",
     "typescript": "*"
   }
 }

@@ -19,6 +19,8 @@ export interface CampaignAudiencePreview {
   totalCandidates: number
   eligibleRecipients: number
   skippedNoMarketingConsent: number
+  skippedInvalidPhone: number
+  skippedDuplicatePhone: number
   segmentLabel: string
 }
 
@@ -40,7 +42,7 @@ export interface CampaignSummary {
 }
 
 export type SendCampaignResult =
-  | { ok: true; campaign: CampaignSummary; preview: CampaignAudiencePreview }
+  | { ok: true; campaign: CampaignSummary; preview: CampaignAudiencePreview; replayed: boolean }
   | { ok: false; error: string; preview?: CampaignAudiencePreview }
 
 export const BUILTIN_CUSTOMER_SEGMENTS: readonly CustomerSegment[] = ['new', 'frequent', 'lapsed', 'consented']

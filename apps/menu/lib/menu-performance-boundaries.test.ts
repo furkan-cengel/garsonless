@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import test from 'node:test'
+
+const menuClient = readFileSync(
+  new URL('../app/[slug]/MenuPageClient.tsx', import.meta.url),
+  'utf8',
+)
+const menuMembership = readFileSync(
+  new URL('./hooks/useMenuMembership.ts', import.meta.url),
+  'utf8',
+)
+const productCard = readFileSync(
+  new URL('../../../packages/ui/src/menu/ProductCard.tsx', import.meta.url),
+  'utf8',
+)
+const categoryNav = readFileSync(
+  new URL('../../../packages/ui/src/menu/CategoryNav.tsx', import.meta.url),
+  'utf8',
+)
+
+test('interaction-only menu surfaces stay behind dynamic boundaries', () => {
+  for (const modulePath of [
+    '@garsonless/ui/menu/ProductModal',
+    '@garsonless/ui/menu/CartDrawer',
+    '@garsonless/ui/menu/OrderConfirmation',
+    '@garsonless/ui/menu/TableBillSheet',
+    './components/PaymentModal',
+    './components/MemberSheet',
+    './components/SplitBillModal',
+  ]) {
+    assert.match(menuClient, new RegExp(`dynamic\\(.*${modulePath.replace(/[./]/g, '\\$&')}`, 's'))
+  }
+})
+
+test('customer auth SDK is loaded only when a member action needs it', () => {
+  assert.doesNotMatch(menuClient, /^import .*createMenuAuthBrowserClient/m)
+  assert.doesNotMatch(menuMembership, /^import .*createMenuAuthBrowserClient/m)
+  assert.match(menuMembership, /await import\('\.\.\/supabase-browser'\)/)
+})
+
+test('menu images and motion preferences do not inflate initial work', () => {
+  assert.match(productCard, /loading=\{imagePriority \? 'eager' : 'lazy'\}/)
+  assert.match(productCard, /fetchPriority=\{imagePriority \? 'high' : 'auto'\}/)
+  assert.match(productCard, /decoding="async"/)
+  assert.doesNotMatch(categoryNav, /from 'framer-motion'/)
+  assert.match(categoryNav, /matchMedia\('\(prefers-reduced-motion: reduce\)'\)/)
+})

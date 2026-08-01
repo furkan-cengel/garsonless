@@ -13,8 +13,8 @@ import type { Tables } from '@garsonless/db/types'
 import type { MenuModifierGroup as ModifierGroup } from '@garsonless/db/browser'
 import { calculateMarginPercent } from '@garsonless/domain/menu'
 import { InlineSpinner } from '@garsonless/ui'
-import { deleteItem, updateItem } from '../../lib/actions/menu'
-import { createDashboardBrowserClient } from '../../lib/supabase'
+import { deleteItem, updateItem, uploadMenuImage } from '../../lib/actions/menu'
+import { prepareMenuImage } from '../../lib/menu-image-client'
 import { I, S, Tag, btnGhost, btnPrimary } from '../../lib/ui'
 import NutritionFields, {
   appendNutritionToFormData,
@@ -27,7 +27,9 @@ import { MenuConfirmDialog } from './MenuConfirmDialog'
 import { isMenuItemEditorDirty, type MenuItemEditorSnapshot } from './menu-item-editor-model'
 import { MenuItemEditorFrame } from './MenuItemEditorFrame'
 import { MenuModifierGroupEditor } from './MenuModifierGroupEditor'
+import { MenuItemRecommendationEditor } from './MenuItemRecommendationEditor'
 import { normalizeGroups, tintFor } from './menu-manager-utils'
+import { useMenuSaveFeedback } from './use-menu-save-feedback'
 
 const VAT_RATE_PRESETS = [1, 10, 20]
 
@@ -40,24 +42,30 @@ export function MenuItemEditPanel({
   categoryVatRate,
   categoryStationId,
   kitchenStations,
+  allItems,
+  recommendationIds,
   restaurantId,
   onClose,
   onSaved,
   onDeleted,
   onError,
   onDirtyChange,
+  onRecommendationsSaved,
 }: {
   item: Tables<'menu_items'>
   categoryName: string
   categoryVatRate: number
   categoryStationId: string | null
   kitchenStations: Tables<'kitchen_stations'>[]
+  allItems: Tables<'menu_items'>[]
+  recommendationIds: string[]
   restaurantId: string
   onClose: () => void
   onSaved: (updated: Tables<'menu_items'>) => void
   onDeleted: (id: string) => void
   onError: (msg: string) => void
   onDirtyChange: (dirty: boolean) => void
+  onRecommendationsSaved: (ids: string[]) => void
 }) {
   const [name, setName] = useState(item.name)
   const [description, setDescription] = useState(item.description ?? '')
@@ -68,39 +76,28 @@ export function MenuItemEditPanel({
   const [kitchenStationId, setKitchenStationId] = useState(item.kitchen_station_id ?? categoryStationId ?? '')
   const [isAvailable, setIsAvailable] = useState(item.is_available)
   const [earnsStamp, setEarnsStamp] = useState<boolean>(item.earns_stamp ?? false)
-  const [nutri, setNutri] = useState<NutritionState>(() => nutritionFromItem(item))
+  const [initialNutrition] = useState<NutritionState>(() => nutritionFromItem(item))
+  const [nutri, setNutri] = useState<NutritionState>(() => initialNutrition)
   const setN = (patch: Partial<NutritionState>) => setNutri((current) => applyNutritionPatch(current, patch))
   const [cost, setCost] = useState(item.cost == null ? '' : String(item.cost))
-  const [images, setImages] = useState<string[]>(() =>
+  const [initialImages] = useState<string[]>(() =>
     Array.isArray(item.images) ? (item.images as string[]) : [],
   )
-  const [modifiers, setModifiers] = useState<ModifierGroup[]>(() => normalizeGroups(item.modifier_groups))
+  const [images, setImages] = useState<string[]>(() => initialImages)
+  const [initialModifiers] = useState<ModifierGroup[]>(() => normalizeGroups(item.modifier_groups))
+  const [modifiers, setModifiers] = useState<ModifierGroup[]>(() => initialModifiers)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isPending, startTransition] = useTransition()
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [recommendationsDirty, setRecommendationsDirty] = useState(false)
   const tint = tintFor(item.id)
   const marginPercent = calculateMarginPercent(
     Number(price),
     cost.trim() === '' ? null : Number(cost),
   )
-  const initialSnapshot: MenuItemEditorSnapshot = {
-    name: item.name,
-    description: item.description ?? '',
-    price: String(item.price),
-    cost: item.cost == null ? '' : String(item.cost),
-    vatMode: item.vat_rate == null ? 'category' : 'custom',
-    vatRate: String(item.vat_rate ?? categoryVatRate),
-    stationMode: item.kitchen_station_id == null ? 'category' : 'custom',
-    kitchenStationId: item.kitchen_station_id ?? categoryStationId ?? '',
-    isAvailable: item.is_available,
-    earnsStamp: item.earns_stamp ?? false,
-    nutrition: nutritionFromItem(item),
-    images: Array.isArray(item.images) ? item.images : [],
-    modifiers: normalizeGroups(item.modifier_groups),
-  }
-  const isDirty = isMenuItemEditorDirty({
+  const currentSnapshot: MenuItemEditorSnapshot = {
     name,
     description,
     price,
@@ -114,7 +111,28 @@ export function MenuItemEditPanel({
     nutrition: nutri,
     images,
     modifiers,
-  }, initialSnapshot)
+  }
+  const savedSnapshotRef = useRef<MenuItemEditorSnapshot>({
+    name: item.name,
+    description: item.description ?? '',
+    price: String(item.price),
+    cost: item.cost == null ? '' : String(item.cost),
+    vatMode: item.vat_rate == null ? 'category' : 'custom',
+    vatRate: String(item.vat_rate ?? categoryVatRate),
+    stationMode: item.kitchen_station_id == null ? 'category' : 'custom',
+    kitchenStationId: item.kitchen_station_id ?? categoryStationId ?? '',
+    isAvailable: item.is_available,
+    earnsStamp: item.earns_stamp ?? false,
+    nutrition: initialNutrition,
+    images: initialImages,
+    modifiers: initialModifiers,
+  })
+  const itemIsDirty = isMenuItemEditorDirty(currentSnapshot, savedSnapshotRef.current)
+  const isDirty = itemIsDirty || recommendationsDirty
+  const { state: itemSaveState, markSaved: markItemSaved } = useMenuSaveFeedback({
+    dirty: itemIsDirty,
+    saving: isPending || uploading,
+  })
 
   useEffect(() => {
     onDirtyChange(isDirty)
@@ -136,35 +154,37 @@ export function MenuItemEditPanel({
     e.target.value = ''
     const prevImages = images
     setUploading(true)
-    const supabase = createDashboardBrowserClient()
-    const ext = file.name.split('.').pop() ?? 'jpg'
-    const path = `restaurants/${restaurantId}/items/${item.id}/${Date.now()}.${ext}`
-    const { error: uploadError } = await supabase.storage
-      .from('restaurant-assets')
-      .upload(path, file, { upsert: true })
-    if (uploadError) {
-      setUploading(false)
-      onError(uploadError.message)
-      return
-    }
-    const { data: { publicUrl } } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
-    const newImages = [publicUrl, ...prevImages.slice(1)]
-    setImages(newImages)
-    setUploading(false)
-    const fd = new FormData()
-    fd.append('id', item.id)
-    fd.append('restaurantId', restaurantId)
-    fd.append('images', JSON.stringify(newImages))
-    const result = await updateItem(fd)
-    if ('error' in result) {
-      setImages(prevImages)
-      onError(result.error)
-    } else {
+    try {
+      const prepared = await prepareMenuImage(file)
+      const uploadData = new FormData()
+      uploadData.append('restaurantId', restaurantId)
+      uploadData.append('entityId', item.id)
+      uploadData.append('kind', 'items')
+      uploadData.append('file', prepared)
+      const uploadResult = await uploadMenuImage(uploadData)
+      if ('error' in uploadResult) throw new Error(uploadResult.error)
+
+      const newImages = [uploadResult.url, ...prevImages.slice(1)]
+      setImages(newImages)
+      const fd = new FormData()
+      fd.append('id', item.id)
+      fd.append('restaurantId', restaurantId)
+      fd.append('images', JSON.stringify(newImages))
+      const result = await updateItem(fd)
+      if ('error' in result) throw new Error(result.error)
+      savedSnapshotRef.current = { ...savedSnapshotRef.current, images: newImages }
+      markItemSaved()
       onSaved(result.item)
+    } catch (uploadError) {
+      setImages(prevImages)
+      onError(uploadError instanceof Error ? uploadError.message : 'Görsel yüklenemedi.')
+    } finally {
+      setUploading(false)
     }
   }
 
   function handleSave() {
+    if (!itemIsDirty || isPending || uploading) return
     startTransition(async () => {
       const fd = new FormData()
       fd.append('id', item.id)
@@ -182,6 +202,8 @@ export function MenuItemEditPanel({
       fd.append('modifier_groups', JSON.stringify(modifiers))
       const result = await updateItem(fd)
       if ('error' in result) { onError(result.error); return }
+      savedSnapshotRef.current = currentSnapshot
+      markItemSaved()
       onSaved(result.item)
     })
   }
@@ -226,7 +248,19 @@ export function MenuItemEditPanel({
           <div style={{ marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <NutritionStatusPill s={nutri} />
-              {isDirty && <Tag tone="warning">Kaydedilmemiş değişiklik</Tag>}
+              <span aria-live="polite">
+                {itemSaveState === 'saving' ? (
+                  <Tag tone="neutral">Kaydediliyor…</Tag>
+                ) : itemIsDirty ? (
+                  <Tag tone="warning">Kaydedilmemiş değişiklik</Tag>
+                ) : recommendationsDirty ? (
+                  <Tag tone="warning">Öneriler kaydedilmedi</Tag>
+                ) : itemSaveState === 'saved' ? (
+                  <Tag tone="positive"><I.check size={11} />Kaydedildi</Tag>
+                ) : (
+                  <Tag tone="positive"><I.check size={11} />Değişiklikler güncel</Tag>
+                )}
+              </span>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
@@ -240,13 +274,30 @@ export function MenuItemEditPanel({
               <I.trash size={13} />Sil
             </button>
             <button
-              className="menu-item-footer-action menu-item-save-action"
+              className="menu-item-footer-action menu-item-save-action menu-save-action"
               type="button"
               onClick={handleSave}
-              disabled={isPending || uploading || !isDirty}
-              style={{ ...btnPrimary(), flex: 2, justifyContent: 'center', opacity: !isDirty ? 0.5 : 1 }}
+              disabled={deleting || itemSaveState !== 'dirty'}
+              data-save-state={itemSaveState}
+              style={{
+                ...btnPrimary(),
+                flex: 2,
+                justifyContent: 'center',
+                opacity: itemSaveState === 'saving' ? 0.65 : 1,
+                background: itemSaveState === 'saved' ? 'var(--positive)' : itemSaveState === 'clean' ? 'var(--surface-inset)' : 'var(--action)',
+                borderColor: itemSaveState === 'saved' ? 'var(--positive)' : itemSaveState === 'clean' ? 'var(--border)' : 'var(--action)',
+                color: itemSaveState === 'clean' ? 'var(--text-2)' : 'var(--on-action)',
+              }}
             >
-              {isPending ? <><InlineSpinner size={13} color="var(--on-action)" />Kaydediliyor…</> : 'Değişiklikleri kaydet'}
+              {itemSaveState === 'saving' ? (
+                <><InlineSpinner size={13} color="var(--on-action)" />Kaydediliyor…</>
+              ) : itemSaveState === 'saved' ? (
+                <><I.check size={13} />Kaydedildi</>
+              ) : itemSaveState === 'clean' ? (
+                'Değişiklikler güncel'
+              ) : (
+                'Değişiklikleri kaydet'
+              )}
             </button>
           </div>
         </>
@@ -299,13 +350,19 @@ export function MenuItemEditPanel({
                   onClick={async () => {
                     const prev = images
                     setImages([])
+                    setUploading(true)
                     const fd = new FormData()
                     fd.append('id', item.id)
                     fd.append('restaurantId', restaurantId)
                     fd.append('images', JSON.stringify([]))
                     const result = await updateItem(fd)
-                    if ('error' in result) { setImages(prev); onError(result.error) }
-                    else onSaved(result.item)
+                    if ('error' in result) { setImages(prev); setUploading(false); onError(result.error) }
+                    else {
+                      savedSnapshotRef.current = { ...savedSnapshotRef.current, images: [] }
+                      setUploading(false)
+                      markItemSaved()
+                      onSaved(result.item)
+                    }
                   }}
                   style={{
                     background: 'rgba(255,255,255,.9)', backdropFilter: 'blur(6px)',
@@ -521,7 +578,7 @@ export function MenuItemEditPanel({
                 <input
                   aria-label="Özel ürün KDV oranı"
                   type="number"
-                  min={0}
+                  min={0.01}
                   max={100}
                   step="0.01"
                   value={vatRate}
@@ -539,6 +596,18 @@ export function MenuItemEditPanel({
         {/* Varyantlar */}
         <PanelSection title="Varyantlar">
           <MenuModifierGroupEditor groups={modifiers} onChange={(next) => { setModifiers(next); setN({ reviewed: false }) }} />
+        </PanelSection>
+
+        <PanelSection title="Yanında iyi gider">
+          <MenuItemRecommendationEditor
+            restaurantId={restaurantId}
+            sourceItem={item}
+            allItems={allItems}
+            initialIds={recommendationIds}
+            onSaved={onRecommendationsSaved}
+            onError={onError}
+            onDirtyChange={setRecommendationsDirty}
+          />
         </PanelSection>
 
         {/* Görünürlük */}

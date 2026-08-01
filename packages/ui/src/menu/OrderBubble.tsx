@@ -2,8 +2,6 @@
 
 import { AppIcons } from '../icons'
 
-export type OrderBubblePhase = 0 | 1 | 2 | 3
-
 interface OrderBubbleProps {
   phase: number
   unseen: number
@@ -49,7 +47,7 @@ export function OrderBubble({ phase, unseen, justChanged, onOpen }: OrderBubbleP
       <style>{KEYFRAMES}</style>
       <button
         type="button"
-        aria-label="Sipariş durumunu aç"
+        aria-label={`Sipariş durumu: ${STEP_LABELS[clamped]}.${unseen > 0 ? ` ${unseen} okunmamış güncelleme.` : ''} Takibi aç`}
         onClick={onOpen}
         className={justChanged ? 'ob-bubble--wiggle' : 'ob-bubble'}
         style={{
@@ -71,7 +69,7 @@ export function OrderBubble({ phase, unseen, justChanged, onOpen }: OrderBubbleP
           fontFamily: 'inherit',
         }}
       >
-        <span style={{
+        <span aria-hidden="true" style={{
           width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           background: 'var(--p-card)', color: 'var(--p-accent)',
@@ -81,7 +79,7 @@ export function OrderBubble({ phase, unseen, justChanged, onOpen }: OrderBubbleP
         </span>
         <span style={{ minWidth: 0, flex: 1 }}>
           <strong style={{ display: 'block', fontSize: 13.5, lineHeight: 1.2 }}>{STEP_LABELS[clamped]}</strong>
-          <span style={{ display: 'flex', gap: 4, marginTop: 7 }}>
+          <span aria-hidden="true" style={{ display: 'flex', gap: 4, marginTop: 7 }}>
             {STEP_LABELS.map((label, index) => (
               <span
                 key={label}
@@ -95,13 +93,14 @@ export function OrderBubble({ phase, unseen, justChanged, onOpen }: OrderBubbleP
             ))}
           </span>
         </span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, color: 'var(--p-accent)', fontSize: 11.5, fontWeight: 750 }}>
+        <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', gap: 2, color: 'var(--p-accent)', fontSize: 11.5, fontWeight: 750 }}>
           Takip et
           <AppIcons.chevRight size={15} />
         </span>
         {/* unseen count */}
         {unseen > 0 && (
           <span
+            aria-hidden="true"
             className="ob-bubble-badge"
             style={{
               position: 'absolute', top: -5, right: -5,

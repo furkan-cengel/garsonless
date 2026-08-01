@@ -19,6 +19,8 @@ export interface CreateOrderLine {
   modifiers?: unknown
   selectedModifiers?: SelectedMenuModifier[]
   removedIngredientIds?: string[]
+  productNote?: string
+  recommendationSourceItemId?: string
   name?: string
   price?: number
   modifiersPriceDelta?: number
@@ -160,6 +162,31 @@ export async function resolveOrderLines(
     ]),
   )
 
+  const recommendationLines = inputLines.filter(
+    (line): line is CreateOrderLine & { recommendationSourceItemId: string } => Boolean(line.recommendationSourceItemId),
+  )
+  const recommendationKeys = new Set<string>()
+  if (recommendationLines.length > 0) {
+    for (const line of recommendationLines) {
+      if (line.recommendationSourceItemId === line.itemId) {
+        return { ok: false, error: 'Geçersiz ürün önerisi.' }
+      }
+    }
+    const { data: recommendationRows, error: recommendationError } = await supabase
+      .from('menu_item_recommendations')
+      .select('source_item_id, recommended_item_id')
+      .eq('restaurant_id', restaurantId)
+      .in('source_item_id', [...new Set(recommendationLines.map((line) => line.recommendationSourceItemId))])
+      .in('recommended_item_id', [...new Set(recommendationLines.map((line) => line.itemId))])
+    if (recommendationError) return { ok: false, error: 'Ürün önerisi doğrulanamadı.' }
+    for (const row of recommendationRows ?? []) {
+      recommendationKeys.add(`${row.source_item_id}:${row.recommended_item_id}`)
+    }
+    if (recommendationLines.some((line) => !recommendationKeys.has(`${line.recommendationSourceItemId}:${line.itemId}`))) {
+      return { ok: false, error: 'Geçersiz ürün önerisi.' }
+    }
+  }
+
   let promotionalPricesByLine = new Map<number, number>()
   let loyaltyStackingAllowed = true
   if (inputLines.some((line) => line.combo && line.promotion)) {
@@ -216,6 +243,8 @@ export async function resolveOrderLines(
       quantity: line.quantity,
       selections: incomingSelections(line),
       removedIngredientIds: line.removedIngredientIds ?? [],
+      ...(line.productNote !== undefined ? { productNote: line.productNote } : {}),
+      ...(line.recommendationSourceItemId !== undefined ? { recommendationSourceItemId: line.recommendationSourceItemId } : {}),
     })
     if (!built.ok) return built
     const promotionalPrice = promotionalPricesByLine.get(lineIndex)
@@ -318,6 +347,7 @@ export async function createOrder(
       table_id: input.tableId,
       table_session_id: tableSessionId,
       session_id: input.sessionId,
+      source: 'customer',
       request_id: input.requestId,
       customer_id: customerId,
       customer_tier: discount.customerTierSnapshot,

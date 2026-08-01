@@ -23,6 +23,7 @@ export async function POST(request: Request) {
   const result = await ensureCustomerIdentity({
     authUserId: user.id,
     email: user.email ?? null,
+    phone: user.phone ?? null,
     userMetadata: user.user_metadata ?? {},
     appMetadata: user.app_metadata ?? {},
   }, parsed.data, createCustomerIdentityApplicationPort())

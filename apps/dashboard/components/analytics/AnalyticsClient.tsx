@@ -1,7 +1,7 @@
 'use client'
 
 import type {
-  DashboardKPIs,
+  AnalyticsRangeKPIs,
   TopItem,
   DailySale,
   HeatmapCell,
@@ -17,11 +17,14 @@ import { AnalyticsPaymentsReport, AnalyticsSalesReport } from './AnalyticsSalesP
 import { AnalyticsTablesReport } from './AnalyticsTablesReport'
 import { buildAnalyticsReportCsv, downloadAnalyticsCsv } from './analytics-report-export'
 import { useAnalyticsReports } from './use-analytics-reports'
+import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
+import type { AnalyticsReportId } from '../../lib/actions/analytics'
 
 interface Props {
   restaurantId: string
   restaurantName: string
-  kpis: DashboardKPIs
+  rangeKpis: AnalyticsRangeKPIs
+  liveActiveOrders: number
   topItems: TopItem[]
   salesOverTime: DailySale[]
   heatmapData: HeatmapCell[]
@@ -33,12 +36,15 @@ interface Props {
   isOwner: boolean
   /** Pro/Enterprise only. The action layer checks this again before data reads. */
   hasAdvancedAnalytics: boolean
+  initialQuery: AnalyticsQuery
+  initialReport: AnalyticsReportId
 }
 
 export default function AnalyticsClient({
   restaurantId,
   restaurantName,
-  kpis,
+  rangeKpis,
+  liveActiveOrders,
   topItems,
   salesOverTime,
   heatmapData,
@@ -47,13 +53,18 @@ export default function AnalyticsClient({
   productReport,
   isOwner,
   hasAdvancedAnalytics,
+  initialQuery,
+  initialReport,
 }: Props) {
   const reports = useAnalyticsReports({
     restaurantId,
     isOwner,
     hasAdvancedAnalytics,
+    initialQuery,
+    initialReport,
     initialData: {
       salesOverTime,
+      rangeKpis,
       heatmapData,
       tableStats,
       topItems,
@@ -64,7 +75,7 @@ export default function AnalyticsClient({
 
   function handleExport() {
     if (!reports.canExport) return
-    const built = buildAnalyticsReportCsv(reports.activeReport, reports.range, kpis, reports.analyticsData)
+    const built = buildAnalyticsReportCsv(reports.activeReport, reports.query, reports.analyticsData)
     if (!built) return
     downloadAnalyticsCsv(built.filename, built.csv)
   }
@@ -74,6 +85,7 @@ export default function AnalyticsClient({
       restaurantName={restaurantName}
       activeReport={reports.activeReport}
       range={reports.range}
+      query={reports.query}
       isOwner={isOwner}
       hasAdvancedAnalytics={hasAdvancedAnalytics}
       isPending={reports.isPending}
@@ -82,32 +94,34 @@ export default function AnalyticsClient({
       loadError={reports.loadError}
       onReportChange={reports.changeReport}
       onRangeChange={reports.changeRange}
+      onQueryChange={reports.changeQuery}
       onRetry={reports.retry}
       onExport={handleExport}
     >
       {reports.activeReport === 'sales' && reports.activeReportLoaded && (
         <AnalyticsSalesReport
-          kpis={kpis}
+          rangeKpis={reports.analyticsData.rangeKpis}
+          liveActiveOrders={liveActiveOrders}
           topItems={reports.analyticsData.topItems}
           salesOverTime={reports.analyticsData.salesOverTime}
           heatmapData={reports.analyticsData.heatmapData}
           paymentBreakdown={reports.analyticsData.paymentBreakdown}
-          range={reports.range}
+          query={reports.query}
         />
       )}
-      {reports.activeReport === 'items' && reports.activeReportLoaded && <AnalyticsItemsReport items={reports.analyticsData.productReport} range={reports.range} />}
-      {reports.activeReport === 'tables' && reports.activeReportLoaded && <AnalyticsTablesReport tables={reports.analyticsData.tableStats} range={reports.range} />}
-      {reports.activeReport === 'payments' && reports.activeReportLoaded && <AnalyticsPaymentsReport paymentBreakdown={reports.analyticsData.paymentBreakdown} range={reports.range} />}
+      {reports.activeReport === 'items' && reports.activeReportLoaded && <AnalyticsItemsReport items={reports.analyticsData.productReport} query={reports.query} />}
+      {reports.activeReport === 'tables' && reports.activeReportLoaded && <AnalyticsTablesReport tables={reports.analyticsData.tableStats} query={reports.query} />}
+      {reports.activeReport === 'payments' && reports.activeReportLoaded && <AnalyticsPaymentsReport paymentBreakdown={reports.analyticsData.paymentBreakdown} query={reports.query} />}
       {reports.activeReport === 'operasyon' && reports.activeReportLoaded && reports.analyticsData.cancellations && reports.analyticsData.abnormalCloses && reports.analyticsData.staffSettlement && (
         <AnalyticsOperationsReport
           cancellations={reports.analyticsData.cancellations}
           abnormalCloses={reports.analyticsData.abnormalCloses}
           staffSettlement={reports.analyticsData.staffSettlement}
-          range={reports.range}
+          query={reports.query}
         />
       )}
       {reports.activeReport === 'sadakat' && reports.activeReportLoaded && reports.analyticsData.loyalty && (
-        <AnalyticsLoyaltyReport loyalty={reports.analyticsData.loyalty} range={reports.range} />
+        <AnalyticsLoyaltyReport loyalty={reports.analyticsData.loyalty} query={reports.query} />
       )}
     </AnalyticsReportShell>
   )

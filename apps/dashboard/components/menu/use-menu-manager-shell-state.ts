@@ -24,6 +24,7 @@ export function useMenuManagerShellState({
   const [itemEditDirty, setItemEditDirty] = useState(false)
   const [pendingEditorExit, setPendingEditorExit] = useState<(() => void) | null>(null)
   const [showAddItem, setShowAddItem] = useState(false)
+  const [categoryAddRequest, setCategoryAddRequest] = useState(0)
   const [search, setSearch] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
@@ -115,6 +116,32 @@ export function useMenuManagerShellState({
     setSelectedItem(item)
   }
 
+  function requestAddCategory() {
+    setCategoryAddRequest((current) => current + 1)
+  }
+
+  function requestAddItem() {
+    const targetCategoryId = activeSubCategory
+      ?? activeCategory
+      ?? categories.find((category) => !category.parent_id)?.id
+      ?? categories[0]?.id
+
+    if (!targetCategoryId) {
+      requestAddCategory()
+      return
+    }
+
+    const targetCategory = categories.find((category) => category.id === targetCategoryId)
+    if (targetCategory?.parent_id) {
+      setActiveCategory(targetCategory.parent_id)
+      setActiveSubCategory(targetCategory.id)
+    } else {
+      setActiveCategory(targetCategoryId)
+      setActiveSubCategory(null)
+    }
+    setShowAddItem(true)
+  }
+
   function closeItemEditor() {
     requestEditorExit(() => setSelectedItem(null))
   }
@@ -151,6 +178,7 @@ export function useMenuManagerShellState({
     pendingEditorExit,
     showAddItem,
     setShowAddItem,
+    categoryAddRequest,
     search,
     setSearch,
     searchFocused,
@@ -171,6 +199,8 @@ export function useMenuManagerShellState({
     saveItem,
     removeItem,
     createItem,
+    requestAddCategory,
+    requestAddItem,
     closeItemEditor,
     keepEditing,
     discardPendingChanges,

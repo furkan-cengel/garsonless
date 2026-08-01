@@ -9,8 +9,9 @@ import type { StoreInfo } from '../themes/types'
 import { formatTRY } from './formatCurrency'
 import type { ServiceRequestType } from '@garsonless/domain/tables'
 import { useTheme } from './ThemeContext'
+import { MenuMorphIcon } from './MenuMorphIcon'
 
-export const DRAWER_SECTION_IDS = new Set(['hours', 'wifi-info', 'request-buttons'])
+const DRAWER_SECTION_IDS = new Set(['hours', 'wifi-info', 'request-buttons'])
 
 type CategoryMeta = Record<string, { itemCount?: number }>
 
@@ -30,7 +31,11 @@ interface NavDrawerProps {
   onCategorySelect?: ((categoryId: string) => void) | undefined
   cartSummary?: { count: number; subtotal: number } | undefined
   onOpenCart?: (() => void) | undefined
-  memberSummary?: { name: string | null } | null | undefined
+  memberSummary?: {
+    name: string | null
+    stampEnabled?: boolean
+    pointsEnabled?: boolean
+  } | null | undefined
   onOpenMember?: (() => void) | undefined
   onServiceRequest?: ((type: ServiceRequestType) => Promise<boolean>) | undefined
   onOpenServiceRequests?: (() => void) | undefined
@@ -62,8 +67,10 @@ export function NavDrawer({
   editorExpandedSectionId,
 }: NavDrawerProps) {
   const { theme, logoUrl } = useTheme()
+  const drawerPosition = theme.drawerPosition ?? 'full'
   const drawerRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
   const [query, setQuery] = useState('')
   const [activeCategoryId, setActiveCategoryId] = useState(categories[0]?.id ?? '')
   const [expandedInfoId, setExpandedInfoId] = useState<string | null>(null)
@@ -98,6 +105,9 @@ export function NavDrawer({
     : tableId
       ? `Masa ${tableId.slice(0, 4).toUpperCase()}`
       : null
+  const memberIsMember = Boolean(memberSummary && (
+    memberSummary.stampEnabled !== undefined || memberSummary.pointsEnabled !== undefined
+  ))
 
   useEffect(() => {
     onCloseRef.current = onClose
@@ -105,13 +115,21 @@ export function NavDrawer({
 
   useEffect(() => {
     if (!open) return
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    drawerRef.current?.focus()
+    const frame = window.requestAnimationFrame(() => {
+      const firstControl = drawerRef.current?.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), a[href]')
+      ;(firstControl ?? drawerRef.current)?.focus()
+    })
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCloseRef.current()
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
       if (event.key === 'Tab' && drawerRef.current) {
-        const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), [tabindex="0"]'))
+        const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])'))
         const first = focusable[0]
         const last = focusable[focusable.length - 1]
         if (!first || !last) return
@@ -121,8 +139,12 @@ export function NavDrawer({
     }
     document.addEventListener('keydown', onKeyDown)
     return () => {
+      window.cancelAnimationFrame(frame)
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', onKeyDown)
+      const target = returnFocusRef.current
+      if (target?.isConnected) target.focus()
+      else document.querySelector<HTMLElement>('[aria-label="Menüyü aç"]')?.focus()
     }
     // Only an actual open transition may claim focus. Theme editor keystrokes
     // rerender the iframe and can change callback identity without reopening it.
@@ -196,12 +218,13 @@ export function NavDrawer({
 
   return (
     <>
-      <div data-nav-drawer-scrim aria-hidden="true" onClick={onClose} data-open={open} data-position={theme.drawerPosition ?? 'full'} style={drawerStyle} />
+      <div data-nav-drawer-scrim aria-hidden="true" onClick={onClose} data-open={open} data-position={drawerPosition} style={drawerStyle} />
       <div
+        id="menu-nav-drawer"
         ref={drawerRef}
         data-nav-drawer
         data-open={open}
-        data-position={theme.drawerPosition ?? 'full'}
+        data-position={drawerPosition}
         data-side={theme.drawerSide ?? 'left'}
         data-tone={theme.drawerTone ?? 'brand'}
         data-preset={theme.drawerPreset ?? 'modern'}
@@ -221,12 +244,16 @@ export function NavDrawer({
       >
         <header data-drawer-header data-visible={theme.drawerShowBrand ?? true}>
           <div data-drawer-brand>
+            {drawerPosition === 'full' && (
+              <button data-drawer-toggle type="button" aria-label="Menüyü kapat" onClick={onClose}>
+                <MenuMorphIcon open={open} size={21} />
+              </button>
+            )}
             <span data-drawer-mark aria-hidden="true">{logoUrl ? <img src={logoUrl} alt="" /> : restaurantName.trim().charAt(0).toLocaleUpperCase('tr-TR') || 'M'}</span>
             <div>
               <h2>{restaurantName}</h2>
               {(theme.drawerShowStatus ?? true) && <span><i /> {todayHours(storeInfo)}</span>}
             </div>
-            <button type="button" aria-label="Menüyü kapat" onClick={onClose}><I.close size={18} /></button>
           </div>
           {(theme.drawerShowTable ?? true) && tableLabel && (
             drawerBillEnabled ? (
@@ -303,7 +330,12 @@ export function NavDrawer({
           <footer data-drawer-footer>
             <div data-customer-links>
               {placements.member === 'drawer' && onOpenMember && (
-                <button type="button" onClick={() => { onClose(); onOpenMember() }}><I.user size={17} />{memberSummary?.name || 'Üye ol'}</button>
+                <button type="button" onClick={() => { onClose(); onOpenMember() }}>
+                  {memberIsMember
+                    ? <I.userCircle size={18} strokeWidth={1.9} />
+                    : <I.userPlus size={18} strokeWidth={1.9} />}
+                  {memberSummary?.name || (memberIsMember ? 'Üyelik' : 'Üye ol')}
+                </button>
               )}
               {placements.cart === 'drawer' && onOpenCart && (
                 <button type="button" onClick={() => { onClose(); onOpenCart() }}><I.cart size={17} />Sepet{cartSummary?.count ? ` · ${cartSummary.count}` : ''}</button>
@@ -383,13 +415,13 @@ const NAV_DRAWER_CSS = `
 [data-nav-drawer][data-tone="surface"] [data-drawer-table]{color:var(--p-text);border-color:var(--p-border);background:var(--p-bg)}
 [data-nav-drawer][data-tone="dark"] [data-drawer-header]{background:#17191d;color:#fff}
 [data-drawer-brand]{display:flex;align-items:center;gap:12px}
-[data-drawer-mark]{width:46px;height:46px;border-radius:14px;background:#fff;color:var(--p-accent);display:grid;place-items:center;font:700 21px var(--p-display);flex:0 0 auto}
+[data-drawer-mark]{width:46px;height:46px;border-radius:14px;background:#fff;color:var(--p-accent);display:grid;place-items:center;font:700 21px var(--p-body);flex:0 0 auto}
 [data-drawer-mark] img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
 [data-drawer-brand]>div{flex:1;min-width:0}
-[data-drawer-brand] h2{margin:0;font:700 19px/1.15 var(--p-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-drawer-brand] h2{margin:0;font:700 19px/1.15 var(--p-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 [data-drawer-brand] div span{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:11.5px;color:rgba(255,255,255,.74)}
 [data-drawer-brand] div i{width:6px;height:6px;border-radius:50%;background:var(--p-cta);box-shadow:0 0 0 3px color-mix(in srgb,var(--p-cta) 30%,transparent)}
-[data-drawer-brand]>button{width:34px;height:34px;border:0;border-radius:10px;background:rgba(255,255,255,.13);color:#fff;display:grid;place-items:center;cursor:pointer}
+[data-drawer-brand]>button{width:44px;height:44px;border:0;border-radius:999px;background:rgba(255,255,255,.13);color:#fff;display:grid;place-items:center;cursor:pointer;flex:0 0 auto}
 [data-drawer-table]{width:100%;margin-top:15px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.1);color:#fff;display:flex;align-items:center;gap:10px;text-align:left;font-family:inherit;cursor:pointer}
 [data-drawer-table][data-static="true"]{cursor:default}
 [data-table-icon]{width:34px;height:34px;border-radius:10px;background:var(--p-cta);display:grid;place-items:center;flex:0 0 auto}

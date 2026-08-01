@@ -283,12 +283,10 @@ const infoPreviewEmptyStyle = { margin: '12px 0 0', padding: '11px 12px', border
 export function InfoBlockSection({
   sectionId,
   config,
-  restaurantName,
   storeInfo,
 }: {
   sectionId: string
   config: Record<string, string>
-  restaurantName: string
   storeInfo?: StoreInfo | null
 }) {
   const { text } = makeReaders(config)
@@ -301,8 +299,6 @@ export function InfoBlockSection({
     'waiter-call': 'Garson Çağır',
     'wifi-info': 'Wi-Fi Bilgisi',
     'bill-summary': 'Hesap Özeti',
-    'social-block': 'Sosyal Medya',
-    footer: restaurantName,
   }
   const realBody = readRealInfoBody(sectionId, storeInfo)
   return (
@@ -337,29 +333,6 @@ function readRealInfoBody(sectionId: string, storeInfo?: StoreInfo | null): stri
       })
       .filter((line): line is string => Boolean(line))
     return lines.length ? lines.join('\n') : 'Çalışma saatleri henüz eklenmedi.'
-  }
-
-  const contact = storeInfo.contact
-  if (!contact) return null
-  if (sectionId === 'social-block') {
-    const socials = [
-      contact.instagram ? `Instagram: ${contact.instagram}` : null,
-      contact.facebook ? `Facebook: ${contact.facebook}` : null,
-      contact.tiktok ? `TikTok: ${contact.tiktok}` : null,
-      contact.whatsapp ? `WhatsApp: ${contact.whatsapp}` : null,
-    ].filter((line): line is string => Boolean(line))
-    return socials.length ? socials.join('\n') : 'Sosyal medya bilgisi henüz eklenmedi.'
-  }
-
-  if (sectionId === 'footer') {
-    const address = [contact.address, contact.district, contact.city, contact.zip].filter(Boolean).join(', ')
-    const lines = [
-      address || null,
-      contact.phone ? `Tel: ${contact.phone}` : null,
-      contact.email ? `E-posta: ${contact.email}` : null,
-      contact.website ? `Web: ${contact.website}` : null,
-    ].filter((line): line is string => Boolean(line))
-    return lines.length ? lines.join('\n') : 'İletişim bilgisi henüz eklenmedi.'
   }
 
   return null

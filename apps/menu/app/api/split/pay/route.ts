@@ -55,12 +55,7 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ pay
       createSplitPaymentPort(),
     )
     if (!released.ok) {
-      console.warn(JSON.stringify({
-        event: 'payment.split_reservation.release_failed',
-        restaurantId,
-        shareId,
-        error: released.error,
-      }))
+      console.warn(JSON.stringify({ event: 'payment.split_reservation.release_failed' }))
     }
   }
 
@@ -101,9 +96,11 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ pay
       )
     }
     return NextResponse.json({ success: true, data: { ...result, amount: charge } })
-  } catch (err) {
+  } catch {
     await releaseReservation()
-    const msg = err instanceof Error ? err.message : 'Payment initialization failed'
-    return NextResponse.json({ success: false, error: msg }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: 'Ödeme sağlayıcısına güvenli biçimde ulaşılamadı. Lütfen tekrar deneyin.' },
+      { status: 503 },
+    )
   }
 }

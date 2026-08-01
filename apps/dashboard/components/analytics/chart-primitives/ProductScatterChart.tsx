@@ -6,6 +6,7 @@ import ChartFrame from './ChartFrame'
 import ChartTooltip, { type RechartsPayloadItem } from './ChartTooltip'
 import { axisTick, gridProps, bareAxis, tooltipWrapperStyle } from './axis'
 import { money, percent, count } from './format'
+import AccessibleChartData from './AccessibleChartData'
 
 const ABC_COLOR: Record<ProductReportItem['abcClass'], string> = {
   A: 'var(--chart-abc-a)',
@@ -39,7 +40,12 @@ export default function ProductScatterChart({ items }: { items: ProductReportIte
   return (
     <div style={{ padding: 8 }}>
       <ChartFrame height={272} isEmpty={items.length === 0} emptyText="Bu aralıkta ürün verisi yok">
-        <ScatterChart margin={{ top: 16, right: 24, bottom: 24, left: 12 }}>
+        <ScatterChart
+          margin={{ top: 16, right: 24, bottom: 24, left: 12 }}
+          role="img"
+          aria-label="Ürün hacmi ve tahsilat payı dağılım grafiği"
+          accessibilityLayer
+        >
           <CartesianGrid {...gridProps} />
           <XAxis
             type="number" dataKey="count" name="Hacim" {...bareAxis} tick={axisTick}
@@ -66,6 +72,26 @@ export default function ProductScatterChart({ items }: { items: ProductReportIte
           </Scatter>
         </ScatterChart>
       </ChartFrame>
+      {plot.length > 0 && (
+        <AccessibleChartData
+          caption="Ürün hacmi ve tahsilat payı"
+          summary={`${plot.length} ürün hacim, tahsilat payı, tutar ve ABC sınıfına göre karşılaştırılıyor.`}
+          columns={[
+            { key: 'name', label: 'Ürün' },
+            { key: 'count', label: 'Adet', align: 'right' },
+            { key: 'share', label: 'Tahsilat payı', align: 'right' },
+            { key: 'revenue', label: 'Tutar', align: 'right' },
+            { key: 'abcClass', label: 'Sınıf' },
+          ]}
+          rows={plot.map((item) => ({
+            name: item.name,
+            count: count(item.count),
+            share: percent(item.sharePct),
+            revenue: money(item.revenue),
+            abcClass: item.abcClass,
+          }))}
+        />
+      )}
     </div>
   )
 }

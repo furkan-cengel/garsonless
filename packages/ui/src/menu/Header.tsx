@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getSectionDefinitionId, resolveMenuActionPlacements, type GarsonlessTheme } from '@garsonless/design-engine'
 import { useTheme } from './ThemeContext'
-import { AnnouncementBar } from './AnnouncementBar'
 import { formatTRY } from './formatCurrency'
 import { ML_STAMP_POP_KEYFRAME } from './keyframes'
 import type { MenuCategory } from './types'
@@ -11,6 +10,7 @@ import type { StoreInfo } from '../themes/types'
 import { NavDrawer } from './NavDrawer'
 import type { ServiceRequestType } from '@garsonless/domain/tables'
 import { AppIcons as I } from '../icons'
+import { MenuMorphIcon } from './MenuMorphIcon'
 
 const HEADER_RESPONSIVE_CSS = `
 ${ML_STAMP_POP_KEYFRAME}
@@ -26,6 +26,12 @@ ${ML_STAMP_POP_KEYFRAME}
       min-width:44px !important;
       padding-inline:0 !important;
       justify-content:center;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-menu-morph-icon] line {
+      transition-duration: .01ms !important;
+      transition-delay: 0ms !important;
     }
   }
 `
@@ -120,8 +126,10 @@ export function Header({ tableId, tableName, categories, categoryMeta, onCategor
   const menuButton = theme.headerShowMenu ? (
     <button
       type="button"
-      aria-label="Menüyü aç"
-      onClick={() => setMenuOpen(true)}
+      aria-label={menuOpen ? 'Menüyü kapat' : 'Menüyü aç'}
+      aria-expanded={menuOpen}
+      aria-controls="menu-nav-drawer"
+      onClick={() => setMenuOpen((current) => !current)}
       style={{
         width: 44,
         height: 44,
@@ -138,7 +146,7 @@ export function Header({ tableId, tableName, categories, categoryMeta, onCategor
         alignSelf: 'center',
       }}
     >
-      <HamburgerIcon />
+      <MenuMorphIcon open={menuOpen} size={21} />
     </button>
   ) : <span aria-hidden="true" />
   const billChip = hasBillChip ? (
@@ -210,7 +218,8 @@ export function Header({ tableId, tableName, categories, categoryMeta, onCategor
           border: 'none', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
         }}
       >
-        {!isMember && <MemberIcon />}
+        {!isMember && <I.userPlus size={17} strokeWidth={1.9} />}
+        {isMember && !memberShowStamp && <I.userCircle size={17} strokeWidth={1.9} />}
         {memberShowStamp && <StampRing stamps={memberStamps!} goal={memberStampGoal} pop={stampPop} />}
         {isMember && memberSummary.tierColor && (
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: memberSummary.tierColor, flexShrink: 0 }} />
@@ -384,7 +393,6 @@ export function Header({ tableId, tableName, categories, categoryMeta, onCategor
 
   return (
     <>
-      <AnnouncementBar />
       <header
         ref={headerRef}
         data-component="header"
@@ -536,7 +544,7 @@ function Logo({ theme, restaurantName, logoUrl, compact = false, crowded = false
   }
   return (
     <div title={restaurantName} aria-label={restaurantName} style={{
-      fontFamily: 'var(--p-display)',
+      fontFamily: 'var(--p-body)',
       fontSize: textSize + 'px',
       fontWeight: 700,
       color: 'var(--p-accent)',
@@ -599,16 +607,6 @@ function formatHeaderMoney(value: number) {
   return `₺${value.toLocaleString('tr-TR')}`
 }
 
-function HamburgerIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-      <line x1="4" y1="7" x2="20" y2="7" />
-      <line x1="4" y1="12" x2="20" y2="12" />
-      <line x1="4" y1="17" x2="20" y2="17" />
-    </svg>
-  )
-}
-
 /** 22px stamp-progress ring. Purely decorative (aria-hidden) — the chip text
  * carries the real count. Arc rotation lives on the circle (SVG attribute) so
  * the pop animation's transform on the svg can't knock the start point off. */
@@ -630,15 +628,6 @@ function StampRing({ stamps, goal, pop }: { stamps: number; goal: number; pop: n
         cx="11" cy="11" r={R} fill="none" stroke="currentColor" strokeWidth="2.5"
         strokeLinecap="round" strokeDasharray={`${C * frac} ${C}`} transform="rotate(-90 11 11)"
       />
-    </svg>
-  )
-}
-
-function MemberIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" width={14} height={14}>
-      <circle cx="12" cy="8" r="3.2" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 19a6.5 6.5 0 0 1 13 0" />
     </svg>
   )
 }

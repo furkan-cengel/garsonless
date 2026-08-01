@@ -211,3 +211,32 @@ test('reads canonical and legacy order lines without changing snapshots', () => 
   assert.equal(parsed[1]?.vatIncluded, true)
   assert.equal(parsed[1]?.station, null)
 })
+
+test('normalizes product notes and keeps recommendation attribution in snapshots', () => {
+  const built = buildOrderLineSnapshot({
+    item: menuItem,
+    quantity: 1,
+    selections: [{ group_id: 'size', option_id: 'small' }],
+    removedIngredientIds: [],
+    productNote: '  Az pişmiş\r\nLütfen  ',
+    recommendationSourceItemId: 'source-item',
+  })
+  assert.equal(built.ok, true)
+  if (!built.ok) return
+  assert.equal(built.snapshot.productNote, 'Az pişmiş\nLütfen')
+  assert.equal(built.snapshot.recommendationSourceItemId, 'source-item')
+  const restored = readOrderLineSnapshots([JSON.parse(JSON.stringify(built.snapshot))])[0]
+  assert.equal(restored?.productNote, 'Az pişmiş\nLütfen')
+  assert.equal(restored?.recommendationSourceItemId, 'source-item')
+})
+
+test('rejects product notes longer than 500 characters', () => {
+  const built = buildOrderLineSnapshot({
+    item: menuItem,
+    quantity: 1,
+    selections: [{ group_id: 'size', option_id: 'small' }],
+    removedIngredientIds: [],
+    productNote: 'a'.repeat(501),
+  })
+  assert.deepEqual(built, { ok: false, error: 'Ürün notu en fazla 500 karakter olabilir.' })
+})

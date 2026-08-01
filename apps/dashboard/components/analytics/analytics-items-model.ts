@@ -1,6 +1,6 @@
 import type { ProductReportItem } from '../../lib/queries/analytics'
 
-export type ProductClassTotals = Record<ProductReportItem['abcClass'], number>
+type ProductClassTotals = Record<ProductReportItem['abcClass'], number>
 
 export function projectProductReport(items: ProductReportItem[]) {
   return items.reduce(

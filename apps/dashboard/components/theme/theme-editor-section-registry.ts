@@ -14,11 +14,9 @@ export const SECTION_LIBRARY = [
   { id: 'request-buttons', group: 'Etkileşim', label: 'İstek Butonları', sub: 'Masadan ekibe iletilen özelleştirilebilir hızlı istekler', icon: 'bell', plan: 'pro', status: 'ready', singleton: true, global: true },
   { id: 'hours', group: 'Bağlam', label: 'Çalışma Saatleri', sub: 'İşletme ayarlarındaki güncel saatler', icon: 'clock', plan: 'free', status: 'ready' },
   { id: 'wifi-info', group: 'Etkileşim', label: 'Wi-Fi Bilgisi', sub: 'Menü çekmecesinde güvenli ağ paylaşımı', icon: 'globe', plan: 'free', status: 'ready' },
-  { id: 'social-block', group: 'Site Sonu', label: 'Sosyal Medya', sub: 'İşletme ayarlarındaki sosyal hesaplar', icon: 'arrow', plan: 'free', status: 'ready' },
-  { id: 'footer', group: 'Site Sonu', label: 'Footer', sub: 'Adres, iletişim ve marka sonu', icon: 'chevDown', plan: 'free', status: 'ready' },
 ] as const
 export const SECTION_LIBRARY_IDS = SECTION_LIBRARY.map((section) => section.id)
-export const SECTION_GROUPS = ['Tümü', 'Üst Bölümler', 'Ürün Gösterimi', 'Promosyon', 'Bağlam', 'Etkileşim', 'Site Sonu'] as const
+export const SECTION_GROUPS = ['Tümü', 'Üst Bölümler', 'Ürün Gösterimi', 'Promosyon', 'Bağlam', 'Etkileşim'] as const
 export const FOOD_ICON_OPTIONS = [
   { value: '🍳', label: 'Sahanda Yumurta' },
   { value: '🥚', label: 'Haşlama' },
@@ -95,7 +93,7 @@ export const FOOD_ICON_OPTIONS = [
   { value: '🍿', label: 'Mısır' },
   { value: '🍢', label: 'Şiş' },
 ]
-export const SERVICE_REQUEST_ICON_OPTIONS = [
+const SERVICE_REQUEST_ICON_OPTIONS = [
   { value: 'bell', label: 'Zil' },
   { value: 'spray', label: 'Temizlik' },
   { value: 'cigarette', label: 'Küllük' },

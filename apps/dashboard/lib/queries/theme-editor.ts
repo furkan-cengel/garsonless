@@ -2,13 +2,8 @@ import { cache } from 'react'
 import { readThemeMenuReferences } from '@garsonless/application/themes'
 import {
   createThemeMenuReferenceReadModelPort,
-  type ThemeEditorCategoryRow,
-  type ThemeEditorItemRow,
 } from '@garsonless/db/server'
 import { getDashboardFeatureContext } from './context'
-
-export type ThemeEditorCategory = ThemeEditorCategoryRow
-export type ThemeEditorItem = ThemeEditorItemRow
 
 const themeMenuReadModel = createThemeMenuReferenceReadModelPort()
 

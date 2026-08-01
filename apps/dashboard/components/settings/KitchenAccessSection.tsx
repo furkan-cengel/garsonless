@@ -55,8 +55,8 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
         setStations((prev) => [...prev, result.station].sort((a, b) => a.position - b.position))
         setStationName('')
         notifySettingsSaved()
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'İstasyon eklenemedi')
+      } catch {
+        setError('İstasyon eklenemedi')
       }
     })
   }
@@ -84,9 +84,9 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
         }
         setStations((prev) => prev.map((station) => station.id === id ? result.station : station).sort((a, b) => a.position - b.position))
         notifySettingsSaved()
-      } catch (err) {
+      } catch {
         setStations((prev) => prev.map((station) => station.id === id ? current : station))
-        setError(err instanceof Error ? err.message : 'İstasyon güncellenemedi')
+        setError('İstasyon güncellenemedi')
       }
     })
   }
@@ -114,8 +114,8 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
           return
         }
         notifySettingsSaved()
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'İstasyon sırası kaydedilemedi')
+      } catch {
+        setError('İstasyon sırası kaydedilemedi')
         setStations(snapshot)
       }
     })
@@ -138,7 +138,7 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
       )}
 
       {error && (
-        <p style={{ fontSize: 12.5, color: 'var(--critical)', marginBottom: 12 }}>{error}</p>
+        <p role="alert" style={{ fontSize: 12.5, color: 'var(--critical)', marginBottom: 12 }}>{error}</p>
       )}
 
       {!canUseKitchenDisplay && (
@@ -224,6 +224,7 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
 
         <form onSubmit={handleCreateStation} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, marginBottom: 14 }}>
           <input
+            aria-label="Yeni istasyon adı"
             value={stationName}
             onChange={(event) => setStationName(event.target.value)}
             placeholder="Yeni istasyon adı"
@@ -234,6 +235,7 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
             }}
           />
           <select
+            aria-label="Yeni istasyon rengi"
             value={stationColor}
             onChange={(event) => setStationColor(event.target.value)}
             style={{
@@ -271,6 +273,7 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
             }}>
               <span style={{ width: 18, height: 18, borderRadius: 999, background: station.color, border: '1px solid var(--border)' }} />
               <input
+                aria-label={`${station.name} istasyon adı`}
                 value={station.name}
                 onChange={(event) => {
                   const name = event.target.value
@@ -293,11 +296,14 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
                 style={{ width: 36, height: 32, padding: 2, border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)' }}
               />
               <div style={{ display: 'flex', gap: 4 }}>
-                <button type="button" onClick={() => moveStation(station.id, -1)} disabled={stationPending || index === 0} style={miniButton(stationPending || index === 0)}>↑</button>
-                <button type="button" onClick={() => moveStation(station.id, 1)} disabled={stationPending || index === stations.length - 1} style={miniButton(stationPending || index === stations.length - 1)}>↓</button>
+                <button type="button" aria-label={`${station.name} istasyonunu yukarı taşı`} onClick={() => moveStation(station.id, -1)} disabled={stationPending || index === 0} style={miniButton(stationPending || index === 0)}>↑</button>
+                <button type="button" aria-label={`${station.name} istasyonunu aşağı taşı`} onClick={() => moveStation(station.id, 1)} disabled={stationPending || index === stations.length - 1} style={miniButton(stationPending || index === stations.length - 1)}>↓</button>
               </div>
               <button
                 type="button"
+                role="switch"
+                aria-checked={station.is_active}
+                aria-label={`${station.name} istasyonu ${station.is_active ? 'aktif' : 'pasif'}`}
                 onClick={() => patchStation(station.id, { is_active: !station.is_active })}
                 style={{
                   height: 30, padding: '0 10px', borderRadius: 999, border: 'none',

@@ -111,6 +111,7 @@ export async function startBillingCheckoutAction(
     const intent = {
       operation: 'checkout.initialize', restaurantId: gate.restaurantId,
       plan: parsed.data.plan, profile: parsed.data.profile,
+      providerPlanRef: config.plans[parsed.data.plan].referenceCode,
     }
     const result = await startSubscriptionCheckout(
       actor(gate.restaurantId, gate.userId),
@@ -119,6 +120,7 @@ export async function startBillingCheckoutAction(
         profile: parsed.data.profile,
         plan: parsed.data.plan,
         amount: { minor: config.plans[parsed.data.plan].amountMinor, currency: 'TRY' },
+        expectedProviderPlanRef: config.plans[parsed.data.plan].referenceCode,
         ...billingPeriod(new Date()),
         callbackUrl: billingCheckoutCallbackUrl(process.env['NEXT_PUBLIC_APP_URL']),
         idempotencyKey: `billing:checkout:${gate.restaurantId}:${parsed.data.requestId}`,

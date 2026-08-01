@@ -18,7 +18,7 @@ const ORDER_EVENT: DashboardInboxEvent = {
   restaurantId: 'rest-1',
   aggregateId: 'order-1',
   tableLabel: 'Masa 3',
-  payload: { total: 150 },
+  payload: { total: 150, source: 'customer' },
 }
 
 function makePort(overrides: Partial<DashboardInboxPort> & {
@@ -86,6 +86,19 @@ test('existing receipt short-circuits as duplicate without writes', async () => 
   assert.equal(result.value.duplicate, true)
   assert.equal(inserted.length, 0)
   assert.equal(receipts.length, 0)
+})
+
+test('staff-created order records a no-op receipt without notifying recipients', async () => {
+  let listed = 0
+  const { port, inserted, receipts } = makePort({
+    event: { ...ORDER_EVENT, payload: { ...ORDER_EVENT.payload, source: 'staff' } },
+    listRecipients: async () => { listed += 1; return ok([]) },
+  })
+  const result = await consumeDashboardInbox('evt-1', port)
+  assert.ok(result.ok)
+  assert.equal(listed, 0)
+  assert.equal(inserted.length, 0)
+  assert.deepEqual(receipts, ['evt-1'])
 })
 
 test('muted recipient is skipped but receipt still records', async () => {

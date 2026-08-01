@@ -70,6 +70,9 @@ export interface SubscriptionBillingProvider {
     idempotencyKey: string
   }): Promise<Result<{
     providerCheckoutRef: string
+    /** Exact provider plan reference used to initialize the hosted form. It is
+     * persisted with the operation so config changes cannot rebind callbacks. */
+    providerPlanRef: string
     checkoutContent: string
     expiresAt: string | null
   }>>
@@ -77,6 +80,8 @@ export interface SubscriptionBillingProvider {
   retrieveCheckout(input: {
     providerCheckoutRef: string
     idempotencyKey: string
+    /** Exact provider reference durably captured during hosted initialization. */
+    expectedProviderPlanRef: string
   }): Promise<Result<{
     providerCustomerRef: string
     providerSubscriptionRef: string
@@ -226,10 +231,16 @@ export interface SubscriptionBillingOperationsPort {
     operationId: string
     providerCheckoutRef: string
   }): Promise<Result<true>>
+  bindCheckoutProviderPlan(input: {
+    operationId: string
+    expectedProviderPlanRef: string
+  }): Promise<Result<true>>
   findCheckoutCallback(providerCheckoutRef: string): Promise<Result<{
     operationId: string
     restaurantId: string
     invoiceId: string
+    requestedPlan: Exclude<RestaurantPlan, 'free'>
+    expectedProviderPlanRef: string
   }>>
   finalizeCheckout(input: {
     operationId: string
@@ -571,6 +582,7 @@ export async function startSubscriptionCheckout(
     periodEnd: string
     dueAt: string
     callbackUrl: string
+    expectedProviderPlanRef: string
     idempotencyKey: string
     requestFingerprint: string
   },
@@ -587,6 +599,7 @@ export async function startSubscriptionCheckout(
   if (!['starter', 'pro', 'enterprise'].includes(input.plan)
     || !Number.isSafeInteger(input.amount.minor) || input.amount.minor <= 0
     || input.amount.currency !== 'TRY'
+    || !/^[\x21-\x7e]{1,200}$/.test(input.expectedProviderPlanRef)
     || !validTimestamp(input.periodStart) || !validTimestamp(input.periodEnd)
     || !validTimestamp(input.dueAt) || Date.parse(input.periodEnd) <= Date.parse(input.periodStart)) {
     return err('Billing checkout input is invalid')
@@ -605,6 +618,20 @@ export async function startSubscriptionCheckout(
       : err('Billing checkout operation is already in progress')
   }
 
+  const bound = await port.bindCheckoutProviderPlan({
+    operationId: prepared.value.operationId,
+    expectedProviderPlanRef: input.expectedProviderPlanRef,
+  })
+  if (!bound.ok) {
+    const marked = await port.markOperationForReconciliation({
+      operationId: prepared.value.operationId,
+      reason: bound.error,
+    })
+    return marked.ok
+      ? err('Billing checkout provider plan binding requires reconciliation')
+      : err('Billing checkout provider plan binding and reconciliation tracking failed')
+  }
+
   const checkout = await provider.createCheckout({
     customer: prepared.value.profile,
     invoiceId: prepared.value.invoiceId,
@@ -620,6 +647,15 @@ export async function startSubscriptionCheckout(
     })
     if (!marked.ok) return err('Billing checkout failed and reconciliation tracking failed')
     return checkout
+  }
+  if (checkout.value.providerPlanRef !== input.expectedProviderPlanRef) {
+    const marked = await port.markOperationForReconciliation({
+      operationId: prepared.value.operationId,
+      reason: 'Hosted checkout used an unexpected provider plan reference',
+    })
+    return marked.ok
+      ? err('Billing checkout provider plan mismatch')
+      : err('Billing checkout provider plan mismatch and reconciliation tracking failed')
   }
   const marked = await port.markCheckoutInitialized({
     operationId: prepared.value.operationId,
@@ -654,7 +690,10 @@ export async function completeSubscriptionCheckout(
   }
   const pending = await port.findCheckoutCallback(input.providerCheckoutRef)
   if (!pending.ok) return pending
-  const retrieved = await provider.retrieveCheckout(input)
+  const retrieved = await provider.retrieveCheckout({
+    ...input,
+    expectedProviderPlanRef: pending.value.expectedProviderPlanRef,
+  })
   if (!retrieved.ok) {
     const marked = await port.markOperationForReconciliation({
       operationId: pending.value.operationId,

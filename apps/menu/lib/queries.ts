@@ -1,3 +1,5 @@
+import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
 import { createClient } from '@garsonless/db/browser'
 import type { Tables } from '@garsonless/db/types'
 import type { MenuItem, MenuCategory } from '@garsonless/ui'
@@ -32,6 +34,16 @@ type PublicMenuItemRow = Pick<
   | 'position'
 >
 
+type PublicMenuCategoryRow = Pick<
+  Tables<'menu_categories'>,
+  'id' | 'restaurant_id' | 'name' | 'position' | 'is_visible' | 'image_url' | 'parent_id'
+>
+
+export type PublicRestaurant = Pick<
+  Tables<'restaurants'>,
+  'id' | 'name' | 'slug' | 'logo_url' | 'settings' | 'timezone'
+>
+
 function assertNoMenuQueryError(
   operation: string,
   error: { code?: string; message?: string } | null,
@@ -47,7 +59,7 @@ function assertNoMenuQueryError(
   throw new Error(`Menu data could not be loaded (${operation})`)
 }
 
-function mapCategory(row: Tables<'menu_categories'>): MenuCategory {
+function mapCategory(row: PublicMenuCategoryRow): MenuCategory {
   return {
     id: row.id,
     restaurant_id: row.restaurant_id,
@@ -59,7 +71,7 @@ function mapCategory(row: Tables<'menu_categories'>): MenuCategory {
   }
 }
 
-function mapMenuItem(row: PublicMenuItemRow): MenuItem {
+function mapMenuItem(row: PublicMenuItemRow, recommendedItemIds: string[] = []): MenuItem {
   return {
     id: row.id,
     category_id: row.category_id,
@@ -82,19 +94,29 @@ function mapMenuItem(row: PublicMenuItemRow): MenuItem {
     modifier_groups: normalizeModifierGroups(row.modifier_groups),
     is_available: row.is_available,
     position: row.position,
+    recommended_item_ids: recommendedItemIds,
   }
 }
 
-export async function getRestaurantBySlug(slug: string): Promise<Tables<'restaurants'> | null> {
+async function readRestaurantBySlug(
+  slug: string,
+): Promise<PublicRestaurant | null> {
   const supabase = createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('restaurants')
-    .select('*')
+    .select('id, name, slug, logo_url, settings, timezone')
     .eq('slug', slug)
     .is('deleted_at', null)
-    .single()
-  return data as Tables<'restaurants'> | null
+    .maybeSingle()
+  assertNoMenuQueryError('restaurants.select', error)
+  return data as PublicRestaurant | null
 }
+
+export const getRestaurantBySlug = cache((slug: string) => unstable_cache(
+  () => readRestaurantBySlug(slug),
+  ['public-menu-restaurant-v1', slug],
+  { revalidate: 60 },
+)())
 
 export interface TableSessionInfo {
   id: string
@@ -110,11 +132,11 @@ export interface SessionOrderRow {
   itemCount: number
 }
 
-export async function getMenuCategories(restaurantId: string): Promise<MenuCategory[]> {
+async function readMenuCategories(restaurantId: string): Promise<MenuCategory[]> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from('menu_categories')
-    .select('*')
+    .select('id, restaurant_id, name, position, is_visible, image_url, parent_id')
     .eq('restaurant_id', restaurantId)
     .eq('is_visible', true)
     .is('deleted_at', null)
@@ -123,7 +145,15 @@ export async function getMenuCategories(restaurantId: string): Promise<MenuCateg
   return (data ?? []).map(mapCategory)
 }
 
-export async function getMenuItems(categoryIds: string[]): Promise<MenuItem[]> {
+export function getMenuCategories(restaurantId: string): Promise<MenuCategory[]> {
+  return unstable_cache(
+    () => readMenuCategories(restaurantId),
+    ['public-menu-categories-v1', restaurantId],
+    { revalidate: 300, tags: [`menu:${restaurantId}`] },
+  )()
+}
+
+async function readMenuItems(categoryIds: string[]): Promise<MenuItem[]> {
   if (categoryIds.length === 0) return []
   const supabase = createClient()
   const { data, error } = await supabase
@@ -156,5 +186,34 @@ export async function getMenuItems(categoryIds: string[]): Promise<MenuItem[]> {
     .is('deleted_at', null)
     .order('position')
   assertNoMenuQueryError('menu_items.select', error)
-  return (data ?? []).map(mapMenuItem)
+  const rows = (data ?? []) as PublicMenuItemRow[]
+  const itemIds = rows.map((row) => row.id)
+  const recommendationIdsBySource = new Map<string, string[]>()
+  if (itemIds.length > 0) {
+    const { data: recommendations, error: recommendationError } = await supabase
+      .from('menu_item_recommendations')
+      .select('source_item_id, recommended_item_id, position')
+      .in('source_item_id', itemIds)
+      .order('position')
+    if (recommendationError?.code !== 'PGRST205') {
+      assertNoMenuQueryError('menu_item_recommendations.select', recommendationError)
+    }
+    for (const recommendation of recommendations ?? []) {
+      const ids = recommendationIdsBySource.get(recommendation.source_item_id) ?? []
+      ids.push(recommendation.recommended_item_id)
+      recommendationIdsBySource.set(recommendation.source_item_id, ids)
+    }
+  }
+  return rows.map((row) => mapMenuItem(row, recommendationIdsBySource.get(row.id) ?? []))
+}
+
+export function getMenuItems(
+  restaurantId: string,
+  categoryIds: string[],
+): Promise<MenuItem[]> {
+  return unstable_cache(
+    () => readMenuItems(categoryIds),
+    ['public-menu-items-v1', restaurantId, ...categoryIds],
+    { revalidate: 300, tags: [`menu:${restaurantId}`] },
+  )()
 }

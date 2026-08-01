@@ -5,53 +5,10 @@ import { getSalesOverTime } from '../queries/analytics'
 import { getRestaurantTimezone } from '../queries/insights-shared'
 import { getHourlySales, getPanoSnapshot, getTableStatuses } from '../queries/pano'
 import type { PanoSnapshot, TableStatusData } from '../queries/pano'
-import { readOrderLineSnapshots, restaurantHour } from '@garsonless/db/browser'
-import { readPanoTableDetail } from '@garsonless/application/read-models'
-import { createPanoTableDetailReadModelPort } from '@garsonless/db/server'
+import { restaurantHour } from '@garsonless/db/browser'
 import type { PanoChartData, PanoChartPoint, PanoChartRange } from '../pano-chart-model'
 
-export type { PanoChartData, PanoChartPoint, PanoChartRange } from '../pano-chart-model'
-
-export interface TableDetailItem {
-  id: string
-  name: string
-  quantity: number
-  unitPrice: number
-  total: number
-  modifiers: string[]
-  removedIngredients: string[]
-}
-
-export interface TableDetailOrder {
-  id: string
-  status: string
-  total: number
-  paidAt: string | null
-  paymentMethod: string | null
-  createdAt: string
-  items: TableDetailItem[]
-}
-
-export interface PanoTableDetail {
-  sessionId: string
-  openedAt: string
-  orders: TableDetailOrder[]
-}
-
-function readLineItems(orderId: string, value: unknown): TableDetailItem[] {
-  return readOrderLineSnapshots(value).map((line, index) => {
-    const unitPrice = line.price + line.modifiersPriceDelta
-    return {
-      id: `${orderId}-${index}`,
-      name: line.name,
-      quantity: line.quantity,
-      unitPrice,
-      total: unitPrice * line.quantity,
-      modifiers: line.modifiers.map((modifier) => modifier.optionName),
-      removedIngredients: line.removedIngredients.map((ingredient) => ingredient.name),
-    }
-  })
-}
+export type { PanoChartData, PanoChartRange } from '../pano-chart-model'
 
 export async function fetchPanoTableStatuses(
   restaurantId: string,
@@ -70,34 +27,6 @@ export async function fetchPanoSnapshot(
     return { snapshot: await getPanoSnapshot(restaurantId) }
   } catch {
     return { error: 'Pano verileri alınamadı.' }
-  }
-}
-
-export async function fetchPanoTableDetail(
-  restaurantId: string,
-  tableId: string,
-): Promise<{ error: string } | PanoTableDetail> {
-  const gate = await assertAccess(restaurantId, 'tables')
-  if ('error' in gate) return { error: gate.error }
-  const detail = await readPanoTableDetail(
-    { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['tables'] },
-    { restaurantId, tableId },
-    createPanoTableDetailReadModelPort(),
-  )
-  if (!detail.ok) return { error: detail.error }
-
-  return {
-    sessionId: detail.value.sessionId,
-    openedAt: detail.value.openedAt,
-    orders: detail.value.orders.map((row) => ({
-      id: row.id,
-      status: row.status,
-      total: row.total,
-      paidAt: row.paidAt,
-      paymentMethod: row.paymentMethod,
-      createdAt: row.createdAt,
-      items: readLineItems(row.id, row.items),
-    })),
   }
 }
 

@@ -51,12 +51,14 @@ export async function rotateActiveTableQrToken(input: {
   restaurantId: string
   tableId: string
   revokedBy: string
+  requestId: string
   reason?: string
 }): Promise<string | null> {
   const { data, error } = await rpc()('rotate_table_qr_token', {
     p_restaurant_id: input.restaurantId,
     p_table_id: input.tableId,
     p_revoked_by: input.revokedBy,
+    p_request_id: input.requestId,
     p_reason: input.reason ?? 'rotated',
   })
   if (error) throw new Error(error.message)
@@ -114,29 +116,39 @@ export function createPublicTableQueryPort(): PublicTableQueryPort {
         const resolved = await resolveActiveTableQrToken(input.token)
         if (!resolved) return ok(null)
         const service = createServiceClient()
-        const { data: session, error: sessionError } = await service
-          .from('table_sessions')
-          .select('id')
-          .eq('id', input.sessionId)
-          .eq('restaurant_id', resolved.restaurantId)
-          .eq('table_id', resolved.tableId)
-          .maybeSingle()
-        if (sessionError) return err(sessionError.message)
-        if (!session) return ok(null)
-
+        // `orders.session_id` is the guest device session sent at checkout.
+        // It is intentionally distinct from `orders.table_session_id`, which
+        // is created server-side by open_or_get_table_session.
         const { data, error } = await service
           .from('orders')
           .select('status, paid_at')
           .eq('id', input.orderId)
           .eq('session_id', input.sessionId)
           .eq('restaurant_id', resolved.restaurantId)
+          .eq('table_id', resolved.tableId)
           .is('deleted_at', null)
           .maybeSingle()
         if (error) return err(error.message)
-        return ok(data ? { status: data.status, paid_at: data.paid_at } : null)
+        if (data) return ok({ status: data.status, paid_at: data.paid_at })
+        const { data: transferredTable, error: transferError } = await service.rpc('resolve_guest_transfer', {
+          p_restaurant_id: resolved.restaurantId, p_source_table_id: resolved.tableId, p_guest_session_id: input.sessionId,
+        })
+        if (transferError || !transferredTable) return transferError ? err(transferError.message) : ok(null)
+        const { data: moved, error: movedError } = await service.from('orders').select('status, paid_at').eq('id', input.orderId).eq('session_id', input.sessionId).eq('restaurant_id', resolved.restaurantId).eq('table_id', transferredTable).is('deleted_at', null).maybeSingle()
+        if (movedError) return err(movedError.message)
+        return ok(moved ? { status: moved.status, paid_at: moved.paid_at } : null)
       } catch (error) {
         return err(error instanceof Error ? error.message : 'Sipariş durumu yüklenemedi.')
       }
     },
   }
+}
+
+export async function resolveTransferredGuestTable(input: { restaurantId: string; sourceTableId: string; guestSessionId: string }): Promise<string | null> {
+  const service = createServiceClient()
+  const { data, error } = await service.rpc('resolve_guest_transfer', {
+    p_restaurant_id: input.restaurantId, p_source_table_id: input.sourceTableId, p_guest_session_id: input.guestSessionId,
+  })
+  if (error) throw new Error(error.message)
+  return data
 }

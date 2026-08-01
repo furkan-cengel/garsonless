@@ -1,46 +1,65 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { DashboardKPIs } from '../../lib/queries/analytics'
 import { buildAnalyticsReportCsv, escapeAnalyticsCsvCell } from './analytics-report-export'
 import { createInitialAnalyticsData, type AnalyticsInitialData } from './analytics-report-model'
 
-const kpis: DashboardKPIs = {
-  revenue: 100,
-  revenueYesterday: 80,
-  orders: 2,
-  ordersYesterday: 1,
-  paidOrders: 2,
-  paidOrdersYesterday: 1,
-  activeOrders: 0,
-  avgBasket: 50,
-  sessions: 2,
-  sessionsYesterday: 1,
-}
-
 const initialData: AnalyticsInitialData = {
+  rangeKpis: {
+    revenue: 100, previousRevenue: 80, orders: 2, previousOrders: 1,
+    paidOrders: 2, previousPaidOrders: 1, avgBasket: 50, sessions: 2, previousSessions: 1,
+  },
   salesOverTime: [],
   heatmapData: [],
   tableStats: [],
   topItems: [{ name: '=HYPERLINK("https://invalid")', count: 1, revenue: 50 }],
-  paymentBreakdown: { collected: [], comp: { amount: 0, count: 0 }, collectedTotal: 0, collectedCount: 0 },
+  paymentBreakdown: {
+    collected: [], comp: { amount: 0, count: 0 }, collectedTotal: 0, collectedCount: 0,
+    financials: { grossSales: 0, discountTotal: 0, netSales: 0, vatTotal: 0, netOfVatTotal: 0, unknownVatGross: 0, unattributedAmount: 0 },
+    refunds: { total: 0, count: 0, fullCount: 0, partialCount: 0, netCollected: 0, byMethod: [] },
+    coverage: { monetaryRefunds: true, serviceFees: false, tips: false },
+  },
   productReport: [],
 }
 
-test('CSV cells neutralize spreadsheet formulas and quote structural characters', () => {
-  assert.equal(escapeAnalyticsCsvCell('=1+1'), "'=1+1")
+test('CSV cells neutralize ASCII, control-prefixed and full-width spreadsheet formulas', () => {
+  const vectors: Array<[string, string]> = [
+    ['=1+1', "'=1+1"],
+    [' +1', "' +1"],
+    ['\t-1', "'\t-1"],
+    ['\r=1', '"\'\r=1"'],
+    ['\n+1', '"\'\n+1"'],
+    ['\tlabel', "'\tlabel"],
+    [' \rlabel', '"\' \rlabel"'],
+    ['＝1＋1', "'＝1＋1"],
+    ['＋1', "'＋1"],
+    ['－1', "'－1"],
+    ['＠1', "'＠1"],
+  ]
+  for (const [input, expected] of vectors) {
+    assert.equal(escapeAnalyticsCsvCell(input), expected)
+  }
+})
+
+test('CSV cells quote structural characters and preserve UTF-8 text', () => {
   assert.equal(escapeAnalyticsCsvCell('a,b'), '"a,b"')
+  assert.equal(escapeAnalyticsCsvCell('Türk, "Kahve"'), '"Türk, ""Kahve"""')
+  assert.equal(escapeAnalyticsCsvCell('satır\nsonu'), '"satır\nsonu"')
+  assert.equal(escapeAnalyticsCsvCell('noktalı;virgül'), '"noktalı;virgül"')
   assert.equal(escapeAnalyticsCsvCell(null), '')
 })
 
 test('sales CSV keeps the active report filename and neutralizes product names', () => {
-  const result = buildAnalyticsReportCsv('sales', 'week', kpis, createInitialAnalyticsData(initialData))
+  const result = buildAnalyticsReportCsv('sales', 'week', createInitialAnalyticsData(initialData))
   assert.ok(result)
   assert.equal(result.filename, 'satis-raporu-7gun.csv')
+  assert.match(result.csv, /seçili dönem özeti \(Son 7 gün\)/)
+  assert.match(result.csv, /Tahsil edilen \(₺\),100,80/)
+  assert.doesNotMatch(result.csv, /günün özeti|Aktif sipariş/)
   assert.match(result.csv, /'=HYPERLINK/)
 })
 
 test('lazy reports cannot export before their complete payload exists', () => {
   const data = createInitialAnalyticsData(initialData)
-  assert.equal(buildAnalyticsReportCsv('operasyon', 'month', kpis, data), null)
-  assert.equal(buildAnalyticsReportCsv('sadakat', 'month', kpis, data), null)
+  assert.equal(buildAnalyticsReportCsv('operasyon', 'month', data), null)
+  assert.equal(buildAnalyticsReportCsv('sadakat', 'month', data), null)
 })

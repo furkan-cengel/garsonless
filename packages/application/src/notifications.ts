@@ -165,6 +165,13 @@ export async function consumeDashboardInbox(
   if (!loaded.value) return err('Dashboard inbox event not found or unsupported')
   const event = loaded.value
 
+  if (event.type === 'order.created' && event.payload['source'] !== 'customer') {
+    const recorded = await port.recordReceipt(eventId)
+    return recorded.ok
+      ? ok({ duplicate: false, recipients: 0, delivered: 0, muted: 0 })
+      : recorded
+  }
+
   const recipients = await port.listRecipients({
     restaurantId: event.restaurantId,
     section: inboxRecipientSection(event.type),

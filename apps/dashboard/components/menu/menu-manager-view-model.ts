@@ -9,6 +9,44 @@ interface MenuManagerViewInput {
   search: string
 }
 
+type MenuManagerEmptyAction = 'add-category' | 'add-item' | 'select-item'
+
+export interface MenuManagerEmptyState {
+  title: string
+  description: string
+  action: MenuManagerEmptyAction
+}
+
+export function deriveMenuManagerEmptyState({
+  categoryCount,
+  itemCount,
+}: {
+  categoryCount: number
+  itemCount: number
+}): MenuManagerEmptyState {
+  if (categoryCount === 0) {
+    return {
+      title: 'Menünü oluşturmaya başla',
+      description: 'Önce ürünlerini gruplayacağın bir kategori ekle.',
+      action: 'add-category',
+    }
+  }
+
+  if (itemCount === 0) {
+    return {
+      title: 'İlk ürününü ekle',
+      description: 'Kategorin hazır. Şimdi müşterilerinin göreceği ilk ürünü oluştur.',
+      action: 'add-item',
+    }
+  }
+
+  return {
+    title: 'Bir ürün seç',
+    description: 'Düzenlemek istediğin ürünü tıkla.',
+    action: 'select-item',
+  }
+}
+
 export function deriveMenuManagerView({
   categories,
   items,

@@ -1,11 +1,18 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { assertSmsConfig, getSmsProvider, __resetSmsProviderCacheForTests } from './sms'
+import {
+  assertSmsConfig,
+  getSmsDeliveryAvailability,
+  getSmsProvider,
+  __resetSmsProviderCacheForTests,
+} from './sms'
 
 // Env keys the SMS config guard reads. Snapshot → override → restore so tests
 // never leak env into each other (or into the wider db suite).
 const KEYS = [
   'NODE_ENV',
+  'SMS_DELIVERY_ENABLED',
+  'SMS_ALLOW_MOCK',
   'SMS_PROVIDER',
   'NETGSM_USERCODE',
   'NETGSM_PASSWORD',
@@ -41,74 +48,65 @@ const TWILIO_CREDS = { TWILIO_ACCOUNT_SID: 'AC', TWILIO_AUTH_TOKEN: 't', TWILIO_
 
 // ── assertSmsConfig ─────────────────────────────────────────────────────────
 
-test('assertSmsConfig: dev + mock is allowed (local dev must keep working)', () => {
-  withEnv({ NODE_ENV: 'development', SMS_PROVIDER: 'mock' }, () => {
+test('SMS delivery defaults to disabled and never resolves a provider', () => {
+  withEnv({ NODE_ENV: 'development' }, () => {
+    assert.deepEqual(getSmsDeliveryAvailability(), { enabled: false, provider: null, reason: 'disabled' })
+    assert.doesNotThrow(() => assertSmsConfig())
+    assert.throws(() => getSmsProvider(), /SMS gönderimi henüz etkin değil/)
+  })
+})
+
+test('enabled production delivery rejects mock even when the test escape hatch is set', () => {
+  withEnv({ NODE_ENV: 'production', SMS_DELIVERY_ENABLED: 'true', SMS_PROVIDER: 'mock', SMS_ALLOW_MOCK: 'true' }, () => {
+    assert.throws(() => assertSmsConfig(), /real provider is not configured/)
+    assert.throws(() => getSmsProvider(), /SMS gönderimi henüz etkin değil/)
+  })
+})
+
+test('enabled delivery with an unset provider fails closed', () => {
+  withEnv({ NODE_ENV: 'production', SMS_DELIVERY_ENABLED: 'true' }, () => {
+    assert.deepEqual(getSmsDeliveryAvailability(), { enabled: false, provider: null, reason: 'provider_missing' })
+    assert.throws(() => assertSmsConfig(), /real provider is not configured/)
+  })
+})
+
+test('enabled production netgsm with complete credentials is ready', () => {
+  withEnv({ NODE_ENV: 'production', SMS_DELIVERY_ENABLED: 'true', SMS_PROVIDER: 'netgsm', ...NETGSM_CREDS }, () => {
+    assert.deepEqual(getSmsDeliveryAvailability(), { enabled: true, provider: 'netgsm', reason: 'ready' })
     assert.doesNotThrow(() => assertSmsConfig())
   })
 })
 
-test('assertSmsConfig: PROD + mock THROWS (silent-outage killer)', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'mock' }, () => {
-    assert.throws(() => assertSmsConfig(), /mock provider under NODE_ENV=production/)
-  })
-})
-
-test('assertSmsConfig: PROD + SMS_PROVIDER unset THROWS (default must not silently apply)', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: undefined }, () => {
-    assert.throws(() => assertSmsConfig(), /mock provider under NODE_ENV=production/)
-  })
-})
-
-test('assertSmsConfig: PROD + netgsm + full creds does NOT throw', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'netgsm', ...NETGSM_CREDS }, () => {
-    assert.doesNotThrow(() => assertSmsConfig())
-  })
-})
-
-test('assertSmsConfig: PROD + netgsm missing NETGSM_MSGHEADER THROWS', () => {
+test('enabled netgsm with a missing credential fails closed', () => {
   withEnv(
-    { NODE_ENV: 'production', SMS_PROVIDER: 'netgsm', NETGSM_USERCODE: 'u', NETGSM_PASSWORD: 'p' },
+    { NODE_ENV: 'production', SMS_DELIVERY_ENABLED: 'true', SMS_PROVIDER: 'netgsm', NETGSM_USERCODE: 'u', NETGSM_PASSWORD: 'p' },
     () => {
       assert.throws(() => assertSmsConfig(), /NETGSM_MSGHEADER is not set/)
     },
   )
 })
 
-test('assertSmsConfig: PROD + twilio missing creds THROWS', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'twilio' }, () => {
+test('enabled twilio with missing credentials fails closed', () => {
+  withEnv({ NODE_ENV: 'production', SMS_DELIVERY_ENABLED: 'true', SMS_PROVIDER: 'twilio' }, () => {
     assert.throws(() => assertSmsConfig(), /SMS_PROVIDER=twilio but TWILIO_ACCOUNT_SID is not set/)
   })
 })
 
-test('assertSmsConfig: PROD + twilio + full creds does NOT throw', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'twilio', ...TWILIO_CREDS }, () => {
+test('enabled production twilio with complete credentials is ready', () => {
+  withEnv({ NODE_ENV: 'production', SMS_DELIVERY_ENABLED: 'true', SMS_PROVIDER: 'twilio', ...TWILIO_CREDS }, () => {
     assert.doesNotThrow(() => assertSmsConfig())
   })
 })
 
-test('assertSmsConfig: customer session secret is retired from SMS validation', () => {
-  withEnv({ NODE_ENV: 'development', SMS_PROVIDER: 'mock' }, () => {
-    assert.doesNotThrow(() => assertSmsConfig())
-  })
-})
-
-// ── getSmsProvider defense-in-depth ─────────────────────────────────────────
-
-test('getSmsProvider: PROD + mock THROWS (before returning any provider)', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'mock' }, () => {
-    assert.throws(() => getSmsProvider(), /mock provider under NODE_ENV=production/)
-  })
-})
-
-test('getSmsProvider: PROD + netgsm returns the netgsm provider (no throw)', () => {
-  withEnv({ NODE_ENV: 'production', SMS_PROVIDER: 'netgsm', ...NETGSM_CREDS }, () => {
+test('getSmsProvider returns a configured real provider only after activation', () => {
+  withEnv({ NODE_ENV: 'production', SMS_DELIVERY_ENABLED: 'true', SMS_PROVIDER: 'netgsm', ...NETGSM_CREDS }, () => {
     const provider = getSmsProvider()
     assert.equal(provider.name, 'netgsm')
   })
 })
 
-test('getSmsProvider: dev + mock returns the mock provider (happy path unchanged)', () => {
-  withEnv({ NODE_ENV: 'development', SMS_PROVIDER: 'mock' }, () => {
+test('hermetic mock requires both explicit activation and the non-production escape hatch', () => {
+  withEnv({ NODE_ENV: 'test', SMS_DELIVERY_ENABLED: 'true', SMS_PROVIDER: 'mock', SMS_ALLOW_MOCK: 'true' }, () => {
     const provider = getSmsProvider()
     assert.equal(provider.name, 'mock')
   })

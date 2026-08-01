@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { I, S, btnPrimary, btnGhost, IconButton } from '../../lib/ui'
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import { createOrderFromDashboard } from '../../lib/actions/orders'
@@ -12,6 +12,7 @@ import {
   type MenuModifierGroup,
   type SelectedMenuModifier,
 } from '@garsonless/db/browser'
+import { AccessibleDialog } from '../tables/AccessibleDialog'
 
 interface Props {
   restaurantId: string
@@ -55,24 +56,10 @@ export default function NewOrderModal({ restaurantId, tableStatuses, initialTabl
   const [menuError, setMenuError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const modalRef = useRef<HTMLDivElement>(null)
 
   const total = items.reduce((s, i) => s + (i.price + i.modifiersPriceDelta) * i.qty, 0)
   const selectedTable = tableStatuses.find(t => t.id === selectedTableId)
   const nextDisabled = (step === 1 && !selectedTableId) || (step === 2 && items.length === 0) || (step === 3 && items.length === 0) || submitting
-
-  useEffect(() => {
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    modalRef.current?.focus()
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-      previous?.focus()
-    }
-  }, [onClose])
 
   useEffect(() => {
     const supabase = createDashboardBrowserClient()
@@ -151,8 +138,9 @@ export default function NewOrderModal({ restaurantId, tableStatuses, initialTabl
   }
 
   return (
-    <div
-      onClick={onClose}
+    <AccessibleDialog
+      labelledBy="new-order-title"
+      onClose={onClose}
       className="new-order-overlay"
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
@@ -190,13 +178,7 @@ export default function NewOrderModal({ restaurantId, tableStatuses, initialTabl
         }
       `}</style>
       <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="new-order-title"
-        tabIndex={-1}
         className="new-order-dialog"
-        onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: 1080, height: '85vh', maxHeight: 720,
           background: 'var(--surface)', borderRadius: 14,
@@ -350,7 +332,7 @@ export default function NewOrderModal({ restaurantId, tableStatuses, initialTabl
           </div>
         </div>
       </div>
-    </div>
+    </AccessibleDialog>
   )
 }
 

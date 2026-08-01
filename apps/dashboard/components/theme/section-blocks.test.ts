@@ -116,3 +116,50 @@ test('theme policy preserves valid drawer placement and drops invalid placement'
   assert.equal(theme?.drawerSide, 'right')
   assert.equal(theme?.drawerWidth, 410)
 })
+
+test('theme policy replaces retired page footer blocks with the global footer contract', () => {
+  const theme = sanitizeThemeTokens({
+    sections: ['social-block', 'hero-banner', 'footer'],
+    pageBlocks: [
+      { type: 'section', id: 'social-block' },
+      { type: 'section', id: 'footer--2', sectionId: 'footer' },
+      { type: 'section', id: 'hero-banner' },
+    ],
+    sectionSettings: {
+      'social-block': { title: 'Takip edin' },
+      'footer--2': { title: 'Eski footer' },
+      'hero-banner': { title: 'Merhaba' },
+    },
+    announcementEnabled: true,
+    announcementText: 'Eski duyuru',
+    footerTone: 'brand',
+  }, 'default')
+
+  assert.deepEqual(theme?.sections, ['hero-banner'])
+  assert.deepEqual(theme?.pageBlocks, [{ type: 'section', id: 'hero-banner' }])
+  assert.deepEqual(theme?.sectionSettings, { 'hero-banner': { title: 'Merhaba' } })
+  assert.equal(theme?.footerEnabled, true)
+  assert.equal(theme?.footerTone, 'brand')
+  assert.equal(Object.hasOwn(theme ?? {}, 'announcementEnabled'), false)
+  assert.equal(Object.hasOwn(theme ?? {}, 'announcementText'), false)
+})
+
+test('theme policy sanitizes global footer controls', () => {
+  const sanitized = sanitizeThemeTokens({
+    footerEnabled: false,
+    footerTone: 'neon',
+    footerShowLogo: false,
+    footerShowAddress: 'yes',
+    footerShowContact: false,
+    footerShowSocial: false,
+    footerShowCopyright: false,
+  }, 'default')
+
+  assert.equal(sanitized?.footerEnabled, false)
+  assert.equal(sanitized?.footerTone, 'surface')
+  assert.equal(sanitized?.footerShowLogo, false)
+  assert.equal(sanitized?.footerShowAddress, true)
+  assert.equal(sanitized?.footerShowContact, false)
+  assert.equal(sanitized?.footerShowSocial, false)
+  assert.equal(sanitized?.footerShowCopyright, false)
+})

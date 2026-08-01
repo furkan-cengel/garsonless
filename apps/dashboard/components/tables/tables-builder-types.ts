@@ -1,8 +1,20 @@
+import type { TableLayoutRotation, TableLayoutShape } from '@garsonless/application/tables'
+import type { PersistedQRStyle, QRStyleSafetyResult } from '@garsonless/application/qr-style'
+
+export type { PersistedQRStyle, QRStyleSafetyResult }
+
 export interface TableItem {
   id: string
   qrToken: string | null
   label: string
   slug: string
+  floorLabel: string | null
+  areaLabel: string | null
+  layoutXBp: number | null
+  layoutYBp: number | null
+  layoutShape: TableLayoutShape
+  layoutRotation: TableLayoutRotation
+  seatCount: number
   orders: number
   status: 'active' | 'idle' | 'paused'
 }
@@ -38,7 +50,7 @@ export interface QRConfig {
   _presetId?: string
 }
 
-export type SaveState = 'saved' | 'saving' | 'error'
+export type SaveState = 'saved' | 'validating' | 'blocked' | 'saving' | 'error' | 'conflict'
 
 export interface PendingTableRequestView {
   id: string

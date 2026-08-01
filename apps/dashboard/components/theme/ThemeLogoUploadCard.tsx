@@ -34,7 +34,7 @@ export function ThemeLogoUploadCard({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/png,image/jpeg,image/webp"
         style={{ display: 'none' }}
         onChange={onUpload}
       />
@@ -92,7 +92,7 @@ export function ThemeLogoUploadCard({
         )}
       </div>
       <p style={{ margin: 0, fontSize: 11, color: 'var(--text-3)', textAlign: 'center', lineHeight: 1.4 }}>
-        PNG, SVG veya WEBP · Maks 2MB
+        PNG, JPG veya WEBP · Maks 2MB
       </p>
     </div>
   )

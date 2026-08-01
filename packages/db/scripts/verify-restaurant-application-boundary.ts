@@ -43,17 +43,44 @@ async function main() {
       isOwner: true,
     }
     const settingsPort = createRestaurantSettingsPort()
+    const expectedSettings = { runtimeMarker: suffix }
+    const storeRequestId = randomUUID()
+    const notificationRequestId = randomUUID()
+    const storeIntent = {
+      restaurantId,
+      patch: { store: { locale: 'tr-TR', marker: suffix } },
+      expectedSettings,
+      requestId: storeRequestId,
+    }
     const [storePatch, notificationPatch] = await Promise.all([
-      patchRestaurantSettings(context, {
-        restaurantId,
-        patch: { store: { locale: 'tr-TR', marker: suffix } },
-      }, settingsPort),
+      patchRestaurantSettings(context, storeIntent, settingsPort),
       patchRestaurantSettings(context, {
         restaurantId,
         patch: { notifications: { newOrderSound: true } },
+        expectedSettings,
+        requestId: notificationRequestId,
       }, settingsPort),
     ])
     assert(storePatch.ok && notificationPatch.ok, 'Concurrent settings patches failed')
+    const replay = await patchRestaurantSettings(context, storeIntent, settingsPort)
+    assert(replay.ok && replay.value.idempotent, 'Same request replay was not idempotent')
+    const staleSameSection = await patchRestaurantSettings(context, {
+      restaurantId,
+      patch: { store: { locale: 'tr-TR', marker: 'stale-overwrite' } },
+      expectedSettings,
+      requestId: randomUUID(),
+    }, settingsPort)
+    assert(
+      staleSameSection.ok
+      && staleSameSection.value.outcome === 'conflict'
+      && staleSameSection.value.conflictKeys.includes('store'),
+      'Stale same-section write did not conflict',
+    )
+    const freshIdempotent = await patchRestaurantSettings(context, {
+      ...storeIntent,
+      requestId: randomUUID(),
+    }, settingsPort)
+    assert(freshIdempotent.ok && freshIdempotent.value.idempotent, 'Desired canonical state was not idempotent')
 
     const { data: settingsRow, error: settingsError } = await service.from('restaurants')
       .select('settings').eq('id', restaurantId).single()
@@ -81,9 +108,9 @@ async function main() {
       notes: `runtime-${suffix}`,
     }
     const first = await requestQrStands(context, request, standPort, successNotification)
-    const replay = await requestQrStands(context, request, standPort, successNotification)
+    const standReplay = await requestQrStands(context, request, standPort, successNotification)
     assert(first.ok, first.ok ? '' : first.error)
-    assert(!replay.ok && replay.error.includes('10 dakika'), 'Stand request replay was not throttled')
+    assert(!standReplay.ok && standReplay.error.includes('10 dakika'), 'Stand request replay was not throttled')
     assert(deliveries === 1, 'Throttled stand request reached the notification provider')
 
     const { error: clearError } = await service.from('qr_stand_request_limits')
@@ -100,9 +127,11 @@ async function main() {
     if (countError) throw countError
     assert(remainingClaims === 0, 'Failed delivery left a throttle claim')
 
-    const anonPatch = await createClient().rpc('patch_restaurant_settings_atomic', {
+    const anonPatch = await createClient().rpc('patch_restaurant_settings_cas', {
       p_restaurant_id: restaurantId,
       p_patch: { forged: true },
+      p_expected_settings: {},
+      p_request_id: randomUUID(),
     })
     assert(anonPatch.error?.code === '42501', 'Anon could execute settings patch RPC')
 

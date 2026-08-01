@@ -52,6 +52,19 @@ export async function deleteDashboardPushSubscriptionsForUser(userId: string) {
   return error ? err(error.message) : ok(null)
 }
 
+export async function readDashboardPushSubscriptionForUser(input: { restaurantId: string; userId: string }) {
+  const { data, error } = await createServiceClient()
+    .from('dashboard_push_subscriptions')
+    .select('id, endpoint, p256dh, auth')
+    .eq('restaurant_id', input.restaurantId)
+    .eq('user_id', input.userId)
+    .is('disabled_at', null)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return error ? err(error.message) : ok(data as DashboardPushSubscription | null)
+}
+
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -68,7 +81,7 @@ export function createDashboardPushPort(): DashboardPushPort {
       const service = createServiceClient()
       const { data: row, error } = await service
         .from('domain_outbox')
-        .select('id, restaurant_id, event_type, payload')
+        .select('id, restaurant_id, event_type, aggregate_id, payload')
         .eq('id', eventId)
         .maybeSingle()
       if (error) return err(error.message)
@@ -106,6 +119,7 @@ export function createDashboardPushPort(): DashboardPushPort {
 
       return ok<DashboardPushEvent>({
         id: row.id,
+        aggregateId: row.aggregate_id,
         type: row.event_type,
         restaurantId: row.restaurant_id,
         featureAllowed,

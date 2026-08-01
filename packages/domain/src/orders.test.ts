@@ -6,7 +6,9 @@ import {
   COLLECTED_ORDER_SPEC,
   canTransitionOrderStatus,
   evaluateOrderCancellation,
+  isOrderLifecycleTarget,
   isCollectedOrder,
+  normalizeOperationalOrderStatus,
 } from './orders'
 
 test('active order status vocabulary excludes terminal states', () => {
@@ -30,6 +32,19 @@ test('order transition matrix keeps terminal and payment states closed', () => {
   assert.equal(canTransitionOrderStatus('pending', 'cancelled'), false)
 })
 
+test('operational reads normalize legacy paid without inventing payment state', () => {
+  assert.equal(normalizeOperationalOrderStatus('paid'), 'preparing')
+  assert.equal(normalizeOperationalOrderStatus('ready'), 'ready')
+})
+
+test('generic lifecycle targets exclude entry, payment and cancellation states', () => {
+  assert.equal(isOrderLifecycleTarget('sent_to_kitchen'), true)
+  assert.equal(isOrderLifecycleTarget('served'), true)
+  assert.equal(isOrderLifecycleTarget('pending'), false)
+  assert.equal(isOrderLifecycleTarget('paid'), false)
+  assert.equal(isOrderLifecycleTarget('cancelled'), false)
+})
+
 test('collected revenue excludes comp, cancelled and unpaid orders', () => {
   assert.equal(isCollectedOrder({ status: 'served', paidAt: '2026-07-14T10:00:00Z', paymentMethod: 'cash' }), true)
   assert.equal(isCollectedOrder({ status: 'served', paidAt: '2026-07-14T10:00:00Z', paymentMethod: 'comp' }), false)
@@ -47,7 +62,7 @@ test('collected revenue specification preserves legacy null payment methods', ()
 test('online and split settlements require their dedicated refund paths', () => {
   assert.deepEqual(
     evaluateOrderCancellation({ status: 'served', paidAt: 'now', paymentMethod: 'iyzico' }),
-    { allowed: false, error: 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.' },
+    { allowed: false, error: 'Bu sipariş online ödendi — doğrulanmış İyzico iade akışını kullanın.' },
   )
   assert.deepEqual(
     evaluateOrderCancellation({ status: 'served', paidAt: 'now', paymentMethod: 'split' }),

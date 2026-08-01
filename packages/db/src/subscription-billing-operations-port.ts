@@ -168,6 +168,15 @@ export function createSubscriptionBillingOperationsPort(
       })
       return result.ok && result.value === true ? ok(true) : result.ok ? err('Billing checkout mark result is invalid') : result
     },
+    async bindCheckoutProviderPlan(input) {
+      const result = await call('bind_subscription_checkout_provider_plan', {
+        p_operation_id: input.operationId,
+        p_expected_provider_plan_ref: input.expectedProviderPlanRef,
+      })
+      return result.ok && result.value === true
+        ? ok(true)
+        : result.ok ? err('Billing checkout plan binding result is invalid') : result
+    },
     async findCheckoutCallback(providerCheckoutRef) {
       const result = await call('find_subscription_checkout_callback', { p_provider_checkout_ref: providerCheckoutRef })
       if (!result.ok) return result
@@ -175,8 +184,12 @@ export function createSubscriptionBillingOperationsPort(
       const operationId = text(row?.operationId)
       const restaurantId = text(row?.restaurantId)
       const invoiceId = text(row?.invoiceId)
+      const requestedPlan = text(row?.requestedPlan)
+      const expectedProviderPlanRef = text(row?.expectedProviderPlanRef)
       return operationId && restaurantId && invoiceId
-        ? ok({ operationId, restaurantId, invoiceId })
+        && (requestedPlan === 'starter' || requestedPlan === 'pro' || requestedPlan === 'enterprise')
+        && expectedProviderPlanRef && /^[\x21-\x7e]{1,200}$/.test(expectedProviderPlanRef)
+        ? ok({ operationId, restaurantId, invoiceId, requestedPlan, expectedProviderPlanRef })
         : err('Billing checkout callback result is invalid')
     },
     async finalizeCheckout(input) {

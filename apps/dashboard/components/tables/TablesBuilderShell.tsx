@@ -1,229 +1,70 @@
 'use client'
 
-import { useState } from 'react'
+import dynamic from 'next/dynamic'
+import { useState, type KeyboardEvent } from 'react'
 import type { Tables } from '@garsonless/db/types'
-import type { OpenSessionInfo } from '../../lib/actions/tables'
-import SettlementSheet from './SettlementSheet'
-import { useShell } from '../../lib/shell-context'
-import DashboardIconRail from '../layout/IconRail'
-import { QRHealthDialog } from './QRHealthDialog'
+import { AccessibleDialog } from './AccessibleDialog'
 import { mapDBTables, MENU_ORIGIN } from './tables-builder-model'
 import type { TableItem } from './tables-builder-types'
 import { TablesMobilePreview, TablesStatusBar, TablesTopBar } from './TablesBuilderChrome'
-import { TablesNavigation } from './TablesNavigation'
 import { TablesQRCanvas } from './TablesQRCanvas'
-import { TablesQRProperties } from './TablesQRProperties'
-import { TablesQRRotationDialog } from './TablesQRRotationDialog'
+import { TablesQRTablePicker } from './TablesQRTablePicker'
+import { TABLES_SHELL_CSS, TablesIconRail, TablesSectionTabs } from './TablesShellFrame'
 import { validateRenderedQR } from './tables-qr-renderer'
 import { useQRStyleEditor } from './use-qr-style-editor'
 import { useTableQrTokenRotation } from './use-table-qr-token-rotation'
-import { useTablesLiveState } from './use-tables-live-state'
 
-/* ─── Types ─────────────────────────────────────────────────── */
+function DeferredDialogLoading() {
+  return (
+    <AccessibleDialog labelledBy="qr-dialog-loading-title" onClose={() => undefined} closeDisabled style={{ position: 'fixed', inset: 0, zIndex: 179, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,.28)' }}>
+      <span id="qr-dialog-loading-title" role="status" aria-live="polite" style={{ padding: '10px 14px', borderRadius: 9, background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-pop)', fontWeight: 650 }}>Pencere hazırlanıyor…</span>
+    </AccessibleDialog>
+  )
+}
+
+const TablesQRRotationDialog = dynamic(() => import('./TablesQRRotationDialog').then((module) => module.TablesQRRotationDialog), {
+  ssr: false,
+  loading: DeferredDialogLoading,
+})
+
+const TablesQRProperties = dynamic(() => import('./TablesQRProperties').then((module) => module.TablesQRProperties), {
+  loading: () => <aside className="tb-tables__props" aria-label="QR tasarım araçları" aria-busy="true" style={{ width: 'var(--props)', flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', display: 'grid', placeItems: 'center' }}><span role="status">Tasarım araçları hazırlanıyor…</span></aside>,
+})
+
 interface Props {
   restaurantId: string
   restaurantName: string
   restaurantSlug: string
   initialTables: Tables<'tables'>[]
   initialQrTokens: Record<string, string>
-  initialOpenSessions: OpenSessionInfo[]
-  initialSessionError?: string | null
   initialQRStyle?: unknown
+  initialQRStyleRevision: number
 }
 
-/* ─── Constants ─────────────────────────────────────────────── */
-/* ─── CSS Design System ─────────────────────────────────────── */
-const CSS_VARS = `
-.tb-tables * { box-sizing: border-box; }
-.tb-tables {
-  --bg: #f6f6f7;
-  --surface: #ffffff;
-  --surface-2: #fafafa;
-  --surface-3: #f3f3f4;
-  --surface-inset: #ececef;
-  --border: #e7e7ea;
-  --border-strong: #d6d7db;
-  --divider: #efeff1;
-  --text: #111113;
-  --text-2: #5b5d63;
-  --text-3: #8b8d94;
-  --text-4: #b3b4ba;
-  --text-inv: #ffffff;
-  --action: #18181b;
-  --action-hover: #27272a;
-  --on-action: #ffffff;
-  --positive: #137a4d;
-  --positive-bg: #e6f4ec;
-  --warning: #a55a00;
-  --warning-bg: #fef3e2;
-  --critical: #b42318;
-  --critical-bg: #fde7e5;
-  --accent: #2f6f4e;
-  --accent-soft: #eaf3ed;
-  --shadow-1: 0 1px 0 rgba(17,17,19,.04), 0 1px 2px rgba(17,17,19,.04);
-  --shadow-2: 0 1px 0 rgba(17,17,19,.04), 0 4px 12px rgba(17,17,19,.06);
-  --shadow-pop: 0 8px 24px rgba(17,17,19,.10), 0 2px 6px rgba(17,17,19,.06);
-  --topbar: 52px;
-  --rail: 56px;
-  --nav: 260px;
-  --props: 340px;
-  --statusbar: 32px;
-  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--text);
-  -webkit-font-smoothing: antialiased;
-  letter-spacing: -0.005em;
-}
-.tb-tables button { font-family: inherit; }
-.tb-tables button:not(:disabled) { transition: filter 120ms ease, transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease, border-color 120ms ease; }
-.tb-tables button:not(:disabled):hover { filter: brightness(.96); transform: translateY(-1px); }
-.tb-tables button:not(:disabled):active { filter: brightness(.92); transform: translateY(0); }
-.tb-tables button:focus-visible,
-.tb-tables input:focus-visible,
-.tb-tables select:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
-.tb-tables button:disabled { cursor: not-allowed; }
-.tb-tables input, .tb-tables select { font-family: inherit; }
-.tb-tables ::-webkit-scrollbar { width: 10px; height: 10px; }
-.tb-tables ::-webkit-scrollbar-track { background: transparent; }
-.tb-tables ::-webkit-scrollbar-thumb { background: #d8d9dc; border-radius: 8px; border: 2px solid var(--surface); }
-.tb-tables ::-webkit-scrollbar-thumb:hover { background: #b8b9bd; }
-@media (max-width: 900px) {
-  .tb-tables {
-    --topbar: 52px;
-    --rail: 0px;
-    --nav: 100%;
-    --props: 100%;
-    min-height: 100vh;
-    height: auto !important;
-    overflow-x: clip;
-  }
-  .tb-tables__topbar {
-    display: flex !important;
-    height: auto !important;
-    min-height: var(--topbar);
-    padding: 8px 10px !important;
-    gap: 8px;
-  }
-  .tb-tables__topbar-left {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-  }
-  .tb-tables__topbar-left > a span,
-  .tb-tables__topbar-left > button,
-  .tb-tables__topbar-left > span:nth-of-type(1),
-  .tb-tables__topbar-left > span:nth-of-type(2) {
-    display: none !important;
-  }
-  .tb-tables__topbar-presets,
-  .tb-tables__topbar-right {
-    display: none !important;
-  }
-  .tb-tables__workspace {
-    flex-direction: column;
-    overflow: auto;
-  }
-  .tb-tables__rail {
-    display: none !important;
-  }
-  .tb-tables__nav {
-    width: 100% !important;
-    flex: none !important;
-    max-height: 420px;
-    border-right: none !important;
-    border-bottom: 1px solid var(--border);
-  }
-  .tb-tables__canvas {
-    flex: none !important;
-    min-height: 520px;
-  }
-  .tb-tables__canvas-toolbar {
-    height: auto !important;
-    min-height: 44px;
-    position: sticky;
-    top: 0;
-    z-index: 12;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 8px 10px !important;
-    align-items: flex-start !important;
-  }
-  .tb-tables__canvas-toolbar-left,
-  .tb-tables__canvas-toolbar-actions {
-    flex: 1 1 100%;
-    min-width: 0;
-  }
-  .tb-tables__canvas-toolbar-actions {
-    justify-content: space-between;
-    overflow-x: auto;
-  }
-  .tb-tables__canvas-body {
-    padding: 20px !important;
-  }
-  .tb-tables__props {
-    width: 100% !important;
-    flex: none !important;
-    border-left: none !important;
-    border-top: 1px solid var(--border);
-  }
-  .tb-tables__props-tabs { position: sticky; top: 0; z-index: 10; background: var(--surface); }
-  .tb-tables__statusbar {
-    display: none !important;
-  }
-}
-/* Hover/press affordance. Uses filter (never set inline) so it reliably layers
-   over any inline background — inline styles otherwise win over CSS. */
-.tb-tables .tb-hover { transition: filter .12s ease, opacity .12s ease; }
-.tb-tables .tb-hover:hover:not(:disabled) { filter: brightness(0.93); }
-.tb-tables .tb-hover:active:not(:disabled) { filter: brightness(0.84); }
-.tb-tables .tb-hover:disabled { opacity: .4; cursor: not-allowed; }
-`
-
-/* ─── Shared icon aliases ───────────────────────────────────── */
-
-/* ─── IconRail ──────────────────────────────────────────────── */
-function TablesIconRail({ restaurantId }: { restaurantId: string }) {
-  const { navigation } = useShell()
-  return (
-    <DashboardIconRail
-      className="tb-tables__rail"
-      restaurantId={restaurantId}
-      userInitials={navigation.userInitials}
-      pathname={navigation.pathname}
-      ordersBadge={navigation.ordersBadge}
-      permissions={navigation.permissions}
-      isOwner={navigation.isOwner}
-    />
-  )
-}
-
-/* ─── PresetChip ────────────────────────────────────────────── */
-export default function TablesBuilderShell({ restaurantId, restaurantName, restaurantSlug, initialTables, initialQrTokens, initialOpenSessions, initialSessionError = null, initialQRStyle }: Props) {
+export default function TablesBuilderShell({
+  restaurantId,
+  restaurantName,
+  restaurantSlug,
+  initialTables,
+  initialQrTokens,
+  initialQRStyle,
+  initialQRStyleRevision,
+}: Props) {
   const baseQRUrl = `${MENU_ORIGIN}/${restaurantSlug}`
-  const [tables, setTables] = useState<TableItem[]>(() => mapDBTables(initialTables, initialOpenSessions, initialQrTokens))
-  const [activeId, setActiveId] = useState<string>(() => {
-    const mapped = mapDBTables(initialTables, initialOpenSessions, initialQrTokens)
-    return mapped[0]?.id ?? ''
-  })
+  const [tables, setTables] = useState<TableItem[]>(() => mapDBTables(initialTables, [], initialQrTokens))
+  const [activeId, setActiveId] = useState(() => tables[0]?.id ?? '')
+  const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
+  const [operationError, setOperationError] = useState<string | null>(null)
+  const [qrTask, setQrTask] = useState<'preview' | 'design'>('preview')
   const activeTable = tables.find((table) => table.id === activeId)
-  const {
-    openSessions,
-    sessionError,
-    reportSessionError,
-    refreshSessions,
-    settlementTarget,
-    dismissSettlement,
-    requestSessionClose,
-    pendingRequests,
-    requestError,
-    resolveRequest,
-  } = useTablesLiveState({
-    restaurantId,
-    initialOpenSessions,
-    initialSessionError,
-    setTables,
-  })
+  const onTaskTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault()
+    const next = event.key === 'ArrowRight' || event.key === 'End' ? 'design' : 'preview'
+    setQrTask(next)
+    const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    buttons?.[next === 'preview' ? 0 : 1]?.focus()
+  }
   const {
     qr,
     setQR,
@@ -235,82 +76,78 @@ export default function TablesBuilderShell({ restaurantId, restaurantName, resta
     canRedo,
     saveState,
     saveError,
-    persist: persistQR,
+    retrySave: retryQRSave,
     health: qrHealth,
-    healthDialogOpen,
-    setHealthDialogOpen,
+    legacyLogoRejected,
   } = useQRStyleEditor({
     restaurantId,
     baseUrl: baseQRUrl,
     initialStyle: initialQRStyle,
+    initialRevision: initialQRStyleRevision,
     activeTable,
     validate: validateRenderedQR,
   })
   const qrTokenRotation = useTableQrTokenRotation({
     restaurantId,
     setTables,
-    onError: reportSessionError,
+    onError: setOperationError,
   })
-  // Shopify-style in-app mobile preview (phone mockup) — null = closed.
-  const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
+
   return (
     <>
-      <style dangerouslySetInnerHTML={{ __html: CSS_VARS }} />
-      <div className="tb-tables" style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
+      <style dangerouslySetInnerHTML={{ __html: TABLES_SHELL_CSS }} />
+      <div className="tb-tables tb-tables--qr" data-qr-task={qrTask} style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
         <TablesTopBar
           qr={qr}
           setQR={setQR}
           restaurantName={restaurantName}
+          sectionTitle="QR Studio"
           saveState={saveState}
           onUndo={undo}
           onRedo={redo}
           canUndo={canUndo}
           canRedo={canRedo}
-          onPreview={() => setPreview({
-            src: qr.baseUrl,
-            title: 'Menü önizleme',
-          })}
+          onPreview={() => setPreview({ src: qr.baseUrl, title: 'Menü önizleme' })}
         />
-        <div className="tb-tables__workspace" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <div className="tb-tables__body">
           <TablesIconRail restaurantId={restaurantId} />
-          <TablesNavigation tables={tables} setTables={setTables} activeId={activeId} setActiveId={setActiveId} restaurantId={restaurantId} openSessions={openSessions} onCloseSession={requestSessionClose} pendingRequests={pendingRequests} onResolveRequest={resolveRequest} requestError={requestError} sessionError={sessionError} />
-          <TablesQRCanvas
-            qr={qr}
-            table={activeTable}
-            tables={tables}
-            health={qrHealth}
-            rotationPending={qrTokenRotation.rotating}
-            onRotateToken={qrTokenRotation.requestRotation}
-          />
-          <TablesQRProperties qr={qr} setQR={setQR} replaceQR={replaceQR} beginQRChange={beginQRChange} tables={tables} saveState={saveState} saveError={saveError} onRetry={() => { void persistQR(qr) }} />
+          <div className="tb-tables__content">
+            <TablesSectionTabs restaurantId={restaurantId} active="qr" />
+            {operationError && (
+              <div role="alert" style={{ padding: '8px 14px', background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ flex: 1 }}>{operationError}</span>
+                <button type="button" aria-label="QR hatasını kapat" onClick={() => setOperationError(null)} style={{ width: 32, height: 32, border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer' }}>×</button>
+              </div>
+            )}
+            <div className="tb-tables__workspace" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+              <div className="tb-qr-taskbar" role="tablist" aria-label="QR Studio görevi">
+                <button type="button" role="tab" aria-selected={qrTask === 'preview'} aria-controls="qr-preview-panel" tabIndex={qrTask === 'preview' ? 0 : -1} onKeyDown={onTaskTabKeyDown} onClick={() => setQrTask('preview')}>Önizleme</button>
+                <button type="button" role="tab" aria-selected={qrTask === 'design'} aria-controls="qr-design-panel" tabIndex={qrTask === 'design' ? 0 : -1} onKeyDown={onTaskTabKeyDown} onClick={() => setQrTask('design')}>Tasarım</button>
+              </div>
+              <TablesQRTablePicker restaurantId={restaurantId} tables={tables} activeId={activeId} setActiveId={setActiveId} />
+              <TablesQRCanvas
+                qr={qr}
+                table={activeTable}
+                tables={tables}
+                health={qrHealth}
+                rotationPending={qrTokenRotation.rotating}
+                onRotateToken={qrTokenRotation.requestRotation}
+              />
+              <TablesQRProperties qr={qr} setQR={setQR} replaceQR={replaceQR} beginQRChange={beginQRChange} tables={tables} saveState={saveState} saveError={saveError} health={qrHealth} legacyLogoRejected={legacyLogoRejected} onRetry={retryQRSave} />
+            </div>
+            <TablesStatusBar saveState={saveState} saveError={saveError} onRetry={retryQRSave} tableCount={tables.length} />
+          </div>
         </div>
-        <TablesStatusBar saveState={saveState} saveError={saveError} onRetry={() => { void persistQR(qr) }} tableCount={tables.length} activeCount={Object.keys(openSessions).length} />
-        {settlementTarget && (
-          <SettlementSheet
-            restaurantId={restaurantId}
-            session={settlementTarget.session}
-            tableLabel={settlementTarget.label}
-            onClose={dismissSettlement}
-            onSettled={() => void refreshSessions()}
-            onSessionClosed={() => { dismissSettlement(); void refreshSessions() }}
+        {preview && <TablesMobilePreview src={preview.src} title={preview.title} onClose={() => setPreview(null)} />}
+        {qrTokenRotation.target && (
+          <TablesQRRotationDialog
+            table={qrTokenRotation.target}
+            rotating={qrTokenRotation.rotating}
+            error={qrTokenRotation.error}
+            onCancel={qrTokenRotation.cancelRotation}
+            onConfirm={() => { void qrTokenRotation.confirmRotation() }}
           />
         )}
-        {preview && (
-          <TablesMobilePreview src={preview.src} title={preview.title} onClose={() => setPreview(null)} />
-        )}
-        <QRHealthDialog
-          open={healthDialogOpen}
-          health={qrHealth}
-          qr={qr}
-          onClose={() => setHealthDialogOpen(false)}
-        />
-        <TablesQRRotationDialog
-          table={qrTokenRotation.target}
-          rotating={qrTokenRotation.rotating}
-          error={qrTokenRotation.error}
-          onCancel={qrTokenRotation.cancelRotation}
-          onConfirm={() => { void qrTokenRotation.confirmRotation() }}
-        />
       </div>
     </>
   )

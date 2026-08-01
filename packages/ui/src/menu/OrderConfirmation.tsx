@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { OrderStatus } from '@garsonless/db/types'
+import { orderStatusPhase } from './orderStatusPhase'
 import { formatTRY } from './formatCurrency'
 import { WaiterCallButton, type WaiterCallState } from './WaiterCallButton'
 
@@ -13,6 +14,7 @@ export interface OrderSummaryItem {
   originalPrice?: number
   modifierNames?: string[]
   removedIngredientNames?: string[]
+  productNote?: string
 }
 
 interface OrderConfirmationProps {
@@ -41,14 +43,6 @@ const STEPS = [
   { key: 'ready', label: 'Hazır', sub: 'Servise hazır' },
   { key: 'served', label: 'Servis edildi', sub: 'Afiyet olsun!' },
 ] as const
-
-function statusPhase(status: OrderStatus): number {
-  if (status === 'preparing') return 1
-  if (status === 'ready') return 2
-  if (status === 'served') return 3
-  // pending / pending_approval / paid / sent_to_kitchen
-  return 0
-}
 
 const SURFACE = 'var(--p-card, #ffffff)'
 const LINE = 'rgba(0,0,0,0.08)'
@@ -206,10 +200,15 @@ function Timeline({ phase }: { phase: number }) {
 /* ─── collapsible order summary ─── */
 function Summary({ items, total, isPaid }: { items: OrderSummaryItem[]; total: number; isPaid: boolean }) {
   const [open, setOpen] = useState(false)
+  const toggleId = useId()
+  const panelId = useId()
   return (
     <div style={{ background: SURFACE, borderRadius: 'var(--p-radius)', border: `1px solid ${LINE}`, overflow: 'hidden' }}>
       <button
+        id={toggleId}
         type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen((o) => !o)}
         style={{
           width: '100%', minHeight: 52, padding: '0 16px',
@@ -222,13 +221,13 @@ function Summary({ items, total, isPaid }: { items: OrderSummaryItem[]; total: n
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--p-text)' }}>{formatTRY(total)}</span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 250ms' }}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 250ms' }}>
             <path d="M6 9l6 6 6-6" stroke="var(--p-text-2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
       </button>
       {open && (
-        <div style={{ padding: '4px 16px 16px', animation: 'oc-accord-open 250ms ease' }}>
+        <div id={panelId} role="region" aria-labelledby={toggleId} style={{ padding: '4px 16px 16px', animation: 'oc-accord-open 250ms ease' }}>
           <div style={{ borderTop: `1px solid ${LINE}`, paddingTop: 12 }}>
             {items.map((item, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
@@ -240,6 +239,9 @@ function Summary({ items, total, isPaid }: { items: OrderSummaryItem[]; total: n
                   )}
                   {item.removedIngredientNames && item.removedIngredientNames.length > 0 && (
                     <small style={{ display: 'block', marginTop: 2, color: '#b42318', fontSize: 11, fontWeight: 800 }}>ÇIKAR: {item.removedIngredientNames.join(', ')}</small>
+                  )}
+                  {item.productNote && (
+                    <small style={{ display: 'block', marginTop: 4, color: 'var(--p-text)', fontSize: 11, fontWeight: 700, whiteSpace: 'pre-wrap' }}>Not: {item.productNote}</small>
                   )}
                 </span>
                 {item.originalPrice !== undefined && item.originalPrice !== item.unitPrice && (
@@ -296,7 +298,7 @@ export function OrderConfirmation({
     return unsubscribe
   }, [orderId, onSubscribeRealtime])
 
-  const phase = statusPhase(status)
+  const phase = orderStatusPhase(status)
   const shortCode = `#${orderId.slice(-4).toUpperCase()}`
   const timeText = createdAt
     ? `${new Date(createdAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}'te alındı`

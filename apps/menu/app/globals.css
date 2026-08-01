@@ -70,10 +70,16 @@
   --radius-card: 12px;
   --radius-button: 8px;
 }
+
+/* Public menu keyboard contract: every interactive element gets the same,
+   high-contrast focus treatment without changing pointer interactions. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--p-accent, #166534);
+  outline-offset: 3px;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .announcement-motion {
-    animation: none !important;
-    transform: none !important;
-    opacity: 1 !important;
+  html {
+    scroll-behavior: auto !important;
   }
 }

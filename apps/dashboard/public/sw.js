@@ -1,4 +1,14 @@
 self.addEventListener('message', (event) => {
+  if (event.data?.type === 'ORDER_RESOLVED') {
+    const orderId = event.data?.orderId
+    if (!orderId) return
+    event.waitUntil(
+      self.registration.getNotifications({ tag: `order:${orderId}` }).then((notifications) => {
+        for (const notification of notifications) notification.close()
+      }),
+    )
+    return
+  }
   if (event.data?.type !== 'NEW_ORDER') return
 
   const { title, body, orderId, url } = event.data
@@ -7,7 +17,7 @@ self.addEventListener('message', (event) => {
     body: body ?? '',
     icon: '/icon.svg',
     badge: '/icon.svg',
-    tag: `new-order:${orderId ?? 'unknown'}`,
+    tag: `order:${orderId ?? 'unknown'}`,
     data: { url: url ?? '/' },
   }))
 })

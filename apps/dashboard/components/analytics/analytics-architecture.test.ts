@@ -6,9 +6,13 @@ import { fileURLToPath } from 'node:url'
 const directory = fileURLToPath(new URL('.', import.meta.url))
 const clientSource = readFileSync(`${directory}/AnalyticsClient.tsx`, 'utf8')
 const controllerSource = readFileSync(`${directory}/use-analytics-reports.ts`, 'utf8')
+const reportClientSource = readFileSync(`${directory}/analytics-report-client.ts`, 'utf8')
+const reportRouteSource = readFileSync(`${directory}/../../app/api/analytics/report/route.ts`, 'utf8')
+const payloadBudgetSource = readFileSync(`${directory}/../../lib/analytics-payload-budget.ts`, 'utf8')
 const modelSource = readFileSync(`${directory}/analytics-report-model.ts`, 'utf8')
 const exportSource = readFileSync(`${directory}/analytics-report-export.ts`, 'utf8')
 const shellSource = readFileSync(`${directory}/AnalyticsReportShell.tsx`, 'utf8')
+const rangePickerSource = readFileSync(`${directory}/AnalyticsRangePicker.tsx`, 'utf8')
 const primitivesSource = readFileSync(`${directory}/AnalyticsReportPrimitives.tsx`, 'utf8')
 const salesPaymentSource = readFileSync(`${directory}/AnalyticsSalesPaymentReports.tsx`, 'utf8')
 const operationsSource = readFileSync(`${directory}/AnalyticsOperationsReport.tsx`, 'utf8')
@@ -19,6 +23,16 @@ const tablesSource = readFileSync(`${directory}/AnalyticsTablesReport.tsx`, 'utf
 const tablesModelSource = readFileSync(`${directory}/analytics-tables-model.ts`, 'utf8')
 const loyaltySource = readFileSync(`${directory}/AnalyticsLoyaltyReport.tsx`, 'utf8')
 const loyaltyModelSource = readFileSync(`${directory}/analytics-loyalty-model.ts`, 'utf8')
+const chartLoaderSource = readFileSync(`${directory}/chart-primitives/load-analytics-chart.ts`, 'utf8')
+const filterBarSource = readFileSync(`${directory}/AnalyticsFilterBar.tsx`, 'utf8')
+const filterContractSource = readFileSync(`${directory}/../../lib/analytics-filter-contract.ts`, 'utf8')
+const accessibleChartDataSource = readFileSync(`${directory}/chart-primitives/AccessibleChartData.tsx`, 'utf8')
+const salesChartSource = readFileSync(`${directory}/chart-primitives/SalesLineChart.tsx`, 'utf8')
+const paymentChartSource = readFileSync(`${directory}/chart-primitives/PaymentDonutChart.tsx`, 'utf8')
+const productChartSource = readFileSync(`${directory}/chart-primitives/ProductScatterChart.tsx`, 'utf8')
+const cancellationChartSource = readFileSync(`${directory}/chart-primitives/CancellationTrendChart.tsx`, 'utf8')
+const heatmapSource = readFileSync(`${directory}/chart-primitives/HeatmapGrid.tsx`, 'utf8')
+const globalStylesSource = readFileSync(`${directory}/../../app/globals.css`, 'utf8')
 const dashboardQueriesPath = `${directory}/../../lib/queries.ts`
 const analyticsQueriesSource = readFileSync(`${directory}/../../lib/queries/analytics.ts`, 'utf8')
 const analyticsOperationsQueriesSource = readFileSync(`${directory}/../../lib/queries/analytics-operations.ts`, 'utf8')
@@ -66,9 +80,39 @@ const dashboardCallSiteSource = [
 test('analytics orchestrator delegates lazy report state and requests to its controller', () => {
   assert.match(clientSource, /useAnalyticsReports/)
   assert.doesNotMatch(clientSource, /useState|useTransition|fetchAnalyticsReportData/)
-  assert.match(controllerSource, /fetchAnalyticsReportData/)
+  assert.match(controllerSource, /fetchAnalyticsReportPayload/)
   assert.match(controllerSource, /latestRequestRef/)
+  assert.match(controllerSource, /retryRequestRef/)
+  assert.match(controllerSource, /window\.addEventListener\('online'/)
+  assert.match(controllerSource, /try \{[\s\S]*await fetchAnalyticsReportPayload[\s\S]*\} catch \{/)
+  assert.match(controllerSource, /if \(commitQuery\) setQuery\(nextQuery\)/)
+  assert.doesNotMatch(controllerSource, /function changeRange[\s\S]{0,220}setQuery/)
   assert.doesNotMatch(controllerSource, /PageTopBar|<aside|<main/)
+})
+
+test('analytics browser reads use a catchable same-origin no-store transport', () => {
+  assert.match(reportClientSource, /fetch\('\/api\/analytics\/report'/)
+  assert.match(reportClientSource, /credentials: 'same-origin'/)
+  assert.match(reportClientSource, /cache: 'no-store'/)
+  assert.doesNotMatch(reportClientSource, /createClient|supabase|service role/i)
+  assert.doesNotMatch(controllerSource, /fetchAnalyticsReportData/)
+})
+
+test('analytics core is database-aggregated and HTTP payloads fail visibly above budget', () => {
+  assert.match(insightsSharedSource, /readAnalyticsCoreMetrics/)
+  assert.match(insightsSharedSource, /getAnalyticsCoreMetrics = cache/)
+  assert.match(dbReadModelsSource, /\.rpc\('read_analytics_core_metrics'/)
+  assert.match(reportRouteSource, /serializeAnalyticsResponse/)
+  assert.match(reportRouteSource, /status: 413/)
+  assert.match(payloadBudgetSource, /MAX_ANALYTICS_RESPONSE_BYTES = 1_500_000/)
+})
+
+test('lazy chart chunks wait for reconnect instead of rejecting the report route', () => {
+  assert.match(chartLoaderSource, /navigator\.onLine/)
+  assert.match(chartLoaderSource, /addEventListener\('online'/)
+  assert.match(salesPaymentSource, /loadAnalyticsChart/)
+  assert.match(itemsSource, /loadAnalyticsChart/)
+  assert.match(operationsSource, /loadAnalyticsChart/)
 })
 
 test('analytics loading, visibility and export readiness rules stay browser-safe', () => {
@@ -84,8 +128,80 @@ test('analytics orchestrator delegates topbar, navigation and loading chrome', (
   assert.match(shellSource, /<PageTopBar/)
   assert.match(shellSource, /<aside/)
   assert.match(shellSource, /aria-label="Rapor türleri"/)
-  assert.match(shellSource, /aria-pressed=/)
+  assert.match(shellSource, /<AnalyticsRangePicker/)
+  assert.match(rangePickerSource, /aria-label="Rapor dönemi"/)
+  assert.match(shellSource, /aria-busy=/)
   assert.doesNotMatch(shellSource, /fetchAnalyticsReportData|createClient|supabase|restaurantId/i)
+})
+
+test('analytics shell keeps mobile navigation, heading order and touch targets explicit', () => {
+  assert.match(shellSource, /page-topbar--analytics/)
+  assert.match(shellSource, /analytics-mobile-navigation/)
+  assert.match(shellSource, /analytics-mobile-report-tabs/)
+  assert.match(shellSource, /analytics-active-label/)
+  assert.doesNotMatch(shellSource, /<h2/)
+  assert.doesNotMatch(shellSource, /<main/)
+  assert.match(shellSource, /<section className="analytics-main" aria-label=/)
+  assert.match(globalStylesSource, /\.analytics-report-tab,[\s\S]*min-height: 44px/)
+  assert.match(globalStylesSource, /@media \(max-width: 760px\)[\s\S]*\.analytics-sidebar \{ display: none/)
+  assert.match(globalStylesSource, /\.analytics-responsive-grid[\s\S]*grid-template-columns: minmax\(0, 1fr\) !important/)
+})
+
+test('custom range validation identifies and describes both date fields', () => {
+  assert.match(rangePickerSource, /const DATE_ERROR_ID = 'analytics-custom-range-error'/)
+  assert.equal(rangePickerSource.match(/aria-invalid=\{dateError \? true : undefined\}/g)?.length, 2)
+  assert.equal(rangePickerSource.match(/aria-describedby=\{dateError \? DATE_ERROR_ID : undefined\}/g)?.length, 2)
+  assert.match(rangePickerSource, /<div id=\{DATE_ERROR_ID\} role="alert"/)
+})
+
+test('analytics range and filters are allow-listed, shareable and server revalidated', () => {
+  assert.match(filterContractSource, /'yesterday'/)
+  assert.match(filterContractSource, /'calendar_month'/)
+  assert.match(filterContractSource, /analyticsCustomDayCount/)
+  assert.match(filterContractSource, /analyticsQueryToSearchParams/)
+  assert.match(filterContractSource, /validateAnalyticsQuery/)
+  assert.match(filterBarSource, /Filtreler birlikte uygulanır \(AND\)/)
+  assert.match(filterBarSource, /Filtreleri temizle/)
+  assert.match(controllerSource, /pushState/)
+  assert.match(controllerSource, /popstate/)
+  assert.match(controllerSource, /syncUrl\(initialReport, initialQuery, true\)/)
+  assert.match(controllerSource, /syncUrl\(nextReport, nextQuery, true\)/)
+  assert.match(analyticsActionsSource, /validateAnalyticsQuery/)
+  assert.match(dbReadModelsSource, /filters\?\.source[\s\S]*\.eq\('source', filters\.source\)/)
+  assert.match(dbReadModelsSource, /filters\?\.paymentMethod[\s\S]*\.eq\('payment_method', filters\.paymentMethod\)/)
+  assert.match(dbReadModelsSource, /filters\?\.status[\s\S]*\.eq\('status', filters\.status\)/)
+  assert.match(analyticsOperationsQueriesSource, /filters: \{ \.\.\.query\.filters, status: 'all' \}/)
+})
+
+test('analytics dialogs use viewport-centered, bounded top-layer geometry', () => {
+  assert.match(globalStylesSource, /\.analytics-custom-range-dialog \{[\s\S]{0,260}position: fixed;[\s\S]{0,180}inset: 0;[\s\S]{0,180}margin: auto;[\s\S]{0,220}max-height: calc\(100dvh - 32px\);[\s\S]{0,100}overflow: auto;/)
+  assert.match(globalStylesSource, /\.analytics-detail-dialog \{[\s\S]{0,260}position: fixed;[\s\S]{0,180}inset: 0;[\s\S]{0,180}margin: auto;[\s\S]{0,220}max-height: calc\(100dvh - 32px\);[\s\S]{0,100}overflow: auto;/)
+})
+
+test('analytics charts expose names, keyboard paths and same-data tables', () => {
+  for (const source of [salesChartSource, paymentChartSource, productChartSource, cancellationChartSource]) {
+    assert.match(source, /role="img"/)
+    assert.match(source, /aria-label=/)
+    assert.match(source, /accessibilityLayer/)
+    assert.match(source, /AccessibleChartData/)
+  }
+  assert.match(accessibleChartDataSource, /<caption/)
+  assert.match(accessibleChartDataSource, /Veri tablosunu göster/)
+  assert.match(accessibleChartDataSource, /role="region"/)
+  assert.match(heatmapSource, /role="grid"/)
+  assert.match(heatmapSource, /role="gridcell"/)
+  assert.match(heatmapSource, /tabIndex=/)
+  assert.match(heatmapSource, /onKeyDown=/)
+  assert.match(heatmapSource, /AccessibleChartData/)
+  assert.match(heatmapSource, /analytics-heatmap-scroll/)
+  assert.match(globalStylesSource, /\.analytics-heatmap-cell \{[\s\S]{0,120}min-width: 44px;[\s\S]{0,80}min-height: 44px;/)
+  assert.match(globalStylesSource, /\.analytics-heatmap-scroll \{[\s\S]{0,120}overflow-x: auto;/)
+})
+
+test('analytics report motion follows the reduced-motion preference', () => {
+  assert.doesNotMatch(shellSource, /transition: 'opacity 150ms'/)
+  assert.match(globalStylesSource, /\.analytics-main \{ transition: opacity 150ms; \}/)
+  assert.match(globalStylesSource, /@media \(prefers-reduced-motion: reduce\)[\s\S]{0,360}\.analytics-shell \*[\s\S]{0,220}transition-duration: 0s !important;/)
 })
 
 test('CSV serialization is separate from report rendering', () => {
@@ -103,7 +219,22 @@ test('sales and payment report families stay behind one infrastructure-free feat
   assert.match(salesPaymentSource, /export function AnalyticsPaymentsReport/)
   assert.match(salesPaymentSource, /paymentBreakdown\.collected/)
   assert.match(salesPaymentSource, /tahsilat dışı/)
+  assert.match(salesPaymentSource, /rangeKpis\.revenue/)
+  assert.match(salesPaymentSource, /analyticsPreviousPeriodLabel/)
+  assert.match(salesPaymentSource, /Bu anlık değer seçili dönem KPI’larına dahil değildir/)
+  assert.doesNotMatch(salesPaymentSource, /kpis\.revenueYesterday|kpis\.ordersYesterday/)
   assert.doesNotMatch(salesPaymentSource, /lib\/actions|createClient|supabase|restaurantId/i)
+})
+
+test('sales range changes refresh KPI, chart, item and payment data from one as-of boundary', () => {
+  assert.match(analyticsActionsSource, /const asOf = new Date\(\)/)
+  assert.match(analyticsActionsSource, /getAnalyticsSalesReportData\(restaurantId, query, asOf\)/)
+  assert.match(analyticsQueriesSource, /getAnalyticsCoreMetrics\(restaurantId, range, asOf\)/)
+  assert.match(analyticsQueriesSource, /getAnalyticsRangeKPIs\(restaurantId, range, asOf, core\)/)
+  assert.match(analyticsQueriesSource, /getSalesOverTime\(restaurantId, range, 'analytics', asOf, core\)/)
+  assert.match(analyticsQueriesSource, /getTopItems\(restaurantId, range, asOf, core\)/)
+  assert.match(analyticsQueriesSource, /getPaymentBreakdown\(restaurantId, range, asOf\)/)
+  assert.match(controllerSource, /setAnalyticsData\(\(previous\) => \(\{ \.\.\.previous, \.\.\.data \}\)\)/)
 })
 
 test('shared analytics presentation primitives stay tenant and data-source agnostic', () => {
@@ -122,6 +253,9 @@ test('owner-only operation reports stay behind one infrastructure-free feature v
   assert.match(operationsSource, /export function AnalyticsOperationsReport/)
   assert.match(operationsSource, /StaffSettlementTable/)
   assert.match(operationsSource, /AbnormalCloseTable/)
+  assert.doesNotMatch(operationsSource, /row\.(sessionId|settledBy)/)
+  assert.doesNotMatch(analyticsOperationsQueriesSource, /interface AbnormalCloseRow \{\s*sessionId:/)
+  assert.doesNotMatch(analyticsOperationsQueriesSource, /interface StaffSettlementRow \{\s*settledBy:/)
   assert.doesNotMatch(operationsSource, /lib\/actions|createClient|supabase|restaurantId/i)
 })
 
@@ -138,6 +272,10 @@ test('item performance reports stay behind one infrastructure-free feature view'
   assert.match(itemsSource, /export function AnalyticsItemsReport/)
   assert.match(itemsSource, /ProductScatterChart/)
   assert.match(itemsSource, /ABCAnalysis/)
+  assert.match(itemsSource, /analytics-data-table-controls/)
+  assert.match(itemsSource, /analytics-pagination/)
+  assert.match(itemsSource, /analytics-detail-dialog/)
+  assert.match(itemsSource, /items\.find\(\(item\) => item\.name === requestedDetail\) \?\? null/)
   assert.doesNotMatch(itemsSource, /lib\/actions|createClient|supabase|restaurantId/i)
 })
 
@@ -242,8 +380,8 @@ test('dashboard query compatibility facade stays retired and call-sites use feat
   assert.doesNotMatch(panoActionsSource, /from ['"]\.\.\/queries['"]/)
 
   const budgets = [
-    ['analytics queries', analyticsQueriesSource, 400],
-    ['analytics operations queries', analyticsOperationsQueriesSource, 380],
+    ['analytics queries', analyticsQueriesSource, 440],
+    ['analytics operations queries', analyticsOperationsQueriesSource, 390],
     ['pano queries', panoQueriesSource, 460],
     ['insights shared', insightsSharedSource, 180],
     ['restaurants queries', restaurantsQueriesSource, 90],

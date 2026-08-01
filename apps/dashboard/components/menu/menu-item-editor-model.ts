@@ -14,6 +14,18 @@ export interface MenuItemEditorSnapshot {
   modifiers: unknown
 }
 
+export interface NewMenuItemDraftSnapshot {
+  name: string
+  description: string
+  price: string
+  cost: string
+  isAvailable: boolean
+  earnsStamp: boolean
+  stationMode: 'category' | 'custom'
+  kitchenStationId: string
+  nutrition: unknown
+}
+
 export function isMenuItemEditorDirty(
   current: MenuItemEditorSnapshot,
   initial: MenuItemEditorSnapshot,
@@ -31,4 +43,19 @@ export function isMenuItemEditorDirty(
     JSON.stringify(current.nutrition) !== JSON.stringify(initial.nutrition) ||
     JSON.stringify(current.images) !== JSON.stringify(initial.images) ||
     JSON.stringify(current.modifiers) !== JSON.stringify(initial.modifiers)
+}
+
+export function isNewMenuItemDraftDirty(
+  current: NewMenuItemDraftSnapshot,
+  initial: NewMenuItemDraftSnapshot,
+) {
+  return current.name !== initial.name ||
+    current.description !== initial.description ||
+    current.price !== initial.price ||
+    current.cost !== initial.cost ||
+    current.isAvailable !== initial.isAvailable ||
+    current.earnsStamp !== initial.earnsStamp ||
+    current.stationMode !== initial.stationMode ||
+    (current.stationMode === 'custom' && current.kitchenStationId !== initial.kitchenStationId) ||
+    JSON.stringify(current.nutrition) !== JSON.stringify(initial.nutrition)
 }

@@ -3,17 +3,16 @@
 import { useEffect, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, type OrderStatus, type PaymentMethod, type OrderLineSnapshot } from '@garsonless/db/browser'
+import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, type OperationalOrderStatus, type OrderLifecycleTarget, type PaymentMethod } from '@garsonless/db/browser'
 import type { Order } from './useOrdersRealtime'
 import { I, S, Tag } from '../../lib/ui'
 import { paymentMethodBadge } from '../../lib/payment-method'
-import { isLateOrder, isReadyWaitingOrder, orderStageStartedAt, orderStatusGroup } from './order-status'
+import { formatOrderElapsedMinutes, isLateOrder, isReadyWaitingOrder, orderStageStartedAt, orderStatusGroup } from './order-status'
+import { ORDER_SOURCE_LABELS } from './order-filters'
 
-export type CartItem = OrderLineSnapshot
-
-export function nextStatus(s: OrderStatus): OrderStatus | null {
+export function nextStatus(s: OperationalOrderStatus): OrderLifecycleTarget | null {
   if (s === 'pending' || s === 'pending_approval') return 'sent_to_kitchen'
-  if (s === 'sent_to_kitchen' || s === 'preparing' || s === 'paid') return 'ready'
+  if (s === 'sent_to_kitchen' || s === 'preparing') return 'ready'
   if (s === 'ready') return 'served'
   return null
 }
@@ -25,12 +24,11 @@ const ACCENT = {
   done:  { left: 'transparent',     pill: 'var(--surface-3)',   pillFg: 'var(--text-3)' },
 } as const
 
-const ACTION_LABEL: Partial<Record<OrderStatus, string>> = {
+const ACTION_LABEL: Partial<Record<OperationalOrderStatus, string>> = {
   pending:           'Onayla →',
   pending_approval:  'Onayla →',
   sent_to_kitchen:   'Hazır →',
   preparing:         'Hazır →',
-  paid:              'Hazır →',
   ready:             'Servis et',
 }
 
@@ -66,7 +64,7 @@ function urgencyFor(
  * orders have NULL stamps → graceful fallback to created_at (today's behavior,
  * an approximation — never a fabricated stage time).
  */
-export function stageStartFor(order: Order, group: 'new' | 'prep' | 'ready' | 'done'): string {
+function stageStartFor(order: Order, group: 'new' | 'prep' | 'ready' | 'done'): string {
   void group
   return orderStageStartedAt(order)
 }
@@ -95,7 +93,7 @@ function ElapsedLabel({ startAt, group, lateThresholdMin }: {
       display: 'inline-flex', alignItems: 'center', gap: 4,
     }}>
       <span style={{ width: 4, height: 4, borderRadius: 999, background: c.fg, display: 'inline-block', animation: group !== 'done' ? 'pulse-dot 2s infinite' : 'none' }} />
-      {mins} dk
+      {formatOrderElapsedMinutes(mins)}
     </span>
   )
 }
@@ -106,6 +104,7 @@ interface Props {
   active?: boolean
   onClick?: () => void
   onAdvance?: (order: Order) => void
+  actionPending?: boolean
   /** settings.orders.late_threshold_min (clamped, default 20). */
   lateThresholdMin?: number
   density?: OrderDensity
@@ -113,12 +112,12 @@ interface Props {
 
 export type OrderDensity = 'comfortable' | 'compact' | 'dense'
 
-export default function OrderCard({ order, tableLabel, active, onClick, onAdvance, lateThresholdMin = 20, density = 'comfortable' }: Props) {
+export default function OrderCard({ order, tableLabel, active, onClick, onAdvance, actionPending = false, lateThresholdMin = 20, density = 'comfortable' }: Props) {
   // Terminal orders (served/cancelled) are NOT draggable — no way out of a
   // terminal state (the server matrix rejects it anyway; this removes the affordance).
-  const terminal = orderStatusGroup(order.status as OrderStatus) === 'done'
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: order.id, disabled: terminal })
+  const terminal = orderStatusGroup(order.status) === 'done'
+  const { listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: order.id, disabled: terminal || actionPending })
 
   const [hov, setHov] = useState(false)
 
@@ -128,10 +127,10 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
     opacity: isDragging ? 0.4 : 1,
   }
 
-  const group = orderStatusGroup(order.status as OrderStatus)
+  const group = orderStatusGroup(order.status)
   const accent = ACCENT[group]
   const items = readOrderLineSnapshots(order.items)
-  const actionLabel = ACTION_LABEL[order.status as OrderStatus]
+  const actionLabel = ACTION_LABEL[order.status]
   const tier = readOrderCustomerTierSnapshot(order.customer_tier)
   // Stage-based (P2): prep age counts from sent_to_kitchen_at (fallback
   // created_at on pre-migration orders), against the per-restaurant threshold.
@@ -143,23 +142,26 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
   // Settled order → show the method badge (İkram = distinct dashed violet, ₺0
   // collected) instead of a generic "ödendi". The method rides the authenticated
   // realtime/SSR payload (anon's column grant never exposes payment_method).
-  const isPaid = order.paid_at !== null || order.status === 'paid'
+  const isPaid = order.paid_at !== null
   const methodBadge = isPaid
     ? paymentMethodBadge((order.payment_method as PaymentMethod | null | undefined) ?? null)
     : null
 
+  const footerPadding = density === 'dense' ? '0 9px 7px' : density === 'compact' ? '0 10px 8px' : '0 12px 10px'
+
   return (
-    <div
+    <article
       ref={setNodeRef}
+      data-order-card={order.id}
+      data-order-status={order.status}
       style={style}
-      {...attributes}
       {...listeners}
+      aria-busy={actionPending}
       suppressHydrationWarning
-      onClick={onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
     >
-      <div style={{
+      <div className="order-card-shell" style={{
         background: 'var(--surface)', borderRadius: 10,
         border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
         boxShadow: active ? '0 0 0 3px rgba(17,17,19,.06)' : hov ? 'var(--shadow-2)' : 'var(--shadow-1)',
@@ -170,9 +172,21 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
         {/* Status stripe */}
         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: accent.left }} />
 
-        <div style={{ padding: contentPadding }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-            <div>
+        <button
+          type="button"
+          data-order-card-open
+          className="order-card-open"
+          aria-pressed={active}
+          aria-label={`${tableLabel ?? 'Kasa'}, ${items.reduce((sum, item) => sum + Math.max(0, item.quantity), 0)} adet, ₺${order.total}. Sipariş detayını aç.`}
+          onClick={onClick}
+          style={{
+            width: '100%', display: 'block', padding: contentPadding,
+            border: 0, background: 'transparent', color: 'inherit',
+            textAlign: 'left', cursor: 'pointer', font: 'inherit',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 700, fontSize: 13.5 }}>{tableLabel ?? 'Walk-in'}</span>
                 {methodBadge && (
@@ -205,18 +219,20 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: 'var(--text-3)', marginTop: 3, ...S.mono }}>
                 <span>#{order.id.slice(0, 6).toUpperCase()}</span>
                 {items.length > 0 && <><span>·</span><span>{items.reduce((sum, item) => sum + Math.max(0, item.quantity), 0)} adet</span></>}
+                <span>·</span>
+                <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 600 }}>{ORDER_SOURCE_LABELS[order.source]}</span>
               </div>
             </div>
-            <div style={{ ...S.mono, fontSize: 14, fontWeight: 700 }}>₺{order.total}</div>
+            <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, flexShrink: 0 }}>₺{order.total}</div>
           </div>
 
           {/* Mini items */}
           {items.length > 0 && visibleItemCount > 0 && (
             <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--divider)' }}>
               {items.slice(0, visibleItemCount).map((it, i) => (
-                <div key={i} style={{ display: 'flex', fontSize: 11.5, color: 'var(--text-2)', padding: '2px 0' }}>
-                  <span style={{ ...S.mono, color: 'var(--text-3)', marginRight: 4 }}>{it.quantity}×</span>
-                  {it.name}
+                <div key={i} style={{ fontSize: 11.5, color: 'var(--text-2)', padding: '2px 0' }}>
+                  <div style={{ display: 'flex' }}><span style={{ ...S.mono, color: 'var(--text-3)', marginRight: 4 }}>{it.quantity}×</span>{it.name}</div>
+                  {it.productNote && <div style={{ margin: '2px 0 0 17px', color: 'var(--warning)', fontSize: 10.5, fontWeight: 700 }}>Not: {it.productNote}</div>}
                 </div>
               ))}
               {items.length > visibleItemCount && (
@@ -227,30 +243,37 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
             </div>
           )}
 
-          {/* Bottom row */}
-          <div style={{
-            marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--divider)',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <ElapsedLabel startAt={stageStartFor(order, group)} group={group} lateThresholdMin={lateThresholdMin} />
-            {actionLabel && onAdvance && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onAdvance(order) }}
-                style={{
-                  background: group === 'new' ? 'var(--action)' : group === 'ready' ? 'var(--positive)' : 'transparent',
-                  color: group === 'new' || group === 'ready' ? '#fff' : 'var(--text-2)',
-                  border: group === 'prep' ? '1px solid var(--border)' : 'none',
-                  padding: '4px 10px', borderRadius: 5,
-                  fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                }}
-              >
-                {actionLabel}
-              </button>
-            )}
-          </div>
+        </button>
+
+        {/* Bottom row stays outside the detail button so the action remains a
+            separate, valid interactive target. */}
+        <div className="order-card-footer" style={{
+          marginTop: density === 'dense' ? 0 : 2,
+          padding: footerPadding,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+        }}>
+          <ElapsedLabel startAt={stageStartFor(order, group)} group={group} lateThresholdMin={lateThresholdMin} />
+          {actionLabel && onAdvance && (
+            <button
+              type="button"
+              data-order-card-advance
+              className="order-card-action orders-touch-target"
+              disabled={actionPending}
+              onClick={(e) => { e.stopPropagation(); onAdvance(order) }}
+              style={{
+                background: group === 'new' ? 'var(--action)' : group === 'ready' ? 'var(--positive)' : 'transparent',
+                color: group === 'new' || group === 'ready' ? '#fff' : 'var(--text-2)',
+                border: group === 'prep' ? '1px solid var(--border)' : 'none',
+                minHeight: 34, padding: '4px 10px', borderRadius: 6,
+                fontSize: 11, fontWeight: 600, cursor: actionPending ? 'wait' : 'pointer',
+                opacity: actionPending ? 0.65 : 1,
+              }}
+            >
+              {actionPending ? 'İşleniyor…' : actionLabel}
+            </button>
+          )}
         </div>
       </div>
-    </div>
+    </article>
   )
 }

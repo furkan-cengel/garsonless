@@ -1,5 +1,5 @@
-import DashboardRouteSkeleton from '../../../../components/layout/DashboardRouteSkeleton'
+import { TablesRouteSkeleton } from '../../../../components/tables/TablesRouteSkeleton'
 
 export default function Loading() {
-  return <DashboardRouteSkeleton kind="tables" />
+  return <TablesRouteSkeleton variant="operations" />
 }

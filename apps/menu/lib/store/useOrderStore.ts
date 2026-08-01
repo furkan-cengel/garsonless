@@ -5,14 +5,14 @@ import { persist } from 'zustand/middleware'
 import type { OrderStatus } from '@garsonless/db/types'
 import type { OrderSummaryItem } from '@garsonless/ui'
 
-export interface OrderMetaSnapshot {
+interface OrderMetaSnapshot {
   items: OrderSummaryItem[]
   total: number
   createdAt: string
   paid: boolean
 }
 
-export type OrderView = 'sheet' | 'bubble' | null
+type OrderView = 'sheet' | 'bubble' | null
 
 interface OrderState {
   orderId: string | null

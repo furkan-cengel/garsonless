@@ -5,7 +5,7 @@ export { computeVatBreakdown } from './order-tax'
 export type { VatBreakdown, VatBreakdownRate, VatLineInput } from './order-tax'
 export { ORDER_STATUS_TRANSITIONS, canTransitionOrderStatus } from './enums'
 export {
-  DEFAULT_TIMEZONE, startOfRestaurantDay, startOfDayNDaysAgo, rangeWindow,
+  DEFAULT_TIMEZONE, startOfRestaurantDay, startOfRestaurantDate, startOfDayNDaysAgo, rangeWindow, customRangeWindow, restaurantCalendarDayCount,
   restaurantDayKey, restaurantHour, restaurantWeekday, isValidTimeZone, normalizeTimeZone,
 } from './restaurant-time'
 export {

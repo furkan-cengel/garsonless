@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { colorOpts, escapeXML, safeFilePart } from './tables-qr-renderer'
+import { buildQRCodeStylingOptions, colorOpts, escapeXML, safeFilePart } from './tables-qr-renderer'
 import { defaultQR } from './tables-builder-model'
 
 test('QR export dosya adı Türkçe karakterleri güvenli ve okunur normalize eder', () => {
@@ -24,4 +24,26 @@ test('QR renk seçeneği single ve gradient ayarını aynı renderer sözleşmes
       colorStops: [{ offset: 0, color: qr.fg }, { offset: 1, color: qr.fg2 }],
     },
   })
+})
+
+test('QR styling adapter geçersiz persist edilmiş enumları güvenli varsayılanlara çeker', () => {
+  const qr = {
+    ...defaultQR('https://menu.masabu.co/test'),
+    dotsType: 'invalid-dot',
+    eyeFrame: 'invalid-frame',
+    eyeBall: 'invalid-ball',
+    ecl: 'invalid-ecl',
+  }
+  const options = buildQRCodeStylingOptions(qr, {
+    width: 280,
+    height: 280,
+    data: qr.baseUrl,
+    margin: 8,
+    logoMargin: 4,
+  })
+
+  assert.equal(options.dotsOptions?.type, 'rounded')
+  assert.equal(options.cornersSquareOptions?.type, 'extra-rounded')
+  assert.equal(options.cornersDotOptions?.type, 'dot')
+  assert.equal(options.qrOptions?.errorCorrectionLevel, 'M')
 })

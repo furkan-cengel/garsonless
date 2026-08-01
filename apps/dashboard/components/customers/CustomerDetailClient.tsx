@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useTransition, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import type { CustomerTimelineEvent, RestaurantCustomerDetail } from '@garsonless/domain/customers'
-import { grantStoreCreditAction } from '../../lib/actions/customers'
+import { grantStoreCreditAction, loadCustomerTimelineAction } from '../../lib/actions/customers'
 import { formatCurrency } from '../../lib/utils'
 import { I, S, btnGhost } from '../../lib/ui'
 import PageTopBar from '../layout/PageTopBar'
@@ -42,9 +42,29 @@ function softForTier(color: string | undefined): string {
   return map[c] ?? 'var(--surface-3)'
 }
 
+function unpaidOrderStatusLabel(status: string | undefined): string {
+  const labels: Record<string, string> = {
+    pending: 'onay bekliyor',
+    pending_approval: 'onay bekliyor',
+    sent_to_kitchen: 'mutfağa gönderildi',
+    preparing: 'hazırlanıyor',
+    ready: 'servis bekliyor',
+    served: 'servis edildi',
+    paid: 'ödeme kaydı bekleniyor',
+  }
+  return status ? (labels[status] ?? 'ödenmedi') : 'ödenmedi'
+}
+
 function timelineLabel(e: CustomerTimelineEvent): { icon: ReactNode; label: string; amount: string; positive: boolean } {
   if (e.kind === 'order') {
-    return { icon: <I.receipt size={18} />, label: e.paid ? 'Sipariş (ödendi)' : `Sipariş (${e.status ?? '—'})`, amount: formatCurrency(e.amount ?? 0), positive: false }
+    const label = e.status === 'cancelled'
+      ? 'Sipariş (iptal — harcamaya dahil değil)'
+      : e.collected
+        ? 'Sipariş (tahsil edildi)'
+        : e.paid
+          ? 'Sipariş (ikram — harcamaya dahil değil)'
+          : `Sipariş (${unpaidOrderStatusLabel(e.status)} — harcamaya dahil değil)`
+    return { icon: <I.receipt size={18} />, label, amount: formatCurrency(e.amount ?? 0), positive: false }
   }
   const delta = e.delta ?? 0
   const sign = delta >= 0 ? '+' : '−'
@@ -63,11 +83,13 @@ export default function CustomerDetailClient({
   restaurantName,
   detail,
   canGrantStoreCredit,
+  backHref,
 }: {
   restaurantId: string
   restaurantName: string
   detail: RestaurantCustomerDetail
   canGrantStoreCredit: boolean
+  backHref: string
 }) {
   const router = useRouter()
   const [points, setPoints] = useState('')
@@ -75,6 +97,19 @@ export default function CustomerDetailClient({
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
   const [grantConfirmed, setGrantConfirmed] = useState(false)
   const [pending, startTransition] = useTransition()
+  const [timeline, setTimeline] = useState(detail.timeline)
+  const [timelineCursor, setTimelineCursor] = useState(detail.timelineNextCursor)
+  const [timelineHasMore, setTimelineHasMore] = useState(detail.timelineHasMore)
+  const [timelineLoading, setTimelineLoading] = useState(false)
+  const [timelineError, setTimelineError] = useState<string | null>(null)
+  const grantRequestId = useRef<string | null>(null)
+
+  useEffect(() => {
+    setTimeline(detail.timeline)
+    setTimelineCursor(detail.timelineNextCursor)
+    setTimelineHasMore(detail.timelineHasMore)
+    setTimelineError(null)
+  }, [detail.timeline, detail.timelineNextCursor, detail.timelineHasMore])
 
   const b = detail.balances
   const tier = b?.tier
@@ -100,23 +135,53 @@ export default function CustomerDetailClient({
       return
     }
     setMsg(null)
+    const requestId = grantRequestId.current ?? crypto.randomUUID()
+    grantRequestId.current = requestId
     startTransition(async () => {
-      const res = await grantStoreCreditAction(restaurantId, detail.customerId, n, note.trim() || undefined)
-      if ('error' in res) { setMsg({ kind: 'err', text: res.error }); return }
-      setMsg({ kind: 'ok', text: `${res.granted} puan tanımlandı` })
-      setPoints('')
-      setNote('')
-      setGrantConfirmed(false)
-      router.refresh()
+      try {
+        const res = await grantStoreCreditAction(restaurantId, detail.customerId, requestId, n, note.trim() || undefined)
+        if ('error' in res) { setMsg({ kind: 'err', text: res.error }); return }
+        grantRequestId.current = null
+        setMsg({ kind: 'ok', text: res.replayed ? `${res.granted} puan daha önce tanımlanmıştı` : `${res.granted} puan tanımlandı` })
+        setPoints('')
+        setNote('')
+        setGrantConfirmed(false)
+        router.refresh()
+      } catch {
+        setMsg({ kind: 'err', text: 'Puan tanımlama sonucu doğrulanamadı. Aynı istek güvenle yeniden denenebilir.' })
+      }
     })
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <PageTopBar restaurantName={restaurantName} title={detail.name || 'Müşteri'} backHref={`/dashboard/${restaurantId}/customers`} />
+  async function loadOlderTimeline() {
+    if (!timelineCursor || timelineLoading) return
+    setTimelineLoading(true)
+    setTimelineError(null)
+    try {
+      const result = await loadCustomerTimelineAction(restaurantId, detail.customerId, timelineCursor)
+      if ('error' in result) {
+        setTimelineError(result.error)
+        return
+      }
+      setTimeline((current) => {
+        const known = new Set(current.map((event) => event.id))
+        return [...current, ...result.events.filter((event) => !known.has(event.id))]
+      })
+      setTimelineCursor(result.nextCursor)
+      setTimelineHasMore(result.hasMore)
+    } catch {
+      setTimelineError('Müşteri hareketleri yüklenemedi. Yeniden deneyin.')
+    } finally {
+      setTimelineLoading(false)
+    }
+  }
 
-      <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg)', minWidth: 0 }}>
-        <div style={{ maxWidth: 1000, margin: '0 auto', padding: '24px 32px 60px' }}>
+  return (
+    <div className="customer-route-shell" style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+      <PageTopBar className="customer-page-topbar" restaurantName={restaurantName} title={detail.name || 'Müşteri'} backHref={backHref} />
+
+      <div className="customer-page-scroll" style={{ flex: '1 0 auto', overflow: 'visible', background: 'var(--bg)', minWidth: 0 }}>
+        <div className="customer-page-content" style={{ maxWidth: 1000, margin: '0 auto', padding: '24px 32px 60px' }}>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: 'var(--shadow-1)', padding: 22, marginBottom: 16 }}>
             <div className="customer-profile" style={{ display: 'flex', alignItems: 'flex-start', gap: 18 }}>
               <div style={{ width: 64, height: 64, borderRadius: 999, background: tierSoft, color: tierColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 750, fontSize: 22, flexShrink: 0 }}>
@@ -181,38 +246,38 @@ export default function CustomerDetailClient({
               <input
                 aria-label="Tanımlanacak puan"
                 value={points}
-                onChange={(e) => { setPoints(e.target.value.replace(/[^\d]/g, '')); setGrantConfirmed(false); setMsg(null) }}
+                onChange={(e) => { grantRequestId.current = null; setPoints(e.target.value.replace(/[^\d]/g, '')); setGrantConfirmed(false); setMsg(null) }}
                 placeholder="Puan"
                 inputMode="numeric"
-                style={{ width: 130, height: 40, padding: '0 14px', border: '1px solid var(--border-strong)', borderRadius: 9, fontSize: 14, fontWeight: 650, outline: 'none', textAlign: 'center', background: 'var(--surface)', color: 'var(--text)' }}
+                style={{ width: 130, height: 44, padding: '0 14px', border: '1px solid var(--border-strong)', borderRadius: 9, fontSize: 14, fontWeight: 650, outline: 'none', textAlign: 'center', background: 'var(--surface)', color: 'var(--text)' }}
               />
               <input
                 aria-label="Puan tanımlama notu"
                 value={note}
-                onChange={(e) => setNote(e.target.value)}
+                onChange={(e) => { grantRequestId.current = null; setNote(e.target.value); setGrantConfirmed(false); setMsg(null) }}
                 placeholder="Not (opsiyonel)"
                 maxLength={80}
-                style={{ flex: 1, minWidth: 160, height: 40, padding: '0 14px', border: '1px solid var(--border-strong)', borderRadius: 9, fontSize: 14, outline: 'none', background: 'var(--surface)', color: 'var(--text)' }}
+                style={{ flex: 1, minWidth: 160, height: 44, padding: '0 14px', border: '1px solid var(--border-strong)', borderRadius: 9, fontSize: 14, outline: 'none', background: 'var(--surface)', color: 'var(--text)' }}
               />
               <button type="button" onClick={submitGrant} disabled={pending || !points}
-                style={{ height: 40, padding: '0 22px', borderRadius: 9, border: 'none', background: points && !pending ? 'var(--action)' : 'var(--border-strong)', color: '#fff', fontSize: 14, fontWeight: 650, cursor: points && !pending ? 'pointer' : 'not-allowed' }}>
+                style={{ height: 44, padding: '0 22px', borderRadius: 9, border: 'none', background: points && !pending ? 'var(--action)' : 'var(--border-strong)', color: '#fff', fontSize: 14, fontWeight: 650, cursor: points && !pending ? 'pointer' : 'not-allowed' }}>
                 {pending ? 'Tanımlanıyor...' : grantConfirmed ? 'Puanı onayla' : 'Tanımla'}
               </button>
             </div>
             <div style={{ display: 'flex', gap: 7, marginTop: 12, flexWrap: 'wrap' }}>
               {[50, 100, 250, 500].map((v) => (
-                <button key={v} type="button" onClick={() => { setPoints(String(v)); setGrantConfirmed(false); setMsg(null) }} style={{ height: 28, padding: '0 12px', borderRadius: 99, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>+{v}</button>
+                <button key={v} type="button" onClick={() => { grantRequestId.current = null; setPoints(String(v)); setGrantConfirmed(false); setMsg(null) }} style={{ minWidth: 44, height: 44, padding: '0 12px', borderRadius: 99, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>+{v}</button>
               ))}
-              <button type="button" onClick={() => { setPoints(''); setNote('') }} style={{ ...btnGhost({ height: 28, padding: '0 12px', borderRadius: 99, fontSize: 12.5 }) }}>Temizle</button>
+              <button type="button" onClick={() => { grantRequestId.current = null; setPoints(''); setNote(''); setGrantConfirmed(false); setMsg(null) }} style={{ ...btnGhost({ height: 44, padding: '0 12px', borderRadius: 99, fontSize: 12.5 }) }}>Temizle</button>
             </div>
-            {msg && <div style={{ marginTop: 10, fontSize: 12.5, color: msg.kind === 'ok' ? 'var(--positive)' : 'var(--critical)' }}>{msg.text}</div>}
+            {msg && <div role={msg.kind === 'err' ? 'alert' : 'status'} aria-live="polite" style={{ marginTop: 10, fontSize: 12.5, color: msg.kind === 'ok' ? 'var(--positive)' : 'var(--critical)' }}>{msg.text}</div>}
           </div>}
 
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '.05em', marginBottom: 10 }}>HAREKETLER</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {detail.timeline.length === 0 ? (
+            {timeline.length === 0 ? (
               <div style={{ padding: 28, textAlign: 'center', color: 'var(--text-3)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow-1)' }}>Henüz hareket yok.</div>
-            ) : detail.timeline.map((e) => {
+            ) : timeline.map((e) => {
               const t = timelineLabel(e)
               return (
                 <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--shadow-1)', padding: '14px 16px' }}>
@@ -225,8 +290,26 @@ export default function CustomerDetailClient({
                 </div>
               )
             })}
+            {timeline.length > 0 && (
+              <div role="status" aria-live="polite" style={{ textAlign: 'center', color: 'var(--text-3)', fontSize: 12.5, padding: '6px 12px' }}>
+                {timelineHasMore
+                  ? `En yeni ${timeline.length} hareket gösteriliyor; daha eski hareketler mevcut.`
+                  : `Gösterilen ${timeline.length} hareket, daha eski hareket kalmadı.`}
+              </div>
+            )}
+            {timelineError && <div role="alert" style={{ textAlign: 'center', color: 'var(--critical)', fontSize: 12.5 }}>{timelineError}</div>}
+            {timelineHasMore && timelineCursor && (
+              <button
+                type="button"
+                disabled={timelineLoading}
+                onClick={() => { void loadOlderTimeline() }}
+                style={{ ...btnGhost({ height: 44, alignSelf: 'center', padding: '0 18px' }), opacity: timelineLoading ? 0.6 : 1 }}
+              >
+                {timelineLoading ? 'Yükleniyor…' : 'Daha eski hareketleri yükle'}
+              </button>
+            )}
           </div>
-          <style>{`@media (max-width:760px){.customer-detail-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}.customer-grant-form{flex-direction:column!important}.customer-grant-form input{width:100%!important}.customer-profile{flex-wrap:wrap!important}} @media (max-width:460px){.customer-detail-stats{grid-template-columns:1fr!important}}`}</style>
+          <style>{`.customer-page-topbar{position:sticky;top:0;z-index:30} @media (max-width:760px){.customer-page-content{padding:22px 20px 48px!important}.customer-detail-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}.customer-grant-form{flex-direction:column!important}.customer-grant-form input{width:100%!important;min-height:44px!important;flex:none!important}.customer-profile{flex-wrap:wrap!important}} @media (max-width:460px){.customer-page-content{padding:20px 12px 44px!important}.customer-detail-stats{grid-template-columns:1fr!important}}`}</style>
         </div>
       </div>
     </div>

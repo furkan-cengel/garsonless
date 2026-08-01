@@ -73,7 +73,7 @@ export function subscriptionTone(status: SubscriptionStatus | null): string {
   return 'neutral'
 }
 
-export const PLATFORM_ROLE_LABELS: Record<string, string> = {
+const PLATFORM_ROLE_LABELS: Record<string, string> = {
   support: 'Destek',
   ops: 'Operasyon',
   finance: 'Finans',

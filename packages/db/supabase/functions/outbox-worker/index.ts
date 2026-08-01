@@ -81,9 +81,23 @@ Deno.serve(async (req) => {
   const worker = `edge-${crypto.randomUUID()}`
 
   if (req.method === 'GET') {
-    const health = await supabase.rpc('get_domain_outbox_health')
-    if (health.error) return Response.json({ error: health.error.message }, { status: 500 })
-    return Response.json({ worker: 'outbox-worker', health: health.data?.[0] ?? null })
+    const [health, notifications] = await Promise.all([
+      supabase.rpc('get_domain_outbox_health'),
+      supabase.rpc('get_notification_delivery_health'),
+    ])
+    if (health.error || notifications.error) {
+      return Response.json({ error: health.error?.message ?? notifications.error?.message }, { status: 500 })
+    }
+    return Response.json({
+      worker: 'outbox-worker',
+      health: health.data?.[0] ?? null,
+      notificationChannels: notifications.data ?? [],
+      configuration: {
+        inbox: Boolean(Deno.env.get('OUTBOX_INBOX_CONSUMER_URL')),
+        push: Boolean(Deno.env.get('OUTBOX_PUSH_CONSUMER_URL')),
+        email: Boolean(Deno.env.get('OUTBOX_EMAIL_CONSUMER_URL')),
+      },
+    })
   }
 
   if (req.method !== 'POST') {
@@ -210,8 +224,8 @@ Deno.serve(async (req) => {
           const inboxUrl = Deno.env.get('OUTBOX_INBOX_CONSUMER_URL')
           if (!inboxUrl) {
             inboxUnconfigured += 1
-            if (isMandatoryBillingNotificationEvent(event.event_type)) {
-              throw new Error('Mandatory billing inbox consumer is not configured')
+            if (event.event_type === 'order.created' || isMandatoryBillingNotificationEvent(event.event_type)) {
+              throw new Error('Mandatory dashboard inbox consumer is not configured')
             }
           } else {
             const response = await fetch(inboxUrl, {

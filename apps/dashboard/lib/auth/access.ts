@@ -1,25 +1,32 @@
 import { cache } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { createDashboardServerClient } from '../supabase-server'
+import {
+  firstPermittedPath,
+  normalizeDashboardPermissions,
+  type Section,
+} from './access-policy'
+
+export { firstPermittedPath, type Section } from './access-policy'
 
 // The dashboard nav sections (verbatim from IconRail.tsx). These are the only
 // keys a member's `permissions` array may contain. NOT included on purpose:
 //   - 'kitchen' → the KDS is a separate app opened through a scoped session exchange
 //   - 'loyalty' → an owner-only sub-section inside Settings
-export const ALL_SECTIONS = [
+const ALL_SECTIONS: Section[] = [
   'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'theme', 'settings',
-] as const
-export type Section = (typeof ALL_SECTIONS)[number]
-
-function isSection(value: unknown): value is Section {
-  return typeof value === 'string' && (ALL_SECTIONS as readonly string[]).includes(value)
-}
+]
 
 export interface RestaurantAccess {
   isOwner: boolean
   isMember: boolean
   /** Owner → all sections. Member → their granted sections. */
   permissions: Section[]
+}
+
+export interface ResolvedRestaurantAccess extends RestaurantAccess {
+  userId: string
+  userEmail: string | null
 }
 
 /**
@@ -34,7 +41,7 @@ export interface RestaurantAccess {
  */
 export const getUserRestaurantAccess = cache(async function getUserRestaurantAccess(
   restaurantId: string,
-): Promise<RestaurantAccess | null> {
+): Promise<ResolvedRestaurantAccess | null> {
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -47,7 +54,13 @@ export const getUserRestaurantAccess = cache(async function getUserRestaurantAcc
     .eq('owner_id', user.id)
     .is('deleted_at', null)
     .maybeSingle()
-  if (owned) return { isOwner: true, isMember: false, permissions: [...ALL_SECTIONS] }
+  if (owned) return {
+    isOwner: true,
+    isMember: false,
+    permissions: [...ALL_SECTIONS],
+    userId: user.id,
+    userEmail: user.email ?? null,
+  }
 
   // Active member — explicit (restaurant_id, user_id, status='active') match.
   const { data: member } = await supabase
@@ -59,28 +72,18 @@ export const getUserRestaurantAccess = cache(async function getUserRestaurantAcc
     .maybeSingle()
   if (member) {
     const raw = (member as { permissions: unknown }).permissions
-    const permissions = Array.isArray(raw) ? raw.filter(isSection) : []
-    return { isOwner: false, isMember: true, permissions }
+    const permissions = normalizeDashboardPermissions(raw)
+    return {
+      isOwner: false,
+      isMember: true,
+      permissions,
+      userId: user.id,
+      userEmail: user.email ?? null,
+    }
   }
 
   return null
 })
-
-/** Section landing order for redirects (matches the IconRail nav order). */
-const LANDING_ORDER: Section[] = ['pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'theme', 'settings']
-
-/**
- * The path a member should land on after login / invite acceptance: the first
- * section they're permitted, in nav order. Owners (or any 'pano' holder) land on
- * the Pano root. Never returns a forbidden section.
- */
-export function firstPermittedPath(restaurantId: string, access: RestaurantAccess): string {
-  const base = `/dashboard/${restaurantId}`
-  if (access.isOwner || access.permissions.includes('pano')) return base
-  const section = LANDING_ORDER.find((s) => access.permissions.includes(s))
-  if (!section || section === 'pano') return base
-  return `${base}/${section}`
-}
 
 /**
  * Section gate for server actions. Owner always passes; a member passes only if
@@ -90,15 +93,11 @@ export function firstPermittedPath(restaurantId: string, access: RestaurantAcces
 export async function assertAccess(
   restaurantId: string,
   section: Section,
-): Promise<{ userId: string } | { error: string }> {
-  const supabase = await createDashboardServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-
+): Promise<{ userId: string; access: ResolvedRestaurantAccess } | { error: string }> {
   const access = await getUserRestaurantAccess(restaurantId)
   if (!access) return { error: 'Not authorized' }
   if (!access.isOwner && !access.permissions.includes(section)) return { error: 'Not authorized' }
-  return { userId: user.id }
+  return { userId: access.userId, access }
 }
 
 /**
@@ -145,11 +144,8 @@ export async function requireSection(restaurantId: string, section: Section): Pr
  */
 export async function assertMember(
   restaurantId: string,
-): Promise<{ userId: string } | { error: string }> {
-  const supabase = await createDashboardServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
+): Promise<{ userId: string; access: ResolvedRestaurantAccess } | { error: string }> {
   const access = await getUserRestaurantAccess(restaurantId)
   if (!access) return { error: 'Not authorized' }
-  return { userId: user.id }
+  return { userId: access.userId, access }
 }

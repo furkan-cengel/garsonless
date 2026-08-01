@@ -6,6 +6,7 @@ import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { AppIcons } from '../../../icons'
 import { formatTRY } from '../../../menu/formatCurrency'
 import type { MenuItem } from '../../../menu/types'
+import { ProductAllergenSummary } from '../../../menu/FoodInfoBadges'
 import { customSectionShell, makeReaders, resolveSectionTarget } from '../lib/sectionHelpers'
 import { resolveFeaturedScrollItems } from './featuredScrollModel'
 
@@ -156,13 +157,14 @@ export function FeaturedScrollSection({
               <article key={item.id} className="garsonless-featured-card" data-featured-item={item.id} data-featured-sales-quantity={item.featuredSalesQuantity} style={{ flex: `0 0 ${cardWidth}px`, scrollSnapAlign: 'start', background: cardBg, border: `1px solid ${cardBorder}`, borderRadius: cardRadius, overflow: 'hidden', display: 'flex', flexDirection: 'column', minWidth: 0, boxShadow: '0 1px 4px color-mix(in srgb, var(--p-text) 7%, transparent)' }}>
                 {showImages && (
                   <div style={{ position: 'relative', height: imageHeight, flexShrink: 0, background: imageBg, overflow: 'hidden' }}>
-                    {item.images[0] ? <img src={item.images[0]} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: imageFit, objectPosition: imagePosition, display: 'block' }} /> : <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: cardMuted }}><AppIcons.image size={24} aria-hidden="true" /></span>}
+                    {item.images[0] ? <img src={item.images[0]} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: imageFit, objectPosition: imagePosition, display: 'block' }} /> : <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: cardMuted }}><AppIcons.image size={24} aria-hidden="true" /></span>}
                     {showBadge && <span style={{ position: 'absolute', top: 8, left: 8, zIndex: 1, maxWidth: 'calc(100% - 16px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '4px 9px', borderRadius: 999, background: badgeBg, color: badgeText, fontSize: 10, fontWeight: 800, letterSpacing: '.02em', backdropFilter: 'blur(3px)' }}>{text('badgeText', 'Öne çıkan')}</span>}
                   </div>
                 )}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5, padding: '11px 12px 12px' }}>
                   <h3 style={{ margin: 0, color: cardText, fontSize: 14, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-.01em' }}>{item.name}</h3>
                   {showDescription && <p style={{ margin: 0, minHeight: 31, color: cardMuted, fontSize: 11.5, lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.description || 'Detayları görmek için ürünü inceleyin.'}</p>}
+                  <ProductAllergenSummary item={item} />
                   <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingTop: 4 }}>
                     <span style={{ color: cardText, fontSize: 15, fontWeight: 850, letterSpacing: '-.01em' }}>{formatTRY(item.price)}</span>
                     <button type="button" className="garsonless-featured-add" data-cta-source={ctaMode} data-cta-icon={buttonIcon} disabled={!onQuickAdd} aria-label={`${item.name} sepete ekle`} onClick={() => onQuickAdd?.(item)} style={{ minWidth: buttonStyle === 'icon' ? buttonSize : Math.max(64, buttonSize * 1.8), height: buttonSize, padding: buttonStyle === 'icon' ? 0 : '0 12px', border: 0, borderRadius: buttonStyle === 'full' ? 10 : 999, background: buttonBackground, color: buttonColor, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontFamily: 'var(--p-body)', fontSize: 11.5, fontWeight: 800, cursor: onQuickAdd ? 'pointer' : 'default', opacity: onQuickAdd ? 1 : .62, flexShrink: 0 }}>

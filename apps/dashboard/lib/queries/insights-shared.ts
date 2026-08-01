@@ -1,5 +1,6 @@
 import { cache } from 'react'
 import {
+  customRangeWindow,
   normalizeTimeZone,
   rangeWindow,
 } from '@garsonless/db/browser'
@@ -7,10 +8,16 @@ import {
   createAnalyticsReadModelPort,
   createDashboardInsightsReadModelPort,
 } from '@garsonless/db/server'
-import type { DashboardInsightsSection } from '@garsonless/application/read-models'
+import {
+  readAnalyticsCoreMetrics,
+  type DashboardInsightsSection,
+} from '@garsonless/application/read-models'
+import type { AnalyticsOrderReadFilters } from '@garsonless/application/read-models'
 import type { DashboardActorContext } from '@garsonless/domain'
 import { assertAccess, getUserRestaurantAccess } from '../auth/access'
+import { foldOrderItemsToNet, type AnalyticsFinancialOrder } from '../analytics-financial-model'
 import { getRestaurantById } from './restaurants'
+import { coerceAnalyticsQuery, type AnalyticsQuery } from '../analytics-filter-contract'
 
 export interface DashboardKPIs {
   revenue: number
@@ -23,6 +30,26 @@ export interface DashboardKPIs {
   avgBasket: number
   sessions: number
   sessionsYesterday: number
+}
+
+/** Period-scoped KPIs for the analytics sales report. Unlike DashboardKPIs,
+ * every value here belongs to the selected range or its immediately preceding
+ * comparison range; live/today snapshot values are deliberately excluded. */
+export interface AnalyticsRangeKPIs {
+  revenue: number
+  previousRevenue: number
+  orders: number
+  previousOrders: number
+  paidOrders: number
+  previousPaidOrders: number
+  avgBasket: number
+  sessions: number
+  previousSessions: number
+}
+
+export interface PanoOrderSummary {
+  pending: number
+  preparing: number
 }
 
 export interface TopItem {
@@ -87,47 +114,52 @@ export const getRestaurantTimezone = cache(async function getRestaurantTimezone(
   return normalizeTimeZone(restaurant?.timezone)
 })
 
-export async function rangeWindowFor(restaurantId: string, range: string) {
+export async function rangeWindowFor(restaurantId: string, input: string | AnalyticsQuery, now: Date = new Date()) {
   const tz = await getRestaurantTimezone(restaurantId)
-  return rangeWindow(tz, range)
+  const query = coerceAnalyticsQuery(input)
+  if (query.range === 'custom' && query.from && query.to) {
+    return customRangeWindow(tz, query.from, query.to, now)
+  }
+  return rangeWindow(tz, query.range, now)
 }
 
-type AnalyticsOrderItem = {
-  itemId?: string
-  name?: string
-  price?: number
-  qty?: number
-  quantity?: number
-  modifiersPriceDelta?: number
+export function analyticsOrderReadFilters(input: string | AnalyticsQuery): AnalyticsOrderReadFilters | undefined {
+  const { filters } = coerceAnalyticsQuery(input)
+  const result: AnalyticsOrderReadFilters = {}
+  if (filters.source !== 'all') result.source = filters.source
+  if (filters.paymentMethod !== 'all') result.paymentMethod = filters.paymentMethod
+  if (filters.status !== 'all') result.status = filters.status
+  return Object.keys(result).length > 0 ? result : undefined
 }
+
+export const getAnalyticsCoreMetrics = cache(async function getAnalyticsCoreMetrics(
+  restaurantId: string,
+  input: string | AnalyticsQuery,
+  asOf: Date,
+) {
+  const query = coerceAnalyticsQuery(input)
+  const timezone = await getRestaurantTimezone(restaurantId)
+  const { currentStart, previousStart, currentEnd } = await rangeWindowFor(restaurantId, query, asOf)
+  const context = await getInsightsContext(restaurantId, 'analytics')
+  const result = await readAnalyticsCoreMetrics(context, {
+    restaurantId,
+    since: previousStart.toISOString(),
+    currentStart: currentStart.toISOString(),
+    before: currentEnd.toISOString(),
+    timezone,
+    filters: analyticsOrderReadFilters(query),
+  }, insightsReadModel)
+  if (!result.ok) throw new Error(`getAnalyticsCoreMetrics: ${result.error}`)
+  return { ...result.value, currentStart, previousStart, currentEnd, timezone }
+})
+
+export type AnalyticsCoreMetrics = Awaited<ReturnType<typeof getAnalyticsCoreMetrics>>
 
 export function foldOrderItems(
-  rows: Array<{ items?: unknown; created_at?: string }>,
+  rows: AnalyticsFinancialOrder[],
   since?: Date,
 ) {
-  const counts = new Map<string, { count: number; revenue: number }>()
-
-  for (const row of rows) {
-    if (since && row.created_at && new Date(row.created_at) < since) continue
-    if (!Array.isArray(row.items)) continue
-
-    for (const item of row.items as AnalyticsOrderItem[]) {
-      const name = typeof item.name === 'string' && item.name.trim() ? item.name.trim() : 'Ürün'
-      const qtyRaw = typeof item.quantity === 'number' ? item.quantity : item.qty
-      const qty = typeof qtyRaw === 'number' && Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : 1
-      const basePrice = typeof item.price === 'number' && Number.isFinite(item.price) ? item.price : 0
-      const modifierDelta = typeof item.modifiersPriceDelta === 'number' && Number.isFinite(item.modifiersPriceDelta)
-        ? item.modifiersPriceDelta
-        : 0
-      const unitPrice = Math.max(0, basePrice + modifierDelta)
-      const current = counts.get(name) ?? { count: 0, revenue: 0 }
-      current.count += qty
-      current.revenue += unitPrice * qty
-      counts.set(name, current)
-    }
-  }
-
-  return counts
+  return foldOrderItemsToNet(rows, since)
 }
 
 export function emptyKpis(): DashboardKPIs {

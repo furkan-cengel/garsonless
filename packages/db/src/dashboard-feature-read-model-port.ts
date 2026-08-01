@@ -48,11 +48,34 @@ function dbError(fallback: string, error: { message: string } | null) {
   return error?.message ? `${fallback}: ${error.message}` : fallback
 }
 
+function isUndefinedColumn(error: { code?: string } | null): boolean {
+  return error?.code === '42703'
+}
+
+function withDefaultTableLayoutRestaurant(row: unknown): RestaurantRow {
+  return {
+    ...(row as RestaurantRow),
+    table_layout_revision: 0,
+    table_layout_initialized_at: null,
+  }
+}
+
+function withDefaultTableLayoutTable(row: unknown): TableRow {
+  return {
+    ...(row as TableRow),
+    layout_x_bp: null,
+    layout_y_bp: null,
+    layout_shape: 'rectangle',
+    layout_rotation: 0,
+    seat_count: 4,
+  }
+}
+
 export function createDashboardRestaurantReadModelPort(): DashboardRestaurantReadModelPort<RestaurantRow> {
   return {
     async listAccessible({ userId }) {
       const service = createServiceClient()
-      const [{ data: owned, error: ownedError }, { data: memberships, error: membershipError }] = await Promise.all([
+      const [ownedResult, membershipResult] = await Promise.all([
         service.from('restaurants')
           .select(projection.restaurant)
           .eq('owner_id', userId)
@@ -62,10 +85,24 @@ export function createDashboardRestaurantReadModelPort(): DashboardRestaurantRea
           .eq('user_id', userId)
           .eq('status', 'active'),
       ])
+      let { data: owned, error: ownedError } = ownedResult
+      const { data: memberships, error: membershipError } = membershipResult
+      let usedLayoutFallback = false
+      if (isUndefinedColumn(ownedError)) {
+        const fallback = await service.from('restaurants')
+          .select(projection.restaurantBeforeTableLayout)
+          .eq('owner_id', userId)
+          .is('deleted_at', null)
+        owned = fallback.data
+        ownedError = fallback.error
+        usedLayoutFallback = true
+      }
       if (ownedError) return err(dbError('İşletmeler yüklenemedi', ownedError))
       if (membershipError) return err(dbError('Üyelikler yüklenemedi', membershipError))
 
-      const ownedRows = (owned ?? []) as unknown as RestaurantRow[]
+      const ownedRows = usedLayoutFallback
+        ? (owned ?? []).map(withDefaultTableLayoutRestaurant)
+        : (owned ?? []) as unknown as RestaurantRow[]
       const ownedIds = new Set(ownedRows.map((restaurant) => restaurant.id))
       const memberIds = ((memberships ?? []) as Array<{ restaurant_id: string }>)
         .map((membership) => membership.restaurant_id)
@@ -73,12 +110,17 @@ export function createDashboardRestaurantReadModelPort(): DashboardRestaurantRea
 
       let memberRows: RestaurantRow[] = []
       if (memberIds.length > 0) {
+        const memberProjection = usedLayoutFallback
+          ? projection.restaurantBeforeTableLayout
+          : projection.restaurant
         const { data, error } = await service.from('restaurants')
-          .select(projection.restaurant)
+          .select(memberProjection)
           .in('id', memberIds)
           .is('deleted_at', null)
         if (error) return err(dbError('Üye işletmeleri yüklenemedi', error))
-        memberRows = (data ?? []) as unknown as RestaurantRow[]
+        memberRows = usedLayoutFallback
+          ? (data ?? []).map(withDefaultTableLayoutRestaurant)
+          : (data ?? []) as unknown as RestaurantRow[]
       }
 
       return ok([...ownedRows, ...memberRows]
@@ -86,14 +128,28 @@ export function createDashboardRestaurantReadModelPort(): DashboardRestaurantRea
     },
 
     async readById({ restaurantId }) {
-      const { data, error } = await createServiceClient().from('restaurants')
+      const service = createServiceClient()
+      let { data, error } = await service.from('restaurants')
         .select(projection.restaurant)
         .eq('id', restaurantId)
         .is('deleted_at', null)
         .maybeSingle()
+      let usedLayoutFallback = false
+      if (isUndefinedColumn(error)) {
+        const fallback = await service.from('restaurants')
+          .select(projection.restaurantBeforeTableLayout)
+          .eq('id', restaurantId)
+          .is('deleted_at', null)
+          .maybeSingle()
+        data = fallback.data
+        error = fallback.error
+        usedLayoutFallback = true
+      }
       return error
         ? err(dbError('İşletme yüklenemedi', error))
-        : ok(data as unknown as RestaurantRow | null)
+        : ok(data && usedLayoutFallback
+          ? withDefaultTableLayoutRestaurant(data)
+          : data as unknown as RestaurantRow | null)
     },
   }
 }
@@ -215,14 +271,28 @@ export function createThemeMenuReferenceReadModelPort(): ThemeMenuReferenceReadM
 export function createDashboardTablesReadModelPort(): DashboardTablesReadModelPort<TableRow> {
   return {
     async readTables({ restaurantId }) {
-      const { data, error } = await createServiceClient().from('tables')
+      const service = createServiceClient()
+      let { data, error } = await service.from('tables')
         .select(projection.table)
         .eq('restaurant_id', restaurantId)
         .is('deleted_at', null)
         .order('created_at')
+      let usedLayoutFallback = false
+      if (isUndefinedColumn(error)) {
+        const fallback = await service.from('tables')
+          .select(projection.tableBeforeFloorLayout)
+          .eq('restaurant_id', restaurantId)
+          .is('deleted_at', null)
+          .order('created_at')
+        data = fallback.data
+        error = fallback.error
+        usedLayoutFallback = true
+      }
       return error
         ? err(dbError('Masalar yüklenemedi', error))
-        : ok((data ?? []) as unknown as TableRow[])
+        : ok(usedLayoutFallback
+          ? (data ?? []).map(withDefaultTableLayoutTable)
+          : (data ?? []) as unknown as TableRow[])
     },
   }
 }

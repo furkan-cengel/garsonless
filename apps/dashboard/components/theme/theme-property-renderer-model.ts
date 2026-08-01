@@ -1,6 +1,6 @@
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 
-export function rgbFromHex(hex: string) {
+function rgbFromHex(hex: string) {
   if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null
   return [
     Number.parseInt(hex.slice(1, 3), 16),

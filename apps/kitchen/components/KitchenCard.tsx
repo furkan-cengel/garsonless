@@ -149,6 +149,11 @@ export default function KitchenCard({ order, restaurantId, activeStationId, tabl
                     ÇIKAR: {item.removedIngredients.map((ingredient) => ingredient.name).join(', ')}
                   </p>
                 )}
+                {item.productNote && (
+                  <p className="text-xs font-bold text-text mt-1 rounded-md bg-surface-soft px-2 py-1 whitespace-pre-wrap">
+                    NOT: {item.productNote}
+                  </p>
+                )}
                 {item.allergens.length > 0 && (
                   <p className="text-[11px] font-bold text-warning mt-1">
                     ALERJEN: {item.allergens.map((code) => ALLERGEN_LABELS[code]).join(', ')}

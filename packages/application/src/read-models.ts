@@ -1,5 +1,6 @@
-import type { DashboardActorContext, Result } from '@garsonless/domain'
+import type { DashboardActorContext, Result, ServiceRequestType } from '@garsonless/domain'
 import { err, hasSameRestaurant } from '@garsonless/domain'
+import type { OpenTableSession } from './tables'
 
 export interface OrdersBoardTableRef {
   id: string
@@ -46,6 +47,15 @@ export interface PanoTableDetailReadModelPort {
 export interface AnalyticsPaymentOrderRow {
   total: number | null
   paymentMethod: string | null
+  items: unknown
+}
+
+export interface AnalyticsRefundRow {
+  orderId?: string
+  amount: number
+  paymentMethod: 'cash' | 'pos' | 'iyzico'
+  kind: 'full' | 'partial'
+  refundedAt: string
 }
 
 export interface AnalyticsCancellationOrderRow {
@@ -53,6 +63,8 @@ export interface AnalyticsCancellationOrderRow {
   status: string
   items: unknown
   createdAt: string
+  paidAt: string | null
+  paymentMethod: string | null
 }
 
 export interface AnalyticsAbnormalSessionRow {
@@ -86,30 +98,41 @@ export interface AnalyticsLoyaltyRow {
   reason: string
 }
 
+/** Server-trusted, allow-listed order dimensions. Multiple populated fields
+ * are always combined with AND semantics by the DB adapters. */
+export interface AnalyticsOrderReadFilters {
+  source?: 'customer' | 'staff'
+  paymentMethod?: 'cash' | 'pos' | 'iyzico' | 'split' | 'comp' | 'unknown'
+  status?: 'pending_approval' | 'pending' | 'preparing' | 'ready' | 'served'
+}
+
 export interface AnalyticsReadModelPort {
-  readPaymentOrders(input: { restaurantId: string; since: string }): Promise<Result<AnalyticsPaymentOrderRow[]>>
-  readCancellationOrders(input: { restaurantId: string; since: string }): Promise<Result<AnalyticsCancellationOrderRow[]>>
-  readAbnormalCloseData(input: { restaurantId: string; since: string }): Promise<Result<{
+  readPaymentOrders(input: { restaurantId: string; since: string; before?: string; filters?: AnalyticsOrderReadFilters }): Promise<Result<AnalyticsPaymentOrderRow[]>>
+  readRefunds(input: { restaurantId: string; since: string; before?: string; filters?: AnalyticsOrderReadFilters }): Promise<Result<AnalyticsRefundRow[]>>
+  readCancellationOrders(input: { restaurantId: string; since: string; before?: string; filters?: AnalyticsOrderReadFilters }): Promise<Result<AnalyticsCancellationOrderRow[]>>
+  readAbnormalCloseData(input: { restaurantId: string; since: string; before?: string }): Promise<Result<{
     sessions: AnalyticsAbnormalSessionRow[]
     unpaidOrders: AnalyticsUnpaidOrderRow[]
     tableLabels: Record<string, string>
   }>>
-  readStaffSettlementData(input: { restaurantId: string; since: string }): Promise<Result<{
+  readStaffSettlementData(input: { restaurantId: string; since: string; before?: string; filters?: AnalyticsOrderReadFilters }): Promise<Result<{
     orders: AnalyticsStaffOrderRow[]
     ownerId: string | null
     ownerEmail: string | null
     members: AnalyticsStaffMemberRow[]
   }>>
-  readLoyaltyRows(input: { restaurantId: string; since: string }): Promise<Result<AnalyticsLoyaltyRow[]>>
+  readLoyaltyRows(input: { restaurantId: string; since: string; before?: string }): Promise<Result<AnalyticsLoyaltyRow[]>>
 }
 
 export type DashboardInsightsSection = 'pano' | 'analytics'
 
 export const DASHBOARD_INSIGHTS_OPERATIONS = [
+  'analytics-core',
   'order-volume',
   'collected-orders',
   'table-refs',
   'table-performance',
+  'pano-metrics',
   'pano-operational',
 ] as const
 
@@ -149,6 +172,28 @@ export interface DashboardCollectedOrderRow {
   items: unknown
 }
 
+/** Bounded PostgreSQL projection for the high-cardinality analytics path.
+ * Its arrays are grouped by a fixed time grid or product name; order rows and
+ * their item snapshots never cross the database boundary. */
+export interface AnalyticsCoreMetricsSource {
+  currentOrders: number
+  previousOrders: number
+  currentSessions: number
+  previousSessions: number
+  currentRevenue: number
+  previousRevenue: number
+  currentPaidOrders: number
+  previousPaidOrders: number
+  sales: Array<{ period: 'current' | 'previous'; day: string; hour: number; total: number }>
+  heatmap: Array<{ day: number; hour: number; count: number }>
+  products: Array<{
+    period: 'current' | 'previous'
+    name: string
+    count: number
+    revenue: number
+  }>
+}
+
 export interface DashboardInsightsTableRow {
   id: string
   label: string
@@ -165,32 +210,64 @@ export interface DashboardTablePerformanceSource {
 export interface PanoOperationalSource {
   errors: string[]
   tables: DashboardInsightsTableRow[]
-  openSessions: Array<{ id: string; tableId: string; openedAt: string }>
-  openSessionOrders: Array<{
-    tableSessionId: string | null
-    status: string
-    total: number
-    paidAt: string | null
+  openTableSessions: OpenTableSession[]
+  pendingServiceRequests: Array<{
+    id: string
+    tableId: string
     createdAt: string
+    requestType: ServiceRequestType
   }>
-  sessionOpenings: Array<{ id: string; openedAt: string }>
-  activeOrderCount: number
   paymentMode: string | null
   paymentConfigured: boolean
 }
 
+export interface PanoMetricsSource {
+  revenue: number
+  revenueYesterday: number
+  orders: number
+  ordersYesterday: number
+  paidOrders: number
+  paidOrdersYesterday: number
+  activeOrders: number
+  pendingOrders: number
+  preparingOrders: number
+  sessions: number
+  sessionsYesterday: number
+  hourlySales: Array<{ hour: number; total: number }>
+  recentOrders: Array<{
+    id: string
+    status: string
+    total: number
+    tableId: string | null
+    tableLabel: string | null
+    createdAt: string
+  }>
+  topItems: Array<{ name: string; count: number; revenue: number }>
+  heatmap: Array<{ day: number; hour: number; count: number }>
+}
+
 export interface DashboardInsightsReadModelPort {
+  readAnalyticsCoreMetrics(input: {
+    restaurantId: string
+    since: string
+    currentStart: string
+    before: string
+    timezone: string
+    filters?: AnalyticsOrderReadFilters
+  }): Promise<Result<AnalyticsCoreMetricsSource>>
   readOrderVolume(input: {
     restaurantId: string
     since: string
     before?: string
     limit?: number
     excludeCancelled?: boolean
+    filters?: AnalyticsOrderReadFilters
   }): Promise<Result<DashboardOrderVolumeRow[]>>
   readCollectedOrders(input: {
     restaurantId: string
     since: string
     before?: string
+    filters?: AnalyticsOrderReadFilters
   }): Promise<Result<DashboardCollectedOrderRow[]>>
   readTableRefs(input: {
     restaurantId: string
@@ -199,10 +276,18 @@ export interface DashboardInsightsReadModelPort {
   readTablePerformance(input: {
     restaurantId: string
     since: string
+    before?: string
+    filters?: AnalyticsOrderReadFilters
   }): Promise<Result<DashboardTablePerformanceSource>>
+  readPanoMetrics(input: {
+    restaurantId: string
+    todayStart: string
+    yesterdayStart: string
+    heatmapStart: string
+    timezone: string
+  }): Promise<Result<PanoMetricsSource>>
   readPanoOperationalSource(input: {
     restaurantId: string
-    sessionSince?: string
     includePaymentStatus: boolean
   }): Promise<Result<PanoOperationalSource>>
 }
@@ -254,6 +339,7 @@ export async function readDashboardOrderVolume(
     before?: string
     limit?: number
     excludeCancelled?: boolean
+    filters?: AnalyticsOrderReadFilters
   },
   port: DashboardInsightsReadModelPort,
 ): Promise<Result<DashboardOrderVolumeRow[]>> {
@@ -263,9 +349,25 @@ export async function readDashboardOrderVolume(
   return port.readOrderVolume(query)
 }
 
+export async function readAnalyticsCoreMetrics(
+  context: DashboardActorContext,
+  input: {
+    restaurantId: string
+    since: string
+    currentStart: string
+    before: string
+    timezone: string
+    filters?: AnalyticsOrderReadFilters
+  },
+  port: DashboardInsightsReadModelPort,
+): Promise<Result<AnalyticsCoreMetricsSource>> {
+  const access = allowInsightsRead(context, input.restaurantId, 'analytics')
+  return access.ok ? port.readAnalyticsCoreMetrics(input) : access
+}
+
 export async function readDashboardCollectedOrders(
   context: DashboardActorContext,
-  input: { restaurantId: string; section: DashboardInsightsSection; since: string; before?: string },
+  input: { restaurantId: string; section: DashboardInsightsSection; since: string; before?: string; filters?: AnalyticsOrderReadFilters },
   port: DashboardInsightsReadModelPort,
 ): Promise<Result<DashboardCollectedOrderRow[]>> {
   const access = allowInsightsRead(context, input.restaurantId, input.section)
@@ -276,7 +378,7 @@ export async function readDashboardCollectedOrders(
 
 export async function readDashboardTablePerformance(
   context: DashboardActorContext,
-  input: { restaurantId: string; since: string },
+  input: { restaurantId: string; since: string; before?: string; filters?: AnalyticsOrderReadFilters },
   port: DashboardInsightsReadModelPort,
 ): Promise<Result<DashboardTablePerformanceSource>> {
   const access = allowInsightsRead(context, input.restaurantId, 'analytics')
@@ -297,7 +399,7 @@ export async function readDashboardTableRefs(
 
 export async function readPanoOperationalSource(
   context: DashboardActorContext,
-  input: { restaurantId: string; sessionSince?: string; includePaymentStatus: boolean },
+  input: { restaurantId: string; includePaymentStatus: boolean },
   port: DashboardInsightsReadModelPort,
 ): Promise<Result<PanoOperationalSource>> {
   const access = allowInsightsRead(context, input.restaurantId, 'pano')
@@ -305,7 +407,21 @@ export async function readPanoOperationalSource(
   const trustedInput = {
     restaurantId: input.restaurantId,
     includePaymentStatus: context.isOwner === true && input.includePaymentStatus,
-    ...(input.sessionSince === undefined ? {} : { sessionSince: input.sessionSince }),
   }
   return port.readPanoOperationalSource(trustedInput)
+}
+
+export async function readPanoMetrics(
+  context: DashboardActorContext,
+  input: {
+    restaurantId: string
+    todayStart: string
+    yesterdayStart: string
+    heatmapStart: string
+    timezone: string
+  },
+  port: DashboardInsightsReadModelPort,
+): Promise<Result<PanoMetricsSource>> {
+  const access = allowInsightsRead(context, input.restaurantId, 'pano')
+  return access.ok ? port.readPanoMetrics(input) : access
 }

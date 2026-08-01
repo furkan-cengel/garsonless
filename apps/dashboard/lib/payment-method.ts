@@ -4,7 +4,7 @@ import type { PaymentMethod } from '@garsonless/db/browser'
 // by the orders board, the session settlement sheet, and any future surface so a
 // method always reads the same. Imported from the client-safe `order-client`
 // subpath (type-only) — never pulls the server barrel into a client bundle.
-export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   iyzico: 'İyzico',
   cash: 'Nakit',
   pos: 'Fiziksel POS',

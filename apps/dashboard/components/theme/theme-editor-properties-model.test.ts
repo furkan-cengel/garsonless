@@ -47,16 +47,16 @@ test('card fields respect layout and image capability gates', () => {
   assert.deepEqual(getVisibleThemeFields(fields, 'cards', theme, 'design'), [])
 })
 
-test('announcement hides dependent fields while disabled', () => {
+test('footer hides dependent fields while disabled', () => {
   const fields = [
-    field('enabled', 'announcementEnabled'),
-    field('speed', 'announcementSpeed'),
-    field('text', 'announcementText', 'text'),
+    field('footerEnabled', 'footerEnabled'),
+    field('footerShowLogo', 'footerShowLogo'),
+    field('footerTone', 'footerTone'),
   ]
-  const theme = { announcementEnabled: false, announcementStyle: 'marquee' } as unknown as GarsonlessTheme
+  const theme = { footerEnabled: false, footerTone: 'surface' } as unknown as GarsonlessTheme
   assert.deepEqual(
-    getVisibleThemeFields(fields, 'announcement', theme, 'content').map((item) => item.themeField),
-    ['announcementEnabled'],
+    getVisibleThemeFields(fields, 'footer', theme, 'content').map((item) => item.themeField),
+    ['footerEnabled'],
   )
 })
 

@@ -24,15 +24,19 @@ export default async function PanoPage({ params }: Props) {
     <PanoClient
       restaurantId={restaurantId}
       restaurantName={restaurant.name}
+      generatedAt={snapshot.generatedAt}
       timezone={snapshot.timezone}
       initialErrors={snapshot.errors}
       permissions={access.permissions}
       kpis={snapshot.kpis}
+      orderSummary={snapshot.orderSummary}
+      attentionItems={snapshot.attentionItems}
       hourlySales={snapshot.hourlySales}
       initialFeed={snapshot.initialFeed}
       topItems={snapshot.topItems}
       tableStatuses={snapshot.tableStatuses}
       heatmap={snapshot.heatmap}
+      pendingServiceRequests={snapshot.pendingServiceRequests}
       paymentStatus={snapshot.paymentStatus}
       isOwner={isOwner}
     />

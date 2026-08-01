@@ -10,6 +10,7 @@ import {
   createSubscriptionBillingSettingsReadPort,
 } from '@garsonless/db/server'
 import SettingsForm from '../../../../components/settings/SettingsForm'
+import { resolveSettingsSection } from '../../../../components/settings/settings-sections'
 import { readBillingPlanPrices } from '../../../../lib/billing/subscription-billing-request'
 
 interface Props {
@@ -33,6 +34,13 @@ export default async function SettingsPage({ params, searchParams }: Props) {
       permissions: [...actor.permissions] as Section[],
     }))
   }
+  const initialSection = resolveSettingsSection(query.section, actor.isOwner === true)
+  if (query.section && query.section !== initialSection) {
+    const canonicalQuery = new URLSearchParams()
+    canonicalQuery.set('section', initialSection)
+    if (query.checkout === 'success' && initialSection === 'billing') canonicalQuery.set('checkout', 'success')
+    redirect(`/dashboard/${restaurantId}/settings?${canonicalQuery.toString()}`)
+  }
   const [settings, billing, loyaltyAccess, kitchenDisplayAccess, browserNotificationsAccess] = await Promise.all([
     readDashboardSettings(actor, restaurantId, createDashboardSettingsReadModelPort()),
     actor.isOwner
@@ -51,13 +59,14 @@ export default async function SettingsPage({ params, searchParams }: Props) {
       hasKitchenAccess={settings.value.hasKitchenAccess}
       kitchenStations={settings.value.kitchenStations}
       securityEvents={settings.value.securityEvents}
+      renderedAt={new Date().toISOString()}
       isOwner={actor.isOwner === true}
       teamMembers={settings.value.teamMembers}
       teamAuditEvents={settings.value.teamAuditEvents}
       billing={billing?.ok ? billing.value : null}
       billingLoadError={billing && !billing.ok ? billing.error : null}
       billingPlanPrices={readBillingPlanPrices()}
-      initialSection={actor.isOwner && query.section === 'billing' ? 'billing' : undefined}
+      initialSection={initialSection}
       billingCheckoutState={query.checkout === 'success' ? 'success' : null}
       featureAccess={{
         loyalty: loyaltyAccess,

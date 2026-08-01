@@ -8,9 +8,15 @@ export type CustomerSegmentConsent = 'granted' | 'missing'
 export type CustomerConsentType = 'contact_data' | 'marketing'
 export type CustomerConsentSource = 'join' | 'member_sheet'
 
+export const CUSTOMER_NEW_WINDOW_DAYS = 30
+export const CUSTOMER_LAPSED_WINDOW_DAYS = 60
+const DAY_MS = 86_400_000
+
 export interface CustomerAuthIdentity {
   authUserId: string
   email: string | null
+  /** Supabase Auth's verified phone claim. Provider/user metadata is not trusted. */
+  phone?: string | null
   userMetadata: Readonly<Record<string, unknown>>
   appMetadata: Readonly<Record<string, unknown>>
 }
@@ -96,10 +102,18 @@ export interface CustomerTimelineEvent {
   amount?: number
   status?: string
   paid?: boolean
+  /** True only when the order participates in canonical collected spend. */
+  collected?: boolean
   type?: 'stamp' | 'points' | 'visit'
   direction?: 'earn' | 'redeem' | 'refund'
   delta?: number
   reason?: string
+}
+
+export interface CustomerTimelinePage {
+  events: CustomerTimelineEvent[]
+  nextCursor: string | null
+  hasMore: boolean
 }
 
 export interface RestaurantCustomerDetail {
@@ -118,6 +132,28 @@ export interface RestaurantCustomerDetail {
   visits: number
   balances: MemberBalances | null
   timeline: CustomerTimelineEvent[]
+  timelineNextCursor: string | null
+  timelineHasMore: boolean
+}
+
+function customerTimestamp(value: string | null): number | null {
+  if (!value) return null
+  const timestamp = new Date(value).getTime()
+  return Number.isFinite(timestamp) ? timestamp : null
+}
+
+/** Built-in segment boundaries are exact elapsed-time windows. Both edges are
+ * inclusive so the UI labels and the canonical SQL predicates agree. */
+export function isCustomerNew(firstSeen: string | null, referenceNow: string | number | Date): boolean {
+  const seenAt = customerTimestamp(firstSeen)
+  const now = new Date(referenceNow).getTime()
+  return seenAt !== null && Number.isFinite(now) && seenAt >= now - CUSTOMER_NEW_WINDOW_DAYS * DAY_MS
+}
+
+export function isCustomerLapsed(lastSeen: string | null, referenceNow: string | number | Date): boolean {
+  const seenAt = customerTimestamp(lastSeen)
+  const now = new Date(referenceNow).getTime()
+  return seenAt !== null && Number.isFinite(now) && seenAt <= now - CUSTOMER_LAPSED_WINDOW_DAYS * DAY_MS
 }
 
 type SegmentRuleKey = 'last_seen_days' | 'visits' | 'spend' | 'points' | 'lifetime_points'

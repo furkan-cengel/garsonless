@@ -198,20 +198,16 @@ const CART_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
   },
 ];
 
-const ANNOUNCEMENT_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
+const FOOTER_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
   {
-    title: "Durum ve içerik",
-    ids: ["announcementEnabled", "announcementText"],
+    title: "Durum",
+    ids: ["footerEnabled"],
   },
   {
-    title: "Görünüm ve hareket",
-    ids: [
-      "announcementBg",
-      "announcementColor",
-      "announcementStyle",
-      "announcementSpeed",
-    ],
+    title: "İçerik",
+    ids: ["footerShowLogo", "footerShowAddress", "footerShowContact", "footerShowSocial", "footerShowCopyright"],
   },
+  { title: "Görünüm", ids: ["footerTone"] },
 ];
 
 const panelStyle = {
@@ -490,7 +486,7 @@ function ThemePropertyPanel({ fields, getValue, onChange }: FieldPanelProps) {
                 }}
               >
                 <span>{label}</span>
-                <strong style={{ color: pass ? "#18794e" : "#b42318" }}>
+                <strong style={{ color: pass ? "var(--positive)" : "var(--critical)" }}>
                   {ratio.toFixed(2)}:1 · {pass ? "Geçer" : "Zayıf"}
                 </strong>
               </div>
@@ -545,30 +541,20 @@ function CartPropertyPanel({
   );
 }
 
-function AnnouncementPropertyPanel({
+function FooterPropertyPanel({
   fields,
   getValue,
   onChange,
 }: FieldPanelProps) {
   const fieldById = new Map(fields.map((field) => [field.id, field]));
-  const background = String(
-    fieldById.get("announcementBg")
-      ? getValue(fieldById.get("announcementBg")!)
-      : "#111111",
-  );
-  const foreground = String(
-    fieldById.get("announcementColor")
-      ? getValue(fieldById.get("announcementColor")!)
-      : "#ffffff",
-  );
-  const ratio = contrastRatio(foreground, background);
   return (
     <div
-      data-announcement-property-panel
+      data-footer-property-panel
       data-modern-property-panel
       style={panelLayout}
     >
-      {ANNOUNCEMENT_FIELD_SECTIONS.map((section) => {
+      <InfoNote>Adres, iletişim ve sosyal medya bilgileri Ayarlar &gt; Mağaza bölümündeki gerçek işletme verilerinden gelir.</InfoNote>
+      {FOOTER_FIELD_SECTIONS.map((section) => {
         const sectionFields = section.ids
           .map((id) => fieldById.get(id))
           .filter((field): field is SettingField => Boolean(field));
@@ -579,45 +565,18 @@ function AnnouncementPropertyPanel({
               {section.title}
             </div>
             <div style={{ display: "grid", gap: 12 }}>
-              {sectionFields.map((field) =>
-                field.type === "color" ? (
-                  <ThemeColorField
-                    key={field.id}
-                    field={field}
-                    value={String(getValue(field))}
-                    onChange={(value) => onChange(field, value)}
-                  />
-                ) : (
-                  <HeaderPropertyField
-                    key={field.id}
-                    field={field}
-                    value={getValue(field)}
-                    onChange={(value) => onChange(field, value)}
-                  />
-                ),
-              )}
+              {sectionFields.map((field) => (
+                <HeaderPropertyField
+                  key={field.id}
+                  field={field}
+                  value={getValue(field)}
+                  onChange={(value) => onChange(field, value)}
+                />
+              ))}
             </div>
           </div>
         );
       })}
-      {fieldById.has("announcementBg") &&
-        fieldById.has("announcementColor") && (
-          <div
-            role="status"
-            style={{
-              padding: "10px 12px",
-              border: `1px solid ${ratio >= 4.5 ? "#b7dfca" : "#f0b8b8"}`,
-              borderRadius: 10,
-              background: ratio >= 4.5 ? "#f0faf5" : "#fff4f4",
-              color: ratio >= 4.5 ? "#18794e" : "#b42318",
-              fontSize: 11.5,
-              fontWeight: 700,
-            }}
-          >
-            Metin kontrastı {ratio.toFixed(2)}:1 ·{" "}
-            {ratio >= 4.5 ? "Erişilebilir" : "Kontrastı artırın"}
-          </div>
-        )}
     </div>
   );
 }
@@ -629,8 +588,8 @@ function InfoNote({ children }: { children: string }) {
       style={{
         padding: "10px 12px",
         borderRadius: 10,
-        background: "#f3f4f6",
-        color: "#4b4f58",
+        background: "var(--surface-3)",
+        color: "var(--text-2)",
         fontSize: 11.5,
         lineHeight: 1.45,
       }}
@@ -653,15 +612,15 @@ const softColorButtonStyle = {
   height: 34,
   border: "1px solid var(--border)",
   borderRadius: 8,
-  background: "#fff",
-  color: "#111318",
+  background: "var(--surface)",
+  color: "var(--text)",
   cursor: "pointer",
   fontSize: 11.5,
   fontWeight: 700,
 };
 
 export {
-  AnnouncementPropertyPanel,
+  FooterPropertyPanel,
   CardPropertyPanel,
   CartPropertyPanel,
   HeaderPropertyPanel,

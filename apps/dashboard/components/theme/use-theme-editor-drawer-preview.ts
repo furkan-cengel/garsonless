@@ -21,13 +21,18 @@ export function useThemeEditorDrawerPreview({
 }: DrawerPreviewOptions) {
   useEffect(() => {
     const sectionId = selectedSectionPlacement === 'drawer' ? selectedSectionDefinitionId : null
-    if (activeGroup !== 'drawer' && !sectionId) return
+    if (activeGroup !== 'drawer' && activeGroup !== 'footer' && !sectionId) return
     let targetOrigin: string
     try {
       targetOrigin = new URL(previewUrl, window.location.href).origin
     } catch {
       return
     }
-    iframeRef.current?.contentWindow?.postMessage({ type: 'OPEN_NAV_DRAWER', sectionId }, targetOrigin)
+    iframeRef.current?.contentWindow?.postMessage(
+      activeGroup === 'footer'
+        ? { type: 'SCROLL_TO_COMPONENT', component: 'footer' }
+        : { type: 'OPEN_NAV_DRAWER', sectionId },
+      targetOrigin,
+    )
   }, [activeGroup, iframeRef, previewStatus, previewUrl, selectedSectionDefinitionId, selectedSectionPlacement])
 }

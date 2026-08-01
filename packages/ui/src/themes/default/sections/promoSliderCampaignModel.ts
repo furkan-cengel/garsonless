@@ -4,6 +4,8 @@ import {
   resolveSectionPromotionPrice,
 } from '@garsonless/domain/menu'
 import type { MenuItem } from '../../../menu/types'
+import type { AllergenCode } from '../../../menu/types'
+import { getDefiniteAllergens, sortAllergenCodes } from '../../../menu/FoodInfoBadges'
 import { resolveComboRibbonGroups } from './comboRibbonModel'
 
 export type PromoSliderCampaignKind = 'discount-badge' | 'daily-special' | 'combo-ribbon'
@@ -22,6 +24,8 @@ export interface PromoSliderCampaign {
   backgroundColor: string
   accentColor: string
   textColor: string
+  allergens: AllergenCode[]
+  hasCrossContact: boolean
   /** Absolute campaign deadline. The slider uses this to retire a stale slide without a page refresh. */
   expiresAtMs?: number
   /** Optional label configured on the source campaign section. */
@@ -46,6 +50,13 @@ function configFor(
 function availableItem(items: MenuItem[], productId: string | undefined) {
   const id = productId?.trim()
   return id ? items.find((item) => item.id === id && item.is_available) : undefined
+}
+
+function allergenProjection(items: MenuItem[]) {
+  return {
+    allergens: sortAllergenCodes(items.flatMap((item) => getDefiniteAllergens(item))),
+    hasCrossContact: items.some((item) => item.may_contain_allergens.length > 0 || Boolean(item.cross_contact_note)),
+  }
 }
 
 function resolveCampaignTiming(config: Record<string, string>, now: number) {
@@ -101,6 +112,7 @@ export function deriveActivePromoSliderCampaigns({
           backgroundColor: config[`${prefix}Color`]?.trim() || (group.index === 1 ? '#26a69a' : group.index === 2 ? '#ee6c4d' : '#d8a72f'),
           accentColor: config.accentColor?.trim() || '#e86b3d',
           textColor: config[`${prefix}TextColor`]?.trim() || '#ffffff',
+          ...allergenProjection(group.items),
           ...expiry,
         })
       }
@@ -135,6 +147,7 @@ export function deriveActivePromoSliderCampaigns({
         backgroundColor: config.bgColor?.trim() || '#fdf6ec',
         accentColor: config.accentColor?.trim() || '#a13b7a',
         textColor: config.textColor?.trim() || '#1c2618',
+        ...allergenProjection([item]),
         ...expiry,
       })
       continue
@@ -161,6 +174,7 @@ export function deriveActivePromoSliderCampaigns({
       backgroundColor: config.bgColor?.trim() || '#f5f7dc',
       accentColor: config.accentColor?.trim() || '#2e7d52',
       textColor: config.textColor?.trim() || '#1c2618',
+      ...allergenProjection([item]),
       ...expiry,
     })
   }

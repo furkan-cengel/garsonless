@@ -8,9 +8,12 @@
   },
   "scripts": {
     "lint": "eslint .",
+    "test": "node --import tsx --test src/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
     "typescript": "*"
   }
 }

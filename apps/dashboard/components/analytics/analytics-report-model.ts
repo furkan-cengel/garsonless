@@ -9,17 +9,21 @@ import type {
   StaffSettlementReport,
   TableReportRow,
   TopItem,
+  AnalyticsRangeKPIs,
 } from '../../lib/queries/analytics'
 import type { AnalyticsReportId } from '../../lib/actions/analytics'
-
-export type AnalyticsRange = 'day' | 'week' | 'month' | 'quarter' | 'year'
+import { coerceAnalyticsQuery, type AnalyticsQuery, type AnalyticsRange } from '../../lib/analytics-filter-contract'
+export type { AnalyticsQuery, AnalyticsRange } from '../../lib/analytics-filter-contract'
 
 export const ANALYTICS_RANGES: ReadonlyArray<{ id: AnalyticsRange; label: string }> = [
   { id: 'day', label: 'Bugün' },
+  { id: 'yesterday', label: 'Dün' },
   { id: 'week', label: '7G' },
   { id: 'month', label: '30G' },
+  { id: 'calendar_month', label: 'Bu ay' },
   { id: 'quarter', label: '90G' },
   { id: 'year', label: 'Yıl' },
+  { id: 'custom', label: 'Özel' },
 ]
 
 export const ANALYTICS_REPORTS: ReadonlyArray<{
@@ -39,6 +43,7 @@ export const ANALYTICS_REPORTS: ReadonlyArray<{
 ]
 
 export type AnalyticsData = {
+  rangeKpis: AnalyticsRangeKPIs
   salesOverTime: DailySale[]
   heatmapData: HeatmapCell[]
   tableStats: TableReportRow[]
@@ -53,7 +58,7 @@ export type AnalyticsData = {
 
 export type AnalyticsInitialData = Pick<
   AnalyticsData,
-  'salesOverTime' | 'heatmapData' | 'tableStats' | 'topItems' | 'paymentBreakdown' | 'productReport'
+  'rangeKpis' | 'salesOverTime' | 'heatmapData' | 'tableStats' | 'topItems' | 'paymentBreakdown' | 'productReport'
 >
 
 export type LoadedAnalyticsReports = Record<AnalyticsReportId, boolean>
@@ -124,23 +129,34 @@ export function analyticsRangeLabel(range: string): string {
   return ANALYTICS_RANGES.find((candidate) => candidate.id === range)?.label ?? '7G'
 }
 
-export function analyticsRangePeriodLabel(range: string): string {
+export function analyticsRangePeriodLabel(input: string | AnalyticsQuery): string {
+  const query = coerceAnalyticsQuery(input)
+  if (query.range === 'custom' && query.from && query.to) {
+    const format = (value: string) => new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
+    return `${format(query.from)} – ${format(query.to)}`
+  }
   return ({
     day: 'Bugün',
+    yesterday: 'Dün',
     week: 'Son 7 gün',
     month: 'Son 30 gün',
+    calendar_month: 'Bu ay',
     quarter: 'Son 90 gün',
     year: 'Son 12 ay',
-  } as Record<string, string>)[range] ?? 'Son 7 gün'
+  } as Record<string, string>)[query.range] ?? 'Son 7 gün'
 }
 
-export function analyticsPreviousPeriodLabel(range: string): string {
+export function analyticsPreviousPeriodLabel(input: string | AnalyticsQuery): string {
+  const range = coerceAnalyticsQuery(input).range
   return ({
     day: 'düne göre',
+    yesterday: 'önceki güne göre',
     week: 'önceki haftaya göre',
     month: 'önceki 30 güne göre',
+    calendar_month: 'önceki eş süreye göre',
     quarter: 'önceki 90 güne göre',
     year: 'geçen yıla göre',
+    custom: 'önceki eş süreye göre',
   } as Record<string, string>)[range] ?? 'önceki döneme göre'
 }
 

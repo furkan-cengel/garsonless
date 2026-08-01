@@ -78,6 +78,8 @@ export interface OrderLineSnapshot {
   modifiers: ResolvedOrderModifier[]
   modifiersPriceDelta: number
   removedIngredients: RemovedOrderIngredient[]
+  productNote?: string
+  recommendationSourceItemId?: string
   energyKcal: number | null
   allergens: AllergenCode[]
   mayContainAllergens: AllergenCode[]
@@ -263,6 +265,8 @@ export function buildOrderLineSnapshot(input: {
   quantity: number
   selections: SelectedMenuModifier[]
   removedIngredientIds: string[]
+  productNote?: string
+  recommendationSourceItemId?: string
 }): { ok: true; snapshot: OrderLineSnapshot } | { ok: false; error: string } {
   const { item } = input
   if (!item.is_available) return { ok: false, error: 'Menu item is not available' }
@@ -301,6 +305,8 @@ export function buildOrderLineSnapshot(input: {
     for (const code of modifier.allergenCodes) allergenSet.add(code)
   }
   const baseEnergy = item.energy_kcal === null ? null : Number(item.energy_kcal)
+  const productNote = input.productNote?.replace(/\r\n?/g, '\n').trim() ?? ''
+  if (productNote.length > 500) return { ok: false, error: 'Ürün notu en fazla 500 karakter olabilir.' }
 
   return {
     ok: true,
@@ -312,6 +318,8 @@ export function buildOrderLineSnapshot(input: {
       modifiers: modifierResult.modifiers,
       modifiersPriceDelta,
       removedIngredients,
+      ...(productNote ? { productNote } : {}),
+      ...(input.recommendationSourceItemId ? { recommendationSourceItemId: input.recommendationSourceItemId } : {}),
       energyKcal: baseEnergy === null ? null : Math.max(0, Math.round(baseEnergy + calorieDelta)),
       allergens: [...allergenSet],
       mayContainAllergens: normalizeAllergenCodes(item.may_contain_allergens),
@@ -373,6 +381,12 @@ export function readOrderLineSnapshot(value: unknown): OrderLineSnapshot | null 
     modifiers,
     modifiersPriceDelta: finiteNumber(row['modifiersPriceDelta']),
     removedIngredients,
+    ...(stringValue(row['productNote'] ?? row['product_note'])
+      ? { productNote: stringValue(row['productNote'] ?? row['product_note']).slice(0, 500) }
+      : {}),
+    ...(stringValue(row['recommendationSourceItemId'] ?? row['recommendation_source_item_id'])
+      ? { recommendationSourceItemId: stringValue(row['recommendationSourceItemId'] ?? row['recommendation_source_item_id']) }
+      : {}),
     energyKcal: typeof row['energyKcal'] === 'number' ? Math.round(row['energyKcal']) : null,
     allergens: normalizeAllergenCodes(row['allergens']),
     mayContainAllergens: normalizeAllergenCodes(row['mayContainAllergens']),

@@ -6,11 +6,13 @@ import PageTopBar from '../layout/PageTopBar'
 import { I, btnPrimary } from '../../lib/ui'
 import {
   ANALYTICS_REPORTS,
-  ANALYTICS_RANGES,
   analyticsRangeLabel,
   getVisibleAnalyticsReports,
   type AnalyticsRange,
+  type AnalyticsQuery,
 } from './analytics-report-model'
+import AnalyticsFilterBar from './AnalyticsFilterBar'
+import AnalyticsRangePicker from './AnalyticsRangePicker'
 
 const REPORT_ICONS: Record<AnalyticsReportId, ReactNode> = {
   sales: <I.chart size={15} />,
@@ -25,6 +27,7 @@ export function AnalyticsReportShell({
   restaurantName,
   activeReport,
   range,
+  query,
   isOwner,
   hasAdvancedAnalytics,
   isPending,
@@ -33,6 +36,7 @@ export function AnalyticsReportShell({
   loadError,
   onReportChange,
   onRangeChange,
+  onQueryChange,
   onRetry,
   onExport,
   children,
@@ -40,6 +44,7 @@ export function AnalyticsReportShell({
   restaurantName: string
   activeReport: AnalyticsReportId
   range: AnalyticsRange
+  query: AnalyticsQuery
   isOwner: boolean
   hasAdvancedAnalytics: boolean
   isPending: boolean
@@ -48,6 +53,7 @@ export function AnalyticsReportShell({
   loadError: string | null
   onReportChange: (report: AnalyticsReportId) => void
   onRangeChange: (range: AnalyticsRange) => void
+  onQueryChange: (query: AnalyticsQuery) => void
   onRetry: () => void
   onExport: () => void
   children: ReactNode
@@ -56,26 +62,28 @@ export function AnalyticsReportShell({
   const activeLabel = ANALYTICS_REPORTS.find((report) => report.id === activeReport)?.label ?? 'Raporlar'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="analytics-shell" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PageTopBar
+        className="page-topbar--analytics"
         restaurantName={restaurantName}
         title="Raporlar"
         right={(
           <>
-            <AnalyticsRangePicker value={range} onChange={onRangeChange} loading={isPending} />
+            <AnalyticsRangePicker query={query} onRangeChange={onRangeChange} onQueryChange={onQueryChange} loading={isPending} />
             <button
+              className="analytics-export-button"
               type="button"
               onClick={onExport}
               disabled={!canExport}
               style={{ ...btnPrimary(), opacity: canExport ? 1 : 0.45, cursor: canExport ? 'pointer' : 'not-allowed' }}
             >
-              <I.download size={13} />Dışa aktar
+              <I.download size={13} /><span className="analytics-export-label">Dışa aktar</span>
             </button>
           </>
         )}
       />
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, background: 'var(--bg)' }}>
-        <aside style={{
+      <div className="analytics-body" style={{ display: 'flex', flex: 1, minHeight: 0, background: 'var(--bg)' }}>
+        <aside className="analytics-sidebar" style={{
           width: 220,
           flexShrink: 0,
           borderRight: '1px solid var(--border)',
@@ -98,6 +106,7 @@ export function AnalyticsReportShell({
                   type="button"
                   onClick={() => onReportChange(report.id)}
                   aria-current={selected ? 'page' : undefined}
+                  className="analytics-report-tab"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -132,58 +141,57 @@ export function AnalyticsReportShell({
           </nav>
         </aside>
 
-        <main style={{ flex: 1, overflow: 'auto', minWidth: 0, opacity: isPending ? 0.6 : 1, transition: 'opacity 150ms' }}>
-          <div style={{ padding: '24px 28px 60px' }}>
-            <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 20px', color: 'var(--text)' }}>{activeLabel}</h2>
+        <div className="analytics-mobile-navigation">
+          <div className="analytics-mobile-navigation-heading">
+            <span>Raporlar</span>
+            <span>{analyticsRangeLabel(range)} · gerçek veri</span>
+          </div>
+          <nav aria-label="Rapor türleri" className="analytics-mobile-report-tabs">
+            {visibleReports.map((report) => {
+              const selected = activeReport === report.id
+              return (
+                <button
+                  className="analytics-report-tab analytics-report-tab--compact"
+                  key={report.id}
+                  type="button"
+                  onClick={() => onReportChange(report.id)}
+                  aria-current={selected ? 'page' : undefined}
+                >
+                  <span aria-hidden="true">{REPORT_ICONS[report.id]}</span>
+                  <span>{report.label}</span>
+                </button>
+              )
+            })}
+          </nav>
+        </div>
+
+        <section className="analytics-main" aria-label={`${activeLabel} raporu`} aria-busy={isPending} style={{ flex: 1, overflow: 'auto', minWidth: 0, opacity: isPending ? 0.6 : 1 }}>
+          <AnalyticsFilterBar
+            restaurantName={restaurantName}
+            query={query}
+            disabled={isPending}
+            dateOnly={activeReport === 'sadakat'}
+            scopeNote={activeReport === 'tables'
+              ? 'İşlem filtreleri tahsilat ve siparişe uygulanır; devir/süre fiziksel oturum kapsamıdır.'
+              : activeReport === 'operasyon'
+                ? 'İşlem filtreleri iptal ve personel tahsilatına uygulanır; anormal kapatma oturum kapsamıdır.'
+                : undefined}
+            onChange={onQueryChange}
+          />
+          <div className="analytics-content" style={{ padding: '24px 28px 60px' }}>
+            <div className="analytics-active-label">{activeLabel}</div>
             {loadError && (
               <div role="alert" style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, border: '1px solid var(--critical)', background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 13 }}>
                 {loadError}{' '}
-                <button type="button" onClick={onRetry} style={{ marginLeft: 8, border: 0, background: 'transparent', color: 'inherit', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}>
+                <button type="button" onClick={onRetry} disabled={isPending} style={{ marginLeft: 8, border: 0, background: 'transparent', color: 'inherit', fontWeight: 700, textDecoration: 'underline', cursor: isPending ? 'wait' : 'pointer' }}>
                   Tekrar dene
                 </button>
               </div>
             )}
             {!activeReportLoaded && isPending ? <AnalyticsReportLoading /> : children}
           </div>
-        </main>
+        </section>
       </div>
-    </div>
-  )
-}
-
-function AnalyticsRangePicker({
-  value,
-  onChange,
-  loading,
-}: {
-  value: AnalyticsRange
-  onChange: (range: AnalyticsRange) => void
-  loading: boolean
-}) {
-  return (
-    <div role="group" aria-label="Rapor dönemi" style={{ display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 7, padding: 2 }}>
-      {ANALYTICS_RANGES.map((range) => (
-        <button
-          key={range.id}
-          type="button"
-          onClick={() => onChange(range.id)}
-          disabled={loading}
-          aria-pressed={value === range.id}
-          style={{
-            padding: '4px 10px',
-            fontSize: 11.5,
-            fontWeight: 500,
-            background: value === range.id ? 'var(--surface)' : 'transparent',
-            color: value === range.id ? 'var(--text)' : 'var(--text-2)',
-            boxShadow: value === range.id ? 'var(--shadow-1)' : 'none',
-            border: 'none',
-            borderRadius: 5,
-            cursor: loading ? 'default' : 'pointer',
-          }}
-        >
-          {range.label}
-        </button>
-      ))}
     </div>
   )
 }

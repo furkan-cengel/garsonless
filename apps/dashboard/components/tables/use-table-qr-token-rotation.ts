@@ -26,32 +26,36 @@ export function useTableQrTokenRotation({
   const [target, setTarget] = useState<TableItem | null>(null)
   const [rotating, setRotating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [requestId, setRequestId] = useState<string | null>(null)
 
   const requestRotation = useCallback((table: TableItem) => {
     if (rotating) return
     setError(null)
+    setRequestId(crypto.randomUUID())
     setTarget(table)
   }, [rotating])
 
   const cancelRotation = useCallback(() => {
     if (rotating) return
     setError(null)
+    setRequestId(null)
     setTarget(null)
   }, [rotating])
 
   const confirmRotation = useCallback(async () => {
-    if (!target || rotating) return
+    if (!target || rotating || !requestId) return
 
     setRotating(true)
     setError(null)
     try {
-      const result = await rotateTableQrToken({ restaurantId, tableId: target.id })
+      const result = await rotateTableQrToken({ restaurantId, tableId: target.id, requestId })
       if ('error' in result) {
         setError(result.error)
         onError(result.error)
         return
       }
       setTables((current) => replaceTableQrToken(current, target.id, result.token))
+      setRequestId(null)
       setTarget(null)
     } catch (caught) {
       const message = rotationFailureMessage(caught)
@@ -60,7 +64,7 @@ export function useTableQrTokenRotation({
     } finally {
       setRotating(false)
     }
-  }, [onError, restaurantId, rotating, setTables, target])
+  }, [onError, requestId, restaurantId, rotating, setTables, target])
 
   return {
     target,

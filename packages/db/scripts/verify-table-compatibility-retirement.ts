@@ -140,7 +140,11 @@ async function main() {
         p_revoked_by: fixture.owner_id,
         p_reason: 'forbidden',
       }),
-      anon.rpc('patch_restaurant_qr_style', { p_restaurant_id: restaurantId, p_qr_style: {} }),
+      anon.rpc('patch_restaurant_qr_style', {
+        p_restaurant_id: restaurantId,
+        p_qr_style: {},
+        p_expected_revision: 0,
+      }),
     ])
     const anonCodes = [anonResolve, anonList, anonRotate, anonPatch].map((result) => result.error?.code)
     assert(anonCodes.every((code) => code === '42501'), 'Anon could execute a table credential/style RPC')

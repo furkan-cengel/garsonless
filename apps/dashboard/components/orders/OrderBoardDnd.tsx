@@ -1,19 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
   closestCenter,
   PointerSensor,
-  KeyboardSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { canTransitionOrderStatus, type OrderStatus } from '@garsonless/db/browser'
+import { canTransitionOrderStatus, type OperationalOrderStatus, type OrderLifecycleTarget } from '@garsonless/db/browser'
 import type { Order } from './useOrdersRealtime'
 import OrderColumn from './OrderColumn'
 import OrderCard, { type OrderDensity } from './OrderCard'
@@ -22,8 +20,8 @@ interface ColumnDef {
   id: string
   label: string
   desc: string
-  statuses: OrderStatus[]
-  targetStatus: OrderStatus
+  statuses: OperationalOrderStatus[]
+  targetStatus: OrderLifecycleTarget | null
   tone: 'warning' | 'info' | 'positive' | 'neutral'
 }
 
@@ -35,9 +33,10 @@ interface Props {
   selectedOrderId: string | null
   onSelectOrder: (order: Order | null) => void
   onAdvance: (order: Order) => void
-  onMove: (order: Order, target: OrderStatus) => void
+  onMove: (order: Order, target: OrderLifecycleTarget) => void
   /** Surface a failed server write (the optimistic move gets rolled back). */
   onActionError: (msg: string) => void
+  pendingOrderIds: ReadonlySet<string>
   lateThresholdMin?: number
   density?: OrderDensity
 }
@@ -52,6 +51,7 @@ export default function OrderBoardDnd({
   onAdvance,
   onMove,
   onActionError,
+  pendingOrderIds,
   lateThresholdMin,
   density = 'comfortable',
 }: Props) {
@@ -59,8 +59,13 @@ export default function OrderBoardDnd({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
+  const ordersByColumn = useMemo(() => Object.fromEntries(
+    columns.map((column) => [
+      column.id,
+      filteredOrders.filter((order) => column.statuses.includes(order.status)),
+    ]),
+  ), [columns, filteredOrders]) as Record<string, Order[]>
 
   function handleDragStart(event: DragStartEvent) {
     setActiveOrder(orders.find(o => o.id === event.active.id) ?? null)
@@ -72,12 +77,13 @@ export default function OrderBoardDnd({
     if (!over) return
     const order = orders.find(o => o.id === active.id)
     if (!order) return
+    if (pendingOrderIds.has(order.id)) return
     const targetColumn = columns.find(c => c.id === over.id)
-    if (!targetColumn || targetColumn.statuses.includes(order.status as OrderStatus)) return
+    if (!targetColumn || targetColumn.statuses.includes(order.status)) return
     // Transition matrix (shared with the server guard): an illegal drag —
     // backwards/skip (e.g. Hazır→Yeni, Yeni→Tamamlandı) — never moves the card
     // optimistically and never hits the server.
-    if (!canTransitionOrderStatus(order.status as OrderStatus, targetColumn.targetStatus)) {
+    if (!targetColumn.targetStatus || !canTransitionOrderStatus(order.status, targetColumn.targetStatus)) {
       onActionError('Geçersiz taşıma — sipariş bu duruma alınamaz.')
       return
     }
@@ -91,16 +97,17 @@ export default function OrderBoardDnd({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div style={{ display: 'flex', gap: 12, minWidth: 'max-content', height: '100%' }}>
+      <div className="orders-kanban" style={{ display: 'flex', gap: 12, minWidth: 'max-content', height: '100%' }}>
         {columns.map(col => (
           <OrderColumn
             key={col.id}
             column={col}
-            orders={filteredOrders.filter(o => col.statuses.includes(o.status as OrderStatus))}
+            orders={ordersByColumn[col.id] ?? []}
             tableLabels={tableLabels}
             selectedOrderId={selectedOrderId}
             onSelectOrder={onSelectOrder}
             onAdvance={onAdvance}
+            pendingOrderIds={pendingOrderIds}
             lateThresholdMin={lateThresholdMin}
             density={density}
           />

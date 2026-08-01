@@ -6,7 +6,7 @@ import { canRestaurantUseFeature } from './feature-entitlement-port'
 const ARTIFACT_VERSION = 1
 const CLOCK_SKEW_SECONDS = 30
 
-export const KITCHEN_LAUNCH_TTL_SECONDS = 45
+const KITCHEN_LAUNCH_TTL_SECONDS = 45
 export const KITCHEN_SESSION_TTL_SECONDS = 8 * 60 * 60
 
 type KitchenArtifactKind = 'launch' | 'session'

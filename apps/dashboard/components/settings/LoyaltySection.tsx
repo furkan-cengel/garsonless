@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { cloneElement, isValidElement, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react'
 import { saveLoyaltyConfig, getRewardItemChoices } from '../../lib/actions/restaurant'
 import {
   MAX_TIERS,
@@ -11,6 +11,11 @@ import {
 } from './loyalty-config'
 import { I as AppI } from '../../lib/ui'
 import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
+import {
+  mergeCanonicalSettings,
+  prepareSettingsMutationAttempt,
+  type SettingsMutationAttempt,
+} from './settings-save-contract'
 
 const TIER_COLORS = ['#b87333', '#8a9099', '#c8922a', '#5b7a86', '#3b82f6', '#a855f7']
 
@@ -62,28 +67,31 @@ function Toggle({ on, onChange, size = 'md', ariaLabel = 'Ayarı aç veya kapat'
       aria-label={ariaLabel}
       onClick={() => onChange(!on)}
       style={{
-        width: w,
-        height: h,
-        borderRadius: 999,
-        background: on ? 'var(--accent)' : 'var(--border-strong)',
+        width: 44,
+        height: 44,
+        padding: 0,
+        background: 'transparent',
         border: 'none',
-        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         cursor: 'pointer',
-        transition: 'background 160ms',
         flexShrink: 0,
       }}
     >
-      <span style={{
-        position: 'absolute',
-        top: 2,
-        left: on ? w - k - 2 : 2,
-        width: k,
-        height: k,
-        borderRadius: 999,
-        background: '#fff',
-        transition: 'left 160ms cubic-bezier(.3,.8,.4,1)',
-        boxShadow: '0 1px 3px rgba(0,0,0,.2)',
-      }} />
+      <span aria-hidden="true" style={{ width: w, height: h, borderRadius: 999, background: on ? 'var(--accent)' : 'var(--border-strong)', position: 'relative', transition: 'background 160ms' }}>
+        <span style={{
+          position: 'absolute',
+          top: 2,
+          left: on ? w - k - 2 : 2,
+          width: k,
+          height: k,
+          borderRadius: 999,
+          background: '#fff',
+          transition: 'left 160ms cubic-bezier(.3,.8,.4,1)',
+          boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+        }} />
+      </span>
     </button>
   )
 }
@@ -96,6 +104,8 @@ function NumberField({
   max,
   step = 1,
   width = 120,
+  ariaLabel,
+  ariaDescribedBy,
 }: {
   value: number
   onChange: (value: number) => void
@@ -104,10 +114,14 @@ function NumberField({
   max?: number
   step?: number
   width?: number | string
+  ariaLabel?: string
+  ariaDescribedBy?: string
 }) {
   return (
     <div style={{ position: 'relative', width, flexShrink: 0 }}>
       <input
+        aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy}
         type="number"
         min={min}
         max={max}
@@ -146,14 +160,20 @@ function TextField({
   onChange,
   placeholder,
   maxLength,
+  ariaLabel,
+  ariaDescribedBy,
 }: {
   value: string
   onChange: (value: string) => void
   placeholder?: string
   maxLength?: number
+  ariaLabel?: string
+  ariaDescribedBy?: string
 }) {
   return (
     <input
+      aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
       value={value}
       maxLength={maxLength}
       onChange={(e) => onChange(e.target.value)}
@@ -167,14 +187,20 @@ function SelectField({
   value,
   onChange,
   options,
+  ariaLabel,
+  ariaDescribedBy,
 }: {
   value: string
   onChange: (value: string) => void
   options: Array<{ value: string; label: string }>
+  ariaLabel?: string
+  ariaDescribedBy?: string
 }) {
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       <select
+        aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={inputStyle({ appearance: 'auto', cursor: 'pointer', fontWeight: 500 })}
@@ -189,19 +215,24 @@ function Segmented<T extends string>({
   value,
   onChange,
   options,
+  ariaLabel,
+  ariaDescribedBy,
 }: {
   value: T
   onChange: (value: T) => void
   options: ReadonlyArray<{ value: T; label: string; desc: string }>
+  ariaLabel?: string
+  ariaDescribedBy?: string
 }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${options.length}, 1fr)`, gap: 8 }}>
+    <div role="group" aria-label={ariaLabel} aria-describedby={ariaDescribedBy} style={{ display: 'grid', gridTemplateColumns: `repeat(${options.length}, 1fr)`, gap: 8 }}>
       {options.map((opt) => {
         const active = value === opt.value
         return (
           <button
             key={opt.value}
             type="button"
+            aria-pressed={active}
             onClick={() => onChange(opt.value)}
             style={{
               textAlign: 'left',
@@ -230,11 +261,18 @@ function Segmented<T extends string>({
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  const hintId = useId()
+  const labelledChild = isValidElement(children)
+    ? cloneElement(children as React.ReactElement<{ ariaLabel?: string; ariaDescribedBy?: string }>, {
+      ariaLabel: label,
+      ariaDescribedBy: hint ? hintId : undefined,
+    })
+    : children
   return (
     <div style={{ marginBottom: 18 }}>
-      <label style={{ display: 'block', fontSize: 13, fontWeight: 650, marginBottom: 7 }}>{label}</label>
-      {children}
-      {hint && <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 7, lineHeight: 1.5 }}>{hint}</div>}
+      <div style={{ display: 'block', fontSize: 13, fontWeight: 650, marginBottom: 7 }}>{label}</div>
+      {labelledChild}
+      {hint && <div id={hintId} style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 7, lineHeight: 1.5 }}>{hint}</div>}
     </div>
   )
 }
@@ -315,12 +353,16 @@ export default function LoyaltySection({
   restaurantId,
   featureAllowed,
   initial,
+  initialSettings,
 }: {
   restaurantId: string
   featureAllowed: boolean
   initial: LoyaltyConfig
+  initialSettings: Record<string, unknown>
 }) {
   const hasLoyaltyAccess = featureAllowed
+  const settingsSnapshotRef = useRef(initialSettings)
+  const mutationAttemptRef = useRef<SettingsMutationAttempt | null>(null)
   const [cfg, setCfg] = useState<LoyaltyConfig>(initial)
   const [rewardChoices, setRewardChoices] = useState<Array<{ id: string; name: string }>>([])
   const [error, setError] = useState('')
@@ -393,9 +435,34 @@ export default function LoyaltySection({
     if (!tiersValid) return
     setError('')
     setSuccess(false)
+    const settingsPatch = { loyalty: cfg as unknown as Record<string, unknown> }
+    const attempt = prepareSettingsMutationAttempt(mutationAttemptRef.current, {
+      patch: settingsPatch,
+      expectedSettings: settingsSnapshotRef.current,
+    })
+    mutationAttemptRef.current = attempt
     startTransition(async () => {
-      const result = await saveLoyaltyConfig(restaurantId, cfg as unknown as Record<string, unknown>)
-      if ('error' in result) { setError(result.error); return }
+      let result
+      try {
+        result = await saveLoyaltyConfig(restaurantId, cfg as unknown as Record<string, unknown>, {
+          expectedSettings: settingsSnapshotRef.current,
+          requestId: attempt.requestId,
+        })
+      } catch {
+        setError('Bağlantı kesildi. Taslağın korundu; tekrar deneyebilirsin.')
+        return
+      }
+      if ('error' in result) {
+        if (result.code === 'CONFLICT') mutationAttemptRef.current = null
+        setError(result.error)
+        return
+      }
+      settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, result.canonicalSettings)
+      mutationAttemptRef.current = null
+      const canonicalLoyalty = result.canonicalSettings['loyalty']
+      if (canonicalLoyalty && typeof canonicalLoyalty === 'object' && !Array.isArray(canonicalLoyalty)) {
+        setCfg(canonicalLoyalty as unknown as LoyaltyConfig)
+      }
       setDirty(false)
       setSuccess(true)
       notifySettingsSaved()
@@ -524,16 +591,16 @@ export default function LoyaltySection({
             <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>· {catalog.length} ödül</span>
           </div>
           <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '20px minmax(0, 1fr) 110px 130px 34px', gap: 10, padding: '9px 14px', background: 'var(--surface-2)', borderBottom: '1px solid var(--divider)', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '.03em' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '20px minmax(0, 1fr) 110px 130px 44px', gap: 10, padding: '9px 14px', background: 'var(--surface-2)', borderBottom: '1px solid var(--divider)', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '.03em' }}>
               <span /><span>ÜRÜN</span><span style={{ textAlign: 'center' }}>PUAN</span><span>ETİKET</span><span />
             </div>
             {catalog.map((r, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '20px minmax(0, 1fr) 110px 130px 34px', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--divider)', alignItems: 'center' }}>
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '20px minmax(0, 1fr) 110px 130px 44px', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--divider)', alignItems: 'center' }}>
                 <span style={{ color: 'var(--text-4)', display: 'flex' }}>{I.drag}</span>
-                <SelectField value={r.itemId} onChange={(itemId) => updateCatalogReward(i, { itemId })} options={itemOptions} />
-                <NumberField width="100%" min={1} value={r.pointCost} onChange={(pointCost) => updateCatalogReward(i, { pointCost: Math.max(1, Math.floor(pointCost)) })} />
-                <TextField value={r.tag ?? ''} maxLength={24} onChange={(tag) => updateCatalogReward(i, { tag })} placeholder="etiket" />
-                <button type="button" onClick={() => removeCatalogReward(i)} aria-label="Ödülü kaldır" style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{I.x}</button>
+                <SelectField ariaLabel={`Ödül ${i + 1} ürünü`} value={r.itemId} onChange={(itemId) => updateCatalogReward(i, { itemId })} options={itemOptions} />
+                <NumberField ariaLabel={`Ödül ${i + 1} puan bedeli`} width="100%" min={1} value={r.pointCost} onChange={(pointCost) => updateCatalogReward(i, { pointCost: Math.max(1, Math.floor(pointCost)) })} />
+                <TextField ariaLabel={`Ödül ${i + 1} etiketi`} value={r.tag ?? ''} maxLength={24} onChange={(tag) => updateCatalogReward(i, { tag })} placeholder="etiket" />
+                <button type="button" onClick={() => removeCatalogReward(i)} aria-label={`Ödül ${i + 1} kaldır`} style={{ width: 44, height: 44, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{I.x}</button>
               </div>
             ))}
             {catalog.length === 0 && (
@@ -602,8 +669,8 @@ export default function LoyaltySection({
                       onChange={(e) => setTier(i, { color: e.target.value })}
                       style={{ width: 18, height: 18, borderRadius: 999, padding: 0, border: 'none', background: tier.color, zIndex: 1, boxShadow: '0 0 0 4px var(--surface)', cursor: 'pointer' }}
                     />
-                    <TextField value={tier.name} maxLength={24} onChange={(name) => setTier(i, { name })} placeholder={`Seviye ${i + 1}`} />
-                    <NumberField value={tier.min} width={150} min={0} step={50} onChange={(min) => setTier(i, { min: i === 0 ? 0 : Math.floor(min) })} />
+                    <TextField ariaLabel={`Seviye ${i + 1} adı`} value={tier.name} maxLength={24} onChange={(name) => setTier(i, { name })} placeholder={`Seviye ${i + 1}`} />
+                    <NumberField ariaLabel={`Seviye ${i + 1} minimum puanı`} value={tier.min} width={150} min={0} step={50} onChange={(min) => setTier(i, { min: i === 0 ? 0 : Math.floor(min) })} />
                     <button type="button" onClick={() => removeTier(i)} disabled={i === 0} aria-label="Seviyeyi kaldır" style={{ width: 34, height: 34, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: i === 0 ? 'not-allowed' : 'pointer', opacity: i === 0 ? 0.35 : 1 }}>{I.x}</button>
                   </div>
                   <div style={{ marginLeft: 32, marginTop: 9, padding: 10, border: `1px solid ${err ? 'var(--critical)' : 'var(--border)'}`, borderRadius: 12, background: 'var(--surface-2)' }}>
@@ -636,7 +703,7 @@ export default function LoyaltySection({
       </Module>
 
       {!tiersValid && <p style={{ fontSize: 12.5, color: 'var(--critical)', margin: '0 0 12px' }}>Seviye merdiveni geçersiz — eşikler artan sırada ve isimler benzersiz olmalı.</p>}
-      {error && <p style={{ fontSize: 12.5, color: 'var(--critical)', margin: '0 0 12px' }}>{error}</p>}
+      {error && <p role="alert" style={{ fontSize: 12.5, color: 'var(--critical)', margin: '0 0 12px' }}>{error}</p>}
       {success && <p style={{ fontSize: 12.5, color: 'var(--positive)', margin: '0 0 12px' }}>Sadakat ayarları kaydedildi.</p>}
 
       <div style={{ position: 'sticky', bottom: 0, zIndex: 2, marginTop: 8, padding: '14px 18px', background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', boxShadow: 'var(--shadow-2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>

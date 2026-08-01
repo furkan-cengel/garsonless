@@ -55,9 +55,10 @@ test('all billing maintenance RPCs are service-role only', () => {
   }
 })
 
-test('mandatory billing inbox and email fan-out cannot be acknowledged while unconfigured', () => {
+test('mandatory order/billing inbox and billing email fan-out cannot be acknowledged while unconfigured', () => {
   assert.match(worker, /isMandatoryBillingNotificationEvent/)
-  assert.match(worker, /throw new Error\('Mandatory billing inbox consumer is not configured'\)/)
+  assert.match(worker, /event\.event_type === 'order\.created' \|\| isMandatoryBillingNotificationEvent/)
+  assert.match(worker, /throw new Error\('Mandatory dashboard inbox consumer is not configured'\)/)
   assert.match(worker, /throw new Error\('Mandatory billing email consumer is not configured'\)/)
 })
 

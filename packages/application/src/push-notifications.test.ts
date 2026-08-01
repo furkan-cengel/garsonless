@@ -13,12 +13,13 @@ import {
 
 const event: DashboardPushEvent = {
   id: '11111111-1111-4111-8111-111111111111',
+  aggregateId: '22222222-2222-4222-8222-222222222222',
   type: 'order.created',
   restaurantId: 'restaurant-1',
   featureAllowed: true,
   settings: { notifications: { newOrderPush: true } },
   tableLabel: 'Masa 4',
-  payload: { total: 150 },
+  payload: { total: 150, source: 'customer' },
 }
 
 function port(overrides: Partial<DashboardPushPort> = {}): DashboardPushPort {
@@ -48,6 +49,10 @@ test('resolved entitlement and explicit channel preferences gate durable push', 
   }), false)
   assert.equal(shouldDispatchDashboardPush({
     ...event,
+    payload: { ...event.payload, source: 'staff' },
+  }), false, 'staff-created orders never alert customer-order channels')
+  assert.equal(shouldDispatchDashboardPush({
+    ...event,
     type: 'service_request.created',
     settings: {},
   }), false, 'waiter-call push is opt-in for existing tenants')
@@ -64,8 +69,8 @@ test('payload points at the tenant order board and keeps a stable event tag', ()
     body: 'Masa 4 · ₺150,00',
     icon: '/icon.svg',
     badge: '/icon.svg',
-    tag: `order:${event.id}`,
-    data: { eventId: event.id, url: '/dashboard/restaurant-1/orders' },
+    tag: `order:${event.aggregateId}`,
+    data: { eventId: event.id, orderId: event.aggregateId, url: '/dashboard/restaurant-1/orders' },
   })
 })
 
