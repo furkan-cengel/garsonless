@@ -7,6 +7,7 @@ import { mut } from '../supabase-mut'
 import { slugify } from '../utils'
 import type { Tables } from '@garsonless/db/types'
 import { patchRestaurantSettings } from '@garsonless/application/restaurants'
+import type { RestaurantSettingsPatchResult } from '@garsonless/application/restaurants'
 import {
   canRestaurantUseFeature,
   createKitchenSettingsCommandPort,
@@ -20,6 +21,8 @@ import { sanitizeTiers } from '@garsonless/domain/loyalty'
 import { assertOwner, getUserRestaurantAccess } from '../auth/access'
 import type { DashboardActionFailure } from '../server-action-error'
 import { dashboardActionFailure } from '../server-action-error'
+import { inspectLogoImage, validateLogoImageMetadata } from '../logo-image-policy'
+import { sanitizeServerDiagnostic } from '../server-log-redaction'
 
 const createRestaurantSchema = z.object({
   name: z.string().min(1).max(100),
@@ -45,8 +48,45 @@ const kitchenStationUpdateSchema = kitchenStationSchema.partial().extend({
   restaurantId: z.string().uuid(),
 })
 
+const settingsWriteGuardSchema = z.object({
+  expectedSettings: z.record(z.unknown()),
+  requestId: z.string().uuid(),
+})
+
+export interface SettingsWriteGuard {
+  expectedSettings: Record<string, unknown>
+  requestId: string
+}
+
+export type SettingsActionResult =
+  | { error: string; code?: 'CONFLICT'; canonicalSettings?: Record<string, unknown> }
+  | { success: true; canonicalSettings: Record<string, unknown>; idempotent: boolean }
+
+function settingsActionResult(result: { ok: true; value: RestaurantSettingsPatchResult } | { ok: false; error: string }): SettingsActionResult {
+  if (!result.ok) {
+    return {
+      error: result.error === 'Settings request conflicts with an earlier attempt'
+        ? 'Bu kayıt isteği daha önce farklı bir içerikle kullanıldı. Değişikliklerini kontrol edip tekrar dene.'
+        : 'Ayarlar kaydedilemedi. Lütfen tekrar dene.',
+    }
+  }
+  if (result.value.outcome === 'conflict') {
+    return {
+      error: 'Bu ayarlar başka bir sekmede değiştirildi. Taslağını koruduk; güncel değerleri görmek için sayfayı yenile.',
+      code: 'CONFLICT',
+      canonicalSettings: result.value.settings,
+    }
+  }
+  return {
+    success: true,
+    canonicalSettings: result.value.settings,
+    idempotent: result.value.idempotent,
+  }
+}
+
 function getActionErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback
+  console.error('[restaurant-action-failure]', sanitizeServerDiagnostic(error))
+  return fallback
 }
 
 async function getAuthUser() {
@@ -92,7 +132,8 @@ export async function createRestaurant(
 
   if (error) {
     if (error.code === '23505') return { error: 'That slug is already taken' }
-    return { error: error.message }
+    console.error('[restaurant-create-failure]', sanitizeServerDiagnostic(error))
+    return { error: 'Restoran oluşturulamadı. Lütfen tekrar deneyin.' }
   }
 
   const id = (data as { id: string } | null)?.id
@@ -126,7 +167,8 @@ export async function updateRestaurant(
 
   if (error) {
     if (error.code === '23505') return { error: 'That slug is already taken' }
-    return { error: error.message }
+    console.error('[restaurant-update-failure]', sanitizeServerDiagnostic(error))
+    return { error: 'Restoran bilgileri güncellenemedi. Lütfen tekrar deneyin.' }
   }
 
   revalidatePath(`/dashboard/${id}`)
@@ -137,7 +179,10 @@ export async function updateRestaurant(
 export async function updateSettings(
   restaurantId: string,
   settings: Record<string, unknown>,
-): Promise<{ error: string } | { success: true }> {
+  guard: SettingsWriteGuard,
+): Promise<SettingsActionResult> {
+  const parsedGuard = settingsWriteGuardSchema.safeParse(guard)
+  if (!parsedGuard.success) return { error: 'Geçersiz ayar kayıt isteği' }
   const { user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
   const access = await getUserRestaurantAccess(restaurantId)
@@ -152,20 +197,30 @@ export async function updateSettings(
       permissions: access.permissions,
       isOwner: access.isOwner,
     },
-    { restaurantId, patch: settings },
+    {
+      restaurantId,
+      patch: settings,
+      expectedSettings: parsedGuard.data.expectedSettings,
+      requestId: parsedGuard.data.requestId,
+    },
     createRestaurantSettingsPort(),
   )
-  if (!result.ok) return { error: result.error }
+  const response = settingsActionResult(result)
+  if ('error' in response) return response
 
   revalidatePath(`/dashboard/${restaurantId}/settings`)
   revalidateTag(`menu:${restaurantId}`)
-  return { success: true }
+  return response
 }
 
 // Notification channel prefs → restaurants.settings.notifications (JSONB).
 // Zod-validated shape; only the four real channels are accepted.
 const notificationPrefsSchema = z.object({
   newOrderSound: z.boolean(),
+  newOrderSoundPreset: z.enum(['classic', 'kitchen-bell', 'double-chime', 'soft-ping']),
+  newOrderSoundVolume: z.number().int().min(0).max(100),
+  newOrderRepeatSeconds: z.union([z.literal(0), z.literal(15), z.literal(30), z.literal(60)]),
+  newOrderRepeatMaxMinutes: z.number().int().min(1).max(10),
   newOrderPush: z.boolean(),
   newOrderToast: z.boolean(),
   serviceRequestAlert: z.boolean(),
@@ -211,12 +266,13 @@ const businessHoursSchema = z.object({
 export async function saveBusinessHours(
   restaurantId: string,
   hours: unknown,
-): Promise<{ error: string } | { success: true }> {
+  guard: SettingsWriteGuard,
+): Promise<SettingsActionResult> {
   const parsed = businessHoursSchema.safeParse(hours)
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Geçersiz çalışma saatleri' }
   }
-  return updateSettings(restaurantId, { hours: parsed.data })
+  return updateSettings(restaurantId, { hours: parsed.data }, guard)
 }
 
 /**
@@ -229,9 +285,12 @@ export async function saveBusinessHours(
 export async function saveNotificationPreferences(
   restaurantId: string,
   input: unknown,
-): Promise<{ error: string } | DashboardActionFailure | { success: true }> {
+  guard: SettingsWriteGuard,
+): Promise<SettingsActionResult | DashboardActionFailure> {
   const parsed = notificationSettingsSchema.safeParse(input)
   if (!parsed.success) return { error: 'Geçersiz bildirim ayarları' }
+  const parsedGuard = settingsWriteGuardSchema.safeParse(guard)
+  if (!parsedGuard.success) return { error: 'Geçersiz ayar kayıt isteği' }
 
   const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
@@ -275,15 +334,18 @@ export async function saveNotificationPreferences(
         notifications: parsed.data.prefs,
         orders: { late_threshold_min: parsed.data.lateThresholdMin },
       },
+      expectedSettings: parsedGuard.data.expectedSettings,
+      requestId: parsedGuard.data.requestId,
     },
     createRestaurantSettingsPort(),
   )
-  if (!result.ok) return { error: result.error }
+  const response = settingsActionResult(result)
+  if ('error' in response) return response
 
   revalidatePath(`/dashboard/${restaurantId}/settings`)
   // Orders board + shell read prefs from the restaurant row on next load.
   revalidatePath(`/dashboard/${restaurantId}`, 'layout')
-  return { success: true }
+  return response
 }
 
 /** Menu items for the loyalty reward-item picker (owner-validated). */
@@ -313,7 +375,10 @@ export async function getRewardItemChoices(
 export async function saveLoyaltyConfig(
   restaurantId: string,
   loyalty: Record<string, unknown>,
-): Promise<{ error: string } | { success: true }> {
+  guard: SettingsWriteGuard,
+): Promise<SettingsActionResult> {
+  const parsedGuard = settingsWriteGuardSchema.safeParse(guard)
+  if (!parsedGuard.success) return { error: 'Geçersiz ayar kayıt isteği' }
   const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
 
@@ -386,14 +451,20 @@ export async function saveLoyaltyConfig(
       permissions: access.permissions,
       isOwner: true,
     },
-    { restaurantId, patch: { loyalty: cfg } },
+    {
+      restaurantId,
+      patch: { loyalty: cfg },
+      expectedSettings: parsedGuard.data.expectedSettings,
+      requestId: parsedGuard.data.requestId,
+    },
     createRestaurantSettingsPort(),
   )
-  if (!result.ok) return { error: result.error }
+  const response = settingsActionResult(result)
+  if ('error' in response) return response
 
   revalidatePath(`/dashboard/${restaurantId}/settings`)
   revalidateTag(`menu:${restaurantId}`)
-  return { success: true }
+  return response
 }
 
 export async function checkSlugAvailable(slug: string): Promise<boolean> {
@@ -416,7 +487,10 @@ export async function removeLogo(
     .update({ logo_url: null })
     .eq('id', restaurantId)
     .eq('owner_id', user.id)
-  if (error) return { error: error.message }
+  if (error) {
+    console.error('[restaurant-logo-remove-failure]', sanitizeServerDiagnostic(error))
+    return { error: 'Logo kaldırılamadı. Lütfen tekrar deneyin.' }
+  }
   revalidatePath(`/dashboard/${restaurantId}`)
   revalidatePath(`/dashboard/${restaurantId}/settings`)
   revalidateTag(`menu:${restaurantId}`)
@@ -430,19 +504,38 @@ export async function uploadLogo(
   const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
 
-  const file = formData.get('file') as File | null
-  if (!file) return { error: 'No file provided' }
-  if (file.size > 2 * 1024 * 1024) return { error: 'File must be under 2MB' }
-  if (!file.type.startsWith('image/')) return { error: 'File must be an image' }
+  if (!z.string().uuid().safeParse(restaurantId).success) return { error: 'Geçersiz restoran.' }
+  const { data: ownedRestaurant } = await supabase
+    .from('restaurants')
+    .select('id')
+    .eq('id', restaurantId)
+    .eq('owner_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (!ownedRestaurant) return { error: 'Not authorized' }
 
-  const ext = file.name.split('.').pop() ?? 'png'
-  const path = `${user.id}/${restaurantId}/logo.${ext}`
+  const file = formData.get('file')
+  if (!(file instanceof File)) return { error: 'Logo dosyası bulunamadı.' }
+  const metadata = validateLogoImageMetadata({ size: file.size, type: file.type })
+  if (!metadata.ok) return { error: metadata.error }
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const inspected = inspectLogoImage(bytes, file.type)
+  if (!inspected.ok) return { error: inspected.error }
+
+  const path = `${user.id}/${restaurantId}/logo-${crypto.randomUUID()}.${inspected.image.extension}`
 
   const { error: uploadError } = await supabase.storage
     .from('restaurant-assets')
-    .upload(path, file, { upsert: true })
+    .upload(path, file, {
+      cacheControl: '31536000',
+      contentType: inspected.image.mime,
+      upsert: false,
+    })
 
-  if (uploadError) return { error: uploadError.message }
+  if (uploadError) {
+    console.error('[restaurant-logo-upload-failure]', sanitizeServerDiagnostic(uploadError))
+    return { error: 'Logo yüklenemedi. Lütfen tekrar deneyin.' }
+  }
 
   const { data } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
 
@@ -457,7 +550,8 @@ export async function uploadLogo(
   // land so the UI never claims that a logo was saved when it was not.
   if (updateError || !updatedRows?.length) {
     await supabase.storage.from('restaurant-assets').remove([path])
-    return { error: updateError?.message ?? 'Logo güncellenemedi' }
+    if (updateError) console.error('[restaurant-logo-update-failure]', sanitizeServerDiagnostic(updateError))
+    return { error: 'Logo güncellenemedi. Lütfen tekrar deneyin.' }
   }
 
   revalidatePath(`/dashboard/${restaurantId}`)
@@ -499,7 +593,10 @@ export async function createKitchenStation(
       })
       .select('*')
       .single()
-    if (error) return { error: error.message }
+    if (error) {
+      console.error('[kitchen-station-create-failure]', sanitizeServerDiagnostic(error))
+      return { error: 'Mutfak istasyonu oluşturulamadı.' }
+    }
     const station = data as Tables<'kitchen_stations'> | null
     if (!station) return { error: 'Failed to create station' }
 
@@ -533,7 +630,10 @@ export async function updateKitchenStation(
       .eq('id', id)
       .eq('restaurant_id', restaurantId)
       .select('*')
-    if (error) return { error: error.message }
+    if (error) {
+      console.error('[kitchen-station-update-failure]', sanitizeServerDiagnostic(error))
+      return { error: 'Mutfak istasyonu güncellenemedi.' }
+    }
     const station = (data?.[0] ?? null) as Tables<'kitchen_stations'> | null
     if (!station) return { error: 'Station not found' }
 

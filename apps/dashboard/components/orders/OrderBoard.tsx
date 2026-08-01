@@ -1,16 +1,12 @@
 'use client'
 
-import { useState, useTransition, useRef, useCallback, useEffect, type RefObject } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
-import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, isCollectedOrderRow, orderHasPriorityService, ALLERGEN_LABELS, type OrderStatus } from '@garsonless/db/browser'
+import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, isCollectedOrderRow, orderHasPriorityService, ALLERGEN_LABELS, type OrderLifecycleTarget } from '@garsonless/db/browser'
 import { useOrdersRealtime } from './useOrdersRealtime'
 import type { Order } from './useOrdersRealtime'
-import type { NotificationPrefs } from '../../lib/notification-prefs'
-import OrderColumn from './OrderColumn'
 import { nextStatus } from './OrderCard'
-import OrderToast from './OrderToast'
-import { useNotificationSW } from './useNotificationSW'
-import { updateOrderStatus, cancelOrder } from '../../lib/actions/orders'
+import { updateOrderStatus, cancelOrder, recordManualRefund, refundIyzicoOrder } from '../../lib/actions/orders'
 import { getOpenTableSessions } from '../../lib/actions/tables'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
 import { formatCurrency } from '../../lib/utils'
@@ -20,27 +16,25 @@ import HistoryModal from './HistoryModal'
 import ReceiptModal, { type ReceiptOrder } from './ReceiptModal'
 import type { OrderDensity } from './OrderCard'
 import { isActiveOrder, isCancelledOrder, isCompletedOrder, isLateOrder, isReadyWaitingOrder } from './order-status'
-import { FILTER_LABELS, orderMatchesSearch, orderMatchesView, orderStationNames, type FilterId } from './order-filters'
+import { FILTER_LABELS, ORDER_SOURCE_LABELS, orderMatchesSearch, orderMatchesSource, orderMatchesView, orderStationNames, type FilterId, type OrderSourceFilter } from './order-filters'
+import OrdersTransferDialog from './OrdersTransferDialog'
+import { ORDER_BOARD_COLUMNS } from './order-board-contract'
+import { ORDERS_REALTIME_COPY } from './order-realtime-model'
+import { paymentMethodBadge } from '../../lib/payment-method'
+import {
+  OPERATIONAL_STATUS_LABELS,
+  buildOrderOperationalEvents,
+  orderActionSuccessMessage,
+  orderAdvanceLabel,
+  orderPaymentLabel,
+  readOrderFinancialBreakdown,
+} from './order-detail-model'
+import { AccessibleDialog } from '../tables/AccessibleDialog'
 
 /* ============================================================
    COLUMN DEFINITIONS
    ============================================================ */
-interface ColumnDef {
-  id: string
-  label: string
-  desc: string
-  statuses: OrderStatus[]
-  targetStatus: OrderStatus
-  tone: 'warning' | 'info' | 'positive' | 'neutral'
-}
-
-const COLUMNS: ColumnDef[] = [
-  { id: 'new',   label: 'Yeni',         desc: 'Onay bekliyor', statuses: ['pending', 'pending_approval'],          targetStatus: 'sent_to_kitchen', tone: 'warning' },
-  // 'paid' is a payment attribute living in status for now — kitchen still has to prepare it
-  { id: 'prep',  label: 'Hazırlanıyor', desc: 'Mutfak / Bar',  statuses: ['sent_to_kitchen', 'preparing', 'paid'], targetStatus: 'ready',           tone: 'info' },
-  { id: 'ready', label: 'Hazır',        desc: 'Servise hazır', statuses: ['ready'],                                targetStatus: 'served',          tone: 'positive' },
-  { id: 'done',  label: 'Kapanan',       desc: 'Tamamlandı / İptal', statuses: ['served', 'cancelled'],              targetStatus: 'served',          tone: 'neutral' },
-]
+const COLUMNS = ORDER_BOARD_COLUMNS
 
 /* ============================================================
    STATUS TIMELINE
@@ -53,12 +47,12 @@ function timelineTime(value: string | null | undefined): string | null {
 }
 
 function StatusTimeline({ order }: { order: Order }) {
-  const status = order.status as OrderStatus
+  const status = order.status
   // Real per-stage times (P2 trigger stamps). NULL (pre-migration order or a
   // stage not reached) → no time under the step — never a fabricated value.
   const steps = [
     { id: ['pending', 'pending_approval'],          label: 'Alındı',       at: timelineTime(order.created_at) },
-    { id: ['sent_to_kitchen', 'preparing', 'paid'], label: 'Hazırlanıyor', at: timelineTime(order.sent_to_kitchen_at as string | null | undefined) },
+    { id: ['sent_to_kitchen', 'preparing'], label: 'Hazırlanıyor', at: timelineTime(order.sent_to_kitchen_at as string | null | undefined) },
     { id: ['ready'],                                label: 'Hazır',        at: timelineTime(order.ready_at as string | null | undefined) },
     { id: ['served'],                               label: 'Servis',       at: timelineTime(order.served_at as string | null | undefined) },
   ]
@@ -104,6 +98,9 @@ function OrderDetailPanel({
   onReceipt,
   onSettle,
   settleLoading,
+  actionPending,
+  isOwner,
+  onRefund,
 }: {
   order: Order | null
   tableLabel: string
@@ -113,10 +110,13 @@ function OrderDetailPanel({
   onReceipt: (order: Order) => void
   onSettle: (order: Order) => void
   settleLoading: boolean
+  actionPending: boolean
+  isOwner: boolean
+  onRefund: (order: Order) => void
 }) {
   if (!order) {
     return (
-      <div style={{
+      <aside className="orders-detail-panel orders-detail-panel--empty" aria-label="Sipariş detayları" style={{
         width: 'var(--props)', flexShrink: 0,
         borderLeft: '1px solid var(--border)', background: 'var(--surface)',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -130,26 +130,26 @@ function OrderDetailPanel({
         <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: 240 }}>
           Detaylar ve ödeme bilgisi için kanban'dan bir kart aç.
         </div>
-      </div>
+      </aside>
     )
   }
 
   const items = readOrderLineSnapshots(order.items)
   const itemQuantity = items.reduce((sum, item) => sum + Math.max(0, item.quantity), 0)
-  const breakdown = order.discount_breakdown && typeof order.discount_breakdown === 'object' && !Array.isArray(order.discount_breakdown)
-    ? order.discount_breakdown as Record<string, unknown>
-    : null
-  const money = (key: string) => typeof breakdown?.[key] === 'number' ? breakdown[key] as number : 0
-  const subtotal = money('subtotal') || order.total
-  const nextSt = nextStatus(order.status as OrderStatus)
+  const financial = readOrderFinancialBreakdown(order.discount_breakdown, order.total)
+  const nextSt = nextStatus(order.status)
   const tier = readOrderCustomerTierSnapshot(order.customer_tier)
-  const advanceLabel =
-    order.status === 'pending' || order.status === 'pending_approval' ? 'Onayla & başlat' :
-    order.status === 'sent_to_kitchen' || order.status === 'preparing' || order.status === 'paid' ? 'Hazır olarak işaretle' :
-    order.status === 'ready' ? 'Servis edildi' : null
+  const advanceLabel = orderAdvanceLabel(order.status)
+  const operationEvents = buildOrderOperationalEvents(order)
+  const sourceLabel = ORDER_SOURCE_LABELS[order.source]
+  const paymentLabel = orderPaymentLabel(order)
+  const paymentBadge = order.paid_at !== null
+    ? paymentMethodBadge((order.payment_method as Parameters<typeof paymentMethodBadge>[0]) ?? null)
+    : null
+  const shortRef = (value: string | null | undefined) => value ? `#${value.slice(0, 8).toUpperCase()}` : '—'
 
   return (
-    <div style={{
+    <aside className="orders-detail-panel" aria-labelledby="order-detail-title" aria-busy={actionPending || settleLoading} style={{
       width: 'var(--props)', flexShrink: 0,
       borderLeft: '1px solid var(--border)', background: 'var(--surface)',
       display: 'flex', flexDirection: 'column',
@@ -158,18 +158,30 @@ function OrderDetailPanel({
       <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--divider)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-.01em' }}>{tableLabel}</div>
+            <div id="order-detail-title" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-.01em' }}>{tableLabel}</div>
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', ...S.mono }}>#{order.id.slice(0, 8).toUpperCase()}</div>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
-            <IconButton icon={<I.copy size={15} />} ariaLabel="Kopyala" onClick={() => void navigator.clipboard?.writeText(order.id)} />
-            <IconButton icon={<I.close size={15} />} ariaLabel="Kapat" onClick={onClose} />
+            <IconButton className="orders-touch-target" icon={<I.copy size={15} />} ariaLabel="Sipariş numarasını kopyala" onClick={() => void navigator.clipboard?.writeText(order.id)} />
+            <IconButton className="orders-touch-target" initialFocus icon={<I.close size={15} />} ariaLabel={`${tableLabel} sipariş detayını kapat`} onClick={onClose} />
           </div>
         </div>
         <StatusTimeline order={order} />
       </div>
 
       <div style={{ flex: 1, overflow: 'auto' }}>
+        {/* Operational context — only persisted order fields; no inferred actor/provider. */}
+        <div data-order-detail-context style={{ padding: '12px 16px', borderBottom: '1px solid var(--divider)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 14px' }}>
+          <DetailMeta label="Kaynak" value={sourceLabel} />
+          <DetailMeta label="Oluşturuldu" value={new Date(order.created_at).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} />
+          <DetailMeta label="Ödeme" value={paymentLabel} badge={paymentBadge} />
+          <DetailMeta label="Adisyon" value={shortRef(order.table_session_id)} mono />
+          <DetailMeta label="Sipariş oturumu" value={shortRef(order.session_id)} mono />
+          <DetailMeta label="Müşteri" value={order.customer_id ? `Bağlı · ${shortRef(order.customer_id)}` : 'Misafir'} mono={Boolean(order.customer_id)} />
+          {order.settled_by && <DetailMeta label="Tahsil eden" value={shortRef(order.settled_by)} mono />}
+          {order.cancelled_by && <DetailMeta label="İptal eden" value={shortRef(order.cancelled_by)} mono />}
+        </div>
+
         {/* Items */}
         {items.length > 0 && (
           <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--divider)' }}>
@@ -195,6 +207,11 @@ function OrderDetailPanel({
                         ÇIKAR: {it.removedIngredients.map((ingredient) => ingredient.name).join(', ')}
                       </div>
                     )}
+                    {it.productNote && (
+                      <div style={{ marginTop: 4, padding: '5px 7px', borderRadius: 6, background: 'var(--warning-bg)', color: 'var(--text)', fontSize: 10.5, fontWeight: 700, lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                        NOT: {it.productNote}
+                      </div>
+                    )}
                     {it.allergens.length > 0 && (
                       <div style={{ fontSize: 10, color: 'var(--warning)', fontWeight: 600, marginTop: 2 }}>
                         ALERJEN: {it.allergens.map((code) => ALLERGEN_LABELS[code]).join(', ')}
@@ -215,11 +232,14 @@ function OrderDetailPanel({
         {/* Summary */}
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--divider)' }}>
           <div style={{ ...S.label, marginBottom: 10 }}>Hesap özeti</div>
-          <SummaryRow label="Ara toplam" value={formatCurrency(subtotal)} />
-          {money('stampDiscountAmount') > 0 && <SummaryRow label="Damga ödülü" value={`−${formatCurrency(money('stampDiscountAmount'))}`} />}
-          {money('catalogDiscountAmount') > 0 && <SummaryRow label="Katalog ödülü" value={`−${formatCurrency(money('catalogDiscountAmount'))}`} />}
-          {money('memberDiscountAmount') > 0 && <SummaryRow label={`Üye indirimi${money('memberDiscountPct') ? ` (%${money('memberDiscountPct')})` : ''}`} value={`−${formatCurrency(money('memberDiscountAmount'))}`} />}
-          {money('pointsDiscountAmount') > 0 && <SummaryRow label="Puan indirimi" value={`−${formatCurrency(money('pointsDiscountAmount'))}`} />}
+          <SummaryRow label="Ara toplam" value={formatCurrency(financial.subtotal)} />
+          {financial.rows.map((row) => (
+            <SummaryRow
+              key={row.id}
+              label={row.label}
+              value={`${row.kind === 'discount' ? '−' : '+'}${formatCurrency(row.amount)}`}
+            />
+          ))}
           <div style={{ height: 1, background: 'var(--divider)', margin: '8px 0' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontSize: 13.5, fontWeight: 600 }}>Toplam</span>
@@ -230,7 +250,7 @@ function OrderDetailPanel({
         </div>
 
         {/* Status */}
-        <div style={{ padding: '14px 16px' }}>
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--divider)' }}>
           <div style={{ ...S.label, marginBottom: 8 }}>Durum</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Tag tone={
@@ -238,13 +258,9 @@ function OrderDetailPanel({
               order.status === 'sent_to_kitchen' || order.status === 'preparing' ? 'info' :
               order.status === 'ready' ? 'positive' : 'neutral'
             }>
-              {order.status === 'pending' || order.status === 'pending_approval' ? 'Yeni' :
-               order.status === 'sent_to_kitchen' || order.status === 'preparing' ? 'Hazırlanıyor' :
-               order.status === 'ready' ? 'Hazır' :
-               order.status === 'served' ? 'Servis edildi' :
-               order.status === 'paid' ? 'Ödendi' : 'İptal'}
+              {OPERATIONAL_STATUS_LABELS[order.status]}
             </Tag>
-            {(order.paid_at !== null || order.status === 'paid') && (
+            {order.paid_at !== null && (
               <Tag tone="positive">ÖDENDİ</Tag>
             )}
             {tier?.priorityService && (
@@ -253,50 +269,83 @@ function OrderDetailPanel({
                 Öncelikli · {tier.name}
               </Tag>
             )}
-            <span style={{ ...S.mono, fontSize: 11, color: 'var(--text-3)' }}>
-              {new Date(order.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-            </span>
+          </div>
+        </div>
+
+        <div data-order-operation-history style={{ padding: '14px 16px' }}>
+          <div style={{ ...S.label, marginBottom: 10 }}>Operasyon geçmişi</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            {operationEvents.filter((event) => event.at || event.current).map((event) => (
+              <div key={event.id} style={{ display: 'grid', gridTemplateColumns: '10px 1fr auto', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 7, height: 7, borderRadius: 999, background: event.current ? 'var(--text)' : 'var(--positive)', boxShadow: event.current ? '0 0 0 3px var(--surface-3)' : 'none' }} />
+                <span style={{ fontSize: 12, fontWeight: event.current ? 700 : 500 }}>{event.label}</span>
+                <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)' }}>
+                  {event.at ? new Date(event.at).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Zaman kaydı yok'}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
       {/* Footer — cancel rules by payment state: İyzico-paid is BLOCKED in-app
-          (manual refund in the İyzico panel); cash/pos-paid requires a recorded
+          (verified provider refund flow); cash/pos-paid requires a recorded
           reason (modal); unpaid cancels normally. */}
       <div style={{
         borderTop: '1px solid var(--divider)', padding: '12px 16px',
         display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--surface-2)',
       }}>
-        {order.paid_at !== null && order.payment_method === 'iyzico' && order.status !== 'served' && order.status !== 'cancelled' && (
+        {order.paid_at !== null && (order.payment_method === 'iyzico' || order.payment_method === 'split') && order.status !== 'served' && order.status !== 'cancelled' && (
           <div style={{
             fontSize: 11.5, color: 'var(--info)', background: 'var(--info-bg)',
             borderRadius: 8, padding: '8px 10px', lineHeight: 1.45,
           }}>
-            Bu sipariş online ödendi — iptal/iade İyzico panelinden manuel yapılır.
+            {order.payment_method === 'split'
+              ? 'Bu sipariş hesap bölüşme ile ödendi — iptal için pay iade akışı gerekir.'
+              : 'Bu sipariş online ödendi — iade İyzico sağlayıcısına gönderilir ve doğrulanmış cevapla kaydedilir.'}
           </div>
+        )}
+        {order.paid_at !== null && (order.payment_method === 'cash' || order.payment_method === 'pos') && !isOwner && order.status !== 'cancelled' && (
+          <div style={{ fontSize: 11.5, color: 'var(--warning)', background: 'var(--warning-bg)', borderRadius: 8, padding: '8px 10px' }}>
+            Tahsil edilmiş nakit/POS siparişinin iade ve iptal kaydını yalnız işletme sahibi tamamlayabilir.
+          </div>
+        )}
+        {isOwner && order.paid_at !== null && order.status !== 'cancelled'
+          && (order.payment_method === 'cash' || order.payment_method === 'pos' || order.payment_method === 'iyzico') && (
+          <button
+            type="button"
+            disabled={actionPending}
+            onClick={() => onRefund(order)}
+            className="orders-touch-target"
+            style={{ ...btnGhost(), width: '100%', minHeight: 40, justifyContent: 'center', color: 'var(--critical)' }}
+          >
+            Parasal iade kaydet
+          </button>
         )}
         {/* Settle-from-board: unpaid order on an open adisyon → open the Tables
             SettlementSheet here (the exact same money flow, no screen switch). */}
         {order.paid_at === null && order.table_session_id && order.status !== 'cancelled' && (
           <button
             type="button"
-            disabled={settleLoading}
+            disabled={settleLoading || actionPending}
             onClick={() => onSettle(order)}
+            className="orders-touch-target"
             style={{
               ...btnGhost(), width: '100%', justifyContent: 'center',
               color: 'var(--positive)', borderColor: 'var(--positive)',
-              opacity: settleLoading ? 0.6 : 1,
+              opacity: settleLoading || actionPending ? 0.6 : 1,
             }}
           >
             {settleLoading ? 'Adisyon yükleniyor…' : 'Masayı tahsil et (adisyon)'}
           </button>
         )}
         <div style={{ display: 'flex', gap: 6 }}>
-          {order.status === 'served' || order.status === 'paid' ? (
+          {order.status === 'served' ? (
             <button
               type="button"
               onClick={() => onReceipt(order)}
-              style={{ ...btnPrimary(), flex: 1, justifyContent: 'center' }}
+              className="orders-touch-target"
+              style={{ ...btnPrimary(), flex: 1, minHeight: 40, justifyContent: 'center' }}
             >
               <I.history size={14} />Fiş yazdır
             </button>
@@ -309,11 +358,15 @@ function OrderDetailPanel({
             </div>
           ) : (
             <>
-              {!(order.paid_at !== null && order.payment_method === 'iyzico') && (
+              {!(order.paid_at !== null && (order.payment_method === 'iyzico' || order.payment_method === 'split'))
+                && !(order.paid_at !== null && (order.payment_method === 'cash' || order.payment_method === 'pos') && !isOwner) && (
                 <button
                   type="button"
+                  data-order-detail-cancel
+                  disabled={actionPending}
                   onClick={() => onCancel(order)}
-                  style={{ ...btnGhost(), flex: 1, justifyContent: 'center' }}
+                  className="orders-touch-target"
+                  style={{ ...btnGhost(), flex: 1, minHeight: 40, justifyContent: 'center', opacity: actionPending ? 0.6 : 1 }}
                 >
                   İptal et
                 </button>
@@ -321,16 +374,37 @@ function OrderDetailPanel({
               {advanceLabel && nextSt && (
                 <button
                   type="button"
+                  data-order-detail-advance
+                  disabled={actionPending}
                   onClick={() => onAdvance(order)}
-                  style={{ ...btnPrimary(), flex: 2, justifyContent: 'center' }}
+                  className="orders-touch-target"
+                  style={{ ...btnPrimary(), flex: 2, minHeight: 40, justifyContent: 'center', opacity: actionPending ? 0.65 : 1, cursor: actionPending ? 'wait' : 'pointer' }}
                 >
-                  <I.check size={13} />{advanceLabel}
+                  <I.check size={13} />{actionPending ? 'İşleniyor…' : advanceLabel}
                 </button>
               )}
             </>
           )}
         </div>
       </div>
+    </aside>
+  )
+}
+
+function DetailMeta({ label, value, mono = false, badge }: {
+  label: string
+  value: string
+  mono?: boolean
+  badge?: ReturnType<typeof paymentMethodBadge> | null
+}) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ ...S.label, marginBottom: 3 }}>{label}</div>
+      {badge ? (
+        <span style={{ display: 'inline-flex', maxWidth: '100%', padding: '2px 7px', borderRadius: 999, background: badge.bg, color: badge.fg, fontSize: 10.5, fontWeight: 750 }}>{badge.label}</span>
+      ) : (
+        <div style={{ ...(mono ? S.mono : null), fontSize: 11.5, fontWeight: 600, color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={value}>{value}</div>
+      )}
     </div>
   )
 }
@@ -347,13 +421,16 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 /* ============================================================
    LEFT NAV
    ============================================================ */
-function OrdersNav({ filter, setFilter, orders, search, setSearch, onHistory, lateThresholdMin, searchInputRef, now, stations, selectedStation, setSelectedStation }: {
+function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, search, setSearch, onHistory, onClose, lateThresholdMin, searchInputRef, now, stations, selectedStation, setSelectedStation }: {
   filter: FilterId
   setFilter: (f: FilterId) => void
+  sourceFilter: OrderSourceFilter
+  setSourceFilter: (source: OrderSourceFilter) => void
   orders: Order[]
   search: string
   setSearch: (s: string) => void
   onHistory: () => void
+  onClose?: () => void
   lateThresholdMin: number
   searchInputRef: RefObject<HTMLInputElement | null>
   now: number
@@ -386,22 +463,39 @@ function OrdersNav({ filter, setFilter, orders, search, setSearch, onHistory, la
     { id: 'done',      label: 'Tamamlandı',icon: <I.check size={15} /> },
     { id: 'cancelled', label: 'İptal',     icon: <I.close size={15} /> },
   ]
+  const sourceCounts = {
+    all: orders.length,
+    customer: orders.filter((order) => order.source === 'customer').length,
+    staff: orders.filter((order) => order.source === 'staff').length,
+  }
+  const sources: Array<{ id: OrderSourceFilter; label: string; icon: React.ReactNode }> = [
+    { id: 'all', label: 'Tüm kaynaklar', icon: <I.globe size={14} /> },
+    { id: 'customer', label: ORDER_SOURCE_LABELS.customer, icon: <I.qr size={14} /> },
+    { id: 'staff', label: ORDER_SOURCE_LABELS.staff, icon: <I.user size={14} /> },
+  ]
 
   return (
-    <div style={{
+    <div className={`orders-nav${onClose ? ' orders-nav--drawer' : ' orders-nav--desktop'}`} style={{
       width: 'var(--nav)', flexShrink: 0,
       borderRight: '1px solid var(--border)', background: 'var(--surface)',
       display: 'flex', flexDirection: 'column',
     }}>
-      <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--divider)' }}>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>Sipariş Akışı</div>
-        <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 3 }}>
-          Tüm istasyonlar · {counts.active} aktif
+      <div style={{ padding: '10px 12px 10px 16px', borderBottom: '1px solid var(--divider)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div id="orders-filter-title" style={{ fontSize: 14, fontWeight: 600 }}>Sipariş Akışı</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 3 }}>
+            Tüm istasyonlar · {counts.active} aktif
+          </div>
         </div>
+        {onClose && (
+          <button type="button" data-modal-initial-focus className="orders-touch-target" aria-label="Filtreleri kapat" onClick={onClose} style={{ width: 44, height: 44, border: 0, borderRadius: 8, background: 'transparent', color: 'var(--text-2)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+            <I.close size={18} />
+          </button>
+        )}
       </div>
       <div style={{ padding: '8px 12px 4px' }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6, height: 30,
+        <div className="orders-search-field" style={{
+          display: 'flex', alignItems: 'center', gap: 6, height: 36,
           padding: '0 10px', background: 'var(--surface-3)', borderRadius: 7,
           color: 'var(--text-3)',
         }}>
@@ -433,12 +527,13 @@ function OrdersNav({ filter, setFilter, orders, search, setSearch, onHistory, la
               onClick={() => setFilter(f.id)}
               onMouseEnter={event => { if (!isActive) event.currentTarget.style.background = 'var(--surface-3)' }}
               onMouseLeave={event => { if (!isActive) event.currentTarget.style.background = 'transparent' }}
+              className="orders-filter-option"
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 width: '100%', padding: '7px 8px', marginBottom: 1,
                 background: isActive ? 'var(--surface-inset)' : 'transparent',
                 border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left',
-                minHeight: 38, transition: 'background 120ms ease',
+                minHeight: 40, transition: 'background 120ms ease',
               }}
             >
               <span style={{ color: isActive ? 'var(--text)' : 'var(--text-3)', display: 'inline-flex' }}>{f.icon}</span>
@@ -447,6 +542,27 @@ function OrdersNav({ filter, setFilter, orders, search, setSearch, onHistory, la
             </button>
           )
         })}
+
+        <div style={{ marginTop: 12 }}>
+          <div style={{ ...S.label, padding: '6px 8px' }}>Kaynak</div>
+          {sources.map((source) => {
+            const active = sourceFilter === source.id
+            return (
+              <button
+                key={source.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setSourceFilter(source.id)}
+                className="orders-filter-option"
+                style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minHeight: 40, padding: '6px 8px', border: 0, borderRadius: 7, background: active ? 'var(--surface-inset)' : 'transparent', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}
+              >
+                <span style={{ color: active ? 'var(--text)' : 'var(--text-3)', display: 'inline-flex' }}>{source.icon}</span>
+                <span style={{ flex: 1, fontSize: 12.5, fontWeight: active ? 650 : 500 }}>{source.label}</span>
+                <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)' }}>{sourceCounts[source.id]}</span>
+              </button>
+            )
+          })}
+        </div>
 
         {stations.length > 0 && (
           <div style={{ marginTop: 12 }}>
@@ -462,7 +578,8 @@ function OrdersNav({ filter, setFilter, orders, search, setSearch, onHistory, la
                   onClick={() => setSelectedStation(active ? null : station)}
                   onMouseEnter={event => { if (!active) event.currentTarget.style.background = 'var(--surface-3)' }}
                   onMouseLeave={event => { if (!active) event.currentTarget.style.background = 'transparent' }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minHeight: 36, padding: '6px 8px', border: 0, borderRadius: 7, background: active ? 'var(--surface-inset)' : 'transparent', color: 'var(--text)', cursor: 'pointer', textAlign: 'left', transition: 'background 120ms ease' }}
+                  className="orders-filter-option"
+                  style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minHeight: 40, padding: '6px 8px', border: 0, borderRadius: 7, background: active ? 'var(--surface-inset)' : 'transparent', color: 'var(--text)', cursor: 'pointer', textAlign: 'left', transition: 'background 120ms ease' }}
                 >
                   <I.cutlery size={14} />
                   <span style={{ flex: 1, fontSize: 12.5, fontWeight: active ? 650 : 500 }}>{station}</span>
@@ -475,7 +592,7 @@ function OrdersNav({ filter, setFilter, orders, search, setSearch, onHistory, la
 
       </div>
       <div style={{ borderTop: '1px solid var(--divider)', padding: '10px 14px', background: 'var(--surface-2)' }}>
-        <button onClick={onHistory} style={{ ...btnGhost(), width: '100%', justifyContent: 'center' }}>
+        <button className="orders-touch-target" onClick={onHistory} style={{ ...btnGhost(), width: '100%', minHeight: 40, justifyContent: 'center' }}>
           <I.history size={13} />Geçmiş siparişler
         </button>
       </div>
@@ -503,34 +620,6 @@ function KpiChip({ label, value, tone, pulse }: {
   )
 }
 
-/* ============================================================
-   STATIC KANBAN (DnD fallback while loading)
-   ============================================================ */
-function KanbanStatic({ columns, filteredOrders, tableLabels, selectedOrderId, onSelectOrder, onAdvance }: {
-  columns: ColumnDef[]
-  filteredOrders: Order[]
-  tableLabels: Record<string, string>
-  selectedOrderId: string | null
-  onSelectOrder: (order: Order | null) => void
-  onAdvance: (order: Order) => void
-}) {
-  return (
-    <div style={{ display: 'flex', gap: 12, minWidth: 'max-content', height: '100%' }}>
-      {columns.map(col => (
-        <OrderColumn
-          key={col.id}
-          column={col}
-          orders={filteredOrders.filter(o => col.statuses.includes(o.status as OrderStatus))}
-          tableLabels={tableLabels}
-          selectedOrderId={selectedOrderId}
-          onSelectOrder={onSelectOrder}
-          onAdvance={onAdvance}
-        />
-      ))}
-    </div>
-  )
-}
-
 // Settle-from-board: the EXACT SettlementSheet money flow from Tables (same
 // component, same settleOrder/closeTableSession path) — not a parallel impl.
 const SettlementSheet = dynamic(() => import('../tables/SettlementSheet'))
@@ -538,9 +627,159 @@ const SettlementSheet = dynamic(() => import('../tables/SettlementSheet'))
 const OrderBoardDnd = dynamic(() => import('./OrderBoardDnd'), {
   ssr: false,
   loading: () => (
-    <KanbanStatic columns={COLUMNS} filteredOrders={[]} tableLabels={{}} selectedOrderId={null} onSelectOrder={() => {}} onAdvance={() => {}} />
+    <div role="status" aria-live="polite" style={{ minHeight: 180, display: 'grid', placeItems: 'center', color: 'var(--text-3)', fontSize: 12.5 }}>
+      Sipariş panosu hazırlanıyor…
+    </div>
   ),
 })
+
+type OrdersPresentation = 'desktop' | 'drawer' | 'sheet'
+
+function useOrdersPresentation(): OrdersPresentation {
+  const [presentation, setPresentation] = useState<OrdersPresentation>('desktop')
+
+  useEffect(() => {
+    const update = () => setPresentation(
+      window.matchMedia('(max-width: 760px)').matches
+        ? 'sheet'
+        : window.matchMedia('(max-width: 1180px)').matches ? 'drawer' : 'desktop',
+    )
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
+  return presentation
+}
+
+const ORDERS_RESPONSIVE_CSS = `
+.orders-shell, .orders-shell * { box-sizing: border-box; }
+.orders-shell button:focus-visible,
+.orders-shell input:focus-visible,
+.orders-shell [tabindex]:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--text));
+  outline-offset: 2px;
+}
+.orders-topbar button,
+.orders-touch-target,
+.orders-filter-option { min-width: 44px !important; min-height: 44px !important; }
+.orders-search-field { height: 44px !important; }
+.orders-kanban { width: 100%; min-width: 0 !important; }
+.orders-column { min-width: 0 !important; }
+.orders-mobile-toolbar { display: none; }
+.orders-detail-overlay,
+.orders-filter-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  display: flex;
+  background: rgba(17,17,19,.4);
+  backdrop-filter: blur(2px);
+}
+.orders-detail-overlay { justify-content: flex-end; align-items: stretch; }
+.orders-filter-overlay { justify-content: flex-start; align-items: stretch; }
+.orders-filter-drawer { height: 100dvh; width: min(340px, calc(100vw - 24px)); }
+.orders-nav--drawer { width: 100% !important; height: 100%; box-shadow: 16px 0 46px rgba(17,17,19,.2); }
+.order-card-open:focus-visible { border-radius: 9px; outline-offset: -3px !important; }
+
+@media (max-width: 1180px) {
+  .orders-topbar {
+    height: 104px !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: 52px 52px;
+    padding: 0 10px !important;
+  }
+  .orders-topbar > :nth-child(1) { grid-column: 1; grid-row: 1; min-width: 0; }
+  .orders-topbar > :nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .orders-topbar > :nth-child(2)::-webkit-scrollbar { display: none; }
+  .orders-topbar > :nth-child(3) { grid-column: 2; grid-row: 1; }
+  .orders-kpi-strip { width: max-content; min-width: 100%; min-height: 48px; gap: 18px !important; padding: 4px 2px; }
+  .orders-topbar .page-topbar-notification,
+  .orders-topbar .page-topbar-restaurant,
+  .orders-topbar-action,
+  .orders-touch-target { min-width: 44px !important; min-height: 44px !important; }
+  .orders-body { position: relative; min-width: 0; }
+  .orders-nav--desktop, .orders-detail-panel--empty { display: none !important; }
+  .orders-mobile-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 56px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .orders-board-scroll { padding: 12px 12px 24px !important; }
+  .orders-board-toolbar { flex-wrap: wrap; }
+  .orders-board-toolbar > span:last-child { display: none; }
+  .orders-kanban {
+    width: 100%;
+    min-width: 0 !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 2px;
+    overscroll-behavior-inline: contain;
+    padding-bottom: 8px;
+  }
+  .orders-column {
+    flex: 0 0 min(340px, calc(100vw - 112px)) !important;
+    min-width: min(340px, calc(100vw - 112px)) !important;
+    max-height: 100%;
+    scroll-snap-align: start;
+  }
+  .orders-column-header { position: sticky; top: 0; z-index: 2; background: var(--surface-2); }
+  .orders-detail-panel {
+    width: min(430px, calc(100vw - 24px)) !important;
+    height: 100dvh;
+    border-left: 0 !important;
+    box-shadow: -18px 0 52px rgba(17,17,19,.22);
+  }
+  .order-card-action { min-height: 44px !important; padding-inline: 14px !important; }
+}
+
+@media (max-width: 760px) {
+  .orders-topbar .page-topbar-brand,
+  .orders-topbar .page-topbar-restaurant,
+  .orders-topbar .page-topbar-separator { display: none !important; }
+  .orders-topbar .page-topbar-context { gap: 7px !important; }
+  .orders-topbar .page-topbar-title { font-size: 14px !important; font-weight: 700 !important; }
+  .orders-action-label { display: none; }
+  .orders-topbar-action { padding-inline: 0 !important; justify-content: center !important; }
+  .orders-kpi-strip { gap: 16px !important; }
+  .orders-board-scroll { padding: 10px 10px 20px !important; }
+  .orders-mobile-toolbar { padding-inline: 10px; }
+  .orders-mobile-toolbar-copy { display: none; }
+  .orders-column {
+    flex-basis: calc(100vw - 20px) !important;
+    min-width: calc(100vw - 20px) !important;
+  }
+  .orders-detail-overlay { align-items: stretch; }
+  .orders-detail-panel {
+    width: 100% !important;
+    height: 100dvh;
+    border-radius: 0 !important;
+    box-shadow: none;
+  }
+  .orders-filter-drawer { width: min(340px, calc(100vw - 18px)); }
+  .orders-board-toolbar [role="group"] { width: 100%; }
+  .orders-board-toolbar [role="group"] > button { flex: 1; min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orders-shell *, .orders-detail-overlay, .orders-filter-overlay {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+`
 
 /* ============================================================
    MAIN
@@ -551,49 +790,64 @@ interface Props {
   initialOrders: Order[]
   tables: Array<{ id: string; label: string }>
   hasKitchenAccess?: boolean
+  isOwner?: boolean
   receiptTax?: Record<string, unknown> | null
-  notifPrefs: NotificationPrefs
-  browserNotificationsEnabled: boolean
   /** settings.orders.late_threshold_min (clamped 5–120, default 20). */
   lateThresholdMin: number
   /** Restaurant-local start-of-day used by SSR and reconnect reconciliation. */
   initialSince: string
 }
 
-export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, hasKitchenAccess = false, receiptTax, notifPrefs, browserNotificationsEnabled, lateThresholdMin, initialSince }: Props) {
-  const { orders, newOrderEvent, clearNewOrderEvent, updateOrderLocally, connectionStatus } =
+export default function OrderBoard({ restaurantId, restaurantName, initialOrders, tables, hasKitchenAccess = false, isOwner = false, receiptTax, lateThresholdMin, initialSince }: Props) {
+  const {
+    orders,
+    connectionStatus,
+    retryRealtime,
+    reconcileOrders,
+    startOptimisticOrderStatus,
+    commitOptimisticOrderStatus,
+    rollbackOptimisticOrderStatus,
+  } =
     useOrdersRealtime(restaurantId, initialOrders, initialSince)
 
-  const notification = useNotificationSW(restaurantId, newOrderEvent, {
-    sound: notifPrefs.newOrderSound,
-    push: notifPrefs.newOrderPush,
-    browserNotificationsEnabled,
-  })
-
+  const presentation = useOrdersPresentation()
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const selectedOrder = selectedOrderId ? orders.find((order) => order.id === selectedOrderId) ?? null : null
-  const pendingOrders = useRef(new Set<string>())
+  const pendingOrdersRef = useRef(new Set<string>())
+  const [pendingOrderIds, setPendingOrderIds] = useState<ReadonlySet<string>>(() => new Set())
   const [filter, setFilter] = useState<FilterId>('all')
+  const [sourceFilter, setSourceFilter] = useState<OrderSourceFilter>('all')
   const [search, setSearch] = useState('')
   const [selectedStation, setSelectedStation] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const mobileFilterTriggerRef = useRef<HTMLButtonElement>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [transferDone, setTransferDone] = useState(false)
   const [receipt, setReceipt] = useState<{ order: ReceiptOrder; tableLabel: string } | null>(null)
+  const [refundTarget, setRefundTarget] = useState<Order | null>(null)
+  const [refundPending, setRefundPending] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [density, setDensity] = useState<OrderDensity>('comfortable')
   const [closedCollapsed, setClosedCollapsed] = useState(true)
-  const [, startTransition] = useTransition()
 
-  const labelFor = (tableId: string | null) => tableLabels[tableId ?? ''] ?? (tableId ? 'Masa' : 'Kasa')
+  const tableLabels = useMemo(() => Object.fromEntries(tables.map(t => [t.id, t.label])), [tables])
+  const labelFor = useCallback(
+    (tableId: string | null) => tableLabels[tableId ?? ''] ?? (tableId ? 'Masa' : 'Kasa'),
+    [tableLabels],
+  )
+  const stations = useMemo(
+    () => [...new Set(orders.flatMap(orderStationNames))].sort((a, b) => a.localeCompare(b, 'tr-TR')),
+    [orders],
+  )
 
-  const tableLabels = Object.fromEntries(tables.map(t => [t.id, t.label]))
-  const stations = [...new Set(orders.flatMap(orderStationNames))].sort((a, b) => a.localeCompare(b, 'tr-TR'))
-
-  const filteredOrders = orders.filter(o => {
+  const filteredOrders = useMemo(() => orders.filter(o => {
     if (!orderMatchesView(o, filter, lateThresholdMin, now)) return false
+    if (!orderMatchesSource(o, sourceFilter)) return false
     if (selectedStation && !orderStationNames(o).includes(selectedStation)) return false
     return orderMatchesSearch(o, tableLabels[o.table_id ?? ''] ?? '', search)
-  })
+  }), [filter, lateThresholdMin, now, orders, search, selectedStation, sourceFilter, tableLabels])
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000)
@@ -605,10 +859,19 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
     if (stored === 'comfortable' || stored === 'compact' || stored === 'dense') setDensity(stored)
   }, [])
 
+  useEffect(() => {
+    if (presentation === 'desktop') setFiltersOpen(false)
+  }, [presentation])
+
   const changeDensity = (value: OrderDensity) => {
     setDensity(value)
     window.localStorage.setItem('orders:density', value)
   }
+
+  const closeHistory = useCallback(() => {
+    setHistoryOpen(false)
+    if (presentation !== 'desktop') window.requestAnimationFrame(() => mobileFilterTriggerRef.current?.focus())
+  }, [presentation])
 
   useEffect(() => {
     if (selectedOrderId && !filteredOrders.some(order => order.id === selectedOrderId)) setSelectedOrderId(null)
@@ -616,6 +879,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
       const target = event.target as HTMLElement | null
       const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable
       if (event.key === '/' && !typing) {
@@ -644,19 +908,42 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
   // Transient action-error banner (auto-clears). An optimistic move that fails
   // server-side is ROLLED BACK and surfaced here — never a silent stuck card.
   const [actionError, setActionError] = useState<string | null>(null)
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null)
   const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const showActionError = useCallback((msg: string) => {
+    setActionSuccess(null)
     setActionError(msg)
     if (errorTimer.current) clearTimeout(errorTimer.current)
     errorTimer.current = setTimeout(() => setActionError(null), 5000)
   }, [])
-  useEffect(() => () => { if (errorTimer.current) clearTimeout(errorTimer.current) }, [])
+  const showActionSuccess = useCallback((msg: string) => {
+    setActionError(null)
+    setActionSuccess(msg)
+    if (successTimer.current) clearTimeout(successTimer.current)
+    successTimer.current = setTimeout(() => setActionSuccess(null), 4000)
+  }, [])
+  useEffect(() => () => {
+    if (errorTimer.current) clearTimeout(errorTimer.current)
+    if (successTimer.current) clearTimeout(successTimer.current)
+  }, [])
 
-  async function moveOrder(order: Order, next: OrderStatus) {
-    if (pendingOrders.current.has(order.id)) return
-    pendingOrders.current.add(order.id)
-    const prev = order.status as OrderStatus
-    updateOrderLocally(order.id, next)
+  function beginOrderAction(orderId: string): boolean {
+    if (pendingOrdersRef.current.has(orderId)) return false
+    pendingOrdersRef.current.add(orderId)
+    setPendingOrderIds(new Set(pendingOrdersRef.current))
+    return true
+  }
+
+  function finishOrderAction(orderId: string) {
+    pendingOrdersRef.current.delete(orderId)
+    setPendingOrderIds(new Set(pendingOrdersRef.current))
+  }
+
+  async function moveOrder(order: Order, next: OrderLifecycleTarget) {
+    if (!beginOrderAction(order.id)) return
+    const prev = order.status
+    const optimisticToken = startOptimisticOrderStatus(order.id, next)
     // Both a typed {error} result AND a thrown exception (network/500) roll the
     // optimistic move back — never a silently stuck card.
     let error: string | null = null
@@ -667,14 +954,18 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
       error = 'Sunucuya ulaşılamadı'
     }
     if (error) {
-      updateOrderLocally(order.id, prev)
+      const reconciled = await reconcileOrders()
+      if (!reconciled) rollbackOptimisticOrderStatus(order.id, optimisticToken, next, prev)
       showActionError(`Durum güncellenemedi: ${error}`)
+    } else {
+      commitOptimisticOrderStatus(order.id, optimisticToken)
+      showActionSuccess(orderActionSuccessMessage(labelFor(order.table_id), next))
     }
-    pendingOrders.current.delete(order.id)
+    finishOrderAction(order.id)
   }
 
   async function handleAdvance(order: Order) {
-    const next = nextStatus(order.status as OrderStatus)
+    const next = nextStatus(order.status)
     if (!next) return
     await moveOrder(order, next)
   }
@@ -708,65 +999,82 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
     if (order.paid_at !== null && (order.payment_method === 'iyzico' || order.payment_method === 'split')) {
       showActionError(order.payment_method === 'split'
         ? 'Bölünmüş ödeme alınmış sipariş burada iptal edilemez; önce payları uzlaştırın.'
-        : 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.')
+        : 'Bu sipariş online ödendi — doğrulanmış İyzico iade akışını kullanın.')
       return
     }
     setCancelTarget(order)
   }
 
-  function confirmCancel(order: Order, reason: string) {
-    if (pendingOrders.current.has(order.id)) return
-    pendingOrders.current.add(order.id)
-    setCancelTarget(null)
-    const prev = order.status as OrderStatus
-    startTransition(async () => {
-      updateOrderLocally(order.id, 'cancelled')
-      if (selectedOrderId === order.id) setSelectedOrderId(null)
-      let error: string | null = null
-      try {
-        const result = await cancelOrder(order.id, restaurantId, reason || undefined)
-        if ('error' in result) error = result.error
-      } catch {
-        error = 'Sunucuya ulaşılamadı'
-      }
-      if (error) {
-        updateOrderLocally(order.id, prev)
-        showActionError(`İptal edilemedi: ${error}`)
-      }
-      pendingOrders.current.delete(order.id)
-    })
+  async function confirmCancel(order: Order, reason: string) {
+    if (!beginOrderAction(order.id)) return
+    const prev = order.status
+    const optimisticToken = startOptimisticOrderStatus(order.id, 'cancelled')
+    let error: string | null = null
+    try {
+      const result = await cancelOrder(order.id, restaurantId, reason || undefined)
+      if ('error' in result) error = result.error
+    } catch {
+      error = 'Sunucuya ulaşılamadı'
+    }
+    if (error) {
+      const reconciled = await reconcileOrders()
+      if (!reconciled) rollbackOptimisticOrderStatus(order.id, optimisticToken, 'cancelled', prev)
+      showActionError(`İptal edilemedi: ${error}`)
+    } else {
+      commitOptimisticOrderStatus(order.id, optimisticToken)
+      setCancelTarget(null)
+      showActionSuccess(`${labelFor(order.table_id)} siparişi iptal edildi.`)
+    }
+    finishOrderAction(order.id)
   }
 
-  const activeCount = orders.filter(isActiveOrder).length
-  // THE shared collected predicate (isCollectedOrderRow): İkram/comp is ₺0
-  // collected and must not inflate the board's Tahsilat — same rule + same
-  // number as the Ödemeler report.
-  const revenue = orders
-    .filter(isCollectedOrderRow)
-    .reduce((s, o) => s + o.total, 0)
-  const compOrders = orders.filter(o => o.paid_at !== null && o.status !== 'cancelled' && o.payment_method === 'comp')
-  const compAmount = compOrders.reduce((s, o) => s + o.total, 0)
-  // Geciken: time IN the kitchen stage (sent_to_kitchen_at; created_at fallback
-  // for pre-migration orders) vs the per-restaurant threshold.
-  const lateCount = orders.filter(o => isLateOrder(o, lateThresholdMin, now)).length
-  const readyWaitCount = orders.filter(o => isReadyWaitingOrder(o, 5, now)).length
-  const closedCount = orders.filter(order => isCompletedOrder(order) || isCancelledOrder(order)).length
+  const boardMetrics = useMemo(() => {
+    const prepSamples = orders
+      .filter(o => o.sent_to_kitchen_at && o.ready_at)
+      .map(o => (new Date(o.ready_at as string).getTime() - new Date(o.sent_to_kitchen_at as string).getTime()) / 60_000)
+      .filter(m => Number.isFinite(m) && m >= 0)
+    const compAmount = orders
+      .filter(o => o.paid_at !== null && o.status !== 'cancelled' && o.payment_method === 'comp')
+      .reduce((sum, order) => sum + order.total, 0)
+
+    return {
+      activeCount: orders.filter(isActiveOrder).length,
+      revenue: orders.filter(isCollectedOrderRow).reduce((sum, order) => sum + order.total, 0),
+      compAmount,
+      lateCount: orders.filter(order => isLateOrder(order, lateThresholdMin, now)).length,
+      readyWaitCount: orders.filter(order => isReadyWaitingOrder(order, 5, now)).length,
+      closedCount: orders.filter(order => isCompletedOrder(order) || isCancelledOrder(order)).length,
+      avgPrepLabel: prepSamples.length > 0
+        ? `${Math.round(prepSamples.reduce((sum, minutes) => sum + minutes, 0) / prepSamples.length)} dk`
+        : '—',
+    }
+  }, [lateThresholdMin, now, orders])
+  const { activeCount, revenue, compAmount, lateCount, readyWaitCount, closedCount, avgPrepLabel } = boardMetrics
   const showClosedColumn = !closedCollapsed || filter === 'done' || filter === 'cancelled'
-  const visibleColumns = showClosedColumn ? COLUMNS : COLUMNS.filter(column => column.id !== 'done')
-  // REAL prep time (P2): mean(ready_at − sent_to_kitchen_at) over today's orders
-  // carrying BOTH stamps. "—" until samples exist (rollout day) — never the old
-  // "age of active orders" number under a prep-time label.
-  const prepSamples = orders
-    .filter(o => o.sent_to_kitchen_at && o.ready_at)
-    .map(o => (new Date(o.ready_at as string).getTime() - new Date(o.sent_to_kitchen_at as string).getTime()) / 60_000)
-    .filter(m => Number.isFinite(m) && m >= 0)
-  const avgPrepLabel = prepSamples.length > 0
-    ? `${Math.round(prepSamples.reduce((s, m) => s + m, 0) / prepSamples.length)} dk`
-    : '—'
+  const visibleColumns = useMemo(
+    () => showClosedColumn ? COLUMNS : COLUMNS.filter(column => column.id !== 'done'),
+    [showClosedColumn],
+  )
+  const detailPanel = (
+    <OrderDetailPanel
+      order={selectedOrder}
+      tableLabel={selectedOrder ? labelFor(selectedOrder.table_id) : ''}
+      onClose={() => setSelectedOrderId(null)}
+      onAdvance={handleAdvance}
+      onCancel={handleCancel}
+      onReceipt={(order) => setReceipt({ order, tableLabel: labelFor(order.table_id) })}
+      onSettle={handleSettleFromBoard}
+      settleLoading={settleLoading}
+      actionPending={selectedOrder ? pendingOrderIds.has(selectedOrder.id) : false}
+      isOwner={isOwner}
+      onRefund={setRefundTarget}
+    />
+  )
+  const detailModalBlocked = Boolean(cancelTarget || refundTarget || settleSheet || receipt)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <OrderToast order={newOrderEvent} onDismiss={clearNewOrderEvent} enabled={notifPrefs.newOrderToast} />
+    <div className="orders-shell" data-orders-connection-status={connectionStatus} data-orders-presentation={presentation} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <style>{ORDERS_RESPONSIVE_CSS}</style>
       {actionError && (
         <div
           role="alert"
@@ -784,23 +1092,40 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
           <span style={{ flex: 1 }}>{actionError}</span>
           <button
             type="button"
+            className="orders-touch-target"
             onClick={() => setActionError(null)}
             aria-label="Kapat"
             style={{ border: 'none', background: 'transparent', color: 'var(--critical)', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: 0 }}
           >×</button>
         </div>
       )}
+      {actionSuccess && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 205, maxWidth: 420, background: 'var(--positive-bg)', color: 'var(--positive)',
+            border: '1px solid var(--positive)', borderRadius: 10, padding: '10px 14px',
+            fontSize: 12.5, fontWeight: 650, boxShadow: 'var(--shadow-pop)',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}
+        >
+          <I.check size={14} />{actionSuccess}
+        </div>
+      )}
       <PageTopBar
+        className="orders-topbar"
         restaurantName={restaurantName}
         title="Siparişler"
         tag={
-          <Tag tone={connectionStatus === 'live' ? 'positive' : connectionStatus === 'connecting' ? 'warning' : 'critical'}>
+          <Tag tone={connectionStatus === 'live' ? 'positive' : connectionStatus === 'offline' ? 'critical' : 'warning'}>
             <span style={{ width: 5, height: 5, borderRadius: 999, background: 'currentColor', display: 'inline-block', animation: connectionStatus === 'connecting' ? 'pulse-dot 2s infinite' : 'none' }} />
-            {connectionStatus === 'live' ? 'Canlı' : connectionStatus === 'connecting' ? 'Bağlanıyor' : 'Çevrimdışı'}
+            {connectionStatus === 'live' ? 'Canlı' : connectionStatus === 'connecting' ? 'Bağlanıyor' : connectionStatus === 'reconnecting' ? 'Uzlaştırılıyor' : 'Çevrimdışı'}
           </Tag>
         }
         center={
-          <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+          <div className="orders-kpi-strip" style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
             <KpiChip label="Aktif" value={String(activeCount)} tone="warning" pulse />
             <KpiChip label="Ort. hazırlık" value={avgPrepLabel} />
             <KpiChip label="Tahsilat" value={formatCurrency(revenue)} tone="positive" />
@@ -809,8 +1134,12 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             {readyWaitCount > 0 && <KpiChip label="Servis bekliyor" value={String(readyWaitCount)} tone="warning" pulse />}
           </div>
         }
-        right={
+        right={<div style={{display:'flex',gap:6}}>
+          <button type="button" className="orders-topbar-action" aria-label="Hesap taşı" onClick={() => { setSelectedOrderId(null); setTransferOpen(true) }} style={btnGhost()}><I.arrow size={15} /><span className="orders-action-label">Hesap taşı</span></button>
           <button
+            type="button"
+            className="orders-topbar-action"
+            aria-label="Mutfak ekranını aç"
             style={{ ...btnPrimary(), opacity: hasKitchenAccess ? 1 : 0.5, cursor: hasKitchenAccess ? 'pointer' : 'not-allowed' }}
             disabled={!hasKitchenAccess}
             title={hasKitchenAccess ? undefined : 'Ayarlar → Mutfak Ekranı bölümünden erişim oluşturun'}
@@ -819,52 +1148,69 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
               window.open(`/api/kitchen/launch/${restaurantId}`, '_blank', 'noopener,noreferrer')
             }}
           >
-            <I.monitor size={13} />Mutfak ekranı
+            <I.monitor size={15} /><span className="orders-action-label">Mutfak ekranı</span>
           </button>
-        }
+        </div>}
       />
 
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <OrdersNav filter={filter} setFilter={setFilter} orders={orders} search={search} setSearch={setSearch} onHistory={() => setHistoryOpen(true)} lateThresholdMin={lateThresholdMin} searchInputRef={searchInputRef} now={now} stations={stations} selectedStation={selectedStation} setSelectedStation={setSelectedStation} />
+      {connectionStatus !== 'live' && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            minHeight: 34, padding: '7px 14px', borderBottom: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: connectionStatus === 'offline' ? 'var(--critical-bg)' : 'var(--warning-bg)',
+            color: connectionStatus === 'offline' ? 'var(--critical)' : 'var(--warning)',
+            fontSize: 12, fontWeight: 600,
+          }}
+        >
+          {connectionStatus === 'offline' ? <I.warn size={14} /> : <I.refresh size={14} />}
+          <span style={{ flex: 1 }}>{ORDERS_REALTIME_COPY[connectionStatus]}</span>
+          {(connectionStatus === 'offline' || connectionStatus === 'reconnecting') && (
+            <button type="button" onClick={retryRealtime} style={{ ...btnGhost(), height: 26, background: 'var(--surface)' }}>
+              Yeniden bağlan
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="orders-body" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        {presentation === 'desktop' && (
+          <OrdersNav filter={filter} setFilter={setFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} orders={orders} search={search} setSearch={setSearch} onHistory={() => setHistoryOpen(true)} lateThresholdMin={lateThresholdMin} searchInputRef={searchInputRef} now={now} stations={stations} selectedStation={selectedStation} setSelectedStation={setSelectedStation} />
+        )}
 
         {/* Kanban */}
-        <div style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '16px 16px 32px', background: 'var(--bg)' }}>
-          <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="orders-board-scroll" style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '16px 16px 32px', background: 'var(--bg)' }}>
+          <div className="orders-mobile-toolbar">
+            <button
+              ref={mobileFilterTriggerRef}
+              type="button"
+              className="orders-touch-target"
+              aria-haspopup="dialog"
+              aria-expanded={filtersOpen}
+              onClick={() => setFiltersOpen(true)}
+              style={{ ...btnGhost(), minHeight: 44, justifyContent: 'center' }}
+            >
+              <I.search size={15} /> Filtreler ve ara
+            </button>
+            <Tag tone={filter === 'attention' || filter === 'late' ? 'warning' : 'neutral'}>{FILTER_LABELS[filter]} · {filteredOrders.length}</Tag>
+            <span className="orders-mobile-toolbar-copy" style={{ marginLeft: 'auto', color: 'var(--text-3)', fontSize: 11.5 }}>Kolonlar arasında yatay kaydır</span>
+          </div>
+          <div className="orders-board-toolbar" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
             <div role="group" aria-label="Sipariş kartı yoğunluğu" style={{ display: 'inline-flex', padding: 3, gap: 2, borderRadius: 8, background: 'var(--surface-3)' }}>
               {([['comfortable', 'Rahat'], ['compact', 'Kompakt'], ['dense', 'Yoğun']] as const).map(([value, label]) => (
-                <button key={value} type="button" aria-pressed={density === value} onClick={() => changeDensity(value)} style={{ height: 26, padding: '0 9px', border: 0, borderRadius: 6, background: density === value ? 'var(--surface)' : 'transparent', color: density === value ? 'var(--text)' : 'var(--text-3)', boxShadow: density === value ? 'var(--shadow-1)' : 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: density === value ? 650 : 500 }}>{label}</button>
+                <button className="orders-touch-target" key={value} type="button" aria-pressed={density === value} onClick={() => changeDensity(value)} style={{ height: 32, padding: '0 9px', border: 0, borderRadius: 6, background: density === value ? 'var(--surface)' : 'transparent', color: density === value ? 'var(--text)' : 'var(--text-3)', boxShadow: density === value ? 'var(--shadow-1)' : 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: density === value ? 650 : 500 }}>{label}</button>
               ))}
             </div>
             {closedCount > 0 && filter !== 'done' && filter !== 'cancelled' && (
-              <button type="button" aria-expanded={!closedCollapsed} onClick={() => setClosedCollapsed(value => !value)} style={{ ...btnGhost(), height: 32 }}>
+              <button className="orders-touch-target" type="button" aria-expanded={!closedCollapsed} onClick={() => setClosedCollapsed(value => !value)} style={{ ...btnGhost(), height: 36 }}>
                 {closedCollapsed ? <I.eye size={13} /> : <I.eyeOff size={13} />}
                 {closedCollapsed ? `Kapananı göster (${closedCount})` : 'Kapananı gizle'}
               </button>
             )}
             <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-4)' }}>Hazır bekleme alarmı: 5 dk</span>
           </div>
-          {browserNotificationsEnabled && notifPrefs.newOrderPush && notification.status !== 'subscribed' && notification.status !== 'unsupported' && (
-            <div role="status" style={{ marginBottom: 12, padding: '9px 12px', borderRadius: 9, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <I.bell size={13} />
-              <span style={{ flex: 1 }}>
-                {notification.status === 'denied'
-                  ? 'Tarayıcı bildirimleri engellenmiş. Site ayarlarından izin verin.'
-                  : notification.status === 'unconfigured'
-                    ? 'Web Push bu ortamda henüz yapılandırılmamış.'
-                    : notification.error ?? 'Panel kapalıyken de yeni sipariş almak için bu cihazı etkinleştirin.'}
-              </span>
-              {notification.status !== 'denied' && notification.status !== 'unconfigured' && (
-                <button
-                  type="button"
-                  disabled={notification.status === 'subscribing'}
-                  onClick={() => void notification.requestPermission()}
-                  style={{ ...btnGhost(), height: 28 }}
-                >
-                  {notification.status === 'subscribing' ? 'Etkinleştiriliyor…' : 'Bu cihazı etkinleştir'}
-                </button>
-              )}
-            </div>
-          )}
           {/* New-café hero: ONLY when today has zero orders at all (not when a
               search/filter merely matches nothing — that keeps the column view). */}
           {orders.length === 0 && (
@@ -884,12 +1230,13 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
               </div>
             </div>
           )}
-          {orders.length > 0 && (filter !== 'all' || search.trim() || selectedStation) && (
+          {orders.length > 0 && (filter !== 'all' || sourceFilter !== 'all' || search.trim() || selectedStation) && (
             <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 7, minHeight: 28 }}>
-              <Tag tone={filter === 'late' || filter === 'attention' ? 'warning' : 'neutral'}>{FILTER_LABELS[filter]} · {filteredOrders.length}</Tag>
+              {filter !== 'all' && <Tag tone={filter === 'late' || filter === 'attention' ? 'warning' : 'neutral'}>{FILTER_LABELS[filter]} · {filteredOrders.length}</Tag>}
+              {sourceFilter !== 'all' && <Tag tone="info">{ORDER_SOURCE_LABELS[sourceFilter]} · {filteredOrders.length}</Tag>}
               {search.trim() && <Tag>“{search.trim()}”</Tag>}
               {selectedStation && <Tag tone="info"><I.cutlery size={11} />{selectedStation}</Tag>}
-              <button type="button" onClick={() => { setFilter('all'); setSearch(''); setSelectedStation(null) }} style={{ ...btnGhost(), height: 26, border: 'none', background: 'transparent', color: 'var(--text-3)' }}>
+              <button type="button" onClick={() => { setFilter('all'); setSourceFilter('all'); setSearch(''); setSelectedStation(null) }} style={{ ...btnGhost(), height: 26, border: 'none', background: 'transparent', color: 'var(--text-3)' }}>
                 <I.close size={12} />Filtreleri temizle
               </button>
               <span style={{ marginLeft: 'auto', color: 'var(--text-4)', fontSize: 10.5 }}>J/K seç · / ara · Esc temizle</span>
@@ -898,8 +1245,14 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
           {orders.length > 0 && filteredOrders.length === 0 && (
             <div role="status" style={{ marginBottom: 12, padding: '18px 16px', borderRadius: 10, border: '1px dashed var(--border-strong)', background: 'var(--surface)', textAlign: 'center' }}>
               <div style={{ fontSize: 13.5, fontWeight: 700 }}>Bu görünümde sipariş yok</div>
-              <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-3)' }}>{search.trim() ? 'Aramanızı değiştirin veya filtreleri temizleyin.' : `${FILTER_LABELS[filter]} görünümünde eşleşen sipariş bulunmuyor.`}</div>
-              <button type="button" onClick={() => { setFilter('all'); setSearch(''); setSelectedStation(null) }} style={{ ...btnGhost(), marginTop: 10 }}>Filtreleri temizle</button>
+              <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-3)' }}>
+                {search.trim()
+                  ? 'Aramanızı değiştirin veya filtreleri temizleyin.'
+                  : sourceFilter !== 'all'
+                    ? `${ORDER_SOURCE_LABELS[sourceFilter]} kaynağında eşleşen sipariş bulunmuyor.`
+                    : `${FILTER_LABELS[filter]} görünümünde eşleşen sipariş bulunmuyor.`}
+              </div>
+              <button type="button" onClick={() => { setFilter('all'); setSourceFilter('all'); setSearch(''); setSelectedStation(null) }} style={{ ...btnGhost(), marginTop: 10 }}>Filtreleri temizle</button>
             </div>
           )}
           <OrderBoardDnd
@@ -912,22 +1265,38 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             onAdvance={handleAdvance}
             onMove={(order, target) => void moveOrder(order, target)}
             onActionError={showActionError}
+            pendingOrderIds={pendingOrderIds}
             lateThresholdMin={lateThresholdMin}
             density={density}
           />
         </div>
 
-        <OrderDetailPanel
-          order={selectedOrder}
-          tableLabel={selectedOrder ? labelFor(selectedOrder.table_id) : ''}
-          onClose={() => setSelectedOrderId(null)}
-          onAdvance={handleAdvance}
-          onCancel={handleCancel}
-          onReceipt={(o) => setReceipt({ order: o, tableLabel: labelFor(o.table_id) })}
-          onSettle={handleSettleFromBoard}
-          settleLoading={settleLoading}
-        />
+        {presentation === 'desktop' && detailPanel}
       </div>
+
+      {presentation !== 'desktop' && selectedOrder && !detailModalBlocked && (
+        <AccessibleDialog
+          labelledBy="order-detail-title"
+          onClose={() => setSelectedOrderId(null)}
+          className="orders-detail-overlay"
+          style={{}}
+        >
+          {detailPanel}
+        </AccessibleDialog>
+      )}
+
+      {presentation !== 'desktop' && filtersOpen && (
+        <AccessibleDialog
+          labelledBy="orders-filter-title"
+          onClose={() => setFiltersOpen(false)}
+          className="orders-filter-overlay"
+          style={{}}
+        >
+          <div className="orders-filter-drawer">
+            <OrdersNav filter={filter} setFilter={setFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} orders={orders} search={search} setSearch={setSearch} onHistory={() => { setFiltersOpen(false); setHistoryOpen(true) }} onClose={() => setFiltersOpen(false)} lateThresholdMin={lateThresholdMin} searchInputRef={searchInputRef} now={now} stations={stations} selectedStation={selectedStation} setSelectedStation={setSelectedStation} />
+          </div>
+        </AccessibleDialog>
+      )}
 
       {settleSheet && (
         <SettlementSheet
@@ -941,11 +1310,11 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         />
       )}
 
-      {historyOpen && (
+      {historyOpen && !receipt && (
         <HistoryModal
           restaurantId={restaurantId}
           tableLabels={tableLabels}
-          onClose={() => setHistoryOpen(false)}
+          onClose={closeHistory}
           onReceipt={(o, label) => setReceipt({ order: o as ReceiptOrder, tableLabel: label })}
         />
       )}
@@ -963,9 +1332,44 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
           order={cancelTarget}
           tableLabel={labelFor(cancelTarget.table_id)}
           onClose={() => setCancelTarget(null)}
-          onConfirm={(reason) => confirmCancel(cancelTarget, reason)}
+          onConfirm={(reason) => void confirmCancel(cancelTarget, reason)}
+          pending={pendingOrderIds.has(cancelTarget.id)}
         />
       )}
+      {refundTarget && (
+        <RefundOrderModal
+          order={refundTarget}
+          tableLabel={labelFor(refundTarget.table_id)}
+          pending={refundPending}
+          onClose={() => setRefundTarget(null)}
+          onConfirm={async ({ amount, reason, requestId }) => {
+            setRefundPending(true)
+            try {
+              const method = refundTarget.payment_method
+              if (method !== 'cash' && method !== 'pos' && method !== 'iyzico') return
+              const payload: {
+                orderId: string; restaurantId: string; method: 'cash' | 'pos' | 'iyzico';
+                amount: number; reason: string; requestId: string
+              } = { orderId: refundTarget.id, restaurantId, method, amount, reason, requestId }
+              const result = method === 'iyzico'
+                ? await refundIyzicoOrder(payload)
+                : await recordManualRefund(payload)
+              if ('error' in result) {
+                showActionError(result.error)
+                return
+              }
+              setRefundTarget(null)
+              showActionSuccess(`${formatCurrency(amount)} iade başarıyla kaydedildi.`)
+            } catch {
+              showActionError('İade kaydedilemedi; bağlantıyı kontrol edin.')
+            } finally {
+              setRefundPending(false)
+            }
+          }}
+        />
+      )}
+      {transferOpen && <OrdersTransferDialog restaurantId={restaurantId} orders={orders} tables={tables} onClose={() => setTransferOpen(false)} onDone={() => setTransferDone(true)} />}
+      {transferDone && <div role="status" style={{position:'fixed',right:18,bottom:18,zIndex:170,background:'var(--night)',color:'#fff',padding:'10px 13px',borderRadius:9}}>Hesap taşındı. <button className="orders-touch-target" type="button" onClick={()=>setTransferDone(false)} style={{border:0,background:'transparent',color:'#ffd089',fontWeight:700}}>Tamam</button></div>}
     </div>
   )
 }
@@ -973,11 +1377,12 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 /* ============================================================
    CANCEL MODAL — payment-aware rules
    ============================================================ */
-function CancelOrderModal({ order, tableLabel, onClose, onConfirm }: {
+function CancelOrderModal({ order, tableLabel, onClose, onConfirm, pending }: {
   order: Order
   tableLabel: string
   onClose: () => void
   onConfirm: (reason: string) => void
+  pending: boolean
 }) {
   const [reason, setReason] = useState('')
   // cash/pos-PAID cancel = money was collected and is being refunded in person →
@@ -987,21 +1392,22 @@ function CancelOrderModal({ order, tableLabel, onClose, onConfirm }: {
   const reasonOk = !paidManual || reason.trim().length >= 3
 
   return (
-    <div
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
+    <AccessibleDialog
+      labelledBy="cancel-order-title"
+      onClose={onClose}
+      closeDisabled={pending}
+      className="orders-cancel-overlay"
       style={{
         position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(17,17,19,.42)', backdropFilter: 'blur(3px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
       }}
     >
-      <div onClick={(e) => e.stopPropagation()} style={{
+      <div aria-busy={pending} style={{
         width: 'min(420px, 94vw)', background: 'var(--surface)', borderRadius: 14,
         boxShadow: 'var(--shadow-pop)', overflow: 'hidden',
       }}>
         <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid var(--divider)' }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>Siparişi iptal et</div>
+          <div id="cancel-order-title" style={{ fontSize: 15, fontWeight: 700 }}>Siparişi iptal et</div>
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 3 }}>
             {tableLabel} · #{order.id.slice(0, 6).toUpperCase()} · {formatCurrency(order.total)}
           </div>
@@ -1022,32 +1428,110 @@ function CancelOrderModal({ order, tableLabel, onClose, onConfirm }: {
           )}
           <input
             value={reason}
+            disabled={pending}
             onChange={(e) => setReason(e.target.value)}
             placeholder={paidManual ? 'İptal gerekçesi (zorunlu)' : 'Gerekçe (opsiyonel)'}
-            autoFocus
+            data-modal-initial-focus
             style={{
-              width: '100%', height: 36, padding: '0 11px', fontSize: 12.5,
+              width: '100%', height: 44, padding: '0 11px', fontSize: 12.5,
               border: `1px solid ${paidManual && !reasonOk ? 'var(--warning)' : 'var(--border-strong)'}`,
               borderRadius: 8, outline: 'none', boxSizing: 'border-box',
             }}
           />
         </div>
         <div style={{ padding: '12px 18px 16px', display: 'flex', gap: 8 }}>
-          <button type="button" onClick={onClose} style={{ ...btnGhost(), flex: 1, justifyContent: 'center' }}>Vazgeç</button>
+          <button type="button" disabled={pending} onClick={onClose} style={{ ...btnGhost(), flex: 1, minHeight: 44, justifyContent: 'center', opacity: pending ? 0.6 : 1 }}>Vazgeç</button>
           <button
             type="button"
-            disabled={!reasonOk}
+            disabled={!reasonOk || pending}
             onClick={() => reasonOk && onConfirm(reason.trim())}
             style={{
-              ...btnPrimary(), flex: 1, justifyContent: 'center',
+              ...btnPrimary(), flex: 1, minHeight: 44, justifyContent: 'center',
               background: 'var(--critical)', borderColor: 'var(--critical)',
-              opacity: reasonOk ? 1 : 0.5, cursor: reasonOk ? 'pointer' : 'not-allowed',
+              opacity: reasonOk && !pending ? 1 : 0.5, cursor: pending ? 'wait' : reasonOk ? 'pointer' : 'not-allowed',
             }}
           >
-            İptal et
+            {pending ? 'İptal ediliyor…' : 'İptal et'}
           </button>
         </div>
       </div>
-    </div>
+    </AccessibleDialog>
+  )
+}
+
+function RefundOrderModal({ order, tableLabel, onClose, onConfirm, pending }: {
+  order: Order
+  tableLabel: string
+  onClose: () => void
+  onConfirm: (input: { amount: number; reason: string; requestId: string }) => void
+  pending: boolean
+}) {
+  const [amountText, setAmountText] = useState(order.total.toFixed(2).replace('.', ','))
+  const [reason, setReason] = useState('')
+  const [requestId] = useState(() => crypto.randomUUID())
+  const amount = Number(amountText.replace(',', '.'))
+  const valid = Number.isFinite(amount) && amount > 0 && amount <= order.total
+    && Math.round(amount * 100) === amount * 100 && reason.trim().length >= 3
+  const isProvider = order.payment_method === 'iyzico'
+
+  return (
+    <AccessibleDialog
+      labelledBy="refund-order-title"
+      onClose={onClose}
+      closeDisabled={pending}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 125, background: 'rgba(17,17,19,.42)', backdropFilter: 'blur(3px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+      }}
+    >
+      <div aria-busy={pending} style={{ width: 'min(430px, 94vw)', background: 'var(--surface)', borderRadius: 14, boxShadow: 'var(--shadow-pop)', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid var(--divider)' }}>
+          <div id="refund-order-title" style={{ fontSize: 15, fontWeight: 700 }}>Parasal iade</div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 3 }}>
+            {tableLabel} · #{order.id.slice(0, 6).toUpperCase()} · en çok {formatCurrency(order.total)}
+          </div>
+        </div>
+        <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12, color: isProvider ? 'var(--info)' : 'var(--warning)', background: isProvider ? 'var(--info-bg)' : 'var(--warning-bg)', borderRadius: 8, padding: '9px 11px', lineHeight: 1.45 }}>
+            {isProvider
+              ? 'İade İyzico’ya gönderilir. Ledger yalnız sağlayıcının imzalı başarılı cevabından sonra tamamlanır; belirsiz yanıtta tekrar gönderim kilitlenir.'
+              : `Bu alan yalnız ${order.payment_method === 'cash' ? 'elden nakit' : 'fiziksel POS'} iadesi gerçekten tamamlandıktan sonra kaydedilmelidir.`}
+          </div>
+          <label style={{ fontSize: 11.5, fontWeight: 600 }}>
+            İade tutarı (₺)
+            <input
+              data-modal-initial-focus
+              inputMode="decimal"
+              disabled={pending}
+              value={amountText}
+              onChange={(event) => setAmountText(event.target.value)}
+              style={{ width: '100%', height: 44, marginTop: 5, padding: '0 11px', border: '1px solid var(--border-strong)', borderRadius: 8, boxSizing: 'border-box' }}
+            />
+          </label>
+          <label style={{ fontSize: 11.5, fontWeight: 600 }}>
+            Gerekçe
+            <input
+              disabled={pending}
+              value={reason}
+              maxLength={200}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="En az 3 karakter"
+              style={{ width: '100%', height: 44, marginTop: 5, padding: '0 11px', border: '1px solid var(--border-strong)', borderRadius: 8, boxSizing: 'border-box' }}
+            />
+          </label>
+        </div>
+        <div style={{ padding: '12px 18px 16px', display: 'flex', gap: 8 }}>
+          <button type="button" disabled={pending} onClick={onClose} style={{ ...btnGhost(), flex: 1, minHeight: 44, justifyContent: 'center' }}>Vazgeç</button>
+          <button
+            type="button"
+            disabled={!valid || pending}
+            onClick={() => valid && onConfirm({ amount, reason: reason.trim(), requestId })}
+            style={{ ...btnPrimary(), flex: 1, minHeight: 44, justifyContent: 'center', opacity: valid && !pending ? 1 : 0.5 }}
+          >
+            {pending ? 'İade işleniyor…' : isProvider ? 'İyzico’ya iade et' : 'İadeyi kaydet'}
+          </button>
+        </div>
+      </div>
+    </AccessibleDialog>
   )
 }

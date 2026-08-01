@@ -6,6 +6,10 @@ import type { Tables } from '@garsonless/db/types'
 import { normalizeMenuNumericText, parseMenuNumericInput } from '@garsonless/domain/menu'
 import { createItem } from '../../lib/actions/menu'
 import NutritionFields, { nutritionFromItem, appendNutritionToFormData, applyNutritionPatch, NutritionStatusPill, type NutritionState } from './NutritionFields'
+import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
+import { isNewMenuItemDraftDirty, type NewMenuItemDraftSnapshot } from './menu-item-editor-model'
+
+const FOCUSABLE_SELECTOR = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 const icX = <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
 const icChevR = <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg>
@@ -39,23 +43,85 @@ export default function NewProductDrawer({
   const [earnsStamp, setEarnsStamp] = useState(false)
   const [stationMode, setStationMode] = useState<'category' | 'custom'>('category')
   const [kitchenStationId, setKitchenStationId] = useState(categoryStationId ?? '')
-  const [nutri, setNutri] = useState<NutritionState>(() => nutritionFromItem(null))
+  const [initialNutrition] = useState<NutritionState>(() => nutritionFromItem(null))
+  const [nutri, setNutri] = useState<NutritionState>(() => initialNutrition)
   const setN = (patch: Partial<NutritionState>) => setNutri((current) => applyNutritionPatch(current, patch))
   const [err, setErr] = useState<string | null>(null)
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
   const [pending, startTransition] = useTransition()
+  const onCloseRef = useRef(onClose)
+  const pendingRef = useRef(pending)
+  const discardConfirmOpenRef = useRef(discardConfirmOpen)
+  const initialDraftRef = useRef<NewMenuItemDraftSnapshot>({
+    name: '',
+    description: '',
+    price: '',
+    cost: '',
+    isAvailable: true,
+    earnsStamp: false,
+    stationMode: 'category',
+    kitchenStationId: categoryStationId ?? '',
+    nutrition: initialNutrition,
+  })
+  const isDirty = isNewMenuItemDraftDirty({
+    name,
+    description,
+    price,
+    cost,
+    isAvailable,
+    earnsStamp,
+    stationMode,
+    kitchenStationId,
+    nutrition: nutri,
+  }, initialDraftRef.current)
+  const dirtyRef = useRef(isDirty)
+
+  onCloseRef.current = onClose
+  pendingRef.current = pending
+  discardConfirmOpenRef.current = discardConfirmOpen
+  dirtyRef.current = isDirty
 
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null
-    drawerRef.current?.focus()
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const focusFrame = window.requestAnimationFrame(() => {
+      drawerRef.current?.querySelector<HTMLElement>('[aria-label="Ürün adı"], button')?.focus()
+    })
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !pending) onClose()
+      if (discardConfirmOpenRef.current) return
+      if (event.key === 'Escape') {
+        if (pendingRef.current) return
+        event.preventDefault()
+        if (dirtyRef.current) setDiscardConfirmOpen(true)
+        else onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const focusable = Array.from(
+        drawerRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? [],
+      )
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (!first || !last) {
+        event.preventDefault()
+        drawerRef.current?.focus()
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => {
+      window.cancelAnimationFrame(focusFrame)
       document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
       previousFocus?.focus()
     }
-  }, [onClose, pending])
+  }, [])
 
   const parsedPrice = parseMenuNumericInput(price, { required: true, min: 0.01 })
   const parsedCost = parseMenuNumericInput(cost, { min: 0 })
@@ -64,29 +130,39 @@ export default function NewProductDrawer({
   function create() {
     setErr(null)
     startTransition(async () => {
-      const fd = new FormData()
-      fd.append('restaurantId', restaurantId)
-      fd.append('categoryId', categoryId)
-      fd.append('name', name.trim())
-      fd.append('description', description.trim())
-      fd.append('price', price)
-      fd.append('cost', cost)
-      fd.append('kitchen_station_id', stationMode === 'category' ? '' : kitchenStationId)
-      fd.append('is_available', String(isAvailable))
-      fd.append('earns_stamp', String(earnsStamp))
-      fd.append('modifier_groups', JSON.stringify([]))
-      appendNutritionToFormData(fd, nutri)
-      const res = await createItem(null, fd)
-      if ('error' in res) { setErr(res.error); return }
-      onCreated(res.item)
+      try {
+        const fd = new FormData()
+        fd.append('restaurantId', restaurantId)
+        fd.append('categoryId', categoryId)
+        fd.append('name', name.trim())
+        fd.append('description', description.trim())
+        fd.append('price', price)
+        fd.append('cost', cost)
+        fd.append('kitchen_station_id', stationMode === 'category' ? '' : kitchenStationId)
+        fd.append('is_available', String(isAvailable))
+        fd.append('earns_stamp', String(earnsStamp))
+        fd.append('modifier_groups', JSON.stringify([]))
+        appendNutritionToFormData(fd, nutri)
+        const res = await createItem(null, fd)
+        if ('error' in res) { setErr(res.error); return }
+        onCreated(res.item)
+      } catch (error) {
+        console.error('[menu-item-create-error]', error)
+        setErr('Ürün oluşturulamadı. Bağlantıyı kontrol edip tekrar deneyin.')
+      }
     })
   }
 
   const next = () => { if (step < 3) setStep(step + 1); else create() }
+  const requestClose = () => {
+    if (pending) return
+    if (isDirty) setDiscardConfirmOpen(true)
+    else onClose()
+  }
 
   return (
-    <div className="new-product-overlay" onClick={pending ? undefined : onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(17,17,19,.4)', backdropFilter: 'blur(3px)' }}>
-      <div className="new-product-drawer" ref={drawerRef} role="dialog" aria-modal="true" aria-labelledby="new-product-title" tabIndex={-1} onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 'min(480px, 100vw)', background: 'var(--surface)', boxShadow: '-20px 0 60px -10px rgba(0,0,0,.2)', display: 'flex', flexDirection: 'column', outline: 'none' }}>
+    <div className="new-product-overlay" onClick={pending ? undefined : (event) => { if (event.target === event.currentTarget) requestClose() }} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(17,17,19,.4)', backdropFilter: 'blur(3px)' }}>
+      <div className="new-product-drawer" ref={drawerRef} role="dialog" aria-modal={discardConfirmOpen ? undefined : 'true'} aria-hidden={discardConfirmOpen ? true : undefined} inert={discardConfirmOpen ? true : undefined} aria-labelledby="new-product-title" tabIndex={-1} onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 'min(480px, 100vw)', background: 'var(--surface)', boxShadow: '-20px 0 60px -10px rgba(0,0,0,.2)', display: 'flex', flexDirection: 'column', outline: 'none' }}>
         {/* Header */}
         <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid var(--divider)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -94,7 +170,7 @@ export default function NewProductDrawer({
               <div id="new-product-title" style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-.01em', color: 'var(--text)' }}>Yeni ürün ekle</div>
               <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>Adım {step}/3 · {categoryName} kategorisine</div>
             </div>
-            <button className="new-product-close" type="button" disabled={pending} onClick={onClose} aria-label="Yeni ürün penceresini kapat" style={{ width: 30, height: 30, borderRadius: 7, background: 'var(--surface-2)', color: 'var(--text-3)', display: 'grid', placeItems: 'center', border: '1px solid var(--border)', cursor: pending ? 'not-allowed' : 'pointer' }}>{icX}</button>
+            <button className="new-product-close" type="button" disabled={pending} onClick={requestClose} aria-label="Yeni ürün penceresini kapat" style={{ width: 44, height: 44, borderRadius: 9, background: 'var(--surface-2)', color: 'var(--text-3)', display: 'grid', placeItems: 'center', border: '1px solid var(--border)', cursor: pending ? 'not-allowed' : 'pointer' }}>{icX}</button>
           </div>
           <div className="new-product-steps" aria-label={`3 adımın ${step}. adımı`}>
             {['Temel bilgiler', 'Gıda bilgileri', 'Yayın ayarları'].map((label, index) => {
@@ -110,7 +186,7 @@ export default function NewProductDrawer({
           {step === 1 && (
             <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <Field label="Ürün adı" required>
-                <input aria-label="Ürün adı" autoFocus value={name} maxLength={120} onChange={(e) => setName(e.target.value)} placeholder="örn. Serpme Kahvaltı" style={inp(38, 14)} />
+                <input aria-label="Ürün adı" autoFocus value={name} maxLength={100} onChange={(e) => setName(e.target.value)} placeholder="örn. Serpme Kahvaltı" style={inp(38, 14)} />
               </Field>
               <Field label="Açıklama" hint={`${description.length}/120 önerilen`}>
                 <textarea aria-label="Ürün açıklaması" value={description} maxLength={500} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="İçerik, porsiyon ve öne çıkan özellikler" style={{ ...inp(undefined, 13), height: 'auto', minHeight: 86, padding: '8px 10px', resize: 'vertical' }} />
@@ -163,17 +239,26 @@ export default function NewProductDrawer({
 
         {/* Footer */}
         <div className="new-product-footer" style={{ padding: '12px 18px', borderTop: '1px solid var(--divider)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button className="new-product-action new-product-action-secondary" type="button" disabled={pending} onClick={onClose} style={btnGhost}>İptal</button>
+          <button className="new-product-action new-product-action-secondary" type="button" disabled={pending} onClick={requestClose} style={btnGhost}>İptal</button>
           <div style={{ display: 'flex', gap: 6 }}>
             {step > 1 && <button className="new-product-action new-product-action-secondary" type="button" disabled={pending} onClick={() => setStep(step - 1)} style={btnGhost}>Geri</button>}
             <button className="new-product-action new-product-action-primary" type="button" disabled={pending || (step === 1 && !step1Valid)} onClick={next} style={{ ...btnPrimary, opacity: pending || (step === 1 && !step1Valid) ? 0.5 : 1, cursor: pending || (step === 1 && !step1Valid) ? 'not-allowed' : 'pointer' }}>
               {pending ? <InlineSpinner size={13} color="#fff" /> : null}
-              {step === 3 ? 'Ürünü oluştur' : 'Devam'}
+              {pending ? 'Oluşturuluyor…' : step === 3 ? 'Ürünü oluştur' : 'Devam'}
               {step < 3 && !pending && icChevR}
             </button>
           </div>
         </div>
       </div>
+      {discardConfirmOpen && (
+        <UnsavedChangesDialog
+          description="Yeni ürün taslağındaki bilgiler henüz kaydedilmedi. Çıkarsan taslak silinecek."
+          discardLabel="Taslağı sil"
+          keepLabel="Düzenlemeye dön"
+          onKeepEditing={() => setDiscardConfirmOpen(false)}
+          onDiscard={() => onCloseRef.current()}
+        />
+      )}
     </div>
   )
 }
@@ -183,10 +268,10 @@ const inp = (height?: number, fontSize = 12.5): React.CSSProperties => ({
   width: '100%', height: height ?? 32, padding: '0 10px', border: '1px solid var(--border-strong)', borderRadius: 7,
   background: 'var(--surface)', fontSize, outline: 'none', color: 'var(--text)', fontFamily: 'inherit',
 })
-const btnGhost: React.CSSProperties = { height: 36, padding: '0 14px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, border: '1px solid var(--border-strong)', cursor: 'pointer' }
-const btnPrimary: React.CSSProperties = { height: 36, padding: '0 16px', borderRadius: 8, background: 'var(--action)', color: 'var(--on-action)', fontSize: 12.5, fontWeight: 600, border: 'none', display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer' }
+const btnGhost: React.CSSProperties = { minHeight: 44, padding: '0 14px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, border: '1px solid var(--border-strong)', cursor: 'pointer' }
+const btnPrimary: React.CSSProperties = { minHeight: 44, padding: '0 16px', borderRadius: 8, background: 'var(--action)', color: 'var(--on-action)', fontSize: 12.5, fontWeight: 600, border: 'none', display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer' }
 const segment = (active: boolean): React.CSSProperties => ({
-  height: 32,
+  minHeight: 44,
   borderRadius: 7,
   border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
   background: active ? 'var(--text)' : 'var(--surface)',

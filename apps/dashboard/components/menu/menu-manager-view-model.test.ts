@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { Tables } from '@garsonless/db/types'
-import { deriveMenuManagerView } from './menu-manager-view-model'
+import { deriveMenuManagerEmptyState, deriveMenuManagerView } from './menu-manager-view-model'
 
 const categories = [
   { id: 'coffee', name: 'Kahve', parent_id: null },
@@ -57,4 +57,26 @@ test('search spans categories and exposes matched category ids', () => {
   assert.deepEqual(view.visibleItems.map((item) => item.id), ['cake'])
   assert.deepEqual([...view.searchMatchedCategoryIds!], ['dessert'])
   assert.equal(view.activeCategoryForPanel?.id, 'dessert')
+})
+
+test('empty menu routes the primary action to category creation', () => {
+  assert.deepEqual(deriveMenuManagerEmptyState({ categoryCount: 0, itemCount: 0 }), {
+    title: 'Menünü oluşturmaya başla',
+    description: 'Önce ürünlerini gruplayacağın bir kategori ekle.',
+    action: 'add-category',
+  })
+})
+
+test('category-only menu routes the primary action to product creation', () => {
+  assert.equal(
+    deriveMenuManagerEmptyState({ categoryCount: 1, itemCount: 0 }).action,
+    'add-item',
+  )
+})
+
+test('populated menu asks for a product selection without a creation action', () => {
+  assert.equal(
+    deriveMenuManagerEmptyState({ categoryCount: 1, itemCount: 1 }).action,
+    'select-item',
+  )
 })

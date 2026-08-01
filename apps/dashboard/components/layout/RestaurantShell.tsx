@@ -9,6 +9,8 @@ import { OPEN_ORDER_STATUSES } from '@garsonless/domain/orders'
 import { ShellContext } from '../../lib/shell-context'
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import { readNotificationPrefs } from '../../lib/notification-prefs'
+import { useGlobalOrderAlerts } from '../notifications/useGlobalOrderAlerts'
+import type { Order } from '../orders/useOrdersRealtime'
 
 import { Skeleton } from '../../lib/ui'
 import IconRail from './IconRail'
@@ -32,6 +34,41 @@ export function RestaurantShellSkeleton() {
     </div>
   )
 }
+
+const MOBILE_RAIL_SHELL_CSS = `
+@media (max-width: 760px) {
+  .restaurant-shell--mobile-rail {
+    height: 100dvh !important;
+    flex-direction: column !important;
+  }
+  .restaurant-shell--mobile-rail .restaurant-main {
+    order: 1;
+    width: 100%;
+    height: calc(100dvh - 58px);
+    flex: none !important;
+  }
+  .restaurant-shell--mobile-rail .restaurant-rail {
+    order: 2;
+    width: 100% !important;
+    height: 58px;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 2px !important;
+    padding: 6px 8px !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0 !important;
+    border-top: 1px solid var(--border);
+    scrollbar-width: none;
+  }
+  .restaurant-shell--mobile-rail .restaurant-rail::-webkit-scrollbar { display: none; }
+  .restaurant-shell--mobile-rail .restaurant-rail .rail-secondary {
+    margin-top: 0 !important;
+    margin-left: auto;
+    flex-direction: row !important;
+  }
+}
+`
 
 type Overlay = 'store' | 'notif' | 'help' | 'profile' | null
 
@@ -58,6 +95,9 @@ export default function RestaurantShell({
   children,
 }: Props) {
   const pathname = usePathname()
+  const isOrdersRoute = pathname.endsWith('/orders')
+  const usesMobileRail = isOrdersRoute || pathname.endsWith('/settings')
+  const isCustomersRoute = pathname.includes('/customers')
   const [overlay, setOverlay] = useState<Overlay>(null)
   const [ordersBadge, setOrdersBadge] = useState(0)
   const [inboxUnread, setInboxUnread] = useState(0)
@@ -72,6 +112,13 @@ export default function RestaurantShell({
   const serviceRequestAlert = readNotificationPrefs(currentRestaurant?.settings ?? null).serviceRequestAlert
   const serviceAlertRef = useRef(serviceRequestAlert)
   useEffect(() => { serviceAlertRef.current = serviceRequestAlert }, [serviceRequestAlert])
+  const notificationPrefs = readNotificationPrefs(currentRestaurant?.settings ?? null)
+  const orderAlerts = useGlobalOrderAlerts({
+    restaurantId,
+    prefs: notificationPrefs,
+    browserNotificationsEnabled,
+  })
+  const { onInsert: onOrderInsert, onUpdate: onOrderUpdate } = orderAlerts
 
   // The bell badge is the durable notification model: unread entries in the
   // per-user inbox, across all categories. It behaves like every other
@@ -97,12 +144,27 @@ export default function RestaurantShell({
       // needs action, including work carried across restaurant-day rollover.
       const { data } = await supabase
         .from('orders')
-        .select('status')
+        .select('id, restaurant_id, table_id, status, source, items, total, created_at')
         .eq('restaurant_id', restaurantId)
         .in('status', [...OPEN_ORDER_STATUSES])
         .is('deleted_at', null)
-      const rows = (data ?? []) as Array<{ status: string }>
-      if (!cancelled) setOrdersBadge(rows.length)
+      const rows = (data ?? []) as Order[]
+      if (!cancelled) {
+        setOrdersBadge(rows.length)
+        const recentCutoff = Date.now() - 10 * 60_000
+        for (const order of rows) {
+          if (
+            order.source !== 'staff'
+            && (order.status === 'pending' || order.status === 'pending_approval')
+            && new Date(order.created_at).getTime() >= recentCutoff
+          ) {
+            onOrderInsert(order)
+            void syncDashboardInboxEvent(restaurantId, order.id).then((result) => {
+              if ('unread' in result) setInboxUnread(result.unread)
+            })
+          }
+        }
+      }
     }
 
     void refreshCount()
@@ -130,13 +192,17 @@ export default function RestaurantShell({
           { event: 'INSERT', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
           (payload: { new: Record<string, unknown> }) => {
             void refreshCount()
+            onOrderInsert(payload.new as Order)
             syncInboxForOrder(typeof payload.new['id'] === 'string' ? payload.new['id'] : null)
           },
         )
         .on(
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
-          () => { void refreshCount() },
+          (payload: { new: Record<string, unknown> }) => {
+            void refreshCount()
+            onOrderUpdate(payload.new as Order)
+          },
         )
         .subscribe()
     }
@@ -151,7 +217,7 @@ export default function RestaurantShell({
       clearInterval(interval)
       void channelPromise.then((channel) => { if (channel) void supabase.removeChannel(channel) })
     }
-  }, [restaurantId, refreshInboxUnread])
+  }, [restaurantId, onOrderInsert, onOrderUpdate])
 
   // Unread notification inbox count drives the bell badge. Refreshed on mount,
   // whenever the notifications overlay closes (entries may have just been
@@ -270,19 +336,22 @@ export default function RestaurantShell({
           />
         )}
         <ServiceRequestToast request={waiterToast} onDismiss={() => setWaiterToast(null)} />
+        {orderAlerts.ui}
       </ShellContext.Provider>
     )
   }
 
   return (
     <ShellContext.Provider value={ctx}>
-      <div style={{
+      <style>{MOBILE_RAIL_SHELL_CSS}</style>
+      <div className={`restaurant-shell${usesMobileRail ? ' restaurant-shell--mobile-rail' : ''}`} style={{
         display: 'flex',
         height: '100vh',
         overflow: 'hidden',
         background: 'var(--bg)',
       }}>
         <IconRail
+          className="restaurant-rail"
           restaurantId={restaurantId}
           userInitials={userInitials}
           pathname={pathname}
@@ -290,7 +359,17 @@ export default function RestaurantShell({
           permissions={permissions}
           isOwner={isOwner}
         />
-        <main style={{ flex: 1, overflow: 'hidden', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <main
+          className={`restaurant-main${isCustomersRoute ? ' restaurant-main--customers' : ''}`}
+          style={{
+            flex: 1,
+            overflow: isCustomersRoute ? 'auto' : 'hidden',
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            overscrollBehaviorY: isCustomersRoute ? 'contain' : 'auto',
+          }}
+        >
           {children}
         </main>
       </div>
@@ -323,6 +402,7 @@ export default function RestaurantShell({
       )}
 
         <ServiceRequestToast request={waiterToast} onDismiss={() => setWaiterToast(null)} />
+        {orderAlerts.ui}
     </ShellContext.Provider>
   )
 }

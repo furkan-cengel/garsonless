@@ -1,18 +1,22 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import type {
   CampaignAudienceInput,
   CampaignAudiencePreview,
   CampaignSummary,
 } from '@garsonless/domain/campaigns'
-import type {
-  CustomerSegmentDefinition,
-  RestaurantCustomer,
-  RestaurantCustomersPage,
-  CustomerSegmentCounts,
-  SavedCustomerSegment,
+import {
+  isCustomerLapsed,
+  isCustomerNew,
+  type CustomerSegment,
+  type CustomerSegmentDefinition,
+  type CustomerSort,
+  type RestaurantCustomer,
+  type RestaurantCustomersPage,
+  type CustomerSegmentCounts,
+  type SavedCustomerSegment,
 } from '@garsonless/domain/customers'
 import {
   createCustomerSegmentAction,
@@ -28,15 +32,21 @@ import {
 import { formatCurrency } from '../../lib/utils'
 import { I, S, btnGhost, btnPrimary } from '../../lib/ui'
 import PageTopBar from '../layout/PageTopBar'
+import { AccessibleDialog } from '../tables/AccessibleDialog'
+import {
+  customerListHref,
+  parseCustomerListState,
+  type CustomerListState,
+} from './customer-list-state'
 
-const SEGMENTS: { id: string; label: string }[] = [
+const SEGMENTS: { id: CustomerSegment | ''; label: string }[] = [
   { id: '', label: 'Tümü' },
   { id: 'new', label: 'Yeni müşteriler' },
   { id: 'frequent', label: 'Sık gelenler' },
   { id: 'lapsed', label: 'Uzun süredir gelmeyen' },
   { id: 'consented', label: 'İzinli' },
 ]
-const SORTS: { id: string; label: string }[] = [
+const SORTS: { id: CustomerSort; label: string }[] = [
   { id: 'last_seen', label: 'Son görülme' },
   { id: 'spend', label: 'En çok harcayan' },
   { id: 'visits', label: 'En çok ziyaret' },
@@ -45,22 +55,15 @@ const SORTS: { id: string; label: string }[] = [
 ]
 const MONTHS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
 
-function relTime(iso: string | null): string {
+function relTime(iso: string | null, referenceNow: string): string {
   if (!iso) return '—'
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return '—'
-  const days = Math.floor((Date.now() - d.getTime()) / 86_400_000)
+  const days = Math.floor((new Date(referenceNow).getTime() - d.getTime()) / 86_400_000)
   if (days <= 0) return 'Bugün'
   if (days === 1) return 'Dün'
   if (days < 30) return `${days} gün önce`
   return `${d.getDate()} ${MONTHS[d.getMonth()]}`
-}
-
-function daysSince(iso: string | null): number | null {
-  if (!iso) return null
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return null
-  return Math.floor((Date.now() - d.getTime()) / 86_400_000)
 }
 
 function initials(name: string | null): string {
@@ -79,14 +82,12 @@ function softForTier(color: string): string {
   return map[color.toLowerCase()] ?? 'var(--surface-3)'
 }
 
-function tagsForCustomer(c: RestaurantCustomer): string[] {
+function tagsForCustomer(c: RestaurantCustomer, referenceNow: string): string[] {
   const tags: string[] = [c.authLinked ? 'Bağlı hesap' : 'Bağlantısız kayıt']
-  const firstDays = daysSince(c.firstSeen)
-  const lastDays = daysSince(c.lastSeen)
-  if (firstDays !== null && firstDays <= 30) tags.push('Yeni müşteri')
+  if (isCustomerNew(c.firstSeen, referenceNow)) tags.push('Yeni müşteri')
   if (c.visits >= 3) tags.push('Sık gelen')
   if (c.tierIndex >= 2) tags.push('VIP')
-  if (lastDays !== null && lastDays >= 60) tags.push('Uzun süredir gelmeyen')
+  if (isCustomerLapsed(c.lastSeen, referenceNow)) tags.push('Uzun süredir gelmeyen')
   if (!c.hasConsent) tags.push('İzin yok')
   return tags.slice(0, 3)
 }
@@ -99,6 +100,9 @@ export default function CustomersClient({
   initialSegments,
   initialCampaigns,
   canManageCampaigns,
+  smsDeliveryEnabled,
+  initialState,
+  referenceNow,
 }: {
   restaurantId: string
   restaurantName: string
@@ -107,41 +111,76 @@ export default function CustomersClient({
   initialSegments: SavedCustomerSegment[]
   initialCampaigns: CampaignSummary[]
   canManageCampaigns: boolean
+  smsDeliveryEnabled: boolean
+  initialState: CustomerListState
+  referenceNow: string
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [data, setData] = useState<RestaurantCustomersPage>(initial)
   const [savedSegments, setSavedSegments] = useState<SavedCustomerSegment[]>(initialSegments)
-  const [search, setSearch] = useState('')
-  const [segment, setSegment] = useState('')
-  const [customSegmentId, setCustomSegmentId] = useState<string | null>(null)
-  const [sort, setSort] = useState('last_seen')
-  const [page, setPage] = useState(1)
+  const [search, setSearch] = useState(initialState.search)
+  const [segment, setSegment] = useState<CustomerSegment | ''>(initialState.segment)
+  const [customSegmentId, setCustomSegmentId] = useState<string | null>(initialState.customSegmentId)
+  const [sort, setSort] = useState<CustomerSort>(initialState.sort)
+  const [page, setPage] = useState(initialState.page)
   const [editor, setEditor] = useState<SegmentEditorState | null>(null)
   const [campaignOpen, setCampaignOpen] = useState(false)
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>(initialCampaigns)
   const [segmentError, setSegmentError] = useState<string | null>(null)
   const [savingSegment, setSavingSegment] = useState(false)
   const [segmentToDelete, setSegmentToDelete] = useState<SavedCustomerSegment | null>(null)
+  const [listError, setListError] = useState<string | null>(null)
+  const [listRetry, setListRetry] = useState(0)
   const [pending, startTransition] = useTransition()
   const firstRender = useRef(true)
   const requestSequence = useRef(0)
 
   useEffect(() => {
+    const href = customerListHref(pathname, { search, segment, customSegmentId, sort, page })
+    if (`${window.location.pathname}${window.location.search}` !== href) {
+      window.history.replaceState(window.history.state, '', href)
+    }
     if (firstRender.current) { firstRender.current = false; return }
     const t = setTimeout(() => {
       const sequence = ++requestSequence.current
       startTransition(async () => {
-        const res = await listCustomers(restaurantId, { search, segment, customSegmentId, sort, page })
-        if (sequence !== requestSequence.current) return
-        if ('error' in res) setSegmentError(res.error)
-        else {
-          setData(res)
-          setSegmentError(null)
+        try {
+          const res = await listCustomers(restaurantId, { search, segment, customSegmentId, sort, page })
+          if (sequence !== requestSequence.current) return
+          if ('error' in res) setListError(res.error)
+          else {
+            setData(res)
+            setListError(null)
+          }
+        } catch {
+          if (sequence === requestSequence.current) {
+            setListError('Müşteriler yüklenemedi. Bağlantınızı kontrol edip yeniden deneyin.')
+          }
         }
       })
     }, 250)
     return () => clearTimeout(t)
-  }, [restaurantId, search, segment, customSegmentId, sort, page])
+  }, [restaurantId, pathname, search, segment, customSegmentId, sort, page, listRetry])
+
+  useEffect(() => {
+    const retryWhenOnline = () => setListRetry((value) => value + 1)
+    window.addEventListener('online', retryWhenOnline)
+    return () => window.removeEventListener('online', retryWhenOnline)
+  }, [])
+
+  useEffect(() => {
+    const restoreUrlState = () => {
+      const restored = parseCustomerListState(new URLSearchParams(window.location.search))
+      setSearch(restored.search)
+      setSegment(restored.segment)
+      setCustomSegmentId(restored.customSegmentId)
+      setSort(restored.sort)
+      setPage(restored.page)
+    }
+    window.addEventListener('popstate', restoreUrlState)
+    return () => window.removeEventListener('popstate', restoreUrlState)
+  }, [])
 
   const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize))
   const activeSavedSegment = customSegmentId
@@ -157,7 +196,7 @@ export default function CustomersClient({
     return 0
   }
 
-  function applyBuiltInSegment(id: string) {
+  function applyBuiltInSegment(id: CustomerSegment | '') {
     setSegment(id)
     setCustomSegmentId(null)
     setPage(1)
@@ -237,21 +276,21 @@ export default function CustomersClient({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <PageTopBar restaurantName={restaurantName} title="Müşteriler" tag={<span style={{ ...S.caption }}>{initialSegmentCounts.all} müşteri</span>} />
+    <div className="customer-route-shell" style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+      <PageTopBar className="customer-page-topbar" restaurantName={restaurantName} title="Müşteriler" tag={<span style={{ ...S.caption }}>{initialSegmentCounts.all} müşteri</span>} />
 
-      <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg)', minWidth: 0 }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '28px 32px 60px' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 18, marginBottom: 20 }}>
+      <div className="customer-page-scroll" style={{ flex: '1 0 auto', overflow: 'visible', background: 'var(--bg)', minWidth: 0 }}>
+        <div className="customer-page-content" style={{ maxWidth: 1180, margin: '0 auto', padding: '28px 32px 60px' }}>
+          <div className="customer-list-header" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 18, marginBottom: 20 }}>
             <div>
               <h1 style={{ fontSize: 26, fontWeight: 750, letterSpacing: '-0.025em', margin: 0 }}>Müşteriler</h1>
               <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '5px 0 0' }}>Üyeler, sadakat bakiyeleri ve ziyaret geçmişi</p>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              {canManageCampaigns && <button type="button" onClick={() => setCampaignOpen(true)} style={{ ...btnGhost({ height: 38, padding: '0 16px', borderRadius: 9, fontSize: 13.5 }) }}>
+            <div className="customer-page-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {canManageCampaigns && <button type="button" onClick={() => setCampaignOpen(true)} style={{ ...btnGhost({ height: 44, padding: '0 16px', borderRadius: 9, fontSize: 13.5 }) }}>
                 <I.bell size={14} />SMS kampanyası
               </button>}
-              <button type="button" onClick={openCreateFromCurrent} style={{ ...btnPrimary({ height: 38, padding: '0 16px', borderRadius: 9, fontSize: 13.5 }) }}>
+              <button type="button" onClick={openCreateFromCurrent} style={{ ...btnPrimary({ height: 44, padding: '0 16px', borderRadius: 9, fontSize: 13.5 }) }}>
                 <I.plus size={13} />Filtreyi kaydet
               </button>
             </div>
@@ -263,6 +302,13 @@ export default function CustomersClient({
             </div>
           )}
 
+          {listError && (
+            <div role="alert" aria-live="polite" style={{ marginBottom: 16, padding: '10px 12px', border: '1px solid var(--critical)', borderRadius: 10, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 12.5, lineHeight: 1.45, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <span>{listError}</span>
+              <button type="button" onClick={() => setListRetry((value) => value + 1)} style={btnGhost({ height: 44, padding: '0 14px' })}>Yeniden dene</button>
+            </div>
+          )}
+
           <div className="customer-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 22 }}>
             <MiniStat label="Toplam müşteri" value={initialSegmentCounts.all.toLocaleString('tr-TR')} icon={<I.users size={15} />} />
             <MiniStat label="İletişim izinli" value={initialSegmentCounts.consented.toLocaleString('tr-TR')} icon={<I.check size={15} />} sub={`Tüm müşterilerin %${initialSegmentCounts.all ? Math.round((initialSegmentCounts.consented / initialSegmentCounts.all) * 100) : 0}'i`} />
@@ -271,23 +317,23 @@ export default function CustomersClient({
           </div>
 
           <div className="customer-toolbar" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, height: 40, padding: '0 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-1)' }}>
+            <div className="customer-search" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, height: 46, padding: '0 4px 0 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-1)' }}>
               <span style={{ color: 'var(--text-3)', display: 'inline-flex' }}><I.search size={16} /></span>
               <input
                 aria-label="Müşteri ara"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 placeholder="Ad veya telefon sonu (örn. 67)"
-                style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 13.5, color: 'var(--text)' }}
+                style={{ flex: 1, minWidth: 0, height: 44, border: 'none', outline: 'none', background: 'transparent', fontSize: 13.5, color: 'var(--text)' }}
               />
-              {search && <button type="button" aria-label="Aramayı temizle" onClick={() => { setSearch(''); setPage(1) }} style={{ ...btnGhost({ width: 28, height: 28, padding: 0, justifyContent: 'center', border: 'none' }) }}><I.close size={13} /></button>}
+              {search && <button type="button" aria-label="Aramayı temizle" onClick={() => { setSearch(''); setPage(1) }} style={{ ...btnGhost({ width: 44, minWidth: 44, height: 44, padding: 0, justifyContent: 'center', border: 'none' }) }}><I.close size={13} /></button>}
             </div>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13, color: 'var(--text-3)' }}>Sırala</span>
               <select
                 value={sort}
-                onChange={(e) => { setSort(e.target.value); setPage(1) }}
-                style={{ height: 40, padding: '0 32px 0 14px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', color: 'var(--text)', fontSize: 13.5, fontWeight: 500, outline: 'none', cursor: 'pointer', boxShadow: 'var(--shadow-1)' }}
+                onChange={(e) => { setSort(e.target.value as CustomerSort); setPage(1) }}
+                style={{ height: 44, padding: '0 32px 0 14px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', color: 'var(--text)', fontSize: 13.5, fontWeight: 500, outline: 'none', cursor: 'pointer', boxShadow: 'var(--shadow-1)' }}
               >
                 {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
@@ -303,7 +349,7 @@ export default function CustomersClient({
                   type="button"
                   onClick={() => applyBuiltInSegment(sg.id)}
                   style={{
-                    height: 34,
+                    minHeight: 44,
                     padding: '0 14px',
                     borderRadius: 99,
                     cursor: 'pointer',
@@ -333,9 +379,9 @@ export default function CustomersClient({
               {savedSegments.map((saved) => {
                 const active = customSegmentId === saved.id
                 return (
-                  <span key={saved.id} style={{ display: 'inline-flex', alignItems: 'center', height: 34, borderRadius: 99, border: `1px solid ${active ? 'var(--action)' : 'var(--border)'}`, background: active ? 'var(--action)' : 'var(--surface)', overflow: 'hidden', boxShadow: active ? 'none' : 'var(--shadow-1)' }}>
+                  <span key={saved.id} style={{ display: 'inline-flex', alignItems: 'center', height: 44, borderRadius: 99, border: `1px solid ${active ? 'var(--action)' : 'var(--border)'}`, background: active ? 'var(--action)' : 'var(--surface)', overflow: 'hidden', boxShadow: active ? 'none' : 'var(--shadow-1)' }}>
                     <button type="button" onClick={() => applySavedSegment(saved.id)} title={describeDefinition(saved.definition)}
-                      style={{ height: 32, padding: '0 10px 0 14px', border: 'none', background: 'transparent', color: active ? '#fff' : 'var(--text-2)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      style={{ height: 42, padding: '0 10px 0 14px', border: 'none', background: 'transparent', color: active ? '#fff' : 'var(--text-2)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                       {saved.name}
                     </button>
                     <button type="button" onClick={() => openEditSegment(saved)} aria-label={`${saved.name} düzenle`} style={segmentIconBtn(active)}><I.gear size={12} /></button>
@@ -365,9 +411,23 @@ export default function CustomersClient({
               </div>
             ) : (
               data.customers.map((c, i) => (
-                <CustomerRow key={c.customerId} c={c} delay={i * 25} onClick={() => router.push(`/dashboard/${restaurantId}/customers/${c.customerId}`)} />
+                <CustomerRow
+                  key={c.customerId}
+                  c={c}
+                  delay={i * 25}
+                  referenceNow={referenceNow}
+                  onClick={() => {
+                    const returnTo = customerListHref(pathname, { search, segment, customSegmentId, sort, page })
+                    window.dispatchEvent(new Event('navigation-start'))
+                    router.push(`/dashboard/${restaurantId}/customers/${c.customerId}?returnTo=${encodeURIComponent(returnTo)}`)
+                  }}
+                />
               ))
             )}
+          </div>
+
+          <div className="customer-table-scroll-hint" role="status" style={{ display: 'none', marginTop: 8, color: 'var(--text-3)', fontSize: 11.5, lineHeight: 1.4 }}>
+            Tüm sütunları görmek için tabloyu yatay kaydırın.
           </div>
 
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 12, textAlign: 'center' }}>
@@ -398,6 +458,7 @@ export default function CustomersClient({
           restaurantId={restaurantId}
           savedSegments={savedSegments}
           campaigns={campaigns.slice(0, 6)}
+          smsDeliveryEnabled={smsDeliveryEnabled}
           initialTarget={customSegmentId ? `custom:${customSegmentId}` : segment ? `builtin:${segment}` : 'all'}
           onClose={() => setCampaignOpen(false)}
           onSent={(campaign) => setCampaigns((prev) => [campaign, ...prev.filter((c) => c.id !== campaign.id)])}
@@ -412,7 +473,7 @@ export default function CustomersClient({
           onConfirm={() => { void handleDeleteSegment(segmentToDelete) }}
         />
       )}
-      <style>{`@media (max-width: 820px){.customer-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}.customer-toolbar{align-items:stretch!important;flex-direction:column!important}.customer-table{overflow-x:auto!important}.customer-grid-row{min-width:900px}} @media (max-width:520px){.customer-stats{grid-template-columns:1fr!important}}`}</style>
+      <style>{`.customer-page-topbar{position:sticky;top:0;z-index:30} @media (max-width:820px){.customer-page-content{padding:22px 20px 48px!important}.customer-list-header{align-items:stretch!important;flex-direction:column!important}.customer-page-actions{justify-content:stretch!important}.customer-page-actions>button{flex:1 1 0!important}.customer-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}.customer-toolbar{align-items:stretch!important;flex-direction:column!important}.customer-toolbar label{justify-content:space-between!important}.customer-toolbar select{flex:1!important;min-width:0!important}.customer-table{overflow-x:auto!important}.customer-grid-row{min-width:900px}.customer-table-scroll-hint{display:block!important}} @media (max-width:520px){.customer-page-content{padding:20px 12px 44px!important}.customer-stats{grid-template-columns:1fr!important}.customer-page-actions>button{padding-left:10px!important;padding-right:10px!important}}`}</style>
     </div>
   )
 }
@@ -450,9 +511,9 @@ function MiniStat({ label, value, icon, sub, mono }: { label: string; value: str
   )
 }
 
-function CustomerRow({ c, onClick, delay }: { c: RestaurantCustomer; onClick: () => void; delay: number }) {
+function CustomerRow({ c, onClick, delay, referenceNow }: { c: RestaurantCustomer; onClick: () => void; delay: number; referenceNow: string }) {
   const [hover, setHover] = useState(false)
-  const tags = tagsForCustomer(c)
+  const tags = tagsForCustomer(c, referenceNow)
   const soft = softForTier(c.tier.color)
   return (
     <button
@@ -498,7 +559,7 @@ function CustomerRow({ c, onClick, delay }: { c: RestaurantCustomer; onClick: ()
       <span style={{ textAlign: 'right', fontSize: 13.5, fontWeight: 500, color: c.spend ? 'var(--text)' : 'var(--text-4)', ...S.mono }}>{formatCurrency(c.spend)}</span>
       <span style={{ textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#c8922a' }}>{c.points}</span>
       <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--text-3)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-        {relTime(c.lastSeen)}
+        {relTime(c.lastSeen, referenceNow)}
         <span style={{ color: 'var(--text-4)', opacity: hover ? 1 : 0, transition: 'opacity 120ms' }}><I.chevRight size={11} /></span>
       </span>
     </button>
@@ -556,6 +617,7 @@ function CampaignModal({
   restaurantId,
   savedSegments,
   campaigns,
+  smsDeliveryEnabled,
   initialTarget,
   onClose,
   onSent,
@@ -563,6 +625,7 @@ function CampaignModal({
   restaurantId: string
   savedSegments: SavedCustomerSegment[]
   campaigns: CampaignSummary[]
+  smsDeliveryEnabled: boolean
   initialTarget: CampaignTargetValue
   onClose: () => void
   onSent: (campaign: CampaignSummary) => void
@@ -577,6 +640,7 @@ function CampaignModal({
   const [previewing, setPreviewing] = useState(false)
   const [testing, setTesting] = useState(false)
   const [sending, setSending] = useState(false)
+  const sendRequestId = useRef<string | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -584,69 +648,101 @@ function CampaignModal({
     setError(null)
     const timer = setTimeout(() => {
       void (async () => {
-        const res = await previewCampaignAudienceAction(restaurantId, targetToAudience(target))
-        if (!alive) return
-        setPreviewing(false)
-        if ('error' in res) {
-          setPreview(null)
-          setError(res.error)
-        } else {
-          setPreview(res)
+        try {
+          const res = await previewCampaignAudienceAction(restaurantId, targetToAudience(target))
+          if (!alive) return
+          if ('error' in res) {
+            setPreview(null)
+            setError(res.error)
+          } else {
+            setPreview(res)
+          }
+        } catch {
+          if (alive) { setPreview(null); setError('Alıcı sayısı hesaplanamadı') }
+        } finally {
+          if (alive) setPreviewing(false)
         }
       })()
     }, 180)
     return () => { alive = false; clearTimeout(timer) }
   }, [restaurantId, target])
 
-  const canSend = !sending && name.trim().length > 0 && message.trim().length >= 5 && Boolean(preview?.eligibleRecipients)
+  const canSend = smsDeliveryEnabled && !sending && name.trim().length > 0 && message.trim().length >= 5 && Boolean(preview?.eligibleRecipients)
 
   async function handleTest() {
+    if (!smsDeliveryEnabled) { setError('SMS gönderimi şirket ve provider aktivasyonuna kadar kapalı'); return }
     setTesting(true)
     setError(null)
     setNotice(null)
-    const res = await sendCampaignTestAction(restaurantId, { phone: testPhone, message })
-    setTesting(false)
-    if ('error' in res) setError(res.error)
-    else setNotice('Test SMS gönderildi')
+    try {
+      const res = await sendCampaignTestAction(restaurantId, { phone: testPhone, message })
+      if ('error' in res) setError(res.error)
+      else setNotice('Test SMS gönderildi')
+    } catch {
+      setError('Test SMS sonucu doğrulanamadı')
+    } finally {
+      setTesting(false)
+    }
   }
 
   async function handleSend() {
+    if (!smsDeliveryEnabled) { setError('SMS gönderimi şirket ve provider aktivasyonuna kadar kapalı'); return }
     setSending(true)
     setError(null)
     setNotice(null)
-    const res = await sendCampaignAction(restaurantId, { name, message, audience: targetToAudience(target) })
-    setSending(false)
-    if ('error' in res) {
-      setError(res.error)
-      if (res.preview) setPreview(res.preview)
-      return
+    const requestId = sendRequestId.current ?? crypto.randomUUID()
+    sendRequestId.current = requestId
+    try {
+      const res = await sendCampaignAction(restaurantId, { requestId, name, message, audience: targetToAudience(target) })
+      if ('error' in res) {
+        setError(res.error)
+        if (res.preview) setPreview(res.preview)
+        return
+      }
+      setPreview(res.preview)
+      sendRequestId.current = null
+      onSent(res.campaign)
+      setNotice(res.replayed ? 'Bu kampanya isteği daha önce güvenle kuyruğa alınmıştı' : 'Kampanya güvenle kuyruğa alındı')
+    } catch {
+      setError('Kampanya sonucu doğrulanamadı. Aynı istek güvenle yeniden denenebilir.')
+    } finally {
+      setSending(false)
     }
-    setPreview(res.preview)
-    onSent(res.campaign)
-    setNotice(`${res.campaign.sentCount} SMS gönderildi${res.campaign.failedCount ? `, ${res.campaign.failedCount} hata` : ''}`)
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(17,17,19,.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ width: 'min(940px, 100%)', maxHeight: 'min(760px, 92vh)', overflow: 'hidden', borderRadius: 14, border: '1px solid var(--border)', background: 'var(--surface)', boxShadow: '0 24px 80px rgba(0,0,0,.22)', display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) 300px' }}>
-        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: 'min(760px, 92vh)' }}>
+    <AccessibleDialog
+      labelledBy="customer-campaign-title"
+      describedBy="customer-campaign-description"
+      onClose={onClose}
+      closeDisabled={sending}
+      className="customer-campaign-dialog"
+      style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(17,17,19,.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    >
+      <div className="customer-campaign-panel" style={{ width: 'min(940px, 100%)', maxHeight: 'min(760px, 92vh)', overflow: 'hidden', borderRadius: 14, border: '1px solid var(--border)', background: 'var(--surface)', boxShadow: '0 24px 80px rgba(0,0,0,.22)', display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) 300px' }}>
+        <div className="customer-campaign-main" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: 'min(760px, 92vh)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '16px 18px', borderBottom: '1px solid var(--divider)' }}>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 750, color: 'var(--text)' }}>SMS kampanyası</div>
-              <div style={{ ...S.caption, marginTop: 3 }}>Yalnızca kampanya SMS izni açık müşteriler alıcı olur</div>
+              <div id="customer-campaign-title" style={{ fontSize: 16, fontWeight: 750, color: 'var(--text)' }}>SMS kampanyası</div>
+              <div id="customer-campaign-description" style={{ ...S.caption, marginTop: 3 }}>Önizleme güncel pazarlama izni ve canonical telefon kurallarını kullanır</div>
             </div>
-            <button type="button" onClick={onClose} aria-label="Kapat" style={{ ...btnGhost({ width: 30, padding: 0, justifyContent: 'center' }) }}><I.close size={14} /></button>
+            <button data-modal-initial-focus type="button" onClick={onClose} disabled={sending} aria-label="Kapat" style={{ ...btnGhost({ width: 44, minWidth: 44, height: 44, padding: 0, justifyContent: 'center' }), flexShrink: 0 }}><I.close size={14} /></button>
           </div>
 
-          <div style={{ padding: 18, overflow: 'auto', display: 'grid', gap: 14 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+          <div className="customer-campaign-content" style={{ padding: 18, overflow: 'auto', display: 'grid', gap: 14 }}>
+            {!smsDeliveryEnabled && (
+              <div role="status" style={{ border: '1px solid var(--warning)', borderRadius: 10, padding: '10px 12px', background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 12.5, lineHeight: 1.45 }}>
+                SMS gönderimi şirket ve provider aktivasyonuna kadar kapalı. Hedef kitle önizlemesi kullanılabilir; test veya kampanya gönderilemez.
+              </div>
+            )}
+            <div className="customer-campaign-fields" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
               <label style={{ display: 'grid', gap: 6 }}>
                 <span style={S.label}>Kampanya adı</span>
-                <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={fieldStyle()} />
+                <input value={name} onChange={(e) => { sendRequestId.current = null; setName(e.target.value) }} maxLength={80} style={fieldStyle()} />
               </label>
               <label style={{ display: 'grid', gap: 6 }}>
                 <span style={S.label}>Hedef segment</span>
-                <select value={target} onChange={(e) => setTarget(e.target.value as CampaignTargetValue)} style={fieldStyle()}>
+                <select value={target} onChange={(e) => { sendRequestId.current = null; setTarget(e.target.value as CampaignTargetValue) }} style={fieldStyle()}>
                   <option value="all">Tüm müşteriler</option>
                   {SEGMENTS.filter((sg) => sg.id).map((sg) => <option key={sg.id} value={`builtin:${sg.id}`}>{sg.label}</option>)}
                   {savedSegments.map((sg) => <option key={sg.id} value={`custom:${sg.id}`}>Kayıtlı: {sg.name}</option>)}
@@ -654,49 +750,51 @@ function CampaignModal({
               </label>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+            <div className="customer-campaign-audience" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
               <AudienceBox label="Segment" value={previewing ? '...' : (preview?.totalCandidates ?? 0).toLocaleString('tr-TR')} />
-              <AudienceBox label="SMS izni açık" value={previewing ? '...' : (preview?.eligibleRecipients ?? 0).toLocaleString('tr-TR')} tone="positive" />
-              <AudienceBox label="Hariç" value={previewing ? '...' : (preview?.skippedNoMarketingConsent ?? 0).toLocaleString('tr-TR')} />
+              <AudienceBox label="Uygun alıcı" value={previewing ? '...' : (preview?.eligibleRecipients ?? 0).toLocaleString('tr-TR')} tone="positive" />
+              <AudienceBox label="İzin yok" value={previewing ? '...' : (preview?.skippedNoMarketingConsent ?? 0).toLocaleString('tr-TR')} />
+              <AudienceBox label="Telefon yok/geçersiz" value={previewing ? '...' : (preview?.skippedInvalidPhone ?? 0).toLocaleString('tr-TR')} />
+              <AudienceBox label="Tekrar telefon" value={previewing ? '...' : (preview?.skippedDuplicatePhone ?? 0).toLocaleString('tr-TR')} />
             </div>
 
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={S.label}>Mesaj</span>
               <textarea
                 value={message}
-                onChange={(e) => setMessage(e.target.value.slice(0, 459))}
+                onChange={(e) => { sendRequestId.current = null; setMessage(e.target.value.slice(0, 459)) }}
                 rows={5}
                 style={{ ...fieldStyle({ height: 'auto', minHeight: 132, padding: 12, resize: 'vertical', lineHeight: 1.5 }) }}
               />
               <span style={{ ...S.caption, textAlign: 'right' }}>{message.length}/459</span>
             </label>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'end' }}>
+            <div className="customer-campaign-test" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'end' }}>
               <label style={{ display: 'grid', gap: 6 }}>
                 <span style={S.label}>Test telefon</span>
                 <input value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="0555 123 45 67" style={fieldStyle()} />
               </label>
-              <button type="button" disabled={testing || message.trim().length < 5} onClick={() => { void handleTest() }} style={btnGhost({ height: 38, opacity: testing ? 0.6 : 1 })}>
+              <button type="button" disabled={!smsDeliveryEnabled || testing || message.trim().length < 5} onClick={() => { void handleTest() }} style={btnGhost({ height: 44, opacity: smsDeliveryEnabled && !testing ? 1 : 0.55 })}>
                 <I.phone size={13} />{testing ? 'Gönderiliyor...' : 'Test gönder'}
               </button>
             </div>
 
             {(error || notice) && (
-              <div style={{ borderRadius: 10, padding: '10px 12px', fontSize: 12.5, background: error ? 'var(--critical-bg)' : 'var(--positive-bg)', color: error ? 'var(--critical)' : 'var(--positive)' }}>
+              <div role={error ? 'alert' : 'status'} aria-live="polite" style={{ borderRadius: 10, padding: '10px 12px', fontSize: 12.5, background: error ? 'var(--critical-bg)' : 'var(--positive-bg)', color: error ? 'var(--critical)' : 'var(--positive)' }}>
                 {error ?? notice}
               </div>
             )}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 18px', borderTop: '1px solid var(--divider)' }}>
-            <button type="button" onClick={onClose} disabled={sending} style={btnGhost()}>Kapat</button>
-            <button type="button" disabled={!canSend} onClick={() => { void handleSend() }} style={btnPrimary({ height: 36, padding: '0 15px', opacity: canSend ? 1 : 0.52, cursor: canSend ? 'pointer' : 'not-allowed' })}>
+          <div className="customer-campaign-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 18px', borderTop: '1px solid var(--divider)', background: 'var(--surface)' }}>
+            <button type="button" onClick={onClose} disabled={sending} style={btnGhost({ height: 44 })}>Kapat</button>
+            <button type="button" disabled={!canSend} onClick={() => { void handleSend() }} style={btnPrimary({ height: 44, padding: '0 15px', opacity: canSend ? 1 : 0.52, cursor: canSend ? 'pointer' : 'not-allowed' })}>
               <I.bell size={13} />{sending ? 'Gönderiliyor...' : 'Kampanyayı gönder'}
             </button>
           </div>
         </div>
 
-        <aside style={{ borderLeft: '1px solid var(--divider)', background: 'var(--surface-2)', padding: 16, overflow: 'auto' }}>
+        <aside className="customer-campaign-history" style={{ borderLeft: '1px solid var(--divider)', background: 'var(--surface-2)', padding: 16, overflow: 'auto' }}>
           <div style={{ fontSize: 12, fontWeight: 750, color: 'var(--text-3)', letterSpacing: '.05em', marginBottom: 10 }}>SON GÖNDERİMLER</div>
           {campaigns.length === 0 ? (
             <div style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.45 }}>Henüz SMS kampanyası yok.</div>
@@ -718,7 +816,8 @@ function CampaignModal({
           )}
         </aside>
       </div>
-    </div>
+      <style>{`@media (max-width:760px){.customer-campaign-dialog{padding:10px!important;align-items:stretch!important}.customer-campaign-panel{grid-template-columns:1fr!important;max-height:calc(100vh - 20px)!important;overflow-y:auto!important}.customer-campaign-main{max-height:none!important}.customer-campaign-content{overflow:visible!important}.customer-campaign-fields,.customer-campaign-test{grid-template-columns:1fr!important}.customer-campaign-audience{grid-template-columns:repeat(2,minmax(0,1fr))!important}.customer-campaign-footer{position:sticky!important;bottom:0!important;z-index:2}.customer-campaign-history{border-left:0!important;border-top:1px solid var(--divider)!important;overflow:visible!important}} @media (max-width:430px){.customer-campaign-audience{grid-template-columns:1fr!important}}`}</style>
+    </AccessibleDialog>
   )
 }
 
@@ -744,7 +843,7 @@ function StatusPill({ status }: { status: CampaignSummary['status'] }) {
 
 function pagerBtn(disabled: boolean): React.CSSProperties {
   return {
-    height: 30,
+    height: 44,
     padding: '0 12px',
     borderRadius: 7,
     border: '1px solid var(--border)',
@@ -758,8 +857,8 @@ function pagerBtn(disabled: boolean): React.CSSProperties {
 
 function segmentIconBtn(active: boolean): React.CSSProperties {
   return {
-    width: 28,
-    height: 32,
+    width: 44,
+    height: 42,
     border: 'none',
     borderLeft: active ? '1px solid rgba(255,255,255,.2)' : '1px solid var(--divider)',
     background: 'transparent',
@@ -853,14 +952,20 @@ function SegmentEditorModal({
   const canSave = name.trim().length > 0 && !saving
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(17,17,19,.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <AccessibleDialog
+      labelledBy="customer-segment-editor-title"
+      describedBy="customer-segment-editor-description"
+      onClose={onClose}
+      closeDisabled={saving}
+      style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(17,17,19,.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    >
       <div style={{ width: 'min(620px, 100%)', maxHeight: 'min(720px, 92vh)', overflowY: 'auto', borderRadius: 14, border: '1px solid var(--border)', background: 'var(--surface)', boxShadow: '0 24px 80px rgba(0,0,0,.22)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '16px 18px', borderBottom: '1px solid var(--divider)' }}>
+        <div style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '16px 18px', borderBottom: '1px solid var(--divider)' }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{state.mode === 'edit' ? 'Segmenti düzenle' : 'Segment kaydet'}</div>
-            <div style={{ ...S.caption, marginTop: 3 }}>{describeDefinition(pruneDefinition(definition))}</div>
+            <div id="customer-segment-editor-title" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{state.mode === 'edit' ? 'Segmenti düzenle' : 'Segment kaydet'}</div>
+            <div id="customer-segment-editor-description" style={{ ...S.caption, marginTop: 3 }}>{describeDefinition(pruneDefinition(definition))}</div>
           </div>
-          <button type="button" onClick={onClose} aria-label="Kapat" style={{ ...btnGhost({ width: 30, padding: 0, justifyContent: 'center' }) }}><I.close size={14} /></button>
+          <button type="button" onClick={onClose} disabled={saving} aria-label="Kapat" style={{ ...btnGhost({ width: 44, height: 44, padding: 0, justifyContent: 'center' }) }}><I.close size={14} /></button>
         </div>
 
         <div style={{ padding: 16, display: 'grid', gap: 14 }}>
@@ -888,8 +993,8 @@ function SegmentEditorModal({
               const active = Boolean(definition[rule.key])
               const value = definition[rule.key] ?? { op: rule.key === 'last_seen_days' ? '<=' : '>=', value: 0 }
               return (
-                <div key={rule.key} style={{ display: 'grid', gridTemplateColumns: 'minmax(130px, 1fr) 84px minmax(120px, 1fr)', gap: 8, alignItems: 'center', padding: 10, border: '1px solid var(--border)', borderRadius: 10 }}>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text)' }}>
+                <div key={rule.key} className="customer-segment-rule" style={{ display: 'grid', gridTemplateColumns: 'minmax(130px, 1fr) 84px minmax(120px, 1fr)', gap: 8, alignItems: 'center', padding: 10, border: '1px solid var(--border)', borderRadius: 10 }}>
+                  <label style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text)' }}>
                     <input type="checkbox" checked={active} onChange={(e) => setRule(rule.key, e.target.checked)} />
                     {rule.label}
                   </label>
@@ -906,23 +1011,24 @@ function SegmentEditorModal({
             })}
           </div>
 
-          {error && <div style={{ color: 'var(--critical)', fontSize: 12.5 }}>{error}</div>}
+          {error && <div role="alert" style={{ color: 'var(--critical)', fontSize: 12.5 }}>{error}</div>}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 16px', borderTop: '1px solid var(--divider)' }}>
-          <button type="button" onClick={onClose} disabled={saving} style={btnGhost()}>İptal</button>
-          <button type="button" disabled={!canSave} onClick={() => { void onSave({ name: name.trim(), definition: pruneDefinition(definition) }) }} style={btnPrimary({ opacity: canSave ? 1 : 0.55, cursor: canSave ? 'pointer' : 'not-allowed' })}>
+        <div style={{ position: 'sticky', bottom: 0, zIndex: 1, background: 'var(--surface)', display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 16px', borderTop: '1px solid var(--divider)' }}>
+          <button type="button" onClick={onClose} disabled={saving} style={btnGhost({ height: 44 })}>İptal</button>
+          <button type="button" disabled={!canSave} onClick={() => { void onSave({ name: name.trim(), definition: pruneDefinition(definition) }) }} style={btnPrimary({ height: 44, opacity: canSave ? 1 : 0.55, cursor: canSave ? 'pointer' : 'not-allowed' })}>
             {saving ? 'Kaydediliyor...' : 'Kaydet'}
           </button>
         </div>
       </div>
-    </div>
+      <style>{`@media (max-width: 560px) { .customer-segment-rule { grid-template-columns: 1fr !important; } }`}</style>
+    </AccessibleDialog>
   )
 }
 
 function fieldStyle(overrides?: React.CSSProperties): React.CSSProperties {
   return {
-    height: 38,
+    height: 44,
     padding: '0 12px',
     borderRadius: 9,
     border: '1px solid var(--border-strong)',

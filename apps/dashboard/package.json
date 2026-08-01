@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:architecture": "node --import tsx --test components/analytics/*.test.ts components/errors/*.test.ts components/menu/*.test.ts components/notifications/*.test.ts components/pano/*.test.ts components/tables/*.test.ts components/theme/*.test.ts lib/billing/*.test.ts",
+    "test:architecture": "node --import tsx --test components/analytics/*.test.ts components/customers/*.test.ts components/errors/*.test.ts components/menu/*.test.ts components/notifications/*.test.ts components/pano/*.test.ts components/settings/*.test.ts components/tables/*.test.ts components/theme/*.test.ts lib/auth/*.test.ts lib/billing/*.test.ts lib/iyzico-order-refund.test.ts lib/logo-image-policy.test.ts lib/menu-image-policy.test.ts lib/pano-attention-model.test.ts lib/pano-table-status-model.test.ts lib/server-log-redaction.test.ts lib/table-transfer-actor-label.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -26,6 +26,7 @@
     "jsqr": "^1.4.0",
     "next": "^15.5.21",
     "papaparse": "^5.5.3",
+    "pdf-lib": "1.17.1",
     "qr-code-styling": "^1.9.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

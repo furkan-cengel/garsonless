@@ -3,10 +3,9 @@ import { getRestaurantTimezone } from '../../../../lib/queries/insights-shared'
 import { getRestaurantById } from '../../../../lib/queries/restaurants'
 import { startOfRestaurantDay } from '@garsonless/db/browser'
 import { readOrdersBoard } from '@garsonless/application/read-models'
-import { canRestaurantUseFeature, createOrdersBoardReadModelPort } from '@garsonless/db/server'
+import { createOrdersBoardReadModelPort } from '@garsonless/db/server'
 import OrderBoard from '../../../../components/orders/OrderBoard'
 import type { Order } from '../../../../components/orders/useOrdersRealtime'
-import { readNotificationPrefs } from '../../../../lib/notification-prefs'
 import { readLateThresholdMin } from '../../../../lib/orders-prefs'
 import { assertAccess, requireSection } from '../../../../lib/auth/access'
 
@@ -33,11 +32,6 @@ export default async function OrdersPage({ params }: Props) {
   if (!board.ok) throw new Error(board.error)
 
   const settings = (restaurant.settings as Record<string, unknown> | null) ?? {}
-  const browserNotificationsEnabled = await canRestaurantUseFeature({
-    restaurantId,
-    plan: restaurant.plan,
-    feature: 'browser_notifications',
-  })
   const receiptTax = typeof settings['tax'] === 'object' && settings['tax'] !== null && !Array.isArray(settings['tax'])
     ? settings['tax'] as Record<string, unknown>
     : null
@@ -49,9 +43,8 @@ export default async function OrdersPage({ params }: Props) {
       initialOrders={board.value.orders as Order[]}
       tables={board.value.tables}
       hasKitchenAccess={board.value.hasKitchenAccess}
+      isOwner={gate.access.isOwner}
       receiptTax={receiptTax}
-      notifPrefs={readNotificationPrefs(restaurant.settings)}
-      browserNotificationsEnabled={browserNotificationsEnabled}
       lateThresholdMin={readLateThresholdMin(restaurant.settings)}
       initialSince={today.toISOString()}
     />

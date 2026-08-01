@@ -23,7 +23,7 @@ export function getThemeEditorSaveStatus({
   }
 }
 
-export function formatThemeEditorTime(date: Date) {
+function formatThemeEditorTime(date: Date) {
   return new Intl.DateTimeFormat('tr-TR', {
     hour: '2-digit',
     minute: '2-digit',

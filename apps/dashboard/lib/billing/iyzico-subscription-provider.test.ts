@@ -62,25 +62,35 @@ function clientWith(
 }
 
 test('platform config is explicit and rejects generic/fallback origins', () => {
-  const original = { ...process.env }
-  try {
-    process.env.IYZICO_BILLING_API_KEY = 'api'
-    process.env.IYZICO_BILLING_SECRET_KEY = 'secret'
-    process.env.IYZICO_BILLING_BASE_URL = 'https://example.com'
-    process.env.IYZICO_BILLING_STARTER_PLAN_REF = 'starter'
-    process.env.IYZICO_BILLING_STARTER_AMOUNT_MINOR = '14990'
-    process.env.IYZICO_BILLING_PRO_PLAN_REF = 'pro'
-    process.env.IYZICO_BILLING_PRO_AMOUNT_MINOR = '29990'
-    process.env.IYZICO_BILLING_ENTERPRISE_PLAN_REF = 'enterprise'
-    process.env.IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR = '59990'
-    assert.throws(() => readIyzicoSubscriptionProviderConfig(), /approved iyzico API origin/)
-    process.env.IYZICO_BILLING_BASE_URL = config.baseUrl
-    assert.deepEqual(readIyzicoSubscriptionProviderConfig().plans.pro, {
-      referenceCode: 'pro', amountMinor: 29_990,
-    })
-  } finally {
-    process.env = original
+  const env = {
+    SAAS_BILLING_ENABLED: 'true',
+    IYZICO_BILLING_API_KEY: 'api',
+    IYZICO_BILLING_SECRET_KEY: 'secret',
+    IYZICO_BILLING_BASE_URL: 'https://example.com',
+    IYZICO_BILLING_STARTER_PLAN_REF: 'starter',
+    IYZICO_BILLING_STARTER_AMOUNT_MINOR: '14990',
+    IYZICO_BILLING_PRO_PLAN_REF: 'pro',
+    IYZICO_BILLING_PRO_AMOUNT_MINOR: '29990',
+    IYZICO_BILLING_ENTERPRISE_PLAN_REF: 'enterprise',
+    IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR: '59990',
   }
+  assert.throws(() => readIyzicoSubscriptionProviderConfig(env), /approved iyzico API origin/)
+  assert.deepEqual(readIyzicoSubscriptionProviderConfig({
+    ...env, IYZICO_BILLING_BASE_URL: config.baseUrl,
+  }).plans.pro, { referenceCode: 'pro', amountMinor: 29_990 })
+  assert.throws(() => readIyzicoSubscriptionProviderConfig({
+    ...env, NODE_ENV: 'production', IYZICO_BILLING_BASE_URL: config.baseUrl,
+  }), /live origin in production/)
+  assert.throws(() => readIyzicoSubscriptionProviderConfig({
+    ...env,
+    IYZICO_BILLING_BASE_URL: config.baseUrl,
+    IYZICO_BILLING_PRO_PLAN_REF: 'starter',
+  }), /must be unique/)
+  assert.throws(() => readIyzicoSubscriptionProviderConfig({
+    ...env,
+    IYZICO_BILLING_BASE_URL: config.baseUrl,
+    IYZICO_BILLING_PRO_AMOUNT_MINOR: '29.99',
+  }), /positive TRY minor-unit integer/)
 })
 
 test('customer creation sends normalized hosted-billing identity and resolves provider reference', async () => {
@@ -132,6 +142,7 @@ test('checkout enforces local/provider plan amount parity and returns hosted con
     ...base, amount: { minor: 14_990, currency: 'TRY' },
   })
   assert.equal(result.ok && result.value.providerCheckoutRef, 'checkout-token')
+  assert.equal(result.ok && result.value.providerPlanRef, 'plan-starter')
   assert.equal(requests[0]?.['pricingPlanReferenceCode'], 'plan-starter')
   assert.equal(requests[0]?.['subscriptionInitialStatus'], 'ACTIVE')
   assert.equal(calls, 1)
@@ -170,6 +181,7 @@ test('checkout retrieval maps only complete provider aggregate references', asyn
   })
   assert.deepEqual(await provider.retrieveCheckout({
     providerCheckoutRef: 'checkout-token', idempotencyKey: 'retrieve-op-1',
+    expectedProviderPlanRef: 'plan-starter',
   }), {
     ok: true,
     value: {
@@ -182,6 +194,34 @@ test('checkout retrieval maps only complete provider aggregate references', asyn
       status: 'active',
     },
   })
+})
+
+test('checkout retrieval rejects a provider plan substitution before order lookup', async () => {
+  let searches = 0
+  const provider = createIyzicoSubscriptionBillingProvider(config, {
+    client: clientWith({
+      retrieve(_input, callback) {
+        callback(null, {
+          status: 'success',
+          data: {
+            customerReferenceCode: 'customer-ref',
+            referenceCode: 'subscription-ref',
+            pricingPlanReferenceCode: 'plan-enterprise',
+            subscriptionStatus: 'ACTIVE',
+          },
+        })
+      },
+      search(_input, callback) {
+        searches += 1
+        callback(null, { status: 'success', data: { items: [] } })
+      },
+    }),
+  })
+  assert.deepEqual(await provider.retrieveCheckout({
+    providerCheckoutRef: 'checkout-token', idempotencyKey: 'retrieve-op-1',
+    expectedProviderPlanRef: 'plan-starter',
+  }), { ok: false, error: 'Iyzico subscription checkout plan does not match the claimed operation' })
+  assert.equal(searches, 0)
 })
 
 test('retry uses failed order reference and cancellation is immediate only', async () => {

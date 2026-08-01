@@ -16,6 +16,8 @@ export function MenuItemsWorkspace({
   onSubCatChange,
   selectedItem,
   onSelectItem,
+  canAddProduct,
+  onAddCategory,
   onAddItem,
   onQuickUpdate,
   onBulkAvailability,
@@ -28,6 +30,8 @@ export function MenuItemsWorkspace({
   onSubCatChange: (id: string | null) => void
   selectedItem: Tables<'menu_items'> | null
   onSelectItem: (item: Tables<'menu_items'>) => void
+  canAddProduct: boolean
+  onAddCategory: () => void
   onAddItem: () => void
   onQuickUpdate: (id: string, patch: { price?: number; is_available?: boolean }) => void
   onBulkAvailability: (ids: string[], isAvailable: boolean) => Promise<boolean>
@@ -174,6 +178,8 @@ export function MenuItemsWorkspace({
           <EmptyProducts
             filtered={items.length > 0}
             searching={Boolean(highlight)}
+            canAddProduct={canAddProduct}
+            onAddCategory={onAddCategory}
             onAdd={onAddItem}
             onResetFilter={() => setFilter('all')}
           />
@@ -223,13 +229,12 @@ function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, sel
   }
   return (
     <div
-      onClick={onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
         background: 'var(--surface)', borderRadius: 10,
         border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
-        cursor: 'pointer', overflow: 'hidden', position: 'relative',
+        overflow: 'hidden', position: 'relative',
         boxShadow: active ? '0 0 0 3px rgba(17,17,19,.06)' : hov ? 'var(--shadow-2)' : 'var(--shadow-1)',
         transition: 'all 120ms', opacity: item.is_available ? 1 : 0.6,
       }}
@@ -239,17 +244,30 @@ function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, sel
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         position: 'relative', overflow: 'hidden', color: 'rgba(17,17,19,.34)',
       }}>
-        <input
-          type="checkbox"
-          aria-label={`${item.name} ürününü seç`}
-          checked={selectedForBulk}
-          onChange={onToggleSelected}
+        <label
           onClick={(event) => event.stopPropagation()}
-          style={{ position: 'absolute', zIndex: 2, top: 9, left: 9, width: 18, height: 18, accentColor: 'var(--text)', cursor: 'pointer' }}
-        />
+          style={{
+            position: 'absolute', zIndex: 2, top: 0, left: 0,
+            width: 44, height: 44, display: 'grid', placeItems: 'center', cursor: 'pointer',
+          }}
+        >
+          <input
+            type="checkbox"
+            aria-label={`${item.name} ürününü seç`}
+            checked={selectedForBulk}
+            onChange={onToggleSelected}
+            style={{ width: 18, height: 18, accentColor: 'var(--text)', cursor: 'pointer' }}
+          />
+        </label>
         {(Array.isArray(item.images) && (item.images as string[])[0])
-          ? <img src={(item.images as string[])[0]} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
+          ? <img src={(item.images as string[])[0]} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
           : <I.cutlery size={46} />}
+        <button
+          type="button"
+          aria-label={`${item.name} ürün görselinden düzenle`}
+          onClick={onClick}
+          style={{ position: 'absolute', inset: 0, zIndex: 1, width: '100%', height: '100%', border: 0, padding: 0, background: 'transparent', cursor: 'pointer' }}
+        />
         {!item.is_available && (
           <span style={{
             position: 'absolute', top: 8, right: 8,
@@ -257,17 +275,18 @@ function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, sel
             fontSize: 9.5, fontWeight: 600, padding: '3px 7px', borderRadius: 999,
           }}>Pasif</span>
         )}
-        {hov && (
-          <div style={{
-            position: 'absolute', inset: 0, background: 'rgba(0,0,0,.04)',
-            display: 'flex', alignItems: 'flex-end', padding: 8,
+        <div style={{
+            position: 'absolute', inset: 0, zIndex: 2, background: hov ? 'rgba(0,0,0,.04)' : 'transparent',
+            display: 'flex', alignItems: 'flex-end', padding: 8, pointerEvents: 'none',
           }}>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
               <button
+                type="button"
+                aria-label={`${item.name} ürününü ${item.is_available ? 'pasife al' : 'aktife al'}`}
                 onClick={e => { e.stopPropagation(); onToggleAvailable?.() }}
                 title={item.is_available ? 'Pasife al' : 'Aktife al'}
                 style={{
-                  width: 26, height: 26, borderRadius: 6, border: 'none', cursor: 'pointer',
+                  width: 44, height: 44, borderRadius: 8, border: 'none', cursor: 'pointer', pointerEvents: 'auto',
                   background: item.is_available ? 'var(--surface)' : 'var(--warning-bg)',
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   boxShadow: 'var(--shadow-1)',
@@ -276,7 +295,6 @@ function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, sel
               ><I.eye size={13} /></button>
             </div>
           </div>
-        )}
       </div>
       <div style={{ padding: '10px 12px 12px' }}>
         <button
@@ -298,24 +316,28 @@ function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, sel
             <input
               autoFocus
               type="number"
+              min={0.01}
+              step={0.01}
               value={priceVal}
               onChange={e => setPriceVal(e.target.value)}
               onBlur={commitPrice}
               onKeyDown={e => { if (e.key === 'Enter') commitPrice(); if (e.key === 'Escape') setEditingPrice(false) }}
               onClick={e => e.stopPropagation()}
               style={{
-                width: 72, padding: '2px 6px', fontWeight: 700, fontSize: 13,
+                width: 82, height: 44, padding: '2px 6px', fontWeight: 700, fontSize: 13,
                 border: '1px solid var(--action)', borderRadius: 5, outline: 'none',
                 background: 'var(--surface-2)', color: 'var(--text)',
                 fontFamily: "'Geist Mono', monospace",
               }}
             />
           ) : (
-            <span
+            <button
+              type="button"
+              aria-label={`${item.name} fiyatını düzenle`}
               title="Düzenlemek için tıkla"
               onClick={e => { e.stopPropagation(); setEditingPrice(true); setPriceVal(String(item.price)) }}
-              style={{ fontWeight: 700, fontSize: 14, cursor: 'text' }}
-            >₺{item.price}</span>
+              style={{ minWidth: 44, minHeight: 44, padding: 0, border: 0, background: 'transparent', color: 'inherit', textAlign: 'left', fontWeight: 700, fontSize: 14, cursor: 'text' }}
+            >₺{item.price}</button>
           )}
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             {missingInfo.length > 0 && (
@@ -355,18 +377,28 @@ function AddCard({ onClick }: { onClick: () => void }) {
   )
 }
 
-function EmptyProducts({ filtered, searching, onAdd, onResetFilter }: {
+function EmptyProducts({ filtered, searching, canAddProduct, onAddCategory, onAdd, onResetFilter }: {
   filtered: boolean
   searching: boolean
+  canAddProduct: boolean
+  onAddCategory: () => void
   onAdd: () => void
   onResetFilter: () => void
 }) {
-  const title = searching ? 'Aramayla eşleşen ürün yok' : filtered ? 'Bu filtrede ürün yok' : 'Henüz ürün eklenmemiş'
+  const title = searching
+    ? 'Aramayla eşleşen ürün yok'
+    : filtered
+      ? 'Bu filtrede ürün yok'
+      : canAddProduct
+        ? 'Henüz ürün eklenmemiş'
+        : 'Menünü oluşturmaya başla'
   const description = searching
     ? 'Farklı bir ürün adı veya kategori aramayı dene.'
     : filtered
       ? 'Tüm ürünleri görüntüleyebilir veya yeni ürün ekleyebilirsin.'
-      : 'İlk ürününü ekleyerek menünü oluşturmaya başla.'
+      : canAddProduct
+        ? 'İlk ürününü ekleyerek menünü oluşturmaya başla.'
+        : 'Ürün eklemeden önce ürünlerini gruplayacağın bir kategori oluştur.'
   return (
     <div style={{ minHeight: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
       <div style={{ maxWidth: 320 }}>
@@ -376,7 +408,9 @@ function EmptyProducts({ filtered, searching, onAdd, onResetFilter }: {
         {!searching && (
           <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 8 }}>
             {filtered && <button type="button" onClick={onResetFilter} style={btnGhost()}>Tümünü göster</button>}
-            <button type="button" onClick={onAdd} style={btnPrimary()}><I.plus size={13} />Yeni ürün</button>
+            <button type="button" onClick={canAddProduct ? onAdd : onAddCategory} style={btnPrimary()}>
+              <I.plus size={13} />{canAddProduct ? 'Yeni ürün' : 'Kategori ekle'}
+            </button>
           </div>
         )}
       </div>
@@ -395,7 +429,7 @@ function ItemsList({ items, selected, selectedIds, onToggleSelected, onSelect, h
   return (
     <div style={{ background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
       <div style={{
-        display: 'grid', gridTemplateColumns: '24px 40px 1fr 90px 70px',
+        display: 'grid', gridTemplateColumns: '44px 40px 1fr 90px 70px',
         padding: '10px 14px', borderBottom: '1px solid var(--divider)',
         background: 'var(--surface-2)', fontSize: 11, color: 'var(--text-3)',
         fontWeight: 500, letterSpacing: '.05em', textTransform: 'uppercase',
@@ -413,12 +447,20 @@ function ItemsList({ items, selected, selectedIds, onToggleSelected, onSelect, h
           <div
             key={item.id}
             style={{
-              display: 'grid', gridTemplateColumns: '24px 1fr', alignItems: 'center',
+              display: 'grid', gridTemplateColumns: '44px 1fr', alignItems: 'center',
               padding: '10px 14px', borderBottom: '1px solid var(--divider)',
               background: selected?.id === item.id ? 'var(--surface-inset)' : 'transparent',
             }}
           >
-            <input type="checkbox" aria-label={`${item.name} ürününü seç`} checked={selectedIds.has(item.id)} onChange={() => onToggleSelected(item.id)} style={{ width: 16, height: 16, accentColor: 'var(--text)', cursor: 'pointer' }} />
+            <label style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                aria-label={`${item.name} ürününü seç`}
+                checked={selectedIds.has(item.id)}
+                onChange={() => onToggleSelected(item.id)}
+                style={{ width: 16, height: 16, accentColor: 'var(--text)', cursor: 'pointer' }}
+              />
+            </label>
             <button type="button" onClick={() => onSelect(item)} style={{ display: 'grid', gridTemplateColumns: '40px 1fr 90px 70px', alignItems: 'center', width: '100%', padding: 0, border: 0, background: 'transparent', color: 'inherit', textAlign: 'left', cursor: 'pointer' }}>
               <div style={{ width: 30, height: 30, borderRadius: 6, background: tint, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(17,17,19,.42)' }}>
               {(Array.isArray(item.images) && (item.images as string[])[0])

@@ -2,7 +2,7 @@ import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { SettingField } from '@garsonless/ui'
 
 export type EditorTab = 'design' | 'layout' | 'content'
-export type SectionFieldType = 'text' | 'textarea' | 'color' | 'range' | 'select' | 'url' | 'datetime' | 'toggle' | 'product-select' | 'category-select' | 'campaign-multi-select' | 'heading' | 'icon-grid'
+type SectionFieldType = 'text' | 'textarea' | 'color' | 'range' | 'select' | 'url' | 'datetime' | 'toggle' | 'product-select' | 'category-select' | 'campaign-multi-select' | 'heading' | 'icon-grid'
 
 export const THEME_EDITOR_THEME_GROUP_ID = 'theme'
 

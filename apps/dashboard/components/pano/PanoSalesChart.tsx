@@ -1,8 +1,16 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, type KeyboardEvent } from 'react'
 import { S } from '../../lib/ui'
-import { PANO_CHART_RANGES, hourInTimezone, type PanoChartData, type PanoChartPoint, type PanoChartRange } from '../../lib/pano-chart-model'
+import {
+  PANO_CHART_RANGES,
+  hourInTimezone,
+  navigatePanoChartIndex,
+  type PanoChartData,
+  type PanoChartNavigationKey,
+  type PanoChartPoint,
+  type PanoChartRange,
+} from '../../lib/pano-chart-model'
 import { PanoCard } from './PanoOverviewWidgets'
 
 export function PanoSalesChart({
@@ -11,14 +19,18 @@ export function PanoSalesChart({
   isPending,
   timezone,
   onSelectRange,
+  now,
 }: {
   data: PanoChartData
   error: string
   isPending: boolean
   timezone: string
   onSelectRange: (range: PanoChartRange, force?: boolean) => void
+  now: Date
 }) {
   const [tooltip, setTooltip] = useState<{ point: PanoChartPoint; x: number; y: number } | null>(null)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [showTable, setShowTable] = useState(false)
   const chartRef = useRef<HTMLDivElement>(null)
   const width = 720
   const height = 220
@@ -30,6 +42,22 @@ export function PanoSalesChart({
   const barWidth = Math.max(2, slot - 6)
   const labelStep = points.length > 16 ? Math.ceil(points.length / 8) : 2
   const isDay = data.range === 'day'
+  const safeActiveIndex = Math.min(activeIndex, Math.max(points.length - 1, 0))
+  const activePoint = points[safeActiveIndex]
+
+  const showPoint = (index: number) => {
+    const point = points[index]
+    const bounds = chartRef.current?.getBoundingClientRect()
+    if (!point || !bounds) return
+    setActiveIndex(index)
+    setTooltip({ point, x: ((index + 0.5) / Math.max(points.length, 1)) * bounds.width, y: 32 })
+  }
+
+  const onChartKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault()
+    showPoint(navigatePanoChartIndex(safeActiveIndex, points.length, event.key as PanoChartNavigationKey))
+  }
 
   return (
     <PanoCard title="Tahsilat akışı" subtitle={isDay ? 'Saatlik tahsilat · TRY' : `${data.rangeLabel} · günlük tahsilat · TRY`}>
@@ -39,7 +67,7 @@ export function PanoSalesChart({
             ₺{data.total.toLocaleString('tr-TR')}
           </span>
           {isPending && <span style={{ fontSize: 11, color: 'var(--text-3)' }}>yükleniyor…</span>}
-          <div className="pano-chart-ranges" style={{ marginLeft: 'auto', display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 6, padding: 2 }}>
+          <div className="pano-chart-ranges" role="group" aria-label="Tahsilat grafiği tarih aralığı" style={{ marginLeft: 'auto', display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 6, padding: 2 }}>
             {PANO_CHART_RANGES.map(({ label, range }) => (
               <button type="button" className="pano-range-action" key={range} onClick={() => onSelectRange(range)} disabled={isPending} aria-pressed={data.range === range} style={{
                 padding: '4px 10px', fontSize: 11.5, fontWeight: 500,
@@ -54,15 +82,27 @@ export function PanoSalesChart({
         {error ? (
           <div role="alert" style={{ padding: '38px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--critical)' }}>
             <div>{error}</div>
-            <button type="button" onClick={() => onSelectRange(data.range, true)} style={{ marginTop: 8, border: 0, padding: 0, background: 'transparent', color: 'inherit', textDecoration: 'underline', fontWeight: 700, cursor: 'pointer' }}>Yeniden dene</button>
+            <button type="button" className="pano-data-toggle" onClick={() => onSelectRange(data.range, true)} style={{ marginTop: 8, color: 'inherit', textDecoration: 'underline' }}>Yeniden dene</button>
           </div>
         ) : data.total === 0 ? (
           <div style={{ padding: '46px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--text-3)' }}>Bu aralıkta tahsilat yok</div>
         ) : (
-          <div ref={chartRef} style={{ position: 'relative' }} onMouseLeave={() => setTooltip(null)}>
-            <svg role="img" aria-label={`${data.rangeLabel} tahsilat grafiği. Toplam ₺${data.total.toLocaleString('tr-TR')}. Pik ${data.peakLabel || 'yok'} ₺${data.peakValue.toLocaleString('tr-TR')}.`} viewBox={`0 0 ${width} ${height}`} width="100%" style={{ display: 'block', opacity: isPending ? 0.5 : 1, transition: 'opacity 120ms' }} preserveAspectRatio="xMidYMid meet">
-              <title>{data.rangeLabel} tahsilat grafiği</title>
-              <desc>{points.map((point) => `${point.label}: ₺${point.value.toLocaleString('tr-TR')}`).join(', ')}</desc>
+          <div
+            ref={chartRef}
+            className="pano-chart-keyboard"
+            role="group"
+            tabIndex={0}
+            aria-label={`${data.rangeLabel} tahsilat grafiği. Ok tuşlarıyla veri noktaları arasında gezinin.`}
+            aria-describedby="pano-chart-active-point"
+            style={{ position: 'relative', borderRadius: 6 }}
+            onFocus={() => showPoint(safeActiveIndex)}
+            onKeyDown={onChartKeyDown}
+            onMouseLeave={() => setTooltip(null)}
+          >
+            <span id="pano-chart-active-point" className="sr-only" aria-live="polite">
+              {activePoint ? `${activePoint.label}${isDay ? ':00' : ''}, ₺${activePoint.value.toLocaleString('tr-TR')}` : 'Veri noktası yok'}
+            </span>
+            <svg aria-hidden="true" viewBox={`0 0 ${width} ${height}`} width="100%" style={{ display: 'block', opacity: isPending ? 0.5 : 1, transition: 'opacity 120ms' }} preserveAspectRatio="xMidYMid meet">
               {[0, 0.25, 0.5, 0.75, 1].map((position) => {
                 const y = verticalPadding + (height - verticalPadding * 2) * (1 - position)
                 return <line key={position} x1={horizontalPadding} y1={y} x2={width - horizontalPadding} y2={y} stroke="var(--divider)" strokeWidth="1" strokeDasharray={position === 0 ? 'none' : '3,3'} />
@@ -82,24 +122,14 @@ export function PanoSalesChart({
                       rx="3"
                       fill={fill}
                       opacity={point.value === 0 ? 0.4 : 1}
-                      tabIndex={0}
-                      role="graphics-symbol"
-                      aria-label={`${point.label}${isDay ? ':00' : ''}, ₺${point.value.toLocaleString('tr-TR')}`}
                       style={{ cursor: 'crosshair', outline: 'none' }}
                       onMouseMove={(event) => {
                         const bounds = chartRef.current?.getBoundingClientRect()
                         if (!bounds) return
                         setTooltip({ point, x: event.clientX - bounds.left, y: event.clientY - bounds.top })
                       }}
-                      onFocus={() => {
-                        const bounds = chartRef.current?.getBoundingClientRect()
-                        if (!bounds) return
-                        setTooltip({ point, x: ((index + 0.5) / Math.max(points.length, 1)) * bounds.width, y: 32 })
-                      }}
-                      onBlur={() => setTooltip(null)}
-                    >
-                      <title>{point.label}{isDay ? ':00' : ''} · ₺{point.value.toLocaleString('tr-TR')}</title>
-                    </rect>
+                      onClick={() => showPoint(index)}
+                    />
                     {point.highlight && <circle cx={x + barWidth / 2} cy={y - 6} r="3" fill="#ffd089" />}
                   </g>
                 )
@@ -137,7 +167,7 @@ export function PanoSalesChart({
           marginTop: 8, paddingTop: 10, borderTop: '1px solid var(--divider)', flexWrap: 'wrap',
         }}>
           <ChartLegendDot color="var(--text)" label={`Tahsilat ₺${data.total.toLocaleString('tr-TR')}`} />
-          {isDay && <ChartLegendDot color="#ffd089" label={`Şu an ${String(hourInTimezone(timezone)).padStart(2, '0')}:00`} />}
+          {isDay && <ChartLegendDot color="#ffd089" label={`Şu an ${String(hourInTimezone(timezone, now)).padStart(2, '0')}:00`} />}
           {data.peakValue > 0 && (
             <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               {isDay ? 'Pik saat' : 'Pik gün'} <span style={{ ...S.mono, color: 'var(--text-2)', fontWeight: 600 }}>
@@ -146,6 +176,33 @@ export function PanoSalesChart({
             </span>
           )}
         </div>
+        {data.total > 0 && (
+          <>
+            <button
+              type="button"
+              className="pano-data-toggle"
+              aria-expanded={showTable}
+              aria-controls="pano-sales-data-table"
+              onClick={() => setShowTable((visible) => !visible)}
+              style={{ marginTop: 8 }}
+            >
+              {showTable ? 'Veri tablosunu gizle' : 'Veriyi tablo olarak göster'}
+            </button>
+            {showTable && (
+              <div id="pano-sales-data-table" className="pano-data-table-scroll" style={{ marginTop: 8 }}>
+                <table className="pano-data-table">
+                  <caption className="sr-only">{data.rangeLabel} tahsilat değerleri</caption>
+                  <thead><tr><th scope="col">{isDay ? 'Saat' : 'Gün'}</th><th scope="col">Tahsilat</th></tr></thead>
+                  <tbody>
+                    {points.map((point, index) => (
+                      <tr key={`${point.label}-${index}`}><th scope="row">{point.label}{isDay ? ':00' : ''}</th><td>₺{point.value.toLocaleString('tr-TR')}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </PanoCard>
   )

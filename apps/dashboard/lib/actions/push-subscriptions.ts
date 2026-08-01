@@ -6,11 +6,13 @@ import { z } from 'zod'
 import {
   canRestaurantUseFeature,
   deleteDashboardPushEndpoint,
+  readDashboardPushSubscriptionForUser,
   upsertDashboardPushSubscription,
 } from '@garsonless/db/server'
 import { assertMember } from '../auth/access'
 import { dashboardAccessFailure, dashboardActionFailure, type DashboardActionFailure } from '../server-action-error'
 import { createDashboardServerClient } from '../supabase-server'
+import { createWebPushProvider } from '../web-push-provider'
 
 const subscriptionSchema = z.object({
   endpoint: z.string().url().max(2_048).refine((value) => value.startsWith('https://'), 'Geçersiz bildirim adresi'),
@@ -138,4 +140,45 @@ export async function unsubscribeDashboardPush(
     })
   }
   return { success: true }
+}
+
+export async function testDashboardPush(restaurantId: string): Promise<PushActionResult> {
+  const context = await authorizedPushContext(restaurantId)
+  if (!context.ok) return context.failure
+  const subscription = await readDashboardPushSubscriptionForUser({ restaurantId, userId: context.user.id })
+  if (!subscription.ok || !subscription.value) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'notifications.push.test',
+      message: 'Bu cihaz için etkin bir bildirim aboneliği bulunamadı.',
+      cause: subscription.ok ? null : subscription.error,
+    })
+  }
+  try {
+    const result = await createWebPushProvider().send({
+      subscription: subscription.value,
+      topic: `test-${Date.now()}`.slice(0, 32),
+      payload: {
+        title: 'Masabu test bildirimi',
+        body: 'Bu cihaz yeni sipariş bildirimlerini alabiliyor.',
+        icon: '/icon.svg',
+        badge: '/icon.svg',
+        tag: `test:${context.user.id}`,
+        data: { eventId: crypto.randomUUID(), url: `/dashboard/${restaurantId}/settings?section=notifications` },
+      },
+    })
+    if (result.outcome === 'sent') return { success: true }
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'notifications.push.test',
+      message: result.outcome === 'gone'
+        ? 'Cihaz aboneliği geçersiz olmuş. Cihazı kapatıp yeniden etkinleştirin.'
+        : 'Test bildirimi gönderilemedi. Lütfen tekrar deneyin.',
+      cause: result.error,
+    })
+  } catch (cause) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'notifications.push.test',
+      message: 'Web Push bu ortamda yapılandırılmamış veya kullanılamıyor.',
+      cause,
+    })
+  }
 }

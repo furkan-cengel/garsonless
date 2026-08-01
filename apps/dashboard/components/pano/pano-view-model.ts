@@ -1,25 +1,24 @@
-import type { DashboardKPIs, PaymentStatus } from '../../lib/queries/pano'
-import type { Section } from '../../lib/auth/access'
+import type {
+  DashboardKPIs,
+  PaymentStatus,
+  PanoOrderSummary,
+  PanoServiceRequest,
+  TableStatusData,
+} from '../../lib/queries/pano'
+import type { PanoLiveStatus } from './pano-live-model'
 
-export type PanoTrend = 'up' | 'down'
+type PanoTrend = 'up' | 'down'
+type PanoIndicatorTone = 'positive' | 'warning' | 'critical' | 'neutral'
 
 export type PanoKpiCardModel = {
   label: string
   value: string
   delta: string
-  trend: PanoTrend
+  trend?: PanoTrend
+  indicatorTone?: PanoIndicatorTone
   sub: string
   featured?: boolean
-  href: string
-}
-
-export type PanoQuickActionKey = 'menu' | 'tables' | 'theme' | 'orders' | 'analytics'
-
-export type PanoQuickAction = {
-  key: PanoQuickActionKey
-  label: string
-  description: string
-  href: string
+  href?: string
 }
 
 export type PanoHealthStatus = 'ok' | 'warn' | 'down' | 'idle'
@@ -30,12 +29,24 @@ export type PanoHealthCheck = {
   detail: string
 }
 
-export type PanoRealtimeStatus = 'connecting' | 'connected' | 'down'
+export type PanoRealtimeStatus = PanoLiveStatus
+
+function relativeTime(value: string | Date, now: Date): string {
+  const elapsedSeconds = Math.max(0, Math.floor((now.getTime() - new Date(value).getTime()) / 1000))
+  return elapsedSeconds < 60
+    ? 'az önce'
+    : elapsedSeconds < 3600
+      ? `${Math.floor(elapsedSeconds / 60)} dk önce`
+      : elapsedSeconds < 86400
+        ? `${Math.floor(elapsedSeconds / 3600)} sa önce`
+        : `${Math.floor(elapsedSeconds / 86400)} gün önce`
+}
 
 function percentageChange(current: number, previous: number): string {
-  if (previous === 0) return current > 0 ? '+100%' : '—'
+  if (previous === 0) return current > 0 ? 'Yeni' : 'Değişmedi'
+  if (current === previous) return 'Değişmedi'
   const delta = Math.round(((current - previous) / previous) * 100)
-  return delta >= 0 ? `+${delta}%` : `${delta}%`
+  return delta >= 0 ? `+${delta}%` : `${Math.abs(delta)}%`
 }
 
 function formatCurrency(value: number): string {
@@ -52,12 +63,32 @@ export function getPanoGreeting(timezone: string, now = new Date()): string {
   return hour < 12 ? 'Günaydın' : hour < 18 ? 'İyi günler' : 'İyi akşamlar'
 }
 
-export function getPanoKpiCards(kpis: DashboardKPIs, restaurantId: string): PanoKpiCardModel[] {
-  const averageBasketYesterday = kpis.paidOrdersYesterday > 0
-    ? Math.round(kpis.revenueYesterday / kpis.paidOrdersYesterday)
-    : 0
-
-  const orderDelta = kpis.orders - kpis.ordersYesterday
+export function getPanoKpiCards(
+  kpis: DashboardKPIs,
+  restaurantId: string,
+  operational: {
+    orderSummary: PanoOrderSummary
+    tables: TableStatusData[]
+    serviceRequests: PanoServiceRequest[]
+    canAnalytics: boolean
+    canOrders: boolean
+    canTables: boolean
+  },
+): PanoKpiCardModel[] {
+  const openTables = operational.tables.filter((table) => (
+    table.sessionId !== null && Math.max(0, table.unpaidTotal - table.splitSettledTotal) > 0
+  ))
+  const openAccount = openTables.reduce(
+    (sum, table) => sum + Math.max(0, table.unpaidTotal - table.splitSettledTotal),
+    0,
+  )
+  const lateTableIds = operational.tables
+    .filter((table) => table.status === 'late')
+    .map((table) => table.id)
+  const attentionTableCount = new Set([
+    ...lateTableIds,
+    ...operational.serviceRequests.map((request) => request.tableId),
+  ]).size
 
   return [
     {
@@ -67,62 +98,47 @@ export function getPanoKpiCards(kpis: DashboardKPIs, restaurantId: string): Pano
       trend: kpis.revenue >= kpis.revenueYesterday ? 'up' : 'down',
       sub: `vs. dün ${formatCurrency(kpis.revenueYesterday)}`,
       featured: true,
-      href: `/dashboard/${restaurantId}/analytics`,
+      href: operational.canAnalytics ? `/dashboard/${restaurantId}/analytics` : undefined,
     },
     {
-      label: 'Sipariş hacmi',
-      value: String(kpis.orders),
-      delta: orderDelta >= 0 ? `+${orderDelta}` : String(orderDelta),
-      trend: kpis.orders >= kpis.ordersYesterday ? 'up' : 'down',
-      sub: `${kpis.activeOrders} hâlâ aktif`,
-      href: `/dashboard/${restaurantId}/orders`,
+      label: 'Açık hesap',
+      value: formatCurrency(openAccount),
+      delta: `${openTables.length} masa`,
+      indicatorTone: openAccount > 0 ? 'warning' : 'neutral',
+      sub: 'Tahsil edilmemiş kalan tutar',
+      href: operational.canTables ? `/dashboard/${restaurantId}/tables` : undefined,
     },
     {
-      label: 'Ort. tahsilat',
-      value: formatCurrency(kpis.avgBasket),
-      delta: percentageChange(kpis.avgBasket, averageBasketYesterday),
-      trend: kpis.avgBasket >= averageBasketYesterday ? 'up' : 'down',
-      sub: `${kpis.paidOrders} ödemeli sipariş`,
-      href: `/dashboard/${restaurantId}/analytics`,
+      label: 'Bekleyen sipariş',
+      value: String(operational.orderSummary.pending),
+      delta: `${operational.orderSummary.preparing} hazırlanıyor`,
+      indicatorTone: operational.orderSummary.pending > 0 ? 'critical' : 'positive',
+      sub: 'Onay veya mutfak başlangıcı bekliyor',
+      href: operational.canOrders ? `/dashboard/${restaurantId}/orders` : undefined,
     },
     {
-      label: 'Oturum sayısı',
-      value: String(kpis.sessions),
-      delta: percentageChange(kpis.sessions, kpis.sessionsYesterday),
-      trend: kpis.sessions >= kpis.sessionsYesterday ? 'up' : 'down',
-      sub: `dün ${kpis.sessionsYesterday} oturum`,
-      href: `/dashboard/${restaurantId}/analytics`,
+      label: 'Dikkat gereken masa',
+      value: String(attentionTableCount),
+      delta: `${lateTableIds.length} geciken`,
+      indicatorTone: attentionTableCount > 0 ? 'critical' : 'positive',
+      sub: `${operational.serviceRequests.length} açık servis isteği`,
+      href: '#pano-attention',
     },
   ]
-}
-
-export function getPanoQuickActions(
-  restaurantId: string,
-  permissions: Section[],
-  isOwner: boolean,
-): PanoQuickAction[] {
-  const can = (section: Section) => isOwner || permissions.includes(section)
-  const actions: Array<PanoQuickAction & { section: Section }> = [
-    { key: 'menu', section: 'menu', label: 'Menüyü yönet', description: 'Ürün ve kategorileri aç', href: `/dashboard/${restaurantId}/menu` },
-    { key: 'tables', section: 'tables', label: 'QR ekranını aç', description: 'Masa QR kodlarını yönet', href: `/dashboard/${restaurantId}/tables` },
-    { key: 'theme', section: 'theme', label: 'Temayı düzenle', description: 'Marka kimliğini yönet', href: `/dashboard/${restaurantId}/theme` },
-    { key: 'orders', section: 'orders', label: 'Sipariş panosu', description: 'Canlı sipariş akışı', href: `/dashboard/${restaurantId}/orders` },
-    { key: 'analytics', section: 'analytics', label: 'Raporlar', description: 'Satış ve tahsilat analizi', href: `/dashboard/${restaurantId}/analytics` },
-  ]
-
-  return actions.filter((action) => can(action.section)).map(({ section: _section, ...action }) => action)
 }
 
 export function getPanoHealthChecks({
   paymentStatus,
   isOwner,
   realtime,
+  updatedAt,
   lastOrderAt,
   now = new Date(),
 }: {
   paymentStatus: PaymentStatus | null
   isOwner: boolean
   realtime: PanoRealtimeStatus
+  updatedAt: Date
   lastOrderAt: string | null
   now?: Date
 }): PanoHealthCheck[] {
@@ -138,12 +154,17 @@ export function getPanoHealthChecks({
     )
   }
 
+  const lastSync = `son başarılı ${relativeTime(updatedAt, now)}`
   checks.push(
-    realtime === 'connected'
-      ? { label: 'Gerçek zamanlı', status: 'ok', detail: 'Canlı bağlantı açık' }
-      : realtime === 'down'
-        ? { label: 'Gerçek zamanlı', status: 'down', detail: 'Bağlantı yok' }
-        : { label: 'Gerçek zamanlı', status: 'idle', detail: 'Bağlanıyor…' },
+    realtime === 'live'
+      ? { label: 'Canlı veri', status: 'ok', detail: `Bağlı · ${lastSync}` }
+      : realtime === 'stale'
+        ? { label: 'Canlı veri', status: 'warn', detail: `Güncelleme gecikti · ${lastSync}` }
+        : realtime === 'offline'
+          ? { label: 'Canlı veri', status: 'down', detail: `Çevrimdışı · ${lastSync}` }
+          : realtime === 'error'
+            ? { label: 'Canlı veri', status: 'down', detail: `Yenileme başarısız · ${lastSync}` }
+            : { label: 'Canlı veri', status: 'idle', detail: `Bağlanıyor · ${lastSync}` },
   )
 
   if (!lastOrderAt) {
@@ -152,18 +173,11 @@ export function getPanoHealthChecks({
   }
 
   const elapsedSeconds = Math.max(0, Math.floor((now.getTime() - new Date(lastOrderAt).getTime()) / 1000))
-  const relativeTime = elapsedSeconds < 60
-    ? 'az önce'
-    : elapsedSeconds < 3600
-      ? `${Math.floor(elapsedSeconds / 60)} dk önce`
-      : elapsedSeconds < 86400
-        ? `${Math.floor(elapsedSeconds / 3600)} sa önce`
-        : `${Math.floor(elapsedSeconds / 86400)} gün önce`
 
   checks.push({
     label: 'Son sipariş',
     status: elapsedSeconds < 86400 ? 'ok' : 'idle',
-    detail: relativeTime,
+    detail: relativeTime(lastOrderAt, now),
   })
 
   return checks

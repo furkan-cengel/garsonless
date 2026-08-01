@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   billingCheckoutCallbackUrl,
+  billingDashboardUrl,
   billingPeriod,
   checkoutRequestSchema,
   readBillingPlanPrices,
@@ -51,13 +52,36 @@ test('monthly period clamps end-of-month and callback URL is origin constrained'
     'https://dashboard.masabu.co/api/billing/iyzico/checkout/callback',
   )
   assert.throws(() => billingCheckoutCallbackUrl('http://dashboard.example.com'), /origin is invalid/)
+  assert.throws(() => billingDashboardUrl('/dashboard', undefined, 'production'), /origin is required/)
+  assert.throws(() => billingDashboardUrl(
+    '/dashboard', 'http://localhost:3000', 'production',
+  ), /origin is invalid/)
+  assert.throws(() => billingCheckoutCallbackUrl('https://dashboard.masabu.co/base'), /origin is invalid/)
 })
 
-test('public billing plan prices expose only positive integer minor units', () => {
-  assert.deepEqual(readBillingPlanPrices({
+test('public billing plan prices require the complete checkout and webhook contract', () => {
+  const complete = {
+    SAAS_BILLING_ENABLED: 'true',
+    IYZICO_BILLING_MERCHANT_ID: 'merchant-live',
+    IYZICO_BILLING_API_KEY: 'platform-api-key',
+    IYZICO_BILLING_SECRET_KEY: 'platform-secret-key',
+    IYZICO_BILLING_BASE_URL: 'https://api.iyzipay.com',
+    IYZICO_BILLING_STARTER_PLAN_REF: 'starter-live',
     IYZICO_BILLING_STARTER_AMOUNT_MINOR: '14990',
+    IYZICO_BILLING_PRO_PLAN_REF: 'pro-live',
+    IYZICO_BILLING_PRO_AMOUNT_MINOR: '29990',
+    IYZICO_BILLING_ENTERPRISE_PLAN_REF: 'enterprise-live',
+    IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR: '59990',
+  }
+  assert.deepEqual(readBillingPlanPrices(complete), {
+    starter: 14_990, pro: 29_990, enterprise: 59_990,
+  })
+  assert.deepEqual(readBillingPlanPrices({
+    ...complete,
     IYZICO_BILLING_PRO_AMOUNT_MINOR: '29.99',
-    IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR: '-1',
-    IYZICO_BILLING_SECRET_KEY: 'never-return-this',
-  }), { starter: 14990, pro: null, enterprise: null })
+  }), { starter: null, pro: null, enterprise: null })
+  assert.deepEqual(readBillingPlanPrices({
+    ...complete,
+    IYZICO_BILLING_MERCHANT_ID: undefined,
+  }), { starter: null, pro: null, enterprise: null })
 })

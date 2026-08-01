@@ -1,14 +1,14 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { createTable, deleteTable, renameTable } from '../../lib/actions/tables'
 import {
   deriveTableSlug,
-  filterTables,
   removeTableFromList,
   renameTableInList,
 } from './tables-builder-model'
+import { normalizeTableLocation } from './tables-operation-model'
 import type { TableItem } from './tables-builder-types'
 
 interface UseTableManagementOptions {
@@ -28,14 +28,16 @@ export function useTableManagement({
 }: UseTableManagementOptions) {
   const [adding, setAdding] = useState(false)
   const [newLabel, setNewLabel] = useState('')
+  const [newFloorLabel, setNewFloorLabel] = useState('')
+  const [newAreaLabel, setNewAreaLabel] = useState('')
   const [saving, setSaving] = useState(false)
   const [query, setQuery] = useState('')
   const [addError, setAddError] = useState<string | null>(null)
-  const filteredTables = useMemo(() => filterTables(tables, query), [query, tables])
-
   const cancelAdding = useCallback(() => {
     setAdding(false)
     setNewLabel('')
+    setNewFloorLabel('')
+    setNewAreaLabel('')
     setAddError(null)
   }, [])
 
@@ -48,6 +50,8 @@ export function useTableManagement({
     const formData = new FormData()
     formData.append('restaurantId', restaurantId)
     formData.append('label', label)
+    formData.append('floorLabel', newFloorLabel)
+    formData.append('areaLabel', newAreaLabel)
     const result = await createTable(undefined, formData)
     setSaving(false)
 
@@ -61,20 +65,33 @@ export function useTableManagement({
       qrToken: result.token,
       label,
       slug: deriveTableSlug(label, tables.length),
+      floorLabel: normalizeTableLocation(newFloorLabel),
+      areaLabel: normalizeTableLocation(newAreaLabel),
+      layoutXBp: null,
+      layoutYBp: null,
+      layoutShape: 'rectangle',
+      layoutRotation: 0,
+      seatCount: 4,
       orders: 0,
       status: 'idle',
     } satisfies TableItem
     setTables((current) => [...current, nextTable])
     setActiveId(nextTable.id)
     setNewLabel('')
+    setNewFloorLabel('')
+    setNewAreaLabel('')
     setAdding(false)
-  }, [newLabel, restaurantId, saving, setActiveId, setTables, tables.length])
+  }, [newAreaLabel, newFloorLabel, newLabel, restaurantId, saving, setActiveId, setTables, tables.length])
 
-  const rename = useCallback(async (table: TableItem, label: string): Promise<string | null> => {
-    const result = await renameTable({ restaurantId, tableId: table.id, label })
+  const rename = useCallback(async (table: TableItem, input: { label: string; floorLabel: string; areaLabel: string }): Promise<string | null> => {
+    const result = await renameTable({ restaurantId, tableId: table.id, ...input })
     if ('error' in result) return result.error
 
-    setTables((current) => renameTableInList(current, table.id, label))
+    setTables((current) => renameTableInList(current, table.id, input.label).map((item) => item.id === table.id ? {
+      ...item,
+      floorLabel: normalizeTableLocation(input.floorLabel),
+      areaLabel: normalizeTableLocation(input.areaLabel),
+    } : item))
     return null
   }, [restaurantId, setTables])
 
@@ -94,11 +111,14 @@ export function useTableManagement({
     cancelAdding,
     newLabel,
     setNewLabel,
+    newFloorLabel,
+    setNewFloorLabel,
+    newAreaLabel,
+    setNewAreaLabel,
     saving,
     query,
     setQuery,
     addError,
-    filteredTables,
     addTable,
     rename,
     remove,

@@ -1,0 +1,230 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.nav {
+  width: var(--nav);
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.navHeader {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.navTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.navSubtitle {
+  margin-top: 3px;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.navScroller {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 8px 12px;
+}
+
+.navGroup {
+  margin-top: 12px;
+}
+
+.navGroup:first-child {
+  margin-top: 4px;
+}
+
+.navGroupTitle {
+  padding: 6px 8px;
+}
+
+.navRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 1px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.navRow:hover {
+  background: var(--surface-3);
+}
+
+.navRowActive,
+.navRowActive:hover {
+  background: var(--surface-inset);
+}
+
+.navRowIcon {
+  display: inline-flex;
+  color: var(--text-3);
+}
+
+.navRowActive .navRowIcon {
+  color: var(--text);
+}
+
+.navRowCopy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.navRowLabel {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.navRowActive .navRowLabel {
+  font-weight: 600;
+}
+
+.navRowDescription {
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contentArea {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.contentInner {
+  margin: 0 auto;
+  padding: 32px 32px 60px;
+}
+
+.root :is(button, a) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.root :is(input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea) {
+  min-height: 44px;
+}
+
+.root label:has(input[type='checkbox'], input[type='radio'], input[type='range'], input[type='file']) {
+  min-height: 44px;
+}
+
+.root input[type='range'] {
+  min-height: 44px;
+}
+
+.root :is(button, a[href], input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--text) !important;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root,
+  .root *,
+  .root *::before,
+  .root *::after {
+    scroll-behavior: auto !important;
+    animation-delay: 0s !important;
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-delay: 0s !important;
+    transition-duration: 0s !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .body {
+    flex-direction: column;
+  }
+
+  .nav {
+    width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .navHeader,
+  .navGroupTitle {
+    display: none;
+  }
+
+  .navScroller {
+    display: flex;
+    flex: none;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 7px 12px;
+    scroll-padding-inline: 12px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .navScroller::-webkit-scrollbar {
+    display: none;
+  }
+
+  .navGroup {
+    display: contents;
+  }
+
+  .navRow {
+    width: auto;
+    min-width: max-content;
+    min-height: 44px;
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 8px 11px;
+    scroll-snap-align: start;
+  }
+
+  .navRowCopy {
+    flex: none;
+  }
+
+  .navRowDescription {
+    display: none;
+  }
+
+  .contentInner {
+    padding: 20px 16px 48px;
+  }
+
+  .contentArea input,
+  .contentArea select,
+  .contentArea textarea {
+    max-width: 100%;
+  }
+}

@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { Skeleton } from '../../lib/ui'
 
-type SkeletonKind = 'pano' | 'analytics' | 'orders' | 'menu' | 'theme' | 'tables' | 'settings' | 'customers'
+type SkeletonKind = 'pano' | 'analytics' | 'orders' | 'menu' | 'theme' | 'settings' | 'customers'
 
 interface Props {
   kind?: SkeletonKind
@@ -331,29 +331,6 @@ function ThemeSkeleton() {
   )
 }
 
-function TablesSkeleton() {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <NavRailSkeleton rows={9} />
-        <div style={{ flex: 1, minWidth: 0, padding: 20, display: 'grid', placeItems: 'center', background: 'var(--surface-2)' }}>
-          <div style={{ width: 'min(56vw, 560px)', aspectRatio: '1 / 1', position: 'relative' }}>
-            <Block width="100%" height="100%" style={{ borderRadius: 8 }} />
-            <Block width="34%" height={24} style={{ position: 'absolute', top: '12%', left: '10%' }} />
-            <Block width="28%" height={24} style={{ position: 'absolute', top: '38%', right: '12%' }} />
-            <Block width="30%" height={24} style={{ position: 'absolute', bottom: '15%', left: '28%' }} />
-          </div>
-        </div>
-        <Panel rows={10} style={{ width: 'var(--props)', flexShrink: 0, borderRadius: 0, borderTop: 'none', borderBottom: 'none', borderRight: 'none' }} />
-      </div>
-      <div style={{ height: 'var(--statusbar)', flexShrink: 0, borderTop: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px' }}>
-        <Block width={160} height={10} />
-        <Block width={220} height={10} />
-      </div>
-    </div>
-  )
-}
-
 function SettingsSkeleton() {
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
@@ -598,7 +575,6 @@ export default function DashboardRouteSkeleton({ kind = 'pano' }: Props) {
     orders: <OrdersSkeleton />,
     menu: <MenuSkeleton />,
     theme: <ThemeSkeleton />,
-    tables: <TablesSkeleton />,
     settings: <SettingsSkeleton />,
     customers: <CustomersSkeleton />,
   }

@@ -91,7 +91,7 @@ export function ProfileSection({ user }: { user: User | null }) {
       </SCard>
 
       {error && (
-        <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--critical-bg)', color: 'var(--critical)', borderRadius: 7, fontSize: 12 }}>
+        <div role="alert" style={{ marginTop: 12, padding: '8px 12px', background: 'var(--critical-bg)', color: 'var(--critical)', borderRadius: 7, fontSize: 12 }}>
           {error}
         </div>
       )}
@@ -124,7 +124,7 @@ function SectionCheckboxes({ value, onChange }: { value: string[]; onChange: (v:
       {TEAM_SECTION_OPTIONS.map(opt => {
         const on = value.includes(opt.key)
         return (
-          <button key={opt.key} type="button" onClick={() => toggle(opt.key)} style={{
+          <button key={opt.key} type="button" aria-pressed={on} onClick={() => toggle(opt.key)} style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px',
             borderRadius: 8, cursor: 'pointer', textAlign: 'left',
             border: '1px solid ' + (on ? 'var(--text)' : 'var(--border-strong)'),
@@ -216,7 +216,7 @@ function MemberRow({ restaurantId, member }: { restaurantId: string; member: Tea
       )}
 
       {devUrl && <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-3)', wordBreak: 'break-all' }}>Dev davet linki: {devUrl}</div>}
-      {msg && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--critical)' }}>{msg}</div>}
+      {msg && <div role="alert" style={{ marginTop: 8, fontSize: 12, color: 'var(--critical)' }}>{msg}</div>}
     </div>
   )
 }
@@ -289,7 +289,7 @@ export function TeamSection({ restaurantId, ownerEmail, members, auditEvents }: 
             <button type="button" disabled={isPending || !email || perms.length === 0} onClick={handleInvite} style={btnPrimary()}>
               <I.plus size={13} />{isPending ? 'Gönderiliyor…' : 'Davet gönder'}
             </button>
-            {result && <span style={{ fontSize: 12.5, color: result.ok ? 'var(--positive)' : 'var(--critical)' }}>{result.text}</span>}
+            {result && <span role={result.ok ? 'status' : 'alert'} style={{ fontSize: 12.5, color: result.ok ? 'var(--positive)' : 'var(--critical)' }}>{result.text}</span>}
           </div>
           {result?.url && <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-3)', wordBreak: 'break-all' }}>Dev davet linki: {result.url}</div>}
         </div>

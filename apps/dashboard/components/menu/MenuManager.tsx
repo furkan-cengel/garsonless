@@ -1,9 +1,9 @@
 'use client'
-
 import type { Tables } from '@garsonless/db/types'
 import NewProductDrawer from './NewProductDrawer'
 import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import { useRouter } from 'next/navigation'
+import type { MenuItemRecommendationRow } from '@garsonless/db/server'
 import { CsvImportModal, CsvImportStartModal } from './MenuCsvImportOverlays'
 import { useMenuCsvImport } from './use-menu-csv-import'
 import { deriveMenuManagerView } from './menu-manager-view-model'
@@ -18,6 +18,7 @@ import {
 } from './MenuManagerChrome'
 import { useMenuManagerCommands } from './use-menu-manager-commands'
 import { useMenuManagerShellState } from './use-menu-manager-shell-state'
+import { useMenuItemRecommendations } from './use-menu-item-recommendations'
 
 interface Props {
   restaurantId: string
@@ -26,11 +27,14 @@ interface Props {
   initialCategories: Tables<'menu_categories'>[]
   initialItems: Tables<'menu_items'>[]
   kitchenStations: Tables<'kitchen_stations'>[]
+  initialRecommendations: MenuItemRecommendationRow[]
 }
-
-
-export default function MenuManager({ restaurantId, restaurantName, restaurantSlug, initialCategories, initialItems, kitchenStations }: Props) {
+export default function MenuManager({
+  restaurantId, restaurantName, restaurantSlug, initialCategories,
+  initialItems, kitchenStations, initialRecommendations,
+}: Props) {
   const router = useRouter()
+  const recommendations = useMenuItemRecommendations(initialRecommendations)
   const shell = useMenuManagerShellState({ initialCategories, initialItems })
   const {
     mounted,
@@ -48,6 +52,7 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
     pendingEditorExit,
     showAddItem,
     setShowAddItem,
+    categoryAddRequest,
     search,
     setSearch,
     searchFocused,
@@ -67,6 +72,8 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
     saveItem,
     removeItem,
     createItem,
+    requestAddCategory,
+    requestAddItem,
     closeItemEditor,
     keepEditing,
     discardPendingChanges,
@@ -97,9 +104,7 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
     },
     onRefresh: () => router.refresh(),
   })
-
   if (!mounted) return <MenuManagerSkeleton />
-
   const {
     activeCategory: activeCat,
     subCategories: subCatsOfActive,
@@ -115,23 +120,21 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
     selectedItem,
     search,
   })
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="menu-manager" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <MenuManagerTopBar
         restaurantName={restaurantName}
         restaurantSlug={restaurantSlug}
         search={search}
         searchFocused={searchFocused}
         searchInputRef={searchInputRef}
-        importFileInputRef={csvImport.fileInputRef}
+        importFileInputRef={csvImport.fileInputRef} categoryCount={categories.length}
         onSearchChange={setSearch}
         onSearchFocusChange={setSearchFocused}
         onImportFileChange={csvImport.handleFileChange}
-        onOpenImport={csvImport.openStart}
-        onOpenAddItem={() => setShowAddItem(true)}
+        onOpenImport={csvImport.openStart} onOpenAddCategory={requestAddCategory}
+        onOpenAddItem={requestAddItem}
       />
-
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <MenuCategoryWorkspace
           categories={categories}
@@ -145,8 +148,8 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
           onCategoryUpdated={updateCategory}
           onCategoryDeleted={commands.removeCategory}
           onCategoriesReordered={commands.reorder}
+          addRequest={categoryAddRequest}
         />
-
         <MenuItemsWorkspace
           items={visibleItems}
           activeCategory={activeCat}
@@ -155,7 +158,9 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
           onSubCatChange={selectSubCategory}
           selectedItem={selectedItem}
           onSelectItem={selectItem}
-          onAddItem={() => setShowAddItem(true)}
+          canAddProduct={categories.length > 0}
+          onAddCategory={requestAddCategory}
+          onAddItem={requestAddItem}
           onQuickUpdate={commands.quickUpdate}
           onBulkAvailability={commands.setBulkAvailability}
           highlight={search || undefined}
@@ -169,15 +174,23 @@ export default function MenuManager({ restaurantId, restaurantName, restaurantSl
             categoryVatRate={Number(activeCatForPanel?.vat_rate ?? 10)}
             categoryStationId={activeCatForPanel?.kitchen_station_id ?? null}
             kitchenStations={kitchenStations}
+            allItems={items}
+            recommendationIds={recommendations.idsByItem.get(selectedItem.id)?.filter(Boolean) ?? []}
             restaurantId={restaurantId}
             onClose={closeItemEditor}
             onSaved={saveItem}
             onDeleted={removeItem}
             onError={showError}
             onDirtyChange={setItemEditDirty}
+            onRecommendationsSaved={(ids) => recommendations.replaceForItem(selectedItem.id, ids)}
           />
         ) : (
-          <MenuManagerEmptyPanel />
+          <MenuManagerEmptyPanel
+            categoryCount={categories.length}
+            itemCount={items.length}
+            onAddCategory={requestAddCategory}
+            onAddItem={requestAddItem}
+          />
         )}
       </div>
 

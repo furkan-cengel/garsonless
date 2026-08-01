@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { CartItem, MenuItem, ModifierGroup, SelectedModifier } from '@garsonless/ui'
+import { canonicalModifierSignature, canonicalRemovalSignature, clampCartQuantity } from './cartIdentity'
 
 function generateId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -26,6 +27,8 @@ interface CartState {
     removedIngredientIds?: string[],
     combo?: CartItem['combo'],
     promotion?: CartItem['promotion'],
+    productNote?: string,
+    recommendationSourceItemId?: string,
   ) => void
   removeItem: (cartId: string) => void
   updateQuantity: (cartId: string, quantity: number) => void
@@ -44,7 +47,8 @@ export const useCartStore = create<CartState>()(
 
       setTableId: (tableId) => set({ tableId }),
 
-      addItem: (item, modifiers, modifierGroups, quantity, originalPrice, removedIngredientIds = [], combo, promotion) => {
+      addItem: (item, modifiers, modifierGroups, quantity, originalPrice, removedIngredientIds = [], combo, promotion, productNote, recommendationSourceItemId) => {
+        const normalizedQuantity = Math.max(1, clampCartQuantity(quantity))
         const modifiersPriceDelta = modifiers.reduce((total, sel) => {
           for (const group of modifierGroups) {
             const option = group.options.find((o) => o.id === sel.option_id)
@@ -71,20 +75,23 @@ export const useCartStore = create<CartState>()(
           return total
         }, 0)
 
-        const serializedModifiers = JSON.stringify(modifiers)
-        const serializedRemovals = JSON.stringify([...removedIngredientIds].sort())
+        const serializedModifiers = canonicalModifierSignature(modifiers)
+        const serializedRemovals = canonicalRemovalSignature(removedIngredientIds)
+        const normalizedNote = productNote?.replace(/\r\n?/g, '\n').trim().slice(0, 500) ?? ''
         const existingIndex = get().items.findIndex(
           (ci) => ci.itemId === item.id &&
-            JSON.stringify(ci.modifiers) === serializedModifiers &&
-            JSON.stringify([...(ci.removedIngredientIds ?? [])].sort()) === serializedRemovals &&
+            canonicalModifierSignature(ci.modifiers) === serializedModifiers &&
+            canonicalRemovalSignature(ci.removedIngredientIds ?? []) === serializedRemovals &&
             (ci.combo?.instanceId ?? null) === (combo?.instanceId ?? null) &&
-            (ci.promotion?.sectionInstanceId ?? null) === (promotion?.sectionInstanceId ?? null),
+            (ci.promotion?.sectionInstanceId ?? null) === (promotion?.sectionInstanceId ?? null) &&
+            (ci.productNote ?? '') === normalizedNote &&
+            (ci.recommendationSourceItemId ?? null) === (recommendationSourceItemId ?? null),
         )
 
         if (existingIndex >= 0) {
           set((state) => ({
             items: state.items.map((ci, i) =>
-              i === existingIndex ? { ...ci, quantity: ci.quantity + quantity } : ci,
+              i === existingIndex ? { ...ci, quantity: clampCartQuantity(ci.quantity + normalizedQuantity) } : ci,
             ),
           }))
           return
@@ -95,7 +102,7 @@ export const useCartStore = create<CartState>()(
           itemId: item.id,
           name: item.name,
           price: item.price,
-          quantity,
+          quantity: normalizedQuantity,
           modifiers,
           modifiersPriceDelta,
           modifierNames,
@@ -108,6 +115,8 @@ export const useCartStore = create<CartState>()(
           ...(originalPrice !== undefined && originalPrice !== item.price ? { originalPrice } : {}),
           ...(combo ? { combo } : {}),
           ...(promotion ? { promotion } : {}),
+          ...(normalizedNote ? { productNote: normalizedNote } : {}),
+          ...(recommendationSourceItemId ? { recommendationSourceItemId } : {}),
         }
 
         set((state) => ({ items: [...state.items, cartItem] }))
@@ -116,13 +125,15 @@ export const useCartStore = create<CartState>()(
       removeItem: (cartId) =>
         set((state) => ({ items: state.items.filter((i) => i.cartId !== cartId) })),
 
-      updateQuantity: (cartId, quantity) =>
+      updateQuantity: (cartId, quantity) => {
+        const normalizedQuantity = clampCartQuantity(quantity)
         set((state) => ({
           items:
-            quantity <= 0
+            normalizedQuantity <= 0
               ? state.items.filter((i) => i.cartId !== cartId)
-              : state.items.map((i) => (i.cartId === cartId ? { ...i, quantity } : i)),
-        })),
+              : state.items.map((i) => (i.cartId === cartId ? { ...i, quantity: normalizedQuantity } : i)),
+        }))
+      },
 
       clearCart: () => set({ items: [] }),
 
@@ -136,7 +147,7 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: 'garsonless-cart',
-      version: 4,
+      version: 5,
       migrate: (persisted) => {
         const state = persisted as Partial<CartState> & { items?: Partial<CartItem>[] }
         return {
@@ -147,6 +158,8 @@ export const useCartStore = create<CartState>()(
             removedIngredientIds: item.removedIngredientIds ?? [],
             removedIngredientNames: item.removedIngredientNames ?? [],
             energyKcal: item.energyKcal ?? null,
+            productNote: typeof item.productNote === 'string' ? item.productNote.slice(0, 500) : undefined,
+            recommendationSourceItemId: typeof item.recommendationSourceItemId === 'string' ? item.recommendationSourceItemId : undefined,
           })),
         } as CartState
       },

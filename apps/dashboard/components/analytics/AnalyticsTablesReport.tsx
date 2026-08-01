@@ -6,15 +6,16 @@ import { formatCurrency } from '../../lib/utils'
 import { AnalyticsCard as Card, AnalyticsKpi as KPISmall } from './AnalyticsReportPrimitives'
 import { analyticsRangePeriodLabel as rangePeriodLabel } from './analytics-report-model'
 import { formatTableDwell, projectTablesReport } from './analytics-tables-model'
+import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
 
 const s = { mono: { fontFamily: "'Geist Mono', ui-monospace, monospace" } as CSSProperties }
 
-export function AnalyticsTablesReport({ tables, range }: { tables: TableReportRow[]; range: string }) {
+export function AnalyticsTablesReport({ tables, query }: { tables: TableReportRow[]; query: AnalyticsQuery }) {
   if (tables.length === 0) {
     return (
       <div style={{ maxWidth: 1140 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-.02em', margin: 0, color: 'var(--text)' }}>Masa Performansı</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 22 }}>{rangePeriodLabel(range)} · tahsilat</p>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 22 }}>{rangePeriodLabel(query)} · tahsilat</p>
         <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Henüz masa verisi yok</div>
       </div>
     )
@@ -26,10 +27,10 @@ export function AnalyticsTablesReport({ tables, range }: { tables: TableReportRo
     <div style={{ maxWidth: 1140 }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-.02em', margin: 0, color: 'var(--text)' }}>Masa Performansı</h1>
       <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 22 }}>
-        {tables.length} masa · {rangePeriodLabel(range)} · devir ve tahsilat
+        {tables.length} masa · {rangePeriodLabel(query)} · devir ve tahsilat
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+      <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
         <KPISmall label="Aktif masa" value={String(report.activeTables)} delta={report.openNowCount > 0 ? `${report.openNowCount} şu an dolu` : '—'} tone="neutral" direction="flat" />
         <KPISmall label="Ödemeli sipariş" value={String(report.totalOrders)} delta="—" />
         <KPISmall label="Toplam tahsilat" value={formatCurrency(report.totalRevenue)} delta="—" />
@@ -41,8 +42,9 @@ export function AnalyticsTablesReport({ tables, range }: { tables: TableReportRo
         <KPISmall label="Ort. oturum süresi" value={formatTableDwell(report.overallDwell)} delta="kapanan oturumlardan" tone="neutral" direction="flat" />
       </div>
 
-      <Card title="Masa tahsilatı ve devri" subtitle={`${rangePeriodLabel(range)} · masa başı tahsilat, devir ve ortalama oturum süresi`} style={{ marginBottom: 12 }}>
-        <div style={{ padding: 14 }}>
+      <Card title="Masa tahsilatı ve devri" subtitle={`${rangePeriodLabel(query)} · masa başı tahsilat, devir ve ortalama oturum süresi`} style={{ marginBottom: 12 }}>
+        <div className="analytics-table-scroll" role="region" aria-label="Masa tahsilatı ve devir karşılaştırması" tabIndex={0} style={{ padding: 14 }}>
+          <div style={{ minWidth: 590 }}>
           {report.sortedTables.map((t, i) => {
             const pct = (t.revenue / report.maxRevenue) * 100
             return (
@@ -73,6 +75,7 @@ export function AnalyticsTablesReport({ tables, range }: { tables: TableReportRo
               </div>
             )
           })}
+          </div>
         </div>
       </Card>
     </div>

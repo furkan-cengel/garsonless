@@ -40,7 +40,7 @@ export default function StepLogoUpload({ restaurantId, onFinish }: Props) {
   return (
     <div>
       <p style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 18, marginTop: 0 }}>
-        Upload a square logo (PNG or SVG recommended, max 2 MB). You can skip this for now.
+        Upload a square PNG, JPG or WebP logo (max 2 MB). You can skip this for now.
       </p>
 
       {/* Drop zone */}
@@ -78,7 +78,7 @@ export default function StepLogoUpload({ restaurantId, onFinish }: Props) {
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept="image/png,image/jpeg,image/webp"
           style={{ display: 'none' }}
           onChange={handleFileChange}
         />

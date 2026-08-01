@@ -93,7 +93,7 @@ export const FOOD_ICON_OPTIONS = [
   { value: '🍿', label: 'Mısır' },
   { value: '🍢', label: 'Şiş' },
 ]
-export const SERVICE_REQUEST_ICON_OPTIONS = [
+const SERVICE_REQUEST_ICON_OPTIONS = [
   { value: 'bell', label: 'Zil' },
   { value: 'spray', label: 'Temizlik' },
   { value: 'cigarette', label: 'Küllük' },

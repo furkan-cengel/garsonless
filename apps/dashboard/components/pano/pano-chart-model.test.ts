@@ -4,6 +4,7 @@ import {
   createDayPanoChart,
   dayPointsFromHourly,
   hourInTimezone,
+  navigatePanoChartIndex,
   summarizePanoChartPoints,
 } from '../../lib/pano-chart-model'
 
@@ -21,6 +22,14 @@ test('Pano day chart labels hourly sales and highlights the restaurant-local cur
     { label: '09', value: 70, highlight: true },
     { label: '10', value: 40, highlight: false },
   ])
+})
+
+test('Pano chart keyboard navigation wraps and supports first/last shortcuts', () => {
+  assert.equal(navigatePanoChartIndex(0, 24, 'ArrowRight'), 1)
+  assert.equal(navigatePanoChartIndex(0, 24, 'ArrowLeft'), 23)
+  assert.equal(navigatePanoChartIndex(8, 24, 'Home'), 0)
+  assert.equal(navigatePanoChartIndex(8, 24, 'End'), 23)
+  assert.equal(navigatePanoChartIndex(8, 0, 'ArrowRight'), 0)
 })
 
 test('Pano chart summaries retain total and peak semantics for populated and empty ranges', () => {

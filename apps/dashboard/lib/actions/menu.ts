@@ -24,6 +24,12 @@ import {
   type MenuItemPatch,
 } from '@garsonless/application/menu'
 import { createMenuCommandPort } from '@garsonless/db/server'
+import { createDashboardServerClient } from '../supabase-server'
+import {
+  sniffMenuImageMime,
+  validateMenuImageMetadata,
+} from '../menu-image-policy'
+import { sanitizeServerDiagnostic } from '../server-log-redaction'
 
 const categorySchema = z.object({
   restaurantId: z.string().uuid(),
@@ -77,7 +83,7 @@ const itemBaseSchema = z.object({
   restaurantId: z.string().uuid(),
   name: z.string().min(1).max(100),
   description: z.string().max(500).nullable().optional(),
-  price: z.number().min(0),
+  price: z.number().min(0.01),
   vat_rate: z.number().min(0).max(100).nullable().optional(),
   kitchen_station_id: z.string().uuid().nullable().optional(),
   cost: z.number().min(0).nullable().optional(),
@@ -148,6 +154,54 @@ async function getMenuActor(restaurantId: string) {
     userId: gate.userId,
     permissions: ['menu'],
   }
+}
+
+export async function uploadMenuImage(
+  formData: FormData,
+): Promise<{ error: string } | { url: string }> {
+  const input = z.object({
+    restaurantId: z.string().uuid(),
+    entityId: z.string().uuid(),
+    kind: z.enum(['items', 'categories']),
+  }).safeParse({
+    restaurantId: formData.get('restaurantId'),
+    entityId: formData.get('entityId'),
+    kind: formData.get('kind'),
+  })
+  if (!input.success) return { error: 'Geçersiz görsel hedefi.' }
+
+  const access = await assertAccess(input.data.restaurantId, 'menu')
+  if ('error' in access) return access
+  const file = formData.get('file')
+  if (!(file instanceof File)) return { error: 'Görsel dosyası bulunamadı.' }
+
+  const metadata = validateMenuImageMetadata({ size: file.size, type: file.type })
+  if (!metadata.ok) return { error: metadata.error }
+  const header = new Uint8Array(await file.slice(0, 32).arrayBuffer())
+  const detectedType = sniffMenuImageMime(header)
+  if (!detectedType || detectedType !== file.type) {
+    return { error: 'Dosya içeriği ile görsel biçimi eşleşmiyor.' }
+  }
+
+  const extension: Record<typeof detectedType, string> = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/avif': 'avif',
+  }
+  const path = `restaurants/${input.data.restaurantId}/${input.data.kind}/${input.data.entityId}/${crypto.randomUUID()}.${extension[detectedType]}`
+  const supabase = await createDashboardServerClient()
+  const { error } = await supabase.storage.from('restaurant-assets').upload(path, file, {
+    cacheControl: '31536000',
+    contentType: detectedType,
+    upsert: false,
+  })
+  if (error) {
+    console.error('[menu-image-upload-failure]', sanitizeServerDiagnostic(error))
+    return { error: 'Görsel yüklenemedi. Lütfen tekrar deneyin.' }
+  }
+  const { data } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
+  return { url: data.publicUrl }
 }
 
 function nullableUuidFormValue(formData: FormData, key: string): string | null | undefined {
@@ -291,7 +345,7 @@ export async function createItem(
   const invalidJson = Object.values(jsonFields).find((field) => !field.ok)
   if (invalidJson && !invalidJson.ok) return { error: invalidJson.error }
   const numericFields = {
-    price: numericFormValue(formData, 'price', { required: true, min: 0 }),
+    price: numericFormValue(formData, 'price', { required: true, min: 0.01 }),
     vatRate: numericFormValue(formData, 'vat_rate', { min: 0, max: 100 }),
     cost: numericFormValue(formData, 'cost', { min: 0 }),
     energyKcal: numericFormValue(formData, 'energy_kcal', { integer: true, min: 0 }),
@@ -311,6 +365,7 @@ export async function createItem(
     kitchen_station_id: nullableUuidFormValue(formData, 'kitchen_station_id'),
     cost: numericFields.cost.ok ? numericFields.cost.value : undefined,
     is_available: formData.get('is_available') !== 'false',
+    earns_stamp: formData.get('earns_stamp') === 'true',
     ingredients: jsonFields.ingredients.ok ? jsonFields.ingredients.value : [],
     energy_kcal: numericFields.energyKcal.ok ? numericFields.energyKcal.value : undefined,
     protein_g: numericFields.protein.ok ? numericFields.protein.value : undefined,
@@ -363,7 +418,7 @@ export async function updateItem(
   if (invalidJson && !invalidJson.ok) return { error: invalidJson.error }
   const boolOrUndef = (k: string) => formData.get(k) !== null ? formData.get(k) === 'true' : undefined
   const numericFields = {
-    price: numericFormValue(formData, 'price', { min: 0 }),
+    price: numericFormValue(formData, 'price', { min: 0.01 }),
     vatRate: numericFormValue(formData, 'vat_rate', { min: 0, max: 100 }),
     cost: numericFormValue(formData, 'cost', { min: 0 }),
     energyKcal: numericFormValue(formData, 'energy_kcal', { integer: true, min: 0 }),
@@ -427,6 +482,47 @@ export async function updateItem(
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
   revalidateTag(`menu:${parsed.data.restaurantId}`)
   return { item: result.value }
+}
+
+export async function replaceItemRecommendations(input: {
+  restaurantId: string
+  sourceItemId: string
+  recommendedItemIds: string[]
+}): Promise<{ success: true } | { error: string }> {
+  const parsed = z.object({
+    restaurantId: z.string().uuid(),
+    sourceItemId: z.string().uuid(),
+    recommendedItemIds: z.array(z.string().uuid()).max(10),
+  }).superRefine((value, context) => {
+    if (value.recommendedItemIds.includes(value.sourceItemId)) {
+      context.addIssue({ code: 'custom', message: 'Bir ürün kendisine önerilemez.' })
+    }
+    if (new Set(value.recommendedItemIds).size !== value.recommendedItemIds.length) {
+      context.addIssue({ code: 'custom', message: 'Aynı öneri birden fazla eklenemez.' })
+    }
+  }).safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Geçersiz öneri listesi.' }
+
+  const access = await assertAccess(parsed.data.restaurantId, 'menu')
+  if ('error' in access) return access
+  const supabase = await createDashboardServerClient()
+  const rpc = supabase.rpc.bind(supabase) as unknown as (
+    name: 'replace_menu_item_recommendations',
+    args: { p_restaurant_id: string; p_source_item_id: string; p_recommended_item_ids: string[] },
+  ) => Promise<{ error: { message: string } | null }>
+  const { error } = await rpc('replace_menu_item_recommendations', {
+    p_restaurant_id: parsed.data.restaurantId,
+    p_source_item_id: parsed.data.sourceItemId,
+    p_recommended_item_ids: parsed.data.recommendedItemIds,
+  })
+  if (error) {
+    console.error('[menu-recommendation-update-failure]', sanitizeServerDiagnostic(error))
+    return { error: 'Ürün önerileri güncellenemedi. Lütfen tekrar deneyin.' }
+  }
+
+  revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
+  revalidateTag(`menu:${parsed.data.restaurantId}`)
+  return { success: true }
 }
 
 export async function deleteItem(

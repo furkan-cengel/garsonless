@@ -19,7 +19,7 @@ export default async function MenuPage({ params }: Props) {
   if (!restaurant) notFound()
   if (!menuResult.ok) return <MenuLoadError message={menuResult.error} />
 
-  const { categories, items, kitchenStations } = menuResult.data
+  const { categories, items, kitchenStations, recommendations } = menuResult.data
 
   return (
     <MenuManager
@@ -29,6 +29,7 @@ export default async function MenuPage({ params }: Props) {
       initialCategories={categories}
       initialItems={items}
       kitchenStations={kitchenStations}
+      initialRecommendations={recommendations}
     />
   )
 }

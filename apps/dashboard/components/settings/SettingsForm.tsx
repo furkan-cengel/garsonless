@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { cloneElement, isValidElement, useEffect, useId, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import type { Tables } from '@garsonless/db/types'
@@ -31,15 +31,17 @@ import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import { useShell } from '../../lib/shell-context'
 import { I, S, Tag, btnPrimary, btnGhost } from '../../lib/ui'
 import { notifySettingsSaved, SETTINGS_DIRTY_EVENT, SETTINGS_SAVED_EVENT } from './settings-dirty-state'
+import {
+  canAccessSettingsSection,
+  resolveSettingsSection,
+  type SettingsSectionId,
+} from './settings-sections'
+import styles from './SettingsForm.module.css'
 
 /* ============================================================
    NAV STRUCTURE
    ============================================================ */
-type SectionId =
-  | 'workspace' | 'profile' | 'team'
-  | 'store' | 'hours' | 'tax' | 'languages'
-  | 'payments' | 'loyalty' | 'kitchen' | 'notifications'
-  | 'api' | 'billing' | 'security'
+type SectionId = SettingsSectionId
 
 interface NavItem {
   id: SectionId
@@ -130,36 +132,38 @@ const SECTION_META: Record<SectionId, { label: string; desc: string; group: stri
 // OWNER-ONLY settings sub-sections — a 'settings' member never sees these.
 // (Profile + Security are per-user; store/hours/tax/languages/notifications are
 // the member-editable store config.)
-const OWNER_ONLY_SECTIONS: SectionId[] = ['workspace', 'team', 'payments', 'loyalty', 'kitchen', 'api', 'billing']
 function canSeeSection(id: SectionId, isOwner: boolean): boolean {
-  return isOwner || !OWNER_ONLY_SECTIONS.includes(id)
+  return canAccessSettingsSection(id, isOwner)
 }
 
 function SettingsNav({ active, onSelect, isOwner }: { active: SectionId; onSelect: (id: SectionId) => void; isOwner: boolean }) {
+  const activeItemRef = useRef<HTMLButtonElement>(null)
   const groups = GROUPS
     .map(g => ({ ...g, items: g.items.filter(item => canSeeSection(item.id, isOwner)) }))
     .filter(g => g.items.length > 0)
+
+  useEffect(() => {
+    activeItemRef.current?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [active])
+
   return (
-    <div style={{
-      width: 'var(--nav)', flexShrink: 0,
-      borderRight: '1px solid var(--border)', background: 'var(--surface)',
-      display: 'flex', flexDirection: 'column',
-    }}>
-      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--divider)' }}>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>Ayarlar</div>
-        <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 3 }}>Mağaza ve hesap yönetimi</div>
+    <div className={styles.nav} data-settings-nav>
+      <div className={styles.navHeader}>
+        <div className={styles.navTitle}>Ayarlar</div>
+        <div className={styles.navSubtitle}>Mağaza ve hesap yönetimi</div>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '4px 8px 12px' }}>
-        {groups.map((g, gi) => (
-          <div key={gi} style={{ marginTop: gi === 0 ? 4 : 12 }}>
-            <div style={{ ...S.label, padding: '6px 8px' }}>{g.title}</div>
+      <div className={styles.navScroller}>
+        {groups.map(g => (
+          <div key={g.title} className={styles.navGroup}>
+            <div className={styles.navGroupTitle} style={S.label}>{g.title}</div>
             {g.items.map(item => (
               <NavRow
                 key={item.id}
                 item={item}
                 active={active === item.id}
                 onClick={() => onSelect(item.id)}
+                buttonRef={active === item.id ? activeItemRef : undefined}
               />
             ))}
           </div>
@@ -169,24 +173,24 @@ function SettingsNav({ active, onSelect, isOwner }: { active: SectionId; onSelec
   )
 }
 
-function NavRow({ item, active, onClick }: { item: NavItem; active: boolean; onClick: () => void }) {
-  const [hov, setHov] = useState(false)
+function NavRow({ item, active, onClick, buttonRef }: {
+  item: NavItem
+  active: boolean
+  onClick: () => void
+  buttonRef?: React.Ref<HTMLButtonElement>
+}) {
   return (
     <button
+      ref={buttonRef}
       onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        width: '100%', padding: '7px 8px', marginBottom: 1,
-        background: active ? 'var(--surface-inset)' : (hov ? 'var(--surface-3)' : 'transparent'),
-        border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left',
-      }}
+      aria-current={active ? 'page' : undefined}
+      className={`${styles.navRow}${active ? ` ${styles.navRowActive}` : ''}`}
+      data-settings-section={item.id}
     >
-      <span style={{ color: active ? 'var(--text)' : 'var(--text-3)', display: 'inline-flex' }}>{item.icon}</span>
-      <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-        <span style={{ fontSize: 13, fontWeight: active ? 600 : 500, color: 'var(--text)' }}>{item.label}</span>
-        <span style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.desc}</span>
+      <span className={styles.navRowIcon}>{item.icon}</span>
+      <span className={styles.navRowCopy}>
+        <span className={styles.navRowLabel}>{item.label}</span>
+        <span className={styles.navRowDescription}>{item.desc}</span>
       </span>
       {item.badge && <Tag tone={item.tone ?? 'neutral'}>{item.badge}</Tag>}
     </button>
@@ -199,8 +203,8 @@ function NavRow({ item, active, onClick }: { item: NavItem; active: boolean; onC
 function ContentArea({ active, children, onChangeCapture }: { active: SectionId; children: React.ReactNode; onChangeCapture?: () => void }) {
   const meta = SECTION_META[active]
   return (
-    <div onChangeCapture={onChangeCapture} style={{ flex: 1, overflow: 'auto', background: 'var(--bg)', minWidth: 0 }}>
-      <div style={{ maxWidth: active === 'loyalty' ? 880 : 760, margin: '0 auto', padding: '32px 32px 60px' }}>
+    <div onChangeCapture={onChangeCapture} className={styles.contentArea} data-settings-content>
+      <div className={styles.contentInner} style={{ maxWidth: active === 'loyalty' ? 880 : 760 }}>
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-3)', marginBottom: 6 }}>
             <span>{meta.group}</span>
@@ -293,7 +297,7 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
         </SettingsRow>
       </SettingsCard>
 
-      <SettingsCard title="Logo" subtitle="PNG veya SVG, en az 256×256" style={{ marginTop: 16 }}>
+      <SettingsCard title="Logo" subtitle="PNG, JPG veya WEBP · en fazla 2 MB" style={{ marginTop: 16 }}>
         <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{
             width: 64, height: 64, borderRadius: 12,
@@ -310,15 +314,15 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
               ...btnGhost(), cursor: 'pointer',
             }}>
               <I.image size={13} />{isLogoPending ? 'Yükleniyor…' : 'Logo değiştir'}
-              <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleLogoChange} disabled={isLogoPending} style={{ display: 'none' }} />
+              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoChange} disabled={isLogoPending} style={{ display: 'none' }} />
             </label>
-            <div style={{ fontSize: 11.5, color: logoFeedback ? 'var(--positive)' : 'var(--text-3)', marginTop: 6 }}>{logoFeedback || 'PNG, JPG, WEBP veya SVG · max 2 MB'}</div>
+            <div style={{ fontSize: 11.5, color: logoFeedback ? 'var(--positive)' : 'var(--text-3)', marginTop: 6 }}>{logoFeedback || 'PNG, JPG veya WEBP · max 2 MB'}</div>
           </div>
         </div>
       </SettingsCard>
 
       {error && (
-        <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--critical-bg)', color: 'var(--critical)', borderRadius: 7, fontSize: 12 }}>
+        <div role="alert" style={{ marginTop: 12, padding: '8px 12px', background: 'var(--critical-bg)', color: 'var(--critical)', borderRadius: 7, fontSize: 12 }}>
           {error}
         </div>
       )}
@@ -357,6 +361,7 @@ function LoyaltySectionWrapper({ restaurant, featureAllowed }: { restaurant: Tab
     <LoyaltySection
       restaurantId={restaurant.id}
       featureAllowed={featureAllowed}
+      initialSettings={s}
       initial={{
         stamp_enabled: bool('stamp_enabled', false),
         stamp_goal: numv('stamp_goal', 10),
@@ -429,16 +434,36 @@ function SettingsRow({ label, hint, children }: {
   hint?: string
   children: React.ReactNode
 }) {
+  const generatedControlId = useId()
+  const hintId = useId()
+  const nativeControl = isValidElement(children)
+    && typeof children.type === 'string'
+    && ['input', 'select', 'textarea'].includes(children.type)
+  const control = nativeControl
+    ? cloneElement(children as React.ReactElement<{ id?: string; 'aria-describedby'?: string }>, {
+      id: (children.props as { id?: string }).id ?? generatedControlId,
+      'aria-describedby': [
+        (children.props as { 'aria-describedby'?: string })['aria-describedby'],
+        hint ? hintId : undefined,
+      ].filter(Boolean).join(' ') || undefined,
+    })
+    : children
+  const controlId = nativeControl
+    ? ((children.props as { id?: string }).id ?? generatedControlId)
+    : undefined
+
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 14,
       padding: '12px 18px', borderBottom: '1px solid var(--divider)',
     }}>
       <div style={{ width: 180, flexShrink: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500 }}>{label}</div>
-        {hint && <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 1 }}>{hint}</div>}
+        {controlId
+          ? <label htmlFor={controlId} style={{ fontSize: 13, fontWeight: 500 }}>{label}</label>
+          : <div style={{ fontSize: 13, fontWeight: 500 }}>{label}</div>}
+        {hint && <div id={hintId} style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 1 }}>{hint}</div>}
       </div>
-      <div style={{ flex: 1 }}>{children}</div>
+      <div style={{ flex: 1 }}>{control}</div>
     </div>
   )
 }
@@ -454,6 +479,8 @@ interface Props {
   kitchenStations: Tables<'kitchen_stations'>[]
   /** The signed-in user's own security events (RLS-scoped, fetched server-side). */
   securityEvents: SecurityEventView[]
+  /** Server snapshot used for hydration-stable relative security-event labels. */
+  renderedAt: string
   /** Whether the current user owns this restaurant (gates owner-only surfaces). */
   isOwner: boolean
   /** Team members (owner-only; empty for non-owners). */
@@ -464,7 +491,7 @@ interface Props {
   billing: SubscriptionBillingSettings | null
   billingLoadError: string | null
   billingPlanPrices: BillingPlanPrices
-  initialSection?: SectionId
+  initialSection: SectionId
   billingCheckoutState: 'success' | null
   featureAccess: {
     loyalty: boolean
@@ -474,20 +501,17 @@ interface Props {
 }
 
 export default function SettingsForm({
-  restaurant, user, hasKitchenAccess, kitchenStations, securityEvents,
+  restaurant, user, hasKitchenAccess, kitchenStations, securityEvents, renderedAt,
   isOwner, teamMembers, teamAuditEvents, billing, billingLoadError,
   billingPlanPrices, initialSection, billingCheckoutState,
   featureAccess,
 }: Props) {
   const { setNavigationGuard } = useShell()
   // A non-owner 'settings' member lands on a section they can see (workspace is owner-only).
-  const [active, setActive] = useState<SectionId>(
-    initialSection && canSeeSection(initialSection, isOwner)
-      ? initialSection
-      : isOwner ? 'workspace' : 'profile',
-  )
+  const [active, setActive] = useState<SectionId>(initialSection)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [pendingSection, setPendingSection] = useState<SectionId | null>(null)
+  const [pendingFromHistory, setPendingFromHistory] = useState(false)
 
   useEffect(() => {
     setNavigationGuard(hasUnsavedChanges
@@ -517,13 +541,44 @@ export default function SettingsForm({
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [hasUnsavedChanges])
 
+  useEffect(() => {
+    const onPopState = () => {
+      const requested = new URL(window.location.href).searchParams.get('section')
+      const next = resolveSettingsSection(requested, isOwner)
+      if (next === active) return
+      if (hasUnsavedChanges) {
+        setPendingFromHistory(true)
+        setPendingSection(next)
+        return
+      }
+      setActive(next)
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [active, hasUnsavedChanges, isOwner])
+
+  function sectionUrl(section: SectionId): string {
+    const url = new URL(window.location.href)
+    url.searchParams.set('section', section)
+    if (section !== 'billing') url.searchParams.delete('checkout')
+    return `${url.pathname}${url.search}${url.hash}`
+  }
+
+  function commitSectionChange(next: SectionId, mode: 'push' | 'replace' = 'push') {
+    const url = sectionUrl(next)
+    if (mode === 'replace') window.history.replaceState(null, '', url)
+    else window.history.pushState(null, '', url)
+    setActive(next)
+  }
+
   function requestSectionChange(next: SectionId) {
     if (next === active) return
     if (hasUnsavedChanges) {
+      setPendingFromHistory(false)
       setPendingSection(next)
       return
     }
-    setActive(next)
+    commitSectionChange(next)
   }
 
   function renderContent() {
@@ -542,7 +597,7 @@ export default function SettingsForm({
       case 'payments':      return <PaymentsSection restaurantId={restaurant.id} />
       case 'notifications': return <NotificationsSection restaurant={restaurant} featureAllowed={featureAccess.browserNotifications} />
       case 'api':           return <ApiSection />
-      case 'security':      return <SecuritySection events={securityEvents} userEmail={user?.email ?? ''} authProvider={typeof user?.app_metadata?.provider === 'string' ? user.app_metadata.provider : null} />
+      case 'security':      return <SecuritySection events={securityEvents} renderedAt={renderedAt} userEmail={user?.email ?? ''} authProvider={typeof user?.app_metadata?.provider === 'string' ? user.app_metadata.provider : null} />
       case 'billing':       return <BillingSection
         restaurantId={restaurant.id}
         restaurantPlan={restaurant.plan}
@@ -555,7 +610,7 @@ export default function SettingsForm({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className={styles.root} data-settings-root>
       <PageTopBar
         restaurantName={restaurant.name}
         title="Ayarlar"
@@ -569,7 +624,7 @@ export default function SettingsForm({
         }
       />
 
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      <div className={styles.body}>
         <SettingsNav active={active} onSelect={requestSectionChange} isOwner={isOwner} />
         <ContentArea active={active} onChangeCapture={() => setHasUnsavedChanges(true)}>
           {renderContent()}
@@ -579,10 +634,17 @@ export default function SettingsForm({
         <UnsavedChangesDialog
           description="Bu ayar bölümünde kaydedilmemiş değişiklikler var. Geçersen değişiklikler kaybolacak."
           discardLabel="Değişiklikleri sil ve geç"
-          onKeepEditing={() => setPendingSection(null)}
+          onKeepEditing={() => {
+            if (pendingFromHistory) commitSectionChange(active, 'replace')
+            setPendingFromHistory(false)
+            setPendingSection(null)
+          }}
           onDiscard={() => {
+            const next = pendingSection
             setHasUnsavedChanges(false)
-            setActive(pendingSection)
+            if (pendingFromHistory) setActive(next)
+            else commitSectionChange(next)
+            setPendingFromHistory(false)
             setPendingSection(null)
           }}
         />

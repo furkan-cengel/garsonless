@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useId, useRef, useState, useTransition } from 'react'
 import type { ReactNode } from 'react'
 import type { Tables } from '@garsonless/db/types'
 import { InlineSpinner } from '@garsonless/ui'
@@ -10,6 +10,7 @@ import {
   getPaymentCredentialsMeta,
   savePaymentCredentials,
   deletePaymentCredentials,
+  rotatePaymentCredentialsEncryption,
   testPaymentCredentials,
   type PaymentCredsMeta,
 } from '../../lib/actions/payments'
@@ -19,10 +20,17 @@ import {
   saveMyEmailNotificationPrefs,
   type EmailNotificationPrefs,
 } from '../../lib/actions/notifications'
-import { readNotificationPrefs, type NotificationPrefs } from '../../lib/notification-prefs'
+import { readNotificationPrefs, type NotificationPrefs, type OrderSoundPreset } from '../../lib/notification-prefs'
 import { readLateThresholdMin, clampLateThreshold, LATE_THRESHOLD_MIN_MIN, LATE_THRESHOLD_MIN_MAX } from '../../lib/orders-prefs'
 import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
 import { useDashboardPushSubscription } from '../notifications/useDashboardPushSubscription'
+import { playOrderAlertSound } from '../notifications/order-alert-audio'
+import { testDashboardPush } from '../../lib/actions/push-subscriptions'
+import {
+  mergeCanonicalSettings,
+  prepareSettingsMutationAttempt,
+  type SettingsMutationAttempt,
+} from './settings-save-contract'
 
 /* ── PAYMENTS ─────────────────────────────────────── */
 export function PaymentsSection({ restaurantId }: { restaurantId: string }) {
@@ -97,9 +105,12 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
   const [editing, setEditing] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [secretKey, setSecretKey] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
   const [mode, setMode] = useState<'sandbox' | 'live'>('sandbox')
-  const [busy, setBusy] = useState<'save' | 'test' | 'delete' | null>(null)
+  const [confirming, setConfirming] = useState<'delete' | 'rotate' | null>(null)
+  const [busy, setBusy] = useState<'save' | 'test' | 'delete' | 'rotate' | null>(null)
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null)
+  const confirmationTitleId = useId()
 
   useEffect(() => {
     let cancelled = false
@@ -119,20 +130,22 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
   async function handleSave() {
     setBusy('save')
     setFeedback(null)
-    const result = await savePaymentCredentials(restaurantId, { apiKey, secretKey, mode })
+    const result = await savePaymentCredentials(restaurantId, {
+      apiKey,
+      secretKey,
+      mode,
+      requestId: crypto.randomUUID(),
+      currentPassword,
+    })
     setBusy(null)
     if ('error' in result) {
       setFeedback({ ok: false, text: result.error })
       return
     }
-    setMeta({
-      configured: true,
-      mode,
-      apiKeyLast4: apiKey.trim().slice(-4),
-      updatedAt: new Date().toISOString(),
-    })
+    setMeta(result.meta)
     setApiKey('')
     setSecretKey('')
+    setCurrentPassword('')
     setEditing(false)
     setFeedback({ ok: true, text: 'Anahtarlar kaydedildi' })
     notifySettingsSaved()
@@ -147,21 +160,65 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
   }
 
   async function handleDelete() {
-    if (!window.confirm('İyzico anahtarları silinsin mi? Bu restoran için ödeme alınamaz hale gelir.')) return
     setBusy('delete')
     setFeedback(null)
-    const result = await deletePaymentCredentials(restaurantId)
+    const result = await deletePaymentCredentials(restaurantId, {
+      requestId: crypto.randomUUID(),
+      currentPassword,
+    })
     setBusy(null)
     if ('error' in result) {
       setFeedback({ ok: false, text: result.error })
       return
     }
-    setMeta({ configured: false, mode: 'sandbox', apiKeyLast4: null, updatedAt: null })
+    setMeta({
+      configured: false,
+      mode: 'sandbox',
+      apiKeyLast4: null,
+      updatedAt: null,
+      protection: 'none',
+      requiresRotation: false,
+    })
+    setCurrentPassword('')
+    setConfirming(null)
     setFeedback({ ok: true, text: 'Anahtarlar kaldırıldı' })
     notifySettingsSaved()
   }
 
+  async function handleRotate() {
+    setBusy('rotate')
+    setFeedback(null)
+    const result = await rotatePaymentCredentialsEncryption(restaurantId, {
+      requestId: crypto.randomUUID(),
+      currentPassword,
+    })
+    setBusy(null)
+    if ('error' in result) {
+      setFeedback({ ok: false, text: result.error })
+      return
+    }
+    setMeta(result.meta)
+    setCurrentPassword('')
+    setConfirming(null)
+    setFeedback({ ok: true, text: 'Credential şifrelemesi güncel anahtara taşındı' })
+    notifySettingsSaved()
+  }
+
   const configured = meta?.configured ?? false
+  const beginSensitiveAction = (action: 'delete' | 'rotate') => {
+    setEditing(false)
+    setApiKey('')
+    setSecretKey('')
+    setCurrentPassword('')
+    setConfirming(action)
+    setFeedback(null)
+  }
+  const cancelSensitiveAction = () => {
+    setCurrentPassword('')
+    setConfirming(null)
+    setFeedback(null)
+    notifySettingsSaved()
+  }
 
   return (
     <div style={{
@@ -188,6 +245,7 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
                 <Tag tone={meta?.mode === 'live' ? 'critical' : 'neutral'}>
                   {meta?.mode === 'live' ? 'CANLI' : 'SANDBOX'}
                 </Tag>
+                {meta?.requiresRotation && <Tag tone="critical">ŞİFRELEMEYİ YENİLE</Tag>}
               </>
             ) : (
               <Tag tone="neutral">Yapılandırılmadı</Tag>
@@ -205,16 +263,21 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
             {configured && (
               <>
-                <button style={btnGhost()} onClick={handleTest} disabled={busy !== null}>
+                {meta?.requiresRotation && (
+                  <button type="button" style={btnGhost()} onClick={() => beginSensitiveAction('rotate')} disabled={busy !== null}>
+                    {busy === 'rotate' ? 'Yenileniyor…' : 'Şifrelemeyi yenile'}
+                  </button>
+                )}
+                <button type="button" style={btnGhost()} onClick={handleTest} disabled={busy !== null}>
                   {busy === 'test' ? 'Test ediliyor…' : 'Bağlantıyı test et'}
                 </button>
-                <button style={btnGhost()} onClick={handleDelete} disabled={busy !== null}>
+                <button type="button" style={btnGhost()} onClick={() => beginSensitiveAction('delete')} disabled={busy !== null}>
                   Kaldır
                 </button>
               </>
             )}
             {!editing && (
-              <button style={btnPrimary()} onClick={() => { setEditing(true); setFeedback(null) }}>
+              <button type="button" style={btnPrimary()} onClick={() => { setConfirming(null); setCurrentPassword(''); setEditing(true); setFeedback(null) }}>
                 {configured ? 'Değiştir' : 'Bağla'}
               </button>
             )}
@@ -243,12 +306,22 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
               style={inputStyle({ width: 320, fontFamily: 'monospace' })}
             />
           </FormRow>
+          <FormRow label="Hesap şifresi" hint="Bu hassas işlem için owner hesabını yeniden doğrular">
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              autoComplete="current-password"
+              style={inputStyle({ width: 320 })}
+            />
+          </FormRow>
           <FormRow label="Ortam" hint="Sandbox: test ödemeleri · Canlı: gerçek tahsilat">
             <div style={{ display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 7, padding: 3, gap: 2 }}>
               {(['sandbox', 'live'] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
+                  aria-pressed={mode === m}
                   onClick={() => setMode(m)}
                   style={{
                     padding: '5px 14px', borderRadius: 5, border: 'none', cursor: 'pointer',
@@ -266,13 +339,13 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
           <div style={{ display: 'flex', gap: 6, marginTop: 12, justifyContent: 'flex-end' }}>
             <button
               style={btnGhost()}
-              onClick={() => { setEditing(false); setApiKey(''); setSecretKey(''); setFeedback(null) }}
+              onClick={() => { setEditing(false); setApiKey(''); setSecretKey(''); setCurrentPassword(''); setFeedback(null); notifySettingsSaved() }}
               disabled={busy !== null}
             >Vazgeç</button>
             <button
               style={btnPrimary()}
               onClick={handleSave}
-              disabled={busy !== null || apiKey.trim().length < 10 || secretKey.trim().length < 10}
+              disabled={busy !== null || apiKey.trim().length < 10 || secretKey.trim().length < 10 || currentPassword.length === 0}
             >
               {busy === 'save' ? 'Kaydediliyor…' : 'Kaydet'}
             </button>
@@ -280,8 +353,51 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
         </div>
       )}
 
+      {confirming && (
+        <div
+          role="group"
+          aria-labelledby={confirmationTitleId}
+          style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--divider)' }}
+        >
+          <div id={confirmationTitleId} style={{ padding: '0 18px 8px', fontSize: 13.5, fontWeight: 650 }}>
+            {confirming === 'delete' ? 'İyzico anahtarlarını kaldır' : 'Credential şifrelemesini yenile'}
+          </div>
+          <p style={{ margin: '0 18px 10px', color: 'var(--text-3)', fontSize: 12, lineHeight: 1.5 }}>
+            {confirming === 'delete'
+              ? 'Bu restoran için kart ödemeleri durur. Devam etmek için owner hesap şifreni doğrula.'
+              : 'Kayıtlı secret güncel şifreleme anahtarına taşınır. Devam etmek için owner hesap şifreni doğrula.'}
+          </p>
+          <FormRow label="Hesap şifresi" hint="Şifren yoksa önce Güvenlik bölümünden bir şifre belirle">
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              autoComplete="current-password"
+              style={inputStyle({ width: 320 })}
+            />
+          </FormRow>
+          <div style={{ display: 'flex', gap: 6, marginTop: 12, justifyContent: 'flex-end' }}>
+            <button type="button" style={btnGhost()} onClick={cancelSensitiveAction} disabled={busy !== null}>Vazgeç</button>
+            <button
+              type="button"
+              style={confirming === 'delete' ? btnGhost({ color: 'var(--critical)' }) : btnPrimary()}
+              onClick={confirming === 'delete' ? handleDelete : handleRotate}
+              disabled={busy !== null || currentPassword.length === 0}
+            >
+              {busy === 'delete'
+                ? 'Kaldırılıyor…'
+                : busy === 'rotate'
+                  ? 'Yenileniyor…'
+                  : confirming === 'delete'
+                    ? 'Anahtarları kaldır'
+                    : 'Şifrelemeyi yenile'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {feedback && (
-        <div style={{
+        <div role={feedback.ok ? 'status' : 'alert'} style={{
           marginTop: 12, padding: '8px 12px', borderRadius: 7, fontSize: 12.5,
           background: feedback.ok ? 'var(--positive-bg)' : 'var(--critical-bg)',
           color: feedback.ok ? 'var(--positive)' : 'var(--critical)',
@@ -295,12 +411,13 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
 
 /* ── NOTIFICATIONS ────────────────────────────────── */
 // Toggles map only to notification surfaces that are actually implemented:
-//   newOrderSound / newOrderPush  → useNotificationSW (beep + Web Notification)
-//   newOrderToast                 → OrderToast on the orders board
+//   newOrderSound / newOrderPush  → global shell alarm + Web Notification
+//   newOrderToast                 → global shell OrderToast
 //   serviceRequestAlert           → "Garson çağrısı" toast in the dashboard shell
 //   serviceRequestPush            → durable operating-system waiter-call alert
 // E-posta/SMS and the old "sessiz saatler" stub are omitted — no backing channel.
-const NOTIFICATION_ROWS: { key: keyof NotificationPrefs; label: string; hint: string }[] = [
+type NotificationToggleKey = 'newOrderSound' | 'newOrderPush' | 'newOrderToast' | 'serviceRequestAlert' | 'serviceRequestPush'
+const NOTIFICATION_ROWS: { key: NotificationToggleKey; label: string; hint: string }[] = [
   { key: 'newOrderSound',       label: 'Yeni sipariş sesi',      hint: 'Sipariş geldiğinde kısa bip sesi çalar' },
   { key: 'newOrderPush',        label: 'Masaüstü bildirimi',     hint: 'Tarayıcı/sistem bildirimi gösterir (izin gerekir)' },
   { key: 'newOrderToast',       label: 'Uygulama içi uyarı',     hint: 'Panelde yeni sipariş baloncuğu gösterir' },
@@ -373,6 +490,8 @@ function EmailPrefsBlock({ restaurantId }: { restaurantId: string }) {
 }
 
 export function NotificationsSection({ restaurant, featureAllowed }: { restaurant: Tables<'restaurants'>; featureAllowed: boolean }) {
+  const settingsSnapshotRef = useRef((restaurant.settings as Record<string, unknown> | null) ?? {})
+  const mutationAttemptRef = useRef<SettingsMutationAttempt | null>(null)
   const browserNotificationsEnabled = featureAllowed
   const device = useDashboardPushSubscription(restaurant.id, browserNotificationsEnabled)
   const [prefs, setPrefs] = useState<NotificationPrefs>(() => ({
@@ -384,9 +503,11 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
   const [lateThreshold, setLateThreshold] = useState<string>(() => String(readLateThresholdMin(restaurant.settings)))
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [soundTest, setSoundTest] = useState<'idle' | 'playing' | 'blocked'>('idle')
+  const [pushTest, setPushTest] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle')
   const [isPending, startTransition] = useTransition()
 
-  function set(key: keyof NotificationPrefs, value: boolean) {
+  function setToggle(key: NotificationToggleKey, value: boolean) {
     setPrefs(prev => ({ ...prev, [key]: value }))
     setSaved(false)
     notifySettingsDirty()
@@ -395,13 +516,38 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    setSaved(false)
+    const clamped = clampLateThreshold(Number(lateThreshold))
+    const settingsPatch = {
+      notifications: prefs,
+      orders: { late_threshold_min: clamped },
+    }
+    const attempt = prepareSettingsMutationAttempt(mutationAttemptRef.current, {
+      patch: settingsPatch,
+      expectedSettings: settingsSnapshotRef.current,
+    })
+    mutationAttemptRef.current = attempt
     startTransition(async () => {
-      const clamped = clampLateThreshold(Number(lateThreshold))
-      const result = await saveNotificationPreferences(restaurant.id, {
-        prefs,
-        lateThresholdMin: clamped,
-      })
-      if ('error' in result) { setError(result.error); return }
+      let result
+      try {
+        result = await saveNotificationPreferences(restaurant.id, {
+          prefs,
+          lateThresholdMin: clamped,
+        }, {
+          expectedSettings: settingsSnapshotRef.current,
+          requestId: attempt.requestId,
+        })
+      } catch {
+        setError('Bağlantı kesildi. Taslağın korundu; tekrar deneyebilirsin.')
+        return
+      }
+      if ('error' in result) {
+        if ('code' in result && result.code === 'CONFLICT') mutationAttemptRef.current = null
+        setError(result.error)
+        return
+      }
+      settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, result.canonicalSettings)
+      mutationAttemptRef.current = null
       setLateThreshold(String(clamped))
       setSaved(true)
       notifySettingsSaved()
@@ -420,13 +566,86 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
               <Toggle
                 on={prefs[row.key]}
                 disabled={locked}
-                onChange={value => set(row.key, value)}
+                onChange={value => setToggle(row.key, value)}
                 ariaLabel={locked ? `${row.label}, Starter paketi gerekir` : row.label}
               />
             </div>
           </FormRow>
           )
         })}
+        <div style={{ padding: '12px 18px', borderTop: '1px solid var(--divider)', display: 'grid', gap: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-4)' }}>
+            Yeni sipariş sesi
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+            <label style={{ display: 'grid', gap: 5, fontSize: 11.5, color: 'var(--text-3)' }}>
+              Ses
+              <select
+                value={prefs.newOrderSoundPreset}
+                disabled={!prefs.newOrderSound}
+                onChange={(event) => { setPrefs(prev => ({ ...prev, newOrderSoundPreset: event.target.value as OrderSoundPreset })); setSaved(false); notifySettingsDirty() }}
+                style={inputStyle()}
+              >
+                <option value="classic">Klasik</option>
+                <option value="kitchen-bell">Mutfak zili</option>
+                <option value="double-chime">Üçlü melodi</option>
+                <option value="soft-ping">Yumuşak ping</option>
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 5, fontSize: 11.5, color: 'var(--text-3)' }}>
+              Ses seviyesi · %{prefs.newOrderSoundVolume}
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={prefs.newOrderSoundVolume}
+                disabled={!prefs.newOrderSound}
+                onChange={(event) => { setPrefs(prev => ({ ...prev, newOrderSoundVolume: Number(event.target.value) })); setSaved(false); notifySettingsDirty() }}
+              />
+            </label>
+            <label style={{ display: 'grid', gap: 5, fontSize: 11.5, color: 'var(--text-3)' }}>
+              Tekrar
+              <select
+                value={prefs.newOrderRepeatSeconds}
+                disabled={!prefs.newOrderSound}
+                onChange={(event) => { setPrefs(prev => ({ ...prev, newOrderRepeatSeconds: Number(event.target.value) as 0 | 15 | 30 | 60 })); setSaved(false); notifySettingsDirty() }}
+                style={inputStyle()}
+              >
+                <option value={0}>Tekrar etme</option>
+                <option value={15}>15 saniyede bir</option>
+                <option value={30}>30 saniyede bir</option>
+                <option value={60}>60 saniyede bir</option>
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 5, fontSize: 11.5, color: 'var(--text-3)' }}>
+              En fazla
+              <select
+                value={prefs.newOrderRepeatMaxMinutes}
+                disabled={!prefs.newOrderSound || prefs.newOrderRepeatSeconds === 0}
+                onChange={(event) => { setPrefs(prev => ({ ...prev, newOrderRepeatMaxMinutes: Number(event.target.value) })); setSaved(false); notifySettingsDirty() }}
+                style={inputStyle()}
+              >
+                {[1, 3, 5, 10].map((minute) => <option key={minute} value={minute}>{minute} dakika</option>)}
+              </select>
+            </label>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              disabled={!prefs.newOrderSound || soundTest === 'playing'}
+              onClick={() => {
+                setSoundTest('playing')
+                void playOrderAlertSound(prefs.newOrderSoundPreset, prefs.newOrderSoundVolume)
+                  .then((played) => setSoundTest(played ? 'idle' : 'blocked'))
+              }}
+              style={btnGhost()}
+            >
+              <I.bell size={13} />{soundTest === 'playing' ? 'Çalıyor…' : 'Sesi test et'}
+            </button>
+            {soundTest === 'blocked' && <span role="status" style={{ fontSize: 11.5, color: 'var(--warning)' }}>Tarayıcı sesi engelledi. Sayfaya dokunup tekrar deneyin.</span>}
+          </div>
+        </div>
         <FormRow label="Gecikme eşiği (dk)" hint="Mutfak aşamasında bu süreyi aşan sipariş panoda 'Geciken' sayılır (5–120)">
           <input
             type="number"
@@ -458,19 +677,34 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                   ? 'Tarayıcı izni engellenmiş; site ayarlarından açın'
                   : device.error ?? 'Bu tarayıcıyı dayanıklı bildirim teslimatına bağlayın'}
           >
-            <button
-              type="button"
-              disabled={device.status === 'subscribing' || device.status === 'unconfigured' || device.status === 'denied'}
-              onClick={() => void (device.status === 'subscribed' ? device.unsubscribe() : device.subscribe())}
-              style={device.status === 'subscribed' ? btnGhost() : btnPrimary()}
-            >
-              {device.status === 'subscribed' ? <I.check size={13} /> : <I.bell size={13} />}
-              {device.status === 'subscribed'
-                ? 'Bu cihazı kapat'
-                : device.status === 'subscribing'
-                  ? 'Etkinleştiriliyor…'
-                  : 'Bu cihazı etkinleştir'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {device.status === 'subscribed' && (
+                <button
+                  type="button"
+                  disabled={pushTest === 'sending'}
+                  onClick={() => {
+                    setPushTest('sending')
+                    void testDashboardPush(restaurant.id).then((result) => setPushTest('error' in result ? 'failed' : 'sent'))
+                  }}
+                  style={btnGhost()}
+                >
+                  <I.bell size={13} />{pushTest === 'sending' ? 'Gönderiliyor…' : pushTest === 'sent' ? 'Gönderildi' : pushTest === 'failed' ? 'Tekrar dene' : 'Test gönder'}
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={device.status === 'subscribing' || device.status === 'unconfigured' || device.status === 'denied'}
+                onClick={() => void (device.status === 'subscribed' ? device.unsubscribe() : device.subscribe())}
+                style={device.status === 'subscribed' ? btnGhost() : btnPrimary()}
+              >
+                {device.status === 'subscribed' ? <I.check size={13} /> : <I.bell size={13} />}
+                {device.status === 'subscribed'
+                  ? 'Bu cihazı kapat'
+                  : device.status === 'subscribing'
+                    ? 'Etkinleştiriliyor…'
+                    : 'Bu cihazı etkinleştir'}
+              </button>
+            </div>
           </FormRow>
         )}
       </SCard>
@@ -481,7 +715,7 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
         border: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <span style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
+        <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
           {error || (saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydedin')}
         </span>
         <button type="submit" disabled={isPending} style={btnPrimary()}>

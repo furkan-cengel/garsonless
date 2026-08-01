@@ -4,7 +4,7 @@ import { settleOrder as settleOrderCommand } from '@garsonless/application/order
 import { settleProviderShare } from '@garsonless/application/splits'
 import { createIyzicoClient, retrieveCheckout } from '../../../../lib/iyzico'
 import { resolveCredentialsByPaymentToken, resolveCredentialsByShareToken } from '../../../../lib/payment-credentials'
-import { createSettlementPort, createSplitPaymentPort, recordPaymentReconciliation } from '@garsonless/db/server'
+import { attachOrderProviderPayment, createSettlementPort, createSplitPaymentPort, recordPaymentReconciliation } from '@garsonless/db/server'
 
 async function recordReconciliation(input: {
   token: string
@@ -24,7 +24,7 @@ async function recordReconciliation(input: {
     detail: input.detail,
   })
   if (!recorded.ok) {
-    console.error(JSON.stringify({ event: 'payment.callback.reconciliation_record_failed', error: recorded.error }))
+    console.error(JSON.stringify({ event: 'payment.callback.reconciliation_record_failed' }))
   }
 }
 
@@ -88,7 +88,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         return callbackHtml({ type: 'PAYMENT_FAILED', reason: 'Ödeme yapılandırması bulunamadı' }, 'Ödeme yapılandırması bulunamadı.', 503)
       }
       const sClient = createIyzicoClient(sCred)
-      const { paymentStatus: sStatus } = await retrieveCheckout(sClient, token)
+      const { paymentStatus: sStatus } = await retrieveCheckout(sClient, token, sCred.secretKey)
       if (sStatus === 'SUCCESS') {
         // Card is real payment → settle the share (method already 'iyzico',
         // settled_by null = system). The repository stamps covered orders
@@ -100,7 +100,7 @@ export async function POST(req: Request): Promise<NextResponse> {
           createSplitPaymentPort(),
         )
         if (!settlement.ok) {
-          console.warn(JSON.stringify({ event: 'payment.callback.share_settle_failed', shareId, error: settlement.error }))
+          console.warn(JSON.stringify({ event: 'payment.callback.share_settle_failed' }))
           await recordReconciliation({ token, eventType: 'share_settlement_failed', restaurantId: sRest, shareId, detail: { error: settlement.error } })
           return callbackHtml(
             { type: 'PAYMENT_FAILED', reason: 'Ödeme alındı; ancak sipariş kaydı güncellenemedi. Destek ekibi bilgilendirildi.' },
@@ -125,23 +125,38 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     const client = createIyzicoClient(credentials)
-    const { paymentStatus, basketId } = await retrieveCheckout(client, token)
+    const { paymentStatus, basketId, paymentId, paidPrice, currency } = await retrieveCheckout(client, token, credentials.secretKey)
 
     if (paymentStatus === 'SUCCESS' && basketId) {
       if (orderId && orderId !== basketId) {
-        console.warn(
-          JSON.stringify({ event: 'payment.callback.basket_mismatch', orderId, basketId }),
-        )
+        console.warn(JSON.stringify({ event: 'payment.callback.basket_mismatch' }))
       }
       // Mark paid using the token-resolved order + restaurant (trusted), NOT the
       // İyzico-echoed basketId. Scoped to restaurantId (GAP #3 defense-in-depth).
       // method='iyzico' (online); settled_by stays null (system, not staff).
       if (!orderId || !restaurantId) {
-        console.warn(JSON.stringify({ event: 'payment.callback.order_mapping_missing', orderId, restaurantId, basketId }))
+        console.warn(JSON.stringify({ event: 'payment.callback.order_mapping_missing' }))
         await recordReconciliation({ token, eventType: 'order_mapping_missing', restaurantId, orderId, detail: { basketId } })
         return callbackHtml(
           { type: 'PAYMENT_FAILED', reason: 'Ödeme alındı; ancak sipariş eşleştirilemedi. Destek ekibi bilgilendirildi.' },
           'Ödeme alındı; ancak siparişiniz eşleştirilemedi. Lütfen tekrar ödeme yapmayın ve işletmeye bildirin.',
+          503,
+        )
+      }
+      const mappingError = await attachOrderProviderPayment({
+        orderId,
+        restaurantId,
+        token,
+        providerPaymentId: paymentId,
+        paidPrice,
+        currency,
+      })
+      if (mappingError) {
+        console.warn(JSON.stringify({ event: 'payment.callback.provider_mapping_failed' }))
+        await recordReconciliation({ token, eventType: 'order_settlement_failed', restaurantId, orderId, detail: { stage: 'provider_mapping', error: mappingError } })
+        return callbackHtml(
+          { type: 'PAYMENT_FAILED', reason: 'Ödeme alındı; ancak sağlayıcı kaydı güvenle eşleştirilemedi. Destek ekibi bilgilendirildi.' },
+          'Ödeme alındı; ancak siparişiniz güncellenemedi. Lütfen tekrar ödeme yapmayın ve işletmeye bildirin.',
           503,
         )
       }
@@ -151,7 +166,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         createSettlementPort(),
       )
       if (!settlement.ok) {
-        console.warn(JSON.stringify({ event: 'payment.callback.mark_paid_failed', orderId, error: settlement.error }))
+        console.warn(JSON.stringify({ event: 'payment.callback.mark_paid_failed' }))
         await recordReconciliation({ token, eventType: 'order_settlement_failed', restaurantId, orderId, detail: { error: settlement.error } })
         return callbackHtml(
           { type: 'PAYMENT_FAILED', reason: 'Ödeme alındı; ancak sipariş kaydı güncellenemedi. Destek ekibi bilgilendirildi.' },
@@ -169,10 +184,9 @@ export async function POST(req: Request): Promise<NextResponse> {
       { type: 'PAYMENT_FAILED', reason: 'Ödeme tamamlanamadı' },
       'Ödeme tamamlanamadı.',
     )
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Callback processing failed'
+  } catch {
     return callbackHtml(
-      { type: 'PAYMENT_FAILED', reason: msg },
+      { type: 'PAYMENT_FAILED', reason: 'Ödeme sonucu güvenli biçimde işlenemedi.' },
       'Ödeme işlenirken bir hata oluştu.',
       500,
     )

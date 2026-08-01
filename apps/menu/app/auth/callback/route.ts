@@ -16,6 +16,7 @@ export async function GET(request: Request) {
   const result = await ensureCustomerIdentity({
     authUserId: data.user.id,
     email: data.user.email ?? null,
+    phone: data.user.phone ?? null,
     userMetadata: data.user.user_metadata ?? {},
     appMetadata: data.user.app_metadata ?? {},
   }, {

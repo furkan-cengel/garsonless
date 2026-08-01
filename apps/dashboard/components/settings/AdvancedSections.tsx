@@ -63,10 +63,11 @@ function securityEventLabel(type: SecurityEventView['eventType']): string {
   return type === 'password_change' ? 'Şifre değiştirildi' : 'Giriş yapıldı'
 }
 
-function relativeTime(iso: string): string {
+function relativeTime(iso: string, asOf: string): string {
   const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return ''
-  const min = Math.floor((Date.now() - then) / 60_000)
+  const now = new Date(asOf).getTime()
+  if (Number.isNaN(then) || Number.isNaN(now)) return ''
+  const min = Math.floor((now - then) / 60_000)
   if (min < 1) return 'az önce'
   if (min < 60) return `${min} dk önce`
   const hr = Math.floor(min / 60)
@@ -74,7 +75,9 @@ function relativeTime(iso: string): string {
   const day = Math.floor(hr / 24)
   if (day === 1) return 'dün'
   if (day < 30) return `${day} gün önce`
-  return new Date(iso).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
+  return new Date(iso).toLocaleDateString('tr-TR', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul',
+  })
 }
 
 function deviceSummary(ua: string | null): string {
@@ -100,7 +103,7 @@ function providerLabel(provider: string | null): string {
   return 'giriş sağlayıcın'
 }
 
-export function SecuritySection({ events, userEmail, authProvider }: { events: SecurityEventView[]; userEmail: string; authProvider: string | null }) {
+export function SecuritySection({ events, renderedAt, userEmail, authProvider }: { events: SecurityEventView[]; renderedAt: string; userEmail: string; authProvider: string | null }) {
   const router = useRouter()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
@@ -144,7 +147,7 @@ export function SecuritySection({ events, userEmail, authProvider }: { events: S
             <button type="button" onClick={handleSendPasswordReset} disabled={isResetPending} style={btnPrimary()}>
               {isResetPending ? 'Gönderiliyor…' : 'Şifre belirleme e-postası gönder'}
             </button>
-            {resetMessage && <div role="status" style={{ marginTop: 10, fontSize: 12, color: resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'var(--positive)' : 'var(--critical)' }}>{resetMessage}</div>}
+            {resetMessage && <div role={resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'status' : 'alert'} style={{ marginTop: 10, fontSize: 12, color: resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'var(--positive)' : 'var(--critical)' }}>{resetMessage}</div>}
           </div>
         ) : <form onSubmit={handleChangePassword}>
           <FormRow label="Mevcut şifre">
@@ -157,7 +160,7 @@ export function SecuritySection({ events, userEmail, authProvider }: { events: S
             <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" style={inputStyle({ width: 220 })} />
           </FormRow>
           <div style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)', maxWidth: 280 }}>
+            <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)', maxWidth: 280 }}>
               {error || (saved ? '✓ Şifre güncellendi' : 'Mevcut şifreni doğrulamamız gerekiyor. Parolan yoksa e-posta ile belirleyebilirsin.')}
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -167,7 +170,7 @@ export function SecuritySection({ events, userEmail, authProvider }: { events: S
               </button>
             </div>
           </div>
-          {resetMessage && <div role="status" style={{ padding: '0 18px 14px', fontSize: 12, color: resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'var(--positive)' : 'var(--critical)' }}>{resetMessage}</div>}
+          {resetMessage && <div role={resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'status' : 'alert'} style={{ padding: '0 18px 14px', fontSize: 12, color: resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'var(--positive)' : 'var(--critical)' }}>{resetMessage}</div>}
         </form>}
       </SCard>
 
@@ -213,7 +216,7 @@ export function SecuritySection({ events, userEmail, authProvider }: { events: S
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12.5, fontWeight: 600 }}>{securityEventLabel(ev.eventType)}</div>
               <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>
-                {relativeTime(ev.createdAt)} · {deviceSummary(ev.userAgent)}
+                {relativeTime(ev.createdAt, renderedAt)} · {deviceSummary(ev.userAgent)}
                 {ev.ip && <> · <span style={{ ...S.mono }}>{ev.ip}</span></>}
               </div>
             </div>

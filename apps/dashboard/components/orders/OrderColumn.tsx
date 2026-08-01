@@ -1,16 +1,18 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import type { Order } from './useOrdersRealtime'
-import { sortOrdersByPriorityThenCreatedAt, type OrderStatus } from '@garsonless/db/browser'
+import { sortOrdersByPriorityThenCreatedAt, type OperationalOrderStatus } from '@garsonless/db/browser'
 import OrderCard, { type OrderDensity } from './OrderCard'
+import { INITIAL_COLUMN_ORDER_LIMIT, boundedColumnWindow } from './order-board-performance'
 
 interface ColumnDef {
   id: string
   label: string
   desc: string
-  statuses: OrderStatus[]
+  statuses: OperationalOrderStatus[]
   tone: 'warning' | 'info' | 'positive' | 'neutral'
 }
 
@@ -28,17 +30,29 @@ interface Props {
   selectedOrderId: string | null
   onSelectOrder: (order: Order) => void
   onAdvance: (order: Order) => void
+  pendingOrderIds: ReadonlySet<string>
   lateThresholdMin?: number
   density?: OrderDensity
 }
 
-export default function OrderColumn({ column, orders, tableLabels, selectedOrderId, onSelectOrder, onAdvance, lateThresholdMin, density = 'comfortable' }: Props) {
+export default function OrderColumn({ column, orders, tableLabels, selectedOrderId, onSelectOrder, onAdvance, pendingOrderIds, lateThresholdMin, density = 'comfortable' }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
   const tone = TONE_COLORS[column.tone]
-  const sortedOrders = sortOrdersByPriorityThenCreatedAt(orders)
+  const sortedOrders = useMemo(() => sortOrdersByPriorityThenCreatedAt(orders), [orders])
+  const [visibleLimit, setVisibleLimit] = useState(INITIAL_COLUMN_ORDER_LIMIT)
+  const orderWindow = useMemo(
+    () => boundedColumnWindow(sortedOrders, visibleLimit),
+    [sortedOrders, visibleLimit],
+  )
+
+  useEffect(() => {
+    setVisibleLimit(INITIAL_COLUMN_ORDER_LIMIT)
+  }, [column.id, orders])
+
+  const headingId = `orders-column-${column.id}`
 
   return (
-    <div style={{
+    <section className="orders-column" aria-labelledby={headingId} style={{
       flex: 1, minWidth: 220,
       background: 'var(--surface-2)', borderRadius: 12,
       display: 'flex', flexDirection: 'column',
@@ -46,7 +60,7 @@ export default function OrderColumn({ column, orders, tableLabels, selectedOrder
       outline: isOver ? '2px solid var(--border-strong)' : 'none',
     }}>
       {/* Header */}
-      <div style={{
+      <div className="orders-column-header" style={{
         padding: '12px 14px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         borderBottom: '1px solid var(--divider)',
@@ -56,9 +70,9 @@ export default function OrderColumn({ column, orders, tableLabels, selectedOrder
             background: tone.bg, color: tone.fg,
             padding: '2px 8px', borderRadius: 999,
             fontSize: 11.5, fontWeight: 600,
-          }}>{orders.length}</span>
+          }} aria-label={`${orders.length} sipariş`}>{orders.length}</span>
           <div>
-            <div style={{ fontWeight: 600, fontSize: 13 }}>{column.label}</div>
+            <div id={headingId} style={{ fontWeight: 600, fontSize: 13 }}>{column.label}</div>
             <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>{column.desc}</div>
           </div>
         </div>
@@ -73,8 +87,8 @@ export default function OrderColumn({ column, orders, tableLabels, selectedOrder
           minHeight: 120,
         }}
       >
-        <SortableContext items={sortedOrders.map(o => o.id)} strategy={verticalListSortingStrategy}>
-          {sortedOrders.map(order => (
+        <SortableContext items={orderWindow.visible.map(o => o.id)} strategy={verticalListSortingStrategy}>
+          {orderWindow.visible.map(order => (
             <OrderCard
               key={order.id}
               order={order}
@@ -82,6 +96,7 @@ export default function OrderColumn({ column, orders, tableLabels, selectedOrder
               active={selectedOrderId === order.id}
               onClick={() => onSelectOrder(order)}
               onAdvance={onAdvance}
+              actionPending={pendingOrderIds.has(order.id)}
               lateThresholdMin={lateThresholdMin}
               density={density}
             />
@@ -92,7 +107,27 @@ export default function OrderColumn({ column, orders, tableLabels, selectedOrder
             Sipariş yok
           </div>
         )}
+        {orderWindow.hiddenCount > 0 && (
+          <button
+            type="button"
+            className="orders-load-more orders-touch-target"
+            onClick={() => setVisibleLimit(orderWindow.nextLimit)}
+            style={{
+              minHeight: 40,
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              background: 'var(--surface)',
+              color: 'var(--text-2)',
+              cursor: 'pointer',
+              fontSize: 11.5,
+              fontWeight: 650,
+            }}
+          >
+            {Math.min(orderWindow.hiddenCount, orderWindow.nextLimit - orderWindow.visible.length)} sipariş daha göster
+            <span className="sr-only"> · {orderWindow.hiddenCount} sipariş henüz gösterilmiyor</span>
+          </button>
+        )}
       </div>
-    </div>
+    </section>
   )
 }

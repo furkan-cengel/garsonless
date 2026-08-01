@@ -8,10 +8,15 @@ const managerSource = readFileSync(`${directory}/MenuManager.tsx`, 'utf8')
 const controllerSource = readFileSync(`${directory}/use-menu-manager-commands.ts`, 'utf8')
 const modelSource = readFileSync(`${directory}/menu-manager-command-model.ts`, 'utf8')
 const itemEditorSource = readFileSync(`${directory}/MenuItemEditPanel.tsx`, 'utf8')
+const recommendationEditorSource = readFileSync(`${directory}/MenuItemRecommendationEditor.tsx`, 'utf8')
+const newProductDrawerSource = readFileSync(`${directory}/NewProductDrawer.tsx`, 'utf8')
 const itemsWorkspaceSource = readFileSync(`${directory}/MenuItemsWorkspace.tsx`, 'utf8')
 const modifierEditorSource = readFileSync(`${directory}/MenuModifierGroupEditor.tsx`, 'utf8')
 const shellStateSource = readFileSync(`${directory}/use-menu-manager-shell-state.ts`, 'utf8')
 const chromeSource = readFileSync(`${directory}/MenuManagerChrome.tsx`, 'utf8')
+const categoryWorkspaceSource = readFileSync(`${directory}/MenuCategoryWorkspace.tsx`, 'utf8')
+const globalStylesSource = readFileSync(`${directory}/../../app/globals.css`, 'utf8')
+const saveFeedbackSource = readFileSync(`${directory}/use-menu-save-feedback.ts`, 'utf8')
 
 test('MenuManager delegates category and quick-item commands to its controller', () => {
   assert.match(managerSource, /useMenuManagerCommands/)
@@ -47,10 +52,48 @@ test('MenuManager delegates product editor state, persistence and dirty lifecycl
   assert.match(itemEditorSource, /export function MenuItemEditPanel/)
   assert.match(itemEditorSource, /deleteItem/)
   assert.match(itemEditorSource, /updateItem/)
-  assert.match(itemEditorSource, /createDashboardBrowserClient/)
+  assert.match(itemEditorSource, /prepareMenuImage/)
+  assert.match(itemEditorSource, /uploadMenuImage/)
+  assert.doesNotMatch(itemEditorSource, /createDashboardBrowserClient|\.storage\.from/)
   assert.match(itemEditorSource, /isMenuItemEditorDirty/)
   assert.match(itemEditorSource, /onDirtyChange\(isDirty\)/)
   assert.doesNotMatch(itemEditorSource, /createServiceClient|@garsonless\/db\/server|serviceRole/i)
+})
+
+test('product editor derives volatile defaults once for both form and saved snapshot', () => {
+  assert.match(itemEditorSource, /const \[initialNutrition\].*nutritionFromItem\(item\)/)
+  assert.match(itemEditorSource, /const \[initialModifiers\].*normalizeGroups\(item\.modifier_groups\)/)
+  assert.match(itemEditorSource, /nutrition: initialNutrition/)
+  assert.match(itemEditorSource, /modifiers: initialModifiers/)
+  assert.doesNotMatch(itemEditorSource, /nutrition:\s*nutritionFromItem\(item\)/)
+  assert.doesNotMatch(itemEditorSource, /modifiers:\s*normalizeGroups\(item\.modifier_groups\)/)
+})
+
+test('recommendation drafts participate in the shared unsaved-change guard', () => {
+  assert.match(recommendationEditorSource, /onDirtyChange\?\.\(isDirty\)/)
+  assert.match(recommendationEditorSource, /savedIdsRef\.current = idsToSave/)
+  assert.match(itemEditorSource, /itemIsDirty \|\| recommendationsDirty/)
+  assert.match(itemEditorSource, /onDirtyChange=\{setRecommendationsDirty\}/)
+})
+
+test('new product drawer traps focus, protects drafts and restores page scrolling', () => {
+  assert.match(newProductDrawerSource, /FOCUSABLE_SELECTOR/)
+  assert.match(newProductDrawerSource, /dirtyRef\.current/)
+  assert.match(newProductDrawerSource, /UnsavedChangesDialog/)
+  assert.match(newProductDrawerSource, /document\.body\.style\.overflow = 'hidden'/)
+  assert.match(newProductDrawerSource, /document\.body\.style\.overflow = previousOverflow/)
+  assert.match(newProductDrawerSource, /const \[initialNutrition\].*nutritionFromItem\(null\)/)
+  assert.match(newProductDrawerSource, /isNewMenuItemDraftDirty/)
+  assert.doesNotMatch(newProductDrawerSource, /JSON\.stringify\(nutri\).*nutritionFromItem\(null\)/)
+})
+
+test('product and recommendation saves share one feedback state contract', () => {
+  assert.match(itemEditorSource, /useMenuSaveFeedback/)
+  assert.match(recommendationEditorSource, /useMenuSaveFeedback/)
+  assert.match(itemEditorSource, /data-save-state=\{itemSaveState\}/)
+  assert.match(recommendationEditorSource, /data-save-state=\{saveState\}/)
+  assert.match(saveFeedbackSource, /getMenuSaveState/)
+  assert.match(saveFeedbackSource, /markSaved/)
 })
 
 test('MenuManager delegates product filtering, selection and grid/list rendering to its workspace', () => {
@@ -85,6 +128,24 @@ test('MenuManager delegates topbar, skeleton, empty and toast chrome to presenta
   assert.match(chromeSource, /export function MenuManagerEmptyPanel/)
   assert.match(chromeSource, /export function MenuManagerToast/)
   assert.doesNotMatch(chromeSource, /lib\/actions|createClient|supabase|restaurantId/i)
+})
+
+test('empty menu actions route to category creation before product creation', () => {
+  assert.match(managerSource, /onOpenAddItem=\{requestAddItem\}/)
+  assert.match(managerSource, /onOpenAddCategory=\{requestAddCategory\}/)
+  assert.match(managerSource, /categoryCount=\{categories\.length\}/)
+  assert.match(managerSource, /onAddCategory=\{requestAddCategory\}/)
+  assert.match(managerSource, /addRequest=\{categoryAddRequest\}/)
+  assert.match(categoryWorkspaceSource, /if \(addRequest > 0\) setAdding\(true\)/)
+  assert.match(chromeSource, /deriveMenuManagerEmptyState/)
+  assert.match(chromeSource, /requiresCategory \? onOpenAddCategory : onOpenAddItem/)
+  assert.match(chromeSource, /requiresCategory \? 'Kategori ekle' : 'Yeni ürün'/)
+})
+
+test('live menu manager enforces the 44px interaction target contract', () => {
+  assert.match(managerSource, /className="menu-manager"/)
+  assert.match(globalStylesSource, /\.menu-manager button,[\s\S]*min-height: 44px/)
+  assert.match(globalStylesSource, /button\[aria-label\],[\s\S]*min-width: 44px/)
 })
 
 test('MenuManager stays below its shell-state and chrome strangler decomposition budget', () => {

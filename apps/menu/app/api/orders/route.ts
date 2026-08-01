@@ -1,68 +1,31 @@
 import { NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
-import { z } from 'zod'
 import { placePublicOrder } from '@garsonless/application/orders'
 import { resolvePublicTableContext } from '@garsonless/application/tables'
 import type { OrderDiscountBreakdown } from '@garsonless/db/types'
-import { createPublicOrderPort, createPublicTableQueryPort } from '@garsonless/db/server'
+import { createPublicOrderPort, createPublicTableQueryPort, resolveTransferredGuestTable } from '@garsonless/db/server'
 import { getCustomerSession } from '../../../lib/customer-session'
-
-const orderItemSchema = z.object({
-  itemId: z.string().uuid(),
-  quantity: z.number().int().positive().max(99),
-  selectedModifiers: z.array(z.object({
-    group_id: z.string().min(1),
-    option_id: z.string().min(1),
-    quantity: z.number().int().positive().optional(),
-  })).optional(),
-  removedIngredientIds: z.array(z.string().min(1)).optional(),
-  combo: z.object({
-    instanceId: z.string().uuid(),
-    sectionInstanceId: z.string().min(1).max(128),
-    comboIndex: z.number().int().min(1).max(3),
-  }).optional(),
-  promotion: z.object({
-    sectionInstanceId: z.string().min(1).max(128),
-    kind: z.enum(['discount-badge', 'daily-special']),
-  }).optional(),
-  // Persisted pre-migration carts may still send these; the DB resolver ignores them.
-  modifiers: z.array(z.record(z.unknown())).optional(),
-  name: z.string().optional(),
-  price: z.number().optional(),
-  modifiersPriceDelta: z.number().optional(),
-})
-
-const createOrderSchema = z.object({
-  slug: z.string().min(1),
-  tableToken: z.string().uuid(),
-  sessionId: z.string().uuid(),
-  requestId: z.string().uuid(),
-  items: z.array(orderItemSchema).min(1),
-  // total is IGNORED — the server recomputes from DB prices. Kept for back-compat.
-  total: z.number().nonnegative().optional(),
-  redeemPoints: z.number().int().nonnegative().optional(),
-  redeemStampClaim: z.boolean().optional(),
-  catalogItemId: z.string().uuid().nullable().optional(),
-})
+import { parseOrderRequestBody, validateOrderRequestHeaders } from './order-request'
 
 type ApiResponse<T> = { success: true; data: T } | { success: false; error: string }
 
 export async function POST(
   req: Request,
 ): Promise<NextResponse<ApiResponse<{ orderId: string; breakdown: OrderDiscountBreakdown }>>> {
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 })
+  const headerError = validateOrderRequestHeaders(req.headers)
+  if (headerError) {
+    return NextResponse.json({ success: false, error: headerError.error }, { status: headerError.status })
   }
 
-  const parsed = createOrderSchema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json(
-      { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid request' },
-      { status: 400 },
-    )
+  let rawBody: string
+  try {
+    rawBody = await req.text()
+  } catch {
+    return NextResponse.json({ success: false, error: 'Geçersiz JSON.' }, { status: 400 })
+  }
+  const parsed = parseOrderRequestBody(rawBody)
+  if (!parsed.ok) {
+    return NextResponse.json({ success: false, error: parsed.error }, { status: parsed.status })
   }
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -72,10 +35,12 @@ export async function POST(
   if (!tableResult.ok) {
     return NextResponse.json({ success: false, error: 'Masa bağlantısı doğrulanamadı.' }, { status: 503 })
   }
-  const table = tableResult.value
+  let table = tableResult.value
   if (!table || table.restaurantSlug !== parsed.data.slug) {
     return NextResponse.json({ success: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
   }
+  const transferredTableId = await resolveTransferredGuestTable({ restaurantId: table.restaurantId, sourceTableId: table.tableId, guestSessionId: parsed.data.sessionId })
+  if (transferredTableId) table = { ...table, tableId: transferredTableId }
 
   const keyHash = createHash('sha256')
     .update(`${ip}:${parsed.data.sessionId}:${req.headers.get('user-agent') ?? ''}`)

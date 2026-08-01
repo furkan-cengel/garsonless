@@ -335,7 +335,7 @@ export function MenuModifierGroupEditor({
                   onChange={(codes) => updateOption(group.id, option.id, { allergen_codes: codes })}
                   label="Bu seçeneğe alerjen ekle"
                 />
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'var(--text-2)', cursor: 'pointer' }}>
+                <label style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'var(--text-2)', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={option.is_default}

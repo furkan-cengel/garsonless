@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { acceptInviteAction } from '../../lib/actions/team'
 import { signOut } from '../../lib/actions/auth'
 
-export const SECTION_LABELS: Record<string, string> = {
+const SECTION_LABELS: Record<string, string> = {
   pano: 'Pano', orders: 'Siparişler', menu: 'Menü', tables: 'Masalar',
   customers: 'Müşteriler', analytics: 'Raporlar', theme: 'Tema', settings: 'Ayarlar',
 }

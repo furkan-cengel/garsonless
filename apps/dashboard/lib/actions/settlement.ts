@@ -3,10 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { settleOrder as settleOrderCommand } from '@garsonless/application/orders'
-import { readOrderLineSnapshots } from '@garsonless/db/browser'
 import { createSettlementPort, listTeamMembers, readPaymentSharesForSettlement } from '@garsonless/db/server'
 import type { PaymentMethod } from '@garsonless/db/types'
-import { assertAccess, getUserRestaurantAccess } from '../auth/access'
+import { assertAccess } from '../auth/access'
+import { projectSettlementItems, type SettlementLineItem } from '../settlement-items'
 import { createDashboardServerClient } from '../supabase-server'
 
 // The manual settlement primitive only ever stamps a MANUAL method. 'iyzico' is
@@ -76,8 +76,7 @@ export interface SettlementOrder {
   /** Staff email for a settled order — resolved for OWNERS only (audit visibility). */
   settledByLabel: string | null
   createdAt: string
-  /** Short human-readable line-item summary (e.g. "Türk Kahvesi ×2 · Su"). */
-  itemsSummary: string
+  items: SettlementLineItem[]
 }
 
 export interface SettlementShare {
@@ -132,69 +131,72 @@ export async function getSessionSettlement(
   const gate = await assertAccess(restaurantId, 'tables')
   if ('error' in gate) return { error: gate.error }
 
-  const supabase = await createDashboardServerClient()
-  const [{ data }, shareData] = await Promise.all([
-    supabase
+  try {
+    const signal = AbortSignal.timeout(8_000)
+    const supabase = await createDashboardServerClient()
+    let ordersQuery = supabase
       .from('orders')
       .select('id, total, status, paid_at, payment_method, settled_by, created_at, items')
       .eq('restaurant_id', restaurantId)
       .eq('table_session_id', sessionId)
       .is('deleted_at', null)
       .neq('status', 'cancelled')
-      .order('created_at', { ascending: true }),
-    readPaymentSharesForSettlement({ restaurantId, sessionId }),
-  ])
+      .order('created_at', { ascending: true })
+    ordersQuery = ordersQuery.abortSignal(signal)
 
-  const rows = (data ?? []) as OrderRow[]
-  const shareRows = (shareData ?? []) as Array<{
-    id: string
-    amount: number | null
-    method: string | null
-    status: string
-    label: string | null
-    settled_at: string | null
-    settled_by: string | null
-    created_at: string
-  }>
+    const [{ data, error }, shareData, members] = await Promise.all([
+      ordersQuery,
+      readPaymentSharesForSettlement({ restaurantId, sessionId }, signal),
+      gate.access.isOwner ? listTeamMembers(restaurantId, signal) : Promise.resolve([]),
+    ])
+    if (error) throw new Error(error.message)
 
-  // settled_by → email map, OWNER-ONLY. The caller is the owner when isOwner, so
-  // owner-settled rows resolve via the caller; member-settled rows via the team
-  // list. System (İyzico) settles have settled_by = null → no label.
-  let labelMap: Map<string, string> | null = null
-  const access = await getUserRestaurantAccess(restaurantId)
-  if (access?.isOwner) {
-    labelMap = new Map()
-    const members = await listTeamMembers(restaurantId)
-    for (const m of members) if (m.userId) labelMap.set(m.userId, m.email)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user?.id && user.email) labelMap.set(user.id, user.email)
+    const rows = (data ?? []) as OrderRow[]
+    const shareRows = (shareData ?? []) as Array<{
+      id: string
+      amount: number | null
+      method: string | null
+      status: string
+      label: string | null
+      settled_at: string | null
+      settled_by: string | null
+      created_at: string
+    }>
+
+    // settled_by → email map, OWNER-ONLY. Owner and team identities come from
+    // the already-authorized access result and the parallel member query.
+    const labelMap = gate.access.isOwner ? new Map<string, string>() : null
+    if (labelMap) {
+      for (const member of members) if (member.userId) labelMap.set(member.userId, member.email)
+      if (gate.access.userEmail) labelMap.set(gate.userId, gate.access.userEmail)
+    }
+
+    const orders: SettlementOrder[] = rows.map((r) => ({
+      id: r.id,
+      total: Number(r.total),
+      status: r.status,
+      paidAt: r.paid_at,
+      paymentMethod: isPaymentMethod(r.payment_method) ? r.payment_method : null,
+      settledBy: r.settled_by,
+      settledByLabel: r.settled_by && labelMap ? labelMap.get(r.settled_by) ?? null : null,
+      createdAt: r.created_at,
+      items: projectSettlementItems(r.items),
+    }))
+
+    const shares: SettlementShare[] = shareRows.map((r) => ({
+      id: r.id,
+      amount: Number(r.amount ?? 0),
+      method: isShareMethod(r.method),
+      status: isShareStatus(r.status),
+      label: r.label,
+      settledAt: r.settled_at,
+      settledBy: r.settled_by,
+      settledByLabel: r.settled_by && labelMap ? labelMap.get(r.settled_by) ?? null : null,
+      createdAt: r.created_at,
+    }))
+
+    return { orders, shares }
+  } catch {
+    return { error: 'Adisyon bilgileri yüklenemedi. Lütfen tekrar deneyin.' }
   }
-
-  const orders: SettlementOrder[] = rows.map((r) => ({
-    id: r.id,
-    total: Number(r.total),
-    status: r.status,
-    paidAt: r.paid_at,
-    paymentMethod: isPaymentMethod(r.payment_method) ? r.payment_method : null,
-    settledBy: r.settled_by,
-    settledByLabel: r.settled_by && labelMap ? labelMap.get(r.settled_by) ?? null : null,
-    createdAt: r.created_at,
-    itemsSummary: readOrderLineSnapshots(r.items)
-      .map((it) => `${it.name}${it.quantity > 1 ? ` ×${it.quantity}` : ''}`)
-      .join(' · '),
-  }))
-
-  const shares: SettlementShare[] = shareRows.map((r) => ({
-    id: r.id,
-    amount: Number(r.amount ?? 0),
-    method: isShareMethod(r.method),
-    status: isShareStatus(r.status),
-    label: r.label,
-    settledAt: r.settled_at,
-    settledBy: r.settled_by,
-    settledByLabel: r.settled_by && labelMap ? labelMap.get(r.settled_by) ?? null : null,
-    createdAt: r.created_at,
-  }))
-
-  return { orders, shares }
 }

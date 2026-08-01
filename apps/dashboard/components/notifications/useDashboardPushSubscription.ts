@@ -38,16 +38,24 @@ function supported() {
 
 export function useDashboardPushSubscription(restaurantId: string, entitled: boolean) {
   const publicKey = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY?.trim() ?? ''
-  const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>(() =>
-    supported() ? Notification.permission : 'unsupported',
-  )
-  const [status, setStatus] = useState<DashboardPushStatus>(() => {
-    if (!supported()) return 'unsupported'
-    if (!publicKey) return 'unconfigured'
-    if (Notification.permission === 'denied') return 'denied'
-    return 'idle'
-  })
+  // The first render must be identical on the server and in the browser. Browser
+  // capability and permission are reconciled after hydration.
+  const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('unsupported')
+  const [status, setStatus] = useState<DashboardPushStatus>(publicKey ? 'idle' : 'unconfigured')
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!supported()) {
+      setPermission('unsupported')
+      setStatus('unsupported')
+      return
+    }
+    const browserPermission = Notification.permission
+    setPermission(browserPermission)
+    if (!publicKey) setStatus('unconfigured')
+    else if (browserPermission === 'denied') setStatus('denied')
+    else setStatus('idle')
+  }, [publicKey])
 
   const persist = useCallback(async (subscription: PushSubscription) => {
     const serialized = subscription.toJSON()

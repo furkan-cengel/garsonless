@@ -51,7 +51,7 @@ function downloadCsv(fileName: string, csv: string) {
   URL.revokeObjectURL(url)
 }
 
-export function downloadMenuCsvTemplate() {
+function downloadMenuCsvTemplate() {
   const csv = 'Kategori,Ad,Açıklama,Fiyat,İçindekiler,Çıkarılabilir İçerikler,Kalori,Olası Alerjenler,Alkol,Domuz Kaynaklı\nAna Yemekler,Izgara Tavuk,Özel baharatlı,120,Tavuk;Domates;Soğan,Domates;Soğan,420,,Hayır,Hayır\nTatlılar,Sütlaç,Fırın sütlaç,45,Süt;Pirinç;Şeker,,260,Süt,Hayır,Hayır'
   downloadCsv('menu_sablonu.csv', csv)
 }

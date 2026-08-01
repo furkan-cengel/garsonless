@@ -34,6 +34,7 @@ const audienceSchema = z.discriminatedUnion('segmentKind', [
 ])
 const messageSchema = z.string().trim().min(5).max(459)
 const campaignSchema = z.object({
+  requestId: z.string().uuid(),
   name: z.string().trim().min(1).max(80),
   message: messageSchema,
   audience: audienceSchema,
@@ -90,8 +91,8 @@ export async function sendCampaignTestAction(
 
 export async function sendCampaignAction(
   restaurantId: string,
-  input: { name: string; message: string; audience: unknown },
-): Promise<{ error: string; preview?: CampaignAudiencePreview } | { success: true; campaign: CampaignSummary; preview: CampaignAudiencePreview }> {
+  input: { requestId: string; name: string; message: string; audience: unknown },
+): Promise<{ error: string; preview?: CampaignAudiencePreview } | { success: true; campaign: CampaignSummary; preview: CampaignAudiencePreview; replayed: boolean }> {
   const gate = await assertOwner(restaurantId)
   if ('error' in gate) return gate
   const parsed = campaignSchema.safeParse(input)
@@ -100,11 +101,12 @@ export async function sendCampaignAction(
   if (!audience) return { error: 'Hedef segment geçersiz' }
   const res = await sendCustomerCampaign(campaignActor(restaurantId, gate.userId), {
     restaurantId,
+    requestId: parsed.data.requestId,
     name: parsed.data.name,
     message: parsed.data.message,
     audience,
   }, createCampaignApplicationPort())
   if (!res.ok) return { error: res.error, ...(res.preview ? { preview: res.preview } : {}) }
   revalidatePath(`/dashboard/${restaurantId}/customers`)
-  return { success: true, campaign: res.campaign, preview: res.preview }
+  return { success: true, campaign: res.campaign, preview: res.preview, replayed: res.replayed }
 }

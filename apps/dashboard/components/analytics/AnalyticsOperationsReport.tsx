@@ -11,6 +11,7 @@ import type {
 } from '../../lib/queries/analytics'
 import { formatCurrency } from '../../lib/utils'
 import { AnalyticsCard as Card, AnalyticsKpi as KPISmall } from './AnalyticsReportPrimitives'
+import { loadAnalyticsChart } from './chart-primitives/load-analytics-chart'
 import {
   analyticsPreviousPeriodLabel as previousPeriodLabel,
   analyticsRangePeriodLabel as rangePeriodLabel,
@@ -21,11 +22,12 @@ import {
   projectOperationDelta,
   sumStaffMethod,
 } from './analytics-operations-model'
+import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
 
 const chartLoading = (height: number) => () => (
   <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-4)', fontSize: 12 }}>Grafik yükleniyor…</div>
 )
-const CancellationTrendChart = dynamic(() => import('./chart-primitives/CancellationTrendChart'), { ssr: false, loading: chartLoading(148) })
+const CancellationTrendChart = dynamic(() => loadAnalyticsChart(() => import('./chart-primitives/CancellationTrendChart')), { ssr: false, loading: chartLoading(148) })
 const s = { mono: { fontFamily: "'Geist Mono', ui-monospace, monospace" } as CSSProperties }
 
 
@@ -34,44 +36,52 @@ export function AnalyticsOperationsReport({
   cancellations,
   abnormalCloses,
   staffSettlement,
-  range,
+  query,
 }: {
   cancellations: CancellationReport
   abnormalCloses: AbnormalCloseReport
   staffSettlement: StaffSettlementReport
-  range: string
+  query: AnalyticsQuery
 }) {
   return (
     <div style={{ maxWidth: 1140, margin: '0 auto' }}>
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--text)' }}>Operasyon</h1>
         <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 0 }}>
-          Para ve personel kaçağı denetimi · {rangePeriodLabel(range)}
+          Para ve personel kaçağı denetimi · {rangePeriodLabel(query)}
         </p>
       </div>
 
-      <SectionLabel number="1" title="İptal raporu" subtitle="Ne kadar sipariş boşa gitti" />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
-        <OperationKPI label="İptal sayısı" value={String(cancellations.count)} change={cancellations.deltaCount} hint={previousPeriodLabel(range)} />
-        <OperationKPI label="₺ kayıp" value={formatCurrency(cancellations.lostAmount)} change={cancellations.deltaLost} hint={previousPeriodLabel(range)} />
+      <SectionLabel number="1" title="İptal raporu" subtitle="Tahsil edilmemiş ve tahsilat işaretli iptaller" />
+      <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
+        <OperationKPI label="İptal sayısı" value={String(cancellations.count)} change={cancellations.deltaCount} hint={previousPeriodLabel(query)} />
+        <OperationKPI label="Tahsil edilmemiş" value={formatCurrency(cancellations.lostAmount)} change={cancellations.deltaLost} hint={previousPeriodLabel(query)} />
+        <KPISmall
+          label="Tahsilat işaretli iptal"
+          value={formatCurrency(cancellations.collectedCancelledAmount)}
+          delta={`${cancellations.collectedCancelledCount} sipariş`}
+          tone="neutral"
+          direction="flat"
+          hint="iade durumu ayrı izlenmeli"
+        />
         <OperationKPI label="İptal oranı" value={`%${cancellations.rate.toLocaleString('tr-TR')}`} change={cancellations.deltaRate} suffix="puan" hint="sipariş içinde" />
       </div>
       {cancellations.count === 0 ? (
         <EmptyReportState text="Bu dönemde iptal yok" />
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>
-          <Card title="En çok iptal edilen ürünler" subtitle="Adet ve sipariş anındaki kayıp">
+        <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>
+          <Card title="En çok iptal edilen ürünler" subtitle="Adet ve sipariş anındaki net tutar">
             <CancelledItemsTable items={cancellations.topItems} />
           </Card>
-          <Card title="Dönem içi iptal trendi" subtitle={`${rangePeriodLabel(range)} · adet`} style={{ overflow: 'visible' }}>
-            <CancellationTrend data={cancellations.trend} range={range} />
+          <Card title="Dönem içi iptal trendi" subtitle={`${rangePeriodLabel(query)} · adet`} style={{ overflow: 'visible' }}>
+            <CancellationTrend data={cancellations.trend} range={query.range} />
           </Card>
         </div>
       )}
 
       <SectionLabel number="2" title="Anormal kapatma / kaçak" subtitle="Ödenmeden kapanan adisyonlar" />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
-        <OperationKPI label="Anormal kapatma" value={String(abnormalCloses.count)} change={abnormalCloses.deltaCount} hint={previousPeriodLabel(range)} />
+      <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
+        <OperationKPI label="Anormal kapatma" value={String(abnormalCloses.count)} change={abnormalCloses.deltaCount} hint={previousPeriodLabel(query)} />
         <OperationKPI label="Ödenmeden kalan" value={formatCurrency(abnormalCloses.unpaidTotal)} change={abnormalCloses.deltaUnpaid} hint="tahsil edilemedi" />
       </div>
       <Card title="Kaçak dökümü" subtitle="Masa · zaman · kapatan · gerekçe" style={{ marginBottom: 20 }}>
@@ -79,7 +89,7 @@ export function AnalyticsOperationsReport({
       </Card>
 
       <SectionLabel number="3" title="Personel tahsilat performansı" subtitle="Kasa denetimi · kim ne kadar tahsil etti" />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
+      <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
         <KPISmall label="Personel nakit" value={formatCurrency(sumStaffMethod(staffSettlement.rows, 'cash'))} delta="elden tahsilat" tone="neutral" direction="flat" />
         <KPISmall label="Personel kart" value={formatCurrency(sumStaffMethod(staffSettlement.rows, 'pos'))} delta="fiziksel POS" tone="neutral" direction="flat" />
         <KPISmall label="İyzico (otomatik)" value={formatCurrency(staffSettlement.rows.find((row) => row.role === 'system')?.collected ?? 0)} delta="online · elle değil" tone="neutral" direction="flat" />
@@ -175,11 +185,11 @@ function AbnormalCloseTable({ report }: { report: AbnormalCloseReport }) {
     return <div style={{ padding: '38px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Bu dönemde anormal kapatma yok</div>
   }
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div className="analytics-table-scroll" role="region" aria-label="Oturum operasyon detayları" tabIndex={0} style={{ overflowX: 'auto' }}>
       <div style={{ minWidth: 720 }}>
         <ReportTableHeader columns="110px 150px minmax(220px, 1fr) 130px 110px" labels={['Masa', 'Kapatılma', 'Gerekçe', 'Kapatan', 'Tutar']} />
         {report.rows.map((row, index) => (
-          <div key={row.sessionId} style={{ display: 'grid', gridTemplateColumns: '110px 150px minmax(220px, 1fr) 130px 110px', gap: 12, alignItems: 'center', padding: '11px 14px', borderBottom: index === report.rows.length - 1 ? 'none' : '1px solid var(--divider)' }}>
+          <div key={`${row.closedAt}-${row.tableLabel}-${index}`} style={{ display: 'grid', gridTemplateColumns: '110px 150px minmax(220px, 1fr) 130px 110px', gap: 12, alignItems: 'center', padding: '11px 14px', borderBottom: index === report.rows.length - 1 ? 'none' : '1px solid var(--divider)' }}>
             <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{row.tableLabel}</span>
             <span style={{ ...s.mono, fontSize: 10.5, color: 'var(--text-3)' }}>{formatReportDate(row.closedAt)}</span>
             <span style={{ fontSize: 12, color: 'var(--text-2)', overflowWrap: 'anywhere' }}>{row.reason}</span>
@@ -197,7 +207,7 @@ function StaffSettlementTable({ report }: { report: StaffSettlementReport }) {
     return <div style={{ padding: '38px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Bu dönemde tahsilat yok</div>
   }
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div className="analytics-table-scroll" role="region" aria-label="Sipariş operasyon detayları" tabIndex={0} style={{ overflowX: 'auto' }}>
       <div style={{ minWidth: 1080 }}>
         <ReportTableHeader columns="minmax(200px, 1.3fr) 76px 100px 100px 100px 100px 110px minmax(140px, 1fr)" labels={['Tahsil eden', 'Sipariş', 'Nakit', 'Fiziksel POS', 'Online / split / eski', 'İkram', 'Toplam', 'Dağılım']} />
         {report.rows.map((row, index) => {
@@ -206,7 +216,7 @@ function StaffSettlementTable({ report }: { report: StaffSettlementReport }) {
           const posPct = paymentBase > 0 ? (row.pos / paymentBase) * 100 : 0
           const otherPct = paymentBase > 0 ? (row.otherCollected / paymentBase) * 100 : 0
           return (
-          <div key={row.settledBy ?? 'system'} style={{
+          <div key={`${row.role}-${row.label}-${index}`} style={{
             display: 'grid',
             gridTemplateColumns: 'minmax(200px, 1.3fr) 76px 100px 100px 100px 100px 110px minmax(140px, 1fr)',
             gap: 12,

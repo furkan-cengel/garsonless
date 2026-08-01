@@ -22,6 +22,14 @@ import {
 } from './tables-builder-model'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
 
+const defaultLayout = {
+  layoutXBp: null,
+  layoutYBp: null,
+  layoutShape: 'rectangle' as const,
+  layoutRotation: 0 as const,
+  seatCount: 4,
+}
+
 test('persisted custom domaini canlandırmaz ve geçersiz enumları varsayılana çeker', () => {
   const normalized = normalizeQRStyle({
     baseUrl: 'https://attacker.example/menu',
@@ -40,8 +48,8 @@ test('persisted custom domaini canlandırmaz ve geçersiz enumları varsayılana
 
 test('masa araması Türkçe etiketi ve kısa slug değerini normalize eder', () => {
   const tables = [
-    { id: 'a', qrToken: 'a', label: 'İç Bahçe', slug: 'b01', orders: 0, status: 'idle' as const },
-    { id: 'b', qrToken: 'b', label: 'Bar', slug: 'ba', orders: 0, status: 'idle' as const },
+    { ...defaultLayout, id: 'a', qrToken: 'a', label: 'İç Bahçe', slug: 'b01', floorLabel: 'Zemin', areaLabel: 'Bahçe', orders: 0, status: 'idle' as const },
+    { ...defaultLayout, id: 'b', qrToken: 'b', label: 'Bar', slug: 'ba', floorLabel: null, areaLabel: null, orders: 0, status: 'idle' as const },
   ]
 
   assert.deepEqual(filterTables(tables, '  İÇ  ').map((table) => table.id), ['a'])
@@ -51,8 +59,8 @@ test('masa araması Türkçe etiketi ve kısa slug değerini normalize eder', ()
 
 test('rename sıra tabanlı slugı yeniler ve aktif masa silinince ilk kalan masayı seçer', () => {
   const tables = [
-    { id: 'a', qrToken: 'a', label: 'Masa 1', slug: '01', orders: 0, status: 'idle' as const },
-    { id: 'b', qrToken: 'b', label: 'Masa 2', slug: '02', orders: 0, status: 'idle' as const },
+    { ...defaultLayout, id: 'a', qrToken: 'a', label: 'Masa 1', slug: '01', floorLabel: null, areaLabel: null, orders: 0, status: 'idle' as const },
+    { ...defaultLayout, id: 'b', qrToken: 'b', label: 'Masa 2', slug: '02', floorLabel: null, areaLabel: null, orders: 0, status: 'idle' as const },
   ]
   const renamed = renameTableInList(tables, 'b', 'Bahçe')
   assert.equal(renamed[1]?.slug, 'b02')
@@ -66,8 +74,8 @@ test('rename sıra tabanlı slugı yeniler ve aktif masa silinince ilk kalan mas
 
 test('QR token rotasyonu yalnız hedef masanın public credential değerini değiştirir', () => {
   const tables = [
-    { id: 'a', qrToken: 'old-a', label: 'Masa 1', slug: '01', orders: 0, status: 'idle' as const },
-    { id: 'b', qrToken: 'old-b', label: 'Masa 2', slug: '02', orders: 0, status: 'idle' as const },
+    { ...defaultLayout, id: 'a', qrToken: 'old-a', label: 'Masa 1', slug: '01', floorLabel: null, areaLabel: null, orders: 0, status: 'idle' as const },
+    { ...defaultLayout, id: 'b', qrToken: 'old-b', label: 'Masa 2', slug: '02', floorLabel: null, areaLabel: null, orders: 0, status: 'idle' as const },
   ]
 
   const rotated = replaceTableQrToken(tables, 'a', 'new-a')
@@ -86,10 +94,13 @@ test('QR URL revocable token kullanır ve UTM özel karakterlerini encode eder',
     utmCampaign: 'Yaz & Kış?',
   }
   const url = new URL(buildUrl(qr, {
+    ...defaultLayout,
     id: 'internal-table-id',
     qrToken: 'revocable-token',
     label: 'Masa 1',
     slug: '01',
+    floorLabel: null,
+    areaLabel: null,
     orders: 0,
     status: 'idle',
   }))
@@ -138,8 +149,8 @@ test('history son 60 snapshot ile sınırlıdır ve gradient kontrastında zayı
 
 test('session aggregate masa görünümünü authoritative active/idle durumuna katlar', () => {
   const tables = [
-    { id: 'table-a', qrToken: 'a', label: 'Masa A', slug: 'a', orders: 9, status: 'active' as const },
-    { id: 'table-b', qrToken: 'b', label: 'Masa B', slug: 'b', orders: 2, status: 'active' as const },
+    { ...defaultLayout, id: 'table-a', qrToken: 'a', label: 'Masa A', slug: 'a', floorLabel: null, areaLabel: null, orders: 9, status: 'active' as const },
+    { ...defaultLayout, id: 'table-b', qrToken: 'b', label: 'Masa B', slug: 'b', floorLabel: null, areaLabel: null, orders: 2, status: 'active' as const },
   ]
   const session = {
     sessionId: 'session-a',

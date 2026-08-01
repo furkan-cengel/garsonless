@@ -1,12 +1,17 @@
 'use client'
 
-import { useState, useTransition, type CSSProperties, type ReactNode } from 'react'
+import { useRef, useState, useTransition, type CSSProperties, type ReactNode } from 'react'
 import type { Tables } from '@garsonless/db/types'
 import { I, S, Tag, btnPrimary } from '../../lib/ui'
 import { InlineSpinner } from '@garsonless/ui'
-import { SCard, FormRow, inputStyle } from './primitives'
+import { SCard, FormRow, Toggle, inputStyle } from './primitives'
 import { saveBusinessHours, updateSettings } from '../../lib/actions/restaurant'
 import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
+import {
+  mergeCanonicalSettings,
+  prepareSettingsMutationAttempt,
+  type SettingsMutationAttempt,
+} from './settings-save-contract'
 
 /* ── STORE ────────────────────────────────────────── */
 function StoreField({
@@ -73,6 +78,8 @@ const gridStyle = (columns: string): CSSProperties => ({
 
 export function StoreSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
   const existing = (restaurant.settings as Record<string, unknown> | null) ?? {}
+  const settingsSnapshotRef = useRef(existing)
+  const mutationAttemptRef = useRef<SettingsMutationAttempt | null>(null)
   const c = (existing['contact'] as Record<string, unknown> | null) ?? {}
   const str = (v: unknown) => (typeof v === 'string' ? v : '')
 
@@ -96,11 +103,32 @@ export function StoreSection({ restaurant }: { restaurant: Tables<'restaurants'>
     e.preventDefault()
     setError('')
     setSaved(false)
+    const settingsPatch = {
+      contact: { phone, email, website, address, district, city, zip, instagram, facebook, tiktok, whatsapp },
+    }
+    const attempt = prepareSettingsMutationAttempt(mutationAttemptRef.current, {
+      patch: settingsPatch,
+      expectedSettings: settingsSnapshotRef.current,
+    })
+    mutationAttemptRef.current = attempt
     startTransition(async () => {
-      const result = await updateSettings(restaurant.id, {
-        contact: { phone, email, website, address, district, city, zip, instagram, facebook, tiktok, whatsapp },
-      })
-      if ('error' in result) { setError(result.error); return }
+      let result
+      try {
+        result = await updateSettings(restaurant.id, settingsPatch, {
+          expectedSettings: settingsSnapshotRef.current,
+          requestId: attempt.requestId,
+        })
+      } catch {
+        setError('Bağlantı kesildi. Taslağın korundu; tekrar deneyebilirsin.')
+        return
+      }
+      if ('error' in result) {
+        if (result.code === 'CONFLICT') mutationAttemptRef.current = null
+        setError(result.error)
+        return
+      }
+      settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, result.canonicalSettings)
+      mutationAttemptRef.current = null
       setSaved(true)
       notifySettingsSaved()
     })
@@ -244,7 +272,7 @@ export function StoreSection({ restaurant }: { restaurant: Tables<'restaurants'>
         border: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <span style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
+        <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
           {error || (saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydedin')}
         </span>
         <button type="submit" disabled={isPending} style={btnPrimary()}>
@@ -270,6 +298,8 @@ interface DaySchedule { open: string; close: string; active: boolean }
 
 export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
   const existing = (restaurant.settings as Record<string, unknown> | null) ?? {}
+  const settingsSnapshotRef = useRef(existing)
+  const mutationAttemptRef = useRef<SettingsMutationAttempt | null>(null)
   const hoursRaw = (existing['hours'] as Record<string, unknown> | null) ?? {}
 
   const getDay = (key: string): DaySchedule => {
@@ -298,9 +328,30 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
     e.preventDefault()
     setError('')
     setSaved(false)
+    const settingsPatch = { hours: schedule }
+    const attempt = prepareSettingsMutationAttempt(mutationAttemptRef.current, {
+      patch: settingsPatch,
+      expectedSettings: settingsSnapshotRef.current,
+    })
+    mutationAttemptRef.current = attempt
     startTransition(async () => {
-      const result = await saveBusinessHours(restaurant.id, schedule)
-      if ('error' in result) { setError(result.error); return }
+      let result
+      try {
+        result = await saveBusinessHours(restaurant.id, schedule, {
+          expectedSettings: settingsSnapshotRef.current,
+          requestId: attempt.requestId,
+        })
+      } catch {
+        setError('Bağlantı kesildi. Taslağın korundu; tekrar deneyebilirsin.')
+        return
+      }
+      if ('error' in result) {
+        if (result.code === 'CONFLICT') mutationAttemptRef.current = null
+        setError(result.error)
+        return
+      }
+      settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, result.canonicalSettings)
+      mutationAttemptRef.current = null
       setSaved(true)
       notifySettingsSaved()
     })
@@ -322,25 +373,7 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
               borderBottom: i === HOUR_DAYS.length - 1 ? 'none' : '1px solid var(--divider)',
               background: isToday ? 'var(--surface-2)' : 'transparent',
             }}>
-              <button
-                type="button"
-                onClick={() => update(day.key, { active: !s.active })}
-                role="switch"
-                aria-checked={s.active}
-                aria-label={`${day.label} ${s.active ? 'açık' : 'kapalı'}`}
-                style={{
-                  width: 34, height: 20, borderRadius: 999,
-                  background: s.active ? 'var(--text)' : 'var(--border-strong)',
-                  border: 'none', position: 'relative', cursor: 'pointer',
-                  transition: 'background 120ms', flexShrink: 0,
-                }}
-              >
-                <span style={{
-                  position: 'absolute', top: 2, left: s.active ? 16 : 2,
-                  width: 16, height: 16, borderRadius: 999, background: '#fff',
-                  transition: 'left 120ms', boxShadow: '0 1px 2px rgba(0,0,0,.18)',
-                }} />
-              </button>
+              <Toggle on={s.active} onChange={(active) => update(day.key, { active })} ariaLabel={`${day.label} ${s.active ? 'açık' : 'kapalı'}`} />
               <div style={{ fontSize: 13, fontWeight: isToday ? 700 : 500 }}>
                 {day.label}
                 {isToday && <span style={{ color: 'var(--text-3)', fontWeight: 400, fontSize: 11, marginLeft: 6 }}>Bugün</span>}
@@ -348,6 +381,7 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
               {s.active ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <input
+                    aria-label={`${day.label} açılış saati`}
                     type="time"
                     value={s.open}
                     onChange={e => update(day.key, { open: e.target.value })}
@@ -355,6 +389,7 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
                   />
                   <span style={{ color: 'var(--text-3)' }}>—</span>
                   <input
+                    aria-label={`${day.label} kapanış saati`}
                     type="time"
                     value={s.close}
                     onChange={e => update(day.key, { close: e.target.value })}
@@ -374,7 +409,7 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
         background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <span style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
+        <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
           {error || (saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydedin')}
         </span>
         <button type="submit" disabled={isPending} style={btnPrimary()}>
@@ -388,6 +423,8 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
 /* ── TAX ──────────────────────────────────────────── */
 export function TaxSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
   const existing = (restaurant.settings as Record<string, unknown> | null) ?? {}
+  const settingsSnapshotRef = useRef(existing)
+  const mutationAttemptRef = useRef<SettingsMutationAttempt | null>(null)
   const taxRaw = (existing['tax'] as Record<string, unknown> | null) ?? {}
   const str = (v: unknown, fallback = '') => (typeof v === 'string' ? v : fallback)
 
@@ -405,13 +442,32 @@ export function TaxSection({ restaurant }: { restaurant: Tables<'restaurants'> }
     e.preventDefault()
     setError('')
     setSaved(false)
+    const settingsPatch = {
+      tax: { company, taxNumber, office, tcVkn, address },
+    }
+    const attempt = prepareSettingsMutationAttempt(mutationAttemptRef.current, {
+      patch: settingsPatch,
+      expectedSettings: settingsSnapshotRef.current,
+    })
+    mutationAttemptRef.current = attempt
     startTransition(async () => {
-      const result = await updateSettings(restaurant.id, {
-        tax: {
-          company, taxNumber, office, tcVkn, address,
-        },
-      })
-      if ('error' in result) { setError(result.error); return }
+      let result
+      try {
+        result = await updateSettings(restaurant.id, settingsPatch, {
+          expectedSettings: settingsSnapshotRef.current,
+          requestId: attempt.requestId,
+        })
+      } catch {
+        setError('Bağlantı kesildi. Taslağın korundu; tekrar deneyebilirsin.')
+        return
+      }
+      if ('error' in result) {
+        if (result.code === 'CONFLICT') mutationAttemptRef.current = null
+        setError(result.error)
+        return
+      }
+      settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, result.canonicalSettings)
+      mutationAttemptRef.current = null
       setSaved(true)
       notifySettingsSaved()
     })
@@ -451,7 +507,7 @@ export function TaxSection({ restaurant }: { restaurant: Tables<'restaurants'> }
         background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <span style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
+        <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
           {error || (saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydedin')}
         </span>
         <button type="submit" disabled={isPending} style={btnPrimary()}>

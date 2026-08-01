@@ -12,12 +12,24 @@ test('service worker accepts provider push and de-duplicates by event tag', () =
   assert.match(worker, /payload\.tag/)
   assert.match(worker, /eventId/)
   assert.match(worker, /notificationclick/)
+  assert.match(worker, /ORDER_RESOLVED/)
+  assert.match(worker, /getNotifications\(\{ tag: `order:\$\{orderId\}` \}\)/)
 })
 
-test('orders avoid a second local notification after durable subscription', () => {
-  const hook = source('../orders/useNotificationSW.ts')
+test('global shell alert controller avoids a second local notification after durable subscription', () => {
+  const hook = source('./useGlobalOrderAlerts.tsx')
   assert.match(hook, /subscription\.status !== 'subscribed'/)
   assert.match(hook, /useDashboardPushSubscription/)
+  assert.match(hook, /BroadcastChannel/)
+  assert.match(hook, /enqueueOrderAlert/)
+})
+
+test('push capability state hydrates deterministically before reading browser permission', () => {
+  const hook = source('./useDashboardPushSubscription.ts')
+  assert.match(hook, /useState<NotificationPermission \| 'unsupported'>\('unsupported'\)/)
+  assert.match(hook, /useState<DashboardPushStatus>\(publicKey \? 'idle' : 'unconfigured'\)/)
+  assert.match(hook, /const browserPermission = Notification\.permission/)
+  assert.ok(hook.indexOf('const browserPermission = Notification.permission') > hook.indexOf('useEffect(() =>'))
 })
 
 test('subscription server action re-checks membership and paid entitlement', () => {
@@ -43,7 +55,7 @@ test('shell authenticates RLS-scoped Realtime before orders and inbox subscripti
   assert.match(shell, /table: 'notification_inbox'/)
 })
 
-test('orders board authenticates Realtime and carries unfinished work across day rollover', () => {
+test('orders board carries unfinished work while the shell owns the only alert subscription', () => {
   const hook = source('../orders/useOrdersRealtime.ts')
   const adapter = source('../../../../packages/db/src/dashboard-read-model-port.ts')
   const shell = source('../layout/RestaurantShell.tsx')
@@ -55,6 +67,9 @@ test('orders board authenticates Realtime and carries unfinished work across day
   assert.match(adapter, /appendPages\(\['served', 'cancelled'\], since\)/)
   assert.match(shell, /\.in\('status', \[\.\.\.OPEN_ORDER_STATUSES\]\)/)
   assert.doesNotMatch(shell, /\.gte\('created_at', todayStart\.toISOString\(\)\)/)
+  assert.doesNotMatch(hook, /newOrderEvent/)
+  assert.match(shell, /onOrderInsert\(payload\.new as Order\)/)
+  assert.match(shell, /onOrderUpdate\(payload\.new as Order\)/)
 })
 
 test('order inbox self-heal is member-gated and aggregate-scoped', () => {

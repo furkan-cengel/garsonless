@@ -20,20 +20,22 @@ export function usePanoSalesChart({
   restaurantId,
   initialHourly,
   timezone,
+  now,
 }: {
   restaurantId: string
   initialHourly: HourlySale[]
   timezone: string
+  now: Date
 }): PanoSalesChartController {
-  const [data, setData] = useState<PanoChartData>(() => createDayPanoChart(initialHourly, timezone))
+  const [data, setData] = useState<PanoChartData>(() => createDayPanoChart(initialHourly, timezone, now))
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
   const requestSequence = useRef(0)
 
   useEffect(() => {
     if (data.range !== 'day') return
-    setData(createDayPanoChart(initialHourly, timezone))
-  }, [data.range, initialHourly, timezone])
+    setData(createDayPanoChart(initialHourly, timezone, now))
+  }, [data.range, initialHourly, now, timezone])
 
   const onSelectRange = useCallback((range: PanoChartRange, force = false) => {
     if ((!force && range === data.range) || isPending) return

@@ -7,12 +7,14 @@ import {
   createCustomerSegment as createCustomerSegmentCommand,
   deleteCustomerSegment as deleteCustomerSegmentCommand,
   grantCustomerStoreCredit,
+  readCustomerTimeline,
   readCustomers,
   updateCustomerSegment as updateCustomerSegmentCommand,
 } from '@garsonless/application/customers'
 import { createCustomerApplicationPort } from '@garsonless/db/server'
 import type {
   RestaurantCustomersPage,
+  CustomerTimelinePage,
   CustomerSort,
   CustomerSegment,
   CustomerSegmentDefinition,
@@ -81,7 +83,27 @@ export async function listCustomers(
   return result.value
 }
 
+export async function loadCustomerTimelineAction(
+  restaurantId: string,
+  customerId: string,
+  cursor: string,
+): Promise<{ error: string } | CustomerTimelinePage> {
+  const actor = await getCustomerActor(restaurantId)
+  if ('error' in actor) return actor
+  if (!z.string().uuid().safeParse(customerId).success || !cursor || cursor.length > 512) {
+    return { error: 'Geçersiz hareket isteği' }
+  }
+  const result = await readCustomerTimeline(actor, {
+    restaurantId,
+    customerId,
+    cursor,
+  }, createCustomerApplicationPort())
+  if (!result.ok || !result.value) return { error: 'Müşteri hareketleri yüklenemedi' }
+  return result.value
+}
+
 const grantSchema = z.object({
+  requestId: z.string().uuid(),
   points: z.number().int().positive().max(1_000_000),
   note: z.string().max(80).optional(),
 })
@@ -89,24 +111,26 @@ const grantSchema = z.object({
 export async function grantStoreCreditAction(
   restaurantId: string,
   customerId: string,
+  requestId: string,
   points: number,
   note?: string,
-): Promise<{ error: string } | { success: true; granted: number }> {
+): Promise<{ error: string } | { success: true; granted: number; replayed: boolean }> {
   const actor = await getCustomerActor(restaurantId)
   if ('error' in actor) return actor
-  const parsed = grantSchema.safeParse({ points, note })
+  const parsed = grantSchema.safeParse({ requestId, points, note })
   if (!parsed.success) return { error: 'Geçersiz puan miktarı' }
 
   const res = await grantCustomerStoreCredit(actor, {
     restaurantId,
     customerId,
+    requestId: parsed.data.requestId,
     points: parsed.data.points,
     ...(parsed.data.note ? { note: parsed.data.note } : {}),
   }, createCustomerApplicationPort())
   if (!res.ok) return { error: res.error }
   revalidatePath(`/dashboard/${restaurantId}/customers/${customerId}`)
   revalidatePath(`/dashboard/${restaurantId}/customers`)
-  return { success: true, granted: res.value.granted }
+  return { success: true, granted: res.value.granted, replayed: res.value.replayed }
 }
 
 const opSchema = z.enum(['>=', '<='])

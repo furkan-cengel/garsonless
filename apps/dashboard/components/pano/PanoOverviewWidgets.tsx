@@ -1,13 +1,11 @@
 import { Fragment, type ReactNode } from 'react'
 import Link from 'next/link'
 import { EmptyState, I, S } from '../../lib/ui'
-import type { HeatmapCell, TopItem } from '../../lib/queries/pano'
+import type { HeatmapCell, PanoAttentionItem, TopItem } from '../../lib/queries/pano'
 import type {
   PanoHealthCheck,
   PanoHealthStatus,
   PanoKpiCardModel,
-  PanoQuickAction,
-  PanoQuickActionKey,
 } from './pano-view-model'
 
 export function PanoCard({
@@ -44,50 +42,118 @@ export function PanoCard({
 }
 
 export function PanoKpiCard({ model }: { model: PanoKpiCardModel }) {
-  const trendBackground = model.trend === 'up' ? 'var(--positive-bg)' : 'var(--critical-bg)'
-  const trendForeground = model.trend === 'up' ? 'var(--positive)' : 'var(--critical)'
+  const indicatorTone = model.indicatorTone ?? (model.trend === 'down' ? 'critical' : 'positive')
+  const indicatorColors = {
+    positive: { background: 'var(--positive-bg)', foreground: 'var(--positive)' },
+    warning: { background: 'var(--warning-bg)', foreground: 'var(--warning)' },
+    critical: { background: 'var(--critical-bg)', foreground: 'var(--critical)' },
+    neutral: { background: 'var(--surface-3)', foreground: 'var(--text-3)' },
+  }[indicatorTone]
+  const featuredIndicator = model.trend === 'down'
+    ? { background: 'rgba(255, 120, 112, .16)', foreground: '#ff9b94' }
+    : { background: 'rgba(94, 232, 164, .15)', foreground: '#5ee8a4' }
 
-  return (
+  const content = (
+    <div style={{
+      background: model.featured ? 'linear-gradient(135deg, #18181b 0%, #2a2a30 100%)' : 'var(--surface)',
+      color: model.featured ? '#fff' : 'var(--text)',
+      borderRadius: 12, border: `1px solid ${model.featured ? 'transparent' : 'var(--border)'}`,
+      padding: 16, position: 'relative', overflow: 'hidden', minHeight: 126,
+      transition: 'background 120ms, border-color 120ms, transform 120ms, box-shadow 120ms',
+    }}>
+      {model.featured && (
+        <div style={{
+          position: 'absolute', top: -20, right: -20, width: 120, height: 120,
+          background: 'radial-gradient(circle, rgba(255,208,137,.15) 0%, transparent 65%)',
+          pointerEvents: 'none',
+        }} />
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+        <span style={{
+          fontSize: 11.5, fontWeight: 500,
+          color: model.featured ? 'rgba(255,255,255,.55)' : 'var(--text-3)',
+          letterSpacing: '.05em', textTransform: 'uppercase',
+        }}>{model.label}</span>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 3,
+          padding: '3px 7px', borderRadius: 999,
+          background: model.featured ? featuredIndicator.background : indicatorColors.background,
+          color: model.featured ? featuredIndicator.foreground : indicatorColors.foreground,
+          fontSize: 10.5, fontWeight: 600, whiteSpace: 'nowrap',
+        }}>{model.trend === 'up' ? '↑' : model.trend === 'down' ? '↓' : ''}{model.delta}</span>
+      </div>
+      <div style={{
+        fontSize: 28, fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1,
+        ...S.mono, color: model.featured ? '#ffd089' : 'var(--text)',
+      }}>{model.value}</div>
+      <div style={{ fontSize: 11, color: model.featured ? 'rgba(255,255,255,.55)' : 'var(--text-3)', marginTop: 6 }}>{model.sub}</div>
+    </div>
+  )
+
+  return model.href ? (
     <Link
       href={model.href}
       style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
       className="pano-kpi-link"
     >
-      <div style={{
-        background: model.featured ? 'linear-gradient(135deg, #18181b 0%, #2a2a30 100%)' : 'var(--surface)',
-        color: model.featured ? '#fff' : 'var(--text)',
-        borderRadius: 12, border: `1px solid ${model.featured ? 'transparent' : 'var(--border)'}`,
-        padding: 16, position: 'relative', overflow: 'hidden',
-        transition: 'background 120ms, border-color 120ms, transform 120ms, box-shadow 120ms',
-      }}>
-        {model.featured && (
-          <div style={{
-            position: 'absolute', top: -20, right: -20, width: 120, height: 120,
-            background: 'radial-gradient(circle, rgba(255,208,137,.15) 0%, transparent 65%)',
-            pointerEvents: 'none',
-          }} />
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={{
-            fontSize: 11.5, fontWeight: 500,
-            color: model.featured ? 'rgba(255,255,255,.55)' : 'var(--text-3)',
-            letterSpacing: '.05em', textTransform: 'uppercase',
-          }}>{model.label}</span>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 3,
-            padding: '2px 7px', borderRadius: 999,
-            background: model.featured ? 'rgba(94, 232, 164, .15)' : trendBackground,
-            color: model.featured ? '#5ee8a4' : trendForeground,
-            fontSize: 10.5, fontWeight: 600,
-          }}>{model.trend === 'up' ? '↑' : '↓'}{model.delta}</span>
-        </div>
-        <div style={{
-          fontSize: 28, fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1,
-          ...S.mono, color: model.featured ? '#ffd089' : 'var(--text)',
-        }}>{model.value}</div>
-        <div style={{ fontSize: 11, color: model.featured ? 'rgba(255,255,255,.55)' : 'var(--text-3)', marginTop: 6 }}>{model.sub}</div>
-      </div>
+      {content}
     </Link>
+  ) : content
+}
+
+const ATTENTION_COLORS: Record<PanoAttentionItem['severity'], { dot: string; background: string }> = {
+  critical: { dot: 'var(--critical)', background: 'var(--critical-bg)' },
+  warning: { dot: 'var(--warning)', background: 'var(--warning-bg)' },
+  info: { dot: 'var(--info)', background: 'var(--info-bg)' },
+}
+
+export function PanoAttentionQueue({ items }: { items: PanoAttentionItem[] }) {
+  const visibleItems = items.slice(0, 6)
+  return (
+    <section id="pano-attention" aria-labelledby="pano-attention-title">
+      <PanoCard
+        title="Dikkat gerekenler"
+        subtitle={items.length > 0 ? `${items.length} açık operasyon sinyali` : 'Operasyon kuyruğu temiz'}
+        action={items.length > visibleItems.length ? (
+          <span style={{ fontSize: 11, color: 'var(--text-3)' }}>İlk {visibleItems.length} gösteriliyor</span>
+        ) : undefined}
+      >
+        <h2 id="pano-attention-title" className="sr-only">Dikkat gerekenler</h2>
+        {visibleItems.length === 0 ? (
+          <div role="status">
+            <EmptyState title="Acil işlem yok" sub="Yeni sipariş, servis çağrısı ve geciken masalar burada görünür" />
+          </div>
+        ) : (
+          <ul aria-live="polite" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {visibleItems.map((item, index) => {
+              const colors = ATTENTION_COLORS[item.severity]
+              return (
+                <li key={item.id} style={{
+                  minHeight: 58, padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 11,
+                  borderBottom: index === visibleItems.length - 1 ? 'none' : '1px solid var(--divider)',
+                }}>
+                  <span aria-hidden="true" style={{
+                    width: 32, height: 32, flexShrink: 0, borderRadius: 9,
+                    background: colors.background, display: 'grid', placeItems: 'center',
+                  }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 999, background: colors.dot }} />
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 650, color: 'var(--text)' }}>{item.title}</div>
+                    <div style={{ marginTop: 2, fontSize: 11, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.detail}</div>
+                  </div>
+                  {item.actionHref && (
+                    <Link className="pano-attention-action" href={item.actionHref} aria-label={`${item.title}: incele`}>
+                      İncele <I.chevRight size={13} />
+                    </Link>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </PanoCard>
+    </section>
   )
 }
 
@@ -127,9 +193,15 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
   const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
   const grid: Record<string, number> = {}
   let maximum = 0
+  let peakDay = 0
+  let peakHour = HEATMAP_HOURS[0] ?? 8
   for (const cell of heatmap) {
     grid[`${cell.day}-${cell.hour}`] = cell.count
-    if (cell.count > maximum) maximum = cell.count
+    if (cell.count > maximum) {
+      maximum = cell.count
+      peakDay = cell.day
+      peakHour = cell.hour
+    }
   }
 
   return (
@@ -138,7 +210,10 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
         <EmptyState title="Yeterli veri yok" sub="Siparişler biriktikçe yoğun saatler burada görünür" />
       ) : (
         <div style={{ padding: 14 }}>
-          <div className="pano-heatmap-scroll">
+          <p role="status" style={{ margin: '0 0 10px', fontSize: 11.5, color: 'var(--text-2)' }}>
+            En yoğun zaman: <strong>{days[peakDay]} {String(peakHour).padStart(2, '0')}:00</strong> · {maximum} sipariş
+          </p>
+          <div className="pano-heatmap-scroll" aria-hidden="true">
             <div style={{ minWidth: 300, display: 'grid', gridTemplateColumns: `auto repeat(${HEATMAP_HOURS.length}, 1fr)`, gap: 1.5, alignItems: 'center' }}>
               <span />
               {HEATMAP_HOURS.map((hour) => (
@@ -176,46 +251,27 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
             </div>
             <span>Çok</span>
           </div>
+          <details style={{ marginTop: 8 }}>
+            <summary className="pano-data-toggle" style={{ display: 'inline-flex', alignItems: 'center' }}>Yoğunluk verisini tablo olarak göster</summary>
+            <div className="pano-data-table-scroll" style={{ marginTop: 8 }}>
+              <table className="pano-data-table">
+                <caption className="sr-only">Son 30 günün gün ve saat bazında sipariş yoğunluğu</caption>
+                <thead>
+                  <tr><th scope="col">Gün</th>{HEATMAP_HOURS.map((hour) => <th scope="col" key={hour}>{String(hour).padStart(2, '0')}:00</th>)}</tr>
+                </thead>
+                <tbody>
+                  {days.map((day, dayIndex) => (
+                    <tr key={day}>
+                      <th scope="row">{day}</th>
+                      {HEATMAP_HOURS.map((hour) => <td key={hour}>{grid[`${dayIndex}-${hour}`] ?? 0}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
         </div>
       )}
-    </PanoCard>
-  )
-}
-
-const QUICK_ACTION_ICONS: Record<PanoQuickActionKey, ReactNode> = {
-  menu: <I.plus size={15} />,
-  tables: <I.qr size={15} />,
-  theme: <I.palette size={15} />,
-  orders: <I.clipboard size={15} />,
-  analytics: <I.chart size={15} />,
-}
-
-export function PanoQuickActions({ actions }: { actions: PanoQuickAction[] }) {
-  return (
-    <PanoCard title="Hızlı işlemler" subtitle="Yetkili olduğun bölümler">
-      <div style={{ padding: 8 }}>
-        {actions.length === 0
-          ? <EmptyState title="Kullanılabilir işlem yok" sub="Bu hesap yalnız Pano görüntüleme yetkisine sahip" />
-          : actions.map((action) => (
-            <Link className="pano-quick-action" key={action.key} href={action.href} style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '8px 10px', marginBottom: 1, borderRadius: 7,
-              background: 'transparent', textDecoration: 'none',
-            }}>
-              <div className="pano-quick-icon" style={{
-                width: 32, height: 32, borderRadius: 8,
-                background: 'var(--surface-3)', color: 'var(--text-2)',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'background-color 140ms ease, color 140ms ease, box-shadow 140ms ease',
-              }}>{QUICK_ACTION_ICONS[action.key]}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{action.label}</div>
-                <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>{action.description}</div>
-              </div>
-              <span style={{ color: 'var(--text-4)', display: 'inline-flex' }}><I.chevRight size={13} /></span>
-            </Link>
-          ))}
-      </div>
     </PanoCard>
   )
 }
@@ -227,10 +283,32 @@ const HEALTH_COLORS: Record<PanoHealthStatus, { dot: string; foreground: string;
   idle: { dot: 'var(--text-4)', foreground: 'var(--text-3)', label: '—' },
 }
 
-export function PanoSystemHealth({ checks }: { checks: PanoHealthCheck[] }) {
+export function PanoSystemHealth({
+  checks,
+  onRetry,
+  retrying,
+}: {
+  checks: PanoHealthCheck[]
+  onRetry: () => void
+  retrying: boolean
+}) {
   return (
-    <PanoCard title="Bağlantı durumu" subtitle="Gerçek zamanlı sinyaller">
-      <div style={{ padding: '4px 0' }}>
+    <PanoCard
+      title="Canlı bağlantı"
+      subtitle="Senkronizasyon ve sistem sinyalleri"
+      action={(
+        <button
+          type="button"
+          className="pano-live-retry"
+          onClick={onRetry}
+          disabled={retrying}
+          aria-label="Pano canlı verilerini yeniden dene"
+        >
+          <I.refresh size={13} />{retrying ? 'Yenileniyor' : 'Yenile'}
+        </button>
+      )}
+    >
+      <div role="status" aria-live="polite" style={{ padding: '4px 0' }}>
         {checks.map((check, index) => {
           const colors = HEALTH_COLORS[check.status]
           return (

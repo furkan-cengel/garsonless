@@ -6,6 +6,7 @@ import ChartFrame from './ChartFrame'
 import ChartTooltip, { type RechartsPayloadItem } from './ChartTooltip'
 import { axisTick, gridProps, chartMargin, bareAxis, tooltipWrapperStyle, CHART_MONO } from './axis'
 import { money, moneyTick } from './format'
+import AccessibleChartData from './AccessibleChartData'
 
 // FULL tier — the only time-series. Crosshair + single hover tooltip + Brush
 // zoom/pan (Çeyrek/Yıl ranges only, where the point count makes it useful).
@@ -42,7 +43,13 @@ export default function SalesLineChart({ data, range }: { data: DailySale[]; ran
         )}
       </div>
       <ChartFrame height={showBrush ? 300 : 264} isEmpty={data.length === 0} emptyText="Veri yok">
-        <ComposedChart data={data} margin={chartMargin}>
+        <ComposedChart
+          data={data}
+          margin={chartMargin}
+          role="img"
+          aria-label="Seçili dönem ve önceki dönem satış karşılaştırma grafiği"
+          accessibilityLayer
+        >
           <defs>
             <linearGradient id="salesAreaGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--chart-series-current)" stopOpacity={0.14} />
@@ -64,6 +71,18 @@ export default function SalesLineChart({ data, range }: { data: DailySale[]; ran
           )}
         </ComposedChart>
       </ChartFrame>
+      {data.length > 0 && (
+        <AccessibleChartData
+          caption="Günlük satış karşılaştırması"
+          summary={`Seçili dönem toplamı ${money(total)}; önceki dönem toplamı ${money(prevTotal)}.`}
+          columns={[
+            { key: 'date', label: 'Tarih' },
+            { key: 'current', label: 'Bu dönem', align: 'right', render: (value) => money(Number(value)) },
+            { key: 'prev', label: 'Önceki dönem', align: 'right', render: (value) => money(Number(value)) },
+          ]}
+          rows={data.map((row) => ({ date: row.date, current: row.current, prev: row.prev }))}
+        />
+      )}
     </div>
   )
 }

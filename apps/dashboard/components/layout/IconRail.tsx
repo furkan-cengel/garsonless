@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { I } from '../../lib/ui'
@@ -10,7 +10,7 @@ import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 
 const RAIL_CSS = `
 .rail-link {
-  width:36px;height:36px;cursor:pointer;
+  width:44px;height:44px;cursor:pointer;
   background:transparent;color:var(--text-2);
   border-radius:8px;display:inline-flex;
   align-items:center;justify-content:center;
@@ -18,9 +18,9 @@ const RAIL_CSS = `
 }
 .rail-link:hover { background:var(--surface-3); }
 .rail-link--active { background:var(--surface-inset)!important;color:var(--text)!important; }
-.rail-item { position:relative;width:40px;display:flex;justify-content:center; }
+.rail-item { position:relative;width:48px;display:flex;justify-content:center; }
 .rail-tooltip {
-  position:absolute;left:46px;top:50%;z-index:120;
+  position:absolute;left:50px;top:50%;z-index:120;
   transform:translate(4px,-50%);opacity:0;visibility:hidden;
   pointer-events:none;white-space:nowrap;
   padding:6px 8px;border:1px solid var(--border);
@@ -35,13 +35,17 @@ const RAIL_CSS = `
   opacity:1;visibility:visible;transform:translate(0,-50%);
 }
 .rail-btn {
-  width:36px;height:36px;border:none;cursor:pointer;
+  width:44px;height:44px;border:none;cursor:pointer;
   background:transparent;color:var(--text-2);
   border-radius:8px;display:inline-flex;
   align-items:center;justify-content:center;
   transition:background 120ms;
 }
 .rail-btn:hover { background:var(--surface-3); }
+.rail-profile { width:44px!important;height:44px!important; }
+@media (prefers-reduced-motion: reduce) {
+  .rail-link,.rail-tooltip,.rail-btn { transition:none!important; }
+}
 `
 
 interface NavItem {
@@ -88,24 +92,9 @@ export default function IconRail({
   className,
 }: Props) {
   const { openHelp, openProfile } = useShell()
-  const router = useRouter()
   const base = `/dashboard/${restaurantId}`
   // Slim nav: render only permitted sections (owner sees all 8).
   const navItems = NAV.filter(item => isOwner || permissions.includes(navSection(item)))
-
-  useEffect(() => {
-    const routes = [
-      base,
-      `${base}/menu`,
-      `${base}/orders`,
-      `${base}/customers`,
-      `${base}/tables`,
-      `${base}/theme`,
-      `${base}/analytics`,
-      `${base}/settings`,
-    ]
-    routes.forEach(route => router.prefetch(route))
-  }, [restaurantId, base, router])
 
   const activeId = (() => {
     const rel = pathname.replace(base, '')
@@ -139,7 +128,7 @@ export default function IconRail({
           />
         ))}
 
-        <div style={{
+        <div className="rail-secondary" style={{
           marginTop: 'auto',
           display: 'flex',
           flexDirection: 'column',
@@ -157,6 +146,7 @@ export default function IconRail({
               onClick={openProfile}
               aria-label="Profil"
               aria-describedby="rail-tooltip-profile"
+              className="rail-profile"
               style={{
                 width: 30,
                 height: 30,
@@ -199,14 +189,15 @@ function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
   return (
     <div
       onMouseEnter={() => router.prefetch(href)}
+      onFocus={() => router.prefetch(href)}
       className="rail-item"
     >
       {active && (
         <div style={{
           position: 'absolute',
           left: -1,
-          top: 6,
-          bottom: 6,
+          top: 8,
+          bottom: 8,
           width: 2.5,
           background: 'var(--text)',
           borderRadius: 2,
@@ -216,7 +207,7 @@ function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
         href={href}
         aria-label={label}
         aria-describedby={tooltipId}
-        prefetch={true}
+        prefetch={false}
         className={`rail-link${active ? ' rail-link--active' : ''}`}
         onClick={(e) => {
           if (active) return

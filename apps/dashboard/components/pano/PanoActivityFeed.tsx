@@ -39,8 +39,8 @@ const STATUS_ICONS: Record<string, ReactNode> = {
   cancelled: <I.x size={13} />,
 }
 
-function relativeTime(iso: string): string {
-  const difference = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+function relativeTime(iso: string, now: Date): string {
+  const difference = Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 1000))
   if (difference < 60) return 'az önce'
   if (difference < 3600) return `${Math.floor(difference / 60)} dk önce`
   if (difference < 86400) return `${Math.floor(difference / 3600)} sa önce`
@@ -52,16 +52,19 @@ export function PanoActivityFeed({
   canManageOrders,
   approvalStates,
   onApproveOrder,
+  now,
 }: {
   feed: ActivityEvent[]
   canManageOrders: boolean
   approvalStates: Record<string, PanoOrderApprovalState | undefined>
   onApproveOrder: (orderId: string) => void
+  now: Date
 }) {
   return (
     <PanoCard title="Canlı akış" subtitle="Bugünün sipariş aktivitesi · gerçek zamanlı">
       <style>{`
         .pano-feed-action {
+          min-height: 44px;
           opacity: 0;
           pointer-events: none;
           transform: translateX(4px);
@@ -102,6 +105,7 @@ export function PanoActivityFeed({
                 canManageOrders={canManageOrders}
                 approval={approvalStates[event.id]}
                 onApprove={() => onApproveOrder(event.id)}
+                now={now}
               />
             ))}
           </div>
@@ -116,12 +120,14 @@ function PanoActivityFeedRow({
   canManageOrders,
   approval,
   onApprove,
+  now,
 }: {
   event: ActivityEvent
   last: boolean
   canManageOrders: boolean
   approval?: PanoOrderApprovalState
   onApprove: () => void
+  now: Date
 }) {
   const tone = STATUS_TONES[event.status] ?? STATUS_TONES.pending!
   const canApprove = canManageOrders && event.status === 'pending_approval'
@@ -150,11 +156,11 @@ function PanoActivityFeedRow({
         </div>
       </div>
       {canApprove ? (
-        <div style={{ position: 'relative', width: 90, height: 30, flexShrink: 0 }}>
+        <div style={{ position: 'relative', width: 96, height: 44, flexShrink: 0 }}>
           <span className="pano-feed-time" style={{
             ...S.mono, position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
             fontSize: 10.5, color: 'var(--text-3)',
-          }}>{relativeTime(event.createdAt)}</span>
+          }}>{relativeTime(event.createdAt, now)}</span>
           <button
             type="button"
             className="pano-feed-action"
@@ -162,7 +168,7 @@ function PanoActivityFeedRow({
             onClick={onApprove}
             aria-label={`${event.tableLabel ?? 'Sipariş'} siparişini onayla`}
             style={{
-              position: 'absolute', right: 0, top: 0, height: 30, padding: '0 10px',
+              position: 'absolute', right: 0, top: 0, height: 44, padding: '0 10px',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
               border: '1px solid var(--positive)', borderRadius: 7, background: 'var(--positive-bg)', color: 'var(--positive)',
               fontSize: 11.5, fontWeight: 700, cursor: isPending ? 'wait' : 'pointer',
@@ -174,7 +180,7 @@ function PanoActivityFeedRow({
         </div>
       ) : (
         <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)', flexShrink: 0 }}>
-          {relativeTime(event.createdAt)}
+          {relativeTime(event.createdAt, now)}
         </span>
       )}
     </div>

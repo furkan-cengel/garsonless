@@ -9,7 +9,6 @@ import {
 
 function settlementRow(overrides: Partial<StaffSettlementRow>): StaffSettlementRow {
   return {
-    settledBy: 'user-1',
     label: 'Personel',
     role: 'member',
     sections: ['orders'],
@@ -64,8 +63,8 @@ test('monthly cancellation trend compaction keeps totals while producing four re
 test('staff method totals exclude the automatic payment provider row', () => {
   const rows = [
     settlementRow({ cash: 120, pos: 80 }),
-    settlementRow({ settledBy: 'owner-1', role: 'owner', cash: 30, pos: 70 }),
-    settlementRow({ settledBy: null, role: 'system', cash: 900, pos: 900 }),
+    settlementRow({ label: 'Sahip', role: 'owner', cash: 30, pos: 70 }),
+    settlementRow({ label: 'İyzico (otomatik)', role: 'system', cash: 900, pos: 900 }),
   ]
 
   assert.equal(sumStaffMethod(rows, 'cash'), 150)

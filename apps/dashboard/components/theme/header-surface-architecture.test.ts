@@ -58,7 +58,7 @@ test('header and drawer service controls open the shared request sheet', () => {
 
 test('drawer focus is claimed only when opening, not after editor field updates', () => {
   assert.match(drawerSource, /const onCloseRef = useRef\(onClose\)/)
-  assert.match(drawerSource, /if \(event\.key === 'Escape'\) onCloseRef\.current\(\)/)
+  assert.match(drawerSource, /if \(event\.key === 'Escape'\) \{[\s\S]*?onCloseRef\.current\(\)/)
   assert.match(drawerSource, /\}, \[open\]\)/)
   assert.doesNotMatch(drawerSource, /\}, \[onClose, open\]\)/)
 })

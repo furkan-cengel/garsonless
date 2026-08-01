@@ -14,6 +14,7 @@ import {
   normalizeMenuNumericText,
   toggleAllergenDeclaration,
 } from '@garsonless/domain/menu'
+import { AllergenIcon } from '@garsonless/ui'
 
 /* ============================================================
    Shared nutrition / allergen / dietary editor — used by the
@@ -113,7 +114,7 @@ export function appendNutritionToFormData(fd: FormData, s: NutritionState): void
   fd.set('food_info_reviewed', String(s.reviewed))
 }
 
-export function nutritionComplete(s: NutritionState): boolean {
+function nutritionComplete(s: NutritionState): boolean {
   return s.ingredients.some((i) => i.name.trim()) && s.energyKcal.trim() !== '' && s.reviewed
 }
 
@@ -123,28 +124,6 @@ export function applyNutritionPatch(
 ): NutritionState {
   return applyReviewInvalidatingPatch(current, patch)
 }
-
-/* ── allergen glyphs (mapped to the EU codes) ──────────────────────────── */
-const G = (d: React.ReactNode) => (
-  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">{d}</svg>
-)
-const ALLERGEN_GLYPH: Partial<Record<AllergenCode, React.ReactElement>> = {
-  gluten: G(<path d="M12 3v18M12 7c-2-1.5-4-1-4-1s.5 2.5 2.5 3.5M12 7c2-1.5 4-1 4-1s-.5 2.5-2.5 3.5M12 12c-2-1.5-4-1-4-1s.5 2.5 2.5 3.5M12 12c2-1.5 4-1 4-1s-.5 2.5-2.5 3.5" />),
-  milk: G(<path d="M8 3h8l-1 4v12a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V7L8 3ZM8 9h8" />),
-  eggs: G(<ellipse cx="12" cy="13" rx="6" ry="8" />),
-  tree_nuts: G(<path d="M12 4c4 0 7 3 7 8s-3 8-7 8-7-3-7-8 3-8 7-8ZM9 9c2 2 4 2 6 0M9 14c2 2 4 2 6 0" />),
-  peanuts: G(<path d="M12 3a4 4 0 0 1 0 8 4 4 0 0 0 0 8 4 4 0 0 1 0-8 4 4 0 0 0 0-8Z" />),
-  soy: G(<path d="M5 19c8 1 14-5 14-14C11 4 5 11 5 19ZM9 15c2-3 4-5 7-6" />),
-  fish: G(<path d="M3 12c4-5 11-6 16-3-2 2-2 4 0 6-5 3-12 2-16-3ZM6 12h.01" />),
-  crustaceans: G(<path d="M12 7v10M9 9c-3-1-5-3-5-5M15 9c3-1 5-3 5-5M8 13c-3 0-5 1-6 3M16 13c3 0 5 1 6 3M12 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />),
-  sesame: G(<><ellipse cx="9" cy="10" rx="2" ry="3" /><ellipse cx="15" cy="14" rx="2" ry="3" /></>),
-  celery: G(<path d="M12 21V8M12 8c-1-3-3-4-5-4 0 3 2 5 5 5M12 8c1-3 3-4 5-4 0 3-2 5-5 5" />),
-  mustard: G(<path d="M12 3c-3 4-5 7-5 11a5 5 0 0 0 10 0c0-4-2-7-5-11Z" />),
-  sulphites: G(<path d="M8 3h8v5a4 4 0 0 1-8 0V3ZM12 12v6M9 21h6" />),
-  molluscs: G(<path d="M12 20c5 0 8-4 8-8 0-3-2-5-4-5-1.5 0-2.5 1-4 1s-2.5-1-4-1c-2 0-4 2-4 5 0 4 3 8 8 8ZM12 7v13" />),
-  lupin: G(<><circle cx="12" cy="8" r="3" /><circle cx="9" cy="14" r="3" /><circle cx="15" cy="14" r="3" /></>),
-}
-const AllergenGlyph = ({ code }: { code: AllergenCode }) => ALLERGEN_GLYPH[code] ?? G(<circle cx="12" cy="12" r="7" />)
 
 const icDrag = <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.4" /><circle cx="15" cy="6" r="1.4" /><circle cx="9" cy="12" r="1.4" /><circle cx="15" cy="12" r="1.4" /><circle cx="9" cy="18" r="1.4" /><circle cx="15" cy="18" r="1.4" /></svg>
 const icX = <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
@@ -189,7 +168,7 @@ function AllergenChip({ code, on, variant, onClick }: { code: AllergenCode; on: 
       border: on ? (contains ? '1px solid var(--warning)' : '1px dashed var(--warning)') : '1px solid var(--border)',
       transition: 'all .12s ease',
     }}>
-      <span style={{ display: 'flex', opacity: on ? 1 : 0.7 }}><AllergenGlyph code={code} /></span>
+      <span style={{ display: 'flex', opacity: on ? 1 : 0.7 }}><AllergenIcon code={code} size={14} decorative /></span>
       {ALLERGEN_LABELS[code]}
     </button>
   )

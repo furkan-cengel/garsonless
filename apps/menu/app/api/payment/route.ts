@@ -90,7 +90,7 @@ export async function POST(
       { restaurantId, orderId, reservationId: prepared.value.reservationId },
       checkoutPort,
     )
-    if (!released.ok) console.warn(JSON.stringify({ event: 'payment.checkout.release_failed', orderId, error: released.error }))
+    if (!released.ok) console.warn(JSON.stringify({ event: 'payment.checkout.release_failed' }))
   }
   const checkoutAddress = buildCheckoutAddresses(
     prepared.value.restaurantSettings,
@@ -160,9 +160,11 @@ export async function POST(
     }
 
     return NextResponse.json({ success: true, data: result })
-  } catch (err) {
+  } catch {
     await releaseReservation()
-    const msg = err instanceof Error ? err.message : 'Payment initialization failed'
-    return NextResponse.json({ success: false, error: msg }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: 'Ödeme sağlayıcısına güvenli biçimde ulaşılamadı. Lütfen tekrar deneyin.' },
+      { status: 503 },
+    )
   }
 }

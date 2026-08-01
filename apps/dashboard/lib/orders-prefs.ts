@@ -4,7 +4,7 @@
 //   as "Geciken" on the Orders board (card tag + KPI). Stage-based since P2
 //   (sent_to_kitchen_at, falling back to created_at for pre-migration orders).
 
-export const DEFAULT_LATE_THRESHOLD_MIN = 20
+const DEFAULT_LATE_THRESHOLD_MIN = 20
 export const LATE_THRESHOLD_MIN_MIN = 5
 export const LATE_THRESHOLD_MIN_MAX = 120
 

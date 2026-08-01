@@ -1,0 +1,84 @@
+'use client'
+
+import { useMemo } from 'react'
+import { itemMatchesDietaryFilters } from '@garsonless/ui'
+import type { CartItem, DietaryFilter, MenuCategory, MenuItem } from '@garsonless/ui'
+
+export function useMenuCatalog({
+  items,
+  categories,
+  dietaryFilters,
+  cartItems,
+}: {
+  items: MenuItem[]
+  categories: MenuCategory[]
+  dietaryFilters: DietaryFilter[]
+  cartItems: CartItem[]
+}) {
+  return useMemo(() => {
+    const filteredItems = dietaryFilters.length === 0
+      ? items
+      : items.filter((item) => itemMatchesDietaryFilters(item, dietaryFilters))
+    const visibleIds = new Set(filteredItems.map((item) => item.category_id))
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const category of categories) {
+        if (!visibleIds.has(category.id) || !category.parent_id || visibleIds.has(category.parent_id)) continue
+        visibleIds.add(category.parent_id)
+        changed = true
+      }
+    }
+    const visibleCategories = categories.filter((category) => visibleIds.has(category.id))
+    const itemsByCategory = Object.fromEntries(
+      visibleCategories.map((category) => [category.id, [] as MenuItem[]]),
+    ) as Record<string, MenuItem[]>
+    for (const item of filteredItems) itemsByCategory[item.category_id]?.push(item)
+
+    const childrenByParent = new Map<string, string[]>()
+    for (const category of visibleCategories) {
+      if (!category.parent_id) continue
+      childrenByParent.set(category.parent_id, [
+        ...(childrenByParent.get(category.parent_id) ?? []),
+        category.id,
+      ])
+    }
+    const descendants = (categoryId: string): string[] => [
+      categoryId,
+      ...(childrenByParent.get(categoryId) ?? []).flatMap(descendants),
+    ]
+    const categoryMeta = visibleCategories.reduce<Record<string, { imageUrl: string | null; itemCount: number }>>((result, category) => {
+      const categoryItems = descendants(category.id).flatMap((id) => itemsByCategory[id] ?? [])
+      result[category.id] = {
+        imageUrl: category.image_url ?? categoryItems.find((item) => item.images.length > 0)?.images[0] ?? null,
+        itemCount: categoryItems.length,
+      }
+      return result
+    }, {})
+    const firstCardItemId = visibleCategories
+      .flatMap((category) => itemsByCategory[category.id] ?? [])
+      .find((item) => item.images.length > 0)?.id ?? null
+    const cartQuantityByItemId = new Map<string, number>()
+    for (const cartItem of cartItems) {
+      if (cartItem.combo || cartItem.promotion) continue
+      cartQuantityByItemId.set(
+        cartItem.itemId,
+        (cartQuantityByItemId.get(cartItem.itemId) ?? 0) + cartItem.quantity,
+      )
+    }
+    const cartSummary = cartItems.reduce((summary, item) => ({
+      count: summary.count + item.quantity,
+      subtotal: summary.subtotal + (item.price + item.modifiersPriceDelta) * item.quantity,
+    }), { count: 0, subtotal: 0 })
+
+    return {
+      filteredItems,
+      visibleCategories,
+      itemsByCategory,
+      categoryMeta,
+      firstCardItemId,
+      cartQuantityByItemId,
+      cartSummary,
+    }
+  }, [cartItems, categories, dietaryFilters, items])
+}

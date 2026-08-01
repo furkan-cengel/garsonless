@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useId, useRef, useState } from 'react'
 import { AppIconNodes } from '@garsonless/ui/icons'
 import { useShell } from '../../lib/shell-context'
 import type { QRConfig, SaveState } from './tables-builder-types'
@@ -106,10 +106,11 @@ function PresetChip({ preset, active, onClick }: { preset: typeof PRESETS[number
 }
 
 /* ─── TablesTopBar ──────────────────────────────────────────── */
-export function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onRedo, canUndo, canRedo, onPreview }: {
+export function TablesTopBar({ qr, setQR, restaurantName, sectionTitle, saveState, onUndo, onRedo, canUndo, canRedo, onPreview }: {
   qr: QRConfig
   setQR: (q: QRConfig) => void
   restaurantName: string
+  sectionTitle: string
   saveState: SaveState
   onUndo: () => void
   onRedo: () => void
@@ -119,6 +120,9 @@ export function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onR
 }) {
   const { openNotifications, notificationCount } = useShell()
   const [morePresets, setMorePresets] = useState(false)
+  const presetTriggerRef = useRef<HTMLButtonElement>(null)
+  const presetMenuRef = useRef<HTMLDivElement>(null)
+  const presetMenuId = useId()
   const applyPreset = (p: typeof PRESETS[number]) => setQR({
     ...qr,
     fg: p.fg, bg: p.bg,
@@ -127,10 +131,53 @@ export function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onR
     fg2: ('gradTo' in p ? p.gradTo : qr.fg2) as string,
     _presetId: p.id,
   })
-  const status = saveState === 'saving'
+  useEffect(() => {
+    if (!morePresets) return
+    const menu = presetMenuRef.current
+    const items = () => Array.from(menu?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? [])
+    const frame = window.requestAnimationFrame(() => items()[0]?.focus())
+    const close = (restoreFocus = false) => {
+      setMorePresets(false)
+      if (restoreFocus) window.requestAnimationFrame(() => presetTriggerRef.current?.focus())
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !menu?.contains(event.target) && !presetTriggerRef.current?.contains(event.target)) close()
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      close(true)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [morePresets])
+  const onPresetMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(presetMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? [])
+    const index = items.indexOf(document.activeElement as HTMLButtonElement)
+    let next: number | null = null
+    if (event.key === 'ArrowDown') next = index < 0 ? 0 : (index + 1) % items.length
+    else if (event.key === 'ArrowUp') next = index < 0 ? items.length - 1 : (index - 1 + items.length) % items.length
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = items.length - 1
+    if (next === null || !items[next]) return
+    event.preventDefault()
+    items[next]?.focus()
+  }
+  const status = saveState === 'validating'
+    ? { label: 'Okunabilirlik doğrulanıyor', color: 'var(--warning)' }
+    : saveState === 'blocked'
+      ? { label: 'Güvensiz stil kaydedilmedi', color: 'var(--critical)' }
+      : saveState === 'saving'
     ? { label: 'Stil kaydediliyor', color: 'var(--warning)' }
     : saveState === 'error'
       ? { label: 'Stil kaydedilemedi', color: 'var(--critical)' }
+      : saveState === 'conflict'
+        ? { label: 'Sunucu sürümü yüklendi', color: 'var(--warning)' }
       : { label: 'Stil kaydedildi', color: 'var(--positive)' }
   return (
     <div className="tb-tables__topbar" style={{
@@ -152,7 +199,7 @@ export function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onR
         <span style={{ color: 'var(--text-4)' }}>/</span>
         <span style={{ fontSize: 12, color: 'var(--text-2)' }}>Mağaza</span>
         <span style={{ color: 'var(--text-4)' }}>/</span>
-        <span style={{ fontSize: 12, fontWeight: 500 }}>Masalar & QR</span>
+        <span style={{ fontSize: 12, fontWeight: 500 }}>{sectionTitle}</span>
       </div>
 
       <div className="tb-tables__topbar-presets" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -162,8 +209,13 @@ export function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onR
         ))}
         <div style={{ position: 'relative' }}>
           <button
+            ref={presetTriggerRef}
+            type="button"
             className="tb-hover"
             aria-label="Tüm stiller"
+            aria-haspopup="menu"
+            aria-expanded={morePresets}
+            aria-controls={morePresets ? presetMenuId : undefined}
             title="Tüm stiller"
             onClick={() => setMorePresets(v => !v)}
             style={{
@@ -176,9 +228,7 @@ export function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onR
             {React.cloneElement(QRI.more as React.ReactElement<{ size?: number }>, { size: 14 })}
           </button>
           {morePresets && (
-            <>
-              <div onClick={() => setMorePresets(false)} style={{ position: 'fixed', inset: 0, zIndex: 20 }} />
-              <div style={{
+              <div ref={presetMenuRef} id={presetMenuId} role="menu" aria-label="Tüm hazır QR stilleri" onKeyDown={onPresetMenuKeyDown} style={{
                 position: 'absolute', top: '110%', left: '50%', transform: 'translateX(-50%)', zIndex: 21,
                 minWidth: 190, padding: 6, background: 'var(--surface)',
                 border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-pop)',
@@ -189,8 +239,12 @@ export function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onR
                   return (
                     <button
                       key={p.id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={active}
+                      tabIndex={-1}
                       className="tb-hover"
-                      onClick={() => { applyPreset(p); setMorePresets(false) }}
+                      onClick={() => { applyPreset(p); setMorePresets(false); window.requestAnimationFrame(() => presetTriggerRef.current?.focus()) }}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 9, width: '100%',
                         padding: '6px 8px', border: 'none', borderRadius: 6, cursor: 'pointer', textAlign: 'left',
@@ -206,7 +260,6 @@ export function TablesTopBar({ qr, setQR, restaurantName, saveState, onUndo, onR
                   )
                 })}
               </div>
-            </>
           )}
         </div>
       </div>
@@ -310,13 +363,20 @@ export function TablesStatusBar({ saveState, saveError, onRetry, tableCount, act
   saveError: string | null
   onRetry: () => void
   tableCount: number
-  activeCount: number
+  activeCount?: number
 }) {
-  const statusText = saveState === 'saving'
+  const statusText = saveState === 'validating'
+    ? 'Okunabilirlik doğrulanıyor'
+    : saveState === 'blocked'
+      ? 'Güvensiz stil kaydedilmedi'
+      : saveState === 'saving'
     ? 'Otomatik kayıt çalışıyor'
     : saveState === 'error'
       ? 'Otomatik kayıt başarısız'
+      : saveState === 'conflict'
+        ? 'Kayıt çakışması çözüldü'
       : 'Otomatik kayıt açık'
+  const attention = saveState === 'blocked' || saveState === 'error' || saveState === 'conflict'
   return (
     <div className="tb-tables__statusbar" style={{
       height: 'var(--statusbar)', flexShrink: 0,
@@ -327,31 +387,30 @@ export function TablesStatusBar({ saveState, saveError, onRetry, tableCount, act
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <span style={{
           display: 'inline-flex', alignItems: 'center', gap: 5,
-          color: saveState === 'error' ? 'var(--critical)' : 'var(--text-3)',
+          color: saveState === 'blocked' || saveState === 'error' ? 'var(--critical)' : saveState === 'conflict' ? 'var(--warning)' : 'var(--text-3)',
           fontSize: 11.5,
         }}>
           <span style={{
             width: 6, height: 6, borderRadius: 999,
-            background: saveState === 'error' ? 'var(--critical)' : saveState === 'saving' ? 'var(--warning)' : 'var(--positive)',
+            background: attention ? (saveState === 'blocked' || saveState === 'error' ? 'var(--critical)' : 'var(--warning)') : saveState === 'validating' || saveState === 'saving' ? 'var(--warning)' : 'var(--positive)',
           }} />
           {statusText}
         </span>
-        {saveState === 'error' && (
+        {attention && (
           <>
-            <span title={saveError ?? undefined} style={{ color: 'var(--critical)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {saveError ?? 'Değişiklikler sunucuya yazılamadı.'}
+            <span role={saveState === 'blocked' || saveState === 'error' ? 'alert' : 'status'} aria-live="polite" title={saveError ?? undefined} style={{ color: saveState === 'blocked' || saveState === 'error' ? 'var(--critical)' : 'var(--warning)', maxWidth: 420, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {saveError ?? (saveState === 'conflict' ? 'Sunucudaki güncel sürüm yüklendi.' : saveState === 'blocked' ? 'Okunamayan stil kaydedilmedi.' : 'Değişiklikler sunucuya yazılamadı.')}
             </span>
-            <button type="button" className="tb-hover" onClick={onRetry} style={{
+            {saveState === 'error' && <button type="button" className="tb-hover" onClick={onRetry} style={{
               border: '1px solid var(--critical)', borderRadius: 5, background: 'var(--surface)',
-              color: 'var(--critical)', cursor: 'pointer', padding: '2px 8px', fontSize: 11, fontWeight: 700,
-            }}>Tekrar dene</button>
+              color: 'var(--critical)', cursor: 'pointer', minHeight: 44, padding: '0 8px', fontSize: 11, fontWeight: 700,
+            }}>Tekrar dene</button>}
           </>
         )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, ...S.mono }}>
         <span>{tableCount} masa</span>
-        <span style={{ color: 'var(--text-4)' }}>·</span>
-        <span>{activeCount} aktif</span>
+        {typeof activeCount === 'number' && <><span style={{ color: 'var(--text-4)' }}>·</span><span>{activeCount} aktif</span></>}
         <span style={{ color: 'var(--text-4)' }}>·</span>
         <span>tr-TR</span>
       </div>

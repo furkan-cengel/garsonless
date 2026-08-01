@@ -7,6 +7,7 @@ import { I, S, Tag, IconButton, btnGhost } from '../../lib/ui'
 import { formatCurrency } from '../../lib/utils'
 import { paymentMethodBadge } from '../../lib/payment-method'
 import { InlineSpinner } from '@garsonless/ui'
+import { AccessibleDialog } from '../tables/AccessibleDialog'
 
 type Tab = 'all' | 'done' | 'cancelled'
 
@@ -32,13 +33,6 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
   const [tab, setTab] = useState<Tab>('all')
   const [q, setQ] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    searchRef.current?.focus()
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
 
   useEffect(() => {
     let cancelled = false
@@ -78,24 +72,34 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
   ]
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(17,17,19,.42)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div role="dialog" aria-modal="true" aria-labelledby="order-history-title" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 620, height: '84vh', background: 'var(--surface)', borderRadius: 16, boxShadow: 'var(--shadow-pop)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <AccessibleDialog labelledBy="order-history-title" onClose={onClose} className="order-history-overlay" style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(17,17,19,.42)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <style>{`
+        .order-history-dialog button, .order-history-dialog input { min-height: 44px; }
+        @media (max-width: 600px) {
+          .order-history-overlay { padding: 0 !important; }
+          .order-history-dialog { height: 100dvh !important; max-width: none !important; border-radius: 0 !important; }
+          .order-history-toolbar { align-items: stretch !important; flex-direction: column; }
+          .order-history-tabs { width: 100%; }
+          .order-history-tabs > button { flex: 1; padding-inline: 6px !important; }
+        }
+      `}</style>
+      <div className="order-history-dialog" aria-busy={loading} style={{ width: '100%', maxWidth: 620, height: '84vh', background: 'var(--surface)', borderRadius: 16, boxShadow: 'var(--shadow-pop)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ padding: '15px 20px 13px', borderBottom: '1px solid var(--divider)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ flex: 1 }}>
             <div id="order-history-title" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-.01em' }}>Geçmiş siparişler</div>
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>Son 30 günün tamamlanan ve iptal edilen siparişleri</div>
           </div>
-          <IconButton icon={<I.close size={15} />} ariaLabel="Kapat" onClick={onClose} />
+          <IconButton icon={<I.close size={15} />} ariaLabel="Geçmiş siparişleri kapat" onClick={onClose} />
         </div>
 
         {/* Search + tabs */}
-        <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--divider)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, height: 32, padding: '0 11px', background: 'var(--surface-3)', borderRadius: 8, color: 'var(--text-3)' }}>
+        <div className="order-history-toolbar" style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--divider)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minHeight: 44, padding: '0 11px', background: 'var(--surface-3)', borderRadius: 8, color: 'var(--text-3)' }}>
             <I.search size={13} />
-            <input ref={searchRef} aria-label="Geçmiş siparişlerde ara" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sipariş #, masa..." style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: 12.5, color: 'var(--text)' }} />
+            <input ref={searchRef} data-modal-initial-focus aria-label="Geçmiş siparişlerde ara" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sipariş #, masa..." style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: 12.5, color: 'var(--text)' }} />
           </div>
-          <div style={{ display: 'flex', gap: 4, background: 'var(--surface-3)', borderRadius: 8, padding: 3 }}>
+          <div className="order-history-tabs" role="group" aria-label="Geçmiş sipariş durumu" style={{ display: 'flex', gap: 4, background: 'var(--surface-3)', borderRadius: 8, padding: 3 }}>
             {tabs.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)} style={{
                 padding: '5px 11px', borderRadius: 6, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', border: 'none',
@@ -129,7 +133,7 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
           ))}
         </div>
       </div>
-    </div>
+    </AccessibleDialog>
   )
 }
 
