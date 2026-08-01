@@ -21,15 +21,15 @@ function boundedInteger(value: string | undefined, fallback: number, min: number
   return Math.min(max, Math.max(min, parsed))
 }
 
-export function resolveComboCount(value: string | undefined) {
+function resolveComboCount(value: string | undefined) {
   return boundedInteger(value, 2, 1, MAX_COMBOS)
 }
 
-export function resolveComboItemCount(value: string | undefined) {
+function resolveComboItemCount(value: string | undefined) {
   return boundedInteger(value, 2, MIN_COMBO_ITEMS, MAX_COMBO_ITEMS)
 }
 
-export function itemNeedsConfiguration(item: MenuItem) {
+function itemNeedsConfiguration(item: MenuItem) {
   return item.modifier_groups.length > 0 || item.ingredients.some((ingredient) => ingredient.removable)
 }
 

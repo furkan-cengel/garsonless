@@ -1,5 +1,10 @@
+import { createHash } from 'node:crypto'
 import { createServiceClient } from './client'
-import { getSmsProvider } from './sms'
+import {
+  getSmsDeliveryAvailability,
+  getSmsProvider,
+  SmsDeliveryUnavailableError,
+} from './sms'
 import { normalizePhone } from './phone'
 import {
   BUILTIN_CUSTOMER_SEGMENTS,
@@ -29,7 +34,7 @@ type LooseSupabase = {
   from: (table: string) => any
   rpc: (fn: string, args?: Record<string, unknown>) => Promise<{
     data: any
-    error: { message: string } | null
+    error: { code?: string; message: string } | null
   }>
 }
 
@@ -42,6 +47,13 @@ type MarketingContact = CandidateCustomer & {
   phone: string
 }
 
+type MarketingContactResolution = {
+  contacts: MarketingContact[]
+  skippedNoMarketingConsent: number
+  skippedInvalidPhone: number
+  skippedDuplicatePhone: number
+}
+
 type ResolvedAudience = {
   normalized: Required<Pick<CampaignAudienceInput, 'segmentKind'>> & {
     builtinSegment: CustomerSegment | null
@@ -51,6 +63,9 @@ type ResolvedAudience = {
   segmentLabel: string
   candidates: CandidateCustomer[]
   contacts: MarketingContact[]
+  skippedNoMarketingConsent: number
+  skippedInvalidPhone: number
+  skippedDuplicatePhone: number
 }
 
 type CampaignRow = {
@@ -156,8 +171,13 @@ async function resolveCandidateCustomers(
 async function fetchMarketingContacts(
   restaurantId: string,
   candidates: CandidateCustomer[],
-): Promise<MarketingContact[]> {
-  if (candidates.length === 0) return []
+): Promise<MarketingContactResolution> {
+  if (candidates.length === 0) return {
+    contacts: [],
+    skippedNoMarketingConsent: 0,
+    skippedInvalidPhone: 0,
+    skippedDuplicatePhone: 0,
+  }
   const db = serviceDb()
   const ids = candidates.map((c) => c.customerId)
   const consented = new Set<string>()
@@ -175,7 +195,12 @@ async function fetchMarketingContacts(
     for (const row of (data ?? []) as Array<{ customer_id: string }>) consented.add(row.customer_id)
   }
 
-  if (consented.size === 0) return []
+  if (consented.size === 0) return {
+    contacts: [],
+    skippedNoMarketingConsent: candidates.length,
+    skippedInvalidPhone: 0,
+    skippedDuplicatePhone: 0,
+  }
   const rawById = new Map<string, { phone: string; name: string | null }>()
   for (const part of chunk(Array.from(consented), 500)) {
     const { data, error } = await db
@@ -188,13 +213,38 @@ async function fetchMarketingContacts(
     }
   }
 
-  return candidates.flatMap((candidate) => {
-    if (!consented.has(candidate.customerId)) return []
+  return classifyCampaignMarketingContacts(candidates, consented, rawById)
+}
+
+export function classifyCampaignMarketingContacts(
+  candidates: CandidateCustomer[],
+  consented: ReadonlySet<string>,
+  rawById: ReadonlyMap<string, { phone: string | null; name: string | null }>,
+): MarketingContactResolution {
+  const contacts: MarketingContact[] = []
+  const phones = new Set<string>()
+  let skippedNoMarketingConsent = 0
+  let skippedInvalidPhone = 0
+  let skippedDuplicatePhone = 0
+  for (const candidate of candidates) {
+    if (!consented.has(candidate.customerId)) {
+      skippedNoMarketingConsent += 1
+      continue
+    }
     const raw = rawById.get(candidate.customerId)
     const phone = normalizePhone(raw?.phone)
-    if (!raw || !phone) return []
-    return [{ customerId: candidate.customerId, name: raw.name ?? candidate.name, phone }]
-  })
+    if (!raw || !phone) {
+      skippedInvalidPhone += 1
+      continue
+    }
+    if (phones.has(phone)) {
+      skippedDuplicatePhone += 1
+      continue
+    }
+    phones.add(phone)
+    contacts.push({ customerId: candidate.customerId, name: raw.name ?? candidate.name, phone })
+  }
+  return { contacts, skippedNoMarketingConsent, skippedInvalidPhone, skippedDuplicatePhone }
 }
 
 async function resolveCampaignAudience(
@@ -202,15 +252,17 @@ async function resolveCampaignAudience(
   input: CampaignAudienceInput,
 ): Promise<ResolvedAudience> {
   const candidateResult = await resolveCandidateCustomers(restaurantId, input)
-  const contacts = await fetchMarketingContacts(restaurantId, candidateResult.candidates)
-  return { ...candidateResult, contacts }
+  const contactResult = await fetchMarketingContacts(restaurantId, candidateResult.candidates)
+  return { ...candidateResult, ...contactResult }
 }
 
 function previewFromAudience(audience: ResolvedAudience): CampaignAudiencePreview {
   return {
     totalCandidates: audience.candidates.length,
     eligibleRecipients: audience.contacts.length,
-    skippedNoMarketingConsent: Math.max(0, audience.candidates.length - audience.contacts.length),
+    skippedNoMarketingConsent: audience.skippedNoMarketingConsent,
+    skippedInvalidPhone: audience.skippedInvalidPhone,
+    skippedDuplicatePhone: audience.skippedDuplicatePhone,
     segmentLabel: audience.segmentLabel,
   }
 }
@@ -258,16 +310,17 @@ export async function sendCampaignTest(params: {
   const message = sanitizeCampaignMessage(params.message)
   if (!phone) return { ok: false, error: 'Telefon numarası geçersiz' }
   if (message.length < 5) return { ok: false, error: 'Mesaj çok kısa' }
+  if (!getSmsDeliveryAvailability().enabled) return { ok: false, error: 'SMS gönderimi henüz etkin değil' }
 
   const db = serviceDb()
-  const provider = getSmsProvider()
   try {
+    const provider = getSmsProvider()
     const sent = await provider.send(phone, message, { purpose: 'test', restaurantId: params.restaurantId })
     await db.from('message_events').insert({
       restaurant_id: params.restaurantId,
       channel: 'sms',
       event_type: 'test_sent',
-      phone,
+      phone: null,
       provider: sent.provider,
       provider_message_id: sent.messageId ?? null,
       created_by: params.createdBy,
@@ -275,23 +328,52 @@ export async function sendCampaignTest(params: {
     })
     return { ok: true, ...(sent.messageId ? { messageId: sent.messageId } : {}) }
   } catch (err) {
-    const error = err instanceof Error ? err.message : 'Test SMS gönderilemedi'
+    const error = smsFailureCode(err)
     await db.from('message_events').insert({
       restaurant_id: params.restaurantId,
       channel: 'sms',
       event_type: 'test_failed',
-      phone,
-      provider: provider.name,
+      phone: null,
+      provider: 'unavailable',
       error,
       created_by: params.createdBy,
       metadata: { purpose: 'test' } satisfies Json,
     })
-    return { ok: false, error }
+    return { ok: false, error: err instanceof SmsDeliveryUnavailableError ? err.message : 'Test SMS gönderilemedi' }
   }
+}
+
+function smsFailureCode(error: unknown): string {
+  if (error instanceof SmsDeliveryUnavailableError) return 'configuration_unavailable'
+  return 'provider_failure'
+}
+
+function campaignRequestFingerprint(input: {
+  restaurantId: string
+  name: string
+  message: string
+  audience: ResolvedAudience['normalized']
+}): string {
+  return createHash('sha256').update(JSON.stringify({
+    restaurantId: input.restaurantId,
+    name: input.name,
+    message: input.message,
+    segmentKind: input.audience.segmentKind,
+    builtinSegment: input.audience.builtinSegment,
+    customSegmentId: input.audience.customSegmentId,
+  })).digest('hex')
+}
+
+function safeQueueError(error: { code?: string; message?: string } | null): string {
+  if (error?.code === 'GL001') return 'İstek kimliği farklı bir kampanya için kullanılmış'
+  if (error?.code === '42501') return 'Kampanya alıcıları işletmeyle eşleşmiyor'
+  if (error?.code === '22023') return 'Gönderim anında uygun kampanya alıcısı kalmadı'
+  return 'Kampanya kuyruğa alınamadı'
 }
 
 export async function sendCampaign(params: {
   restaurantId: string
+  requestId: string
   name: string
   message: string
   audience: CampaignAudienceInput
@@ -300,6 +382,7 @@ export async function sendCampaign(params: {
   const name = sanitizeCampaignName(params.name)
   const message = sanitizeCampaignMessage(params.message)
   if (message.length < 5) return { ok: false, error: 'Mesaj çok kısa' }
+  if (!getSmsDeliveryAvailability().enabled) return { ok: false, error: 'SMS gönderimi henüz etkin değil' }
 
   const audience = await resolveCampaignAudience(params.restaurantId, params.audience)
   const preview = previewFromAudience(audience)
@@ -308,7 +391,14 @@ export async function sendCampaign(params: {
   }
 
   const db = serviceDb()
-  const { data: campaignId, error: queueError } = await db.rpc('queue_campaign_delivery_atomic', {
+  const { data: queueRows, error: queueError } = await db.rpc('queue_campaign_delivery_atomic', {
+    p_request_id: params.requestId,
+    p_request_fingerprint: campaignRequestFingerprint({
+      restaurantId: params.restaurantId,
+      name,
+      message,
+      audience: audience.normalized,
+    }),
     p_restaurant_id: params.restaurantId,
     p_name: name,
     p_message_body: message,
@@ -317,17 +407,32 @@ export async function sendCampaign(params: {
     p_custom_segment_id: audience.normalized.customSegmentId,
     p_segment_definition: audience.definition as unknown as Json,
     p_created_by: params.createdBy,
-    p_contacts: audience.contacts.map((contact) => ({ customerId: contact.customerId, phone: contact.phone })) as unknown as Json,
-    p_skipped_count: preview.skippedNoMarketingConsent,
+    p_contacts: audience.candidates.map((candidate) => ({ customerId: candidate.customerId })) as unknown as Json,
     p_segment_label: audience.segmentLabel,
   })
-  if (queueError || typeof campaignId !== 'string') {
-    return { ok: false, error: queueError?.message ?? 'Kampanya kuyruğa alınamadı', preview }
+  const queue = ((queueRows ?? []) as Array<{
+    campaign_id: string
+    replayed: boolean
+    recipient_count: number
+    skipped_consent_count: number
+    skipped_phone_count: number
+    skipped_duplicate_count: number
+  }>)[0]
+  if (queueError || !queue?.campaign_id) {
+    return { ok: false, error: safeQueueError(queueError), preview }
   }
 
-  const campaign = await getCampaignById(params.restaurantId, campaignId)
+  const campaign = await getCampaignById(params.restaurantId, queue.campaign_id)
   if (!campaign) return { ok: false, error: 'Kampanya oluşturulamadı', preview }
-  return { ok: true, campaign, preview }
+  const authoritativePreview: CampaignAudiencePreview = {
+    totalCandidates: queue.recipient_count + queue.skipped_consent_count + queue.skipped_phone_count + queue.skipped_duplicate_count,
+    eligibleRecipients: queue.recipient_count,
+    skippedNoMarketingConsent: queue.skipped_consent_count,
+    skippedInvalidPhone: queue.skipped_phone_count,
+    skippedDuplicatePhone: queue.skipped_duplicate_count,
+    segmentLabel: preview.segmentLabel,
+  }
+  return { ok: true, campaign, preview: authoritativePreview, replayed: queue.replayed }
 }
 
 /** Durable campaign consumer. Every recipient is atomically claimed before
@@ -369,7 +474,7 @@ export async function deliverCampaign(input: {
       providerName = sent.provider
       providerMessageId = sent.messageId ?? null
     } catch (cause) {
-      deliveryError = cause instanceof Error ? cause.message : 'SMS gönderilemedi'
+      deliveryError = smsFailureCode(cause)
     }
 
     const { data: completed, error: completeError } = await db.rpc('complete_campaign_recipient', {

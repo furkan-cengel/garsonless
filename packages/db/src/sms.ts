@@ -19,23 +19,35 @@ export interface SmsProvider {
   send(phone: string, message: string, options?: SmsSendOptions): Promise<SmsSendResult>
 }
 
+export type SmsDeliveryReason = 'ready' | 'disabled' | 'provider_missing' | 'credentials_missing'
+
+export interface SmsDeliveryAvailability {
+  enabled: boolean
+  provider: 'netgsm' | 'twilio' | 'mock' | null
+  reason: SmsDeliveryReason
+}
+
+export class SmsDeliveryUnavailableError extends Error {
+  readonly code = 'SMS_DELIVERY_UNAVAILABLE'
+
+  constructor() {
+    super('SMS gönderimi henüz etkin değil')
+    this.name = 'SmsDeliveryUnavailableError'
+  }
+}
+
 function requireEnv(key: string): string {
   const value = process.env[key]
   if (!value) throw new Error(`Missing environment variable: ${key}`)
   return value
 }
 
-function truncateForLog(message: string): string {
-  return message.length > 160 ? `${message.slice(0, 157)}...` : message
-}
-
-/** Logs campaign/test SMS server-side in local development. */
+/** Hermetic fake provider. It never logs recipient PII or message content. */
 export class MockSmsProvider implements SmsProvider {
   readonly name = 'mock'
 
-  async send(phone: string, message: string, options: SmsSendOptions = {}): Promise<SmsSendResult> {
-    console.log(`[MockSmsProvider] ${options.purpose ?? 'sms'} to ${phone}: ${truncateForLog(message)}`)
-    return { provider: this.name, messageId: `mock_${Date.now()}` }
+  async send(_phone: string, _message: string, _options: SmsSendOptions = {}): Promise<SmsSendResult> {
+    return { provider: this.name, messageId: 'mock-delivery' }
   }
 }
 
@@ -104,61 +116,63 @@ function readNetgsmMessageId(value: unknown): string | undefined {
 }
 
 function resolveProviderName(): string {
-  return (process.env['SMS_PROVIDER'] ?? 'mock').toLowerCase()
+  return (process.env['SMS_PROVIDER'] ?? '').trim().toLowerCase()
 }
 
 function isProd(): boolean {
   return process.env.NODE_ENV === 'production'
 }
 
+function credentialKeys(provider: string): readonly string[] {
+  if (provider === 'netgsm') return ['NETGSM_USERCODE', 'NETGSM_PASSWORD', 'NETGSM_MSGHEADER']
+  if (provider === 'twilio') return ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM']
+  return []
+}
+
+export function getSmsDeliveryAvailability(): SmsDeliveryAvailability {
+  if (process.env['SMS_DELIVERY_ENABLED'] !== 'true') {
+    return { enabled: false, provider: null, reason: 'disabled' }
+  }
+
+  const which = resolveProviderName()
+  const mockAllowed = !isProd() && process.env['SMS_ALLOW_MOCK'] === 'true'
+  if (which !== 'netgsm' && which !== 'twilio' && !(which === 'mock' && mockAllowed)) {
+    return { enabled: false, provider: null, reason: 'provider_missing' }
+  }
+  if (credentialKeys(which).some((key) => !process.env[key])) {
+    return { enabled: false, provider: which, reason: 'credentials_missing' }
+  }
+  return { enabled: true, provider: which, reason: 'ready' }
+}
+
 /**
- * Fail-fast configuration guard (P1.1). The mock provider only console.logs —
- * if it were the resolved provider in production, campaign sends would silently
- * disappear. Provider adapters therefore fail closed rather than no-op.
+ * Fail-fast configuration guard (P1.1). The hermetic mock never performs a
+ * delivery, so production must reject it instead of accepting a false success.
+ * Provider adapters therefore fail closed rather than no-op.
  *
  * Checks:
- *  - In production, SMS_PROVIDER must not be mock/unset.
- *  - When a real provider is selected, its credentials must be present (so the
- *    misconfiguration surfaces at boot, not on the first customer's send).
+ * Delivery is an explicit two-key activation: SMS_DELIVERY_ENABLED=true plus
+ * a configured real provider. The default in every environment is disabled.
  */
 export function assertSmsConfig(): void {
+  if (process.env['SMS_DELIVERY_ENABLED'] !== 'true') return
   const which = resolveProviderName()
-
-  if (isProd() && (which === 'mock' || which === '' || !process.env['SMS_PROVIDER'])) {
-    throw new Error(
-      `SMS misconfiguration: SMS_PROVIDER=${process.env['SMS_PROVIDER'] ? `'${which}'` : '(unset)'} ` +
-        `resolves to the mock provider under NODE_ENV=production. Campaign delivery would ` +
-        `silently no-op. Set SMS_PROVIDER=netgsm (or twilio) with credentials.`,
-    )
+  const availability = getSmsDeliveryAvailability()
+  if (availability.reason === 'provider_missing') {
+    throw new Error('SMS misconfiguration: delivery is enabled but a real provider is not configured.')
   }
-
-  if (which === 'netgsm') {
-    for (const key of ['NETGSM_USERCODE', 'NETGSM_PASSWORD', 'NETGSM_MSGHEADER']) {
-      if (!process.env[key]) throw new Error(`SMS misconfiguration: SMS_PROVIDER=netgsm but ${key} is not set.`)
-    }
-  }
-
-  if (which === 'twilio') {
-    for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM']) {
-      if (!process.env[key]) throw new Error(`SMS misconfiguration: SMS_PROVIDER=twilio but ${key} is not set.`)
-    }
+  if (availability.reason === 'credentials_missing') {
+    const missing = credentialKeys(which).find((key) => !process.env[key])
+    throw new Error(`SMS misconfiguration: SMS_PROVIDER=${which} but ${missing ?? 'provider credentials'} is not set.`)
   }
 }
 
 let cached: SmsProvider | null = null
 
 export function getSmsProvider(): SmsProvider {
+  const availability = getSmsDeliveryAvailability()
+  if (!availability.enabled) throw new SmsDeliveryUnavailableError()
   const which = resolveProviderName()
-
-  // Defense-in-depth (runs BEFORE the cache): the mock only logs and must never
-  // be the resolved provider in production — mirrors the boot-time
-  // assertSmsConfig guard so no bypass path can silently drop campaigns.
-  if (isProd() && (which === 'mock' || which === '' || !process.env['SMS_PROVIDER'])) {
-    throw new Error(
-      `SMS misconfiguration: SMS_PROVIDER=${process.env['SMS_PROVIDER'] ? `'${which}'` : '(unset)'} ` +
-        `resolves to the mock provider under NODE_ENV=production.`,
-    )
-  }
 
   if (cached) return cached
   switch (which) {
@@ -169,8 +183,10 @@ export function getSmsProvider(): SmsProvider {
       cached = new NetgsmSmsProvider()
       break
     case 'mock':
-    default:
       cached = new MockSmsProvider()
+      break
+    default:
+      throw new SmsDeliveryUnavailableError()
   }
   return cached
 }

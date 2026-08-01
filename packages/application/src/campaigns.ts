@@ -26,6 +26,7 @@ export interface CampaignApplicationPort {
   }): Promise<Result<{ messageId?: string }>>
   send(input: {
     restaurantId: string
+    requestId: string
     name: string
     message: string
     audience: CampaignAudienceInput
@@ -89,6 +90,7 @@ export async function sendCustomerCampaign(
   context: DashboardActorContext,
   input: {
     restaurantId: string
+    requestId: string
     name: string
     message: string
     audience: CampaignAudienceInput
@@ -97,10 +99,14 @@ export async function sendCustomerCampaign(
 ): Promise<SendCampaignResult> {
   const access = requireCampaignAccess(context, input.restaurantId)
   if (!access.ok) return { ok: false, error: access.error }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.requestId)) {
+    return { ok: false, error: 'Geçersiz istek kimliği' }
+  }
   const message = sanitizeCampaignMessage(input.message)
   if (message.length < 5) return { ok: false, error: 'Mesaj çok kısa' }
   return port.send({
     restaurantId: input.restaurantId,
+    requestId: input.requestId,
     name: sanitizeCampaignName(input.name),
     message,
     audience: normalizeCampaignAudience(input.audience),

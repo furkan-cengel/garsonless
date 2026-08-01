@@ -1,7 +1,7 @@
 import type { ServiceRequestType } from '@garsonless/domain/tables'
 
-export type ServiceRequestFabPosition = 'left' | 'right'
-export type ServiceRequestFabSize = 'compact' | 'normal' | 'large'
+type ServiceRequestFabPosition = 'left' | 'right'
+type ServiceRequestFabSize = 'compact' | 'normal' | 'large'
 export type ServiceRequestIcon =
   | 'bell'
   | 'spray'
@@ -12,7 +12,7 @@ export type ServiceRequestIcon =
   | 'custom'
   | 'none'
 
-export interface ResolvedServiceRequestOption {
+interface ResolvedServiceRequestOption {
   type: ServiceRequestType
   label: string
   icon: ServiceRequestIcon

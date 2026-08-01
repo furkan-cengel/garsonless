@@ -1,18 +1,56 @@
+import type { CSSProperties } from 'react'
 import type { AllergenCode, MenuItem } from './types'
+import { AllergenIconList, sortAllergenCodes } from './AllergenIcons'
 
 export function getDefiniteAllergens(
   item: MenuItem,
   additional: Iterable<AllergenCode> = [],
 ): AllergenCode[] {
-  return [...new Set([
+  return sortAllergenCodes([
     ...item.contains_allergens,
     ...item.ingredients.flatMap((ingredient) => ingredient.allergen_codes),
     ...additional,
-  ])]
+  ])
 }
 
+export function ProductAllergenSummary({ item, maxVisible = 3, style }: {
+  item: MenuItem
+  maxVisible?: number
+  style?: CSSProperties
+}) {
+  return <AllergenSummary
+    definite={getDefiniteAllergens(item)}
+    hasCrossContact={item.may_contain_allergens.length > 0 || Boolean(item.cross_contact_note)}
+    maxVisible={maxVisible}
+    {...(style ? { style } : {})}
+  />
+}
+
+export function AllergenSummary({ definite, hasCrossContact, maxVisible = 3, style }: {
+  definite: Iterable<AllergenCode>
+  hasCrossContact: boolean
+  maxVisible?: number
+  style?: CSSProperties
+}) {
+  const definiteCodes = sortAllergenCodes(definite)
+  if (definiteCodes.length > 0) {
+    return <AllergenIconList codes={definiteCodes} maxVisible={maxVisible} size={15} {...(style ? { style } : {})} />
+  }
+  if (!hasCrossContact) return null
+  return <span
+    data-component="cross-contact-summary"
+    title="Olası çapraz temas bilgisi"
+    style={{display:'inline-flex',alignItems:'center',gap:5,alignSelf:'flex-start',padding:'4px 7px',borderRadius:7,border:'1px dashed rgba(71,85,105,.38)',background:'rgba(241,245,249,.72)',color:'var(--p-text-2)',fontSize:9.5,fontWeight:800,lineHeight:1.1,...style}}
+  >
+    <span aria-hidden="true" style={{fontSize:12,lineHeight:1}}>!</span>
+    Çapraz temas
+  </span>
+}
+
+export { AllergenIcon, AllergenIconList, sortAllergenCodes } from './AllergenIcons'
+
 export function hasAllergenInformation(item: MenuItem): boolean {
-  return getDefiniteAllergens(item).length > 0 || item.may_contain_allergens.length > 0
+  return getDefiniteAllergens(item).length > 0 || item.may_contain_allergens.length > 0 || Boolean(item.cross_contact_note)
 }
 
 export function DietaryBadges({

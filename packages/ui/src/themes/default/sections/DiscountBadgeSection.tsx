@@ -10,6 +10,7 @@ import {
 import { AppIcons } from '../../../icons'
 import { formatTRY } from '../../../menu/formatCurrency'
 import type { MenuItem, SectionPromotionContext } from '../../../menu/types'
+import { ProductAllergenSummary } from '../../../menu/FoodInfoBadges'
 import { customSectionShell, makeReaders } from '../lib/sectionHelpers'
 
 type DiscountBadgeTheme = Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor'>
@@ -165,7 +166,7 @@ export function DiscountBadgeSection({
             placeItems: 'center',
           }}>
             {item?.images[0] ? (
-              <img src={item.images[0]} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: imageFit, objectPosition: imagePosition, display: 'block' }} />
+              <img src={item.images[0]} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: imageFit, objectPosition: imagePosition, display: 'block' }} />
             ) : (
               <AppIcons.image size={28} aria-hidden="true" style={{ color: accent, opacity: .62 }} />
             )}
@@ -200,6 +201,7 @@ export function DiscountBadgeSection({
           <p style={{ margin: '7px 0 0', color: mutedColor, opacity: .72, fontSize: 12, lineHeight: 1.42, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
             {body}
           </p>
+          {item && <ProductAllergenSummary item={item} style={{marginTop:8}} />}
 
           {timing.enabled && timing.valid && (
             <CampaignCountdown

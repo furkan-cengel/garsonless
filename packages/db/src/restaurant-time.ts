@@ -43,6 +43,29 @@ function zonedTimeToUtc(tz: string, y: number, mo: number, d: number, h = 0, mi 
   return new Date(guess - offset)
 }
 
+function parseDateKey(value: string): { year: number; month: number; day: number } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const [year, month, day] = value.split('-').map(Number)
+  const check = new Date(Date.UTC(year!, month! - 1, day!))
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month! - 1 || check.getUTCDate() !== day) return null
+  return { year: year!, month: month!, day: day! }
+}
+
+/** Restaurant-local midnight for a validated YYYY-MM-DD calendar key. */
+export function startOfRestaurantDate(tz: string, dateKey: string): Date {
+  const parsed = parseDateKey(dateKey)
+  if (!parsed) throw new Error('Invalid restaurant date')
+  return zonedTimeToUtc(tz, parsed.year, parsed.month, parsed.day)
+}
+
+/** Inclusive restaurant-local calendar-day count. */
+export function restaurantCalendarDayCount(from: string, to: string): number {
+  const start = parseDateKey(from)
+  const end = parseDateKey(to)
+  if (!start || !end) return 0
+  return Math.floor((Date.UTC(end.year, end.month - 1, end.day) - Date.UTC(start.year, start.month - 1, start.day)) / 86_400_000) + 1
+}
+
 /**
  * Start (local midnight, as a UTC instant) of the restaurant-local day that is
  * `n` calendar days before the day containing `from`. Day arithmetic is done on a
@@ -67,14 +90,67 @@ export function startOfRestaurantDay(tz: string, at: Date = new Date()): Date {
  * 'day' compares today vs yesterday; week/month/quarter/year span N calendar days
  * ending today (inclusive).
  */
-export function rangeWindow(tz: string, range: string, now: Date = new Date()): { currentStart: Date; previousStart: Date } {
+export function rangeWindow(
+  tz: string,
+  range: string,
+  now: Date = new Date(),
+): { currentStart: Date; previousStart: Date; currentEnd: Date } {
   if (range === 'day') {
-    return { currentStart: startOfDayNDaysAgo(tz, 0, now), previousStart: startOfDayNDaysAgo(tz, 1, now) }
+    return {
+      currentStart: startOfDayNDaysAgo(tz, 0, now),
+      previousStart: startOfDayNDaysAgo(tz, 1, now),
+      currentEnd: now,
+    }
+  }
+  if (range === 'yesterday') {
+    return {
+      currentStart: startOfDayNDaysAgo(tz, 1, now),
+      previousStart: startOfDayNDaysAgo(tz, 2, now),
+      currentEnd: startOfDayNDaysAgo(tz, 0, now),
+    }
+  }
+  if (range === 'calendar_month') {
+    const nowParts = tzParts(now, tz)
+    const currentStart = zonedTimeToUtc(tz, nowParts.year, nowParts.month, 1)
+    const elapsedDays = restaurantCalendarDayCount(
+      restaurantDayKey(currentStart, tz),
+      restaurantDayKey(now, tz),
+    )
+    return {
+      currentStart,
+      previousStart: startOfDayNDaysAgo(tz, elapsedDays, currentStart),
+      currentEnd: now,
+    }
   }
   const days = RANGE_DAYS[range] ?? 7
   return {
     currentStart: startOfDayNDaysAgo(tz, days - 1, now),
     previousStart: startOfDayNDaysAgo(tz, 2 * days - 1, now),
+    currentEnd: now,
+  }
+}
+
+/**
+ * Inclusive custom restaurant-local date window. `to` includes the complete
+ * local day unless it is today, in which case the window ends at `now`.
+ * The previous comparison window has the same number of calendar days.
+ */
+export function customRangeWindow(
+  tz: string,
+  from: string,
+  to: string,
+  now: Date = new Date(),
+): { currentStart: Date; previousStart: Date; currentEnd: Date } {
+  const days = restaurantCalendarDayCount(from, to)
+  if (days < 1 || days > 366) throw new Error('Invalid custom analytics range')
+  const currentStart = startOfRestaurantDate(tz, from)
+  if (currentStart > now) throw new Error('Future analytics range is not allowed')
+  const toStart = startOfRestaurantDate(tz, to)
+  const endAfterTo = startOfDayNDaysAgo(tz, -1, toStart)
+  return {
+    currentStart,
+    previousStart: startOfDayNDaysAgo(tz, days, currentStart),
+    currentEnd: endAfterTo < now ? endAfterTo : now,
   }
 }
 

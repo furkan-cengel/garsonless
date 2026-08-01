@@ -31,6 +31,7 @@ export function DietaryFilterBar({
   return (
     <div
       data-component="dietary-filters"
+      role="group"
       aria-label="Diyet filtreleri"
       style={{
         display: 'flex',
@@ -50,7 +51,7 @@ export function DietaryFilterBar({
             aria-pressed={active}
             onClick={() => onToggle(filter.id)}
             style={{
-              height: 32,
+              minHeight: 44,
               padding: '0 12px',
               borderRadius: 999,
               border: active ? '1px solid var(--p-accent)' : 'var(--p-border-w) solid var(--p-border)',

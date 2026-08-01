@@ -15,6 +15,7 @@ import {
   type CustomerListOptions,
   type CustomerSegmentCounts,
   type CustomerSegmentDefinition,
+  type CustomerTimelinePage,
   type DashboardActorContext,
   type RestaurantCustomerDetail,
   type RestaurantCustomersPage,
@@ -27,6 +28,7 @@ export interface CustomerIdentityPort {
     authUserId: string
     email: string
     name: string | null
+    verifiedPhone: string | null
   }): Promise<EnsureCustomerResult>
   stampCustomerRole(input: {
     authUserId: string
@@ -77,6 +79,7 @@ export async function ensureCustomerIdentity(
     authUserId: identity.authUserId,
     email,
     name: resolveCustomerName(options.name, identity.userMetadata),
+    verifiedPhone: identity.phone ?? null,
   })
   if (!linked.ok) return linked
 
@@ -167,13 +170,15 @@ export interface CustomerApplicationPort {
   }): Promise<Result<SavedCustomerSegment | null>>
   deleteSegment(input: { restaurantId: string; segmentId: string }): Promise<Result<boolean>>
   readDetail(input: { restaurantId: string; customerId: string; includeContactData: boolean }): Promise<Result<RestaurantCustomerDetail | null>>
+  readTimeline(input: { restaurantId: string; customerId: string; cursor?: string | null }): Promise<Result<CustomerTimelinePage | null>>
   grantStoreCredit(input: {
     restaurantId: string
     customerId: string
+    requestId: string
     points: number
     grantedBy: string
     note?: string
-  }): Promise<Result<{ granted: number }>>
+  }): Promise<Result<{ granted: number; replayed: boolean }>>
 }
 
 function requireCustomerAccess(context: DashboardActorContext, restaurantId: string): Result<true> {
@@ -181,6 +186,8 @@ function requireCustomerAccess(context: DashboardActorContext, restaurantId: str
     ? ok(true)
     : err('Not authorized')
 }
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export async function readCustomers(
   context: DashboardActorContext,
@@ -239,22 +246,35 @@ export async function readCustomerDetail(
     : access
 }
 
+export async function readCustomerTimeline(
+  context: DashboardActorContext,
+  input: { restaurantId: string; customerId: string; cursor?: string | null },
+  port: CustomerApplicationPort,
+): Promise<Result<CustomerTimelinePage | null>> {
+  const access = requireCustomerAccess(context, input.restaurantId)
+  if (!access.ok) return access
+  if (input.cursor && input.cursor.length > 512) return err('Geçersiz hareket imleci')
+  return port.readTimeline(input)
+}
+
 export async function grantCustomerStoreCredit(
   context: DashboardActorContext,
-  input: { restaurantId: string; customerId: string; points: number; note?: string },
+  input: { restaurantId: string; customerId: string; requestId: string; points: number; note?: string },
   port: CustomerApplicationPort,
-): Promise<Result<{ granted: number }>> {
+): Promise<Result<{ granted: number; replayed: boolean }>> {
   const access = requireCustomerAccess(context, input.restaurantId)
   if (!access.ok) return access
   // Manual balance changes are financial actions.  A member with CRM access
   // may work with segments, but can never credit a customer account.
   if (context.isOwner !== true) return err('Not authorized')
+  if (!UUID_PATTERN.test(input.requestId)) return err('Geçersiz istek kimliği')
   const points = Math.floor(input.points)
   if (!Number.isFinite(points) || points <= 0) return err('Geçersiz puan miktarı')
   if (points > 1_000_000) return err('Puan miktarı çok yüksek')
   return port.grantStoreCredit({
     restaurantId: input.restaurantId,
     customerId: input.customerId,
+    requestId: input.requestId,
     points,
     grantedBy: context.userId,
     ...(input.note?.trim() ? { note: input.note.trim().slice(0, 80) } : {}),

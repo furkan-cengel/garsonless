@@ -1,8 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MenuCategory } from './types'
 import { useTheme } from './ThemeContext'
+import {
+  getActiveCategoryAtLine,
+  getCategoryScrollEdges,
+  getCenteredCategoryScrollLeft,
+} from './categoryNavModel'
 
 interface CategoryNavProps {
   categories: MenuCategory[]
@@ -11,58 +16,134 @@ interface CategoryNavProps {
   onCategorySelect?: ((id: string) => void) | undefined
 }
 
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false)
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReduced(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  return reduced
+}
+
 export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, onCategorySelect }: CategoryNavProps) {
   const { theme } = useTheme()
+  const prefersReducedMotion = usePrefersReducedMotion()
   const [internalActiveId, setInternalActiveId] = useState(categories[0]?.id ?? '')
   const [scrollEdges, setScrollEdges] = useState({ left: false, right: false })
   const navRef = useRef<HTMLDivElement>(null)
-  const isScrollingRef = useRef(false)
+  const manualActiveIdRef = useRef<string | null>(null)
+  const manualActiveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const style = theme.catnavStyle
-  const activeId = activeCategoryId ?? internalActiveId
-  const updateScrollEdges = () => {
+  const requestedActiveId = activeCategoryId ?? internalActiveId
+  const activeId = categories.some((category) => category.id === requestedActiveId)
+    ? requestedActiveId
+    : categories[0]?.id ?? ''
+  const updateMeasurements = useCallback(() => {
     const nav = navRef.current
     if (!nav) return
-    setScrollEdges({ left: nav.scrollLeft > 2, right: nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 2 })
-  }
+    const nextEdges = getCategoryScrollEdges({
+      scrollLeft: nav.scrollLeft,
+      containerWidth: nav.clientWidth,
+      scrollWidth: nav.scrollWidth,
+    })
+    setScrollEdges((current) => current.left === nextEdges.left && current.right === nextEdges.right
+      ? current
+      : nextEdges)
+    document.documentElement.style.setProperty('--p-catnav-sticky-height', `${nav.getBoundingClientRect().height}px`)
+  }, [])
+
+  const centerCategory = useCallback((id: string, behavior: ScrollBehavior) => {
+    const nav = navRef.current
+    const item = nav?.querySelector<HTMLElement>(`[data-cat="${CSS.escape(id)}"]`)
+    if (!nav || !item) return
+    const navRect = nav.getBoundingClientRect()
+    const itemRect = item.getBoundingClientRect()
+    nav.scrollTo({
+      left: getCenteredCategoryScrollLeft({
+        containerLeft: navRect.left,
+        containerWidth: nav.clientWidth,
+        currentScrollLeft: nav.scrollLeft,
+        itemLeft: itemRect.left,
+        itemWidth: itemRect.width,
+        scrollWidth: nav.scrollWidth,
+      }),
+      behavior,
+    })
+  }, [])
 
   useEffect(() => {
-    const frame = requestAnimationFrame(updateScrollEdges)
-    const observer = new ResizeObserver(updateScrollEdges)
+    const frame = requestAnimationFrame(updateMeasurements)
+    const observer = new ResizeObserver(updateMeasurements)
     if (navRef.current) observer.observe(navRef.current)
     return () => { cancelAnimationFrame(frame); observer.disconnect() }
-  }, [categories, style])
+  }, [categories, style, updateMeasurements])
 
   useEffect(() => {
-    if (categories.length === 0) return
-    const observers: IntersectionObserver[] = []
-    categories.forEach((cat) => {
-      const section = document.getElementById(`section-${cat.id}`)
-      if (!section) return
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          if (entry?.isIntersecting && !isScrollingRef.current && activeCategoryId == null) setInternalActiveId(cat.id)
-        },
-        { rootMargin: '-20% 0px -70% 0px', threshold: 0 },
-      )
-      observer.observe(section)
-      observers.push(observer)
-    })
-    return () => observers.forEach((o) => o.disconnect())
-  }, [categories, activeCategoryId])
-
-  const scrollToCategory = (id: string) => {
-    setInternalActiveId(id)
-    onCategorySelect?.(id)
-    isScrollingRef.current = true
-    requestAnimationFrame(() => {
-      document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: theme.motion === 'none' ? 'auto' : 'smooth', block: 'start' })
-    })
-    setTimeout(() => { isScrollingRef.current = false }, 800)
-    if (theme.catnavAutoCenter ?? true) {
-      navRef.current?.querySelector(`[data-cat="${id}"]`)?.scrollIntoView({
-        behavior: theme.motion === 'none' ? 'auto' : 'smooth', block: 'nearest', inline: 'center',
+    if (activeCategoryId != null || categories.length === 0) return
+    let frame = 0
+    const updateActiveCategory = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const activationLine = Math.max(0, navRef.current?.getBoundingClientRect().bottom ?? 0) + 1
+        const sections = categories.flatMap((category) => {
+          const section = document.getElementById(`section-${category.id}`)
+          return section ? [{ id: category.id, top: section.getBoundingClientRect().top }] : []
+        })
+        const reachedPageEnd = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2
+        const manualId = manualActiveIdRef.current
+        if (manualId) {
+          const target = sections.find((section) => section.id === manualId)
+          setInternalActiveId(manualId)
+          if (reachedPageEnd || (target && target.top <= activationLine + 2)) {
+            manualActiveIdRef.current = null
+            if (manualActiveTimerRef.current) clearTimeout(manualActiveTimerRef.current)
+            manualActiveTimerRef.current = null
+          }
+          return
+        }
+        const nextId = getActiveCategoryAtLine(sections, activationLine, reachedPageEnd)
+        if (nextId) setInternalActiveId((current) => current === nextId ? current : nextId)
       })
     }
+    updateActiveCategory()
+    window.addEventListener('scroll', updateActiveCategory, { passive: true })
+    window.addEventListener('resize', updateActiveCategory)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', updateActiveCategory)
+      window.removeEventListener('resize', updateActiveCategory)
+    }
+  }, [categories, activeCategoryId])
+
+  useEffect(() => {
+    if (activeCategoryId == null && !categories.some((category) => category.id === internalActiveId)) {
+      setInternalActiveId(categories[0]?.id ?? '')
+    }
+  }, [activeCategoryId, categories, internalActiveId])
+
+  useEffect(() => {
+    if (!activeId || !(theme.catnavAutoCenter ?? true)) return
+    const frame = requestAnimationFrame(() => centerCategory(activeId, theme.motion === 'none' || prefersReducedMotion ? 'auto' : 'smooth'))
+    return () => cancelAnimationFrame(frame)
+  }, [activeId, centerCategory, prefersReducedMotion, theme.catnavAutoCenter, theme.motion])
+
+  const scrollToCategory = (id: string) => {
+    manualActiveIdRef.current = id
+    if (manualActiveTimerRef.current) clearTimeout(manualActiveTimerRef.current)
+    manualActiveTimerRef.current = setTimeout(() => {
+      manualActiveIdRef.current = null
+      manualActiveTimerRef.current = null
+    }, 1_200)
+    setInternalActiveId(id)
+    onCategorySelect?.(id)
+    requestAnimationFrame(() => {
+      document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: theme.motion === 'none' || prefersReducedMotion ? 'auto' : 'smooth', block: 'start' })
+    })
   }
 
   const handleCategoryKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -92,13 +173,18 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
       data-component="catnav"
       aria-label="Ürün kategorileri"
       ref={navRef}
-      onScroll={updateScrollEdges}
+      onScroll={updateMeasurements}
+      data-scroll-left={scrollEdges.left ? 'true' : 'false'}
+      data-scroll-right={scrollEdges.right ? 'true' : 'false'}
       style={{
         background: 'var(--p-bg)',
         position: theme.stickyNav ? 'sticky' : 'relative',
         top: theme.stickyNav ? (theme.stickyHeader ? `var(--p-header-sticky-height, ${theme.headerHeight}px)` : 0) : undefined,
         zIndex: theme.stickyNav ? 10 : undefined,
         overflowX: 'auto',
+        overscrollBehaviorX: 'contain',
+        WebkitOverflowScrolling: 'touch',
+        scrollPaddingInline: 'var(--p-pad)',
         scrollbarWidth: 'none',
         borderBottom: style === 'underline' ? '1px solid var(--p-border)' : 'none',
         maskImage: theme.catnavEdgeFade && (scrollEdges.left || scrollEdges.right)
@@ -106,11 +192,11 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
           : undefined,
       }}
     >
-      <style>{`[data-component="catnav"] button:focus-visible{outline:2px solid var(--p-accent);outline-offset:2px}`}</style>
+      <style>{`[data-component="catnav"]::-webkit-scrollbar{display:none}[data-component="catnav"] button:focus-visible{outline:2px solid var(--p-accent);outline-offset:2px}`}</style>
       <div style={{
         padding: style === 'visual'
-          ? `${theme.navTopGap ?? 4}px 16px ${theme.navBottomGap ?? 16}px`
-          : `${theme.navTopGap ?? 10}px 16px ${theme.navBottomGap ?? 14}px`,
+          ? `${theme.navTopGap ?? 4}px var(--p-pad) ${theme.navBottomGap ?? 16}px`
+          : `${theme.navTopGap ?? 10}px var(--p-pad) ${theme.navBottomGap ?? 14}px`,
         display: 'flex',
         justifyContent: align === 'center' ? 'center' : 'flex-start',
         minWidth: align === 'spread' ? '100%' : 'max-content',
@@ -165,7 +251,7 @@ function NavItem({
   const { theme } = useTheme()
   const countSuffix = theme.catnavShowCount ? ` · ${meta?.itemCount ?? 0}` : ''
   const density = theme.catnavDensity ?? 'normal'
-  const minHeight = density === 'compact' ? 40 : density === 'comfortable' ? 52 : 44
+  const minHeight = density === 'compact' ? 44 : density === 'comfortable' ? 52 : 48
   const fontSize = theme.catnavFontSize ?? 12
   const activeStyle = theme.catnavActiveStyle ?? 'filled'
   const base: React.CSSProperties = {
@@ -173,7 +259,7 @@ function NavItem({
     fontFamily: 'inherit', transition: 'all 150ms ease',
     background: 'transparent', minHeight,
   }
-  const a11y = { type: 'button' as const, 'aria-current': isActive ? 'true' as const : undefined, onKeyDown }
+  const a11y = { type: 'button' as const, 'aria-current': isActive ? 'location' as const : undefined, onKeyDown }
 
   if (navStyle === 'underline') {
     return (

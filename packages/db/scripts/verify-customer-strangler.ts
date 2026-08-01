@@ -82,6 +82,7 @@ async function main() {
       userId: fixture.owner_id,
       restaurantId,
       permissions: ['customers'],
+      isOwner: true,
     }
     const port = createCustomerApplicationPort()
 
@@ -103,6 +104,7 @@ async function main() {
     const credit = await grantCustomerStoreCredit(actor, {
       restaurantId,
       customerId,
+      requestId: randomUUID(),
       points: 25,
       note: 'runtime',
     }, port)

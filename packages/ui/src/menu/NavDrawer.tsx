@@ -11,7 +11,7 @@ import type { ServiceRequestType } from '@garsonless/domain/tables'
 import { useTheme } from './ThemeContext'
 import { MenuMorphIcon } from './MenuMorphIcon'
 
-export const DRAWER_SECTION_IDS = new Set(['hours', 'wifi-info', 'request-buttons'])
+const DRAWER_SECTION_IDS = new Set(['hours', 'wifi-info', 'request-buttons'])
 
 type CategoryMeta = Record<string, { itemCount?: number }>
 
@@ -70,6 +70,7 @@ export function NavDrawer({
   const drawerPosition = theme.drawerPosition ?? 'full'
   const drawerRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
   const [query, setQuery] = useState('')
   const [activeCategoryId, setActiveCategoryId] = useState(categories[0]?.id ?? '')
   const [expandedInfoId, setExpandedInfoId] = useState<string | null>(null)
@@ -114,13 +115,21 @@ export function NavDrawer({
 
   useEffect(() => {
     if (!open) return
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    drawerRef.current?.focus()
+    const frame = window.requestAnimationFrame(() => {
+      const firstControl = drawerRef.current?.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), a[href]')
+      ;(firstControl ?? drawerRef.current)?.focus()
+    })
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCloseRef.current()
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
       if (event.key === 'Tab' && drawerRef.current) {
-        const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), [tabindex="0"]'))
+        const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])'))
         const first = focusable[0]
         const last = focusable[focusable.length - 1]
         if (!first || !last) return
@@ -130,8 +139,12 @@ export function NavDrawer({
     }
     document.addEventListener('keydown', onKeyDown)
     return () => {
+      window.cancelAnimationFrame(frame)
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', onKeyDown)
+      const target = returnFocusRef.current
+      if (target?.isConnected) target.focus()
+      else document.querySelector<HTMLElement>('[aria-label="Menüyü aç"]')?.focus()
     }
     // Only an actual open transition may claim focus. Theme editor keystrokes
     // rerender the iframe and can change callback identity without reopening it.

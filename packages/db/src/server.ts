@@ -17,11 +17,14 @@ export type { TeamSection, TeamMember, ResolvedInvite } from './team'
 export { resolveCustomerIdentityForAuthUser } from './customer-identity-port'
 export { createCustomerApplicationPort } from './customer-application-port'
 export { createCampaignApplicationPort } from './campaign-application-port'
+export { getSmsDeliveryAvailability } from './sms'
 export {
   createCustomerConsentApplicationPort,
   createCustomerIdentityApplicationPort,
 } from './customer-auth-application-port'
 export { createMenuCommandPort } from './menu-command-port'
+export { listMenuItemRecommendations } from './menu-recommendations'
+export type { MenuItemRecommendationRow } from './menu-recommendations'
 export { createKitchenSettingsCommandPort } from './kitchen-settings-command-port'
 export { createTeamCommandPort } from './team-command-port'
 export { createLoyaltyQueryPort } from './loyalty-query-port'
@@ -104,6 +107,7 @@ export {
   createKitchenOrderPort,
   readPaymentSharesForSettlement,
 } from './order-command-port'
+export { createOrderRefundPort } from './order-refund-port'
 export {
   createPaymentReconciliationPort,
   recordPaymentReconciliation,
@@ -137,12 +141,21 @@ export {
 } from './platform-admin-billing-port'
 export { createSplitPaymentPort } from './split-command-port'
 export {
+  attachOrderProviderPayment,
   attachOrderPaymentToken,
   attachSharePaymentToken,
   createOrderCheckoutPort,
+  deletePaymentCredentialVault,
   readIyzicoCredentialRecord,
   readOrderPaymentMapping,
+  readPaymentCredentialMeta,
   readSharePaymentMapping,
+  rotatePaymentCredentialVault,
+  writePaymentCredentialVault,
+} from './payment-provider-port'
+export type {
+  IyzicoCredentialRecord,
+  PaymentCredentialMetaRecord,
 } from './payment-provider-port'
 export {
   createDashboardTablePort,
@@ -150,11 +163,12 @@ export {
   createTableServiceRequestPort,
   createTableSessionPort,
 } from './table-command-port'
-export { createPublicTableQueryPort } from './table-qr-tokens'
+export { createPublicTableQueryPort, resolveTransferredGuestTable } from './table-qr-tokens'
 export {
   createDashboardPushPort,
   deleteDashboardPushEndpoint,
   deleteDashboardPushSubscriptionsForUser,
+  readDashboardPushSubscriptionForUser,
   upsertDashboardPushSubscription,
 } from './dashboard-push-port'
 export {

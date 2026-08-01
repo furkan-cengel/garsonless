@@ -20,6 +20,7 @@ import {
   type CustomerSegmentCounts,
   type CustomerSegmentDefinition,
   type CustomerTimelineEvent,
+  type CustomerTimelinePage,
   type RestaurantCustomer,
   type RestaurantCustomerDetail,
   type RestaurantCustomersPage,
@@ -302,6 +303,126 @@ async function hasActivityAtVenue(
   return (oc ?? 0) > 0 || (lc ?? 0) > 0 || (ac ?? 0) > 0
 }
 
+const CUSTOMER_TIMELINE_PAGE_SIZE = 30
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+type CustomerTimelineCursor = {
+  version: 1
+  at: string
+  kind: 'order' | 'ledger'
+  id: string
+}
+
+type RawTimelineRow = {
+  event_id: string
+  event_kind: string
+  event_at: string
+  amount: number | string | null
+  status: string | null
+  paid: boolean | null
+  collected: boolean | null
+  loyalty_type: string | null
+  direction: string | null
+  delta: number | null
+  reason: string | null
+}
+
+function encodeTimelineCursor(row: RawTimelineRow): string {
+  const payload: CustomerTimelineCursor = {
+    version: 1,
+    at: row.event_at,
+    kind: row.event_kind === 'order' ? 'order' : 'ledger',
+    id: row.event_id,
+  }
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
+}
+
+function decodeTimelineCursor(cursor: string | null | undefined): CustomerTimelineCursor | null {
+  if (!cursor) return null
+  if (cursor.length > 512) throw new Error('Geçersiz hareket imleci')
+  try {
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Partial<CustomerTimelineCursor>
+    const timestamp = typeof value.at === 'string' ? new Date(value.at).getTime() : Number.NaN
+    if (value.version !== 1 || (value.kind !== 'order' && value.kind !== 'ledger') || !UUID_PATTERN.test(value.id ?? '') || !Number.isFinite(timestamp)) {
+      throw new Error('invalid')
+    }
+    return { version: 1, at: new Date(timestamp).toISOString(), kind: value.kind, id: value.id! }
+  } catch {
+    throw new Error('Geçersiz hareket imleci')
+  }
+}
+
+function mapTimelineEvent(row: RawTimelineRow): CustomerTimelineEvent | null {
+  if (row.event_kind === 'order') {
+    return {
+      id: `o-${row.event_id}`,
+      at: row.event_at,
+      kind: 'order',
+      amount: Number(row.amount ?? 0),
+      paid: row.paid === true,
+      collected: row.collected === true,
+      ...(row.status ? { status: row.status } : {}),
+    }
+  }
+  if (
+    row.event_kind !== 'ledger'
+    || (row.loyalty_type !== 'stamp' && row.loyalty_type !== 'points' && row.loyalty_type !== 'visit')
+    || (row.direction !== 'earn' && row.direction !== 'redeem' && row.direction !== 'refund')
+  ) return null
+  return {
+    id: `l-${row.event_id}`,
+    at: row.event_at,
+    kind: 'ledger',
+    type: row.loyalty_type,
+    direction: row.direction,
+    delta: Number(row.delta ?? 0),
+    ...(row.reason ? { reason: row.reason } : {}),
+  }
+}
+
+async function queryRestaurantCustomerTimeline(
+  supabase: ReturnType<typeof createServiceClient>,
+  restaurantId: string,
+  customerId: string,
+  cursor?: string | null,
+): Promise<CustomerTimelinePage> {
+  const decoded = decodeTimelineCursor(cursor)
+  const { data, error } = await supabase.rpc('get_restaurant_customer_timeline', {
+    p_restaurant_id: restaurantId,
+    p_customer_id: customerId,
+    p_limit: CUSTOMER_TIMELINE_PAGE_SIZE,
+    ...(decoded ? {
+      p_before_at: decoded.at,
+      p_before_kind: decoded.kind,
+      p_before_id: decoded.id,
+    } : {}),
+  })
+  if (error) throw new Error(`getRestaurantCustomerTimeline: ${error.message}`)
+  const rows = ((data as RawTimelineRow[] | null) ?? [])
+  const hasMore = rows.length > CUSTOMER_TIMELINE_PAGE_SIZE
+  const visibleRows = rows.slice(0, CUSTOMER_TIMELINE_PAGE_SIZE)
+  const events = visibleRows.flatMap((row) => {
+    const event = mapTimelineEvent(row)
+    return event ? [event] : []
+  })
+  const lastRow = visibleRows.at(-1)
+  return {
+    events,
+    hasMore,
+    nextCursor: hasMore && lastRow ? encodeTimelineCursor(lastRow) : null,
+  }
+}
+
+export async function getRestaurantCustomerTimeline(
+  restaurantId: string,
+  customerId: string,
+  cursor?: string | null,
+): Promise<CustomerTimelinePage | null> {
+  const supabase = createServiceClient()
+  if (!(await hasActivityAtVenue(supabase, restaurantId, customerId))) return null
+  return queryRestaurantCustomerTimeline(supabase, restaurantId, customerId, cursor)
+}
+
 export async function getRestaurantCustomerDetail(
   restaurantId: string,
   customerId: string,
@@ -310,7 +431,7 @@ export async function getRestaurantCustomerDetail(
   const supabase = createServiceClient()
   if (!(await hasActivityAtVenue(supabase, restaurantId, customerId))) return null
 
-  const [{ data: cust }, consentOpen, balances, { data: summaryRows }, { data: orderRows }, { data: ledgerRows }] = await Promise.all([
+  const [{ data: cust }, consentOpen, balances, { data: summaryRows }, timelinePage] = await Promise.all([
     supabase.from('customers').select('name, phone, email, auth_user_id, created_at').eq('id', customerId).maybeSingle(),
     getConsentStatus(customerId, restaurantId),
     getMemberBalances(customerId, restaurantId),
@@ -318,12 +439,7 @@ export async function getRestaurantCustomerDetail(
       p_restaurant_id: restaurantId,
       p_customer_id: customerId,
     }),
-    supabase.from('orders').select('id, total, status, paid_at, created_at')
-      .eq('restaurant_id', restaurantId).eq('customer_id', customerId).is('deleted_at', null)
-      .order('created_at', { ascending: false }).limit(50),
-    supabase.from('loyalty_transactions').select('id, type, delta, direction, reason, created_at')
-      .eq('restaurant_id', restaurantId).eq('customer_id', customerId)
-      .order('created_at', { ascending: false }).limit(50),
+    queryRestaurantCustomerTimeline(supabase, restaurantId, customerId),
   ])
   const customer = cust as {
     name: string | null
@@ -334,26 +450,12 @@ export async function getRestaurantCustomerDetail(
   } | null
   if (!customer) return null
 
-  const orders = (orderRows as Array<{ id: string; total: number; status: string; paid_at: string | null; created_at: string }> | null) ?? []
-  const ledger = (ledgerRows as Array<{ id: string; type: string; delta: number; direction: string; reason: string; created_at: string }> | null) ?? []
   const summary = (summaryRows as Array<{
     spend: number | string
     visits: number
     first_seen: string | null
     last_seen: string | null
   }> | null)?.[0]
-
-  const timeline: CustomerTimelineEvent[] = [
-    ...orders.map((o): CustomerTimelineEvent => ({
-      id: `o-${o.id}`, at: o.created_at, kind: 'order',
-      amount: Number(o.total), status: o.status, paid: o.paid_at !== null,
-    })),
-    ...ledger.flatMap((l): CustomerTimelineEvent[] => {
-      if (l.type !== 'stamp' && l.type !== 'points' && l.type !== 'visit') return []
-      if (l.direction !== 'earn' && l.direction !== 'redeem' && l.direction !== 'refund') return []
-      return [{ id: `l-${l.id}`, at: l.created_at, kind: 'ledger', type: l.type, direction: l.direction, delta: l.delta, reason: l.reason }]
-    }),
-  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
 
   const contactVisible = (visibility.includeContactData ?? true) && consentOpen
   return {
@@ -371,7 +473,9 @@ export async function getRestaurantCustomerDetail(
     spend: Number(summary?.spend ?? 0),
     visits: Number(summary?.visits ?? 0),
     balances,
-    timeline,
+    timeline: timelinePage.events,
+    timelineNextCursor: timelinePage.nextCursor,
+    timelineHasMore: timelinePage.hasMore,
   }
 }
 
@@ -380,10 +484,11 @@ export async function getRestaurantCustomerDetail(
 export async function grantStoreCredit(params: {
   restaurantId: string
   customerId: string
+  requestId: string
   points: number
   grantedBy: string // auth.users id (owner) — audit
   note?: string
-}): Promise<{ ok: true; granted: number } | { ok: false; error: string }> {
+}): Promise<{ ok: true; granted: number; replayed: boolean } | { ok: false; error: string }> {
   const points = Math.floor(params.points)
   if (!Number.isFinite(points) || points <= 0) return { ok: false, error: 'Geçersiz puan miktarı' }
   if (points > 1_000_000) return { ok: false, error: 'Puan miktarı çok yüksek' }
@@ -395,22 +500,26 @@ export async function grantStoreCredit(params: {
   const scope = await getLoyaltyScope(params.restaurantId)
   if (!scope) return { ok: false, error: 'Sadakat yapılandırması bulunamadı' }
 
-  const insert = supabase.from('loyalty_transactions') as unknown as {
-    insert: (row: Record<string, unknown>) => Promise<{ error: { message: string } | null }>
-  }
-  const reason = params.note?.trim() ? `store_credit:${params.note.trim().slice(0, 80)}` : 'store_credit'
-  const { error } = await insert.insert({
-    customer_id: params.customerId,
-    restaurant_id: params.restaurantId,
-    scope_key: scope.scopeKey,
-    type: 'points',
-    delta: points,
-    direction: 'earn',
-    reason,
-    granted_by: params.grantedBy,
+  const { data, error } = await supabase.rpc('grant_store_credit_atomic', {
+    p_request_id: params.requestId,
+    p_restaurant_id: params.restaurantId,
+    p_customer_id: params.customerId,
+    p_scope_key: scope.scopeKey,
+    p_points: points,
+    // The SQL function canonicalizes an empty string back to NULL. Passing the
+    // semantic empty value keeps this call aligned with generated RPC types.
+    p_note: params.note?.trim().slice(0, 80) || '',
+    p_granted_by: params.grantedBy,
   })
-  if (error) return { ok: false, error: error.message }
-  return { ok: true, granted: points }
+  if (error) {
+    if (error.code === '22023') return { ok: false, error: 'Geçersiz puan isteği' }
+    if (error.code === '42501') return { ok: false, error: 'Bu işlem için yetkiniz yok' }
+    if (error.code === 'GL001') return { ok: false, error: 'İstek kimliği farklı bir işlem için kullanılmış' }
+    return { ok: false, error: 'Puan tanımlanamadı' }
+  }
+  const row = data?.[0]
+  if (!row) return { ok: false, error: 'Puan tanımlanamadı' }
+  return { ok: true, granted: Number(row.granted), replayed: row.replayed }
 }
 
 // ── consent (per-restaurant) ─────────────────────────────────────────────────

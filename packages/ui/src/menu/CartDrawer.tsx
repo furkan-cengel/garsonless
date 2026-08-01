@@ -1,6 +1,6 @@
 'use client'
 
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useRef } from 'react'
 import type { CartItem } from './types'
 import { useTheme } from './ThemeContext'
@@ -45,10 +45,13 @@ interface CartDrawerProps {
   isOpen: boolean
   items: CartItem[]
   isPlacing: boolean
+  orderError?: string | null
   onClose: () => void
   onUpdateQuantity: (cartId: string, quantity: number) => void
   onRemoveItem: (cartId: string) => void
   onPlaceOrder: () => void
+  canCheckout?: boolean
+  checkoutUnavailableReason?: string
   onPay?: () => void
   onSplitBill?: () => void
   billSummary?: { total: number; count: number } | null
@@ -66,10 +69,13 @@ export function CartDrawer({
   isOpen,
   items,
   isPlacing,
+  orderError = null,
   onClose,
   onUpdateQuantity,
   onRemoveItem,
   onPlaceOrder,
+  canCheckout = true,
+  checkoutUnavailableReason,
   onPay,
   onSplitBill,
   billSummary,
@@ -105,25 +111,37 @@ export function CartDrawer({
   const headerIsAccent = drawerTone === 'accentHeader'
   const itemCount = visibleItems.reduce((sum, i) => sum + i.quantity, 0)
   const drawerRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
+  const prefersReducedMotion = useReducedMotion()
 
   useEffect(() => {
     if (!isOpen) return
-    returnFocusRef.current = document.activeElement as HTMLElement | null
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     const drawer = drawerRef.current
-    drawer?.focus()
+    const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus())
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { event.preventDefault(); onClose(); return }
       if (event.key !== 'Tab' || !drawer) return
-      const focusable = [...drawer.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])')]
-      if (focusable.length === 0) return
+      const focusable = [...drawer.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      if (focusable.length === 0) { event.preventDefault(); drawer.focus(); return }
       const first = focusable[0]!
       const last = focusable[focusable.length - 1]!
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
     }
     document.addEventListener('keydown', onKeyDown)
-    return () => { document.removeEventListener('keydown', onKeyDown); returnFocusRef.current?.focus() }
+    return () => {
+      window.cancelAnimationFrame(frame)
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousOverflow
+      const target = returnFocusRef.current
+      const targetBelongsToClosingDialog = Boolean(target?.closest('[role="dialog"]'))
+      if (target?.isConnected && !targetBelongsToClosingDialog) target.focus()
+      else document.querySelector<HTMLElement>('[aria-label^="Sepeti aç"]')?.focus()
+    }
   }, [isOpen, onClose])
 
   return (
@@ -132,6 +150,7 @@ export function CartDrawer({
         <>
           <motion.div
             key="backdrop"
+            aria-hidden="true"
             style={{ position: 'fixed', inset: 0, zIndex: 40, backgroundColor: 'rgba(15,23,42,0.42)', backdropFilter: 'blur(2px)' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -165,7 +184,7 @@ export function CartDrawer({
             initial="hidden"
             animate="visible"
             exit="hidden"
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', damping: 30, stiffness: 300 }}
           >
             <div style={{
               background: headerIsAccent ? 'linear-gradient(135deg, var(--p-accent), var(--p-cta))' : 'var(--p-card)',
@@ -180,17 +199,19 @@ export function CartDrawer({
                 <div style={{ minWidth: 0 }}>
                   <h2 id="cart-drawer-title" style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'inherit', letterSpacing: '-0.01em' }}>Sepetiniz</h2>
                   {showItemCount && (
-                    <p style={{ fontSize: 12, margin: '3px 0 0', color: headerIsAccent ? 'rgba(255,255,255,.78)' : 'var(--p-text-2)' }}>
+                    <p aria-live="polite" style={{ fontSize: 12, margin: '3px 0 0', color: headerIsAccent ? 'rgba(255,255,255,.78)' : 'var(--p-text-2)' }}>
                       {itemCount > 0 ? `${itemCount} ürün siparişe hazır` : theme.cartEmptyText || 'Sepetiniz boş'}
                     </p>
                   )}
                 </div>
                 <button
+                  ref={closeButtonRef}
+                  type="button"
                   onClick={onClose}
-                  aria-label="Close cart"
+                  aria-label="Sepeti kapat"
                   style={{
-                    width: 36,
-                    height: 36,
+                    width: 44,
+                    height: 44,
                     borderRadius: 999,
                     color: 'inherit',
                     background: headerIsAccent ? 'rgba(255,255,255,.16)' : 'var(--p-accent-soft)',
@@ -203,7 +224,7 @@ export function CartDrawer({
                     flexShrink: 0,
                   }}
                 >
-                  <svg width={18} height={18} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg aria-hidden="true" width={18} height={18} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -270,6 +291,8 @@ export function CartDrawer({
                       {item.imageUrl && (
                         <img
                           src={item.imageUrl} alt={item.name}
+                          loading="lazy"
+                          decoding="async"
                           style={{ height: 58, width: 58, borderRadius: `${Math.max(10, radius)}px`, objectFit: 'cover', flexShrink: 0 }}
                         />
                       )}
@@ -290,8 +313,11 @@ export function CartDrawer({
                             {formatTRY(item.price + item.modifiersPriceDelta)} / adet{item.modifiers.length > 0 ? ' · Seçenekli' : ''}
                           </span>
                         </div>
-                        {(item.modifierNames.length > 0 || item.removedIngredientNames.length > 0 || item.energyKcal !== null) && (
+                        {(item.modifierNames.length > 0 || item.removedIngredientNames.length > 0 || item.energyKcal !== null || item.productNote || item.recommendationSourceItemId) && (
                           <div style={{ margin: '-3px 0 9px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {item.recommendationSourceItemId && (
+                              <span style={{ width: 'fit-content', padding: '2px 6px', borderRadius: 999, background: 'var(--p-accent-soft)', color: 'var(--p-accent)', fontSize: 9.5, fontWeight: 800 }}>Yanında iyi gider</span>
+                            )}
                             {item.modifierNames.length > 0 && (
                               <span style={{ fontSize: 10.5, color: 'var(--p-text-2)' }}>
                                 {item.modifierNames.join(', ')}
@@ -304,6 +330,9 @@ export function CartDrawer({
                             )}
                             {item.energyKcal !== null && (
                               <span style={{ fontSize: 10.5, color: 'var(--p-text-2)' }}>{item.energyKcal} kcal</span>
+                            )}
+                            {item.productNote && (
+                              <span style={{ padding: '5px 7px', borderRadius: 7, background: 'rgba(15,23,42,.05)', color: 'var(--p-text)', fontSize: 10.5, fontWeight: 700, lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>Not: {item.productNote}</span>
                             )}
                           </div>
                         )}
@@ -320,6 +349,7 @@ export function CartDrawer({
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                           <button
+                            type="button"
                             onClick={() => onUpdateQuantity(item.cartId, item.quantity - (item.promotion?.quantityStep ?? 1))}
                             style={{
                               height: 44, width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -331,6 +361,7 @@ export function CartDrawer({
                             {item.quantity}
                           </span>
                           <button
+                            type="button"
                             onClick={() => onUpdateQuantity(item.cartId, item.quantity + (item.promotion?.quantityStep ?? 1))}
                             style={{
                               height: 44, width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -339,6 +370,7 @@ export function CartDrawer({
                             }}
                           aria-label={`${item.name} adedini artır`}>+</button>
                           <button
+                            type="button"
                             onClick={() => onRemoveItem(item.cartId)}
                             aria-label={`${item.name} ürününü sepetten kaldır`}
                             style={{ marginLeft: 'auto', minHeight: 44, background: 'none', border: 'none', fontSize: 11.5, color: 'var(--p-text-2)', cursor: 'pointer', padding: '4px 8px' }}
@@ -498,27 +530,68 @@ export function CartDrawer({
                     </div>
                   </>
                 )}
+                {!canCheckout && checkoutUnavailableReason && (
+                  <div
+                    role="status"
+                    data-component="cart-checkout-unavailable"
+                    style={{
+                      marginBottom: 10,
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      border: '1px solid color-mix(in srgb, var(--p-accent) 28%, transparent)',
+                      background: 'var(--p-accent-soft)',
+                      color: 'var(--p-text)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {checkoutUnavailableReason}
+                  </div>
+                )}
+                {orderError && (
+                  <div
+                    role="alert"
+                    data-component="cart-order-error"
+                    style={{
+                      marginBottom: 10,
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      border: '1px solid rgba(180,35,24,.28)',
+                      background: 'rgba(180,35,24,.08)',
+                      color: '#b42318',
+                      fontSize: 12,
+                      fontWeight: 750,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {orderError}
+                  </div>
+                )}
                 <button
+                  type="button"
+                  aria-busy={isPlacing}
                   onClick={onPlaceOrder}
-                  disabled={isPlacing}
+                  disabled={isPlacing || !canCheckout}
                   style={{
                     width: '100%', padding: '14px 0',
                     fontSize: 15, fontWeight: 800,
                     background: 'var(--p-text)', color: '#fff',
                     border: 'none', borderRadius: `${Math.max(radius + 4, 16)}px`,
-                    cursor: isPlacing ? 'not-allowed' : 'pointer',
-                    opacity: isPlacing ? 0.6 : 1,
+                    cursor: isPlacing || !canCheckout ? 'not-allowed' : 'pointer',
+                    opacity: isPlacing || !canCheckout ? 0.6 : 1,
                     transition: 'opacity 150ms ease',
                     boxShadow: '0 12px 24px rgba(15,23,42,.18)',
                   }}
                 >
-                  {isPlacing ? 'Sipariş veriliyor…' : primaryActionText}
+                  {isPlacing ? 'Sipariş veriliyor…' : canCheckout ? primaryActionText : 'Masadaki QR kodu okutun'}
                 </button>
 
-                {(onPay ?? onSplitBill) && (
+                {canCheckout && (onPay ?? onSplitBill) && (
                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                     {onPay && (
                       <button
+                        type="button"
                         onClick={onPay}
                         style={{
                           flex: 1, padding: '11px 0', fontSize: 13, fontWeight: 750,
@@ -529,6 +602,7 @@ export function CartDrawer({
                     )}
                     {onSplitBill && (
                       <button
+                        type="button"
                         onClick={onSplitBill}
                         style={{
                           flex: 1, padding: '11px 0', fontSize: 13, fontWeight: 750,

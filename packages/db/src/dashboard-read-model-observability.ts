@@ -99,6 +99,9 @@ export function withDashboardInsightsObservability(
   const clock = options.clock ?? (() => performance.now())
 
   return {
+    readAnalyticsCoreMetrics(input) {
+      return observeResult('analytics-core', input.restaurantId, observer, clock, () => port.readAnalyticsCoreMetrics(input))
+    },
     readOrderVolume(input) {
       return observeResult('order-volume', input.restaurantId, observer, clock, () => port.readOrderVolume(input))
     },
@@ -110,6 +113,9 @@ export function withDashboardInsightsObservability(
     },
     readTablePerformance(input) {
       return observeResult('table-performance', input.restaurantId, observer, clock, () => port.readTablePerformance(input))
+    },
+    readPanoMetrics(input) {
+      return observeResult('pano-metrics', input.restaurantId, observer, clock, () => port.readPanoMetrics(input))
     },
     readPanoOperationalSource(input) {
       return observeResult(

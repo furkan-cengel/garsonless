@@ -8,6 +8,7 @@ export {
   canTransitionOrderStatus,
   compareOrdersByPriorityThenCreatedAt,
   computeVatBreakdown,
+  customRangeWindow,
   DEFAULT_TIMEZONE,
   isCollectedOrderRow,
   isValidTimeZone,
@@ -17,6 +18,7 @@ export {
   normalizeTimeZone,
   orderHasPriorityService,
   rangeWindow,
+  restaurantCalendarDayCount,
   readOrderCustomerTierSnapshot,
   readOrderLineSnapshot,
   readOrderLineSnapshots,
@@ -26,6 +28,7 @@ export {
   snapshotOrderCustomerTier,
   sortOrdersByPriorityThenCreatedAt,
   startOfDayNDaysAgo,
+  startOfRestaurantDate,
   startOfRestaurantDay,
 } from './order-client'
 export type {
@@ -47,3 +50,12 @@ export type {
   VatBreakdownRate,
   VatLineInput,
 } from './order-client'
+export {
+  isOrderLifecycleTarget,
+  isOrderStatus,
+  normalizeOperationalOrderStatus,
+} from '@garsonless/domain/orders'
+export type {
+  OperationalOrderStatus,
+  OrderLifecycleTarget,
+} from '@garsonless/domain/orders'

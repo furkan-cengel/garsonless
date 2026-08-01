@@ -27,9 +27,9 @@ const summary: CampaignSummary = {
 function port(): CampaignApplicationPort {
   return {
     list: async () => ok([summary]),
-    preview: async () => ok({ totalCandidates: 1, eligibleRecipients: 1, skippedNoMarketingConsent: 0, segmentLabel: 'Tümü' }),
+    preview: async () => ok({ totalCandidates: 1, eligibleRecipients: 1, skippedNoMarketingConsent: 0, skippedInvalidPhone: 0, skippedDuplicatePhone: 0, segmentLabel: 'Tümü' }),
     sendTest: async () => ok({ messageId: 'message-a' }),
-    send: async () => ({ ok: true, campaign: summary, preview: { totalCandidates: 1, eligibleRecipients: 1, skippedNoMarketingConsent: 0, segmentLabel: 'Tümü' } }),
+    send: async () => ({ ok: true, campaign: summary, replayed: false, preview: { totalCandidates: 1, eligibleRecipients: 1, skippedNoMarketingConsent: 0, skippedInvalidPhone: 0, skippedDuplicatePhone: 0, segmentLabel: 'Tümü' } }),
   }
 }
 
@@ -47,6 +47,7 @@ test('campaign commands derive audit identity and normalize transport input', as
   const adapter = port()
   let testAudit = ''
   let campaignAudit = ''
+  let requestId = ''
   let message = ''
   adapter.sendTest = async (input) => {
     testAudit = input.createdBy
@@ -55,11 +56,27 @@ test('campaign commands derive audit identity and normalize transport input', as
   }
   adapter.send = async (input) => {
     campaignAudit = input.createdBy
-    return { ok: true, campaign: summary, preview: { totalCandidates: 0, eligibleRecipients: 0, skippedNoMarketingConsent: 0, segmentLabel: 'Tümü' } }
+    requestId = input.requestId
+    return { ok: true, campaign: summary, replayed: false, preview: { totalCandidates: 0, eligibleRecipients: 0, skippedNoMarketingConsent: 0, skippedInvalidPhone: 0, skippedDuplicatePhone: 0, segmentLabel: 'Tümü' } }
   }
   await sendCustomerCampaignTest(actor, { restaurantId: 'restaurant-a', phone: '+905321234567', message: '  Merhaba\n dünya  ' }, adapter)
-  await sendCustomerCampaign(actor, { restaurantId: 'restaurant-a', name: ' Duyuru ', message: ' Merhaba ', audience: { segmentKind: 'builtin', builtinSegment: 'new' } }, adapter)
+  await sendCustomerCampaign(actor, { restaurantId: 'restaurant-a', requestId: 'b7e9d88d-5a25-4a66-951f-4ea3ded5b8fb', name: ' Duyuru ', message: ' Merhaba ', audience: { segmentKind: 'builtin', builtinSegment: 'new' } }, adapter)
   assert.equal(testAudit, 'staff-a')
   assert.equal(campaignAudit, 'staff-a')
+  assert.equal(requestId, 'b7e9d88d-5a25-4a66-951f-4ea3ded5b8fb')
   assert.equal(message, 'Merhaba dünya')
+})
+
+test('campaign send rejects a malformed request id before persistence', async () => {
+  const adapter = port()
+  let called = false
+  adapter.send = async () => {
+    called = true
+    return { ok: false, error: 'unexpected' }
+  }
+  const result = await sendCustomerCampaign(actor, {
+    restaurantId: 'restaurant-a', requestId: 'retry-me', name: 'Duyuru', message: 'Merhaba', audience: {},
+  }, adapter)
+  assert.deepEqual(result, { ok: false, error: 'Geçersiz istek kimliği' })
+  assert.equal(called, false)
 })

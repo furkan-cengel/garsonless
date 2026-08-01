@@ -10,6 +10,7 @@ import {
 import { AppIcons } from '../../../icons'
 import { formatTRY } from '../../../menu/formatCurrency'
 import type { MenuItem, SectionPromotionContext } from '../../../menu/types'
+import { ProductAllergenSummary } from '../../../menu/FoodInfoBadges'
 import { customSectionShell, makeReaders } from '../lib/sectionHelpers'
 
 type DailySpecialTheme = Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor'>
@@ -168,6 +169,8 @@ export function DailySpecialBlock({
               <img
                 src={item.images[0]}
                 alt=""
+                loading="lazy"
+                decoding="async"
                 style={{ width: '100%', height: '100%', objectFit: imageFit, objectPosition: imagePosition, display: 'block' }}
               />
             ) : (
@@ -197,6 +200,7 @@ export function DailySpecialBlock({
               {body}
             </p>
           )}
+          {item && <ProductAllergenSummary item={item} style={{marginTop:8}} />}
           {config.chefNote?.trim() && (
             <p style={{ margin: '8px 0 0', paddingLeft: 9, borderLeft: `2px solid ${accent}`, color: mutedColor, opacity: .76, fontFamily: 'var(--p-display)', fontSize: 11, fontStyle: 'italic', lineHeight: 1.4 }}>
               {config.chefNote.trim()}

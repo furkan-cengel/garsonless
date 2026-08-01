@@ -108,3 +108,49 @@ test('operations port maps retry and cancellation claims to their distinct provi
   assert.equal(calls[0]?.args.p_invoice_id, 'invoice-1')
   assert.equal(calls[1]?.args.p_invoice_id, null)
 })
+
+test('operations port fail-closes a callback lookup without one claimed paid plan', async () => {
+  const valid = createSubscriptionBillingOperationsPort(async () => ({
+    data: {
+      operationId: 'operation-1', restaurantId: 'restaurant-1',
+      invoiceId: 'invoice-1', requestedPlan: 'pro', expectedProviderPlanRef: 'plan-pro',
+    },
+    error: null,
+  }))
+  assert.deepEqual(await valid.findCheckoutCallback('checkout-1'), {
+    ok: true,
+    value: {
+      operationId: 'operation-1', restaurantId: 'restaurant-1',
+      invoiceId: 'invoice-1', requestedPlan: 'pro', expectedProviderPlanRef: 'plan-pro',
+    },
+  })
+
+  const invalid = createSubscriptionBillingOperationsPort(async () => ({
+    data: {
+      operationId: 'operation-1', restaurantId: 'restaurant-1',
+      invoiceId: 'invoice-1', requestedPlan: 'free', expectedProviderPlanRef: 'plan-free',
+    },
+    error: null,
+  }))
+  assert.deepEqual(await invalid.findCheckoutCallback('checkout-1'), {
+    ok: false, error: 'Billing checkout callback result is invalid',
+  })
+})
+
+test('operations port binds the exact provider plan before hosted checkout dispatch', async () => {
+  const calls: Array<{ name: string; args: Record<string, unknown> }> = []
+  const port = createSubscriptionBillingOperationsPort(async (name, args) => {
+    calls.push({ name, args })
+    return { data: true, error: null }
+  })
+  assert.deepEqual(await port.bindCheckoutProviderPlan({
+    operationId: 'operation-1', expectedProviderPlanRef: 'plan-pro-live',
+  }), { ok: true, value: true })
+  assert.deepEqual(calls, [{
+    name: 'bind_subscription_checkout_provider_plan',
+    args: {
+      p_operation_id: 'operation-1',
+      p_expected_provider_plan_ref: 'plan-pro-live',
+    },
+  }])
+})

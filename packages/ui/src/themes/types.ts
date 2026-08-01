@@ -54,7 +54,7 @@ export interface StoreInfo {
   hours?: Record<string, { open?: string; close?: string; active?: boolean }> | null
 }
 
-export interface MemberChipSummary {
+interface MemberChipSummary {
   name: string | null
   stamps?: number
   stampGoal?: number

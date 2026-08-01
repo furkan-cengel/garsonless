@@ -10,6 +10,7 @@ import type {
   PromoSliderConfig,
 } from '../lib/sectionTypes'
 import { formatTRY } from '../../../menu/formatCurrency'
+import { AllergenSummary } from '../../../menu/FoodInfoBadges'
 import type { PromoSliderCampaign } from './promoSliderCampaignModel'
 import { selectPromoSliderCampaigns } from './promoSliderCampaignModel'
 
@@ -287,6 +288,8 @@ function PromoComboSlide({ cfg, radius }: { cfg: PromoComboConfig; radius: numbe
           <img
             src={cfg.imageUrl}
             alt=""
+            loading="lazy"
+            decoding="async"
             style={{ width: '100%', height: '100%', display: 'block', objectFit: cfg.imageFit, objectPosition: `center ${cfg.imagePosition}` }}
           />
         ) : cfg.emoji}
@@ -365,6 +368,7 @@ function ActiveCampaignSlide({ campaign, radius }: { campaign: PromoSliderCampai
         <span style={{ marginTop: 4, color: campaign.textColor, opacity: .72, fontSize: 10.5, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {campaign.subtitle}
         </span>
+        <AllergenSummary definite={campaign.allergens} hasCrossContact={campaign.hasCrossContact} style={{marginTop:5}} />
         <ActiveCampaignCountdown campaign={campaign} />
         {campaign.price !== undefined && (
           <span className="garsonless-active-campaign-price" style={{ marginTop: campaign.expiresAtMs === undefined ? 8 : 6, display: 'flex', alignItems: 'baseline', gap: 7, minWidth: 0 }}>

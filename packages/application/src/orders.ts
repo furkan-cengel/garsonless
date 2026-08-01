@@ -1,11 +1,13 @@
-import type { CommandContext, OrderStatus, PaymentMethod, Result } from '@garsonless/domain'
-import { err, evaluateOrderCancellation, hasSameRestaurant, ok } from '@garsonless/domain'
+import type { CommandContext, OrderLifecycleTarget, OrderStatus, PaymentMethod, Result } from '@garsonless/domain'
+import { err, evaluateOrderCancellation, hasSameRestaurant, isOrderLifecycleTarget, ok } from '@garsonless/domain'
 
 export interface PublicOrderLine {
   itemId: string
   quantity: number
   selectedModifiers?: Array<{ group_id: string; option_id: string; quantity?: number }>
   removedIngredientIds?: string[]
+  productNote?: string
+  recommendationSourceItemId?: string
   combo?: {
     instanceId: string
     sectionInstanceId: string
@@ -122,7 +124,7 @@ export interface DashboardOrderLifecyclePort {
   transitionStatus(input: {
     orderId: string
     restaurantId: string
-    status: OrderStatus
+    status: OrderLifecycleTarget
   }): Promise<Result<null>>
   readForCancellation(input: {
     orderId: string
@@ -132,6 +134,12 @@ export interface DashboardOrderLifecyclePort {
     orderId: string
     restaurantId: string
     reason: string | null
+    cancelledBy: string
+  }): Promise<Result<null>>
+  cancelPaidManualOrder(input: {
+    orderId: string
+    restaurantId: string
+    reason: string
     cancelledBy: string
   }): Promise<Result<null>>
 }
@@ -172,11 +180,11 @@ export async function createDashboardOrder(
  * compare-and-set atomically against the canonical transition matrix. */
 export async function transitionDashboardOrder(
   context: Extract<CommandContext, { actor: 'dashboard-member' }>,
-  input: { orderId: string; restaurantId: string; status: OrderStatus },
+  input: { orderId: string; restaurantId: string; status: OrderLifecycleTarget },
   port: DashboardOrderLifecyclePort,
 ): Promise<Result<null>> {
   if (!canManageOrders(context, input.restaurantId)) return err('Not authorized')
-  if (input.status === 'cancelled' || input.status === 'paid') {
+  if (!isOrderLifecycleTarget(input.status)) {
     return err('Use the dedicated cancellation or settlement command')
   }
   return port.transitionStatus(input)
@@ -196,6 +204,16 @@ export async function cancelDashboardOrder(
   const decision = evaluateOrderCancellation({ ...snapshot.value, reason: input.reason ?? null })
   if (!decision.allowed) return err(decision.error)
   if (decision.alreadyCancelled) return ok(null)
+
+  if (snapshot.value.paidAt !== null && (snapshot.value.paymentMethod === 'cash' || snapshot.value.paymentMethod === 'pos')) {
+    if (context.isOwner !== true || !decision.reason) return err('Paid cash/POS cancellation and refund is owner-only')
+    return port.cancelPaidManualOrder({
+      orderId: input.orderId,
+      restaurantId: input.restaurantId,
+      reason: decision.reason,
+      cancelledBy: context.userId,
+    })
+  }
 
   return port.cancelOrder({
     orderId: input.orderId,

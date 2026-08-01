@@ -112,6 +112,23 @@ export function createDashboardOrderLifecyclePort(): DashboardOrderLifecyclePort
       })
       return result.error ? err(result.error) : ok(null)
     },
+    async cancelPaidManualOrder(input) {
+      const service = createServiceClient()
+      const call = service.rpc.bind(service) as unknown as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message: string } | null }>
+      const { data, error } = await call('cancel_paid_manual_order_with_refund', {
+        p_order_id: input.orderId,
+        p_restaurant_id: input.restaurantId,
+        p_reason: input.reason,
+        p_actor_user_id: input.cancelledBy,
+      })
+      if (error) return err(error.message)
+      if (data !== true) return err('Sipariş iptal/iade kaydı tamamlanamadı')
+      await dispatchAggregateDomainEvents({ aggregateId: input.orderId, eventTypes: ['order.status_changed'] })
+      return ok(null)
+    },
   }
 }
 
@@ -165,6 +182,7 @@ export function createDashboardOrderPort(): DashboardOrderCreatePort {
           0,
         ),
         status: 'sent_to_kitchen',
+        source: 'staff',
         session_id: input.createdBy,
       }).select('id').single()
       if (error) return err(error.message)
@@ -177,14 +195,16 @@ export function createDashboardOrderPort(): DashboardOrderCreatePort {
 export async function readPaymentSharesForSettlement(input: {
   restaurantId: string
   sessionId: string
-}) {
-  const { data, error } = await createServiceClient()
+}, signal?: AbortSignal) {
+  let query = createServiceClient()
     .from('payment_shares')
     .select('id, amount, method, status, label, settled_at, settled_by, created_at')
     .eq('restaurant_id', input.restaurantId)
     .eq('table_session_id', input.sessionId)
     .neq('status', 'void')
     .order('created_at', { ascending: true })
+  if (signal) query = query.abortSignal(signal)
+  const { data, error } = await query
   if (error) throw new Error(error.message)
   return data ?? []
 }

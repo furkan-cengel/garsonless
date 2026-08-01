@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useId, useRef } from 'react'
 import { formatTRY } from './formatCurrency'
 import { WaiterCallButton, type WaiterCallState } from './WaiterCallButton'
 
@@ -44,6 +45,12 @@ const KEYFRAMES = `
 `
 
 export function TableBillSheet({ orders, openedAt, closedNotice, refreshing, onClose, onCallWaiter, waiterCallState = 'idle' }: TableBillSheetProps) {
+  const titleId = useId()
+  const descriptionId = useId()
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
   const active = orders.filter((o) => o.status !== 'cancelled')
   const total = active.reduce((sum, o) => sum + o.total, 0)
   const paid = active.filter((o) => o.paidAt !== null).reduce((sum, o) => sum + o.total, 0)
@@ -53,15 +60,63 @@ export function TableBillSheet({ orders, openedAt, closedNotice, refreshing, onC
     ? new Date(openedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
     : null
 
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const frame = requestAnimationFrame(() => closeButtonRef.current?.focus())
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const focusable = Array.from(sheetRef.current?.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), a[href], input:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      ) ?? [])
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (!first || !last) {
+        event.preventDefault()
+        sheetRef.current?.focus()
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      cancelAnimationFrame(frame)
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+      returnFocusRef.current?.focus()
+    }
+  }, [])
+
   return (
     <>
       <style>{KEYFRAMES}</style>
       <div
+        aria-hidden="true"
         style={{ position: 'fixed', inset: 0, zIndex: 48, background: 'rgba(15,23,42,0.42)', backdropFilter: 'blur(2px)' }}
         onClick={onClose}
       />
       <div
+        ref={sheetRef}
         className="tbs-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
         style={{
           position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 49,
           maxHeight: '82dvh',
@@ -79,8 +134,8 @@ export function TableBillSheet({ orders, openedAt, closedNotice, refreshing, onC
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--p-text)' }}>Masa Hesabı</h2>
-              <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--p-text-2)' }}>
+              <h2 id={titleId} style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--p-text)' }}>Masa Hesabı</h2>
+              <p id={descriptionId} style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--p-text-2)' }}>
                 {closedNotice
                   ? 'Adisyon kapatıldı'
                   : openedText
@@ -89,11 +144,12 @@ export function TableBillSheet({ orders, openedAt, closedNotice, refreshing, onC
               </p>
             </div>
             <button
+              ref={closeButtonRef}
               type="button"
-              aria-label="Kapat"
+              aria-label="Masa hesabını kapat"
               onClick={onClose}
               style={{
-                width: 34, height: 34, borderRadius: '50%', border: `1px solid ${LINE}`,
+                width: 44, height: 44, borderRadius: '50%', border: `1px solid ${LINE}`,
                 background: SURFACE, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
@@ -106,7 +162,7 @@ export function TableBillSheet({ orders, openedAt, closedNotice, refreshing, onC
         </div>
 
         {closedNotice && (
-          <div style={{
+          <div role="status" aria-live="polite" style={{
             margin: '12px 18px 0', padding: '10px 14px', borderRadius: 12,
             background: 'var(--p-accent-soft)', color: 'var(--p-accent)',
             fontSize: 13, fontWeight: 600,
@@ -118,7 +174,7 @@ export function TableBillSheet({ orders, openedAt, closedNotice, refreshing, onC
         {/* orders */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 18px' }}>
           {refreshing && orders.length === 0 ? (
-            <p style={{ fontSize: 13, color: 'var(--p-text-2)', textAlign: 'center', padding: 24 }}>Yükleniyor…</p>
+            <p role="status" aria-live="polite" style={{ fontSize: 13, color: 'var(--p-text-2)', textAlign: 'center', padding: 24 }}>Yükleniyor…</p>
           ) : orders.length === 0 ? (
             <p style={{ fontSize: 13, color: 'var(--p-text-2)', textAlign: 'center', padding: 24 }}>
               Bu masada henüz sipariş yok.

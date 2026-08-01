@@ -43,6 +43,7 @@ import LockKeyhole from 'lucide-react/dist/esm/icons/lock-keyhole.mjs'
 import LogOut from 'lucide-react/dist/esm/icons/log-out.mjs'
 import Mail from 'lucide-react/dist/esm/icons/mail.mjs'
 import MapPin from 'lucide-react/dist/esm/icons/map-pin.mjs'
+import Minus from 'lucide-react/dist/esm/icons/minus.mjs'
 import Megaphone from 'lucide-react/dist/esm/icons/megaphone.mjs'
 import Menu from 'lucide-react/dist/esm/icons/menu.mjs'
 import MessageCircle from 'lucide-react/dist/esm/icons/message-circle.mjs'
@@ -159,6 +160,7 @@ export const AppIcons = {
   redo: icon(Redo2),
   question: icon(CircleHelp),
   plus: icon(Plus, 2),
+  minus: icon(Minus, 2),
   image: icon(Image),
   drag: icon(GripVertical, 2),
   copy: icon(Copy),

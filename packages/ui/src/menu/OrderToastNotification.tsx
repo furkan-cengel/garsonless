@@ -32,6 +32,7 @@ export function OrderToastNotification({ phase, onOpen }: OrderToastNotification
       <style>{KEYFRAMES}</style>
       <button
         type="button"
+        aria-label={`${data.t}. ${data.s}. Sipariş durumunu aç`}
         onClick={onOpen}
         className="ob-toast"
         style={{
@@ -54,14 +55,14 @@ export function OrderToastNotification({ phase, onOpen }: OrderToastNotification
           gap: 11,
         }}
       >
-        <span style={{
+        <span aria-hidden="true" style={{
           width: 38, height: 38, borderRadius: 11,
           background: 'var(--p-accent-soft)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 20, flexShrink: 0,
         }}>{data.emoji}</span>
         <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--p-text)' }}>{data.t}</span>
+          <span role="status" aria-live="polite" style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--p-text)' }}>{data.t}</span>
           <span style={{ display: 'block', fontSize: 12, color: 'var(--p-text-2)', marginTop: 1 }}>{data.s}</span>
         </span>
         <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--p-accent)', flexShrink: 0 }}>Gör →</span>

@@ -10,6 +10,43 @@ export type OrderStatus =
 
 export type PaymentMethod = 'iyzico' | 'cash' | 'pos' | 'comp' | 'split'
 
+/** Status exposed to operational read models. `paid` is a legacy storage value,
+ * never a kitchen stage in application/UI contracts. */
+export type OperationalOrderStatus = Exclude<OrderStatus, 'paid'>
+
+/** Targets accepted by the generic lifecycle command. Payment and cancellation
+ * have dedicated commands; entry states are never transition targets. */
+export const ORDER_LIFECYCLE_TARGETS = [
+  'sent_to_kitchen',
+  'preparing',
+  'ready',
+  'served',
+] as const
+export type OrderLifecycleTarget = typeof ORDER_LIFECYCLE_TARGETS[number]
+
+export function isOrderStatus(value: unknown): value is OrderStatus {
+  return typeof value === 'string' && [
+    'pending',
+    'pending_approval',
+    'sent_to_kitchen',
+    'preparing',
+    'ready',
+    'served',
+    'paid',
+    'cancelled',
+  ].includes(value)
+}
+
+export function isOrderLifecycleTarget(value: unknown): value is OrderLifecycleTarget {
+  return typeof value === 'string' && (ORDER_LIFECYCLE_TARGETS as readonly string[]).includes(value)
+}
+
+/** Converts the one remaining legacy storage status into its operational
+ * meaning. Settlement remains represented exclusively by paid_at/method. */
+export function normalizeOperationalOrderStatus(status: OrderStatus): OperationalOrderStatus {
+  return status === 'paid' ? 'preparing' : status
+}
+
 /** Orders that still participate in the live operational queue. */
 export const ACTIVE_ORDER_STATUSES: readonly OrderStatus[] = [
   'pending',
@@ -80,7 +117,7 @@ export function evaluateOrderCancellation(input: {
     return { allowed: true, reason, alreadyCancelled: true }
   }
   if (input.paidAt !== null && input.paymentMethod === 'iyzico') {
-    return { allowed: false, error: 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.' }
+    return { allowed: false, error: 'Bu sipariş online ödendi — doğrulanmış İyzico iade akışını kullanın.' }
   }
   if (input.paidAt !== null && input.paymentMethod === 'split') {
     return { allowed: false, error: 'Bu sipariş hesap bölüşme ile ödendi — pay iadeleri/iptali ayrı iade akışı gerektirir.' }

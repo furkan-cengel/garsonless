@@ -1,6 +1,7 @@
 import { createServiceClient } from './client'
 import { ORDER_STATUS_TRANSITIONS } from './enums'
-import type { OrderStatus, PaymentMethod } from './enums'
+import type { OrderLifecycleTarget, PaymentMethod } from '@garsonless/domain'
+import { isOrderLifecycleTarget } from '@garsonless/domain'
 import { dispatchAggregateDomainEvents } from './outbox-consumer-port'
 
 // @supabase/supabase-js v2 resolves .update()/.select() as never[] when consumed
@@ -56,16 +57,16 @@ type OrderScopeLookupBuilder = {
 // affected → the order doesn't belong to that restaurant → reject.
 export async function updateOrderStatusDB(
   orderId: string,
-  status: OrderStatus,
+  status: OrderLifecycleTarget,
   restaurantId: string,
 ): Promise<{ error: string | null }> {
+  if (!isOrderLifecycleTarget(status)) {
+    return { error: 'Use the dedicated cancellation or settlement command' }
+  }
   // Cancellation is NOT a plain status hop anymore: it has payment rules
   // (İyzico block), audit fields (cancel_reason/cancelled_by) and the loyalty
   // refund — exactly ONE path owns it: cancelOrderDB. Rejecting here means no
   // caller can sidestep the rules via the generic status writer.
-  if (status === 'cancelled') {
-    return { error: 'Use cancelOrderDB for cancellations' }
-  }
   // Transition matrix (ORDER_STATUS_TRANSITIONS — shared with the board's drag
   // guard), enforced ATOMICALLY: the UPDATE only matches when the CURRENT
   // status is a legal source for the target. Self-transitions are in the map
@@ -171,7 +172,7 @@ export async function cancelOrderDB(
     if (!existing) return { error: 'Order not found for this restaurant' }
     if (existing.status === 'cancelled') return { error: null } // idempotent no-op
     if (existing.paid_at !== null && existing.payment_method === 'iyzico') {
-      return { error: 'Bu sipariş online ödendi — iadeyi İyzico panelinden manuel yapın.' }
+      return { error: 'Bu sipariş online ödendi — doğrulanmış İyzico iade akışını kullanın.' }
     }
     if (existing.paid_at !== null && existing.payment_method === 'split') {
       return { error: 'Bu sipariş hesap bölüşme ile ödendi — pay iadeleri/iptali ayrı iade akışı gerektirir.' }

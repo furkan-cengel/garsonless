@@ -31,12 +31,22 @@ export {
   TableBillSheet,
   ProductCard,
   ProductModal,
+  hasConfigurableModifierGroups,
+  isProductConfigurable,
+  AllergenIcon,
+  AllergenIconList,
+  AllergenSummary,
+  ProductAllergenSummary,
+  getDefiniteAllergens,
+  hasAllergenInformation,
+  sortAllergenCodes,
   DietaryFilterBar,
   itemMatchesDietaryFilters,
   ML_STAMP_POP_KEYFRAME,
 } from './menu/index'
 export type { DietaryFilter } from './menu/index'
 export type { OrderTrackingPhase } from './menu/index'
+export type { ProductModalSubmitOptions, ProductRecommendationSelection } from './menu/index'
 
 export type {
   CartItem,

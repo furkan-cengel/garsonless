@@ -150,6 +150,8 @@ export function GallerySection({ config }: { config: Record<string, string> }) {
                   <img
                     src={tile.imageUrl}
                     alt={tile.label || `${text('title', 'Foto Galerisi')} fotoğrafı ${index + 1}`}
+                    loading="lazy"
+                    decoding="async"
                     style={{ width: '100%', height: '100%', display: 'block', objectFit: imageFit, objectPosition: imagePosition, background: 'var(--p-bg)' }}
                   />
                 ) : (

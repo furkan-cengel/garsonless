@@ -105,7 +105,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
       <section key={cat.id} id={`section-${cat.id}`} style={{
         marginBottom: 'var(--p-section-gap)',
         scrollMarginTop: theme.stickyNav
-          ? `calc(${theme.stickyHeader ? `var(--p-header-sticky-height, ${theme.headerHeight}px)` : '0px'} + ${56 + (theme.navTopGap ?? 0) + (theme.navBottomGap ?? 14)}px)`
+          ? `calc(${theme.stickyHeader ? `var(--p-header-sticky-height, ${theme.headerHeight}px)` : '0px'} + var(--p-catnav-sticky-height, 68px) + 8px)`
           : theme.stickyHeader
             ? `calc(var(--p-header-sticky-height, ${theme.headerHeight}px) + 8px)`
             : 8,

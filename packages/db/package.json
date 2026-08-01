@@ -13,6 +13,7 @@
   "scripts": {
     "lint": "eslint .",
     "test": "node --import tsx --test src/*.test.ts",
+    "test:tables-runtime": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx --test src/table-transfers-runtime.integration.ts",
     "typecheck": "tsc --noEmit",
     "db:migrate": "node scripts/migrate.mjs",
     "db:login": "supabase login",
