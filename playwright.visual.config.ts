@@ -43,6 +43,11 @@ export default defineConfig({
       use: { ...devices['iPhone 15'], colorScheme: 'light' },
     },
     {
+      name: 'public-tablet',
+      testMatch: /public\.spec\.ts/,
+      use: { viewport: { width: 768, height: 1024 }, colorScheme: 'light' },
+    },
+    {
       name: 'dashboard-desktop',
       testMatch: /dashboard-authenticated\.spec\.ts/,
       dependencies: hasDashboardVisualCredentials ? [authSetupProject] : [],

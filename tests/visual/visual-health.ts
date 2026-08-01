@@ -75,7 +75,6 @@ export async function assertVisualHealth(
   const screenshot = await page.screenshot({
     fullPage: true,
     animations: 'disabled',
-    caret: 'hide',
   })
   expect(screenshot.byteLength, `${name} screenshot should not be blank`).toBeGreaterThan(12_000)
 

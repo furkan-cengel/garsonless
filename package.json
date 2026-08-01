@@ -4,7 +4,7 @@
   "scripts": {
     "build": "corepack pnpm -r --if-present --workspace-concurrency=4 build",
     "check": "corepack pnpm check:ci && corepack pnpm build && corepack pnpm smoke",
-    "check:ci": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:architecture && corepack pnpm test:db && corepack pnpm test:prod-preflight && corepack pnpm test:prod-release && corepack pnpm test:prod-topology && corepack pnpm test:prod-runtime && corepack pnpm test:prod-smoke && corepack pnpm test:prod-handoff && corepack pnpm test:prod-candidate && corepack pnpm test:prod-execution && corepack pnpm test:prod-recovery && corepack pnpm test:prod-decision && corepack pnpm test:prod-bundle",
+    "check:ci": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:architecture && corepack pnpm test:db && corepack pnpm test:prod-preflight && corepack pnpm test:prod-release && corepack pnpm test:prod-topology && corepack pnpm test:prod-runtime && corepack pnpm test:prod-smoke && corepack pnpm test:prod-handoff && corepack pnpm test:prod-candidate && corepack pnpm test:prod-execution && corepack pnpm test:prod-recovery && corepack pnpm test:prod-decision && corepack pnpm test:prod-bundle && corepack pnpm test:tables-bundle-budget",
     "check:visual": "corepack pnpm check && corepack pnpm visual:smoke",
     "deadcode": "knip",
     "deadcode:report": "knip --reporter compact",
@@ -12,9 +12,12 @@
     "lint": "eslint .",
     "smoke": "playwright test",
     "test:application": "corepack pnpm --filter @garsonless/application test",
-    "test:architecture": "corepack pnpm test:domain && corepack pnpm test:application && corepack pnpm test:dashboard-architecture && corepack pnpm --filter @garsonless/kitchen test:architecture && corepack pnpm --filter @garsonless/platform-admin test:architecture",
+    "test:architecture": "corepack pnpm test:domain && corepack pnpm test:application && corepack pnpm --filter @garsonless/ui test && corepack pnpm --filter @garsonless/menu test && corepack pnpm test:dashboard-architecture && corepack pnpm --filter @garsonless/kitchen test:architecture && corepack pnpm --filter @garsonless/platform-admin test:architecture",
     "test:dashboard-architecture": "corepack pnpm --filter @garsonless/dashboard test:architecture",
     "test:db": "corepack pnpm --filter @garsonless/db test",
+    "test:tables-runtime": "corepack pnpm --filter @garsonless/db test:tables-runtime",
+    "test:tables-browser-runtime": "playwright test --config=playwright.tables-runtime.config.ts",
+    "test:tables-bundle-budget": "node --test scripts/tables-bundle-budget.test.mjs",
     "test:domain": "corepack pnpm --filter @garsonless/domain test",
     "test:prod-preflight": "node --test scripts/production-readiness.test.mjs",
     "test:prod-release": "node --test scripts/migration-release.test.mjs",
@@ -56,7 +59,8 @@
     "prod:release-execution": "node scripts/production-release-execution.mjs",
     "prod:release-recovery": "node scripts/production-release-recovery.mjs",
     "prod:release-decision": "node scripts/production-release-decision.mjs",
-    "prod:release-bundle": "node scripts/production-release-bundle.mjs"
+    "prod:release-bundle": "node scripts/production-release-bundle.mjs",
+    "check:tables-bundle-budget": "node scripts/tables-bundle-budget.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

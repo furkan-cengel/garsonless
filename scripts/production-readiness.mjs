@@ -11,7 +11,7 @@ const APP_SCOPES = {
     'SUPABASE_SERVICE_ROLE_KEY', 'NEXT_PUBLIC_APP_URL', 'NEXT_PUBLIC_MENU_URL',
     'NEXT_PUBLIC_MENU_BASE_URL', 'KITCHEN_URL', 'NEXT_PUBLIC_KITCHEN_URL',
     'OUTBOX_WORKER_SECRET', 'RESEND_API_KEY', 'RESEND_FROM_EMAIL',
-    'RESEND_STANDS_TO_EMAIL',
+    'RESEND_STANDS_TO_EMAIL', 'SAAS_BILLING_ENABLED',
   ],
   menu: [
     'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
@@ -46,6 +46,7 @@ const CAPABILITIES = {
     keys: [
       'IYZICO_BILLING_MERCHANT_ID', 'IYZICO_BILLING_API_KEY',
       'IYZICO_BILLING_SECRET_KEY', 'IYZICO_BILLING_BASE_URL',
+      'SAAS_BILLING_ENABLED',
       'IYZICO_BILLING_STARTER_PLAN_REF', 'IYZICO_BILLING_STARTER_AMOUNT_MINOR',
       'IYZICO_BILLING_PRO_PLAN_REF', 'IYZICO_BILLING_PRO_AMOUNT_MINOR',
       'IYZICO_BILLING_ENTERPRISE_PLAN_REF',
@@ -80,6 +81,17 @@ const URL_KEYS = new Set([
   'OUTBOX_EMAIL_CONSUMER_URL', 'PAYMENT_RECONCILIATION_URL',
   'BILLING_MAINTENANCE_URL', 'IYZICO_BASE_URL', 'IYZICO_BILLING_BASE_URL',
 ])
+
+const BILLING_PLAN_REF_KEYS = [
+  'IYZICO_BILLING_STARTER_PLAN_REF',
+  'IYZICO_BILLING_PRO_PLAN_REF',
+  'IYZICO_BILLING_ENTERPRISE_PLAN_REF',
+]
+const BILLING_AMOUNT_KEYS = [
+  'IYZICO_BILLING_STARTER_AMOUNT_MINOR',
+  'IYZICO_BILLING_PRO_AMOUNT_MINOR',
+  'IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR',
+]
 
 function stripInlineComment(value) {
   if (value.startsWith('"') || value.startsWith("'")) return value
@@ -129,6 +141,51 @@ function validateUrl(key, value) {
     return issue('MAS-DEP-006', key, 'Geçerli bir mutlak URL olmalı.')
   }
   return null
+}
+
+function validateSaasBillingContract(env) {
+  const errors = []
+  for (const key of BILLING_AMOUNT_KEYS) {
+    const raw = env[key]?.trim() ?? ''
+    if (!raw || isPlaceholder(raw)) continue
+    const value = Number(raw)
+    if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(value)) {
+      errors.push(issue('MAS-DEP-006', key, 'Pozitif ve güvenli bir TRY minor-unit tamsayısı olmalı.'))
+    }
+  }
+
+  const references = []
+  for (const key of BILLING_PLAN_REF_KEYS) {
+    const value = env[key]?.trim() ?? ''
+    if (!value || isPlaceholder(value)) continue
+    if (!/^[\x21-\x7e]{1,200}$/.test(value)) {
+      errors.push(issue('MAS-DEP-006', key, 'Yazdırılabilir ve en fazla 200 karakterlik provider referansı olmalı.'))
+    } else {
+      references.push({ key, value })
+    }
+  }
+  if (references.length === BILLING_PLAN_REF_KEYS.length
+    && new Set(references.map(({ value }) => value)).size !== references.length) {
+    errors.push(issue('MAS-DEP-006', 'IYZICO_BILLING_*_PLAN_REF', 'Paid plan provider referansları benzersiz olmalı.'))
+  }
+
+  const merchantId = env.IYZICO_BILLING_MERCHANT_ID?.trim() ?? ''
+  if (merchantId && !isPlaceholder(merchantId) && !/^[\x21-\x7e]{1,200}$/.test(merchantId)) {
+    errors.push(issue('MAS-DEP-006', 'IYZICO_BILLING_MERCHANT_ID', 'Geçerli bir provider merchant referansı olmalı.'))
+  }
+
+  const appUrl = env.NEXT_PUBLIC_APP_URL?.trim()
+  if (appUrl && !isPlaceholder(appUrl)) {
+    try {
+      const parsed = new URL(appUrl)
+      if (parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) {
+        errors.push(issue('MAS-DEP-006', 'NEXT_PUBLIC_APP_URL', 'Billing callback için path, query, fragment veya credential içermeyen origin olmalı.'))
+      }
+    } catch {
+      // The generic URL validator reports the canonical error.
+    }
+  }
+  return errors
 }
 
 function requiredKeys(scopes, capabilities) {
@@ -209,6 +266,21 @@ export function validateProductionConfig({ env, scopes, capabilities = [], proje
   }
   if (capabilities.includes('saas-billing') && env.IYZICO_BILLING_BASE_URL !== 'https://api.iyzipay.com') {
     errors.push(issue('MAS-DEP-006', 'IYZICO_BILLING_BASE_URL', 'Canlı SaaS billing için production İyzico origin zorunlu.'))
+  }
+  if (capabilities.includes('saas-billing')) {
+    errors.push(...validateSaasBillingContract(env))
+  }
+  if (scopes.includes('dashboard') && env.SAAS_BILLING_ENABLED) {
+    const expected = capabilities.includes('saas-billing') ? 'true' : 'false'
+    if (env.SAAS_BILLING_ENABLED !== expected) {
+      errors.push(issue(
+        'MAS-DEP-006',
+        'SAAS_BILLING_ENABLED',
+        capabilities.includes('saas-billing')
+          ? 'SaaS billing capability için açıkça true olmalı.'
+          : 'SaaS billing capability seçili değilken fail-closed false olmalı.',
+      ))
+    }
   }
   if (capabilities.includes('sms') && env.SMS_PROVIDER !== 'netgsm') {
     errors.push(issue('MAS-DEP-006', 'SMS_PROVIDER', 'Production SMS capability için provider netgsm olmalı.'))

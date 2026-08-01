@@ -1,0 +1,92 @@
+name: Tables Runtime Gate
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 2 * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/dashboard/**"
+      - "packages/application/src/tables.ts"
+      - "packages/db/src/table-**"
+      - "packages/db/supabase/migrations/**table**"
+      - "tests/tables-runtime/**"
+      - "scripts/tables-bundle-budget.mjs"
+      - "scripts/tables-bundle-budget.test.mjs"
+      - "package.json"
+      - "playwright.tables-runtime.config.ts"
+      - ".github/workflows/tables-runtime.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tables-runtime-linked-dev
+  cancel-in-progress: false
+
+jobs:
+  linked-dev-runtime:
+    name: Linked DEV transfer and browser gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.DEV_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3010
+      NEXT_PUBLIC_MENU_URL: https://menu.masabu.co
+      NEXT_PUBLIC_MENU_BASE_URL: https://menu.masabu.co
+      TABLES_RUNTIME_ALLOW_MUTATION: "1"
+      TABLES_RUNTIME_DASHBOARD_URL: http://127.0.0.1:3010
+      TABLES_RUNTIME_DB_EVIDENCE_PATH: test-results/tables-runtime/db-evidence.json
+      TABLES_RUNTIME_BROWSER_EVIDENCE_PATH: test-results/tables-runtime/browser-evidence.json
+      TABLES_RUNTIME_SCREENSHOT_DIR: test-results/tables-runtime
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install runtime gate dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Typecheck database runtime suite
+        run: pnpm --filter @garsonless/db typecheck
+
+      - name: Run isolated transfer and payment gate
+        run: pnpm test:tables-runtime
+
+      - name: Build dashboard production bundle
+        run: pnpm --filter @garsonless/dashboard build
+
+      - name: Enforce Masalar route bundle budgets
+        run: pnpm run check:tables-bundle-budget -- --output test-results/tables-runtime/bundle-budget-evidence.json
+
+      - name: Run production browser and Realtime gate
+        run: pnpm test:tables-browser-runtime
+
+      - name: Upload runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tables-runtime-evidence
+          path: test-results/tables-runtime
+          if-no-files-found: error
+          retention-days: 14

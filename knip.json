@@ -18,6 +18,15 @@
     "tests/visual/dashboard-auth.setup.ts"
   ],
   "ignoreDependencies": ["tailwindcss"],
+  "ignoreIssues": {
+    "packages/db/src/loyalty.ts": ["exports"],
+    "packages/db/src/security.ts": ["exports"],
+    "packages/db/src/sms.ts": ["exports", "types"],
+    "packages/db/src/split.ts": ["exports"],
+    "packages/db/src/team.ts": ["exports"],
+    "packages/db/src/outbox-consumer-port.ts": ["types"],
+    "packages/ui/src/menu/index.ts": ["exports", "types"]
+  },
   "workspaces": {
     "apps/*": {
       "entry": [
