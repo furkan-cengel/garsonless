@@ -4,7 +4,6 @@ import {
   readMemberLoyalty,
   type MemberBalances,
 } from '@garsonless/application/loyalty'
-import { readPublishedTheme } from '@garsonless/application/themes'
 import { readPublicTableState } from '@garsonless/application/tables'
 import { getRestaurantBySlug, getMenuCategories, getMenuItems } from '../../../../lib/queries'
 import { getCustomerSession } from '../../../../lib/customer-session'
@@ -12,6 +11,7 @@ import { availableCustomerAuthProviders } from '../../../../lib/customer-auth-pr
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../../../lib/featured-products'
 import { MenuPageClient } from '../../MenuPageClient'
 import { createLoyaltyQueryPort, createPublicTableQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
+import { getPublishedTheme } from '../../../../lib/published-theme'
 
 // Reading the auth cookie makes this route dynamic anyway; align with the
 // slug page instead of a stale ISR bill/session snapshot.
@@ -38,7 +38,7 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
 
   const themePort = createThemeApplicationPort()
   const [themeResult, categories, featuredRanking, session, customerAuthProviders] = await Promise.all([
-    readPublishedTheme({ restaurantId: restaurant.id }, themePort),
+    getPublishedTheme(restaurant.id, restaurant.slug),
     getMenuCategories(restaurant.id),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
     getCustomerSession(),

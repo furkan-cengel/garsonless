@@ -1,6 +1,6 @@
 'use client'
 
-import { CartIconSvg, formatTRY, useTheme } from '@garsonless/ui'
+import { CartIconSvg, formatTRY, useTheme } from '@garsonless/ui/menu'
 import { resolveMenuActionPlacements } from '@garsonless/design-engine/menu-action-placement'
 import { useCartStore } from '../../../lib/store/useCartStore'
 

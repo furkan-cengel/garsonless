@@ -1,4 +1,4 @@
-import { RecoveryScreen } from "@garsonless/ui";
+import { RecoveryScreen } from "@garsonless/ui/errors";
 
 export default function MenuNotFound() {
   return (

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { BillOrder } from '@garsonless/ui'
+import type { BillOrder } from '@garsonless/ui/menu'
 import type { SessionOrderRow, TableSessionInfo } from '../queries'
 
 interface UseTableBillOptions {

@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { itemMatchesDietaryFilters } from '@garsonless/ui'
-import type { CartItem, DietaryFilter, MenuCategory, MenuItem } from '@garsonless/ui'
+import { itemMatchesDietaryFilters } from '@garsonless/ui/menu'
+import type { CartItem, DietaryFilter, MenuCategory, MenuItem } from '@garsonless/ui/menu'
 
 export function useMenuCatalog({
   items,

@@ -1,9 +1,8 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { readPublishedTheme } from '@garsonless/application/themes'
-import { createThemeApplicationPort } from '@garsonless/db/server'
 import { applyGarsonlessTheme, buildFontsUrlFromTheme } from '@garsonless/design-engine'
 import { getRestaurantBySlug } from '../../lib/queries'
+import { getPublishedTheme } from '../../lib/published-theme'
 
 interface Props {
   children: React.ReactNode
@@ -14,7 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) return { title: 'Menu' }
-  const themeResult = await readPublishedTheme({ restaurantId: restaurant.id }, createThemeApplicationPort())
+  const themeResult = await getPublishedTheme(restaurant.id, restaurant.slug)
   const theme = themeResult.ok ? themeResult.value.theme : null
   const home = theme?.surfaces?.home
   const origin = (process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011').replace(/\/$/, '')
@@ -40,7 +39,7 @@ export default async function SlugLayout({ children, params }: Props) {
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) notFound()
 
-  const themeResult = await readPublishedTheme({ restaurantId: restaurant.id }, createThemeApplicationPort())
+  const themeResult = await getPublishedTheme(restaurant.id, restaurant.slug)
   if (!themeResult.ok) notFound()
   // Resolve identically to page.tsx so the SSR <style> matches the client's
   // initialTheme (no first-load color flash). Masabu exposes one canonical menu

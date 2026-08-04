@@ -1,13 +1,13 @@
 import { notFound } from 'next/navigation'
-import { readPublishedTheme } from '@garsonless/application/themes'
 import { customerActorContext, readMemberLoyalty, type MemberBalances } from '@garsonless/application/loyalty'
-import { createLoyaltyQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
-import type { MenuCategory, MenuItem } from '@garsonless/ui'
+import { createLoyaltyQueryPort } from '@garsonless/db/server'
+import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
 import { getMenuCategories, getMenuItems, getRestaurantBySlug } from '../../lib/queries'
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../lib/featured-products'
 import { HomePageRenderer } from './HomePageClient'
 import { getCustomerSession } from '../../lib/customer-session'
 import { availableCustomerAuthProviders } from '../../lib/customer-auth-provider'
+import { getPublishedTheme } from '../../lib/published-theme'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +22,7 @@ export default async function MenuPage({ params, searchParams }: Props) {
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) notFound()
 
-  const themeResult = await readPublishedTheme({ restaurantId: restaurant.id }, createThemeApplicationPort())
+  const themeResult = await getPublishedTheme(restaurant.id, restaurant.slug)
   if (!themeResult.ok) notFound()
   const homeEnabled = experienceV2Enabled && themeResult.value.theme.surfaces?.home.enabled === true
 

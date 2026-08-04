@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useRef } from 'react'
-import { formatTRY } from '@garsonless/ui'
-import type { CartItem, OrderSummaryItem } from '@garsonless/ui'
+import { formatTRY } from '@garsonless/ui/menu'
+import type { CartItem, OrderSummaryItem } from '@garsonless/ui/menu'
 import { readOrderApiResponse } from '../order-api-response'
 
 interface StartTrackingOptions {

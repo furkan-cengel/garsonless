@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import Image from 'next/image'
-import { CartDrawer, ThemeProvider, useTheme, type CartItem, type MenuItem } from '@garsonless/ui'
+import { CartDrawer, ThemeProvider, useTheme, type CartItem, type MenuItem } from '@garsonless/ui/menu'
 import { AppIcons as I } from '@garsonless/ui/icons'
 import {
   type AuthPreviewState,

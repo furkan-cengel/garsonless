@@ -1,6 +1,6 @@
 'use client'
 
-import type { MenuCategory, MenuItem } from '@garsonless/ui'
+import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { PublicRestaurant } from '../../lib/queries'
 import { HomePageRenderer } from './HomePageClient'

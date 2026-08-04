@@ -1,12 +1,11 @@
 import { notFound } from 'next/navigation'
-import { readPublishedTheme } from '@garsonless/application/themes'
-import { createThemeApplicationPort } from '@garsonless/db/server'
-import type { MenuCategory, MenuItem } from '@garsonless/ui'
+import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
 import type { AuthPreviewState, CheckoutPreviewState } from '@garsonless/design-engine'
 import { getMenuCategories, getMenuItems, getRestaurantBySlug } from '../../../lib/queries'
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../../lib/featured-products'
 import { ExperienceStatePreview } from '../../[slug]/ExperienceStatePreview'
 import { HomePagePreviewClient } from '../../[slug]/HomePagePreviewClient'
+import { getPreviewTheme } from '../../../lib/published-theme'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +23,7 @@ export default async function ThemeExperiencePreview({ params, searchParams }: P
   if (!restaurant) notFound()
 
   const [themeResult, categories, featuredRanking] = await Promise.all([
-    readPublishedTheme({ restaurantId: restaurant.id, templateOverride: previewTemplate }, createThemeApplicationPort()),
+    getPreviewTheme(restaurant.id, previewTemplate),
     getMenuCategories(restaurant.id),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
   ])

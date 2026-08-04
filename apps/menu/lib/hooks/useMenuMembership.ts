@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { CartItem, MenuItem } from '@garsonless/ui'
+import type { CartItem, MenuItem } from '@garsonless/ui/menu'
 import type { MemberBalances } from '@garsonless/db/types'
 import type { MembershipDiscountPreview } from '../menu-membership-client'
 

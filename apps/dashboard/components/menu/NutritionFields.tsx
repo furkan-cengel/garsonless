@@ -14,7 +14,7 @@ import {
   normalizeMenuNumericText,
   toggleAllergenDeclaration,
 } from '@garsonless/domain/menu'
-import { AllergenIcon } from '@garsonless/ui'
+import { AllergenIcon } from '@garsonless/ui/menu'
 
 /* ============================================================
    Shared nutrition / allergen / dietary editor — used by the

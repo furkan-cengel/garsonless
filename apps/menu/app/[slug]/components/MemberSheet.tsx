@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 import type { MemberBalances, LoyaltyActivity } from '@garsonless/db/types'
-import { ML_STAMP_POP_KEYFRAME, useTheme } from '@garsonless/ui'
+import { ML_STAMP_POP_KEYFRAME, useTheme } from '@garsonless/ui/menu'
 import { AppIcons } from '@garsonless/ui/icons'
 import {
   resolveAuthErrorState,

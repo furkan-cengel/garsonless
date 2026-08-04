@@ -7,7 +7,7 @@ import {
   normalizeModifierGroups,
 } from '@garsonless/db/browser'
 import type { Tables } from '@garsonless/db/types'
-import type { MenuItem, MenuCategory } from '@garsonless/ui'
+import type { MenuItem, MenuCategory } from '@garsonless/ui/menu'
 
 type PublicMenuItemRow = Pick<
   Tables<'menu_items'>,
@@ -115,7 +115,7 @@ async function readRestaurantBySlug(
 export const getRestaurantBySlug = cache((slug: string) => unstable_cache(
   () => readRestaurantBySlug(slug),
   ['public-menu-restaurant-v1', slug],
-  { revalidate: 60 },
+  { revalidate: 60, tags: [`public-menu:${slug}`] },
 )())
 
 export interface TableSessionInfo {

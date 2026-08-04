@@ -4,7 +4,7 @@ import {
   type FeaturedProductRanking,
 } from '@garsonless/application/featured-products'
 import { createFeaturedProductsReadPort } from '@garsonless/db/server'
-import type { MenuItem } from '@garsonless/ui'
+import type { MenuItem } from '@garsonless/ui/menu'
 
 const readCachedRanking = unstable_cache(
   async (restaurantId: string, timeZone: string): Promise<FeaturedProductRanking> => {

@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { orderStatusPhase } from '@garsonless/ui'
-import type { OrderSummaryItem } from '@garsonless/ui'
+import { orderStatusPhase } from '@garsonless/ui/menu'
+import type { OrderSummaryItem } from '@garsonless/ui/menu'
 import type { OrderStatus } from '@garsonless/db/types'
 import { useOrderStore } from '../store/useOrderStore'
 

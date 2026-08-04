@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import { inspectAuthSurfaceContrast, inspectCheckoutSurfaceContrast, sanitizeThemeTokens } from '@garsonless/design-engine'
 import {
@@ -354,6 +354,8 @@ export async function publishTheme(
     if (!result.ok) return dashboardThemeFailure(result.error)
 
     if (result.value.status === 'published' || result.value.status === 'replayed') {
+      revalidateTag(`theme:${restaurantId}`)
+      revalidateTag(`public-menu:${result.value.slug}`)
       revalidatePath(`/dashboard/${restaurantId}/theme`)
       revalidatePath(`/dashboard/${restaurantId}/theme/default/edit`)
       revalidatePath(`/${result.value.slug}`)

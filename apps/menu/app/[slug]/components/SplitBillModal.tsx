@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { formatTRY } from '@garsonless/ui'
+import { formatTRY } from '@garsonless/ui/menu'
 
 const fmt = formatTRY
 

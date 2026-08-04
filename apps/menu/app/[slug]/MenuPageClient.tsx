@@ -13,18 +13,18 @@ import {
   formatTRY,
   CartIconSvg,
   DietaryFilterBar,
-  readStoreInfo,
   isProductConfigurable,
-} from '@garsonless/ui'
+} from '@garsonless/ui/menu'
 import type {
-  ComboAddRequest,
   DietaryFilter,
   MenuCategory,
   MenuItem,
   ProductModalSubmitOptions,
   SectionPromotionContext,
   SelectedModifier,
-} from '@garsonless/ui'
+} from '@garsonless/ui/menu'
+import type { ComboAddRequest } from '@garsonless/ui/themes'
+import { readStoreInfo } from '@garsonless/ui/themes/storeInfo'
 import { allocateBundlePrice } from '@garsonless/domain/menu'
 import type { ServiceRequestType } from '@garsonless/domain/tables'
 import type { PublicRestaurant, TableSessionInfo, SessionOrderRow } from '../../lib/queries'

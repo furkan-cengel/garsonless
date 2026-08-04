@@ -2,7 +2,8 @@
 
 import dynamic from 'next/dynamic'
 import type { GarsonlessTheme, HomeSurfaceBlock } from '@garsonless/design-engine'
-import type { MenuCategory, MenuItem, StoreInfo } from '@garsonless/ui'
+import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
+import type { StoreInfo } from '@garsonless/ui/themes'
 import {
   StorefrontHeroSection,
   type StorefrontMemberSummary,

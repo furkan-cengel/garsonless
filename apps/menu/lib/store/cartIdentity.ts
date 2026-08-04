@@ -1,4 +1,4 @@
-import type { SelectedModifier } from '@garsonless/ui'
+import type { SelectedModifier } from '@garsonless/ui/menu'
 
 export const MAX_CART_ITEM_QUANTITY = 99
 

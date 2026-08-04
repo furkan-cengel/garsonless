@@ -34,7 +34,7 @@ test('auth preview interactions are local and cannot start OTP or OAuth requests
 })
 
 test('checkout theme preview renders the production cart and payment components', () => {
-  assert.match(experiencePreview, /import \{ CartDrawer,[\s\S]*\} from '@garsonless\/ui'/)
+  assert.match(experiencePreview, /import \{ CartDrawer,[\s\S]*\} from '@garsonless\/ui\/menu'/)
   assert.match(experiencePreview, /import PaymentModal from '.\/components\/PaymentModal'/)
   assert.match(experiencePreview, /<CartDrawer[\s\S]*isOpen/)
   assert.match(experiencePreview, /<PaymentModal[\s\S]*previewState=\{state\}/)

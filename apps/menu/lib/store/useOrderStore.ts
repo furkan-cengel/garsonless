@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { OrderStatus } from '@garsonless/db/types'
-import type { OrderSummaryItem } from '@garsonless/ui'
+import type { OrderSummaryItem } from '@garsonless/ui/menu'
 import { menuTenantScopeKey } from '../menu-scope-key'
 
 interface OrderMetaSnapshot {

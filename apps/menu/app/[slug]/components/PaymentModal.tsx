@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
-import { formatTRY, useTheme } from '@garsonless/ui'
+import { formatTRY, useTheme } from '@garsonless/ui/menu'
 import { AppIcons as I } from '@garsonless/ui/icons'
 import {
   resolveCheckoutErrorState,

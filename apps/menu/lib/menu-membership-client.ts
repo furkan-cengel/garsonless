@@ -1,4 +1,4 @@
-import type { CartItem } from '@garsonless/ui'
+import type { CartItem } from '@garsonless/ui/menu'
 import { broadcastCustomerSessionEvent } from './customer-auth-client'
 
 export interface MembershipDiscountPreview {

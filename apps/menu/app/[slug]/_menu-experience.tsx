@@ -4,14 +4,14 @@ import {
   readMemberLoyalty,
   type MemberBalances,
 } from '@garsonless/application/loyalty'
-import { readPublishedTheme } from '@garsonless/application/themes'
 import { createLoyaltyQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
-import type { MenuCategory, MenuItem } from '@garsonless/ui'
+import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
 import { getRestaurantBySlug, getMenuCategories, getMenuItems } from '../../lib/queries'
 import { getCustomerSession } from '../../lib/customer-session'
 import { availableCustomerAuthProviders } from '../../lib/customer-auth-provider'
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../lib/featured-products'
 import { MenuPageClient } from './MenuPageClient'
+import { getPreviewTheme, getPublishedTheme } from '../../lib/published-theme'
 
 export async function renderMenuExperience({
   slug,
@@ -30,10 +30,9 @@ export async function renderMenuExperience({
 
   const themePort = createThemeApplicationPort()
   const [themeResult, categories, featuredRanking, session, customerAuthProviders] = await Promise.all([
-    readPublishedTheme({
-      restaurantId: restaurant.id,
-      templateOverride: isPreview && previewTemplate ? previewTemplate : null,
-    }, themePort),
+    isPreview && previewTemplate
+      ? getPreviewTheme(restaurant.id, previewTemplate)
+      : getPublishedTheme(restaurant.id, restaurant.slug),
     getMenuCategories(restaurant.id),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
     getCustomerSession(),

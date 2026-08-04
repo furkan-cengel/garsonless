@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { AppIcons as I } from '@garsonless/ui/icons'
-import { formatTRY } from '@garsonless/ui'
+import { formatTRY } from '@garsonless/ui/menu'
 import type { ApiResult } from '../../../lib/customer-auth-contract'
 import type {
   CustomerAccountView,

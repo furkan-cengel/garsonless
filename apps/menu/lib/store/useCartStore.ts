@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { CartItem, MenuItem, ModifierGroup, SelectedModifier } from '@garsonless/ui'
+import type { CartItem, MenuItem, ModifierGroup, SelectedModifier } from '@garsonless/ui/menu'
 import { canonicalModifierSignature, canonicalRemovalSignature, clampCartQuantity } from './cartIdentity'
 import { menuTenantScopeKey } from '../menu-scope-key'
 
