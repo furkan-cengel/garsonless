@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
 export const MAX_ORDER_BODY_BYTES = 128 * 1024
-export const MAX_ORDER_ITEMS = 50
-export const MAX_LINE_MODIFIERS = 40
-export const MAX_LINE_REMOVALS = 40
+const MAX_ORDER_ITEMS = 50
+const MAX_LINE_MODIFIERS = 40
+const MAX_LINE_REMOVALS = 40
 
 const orderItemSchema = z.object({
   itemId: z.string().uuid(),
@@ -32,7 +32,7 @@ const orderItemSchema = z.object({
   modifiersPriceDelta: z.number().optional(),
 })
 
-export const createOrderSchema = z.object({
+const createOrderSchema = z.object({
   slug: z.string().min(1).max(128),
   tableToken: z.string().uuid(),
   sessionId: z.string().uuid(),

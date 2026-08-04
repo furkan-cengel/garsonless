@@ -1,13 +1,13 @@
 import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
-import { createClient } from '@garsonless/db/browser'
-import type { Tables } from '@garsonless/db/types'
-import type { MenuItem, MenuCategory } from '@garsonless/ui'
 import {
+  createClient,
   normalizeAllergenCodes,
   normalizeIngredients,
   normalizeModifierGroups,
 } from '@garsonless/db/browser'
+import type { Tables } from '@garsonless/db/types'
+import type { MenuItem, MenuCategory } from '@garsonless/ui'
 
 type PublicMenuItemRow = Pick<
   Tables<'menu_items'>,
