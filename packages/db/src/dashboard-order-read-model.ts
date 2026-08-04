@@ -5,8 +5,8 @@ import {
 } from '@garsonless/domain'
 import type { Tables } from './types.gen'
 
-export const DASHBOARD_ORDER_SOURCES = ['customer', 'staff'] as const
-export type DashboardOrderSource = typeof DASHBOARD_ORDER_SOURCES[number]
+const DASHBOARD_ORDER_SOURCES = ['customer', 'staff'] as const
+type DashboardOrderSource = typeof DASHBOARD_ORDER_SOURCES[number]
 
 export type DashboardOrderStorageRow = Pick<Tables<'orders'>,
   | 'id'
@@ -38,7 +38,7 @@ export type DashboardOrderReadRow = Omit<DashboardOrderStorageRow, 'status' | 's
   source: DashboardOrderSource
 }
 
-export function isDashboardOrderSource(value: unknown): value is DashboardOrderSource {
+function isDashboardOrderSource(value: unknown): value is DashboardOrderSource {
   return typeof value === 'string' && (DASHBOARD_ORDER_SOURCES as readonly string[]).includes(value)
 }
 

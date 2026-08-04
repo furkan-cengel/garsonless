@@ -11,8 +11,10 @@ import {
   consumeNotificationEmail,
   type NotificationEmailProvider,
 } from '@garsonless/application/notification-emails'
-import { createNotificationEmailPort } from '../src/notification-email-port'
-import { upsertNotificationPreferences } from '../src/notification-email-port'
+import {
+  createNotificationEmailPort,
+  upsertNotificationPreferences,
+} from '../src/notification-email-port'
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
