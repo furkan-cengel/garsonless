@@ -34,6 +34,19 @@ tmp/
 
 # Test and coverage artifacts
 test-results/
+!/test-results/
+/test-results/*
+!/test-results/shell-entrypoints-audit/
+!/test-results/shell-entrypoints-audit/REPORT.md
+!/test-results/shell-entrypoints-audit/SCENARIO-MATRIX.md
+!/test-results/shell-entrypoints-audit/screenshots/
+!/test-results/shell-entrypoints-audit/screenshots/*.png
+!/test-results/dashboard-spinner-audit/
+!/test-results/dashboard-spinner-audit/REPORT.md
+!/test-results/dashboard-spinner-audit/SCENARIO-MATRIX.md
+!/test-results/dashboard-spinner-audit/INVENTORY.csv
+!/test-results/dashboard-spinner-audit/evidence/
+!/test-results/dashboard-spinner-audit/evidence/README.md
 playwright-report/
 coverage/
 .nyc_output/

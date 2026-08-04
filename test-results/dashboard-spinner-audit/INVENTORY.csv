@@ -1,0 +1,49 @@
+id,nav_area,surface,kind,count,static_result,runtime_result,contract,source
+SH-01,Shell,Navigation feedback,indeterminate bar,1,PASS,NOT_RUN,"300ms delay; URL-key completion; 10s recovery; retry/dismiss; reduced motion",apps/dashboard/components/layout/NavigationFeedback.tsx
+SH-02,Shell,Navigation lifecycle,controller,1,PASS,NOT_RUN,"operation id; scoped cancel; same/external ignore; timer cleanup",apps/dashboard/components/layout/navigation-feedback-model.ts
+SH-03,Shell,Restaurant shell suspense,skeleton,1,PASS,NOT_RUN,"role=status; aria-busy; Turkish label; decorative blocks",apps/dashboard/components/layout/RestaurantShell.tsx
+SH-04,Shell,Generic route loading,skeleton family,7,PASS,NOT_RUN,"Pano/Menu/Theme/Orders/Customers/Analytics/Settings status and reduced motion",apps/dashboard/components/layout/DashboardRouteSkeleton.tsx
+SH-05,Shell,Tables route loading,skeleton family,2,PASS,NOT_RUN,"Operations and QR status/aria-busy/reduced-motion",apps/dashboard/components/tables/TablesRouteSkeleton.tsx
+SH-06,Shell,Shared InlineSpinner,spinner primitive,23,PASS,NOT_RUN,"aria-hidden; focusable=false; scoped CSS module; reduced motion",packages/ui/src/spinners/index.tsx
+SH-07,Shell,Shared LoadingStatus,status primitive,multiple,PASS,NOT_RUN,"visible or sr-only label; polite atomic status",packages/ui/src/spinners/index.tsx
+SH-08,Shell,Store switcher,text pending,1,PASS,NOT_RUN,"dialog busy; disabled selection; error/retry; navigation operation",apps/dashboard/components/overlays/StoreSwitcher.tsx
+SH-09,Shell,Profile store/logout,text pending,2,PASS,NOT_RUN,"menu busy; operation labels; error; double-submit lock",apps/dashboard/components/overlays/ProfileMenu.tsx
+SH-10,Shell,Notifications load,status primitive,1,PASS,NOT_RUN,"aria-busy; named LoadingStatus; alert/retry",apps/dashboard/components/overlays/NotificationsPanel.tsx
+P-01,Pano,Lazy chart/feed placeholders,status text,2,PASS,NOT_RUN,"role=status and accessible label",apps/dashboard/components/pano/PanoClient.tsx
+P-02,Pano,Sales chart refresh,status text,1,PASS,NOT_RUN,"aria-busy; live Turkish label; disabled controls; retry",apps/dashboard/components/pano/PanoSalesChart.tsx
+P-03,Pano,Activity approval,custom spinner,1,PASS,NOT_RUN,"decorative spinner; visible label; aria-busy; reduced motion",apps/dashboard/components/pano/PanoActivityFeed.tsx
+M-01,Menü,Menu manager mount,skeleton,1,PASS,NOT_RUN,"status/busy label; decorative shimmer; reduced motion",apps/dashboard/components/menu/MenuManagerChrome.tsx
+M-02,Menü,Category save,InlineSpinner,1,PASS,NOT_RUN,"disabled; visible action label; decorative spinner",apps/dashboard/components/menu/CategoryForm.tsx
+M-03,Menü,Confirm delete,InlineSpinner,1,PASS,NOT_RUN,"aria-busy; disabled; confirm label retained",apps/dashboard/components/menu/MenuConfirmDialog.tsx
+M-04,Menü,Load retry,rotating icon,1,PASS,NOT_RUN,"aria-hidden; disabled; reduced motion",apps/dashboard/components/menu/MenuLoadError.tsx
+M-05,Menü,CSV import,BrewBar/LoadingStatus,2,PASS,NOT_RUN,"progressbar ARIA; clamp; zero-total fallback; named action",apps/dashboard/components/menu/MenuCsvImportOverlays.tsx
+M-06,Menü,Item save/image upload,InlineSpinner/LoadingStatus,2,PASS,NOT_RUN,"button label; image region busy; named upload",apps/dashboard/components/menu/MenuItemEditPanel.tsx
+M-07,Menü,New product create,InlineSpinner,1,PASS,NOT_RUN,"disabled; Oluşturuluyor label retained",apps/dashboard/components/menu/NewProductDrawer.tsx
+T-01,Masalar,Floor chunk placeholder,skeleton,1,PASS,NOT_RUN,"aria-label; aria-busy; reduced motion",apps/dashboard/components/tables/TablesNavigation.tsx
+T-02,Masalar,Floor layout save,InlineSpinner,1,PASS,NOT_RUN,"disabled; Kaydediliyor label",apps/dashboard/components/tables/TablesFloorCanvas.tsx
+T-03,Masalar,Legacy layout import,InlineSpinner,1,PASS,NOT_RUN,"disabled; named action/error",apps/dashboard/components/tables/LegacyTableLayoutImportBanner.tsx
+T-04,Masalar,Table detail load,InlineSpinner status,1,PASS,NOT_RUN,"role=status; visible label; retry",apps/dashboard/components/tables/TableDetailPanel.tsx
+T-05,Masalar,Table CRUD,InlineSpinner,multiple,PASS,NOT_RUN,"disabled; named save/delete actions",apps/dashboard/components/tables/TablesNavigationTableRow.tsx
+T-06,Masalar,Settlement data/commit,InlineSpinner,2,PASS,NOT_RUN,"named status; aria-busy; disabled",apps/dashboard/components/tables/SettlementSheet.tsx
+T-07,Masalar,Abnormal close,InlineSpinner,1,PASS,NOT_RUN,"Kapatılıyor label; aria-busy; disabled",apps/dashboard/components/tables/SettlementSheet.tsx
+T-08,Masalar,Split confirmation,InlineSpinner,1,PASS,NOT_RUN,"Onaylanıyor label; aria-busy; disabled",apps/dashboard/components/tables/SettlementSplitStatus.tsx
+T-09,Masalar,Transfer load/action/history,status text,3,PASS,NOT_RUN,"status; alert; retry; disabled",apps/dashboard/components/tables/TableTransferDialog.tsx
+T-10,Masalar,Mobile iframe preview,LoadingStatus/state machine,1,PASS,NOT_RUN,"loading/ready/error/stalled; 10s timeout; retry/close",apps/dashboard/components/tables/TablesBuilderChrome.tsx
+T-11,QR Studio,PNG/PDF/print export,text pending,3,PASS,NOT_RUN,"disabled; aria-busy; visible preparation label; alert",apps/dashboard/components/tables/TablesQRCanvas.tsx
+TH-01,Tema,Editor client chunk,skeleton,1,PASS,NOT_RUN,"status/busy label; decorative skeleton; reduced motion",apps/dashboard/components/theme/ThemeEditorClientLoader.tsx
+TH-02,Tema,Theme preview,custom status,1,PASS,NOT_RUN,"role=status; label; iframe error/retry; reduced motion",apps/dashboard/components/theme/ThemePreviewSurface.tsx
+TH-03,Tema,Logo/section/gallery uploads,status text,multiple,PASS,NOT_RUN,"aria-busy; live operation labels; disabled; errors",apps/dashboard/components/theme/ThemeSectionSettings.tsx
+TH-04,Tema,Draft save/publish,status text,multiple,PASS,NOT_RUN,"single live atomic status; decorative dot",apps/dashboard/components/theme/ThemeEditorTopbar.tsx
+O-01,Siparişler,Order board lazy chunk,status text,1,PASS,NOT_RUN,"role=status and aria-live",apps/dashboard/components/orders/OrderBoard.tsx
+O-02,Siparişler,History modal load,LoadingStatus,1,PASS,NOT_RUN,"dialog busy; named loading status",apps/dashboard/components/orders/HistoryModal.tsx
+O-03,Siparişler,Order action pending,busy region,multiple,PASS,NOT_RUN,"card/detail aria-busy; visible labels; action errors",apps/dashboard/components/orders/OrderCard.tsx
+O-04,Siparişler,New order menu load,status text,1,PASS,NOT_RUN,"role=status; aria-live; aria-busy; error",apps/dashboard/components/overlays/NewOrderModal.tsx
+C-01,Müşteriler,List refresh,status text,1,PASS,NOT_RUN,"region busy; live status; offline retry",apps/dashboard/components/customers/CustomersClient.tsx
+C-02,Müşteriler,Detail timeline pagination,status text,1,PASS,NOT_RUN,"button busy; live operation label; error",apps/dashboard/components/customers/CustomerDetailClient.tsx
+A-01,Raporlar,Report fetch,status text,1,PASS,NOT_RUN,"report region busy; status; offline/error retry",apps/dashboard/components/analytics/AnalyticsReportShell.tsx
+A-02,Raporlar,Chart chunks,status text,multiple,PASS,NOT_RUN,"role=status and polite live labels",apps/dashboard/components/analytics/AnalyticsSalesPaymentReports.tsx
+S-01,Ayarlar,Store/business/security saves,InlineSpinner/text,multiple,PASS,NOT_RUN,"form busy; disabled; operation labels; feedback",apps/dashboard/components/settings/StoreSections.tsx
+S-02,Ayarlar,Profile/team actions,status text,multiple,PASS,NOT_RUN,"busy regions; live pending/result; disabled",apps/dashboard/components/settings/AccountSections.tsx
+S-03,Ayarlar,Billing profile/checkout/cancel,status text,3,PASS,NOT_RUN,"separate pending flags; active label only; cross-operation disable",apps/dashboard/components/settings/BillingSection.tsx
+S-04,Ayarlar,Logo upload,status text,1,PASS,NOT_RUN,"form busy; live label; disabled; feedback",apps/dashboard/components/settings/SettingsForm.tsx
+S-05,Ayarlar,Loyalty/kitchen access,status text,multiple,PASS,NOT_RUN,"form/section busy; live labels; disabled; errors",apps/dashboard/components/settings/LoyaltySection.tsx
