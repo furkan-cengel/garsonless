@@ -12,15 +12,6 @@ export const NOTIFICATION_SEVERITIES = ['info', 'warning', 'critical'] as const
 export type NotificationSeverity = (typeof NOTIFICATION_SEVERITIES)[number]
 
 export const NOTIFICATION_CHANNELS = ['inapp', 'push', 'email', 'sms'] as const
-export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number]
-
-export function isNotificationCategory(value: unknown): value is NotificationCategory {
-  return NOTIFICATION_CATEGORIES.includes(value as NotificationCategory)
-}
-
-export function isNotificationSeverity(value: unknown): value is NotificationSeverity {
-  return NOTIFICATION_SEVERITIES.includes(value as NotificationSeverity)
-}
 
 /**
  * ADR-0002/ADR-0003 rule: billing and platform/system notifications cannot be
