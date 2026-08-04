@@ -11,14 +11,14 @@ export const OPERATIONAL_STATUS_LABELS: Record<OperationalOrderStatus, string> =
   cancelled: 'İptal edildi',
 }
 
-export const LIFECYCLE_TARGET_LABELS: Record<OrderLifecycleTarget, string> = {
+const LIFECYCLE_TARGET_LABELS: Record<OrderLifecycleTarget, string> = {
   sent_to_kitchen: 'mutfağa gönderildi',
   preparing: 'hazırlanmaya başladı',
   ready: 'hazır olarak işaretlendi',
   served: 'servis edildi',
 }
 
-export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   iyzico: 'İyzico',
   cash: 'Nakit',
   pos: 'Fiziksel POS',

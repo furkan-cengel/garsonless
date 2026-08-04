@@ -1,10 +1,10 @@
-export const THEME_MEDIA_IMAGE_MAX_BYTES = 8 * 1024 * 1024
-export const THEME_MEDIA_ICON_MAX_BYTES = 2 * 1024 * 1024
+const THEME_MEDIA_IMAGE_MAX_BYTES = 8 * 1024 * 1024
+const THEME_MEDIA_ICON_MAX_BYTES = 2 * 1024 * 1024
 export const THEME_MEDIA_VIDEO_MAX_BYTES = 8 * 1024 * 1024
 export const THEME_MEDIA_VIDEO_MAX_SECONDS = 15
 export const THEME_MEDIA_MAX_PIXELS = 24_000_000
 
-export const THEME_MEDIA_PURPOSES = [
+const THEME_MEDIA_PURPOSES = [
   'section-image',
   'section-icon',
   'gallery-image',

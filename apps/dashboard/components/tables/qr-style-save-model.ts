@@ -13,7 +13,7 @@ export type QRStyleSaveResolution =
 export const QR_STYLE_CONFLICT_MESSAGE =
   'Başka bir çalışan QR stilini değiştirdi. Sunucudaki güncel sürüm yüklendi; bu sekmedeki kaydedilmemiş değişiklikler geri alındı.'
 
-export function qrStylesEqual(left: QRConfig, right: QRConfig): boolean {
+function qrStylesEqual(left: QRConfig, right: QRConfig): boolean {
   return JSON.stringify(left) === JSON.stringify(right)
 }
 

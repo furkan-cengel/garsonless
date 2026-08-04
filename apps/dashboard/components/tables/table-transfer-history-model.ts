@@ -5,8 +5,8 @@ export type TransferHistoryViewItem = TableTransferHistoryItem & {
   undoActorLabel: string | null
 }
 
-export type TransferHistoryKindFilter = 'all' | TransferHistoryViewItem['kind']
-export type TransferHistoryStatusFilter = 'all' | TransferHistoryViewItem['status']
+type TransferHistoryKindFilter = 'all' | TransferHistoryViewItem['kind']
+type TransferHistoryStatusFilter = 'all' | TransferHistoryViewItem['status']
 
 export interface TransferHistoryFilters {
   query: string

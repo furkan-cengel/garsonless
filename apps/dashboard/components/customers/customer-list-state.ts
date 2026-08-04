@@ -1,6 +1,6 @@
 import type { CustomerSegment, CustomerSort } from '@garsonless/domain/customers'
 
-export const CUSTOMER_LIST_DEFAULT_SORT: CustomerSort = 'last_seen'
+const CUSTOMER_LIST_DEFAULT_SORT: CustomerSort = 'last_seen'
 
 const SORTS = new Set<CustomerSort>(['last_seen', 'spend', 'visits', 'points', 'joined'])
 const SEGMENTS = new Set<CustomerSegment>(['new', 'frequent', 'lapsed', 'consented'])
@@ -33,7 +33,7 @@ export function parseCustomerListState(params: Pick<URLSearchParams, 'get'>): Cu
   }
 }
 
-export function customerListSearchParams(state: CustomerListState): URLSearchParams {
+function customerListSearchParams(state: CustomerListState): URLSearchParams {
   const params = new URLSearchParams()
   const search = state.search.trim().slice(0, 120)
   if (search) params.set('q', search)

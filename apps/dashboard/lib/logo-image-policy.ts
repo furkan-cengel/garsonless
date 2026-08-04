@@ -1,7 +1,7 @@
 export const LOGO_IMAGE_MAX_BYTES = 2 * 1024 * 1024
 
 const LOGO_IMAGE_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
-export type LogoImageMime = (typeof LOGO_IMAGE_ALLOWED_TYPES)[number]
+type LogoImageMime = (typeof LOGO_IMAGE_ALLOWED_TYPES)[number]
 
 export type ValidatedLogoImage = {
   mime: LogoImageMime

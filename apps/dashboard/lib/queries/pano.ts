@@ -43,7 +43,7 @@ export interface ActivityEvent {
 
 export type PanoServiceRequest = PanoOperationalSource['pendingServiceRequests'][number]
 
-export type PanoAttentionKind =
+type PanoAttentionKind =
   | 'pending_order'
   | 'late_table'
   | 'service_request'

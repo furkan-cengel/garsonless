@@ -1,7 +1,4 @@
 import type { TableLayoutRotation, TableLayoutShape } from '@garsonless/application/tables'
-import type { PersistedQRStyle, QRStyleSafetyResult } from '@garsonless/application/qr-style'
-
-export type { PersistedQRStyle, QRStyleSafetyResult }
 
 export interface TableItem {
   id: string

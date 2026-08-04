@@ -34,7 +34,7 @@ async function assertReadable(qr: QRConfig, table: TableItem): Promise<QRHealth>
   return health
 }
 
-export async function renderTableCardSVG(qr: QRConfig, table: TableItem): Promise<string> {
+async function renderTableCardSVG(qr: QRConfig, table: TableItem): Promise<string> {
   const qrMarkup = await renderQRMarkup(qr, table)
   const label = escapeXML(table.label)
   const title = escapeXML(qr.frameTitle)

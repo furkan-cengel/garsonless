@@ -114,7 +114,7 @@ export async function getDashboardKPIs(
   return { revenue, revenueYesterday, orders, ordersYesterday, paidOrders, paidOrdersYesterday, activeOrders, avgBasket, sessions, sessionsYesterday }
 }
 
-export async function getTopItems(
+async function getTopItems(
   restaurantId: string,
   range: string | AnalyticsQuery = 'day',
   asOf = new Date(),
@@ -347,7 +347,7 @@ export async function getSalesOverTime(
   })
 }
 
-export async function getHeatmapData(
+async function getHeatmapData(
   restaurantId: string,
   range: string | AnalyticsQuery = 'month',
   asOf = new Date(),

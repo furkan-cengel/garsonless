@@ -107,5 +107,3 @@ export function useTablesNavigationModel({
     clearFilters,
   }
 }
-
-export type TablesNavigationModel = ReturnType<typeof useTablesNavigationModel>

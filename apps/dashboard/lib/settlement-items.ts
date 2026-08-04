@@ -1,6 +1,6 @@
 import { readOrderLineSnapshots } from '@garsonless/db/browser'
 
-export interface SettlementItemModifier {
+interface SettlementItemModifier {
   groupName: string | null
   optionName: string
   quantity: number

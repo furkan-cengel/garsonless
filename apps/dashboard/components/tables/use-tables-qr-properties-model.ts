@@ -5,7 +5,7 @@ import { defaultQR } from './tables-builder-model'
 import type { QRConfig, SaveState } from './tables-builder-types'
 
 export type QRPropertiesTab = 'shape' | 'color' | 'logo' | 'frame' | 'data'
-export type QRFieldChangeMode = 'push' | 'replace' | 'begin'
+type QRFieldChangeMode = 'push' | 'replace' | 'begin'
 export type SetQRField = <Key extends keyof QRConfig>(
   key: Key,
   value: QRConfig[Key],
@@ -24,7 +24,7 @@ export const QR_PROPERTY_TABS: ReadonlyArray<{
   { id: 'data', label: 'Veri', icon: 'link2' },
 ]
 
-export function qrSaveStatus(saveState: SaveState) {
+function qrSaveStatus(saveState: SaveState) {
   if (saveState === 'validating') {
     return { label: 'Doğrulanıyor', tone: 'neutral' as const, dot: 'var(--warning)' }
   }

@@ -276,7 +276,7 @@ export async function saveQRStyle(
 
 export type OpenSessionInfo = import('@garsonless/application/tables').OpenTableSession
 
-export interface TableDetailItem {
+interface TableDetailItem {
   id: string
   name: string
   quantity: number
@@ -287,7 +287,7 @@ export interface TableDetailItem {
   productNote: string | null
 }
 
-export interface TableDetailOrder {
+interface TableDetailOrder {
   id: string
   status: string
   total: number

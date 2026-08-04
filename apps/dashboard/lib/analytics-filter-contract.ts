@@ -1,4 +1,4 @@
-export const ANALYTICS_RANGE_IDS = [
+const ANALYTICS_RANGE_IDS = [
   'day',
   'yesterday',
   'week',
@@ -10,11 +10,11 @@ export const ANALYTICS_RANGE_IDS = [
 ] as const
 
 export type AnalyticsRange = typeof ANALYTICS_RANGE_IDS[number]
-export type AnalyticsOrderSource = 'all' | 'customer' | 'staff'
-export type AnalyticsPaymentMethod = 'all' | 'cash' | 'pos' | 'iyzico' | 'split' | 'comp' | 'unknown'
-export type AnalyticsOrderStatus = 'all' | 'pending_approval' | 'pending' | 'preparing' | 'ready' | 'served'
+type AnalyticsOrderSource = 'all' | 'customer' | 'staff'
+type AnalyticsPaymentMethod = 'all' | 'cash' | 'pos' | 'iyzico' | 'split' | 'comp' | 'unknown'
+type AnalyticsOrderStatus = 'all' | 'pending_approval' | 'pending' | 'preparing' | 'ready' | 'served'
 
-export interface AnalyticsFilters {
+interface AnalyticsFilters {
   source: AnalyticsOrderSource
   paymentMethod: AnalyticsPaymentMethod
   status: AnalyticsOrderStatus
@@ -27,7 +27,7 @@ export interface AnalyticsQuery {
   filters: AnalyticsFilters
 }
 
-export const DEFAULT_ANALYTICS_QUERY: AnalyticsQuery = {
+const DEFAULT_ANALYTICS_QUERY: AnalyticsQuery = {
   range: 'week',
   from: null,
   to: null,
@@ -42,7 +42,7 @@ function valueOf(input: URLSearchParams | Record<string, unknown>, key: string):
   return input instanceof URLSearchParams ? input.get(key) : input[key]
 }
 
-export function isAnalyticsDateKey(value: unknown): value is string {
+function isAnalyticsDateKey(value: unknown): value is string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const [year, month, day] = value.split('-').map(Number)
   const date = new Date(Date.UTC(year!, month! - 1, day!))

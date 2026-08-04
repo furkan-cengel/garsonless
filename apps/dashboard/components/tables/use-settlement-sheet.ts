@@ -173,5 +173,3 @@ export function useSettlementSheet({
     cancelAbnormal,
   }
 }
-
-export type SettlementSheetController = ReturnType<typeof useSettlementSheet>

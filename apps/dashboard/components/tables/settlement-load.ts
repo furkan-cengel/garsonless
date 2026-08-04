@@ -1,4 +1,4 @@
-export const SETTLEMENT_LOAD_TIMEOUT_MS = 12_000
+const SETTLEMENT_LOAD_TIMEOUT_MS = 12_000
 export const SETTLEMENT_LOAD_ERROR = 'Adisyon bilgileri yüklenemedi. Lütfen tekrar deneyin.'
 
 export async function withSettlementLoadTimeout<T>(
