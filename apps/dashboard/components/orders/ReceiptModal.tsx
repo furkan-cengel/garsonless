@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { computeVatBreakdown, readOrderLineSnapshots, type PaymentMethod } from '@garsonless/db/browser'
 import { I, S, btnPrimary, btnGhost } from '../../lib/ui'
 import { formatCurrency } from '../../lib/utils'
@@ -60,7 +61,7 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
           {/* Header */}
           <div style={{ textAlign: 'center', borderBottom: '1.5px dashed #cfcfcf', paddingBottom: 14 }}>
             {/* Real wordmark — receipt is white (screen + print), vector stays sharp when printed. */}
-            <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 20, width: 'auto', display: 'block', margin: '0 auto 8px' }} />
+            <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={93} height={20} style={{ height: 20, width: 'auto', display: 'block', margin: '0 auto 8px' }} />
             <div id="order-receipt-title" style={{ fontFamily: 'system-ui, sans-serif', fontWeight: 700, fontSize: 15 }}>{restaurantName} sipariş fişi</div>
             {(company || taxNumber || taxOffice || taxAddress) && (
               <div style={{ marginTop: 8, fontSize: 9.5, color: '#666', lineHeight: 1.45 }}>

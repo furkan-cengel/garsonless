@@ -9,7 +9,7 @@ import {
   type GarsonlessTheme,
   type ThemePreviewContext,
 } from '@garsonless/design-engine'
-import type { SettingField, SettingsGroup } from '@garsonless/ui'
+import type { SettingField, SettingsGroup } from '@garsonless/ui/themes'
 import { publishTheme, saveThemeDraft } from '../../lib/actions/theme'
 import {
   appendHistorySnapshot,

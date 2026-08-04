@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { RecoveryScreen } from "@garsonless/ui";
+import { RecoveryScreen } from "@garsonless/ui/errors";
 
 export default function DashboardGlobalError({
   error,

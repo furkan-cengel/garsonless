@@ -1,7 +1,7 @@
 "use client";
 
 import type { GarsonlessTheme } from "@garsonless/design-engine";
-import type { SettingField } from "@garsonless/ui";
+import type { SettingField } from "@garsonless/ui/themes";
 
 import {
   contrastRatio,

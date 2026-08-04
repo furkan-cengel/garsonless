@@ -1,5 +1,5 @@
 import type { GarsonlessTheme } from '@garsonless/design-engine'
-import type { SettingField } from '@garsonless/ui'
+import type { SettingField } from '@garsonless/ui/themes'
 
 export type EditorTab = 'design' | 'layout' | 'content'
 type SectionFieldType = 'text' | 'textarea' | 'color' | 'range' | 'select' | 'url' | 'datetime' | 'toggle' | 'product-select' | 'category-select' | 'campaign-multi-select' | 'heading' | 'icon-grid'

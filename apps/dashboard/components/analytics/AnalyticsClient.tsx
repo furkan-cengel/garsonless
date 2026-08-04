@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import type {
   AnalyticsRangeKPIs,
   TopItem,
@@ -9,17 +10,16 @@ import type {
   PaymentReport,
   ProductReportItem,
 } from '../../lib/queries/analytics'
-import { AnalyticsItemsReport } from './AnalyticsItemsReport'
-import { AnalyticsLoyaltyReport } from './AnalyticsLoyaltyReport'
-import { AnalyticsOperationsReport } from './AnalyticsOperationsReport'
 import { AnalyticsReportShell } from './AnalyticsReportShell'
-import { AnalyticsPaymentsReport, AnalyticsSalesReport } from './AnalyticsSalesPaymentReports'
-import { AnalyticsTablesReport } from './AnalyticsTablesReport'
-import { buildAnalyticsReportCsv, downloadAnalyticsCsv } from './analytics-report-export'
 import { useAnalyticsReports } from './use-analytics-reports'
 import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
 import type { AnalyticsReportId } from '../../lib/actions/analytics'
-
+const AnalyticsSalesReport = dynamic(() => import('./AnalyticsSalesPaymentReports').then((module) => module.AnalyticsSalesReport))
+const AnalyticsPaymentsReport = dynamic(() => import('./AnalyticsSalesPaymentReports').then((module) => module.AnalyticsPaymentsReport))
+const AnalyticsItemsReport = dynamic(() => import('./AnalyticsItemsReport').then((module) => module.AnalyticsItemsReport))
+const AnalyticsTablesReport = dynamic(() => import('./AnalyticsTablesReport').then((module) => module.AnalyticsTablesReport))
+const AnalyticsOperationsReport = dynamic(() => import('./AnalyticsOperationsReport').then((module) => module.AnalyticsOperationsReport))
+const AnalyticsLoyaltyReport = dynamic(() => import('./AnalyticsLoyaltyReport').then((module) => module.AnalyticsLoyaltyReport))
 interface Props {
   restaurantId: string
   restaurantName: string
@@ -73,8 +73,9 @@ export default function AnalyticsClient({
     },
   })
 
-  function handleExport() {
+  async function handleExport() {
     if (!reports.canExport) return
+    const { buildAnalyticsReportCsv, downloadAnalyticsCsv } = await import('./analytics-report-export')
     const built = buildAnalyticsReportCsv(reports.activeReport, reports.query, reports.analyticsData)
     if (!built) return
     downloadAnalyticsCsv(built.filename, built.csv)
@@ -96,7 +97,7 @@ export default function AnalyticsClient({
       onRangeChange={reports.changeRange}
       onQueryChange={reports.changeQuery}
       onRetry={reports.retry}
-      onExport={handleExport}
+      onExport={() => { void handleExport() }}
     >
       {reports.activeReport === 'sales' && reports.activeReportLoaded && (
         <AnalyticsSalesReport

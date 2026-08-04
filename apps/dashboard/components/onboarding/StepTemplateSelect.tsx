@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { CANONICAL_THEME_ID } from '@garsonless/design-engine'
-import { THEME_DEFAULTS } from '@garsonless/ui'
+import { THEME_DEFAULTS } from '@garsonless/ui/themes/default'
 import { publishTheme, saveThemeDraft } from '../../lib/actions/theme'
 
 interface Props {

@@ -27,7 +27,7 @@ html, body {
 }
 
 body {
-  font-family: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-family: var(--font-geist), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   font-size: 16px;
   line-height: 1.55;
   color: var(--ink);
@@ -46,16 +46,16 @@ a {
 }
 
 .font-display {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: var(--font-fraunces), Georgia, serif;
   font-feature-settings: "ss01";
 }
 
 .font-script {
-  font-family: 'Pacifico', cursive;
+  font-family: var(--font-pacifico), cursive;
 }
 
 .font-mono {
-  font-family: 'Geist Mono', ui-monospace, monospace;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 ::selection {

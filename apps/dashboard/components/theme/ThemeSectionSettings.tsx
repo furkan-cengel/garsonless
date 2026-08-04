@@ -9,7 +9,7 @@ import {
   type ThemeMediaPurpose,
   validateThemeMediaMetadata,
 } from '../../lib/theme-media-policy'
-import { ChefSectionIcon, isChefSectionIconName } from '@garsonless/ui'
+import { ChefSectionIcon, isChefSectionIconName } from '@garsonless/ui/themes/default'
 import type { SectionSettingField } from './theme-editor-properties-model'
 import {
   getSectionSettingLabel,

@@ -1,4 +1,5 @@
 import { MI } from '../lib/icons'
+import Image from 'next/image'
 
 const COLS = [
   { title: 'Ürün', items: [
@@ -40,7 +41,7 @@ export function MarketingFooter() {
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(4, 1fr)', gap: 48, marginBottom: 56 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 18 }}>
-              <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 22, width: 'auto', display: 'block' }} />
+              <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={102} height={22} style={{ height: 22, width: 'auto', display: 'block' }} />
             </div>
             <p style={{ fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.6, maxWidth: 280, margin: 0 }}>
               Türk gastronomisi için tasarlandı.<br />Mekanınız ister kafe ister fine-dining — biz oradayız.

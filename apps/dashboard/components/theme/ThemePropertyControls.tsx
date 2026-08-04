@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
-import type { SettingField } from "@garsonless/ui";
+import type { SettingField } from "@garsonless/ui/themes";
 
 import { I } from "../../lib/ui";
 import {

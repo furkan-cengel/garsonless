@@ -1,5 +1,5 @@
 import type { GarsonlessTheme } from '@garsonless/design-engine'
-import type { SettingsGroup } from '@garsonless/ui'
+import type { SettingsGroup } from '@garsonless/ui/themes'
 
 interface ThemeSettingsClipboardOptions {
   selectedSectionId: string | null

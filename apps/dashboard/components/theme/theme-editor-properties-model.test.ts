@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import type { GarsonlessTheme } from '@garsonless/design-engine'
-import type { SettingField } from '@garsonless/ui'
+import type { SettingField } from '@garsonless/ui/themes'
 import {
   getAvailableEditorTabs,
   getFieldEditorTab,

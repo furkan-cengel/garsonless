@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { AppIconNodes } from '@garsonless/ui/icons'
 
 /* ── CSS vars + keyframes ─────────────────────────────────── */
@@ -14,11 +15,11 @@ const MARKETING_CSS = `
   --accent: #d97757; --accent-2: #ffd089;
   --positive: #137a4d; --night: #1a1612;
   color: var(--ink); background: var(--bg);
-  font-family: 'Geist', system-ui, sans-serif; line-height: 1.5;
+  font-family: var(--font-geist), system-ui, sans-serif; line-height: 1.5;
 }
-[data-scope="marketing"] .fd { font-family: 'Fraunces', Georgia, serif; font-feature-settings: "ss01"; }
-[data-scope="marketing"] .fs { font-family: 'Pacifico', cursive; }
-[data-scope="marketing"] .gm { font-family: 'Geist Mono', ui-monospace, monospace; }
+[data-scope="marketing"] .fd { font-family: var(--font-fraunces), Georgia, serif; font-feature-settings: "ss01"; }
+[data-scope="marketing"] .fs { font-family: var(--font-pacifico), cursive; }
+[data-scope="marketing"] .gm { font-family: var(--font-geist-mono), ui-monospace, monospace; }
 ::selection { background: var(--brand); color: #fff; }
 @keyframes float { 0%,100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(-4deg) translateY(-10px); } }
 @keyframes mfloat { 0%,100% { transform: rotate(8deg) translateY(0); } 50% { transform: rotate(8deg) translateY(-6px); } }
@@ -27,9 +28,9 @@ const MARKETING_CSS = `
 
 /* ── Primitives ───────────────────────────────────────────── */
 const ctr: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', padding: '0 32px' }
-const fd: React.CSSProperties  = { fontFamily: "'Fraunces', Georgia, serif" }
-const fs: React.CSSProperties  = { fontFamily: "'Pacifico', cursive" }
-const gm: React.CSSProperties  = { fontFamily: "'Geist Mono', ui-monospace, monospace" }
+const fd: React.CSSProperties  = { fontFamily: 'var(--font-fraunces), Georgia, serif' }
+const fs: React.CSSProperties  = { fontFamily: 'var(--font-pacifico), cursive' }
+const gm: React.CSSProperties  = { fontFamily: 'var(--font-geist-mono), ui-monospace, monospace' }
 
 type IconProps = { d: React.ReactNode; size?: number; sw?: number; fill?: string }
 function MIcon({ d, size = 18, sw = 1.6, fill = 'none' }: IconProps) {
@@ -137,7 +138,7 @@ function Nav() {
     }}>
       <div style={{ ...ctr, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', color: 'var(--ink)' }}>
-          <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 20, width: 'auto', display: 'block' }} />
+          <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={93} height={20} priority style={{ height: 20, width: 'auto', display: 'block' }} />
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {['Özellikler', 'Demo', 'Fiyatlandırma', 'Hikayeler', 'Kaynaklar'].map(l => (
@@ -856,7 +857,7 @@ function Compare() {
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', background: 'var(--night)', color: '#fff' }}>
             <div style={{ padding: '18px 22px', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,.55)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Özellik</div>
             <div style={{ padding: '18px 14px', textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,.08)', background: 'var(--accent-2)', color: 'var(--ink)' }}>
-              <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 16, width: 'auto', display: 'inline-block' }} />
+              <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={74} height={16} style={{ height: 16, width: 'auto', display: 'inline-block' }} />
               <div style={{ fontSize: 10, fontWeight: 600, marginTop: 2, opacity: .75 }}>Bizim ürün</div>
             </div>
             {['Adisyo','Klasik POS','Zenchef'].map(n => <div key={n} style={{ padding: '18px 14px', textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,.08)', fontSize: 14, fontWeight: 600 }}>{n}</div>)}
@@ -992,7 +993,7 @@ function Footer() {
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(4, 1fr)', gap: 48, marginBottom: 56 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-              <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 22, width: 'auto', display: 'block' }} />
+              <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={102} height={22} style={{ height: 22, width: 'auto', display: 'block' }} />
             </div>
             <p style={{ fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.6, maxWidth: 280, margin: 0 }}>Türk gastronomisi için tasarlandı.<br />Mekanınız ister kafe ister fine-dining — biz oradayız.</p>
             <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>

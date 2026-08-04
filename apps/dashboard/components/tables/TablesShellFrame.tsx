@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useShell } from '../../lib/shell-context'
 import DashboardIconRail from '../layout/IconRail'
 import { TABLES_MOBILE_STYLES } from './tables-builder-mobile-styles'
@@ -338,7 +339,7 @@ export function TablesOperationsTopBar({ restaurantName }: { restaurantName: str
     }}>
       <div className="tb-tables__topbar-left" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <Link href="/dashboard" aria-label="Dashboard ana sayfası" style={{ display: 'flex', alignItems: 'center', paddingRight: 8, borderRight: '1px solid var(--border)', height: 28, textDecoration: 'none' }}>
-          <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 18, width: 'auto', display: 'block' }} />
+          <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={83} height={18} priority style={{ height: 18, width: 'auto', display: 'block' }} />
         </Link>
         <span style={{ fontSize: 12, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{restaurantName}</span>
         <span aria-hidden="true" style={{ color: 'var(--text-4)' }}>/</span>

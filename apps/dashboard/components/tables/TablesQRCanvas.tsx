@@ -1,6 +1,7 @@
 'use client'
 
 import React, { memo, useCallback, useEffect, useId, useRef, useState } from 'react'
+import Image from 'next/image'
 import { AppIconNodes } from '@garsonless/ui/icons'
 import { buildUrl } from './tables-builder-model'
 import type { QRConfig, QRHealth, TableItem } from './tables-builder-types'
@@ -504,7 +505,7 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
           }}>
             {/* Print-context brand: vector SVG stays sharp at A4 print resolution. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start' }}>
-              <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 13, width: 'auto', display: 'block' }} />
+              <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={60} height={13} style={{ height: 13, width: 'auto', display: 'block' }} />
               <span style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>· A4</span>
             </div>
             <div style={{ fontSize: 24, fontWeight: 700, marginTop: 30, color: qr.frameColor, letterSpacing: '-.02em' }}>{qr.frameTitle}</div>

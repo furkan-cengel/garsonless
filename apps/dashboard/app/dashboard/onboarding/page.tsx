@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import StepRestaurantInfo from '../../../components/onboarding/StepRestaurantInfo'
 import StepTemplateSelect from '../../../components/onboarding/StepTemplateSelect'
 import StepLogoUpload from '../../../components/onboarding/StepLogoUpload'
@@ -43,7 +44,7 @@ export default function OnboardingPage() {
     }}>
       {/* Logo mark — real wordmark on the light onboarding surface. */}
       <div style={{ marginBottom: 32, display: 'flex', alignItems: 'center' }}>
-        <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 24, width: 'auto', display: 'block' }} />
+        <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={111} height={24} priority style={{ height: 24, width: 'auto', display: 'block' }} />
       </div>
 
       <div style={{ width: '100%', maxWidth: 480 }}>

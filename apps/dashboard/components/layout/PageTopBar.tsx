@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { I } from '../../lib/ui'
 import { useShell } from '../../lib/shell-context'
 
@@ -56,7 +57,7 @@ export default function PageTopBar({ restaurantName, title, className, tag, cent
           height: 28, flexShrink: 0,
         }}>
           {/* Real wordmark (light topbar → transparent variant); replaces the placeholder m-box + text. */}
-          <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 18, width: 'auto', display: 'block' }} />
+          <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={83} height={18} priority style={{ height: 18, width: 'auto', display: 'block' }} />
         </div>
 
         <button

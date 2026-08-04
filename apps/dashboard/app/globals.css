@@ -64,7 +64,7 @@ html, body {
 }
 
 body {
-  font-family: 'Geist', -apple-system, system-ui, sans-serif;
+  font-family: var(--font-geist), -apple-system, system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.45;
   color: var(--text);
@@ -841,8 +841,8 @@ button, input, select, textarea { font-family: inherit; }
   --color-text-muted: var(--text-3);
 
   --font-base: 'Geist', system-ui, -apple-system, sans-serif;
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-mono: 'Geist Mono', ui-monospace, monospace;
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
   --radius-base: 8px;
   --radius-card: 12px;

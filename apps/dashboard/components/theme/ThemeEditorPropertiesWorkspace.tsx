@@ -10,11 +10,11 @@ import {
   type ThemeSectionVisibilityMode,
 } from "@garsonless/design-engine";
 import {
-  deriveActivePromoSliderCampaigns,
-  type MenuItem,
   type SettingField,
   type SettingsGroup,
-} from "@garsonless/ui";
+} from "@garsonless/ui/themes";
+import { deriveActivePromoSliderCampaigns } from "@garsonless/ui/themes/default";
+import type { MenuItem } from "@garsonless/ui/menu";
 import { ThemeEditorControlIcon } from "./CardLayoutOptionIcon";
 import { ThemePropertiesFrame } from "./ThemePropertiesFrame";
 import {

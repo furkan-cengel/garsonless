@@ -1,4 +1,4 @@
-import type { SettingsGroup } from '@garsonless/ui'
+import type { SettingsGroup } from '@garsonless/ui/themes'
 import { I } from '../../lib/ui'
 import { THEME_EDITOR_THEME_GROUP_ID } from './theme-editor-properties-model'
 

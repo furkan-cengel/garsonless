@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
-import type { SettingsGroup } from '@garsonless/ui'
+import type { SettingsGroup } from '@garsonless/ui/themes'
 import {
   appendHistorySnapshot,
   areThemeOverridesEqual,

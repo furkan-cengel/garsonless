@@ -1,5 +1,5 @@
 import type { GarsonlessTheme } from '@garsonless/design-engine'
-import type { SettingsGroup } from '@garsonless/ui'
+import type { SettingsGroup } from '@garsonless/ui/themes'
 
 const DEFAULT_HISTORY_LIMIT = 25
 

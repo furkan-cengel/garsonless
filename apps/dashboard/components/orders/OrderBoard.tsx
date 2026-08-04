@@ -12,12 +12,10 @@ import type { OpenSessionInfo } from '../../lib/actions/tables'
 import { formatCurrency } from '../../lib/utils'
 import PageTopBar from '../layout/PageTopBar'
 import { I, S, Tag, IconButton, btnPrimary, btnGhost } from '../../lib/ui'
-import HistoryModal from './HistoryModal'
-import ReceiptModal, { type ReceiptOrder } from './ReceiptModal'
+import type { ReceiptOrder } from './ReceiptModal'
 import type { OrderDensity } from './OrderCard'
 import { isActiveOrder, isCancelledOrder, isCompletedOrder, isLateOrder, isReadyWaitingOrder } from './order-status'
 import { FILTER_LABELS, ORDER_SOURCE_LABELS, orderMatchesSearch, orderMatchesSource, orderMatchesView, orderStationNames, type FilterId, type OrderSourceFilter } from './order-filters'
-import OrdersTransferDialog from './OrdersTransferDialog'
 import { ORDER_BOARD_COLUMNS } from './order-board-contract'
 import { ORDERS_REALTIME_COPY } from './order-realtime-model'
 import { paymentMethodBadge } from '../../lib/payment-method'
@@ -35,6 +33,10 @@ import { AccessibleDialog } from '../tables/AccessibleDialog'
    COLUMN DEFINITIONS
    ============================================================ */
 const COLUMNS = ORDER_BOARD_COLUMNS
+
+const HistoryModal = dynamic(() => import('./HistoryModal'), { ssr: false })
+const ReceiptModal = dynamic(() => import('./ReceiptModal'), { ssr: false })
+const OrdersTransferDialog = dynamic(() => import('./OrdersTransferDialog'), { ssr: false })
 
 /* ============================================================
    STATUS TIMELINE

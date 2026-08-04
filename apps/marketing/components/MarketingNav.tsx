@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { MI } from '../lib/icons'
 import { PrimaryButton } from './ui/Buttons'
 
@@ -40,7 +41,7 @@ export function MarketingNav({ active }: Props) {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64,
       }}>
         <a href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', color: 'var(--ink)' }}>
-          <img src="/brand/masabu-logo-transparent.svg" alt="Masabu" style={{ height: 20, width: 'auto', display: 'block' }} />
+          <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={93} height={20} priority style={{ height: 20, width: 'auto', display: 'block' }} />
         </a>
 
         <div className="marketing-nav__links" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

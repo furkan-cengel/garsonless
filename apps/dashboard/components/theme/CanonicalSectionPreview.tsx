@@ -5,13 +5,15 @@ import type { CSSProperties } from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import {
   computeThemeVars,
+  readStoreInfo,
+} from '@garsonless/ui/themes'
+import {
   CustomSectionRenderer,
   deriveActivePromoSliderCampaigns,
-  getDefiniteAllergens,
-  readStoreInfo,
-  sortAllergenCodes,
-} from '@garsonless/ui'
-import type { MenuCategory, MenuItem, PromoSliderCampaign } from '@garsonless/ui'
+  type PromoSliderCampaign,
+} from '@garsonless/ui/themes/default'
+import { getDefiniteAllergens, sortAllergenCodes } from '@garsonless/ui/menu'
+import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
 import {
   normalizeAllergenCodes,
   normalizeIngredients,
