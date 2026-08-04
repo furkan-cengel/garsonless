@@ -197,5 +197,3 @@ export const TEMPLATES: Record<string, GarsonlessTheme> = {
     headerBg: '#fffde7', headerNameSize: 24,
   },
 }
-
-export type TemplateId = keyof typeof TEMPLATES

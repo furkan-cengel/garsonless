@@ -1,11 +1,4 @@
-import type { MenuPageConfig, PageConfig, HeaderConfig, CategoryNavConfig, ProductCardConfig, CartDrawerConfig, GarsonlessTheme } from './schema'
-
-const SHADOW_MAP: Record<ProductCardConfig['shadow'], string> = {
-  none: 'none',
-  sm: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)',
-  md: '0 4px 12px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.06)',
-  lg: '0 20px 40px rgba(0,0,0,0.16), 0 8px 20px rgba(0,0,0,0.08)',
-}
+import type { GarsonlessTheme } from './schema'
 
 const SYSTEM_FONTS = new Set([
   'Arial',
@@ -20,97 +13,6 @@ const SYSTEM_FONTS = new Set([
   'cursive',
   'monospace',
 ])
-
-export function buildFontsUrl(page: PageConfig): string | null {
-  const fonts = [...new Set([page.fontFamily, page.fontFamilyDisplay])]
-    .filter((f) => !SYSTEM_FONTS.has(f))
-
-  if (fonts.length === 0) return null
-
-  const params = fonts
-    .map((f) => `family=${encodeURIComponent(f)}:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400`)
-    .join('&')
-
-  return `https://fonts.googleapis.com/css2?${params}&display=swap`
-}
-
-export function applyPageConfig(config: PageConfig): string {
-  const fontBase = SYSTEM_FONTS.has(config.fontFamily)
-    ? config.fontFamily
-    : `'${config.fontFamily}', sans-serif`
-  const fontDisplay = SYSTEM_FONTS.has(config.fontFamilyDisplay)
-    ? config.fontFamilyDisplay
-    : `'${config.fontFamilyDisplay}', serif`
-
-  return `:root {
-  --font-base: ${fontBase};
-  --font-display: ${fontDisplay};
-  --font-size-base: ${config.baseFontSize}px;
-  --global-radius: ${config.globalRadius}px;
-}
-body {
-  background-color: ${config.backgroundColor};
-  font-family: var(--font-base);
-  font-size: var(--font-size-base);
-}`
-}
-
-function applyHeader(config: HeaderConfig): string {
-  return `[data-component="header"] {
-  background-color: ${config.backgroundColor};
-  color: ${config.textColor};
-  ${config.borderBottom ? 'border-bottom: 1px solid rgba(0,0,0,0.08);' : ''}
-  ${config.sticky ? 'position: sticky; top: 0; z-index: 20;' : ''}
-}`
-}
-
-function applyCategoryNav(config: CategoryNavConfig): string {
-  return `[data-component="categoryNav"] {
-  background-color: ${config.backgroundColor};
-  color: ${config.textColor};
-  ${config.sticky ? 'position: sticky; top: 0; z-index: 10;' : ''}
-}`
-}
-
-function applyProductCard(config: ProductCardConfig): string {
-  return `[data-component="productCard"] {
-  background-color: ${config.backgroundColor};
-  color: ${config.textColor};
-  border-radius: ${config.borderRadius}px;
-  box-shadow: ${SHADOW_MAP[config.shadow]};
-}`
-}
-
-function applyCartDrawer(config: CartDrawerConfig): string {
-  return `[data-component="cartDrawer"] {
-  background-color: ${config.backgroundColor};
-  color: ${config.textColor};
-}`
-}
-
-export function applyComponentConfig(
-  component: keyof MenuPageConfig,
-  config: MenuPageConfig[keyof MenuPageConfig],
-): string {
-  switch (component) {
-    case 'page': return applyPageConfig(config as PageConfig)
-    case 'header': return applyHeader(config as HeaderConfig)
-    case 'categoryNav': return applyCategoryNav(config as CategoryNavConfig)
-    case 'productCard': return applyProductCard(config as ProductCardConfig)
-    case 'cartDrawer': return applyCartDrawer(config as CartDrawerConfig)
-    default: return ''
-  }
-}
-
-export function applyFullConfig(config: MenuPageConfig): string {
-  return [
-    applyPageConfig(config.page),
-    applyHeader(config.header),
-    applyCategoryNav(config.categoryNav),
-    applyProductCard(config.productCard),
-    applyCartDrawer(config.cartDrawer),
-  ].join('\n')
-}
 
 export function buildFontsUrlFromTheme(theme: GarsonlessTheme): string | null {
   const fonts = [...new Set([theme.bodyFont, theme.displayFont])]

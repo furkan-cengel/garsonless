@@ -1,5 +1,5 @@
-export const THEME_PREVIEW_NAV_CHANNEL = 'garsonless-theme-preview' as const
-export const THEME_PREVIEW_NAV_VERSION = 2 as const
+const THEME_PREVIEW_NAV_CHANNEL = 'garsonless-theme-preview' as const
+const THEME_PREVIEW_NAV_VERSION = 2 as const
 
 export function parseOpenThemeNavDrawerCommand(value: unknown): { sectionId: string | null } | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null

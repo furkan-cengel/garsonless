@@ -108,7 +108,7 @@ export function createFullThemePreviewCommand(
   }
 }
 
-export function createSetThemePreviewContextCommand(context: ThemePreviewContext): ThemePreviewCommand | null {
+function createSetThemePreviewContextCommand(context: ThemePreviewContext): ThemePreviewCommand | null {
   const sanitized = sanitizePreviewContext(context)
   return sanitized ? { ...envelope(), type: 'SET_PREVIEW_CONTEXT', context: sanitized } : null
 }
