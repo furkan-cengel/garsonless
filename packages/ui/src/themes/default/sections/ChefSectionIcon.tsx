@@ -20,7 +20,7 @@ export const CHEF_SECTION_ICON_OPTIONS = [
   { value: 'zamanlayici', label: 'Zamanlayıcı' },
 ] as const
 
-export type ChefSectionIconName = (typeof CHEF_SECTION_ICON_OPTIONS)[number]['value']
+type ChefSectionIconName = (typeof CHEF_SECTION_ICON_OPTIONS)[number]['value']
 
 export function isChefSectionIconName(value: string): value is ChefSectionIconName {
   return CHEF_SECTION_ICON_OPTIONS.some((option) => option.value === value)

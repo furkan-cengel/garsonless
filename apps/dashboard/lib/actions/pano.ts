@@ -3,20 +3,12 @@
 import { assertAccess } from '../auth/access'
 import { getSalesOverTime } from '../queries/analytics'
 import { getRestaurantTimezone } from '../queries/insights-shared'
-import { getHourlySales, getPanoSnapshot, getTableStatuses } from '../queries/pano'
-import type { PanoSnapshot, TableStatusData } from '../queries/pano'
+import { getHourlySales, getPanoSnapshot } from '../queries/pano'
+import type { PanoSnapshot } from '../queries/pano'
 import { restaurantHour } from '@garsonless/db/browser'
 import type { PanoChartData, PanoChartPoint, PanoChartRange } from '../pano-chart-model'
 
 export type { PanoChartData, PanoChartRange } from '../pano-chart-model'
-
-export async function fetchPanoTableStatuses(
-  restaurantId: string,
-): Promise<{ error: string } | { tables: TableStatusData[] }> {
-  const gate = await assertAccess(restaurantId, 'pano')
-  if ('error' in gate) return { error: gate.error }
-  return { tables: await getTableStatuses(restaurantId) }
-}
 
 export async function fetchPanoSnapshot(
   restaurantId: string,

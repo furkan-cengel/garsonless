@@ -1,9 +1,9 @@
 export const NAVIGATION_FEEDBACK_DELAY_MS = 300
 export const NAVIGATION_FEEDBACK_STALLED_MS = 10_000
 
-export type NavigationFeedbackPhase = 'idle' | 'delay' | 'visible' | 'stalled'
+type NavigationFeedbackPhase = 'idle' | 'delay' | 'visible' | 'stalled'
 
-export interface NavigationOperation {
+interface NavigationOperation {
   id: string
   sourceRouteKey: string
   targetHref: string

@@ -1,7 +1,7 @@
 import type { GarsonlessTheme, ThemeSurfaceOverride } from './schema'
 import { resolveAuthErrorState, resolveAuthSuccessState } from './auth-state-policy'
 
-export const AUTH_SURFACE_DEFAULTS = {
+const AUTH_SURFACE_DEFAULTS = {
   background: '#101113',
   surface: '#17181b',
   text: '#ffffff',

@@ -28,6 +28,6 @@ export type {
   MenuCategory,
   MenuItem,
   ModifierGroup,
-  ModifierOption,
+  SectionPromotionContext,
   SelectedModifier,
 } from './types'

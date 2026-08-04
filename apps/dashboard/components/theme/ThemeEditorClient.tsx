@@ -1,7 +1,7 @@
 'use client'
 import { useMemo } from 'react'
-import { CANONICAL_THEME_ID, THEME_REGISTRY, type SettingsGroup } from '@garsonless/ui'
-import type { GarsonlessTheme } from '@garsonless/design-engine'
+import { THEME_REGISTRY, type SettingsGroup } from '@garsonless/ui/themes'
+import { CANONICAL_THEME_ID, type GarsonlessTheme } from '@garsonless/design-engine'
 import { useShell } from '../../lib/shell-context'
 import { ThemeEditorTopbar } from './ThemeEditorTopbar'; import { ThemeEditorCanvas } from './ThemeEditorCanvas'
 import { ThemeExperienceProperties, ThemeExperienceSidebar } from './ThemeExperiencePanels'
@@ -19,7 +19,7 @@ import { useThemeExperienceSurface } from './use-theme-experience-surface'
 import { buildEditorNavigation, buildThemeSettingsGroup } from './theme-editor-navigation-catalog'
 import { getThemeEditorSaveStatus } from './theme-editor-shell-model'
 import { createThemeEditorPreviewDeriver } from './theme-editor-preview-theme-model'
-import { HOME_SECTION_LIBRARY, MENU_SECTION_LIBRARY, SECTION_GROUPS } from './theme-editor-section-registry'
+import { HOME_SECTION_LIBRARY, SECTION_GROUPS, SECTION_LIBRARY } from './theme-editor-section-registry'
 import { createHomeThemeEditorController } from './home-theme-editor-controller'
 import { projectHomeV2ForEditor } from './home-theme-editor-model'
 import type { ThemeEditorClientProps } from './theme-editor-client-contract'
@@ -137,7 +137,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
     lastPublishedAt,
   })
   const homeEnabled = previewTheme.surfaces?.home.enabled === true
-  const menuSectionGroups = SECTION_GROUPS.filter((group) => group === 'Tümü' || MENU_SECTION_LIBRARY.some((section) => section.group === group))
+  const menuSectionGroups = SECTION_GROUPS.filter((group) => group === 'Tümü' || SECTION_LIBRARY.some((section) => section.group === group))
   const homeEditor = createHomeThemeEditorController({
     theme: previewTheme, query: sectionSearch, group: sectionGroup, setQuery: setSectionSearch, setGroup: setSectionGroup,
     openPicker: openSectionPicker, closePicker: closeSectionPicker, updateTheme: updateThemePatch, selectBlock: setSelectedHomeSectionId,
@@ -154,7 +154,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
       pageBlocks={pageBlocks}
       visiblePageBlocks={filteredPageBlocks}
       menuCategories={menuCategories}
-      sectionLibrary={MENU_SECTION_LIBRARY}
+      sectionLibrary={SECTION_LIBRARY}
       selectedSectionId={selectedSectionId}
       dragBlockKey={dragBlockKey}
       sectionTriggerRef={sectionTriggerRef}
@@ -311,7 +311,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
         sectionSearch={sectionSearch}
         sectionGroup={sectionGroup}
         surface={experienceSurface}
-        sections={experienceSurface === 'home' ? HOME_SECTION_LIBRARY : MENU_SECTION_LIBRARY}
+        sections={experienceSurface === 'home' ? HOME_SECTION_LIBRARY : SECTION_LIBRARY}
         groups={experienceSurface === 'home' ? homeEditor.groups : menuSectionGroups}
         filteredSections={experienceSurface === 'home' ? homeEditor.filteredSections : filteredSections}
         activeSections={experienceSurface === 'home'

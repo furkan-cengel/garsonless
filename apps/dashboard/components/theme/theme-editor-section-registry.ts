@@ -1,6 +1,6 @@
 import type { SectionSettingField } from './theme-editor-properties-model'
 import type { ThemeSectionOption } from './ThemeEditorDialogs'
-import { CHEF_SECTION_ICON_OPTIONS } from '@garsonless/ui'
+import { CHEF_SECTION_ICON_OPTIONS } from '@garsonless/ui/themes/default'
 
 type ThemeSectionCatalogItem = ThemeSectionOption & {
   surfaces: readonly ('menu' | 'home')[]
@@ -31,14 +31,13 @@ const HOME_VIDEO_SECTION = {
   status: 'ready',
   surfaces: ['home'],
 } as const satisfies ThemeSectionCatalogItem
-export const MENU_SECTION_LIBRARY = SECTION_LIBRARY
 export const HOME_SECTION_LIBRARY: readonly ThemeSectionCatalogItem[] = SECTION_LIBRARY.reduce<ThemeSectionCatalogItem[]>((catalog, section) => {
   if (HOME_EXCLUDED_SECTION_IDS.has(section.id)) return catalog
   catalog.push(section)
   if (section.id === 'hero-banner') catalog.push(HOME_VIDEO_SECTION)
   return catalog
 }, [])
-export const SECTION_LIBRARY_IDS = MENU_SECTION_LIBRARY.map((section) => section.id)
+export const SECTION_LIBRARY_IDS = SECTION_LIBRARY.map((section) => section.id)
 export const SECTION_GROUPS = ['Tümü', 'Üst Bölümler', 'Ürün Gösterimi', 'Promosyon', 'Bağlam', 'Etkileşim'] as const
 export const FOOD_ICON_OPTIONS = [
   { value: '🍳', label: 'Sahanda Yumurta' },

@@ -124,17 +124,6 @@ export async function getHourlySales(restaurantId: string): Promise<HourlySale[]
   return Array.from({ length: 24 }, (_, hour) => ({ hour, total: byHour[hour] ?? 0 }))
 }
 
-export async function getTableStatuses(restaurantId: string): Promise<TableStatusData[]> {
-  const generatedAt = new Date()
-  const context = await getInsightsContext(restaurantId, 'pano')
-  const result = await readPanoOperationalSource(context, {
-    restaurantId,
-    includePaymentStatus: false,
-  }, insightsReadModel)
-  if (!result.ok) throw new Error(`getTableStatuses: ${result.error}`)
-  return projectPanoTableStatuses(result.value, generatedAt.getTime())
-}
-
 export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapshot> {
   const generatedAtDate = new Date()
   const generatedAt = generatedAtDate.toISOString()

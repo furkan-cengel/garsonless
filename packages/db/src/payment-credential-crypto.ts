@@ -14,10 +14,10 @@ const KEY_BYTES = 32
 const KEY_VERSION_PATTERN = /^[A-Za-z0-9._-]{1,64}$/
 const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
 
-export const PAYMENT_CREDENTIAL_ACTIVE_KEY_VERSION_ENV = 'PAYMENT_CREDENTIAL_ACTIVE_KEY_VERSION'
-export const PAYMENT_CREDENTIAL_ENCRYPTION_KEYS_ENV = 'PAYMENT_CREDENTIAL_ENCRYPTION_KEYS'
+const PAYMENT_CREDENTIAL_ACTIVE_KEY_VERSION_ENV = 'PAYMENT_CREDENTIAL_ACTIVE_KEY_VERSION'
+const PAYMENT_CREDENTIAL_ENCRYPTION_KEYS_ENV = 'PAYMENT_CREDENTIAL_ENCRYPTION_KEYS'
 
-export type PaymentCredentialCiphertextV1 = {
+type PaymentCredentialCiphertextV1 = {
   iv: string
   ciphertext: string
   tag: string
@@ -135,7 +135,7 @@ function parseCiphertext(value: unknown): PaymentCredentialCiphertextV1 {
   return { iv, ciphertext, tag }
 }
 
-export function parsePaymentCredentialEnvelope(value: unknown): PaymentCredentialEnvelopeV1 {
+function parsePaymentCredentialEnvelope(value: unknown): PaymentCredentialEnvelopeV1 {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new PaymentCredentialCryptoError('ENVELOPE_INVALID')
   }

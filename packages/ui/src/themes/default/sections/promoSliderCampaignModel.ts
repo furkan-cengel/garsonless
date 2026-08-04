@@ -9,7 +9,7 @@ import type { AllergenCode } from '../../../menu/types'
 import { getDefiniteAllergens, sortAllergenCodes } from '../../../menu/FoodInfoBadges'
 import { resolveComboRibbonGroups } from './comboRibbonModel'
 
-export type PromoSliderCampaignKind = 'discount-badge' | 'daily-special' | 'combo-ribbon'
+type PromoSliderCampaignKind = 'discount-badge' | 'daily-special' | 'combo-ribbon'
 
 export interface PromoSliderCampaign {
   id: string

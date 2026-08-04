@@ -8,7 +8,7 @@ import {
   type GarsonlessTheme,
   type ThemeSectionVisibility,
 } from '@garsonless/design-engine'
-import type { SettingField, SettingsGroup } from '@garsonless/ui'
+import type { SettingField, SettingsGroup } from '@garsonless/ui/themes'
 import {
   getAvailableEditorTabs,
   getAvailableSectionTabs,
@@ -21,7 +21,6 @@ import {
 import {
   SECTION_GROUPS,
   SECTION_LIBRARY,
-  MENU_SECTION_LIBRARY,
   SECTION_SETTING_SCHEMA,
 } from './theme-editor-section-registry'
 import {
@@ -173,7 +172,7 @@ export function useThemeEditorNavigation({
   const effectiveEditorTab = resolveEffectiveEditorTab(visibleEditorTabs, activeEditorTab)
   const visibleFields = getVisibleThemeFields(activeFields, activeGroupData?.id, mergedTheme, effectiveEditorTab)
   const visibleSectionFields = selectedSectionFields.filter((field) => field.editorTab === effectiveEditorTab)
-  const filteredSections = MENU_SECTION_LIBRARY.filter((section) => {
+  const filteredSections = SECTION_LIBRARY.filter((section) => {
     const matchesGroup = sectionGroup === 'Tümü' || section.group === sectionGroup
     const query = sectionSearch.trim().toLocaleLowerCase('tr')
     const matchesSearch = !query || `${section.label} ${section.sub} ${section.group}`.toLocaleLowerCase('tr').includes(query)

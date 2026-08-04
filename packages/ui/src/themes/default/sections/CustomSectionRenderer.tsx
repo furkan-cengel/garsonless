@@ -34,7 +34,7 @@ import {
   type StorefrontMemberSummary,
 } from './StorefrontSections'
 
-export interface CustomSectionRendererProps {
+interface CustomSectionRendererProps {
   sectionId: string
   sectionInstanceId?: string
   config?: Record<string, string>

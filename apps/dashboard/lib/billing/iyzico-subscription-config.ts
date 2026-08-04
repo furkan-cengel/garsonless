@@ -1,7 +1,7 @@
 import type { RestaurantPlan } from '@garsonless/domain/entitlements'
 
-export const IYZICO_SUBSCRIPTION_SANDBOX_URL = 'https://sandbox-api.iyzipay.com'
-export const IYZICO_SUBSCRIPTION_LIVE_URL = 'https://api.iyzipay.com'
+const IYZICO_SUBSCRIPTION_SANDBOX_URL = 'https://sandbox-api.iyzipay.com'
+const IYZICO_SUBSCRIPTION_LIVE_URL = 'https://api.iyzipay.com'
 
 type PaidPlan = Exclude<RestaurantPlan, 'free'>
 type BillingEnv = Readonly<Record<string, string | undefined>>

@@ -66,7 +66,7 @@ interface MemberChipSummary {
   welcomeBonus?: number
 }
 
-export interface SettingOption {
+interface SettingOption {
   value: string
   label: string
 }

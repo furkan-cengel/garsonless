@@ -16,14 +16,14 @@ import {
   type CheckoutTablePaymentStateTheme,
 } from './schema'
 
-export interface ResolvedCheckoutPaymentLayoutTheme {
+interface ResolvedCheckoutPaymentLayoutTheme {
   paddingX: number
   sectionGap: number
   density: CheckoutPaymentDensity
   contentWidth: CheckoutPaymentContentWidth
 }
 
-export interface ResolvedCheckoutResultLayoutTheme {
+interface ResolvedCheckoutResultLayoutTheme {
   paddingX: number
   paddingY: number
   contentGap: number

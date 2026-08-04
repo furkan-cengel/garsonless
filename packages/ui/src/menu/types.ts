@@ -2,11 +2,9 @@ import type {
   AllergenCode,
   MenuIngredient,
   MenuModifierGroup,
-  MenuModifierOption,
   SelectedMenuModifier,
 } from '@garsonless/db/browser'
 
-export type ModifierOption = MenuModifierOption
 export type ModifierGroup = MenuModifierGroup
 export type SelectedModifier = SelectedMenuModifier
 export type { AllergenCode }
