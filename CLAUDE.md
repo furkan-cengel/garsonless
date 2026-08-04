@@ -20,7 +20,6 @@ Comparable to Shopify in customization depth.
   - `packages/application` — Actor/tenant-aware command and query orchestration ports
   - `packages/db` — Supabase client, types, migrations
   - `packages/ai` — Anthropic SDK wrapper, AI waiter prompts
-  - `packages/qr` — QR generation with logo overlay
 
 ## Tech Stack
 
@@ -31,7 +30,6 @@ Comparable to Shopify in customization depth.
 - Payments: İyzico (TR) + Stripe
 - State: Zustand (client), TanStack Query (server)
 - Drag & Drop: dnd-kit + Framer Motion
-- QR: qrcode + sharp
 - Print: ESC/POS via node-thermal-printer
 
 ## Design Engine — CRITICAL
