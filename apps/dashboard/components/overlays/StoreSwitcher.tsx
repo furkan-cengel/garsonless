@@ -1,9 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Tables } from '@garsonless/db/types'
 import { I, S } from '../../lib/ui'
+import { useModalDialogFocus } from './use-modal-dialog-focus'
+import { useShell } from '../../lib/shell-context'
 
 const GRADIENTS = [
   'linear-gradient(135deg, #ffd089 0%, #ff8b6b 100%)',
@@ -14,155 +16,137 @@ const GRADIENTS = [
   'linear-gradient(135deg, #dce6f0 0%, #8baed4 100%)',
 ]
 
+const STORE_SWITCHER_CSS = `
+.store-switcher-overlay { position:fixed;inset:0;z-index:110; }
+.store-switcher-dialog {
+  position:absolute;left:68px;top:32px;width:min(340px,calc(100vw - 84px));max-height:calc(100dvh - 64px);
+  display:flex;flex-direction:column;overflow:hidden;background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;box-shadow:var(--shadow-pop);outline:0;
+}
+.store-switcher-row { min-height:44px; }
+.store-switcher-row:hover:not(:disabled) { background:var(--surface-3)!important; }
+.store-switcher-row:focus-visible,.store-switcher-close:focus-visible { outline:2px solid var(--action);outline-offset:-2px; }
+@media (max-width:760px) {
+  .store-switcher-overlay { display:flex;align-items:flex-end;background:rgba(17,17,19,.32);backdrop-filter:blur(2px); }
+  .store-switcher-dialog { position:relative;left:auto;top:auto;width:100%;max-height:min(86dvh,720px);padding-bottom:env(safe-area-inset-bottom);border-radius:16px 16px 0 0; }
+}
+`
+
 interface Props {
   restaurants: Tables<'restaurants'>[]
   currentRestaurantId: string
+  isOwner: boolean
   onClose: () => void
 }
 
-export default function StoreSwitcher({ restaurants, currentRestaurantId, onClose }: Props) {
-  const [q, setQ] = useState('')
+export default function StoreSwitcher({ restaurants, currentRestaurantId, isOwner, onClose }: Props) {
+  const { beginNavigation } = useShell()
+  const [query, setQuery] = useState('')
+  const [pending, startTransition] = useTransition()
+  const [pendingId, setPendingId] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const attemptedRef = useRef(false)
   const router = useRouter()
-  const filtered = q
-    ? restaurants.filter(r => r.name.toLowerCase().includes(q.toLowerCase()))
+  const dialogRef = useModalDialogFocus(onClose)
+  const normalizedQuery = query.trim().toLocaleLowerCase('tr-TR')
+  const filtered = normalizedQuery
+    ? restaurants.filter((restaurant) => `${restaurant.name} ${restaurant.slug}`.toLocaleLowerCase('tr-TR').includes(normalizedQuery))
     : restaurants
 
-  function handleSelect(id: string) {
-    if (id !== currentRestaurantId) {
-      router.push(`/dashboard/${id}`)
+  useEffect(() => {
+    if (!pendingId) return
+    if (currentRestaurantId === pendingId) {
+      setPendingId(null)
+      setError('')
+      onClose()
+      return
     }
-    onClose()
+    if (attemptedRef.current && !pending) {
+      attemptedRef.current = false
+      setError('Mağaza açılamadı. Bağlantını kontrol edip tekrar dene.')
+    }
+  }, [currentRestaurantId, onClose, pending, pendingId])
+
+  function handleSelect(id: string) {
+    if (id === currentRestaurantId) {
+      onClose()
+      return
+    }
+    setError('')
+    setPendingId(id)
+    attemptedRef.current = true
+    startTransition(() => {
+      const href = `/dashboard/${id}`
+      beginNavigation(href)
+      router.push(href)
+    })
   }
 
   return (
-    <div
-      onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 90 }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          position: 'absolute', left: 80, top: 50,
-          width: 320, background: 'var(--surface)',
-          borderRadius: 12, boxShadow: 'var(--shadow-pop)',
-          border: '1px solid var(--border)',
-          overflow: 'hidden',
-        }}
-      >
-        <div style={{ padding: '10px 14px 4px' }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '6px 10px', background: 'var(--surface-3)',
-            borderRadius: 7, color: 'var(--text-3)',
-          }}>
-            <I.search size={13} />
-            <input
-              placeholder="Mağaza ara"
-              value={q}
-              onChange={e => setQ(e.target.value)}
-              style={{
-                flex: 1, border: 'none', outline: 'none',
-                background: 'transparent', fontSize: 12,
-              }}
-            />
+    <div className="store-switcher-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !pending) onClose() }}>
+      <style>{STORE_SWITCHER_CSS}</style>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="store-switcher-title" aria-busy={pending} className="store-switcher-dialog" tabIndex={-1}>
+        <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid var(--divider)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <div id="store-switcher-title" style={{ flex: 1, fontSize: 14, fontWeight: 700 }}>Tüm mağazalar</div>
+            <button type="button" aria-label="Mağaza seçiciyi kapat" className="store-switcher-close" onClick={onClose} disabled={pending} style={{ width: 44, height: 44, margin: -10, border: 0, borderRadius: 8, background: 'transparent', color: 'var(--text-2)', cursor: 'pointer' }}><I.x size={16} /></button>
           </div>
+          <label style={{ minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px', borderRadius: 7, background: 'var(--surface-3)', color: 'var(--text-3)' }}>
+            <I.search size={14} />
+            <input data-dialog-initial-focus aria-label="Mağaza ara" placeholder="Mağaza ara" value={query} onChange={(event) => setQuery(event.target.value)} style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', color: 'var(--text)', fontSize: 12.5 }} />
+          </label>
         </div>
 
-        <div style={{ padding: '4px 6px' }}>
-          <div style={{ ...S.label, padding: '6px 10px 4px' }}>
-            {filtered.length} mağaza
-          </div>
-          {filtered.map((r, i) => {
-            const active = r.id === currentRestaurantId
+        <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '6px' }}>
+          <div style={{ ...S.label, padding: '6px 10px 4px' }}>{filtered.length} mağaza</div>
+          {filtered.map((restaurant, index) => {
+            const active = restaurant.id === currentRestaurantId
+            const rowPending = restaurant.id === pendingId && pending
             return (
               <button
-                key={r.id}
-                onClick={() => handleSelect(r.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  width: '100%', padding: '8px 10px', borderRadius: 7,
-                  background: active ? 'var(--surface-inset)' : 'transparent',
-                  border: 'none', cursor: 'pointer', textAlign: 'left',
-                }}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--surface-3)' }}
-                onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
+                key={restaurant.id}
+                type="button"
+                aria-current={active ? 'page' : undefined}
+                disabled={pending}
+                className="store-switcher-row"
+                onClick={() => handleSelect(restaurant.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '6px 10px', borderRadius: 7, background: active ? 'var(--surface-inset)' : 'transparent', border: 0, cursor: pending ? 'wait' : 'pointer', textAlign: 'left', color: 'var(--text)' }}
               >
-                <div style={{
-                  width: 32, height: 32, borderRadius: 7, flexShrink: 0,
-                  background: GRADIENTS[i % GRADIENTS.length],
-                  color: '#fff', fontWeight: 800, fontSize: 13,
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {r.name.slice(0, 1).toUpperCase()}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: active ? 600 : 500 }}>{r.name}</div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>{r.slug}</div>
-                </div>
-                {active && (
-                  <span style={{ color: 'var(--positive)' }}>
-                    <I.check size={14} />
-                  </span>
-                )}
-                {!active && (
-                  <span style={{ ...S.mono, fontSize: 10, color: 'var(--text-4)', padding: '1px 5px', background: 'var(--surface-3)', borderRadius: 3 }}>
-                    ⌘{i + 1}
-                  </span>
-                )}
+                <span aria-hidden="true" style={{ width: 32, height: 32, borderRadius: 7, flexShrink: 0, background: GRADIENTS[index % GRADIENTS.length], color: '#fff', fontWeight: 800, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{restaurant.name.slice(0, 1).toLocaleUpperCase('tr-TR')}</span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: active ? 650 : 500 }}>{restaurant.name}</span>
+                  <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10.5, color: 'var(--text-3)' }}>{restaurant.slug}</span>
+                </span>
+                {rowPending ? <span style={{ fontSize: 11, color: 'var(--text-3)' }}>Açılıyor…</span> : active ? <span aria-hidden="true" style={{ color: 'var(--positive)', display: 'inline-flex' }}><I.check size={14} /></span> : null}
               </button>
             )
           })}
-
-          {filtered.length === 0 && (
-            <div style={{ padding: '12px 10px', textAlign: 'center', color: 'var(--text-3)', fontSize: 12 }}>
-              Sonuç bulunamadı
+          {filtered.length === 0 && <div role="status" style={{ padding: '20px 10px', textAlign: 'center', color: 'var(--text-3)', fontSize: 12 }}>Sonuç bulunamadı.</div>}
+          {error && (
+            <div role="alert" style={{ margin: 6, padding: '8px 10px', borderRadius: 7, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 11.5 }}>
+              {error}
+              {pendingId && <button type="button" onClick={() => handleSelect(pendingId)} style={{ display: 'block', minHeight: 36, padding: 0, border: 0, background: 'transparent', color: 'inherit', fontWeight: 700, cursor: 'pointer' }}>Tekrar dene</button>}
             </div>
           )}
         </div>
 
-        <div style={{ height: 1, background: 'var(--divider)', margin: 4 }} />
-
-        <div style={{ padding: '4px 6px 8px' }}>
+        {isOwner && <div style={{ padding: '6px', borderTop: '1px solid var(--divider)' }}>
           <button
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              width: '100%', padding: '7px 10px', borderRadius: 6,
-              border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left',
-              color: 'var(--text-2)',
+            type="button"
+            disabled={pending}
+            className="store-switcher-row"
+            onClick={() => {
+              const href = `/dashboard/${currentRestaurantId}/settings?section=workspace`
+              beginNavigation(href)
+              router.push(href)
+              onClose()
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-3)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '6px 10px', borderRadius: 7, border: 0, background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', textAlign: 'left' }}
           >
-            <div style={{
-              width: 26, height: 26, borderRadius: 6,
-              background: 'var(--surface-3)', color: 'var(--text-2)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <I.plus size={14} />
-            </div>
-            <span style={{ fontSize: 12.5, fontWeight: 500 }}>Yeni mağaza ekle</span>
-            <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-3)' }}>+₺200/ay</span>
+            <span aria-hidden="true" style={{ width: 32, display: 'inline-flex', justifyContent: 'center' }}><I.gear size={15} /></span>
+            <span style={{ fontSize: 12.5, fontWeight: 550 }}>Mağazaları yönet</span>
           </button>
-          <button
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              width: '100%', padding: '7px 10px', borderRadius: 6,
-              border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left',
-              color: 'var(--text-2)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-3)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-          >
-            <div style={{
-              width: 26, height: 26, borderRadius: 6,
-              background: 'var(--surface-3)', color: 'var(--text-2)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <I.gear size={14} />
-            </div>
-            <span style={{ fontSize: 12.5, fontWeight: 500 }}>Mağazaları yönet</span>
-          </button>
-        </div>
+        </div>}
       </div>
     </div>
   )

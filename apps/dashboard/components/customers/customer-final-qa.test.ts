@@ -48,6 +48,6 @@ test('customer routes use one natural vertical scroll container with reachable p
 })
 
 test('customer detail navigation announces pending state before changing routes', () => {
-  assert.match(list, /window\.dispatchEvent\(new Event\('navigation-start'\)\)[\s\S]*router\.push\(`\/dashboard\/\$\{restaurantId\}\/customers\/\$\{c\.customerId\}/)
-  assert.match(topbar, /window\.dispatchEvent\(new Event\('navigation-start'\)\)[\s\S]*router\.push\(backHref\)/)
+  assert.match(list, /beginNavigation\(href\)[\s\S]*router\.push\(href\)/)
+  assert.match(topbar, /beginNavigation\(backHref\)[\s\S]*router\.push\(backHref\)/)
 })

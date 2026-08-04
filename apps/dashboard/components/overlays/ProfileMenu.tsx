@@ -1,9 +1,13 @@
 'use client'
 
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Tables } from '@garsonless/db/types'
 import { I, S, Tag } from '../../lib/ui'
-import { signOut } from '../../lib/actions/auth'
+import { SHELL_OVERLAY_IDS, useShell } from '../../lib/shell-context'
+import { logoutCurrentBrowser } from '../../lib/client-logout'
+import UnsavedChangesDialog from './UnsavedChangesDialog'
+import ProfileAvatar from './ProfileAvatar'
 
 const GRADIENTS = [
   'linear-gradient(135deg, #ffd089 0%, #ff8b6b 100%)',
@@ -12,167 +16,287 @@ const GRADIENTS = [
   'linear-gradient(135deg, #f5dcea 0%, #d97757 100%)',
 ]
 
+const PROFILE_MENU_CSS = `
+.dashboard-profile-backdrop { position:fixed;inset:0;z-index:100; }
+.dashboard-profile-menu {
+  position:absolute;left:56px;bottom:16px;width:300px;max-height:calc(100dvh - 32px);
+  overflow-y:auto;overscroll-behavior:contain;background:var(--surface);
+  border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-pop);outline:0;
+}
+.dashboard-profile-item {
+  min-height:44px;display:flex;align-items:center;gap:10px;width:100%;padding:6px 10px;
+  border:0;border-radius:7px;background:transparent;color:var(--text);text-align:left;cursor:pointer;
+}
+.dashboard-profile-item:hover:not(:disabled) { background:var(--surface-3); }
+.dashboard-profile-item:focus-visible { outline:2px solid var(--action);outline-offset:-2px; }
+.dashboard-profile-item:disabled { cursor:wait;opacity:.62; }
+@media (max-width:760px) {
+  .dashboard-profile-backdrop { display:flex;align-items:flex-end;background:rgba(17,17,19,.32);backdrop-filter:blur(2px); }
+  .dashboard-profile-menu {
+    position:relative;left:auto;bottom:auto;width:100%;max-height:min(86dvh,720px);
+    padding-bottom:env(safe-area-inset-bottom);border-radius:16px 16px 0 0;
+  }
+}
+@media (prefers-reduced-motion:reduce) { .dashboard-profile-item { transition:none!important; } }
+`
+
 interface Props {
   userEmail: string
+  displayName: string
   userInitials: string
+  avatarUrl: string | null
+  planLabel: string
+  unreadCount: number
   restaurants: Tables<'restaurants'>[]
   currentRestaurantId: string
+  onOpenNotifications: () => void
+  onOpenStoreSwitcher: () => void
   onClose: () => void
+}
+
+function menuItems(menu: HTMLElement): HTMLElement[] {
+  return Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])'))
+    .filter((item) => item.getClientRects().length > 0)
 }
 
 export default function ProfileMenu({
   userEmail,
+  displayName,
   userInitials,
+  avatarUrl,
+  planLabel,
+  unreadCount,
   restaurants,
   currentRestaurantId,
+  onOpenNotifications,
+  onOpenStoreSwitcher,
   onClose,
 }: Props) {
   const router = useRouter()
+  const { beginNavigation, getNavigationGuard } = useShell()
+  const menuRef = useRef<HTMLDivElement>(null)
+  const logoutLockRef = useRef(false)
+  const storeAttemptedRef = useRef(false)
+  const [storePending, startStoreTransition] = useTransition()
+  const [pendingRestaurantId, setPendingRestaurantId] = useState<string | null>(null)
+  const [storeError, setStoreError] = useState('')
+  const [logoutPending, setLogoutPending] = useState(false)
+  const [logoutError, setLogoutError] = useState('')
+  const [logoutGuardMessage, setLogoutGuardMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (logoutGuardMessage) return
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const menu = menuRef.current
+    if (!menu) return
+    const frame = window.requestAnimationFrame(() => {
+      const initial = menu.querySelector<HTMLElement>('[data-menu-initial-focus]') ?? menuItems(menu)[0] ?? menu
+      initial.focus()
+    })
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+      } else if (event.key === 'Tab') {
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      document.removeEventListener('keydown', handleKeyDown)
+      if (previousFocus?.isConnected) previousFocus.focus()
+    }
+  }, [logoutGuardMessage, onClose])
+
+  useEffect(() => {
+    if (!pendingRestaurantId) return
+    if (currentRestaurantId === pendingRestaurantId) {
+      setPendingRestaurantId(null)
+      setStoreError('')
+      onClose()
+      return
+    }
+    if (storeAttemptedRef.current && !storePending) {
+      storeAttemptedRef.current = false
+      setStoreError('Mağaza açılamadı. Bağlantını kontrol edip tekrar dene.')
+    }
+  }, [currentRestaurantId, onClose, pendingRestaurantId, storePending])
+
+  function navigate(href: string) {
+    beginNavigation(href)
+    router.push(href)
+    onClose()
+  }
 
   function handleStoreSelect(id: string) {
-    if (id !== currentRestaurantId) {
-      router.push(`/dashboard/${id}`)
+    if (id === currentRestaurantId) {
+      onClose()
+      return
     }
-    onClose()
+    setStoreError('')
+    setPendingRestaurantId(id)
+    storeAttemptedRef.current = true
+    startStoreTransition(() => {
+      const href = `/dashboard/${id}`
+      beginNavigation(href)
+      router.push(href)
+    })
+  }
+
+  async function performLogout() {
+    if (logoutLockRef.current) return
+    logoutLockRef.current = true
+    setLogoutPending(true)
+    setLogoutError('')
+    const result = await logoutCurrentBrowser()
+    if ('error' in result) {
+      logoutLockRef.current = false
+      setLogoutPending(false)
+      setLogoutError(result.error)
+      return
+    }
+    window.location.replace('/auth/login')
+  }
+
+  function requestLogout() {
+    const guardMessage = getNavigationGuard()
+    if (guardMessage) {
+      setLogoutGuardMessage(guardMessage)
+      return
+    }
+    void performLogout()
+  }
+
+  function handleMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+    const items = menuItems(event.currentTarget)
+    if (items.length === 0) return
+    event.preventDefault()
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement)
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? items.length - 1
+        : event.key === 'ArrowDown'
+          ? (currentIndex + 1 + items.length) % items.length
+          : (currentIndex - 1 + items.length) % items.length
+    items[nextIndex]?.focus()
+  }
+
+  if (logoutGuardMessage) {
+    return (
+      <UnsavedChangesDialog
+        description={logoutGuardMessage}
+        discardLabel="Değişiklikleri sil ve çıkış yap"
+        onKeepEditing={() => setLogoutGuardMessage(null)}
+        onDiscard={() => {
+          setLogoutGuardMessage(null)
+          void performLogout()
+        }}
+      />
+    )
   }
 
   return (
     <div
-      onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 100 }}
+      className="dashboard-profile-backdrop"
+      onMouseDown={(event) => { if (event.target === event.currentTarget && !logoutPending) onClose() }}
     >
+      <style>{PROFILE_MENU_CSS}</style>
       <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          position: 'absolute', left: 56, bottom: 16,
-          width: 280, background: 'var(--surface)',
-          borderRadius: 12, boxShadow: 'var(--shadow-pop)',
-          border: '1px solid var(--border)',
-          overflow: 'hidden',
-        }}
+        ref={menuRef}
+        id={SHELL_OVERLAY_IDS.profile}
+        role="menu"
+        aria-labelledby="dashboard-profile-name"
+        aria-busy={logoutPending || storePending}
+        className="dashboard-profile-menu"
+        tabIndex={-1}
+        onKeyDown={handleMenuKeyDown}
       >
-        {/* User card */}
-        <div style={{
-          padding: 14, display: 'flex', alignItems: 'center', gap: 10,
-          borderBottom: '1px solid var(--divider)',
-        }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 999, flexShrink: 0,
-            background: 'linear-gradient(135deg, #ffd089 0%, #ff8b6b 100%)',
-            color: '#5a2a14', fontWeight: 700, fontSize: 14,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {userInitials}
-          </div>
+        <div role="presentation" style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--divider)' }}>
+          <ProfileAvatar displayName={displayName} initials={userInitials} avatarUrl={avatarUrl} size={40} fontSize={14} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {userEmail.split('@')[0]}
-            </div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {userEmail}
-            </div>
+            <div id="dashboard-profile-name" style={{ fontSize: 13.5, fontWeight: 650, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
+            <div style={{ marginTop: 1, fontSize: 11.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userEmail}</div>
           </div>
-          <Tag tone="positive">Pro</Tag>
+          <Tag tone="positive">{planLabel}</Tag>
         </div>
 
-        {/* Store list */}
         {restaurants.length > 0 && (
-          <div style={{ padding: '8px 6px 4px' }}>
-            <div style={{ ...S.label, padding: '4px 10px 4px' }}>Mağaza</div>
-            {restaurants.slice(0, 3).map((r, i) => {
-              const active = r.id === currentRestaurantId
+          <div role="presentation" style={{ padding: '8px 6px 4px' }}>
+            <div style={{ ...S.label, padding: '4px 10px' }}>Mağaza</div>
+            {restaurants.slice(0, 3).map((restaurant, index) => {
+              const active = restaurant.id === currentRestaurantId
+              const pending = restaurant.id === pendingRestaurantId && storePending
               return (
                 <button
-                  key={r.id}
-                  onClick={() => handleStoreSelect(r.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    width: '100%', padding: '7px 10px', borderRadius: 6,
-                    background: active ? 'var(--surface-inset)' : 'transparent',
-                    border: 'none', cursor: 'pointer', textAlign: 'left',
-                  }}
-                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--surface-3)' }}
-                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = active ? 'var(--surface-inset)' : 'transparent' }}
+                  key={restaurant.id}
+                  type="button"
+                  role="menuitem"
+                  data-menu-initial-focus={active ? '' : undefined}
+                  aria-current={active ? 'page' : undefined}
+                  disabled={storePending || logoutPending}
+                  className="dashboard-profile-item"
+                  onClick={() => handleStoreSelect(restaurant.id)}
+                  style={{ background: active ? 'var(--surface-inset)' : undefined }}
                 >
-                  <div style={{
-                    width: 26, height: 26, borderRadius: 6, flexShrink: 0,
-                    background: GRADIENTS[i % GRADIENTS.length],
-                    color: '#fff', fontWeight: 700, fontSize: 10,
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {r.name.slice(0, 1).toUpperCase()}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: active ? 600 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {r.name}
-                    </div>
-                  </div>
-                  {active && (
-                    <span style={{ color: 'var(--positive)', flexShrink: 0 }}>
-                      <I.check size={14} />
-                    </span>
-                  )}
+                  <span aria-hidden="true" style={{ width: 28, height: 28, borderRadius: 7, flexShrink: 0, background: GRADIENTS[index % GRADIENTS.length], color: '#fff', fontWeight: 700, fontSize: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {restaurant.name.slice(0, 1).toLocaleUpperCase('tr-TR')}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5, fontWeight: active ? 650 : 500 }}>{restaurant.name}</span>
+                  {pending ? <span style={{ fontSize: 11, color: 'var(--text-3)' }}>Açılıyor…</span> : active ? <span aria-hidden="true" style={{ color: 'var(--positive)', display: 'inline-flex' }}><I.check size={14} /></span> : null}
                 </button>
               )
             })}
+            {restaurants.length > 3 && (
+              <button type="button" role="menuitem" className="dashboard-profile-item" disabled={storePending || logoutPending} onClick={onOpenStoreSwitcher}>
+                <span aria-hidden="true" style={{ width: 28, display: 'inline-flex', justifyContent: 'center', color: 'var(--text-2)' }}><I.cutlery size={15} /></span>
+                <span style={{ flex: 1, fontSize: 12.5 }}>Tüm mağazalar</span>
+                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{restaurants.length}</span>
+              </button>
+            )}
+            {storeError && (
+              <div role="alert" style={{ margin: '5px 6px', padding: '8px 10px', borderRadius: 7, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 11.5 }}>
+                {storeError}
+                {pendingRestaurantId && <button type="button" onClick={() => handleStoreSelect(pendingRestaurantId)} style={{ display: 'block', minHeight: 36, marginTop: 4, padding: 0, border: 0, background: 'transparent', color: 'inherit', fontWeight: 700, cursor: 'pointer' }}>Tekrar dene</button>}
+              </div>
+            )}
           </div>
         )}
 
-        <div style={{ height: 1, background: 'var(--divider)', margin: '4px 0' }} />
+        <div role="separator" style={{ height: 1, background: 'var(--divider)', margin: '4px 0' }} />
 
-        <div style={{ padding: '4px 6px' }}>
-          {[
-            { Icon: I.gear,    label: 'Hesap ayarları', href: `/dashboard/${currentRestaurantId}/settings` },
-            { Icon: I.history, label: 'Etkinlik geçmişi' },
-            { Icon: I.bell,    label: 'Bildirimler', badge: '2' },
-            { Icon: I.globe,   label: 'Dil & Bölge', sub: 'Türkçe · TRY' },
-          ].map((m, i) => (
-            <button
-              key={i}
-              onClick={() => {
-                if (m.href) {
-                  router.push(m.href)
-                  onClose()
-                }
-              }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                width: '100%', padding: '8px 10px', borderRadius: 6,
-                background: 'transparent', border: 'none',
-                cursor: m.href ? 'pointer' : 'default', textAlign: 'left',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-3)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-            >
-              <span style={{ color: 'var(--text-2)' }}>
-                <m.Icon size={15} />
-              </span>
-              <span style={{ flex: 1, fontSize: 12.5 }}>{m.label}</span>
-              {m.sub && <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{m.sub}</span>}
-              {m.badge && <Tag tone="critical">{m.badge}</Tag>}
-            </button>
-          ))}
+        <div role="presentation" style={{ padding: '4px 6px' }}>
+          <button type="button" role="menuitem" className="dashboard-profile-item" disabled={storePending || logoutPending} onClick={() => navigate(`/dashboard/${currentRestaurantId}/settings?section=profile`)}>
+            <span aria-hidden="true" style={{ color: 'var(--text-2)', display: 'inline-flex' }}><I.gear size={15} /></span><span style={{ flex: 1, fontSize: 12.5 }}>Hesap ayarları</span>
+          </button>
+          <button type="button" role="menuitem" className="dashboard-profile-item" disabled={storePending || logoutPending} onClick={() => navigate(`/dashboard/${currentRestaurantId}/settings?section=security`)}>
+            <span aria-hidden="true" style={{ color: 'var(--text-2)', display: 'inline-flex' }}><I.history size={15} /></span><span style={{ flex: 1, fontSize: 12.5 }}>Etkinlik geçmişi</span>
+          </button>
+          <button type="button" role="menuitem" className="dashboard-profile-item" disabled={storePending || logoutPending} aria-label={unreadCount > 0 ? `Bildirimler, ${unreadCount} okunmamış` : 'Bildirimler'} onClick={onOpenNotifications}>
+            <span aria-hidden="true" style={{ color: 'var(--text-2)', display: 'inline-flex' }}><I.bell size={15} /></span><span style={{ flex: 1, fontSize: 12.5 }}>Bildirimler</span>{unreadCount > 0 && <Tag tone="critical">{unreadCount > 99 ? '99+' : unreadCount}</Tag>}
+          </button>
+          <button type="button" role="menuitem" className="dashboard-profile-item" disabled={storePending || logoutPending} onClick={() => navigate(`/dashboard/${currentRestaurantId}/settings?section=languages`)}>
+            <span aria-hidden="true" style={{ color: 'var(--text-2)', display: 'inline-flex' }}><I.globe size={15} /></span><span style={{ flex: 1, fontSize: 12.5 }}>Dil &amp; Bölge</span>
+          </button>
         </div>
 
-        <div style={{ height: 1, background: 'var(--divider)', margin: '4px 0' }} />
+        <div role="separator" style={{ height: 1, background: 'var(--divider)', margin: '4px 0' }} />
 
-        <div style={{ padding: '6px 10px 12px' }}>
-          <form action={signOut}>
-            <button
-              type="submit"
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                width: '100%', padding: '8px 10px', borderRadius: 6,
-                background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
-                color: 'var(--critical)', fontSize: 12.5, fontWeight: 500,
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--critical-bg)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              <I.logout size={15} />
-              Çıkış yap
-            </button>
-          </form>
+        <div role="presentation" style={{ padding: '6px 6px 10px' }}>
+          {logoutError && <div role="alert" style={{ margin: '0 4px 6px', padding: '8px 10px', borderRadius: 7, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 11.5 }}>{logoutError}</div>}
+          <button
+            type="button"
+            role="menuitem"
+            disabled={logoutPending || storePending}
+            className="dashboard-profile-item"
+            onClick={requestLogout}
+            style={{ color: 'var(--critical)', fontWeight: 600 }}
+          >
+            <I.logout size={15} />
+            {logoutPending ? 'Çıkış yapılıyor…' : 'Çıkış yap'}
+          </button>
         </div>
       </div>
     </div>

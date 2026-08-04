@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { I, Tag } from '../../lib/ui'
+import { LoadingStatus } from '@garsonless/ui/spinners'
 import {
   getInboxFeed,
   getNotifications,
@@ -11,6 +12,7 @@ import {
   type NotificationItem,
 } from '../../lib/actions/notifications'
 import { resolveServiceRequest } from '../../lib/actions/service-requests'
+import { useShell } from '../../lib/shell-context'
 
 interface Props {
   restaurantId: string
@@ -34,6 +36,7 @@ const ICON_META = {
 } as const
 
 export default function NotificationsPanel({ restaurantId, browserNotificationsEnabled, onClose }: Props) {
+  const { beginNavigation } = useShell()
   const router = useRouter()
   const [items, setItems] = useState<NotificationItem[]>([])
   const [inboxItems, setInboxItems] = useState<InboxNotificationItem[]>([])
@@ -72,9 +75,10 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
     }
     if (item.linkPath) {
       onClose()
+      beginNavigation(item.linkPath)
       router.push(item.linkPath)
     }
-  }, [restaurantId, onClose, router])
+  }, [beginNavigation, restaurantId, onClose, router])
 
   const handleMarkAllRead = useCallback(async () => {
     setInboxItems((prev) => prev.map((entry) => entry.readAt ? entry : { ...entry, readAt: new Date().toISOString() }))
@@ -97,9 +101,11 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
   }, [restaurantId, load])
 
   const goToOrders = useCallback(() => {
+    const href = `/dashboard/${restaurantId}/orders`
     onClose()
-    router.push(`/dashboard/${restaurantId}/orders`)
-  }, [onClose, router, restaurantId])
+    beginNavigation(href)
+    router.push(href)
+  }, [beginNavigation, onClose, router, restaurantId])
 
   return (
     <div
@@ -138,10 +144,10 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
         </div>
 
         {/* List */}
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        <div aria-busy={loading} style={{ flex: 1, overflow: 'auto' }}>
           {loading ? (
             <div style={{ padding: '32px 16px', textAlign: 'center', fontSize: 12.5, color: 'var(--text-3)' }}>
-              Yükleniyor…
+              <LoadingStatus label="Bildirimler yükleniyor…" />
             </div>
           ) : error ? (
             <div role="alert" style={{ padding: '32px 20px', textAlign: 'center' }}>

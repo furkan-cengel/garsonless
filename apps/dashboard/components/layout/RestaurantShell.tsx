@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 import type { Tables } from '@garsonless/db/types'
 import { serviceRequestLabel } from '@garsonless/domain/tables'
 import { OPEN_ORDER_STATUSES } from '@garsonless/domain/orders'
-import { ShellContext } from '../../lib/shell-context'
+import { ShellContext, type ShellOverlay } from '../../lib/shell-context'
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import { readNotificationPrefs } from '../../lib/notification-prefs'
 import { useGlobalOrderAlerts } from '../notifications/useGlobalOrderAlerts'
@@ -15,15 +16,17 @@ import type { Order } from '../orders/useOrdersRealtime'
 import { Skeleton } from '../../lib/ui'
 import IconRail from './IconRail'
 import ServiceRequestToast from './ServiceRequestToast'
-import StoreSwitcher from '../overlays/StoreSwitcher'
-import NotificationsPanel from '../overlays/NotificationsPanel'
 import { getUnreadInboxCount, syncDashboardInboxEvent } from '../../lib/actions/notifications'
-import HelpModal from '../overlays/HelpModal'
-import ProfileMenu from '../overlays/ProfileMenu'
+import NavigationFeedback, { useNavigationFeedback } from './NavigationFeedback'
+
+const HelpModal = dynamic(() => import('../overlays/HelpModal'), { ssr: false })
+const NotificationsPanel = dynamic(() => import('../overlays/NotificationsPanel'), { ssr: false })
+const ProfileMenu = dynamic(() => import('../overlays/ProfileMenu'), { ssr: false })
+const StoreSwitcher = dynamic(() => import('../overlays/StoreSwitcher'), { ssr: false })
 
 export function RestaurantShellSkeleton() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '16px 24px', height: '100%' }}>
+    <div role="status" aria-live="polite" aria-busy="true" aria-label="Dashboard hazırlanıyor" style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '16px 24px', height: '100%' }}>
       <Skeleton height={44} width="100%" />
       <div style={{ display: 'flex', gap: 16 }}>
         <Skeleton height={90} style={{ flex: 1 }} />
@@ -55,28 +58,42 @@ const MOBILE_RAIL_SHELL_CSS = `
     align-items: center !important;
     gap: 2px !important;
     padding: 6px 8px !important;
-    overflow-x: auto;
+    overflow-x: hidden;
     overflow-y: hidden;
     border-right: 0 !important;
     border-top: 1px solid var(--border);
     scrollbar-width: none;
   }
   .restaurant-shell--mobile-rail .restaurant-rail::-webkit-scrollbar { display: none; }
+  .restaurant-shell--mobile-rail .restaurant-rail .rail-primary {
+    min-width: 0;
+    flex: 1;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .restaurant-shell--mobile-rail .restaurant-rail .rail-primary::-webkit-scrollbar { display: none; }
   .restaurant-shell--mobile-rail .restaurant-rail .rail-secondary {
     margin-top: 0 !important;
     margin-left: auto;
     flex-direction: row !important;
+    flex-shrink: 0;
+    background: var(--surface);
   }
+  .restaurant-shell--mobile-rail .restaurant-rail .rail-tooltip { display: none; }
 }
 `
-
-type Overlay = 'store' | 'notif' | 'help' | 'profile' | null
 
 interface Props {
   restaurantId: string
   restaurants: Tables<'restaurants'>[]
   userEmail: string
+  userDisplayName: string
   userInitials: string
+  userAvatarUrl: string | null
+  planLabel: string
   /** Sections the user may access (owner → all 8); drives the slim nav. */
   permissions: string[]
   isOwner: boolean
@@ -88,22 +105,37 @@ export default function RestaurantShell({
   restaurantId,
   restaurants,
   userEmail,
+  userDisplayName,
   userInitials,
+  userAvatarUrl,
+  planLabel,
   permissions,
   isOwner,
   browserNotificationsEnabled,
   children,
 }: Props) {
   const pathname = usePathname()
-  const isOrdersRoute = pathname.endsWith('/orders')
-  const usesMobileRail = isOrdersRoute || pathname.endsWith('/settings')
   const isCustomersRoute = pathname.includes('/customers')
-  const [overlay, setOverlay] = useState<Overlay>(null)
+  const [overlay, setOverlay] = useState<ShellOverlay>(null)
   const [ordersBadge, setOrdersBadge] = useState(0)
   const [inboxUnread, setInboxUnread] = useState(0)
   const [waiterToast, setWaiterToast] = useState<{ tableLabel: string; label: string } | null>(null)
   const tableLabelsRef = useRef<Record<string, string>>({})
   const navigationGuardRef = useRef<string | null>(null)
+  const navigationFeedback = useNavigationFeedback()
+
+  const closeOverlay = useCallback(() => setOverlay(null), [])
+  const toggleOverlay = useCallback((next: Exclude<ShellOverlay, null>) => {
+    setOverlay((current) => current === next ? null : next)
+  }, [])
+  const openStoreSwitcher = useCallback(() => setOverlay('store'), [])
+  const openNotifications = useCallback(() => setOverlay('notif'), [])
+  const openHelp = useCallback(() => setOverlay('help'), [])
+  const openProfile = useCallback(() => setOverlay('profile'), [])
+  const setNavigationGuard = useCallback((message: string | null) => { navigationGuardRef.current = message }, [])
+  const getNavigationGuard = useCallback(() => navigationGuardRef.current, [])
+
+  useEffect(() => closeOverlay(), [closeOverlay, pathname])
 
   // "Garson çağrısı uyarısı" toggle. Read via a ref so the realtime effect
   // (keyed only on restaurantId) always sees the current setting without
@@ -307,32 +339,82 @@ export default function RestaurantShell({
     }
   }, [restaurantId])
 
-  const ctx = {
-    openStoreSwitcher: () => setOverlay('store'),
-    openNotifications:  () => setOverlay('notif'),
-    openHelp:           () => setOverlay('help'),
-    openProfile:        () => setOverlay('profile'),
-    setNavigationGuard: (message: string | null) => { navigationGuardRef.current = message },
-    getNavigationGuard: () => navigationGuardRef.current,
+  const ctx = useMemo(() => ({
+    overlay,
+    toggleOverlay,
+    closeOverlay,
+    openStoreSwitcher,
+    openNotifications,
+    openHelp,
+    openProfile,
+    setNavigationGuard,
+    getNavigationGuard,
+    beginNavigation: navigationFeedback.beginNavigation,
+    cancelNavigation: navigationFeedback.cancelNavigation,
     notificationCount,
-    navigation: {
-      pathname,
-      userInitials,
-      ordersBadge,
-      permissions,
-      isOwner,
-    },
-  }
+    navigation: { pathname, userDisplayName, userInitials, userAvatarUrl, ordersBadge, permissions, isOwner },
+  }), [
+    closeOverlay,
+    getNavigationGuard,
+    navigationFeedback.beginNavigation,
+    navigationFeedback.cancelNavigation,
+    isOwner,
+    notificationCount,
+    openHelp,
+    openNotifications,
+    openProfile,
+    openStoreSwitcher,
+    ordersBadge,
+    overlay,
+    pathname,
+    permissions,
+    setNavigationGuard,
+    toggleOverlay,
+    userAvatarUrl,
+    userDisplayName,
+    userInitials,
+  ])
 
   if (isFullScreen) {
     return (
       <ShellContext.Provider value={ctx}>
+        <NavigationFeedback
+          snapshot={navigationFeedback.snapshot}
+          onRetry={navigationFeedback.retryNavigation}
+          onDismiss={navigationFeedback.cancelNavigation}
+        />
         {children}
         {overlay === 'notif' && (
           <NotificationsPanel
             restaurantId={restaurantId}
             browserNotificationsEnabled={browserNotificationsEnabled}
-            onClose={() => setOverlay(null)}
+            onClose={closeOverlay}
+          />
+        )}
+        {overlay === 'store' && (
+          <StoreSwitcher
+            restaurants={restaurants}
+            currentRestaurantId={restaurantId}
+            isOwner={isOwner}
+            onClose={closeOverlay}
+          />
+        )}
+        {overlay === 'help' && (
+          <HelpModal restaurantId={restaurantId} permissions={permissions} isOwner={isOwner} onClose={closeOverlay} />
+        )}
+        {overlay === 'profile' && (
+          <ProfileMenu
+            userEmail={userEmail}
+            displayName={userDisplayName}
+            userInitials={userInitials}
+            avatarUrl={userAvatarUrl}
+            planLabel={planLabel}
+            unreadCount={notificationCount}
+            restaurants={restaurants}
+            currentRestaurantId={restaurantId}
+            onOpenNotifications={openNotifications}
+            onOpenStoreSwitcher={openStoreSwitcher}
+            onClose={closeOverlay}
           />
         )}
         <ServiceRequestToast request={waiterToast} onDismiss={() => setWaiterToast(null)} />
@@ -343,8 +425,13 @@ export default function RestaurantShell({
 
   return (
     <ShellContext.Provider value={ctx}>
+      <NavigationFeedback
+        snapshot={navigationFeedback.snapshot}
+        onRetry={navigationFeedback.retryNavigation}
+        onDismiss={navigationFeedback.cancelNavigation}
+      />
       <style>{MOBILE_RAIL_SHELL_CSS}</style>
-      <div className={`restaurant-shell${usesMobileRail ? ' restaurant-shell--mobile-rail' : ''}`} style={{
+      <div className="restaurant-shell restaurant-shell--mobile-rail" style={{
         display: 'flex',
         height: '100vh',
         overflow: 'hidden',
@@ -353,7 +440,9 @@ export default function RestaurantShell({
         <IconRail
           className="restaurant-rail"
           restaurantId={restaurantId}
+          userDisplayName={userDisplayName}
           userInitials={userInitials}
+          userAvatarUrl={userAvatarUrl}
           pathname={pathname}
           ordersBadge={ordersBadge}
           permissions={permissions}
@@ -378,26 +467,33 @@ export default function RestaurantShell({
         <StoreSwitcher
           restaurants={restaurants}
           currentRestaurantId={restaurantId}
-          onClose={() => setOverlay(null)}
+          isOwner={isOwner}
+          onClose={closeOverlay}
         />
       )}
       {overlay === 'notif' && (
         <NotificationsPanel
           restaurantId={restaurantId}
           browserNotificationsEnabled={browserNotificationsEnabled}
-          onClose={() => setOverlay(null)}
+          onClose={closeOverlay}
         />
       )}
       {overlay === 'help' && (
-        <HelpModal onClose={() => setOverlay(null)} />
+        <HelpModal restaurantId={restaurantId} permissions={permissions} isOwner={isOwner} onClose={closeOverlay} />
       )}
       {overlay === 'profile' && (
         <ProfileMenu
           userEmail={userEmail}
+          displayName={userDisplayName}
           userInitials={userInitials}
+          avatarUrl={userAvatarUrl}
+          planLabel={planLabel}
+          unreadCount={notificationCount}
           restaurants={restaurants}
           currentRestaurantId={restaurantId}
-          onClose={() => setOverlay(null)}
+          onOpenNotifications={openNotifications}
+          onOpenStoreSwitcher={openStoreSwitcher}
+          onClose={closeOverlay}
         />
       )}
 

@@ -33,6 +33,7 @@ import { formatCurrency } from '../../lib/utils'
 import { I, S, btnGhost, btnPrimary } from '../../lib/ui'
 import PageTopBar from '../layout/PageTopBar'
 import { AccessibleDialog } from '../tables/AccessibleDialog'
+import { useShell } from '../../lib/shell-context'
 import {
   customerListHref,
   parseCustomerListState,
@@ -115,6 +116,7 @@ export default function CustomersClient({
   initialState: CustomerListState
   referenceNow: string
 }) {
+  const { beginNavigation } = useShell()
   const router = useRouter()
   const pathname = usePathname()
   const [data, setData] = useState<RestaurantCustomersPage>(initial)
@@ -418,8 +420,9 @@ export default function CustomersClient({
                   referenceNow={referenceNow}
                   onClick={() => {
                     const returnTo = customerListHref(pathname, { search, segment, customSegmentId, sort, page })
-                    window.dispatchEvent(new Event('navigation-start'))
-                    router.push(`/dashboard/${restaurantId}/customers/${c.customerId}?returnTo=${encodeURIComponent(returnTo)}`)
+                    const href = `/dashboard/${restaurantId}/customers/${c.customerId}?returnTo=${encodeURIComponent(returnTo)}`
+                    beginNavigation(href)
+                    router.push(href)
                   }}
                 />
               ))

@@ -1,7 +1,8 @@
 'use server'
 
+import { createHash } from 'node:crypto'
 import { redirect } from 'next/navigation'
-import { deleteDashboardPushSubscriptionsForUser } from '@garsonless/db/server'
+import { deleteDashboardPushEndpoint } from '@garsonless/db/server'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { recordSecurityEvent } from '@garsonless/db/server'
@@ -100,17 +101,30 @@ export async function signUp(
   return { success: true }
 }
 
-export async function signOut(): Promise<never> {
+const logoutEndpointSchema = z.string().url().max(2_048).refine((value) => value.startsWith('https://'))
+
+/** Ends only this browser session and retires only its matching push endpoint. */
+export async function signOut(endpoint: unknown): Promise<{ success: true } | { error: string }> {
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (user) {
-    // Prevent a shared browser from receiving tenant notifications after the
-    // dashboard identity signs out. Failure must never trap the user in a
-    // session; expired endpoints are also retired by provider 404/410.
-    await deleteDashboardPushSubscriptionsForUser(user.id)
+  const { error } = await supabase.auth.signOut({ scope: 'local' })
+  if (error) {
+    return { error: publicAuthError(error, 'auth.sign-out', 'Çıkış yapılamadı. Lütfen tekrar deneyin.') }
   }
-  await supabase.auth.signOut()
-  redirect('/auth/login')
+
+  const parsedEndpoint = logoutEndpointSchema.safeParse(endpoint)
+  if (user && parsedEndpoint.success) {
+    const deleted = await deleteDashboardPushEndpoint({
+      userId: user.id,
+      endpointHash: createHash('sha256').update(parsedEndpoint.data).digest('hex'),
+    })
+    if (!deleted.ok) {
+      // The local browser subscription is also retired client-side. A stale
+      // server row is safe to clean up later through the provider's 404/410 path.
+      console.warn('[dashboard-auth-push-cleanup-failure]', { operation: 'auth.sign-out' })
+    }
+  }
+  return { success: true }
 }
 
 export async function sendMagicLink(

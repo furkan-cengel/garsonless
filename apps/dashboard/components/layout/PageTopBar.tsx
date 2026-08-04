@@ -16,7 +16,7 @@ interface Props {
 }
 
 export default function PageTopBar({ restaurantName, title, className, tag, center, right, backHref }: Props) {
-  const { openStoreSwitcher, openNotifications, notificationCount } = useShell()
+  const { beginNavigation, openStoreSwitcher, openNotifications, notificationCount } = useShell()
   const router = useRouter()
 
   return (
@@ -36,7 +36,7 @@ export default function PageTopBar({ restaurantName, title, className, tag, cent
         {backHref && (
           <button
             onClick={() => {
-              window.dispatchEvent(new Event('navigation-start'))
+              beginNavigation(backHref)
               router.push(backHref)
             }}
             aria-label="Geri"

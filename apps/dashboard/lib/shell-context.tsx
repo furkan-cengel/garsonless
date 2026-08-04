@@ -2,7 +2,17 @@
 
 import { createContext, useContext } from 'react'
 
+export type ShellOverlay = 'store' | 'notif' | 'help' | 'profile' | null
+
+export const SHELL_OVERLAY_IDS = {
+  help: 'dashboard-help-dialog',
+  profile: 'dashboard-profile-menu',
+} as const
+
 export interface ShellContextValue {
+  overlay: ShellOverlay
+  toggleOverlay: (overlay: Exclude<ShellOverlay, null>) => void
+  closeOverlay: () => void
   openStoreSwitcher: () => void
   openNotifications: () => void
   openHelp: () => void
@@ -11,11 +21,17 @@ export interface ShellContextValue {
   setNavigationGuard: (message: string | null) => void
   /** Read the current guard message at click time. */
   getNavigationGuard: () => string | null
-  /** Live unread count (pending waiter calls + new orders today); not persisted. */
+  /** Start feedback for an internal URL. Same-route and external URLs are ignored. */
+  beginNavigation: (targetHref: string) => string | null
+  /** Cancel the active navigation, optionally only when the operation id matches. */
+  cancelNavigation: (operationId?: string) => void
+  /** Durable per-user unread notification count. */
   notificationCount: number
   navigation: {
     pathname: string
+    userDisplayName: string
     userInitials: string
+    userAvatarUrl: string | null
     ordersBadge: number
     permissions: string[]
     isOwner: boolean

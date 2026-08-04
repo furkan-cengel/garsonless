@@ -39,12 +39,11 @@ test('subscription server action re-checks membership and paid entitlement', () 
   assert.match(action, /endpointHash/)
 })
 
-test('logout retires server endpoints before destroying the auth session', () => {
+test('logout retires only the current browser endpoint and uses local auth scope', () => {
   const auth = source('../../lib/actions/auth.ts')
-  const cleanup = auth.indexOf('deleteDashboardPushSubscriptionsForUser')
-  const signOut = auth.indexOf('supabase.auth.signOut()')
-  assert.ok(cleanup >= 0)
-  assert.ok(signOut > cleanup)
+  assert.match(auth, /deleteDashboardPushEndpoint/)
+  assert.match(auth, /supabase\.auth\.signOut\(\{ scope: 'local' \}\)/)
+  assert.doesNotMatch(auth, /deleteDashboardPushSubscriptionsForUser/)
 })
 
 test('shell authenticates RLS-scoped Realtime before orders and inbox subscriptions', () => {

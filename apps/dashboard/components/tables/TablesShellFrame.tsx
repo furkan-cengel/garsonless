@@ -302,7 +302,9 @@ export function TablesIconRail({ restaurantId }: { restaurantId: string }) {
     <DashboardIconRail
       className="tb-tables__rail"
       restaurantId={restaurantId}
+      userDisplayName={navigation.userDisplayName}
       userInitials={navigation.userInitials}
+      userAvatarUrl={navigation.userAvatarUrl}
       pathname={navigation.pathname}
       ordersBadge={navigation.ordersBadge}
       permissions={navigation.permissions}

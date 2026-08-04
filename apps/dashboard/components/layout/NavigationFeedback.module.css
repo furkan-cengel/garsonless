@@ -1,0 +1,85 @@
+.bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  height: 3px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--action) 18%, transparent);
+  pointer-events: none;
+}
+
+.bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 42%;
+  background: linear-gradient(90deg, transparent, var(--action), var(--positive), transparent);
+  animation: navigation-sweep 1.15s ease-in-out infinite;
+}
+
+.recovery {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  z-index: 10000;
+  width: min(430px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-pop);
+}
+
+.message {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.actions { display: inline-flex; gap: 6px; }
+
+.button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.buttonPrimary {
+  border-color: var(--action);
+  background: var(--action);
+  color: var(--on-action);
+}
+
+@keyframes navigation-sweep {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(350%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar::after {
+    width: 100%;
+    animation: none;
+    background: var(--action);
+  }
+}
+
+@media (max-width: 520px) {
+  .recovery { align-items: stretch; flex-direction: column; }
+  .actions { width: 100%; }
+  .button { flex: 1; }
+}

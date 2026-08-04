@@ -1,173 +1,181 @@
 'use client'
 
-import { useState } from 'react'
-import { I, S, Tag } from '../../lib/ui'
+import Link from 'next/link'
+import { useEffect, useMemo, useState } from 'react'
+import { dashboardHelpLinks, safeSupportUrl } from '../../lib/help-links'
+import { SHELL_OVERLAY_IDS, useShell } from '../../lib/shell-context'
+import { I, S } from '../../lib/ui'
+import { useModalDialogFocus } from './use-modal-dialog-focus'
 
-const ARTICLES = [
-  { cat: 'Başlangıç', title: 'İlk QR kodumu nasıl oluştururum?',       read: '2 dk' },
-  { cat: 'Menü',      title: 'Toplu fiyat güncelleme nasıl yapılır?',    read: '1 dk' },
-  { cat: 'Sipariş',   title: 'Siparişleri yazıcıya nasıl bağlarım?',     read: '3 dk' },
-  { cat: 'Tema',      title: 'Marka rengini tüm yüzeylere uygula',      read: '1 dk' },
-  { cat: 'Ödeme',     title: 'iyzico entegrasyonu adım adım',           read: '4 dk' },
-  { cat: 'Faturalama', title: 'Plan yükseltme ve fatura kesimi',         read: '2 dk' },
-]
-
-const QUICK_ACTIONS = [
-  { Icon: I.sparkles, title: "Masabu'yu tanı",  desc: 'Etkileşimli 60 sn turu başlat', tag: 'Tur' as const },
-  { Icon: I.cutlery,  title: 'Menü içe aktar',     desc: 'CSV veya Yemeksepeti / Trendyol bağla' },
-  { Icon: I.qr,       title: 'QR kodları indir',   desc: 'Tüm masalar için PNG paketi' },
-]
-
-const kbd: React.CSSProperties = {
-  display: 'inline-block', padding: '1px 5px',
-  background: 'var(--surface)', border: '1px solid var(--border)',
-  borderRadius: 3, fontFamily: "'Geist Mono', monospace",
-  fontSize: 10, color: 'var(--text-2)', marginRight: 4,
+const HELP_CSS = `
+.dashboard-help-overlay {
+  position:fixed;inset:0;z-index:100;
+  display:flex;align-items:flex-start;justify-content:center;
+  padding:clamp(16px,9vh,90px) 16px 16px;
+  background:rgba(17,17,19,.45);backdrop-filter:blur(4px);
 }
+.dashboard-help-dialog {
+  width:min(640px,100%);max-height:min(70vh,720px);
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--surface);border-radius:14px;
+  box-shadow:0 30px 80px -10px rgba(0,0,0,.4),0 0 0 1px rgba(17,17,19,.06);
+}
+.dashboard-help-action {
+  min-height:56px;display:flex;align-items:center;gap:12px;width:100%;
+  padding:8px 12px;border:0;border-radius:7px;background:transparent;
+  color:var(--text);text-align:left;text-decoration:none;
+}
+.dashboard-help-action:hover { background:var(--surface-3); }
+.dashboard-help-action:focus-visible,.dashboard-help-close:focus-visible,.dashboard-help-support:focus-visible {
+  outline:2px solid var(--action);outline-offset:2px;
+}
+.dashboard-help-footer { display:flex;align-items:center;justify-content:space-between;gap:12px; }
+@media (max-width:760px) {
+  .dashboard-help-overlay { align-items:flex-end;padding:0; }
+  .dashboard-help-dialog {
+    width:100%;max-height:min(82dvh,720px);border-radius:16px 16px 0 0;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .dashboard-help-footer { align-items:stretch;flex-direction:column; }
+  .dashboard-help-support { width:100%;justify-content:center; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .dashboard-help-action { transition:none!important; }
+}
+`
 
 interface Props {
+  restaurantId: string
+  permissions: string[]
+  isOwner: boolean
   onClose: () => void
 }
 
-export default function HelpModal({ onClose }: Props) {
-  const [q, setQ] = useState('')
-  const filtered = q
-    ? ARTICLES.filter(r => r.title.toLowerCase().includes(q.toLowerCase()))
-    : ARTICLES
+export default function HelpModal({ restaurantId, permissions, isOwner, onClose }: Props) {
+  const { beginNavigation } = useShell()
+  const [query, setQuery] = useState('')
+  const [online, setOnline] = useState(true)
+  const dialogRef = useModalDialogFocus(onClose)
+  const supportUrl = safeSupportUrl(process.env.NEXT_PUBLIC_SUPPORT_URL)
+  const links = useMemo(
+    () => dashboardHelpLinks(restaurantId).filter((link) => isOwner || permissions.includes(link.section)),
+    [isOwner, permissions, restaurantId],
+  )
+  const normalizedQuery = query.trim().toLocaleLowerCase('tr-TR')
+  const filtered = normalizedQuery
+    ? links.filter((link) => `${link.category} ${link.title} ${link.description}`.toLocaleLowerCase('tr-TR').includes(normalizedQuery))
+    : links
+
+  useEffect(() => {
+    const refresh = () => setOnline(navigator.onLine)
+    refresh()
+    window.addEventListener('online', refresh)
+    window.addEventListener('offline', refresh)
+    return () => {
+      window.removeEventListener('online', refresh)
+      window.removeEventListener('offline', refresh)
+    }
+  }, [])
 
   return (
     <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0,
-        background: 'rgba(17,17,19,.45)',
-        backdropFilter: 'blur(4px)',
-        zIndex: 100,
-        display: 'flex', alignItems: 'flex-start',
-        justifyContent: 'center', paddingTop: 90,
-      }}
+      className="dashboard-help-overlay"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
     >
+      <style>{HELP_CSS}</style>
       <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          width: 640, maxHeight: '70vh', background: 'var(--surface)',
-          borderRadius: 14,
-          boxShadow: '0 30px 80px -10px rgba(0,0,0,.4), 0 0 0 1px rgba(17,17,19,.06)',
-          overflow: 'hidden', display: 'flex', flexDirection: 'column',
-        }}
+        ref={dialogRef}
+        id={SHELL_OVERLAY_IDS.help}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dashboard-help-title"
+        className="dashboard-help-dialog"
+        tabIndex={-1}
       >
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '12px 16px', borderBottom: '1px solid var(--divider)',
-        }}>
-          <I.search size={18} />
-          <input
-            autoFocus
-            placeholder="Yardım merkezinde ara..."
-            value={q}
-            onChange={e => setQ(e.target.value)}
-            onKeyDown={e => e.key === 'Escape' && onClose()}
-            style={{
-              flex: 1, border: 'none', outline: 'none',
-              background: 'transparent', fontSize: 15, color: 'var(--text)',
-            }}
-          />
-          <span style={{
-            ...S.mono, fontSize: 11, color: 'var(--text-3)',
-            padding: '3px 7px', background: 'var(--surface-3)', borderRadius: 5,
-          }}>ESC</span>
+        <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--divider)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div id="dashboard-help-title" style={{ flex: 1, fontSize: 15, fontWeight: 700 }}>
+              Yardım ve kısayollar
+            </div>
+            <button
+              type="button"
+              aria-label="Yardımı kapat"
+              className="dashboard-help-close"
+              onClick={onClose}
+              style={{ width: 44, height: 44, margin: -10, border: 0, borderRadius: 8, background: 'transparent', color: 'var(--text-2)', cursor: 'pointer' }}
+            >
+              <I.x size={17} />
+            </button>
+          </div>
+          <label style={{ display: 'flex', minHeight: 44, alignItems: 'center', gap: 10, padding: '0 12px', borderRadius: 8, background: 'var(--surface-3)', color: 'var(--text-3)' }}>
+            <I.search size={17} />
+            <input
+              data-dialog-initial-focus
+              aria-label="Yardım işlemlerinde ara"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Yardım işlemlerinde ara..."
+              style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: 'transparent', color: 'var(--text)', fontSize: 14 }}
+            />
+          </label>
         </div>
 
-        <div style={{ flex: 1, overflow: 'auto', padding: '8px 0' }}>
-          {!q && (
-            <div style={{ padding: '6px 8px 12px' }}>
-              <div style={{ ...S.label, padding: '6px 12px' }}>Hızlı yardım</div>
-              {QUICK_ACTIONS.map((a, i) => (
-                <button
-                  key={i}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    width: '100%', padding: '10px 12px', textAlign: 'left',
-                    background: 'transparent', border: 'none', borderRadius: 7, cursor: 'pointer',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-3)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 9,
-                    background: 'var(--surface-3)', color: 'var(--text-2)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
-                  }}>
-                    <a.Icon size={18} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>{a.title}</div>
-                    <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 1 }}>{a.desc}</div>
-                  </div>
-                  {a.tag && <Tag tone="positive">{a.tag}</Tag>}
-                  <span style={{ color: 'var(--text-4)' }}>
-                    <I.chevRight size={14} />
-                  </span>
-                </button>
-              ))}
+        <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '8px' }}>
+          <div style={{ ...S.label, padding: '6px 12px' }}>{query ? 'Sonuçlar' : 'Sık kullanılan işlemler'}</div>
+          {filtered.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              prefetch={false}
+              className="dashboard-help-action"
+              onClick={() => {
+                beginNavigation(link.href)
+                onClose()
+              }}
+            >
+              <span aria-hidden="true" style={{ width: 36, height: 36, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 9, background: 'var(--surface-3)', color: 'var(--text-2)' }}>
+                <link.Icon size={18} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 13.5, fontWeight: 650 }}>{link.title}</span>
+                <span style={{ display: 'block', marginTop: 2, color: 'var(--text-3)', fontSize: 11.5 }}>{link.description}</span>
+              </span>
+              <span aria-hidden="true" style={{ color: 'var(--text-4)', display: 'inline-flex' }}><I.chevRight size={14} /></span>
+            </Link>
+          ))}
+          {filtered.length === 0 && (
+            <div role="status" style={{ padding: '28px 12px', textAlign: 'center', color: 'var(--text-3)', fontSize: 12.5 }}>
+              &quot;{query}&quot; için eşleşen işlem bulunamadı.
             </div>
           )}
-
-          <div style={{ padding: '6px 8px 12px' }}>
-            <div style={{ ...S.label, padding: '6px 12px' }}>
-              {q ? 'Sonuçlar' : 'En çok okunanlar'}
-            </div>
-            {filtered.map((r, i) => (
-              <button
-                key={i}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  width: '100%', padding: '9px 12px', textAlign: 'left',
-                  background: 'transparent', border: 'none', borderRadius: 7, cursor: 'pointer',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-3)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <span style={{
-                  fontSize: 10, fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase',
-                  color: 'var(--accent)', background: 'var(--accent-soft)',
-                  padding: '3px 7px', borderRadius: 4, flexShrink: 0,
-                }}>
-                  {r.cat}
-                </span>
-                <span style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>{r.title}</span>
-                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{r.read}</span>
-              </button>
-            ))}
-            {q && filtered.length === 0 && (
-              <div style={{ padding: '20px 12px', textAlign: 'center', color: 'var(--text-3)', fontSize: 12.5 }}>
-                &quot;{q}&quot; için sonuç bulunamadı
-              </div>
-            )}
-          </div>
         </div>
 
-        <div style={{
-          padding: '10px 16px', borderTop: '1px solid var(--divider)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: 'var(--surface-2)',
-        }}>
-          <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-3)' }}>
-            <span><kbd style={kbd}>↑↓</kbd> gezin</span>
-            <span><kbd style={kbd}>↵</kbd> aç</span>
-            <span><kbd style={kbd}>ESC</kbd> kapat</span>
-          </div>
-          <button style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '5px 10px', height: 26,
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: 6, fontSize: 11.5, fontWeight: 500,
-            color: 'var(--text)', cursor: 'pointer',
-          }}>
-            <I.sparkles size={12} />
-            Canlı destek
-          </button>
+        <div className="dashboard-help-footer" style={{ padding: '10px 16px', borderTop: '1px solid var(--divider)', background: 'var(--surface-2)' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
+            <kbd style={{ padding: '2px 6px', marginRight: 5, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--surface)', fontFamily: "'Geist Mono', monospace" }}>ESC</kbd>
+            kapat
+          </span>
+          {supportUrl && (online ? (
+            <a
+              href={supportUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              referrerPolicy="no-referrer"
+              className="dashboard-help-support"
+              style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', textDecoration: 'none', fontSize: 12, fontWeight: 550 }}
+            >
+              <I.sparkles size={13} /> Destek merkezini aç
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="dashboard-help-support"
+              style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface-3)', color: 'var(--text-3)' }}
+            >
+              Çevrimdışı — destek bağlantısı kullanılamıyor
+            </button>
+          ))}
         </div>
       </div>
     </div>

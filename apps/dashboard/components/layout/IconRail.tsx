@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation'
 import { I } from '../../lib/ui'
 import type { Icon } from '../../lib/ui'
 import { useShell } from '../../lib/shell-context'
+import { SHELL_OVERLAY_IDS } from '../../lib/shell-context'
 import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
+import ProfileAvatar from '../overlays/ProfileAvatar'
 
 const RAIL_CSS = `
 .rail-link {
@@ -17,7 +19,11 @@ const RAIL_CSS = `
   transition:background 120ms,color 120ms;text-decoration:none;
 }
 .rail-link:hover { background:var(--surface-3); }
+.rail-link:focus-visible,.rail-btn:focus-visible,.rail-profile:focus-visible {
+  outline:2px solid var(--action);outline-offset:2px;
+}
 .rail-link--active { background:var(--surface-inset)!important;color:var(--text)!important; }
+.rail-primary { display:flex;flex-direction:column;gap:2px;align-items:center; }
 .rail-item { position:relative;width:48px;display:flex;justify-content:center; }
 .rail-tooltip {
   position:absolute;left:50px;top:50%;z-index:120;
@@ -42,6 +48,9 @@ const RAIL_CSS = `
   transition:background 120ms;
 }
 .rail-btn:hover { background:var(--surface-3); }
+.rail-btn[aria-expanded="true"],.rail-profile[aria-expanded="true"] {
+  background:var(--surface-inset);color:var(--text);
+}
 .rail-profile { width:44px!important;height:44px!important; }
 @media (prefers-reduced-motion: reduce) {
   .rail-link,.rail-tooltip,.rail-btn { transition:none!important; }
@@ -68,7 +77,9 @@ const NAV: NavItem[] = [
 
 interface Props {
   restaurantId: string
+  userDisplayName: string
   userInitials: string
+  userAvatarUrl: string | null
   pathname: string
   ordersBadge?: number
   /** Sections the user may access; owner sees all. */
@@ -84,14 +95,16 @@ function navSection(item: NavItem): string {
 
 export default function IconRail({
   restaurantId,
+  userDisplayName,
   userInitials,
+  userAvatarUrl,
   pathname,
   ordersBadge = 0,
   permissions,
   isOwner,
   className,
 }: Props) {
-  const { openHelp, openProfile } = useShell()
+  const { overlay, toggleOverlay } = useShell()
   const base = `/dashboard/${restaurantId}`
   // Slim nav: render only permitted sections (owner sees all 8).
   const navItems = NAV.filter(item => isOwner || permissions.includes(navSection(item)))
@@ -117,16 +130,18 @@ export default function IconRail({
         padding: '10px 0',
         gap: 2,
       }}>
-        {navItems.map(item => (
-          <RailLink
-            key={item.id}
-            ItemIcon={item.Icon}
-            label={item.label}
-            href={`${base}${item.segment ? `/${item.segment}` : ''}`}
-            active={activeId === item.id}
-            badge={item.id === 'orders' && ordersBadge > 0 ? ordersBadge : undefined}
-          />
-        ))}
+        <div className="rail-primary">
+          {navItems.map(item => (
+            <RailLink
+              key={item.id}
+              ItemIcon={item.Icon}
+              label={item.label}
+              href={`${base}${item.segment ? `/${item.segment}` : ''}`}
+              active={activeId === item.id}
+              badge={item.id === 'orders' && ordersBadge > 0 ? ordersBadge : undefined}
+            />
+          ))}
+        </div>
 
         <div className="rail-secondary" style={{
           marginTop: 'auto',
@@ -139,30 +154,40 @@ export default function IconRail({
             ItemIcon={I.question}
             label="Yardım"
             size={16}
-            onClick={openHelp}
+            onClick={() => toggleOverlay('help')}
+            expanded={overlay === 'help'}
+            controls={SHELL_OVERLAY_IDS.help}
+            popup="dialog"
           />
           <div className="rail-item" style={{ marginTop: 4 }}>
             <button
-              onClick={openProfile}
-              aria-label="Profil"
+              type="button"
+              onClick={() => toggleOverlay('profile')}
+              aria-label={overlay === 'profile' ? 'Profil ve hesap menüsünü kapat' : 'Profil ve hesap menüsünü aç'}
               aria-describedby="rail-tooltip-profile"
+              aria-expanded={overlay === 'profile'}
+              aria-haspopup="menu"
+              aria-controls={SHELL_OVERLAY_IDS.profile}
               className="rail-profile"
               style={{
                 width: 30,
                 height: 30,
                 borderRadius: 999,
                 border: 'none',
-                background: 'linear-gradient(135deg, #ffd089 0%, #ff8b6b 100%)',
-                color: '#5a2a14',
-                fontWeight: 600,
-                fontSize: 11,
+                background: overlay === 'profile' ? 'var(--surface-inset)' : 'transparent',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
               }}
             >
-              {userInitials}
+              <ProfileAvatar
+                displayName={userDisplayName}
+                initials={userInitials}
+                avatarUrl={userAvatarUrl}
+                size={30}
+                fontSize={11}
+              />
             </button>
             <span id="rail-tooltip-profile" role="tooltip" className="rail-tooltip">Profil</span>
           </div>
@@ -182,7 +207,7 @@ interface RailLinkProps {
 
 function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
   const router = useRouter()
-  const { getNavigationGuard } = useShell()
+  const { beginNavigation, getNavigationGuard } = useShell()
   const [confirmNavigation, setConfirmNavigation] = useState(false)
   const [navigationGuardMessage, setNavigationGuardMessage] = useState<string | null>(null)
   const tooltipId = `rail-tooltip-${label.toLocaleLowerCase('tr-TR').replaceAll('ı', 'i').replaceAll('ş', 's')}`
@@ -218,7 +243,7 @@ function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
             setConfirmNavigation(true)
             return
           }
-          window.dispatchEvent(new Event('navigation-start'))
+          beginNavigation(href)
         }}
       >
         <ItemIcon size={18} />
@@ -253,7 +278,7 @@ function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
           onDiscard={() => {
             setConfirmNavigation(false)
             setNavigationGuardMessage(null)
-            window.dispatchEvent(new Event('navigation-start'))
+            beginNavigation(href)
             router.push(href)
           }}
         />
@@ -267,16 +292,23 @@ interface RailButtonProps {
   label: string
   size?: number
   onClick: () => void
+  expanded?: boolean
+  controls?: string
+  popup?: 'dialog' | 'menu'
 }
 
-function RailButton({ ItemIcon, label, size = 18, onClick }: RailButtonProps) {
+function RailButton({ ItemIcon, label, size = 18, onClick, expanded, controls, popup }: RailButtonProps) {
   const tooltipId = `rail-tooltip-${label.toLocaleLowerCase('tr-TR').replaceAll('ı', 'i').replaceAll('ş', 's')}`
   return (
     <div className="rail-item">
       <button
+        type="button"
         onClick={onClick}
         aria-label={label}
         aria-describedby={tooltipId}
+        aria-expanded={expanded}
+        aria-haspopup={popup}
+        aria-controls={controls}
         className="rail-btn"
       >
         <ItemIcon size={size} />
