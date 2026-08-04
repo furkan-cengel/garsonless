@@ -3,8 +3,11 @@ import type { Tables } from '@garsonless/db/types'
 import {
   readMenuManagement,
 } from '@garsonless/application/menu'
-import { createMenuManagementReadModelPort } from '@garsonless/db/server'
-import { listMenuItemRecommendations, type MenuItemRecommendationRow } from '@garsonless/db/server'
+import {
+  createMenuManagementReadModelPort,
+  listMenuItemRecommendations,
+  type MenuItemRecommendationRow,
+} from '@garsonless/db/server'
 import { getDashboardFeatureContext } from './context'
 
 interface MenuManagementData {

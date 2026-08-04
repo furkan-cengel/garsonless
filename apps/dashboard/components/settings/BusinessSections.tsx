@@ -415,7 +415,8 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
 //   newOrderToast                 → global shell OrderToast
 //   serviceRequestAlert           → "Garson çağrısı" toast in the dashboard shell
 //   serviceRequestPush            → durable operating-system waiter-call alert
-// E-posta/SMS and the old "sessiz saatler" stub are omitted — no backing channel.
+// E-posta tercihleri aşağıda kullanıcı bazında yönetilir. SMS ve eski "sessiz
+// saatler" taslağı bu restoran düzeyi anahtarların dışında tutulur.
 type NotificationToggleKey = 'newOrderSound' | 'newOrderPush' | 'newOrderToast' | 'serviceRequestAlert' | 'serviceRequestPush'
 const NOTIFICATION_ROWS: { key: NotificationToggleKey; label: string; hint: string }[] = [
   { key: 'newOrderSound',       label: 'Yeni sipariş sesi',      hint: 'Sipariş geldiğinde kısa bip sesi çalar' },

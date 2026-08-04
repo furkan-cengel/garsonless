@@ -5,7 +5,8 @@
 //   newOrderToast       → global shell in-app OrderToast
 //   serviceRequestAlert → "Garson çağrısı" toast on a service request (shell)
 //   serviceRequestPush  → durable desktop notification for a service request
-// Email/SMS and other events are intentionally NOT here — no implementation exists.
+// E-mail preferences are user-scoped and managed separately. Campaign SMS and
+// other events are intentionally outside these restaurant-level toggles.
 
 export interface NotificationPrefs {
   newOrderSound: boolean
