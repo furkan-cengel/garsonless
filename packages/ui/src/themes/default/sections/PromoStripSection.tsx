@@ -29,7 +29,7 @@ const PROMO_STRIP_CSS = `
   }
 `
 
-export function PromoStripSection({ config }: { config: Record<string, string> }) {
+export function PromoStripSection({ config, forcedHref }: { config: Record<string, string>; forcedHref?: string }) {
   const { text, number, bool } = makeReaders(config)
   const optionalText = (key: string, fallback: string) => Object.prototype.hasOwnProperty.call(config, key)
     ? (config[key] ?? '').trim()
@@ -46,7 +46,7 @@ export function PromoStripSection({ config }: { config: Record<string, string> }
   const duration = clamp(number('speed', 18), 6, 40)
   const height = clamp(number('height', 40), 32, 64)
   const target = resolveSectionTarget(config)
-  const actionable = target.kind === 'anchor' || target.kind === 'external'
+  const actionable = Boolean(forcedHref) || target.kind === 'anchor' || target.kind === 'external'
   const pausable = animation === 'marquee' && bool('pauseOnHover', true)
   const surfaceStyle: React.CSSProperties = {
     minHeight: height,
@@ -84,7 +84,9 @@ export function PromoStripSection({ config }: { config: Record<string, string> }
   return (
     <section data-component="custom-section" aria-label="Promosyon duyurusu" style={{ padding: '14px 0 2px' }}>
       <style>{PROMO_STRIP_CSS}</style>
-      {target.kind === 'external' ? (
+      {forcedHref ? (
+        <a className={className} href={forcedHref} aria-label={accessibleText} style={surfaceStyle}>{content}</a>
+      ) : target.kind === 'external' ? (
         <a className={className} href={target.href} target="_blank" rel="noopener noreferrer" aria-label={accessibleText} style={surfaceStyle}>
           {content}
         </a>

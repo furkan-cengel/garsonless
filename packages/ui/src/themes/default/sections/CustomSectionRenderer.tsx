@@ -25,6 +25,14 @@ import {
   QuickLinksSection,
   WifiInfoSection,
 } from './MiscSections'
+import {
+  StorefrontCategoriesSection,
+  StorefrontHeroSection,
+  StorefrontLoyaltySection,
+  StorefrontMenuCtaSection,
+  StorefrontStorySection,
+  type StorefrontMemberSummary,
+} from './StorefrontSections'
 
 export interface CustomSectionRendererProps {
   sectionId: string
@@ -41,7 +49,11 @@ export interface CustomSectionRendererProps {
   onOpenCart?: () => void
   storeInfo?: StoreInfo | null
   theme?: Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor'>
-  renderContext?: 'menu' | 'catalog'
+  renderContext?: 'menu' | 'catalog' | 'home'
+  menuHref?: string
+  onOpenMember?: () => void
+  memberSummary?: StorefrontMemberSummary | null
+  storeStatus?: string
 }
 
 /**
@@ -65,7 +77,26 @@ export function CustomSectionRenderer({
   storeInfo,
   theme,
   renderContext = 'menu',
+  menuHref = '/menu',
+  onOpenMember,
+  memberSummary,
+  storeStatus,
 }: CustomSectionRendererProps) {
+  const storefrontProps = {
+    config,
+    restaurantName,
+    categories,
+    menuHref,
+    ...(memberSummary !== undefined ? { memberSummary } : {}),
+    ...(storeStatus ? { storeStatus } : {}),
+    ...(onOpenMember ? { onOpenMember } : {}),
+  }
+  if (sectionId === 'storefront-hero') return <StorefrontHeroSection {...storefrontProps} config={{ ...config, mediaType: 'image' }} />
+  if (sectionId === 'storefront-video-hero') return <StorefrontHeroSection {...storefrontProps} config={{ ...config, mediaType: 'video' }} />
+  if (sectionId === 'story') return <StorefrontStorySection {...storefrontProps} />
+  if (sectionId === 'featured-categories') return <StorefrontCategoriesSection {...storefrontProps} />
+  if (sectionId === 'loyalty-teaser') return <StorefrontLoyaltySection {...storefrontProps} />
+  if (sectionId === 'menu-cta') return <StorefrontMenuCtaSection {...storefrontProps} />
   if (sectionId === 'request-buttons') {
     if (renderContext === 'menu') return null
     const requestConfig = resolveServiceRequestFabConfig(config)
@@ -114,6 +145,7 @@ export function CustomSectionRenderer({
         restaurantName={restaurantName}
         pageDescription={pageDescription}
         {...(onOpenCart ? { onOpenCart } : {})}
+        {...(renderContext === 'home' ? { forcedHref: menuHref } : {})}
       />
     )
   }
@@ -121,15 +153,20 @@ export function CustomSectionRenderer({
   if (sectionId === 'address-bar' || sectionId === 'search') {
     return <AddressBarSection sectionId={sectionId} config={config} />
   }
-  if (sectionId === 'promo-strip') return <PromoStripSection config={config} />
+  if (sectionId === 'promo-strip') {
+    const resolvedConfig = renderContext === 'home' && !Object.prototype.hasOwnProperty.call(config, 'repeatText')
+      ? { ...config, repeatText: '' }
+      : config
+    return <PromoStripSection config={resolvedConfig} {...(renderContext === 'home' ? { forcedHref: menuHref } : {})} />
+  }
   if (sectionId === 'quick-links' || sectionId === 'cat-pills' || sectionId === 'cat-underline' || sectionId === 'cat-images') {
     return <QuickLinksSection categories={categories} />
   }
   if (sectionId === 'chef-pick') {
-    return <ChefPickSection config={config} {...(items ? { items } : {})} {...(onQuickAdd ? { onQuickAdd } : {})} {...(theme ? { theme } : {})} />
+    return <ChefPickSection config={config} actionMode={renderContext === 'home' ? 'discover' : 'order'} {...(items ? { items } : {})} {...(onQuickAdd ? { onQuickAdd } : {})} {...(theme ? { theme } : {})} />
   }
   if (sectionId === 'featured-scroll') {
-    return <FeaturedScrollSection config={config} {...(items ? { items } : {})} {...(onQuickAdd ? { onQuickAdd } : {})} {...(theme ? { theme } : {})} />
+    return <FeaturedScrollSection config={config} actionMode={renderContext === 'home' ? 'discover' : 'order'} {...(items ? { items } : {})} {...(onQuickAdd ? { onQuickAdd } : {})} {...(theme ? { theme } : {})} />
   }
   if (sectionId === 'chef-picks' || sectionId === 'minimal-list') {
     return <InfoCardSection sectionId={sectionId} />
@@ -163,6 +200,7 @@ export function CustomSectionRenderer({
       <DailySpecialBlock
         sectionInstanceId={sectionInstanceId ?? sectionId}
         config={config}
+        actionMode={renderContext === 'home' ? 'discover' : 'order'}
         {...(items ? { items } : {})}
         {...(onQuickAdd ? { onQuickAdd } : {})}
         {...(theme ? { theme } : {})}

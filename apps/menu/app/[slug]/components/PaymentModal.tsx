@@ -1,8 +1,19 @@
 'use client'
 
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { formatTRY } from '@garsonless/ui'
+import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
+import { formatTRY, useTheme } from '@garsonless/ui'
 import { AppIcons as I } from '@garsonless/ui/icons'
+import {
+  resolveCheckoutErrorState,
+  resolveCheckoutPaymentState,
+  resolveCheckoutSuccessState,
+  resolveCheckoutSurfacePalette,
+  resolveCheckoutTablePaymentState,
+  type CheckoutErrorIcon,
+  type CheckoutPreviewState,
+  type CheckoutSuccessIcon,
+  type CheckoutTablePaymentIcon,
+} from '@garsonless/design-engine'
 
 interface Props {
   orderId: string
@@ -17,6 +28,8 @@ interface Props {
   onSuccess: () => void
   onPayAtTable?: () => Promise<boolean>
   onDeferred?: () => void
+  /** Theme editor only. Keeps the production UI interactive without creating a payment request. */
+  previewState?: Exclude<CheckoutPreviewState, 'cart'>
 }
 
 interface BuyerInfo {
@@ -28,6 +41,13 @@ interface BuyerInfo {
 
 type Step = 'form' | 'iframe' | 'success' | 'table-success' | 'error'
 type PaymentChoice = 'card' | 'table'
+
+function previewStep(state?: Exclude<CheckoutPreviewState, 'cart'>): Step {
+  if (state === 'success') return 'success'
+  if (state === 'table-payment') return 'table-success'
+  if (state === 'error') return 'error'
+  return 'form'
+}
 
 function splitName(fullName?: string | null): Pick<BuyerInfo, 'name' | 'surname'> {
   const parts = fullName?.trim().split(/\s+/).filter(Boolean) ?? []
@@ -50,12 +70,21 @@ export default function PaymentModal({
   onSuccess,
   onPayAtTable,
   onDeferred,
+  previewState,
 }: Props) {
+  const { theme } = useTheme()
+  const checkoutTheme = theme.surfaces?.checkout
+  const checkoutOverride = checkoutTheme?.override ?? {}
+  const checkoutPalette = resolveCheckoutSurfacePalette(theme)
+  const paymentTheme = resolveCheckoutPaymentState(checkoutTheme)
+  const successTheme = resolveCheckoutSuccessState(checkoutTheme)
+  const tablePaymentTheme = resolveCheckoutTablePaymentState(checkoutTheme)
+  const errorTheme = resolveCheckoutErrorState(checkoutTheme)
   const initialName = splitName(initialBuyerName)
-  const [step, setStep] = useState<Step>('form')
+  const [step, setStep] = useState<Step>(() => previewStep(previewState))
   const [choice, setChoice] = useState<PaymentChoice>('card')
   const [paymentPageUrl, setPaymentPageUrl] = useState('')
-  const [errorMsg, setErrorMsg] = useState('')
+  const [errorMsg, setErrorMsg] = useState(previewState === 'error' ? 'Kartından tahsilat yapılmadı. Yeniden deneyebilirsin.' : '')
   const [loading, setLoading] = useState(false)
   const [buyer, setBuyer] = useState<BuyerInfo>({
     name: initialName.name,
@@ -69,6 +98,7 @@ export default function PaymentModal({
   }
 
   async function initializePayment() {
+    if (previewState) return
     setLoading(true)
     setErrorMsg('')
 
@@ -110,6 +140,7 @@ export default function PaymentModal({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (previewState) return
     if (choice === 'table') {
       if (!onPayAtTable) return
       setLoading(true)
@@ -128,6 +159,7 @@ export default function PaymentModal({
   }
 
   useEffect(() => {
+    if (previewState) return
     if (step !== 'iframe') return
 
     function handleIframeMessage(event: MessageEvent) {
@@ -149,16 +181,57 @@ export default function PaymentModal({
 
     window.addEventListener('message', handleIframeMessage)
     return () => window.removeEventListener('message', handleIframeMessage)
-  }, [step])
+  }, [previewState, step])
+
+  useEffect(() => {
+    if (!previewState) return
+    setStep(previewStep(previewState))
+    if (previewState === 'error') setErrorMsg('Kartından tahsilat yapılmadı. Yeniden deneyebilirsin.')
+  }, [previewState])
 
   const title =
-    step === 'success' ? 'İşlem tamamlandı'
-    : step === 'table-success' ? 'Talep iletildi'
+    step === 'success' ? successTheme.title
+    : step === 'table-success' ? tablePaymentTheme.title
     : step === 'iframe' ? 'Güvenli ödeme'
-    : 'Ödeme'
+    : step === 'form' ? paymentTheme.title
+    : errorTheme.title
+  const activeResultTheme = step === 'table-success' ? tablePaymentTheme : step === 'error' ? errorTheme : successTheme
+  const resultContentWidth = activeResultTheme.layout.contentWidth === 'compact'
+    ? '320px'
+    : activeResultTheme.layout.contentWidth === 'full' ? '100%' : '380px'
+  const paymentVars = {
+    '--pay-bg': checkoutPalette.background,
+    '--pay-card': checkoutPalette.surface,
+    '--pay-ink': checkoutPalette.text,
+    '--pay-muted': checkoutPalette.mutedText,
+    '--pay-field': checkoutPalette.fieldSurface,
+    '--pay-field-border': checkoutPalette.fieldBorder,
+    '--pay-accent': checkoutPalette.accent,
+    '--pay-cta': checkoutPalette.cta,
+    '--pay-cta-text': checkoutPalette.ctaText,
+    '--pay-radius': `${checkoutOverride.radius ?? theme.radius}px`,
+    '--pay-sheet-width': checkoutTheme?.sheetSize === 'compact' ? '400px' : checkoutTheme?.sheetSize === 'large' ? '680px' : '520px',
+    '--pay-sheet-height': checkoutTheme?.sheetSize === 'compact' ? '76dvh' : checkoutTheme?.sheetSize === 'large' ? '94dvh' : '88dvh',
+    '--pay-form-padding-x': `${paymentTheme.layout.paddingX}px`,
+    '--pay-section-gap': `${paymentTheme.layout.sectionGap}px`,
+    '--pay-form-width': paymentTheme.layout.contentWidth === 'wide' ? '620px' : '520px',
+    '--pay-control-height': paymentTheme.layout.density === 'compact' ? '36px' : '42px',
+    '--pay-method-height': paymentTheme.layout.density === 'compact' ? '54px' : '66px',
+    '--pay-cta-height': paymentTheme.layout.density === 'compact' ? '46px' : '54px',
+    '--pay-result-padding-x': `${activeResultTheme.layout.paddingX}px`,
+    '--pay-result-padding-y': `${activeResultTheme.layout.paddingY}px`,
+    '--pay-result-gap': `${activeResultTheme.layout.contentGap}px`,
+    '--pay-result-align': activeResultTheme.layout.align,
+    '--pay-result-items': activeResultTheme.layout.align === 'left' ? 'flex-start' : 'center',
+    '--pay-result-width': resultContentWidth,
+    '--pay-result-icon-size': `${activeResultTheme.layout.iconSize}px`,
+    '--pay-result-icon-color': activeResultTheme.iconColor,
+    '--pay-result-icon-bg': activeResultTheme.iconBackground,
+    '--p-body': checkoutOverride.bodyFont ?? theme.bodyFont,
+  } as CSSProperties
 
   return (
-    <div className="payment-overlay" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="payment-overlay" data-checkout-preset={checkoutTheme?.preset ?? 'clean'} data-checkout-sheet-size={checkoutTheme?.sheetSize ?? 'standard'} data-preview={previewState ? 'true' : undefined} role="dialog" aria-modal="true" aria-label={title} style={paymentVars}>
       <style>{PAYMENT_CSS}</style>
       <button type="button" className="payment-backdrop" aria-label="Ödeme penceresini kapat" onClick={onClose} />
       <section className="payment-sheet">
@@ -171,7 +244,7 @@ export default function PaymentModal({
           )}
           <div className="payment-heading">
             <h2>{title}</h2>
-            <p>{restaurantName}{tableLabel ? ` · ${tableLabel}` : ''}</p>
+            {(step !== 'form' || paymentTheme.description) && <p>{step === 'form' ? paymentTheme.description : `${restaurantName}${tableLabel ? ` · ${tableLabel}` : ''}`}</p>}
           </div>
           <button type="button" className="payment-icon-btn" aria-label="Kapat" onClick={onClose}>
             <I.close size={18} />
@@ -181,10 +254,10 @@ export default function PaymentModal({
         {step === 'form' && (
           <form className="payment-form" onSubmit={submit}>
             <div className="payment-scroll">
-              <AmountCard total={total} />
+              <AmountCard total={total} label={paymentTheme.amountLabel} />
 
               <div className="payment-block">
-                <h3>Ödeme yöntemi</h3>
+                <h3>{paymentTheme.methodSectionTitle}</h3>
                 <MethodButton
                   active={choice === 'card'}
                   icon={<I.card size={21} />}
@@ -207,8 +280,8 @@ export default function PaymentModal({
                 <div className="payment-block payment-buyer">
                   <div className="payment-block-title">
                     <div>
-                      <h3>Ödeyen kişi</h3>
-                      <p>İyzico işlemi için gerekli bilgiler</p>
+                      <h3>{paymentTheme.buyerSectionTitle}</h3>
+                      <p>{paymentTheme.buyerSectionDescription}</p>
                     </div>
                     <I.user size={18} />
                   </div>
@@ -271,9 +344,9 @@ export default function PaymentModal({
                 {loading ? (
                   <><Spinner />{choice === 'card' ? 'Ödeme hazırlanıyor…' : 'Garson çağrılıyor…'}</>
                 ) : choice === 'card' ? (
-                  <>{formatTRY(total)} öde <I.chevRight size={17} /></>
+                  <>{formatTRY(total)} {paymentTheme.cardActionLabel} <I.chevRight size={17} /></>
                 ) : (
-                  <>Garsonu çağır <I.bell size={17} /></>
+                  <>{paymentTheme.tableActionLabel} <I.bell size={17} /></>
                 )}
               </button>
               {choice === 'card' && (
@@ -299,13 +372,14 @@ export default function PaymentModal({
         {step === 'success' && (
           <Result
             tone="success"
-            title="Ödeme alındı"
-            description="Ödemen doğrulandı. Masan açık kalır; dilersen sipariş vermeye devam edebilirsin."
+            title={successTheme.title}
+            description={successTheme.description}
+            icon={successTheme.icon}
             total={total}
             orderId={orderId}
             tableLabel={tableLabel}
             method="İyzico online"
-            actionLabel="Siparişimi takip et"
+            actionLabel={successTheme.primaryActionLabel}
             onAction={onSuccess}
           />
         )}
@@ -313,13 +387,14 @@ export default function PaymentModal({
         {step === 'table-success' && (
           <Result
             tone="table"
-            title="Garson geliyor"
-            description="Talebin ekibe iletildi. Ödeme masada nakit veya fiziksel POS ile alınacak."
+            title={tablePaymentTheme.title}
+            description={tablePaymentTheme.description}
+            icon={tablePaymentTheme.icon}
             total={total}
             orderId={orderId}
             tableLabel={tableLabel}
             method="Masada tahsilat bekleniyor"
-            actionLabel="Siparişimi takip et"
+            actionLabel={tablePaymentTheme.primaryActionLabel}
             onAction={() => {
               onDeferred?.()
               onClose()
@@ -328,21 +403,21 @@ export default function PaymentModal({
         )}
 
         {step === 'error' && (
-          <div className="payment-result">
+          <div className="payment-result" role="alert" aria-live="assertive">
             <div className="payment-result-icon payment-result-icon--error">
-              <I.warn size={31} />
+              <CheckoutResultIcon icon={errorTheme.icon} size={Math.round(errorTheme.layout.iconSize * .38)} />
             </div>
-            <h3>İşlem tamamlanamadı</h3>
+            <h3>{errorTheme.title}</h3>
             <p>{errorMsg}</p>
             <div className="payment-error-note">
               Siparişin oluşturuldu ancak henüz ödenmedi. Yeniden deneyebilir
               {onPayAtTable ? ' veya masada ödeme seçeneğini kullanabilirsin.' : '.'}
             </div>
-            <button type="button" className="payment-cta" onClick={() => setStep('form')}>
-              Tekrar dene
+            <button type="button" className="payment-cta" onClick={() => { if (!previewState) setStep('form') }}>
+              {errorTheme.primaryActionLabel}
             </button>
             <button type="button" className="payment-secondary-action" onClick={onClose}>
-              Şimdilik kapat
+              {errorTheme.secondaryActionLabel}
             </button>
           </div>
         )}
@@ -351,11 +426,11 @@ export default function PaymentModal({
   )
 }
 
-function AmountCard({ total }: { total: number }) {
+function AmountCard({ total, label }: { total: number; label: string }) {
   return (
     <div className="payment-amount">
       <div>
-        <span>Ödenecek tutar</span>
+        <span>{label}</span>
         <small>Sipariş toplamı</small>
       </div>
       <strong>{formatTRY(total)}</strong>
@@ -401,6 +476,7 @@ function Result({
   tone,
   title,
   description,
+  icon,
   total,
   orderId,
   tableLabel,
@@ -411,6 +487,7 @@ function Result({
   tone: 'success' | 'table'
   title: string
   description: string
+  icon: CheckoutSuccessIcon | CheckoutTablePaymentIcon
   total: number
   orderId: string
   tableLabel?: string | null
@@ -419,9 +496,9 @@ function Result({
   onAction: () => void
 }) {
   return (
-    <div className="payment-result">
+    <div className="payment-result" role="status" aria-live="polite">
       <div className={`payment-result-icon payment-result-icon--${tone}`}>
-        {tone === 'success' ? <I.check size={34} /> : <I.bell size={31} />}
+        <CheckoutResultIcon icon={icon} size={34} />
       </div>
       <h3>{title}</h3>
       <p>{description}</p>
@@ -445,6 +522,29 @@ function Result({
   )
 }
 
+function CheckoutResultIcon({
+  icon,
+  size,
+}: {
+  icon: CheckoutSuccessIcon | CheckoutTablePaymentIcon | CheckoutErrorIcon
+  size: number
+}) {
+  const Icon = {
+    check: I.check,
+    receipt: I.receipt,
+    shield: I.shield,
+    sparkles: I.sparkles,
+    bell: I.bell,
+    clock: I.clock,
+    card: I.card,
+    warn: I.warn,
+    close: I.close,
+    refresh: I.refresh,
+    lock: I.lock,
+  }[icon]
+  return <Icon aria-hidden="true" size={size} />
+}
+
 function ReceiptRow({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="payment-receipt-row">
@@ -465,7 +565,10 @@ const PAYMENT_CSS = `
     --pay-ink: var(--p-text, #1b1c1e);
     --pay-muted: var(--p-text-2, #6b6e74);
     --pay-accent: var(--p-accent, #2f6f4e);
-    --pay-line: rgba(27,28,30,.09);
+    --pay-cta: var(--pay-accent);
+    --pay-field: var(--pay-bg);
+    --pay-field-border: rgba(27,28,30,.16);
+    --pay-line: var(--pay-field-border);
     position: fixed;
     inset: 0;
     z-index: 80;
@@ -486,12 +589,12 @@ const PAYMENT_CSS = `
   }
   .payment-sheet {
     position: relative;
-    width: min(100%, 470px);
-    max-height: min(92dvh, 850px);
+    width: min(100%, var(--pay-sheet-width, 520px));
+    max-height: min(var(--pay-sheet-height, 88dvh), 900px);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border-radius: 26px 26px 0 0;
+    border-radius: calc(var(--pay-radius) + 15px) calc(var(--pay-radius) + 15px) 0 0;
     background: var(--pay-bg);
     color: var(--pay-ink);
     box-shadow: 0 -12px 44px rgba(20,22,20,.18);
@@ -511,6 +614,10 @@ const PAYMENT_CSS = `
     gap: 10px;
     padding: 8px 16px 12px;
   }
+  .payment-overlay[data-checkout-preset="brand-header"] .payment-header { padding: 18px 16px; background: var(--pay-accent); color: var(--pay-cta-text); }
+  .payment-overlay[data-checkout-preset="brand-header"] .payment-heading p { color: color-mix(in srgb,var(--pay-cta-text) 72%,transparent); }
+  .payment-overlay[data-checkout-preset="brand-header"] .payment-icon-btn { border-color: color-mix(in srgb,var(--pay-cta-text) 26%,transparent); background: color-mix(in srgb,var(--pay-cta-text) 14%,transparent); color: var(--pay-cta-text); }
+  .payment-overlay[data-checkout-preset="soft"] .payment-sheet { background: color-mix(in srgb,var(--pay-bg) 82%,var(--pay-card)); }
   .payment-heading { min-width: 0; flex: 1; }
   .payment-heading h2 { margin: 0; font-size: 18px; line-height: 1.2; font-weight: 800; letter-spacing: 0; }
   .payment-heading p { margin: 3px 0 0; overflow: hidden; color: var(--pay-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
@@ -528,7 +635,7 @@ const PAYMENT_CSS = `
     cursor: pointer;
   }
   .payment-form { min-height: 0; display: flex; flex: 1; flex-direction: column; }
-  .payment-scroll { min-height: 0; overflow-y: auto; padding: 0 16px 16px; }
+  .payment-scroll { width: 100%; max-width: var(--pay-form-width, 520px); min-height: 0; margin: 0 auto; overflow-y: auto; padding: 0 var(--pay-form-padding-x, 16px) 16px; }
   .payment-amount {
     display: flex;
     align-items: flex-end;
@@ -543,11 +650,11 @@ const PAYMENT_CSS = `
   .payment-amount span { display: block; color: rgba(255,255,255,.72); font-size: 12px; font-weight: 700; }
   .payment-amount small { display: block; margin-top: 4px; color: rgba(255,255,255,.44); font-size: 11px; }
   .payment-amount strong { font-variant-numeric: tabular-nums; font-size: 27px; line-height: 1; font-weight: 800; white-space: nowrap; }
-  .payment-block { margin-top: 16px; }
+  .payment-block { margin-top: var(--pay-section-gap, 16px); }
   .payment-block > h3, .payment-block-title h3 { margin: 0 0 8px; color: var(--pay-muted); font-size: 12px; font-weight: 700; }
   .payment-method {
     width: 100%;
-    min-height: 66px;
+    min-height: var(--pay-method-height, 66px);
     display: flex;
     align-items: center;
     gap: 12px;
@@ -605,12 +712,12 @@ const PAYMENT_CSS = `
   .payment-field > span { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; color: var(--pay-muted); font-size: 11px; font-weight: 700; }
   .payment-field input {
     width: 100%;
-    height: 42px;
+    height: var(--pay-control-height, 42px);
     padding: 0 11px;
-    border: 1px solid var(--pay-line);
+    border: 1px solid var(--pay-field-border);
     border-radius: 11px;
     outline: none;
-    background: var(--pay-bg);
+    background: var(--pay-field);
     color: var(--pay-ink);
     font: inherit;
     font-size: 13px;
@@ -628,18 +735,19 @@ const PAYMENT_CSS = `
   .payment-table-note svg { flex: 0 0 auto; margin-top: 1px; }
   .payment-table-note strong { display: block; font-size: 12px; }
   .payment-table-note span { display: block; margin-top: 3px; font-size: 11px; line-height: 1.45; }
-  .payment-footer { padding: 12px 16px max(18px, env(safe-area-inset-bottom)); border-top: 1px solid var(--pay-line); background: var(--pay-bg); }
+  .payment-footer { padding: 12px var(--pay-form-padding-x, 16px) max(18px, env(safe-area-inset-bottom)); border-top: 1px solid var(--pay-line); background: var(--pay-bg); }
+  .payment-footer > * { max-width: var(--pay-form-width, 520px); margin-left: auto; margin-right: auto; }
   .payment-cta {
     width: 100%;
-    height: 54px;
+    height: var(--pay-cta-height, 54px);
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     border: 0;
     border-radius: 16px;
-    background: var(--pay-accent);
-    color: #fff;
+    background: var(--pay-cta);
+    color: var(--pay-cta-text);
     font-size: 15px;
     font-weight: 800;
     cursor: pointer;
@@ -649,22 +757,33 @@ const PAYMENT_CSS = `
   .payment-checkout { min-height: 0; flex: 1; overflow: auto; padding: 0 12px 14px; }
   .payment-checkout-note { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; color: var(--pay-muted); font-size: 11px; }
   .payment-checkout iframe { width: 100%; height: min(650px, 74dvh); border: 1px solid var(--pay-line); border-radius: 16px; background: white; }
-  .payment-result { flex: 1; overflow-y: auto; padding: 18px 18px max(22px, env(safe-area-inset-bottom)); text-align: center; }
+  .payment-result {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: var(--pay-result-items, center);
+    gap: var(--pay-result-gap, 16px);
+    overflow-y: auto;
+    padding: var(--pay-result-padding-y, 18px) var(--pay-result-padding-x, 18px) max(var(--pay-result-padding-y, 18px), env(safe-area-inset-bottom));
+    text-align: var(--pay-result-align, center);
+  }
+  .payment-result > * { width: 100%; max-width: var(--pay-result-width, 380px); margin-left: 0; margin-right: 0; }
   .payment-result-icon {
-    width: 84px;
-    height: 84px;
+    width: var(--pay-result-icon-size, 84px);
+    height: var(--pay-result-icon-size, 84px);
+    max-width: var(--pay-result-icon-size, 84px);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 999px;
+    background: var(--pay-result-icon-bg);
+    color: var(--pay-result-icon-color);
     animation: payment-pop .45s cubic-bezier(.2,.8,.3,1.25);
   }
-  .payment-result-icon--success { background: #e4f3ea; color: #15824f; }
-  .payment-result-icon--table { background: #f4ead2; color: #a9802c; }
-  .payment-result-icon--error { background: #fde7e5; color: #b42318; }
-  .payment-result h3 { margin: 16px 0 0; font-size: 23px; font-weight: 800; }
-  .payment-result > p { max-width: 340px; margin: 6px auto 0; color: var(--pay-muted); font-size: 12.5px; line-height: 1.5; }
-  .payment-receipt { margin: 20px 0 16px; padding: 16px; border-radius: 18px; background: var(--pay-card); box-shadow: 0 1px 2px rgba(20,22,20,.05), 0 8px 24px rgba(20,22,20,.05); text-align: left; }
+  .payment-result-icon svg { width: 38%; height: 38%; }
+  .payment-result h3 { margin: 0; font-size: 23px; font-weight: 800; }
+  .payment-result > p { margin-top: calc(var(--pay-result-gap, 16px) * -.5); color: var(--pay-muted); font-size: 12.5px; line-height: 1.5; }
+  .payment-receipt { margin-top: 4px; padding: 16px; border-radius: 18px; background: var(--pay-card); box-shadow: 0 1px 2px rgba(20,22,20,.05), 0 8px 24px rgba(20,22,20,.05); text-align: left; }
   .payment-receipt-total { text-align: center; }
   .payment-receipt-total span { display: block; color: var(--pay-muted); font-size: 10.5px; font-weight: 700; text-transform: uppercase; }
   .payment-receipt-total strong { display: block; margin-top: 3px; font-variant-numeric: tabular-nums; font-size: 32px; font-weight: 800; }
@@ -673,9 +792,9 @@ const PAYMENT_CSS = `
   .payment-receipt-row:last-child { border-bottom: 0; }
   .payment-receipt-row span { color: var(--pay-muted); }
   .payment-receipt-row strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .payment-receipt-accent { color: #15824f; }
-  .payment-error-note { display: block; margin: 18px 0; background: #fde7e5; color: #8f2018; font-size: 11.5px; line-height: 1.5; text-align: left; }
-  .payment-secondary-action { width: 100%; height: 42px; margin-top: 8px; border: 0; background: transparent; color: var(--pay-muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+  .payment-receipt-accent { color: var(--pay-result-icon-color); }
+  .payment-error-note { display: block; margin: 0; background: #fde7e5; color: #8f2018; font-size: 11.5px; line-height: 1.5; text-align: left; }
+  .payment-secondary-action { height: 42px; border: 0; background: transparent; color: var(--pay-muted); font-size: 12px; font-weight: 700; cursor: pointer; }
   .payment-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 999px; animation: payment-spin .7s linear infinite; }
   @keyframes payment-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
   @keyframes payment-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -683,7 +802,7 @@ const PAYMENT_CSS = `
   @keyframes payment-spin { to { transform: rotate(360deg); } }
   @media (min-width: 640px) {
     .payment-overlay { align-items: center; padding: 24px; }
-    .payment-sheet { max-height: min(90vh, 850px); border-radius: 24px; }
+    .payment-sheet { border-radius: 24px; }
   }
   @media (max-width: 380px) {
     .payment-name-grid { grid-template-columns: 1fr; gap: 0; }

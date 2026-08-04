@@ -7,7 +7,7 @@ import { deriveMenuManagerEmptyState } from './menu-manager-view-model'
 
 export function MenuManagerTopBar({
   restaurantName,
-  restaurantSlug,
+  publicMenuPath,
   search,
   searchFocused,
   searchInputRef,
@@ -21,7 +21,7 @@ export function MenuManagerTopBar({
   onOpenAddItem,
 }: {
   restaurantName: string
-  restaurantSlug: string
+  publicMenuPath: string
   search: string
   searchFocused: boolean
   searchInputRef: RefObject<HTMLInputElement | null>
@@ -84,7 +84,7 @@ export function MenuManagerTopBar({
             className="menu-top-action menu-top-action-secondary"
             style={btnGhost({ whiteSpace: 'nowrap' })}
             onClick={() => window.open(
-              `${process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'}/${restaurantSlug}`,
+              `${process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'}${publicMenuPath}`,
               '_blank',
             )}
           >

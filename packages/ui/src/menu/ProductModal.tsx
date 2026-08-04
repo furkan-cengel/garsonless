@@ -1304,9 +1304,11 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                     border: "none",
                     background: "var(--p-accent-soft)",
                     color: "var(--p-accent)",
-                    fontSize: 18,
-                    fontWeight: 850,
                     cursor: "pointer",
+                    display: "grid",
+                    placeItems: "center",
+                    padding: 0,
+                    lineHeight: 0,
                   }}
                 >
                   <I.minus size={17} />
@@ -1334,9 +1336,11 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                     border: "none",
                     background: "var(--p-cta)",
                     color: "var(--p-cta-text)",
-                    fontSize: 18,
-                    fontWeight: 850,
                     cursor: quantity >= 99 ? "not-allowed" : "pointer",
+                    display: "grid",
+                    placeItems: "center",
+                    padding: 0,
+                    lineHeight: 0,
                     opacity: quantity >= 99 ? 0.5 : 1,
                   }}
                 >

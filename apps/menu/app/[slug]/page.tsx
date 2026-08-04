@@ -1,16 +1,13 @@
 import { notFound } from 'next/navigation'
-import {
-  customerActorContext,
-  readMemberLoyalty,
-  type MemberBalances,
-} from '@garsonless/application/loyalty'
 import { readPublishedTheme } from '@garsonless/application/themes'
+import { customerActorContext, readMemberLoyalty, type MemberBalances } from '@garsonless/application/loyalty'
 import { createLoyaltyQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
-import { getRestaurantBySlug, getMenuCategories, getMenuItems } from '../../lib/queries'
-import { getCustomerSession } from '../../lib/customer-session'
+import type { MenuCategory, MenuItem } from '@garsonless/ui'
+import { getMenuCategories, getMenuItems, getRestaurantBySlug } from '../../lib/queries'
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../lib/featured-products'
-import { MenuPageClient } from './MenuPageClient'
-import type { MenuItem, MenuCategory } from '@garsonless/ui'
+import { HomePageRenderer } from './HomePageClient'
+import { getCustomerSession } from '../../lib/customer-session'
+import { availableCustomerAuthProviders } from '../../lib/customer-auth-provider'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,70 +17,44 @@ interface Props {
 }
 
 export default async function MenuPage({ params, searchParams }: Props) {
-  const { slug } = await params
-  const sp = await searchParams
-  const isPreview = sp['preview'] === '1'
-  const previewTemplate = typeof sp['template'] === 'string' ? sp['template'] : null
+  const [{ slug }, sp] = await Promise.all([params, searchParams])
+  const experienceV2Enabled = process.env['THEME_EXPERIENCE_V2_ENABLED'] === 'true' || process.env.NODE_ENV === 'development'
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) notFound()
 
-  const themePort = createThemeApplicationPort()
-  const [themeResult, categories, featuredRanking, session] = await Promise.all([
-    readPublishedTheme({
-      restaurantId: restaurant.id,
-      templateOverride: isPreview && previewTemplate ? previewTemplate : null,
-    }, themePort),
+  const themeResult = await readPublishedTheme({ restaurantId: restaurant.id }, createThemeApplicationPort())
+  if (!themeResult.ok) notFound()
+  const homeEnabled = experienceV2Enabled && themeResult.value.theme.surfaces?.home.enabled === true
+
+  if (!homeEnabled) {
+    const { renderMenuExperience } = await import('./_menu-experience')
+    return renderMenuExperience({ slug, sp })
+  }
+
+  const [categories, featuredRanking, session, customerAuthProviders] = await Promise.all([
     getMenuCategories(restaurant.id),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
     getCustomerSession(),
+    availableCustomerAuthProviders(),
   ])
-  if (!themeResult.ok) notFound()
-
-  // Resolved through the shared helper so the SSR layout's <style> and this
-  // client initialTheme are always identical (no first-load color flash).
-  const { theme, templateId } = themeResult.value
-  // Resolve the entitlement independently from the published section list.
-  // Theme preview can add the global request tool through the live bridge
-  // before it is published; tying access to the persisted blocks would leave
-  // the preview stuck at `false` until a hard reload after publishing.
-  const [menuItems, requestButtonsAccess, memberBalancesResult] = await Promise.all([
+  const [menuItems, memberBalancesResult] = await Promise.all([
     getMenuItems(restaurant.id, categories.map((category) => category.id)),
-    themePort.readFeatureAccess({
-      restaurantId: restaurant.id,
-      plan: themeResult.value.restaurant.plan,
-      feature: 'theme_advanced_sections',
-    }),
     session
-      ? readMemberLoyalty(customerActorContext({
-          authUserId: session.authUserId,
-          customerId: session.customerId,
-          restaurantId: restaurant.id,
-        }), createLoyaltyQueryPort())
+      ? readMemberLoyalty(customerActorContext({ authUserId: session.authUserId, customerId: session.customerId, restaurantId: restaurant.id }), createLoyaltyQueryPort())
       : Promise.resolve(null),
   ])
   const items = applyFeaturedProductRanking(menuItems, featuredRanking)
-  const requestButtonsEnabled = requestButtonsAccess?.ok === true && requestButtonsAccess.value
-
-  // Resolve a returning member from the Supabase Auth cookie, plus loyalty
-  // balances (service-role, scoped to this customer + restaurant).
-  let initialMember: { name: string | null } | null = null
-  let initialMemberBalances: MemberBalances | null = null
-  if (session) {
-    initialMember = { name: session.name }
-    initialMemberBalances = memberBalancesResult?.ok ? memberBalancesResult.value : null
-  }
-
+  const initialMember = session ? { name: session.name } : null
+  const initialMemberBalances: MemberBalances | null = memberBalancesResult?.ok ? memberBalancesResult.value : null
   return (
-    <MenuPageClient
+    <HomePageRenderer
       restaurant={restaurant}
       categories={categories as MenuCategory[]}
       items={items as MenuItem[]}
-      theme={theme}
-      templateId={templateId}
+      theme={themeResult.value.theme}
       initialMember={initialMember}
       initialMemberBalances={initialMemberBalances}
-      isPreview={isPreview}
-      requestButtonsEnabled={requestButtonsEnabled}
+      customerAuthProviders={customerAuthProviders}
     />
   )
 }

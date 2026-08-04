@@ -1,12 +1,22 @@
-'use client'
+"use client";
 
-import { useEffect } from 'react'
-import { RecoveryScreen } from '@garsonless/ui'
+import { useEffect } from "react";
+import { RecoveryScreen } from "@garsonless/ui";
 
-export default function DashboardError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function DashboardError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
   useEffect(() => {
-    console.error('[dashboard-route-error]', { publicCode: 'MAS-UI-500', digest: error.digest }, error)
-  }, [error])
+    console.error(
+      "[dashboard-route-error]",
+      { publicCode: "MAS-UI-500", digest: error.digest },
+      error,
+    );
+  }, [error]);
 
   return (
     <RecoveryScreen
@@ -17,6 +27,7 @@ export default function DashboardError({ error, reset }: { error: Error & { dige
       onRetry={reset}
       homeHref="/dashboard"
       homeLabel="Panoya dön"
+      statusHref={process.env.NEXT_PUBLIC_STATUS_URL}
     />
-  )
+  );
 }

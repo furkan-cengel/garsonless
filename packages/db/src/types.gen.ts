@@ -3787,12 +3787,58 @@ export type Database = {
           },
         ]
       }
+      theme_config_history: {
+        Row: {
+          id: string
+          published_at: string
+          published_by: string | null
+          request_fingerprint: string | null
+          request_id: string | null
+          restaurant_id: string
+          revision: number
+          template_id: string
+          tokens: Json
+        }
+        Insert: {
+          id?: string
+          published_at: string
+          published_by?: string | null
+          request_fingerprint?: string | null
+          request_id?: string | null
+          restaurant_id: string
+          revision: number
+          template_id: string
+          tokens: Json
+        }
+        Update: {
+          id?: string
+          published_at?: string
+          published_by?: string | null
+          request_fingerprint?: string | null
+          request_id?: string | null
+          restaurant_id?: string
+          revision?: number
+          template_id?: string
+          tokens?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "theme_config_history_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       theme_configs: {
         Row: {
           component_overrides: Json
           created_at: string
           id: string
+          published_at: string
           restaurant_id: string
+          revision: number
           tokens: Json
           updated_at: string
           updated_by: string | null
@@ -3801,7 +3847,9 @@ export type Database = {
           component_overrides?: Json
           created_at?: string
           id?: string
+          published_at: string
           restaurant_id: string
+          revision?: number
           tokens?: Json
           updated_at?: string
           updated_by?: string | null
@@ -3810,7 +3858,9 @@ export type Database = {
           component_overrides?: Json
           created_at?: string
           id?: string
+          published_at?: string
           restaurant_id?: string
+          revision?: number
           tokens?: Json
           updated_at?: string
           updated_by?: string | null
@@ -3820,6 +3870,135 @@ export type Database = {
             foreignKeyName: "theme_configs_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      theme_draft_operations: {
+        Row: {
+          created_at: string
+          expected_revision: number
+          request_fingerprint: string
+          request_id: string
+          restaurant_id: string
+          result: Json
+          saved_by: string
+          template_id: string
+          tokens: Json
+        }
+        Insert: {
+          created_at?: string
+          expected_revision: number
+          request_fingerprint: string
+          request_id: string
+          restaurant_id: string
+          result: Json
+          saved_by: string
+          template_id: string
+          tokens: Json
+        }
+        Update: {
+          created_at?: string
+          expected_revision?: number
+          request_fingerprint?: string
+          request_id?: string
+          restaurant_id?: string
+          result?: Json
+          saved_by?: string
+          template_id?: string
+          tokens?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "theme_draft_operations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      theme_drafts: {
+        Row: {
+          based_on_published_revision: number
+          restaurant_id: string
+          revision: number
+          template_id: string
+          tokens: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          based_on_published_revision?: number
+          restaurant_id: string
+          revision?: number
+          template_id: string
+          tokens: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          based_on_published_revision?: number
+          restaurant_id?: string
+          revision?: number
+          template_id?: string
+          tokens?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "theme_drafts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      theme_publish_operations: {
+        Row: {
+          created_at: string
+          draft_revision: number | null
+          expected_revision: number
+          published_by: string
+          request_fingerprint: string
+          request_id: string
+          restaurant_id: string
+          result: Json
+          template_id: string
+          tokens: Json
+        }
+        Insert: {
+          created_at?: string
+          draft_revision?: number | null
+          expected_revision: number
+          published_by: string
+          request_fingerprint: string
+          request_id: string
+          restaurant_id: string
+          result: Json
+          template_id: string
+          tokens: Json
+        }
+        Update: {
+          created_at?: string
+          draft_revision?: number | null
+          expected_revision?: number
+          published_by?: string
+          request_fingerprint?: string
+          request_id?: string
+          restaurant_id?: string
+          result?: Json
+          template_id?: string
+          tokens?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "theme_publish_operations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
           },
@@ -4604,12 +4783,38 @@ export type Database = {
       prune_platform_error_events: { Args: never; Returns: number }
       publish_theme_config_atomic: {
         Args: {
+          p_expected_revision: number
           p_published_by: string
+          p_request_fingerprint: string
+          p_request_id: string
           p_restaurant_id: string
           p_template_id: string
           p_tokens: Json
         }
-        Returns: string
+        Returns: Json
+      }
+      publish_saved_theme_draft_atomic: {
+        Args: {
+          p_expected_draft_revision: number
+          p_expected_published_revision: number
+          p_published_by: string
+          p_request_fingerprint: string
+          p_request_id: string
+          p_restaurant_id: string
+        }
+        Returns: Json
+      }
+      save_theme_draft_atomic: {
+        Args: {
+          p_expected_revision: number
+          p_request_fingerprint: string
+          p_request_id: string
+          p_restaurant_id: string
+          p_saved_by: string
+          p_template_id: string
+          p_tokens: Json
+        }
+        Returns: Json
       }
       queue_campaign_delivery_atomic: {
         Args: {

@@ -32,7 +32,15 @@ export default async function ThemeEditPage({ params }: Props) {
     if (themeResult.error === 'Unknown theme template' || themeResult.error === 'Restaurant not found') notFound()
     throw new Error(themeResult.error)
   }
-  const { restaurant, theme: initialTheme } = themeResult.value
+  const {
+    restaurant,
+    theme: initialTheme,
+    publishedRevision: initialPublishedRevision,
+    draftRevision: initialDraftRevision,
+    draftSavedAt: initialDraftSavedAt,
+    publishedAt: initialPublishedAt,
+    hasUnpublishedChanges: initialHasUnpublishedChanges,
+  } = themeResult.value
   const menuCategories = menuRefs.categories
   const menuItems = menuRefs.items
   const canAddAdvancedSections = await canRestaurantUseFeature({
@@ -40,6 +48,7 @@ export default async function ThemeEditPage({ params }: Props) {
     plan: restaurant.plan,
     feature: 'theme_advanced_sections',
   })
+  const experienceV2Enabled = process.env['THEME_EXPERIENCE_V2_ENABLED'] === 'true' || process.env.NODE_ENV === 'development'
 
   return (
     <ThemeEditorClientLoader
@@ -48,8 +57,16 @@ export default async function ThemeEditPage({ params }: Props) {
       restaurantName={restaurant.name}
       restaurantLogoUrl={restaurant.logoUrl}
       canAddAdvancedSections={canAddAdvancedSections}
+      experienceV2Enabled={experienceV2Enabled}
       templateId={templateId}
-      initialTheme={initialTheme}
+      initialPersistence={{
+        initialTheme,
+        initialPublishedRevision,
+        initialDraftRevision,
+        initialDraftSavedAt,
+        initialPublishedAt,
+        initialHasUnpublishedChanges,
+      }}
       restaurantSettings={restaurant.settings}
       menuCategories={menuCategories.map((category) => ({
         id: category.id,

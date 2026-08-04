@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import {
   ThemeProvider,
@@ -28,7 +28,9 @@ import type {
 import { allocateBundlePrice } from '@garsonless/domain/menu'
 import type { ServiceRequestType } from '@garsonless/domain/tables'
 import type { PublicRestaurant, TableSessionInfo, SessionOrderRow } from '../../lib/queries'
-import { getSectionDefinitionId, resolveMenuActionPlacements, type GarsonlessTheme } from '@garsonless/design-engine'
+import type { GarsonlessTheme } from '@garsonless/design-engine'
+import { getSectionDefinitionId } from '@garsonless/design-engine/section-blocks'
+import { resolveMenuActionPlacements } from '@garsonless/design-engine/menu-action-placement'
 import type { MemberBalances } from '@garsonless/db/types'
 import { useCartStore } from '../../lib/store/useCartStore'
 import { useWaiterCall } from '../../lib/hooks/useWaiterCall'
@@ -37,6 +39,9 @@ import { useMenuMembership } from '../../lib/hooks/useMenuMembership'
 import { useMenuCheckout } from '../../lib/hooks/useMenuCheckout'
 import { useOrderTracking } from '../../lib/hooks/useOrderTracking'
 import { useTableBill } from '../../lib/hooks/useTableBill'
+import type { CustomerFavoriteView, CustomerReorderPreviewView } from '../../lib/customer-account-contract'
+import type { CustomerAuthSurface } from '../../lib/customer-auth-intent'
+import type { CustomerAuthOAuthProvider } from '../../lib/customer-auth-contract'
 import { DefaultMenuPage } from '@garsonless/ui/themes/default/MenuPage'
 
 const ProductModal = dynamic(() => import('@garsonless/ui/menu/ProductModal').then((module) => module.ProductModal))
@@ -47,10 +52,23 @@ const OrderConfirmation = dynamic(
 )
 const TableBillSheet = dynamic(() => import('@garsonless/ui/menu/TableBillSheet').then((module) => module.TableBillSheet))
 const PaymentModal = dynamic(() => import('./components/PaymentModal'))
-const MemberSheet = dynamic(() => import('./components/MemberSheet'))
+const MemberSheet = dynamic(() => import('./components/MemberSheet'), { ssr: false })
 const SplitBillModal = dynamic(() => import('./components/SplitBillModal'))
+const CustomerSessionSynchronizer = dynamic(
+  () => import('../../lib/components/CustomerSessionSynchronizer'),
+  { ssr: false },
+)
+const MenuFavoritesController = dynamic(
+  () => import('../../lib/components/MenuFavoritesController'),
+  { ssr: false },
+)
+const LazyFloatingCartTrigger = dynamic(
+  () => import('./components/FloatingCartTrigger'),
+  { ssr: false },
+)
 
-function FloatingCartTrigger({ onClick }: { onClick: () => void }) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function LegacyFloatingCartTrigger({ onClick }: { onClick: () => void }) {
   const { theme } = useTheme()
   const cartItems = useCartStore((s) => s.items)
   const count = cartItems.reduce((sum, i) => sum + i.quantity, 0)
@@ -409,9 +427,14 @@ interface Props {
   initialSessionOrders?: SessionOrderRow[]
   initialMember?: { name: string | null } | null
   initialMemberBalances?: MemberBalances | null
+  initialCustomerAuthReturn?: 'success' | 'error' | null
   isPreview?: boolean
   /** Server-resolved plan/override entitlement for the global request tool. */
   requestButtonsEnabled?: boolean
+  /** Server-verified intersection of the app allowlist and hosted providers. */
+  customerAuthProviders?: readonly CustomerAuthOAuthProvider[]
+  initialOpenCart?: boolean
+  initialProductId?: string | null
 }
 
 interface PendingComboSelection {
@@ -445,8 +468,12 @@ export function MenuPageClient({
   initialSessionOrders = [],
   initialMember = null,
   initialMemberBalances = null,
+  initialCustomerAuthReturn = null,
   isPreview = false,
   requestButtonsEnabled = false,
+  customerAuthProviders = [],
+  initialOpenCart = false,
+  initialProductId = null,
 }: Props) {
   useEffect(() => {
     const root = document.documentElement
@@ -456,17 +483,24 @@ export function MenuPageClient({
     }
   }, [])
 
-  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(() => initialProductId ? items.find((item) => item.id === initialProductId) ?? null : null)
   const [pendingCombo, setPendingCombo] = useState<PendingCombo | null>(null)
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null)
   const [dietaryFilters, setDietaryFilters] = useState<DietaryFilter[]>([])
-  const [isCartOpen, setIsCartOpen] = useState(false)
+  const [isCartOpen, setIsCartOpen] = useState(initialOpenCart)
   const [hasOpenedCart, setHasOpenedCart] = useState(false)
   const [hasOpenedProduct, setHasOpenedProduct] = useState(false)
   const [paymentOrderId, setPaymentOrderId] = useState<string | null>(null)
   const [paymentTotal, setPaymentTotal] = useState(0)
   const [isSplitOpen, setIsSplitOpen] = useState(false)
   const [isServiceRequestsOpen, setIsServiceRequestsOpen] = useState(false)
+  const [customerAuthReturn, setCustomerAuthReturn] = useState<'success' | 'error' | null>(initialCustomerAuthReturn)
+  const [customerAuthSurface, setCustomerAuthSurface] = useState<CustomerAuthSurface>('menu')
+  const [pendingAuthSurface, setPendingAuthSurface] = useState<CustomerAuthSurface | null>(null)
+  const [cartScopeReady, setCartScopeReady] = useState(false)
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
+  const [favoriteToggleRequest, setFavoriteToggleRequest] = useState<{ itemId: string; requestId: number } | null>(null)
+  const authContextConsumedRef = useRef(false)
 
   useEffect(() => {
     if (isCartOpen) setHasOpenedCart(true)
@@ -488,7 +522,8 @@ export function MenuPageClient({
   const removeItem = useCartStore((s) => s.removeItem)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
   const clearCart = useCartStore((s) => s.clearCart)
-  const setStoreTableId = useCartStore((s) => s.setTableId)
+  const bindCartScope = useCartStore((s) => s.bindScope)
+  const clearTableScope = useCartStore((s) => s.clearTableScope)
 
   // Effective table identity: the route param wins (fresh scan), else the
   // device's stored table. The adisyon (table bill) is keyed on the table
@@ -526,7 +561,22 @@ export function MenuPageClient({
     cartItems,
     initialMember,
     initialBalances: initialMemberBalances,
+    initialOpen: initialCustomerAuthReturn !== null,
   })
+
+  const availableFavoriteItemIds = useMemo(
+    () => new Set(items.filter((item) => item.is_available).map((item) => item.id)),
+    [items],
+  )
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return
+    const params = new URLSearchParams(window.location.search)
+    if (!params.has('__customerAuthPreview') && !params.has('__customerAccountPreview')) return
+    document.documentElement.dataset.customerAuthPreview = 'true'
+    setIsMemberOpen(true)
+    return () => { delete document.documentElement.dataset.customerAuthPreview }
+  }, [setIsMemberOpen])
 
   const {
     orderId,
@@ -548,6 +598,7 @@ export function MenuPageClient({
     handleSheetClose,
     markPaidAndOpenSheet,
   } = useOrderTracking({
+    restaurantId: restaurant.id,
     tableToken: effectiveTableToken ?? null,
     sessionId,
     memberActive: Boolean(member),
@@ -570,6 +621,70 @@ export function MenuPageClient({
     initialSession: initialTableSession,
     initialOrders: initialSessionOrders,
   })
+
+  const restoreCustomerSurface = useCallback((surface: CustomerAuthSurface) => {
+    setIsMemberOpen(false)
+    setCustomerAuthReturn(null)
+    switch (surface) {
+      case 'cart':
+        setIsCartOpen(true)
+        break
+      case 'order':
+        if (orderId) openOrderSheet()
+        break
+      case 'bill':
+        if (effectiveTableToken) void openBill()
+        break
+      case 'split':
+        if (effectiveTableToken && tableSessionId) setIsSplitOpen(true)
+        break
+      case 'service':
+        if (effectiveTableToken) setIsServiceRequestsOpen(true)
+        break
+      case 'menu':
+        break
+    }
+  }, [effectiveTableToken, openBill, openOrderSheet, orderId, setIsMemberOpen, tableSessionId])
+
+  useEffect(() => {
+    if (!cartScopeReady || !customerAuthReturn || authContextConsumedRef.current) return
+    let cancelled = false
+    void import('../../lib/menu-continuity-client').then(({ consumePendingCustomerAuthContext }) => {
+      if (cancelled || authContextConsumedRef.current) return
+      authContextConsumedRef.current = true
+      const context = consumePendingCustomerAuthContext({
+        restaurantId: restaurant.id,
+        restaurantSlug: restaurant.slug,
+        tableToken: effectiveTableToken ?? null,
+      })
+      if (!context) return
+      setCustomerAuthSurface(context.surface)
+      setPendingAuthSurface(context.surface)
+    })
+    return () => { cancelled = true }
+  }, [cartScopeReady, customerAuthReturn, effectiveTableToken, restaurant.id, restaurant.slug])
+
+  const handleMemberClose = useCallback(() => {
+    const surface = pendingAuthSurface
+    setPendingAuthSurface(null)
+    if (surface) {
+      restoreCustomerSurface(surface)
+      return
+    }
+    setIsMemberOpen(false)
+    setCustomerAuthReturn(null)
+  }, [pendingAuthSurface, restoreCustomerSurface, setIsMemberOpen])
+
+  const handleAuthContextComplete = useCallback((surface: CustomerAuthSurface) => {
+    void import('../../lib/menu-continuity-client').then(({ consumePendingCustomerAuthContext }) => {
+      consumePendingCustomerAuthContext({
+        restaurantId: restaurant.id,
+        restaurantSlug: restaurant.slug,
+        tableToken: effectiveTableToken ?? null,
+      })
+    })
+    if (surface !== 'menu') restoreCustomerSurface(surface)
+  }, [effectiveTableToken, restaurant.id, restaurant.slug, restoreCustomerSurface])
 
   const {
     checkoutUnavailableMessage,
@@ -607,25 +722,27 @@ export function MenuPageClient({
   } = useWaiterCall(effectiveTableToken ?? null)
 
   useEffect(() => {
-    void useCartStore.persist.rehydrate()
-  }, [])
-
-  useEffect(() => {
-    if (tableToken && tableToken !== storedTableToken) {
-      setStoreTableId(tableToken)
+    let cancelled = false
+    const restore = async () => {
+      await useCartStore.persist.rehydrate()
+      if (cancelled) return
+      bindCartScope(restaurant.id, tableToken ?? null)
+      if (!cancelled) setCartScopeReady(true)
     }
-  }, [tableToken, storedTableToken, setStoreTableId])
+    void restore()
+    return () => { cancelled = true }
+  }, [bindCartScope, restaurant.id, tableToken])
 
   useEffect(() => {
-    if (tableToken || !storedTableToken) return
+    if (!cartScopeReady || tableToken || !storedTableToken) return
     let cancelled = false
     const validateStoredTable = async () => {
       const response = await fetch(`/api/table-state?token=${encodeURIComponent(storedTableToken)}`, { cache: 'no-store' })
-      if (!cancelled && !response.ok) setStoreTableId(null)
+      if (!cancelled && !response.ok) clearTableScope(restaurant.id)
     }
     void validateStoredTable()
     return () => { cancelled = true }
-  }, [tableToken, storedTableToken, setStoreTableId])
+  }, [cartScopeReady, clearTableScope, restaurant.id, storedTableToken, tableToken])
 
   const handleAddToCart = useCallback(
     (
@@ -670,6 +787,70 @@ export function MenuPageClient({
       setIsCartOpen(true)
     }
   }, [addItem])
+
+  useEffect(() => {
+    const prefix = '#product-'
+    if (!window.location.hash.startsWith(prefix)) return
+    const itemId = decodeURIComponent(window.location.hash.slice(prefix.length))
+    const item = itemById.get(itemId)
+    if (!item?.is_available) return
+    setPendingPromotion(null)
+    setSelectedItem(item)
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`)
+  }, [itemById])
+
+  const addReorderLinesToCart = useCallback((lines: Array<NonNullable<CustomerReorderPreviewView['lines'][number]['cartLine']>>) => {
+    let added = 0
+    for (const line of lines) {
+      const item = itemById.get(line.itemId)
+      if (!item?.is_available) continue
+      addItem(
+        item,
+        line.selectedModifiers,
+        item.modifier_groups,
+        line.quantity,
+        undefined,
+        line.removedIngredientIds,
+        undefined,
+        undefined,
+        line.productNote,
+      )
+      added += 1
+    }
+    if (added > 0) setIsCartOpen(true)
+    return added
+  }, [addItem, itemById])
+
+  useEffect(() => {
+    if (!cartScopeReady) return
+    let cancelled = false
+    void import('../../lib/menu-continuity-client').then(({ consumeReorderDraft }) => {
+      if (!cancelled) addReorderLinesToCart(consumeReorderDraft(restaurant.slug))
+    })
+    return () => { cancelled = true }
+  }, [addReorderLinesToCart, cartScopeReady, restaurant.slug])
+
+  const handleOpenFavorite = useCallback((favorite: CustomerFavoriteView) => {
+    setIsMemberOpen(false)
+    if (favorite.restaurant.slug !== restaurant.slug) {
+      window.location.assign(`/${encodeURIComponent(favorite.restaurant.slug)}#product-${encodeURIComponent(favorite.item.id)}`)
+      return
+    }
+    const item = itemById.get(favorite.item.id)
+    if (item?.is_available) handleOpenProduct(item)
+  }, [handleOpenProduct, itemById, restaurant.slug, setIsMemberOpen])
+
+  const handleApplyReorder = useCallback((preview: CustomerReorderPreviewView) => {
+    setIsMemberOpen(false)
+    if (preview.restaurant.slug !== restaurant.slug) {
+      void import('../../lib/menu-continuity-client').then(({ storeReorderDraft }) => {
+        storeReorderDraft(preview)
+        window.location.assign(`/${encodeURIComponent(preview.restaurant.slug)}`)
+      })
+      return
+    }
+    addReorderLinesToCart(preview.lines.flatMap((line) => line.cartLine ? [line.cartLine] : []))
+  }, [addReorderLinesToCart, restaurant.slug, setIsMemberOpen])
 
   const addResolvedComboToCart = useCallback((combo: PendingCombo) => {
     combo.pricedItems.forEach((pricedItem, index) => {
@@ -847,6 +1028,10 @@ export function MenuPageClient({
               onOpen={handleOpenProduct}
               onQuickAdd={handleQuickAdd}
               cartQuantity={cartQuantity}
+              {...(member ? {
+                isFavorite: favoriteIds.has(item.id),
+                onToggleFavorite: () => setFavoriteToggleRequest((current) => ({ itemId: item.id, requestId: (current?.requestId ?? 0) + 1 })),
+              } : {})}
               imagePriority={item.id === firstCardItemId}
               onIncrement={() => {
                 const existing = cartItems.find((ci) => ci.itemId === item.id && !ci.combo && !ci.promotion)
@@ -893,6 +1078,14 @@ export function MenuPageClient({
       initialRestaurantName={restaurant.name}
       initialLogoUrl={restaurant.logo_url ?? null}
     >
+      <CustomerSessionSynchronizer authenticated={Boolean(member)} />
+      <MenuFavoritesController
+        restaurantId={restaurant.id}
+        authenticated={Boolean(member)}
+        availableItemIds={availableFavoriteItemIds}
+        toggleRequest={favoriteToggleRequest}
+        onChange={setFavoriteIds}
+      />
       <DefaultMenuPage
         categories={visibleCategories}
         categoryMeta={categoryMeta}
@@ -940,9 +1133,10 @@ export function MenuPageClient({
         onAddCombo={handleAddCombo}
         billSummary={billSummary}
         onOpenBill={() => { void openBill() }}
-        memberSummary={loyaltyEnabled ? {
+        memberSummary={{
+          authenticated: Boolean(member),
           name: member?.name ?? null,
-          welcomeBonus,
+          welcomeBonus: loyaltyEnabled ? welcomeBonus : 0,
           ...(member && memberBalances ? {
             stamps: memberBalances.stamps,
             stampGoal: memberBalances.stampGoal,
@@ -951,8 +1145,8 @@ export function MenuPageClient({
             pointsEnabled: memberBalances.pointsEnabled,
             tierColor: memberBalances.tier.color,
           } : {}),
-        } : null}
-        onOpenMember={loyaltyEnabled ? () => setIsMemberOpen(true) : undefined}
+        }}
+        onOpenMember={() => { setCustomerAuthSurface('menu'); setIsMemberOpen(true) }}
         onServiceRequest={isPreview ? async () => true : sendServiceRequest}
         onOpenServiceRequests={() => setIsServiceRequestsOpen(true)}
         memberLoyalty={member && memberBalances && memberBalances.stampEnabled
@@ -1034,8 +1228,8 @@ export function MenuPageClient({
         />
       )}
 
-      {!isCartOpen && (
-        <FloatingCartTrigger onClick={() => setIsCartOpen(true)} />
+      {!isCartOpen && cartItems.length > 0 && (
+        <LazyFloatingCartTrigger onClick={() => setIsCartOpen(true)} />
       )}
 
       <RequestButtonsOverlay
@@ -1076,17 +1270,28 @@ export function MenuPageClient({
 
       {isMemberOpen && (
         <MemberSheet
-          onClose={() => setIsMemberOpen(false)}
+          onClose={handleMemberClose}
           balances={member ? memberBalances : null}
+          authenticated={Boolean(member)}
           memberName={member?.name ?? null}
           restaurantId={restaurant.id}
           restaurantSlug={restaurant.slug}
           restaurantName={restaurant.name}
+          tableLabel={tableLabel ?? null}
+          tableToken={effectiveTableToken ?? null}
+          guestSessionId={sessionId}
+          deviceId={deviceId}
+          authSurface={customerAuthSurface}
+          authReturn={customerAuthReturn}
+          oauthProviders={customerAuthProviders}
           welcomeBonus={welcomeBonus}
           rewardCatalog={rewardCatalog}
           onRedeemCatalog={handleRedeemCatalog}
           onRefresh={refetchBalances}
           onVerified={(m) => { setMember(m); void refetchBalances() }}
+          onAuthContextComplete={handleAuthContextComplete}
+          onOpenFavorite={handleOpenFavorite}
+          onApplyReorder={handleApplyReorder}
           {...(member ? { onLogout: handleLogout } : {})}
         />
       )}

@@ -34,6 +34,7 @@ import GlassWater from 'lucide-react/dist/esm/icons/glass-water.mjs'
 import GripVertical from 'lucide-react/dist/esm/icons/grip-vertical.mjs'
 import Grid3x3 from 'lucide-react/dist/esm/icons/grid-3x3.mjs'
 import History from 'lucide-react/dist/esm/icons/history.mjs'
+import Heart from 'lucide-react/dist/esm/icons/heart.mjs'
 import House from 'lucide-react/dist/esm/icons/house.mjs'
 import HandPlatter from 'lucide-react/dist/esm/icons/hand-platter.mjs'
 import Image from 'lucide-react/dist/esm/icons/image.mjs'
@@ -55,6 +56,7 @@ import Paintbrush from 'lucide-react/dist/esm/icons/paintbrush.mjs'
 import Palette from 'lucide-react/dist/esm/icons/palette.mjs'
 import PanelTop from 'lucide-react/dist/esm/icons/panel-top.mjs'
 import PanelsTopLeft from 'lucide-react/dist/esm/icons/panels-top-left.mjs'
+import Pause from 'lucide-react/dist/esm/icons/pause.mjs'
 import Play from 'lucide-react/dist/esm/icons/play.mjs'
 import Phone from 'lucide-react/dist/esm/icons/phone.mjs'
 import Plus from 'lucide-react/dist/esm/icons/plus.mjs'
@@ -142,6 +144,7 @@ export const AppIcons = {
   x: icon(X, 2),
   warn: icon(TriangleAlert),
   history: icon(History),
+  heart: icon(Heart),
   eye: icon(Eye),
   eyeOff: icon(EyeOff),
   monitor: icon(Monitor),
@@ -205,6 +208,7 @@ export const AppIcons = {
   link2: icon(Link2),
   refresh: icon(RefreshCw),
   play: icon(Play),
+  pause: icon(Pause),
   arrow: icon(ArrowRight),
   section: icon(Rows3),
   template: icon(LayoutPanelTop),

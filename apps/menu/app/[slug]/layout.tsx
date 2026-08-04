@@ -13,7 +13,26 @@ interface Props {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const restaurant = await getRestaurantBySlug(slug)
-  return { title: restaurant?.name ?? 'Menu' }
+  if (!restaurant) return { title: 'Menu' }
+  const themeResult = await readPublishedTheme({ restaurantId: restaurant.id }, createThemeApplicationPort())
+  const theme = themeResult.ok ? themeResult.value.theme : null
+  const home = theme?.surfaces?.home
+  const origin = (process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011').replace(/\/$/, '')
+  const title = home?.seo?.title?.trim() || restaurant.name
+  const description = home?.seo?.description?.trim() || theme?.pageDescription?.trim() || `${restaurant.name} menüsünü ve işletme deneyimini keşfedin.`
+  const poster = home?.sections.find((section) => section.enabled && (section.posterUrl || section.imageUrl))
+  return {
+    title,
+    description,
+    alternates: { canonical: `${origin}/${encodeURIComponent(slug)}` },
+    openGraph: {
+      title,
+      description,
+      type: 'website',
+      url: `${origin}/${encodeURIComponent(slug)}`,
+      ...(poster?.posterUrl || poster?.imageUrl ? { images: [poster.posterUrl || poster.imageUrl!] } : {}),
+    },
+  }
 }
 
 export default async function SlugLayout({ children, params }: Props) {

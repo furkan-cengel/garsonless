@@ -1,24 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import type { GarsonlessTheme } from '@garsonless/design-engine'
-import type {
-  ThemeEditorPreviewCategory,
-  ThemeEditorPreviewItem,
-} from './CanonicalSectionPreview'
-
-interface Props {
-  restaurantId: string
-  restaurantSlug: string
-  restaurantName: string
-  restaurantLogoUrl: string | null
-  canAddAdvancedSections: boolean
-  templateId: string
-  initialTheme: GarsonlessTheme
-  restaurantSettings: Record<string, unknown> | null
-  menuCategories: ThemeEditorPreviewCategory[]
-  menuItems: ThemeEditorPreviewItem[]
-}
+import type { ThemeEditorClientProps } from './theme-editor-client-contract'
 
 const ThemeEditorClient = dynamic(() => import('./ThemeEditorClient'), {
   loading: () => <ThemeEditorLoading />,
@@ -26,14 +9,14 @@ const ThemeEditorClient = dynamic(() => import('./ThemeEditorClient'), {
 
 function ThemeEditorLoading() {
   return (
-    <div style={{
+    <div data-theme-editor-loading style={{
       minHeight: 'calc(100vh - 56px)',
       display: 'grid',
       gridTemplateColumns: '320px minmax(0, 1fr)',
       background: 'var(--bg)',
       color: 'var(--text)',
     }}>
-      <div style={{
+      <div data-theme-editor-loading-nav style={{
         borderRight: '1px solid var(--border)',
         background: 'var(--surface)',
         padding: 18,
@@ -47,7 +30,7 @@ function ThemeEditorLoading() {
           <Skeleton key={index} style={{ width: `${86 - (index % 3) * 9}%`, height: 28 }} />
         ))}
       </div>
-      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div data-theme-editor-loading-preview style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
           <Skeleton style={{ width: 220, height: 32 }} />
           <Skeleton style={{ width: 180, height: 32 }} />
@@ -67,6 +50,19 @@ function ThemeEditorLoading() {
           </div>
         </div>
       </div>
+      <style jsx>{`
+        @media (max-width: 900px) {
+          [data-theme-editor-loading] {
+            grid-template-columns: minmax(0, 1fr) !important;
+          }
+          [data-theme-editor-loading-nav] {
+            display: none !important;
+          }
+          [data-theme-editor-loading-preview] {
+            padding: 12px !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }
@@ -90,6 +86,6 @@ function Skeleton({ style }: { style: React.CSSProperties }) {
   )
 }
 
-export default function ThemeEditorClientLoader(props: Props) {
+export default function ThemeEditorClientLoader(props: ThemeEditorClientProps) {
   return <ThemeEditorClient {...props} />
 }

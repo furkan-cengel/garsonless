@@ -1,9 +1,10 @@
 'use client'
 
 import type { RefObject } from 'react'
-import type { GarsonlessTheme } from '@garsonless/design-engine'
+import type { GarsonlessTheme, ThemeEditorSurface } from '@garsonless/design-engine'
 import { I } from '../../lib/ui'
 import type { ThemePreviewMode } from './ThemeEditorTopbar'
+import { ThemeExperienceSurfaceSelector } from './ThemeExperienceSurfaceSelector'
 import { ThemePreviewSurface } from './ThemePreviewSurface'
 import type { ThemePreviewStatus } from './use-theme-preview-bridge'
 
@@ -14,7 +15,15 @@ interface ThemeEditorCanvasProps {
   previewTheme: GarsonlessTheme
   previewMode: ThemePreviewMode
   previewScale: number
-  isNarrow: boolean
+  isTaskBased: boolean
+  experienceSurface: ThemeEditorSurface
+  homeEnabled: boolean
+  experienceV2Enabled: boolean
+  onPreviewRetry: () => void
+  onPreviewLoad: () => void
+  onPreviewError: () => void
+  onPreviewModeChange: (mode: ThemePreviewMode) => void
+  onExperienceSurfaceChange: (surface: ThemeEditorSurface) => void
   onZoom: (delta: number) => void
   onFit: () => void
 }
@@ -26,12 +35,20 @@ export function ThemeEditorCanvas({
   previewTheme,
   previewMode,
   previewScale,
-  isNarrow,
+  isTaskBased,
+  experienceSurface,
+  homeEnabled,
+  experienceV2Enabled,
+  onPreviewRetry,
+  onPreviewLoad,
+  onPreviewError,
+  onPreviewModeChange,
+  onExperienceSurfaceChange,
   onZoom,
   onFit,
 }: ThemeEditorCanvasProps) {
   return (
-    <div style={{
+    <div role="region" aria-labelledby="theme-editor-preview-heading" style={{
       flex: 1,
       minWidth: 0,
       background: 'var(--surface-inset)',
@@ -41,9 +58,11 @@ export function ThemeEditorCanvas({
       flexDirection: 'column',
       overflow: 'hidden',
     }}>
-      <div style={{
+      <div data-theme-editor-preview-toolbar style={{
         minHeight: 40,
         flexShrink: 0,
+        position: 'relative',
+        zIndex: 40,
         display: 'flex',
         flexWrap: 'wrap',
         alignItems: 'center',
@@ -55,15 +74,15 @@ export function ThemeEditorCanvas({
         backdropFilter: 'blur(8px)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-2)', fontSize: 12, minWidth: 0, flex: '1 1 260px' }}>
-          <span style={{ fontWeight: 650, color: 'var(--text)' }}>Önizleme</span>
+          <h2 id="theme-editor-preview-heading" style={{ margin: 0, fontSize: 12, lineHeight: 1.2, fontWeight: 650, color: 'var(--text)' }}>Önizleme</h2>
           <span style={{ color: 'var(--text-4)' }}>·</span>
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {previewUrl.replace(/^https?:\/\//, '')}
           </span>
-          {previewStatus === 'degraded' && (
+          {previewStatus === 'stale' && (
             <span
               role="status"
-              title="Tema onayı zamanında alınamadı; önizleme yine de gösteriliyor."
+              title="Son başarılı önizleme gösteriliyor; güncel tema onayı zamanında alınamadı."
               style={{
                 flexShrink: 0,
                 padding: '2px 6px',
@@ -74,15 +93,20 @@ export function ThemeEditorCanvas({
                 fontWeight: 650,
               }}
             >
-              Sınırlı önizleme
+              Güncelleme gecikti
             </span>
+          )}
+          {previewStatus === 'stale' && (
+            <button type="button" onClick={onPreviewRetry} style={{ ...previewRetryButtonStyle, minHeight: isTaskBased ? 44 : 32 }}>
+              Yeniden dene
+            </button>
           )}
           <a
             href={previewUrl}
             target="_blank"
             rel="noreferrer"
             style={{
-              height: 24,
+              height: 34,
               display: 'inline-flex',
               alignItems: 'center',
               gap: 5,
@@ -101,8 +125,33 @@ export function ThemeEditorCanvas({
           </a>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {experienceV2Enabled && (
+            <ThemeExperienceSurfaceSelector
+              value={experienceSurface}
+              homeEnabled={homeEnabled}
+              onChange={onExperienceSurfaceChange}
+            />
+          )}
+          {isTaskBased && (
+            <div
+              role="group"
+              aria-label="Önizleme cihazı"
+              style={{ display: 'inline-flex', gap: 2, padding: 2, borderRadius: 9, background: 'var(--surface-3)' }}
+            >
+              <DeviceButton
+                active={previewMode === 'mobile'}
+                label="Mobil önizleme"
+                onClick={() => onPreviewModeChange('mobile')}
+              ><I.phone size={17} /></DeviceButton>
+              <DeviceButton
+                active={previewMode === 'desktop'}
+                label="Masaüstü önizleme"
+                onClick={() => onPreviewModeChange('desktop')}
+              ><I.monitor size={17} /></DeviceButton>
+            </div>
+          )}
           <div style={{
-            height: 28,
+            height: 34,
             display: 'inline-flex',
             alignItems: 'center',
             border: '1px solid var(--border)',
@@ -116,7 +165,7 @@ export function ThemeEditorCanvas({
             </output>
             <button type="button" aria-label="Önizlemeyi büyüt" onClick={() => onZoom(0.1)} style={zoomButtonStyle}>+</button>
           </div>
-          <button type="button" onClick={onFit} style={{ ...canvasButtonStyle, height: 28 }}>Sığdır</button>
+          <button type="button" onClick={onFit} style={canvasButtonStyle}>Sığdır</button>
         </div>
       </div>
 
@@ -126,9 +175,9 @@ export function ThemeEditorCanvas({
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'center',
-        padding: isNarrow ? '22px 16px' : '32px 24px',
+        padding: isTaskBased ? '16px 12px' : '32px 24px',
         overflow: 'auto',
-        minWidth: isNarrow ? 500 : 0,
+        minWidth: 0,
       }}>
         <PreviewFrame mode={previewMode} scale={previewScale}>
           <ThemePreviewSurface
@@ -136,10 +185,46 @@ export function ThemeEditorCanvas({
             previewUrl={previewUrl}
             status={previewStatus}
             theme={previewTheme}
+            onRetry={onPreviewRetry}
+            onLoad={onPreviewLoad}
+            onError={onPreviewError}
           />
         </PreviewFrame>
       </div>
     </div>
+  )
+}
+
+function DeviceButton({
+  active,
+  children,
+  label,
+  onClick,
+}: {
+  active: boolean
+  children: React.ReactNode
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={active}
+      onClick={onClick}
+      style={{
+        width: 32,
+        height: 32,
+        border: 0,
+        borderRadius: 7,
+        display: 'inline-grid',
+        placeItems: 'center',
+        background: active ? 'var(--surface)' : 'transparent',
+        color: active ? 'var(--text)' : 'var(--text-3)',
+        boxShadow: active ? 'var(--shadow-1)' : 'none',
+        cursor: 'pointer',
+      }}
+    >{children}</button>
   )
 }
 
@@ -201,10 +286,22 @@ const canvasButtonStyle: React.CSSProperties = {
 }
 
 const zoomButtonStyle: React.CSSProperties = {
-  width: 28,
-  height: 28,
+  width: 32,
+  height: 32,
   border: 'none',
   background: 'transparent',
   color: 'var(--text-2)',
+  cursor: 'pointer',
+}
+
+const previewRetryButtonStyle: React.CSSProperties = {
+  minHeight: 32,
+  padding: '0 9px',
+  border: '1px solid var(--border)',
+  borderRadius: 7,
+  background: 'var(--surface)',
+  color: 'var(--text)',
+  fontSize: 11.5,
+  fontWeight: 700,
   cursor: 'pointer',
 }

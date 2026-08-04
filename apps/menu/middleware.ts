@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { frameAncestorsDirective, resolveFrameAncestors } from './lib/frame-ancestors'
+import { readMenuAuthCookies, writeMenuAuthCookie } from './lib/customer-auth-cookie'
 
 /**
  * Customer-session token refresh (P2 Faz 1). `getUser()` validates the session
@@ -26,12 +27,13 @@ export async function middleware(req: NextRequest) {
     {
       cookies: {
         getAll() {
-          return req.cookies.getAll()
+          return readMenuAuthCookies(req.cookies.getAll())
         },
         setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
-          cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value))
+          const isolatedCookies = cookiesToSet.map(writeMenuAuthCookie)
+          isolatedCookies.forEach(({ name, value }) => req.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request: req })
-          cookiesToSet.forEach(({ name, value, options }) =>
+          isolatedCookies.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(
               name,
               value,
@@ -46,7 +48,7 @@ export async function middleware(req: NextRequest) {
   await supabase.auth.getUser()
 
   const isThemePreview = req.nextUrl.searchParams.get('preview') === '1'
-    && /^\/[^/]+$/.test(req.nextUrl.pathname)
+    && (/^\/[^/]+\/menu$/.test(req.nextUrl.pathname) || /^\/theme-preview\/[^/]+$/.test(req.nextUrl.pathname))
   const frameAncestors = resolveFrameAncestors({
     isThemePreview,
     configuredOrigins: process.env['DASHBOARD_PREVIEW_ORIGINS'],

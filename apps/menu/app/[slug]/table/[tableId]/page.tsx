@@ -8,6 +8,7 @@ import { readPublishedTheme } from '@garsonless/application/themes'
 import { readPublicTableState } from '@garsonless/application/tables'
 import { getRestaurantBySlug, getMenuCategories, getMenuItems } from '../../../../lib/queries'
 import { getCustomerSession } from '../../../../lib/customer-session'
+import { availableCustomerAuthProviders } from '../../../../lib/customer-auth-provider'
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../../../lib/featured-products'
 import { MenuPageClient } from '../../MenuPageClient'
 import { createLoyaltyQueryPort, createPublicTableQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
@@ -18,10 +19,15 @@ export const dynamic = 'force-dynamic'
 
 interface Props {
   params: Promise<{ slug: string; tableId: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
-export default async function TableMenuPage({ params }: Props) {
+export default async function TableMenuPage({ params, searchParams }: Props) {
   const { slug, tableId } = await params
+  const sp = await searchParams
+  const initialCustomerAuthReturn = sp['customerAuth'] === 'complete'
+    ? 'success'
+    : sp['customerAuth'] === 'failed' ? 'error' : null
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) notFound()
 
@@ -31,11 +37,12 @@ export default async function TableMenuPage({ params }: Props) {
   if (!tableState || tableState.token.restaurantId !== restaurant.id || tableState.token.restaurantSlug !== slug) notFound()
 
   const themePort = createThemeApplicationPort()
-  const [themeResult, categories, featuredRanking, session] = await Promise.all([
+  const [themeResult, categories, featuredRanking, session, customerAuthProviders] = await Promise.all([
     readPublishedTheme({ restaurantId: restaurant.id }, themePort),
     getMenuCategories(restaurant.id),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
     getCustomerSession(),
+    availableCustomerAuthProviders(),
   ])
   if (!themeResult.ok) notFound()
   const tableSession = tableState.session
@@ -94,7 +101,9 @@ export default async function TableMenuPage({ params }: Props) {
       initialSessionOrders={sessionOrders}
       initialMember={initialMember}
       initialMemberBalances={initialMemberBalances}
+      initialCustomerAuthReturn={initialCustomerAuthReturn}
       requestButtonsEnabled={requestButtonsEnabled}
+      customerAuthProviders={customerAuthProviders}
     />
   )
 }

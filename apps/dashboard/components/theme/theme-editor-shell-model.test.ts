@@ -2,35 +2,46 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { getThemeEditorSaveStatus } from './theme-editor-shell-model'
 
-test('save status prioritizes active save over dirty state', () => {
+const clean = {
+  savingDraft: false,
+  publishing: false,
+  hasUnsavedChanges: false,
+  hasUnpublishedChanges: false,
+  lastSavedAt: null,
+  lastPublishedAt: null,
+}
+
+test('save status prioritizes active operations over dirty state', () => {
   assert.deepEqual(getThemeEditorSaveStatus({
-    saving: true,
+    ...clean,
+    savingDraft: true,
     hasUnsavedChanges: true,
-    lastSavedAt: null,
-  }), {
-    text: 'Kaydediliyor',
-    color: '#b86408',
-  })
+  }), { text: 'Kaydediliyor', color: '#b86408' })
+
+  assert.equal(getThemeEditorSaveStatus({
+    ...clean,
+    publishing: true,
+    hasUnpublishedChanges: true,
+  }).text, 'Yayınlanıyor')
 })
 
-test('save status distinguishes dirty, saved-at and initial states', () => {
+test('save status distinguishes local, saved draft and published states', () => {
   assert.equal(getThemeEditorSaveStatus({
-    saving: false,
+    ...clean,
     hasUnsavedChanges: true,
-    lastSavedAt: null,
   }).text, 'Kaydedilmedi')
 
   const saved = getThemeEditorSaveStatus({
-    saving: false,
-    hasUnsavedChanges: false,
+    ...clean,
+    hasUnpublishedChanges: true,
     lastSavedAt: new Date(2026, 6, 17, 9, 5),
   })
-  assert.match(saved.text, /^Kaydedildi \d{2}:\d{2}$/)
-  assert.equal(saved.color, 'var(--positive)')
+  assert.match(saved.text, /^Taslak \d{2}:\d{2}$/)
+  assert.equal(saved.color, '#b86408')
 
-  assert.equal(getThemeEditorSaveStatus({
-    saving: false,
-    hasUnsavedChanges: false,
-    lastSavedAt: null,
-  }).text, 'Kaydedildi')
+  assert.equal(getThemeEditorSaveStatus(clean).text, 'Yayında')
+  assert.match(getThemeEditorSaveStatus({
+    ...clean,
+    lastPublishedAt: new Date(2026, 6, 17, 9, 5),
+  }).text, /^Yayında \d{2}:\d{2}$/)
 })

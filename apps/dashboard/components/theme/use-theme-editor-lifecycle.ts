@@ -1,17 +1,29 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { resolveMenuActionPlacements, type GarsonlessTheme } from '@garsonless/design-engine'
+import {
+  createFullThemePreviewCommand,
+  inspectAuthSurfaceContrast,
+  inspectCheckoutSurfaceContrast,
+  resolveMenuActionPlacements,
+  type GarsonlessTheme,
+  type ThemePreviewContext,
+} from '@garsonless/design-engine'
 import type { SettingField, SettingsGroup } from '@garsonless/ui'
-import { publishTheme } from '../../lib/actions/theme'
+import { publishTheme, saveThemeDraft } from '../../lib/actions/theme'
 import {
   appendHistorySnapshot,
+  areThemeOverridesEqual,
   createThemeOverrides,
   getUnsavedFieldLabels,
 } from './theme-editor-lifecycle-model'
+import {
+  prepareThemePublishAttempt,
+  prepareThemeDraftSaveAttempt,
+  type ThemePublishAttempt,
+} from './theme-publish-contract'
 import { useThemePreviewBridge } from './use-theme-preview-bridge'
 
-const SYSTEM_FONTS = new Set(['Georgia', 'Times New Roman', 'Arial', 'Helvetica', 'Verdana', 'Bodoni 72'])
 const NAVIGATION_GUARD_MESSAGE = 'Kaydedilmemiş değişiklikler var. Çıkmak istediğine emin misin?'
 
 interface ThemeEditorLifecycleOptions {
@@ -19,26 +31,16 @@ interface ThemeEditorLifecycleOptions {
   templateId: string
   previewUrl: string
   initialTheme: GarsonlessTheme
+  initialPublishedRevision: number
+  initialDraftRevision: number
+  initialDraftSavedAt: string | null
+  initialPublishedAt: string | null
+  initialHasUnpublishedChanges: boolean
   defaults: GarsonlessTheme
   schema: SettingsGroup[]
   derivePreviewTheme: (overrides: Partial<GarsonlessTheme>) => GarsonlessTheme
   setNavigationGuard: (message: string | null) => void
-}
-
-function fontCssValue(fontName: string, isDisplay = false) {
-  if (SYSTEM_FONTS.has(fontName)) return fontName
-  return isDisplay ? `"${fontName}", cursive` : `"${fontName}", sans-serif`
-}
-
-function fieldToCSSValue(field: SettingField, value: unknown): string {
-  const typedValue = value as string | number | boolean
-  if (field.type === 'color') return typedValue as string
-  if (field.type === 'range') return field.unit === 'px' ? `${typedValue}px` : String(typedValue)
-  if (field.type === 'font') {
-    const isDisplay = field.id.includes('display') || field.id.includes('Display')
-    return fontCssValue(typedValue as string, isDisplay)
-  }
-  return String(typedValue)
+  previewContext: ThemePreviewContext
 }
 
 export function useThemeEditorLifecycle({
@@ -46,10 +48,16 @@ export function useThemeEditorLifecycle({
   templateId,
   previewUrl,
   initialTheme,
+  initialPublishedRevision,
+  initialDraftRevision,
+  initialDraftSavedAt,
+  initialPublishedAt,
+  initialHasUnpublishedChanges,
   defaults,
   schema,
   derivePreviewTheme,
   setNavigationGuard,
+  previewContext,
 }: ThemeEditorLifecycleOptions) {
   const [overrides, setOverrides] = useState<Partial<GarsonlessTheme>>(() =>
     createThemeOverrides(initialTheme, defaults, schema),
@@ -57,23 +65,41 @@ export function useThemeEditorLifecycle({
   const [undoStack, setUndoStack] = useState<Array<Partial<GarsonlessTheme>>>([])
   const [redoStack, setRedoStack] = useState<Array<Partial<GarsonlessTheme>>>([])
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
+  const [savingDraft, setSavingDraft] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(() => initialDraftSavedAt ? new Date(initialDraftSavedAt) : null)
+  const [lastPublishedAt, setLastPublishedAt] = useState<Date | null>(() => initialPublishedAt ? new Date(initialPublishedAt) : null)
+  const [hasUnpublishedChanges, setHasUnpublishedChanges] = useState(initialHasUnpublishedChanges)
   const [toast, setToast] = useState('')
   const revisionRef = useRef(0)
+  const draftRevisionRef = useRef(initialDraftRevision)
+  const publishedRevisionRef = useRef(initialPublishedRevision)
+  const draftSaveAttemptRef = useRef<ThemePublishAttempt | null>(null)
+  const publishAttemptRef = useRef<ThemePublishAttempt | null>(null)
   const savedThemeRef = useRef(initialTheme)
+  const savedOverridesRef = useRef(createThemeOverrides(initialTheme, defaults, schema))
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const previewTheme = useMemo(
     () => derivePreviewTheme(overrides),
     [derivePreviewTheme, overrides],
   )
+  const authContrastIssues = useMemo(
+    () => inspectAuthSurfaceContrast(previewTheme),
+    [previewTheme],
+  )
+  const checkoutContrastIssues = useMemo(
+    () => inspectCheckoutSurfaceContrast(previewTheme),
+    [previewTheme],
+  )
   const {
     iframeRef,
     status: previewStatus,
     postMessage: postPreviewMessage,
     reload: reloadPreviewFrame,
-  } = useThemePreviewBridge({ previewUrl, theme: previewTheme })
+    handleFrameLoad: handlePreviewFrameLoad,
+    handleFrameError: handlePreviewFrameError,
+  } = useThemePreviewBridge({ previewUrl, theme: previewTheme, context: previewContext })
 
   const flashToast = useCallback((message: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
@@ -112,9 +138,10 @@ export function useThemeEditorLifecycle({
 
   const applyOverridesSnapshot = useCallback((snapshot: Partial<GarsonlessTheme>) => {
     setOverrides(snapshot)
-    markDirty()
-    postPreviewMessage({ type: 'FULL_THEME_UPDATE', theme: derivePreviewTheme(snapshot) })
-  }, [derivePreviewTheme, markDirty, postPreviewMessage])
+    revisionRef.current += 1
+    setHasUnsavedChanges(!areThemeOverridesEqual(snapshot, savedOverridesRef.current))
+    postPreviewMessage(createFullThemePreviewCommand(derivePreviewTheme(snapshot), undefined, previewContext))
+  }, [derivePreviewTheme, postPreviewMessage, previewContext])
 
   const handleUndo = useCallback(() => {
     const previous = undoStack[undoStack.length - 1]
@@ -156,45 +183,123 @@ export function useThemeEditorLifecycle({
     markDirty()
     setOverrides(nextOverrides)
 
-    if (field.cssVar) {
-      postPreviewMessage({
-        type: 'CSS_VARS_UPDATE',
-        vars: { [field.cssVar]: fieldToCSSValue(field, value) },
-      })
-    }
-
-    postPreviewMessage({ type: 'FULL_THEME_UPDATE', theme: derivePreviewTheme(nextOverrides) })
-  }, [derivePreviewTheme, flashToast, markDirty, overrides, postPreviewMessage, rememberOverrides])
+    postPreviewMessage(createFullThemePreviewCommand(derivePreviewTheme(nextOverrides), undefined, previewContext))
+  }, [derivePreviewTheme, flashToast, markDirty, overrides, postPreviewMessage, previewContext, rememberOverrides])
 
   const updateThemePatch = useCallback((patch: Partial<GarsonlessTheme>) => {
     const nextOverrides = { ...overrides, ...patch }
     rememberOverrides(overrides)
     markDirty()
     setOverrides(nextOverrides)
-    postPreviewMessage({ type: 'FULL_THEME_UPDATE', theme: derivePreviewTheme(nextOverrides) })
-  }, [derivePreviewTheme, markDirty, overrides, postPreviewMessage, rememberOverrides])
+    postPreviewMessage(createFullThemePreviewCommand(derivePreviewTheme(nextOverrides), undefined, previewContext))
+  }, [derivePreviewTheme, markDirty, overrides, postPreviewMessage, previewContext, rememberOverrides])
 
   const handleSave = useCallback(async () => {
     const savingRevision = revisionRef.current
-    setSaving(true)
-    const result = await publishTheme(restaurantId, previewTheme, templateId)
-    setSaving(false)
+    const savingTheme = previewTheme
+    const savingOverrides = overrides
+    const attempt = prepareThemeDraftSaveAttempt(draftSaveAttemptRef.current, {
+      expectedRevision: draftRevisionRef.current,
+      templateId,
+      theme: savingTheme,
+    })
+    draftSaveAttemptRef.current = attempt
+    setSavingDraft(true)
+    let result: Awaited<ReturnType<typeof saveThemeDraft>>
+    try {
+      result = await saveThemeDraft(restaurantId, {
+        templateId,
+        theme: savingTheme,
+        expectedRevision: draftRevisionRef.current,
+        requestId: attempt.requestId,
+      })
+    } catch {
+      setSavingDraft(false)
+      flashToast('Taslak yanıtı alınamadı; aynı istek güvenle tekrar denenebilir')
+      return
+    }
+    setSavingDraft(false)
 
     if ('error' in result) {
       flashToast(`Hata: ${result.error}`)
       return
     }
 
+    if (result.status === 'conflict') {
+      const revision = result.snapshot?.revision ?? 0
+      flashToast(`Taslak başka bir çalışan tarafından değiştirildi (sürüm ${revision}). Yerel değişikliklerin korundu; sayfayı yenileyip birleştir.`)
+      return
+    }
+
+    draftRevisionRef.current = result.revision
+    publishedRevisionRef.current = result.basedOnPublishedRevision
+    draftSaveAttemptRef.current = null
+    publishAttemptRef.current = null
+    savedThemeRef.current = savingTheme
+    savedOverridesRef.current = savingOverrides
+    setLastSavedAt(new Date(result.savedAt))
+    setHasUnpublishedChanges(result.hasUnpublishedChanges)
+
     if (revisionRef.current !== savingRevision) {
-      flashToast('Kaydedildi; son değişiklikler henüz yayınlanmadı')
+      flashToast('Taslak kaydedildi; son değişiklikler henüz kaydedilmedi')
       return
     }
 
     setHasUnsavedChanges(false)
-    savedThemeRef.current = previewTheme
-    setLastSavedAt(new Date())
-    flashToast('Kaydedildi')
-  }, [flashToast, previewTheme, restaurantId, templateId])
+    flashToast(result.status === 'replayed' ? 'Taslak kaydı doğrulandı' : 'Taslak kaydedildi')
+  }, [flashToast, overrides, previewTheme, restaurantId, templateId])
+
+  const handlePublish = useCallback(async () => {
+    if (authContrastIssues.length > 0) {
+      flashToast('Giriş yüzeyindeki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
+      return
+    }
+    if (checkoutContrastIssues.length > 0) {
+      flashToast('Checkout yüzeyindeki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
+      return
+    }
+    if (hasUnsavedChanges) {
+      flashToast('Yayınlamadan önce değişiklikleri kaydet')
+      return
+    }
+    if (!hasUnpublishedChanges || draftRevisionRef.current <= 0) return
+    const attempt = prepareThemePublishAttempt(publishAttemptRef.current, {
+      expectedDraftRevision: draftRevisionRef.current,
+      expectedPublishedRevision: publishedRevisionRef.current,
+    })
+    publishAttemptRef.current = attempt
+    setPublishing(true)
+    let result: Awaited<ReturnType<typeof publishTheme>>
+    try {
+      result = await publishTheme(restaurantId, {
+        expectedDraftRevision: draftRevisionRef.current,
+        expectedPublishedRevision: publishedRevisionRef.current,
+        requestId: attempt.requestId,
+      })
+    } catch {
+      setPublishing(false)
+      flashToast('Yayın yanıtı alınamadı; aynı istek güvenle tekrar denenebilir')
+      return
+    }
+    setPublishing(false)
+    if ('error' in result) {
+      flashToast(`Hata: ${result.error}`)
+      return
+    }
+    if (result.status === 'draft_conflict') {
+      flashToast(`Taslak başka bir çalışan tarafından değiştirildi (sürüm ${result.snapshot.revision}). Sayfayı yenileyip güncel taslağı kontrol et.`)
+      return
+    }
+    if (result.status === 'conflict') {
+      flashToast(`Canlı Tema başka bir çalışan tarafından yayınlandı (sürüm ${result.snapshot.revision}). Taslağın korundu; güncel sürümü kontrol et.`)
+      return
+    }
+    publishedRevisionRef.current = result.revision
+    publishAttemptRef.current = null
+    setLastPublishedAt(new Date(result.publishedAt))
+    setHasUnpublishedChanges(false)
+    flashToast(result.status === 'replayed' ? 'Yayın doğrulandı' : 'Tema yayınlandı')
+  }, [authContrastIssues.length, checkoutContrastIssues.length, flashToast, hasUnpublishedChanges, hasUnsavedChanges, restaurantId])
 
   const unsavedFieldLabels = useMemo(
     () => getUnsavedFieldLabels(hasUnsavedChanges, schema, previewTheme, savedThemeRef.current),
@@ -207,10 +312,17 @@ export function useThemeEditorLifecycle({
     iframeRef,
     previewStatus,
     reloadPreviewFrame,
-    saving,
+    handlePreviewFrameLoad,
+    handlePreviewFrameError,
+    savingDraft,
+    publishing,
     toast,
     hasUnsavedChanges,
     lastSavedAt,
+    lastPublishedAt,
+    hasUnpublishedChanges,
+    authContrastIssues,
+    checkoutContrastIssues,
     unsavedFieldLabels,
     canUndo: undoStack.length > 0,
     canRedo: redoStack.length > 0,
@@ -220,5 +332,6 @@ export function useThemeEditorLifecycle({
     handleFieldChange,
     updateThemePatch,
     handleSave,
+    handlePublish,
   }
 }

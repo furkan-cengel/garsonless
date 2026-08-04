@@ -6,12 +6,14 @@ import {
   changeThemePreviewScale,
   getFittedThemePreviewScale,
   getThemeEditorWorkspaceLayout,
+  type ThemeEditorSurface,
 } from './theme-editor-workspace-model'
 
 export function useThemeEditorWorkspace(previewUrl: string) {
   const [previewMode, setPreviewMode] = useState<ThemePreviewMode>('mobile')
   const [previewScale, setPreviewScale] = useState(1)
   const [viewportWidth, setViewportWidth] = useState(0)
+  const [activeSurface, setActiveSurface] = useState<ThemeEditorSurface>('preview')
 
   useEffect(() => {
     const update = () => setViewportWidth(window.innerWidth)
@@ -29,6 +31,11 @@ export function useThemeEditorWorkspace(previewUrl: string) {
     setPreviewScale((current) => changeThemePreviewScale(current, delta))
   }, [])
 
+  useEffect(() => {
+    if (!layout.taskBased) return
+    setPreviewScale(getFittedThemePreviewScale(previewMode, layout.viewport))
+  }, [layout.taskBased, layout.viewport, previewMode])
+
   const fitPreview = useCallback(() => {
     setPreviewScale(getFittedThemePreviewScale(previewMode, layout.viewport))
   }, [layout.viewport, previewMode])
@@ -42,6 +49,8 @@ export function useThemeEditorWorkspace(previewUrl: string) {
     setPreviewMode,
     previewScale,
     layout,
+    activeSurface,
+    setActiveSurface,
     changeZoom,
     fitPreview,
     openPreview,

@@ -30,7 +30,7 @@ export function ThemePropertiesFrame({
   width,
 }: Props) {
   return (
-    <aside style={{
+    <aside aria-labelledby="theme-editor-properties-heading" style={{
       width,
       flexShrink: 0,
       borderLeft: '1px solid var(--border)',
@@ -42,7 +42,7 @@ export function ThemePropertiesFrame({
       <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--divider)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{title}</div>
+            <h2 id="theme-editor-properties-heading" style={{ margin: 0, fontWeight: 700, fontSize: 14, lineHeight: 1.25, color: 'var(--text)' }}>{title}</h2>
             <div style={{ marginTop: 2, fontSize: 12, color: 'var(--text-3)' }}>{subtitle}</div>
           </div>
           <div style={{ display: 'flex', gap: 4, color: 'var(--text-3)' }}>{headerActions}</div>

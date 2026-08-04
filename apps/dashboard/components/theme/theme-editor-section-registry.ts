@@ -1,21 +1,44 @@
 import type { SectionSettingField } from './theme-editor-properties-model'
+import type { ThemeSectionOption } from './ThemeEditorDialogs'
 import { CHEF_SECTION_ICON_OPTIONS } from '@garsonless/ui'
 
+type ThemeSectionCatalogItem = ThemeSectionOption & {
+  surfaces: readonly ('menu' | 'home')[]
+}
+
 export const SECTION_LIBRARY = [
-  { id: 'hero-banner', group: 'Üst Bölümler', label: 'Hero Banner', sub: 'Tam genişlik kampanya görseli + CTA', icon: 'image', plan: 'free', status: 'ready' },
-  { id: 'promo-strip', group: 'Üst Bölümler', label: 'Promo Şeridi', sub: 'Kayan duyuru bandı', icon: 'megaphone', plan: 'free', status: 'ready' },
-  { id: 'featured-scroll', group: 'Ürün Gösterimi', label: 'Öne Çıkanlar', sub: 'Yatay kaydırılabilir ürün vitrini', icon: 'arrow', plan: 'pro', status: 'ready' },
-  { id: 'chef-pick', group: 'Ürün Gösterimi', label: "Şef'in Seçimi", sub: 'İmza tabaklar ve şef notu', icon: 'cutlery', plan: 'pro', status: 'ready' },
-  { id: 'combo-ribbon', group: 'Promosyon', label: 'Kombo Şerit', sub: 'Gerçek ürünlerden oluşan birlikte al paketleri', icon: 'gift', plan: 'pro', status: 'ready' },
-  { id: 'discount-badge', group: 'Promosyon', label: 'İndirim Rozeti', sub: 'Seçili ürüne özel, sunucuda doğrulanan kampanya', icon: 'tag', plan: 'pro', status: 'ready' },
-  { id: 'daily-special', group: 'Promosyon', label: 'Günün Özeli', sub: 'Tek ürün + şef notu + sayaç', icon: 'clock', plan: 'free', status: 'ready' },
-  { id: 'promo-slider', group: 'Promosyon', label: 'Kampanya Slider', sub: 'Dönen kampanya kartları (kupon, flash, combo…)', icon: 'section', plan: 'pro', status: 'ready' },
-  { id: 'gallery', group: 'Bağlam', label: 'Foto Galerisi', sub: 'Mekan kareleri grid görünümü', icon: 'image', plan: 'pro', status: 'ready' },
-  { id: 'request-buttons', group: 'Etkileşim', label: 'İstek Butonları', sub: 'Masadan ekibe iletilen özelleştirilebilir hızlı istekler', icon: 'bell', plan: 'pro', status: 'ready', singleton: true, global: true },
-  { id: 'hours', group: 'Bağlam', label: 'Çalışma Saatleri', sub: 'İşletme ayarlarındaki güncel saatler', icon: 'clock', plan: 'free', status: 'ready' },
-  { id: 'wifi-info', group: 'Etkileşim', label: 'Wi-Fi Bilgisi', sub: 'Menü çekmecesinde güvenli ağ paylaşımı', icon: 'globe', plan: 'free', status: 'ready' },
-] as const
-export const SECTION_LIBRARY_IDS = SECTION_LIBRARY.map((section) => section.id)
+  { id: 'hero-banner', group: 'Üst Bölümler', label: 'Hero Banner', sub: 'Tam genişlik kampanya görseli + CTA', icon: 'image', plan: 'free', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'promo-strip', group: 'Üst Bölümler', label: 'Promo Şeridi', sub: 'Kayan duyuru bandı', icon: 'megaphone', plan: 'free', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'featured-scroll', group: 'Ürün Gösterimi', label: 'Öne Çıkanlar', sub: 'Yatay kaydırılabilir ürün vitrini', icon: 'arrow', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'chef-pick', group: 'Ürün Gösterimi', label: "Şef'in Seçimi", sub: 'İmza tabaklar ve şef notu', icon: 'cutlery', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'combo-ribbon', group: 'Promosyon', label: 'Kombo Şerit', sub: 'Gerçek ürünlerden oluşan birlikte al paketleri', icon: 'gift', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'discount-badge', group: 'Promosyon', label: 'İndirim Rozeti', sub: 'Seçili ürüne özel, sunucuda doğrulanan kampanya', icon: 'tag', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'daily-special', group: 'Promosyon', label: 'Günün Özeli', sub: 'Tek ürün + şef notu + sayaç', icon: 'clock', plan: 'free', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'promo-slider', group: 'Promosyon', label: 'Kampanya Slider', sub: 'Dönen kampanya kartları (kupon, flash, combo…)', icon: 'section', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'gallery', group: 'Bağlam', label: 'Foto Galerisi', sub: 'Mekan kareleri grid görünümü', icon: 'image', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'request-buttons', group: 'Etkileşim', label: 'İstek Butonları', sub: 'Masadan ekibe iletilen özelleştirilebilir hızlı istekler', icon: 'bell', plan: 'pro', status: 'ready', singleton: true, global: true, surfaces: ['menu'] },
+  { id: 'hours', group: 'Bağlam', label: 'Çalışma Saatleri', sub: 'İşletme ayarlarındaki güncel saatler', icon: 'clock', plan: 'free', status: 'ready', surfaces: ['menu'] },
+  { id: 'wifi-info', group: 'Etkileşim', label: 'Wi-Fi Bilgisi', sub: 'Menü çekmecesinde güvenli ağ paylaşımı', icon: 'globe', plan: 'free', status: 'ready', surfaces: ['menu'] },
+] as const satisfies readonly ThemeSectionCatalogItem[]
+const HOME_EXCLUDED_SECTION_IDS = new Set(['request-buttons', 'hours', 'wifi-info'])
+const HOME_VIDEO_SECTION = {
+  id: 'storefront-video-hero',
+  group: 'Üst Bölümler',
+  label: 'Video Hero',
+  sub: 'Poster destekli, sessiz ve döngülü Pro hero videosu',
+  icon: 'play',
+  plan: 'pro',
+  status: 'ready',
+  surfaces: ['home'],
+} as const satisfies ThemeSectionCatalogItem
+export const MENU_SECTION_LIBRARY = SECTION_LIBRARY
+export const HOME_SECTION_LIBRARY: readonly ThemeSectionCatalogItem[] = SECTION_LIBRARY.reduce<ThemeSectionCatalogItem[]>((catalog, section) => {
+  if (HOME_EXCLUDED_SECTION_IDS.has(section.id)) return catalog
+  catalog.push(section)
+  if (section.id === 'hero-banner') catalog.push(HOME_VIDEO_SECTION)
+  return catalog
+}, [])
+export const SECTION_LIBRARY_IDS = MENU_SECTION_LIBRARY.map((section) => section.id)
 export const SECTION_GROUPS = ['Tümü', 'Üst Bölümler', 'Ürün Gösterimi', 'Promosyon', 'Bağlam', 'Etkileşim'] as const
 export const FOOD_ICON_OPTIONS = [
   { value: '🍳', label: 'Sahanda Yumurta' },
@@ -104,6 +127,111 @@ const SERVICE_REQUEST_ICON_OPTIONS = [
   { value: 'none', label: 'İkonsuz' },
 ]
 export const SECTION_SETTING_SCHEMA: Record<string, SectionSettingField[]> = {
+  'storefront-hero': [
+    { key: 'showStatus', label: 'Açık / kapalı durumunu göster', type: 'toggle', editorTab: 'content', default: true },
+    { key: 'showEyebrow', label: 'Üst metni göster', type: 'toggle', editorTab: 'content', default: true },
+    { key: 'eyebrow', label: 'Üst metin', type: 'text', editorTab: 'content', placeholder: 'HOŞ GELDİNİZ' },
+    { key: 'showTitle', label: 'Başlığı göster', type: 'toggle', editorTab: 'content', default: true },
+    { key: 'title', label: 'Başlık', type: 'text', editorTab: 'content', placeholder: 'İşletme adı otomatik' },
+    { key: 'showBody', label: 'Açıklamayı göster', type: 'toggle', editorTab: 'content', default: true },
+    { key: 'body', label: 'Açıklama', type: 'textarea', editorTab: 'content', placeholder: 'Mutfağınızı ve hikâyenizi anlatın.' },
+    { key: 'showCta', label: 'Menü butonunu göster', type: 'toggle', editorTab: 'content', default: true },
+    { key: 'cta', label: 'Menü butonu', type: 'text', editorTab: 'content', placeholder: 'Menüyü Gör' },
+    { key: 'imageFit', label: 'Görsel uyumu', type: 'select', editorTab: 'design', default: 'cover', options: [
+      { value: 'cover', label: 'Alanı doldur' },
+      { value: 'contain', label: 'Görselin tamamı' },
+    ] },
+    { key: 'imagePosition', label: 'Odak noktası', type: 'select', editorTab: 'design', default: 'center', options: [
+      { value: 'center', label: 'Orta' }, { value: 'top', label: 'Üst' }, { value: 'bottom', label: 'Alt' },
+      { value: 'left', label: 'Sol' }, { value: 'right', label: 'Sağ' },
+    ] },
+    { key: 'overlay', label: 'Medya karartması', type: 'range', editorTab: 'design', min: 0, max: 80, step: 5, unit: '%', default: 42 },
+    { key: 'textColor', label: 'Metin rengi', type: 'color', editorTab: 'design', placeholder: '#ffffff' },
+    { key: 'align', label: 'Metin hizası', type: 'select', editorTab: 'layout', default: 'left', options: [
+      { value: 'left', label: 'Sol' }, { value: 'center', label: 'Orta' }, { value: 'right', label: 'Sağ' },
+    ] },
+    { key: 'contentPositionX', label: 'Yatay konum', type: 'range', editorTab: 'layout', min: 0, max: 100, step: 5, unit: '%', default: 0 },
+    { key: 'contentPositionY', label: 'Dikey konum', type: 'range', editorTab: 'layout', min: 0, max: 100, step: 5, unit: '%', default: 100 },
+    { key: 'height', label: 'Yükseklik', type: 'range', editorTab: 'layout', min: 420, max: 820, step: 20, unit: 'px', default: 640 },
+    { key: 'contentWidth', label: 'İçerik genişliği', type: 'range', editorTab: 'layout', min: 320, max: 760, step: 20, unit: 'px', default: 620 },
+  ],
+  'storefront-video-hero': [
+    { key: 'showStatus', label: 'Açık / kapalı durumunu göster', type: 'toggle', editorTab: 'content', default: true },
+    { key: 'showEyebrow', label: 'Üst metni göster', type: 'toggle', editorTab: 'content', default: true },
+    { key: 'eyebrow', label: 'Üst metin', type: 'text', editorTab: 'content', placeholder: 'HOŞ GELDİNİZ' },
+    { key: 'showTitle', label: 'Başlığı göster', type: 'toggle', editorTab: 'content', default: true },
+    { key: 'title', label: 'Başlık', type: 'text', editorTab: 'content', placeholder: 'İşletme adı otomatik' },
+    { key: 'showBody', label: 'Açıklamayı göster', type: 'toggle', editorTab: 'content', default: true },
+    { key: 'body', label: 'Açıklama', type: 'textarea', editorTab: 'content', placeholder: 'Mutfağınızı ve hikâyenizi anlatın.' },
+    { key: 'showCta', label: 'Menü butonunu göster', type: 'toggle', editorTab: 'content', default: true },
+    { key: 'cta', label: 'Menü butonu', type: 'text', editorTab: 'content', placeholder: 'Menüyü Gör' },
+    { key: 'imageFit', label: 'Video uyumu', type: 'select', editorTab: 'design', default: 'cover', options: [
+      { value: 'cover', label: 'Alanı doldur' },
+      { value: 'contain', label: 'Videonun tamamı' },
+    ] },
+    { key: 'imagePosition', label: 'Odak noktası', type: 'select', editorTab: 'design', default: 'center', options: [
+      { value: 'center', label: 'Orta' }, { value: 'top', label: 'Üst' }, { value: 'bottom', label: 'Alt' },
+      { value: 'left', label: 'Sol' }, { value: 'right', label: 'Sağ' },
+    ] },
+    { key: 'overlay', label: 'Video karartması', type: 'range', editorTab: 'design', min: 0, max: 80, step: 5, unit: '%', default: 42 },
+    { key: 'textColor', label: 'Metin rengi', type: 'color', editorTab: 'design', placeholder: '#ffffff' },
+    { key: 'align', label: 'Metin hizası', type: 'select', editorTab: 'layout', default: 'left', options: [
+      { value: 'left', label: 'Sol' }, { value: 'center', label: 'Orta' }, { value: 'right', label: 'Sağ' },
+    ] },
+    { key: 'contentPositionX', label: 'Yatay konum', type: 'range', editorTab: 'layout', min: 0, max: 100, step: 5, unit: '%', default: 0 },
+    { key: 'contentPositionY', label: 'Dikey konum', type: 'range', editorTab: 'layout', min: 0, max: 100, step: 5, unit: '%', default: 100 },
+    { key: 'height', label: 'Yükseklik', type: 'range', editorTab: 'layout', min: 420, max: 820, step: 20, unit: 'px', default: 640 },
+    { key: 'contentWidth', label: 'İçerik genişliği', type: 'range', editorTab: 'layout', min: 320, max: 760, step: 20, unit: 'px', default: 620 },
+  ],
+  story: [
+    { key: 'eyebrow', label: 'Üst metin', type: 'text', editorTab: 'content', placeholder: 'BİZİ TANIYIN' },
+    { key: 'title', label: 'Başlık', type: 'text', editorTab: 'content', placeholder: 'Hakkımızda' },
+    { key: 'body', label: 'Tanıtım metni', type: 'textarea', editorTab: 'content', placeholder: 'İşletmenizi, mutfağınızı ve yaklaşımınızı anlatın.' },
+    { key: 'imageFit', label: 'Görsel uyumu', type: 'select', editorTab: 'design', default: 'cover', options: [
+      { value: 'cover', label: 'Alanı doldur' }, { value: 'contain', label: 'Görselin tamamı' },
+    ] },
+    { key: 'imagePosition', label: 'Görsel odağı', type: 'select', editorTab: 'design', default: 'center', options: [
+      { value: 'center', label: 'Orta' }, { value: 'top', label: 'Üst' }, { value: 'bottom', label: 'Alt' },
+    ] },
+    { key: 'layout', label: 'Yerleşim', type: 'select', editorTab: 'layout', default: 'media-right', options: [
+      { value: 'media-right', label: 'Görsel sağda' }, { value: 'media-left', label: 'Görsel solda' }, { value: 'text-only', label: 'Yalnız metin' },
+    ] },
+  ],
+  'featured-categories': [
+    { key: 'eyebrow', label: 'Üst metin', type: 'text', editorTab: 'content', placeholder: 'MENÜDEN' },
+    { key: 'title', label: 'Başlık', type: 'text', editorTab: 'content', placeholder: 'Menüden seçtiklerimiz' },
+    { key: 'body', label: 'Açıklama', type: 'textarea', editorTab: 'content', placeholder: 'Öne çıkan kategorileri keşfedin.' },
+    { key: 'category1Id', label: 'Kategori 1', type: 'category-select', editorTab: 'content' },
+    { key: 'category2Id', label: 'Kategori 2', type: 'category-select', editorTab: 'content' },
+    { key: 'category3Id', label: 'Kategori 3', type: 'category-select', editorTab: 'content' },
+    { key: 'category4Id', label: 'Kategori 4', type: 'category-select', editorTab: 'content' },
+    { key: 'columns', label: 'Sütun', type: 'select', editorTab: 'layout', default: '4', options: [
+      { value: '2', label: '2 sütun' }, { value: '3', label: '3 sütun' }, { value: '4', label: '4 sütun' },
+    ] },
+    { key: 'cardHeight', label: 'Kart yüksekliği', type: 'range', editorTab: 'layout', min: 140, max: 300, step: 10, unit: 'px', default: 210 },
+  ],
+  'loyalty-teaser': [
+    { key: 'eyebrow', label: 'Üst metin', type: 'text', editorTab: 'content', placeholder: 'MASABU HESABI' },
+    { key: 'title', label: 'Başlık', type: 'text', editorTab: 'content', placeholder: 'Her ziyaretin değerli' },
+    { key: 'guestBody', label: 'Misafir açıklaması', type: 'textarea', editorTab: 'content', placeholder: 'Favorilerini ve avantajlarını tek yerde tut.' },
+    { key: 'memberBody', label: 'Üye açıklaması', type: 'textarea', editorTab: 'content', placeholder: 'Avantajlarını ve geçmişini görüntüle.' },
+    { key: 'cta', label: 'Buton metni', type: 'text', editorTab: 'content', placeholder: 'Hesabımı aç' },
+    { key: 'tone', label: 'Görünüm', type: 'select', editorTab: 'design', default: 'brand', options: [
+      { value: 'brand', label: 'Marka' }, { value: 'dark', label: 'Koyu' }, { value: 'surface', label: 'Açık yüzey' },
+    ] },
+  ],
+  'menu-cta': [
+    { key: 'eyebrow', label: 'Üst metin', type: 'text', editorTab: 'content', placeholder: 'MASANIZ HAZIR' },
+    { key: 'title', label: 'Başlık', type: 'text', editorTab: 'content', placeholder: 'Menüyü keşfetmeye hazır mısınız?' },
+    { key: 'body', label: 'Açıklama', type: 'textarea', editorTab: 'content', placeholder: 'Güncel ürünleri ve lezzetleri görüntüleyin.' },
+    { key: 'cta', label: 'Menü butonu', type: 'text', editorTab: 'content', placeholder: 'Menüyü Gör' },
+    { key: 'tone', label: 'Görünüm', type: 'select', editorTab: 'design', default: 'dark', options: [
+      { value: 'brand', label: 'Marka' }, { value: 'dark', label: 'Koyu' }, { value: 'surface', label: 'Açık yüzey' },
+    ] },
+    { key: 'align', label: 'Hizalama', type: 'select', editorTab: 'layout', default: 'center', options: [
+      { value: 'left', label: 'Sol' }, { value: 'center', label: 'Orta' },
+    ] },
+  ],
   'wifi-info': [
     { key: 'networkName', label: 'Ağ Adı', type: 'text', editorTab: 'content', placeholder: 'Örn. MAF Guest' },
     { key: 'password', label: 'Wi-Fi Şifresi', type: 'text', editorTab: 'content', placeholder: 'Misafir ağı şifresi' },

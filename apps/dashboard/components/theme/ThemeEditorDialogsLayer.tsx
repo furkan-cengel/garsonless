@@ -11,7 +11,7 @@ import {
   type ThemeEditorPreviewCategory,
   type ThemeEditorPreviewItem,
 } from './CanonicalSectionPreview'
-import { SECTION_GROUPS, SECTION_LIBRARY } from './theme-editor-section-registry'
+import { SECTION_GROUPS } from './theme-editor-section-registry'
 
 interface ThemeEditorDialogsLayerProps {
   sectionPickerOpen: boolean
@@ -22,8 +22,11 @@ interface ThemeEditorDialogsLayerProps {
   menuCategories: ThemeEditorPreviewCategory[]
   menuItems: ThemeEditorPreviewItem[]
   sectionSearch: string
+  surface: 'menu' | 'home'
   sectionGroup: (typeof SECTION_GROUPS)[number]
   filteredSections: readonly ThemeSectionOption[]
+  sections: readonly ThemeSectionOption[]
+  groups: readonly string[]
   activeSections: readonly string[]
   canAddAdvancedSections: boolean
   setSectionSearch: Dispatch<SetStateAction<string>>
@@ -42,8 +45,11 @@ export function ThemeEditorDialogsLayer({
   menuCategories,
   menuItems,
   sectionSearch,
+  surface,
   sectionGroup,
   filteredSections,
+  sections,
+  groups,
   activeSections,
   canAddAdvancedSections,
   setSectionSearch,
@@ -56,11 +62,12 @@ export function ThemeEditorDialogsLayer({
     <>
       {sectionPickerOpen && (
         <SectionPickerDialog
+          surface={surface}
           closeRef={sectionCloseRef}
           search={sectionSearch}
           activeGroup={sectionGroup}
-          groups={SECTION_GROUPS}
-          sections={SECTION_LIBRARY}
+          groups={groups}
+          sections={sections}
           visibleSections={filteredSections}
           activeSectionIds={activeSections}
           canAddAdvancedSections={canAddAdvancedSections}
@@ -71,6 +78,7 @@ export function ThemeEditorDialogsLayer({
           onClose={onSectionClose}
           renderPreview={(sectionId, compact) => (
             <CanonicalSectionPreview
+              surface={surface}
               sectionId={sectionId}
               theme={previewTheme}
               restaurantName={restaurantName}

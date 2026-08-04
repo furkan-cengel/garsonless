@@ -37,6 +37,14 @@ const lifecycleSource = readFileSync(
   `${directory}/use-theme-editor-lifecycle.ts`,
   "utf8",
 );
+const publishContractSource = readFileSync(
+  `${directory}/theme-publish-contract.ts`,
+  "utf8",
+);
+const publishActionSource = readFileSync(
+  `${directory}/../../lib/actions/theme.ts`,
+  "utf8",
+);
 const workspaceSource = readFileSync(
   `${directory}/use-theme-editor-workspace.ts`,
   "utf8",
@@ -46,6 +54,16 @@ const workspaceModelSource = readFileSync(
   "utf8",
 );
 const canvasSource = readFileSync(`${directory}/ThemeEditorCanvas.tsx`, "utf8");
+const topbarSource = readFileSync(`${directory}/ThemeEditorTopbar.tsx`, "utf8");
+const propertiesFrameSource = readFileSync(`${directory}/ThemePropertiesFrame.tsx`, "utf8");
+const previewSurfaceSource = readFileSync(
+  `${directory}/ThemePreviewSurface.tsx`,
+  "utf8",
+);
+const previewBridgeSource = readFileSync(
+  `${directory}/use-theme-preview-bridge.ts`,
+  "utf8",
+);
 const propertiesWorkspaceSource = readFileSync(
   `${directory}/ThemeEditorPropertiesWorkspace.tsx`,
   "utf8",
@@ -346,7 +364,7 @@ test("theme editor orchestrator delegates picker dialogs to views and navigation
   );
   assert.match(dialogsLayerSource, /<SectionPickerDialog/);
   assert.doesNotMatch(dialogsLayerSource, /TemplatePickerDialog|ThemeTemplateOption/);
-  assert.match(clientSource, /canAddAdvancedSections: boolean/);
+  assert.match(clientSource, /canAddAdvancedSections,/);
   assert.doesNotMatch(clientSource, /canUseFeature\(/);
   assert.match(dialogsLayerSource, /canAddAdvancedSections/);
   assert.match(clientSource, /Bu bölüm Pro pakette kullanılabilir/);
@@ -356,9 +374,21 @@ test("theme editor orchestrator delegates picker dialogs to views and navigation
     clientSource,
     /setTemplatePickerOpen|setSectionPickerOpen|lastFocusedBeforeDialogRef/,
   );
-  assert.match(dialogsSource, /function trapDialogFocus/);
-  assert.match(dialogsSource, /aria-labelledby="section-picker-title"/);
+  assert.match(dialogsSource, /import \{ AccessibleDialog \}/);
+  assert.match(dialogsSource, /<AccessibleDialog/);
+  assert.match(dialogsSource, /labelledBy="section-picker-title"/);
+  assert.doesNotMatch(dialogsSource, /function trapDialogFocus/);
+  assert.match(dialogsSource, /className="section-picker-card-select"/);
+  assert.doesNotMatch(dialogsSource, /<button[\s\S]{0,120}className="section-picker-card"/);
+  assert.match(dialogsSource, /data-modal-initial-focus/);
   assert.match(dialogsSource, /aria-label="Eklenecek bölüm ara"/);
+  assert.match(dialogsSource, /className="section-picker-chip-row"/);
+  assert.match(dialogsSource, /\.section-picker-chip-row \{[\s\S]*?max-width: 100% !important/);
+  assert.match(dialogsSource, /\.section-picker-chip-row \{[\s\S]*?overflow-x: auto !important/);
+  assert.match(dialogsSource, /\.section-picker-catalog \{[\s\S]*?overscroll-behavior: contain/);
+  assert.match(dialogsSource, /\.section-picker-card \{[\s\S]*?min-height: 236px !important/);
+  assert.match(dialogsSource, /\.section-picker-card-meta \{[\s\S]*?flex: 0 0 auto !important/);
+  assert.doesNotMatch(dialogsSource, /\.section-picker-card \{[\s\S]{0,120}min-height: 0 !important/);
   assert.match(
     dialogsSource,
     /const primaryDisabled = !selected \|\| selectedPlanned \|\| Boolean\(selected\.singleton && selectedExists\)/,
@@ -413,7 +443,7 @@ test("global footer replaces announcement and retired addable footer blocks", ()
   assert.doesNotMatch(propertyPanelsSource, /AnnouncementPropertyPanel/);
   assert.doesNotMatch(sectionRegistrySource, /id: 'social-block'|id: 'footer'/);
   assert.match(clientSource, /useThemeEditorDrawerPreview/);
-  assert.match(footerPreviewSource, /SCROLL_TO_COMPONENT/);
+  assert.match(footerPreviewSource, /createScrollToThemeComponentCommand/);
 });
 
 test("theme editor orchestrator imports static section definitions from a typed registry", () => {
@@ -445,6 +475,25 @@ test("theme editor lifecycle owns draft history, preview bridge and publishing",
   assert.match(lifecycleSource, /appendHistorySnapshot/);
 });
 
+test("theme draft save and publish carry independent revisions and stable request ids", () => {
+  assert.match(lifecycleSource, /draftRevisionRef = useRef\(initialDraftRevision\)/);
+  assert.match(lifecycleSource, /publishedRevisionRef = useRef\(initialPublishedRevision\)/);
+  assert.match(lifecycleSource, /prepareThemeDraftSaveAttempt/);
+  assert.match(lifecycleSource, /prepareThemePublishAttempt/);
+  assert.match(lifecycleSource, /expectedRevision: draftRevisionRef\.current/);
+  assert.match(lifecycleSource, /expectedDraftRevision: draftRevisionRef\.current/);
+  assert.match(lifecycleSource, /expectedPublishedRevision: publishedRevisionRef\.current/);
+  assert.match(lifecycleSource, /requestId: attempt\.requestId/);
+  assert.match(lifecycleSource, /result\.status === 'draft_conflict'/);
+  assert.match(lifecycleSource, /result\.status === 'conflict'/);
+  assert.match(lifecycleSource, /publishedRevisionRef\.current = result\.revision/);
+  assert.match(publishContractSource, /current\?\.fingerprint === fingerprint/);
+  assert.match(publishActionSource, /expectedRevision: z\.number\(\)\.int\(\)\.nonnegative\(\)\.safe\(\)/);
+  assert.match(publishActionSource, /expectedDraftRevision: z\.number\(\)\.int\(\)\.positive\(\)\.safe\(\)/);
+  assert.match(publishActionSource, /requestId: z\.string\(\)\.uuid\(\)/);
+  assert.match(publishActionSource, /result\.value\.status === 'published'/);
+});
+
 test("theme editor delegates responsive preview workspace state to its controller", () => {
   assert.match(clientSource, /useThemeEditorWorkspace/);
   assert.doesNotMatch(
@@ -454,6 +503,14 @@ test("theme editor delegates responsive preview workspace state to its controlle
   assert.match(workspaceSource, /getThemeEditorWorkspaceLayout/);
   assert.match(workspaceSource, /changeThemePreviewScale/);
   assert.match(workspaceSource, /getFittedThemePreviewScale/);
+  assert.match(workspaceSource, /useState<ThemeEditorSurface>\('preview'\)/);
+  assert.match(clientSource, /taskBased=\{taskBased\}/);
+  assert.match(shellSource, /aria-label="Tema düzenleme çalışma alanı"/);
+  assert.match(shellSource, /event\.key === 'ArrowRight'/);
+  assert.match(shellSource, /event\.key === 'ArrowLeft'/);
+  assert.match(shellSource, /event\.key === 'Home'/);
+  assert.match(shellSource, /event\.key === 'End'/);
+  assert.doesNotMatch(shellSource, /overflowX: allowHorizontalOverflow/);
   assert.doesNotMatch(
     workspaceSource,
     /lib\/actions|createClient|supabase|restaurantId/i,
@@ -472,13 +529,47 @@ test("theme editor delegates preview canvas and device frame markup to a present
   );
   assert.match(canvasSource, /export function ThemeEditorCanvas/);
   assert.match(canvasSource, /<ThemePreviewSurface/);
+  assert.match(canvasSource, /Güncelleme gecikti/);
+  assert.match(canvasSource, /onPreviewRetry/);
+  assert.match(previewSurfaceSource, /title="Menü tema önizlemesi"/);
+  assert.match(previewSurfaceSource, /sandbox="allow-scripts allow-same-origin allow-forms"/);
+  assert.match(previewSurfaceSource, /Önizleme yüklenemedi/);
+  assert.match(previewSurfaceSource, /Yeniden dene/);
+  assert.match(previewSurfaceSource, /onLoad=\{onLoad\}/);
+  assert.match(previewSurfaceSource, /onError=\{onError\}/);
+  assert.match(previewBridgeSource, /if \(targetOrigin\) armFallback\(\)/);
   assert.match(canvasSource, /function PreviewFrame/);
+  assert.match(canvasSource, /<ThemeExperienceSurfaceSelector/);
+  assert.doesNotMatch(topbarSource, /<ThemeExperienceSurfaceSelector/);
+  assert.match(canvasSource, /data-theme-editor-preview-toolbar/);
+  assert.match(canvasSource, /zIndex: 40/);
   assert.match(canvasSource, /aria-label="Önizlemeyi küçült"/);
   assert.match(canvasSource, /aria-label="Önizlemeyi büyüt"/);
+  assert.match(canvasSource, /const zoomButtonStyle[\s\S]*?width: 32,[\s\S]*?height: 32,/);
   assert.doesNotMatch(
     canvasSource,
     /lib\/actions|createClient|supabase|restaurantId/i,
   );
+});
+
+test("theme editor exposes one page heading and ordered panel headings", () => {
+  assert.match(topbarSource, /<h1[\s\S]*?id="theme-editor-title"/);
+  assert.match(topbarSource, /aria-label=\{`\$\{restaurantName\} Tema Düzenleyici`\}/);
+  assert.match(topbarSource, /gridTemplateColumns: 'minmax\(0, 1fr\) auto minmax\(0, 1fr\)'/);
+  assert.match(topbarSource, /data-theme-editor-change-count/);
+  assert.match(topbarSource, /visibility: hasUnsavedChanges \? 'visible' : 'hidden'/);
+  assert.equal((topbarSource.match(/<h1\b/g) ?? []).length, 1);
+  assert.match(sidebarSource, /<aside aria-labelledby="theme-editor-page-heading"/);
+  assert.match(sidebarSource, /<h2 id="theme-editor-page-heading"/);
+  assert.match(sidebarSource, /<h3 style=\{navGroupLabelStyle\}>/);
+  assert.match(canvasSource, /role="region" aria-labelledby="theme-editor-preview-heading"/);
+  assert.match(canvasSource, /<h2 id="theme-editor-preview-heading"/);
+  assert.match(propertiesFrameSource, /<aside aria-labelledby="theme-editor-properties-heading"/);
+  assert.match(propertiesFrameSource, /<h2 id="theme-editor-properties-heading"/);
+  assert.match(propertyControlsSource, /<h3 style=\{\{ margin: 0 \}\}>/);
+  assert.match(propertyControlsSource, /aria-expanded=\{open\}/);
+  assert.match(propertyControlsSource, /aria-controls=\{contentId\}/);
+  assert.match(propertyControlsSource, /id=\{contentId\} hidden=\{!open\}/);
 });
 
 test("theme editor delegates property workspace composition to a tenant-agnostic view", () => {
@@ -571,6 +662,8 @@ test("theme editor delegates shell projections, toast view and navigation catalo
   assert.doesNotMatch(toastSource, /useState|useEffect|lib\/actions|supabase/i);
   assert.match(shellSource, /<ThemeEditorToast/);
   assert.match(shellSource, /data-theme-editor-root/);
+  assert.doesNotMatch(shellSource, /min-height: 44px !important/);
+  assert.doesNotMatch(shellSource, /min-width: 44px !important/);
   assert.match(shellSource, /prefers-reduced-motion/);
   assert.doesNotMatch(
     shellSource,

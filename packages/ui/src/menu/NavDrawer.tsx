@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { MenuActionPlacements, ThemePageBlock } from '@garsonless/design-engine'
-import { getSectionDefinitionId, resolveMenuActionPlacements } from '@garsonless/design-engine'
+import { getSectionDefinitionId } from '@garsonless/design-engine/section-blocks'
+import { resolveMenuActionPlacements } from '@garsonless/design-engine/menu-action-placement'
 import { AppIcons as I } from '../icons'
 import type { MenuCategory } from './types'
 import type { StoreInfo } from '../themes/types'
@@ -32,6 +33,7 @@ interface NavDrawerProps {
   cartSummary?: { count: number; subtotal: number } | undefined
   onOpenCart?: (() => void) | undefined
   memberSummary?: {
+    authenticated?: boolean
     name: string | null
     stampEnabled?: boolean
     pointsEnabled?: boolean
@@ -105,9 +107,7 @@ export function NavDrawer({
     : tableId
       ? `Masa ${tableId.slice(0, 4).toUpperCase()}`
       : null
-  const memberIsMember = Boolean(memberSummary && (
-    memberSummary.stampEnabled !== undefined || memberSummary.pointsEnabled !== undefined
-  ))
+  const memberIsMember = memberSummary?.authenticated === true
 
   useEffect(() => {
     onCloseRef.current = onClose
@@ -324,17 +324,17 @@ export function NavDrawer({
         </nav>
         {(
           (placements.cart === 'drawer' && onOpenCart) ||
-          (placements.member === 'drawer' && onOpenMember) ||
+          onOpenMember ||
           (placements.service === 'drawer' && requestBlock && (onOpenServiceRequests || onServiceRequest))
         ) && (
           <footer data-drawer-footer>
             <div data-customer-links>
-              {placements.member === 'drawer' && onOpenMember && (
+              {onOpenMember && (
                 <button type="button" onClick={() => { onClose(); onOpenMember() }}>
                   {memberIsMember
                     ? <I.userCircle size={18} strokeWidth={1.9} />
                     : <I.userPlus size={18} strokeWidth={1.9} />}
-                  {memberSummary?.name || (memberIsMember ? 'Üyelik' : 'Üye ol')}
+                  {memberIsMember ? (memberSummary?.name || 'Hesabım') : 'Hesap ve üyelik'}
                 </button>
               )}
               {placements.cart === 'drawer' && onOpenCart && (

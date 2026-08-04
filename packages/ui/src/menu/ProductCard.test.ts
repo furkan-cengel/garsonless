@@ -4,6 +4,12 @@ import test from 'node:test'
 
 const source = readFileSync(new URL('./ProductCard.tsx', import.meta.url), 'utf8')
 
+test('quantity stepper keeps compact controls', () => {
+  assert.match(source, /const btnSz = narrow \? 24 : 28/)
+  assert.match(source, /<AppIcons\.minus size=\{stepperIconSize\}/)
+  assert.match(source, /<AppIcons\.plus size=\{stepperIconSize\}/)
+})
+
 test('image-less cards reserve the configured media placeholder', () => {
   assert.match(source, /const hasProductImage = imageUrl !== null/)
   assert.match(source, /const mediaVisible = showImage/)

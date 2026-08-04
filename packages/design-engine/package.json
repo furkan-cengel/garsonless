@@ -2,9 +2,15 @@
   "name": "@garsonless/design-engine",
   "version": "0.0.0",
   "private": true,
+  "sideEffects": false,
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./menu-action-placement": "./src/menu-action-placement.ts",
+    "./section-blocks": "./src/section-blocks.ts",
+    "./theme-policy": "./src/theme-policy.ts",
+    "./theme-preview-nav-command": "./src/theme-preview-nav-command.ts",
+    "./theme-preview-protocol": "./src/theme-preview-protocol.ts"
   },
   "scripts": {
     "lint": "eslint .",

@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { CartItem, MenuItem, ModifierGroup, SelectedModifier } from '@garsonless/ui'
 import { canonicalModifierSignature, canonicalRemovalSignature, clampCartQuantity } from './cartIdentity'
+import { menuTenantScopeKey } from '../menu-scope-key'
 
 function generateId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -12,11 +13,23 @@ function generateId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
+interface CartScopeSnapshot {
+  items: CartItem[]
+  sessionId: string
+  tableId: string | null
+}
+
 interface CartState {
   items: CartItem[]
   sessionId: string
   deviceId: string
   tableId: string | null
+  scopeKey: string | null
+  scopes: Record<string, CartScopeSnapshot>
+  lastTableByRestaurant: Record<string, string>
+  legacyUnbound: boolean
+  bindScope: (restaurantId: string, tableToken: string | null) => void
+  clearTableScope: (restaurantId: string) => void
   setTableId: (tableId: string | null) => void
   addItem: (
     item: MenuItem,
@@ -44,8 +57,46 @@ export const useCartStore = create<CartState>()(
       sessionId: generateId(),
       deviceId: generateId(),
       tableId: null,
+      scopeKey: null,
+      scopes: {},
+      lastTableByRestaurant: {},
+      legacyUnbound: false,
 
-      setTableId: (tableId) => set({ tableId }),
+      bindScope: (restaurantId, tableToken) => set((state) => {
+        const resolvedTable = tableToken ?? state.lastTableByRestaurant[restaurantId] ?? null
+        const nextScopeKey = menuTenantScopeKey(restaurantId, resolvedTable)
+        if (state.scopeKey === nextScopeKey && !state.legacyUnbound) return state
+        const scopes = state.scopeKey
+          ? { ...state.scopes, [state.scopeKey]: snapshotCartScope(state) }
+          : { ...state.scopes }
+        const existing = scopes[nextScopeKey]
+        const useLegacy = state.legacyUnbound
+        const next = useLegacy
+          ? snapshotCartScope({ items: state.items, sessionId: state.sessionId, tableId: resolvedTable })
+          : existing ?? { items: [], sessionId: generateId(), tableId: resolvedTable }
+        return {
+          ...state,
+          ...next,
+          tableId: resolvedTable,
+          scopeKey: nextScopeKey,
+          scopes: { ...scopes, [nextScopeKey]: { ...next, tableId: resolvedTable } },
+          lastTableByRestaurant: resolvedTable
+            ? { ...state.lastTableByRestaurant, [restaurantId]: resolvedTable }
+            : state.lastTableByRestaurant,
+          legacyUnbound: false,
+        }
+      }),
+
+      clearTableScope: (restaurantId) => set((state) => {
+        const lastTableByRestaurant = { ...state.lastTableByRestaurant }
+        delete lastTableByRestaurant[restaurantId]
+        const nextScopeKey = menuTenantScopeKey(restaurantId, null)
+        const scopes = state.scopeKey ? { ...state.scopes, [state.scopeKey]: snapshotCartScope(state) } : { ...state.scopes }
+        const next = scopes[nextScopeKey] ?? { items: [], sessionId: generateId(), tableId: null }
+        return { ...state, ...next, tableId: null, scopeKey: nextScopeKey, scopes, lastTableByRestaurant, legacyUnbound: false }
+      }),
+
+      setTableId: (tableId) => set((state) => withActiveCartScope(state, { tableId })),
 
       addItem: (item, modifiers, modifierGroups, quantity, originalPrice, removedIngredientIds = [], combo, promotion, productNote, recommendationSourceItemId) => {
         const normalizedQuantity = Math.max(1, clampCartQuantity(quantity))
@@ -89,7 +140,7 @@ export const useCartStore = create<CartState>()(
         )
 
         if (existingIndex >= 0) {
-          set((state) => ({
+          set((state) => withActiveCartScope(state, {
             items: state.items.map((ci, i) =>
               i === existingIndex ? { ...ci, quantity: clampCartQuantity(ci.quantity + normalizedQuantity) } : ci,
             ),
@@ -119,15 +170,15 @@ export const useCartStore = create<CartState>()(
           ...(recommendationSourceItemId ? { recommendationSourceItemId } : {}),
         }
 
-        set((state) => ({ items: [...state.items, cartItem] }))
+        set((state) => withActiveCartScope(state, { items: [...state.items, cartItem] }))
       },
 
       removeItem: (cartId) =>
-        set((state) => ({ items: state.items.filter((i) => i.cartId !== cartId) })),
+        set((state) => withActiveCartScope(state, { items: state.items.filter((i) => i.cartId !== cartId) })),
 
       updateQuantity: (cartId, quantity) => {
         const normalizedQuantity = clampCartQuantity(quantity)
-        set((state) => ({
+        set((state) => withActiveCartScope(state, {
           items:
             normalizedQuantity <= 0
               ? state.items.filter((i) => i.cartId !== cartId)
@@ -135,7 +186,7 @@ export const useCartStore = create<CartState>()(
         }))
       },
 
-      clearCart: () => set({ items: [] }),
+      clearCart: () => set((state) => withActiveCartScope(state, { items: [] })),
 
       totalItems: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
 
@@ -147,20 +198,25 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: 'garsonless-cart',
-      version: 5,
-      migrate: (persisted) => {
+      version: 6,
+      migrate: (persisted, version) => {
         const state = persisted as Partial<CartState> & { items?: Partial<CartItem>[] }
+        const items = (state.items ?? []).map((item) => ({
+          ...item,
+          modifierNames: item.modifierNames ?? [],
+          removedIngredientIds: item.removedIngredientIds ?? [],
+          removedIngredientNames: item.removedIngredientNames ?? [],
+          energyKcal: item.energyKcal ?? null,
+          productNote: typeof item.productNote === 'string' ? item.productNote.slice(0, 500) : undefined,
+          recommendationSourceItemId: typeof item.recommendationSourceItemId === 'string' ? item.recommendationSourceItemId : undefined,
+        })) as CartItem[]
         return {
           ...state,
-          items: (state.items ?? []).map((item) => ({
-            ...item,
-            modifierNames: item.modifierNames ?? [],
-            removedIngredientIds: item.removedIngredientIds ?? [],
-            removedIngredientNames: item.removedIngredientNames ?? [],
-            energyKcal: item.energyKcal ?? null,
-            productNote: typeof item.productNote === 'string' ? item.productNote.slice(0, 500) : undefined,
-            recommendationSourceItemId: typeof item.recommendationSourceItemId === 'string' ? item.recommendationSourceItemId : undefined,
-          })),
+          items,
+          scopeKey: version >= 6 ? state.scopeKey ?? null : null,
+          scopes: version >= 6 ? state.scopes ?? {} : {},
+          lastTableByRestaurant: version >= 6 ? state.lastTableByRestaurant ?? {} : {},
+          legacyUnbound: version < 6 || state.legacyUnbound === true,
         } as CartState
       },
       skipHydration: true,
@@ -169,7 +225,22 @@ export const useCartStore = create<CartState>()(
         sessionId: state.sessionId,
         deviceId: state.deviceId,
         tableId: state.tableId,
+        scopeKey: state.scopeKey,
+        scopes: state.scopes,
+        lastTableByRestaurant: state.lastTableByRestaurant,
+        legacyUnbound: state.legacyUnbound,
       }),
     },
   ),
 )
+
+function snapshotCartScope(state: Pick<CartScopeSnapshot, 'items' | 'sessionId' | 'tableId'>): CartScopeSnapshot {
+  return { items: state.items, sessionId: state.sessionId, tableId: state.tableId }
+}
+
+function withActiveCartScope(state: CartState, patch: Partial<CartScopeSnapshot>): Partial<CartState> {
+  const next = { ...snapshotCartScope(state), ...patch }
+  return state.scopeKey
+    ? { ...patch, scopes: { ...state.scopes, [state.scopeKey]: next } }
+    : patch
+}

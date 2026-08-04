@@ -1,37 +1,48 @@
 import { NextResponse } from 'next/server'
-import { ensureCustomerIdentity } from '@garsonless/application/customers'
-import { createCustomerIdentityApplicationPort } from '@garsonless/db/server'
 import { createMenuServerClient } from '../../../lib/supabase-server'
+import { configuredMenuOrigin } from '../../../lib/customer-auth-request'
+import {
+  clearCustomerAuthIntentCookie,
+  completeCustomerIdentity,
+  consumeStoredCustomerAuthIntent,
+  readCustomerAuthIntent,
+} from '../../../lib/customer-auth-server'
+
+function withCustomerAuthResult(url: URL, result: 'complete' | 'failed'): URL {
+  url.searchParams.set('customerAuth', result)
+  return url
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
-  const next = safeNext(url.searchParams.get('next'))
-  if (!code) return NextResponse.redirect(new URL(`${next}?authError=oauth`, url.origin))
+  const suppliedIntent = url.searchParams.get('intent')
+  const menuOrigin = configuredMenuOrigin()
+  if (!menuOrigin) return NextResponse.json({ ok: false, error: { code: 'SERVICE_UNAVAILABLE' } }, { status: 503 })
+
+  const intent = suppliedIntent ? await readCustomerAuthIntent(suppliedIntent) : null
+  const returnUrl = new URL(intent?.returnPath ?? '/', menuOrigin)
+  if (!code || !intent || intent.flow !== 'oauth') {
+    await clearCustomerAuthIntentCookie()
+    return NextResponse.redirect(withCustomerAuthResult(returnUrl, 'failed'))
+  }
 
   const supabase = await createMenuServerClient()
   const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-  if (error || !data.user) return NextResponse.redirect(new URL(`${next}?authError=oauth`, url.origin))
+  if (error || !data.user) {
+    await clearCustomerAuthIntentCookie()
+    return NextResponse.redirect(withCustomerAuthResult(returnUrl, 'failed'))
+  }
 
-  const result = await ensureCustomerIdentity({
-    authUserId: data.user.id,
-    email: data.user.email ?? null,
-    phone: data.user.phone ?? null,
-    userMetadata: data.user.user_metadata ?? {},
-    appMetadata: data.user.app_metadata ?? {},
-  }, {
-    name: url.searchParams.get('name'),
-    restaurantId: uuidOrUndefined(url.searchParams.get('restaurantId')),
-    consent: url.searchParams.get('consent') === '1',
-    marketingConsent: url.searchParams.get('marketingConsent') === '1',
-  }, createCustomerIdentityApplicationPort())
-  return NextResponse.redirect(new URL(result.ok ? next : `${next}?authError=link`, url.origin))
-}
+  const consumed = await consumeStoredCustomerAuthIntent(intent)
+  if (!consumed) {
+    await supabase.auth.signOut({ scope: 'local' })
+    await clearCustomerAuthIntentCookie()
+    return NextResponse.redirect(withCustomerAuthResult(returnUrl, 'failed'))
+  }
 
-function safeNext(value: string | null): string {
-  return value?.startsWith('/') && !value.startsWith('//') ? value : '/'
-}
-
-function uuidOrUndefined(value: string | null): string | undefined {
-  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value) ? value : undefined
+  const completed = await completeCustomerIdentity(data.user, intent)
+  await clearCustomerAuthIntentCookie()
+  if (!completed.ok) await supabase.auth.signOut({ scope: 'local' })
+  return NextResponse.redirect(withCustomerAuthResult(returnUrl, completed.ok ? 'complete' : 'failed'))
 }

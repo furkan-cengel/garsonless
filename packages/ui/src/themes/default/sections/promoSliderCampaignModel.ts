@@ -1,4 +1,5 @@
-import { getSectionDefinitionId, type ThemePageBlock } from '@garsonless/design-engine'
+import type { ThemePageBlock } from '@garsonless/design-engine'
+import { getSectionDefinitionId } from '@garsonless/design-engine/section-blocks'
 import {
   resolveSectionCampaignTiming,
   resolveSectionPromotionPrice,

@@ -13,6 +13,7 @@ import { fileURLToPath } from 'url'
 import { config as loadEnv } from 'dotenv'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from './types.gen'
+import { fingerprintThemePublish } from './theme-publish-fingerprint'
 
 // ---------------------------------------------------------------------------
 // Env
@@ -63,6 +64,7 @@ function ok<T>(label: string, error: unknown, data?: T): T {
 // ---------------------------------------------------------------------------
 
 const BEACHSIDE_CONFIG = {
+  __template_id: 'default',
   page: { backgroundColor: '#f8f9fa', fontFamily: 'Nunito', fontFamilyDisplay: 'Pacifico', baseFontSize: 16, globalRadius: 16 },
   header: { style: 'hero', backgroundColor: '#0077b6', textColor: '#ffffff', logoSize: 'large', sticky: false, showRestaurantName: true, borderBottom: false },
   categoryNav: { style: 'pills', backgroundColor: '#f8f9fa', textColor: '#4a8db5', activeColor: '#0077b6', activeTextColor: '#ffffff', fontSize: 'md', sticky: true },
@@ -287,13 +289,36 @@ async function seed() {
 
   // ── 6. Theme config ──────────────────────────────────────────────────────
 
-  const { error: themeErr } = await supabase
+  const { data: currentTheme, error: currentThemeError } = await supabase
     .from('theme_configs')
-    .upsert(
-      { restaurant_id: restaurantId, tokens: BEACHSIDE_CONFIG },
-      { onConflict: 'restaurant_id' },
-    )
-  ok('Upsert theme config (beachside)', themeErr)
+    .select('revision')
+    .eq('restaurant_id', restaurantId)
+    .maybeSingle()
+  ok('Read theme revision', currentThemeError, currentTheme)
+
+  const expectedRevision = currentTheme?.revision ?? 0
+  const requestId = crypto.randomUUID()
+  const tokens = BEACHSIDE_CONFIG as Json
+  const requestFingerprint = fingerprintThemePublish({
+    restaurantId,
+    templateId: 'default',
+    tokens,
+    publishedBy: ownerId,
+    expectedRevision,
+  })
+  const { data: themeResult, error: themeError } = await supabase.rpc(
+    'publish_theme_config_atomic',
+    {
+      p_restaurant_id: restaurantId,
+      p_template_id: 'default',
+      p_tokens: tokens,
+      p_published_by: ownerId,
+      p_expected_revision: expectedRevision,
+      p_request_id: requestId,
+      p_request_fingerprint: requestFingerprint,
+    },
+  )
+  ok('Publish theme config (beachside)', themeError, themeResult)
 
   // ── Done ─────────────────────────────────────────────────────────────────
 

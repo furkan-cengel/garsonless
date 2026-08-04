@@ -55,6 +55,7 @@ export interface StoreInfo {
 }
 
 interface MemberChipSummary {
+  authenticated?: boolean
   name: string | null
   stamps?: number
   stampGoal?: number

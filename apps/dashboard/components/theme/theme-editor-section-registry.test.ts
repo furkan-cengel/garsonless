@@ -2,11 +2,34 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   FOOD_ICON_OPTIONS,
+  HOME_SECTION_LIBRARY,
   SECTION_GROUPS,
   SECTION_LIBRARY,
   SECTION_LIBRARY_IDS,
   SECTION_SETTING_SCHEMA,
 } from './theme-editor-section-registry'
+
+test('ana sayfa kataloğu menü kataloğundan yalnız üç bağlam bileşenini çıkarır ve Video Hero ekler', () => {
+  assert.deepEqual(HOME_SECTION_LIBRARY.map((section) => section.id), [
+    'hero-banner',
+    'storefront-video-hero',
+    'promo-strip',
+    'featured-scroll',
+    'chef-pick',
+    'combo-ribbon',
+    'discount-badge',
+    'daily-special',
+    'promo-slider',
+    'gallery',
+  ])
+  assert.equal(HOME_SECTION_LIBRARY.find((section) => section.id === 'storefront-video-hero')?.plan, 'pro')
+  assert.equal(HOME_SECTION_LIBRARY.some((section) => ['request-buttons', 'hours', 'wifi-info'].includes(section.id)), false)
+  assert.equal(HOME_SECTION_LIBRARY.length, SECTION_LIBRARY.length - 3 + 1)
+  assert.deepEqual(
+    HOME_SECTION_LIBRARY.filter((section) => section.id !== 'storefront-video-hero').map((section) => section.id),
+    SECTION_LIBRARY.filter((section) => !['request-buttons', 'hours', 'wifi-info'].includes(section.id)).map((section) => section.id),
+  )
+})
 
 test('section registry keeps unique ids and valid group references', () => {
   assert.equal(new Set(SECTION_LIBRARY_IDS).size, SECTION_LIBRARY_IDS.length)
@@ -61,6 +84,20 @@ test('section setting schemas keep unique keys and valid editor tabs', () => {
       }
     }
   }
+})
+
+test('Video Hero metin katmanlarını ayrı ayrı gizler ve güvenli yüzde konumu sunar', () => {
+  const fields = new Map(SECTION_SETTING_SCHEMA['storefront-video-hero']!.map((field) => [field.key, field]))
+
+  assert.equal(fields.get('showEyebrow')?.type, 'toggle')
+  assert.equal(fields.get('showTitle')?.type, 'toggle')
+  assert.equal(fields.get('showBody')?.type, 'toggle')
+  assert.equal(fields.get('showCta')?.type, 'toggle')
+  assert.deepEqual(fields.get('align')?.options?.map((option) => option.value), ['left', 'center', 'right'])
+  assert.deepEqual(
+    [fields.get('contentPositionX'), fields.get('contentPositionY')].map((field) => [field?.type, field?.min, field?.max, field?.unit]),
+    [['range', 0, 100, '%'], ['range', 0, 100, '%']],
+  )
 })
 
 test('request buttons are a customizable global singleton gated by the pro plan', () => {

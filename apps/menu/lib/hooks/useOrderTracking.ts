@@ -7,6 +7,7 @@ import type { OrderStatus } from '@garsonless/db/types'
 import { useOrderStore } from '../store/useOrderStore'
 
 interface UseOrderTrackingOptions {
+  restaurantId: string
   tableToken: string | null
   sessionId: string
   memberActive: boolean
@@ -51,6 +52,7 @@ interface UseOrderTrackingResult {
 
 /** Owns persisted order reconciliation and minimized-order presentation state. */
 export function useOrderTracking({
+  restaurantId,
   tableToken,
   sessionId,
   memberActive,
@@ -117,6 +119,7 @@ export function useOrderTracking({
     const restore = async () => {
       await useOrderStore.persist.rehydrate()
       if (cancelled) return
+      useOrderStore.getState().bindScope(restaurantId, tableToken)
       const state = useOrderStore.getState()
       if (!state.orderId) return
       if (state.view === 'sheet') state.setView('bubble')
@@ -156,7 +159,7 @@ export function useOrderTracking({
     return () => {
       cancelled = true
     }
-  }, [sessionId, tableToken])
+  }, [restaurantId, sessionId, tableToken])
 
   useEffect(() => {
     if (!orderId) return

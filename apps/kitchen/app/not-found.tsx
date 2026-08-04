@@ -1,4 +1,4 @@
-import { RecoveryScreen } from '@garsonless/ui'
+import { RecoveryScreen } from "@garsonless/ui";
 
 export default function KitchenNotFound() {
   return (
@@ -9,7 +9,8 @@ export default function KitchenNotFound() {
       code="MAS-ROUTE-404"
       homeHref="/"
       homeLabel="Başlangıca dön"
-      dark
+      appearance="dark"
+      statusHref={process.env.NEXT_PUBLIC_STATUS_URL}
     />
-  )
+  );
 }

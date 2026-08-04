@@ -23,12 +23,14 @@ export function DailySpecialBlock({
   items = [],
   onQuickAdd,
   theme,
+  actionMode = 'order',
 }: {
   sectionInstanceId: string
   config: Record<string, string>
   items?: MenuItem[]
   onQuickAdd?: (item: MenuItem, originalPrice?: number, promotion?: SectionPromotionContext) => void
   theme?: DailySpecialTheme
+  actionMode?: 'order' | 'discover'
 }) {
   const { text, number, bool } = makeReaders(config)
   const productId = config.productId?.trim() ?? ''
@@ -64,8 +66,8 @@ export function DailySpecialBlock({
   const padding = number('padding', 16)
   const imageSize = Math.min(180, Math.max(76, number('imageSize', layout === 'stack' ? 150 : 122)))
   const ctaMode = text('ctaMode', 'inherit') === 'custom' ? 'custom' : 'inherit'
-  const buttonStyle = ctaMode === 'inherit' ? (theme?.cardCtaStyle ?? 'pill') : text('buttonStyle', 'pill')
-  const buttonIcon = ctaMode === 'inherit' ? (theme?.cardCtaIcon ?? 'plus') : text('buttonIcon', 'plus')
+  const buttonStyle = actionMode === 'discover' ? 'pill' : ctaMode === 'inherit' ? (theme?.cardCtaStyle ?? 'pill') : text('buttonStyle', 'pill')
+  const buttonIcon = actionMode === 'discover' ? 'arrow' : ctaMode === 'inherit' ? (theme?.cardCtaIcon ?? 'plus') : text('buttonIcon', 'plus')
   const buttonSizeName = text('buttonSize', 'medium') as keyof typeof BUTTON_SIZE
   const buttonSize = BUTTON_SIZE[buttonSizeName] ?? BUTTON_SIZE.medium
   const buttonBackground = ctaMode === 'inherit' ? 'var(--p-cta)' : text('buttonBgColor', accent)
@@ -233,7 +235,7 @@ export function DailySpecialBlock({
                 data-cta-source={ctaMode}
                 data-cta-icon={buttonIcon}
                 disabled={!onQuickAdd}
-                aria-label={`${item.name} ürününü${pricing ? ' günün özeli fiyatıyla' : ''} sepete ekle`}
+                aria-label={`${item.name} ürününü ${actionMode === 'discover' ? 'incele' : `${pricing ? 'günün özeli fiyatıyla ' : ''}sepete ekle`}`}
                 onClick={addToCart}
                 style={{
                   minWidth: buttonStyle === 'icon' ? buttonSize : Math.max(74, buttonSize * 1.9),
@@ -255,7 +257,7 @@ export function DailySpecialBlock({
                 }}
               >
                 <DailyCtaIcon kind={buttonIcon} size={Math.max(15, Math.round(buttonSize * .43))} />
-                {buttonStyle !== 'icon' && <span>{config.cta?.trim() || 'Sepete ekle'}</span>}
+                {buttonStyle !== 'icon' && <span>{actionMode === 'discover' ? 'İncele' : config.cta?.trim() || 'Sepete ekle'}</span>}
               </button>
             </div>
           ) : (
@@ -320,6 +322,7 @@ function formatCountdown(remainingMs: number) {
 }
 
 function DailyCtaIcon({ kind, size }: { kind: string; size: number }) {
+  if (kind === 'arrow') return <AppIcons.arrow size={size} aria-hidden="true" />
   if (kind === 'cart') return <AppIcons.cart size={size} aria-hidden="true" />
   if (kind === 'bag') return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M5 8h14l-1 12H6L5 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>
   return <AppIcons.plus size={size} aria-hidden="true" />

@@ -21,6 +21,7 @@ import {
 import {
   SECTION_GROUPS,
   SECTION_LIBRARY,
+  MENU_SECTION_LIBRARY,
   SECTION_SETTING_SCHEMA,
 } from './theme-editor-section-registry'
 import {
@@ -172,7 +173,7 @@ export function useThemeEditorNavigation({
   const effectiveEditorTab = resolveEffectiveEditorTab(visibleEditorTabs, activeEditorTab)
   const visibleFields = getVisibleThemeFields(activeFields, activeGroupData?.id, mergedTheme, effectiveEditorTab)
   const visibleSectionFields = selectedSectionFields.filter((field) => field.editorTab === effectiveEditorTab)
-  const filteredSections = SECTION_LIBRARY.filter((section) => {
+  const filteredSections = MENU_SECTION_LIBRARY.filter((section) => {
     const matchesGroup = sectionGroup === 'Tümü' || section.group === sectionGroup
     const query = sectionSearch.trim().toLocaleLowerCase('tr')
     const matchesSearch = !query || `${section.label} ${section.sub} ${section.group}`.toLocaleLowerCase('tr').includes(query)
@@ -208,18 +209,6 @@ export function useThemeEditorNavigation({
       ;(lastFocusedBeforeDialogRef.current ?? sectionTriggerRef.current)?.focus()
     })
   }, [])
-
-  useEffect(() => {
-    if (!sectionPickerOpen) return
-    requestAnimationFrame(() => sectionCloseRef.current?.focus())
-    const handler = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      closeSectionPicker()
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [closeSectionPicker, sectionPickerOpen])
 
   const addSection = useCallback((sectionId: string) => {
     const nextBlocks = addSectionToPageFlow(pageBlocks, sectionId)

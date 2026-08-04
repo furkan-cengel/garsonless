@@ -10,6 +10,10 @@ const menuMembership = readFileSync(
   new URL('./hooks/useMenuMembership.ts', import.meta.url),
   'utf8',
 )
+const membershipClient = readFileSync(
+  new URL('./menu-membership-client.ts', import.meta.url),
+  'utf8',
+)
 const productCard = readFileSync(
   new URL('../../../packages/ui/src/menu/ProductCard.tsx', import.meta.url),
   'utf8',
@@ -33,10 +37,12 @@ test('interaction-only menu surfaces stay behind dynamic boundaries', () => {
   }
 })
 
-test('customer auth SDK is loaded only when a member action needs it', () => {
+test('customer auth stays on server routes and out of the browser SDK', () => {
   assert.doesNotMatch(menuClient, /^import .*createMenuAuthBrowserClient/m)
   assert.doesNotMatch(menuMembership, /^import .*createMenuAuthBrowserClient/m)
-  assert.match(menuMembership, /await import\('\.\.\/supabase-browser'\)/)
+  assert.doesNotMatch(menuMembership, /supabase-browser/)
+  assert.match(menuMembership, /import\('\.\.\/menu-membership-client'\)/)
+  assert.match(membershipClient, /fetch\('\/api\/account\/logout'/)
 })
 
 test('menu images and motion preferences do not inflate initial work', () => {

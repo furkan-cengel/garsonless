@@ -4,7 +4,11 @@ import { useRef, useState } from 'react'
 import type { CSSProperties, ChangeEvent } from 'react'
 
 import { I } from '../../lib/ui'
-import { createDashboardBrowserClient } from '../../lib/supabase'
+import { removeUnusedThemeMedia, uploadThemeMedia } from '../../lib/actions/theme'
+import {
+  type ThemeMediaPurpose,
+  validateThemeMediaMetadata,
+} from '../../lib/theme-media-policy'
 import { ChefSectionIcon, isChefSectionIconName } from '@garsonless/ui'
 import type { SectionSettingField } from './theme-editor-properties-model'
 import {
@@ -37,7 +41,7 @@ type MenuItemRef = {
 }
 
 const sectionInputStyle: CSSProperties = {
-  width: '100%', minWidth: 0, height: 32, borderRadius: 7,
+  width: '100%', minWidth: 0, height: 32, boxSizing: 'border-box', borderRadius: 7,
   border: '1px solid var(--border-strong)', background: 'var(--surface)',
   color: 'var(--text)', fontSize: 12.5, padding: '0 9px', outline: 'none',
 }
@@ -62,7 +66,7 @@ export function SectionSettingsEditor({ fields, values, menuCategories, menuItem
   const visibleFields = getVisibleSectionSettingFields(fields, values)
 
   return (
-    <div data-section-settings-editor style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div data-section-settings-editor style={{ width: '100%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <style>{`
         [data-section-settings-editor] .garsonless-section-option-tile:hover {
           border-color: var(--text-3) !important;
@@ -81,6 +85,10 @@ export function SectionSettingsEditor({ fields, values, menuCategories, menuItem
         [data-section-settings-editor] .garsonless-section-option-tile:active {
           transform: translateY(0) scale(.985);
         }
+        [data-section-settings-editor] input[type="range"] {
+          min-inline-size: 0;
+          max-inline-size: 100%;
+        }
       `}</style>
       {visibleFields.map((field) => {
         if (field.type === 'heading') {
@@ -94,14 +102,16 @@ export function SectionSettingsEditor({ fields, values, menuCategories, menuItem
         }
         const controlId = sectionSettingControlId(field.key)
         const isIconGrid = field.type === 'icon-grid'
+        const resolvedValue = resolveSectionSettingValue(field, values, promoSlider)
         return (
-          <div key={field.key} style={{ display: 'grid', gridTemplateColumns: isIconGrid ? '1fr' : '96px 1fr', alignItems: 'start', gap: isIconGrid ? 7 : 10, minHeight: 32 }}>
-            <label htmlFor={controlId} style={{ paddingTop: 6, fontSize: 12.5, color: 'var(--text-2)' }}>
-              {getSectionSettingLabel(field, targetType)}
+          <div key={field.key} style={{ width: '100%', minWidth: 0, display: 'grid', gridTemplateColumns: isIconGrid ? 'minmax(0, 1fr)' : 'minmax(72px, 82px) minmax(0, 1fr)', alignItems: 'start', gap: isIconGrid ? 7 : 8, minHeight: 32 }}>
+            <label htmlFor={controlId} style={{ minWidth: 0, paddingTop: 6, fontSize: 12.5, color: 'var(--text-2)' }}>
+              <span>{getSectionSettingLabel(field, targetType)}</span>
+              {field.type === 'range' && field.key !== 'cols' ? <small style={{ display: 'block', marginTop: 2, color: 'var(--text-3)', fontSize: 10.5, fontWeight: 650 }}>{resolvedValue}{field.unit ?? ''}</small> : null}
             </label>
             <SectionSettingControl
               field={field}
-              value={resolveSectionSettingValue(field, values, promoSlider)}
+              value={resolvedValue}
               controlId={controlId}
               targetType={targetType}
               menuCategories={menuCategories}
@@ -344,11 +354,8 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
     const numeric = Number(value)
     const numericValue = Number.isFinite(numeric) ? numeric : fallback
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 32 }}>
-        <input id={controlId} type="range" min={field.min} max={field.max} step={field.step} value={numericValue} onChange={(event) => onChange(event.target.value)} style={{ flex: 1, accentColor: 'var(--text)' }} />
-        <output htmlFor={controlId} style={{ minWidth: 50, textAlign: 'right', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 6px', color: 'var(--text-2)', fontSize: 12 }}>
-          {numericValue}{field.unit ?? ''}
-        </output>
+      <div style={{ width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', height: 32 }}>
+        <input id={controlId} type="range" min={field.min} max={field.max} step={field.step} value={numericValue} onChange={(event) => onChange(event.target.value)} style={{ width: '100%', minWidth: 0, maxWidth: '100%', accentColor: 'var(--text)' }} />
       </div>
     )
   }
@@ -534,7 +541,7 @@ function VerticalPositionIcon({ direction }: { direction: 'up' | 'down' }) {
 }
 
 function selectStyle(height: number, hasValue: boolean): CSSProperties {
-  return { width: '100%', height, borderRadius: 7, border: '1px solid var(--border-strong)', background: 'var(--surface)', color: hasValue ? 'var(--text)' : 'var(--text-3)', fontSize: 12.5, padding: '0 9px', cursor: 'pointer' }
+  return { width: '100%', minWidth: 0, boxSizing: 'border-box', height, borderRadius: 7, border: '1px solid var(--border-strong)', background: 'var(--surface)', color: hasValue ? 'var(--text)' : 'var(--text-3)', fontSize: 12.5, padding: '0 9px', cursor: 'pointer' }
 }
 
 const GALLERY_TILES: Array<{ id: string; key: string; label: string }> = [
@@ -546,9 +553,8 @@ const GALLERY_TILES: Array<{ id: string; key: string; label: string }> = [
   { id: 'tile6', key: 'tile6Image', label: '6' },
 ]
 
-export function SectionImageUploadPanel({ restaurantId, sectionId, label, value, onChange, mode = 'image' }: {
+export function SectionImageUploadPanel({ restaurantId, label, value, onChange, mode = 'image' }: {
   restaurantId: string
-  sectionId: string
   label: string
   value: string
   onChange: (value: string) => void
@@ -562,31 +568,29 @@ export function SectionImageUploadPanel({ restaurantId, sectionId, label, value,
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
-    const allowedTypes = mode === 'icon'
-      ? ['image/svg+xml', 'image/png', 'image/webp']
-      : ['image/jpeg', 'image/png', 'image/webp']
-    if (!allowedTypes.includes(file.type)) {
-      setError(mode === 'icon' ? 'SVG, PNG veya WEBP formatında bir ikon seçin.' : 'JPG, PNG veya WEBP formatında bir görsel seçin.')
-      return
-    }
-    const maximumSize = mode === 'icon' ? 2 : 8
-    if (file.size > maximumSize * 1024 * 1024) {
-      setError(`${mode === 'icon' ? 'İkon' : 'Görsel'} en fazla ${maximumSize} MB olabilir.`)
-      return
-    }
+    const purpose: ThemeMediaPurpose = mode === 'icon' ? 'section-icon' : 'section-image'
+    const metadata = validateThemeMediaMetadata({ size: file.size, type: file.type, purpose })
+    if (!metadata.ok) return setError(metadata.error)
 
     setUploading(true)
     setError(null)
     try {
-      const supabase = createDashboardBrowserClient()
-      const extension = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/svg+xml': 'svg' } as const)[file.type as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/svg+xml']
-      const path = `restaurants/${restaurantId}/sections/${sectionId}-${Date.now()}.${extension}`
-      const { error: uploadError } = await supabase.storage
-        .from('restaurant-assets')
-        .upload(path, file, { upsert: true, contentType: file.type })
-      if (uploadError) throw uploadError
-      const { data } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
-      onChange(data.publicUrl)
+      const formData = new FormData()
+      formData.append('restaurantId', restaurantId)
+      formData.append('purpose', purpose)
+      formData.append('file', file)
+      const result = await uploadThemeMedia(formData)
+      if ('error' in result) return setError(result.error)
+      const previousUrl = value
+      onChange(result.url)
+      if (previousUrl) {
+        try {
+          const cleanup = await removeUnusedThemeMedia(restaurantId, previousUrl)
+          if ('error' in cleanup) setError('Yeni medya yüklendi; önceki taslak dosya daha sonra temizlenecek.')
+        } catch {
+          setError('Yeni medya yüklendi; önceki taslak dosya daha sonra temizlenecek.')
+        }
+      }
     } catch {
       setError(`${mode === 'icon' ? 'İkon' : 'Görsel'} yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.`)
     } finally {
@@ -594,9 +598,23 @@ export function SectionImageUploadPanel({ restaurantId, sectionId, label, value,
     }
   }
 
+  async function handleRemove() {
+    setUploading(true)
+    setError(null)
+    try {
+      const cleanup = await removeUnusedThemeMedia(restaurantId, value)
+      onChange('')
+      if ('error' in cleanup) setError('Görsel taslaktan kaldırıldı; kullanılmayan dosya daha sonra temizlenecek.')
+    } catch {
+      setError('Görsel kaldırılamadı. Bağlantınızı kontrol edip tekrar deneyin.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   return (
     <div style={{ marginBottom: 10 }}>
-      <input ref={inputRef} type="file" accept={mode === 'icon' ? 'image/svg+xml,image/png,image/webp' : 'image/jpeg,image/png,image/webp'} hidden onChange={handleUpload} />
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={handleUpload} />
       <div style={{
         minHeight: 116,
         border: `1px ${value ? 'solid' : 'dashed'} var(--border-strong)`,
@@ -626,13 +644,13 @@ export function SectionImageUploadPanel({ restaurantId, sectionId, label, value,
           {uploading ? 'Yükleniyor…' : value ? `${mode === 'icon' ? 'İkonu' : 'Görseli'} değiştir` : `${mode === 'icon' ? 'İkon' : 'Görsel'} yükle`}
         </button>
         {value && (
-          <button type="button" disabled={uploading} onClick={() => onChange('')} style={{ ...uploadActionStyle, background: 'var(--surface)', color: 'var(--text-2)' }}>
+          <button type="button" disabled={uploading} onClick={handleRemove} style={{ ...uploadActionStyle, background: 'var(--surface)', color: 'var(--text-2)' }}>
             Kaldır
           </button>
         )}
       </div>
       <p style={{ margin: '6px 0 0', color: error ? '#b42318' : 'var(--text-3)', fontSize: 10.5, lineHeight: 1.4 }} role={error ? 'alert' : undefined}>
-        {error ?? (mode === 'icon' ? 'SVG, PNG veya WEBP · en fazla 2 MB' : 'JPG, PNG veya WEBP · en fazla 8 MB')}
+        {error ?? (mode === 'icon' ? 'JPEG, PNG veya WebP · en fazla 2 MB · SVG desteklenmez' : 'JPEG, PNG veya WebP · en fazla 8 MB')}
       </p>
     </div>
   )
@@ -661,14 +679,13 @@ export function ServiceRequestIconUploadPanels({ restaurantId, values, onChange 
         background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: 11.5, lineHeight: 1.5,
       }}>
         Her isteğin ikon seçicisinden <strong style={{ color: 'var(--text)' }}>Özel ikon</strong> seçebilirsiniz.
-        İlgili SVG, PNG veya WEBP yükleme alanı burada açılır. <strong style={{ color: 'var(--text)' }}>İkonsuz</strong> seçeneği ise simgeyi kaldırır; buton hizasını korur.
+        İlgili JPEG, PNG veya WebP yükleme alanı burada açılır. Güvenlik nedeniyle SVG kabul edilmez. <strong style={{ color: 'var(--text)' }}>İkonsuz</strong> seçeneği ise simgeyi kaldırır; buton hizasını korur.
       </div>
       {activeUploads.map(({ valueKey, label }) => (
         <div key={valueKey}>
           <div style={{ marginBottom: 7, fontSize: 11.5, fontWeight: 750, color: 'var(--text-2)' }}>{label} özel ikonu</div>
           <SectionImageUploadPanel
             restaurantId={restaurantId}
-            sectionId={`request-buttons-${valueKey}`}
             label={`${label} özel ikonu`}
             value={values[valueKey] ?? ''}
             onChange={(value) => onChange(valueKey, value)}
@@ -696,7 +713,6 @@ export function ChefPickIconUploadPanels({ restaurantId, values, onChange }: {
           <div style={{ marginBottom: 7, fontSize: 11.5, fontWeight: 750, color: 'var(--text-2)' }}>Özel şef rozeti</div>
           <SectionImageUploadPanel
             restaurantId={restaurantId}
-            sectionId="chef-pick-badge"
             label="Özel şef rozeti"
             value={values.chefIconUrl ?? ''}
             onChange={(value) => onChange('chefIconUrl', value)}
@@ -708,7 +724,6 @@ export function ChefPickIconUploadPanels({ restaurantId, values, onChange }: {
           <div style={{ marginBottom: 7, fontSize: 11.5, fontWeight: 750, color: 'var(--text-2)' }}>Özel sepete ekle ikonu</div>
           <SectionImageUploadPanel
             restaurantId={restaurantId}
-            sectionId="chef-pick-cta"
             label="Özel sepete ekle ikonu"
             value={values.buttonIconUrl ?? ''}
             onChange={(value) => onChange('buttonIconUrl', value)}
@@ -719,9 +734,8 @@ export function ChefPickIconUploadPanels({ restaurantId, values, onChange }: {
   )
 }
 
-export function PromoSliderImageUploadPanel({ restaurantId, sectionId, values, onChange }: {
+export function PromoSliderImageUploadPanel({ restaurantId, values, onChange }: {
   restaurantId: string
-  sectionId: string
   values: Record<string, string>
   onChange: (key: string, value: string) => void
 }) {
@@ -734,7 +748,6 @@ export function PromoSliderImageUploadPanel({ restaurantId, sectionId, values, o
       <div style={{ marginBottom: 7, fontSize: 11.5, fontWeight: 750, color: 'var(--text-2)' }}>Combo kartı görseli</div>
       <SectionImageUploadPanel
         restaurantId={restaurantId}
-        sectionId={`${sectionId}-combo`}
         label="Combo kartı"
         value={values.comboImageUrl ?? ''}
         onChange={(value) => onChange('comboImageUrl', value)}
@@ -779,30 +792,47 @@ export function GalleryUploadPanel({ restaurantId, values, onChange }: {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setError('JPG, PNG veya WEBP formatında bir görsel seçin.')
-      return
-    }
-    if (file.size > 8 * 1024 * 1024) {
-      setError('Görsel en fazla 8 MB olabilir.')
-      return
-    }
+    const metadata = validateThemeMediaMetadata({
+      size: file.size,
+      type: file.type,
+      purpose: 'gallery-image',
+    })
+    if (!metadata.ok) return setError(metadata.error)
     setUploading(tileKey)
     setError(null)
     try {
-      const supabase = createDashboardBrowserClient()
-      const extension = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' } as const)[file.type as 'image/jpeg' | 'image/png' | 'image/webp']
-      const path = `restaurants/${restaurantId}/gallery/${tileKey}-${Date.now()}.${extension}`
-      const { error: uploadError } = await supabase.storage.from('restaurant-assets').upload(path, file, {
-        upsert: true,
-        contentType: file.type,
-      })
-      if (uploadError) throw uploadError
-      const { data } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
-      onChange(tileKey, data.publicUrl)
-    } catch (uploadError) {
-      console.error('[gallery-upload]', uploadError)
+      const formData = new FormData()
+      formData.append('restaurantId', restaurantId)
+      formData.append('purpose', 'gallery-image')
+      formData.append('file', file)
+      const result = await uploadThemeMedia(formData)
+      if ('error' in result) return setError(result.error)
+      const previousUrl = values[tileKey] ?? ''
+      onChange(tileKey, result.url)
+      if (previousUrl) {
+        try {
+          const cleanup = await removeUnusedThemeMedia(restaurantId, previousUrl)
+          if ('error' in cleanup) setError('Yeni görsel yüklendi; önceki taslak dosya daha sonra temizlenecek.')
+        } catch {
+          setError('Yeni görsel yüklendi; önceki taslak dosya daha sonra temizlenecek.')
+        }
+      }
+    } catch {
       setError('Görsel yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.')
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  async function removeTile(tileKey: string, imageUrl: string) {
+    setUploading(tileKey)
+    setError(null)
+    try {
+      const cleanup = await removeUnusedThemeMedia(restaurantId, imageUrl)
+      onChange(tileKey, '')
+      if ('error' in cleanup) setError('Görsel taslaktan kaldırıldı; kullanılmayan dosya daha sonra temizlenecek.')
+    } catch {
+      setError('Görsel kaldırılamadı. Bağlantınızı kontrol edip tekrar deneyin.')
     } finally {
       setUploading(null)
     }
@@ -848,7 +878,7 @@ export function GalleryUploadPanel({ restaurantId, values, onChange }: {
               <div style={{ position: 'absolute', right: 5, bottom: 5, display: 'flex', gap: 3 }}>
                 <button type="button" aria-label={`Galeri karesi ${index + 1} önceye taşı`} disabled={index === 0} onClick={() => moveTile(index, -1)} style={galleryMiniActionStyle(index === 0)}>←</button>
                 <button type="button" aria-label={`Galeri karesi ${index + 1} sonraya taşı`} disabled={index === orderedTiles.length - 1} onClick={() => moveTile(index, 1)} style={galleryMiniActionStyle(index === orderedTiles.length - 1)}>→</button>
-                {imageUrl && <button type="button" aria-label={`Galeri karesi ${tile.label} görselini kaldır`} onClick={() => onChange(tile.key, '')} style={{ ...galleryMiniActionStyle(false), color: '#fff', background: 'rgba(166,28,28,.82)' }}>✕</button>}
+                {imageUrl && <button type="button" aria-label={`Galeri karesi ${tile.label} görselini kaldır`} disabled={loading} onClick={() => removeTile(tile.key, imageUrl)} style={{ ...galleryMiniActionStyle(loading), color: '#fff', background: 'rgba(166,28,28,.82)' }}>✕</button>}
               </div>
             </div>
           )

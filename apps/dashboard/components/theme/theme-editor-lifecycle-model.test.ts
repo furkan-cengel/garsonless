@@ -4,6 +4,7 @@ import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { SettingsGroup } from '@garsonless/ui'
 import {
   appendHistorySnapshot,
+  areThemeOverridesEqual,
   createThemeOverrides,
   getUnsavedFieldLabels,
 } from './theme-editor-lifecycle-model'
@@ -44,6 +45,15 @@ test('history snapshots stay bounded and preserve chronological order', () => {
   const history = Array.from({ length: 25 }, (_, index) => index)
   assert.deepEqual(appendHistorySnapshot(history, 25), Array.from({ length: 25 }, (_, index) => index + 1))
   assert.deepEqual(appendHistorySnapshot(history, 25, 0), [])
+})
+
+test('undo can distinguish the exact saved override snapshot from a dirty one', () => {
+  const saved = { accentColor: '#23814f', surfaces: { home: { enabled: false } } } as unknown as Partial<GarsonlessTheme>
+  const unchanged = { accentColor: '#23814f', surfaces: { home: { enabled: false } } } as unknown as Partial<GarsonlessTheme>
+  const dirty = { accentColor: '#23814f', surfaces: { home: { enabled: true } } } as unknown as Partial<GarsonlessTheme>
+
+  assert.equal(areThemeOverridesEqual(saved, unchanged), true)
+  assert.equal(areThemeOverridesEqual(saved, dirty), false)
 })
 
 test('dirty field labels compare against the saved baseline and stay unique', () => {

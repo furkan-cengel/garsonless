@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { CANONICAL_THEME_ID } from '@garsonless/design-engine'
 import { THEME_DEFAULTS } from '@garsonless/ui'
-import { publishTheme } from '../../lib/actions/theme'
+import { publishTheme, saveThemeDraft } from '../../lib/actions/theme'
 
 interface Props {
   restaurantId: string
@@ -14,12 +14,37 @@ interface Props {
 export default function StepTemplateSelect({ restaurantId, onSelected }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const saveRequestIdRef = useRef<string | null>(null)
+  const publishRequestIdRef = useRef<string | null>(null)
 
   async function handleContinue() {
     setSaving(true)
     setError('')
-    const result = await publishTheme(restaurantId, THEME_DEFAULTS, CANONICAL_THEME_ID)
+    saveRequestIdRef.current ??= crypto.randomUUID()
+    const saved = await saveThemeDraft(restaurantId, {
+      theme: THEME_DEFAULTS,
+      templateId: CANONICAL_THEME_ID,
+      expectedRevision: 0,
+      requestId: saveRequestIdRef.current,
+    })
+    if ('error' in saved) { setError(saved.error); setSaving(false); return }
+    if (saved.status === 'conflict') {
+      setError('Tema taslağı başka bir oturumda oluşturuldu. Sayfayı yenileyip tekrar deneyin.')
+      setSaving(false)
+      return
+    }
+    publishRequestIdRef.current ??= crypto.randomUUID()
+    const result = await publishTheme(restaurantId, {
+      expectedDraftRevision: saved.revision,
+      expectedPublishedRevision: saved.basedOnPublishedRevision,
+      requestId: publishRequestIdRef.current,
+    })
     if ('error' in result) { setError(result.error); setSaving(false); return }
+    if (result.status === 'conflict' || result.status === 'draft_conflict') {
+      setError('Tema başka bir oturumda yayınlandı. Sayfayı yenileyip tekrar deneyin.')
+      setSaving(false)
+      return
+    }
     onSelected(CANONICAL_THEME_ID)
     setSaving(false)
   }

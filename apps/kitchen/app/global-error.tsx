@@ -1,16 +1,26 @@
-'use client'
+"use client";
 
-import { useEffect } from 'react'
-import { RecoveryScreen } from '@garsonless/ui'
+import { useEffect } from "react";
+import { RecoveryScreen } from "@garsonless/ui";
 
-export default function KitchenGlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function KitchenGlobalError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
   useEffect(() => {
-    console.error('[kitchen-global-error]', { publicCode: 'MAS-UI-500', digest: error.digest }, error)
-  }, [error])
+    console.error(
+      "[kitchen-global-error]",
+      { publicCode: "MAS-UI-500", digest: error.digest },
+      error,
+    );
+  }, [error]);
 
   return (
     <html lang="tr">
-      <body>
+      <body style={{ margin: 0 }}>
         <RecoveryScreen
           kind="error"
           title="Mutfak ekranı başlatılamadı"
@@ -19,9 +29,10 @@ export default function KitchenGlobalError({ error, reset }: { error: Error & { 
           onRetry={reset}
           homeHref="/"
           homeLabel="Başlangıca dön"
-          dark
+          appearance="dark"
+          statusHref={process.env.NEXT_PUBLIC_STATUS_URL}
         />
       </body>
     </html>
-  )
+  );
 }

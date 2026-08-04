@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
 import type { SettingField } from "@garsonless/ui";
 
 import { I } from "../../lib/ui";
@@ -616,37 +616,46 @@ export function PropertySection({
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const sectionId = useId();
+  const contentId = `${sectionId}-content`;
   return (
     <div style={{ borderBottom: "1px solid var(--divider)" }}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          width: "100%",
-          height: 44,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 16px",
-          border: "none",
-          background: "transparent",
-          cursor: "pointer",
-        }}
-      >
-        <span style={{ fontSize: 13, fontWeight: 750, color: "var(--text)" }}>
-          {title}
-        </span>
-        <span
+      <h3 style={{ margin: 0 }}>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={contentId}
+          onClick={() => setOpen((o) => !o)}
           style={{
-            color: "var(--text-3)",
-            transform: open ? "rotate(0deg)" : "rotate(-90deg)",
-            transition: "transform 120ms",
+            width: "100%",
+            height: 44,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 16px",
+            border: "none",
+            background: "transparent",
+            cursor: "pointer",
           }}
         >
-          <ThemeEditorControlIcon name="menu" size={17} />
-        </span>
-      </button>
-      {open && <div style={{ padding: "0 16px 16px" }}>{children}</div>}
+          <span style={{ fontSize: 13, fontWeight: 750, color: "var(--text)" }}>
+            {title}
+          </span>
+          <span
+            aria-hidden="true"
+            style={{
+              color: "var(--text-3)",
+              transform: open ? "rotate(0deg)" : "rotate(-90deg)",
+              transition: "transform 120ms",
+            }}
+          >
+            <ThemeEditorControlIcon name="menu" size={17} />
+          </span>
+        </button>
+      </h3>
+      <div id={contentId} hidden={!open} style={{ padding: open ? "0 16px 16px" : 0 }}>
+        {open ? children : null}
+      </div>
     </div>
   );
 }

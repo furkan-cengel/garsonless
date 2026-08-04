@@ -11,6 +11,7 @@ import type { RestaurantSettingsPatchResult } from '@garsonless/application/rest
 import {
   canRestaurantUseFeature,
   createKitchenSettingsCommandPort,
+  createRestaurantAssetStoragePort,
   createRestaurantSettingsPort,
 } from '@garsonless/db/server'
 import {
@@ -524,23 +525,22 @@ export async function uploadLogo(
 
   const path = `${user.id}/${restaurantId}/logo-${crypto.randomUUID()}.${inspected.image.extension}`
 
-  const { error: uploadError } = await supabase.storage
-    .from('restaurant-assets')
-    .upload(path, file, {
-      cacheControl: '31536000',
+  const assetStorage = createRestaurantAssetStoragePort()
+  let publicUrl: string
+  try {
+    const stored = await assetStorage.uploadImmutable({
+      path,
+      bytes,
       contentType: inspected.image.mime,
-      upsert: false,
     })
-
-  if (uploadError) {
-    console.error('[restaurant-logo-upload-failure]', sanitizeServerDiagnostic(uploadError))
+    publicUrl = stored.publicUrl
+  } catch (error) {
+    console.error('[restaurant-logo-upload-failure]', sanitizeServerDiagnostic(error))
     return { error: 'Logo yüklenemedi. Lütfen tekrar deneyin.' }
   }
 
-  const { data } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
-
   const { data: updatedRows, error: updateError } = await mut(supabase, 'restaurants')
-    .update({ logo_url: data.publicUrl })
+    .update({ logo_url: publicUrl })
     .eq('id', restaurantId)
     .eq('owner_id', user.id)
     .select('id')
@@ -549,7 +549,11 @@ export async function uploadLogo(
   // failure. Roll back the new object when the owner-scoped row update did not
   // land so the UI never claims that a logo was saved when it was not.
   if (updateError || !updatedRows?.length) {
-    await supabase.storage.from('restaurant-assets').remove([path])
+    try {
+      await assetStorage.remove(path)
+    } catch (cleanupError) {
+      console.error('[restaurant-logo-cleanup-failure]', sanitizeServerDiagnostic(cleanupError))
+    }
     if (updateError) console.error('[restaurant-logo-update-failure]', sanitizeServerDiagnostic(updateError))
     return { error: 'Logo güncellenemedi. Lütfen tekrar deneyin.' }
   }
@@ -557,7 +561,7 @@ export async function uploadLogo(
   revalidatePath(`/dashboard/${restaurantId}`)
   revalidatePath(`/dashboard/${restaurantId}/settings`)
   revalidateTag(`menu:${restaurantId}`)
-  return { url: data.publicUrl }
+  return { url: publicUrl }
 }
 
 export async function createKitchenStation(

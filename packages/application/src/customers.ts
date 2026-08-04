@@ -73,7 +73,11 @@ export async function ensureCustomerIdentity(
   port: CustomerIdentityPort,
 ): Promise<EnsureCustomerResult> {
   const email = normalizeCustomerEmail(identity.email)
-  if (!email) return { ok: false, error: 'Kimlik sağlayıcısı e-posta adresi döndürmedi.' }
+  if (!email) return {
+    ok: false,
+    error: 'Kimlik sağlayıcısı e-posta adresi döndürmedi.',
+    code: 'IDENTITY_CONFLICT',
+  }
 
   const linked = await port.upsertIdentity({
     authUserId: identity.authUserId,
@@ -87,7 +91,11 @@ export async function ensureCustomerIdentity(
     authUserId: identity.authUserId,
     appMetadata: identity.appMetadata,
   })
-  if (!stamped.ok) return { ok: false, error: 'Müşteri oturumu damgalanamadı.' }
+  if (!stamped.ok) return {
+    ok: false,
+    error: 'Müşteri oturumu damgalanamadı.',
+    code: 'SERVICE_UNAVAILABLE',
+  }
 
   if (options.restaurantId) {
     const restaurantId = options.restaurantId
@@ -95,7 +103,11 @@ export async function ensureCustomerIdentity(
       customerId: linked.customer.id,
       restaurantId,
     })
-    if (!associated.ok) return { ok: false, error: 'Müşteri işletme bağlantısı oluşturulamadı.' }
+    if (!associated.ok) return {
+      ok: false,
+      error: 'Müşteri işletme bağlantısı oluşturulamadı.',
+      code: 'SERVICE_UNAVAILABLE',
+    }
 
     await port.creditWelcomeBonus({ customerId: linked.customer.id, restaurantId })
     if (options.consent === true) {

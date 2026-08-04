@@ -1,12 +1,22 @@
-'use client'
+"use client";
 
-import { useEffect } from 'react'
-import { RecoveryScreen } from '@garsonless/ui'
+import { useEffect } from "react";
+import { RecoveryScreen } from "@garsonless/ui";
 
-export default function KitchenError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function KitchenError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
   useEffect(() => {
-    console.error('[kitchen-route-error]', { publicCode: 'MAS-UI-500', digest: error.digest }, error)
-  }, [error])
+    console.error(
+      "[kitchen-route-error]",
+      { publicCode: "MAS-UI-500", digest: error.digest },
+      error,
+    );
+  }, [error]);
 
   return (
     <RecoveryScreen
@@ -17,7 +27,8 @@ export default function KitchenError({ error, reset }: { error: Error & { digest
       onRetry={reset}
       homeHref="/"
       homeLabel="Başlangıca dön"
-      dark
+      appearance="dark"
+      statusHref={process.env.NEXT_PUBLIC_STATUS_URL}
     />
-  )
+  );
 }

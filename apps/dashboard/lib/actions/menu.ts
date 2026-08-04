@@ -23,7 +23,10 @@ import {
   type MenuItemDraft,
   type MenuItemPatch,
 } from '@garsonless/application/menu'
-import { createMenuCommandPort } from '@garsonless/db/server'
+import {
+  createMenuCommandPort,
+  createRestaurantAssetStoragePort,
+} from '@garsonless/db/server'
 import { createDashboardServerClient } from '../supabase-server'
 import {
   sniffMenuImageMime,
@@ -177,8 +180,8 @@ export async function uploadMenuImage(
 
   const metadata = validateMenuImageMetadata({ size: file.size, type: file.type })
   if (!metadata.ok) return { error: metadata.error }
-  const header = new Uint8Array(await file.slice(0, 32).arrayBuffer())
-  const detectedType = sniffMenuImageMime(header)
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const detectedType = sniffMenuImageMime(bytes.subarray(0, 32))
   if (!detectedType || detectedType !== file.type) {
     return { error: 'Dosya içeriği ile görsel biçimi eşleşmiyor.' }
   }
@@ -190,18 +193,17 @@ export async function uploadMenuImage(
     'image/avif': 'avif',
   }
   const path = `restaurants/${input.data.restaurantId}/${input.data.kind}/${input.data.entityId}/${crypto.randomUUID()}.${extension[detectedType]}`
-  const supabase = await createDashboardServerClient()
-  const { error } = await supabase.storage.from('restaurant-assets').upload(path, file, {
-    cacheControl: '31536000',
-    contentType: detectedType,
-    upsert: false,
-  })
-  if (error) {
+  try {
+    const stored = await createRestaurantAssetStoragePort().uploadImmutable({
+      path,
+      bytes,
+      contentType: detectedType,
+    })
+    return { url: stored.publicUrl }
+  } catch (error) {
     console.error('[menu-image-upload-failure]', sanitizeServerDiagnostic(error))
     return { error: 'Görsel yüklenemedi. Lütfen tekrar deneyin.' }
   }
-  const { data } = supabase.storage.from('restaurant-assets').getPublicUrl(path)
-  return { url: data.publicUrl }
 }
 
 function nullableUuidFormValue(formData: FormData, key: string): string | null | undefined {

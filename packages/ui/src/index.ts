@@ -63,7 +63,7 @@ export type { BillOrder } from './menu/TableBillSheet'
 
 // Theme system
 export { THEME_REGISTRY, computeThemeVars, readStoreInfo } from './themes/index'
-export { CANONICAL_THEME_ID } from '@garsonless/design-engine'
+export { CANONICAL_THEME_ID } from '@garsonless/design-engine/theme-policy'
 export type { ComboAddRequest, ThemeMenuPageProps, StoreInfo, SettingField, SettingOption, SettingsGroup, ThemeRegistryEntry } from './themes/index'
 export { CustomSectionRenderer, DefaultMenuPage, SETTINGS_SCHEMA, THEME_DEFAULTS } from './themes/default'
 export type { CustomSectionRendererProps } from './themes/default'
@@ -74,3 +74,4 @@ export type { ChefSectionIconName } from './themes/default'
 
 // Error boundaries
 export { RecoveryScreen } from './errors/RecoveryScreen'
+export type { RecoveryScreenProps } from './errors/RecoveryScreen'

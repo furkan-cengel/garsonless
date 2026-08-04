@@ -15,8 +15,8 @@ import {
   getSectionDefinitionId,
   getSectionVisibility,
   isSectionBlockVisibleInContext,
-  type ThemePageBlock,
-} from '@garsonless/design-engine'
+} from '@garsonless/design-engine/section-blocks'
+import type { ThemePageBlock } from '@garsonless/design-engine'
 
 export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFilters, orderStatus, filterEmptyState, tableId, tableLabel, cartSummary, onOpenCart, items, onQuickAdd, onAddCombo, billSummary, onOpenBill, memberSummary, onOpenMember, onServiceRequest, onOpenServiceRequests, memberLoyalty, storeInfo }: ThemeMenuPageProps) {
   const { theme, restaurantName } = useTheme()

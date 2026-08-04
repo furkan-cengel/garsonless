@@ -7,7 +7,14 @@ const nextConfig: NextConfig = {
     '@garsonless/db',
     '@garsonless/domain',
   ],
-  serverExternalPackages: ['iyzipay'],
+  serverExternalPackages: ['iyzipay', 'sharp'],
+  experimental: {
+    serverActions: {
+      // Theme/menu media validates at 2–8 MB inside authenticated actions.
+      // Multipart overhead needs a small margin above the largest accepted file.
+      bodySizeLimit: '9mb',
+    },
+  },
 }
 
 export default nextConfig

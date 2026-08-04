@@ -547,38 +547,35 @@ export async function recordConsent(
   customerId: string,
   restaurantId: string,
   grant: boolean,
-  source: 'join' | 'member_sheet',
+  source: 'join' | 'member_sheet' | 'account_center',
   consentType: CustomerConsentType = 'contact_data',
 ): Promise<{ ok: boolean }> {
   try {
     const supabase = createServiceClient()
-    const now = new Date().toISOString()
-    const builder = supabase.from('customer_consents') as unknown as {
-      upsert: (row: Record<string, unknown>, opts: { onConflict: string }) => Promise<{ error: { message: string } | null }>
-    }
-    const { error } = await builder.upsert(
-      {
-        customer_id: customerId,
-        restaurant_id: restaurantId,
-        consent_type: consentType,
-        granted_at: grant ? now : null,
-        revoked_at: grant ? null : now,
-        source,
-        updated_at: now,
-      },
-      { onConflict: 'customer_id,restaurant_id,consent_type' },
-    )
-    if (error) return { ok: false }
-
-    // Consent is itself restaurant-scoped customer activity. Keep the CRM
-    // association current for both grant and revoke operations.
-    const association = await supabase
-      .from('customer_restaurants')
-      .upsert(
-        { customer_id: customerId, restaurant_id: restaurantId, source: 'consent' },
-        { onConflict: 'customer_id,restaurant_id', ignoreDuplicates: true },
-      )
-    return { ok: !association.error }
+    const policy = consentType === 'marketing'
+      ? {
+          version: 'marketing-consent-v1',
+          digest: 'f5876bd7a6e24b5efdee0c7bfbd260d45b767f856fa79e836dc454c7544432ee',
+        }
+      : {
+          version: 'contact-data-notice-v1',
+          digest: '243ae10e5e0fdca1fa38840ad6c1145d59fe1996c9b0707e3d9073dff8d825bf',
+        }
+    const rpc = supabase.rpc.bind(supabase) as unknown as (
+      name: string,
+      args: Record<string, unknown>,
+    ) => Promise<{ data: unknown; error: { message: string } | null }>
+    const { data, error } = await rpc('record_customer_consent_event', {
+      p_customer_id: customerId,
+      p_restaurant_id: restaurantId,
+      p_consent_type: consentType,
+      p_grant: grant,
+      p_source: source,
+      p_policy_version: policy.version,
+      p_text_digest: policy.digest,
+      p_lawful_basis: 'explicit_consent',
+    })
+    return { ok: !error && data === true }
   } catch {
     return { ok: false }
   }

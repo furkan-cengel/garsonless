@@ -1,7 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { getSectionDefinitionId, resolveMenuActionPlacements, type GarsonlessTheme } from '@garsonless/design-engine'
+import { getSectionDefinitionId } from '@garsonless/design-engine/section-blocks'
+import type { GarsonlessTheme } from '@garsonless/design-engine'
+import { resolveMenuActionPlacements } from '@garsonless/design-engine/menu-action-placement'
+import { parseOpenThemeNavDrawerCommand } from '@garsonless/design-engine/theme-preview-nav-command'
 import { useTheme } from './ThemeContext'
 import { formatTRY } from './formatCurrency'
 import { ML_STAMP_POP_KEYFRAME } from './keyframes'
@@ -49,6 +52,7 @@ interface HeaderProps {
   onOpenBill?: (() => void) | undefined
   /** Membership (loyalty) — renders an "Üye ol"/member chip when provided. */
   memberSummary?: {
+    authenticated?: boolean
     name: string | null
     stamps?: number
     stampGoal?: number
@@ -99,11 +103,18 @@ export function Header({ tableId, tableName, categories, categoryMeta, onCategor
   const hasBillChip = Boolean(placements.bill === 'header' && billSummary && billSummary.count > 0 && onOpenBill)
   useEffect(() => {
     if (!isPreview) return
-    const parentOrigin = document.referrer ? new URL(document.referrer).origin : null
+    let parentOrigin: string | null = null
+    try {
+      parentOrigin = document.referrer ? new URL(document.referrer).origin : null
+    } catch {
+      parentOrigin = null
+    }
+    if (!parentOrigin || window.parent === window) return
     const onMessage = (event: MessageEvent) => {
       if (event.source !== window.parent || !parentOrigin || event.origin !== parentOrigin) return
-      if (!event.data || event.data.type !== 'OPEN_NAV_DRAWER') return
-      setEditorDrawerSectionId(typeof event.data.sectionId === 'string' ? event.data.sectionId : null)
+      const message = parseOpenThemeNavDrawerCommand(event.data)
+      if (!message) return
+      setEditorDrawerSectionId(message.sectionId)
       setMenuOpen(true)
     }
     window.addEventListener('message', onMessage)
@@ -177,57 +188,27 @@ export function Header({ tableId, tableName, categories, categoryMeta, onCategor
       Hesap · {formatTRY(billSummary!.total)}
     </button>
   ) : null
-  // Logged-in members (real balances present) get a compact progress chip;
-  // otherwise the chip is the "Üye ol" entry point. Welcome-bonus teaser only
-  // when a real bonus exists — never advertise 0. Stamp ring only with a real
-  // goal (> 0); a goal-less stamp program falls back to the points display.
-  const memberIsMember = Boolean(memberSummary && (memberSummary.stampEnabled !== undefined || memberSummary.pointsEnabled !== undefined))
-  const memberWelcomeBonus = memberSummary?.welcomeBonus ?? 0
-  const memberJoinLabel = memberWelcomeBonus > 0 ? `Üye ol · +${memberWelcomeBonus}` : 'Üye ol'
-  const memberStamps = typeof memberSummary?.stamps === 'number' ? memberSummary.stamps : null
-  const memberStampGoal = memberSummary?.stampGoal ?? 0
-  const memberShowStamp = Boolean(memberIsMember && memberSummary?.stampEnabled && memberStamps !== null && memberStampGoal > 0)
-  // One-shot pop when the stamp count INCREASES (never on initial mount).
-  const prevStampsRef = useRef<number | null>(memberStamps)
-  const [stampPop, setStampPop] = useState(0)
-  useEffect(() => {
-    const prev = prevStampsRef.current
-    prevStampsRef.current = memberStamps
-    if (memberStamps !== null && prev !== null && memberStamps > prev) setStampPop((t) => t + 1)
-  }, [memberStamps])
-  const memberChip = placements.member === 'header' && memberSummary && onOpenMember ? (() => {
-    const isMember = memberIsMember
-    const showPoints = memberSummary.pointsEnabled && typeof memberSummary.points === 'number'
-    const label = !isMember
-      ? memberJoinLabel
-      : memberShowStamp
-        ? `${memberStamps}/${memberStampGoal}`
-        : showPoints
-          ? `⭐ ${memberSummary.points}`
-          : (memberSummary.name || 'Üyelik')
-    return (
-      <button
-        type="button"
-        onClick={onOpenMember}
-        aria-label={isMember ? 'Üyelik' : 'Üye ol'}
-        style={{
-          height: 44, minWidth: 44, padding: '0 12px', borderRadius: 999,
-          display: 'inline-flex', alignItems: 'center', gap: 5,
-          fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit',
-          background: 'var(--p-accent-soft)', color: 'var(--p-accent)',
-          border: 'none', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
-        }}
-      >
-        {!isMember && <I.userPlus size={17} strokeWidth={1.9} />}
-        {isMember && !memberShowStamp && <I.userCircle size={17} strokeWidth={1.9} />}
-        {memberShowStamp && <StampRing stamps={memberStamps!} goal={memberStampGoal} pop={stampPop} />}
-        {isMember && memberSummary.tierColor && (
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: memberSummary.tierColor, flexShrink: 0 }} />
-        )}
-        <span data-header-action-label>{label}</span>
-      </button>
-    )
-  })() : null
+  // Customer identity is a global menu capability, independent from a
+  // restaurant's loyalty entitlement or theme placement. Keep a real 44px
+  // account entry in the top bar at all times.
+  const memberIsMember = memberSummary?.authenticated === true
+  const memberChip = onOpenMember ? (
+    <button
+      type="button"
+      onClick={onOpenMember}
+      aria-label={memberIsMember ? 'Hesabımı aç' : 'Müşteri hesabını aç'}
+      style={{
+        height: 44, minWidth: 44, padding: '0 12px', borderRadius: 999,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        fontSize: 11.5, fontWeight: 750, fontFamily: 'inherit',
+        background: 'var(--p-accent-soft)', color: 'var(--p-accent)',
+        border: 'none', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+      }}
+    >
+      {memberIsMember ? <I.userCircle size={19} strokeWidth={1.9} /> : <I.userPlus size={19} strokeWidth={1.9} />}
+      <span data-header-action-label>{memberIsMember ? (memberSummary?.name?.split(' ')[0] || 'Hesabım') : 'Hesap'}</span>
+    </button>
+  ) : null
   // headerShowLang stays in the schema, but there is NO real language switch
   // behind it yet — per the no-dead-controls rule the static "TR" badge is not
   // rendered (same treatment as the removed search button).
@@ -610,7 +591,7 @@ function formatHeaderMoney(value: number) {
 /** 22px stamp-progress ring. Purely decorative (aria-hidden) — the chip text
  * carries the real count. Arc rotation lives on the circle (SVG attribute) so
  * the pop animation's transform on the svg can't knock the start point off. */
-function StampRing({ stamps, goal, pop }: { stamps: number; goal: number; pop: number }) {
+function _StampRing({ stamps, goal, pop }: { stamps: number; goal: number; pop: number }) {
   const R = 8.5
   const C = 2 * Math.PI * R
   const frac = Math.max(0, Math.min(1, stamps / goal))

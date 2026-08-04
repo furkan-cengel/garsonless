@@ -26,6 +26,8 @@ export function createThemeOverrides(
   if (initialTheme.sectionSettings && Object.keys(initialTheme.sectionSettings).length > 0) {
     patch.sectionSettings = initialTheme.sectionSettings
   }
+  if (initialTheme.experienceVersion === 2) patch.experienceVersion = 2
+  if (initialTheme.surfaces) patch.surfaces = initialTheme.surfaces
 
   return patch
 }
@@ -37,6 +39,13 @@ export function appendHistorySnapshot<T>(
 ): T[] {
   if (limit <= 0) return []
   return [...history.slice(-(limit - 1)), snapshot]
+}
+
+export function areThemeOverridesEqual(
+  left: Partial<GarsonlessTheme>,
+  right: Partial<GarsonlessTheme>,
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
 }
 
 export function getUnsavedFieldLabels(
@@ -53,6 +62,10 @@ export function getUnsavedFieldLabels(
       return JSON.stringify(currentTheme[key]) !== JSON.stringify(savedTheme[key])
     })
     .map((field) => field.label)
+
+  if (JSON.stringify(currentTheme.surfaces) !== JSON.stringify(savedTheme.surfaces)) {
+    labels.push('Yüzeyler')
+  }
 
   return labels.filter((label, index) => labels.indexOf(label) === index)
 }

@@ -1,6 +1,10 @@
 'use client'
 
 import { useEffect, type RefObject } from 'react'
+import {
+  createOpenThemeNavDrawerCommand,
+  createScrollToThemeComponentCommand,
+} from '@garsonless/design-engine'
 
 interface DrawerPreviewOptions {
   activeGroup: string
@@ -28,11 +32,9 @@ export function useThemeEditorDrawerPreview({
     } catch {
       return
     }
-    iframeRef.current?.contentWindow?.postMessage(
-      activeGroup === 'footer'
-        ? { type: 'SCROLL_TO_COMPONENT', component: 'footer' }
-        : { type: 'OPEN_NAV_DRAWER', sectionId },
-      targetOrigin,
-    )
+    const message = activeGroup === 'footer'
+      ? createScrollToThemeComponentCommand()
+      : createOpenThemeNavDrawerCommand(sectionId)
+    if (message) iframeRef.current?.contentWindow?.postMessage(message, targetOrigin)
   }, [activeGroup, iframeRef, previewStatus, previewUrl, selectedSectionDefinitionId, selectedSectionPlacement])
 }

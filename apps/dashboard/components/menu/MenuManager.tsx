@@ -23,14 +23,14 @@ import { useMenuItemRecommendations } from './use-menu-item-recommendations'
 interface Props {
   restaurantId: string
   restaurantName: string
-  restaurantSlug: string
+  publicMenuPath: string
   initialCategories: Tables<'menu_categories'>[]
   initialItems: Tables<'menu_items'>[]
   kitchenStations: Tables<'kitchen_stations'>[]
   initialRecommendations: MenuItemRecommendationRow[]
 }
 export default function MenuManager({
-  restaurantId, restaurantName, restaurantSlug, initialCategories,
+  restaurantId, restaurantName, publicMenuPath, initialCategories,
   initialItems, kitchenStations, initialRecommendations,
 }: Props) {
   const router = useRouter()
@@ -124,7 +124,7 @@ export default function MenuManager({
     <div className="menu-manager" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <MenuManagerTopBar
         restaurantName={restaurantName}
-        restaurantSlug={restaurantSlug}
+        publicMenuPath={publicMenuPath}
         search={search}
         searchFocused={searchFocused}
         searchInputRef={searchInputRef}

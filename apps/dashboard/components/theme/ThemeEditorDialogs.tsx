@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import type { CSSProperties, KeyboardEvent, ReactNode, RefObject } from 'react'
+import type { CSSProperties, ReactNode, RefObject } from 'react'
 import { I } from '../../lib/ui'
+import { AccessibleDialog } from '../tables/AccessibleDialog'
 
 export type ThemeSectionOption = {
   id: string
@@ -21,6 +22,7 @@ function countSectionInstances(activeSectionIds: readonly string[], sectionId: s
 }
 
 interface SectionPickerDialogProps {
+  surface?: 'menu' | 'home'
   closeRef: RefObject<HTMLButtonElement | null>
   search: string
   activeGroup: string
@@ -38,6 +40,7 @@ interface SectionPickerDialogProps {
 }
 
 export function SectionPickerDialog({
+  surface = 'menu',
   closeRef,
   search,
   activeGroup,
@@ -89,28 +92,16 @@ export function SectionPickerDialog({
     : selectedLocked
       ? 'Pro ile aç'
       : selected?.singleton && selectedExists
-        ? 'Menüde etkin'
+        ? surface === 'home' ? 'Ana sayfada etkin' : 'Menüde etkin'
         : selectedExists
         ? 'Bir tane daha ekle'
         : 'Bölümü ekle'
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="section-picker-title"
-      aria-describedby="section-picker-description"
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.preventDefault()
-          onClose()
-          return
-        }
-        trapDialogFocus(event)
-      }}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
+    <AccessibleDialog
+      labelledBy="section-picker-title"
+      describedBy="section-picker-description"
+      onClose={onClose}
       style={overlayStyle}
     >
       <div className="section-picker-dialog" style={dialogStyle}>
@@ -136,7 +127,7 @@ export function SectionPickerDialog({
           }
           .section-picker-close:focus-visible,
           .section-picker-chip:focus-visible,
-          .section-picker-card:focus-visible,
+          .section-picker-card-select:focus-visible,
           .section-picker-secondary:focus-visible,
           .section-picker-primary:focus-visible,
           .section-picker-search:focus-within {
@@ -164,18 +155,72 @@ export function SectionPickerDialog({
             }
           }
           @media (max-width: 560px) {
+            .section-picker-dialog {
+              width: calc(100vw - 16px) !important;
+              height: calc(100dvh - 16px) !important;
+              border-radius: 16px !important;
+            }
+            .section-picker-header {
+              padding: 12px 14px 9px !important;
+            }
+            .section-picker-toolbar {
+              gap: 8px !important;
+              padding: 0 14px 10px !important;
+            }
+            .section-picker-search {
+              height: 38px !important;
+              flex-basis: 38px !important;
+            }
+            .section-picker-chip-row {
+              box-sizing: border-box;
+              width: 100% !important;
+              max-width: 100% !important;
+              flex: 0 0 auto !important;
+              flex-wrap: nowrap !important;
+              overflow-x: auto !important;
+              padding: 0 1px 2px !important;
+              overscroll-behavior-x: contain;
+              scrollbar-width: none;
+            }
+            .section-picker-chip-row::-webkit-scrollbar {
+              display: none;
+            }
+            .section-picker-chip {
+              height: 34px !important;
+            }
+            .section-picker-body {
+              padding: 10px !important;
+            }
             .section-picker-catalog {
               grid-template-columns: minmax(0, 1fr) !important;
+              gap: 10px !important;
+              padding-right: 2px !important;
+              overscroll-behavior: contain;
+              scrollbar-gutter: stable;
             }
             .section-picker-card {
-              min-height: 0 !important;
+              min-height: 236px !important;
+            }
+            .section-picker-card-preview {
+              height: 104px !important;
+              min-height: 104px !important;
+            }
+            .section-picker-card-meta {
+              flex: 0 0 auto !important;
+            }
+            .section-picker-footer {
+              min-height: 54px !important;
+              padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
+            }
+            .section-picker-footer button {
+              min-height: 36px !important;
             }
             .section-picker-footer > .section-picker-status {
               display: none;
             }
           }
         `}</style>
-        <header style={headerStyle}>
+        <header className="section-picker-header" style={headerStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
             <span style={headerIconStyle}><I.template size={18} aria-hidden="true" /></span>
             <div>
@@ -194,6 +239,7 @@ export function SectionPickerDialog({
           <label className="section-picker-search" style={searchStyle}>
             <I.search size={17} aria-hidden="true" />
             <input
+              data-modal-initial-focus
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder="Bölüm ara..."
@@ -201,7 +247,7 @@ export function SectionPickerDialog({
               style={searchInputStyle}
             />
           </label>
-          <div role="group" aria-label="Kategori filtresi" style={chipRowStyle}>
+          <div className="section-picker-chip-row" role="group" aria-label="Kategori filtresi" style={chipRowStyle}>
             {groups.map((group) => {
               const count = group === 'Tümü' ? sections.length : sections.filter((section) => section.group === group).length
               const active = activeGroup === group
@@ -251,12 +297,9 @@ export function SectionPickerDialog({
               const SectionIcon = I[section.icon]
 
               return (
-                <button
+                <div
                   key={section.id}
                   className="section-picker-card"
-                  type="button"
-                  onClick={() => setSelectedId(section.id)}
-                  aria-pressed={isSelected}
                   data-selected={isSelected}
                   style={{
                     ...sectionCardStyle,
@@ -264,11 +307,19 @@ export function SectionPickerDialog({
                     boxShadow: isSelected ? '0 12px 30px -12px rgba(28,107,64,.4), 0 0 0 1px #1c6b40' : '0 1px 2px rgba(20,25,31,.05)',
                   }}
                 >
+                  <button
+                    className="section-picker-card-select"
+                    type="button"
+                    aria-label={`${section.label} bölümünü seç`}
+                    aria-pressed={isSelected}
+                    onClick={() => setSelectedId(section.id)}
+                    style={sectionCardSelectStyle}
+                  />
                   <div className="section-picker-card-preview" style={{ ...cardPreviewStyle, opacity: planned ? 0.55 : 1 }} aria-hidden="true" inert>
                     {renderPreview(section.id, true)}
                     {isSelected && <span style={selectedCheckStyle}><I.check size={15} aria-hidden="true" /></span>}
                   </div>
-                  <div className="section-picker-card-meta" style={cardMetaStyle}>
+                  <div className="section-picker-card-meta" style={cardMetaStyle} aria-hidden="true">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={sectionIconStyle}><SectionIcon size={15} /></span>
                       <span style={cardTitleStyle}>{section.label}</span>
@@ -286,7 +337,7 @@ export function SectionPickerDialog({
                       </div>
                     </div>
                   </div>
-                </button>
+                </div>
               )
             })}
           </div>
@@ -302,7 +353,9 @@ export function SectionPickerDialog({
                   <h3 style={{ margin: '7px 0 0', color: 'var(--text)', fontSize: 19, lineHeight: 1.18, fontWeight: 900, letterSpacing: '-.015em' }}>{selected.label}</h3>
                   <p style={{ margin: '5px 0 0', color: 'var(--text-2)', fontSize: 12.5, lineHeight: 1.45 }}>{selected.sub}</p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 10 }}>
-                    {selectedExists && <StatusPill tone="added">{selected.singleton ? 'Menüde etkin' : `Menüde ${selectedInstanceCount} tane`}</StatusPill>}
+                    {selectedExists && <StatusPill tone="added">{selected.singleton
+                      ? surface === 'home' ? 'Ana sayfada etkin' : 'Menüde etkin'
+                      : `${surface === 'home' ? 'Ana sayfada' : 'Menüde'} ${selectedInstanceCount} tane`}</StatusPill>}
                     {selectedPlanned && <StatusPill tone="warn">Geliştiriliyor</StatusPill>}
                     {selectedLocked && !selectedPlanned && <StatusPill tone="lock">Pro paket</StatusPill>}
                     {!selectedExists && !selectedPlanned && !selectedLocked && <StatusPill tone="ready">Eklenmeye hazır</StatusPill>}
@@ -358,7 +411,7 @@ export function SectionPickerDialog({
           </div>
         </footer>
       </div>
-    </div>
+    </AccessibleDialog>
   )
 }
 
@@ -409,23 +462,6 @@ function PlanChip({ plan }: { plan: 'free' | 'pro' }) {
   )
 }
 
-function trapDialogFocus(event: KeyboardEvent<HTMLElement>) {
-  if (event.key !== 'Tab') return
-  const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
-    'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-  )).filter((element) => element.getAttribute('aria-hidden') !== 'true' && element.offsetParent !== null)
-  if (focusable.length === 0) return
-  const first = focusable[0]!
-  const last = focusable[focusable.length - 1]!
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault()
-    last.focus()
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault()
-    first.focus()
-  }
-}
-
 const overlayStyle: CSSProperties = {
   position: 'fixed',
   inset: 0,
@@ -464,6 +500,7 @@ const bodyStyle: CSSProperties = { flex: 1, minHeight: 0, background: 'var(--sur
 const catalogStyle: CSSProperties = { minHeight: 0, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', alignContent: 'start', gap: 12, paddingRight: 4 }
 const emptyStyle: CSSProperties = { gridColumn: '1 / -1', padding: '44px 20px', textAlign: 'center', color: 'var(--text-3)', display: 'flex', flexDirection: 'column', alignItems: 'center' }
 const sectionCardStyle: CSSProperties = { minHeight: 236, padding: 0, font: 'inherit', color: 'inherit', textAlign: 'left', border: '1px solid var(--border)', borderRadius: 14, background: 'var(--surface)', overflow: 'hidden', cursor: 'pointer', position: 'relative', userSelect: 'none', display: 'flex', flexDirection: 'column', transition: 'border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease' }
+const sectionCardSelectStyle: CSSProperties = { position: 'absolute', inset: 0, zIndex: 3, width: '100%', height: '100%', padding: 0, border: 0, borderRadius: 14, background: 'transparent', cursor: 'pointer' }
 const cardPreviewStyle: CSSProperties = { boxSizing: 'border-box', height: 116, minHeight: 116, margin: '7px 7px 0', padding: 6, border: '1px solid var(--divider)', borderRadius: 10, background: 'var(--surface-2)', overflow: 'hidden', position: 'relative' }
 const selectedCheckStyle: CSSProperties = { position: 'absolute', top: 7, right: 7, zIndex: 2, width: 23, height: 23, borderRadius: 999, background: '#1c6b40', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 5px 12px -3px rgba(28,107,64,.55)' }
 const cardMetaStyle: CSSProperties = { minWidth: 0, padding: '10px 12px 15px', display: 'flex', flex: 1, flexDirection: 'column', gap: 6, background: 'var(--surface)', position: 'relative', zIndex: 1 }

@@ -19,11 +19,13 @@ export function FeaturedScrollSection({
   items = [],
   onQuickAdd,
   theme,
+  actionMode = 'order',
 }: {
   config: Record<string, string>
   items?: MenuItem[]
   onQuickAdd?: (item: MenuItem, originalPrice?: number) => void
   theme?: FeaturedTheme
+  actionMode?: 'order' | 'discover'
 }) {
   const { text, number, bool } = makeReaders(config)
   const selectedItems = resolveFeaturedScrollItems(config, items)
@@ -67,8 +69,8 @@ export function FeaturedScrollSection({
   const badgeBg = text('badgeBgColor', 'color-mix(in srgb, var(--p-text) 76%, transparent)')
   const badgeText = text('badgeTextColor', '#ffffff')
   const ctaMode = text('ctaMode', 'inherit') === 'custom' ? 'custom' : 'inherit'
-  const buttonStyle = ctaMode === 'inherit' ? (theme?.cardCtaStyle ?? 'icon') : text('buttonStyle', 'icon')
-  const buttonIcon = ctaMode === 'inherit' ? (theme?.cardCtaIcon ?? 'plus') : text('buttonIcon', 'plus')
+  const buttonStyle = actionMode === 'discover' ? 'pill' : ctaMode === 'inherit' ? (theme?.cardCtaStyle ?? 'icon') : text('buttonStyle', 'icon')
+  const buttonIcon = actionMode === 'discover' ? 'arrow' : ctaMode === 'inherit' ? (theme?.cardCtaIcon ?? 'plus') : text('buttonIcon', 'plus')
   const buttonSizeName = text('buttonSize', 'medium') as keyof typeof BUTTON_SIZE
   const buttonSize = BUTTON_SIZE[buttonSizeName] ?? BUTTON_SIZE.medium
   const buttonBackground = ctaMode === 'inherit' ? 'var(--p-cta)' : text('buttonBgColor', 'var(--p-cta)')
@@ -167,9 +169,9 @@ export function FeaturedScrollSection({
                   <ProductAllergenSummary item={item} />
                   <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingTop: 4 }}>
                     <span style={{ color: cardText, fontSize: 15, fontWeight: 850, letterSpacing: '-.01em' }}>{formatTRY(item.price)}</span>
-                    <button type="button" className="garsonless-featured-add" data-cta-source={ctaMode} data-cta-icon={buttonIcon} disabled={!onQuickAdd} aria-label={`${item.name} sepete ekle`} onClick={() => onQuickAdd?.(item)} style={{ minWidth: buttonStyle === 'icon' ? buttonSize : Math.max(64, buttonSize * 1.8), height: buttonSize, padding: buttonStyle === 'icon' ? 0 : '0 12px', border: 0, borderRadius: buttonStyle === 'full' ? 10 : 999, background: buttonBackground, color: buttonColor, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontFamily: 'var(--p-body)', fontSize: 11.5, fontWeight: 800, cursor: onQuickAdd ? 'pointer' : 'default', opacity: onQuickAdd ? 1 : .62, flexShrink: 0 }}>
+                    <button type="button" className="garsonless-featured-add" data-cta-source={ctaMode} data-cta-icon={buttonIcon} disabled={!onQuickAdd} aria-label={`${item.name} ${actionMode === 'discover' ? 'ürününü incele' : 'sepete ekle'}`} onClick={() => onQuickAdd?.(item)} style={{ minWidth: buttonStyle === 'icon' ? buttonSize : Math.max(64, buttonSize * 1.8), height: buttonSize, padding: buttonStyle === 'icon' ? 0 : '0 12px', border: 0, borderRadius: buttonStyle === 'full' ? 10 : 999, background: buttonBackground, color: buttonColor, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontFamily: 'var(--p-body)', fontSize: 11.5, fontWeight: 800, cursor: onQuickAdd ? 'pointer' : 'default', opacity: onQuickAdd ? 1 : .62, flexShrink: 0 }}>
                       <FeaturedCtaIcon kind={buttonIcon} size={Math.max(15, Math.round(buttonSize * .45))} />
-                      {buttonStyle !== 'icon' && <span>{text('ctaText', 'Ekle')}</span>}
+                      {buttonStyle !== 'icon' && <span>{actionMode === 'discover' ? 'İncele' : text('ctaText', 'Ekle')}</span>}
                     </button>
                   </div>
                 </div>
@@ -191,6 +193,7 @@ export function FeaturedScrollSection({
 }
 
 function FeaturedCtaIcon({ kind, size }: { kind: string; size: number }) {
+  if (kind === 'arrow') return <AppIcons.arrow size={size} aria-hidden="true" />
   if (kind === 'cart') return <AppIcons.cart size={size} aria-hidden="true" />
   if (kind === 'bag') return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M5 8h14l-1 12H6L5 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>
   return <AppIcons.plus size={size} aria-hidden="true" />

@@ -6,7 +6,7 @@ export type CustomerSegmentCounts = Record<CustomerSegment, number>
 export type CustomerSegmentOperator = '>=' | '<='
 export type CustomerSegmentConsent = 'granted' | 'missing'
 export type CustomerConsentType = 'contact_data' | 'marketing'
-export type CustomerConsentSource = 'join' | 'member_sheet'
+export type CustomerConsentSource = 'join' | 'member_sheet' | 'account_center'
 
 export const CUSTOMER_NEW_WINDOW_DAYS = 30
 export const CUSTOMER_LAPSED_WINDOW_DAYS = 60
@@ -30,7 +30,11 @@ export interface EnsureCustomerOptions {
 
 export type EnsureCustomerResult =
   | { ok: true; customer: { id: string; email: string; name: string | null } }
-  | { ok: false; error: string }
+  | {
+      ok: false
+      error: string
+      code?: 'IDENTITY_CONFLICT' | 'STAFF_ACCOUNT_REJECTED' | 'SERVICE_UNAVAILABLE'
+    }
 
 export interface CustomerConsentSnapshot {
   consentGiven: boolean
@@ -105,7 +109,7 @@ export interface CustomerTimelineEvent {
   /** True only when the order participates in canonical collected spend. */
   collected?: boolean
   type?: 'stamp' | 'points' | 'visit'
-  direction?: 'earn' | 'redeem' | 'refund'
+  direction?: 'earn' | 'redeem' | 'refund' | 'reversal'
   delta?: number
   reason?: string
 }

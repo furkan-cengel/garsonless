@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react'
 import type { CartItem } from './types'
 import { useTheme } from './ThemeContext'
 import { formatTRY } from './formatCurrency'
+import { AppIcons as I } from '../icons'
 
 export interface CartPointsRedeem {
   balance: number       // points balance
@@ -103,12 +104,30 @@ export function CartDrawer({
   const displayTotal = discountPreview ? discountPreview.finalTotal : total
   const loyaltySuppressedByPromotion = discountPreview?.loyaltySuppressedByPromotion ?? false
   const { theme } = useTheme()
-  const radius = theme.radius
+  const checkoutTheme = theme.surfaces?.checkout
+  const checkoutOverride = checkoutTheme?.override ?? {}
+  const radius = checkoutOverride.radius ?? theme.radius
   const drawerTone = theme.cartDrawerTone ?? 'clean'
   const showSubtotal = theme.cartShowSubtotal ?? true
   const showItemCount = theme.cartShowItemCount ?? true
   const primaryActionText = theme.cartPrimaryActionText || 'Sipariş ver'
-  const headerIsAccent = drawerTone === 'accentHeader'
+  const checkoutPreset = checkoutTheme?.preset ?? 'clean'
+  const checkoutSheetSize = checkoutTheme?.sheetSize ?? 'standard'
+  const checkoutSheetMaxWidth = checkoutSheetSize === 'compact' ? 400 : checkoutSheetSize === 'large' ? 680 : 520
+  const checkoutSheetMaxHeight = checkoutSheetSize === 'compact' ? '76dvh' : checkoutSheetSize === 'large' ? '94dvh' : '88dvh'
+  const headerIsAccent = checkoutPreset === 'brand-header' || drawerTone === 'accentHeader'
+  const checkoutVars = {
+    '--p-bg': checkoutOverride.background ?? theme.bg,
+    '--p-card': checkoutOverride.surface ?? theme.cardColor ?? '#ffffff',
+    '--p-text': checkoutOverride.text ?? theme.textColor ?? '#1c1d20',
+    '--p-text-2': checkoutOverride.mutedText ?? theme.mutedTextColor ?? '#6c6f76',
+    '--p-accent': checkoutOverride.accent ?? theme.accent,
+    '--p-accent-soft': checkoutOverride.accentSoft ?? theme.accentSoft,
+    '--p-cta': checkoutOverride.cta ?? theme.cta,
+    '--p-cta-text': checkoutOverride.ctaText ?? theme.ctaTextColor ?? '#ffffff',
+    '--p-border': checkoutOverride.fieldBorder ?? theme.borderColor ?? '#e3e4e7',
+    '--p-body': checkoutOverride.bodyFont ?? theme.bodyFont,
+  } satisfies Record<`--${string}`, string>
   const itemCount = visibleItems.reduce((sum, i) => sum + i.quantity, 0)
   const drawerRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
@@ -162,18 +181,24 @@ export function CartDrawer({
             key="drawer"
             ref={drawerRef}
             data-component="cart"
+            data-checkout-preset={checkoutPreset}
+            data-checkout-sheet-size={checkoutSheetSize}
             role="dialog"
             aria-modal="true"
             aria-labelledby="cart-drawer-title"
             tabIndex={-1}
             style={{
-              background: 'var(--p-card)',
+              ...checkoutVars,
+              background: 'var(--p-bg)',
               color: 'var(--p-text)',
               borderRadius: `${Math.max(radius + 14, 24)}px ${Math.max(radius + 14, 24)}px 0 0`,
               boxShadow: '0 -24px 70px rgba(15,23,42,0.26)',
               position: 'fixed',
               left: 0, right: 0, bottom: 0,
-              maxHeight: '88dvh',
+              width: '100%',
+              maxWidth: checkoutSheetMaxWidth,
+              maxHeight: checkoutSheetMaxHeight,
+              margin: '0 auto',
               zIndex: 50,
               display: 'flex',
               flexDirection: 'column',
@@ -281,9 +306,9 @@ export function CartDrawer({
                         gridTemplateColumns: item.imageUrl ? '58px minmax(0,1fr) auto' : 'minmax(0,1fr) auto',
                         gap: 12,
                         padding: 12,
-                        border: '1px solid rgba(15,23,42,.08)',
+                        border: '1px solid var(--p-border)',
                         borderRadius: Math.max(radius + 6, 16),
-                        background: '#fff',
+                        background: 'var(--p-card)',
                         boxShadow: idx === 0 ? '0 12px 28px rgba(15,23,42,.07)' : '0 6px 18px rgba(15,23,42,.05)',
                         alignItems: 'start',
                       }}
@@ -352,11 +377,11 @@ export function CartDrawer({
                             type="button"
                             onClick={() => onUpdateQuantity(item.cartId, item.quantity - (item.promotion?.quantityStep ?? 1))}
                             style={{
-                              height: 44, width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              height: 36, width: 36, display: 'grid', placeItems: 'center', padding: 0, lineHeight: 0,
                               border: 'none', borderRadius: 999,
-                              background: 'var(--p-accent-soft)', color: 'var(--p-accent)', fontSize: 16, fontWeight: 800, cursor: 'pointer',
+                              background: 'var(--p-accent-soft)', color: 'var(--p-accent)', cursor: 'pointer',
                             }}
-                          aria-label={`${item.name} adedini azalt`}>−</button>
+                          aria-label={`${item.name} adedini azalt`}><I.minus size={15} /></button>
                           <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--p-text)', minWidth: 18, textAlign: 'center' }}>
                             {item.quantity}
                           </span>
@@ -364,11 +389,11 @@ export function CartDrawer({
                             type="button"
                             onClick={() => onUpdateQuantity(item.cartId, item.quantity + (item.promotion?.quantityStep ?? 1))}
                             style={{
-                              height: 44, width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              height: 36, width: 36, display: 'grid', placeItems: 'center', padding: 0, lineHeight: 0,
                               border: 'none', borderRadius: 999,
-                              backgroundColor: 'var(--p-cta)', color: 'var(--p-cta-text)', fontSize: 16, fontWeight: 800, cursor: 'pointer',
+                              backgroundColor: 'var(--p-cta)', color: 'var(--p-cta-text)', cursor: 'pointer',
                             }}
-                          aria-label={`${item.name} adedini artır`}>+</button>
+                          aria-label={`${item.name} adedini artır`}><I.plus size={15} /></button>
                           <button
                             type="button"
                             onClick={() => onRemoveItem(item.cartId)}
@@ -428,7 +453,7 @@ export function CartDrawer({
                       <div style={{ fontSize: 11, color: 'var(--p-text-2)', marginTop: 1 }}>{catalogReward.pointCost} puan ile</div>
                     </div>
                     <button type="button" onClick={catalogReward.onClear}
-                      style={{ height: 28, padding: '0 12px', borderRadius: 8, border: 'none', background: '#fff', color: 'var(--p-text-2)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                      style={{ height: 28, padding: '0 12px', borderRadius: 8, border: 'none', background: 'var(--p-card)', color: 'var(--p-text-2)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
                       Vazgeç
                     </button>
                   </div>
@@ -468,11 +493,11 @@ export function CartDrawer({
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                         <button type="button" aria-label="Azalt"
                           onClick={() => pointsRedeem.onChange(Math.max(0, pointsRedeem.redeemTl - 1))}
-                          style={{ width: 28, height: 28, borderRadius: 999, border: 'none', background: '#fff', color: 'var(--p-accent)', fontSize: 16, fontWeight: 800, cursor: 'pointer' }}>−</button>
+                        style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', padding: 0, lineHeight: 0, borderRadius: 999, border: 'none', background: 'var(--p-card)', color: 'var(--p-accent)', cursor: 'pointer' }}><I.minus size={13} /></button>
                         <span style={{ minWidth: 56, textAlign: 'center', fontSize: 14, fontWeight: 800, color: 'var(--p-text)' }}>−{formatTRY(pointsRedeem.redeemTl)}</span>
                         <button type="button" aria-label="Artır"
                           onClick={() => pointsRedeem.onChange(Math.min(maxRedeemTl, pointsRedeem.redeemTl + 1))}
-                          style={{ width: 28, height: 28, borderRadius: 999, border: 'none', background: 'var(--p-accent)', color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer' }}>+</button>
+                          style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', padding: 0, lineHeight: 0, borderRadius: 999, border: 'none', background: 'var(--p-accent)', color: '#fff', cursor: 'pointer' }}><I.plus size={13} /></button>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
@@ -482,7 +507,7 @@ export function CartDrawer({
                       </button>
                       {pointsRedeem.redeemTl > 0 && (
                         <button type="button" onClick={() => pointsRedeem.onChange(0)}
-                          style={{ height: 28, padding: '0 12px', borderRadius: 8, border: 'none', background: '#fff', color: 'var(--p-text-2)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                          style={{ height: 28, padding: '0 12px', borderRadius: 8, border: 'none', background: 'var(--p-card)', color: 'var(--p-text-2)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
                           Vazgeç
                         </button>
                       )}
@@ -576,7 +601,7 @@ export function CartDrawer({
                   style={{
                     width: '100%', padding: '14px 0',
                     fontSize: 15, fontWeight: 800,
-                    background: 'var(--p-text)', color: '#fff',
+                    background: 'var(--p-cta)', color: 'var(--p-cta-text)',
                     border: 'none', borderRadius: `${Math.max(radius + 4, 16)}px`,
                     cursor: isPlacing || !canCheckout ? 'not-allowed' : 'pointer',
                     opacity: isPlacing || !canCheckout ? 0.6 : 1,
@@ -596,7 +621,7 @@ export function CartDrawer({
                         style={{
                           flex: 1, padding: '11px 0', fontSize: 13, fontWeight: 750,
                           border: '1px solid rgba(15,23,42,.1)', color: 'var(--p-text)',
-                          backgroundColor: '#fff', borderRadius: `${Math.max(radius, 12)}px`, cursor: 'pointer',
+                          backgroundColor: 'var(--p-card)', borderRadius: `${Math.max(radius, 12)}px`, cursor: 'pointer',
                         }}
                       >💳 Ödeme Yap</button>
                     )}
@@ -607,7 +632,7 @@ export function CartDrawer({
                         style={{
                           flex: 1, padding: '11px 0', fontSize: 13, fontWeight: 750,
                           border: '1px solid rgba(15,23,42,.1)', color: 'var(--p-text)',
-                          backgroundColor: '#fff', borderRadius: `${Math.max(radius, 12)}px`, cursor: 'pointer',
+                          backgroundColor: 'var(--p-card)', borderRadius: `${Math.max(radius, 12)}px`, cursor: 'pointer',
                         }}
                       >÷ Kişi Başı Hesapla</button>
                     )}

@@ -51,6 +51,7 @@ export interface ThemeEditorPreviewItem {
 }
 
 interface CanonicalSectionPreviewProps {
+  surface?: 'menu' | 'home'
   sectionId: string
   theme: GarsonlessTheme
   restaurantName: string
@@ -141,6 +142,7 @@ function buildPromoSliderCatalogMock(items: MenuItem[]): PromoSliderCampaign[] {
 
 /** The section catalogue renders the exact component used by the public menu. */
 export function CanonicalSectionPreview({
+  surface = 'menu',
   sectionId,
   theme,
   restaurantName,
@@ -285,7 +287,8 @@ export function CanonicalSectionPreview({
         }}
       >
         <CustomSectionRenderer
-          renderContext="catalog"
+          renderContext={surface === 'home' ? 'home' : 'catalog'}
+          menuHref="/preview/menu"
           sectionId={sectionId}
           config={previewConfig}
           theme={theme}

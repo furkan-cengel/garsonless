@@ -29,12 +29,27 @@ async function upsertCustomerIdentity(input: {
   const customer = data?.[0] as Pick<CustomerRow, 'id' | 'email' | 'name'> | undefined
   if (error || !customer) {
     if (error?.code === 'GL002') {
-      return { ok: false, error: 'Bu kimliklerin sadakat geçmişi otomatik birleştirilemedi.' }
+      return {
+        ok: false,
+        error: 'Bu kimliklerin sadakat geçmişi otomatik birleştirilemedi.',
+        code: 'IDENTITY_CONFLICT',
+      }
+    }
+    if (error?.code === 'GL003') {
+      return {
+        ok: false,
+        error: 'Personel veya platform hesabı müşteri hesabı olarak kullanılamaz.',
+        code: 'STAFF_ACCOUNT_REJECTED',
+      }
     }
     if (error?.code === '23505' || error?.code === '42501') {
-      return { ok: false, error: 'Bu doğrulanmış kimlik başka bir müşteri hesabına bağlı.' }
+      return {
+        ok: false,
+        error: 'Bu doğrulanmış kimlik başka bir müşteri hesabına bağlı.',
+        code: 'IDENTITY_CONFLICT',
+      }
     }
-    return { ok: false, error: 'Müşteri hesabı bağlanamadı.' }
+    return { ok: false, error: 'Müşteri hesabı bağlanamadı.', code: 'SERVICE_UNAVAILABLE' }
   }
   return { ok: true, customer: { id: customer.id, email: customer.email ?? input.email, name: customer.name } }
 }
@@ -43,6 +58,9 @@ export function createCustomerIdentityApplicationPort(): CustomerIdentityPort {
   return {
     upsertIdentity: upsertCustomerIdentity,
     async stampCustomerRole(input) {
+      if (input.appMetadata['user_type'] === 'staff') {
+        return err('Personel hesabı müşteri olarak damgalanamaz.')
+      }
       const { error } = await createServiceClient().auth.admin.updateUserById(input.authUserId, {
         app_metadata: { ...input.appMetadata, user_type: 'customer' },
       })

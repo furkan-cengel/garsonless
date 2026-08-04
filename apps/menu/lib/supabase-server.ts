@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { Database } from '@garsonless/db/types'
+import { readMenuAuthCookies, writeMenuAuthCookie } from './customer-auth-cookie'
 
 /**
  * CUSTOMER-auth server client (P2): reads the Supabase session cookies so SSR
@@ -20,13 +21,12 @@ export async function createMenuServerClient() {
     {
       cookies: {
         getAll() {
-          return cookieStore.getAll()
+          return readMenuAuthCookies(cookieStore.getAll())
         },
         setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options as Parameters<typeof cookieStore.set>[2]),
-            )
+            cookiesToSet.map(writeMenuAuthCookie).forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options as Parameters<typeof cookieStore.set>[2]))
           } catch {
             // Called from a Server Component — cookie writes are expected to fail
           }

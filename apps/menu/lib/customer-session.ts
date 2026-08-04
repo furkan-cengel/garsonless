@@ -6,6 +6,10 @@ export interface CustomerSession {
   authUserId: string
   customerId: string
   name: string | null
+  email: string | null
+  emailVerified: boolean
+  phone: string | null
+  phoneVerified: boolean
 }
 
 /**
@@ -20,5 +24,12 @@ export const getCustomerSession = cache(async (): Promise<CustomerSession | null
 
   const customer = await resolveCustomerIdentityForAuthUser(user.id)
   if (!customer) return null
-  return { authUserId: user.id, ...customer }
+  return {
+    authUserId: user.id,
+    ...customer,
+    email: user.email ?? null,
+    emailVerified: Boolean(user.email_confirmed_at),
+    phone: user.phone ?? null,
+    phoneVerified: Boolean(user.phone_confirmed_at),
+  }
 })

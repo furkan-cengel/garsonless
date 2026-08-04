@@ -19,6 +19,10 @@ import {
   type RawLoyaltySettings,
 } from '@garsonless/domain/loyalty'
 import { snapshotOrderCustomerTier, type OrderCustomerTierSnapshot } from './order-client'
+import {
+  readCustomerLoyaltyActivityPageRecord,
+  readCustomerLoyaltyAggregates,
+} from './customer-account-read-port'
 
 // ─── Earning ledger + balances ───────────────────────────────────────────────────
 
@@ -96,7 +100,8 @@ export async function earnForOrderStrict(orderId: string, firedTrigger: 'paid' |
   const scopeKey = loyaltyScopeKey(cfg, order.restaurant_id)
 
   // 17b: tier perks (points multiplier + bonus stamps) from the customer's
-  // PRE-this-order lifetime points — sum of earn-direction points EXCLUDING
+  // PRE-this-order lifetime points — earn plus negative reversal rows,
+  // EXCLUDING
   // this order's own earn row, so it's stable across paid→served retries (you
   // earn at the tier you were at before this order).
   const { data: ltRows, error: lifetimeError } = await supabase
@@ -105,7 +110,7 @@ export async function earnForOrderStrict(orderId: string, firedTrigger: 'paid' |
     .eq('customer_id', order.customer_id)
     .eq('scope_key', scopeKey)
     .eq('type', 'points')
-    .eq('direction', 'earn')
+    .in('direction', ['earn', 'reversal'])
   if (lifetimeError) throw new Error(lifetimeError.message)
   let lifetimeBefore = 0
   for (const r of (ltRows as Array<{
@@ -205,20 +210,22 @@ export async function getMemberBalances(customerId: string, restaurantId: string
   if (!cfg) return null
 
   const scopeKey = loyaltyScopeKey(cfg, restaurantId)
-  const [{ data: customerRow }, { data: txRows }, { data: consentRows }] = await Promise.all([
+  const [{ data: customerRow }, aggregates, { data: consentRows }, activityPage] = await Promise.all([
     supabase.from('customers').select('created_at').eq('id', customerId).maybeSingle(),
-    supabase
-      .from('loyalty_transactions')
-      .select('id, type, delta, direction, reason, created_at')
-      .eq('customer_id', customerId)
-      .eq('scope_key', scopeKey)
-      .order('created_at', { ascending: false }),
+    readCustomerLoyaltyAggregates(customerId),
     supabase
       .from('customer_consents')
       .select('consent_type, granted_at, revoked_at')
       .eq('customer_id', customerId)
       .eq('restaurant_id', restaurantId)
       .in('consent_type', ['contact_data', 'marketing']),
+    readCustomerLoyaltyActivityPageRecord({
+      customerId,
+      restaurantId,
+      scopeKey,
+      limit: 8,
+      cursor: null,
+    }),
   ])
   const customer = customerRow as { created_at: string } | null
   if (!customer) return null
@@ -234,27 +241,11 @@ export async function getMemberBalances(customerId: string, restaurantId: string
   const marketingConsentGiven = consentList.some(
     (row) => row.consent_type === 'marketing' && row.granted_at && !row.revoked_at,
   )
-  const rows =
-    (txRows as Array<{
-      id: string
-      type: string
-      delta: number
-      direction: string
-      reason: string
-      created_at: string
-    }> | null) ?? []
-
-  let stamps = 0
-  let points = 0 // spendable (earn − redeem)
-  let lifetimePoints = 0 // earn only
-  let visits = 0
-  for (const r of rows) {
-    if (r.type === 'stamp') stamps += r.delta
-    else if (r.type === 'points') {
-      points += r.delta
-      if (r.direction === 'earn') lifetimePoints += r.delta
-    } else if (r.type === 'visit') visits += r.delta
-  }
+  const scoped = aggregates.filter((row) => row.scopeKey === scopeKey)
+  const stamps = scoped.reduce((total, row) => total + row.stamps, 0)
+  const points = scoped.reduce((total, row) => total + row.points, 0)
+  const lifetimePoints = scoped.reduce((total, row) => total + row.lifetimePoints, 0)
+  const visits = scoped.reduce((total, row) => total + row.visits, 0)
 
   const { tier, tierIndex, nextTier, tierProgress } = computeTier(lifetimePoints, cfg.tiers)
 
@@ -280,20 +271,10 @@ export async function getMemberBalances(customerId: string, restaurantId: string
     pointsEnabled: cfg.points_enabled,
     consentGiven,
     marketingConsentGiven,
-    recentActivity: rows.slice(0, 8).flatMap((row): LoyaltyActivity[] => {
-      if (row.type !== 'stamp' && row.type !== 'points' && row.type !== 'visit') return []
-      if (row.direction !== 'earn' && row.direction !== 'redeem' && row.direction !== 'refund') return []
-      return [
-        {
-          id: row.id,
-          type: row.type,
-          direction: row.direction,
-          delta: row.delta,
-          reason: row.reason,
-          createdAt: row.created_at,
-        },
-      ]
-    }),
+    recentActivity: activityPage.items.map((row): LoyaltyActivity => ({ ...row })),
+    activityNextCursor: activityPage.nextCursor
+      ? Buffer.from(JSON.stringify({ v: 1, a: activityPage.nextCursor.createdAt, i: activityPage.nextCursor.id }), 'utf8').toString('base64url')
+      : null,
   }
 }
 

@@ -7,14 +7,21 @@
     ".": "./src/index.ts",
     "./icons": "./src/icons/index.tsx",
     "./menu/CartDrawer": "./src/menu/CartDrawer.tsx",
+    "./menu/Header": "./src/menu/Header.tsx",
+    "./menu/MenuFooter": "./src/menu/MenuFooter.tsx",
     "./menu/OrderConfirmation": "./src/menu/OrderConfirmation.tsx",
     "./menu/ProductModal": "./src/menu/ProductModal.tsx",
     "./menu/TableBillSheet": "./src/menu/TableBillSheet.tsx",
-    "./themes/default/MenuPage": "./src/themes/default/MenuPage.tsx"
+    "./menu/ThemeContext": "./src/menu/ThemeContext.tsx",
+    "./themes/storeInfo": "./src/themes/storeInfo.ts",
+    "./themes/default/promoSliderCampaignModel": "./src/themes/default/sections/promoSliderCampaignModel.ts",
+    "./themes/default/MenuPage": "./src/themes/default/MenuPage.tsx",
+    "./themes/default/CustomSectionRenderer": "./src/themes/default/sections/CustomSectionRenderer.tsx",
+    "./themes/default/StorefrontSections": "./src/themes/default/sections/StorefrontSections.tsx"
   },
   "scripts": {
     "lint": "eslint .",
-    "test": "node --import tsx --test src/menu/*.test.ts",
+    "test": "node --import tsx --test src/menu/*.test.ts src/errors/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

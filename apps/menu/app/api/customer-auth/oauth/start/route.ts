@@ -1,0 +1,62 @@
+import { z } from 'zod'
+import { createMenuServerClient } from '../../../../../lib/supabase-server'
+import { customerAuthContextSchema } from '../../../../../lib/customer-auth-route-schema'
+import { customerAuthErrorResponse, customerAuthSuccessResponse } from '../../../../../lib/customer-auth-http'
+import { customerAuthCallbackUrl, validateCustomerAuthMutation } from '../../../../../lib/customer-auth-request'
+import {
+  beginCustomerAuthIntent,
+  clearCustomerAuthIntentCookie,
+  enforceCustomerAuthRateLimit,
+  requestClientAddress,
+} from '../../../../../lib/customer-auth-server'
+import { availableCustomerAuthProviders } from '../../../../../lib/customer-auth-provider'
+
+const schema = customerAuthContextSchema.extend({
+  provider: z.enum(['google', 'apple', 'facebook']),
+})
+
+export async function POST(request: Request) {
+  const requestCheck = validateCustomerAuthMutation(request)
+  if (!requestCheck.ok) return customerAuthErrorResponse(requestCheck.error.code)
+  const parsed = schema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) return customerAuthErrorResponse('CONFLICT')
+  const availableProviders = await availableCustomerAuthProviders()
+  if (!availableProviders.includes(parsed.data.provider)) {
+    return customerAuthErrorResponse('PROVIDER_DISABLED')
+  }
+
+  const rateLimit = await enforceCustomerAuthRateLimit({
+    request,
+    bucket: `oauth-start-${parsed.data.provider}`,
+    subject: requestClientAddress(request),
+    limit: 20,
+    windowSeconds: 900,
+  })
+  if (!rateLimit.ok) return customerAuthErrorResponse(rateLimit.error.code, rateLimit.error.retryAfterSeconds)
+
+  const intent = await beginCustomerAuthIntent({ ...parsed.data, flow: 'oauth' })
+  if (!intent.ok) return customerAuthErrorResponse(intent.error.code)
+  const callback = customerAuthCallbackUrl(intent.data.intent)
+  if (!callback) {
+    await clearCustomerAuthIntentCookie()
+    return customerAuthErrorResponse('SERVICE_UNAVAILABLE')
+  }
+
+  const supabase = await createMenuServerClient()
+  const queryParams = parsed.data.provider === 'google'
+    ? { prompt: 'select_account' }
+    : undefined
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: parsed.data.provider,
+    options: {
+      redirectTo: callback.toString(),
+      skipBrowserRedirect: true,
+      ...(queryParams ? { queryParams } : {}),
+    },
+  })
+  if (error || !data.url) {
+    await clearCustomerAuthIntentCookie()
+    return customerAuthErrorResponse('SERVICE_UNAVAILABLE')
+  }
+  return customerAuthSuccessResponse({ redirectUrl: data.url })
+}

@@ -15,6 +15,40 @@ export {
 } from './team'
 export type { TeamSection, TeamMember, ResolvedInvite } from './team'
 export { resolveCustomerIdentityForAuthUser } from './customer-identity-port'
+export {
+  readCustomerAccountRecord,
+  readCustomerLoyaltyActivityPageRecord,
+  readCustomerLoyaltyAggregates,
+  readCustomerRestaurantLoyaltyActivityPageRecord,
+  readCustomerOrderPageRecord,
+  readCustomerOrderRecord,
+  updateCustomerAccountName,
+} from './customer-account-read-port'
+export type {
+  CustomerLoyaltyActivityRecord,
+  CustomerLoyaltyAggregateRecord,
+  CustomerOrderRecord,
+  CustomerOrderRestaurantRecord,
+} from './customer-account-read-port'
+export {
+  createCustomerDeleteRequest,
+  createCustomerPrivacyExport,
+} from './customer-privacy-port'
+export type {
+  CustomerDeleteRequestRecord,
+  CustomerPrivacyExportRecord,
+} from './customer-privacy-port'
+export {
+  claimActiveCustomerGuestOrders,
+  deleteCustomerFavorite,
+  previewCustomerOrderReorder,
+  putCustomerFavorites,
+  readCustomerFavorites,
+} from './customer-continuity-port'
+export type {
+  CustomerFavoriteRecord,
+  CustomerReorderPreviewRecord,
+} from './customer-continuity-port'
 export { createCustomerApplicationPort } from './customer-application-port'
 export { createCampaignApplicationPort } from './campaign-application-port'
 export { getSmsDeliveryAvailability } from './sms'
@@ -22,6 +56,11 @@ export {
   createCustomerConsentApplicationPort,
   createCustomerIdentityApplicationPort,
 } from './customer-auth-application-port'
+export {
+  consumeCustomerAuthIntent,
+  consumeCustomerAuthRateLimit,
+  registerCustomerAuthIntent,
+} from './customer-auth-security-port'
 export { createMenuCommandPort } from './menu-command-port'
 export { listMenuItemRecommendations } from './menu-recommendations'
 export type { MenuItemRecommendationRow } from './menu-recommendations'
@@ -30,6 +69,7 @@ export { createTeamCommandPort } from './team-command-port'
 export { createLoyaltyQueryPort } from './loyalty-query-port'
 export { createFeaturedProductsReadPort } from './featured-products-read-port'
 export { createThemeApplicationPort } from './theme-application-port'
+export { createRestaurantAssetStoragePort } from './restaurant-asset-storage-port'
 export {
   createRestaurantSettingsPort,
   createStandRequestPort,

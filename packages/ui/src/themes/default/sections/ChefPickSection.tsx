@@ -19,11 +19,13 @@ export function ChefPickSection({
   items = [],
   onQuickAdd,
   theme,
+  actionMode = 'order',
 }: {
   config: Record<string, string>
   items?: MenuItem[]
   onQuickAdd?: (item: MenuItem, originalPrice?: number) => void
   theme?: ChefPickTheme
+  actionMode?: 'order' | 'discover'
 }) {
   const { text, number, bool } = makeReaders(config)
   const selectedItems = resolveChefPickItems(config, items)
@@ -43,8 +45,8 @@ export function ChefPickSection({
   const customChefIcon = chefIconChoice === 'custom' && chefIconUrl.length > 0
   const ctaMode = text('ctaMode', 'inherit') === 'custom' ? 'custom' : 'inherit'
   const inheritedButtonStyle = theme?.cardCtaStyle ?? 'icon'
-  const buttonStyle = ctaMode === 'inherit' ? inheritedButtonStyle : text('buttonStyle', 'icon')
-  const buttonIcon = ctaMode === 'inherit' ? (theme?.cardCtaIcon ?? 'plus') : text('buttonIcon', 'plus')
+  const buttonStyle = actionMode === 'discover' ? 'pill' : ctaMode === 'inherit' ? inheritedButtonStyle : text('buttonStyle', 'icon')
+  const buttonIcon = actionMode === 'discover' ? 'arrow' : ctaMode === 'inherit' ? (theme?.cardCtaIcon ?? 'plus') : text('buttonIcon', 'plus')
   const buttonIconUrl = text('buttonIconUrl', '')
   const buttonSizeName = text('buttonSize', 'medium') as keyof typeof BUTTON_SIZE
   const buttonSize = BUTTON_SIZE[buttonSizeName] ?? BUTTON_SIZE.medium
@@ -54,7 +56,7 @@ export function ChefPickSection({
   const itemRadius = number('itemRadius', 12)
   const itemGap = number('itemGap', 8)
   const imageSize = number('imageSize', density === 'compact' ? 42 : 50)
-  const ctaText = text('ctaText', 'Ekle')
+  const ctaText = actionMode === 'discover' ? 'İncele' : text('ctaText', 'Ekle')
   const showEyebrow = bool('showEyebrow', true)
   const showTitle = bool('showTitle', true)
   const showBody = bool('showBody', true)
@@ -218,7 +220,7 @@ export function ChefPickSection({
                     data-cta-source={ctaMode}
                     data-cta-icon={buttonIcon}
                     disabled={!onQuickAdd}
-                    aria-label={`${item.name} sepete ekle`}
+                    aria-label={`${item.name} ${actionMode === 'discover' ? 'ürününü incele' : 'sepete ekle'}`}
                     onClick={() => onQuickAdd?.(item)}
                     style={{
                       minWidth: buttonStyle === 'icon' ? buttonSize : buttonStyle === 'full' ? Math.max(88, buttonSize * 2.2) : Math.max(66, buttonSize * 1.7),
@@ -273,6 +275,7 @@ export function ChefPickSection({
 }
 
 function ChefPickCtaIcon({ kind, customUrl, size }: { kind: string; customUrl: string; size: number }) {
+  if (kind === 'arrow') return <AppIcons.arrow size={size} />
   if (kind === 'custom' && customUrl) {
     return <img src={customUrl} alt="" aria-hidden style={{ width: size, height: size, objectFit: 'contain', display: 'block' }} />
   }

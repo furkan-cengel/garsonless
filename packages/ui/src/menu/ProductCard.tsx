@@ -6,6 +6,7 @@ import { useTheme } from './ThemeContext'
 import { formatTRY } from './formatCurrency'
 import { DietaryBadges, ProductAllergenSummary, hasAllergenInformation } from './FoodInfoBadges'
 import { isProductConfigurable } from './productConfiguration'
+import { AppIcons } from '../icons'
 
 interface ProductCardProps {
   item: MenuItem
@@ -16,6 +17,8 @@ interface ProductCardProps {
   onIncrement?: () => void
   onDecrement?: () => void
   imagePriority?: boolean
+  isFavorite?: boolean
+  onToggleFavorite?: () => void
 }
 
 const ASPECT_MAP: Record<string, string> = {
@@ -48,7 +51,7 @@ function FoodMeta({ item }: { item: MenuItem }) {
   )
 }
 
-export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, onIncrement, onDecrement, imagePriority = false }: ProductCardProps) {
+export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, onIncrement, onDecrement, imagePriority = false, isFavorite = false, onToggleFavorite }: ProductCardProps) {
   const { theme } = useTheme()
   const [hovered, setHovered] = useState(false)
   const effectiveCols = cols ?? theme.cols
@@ -103,7 +106,8 @@ export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, 
         {...hoverProps}
       >
         <CardOpenButton itemName={item.name} onOpen={() => onOpen(item)} radius={theme.radius} />
-        <div style={{ flex: 1, minWidth: 0 }}>
+        {onToggleFavorite && <FavoriteButton itemName={item.name} favorite={isFavorite} onToggle={onToggleFavorite} />}
+        <div style={{ flex: 1, minWidth: 0, paddingRight: onToggleFavorite ? 44 : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <span style={{
               fontWeight: 700, color: nameColor, fontSize: nameFontSize,
@@ -137,6 +141,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, 
       {...hoverProps}
     >
       <CardOpenButton itemName={item.name} onOpen={() => onOpen(item)} radius={theme.radius} />
+      {onToggleFavorite && <FavoriteButton itemName={item.name} favorite={isFavorite} onToggle={onToggleFavorite} />}
       {mediaVisible && <div style={{
         ...(horizontal ? { width: theme.cardHorizontalImageWidth ?? 92, flexShrink: 0 } : { aspectRatio: aspect, width: '100%' }),
         background: theme.cardPlaceholderStyle === 'accent'
@@ -170,7 +175,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, 
         )}
         {inCart && (
           <div style={{
-            position: 'absolute', top: 6, right: 6, zIndex: 2,
+            position: 'absolute', top: 6, right: onToggleFavorite ? 56 : 6, zIndex: 2,
             width: 20, height: 20, borderRadius: 999,
             background: 'var(--p-cta)', color: 'var(--p-cta-text)',
             fontSize: 11, fontWeight: 700,
@@ -217,6 +222,29 @@ export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, 
   )
 }
 
+function FavoriteButton({ itemName, favorite, onToggle }: { itemName: string; favorite: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={favorite ? `${itemName} favorilerden çıkar` : `${itemName} favorilere ekle`}
+      aria-pressed={favorite}
+      onClick={(event) => { event.stopPropagation(); onToggle() }}
+      style={{
+        position: 'absolute', top: 6, right: 6, zIndex: 3,
+        width: 44, height: 44, borderRadius: '50%',
+        border: '1px solid color-mix(in srgb,var(--p-border) 85%,transparent)',
+        background: favorite ? 'var(--p-cta)' : 'color-mix(in srgb,var(--p-card) 90%,transparent)',
+        color: favorite ? 'var(--p-cta-text)' : 'var(--p-text)',
+        display: 'grid', placeItems: 'center', cursor: 'pointer',
+        boxShadow: '0 4px 14px rgba(15,17,21,.12)',
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      <AppIcons.heart size={19} fill={favorite ? 'currentColor' : 'none'} />
+    </button>
+  )
+}
+
 function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIncrement, onDecrement, hidePrice = false, priceAlign = 'left', iconKind = 'plus' }: {
   item: MenuItem
   ctaStyle: string
@@ -230,14 +258,15 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
   iconKind?: 'plus' | 'cart' | 'bag'
 }) {
   const inCart = cartQuantity > 0
-  const btnSz = 44
+  const btnSz = narrow ? 24 : 28
+  const stepperIconSize = narrow ? 11 : 13
 
   const stepper = (
     <div
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: narrow ? 3 : 5,
+        display: 'inline-flex', alignItems: 'center', gap: 2,
         background: 'var(--p-cta)', borderRadius: 999,
-        padding: narrow ? '2px 4px' : '3px 5px',
+        padding: 2,
         flexShrink: 0, position: 'relative', zIndex: 2,
       }}
       onClick={(e) => e.stopPropagation()}
@@ -249,14 +278,13 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
         style={{
           width: btnSz, height: btnSz, border: 'none',
           background: 'rgba(0,0,0,0.15)', borderRadius: '50%',
-          color: 'var(--p-cta-text)', fontSize: narrow ? 13 : 15,
-          cursor: 'pointer', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', padding: 0, lineHeight: 1,
+          color: 'var(--p-cta-text)', cursor: 'pointer', display: 'grid',
+          placeItems: 'center', padding: 0, lineHeight: 0,
         }}
-      >−</button>
+      ><AppIcons.minus size={stepperIconSize} /></button>
       <span style={{
-        color: 'var(--p-cta-text)', fontSize: narrow ? 11 : 13, fontWeight: 700,
-        minWidth: narrow ? 12 : 16, textAlign: 'center',
+        color: 'var(--p-cta-text)', fontSize: narrow ? 10 : 11.5, fontWeight: 750,
+        minWidth: narrow ? 10 : 14, textAlign: 'center', fontVariantNumeric: 'tabular-nums',
       }}>{cartQuantity}</span>
       <button
         type="button"
@@ -266,12 +294,11 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
         style={{
           width: btnSz, height: btnSz, border: 'none',
           background: 'rgba(0,0,0,0.15)', borderRadius: '50%',
-          color: 'var(--p-cta-text)', fontSize: narrow ? 13 : 15,
-          cursor: cartQuantity >= 99 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', padding: 0, lineHeight: 1,
+          color: 'var(--p-cta-text)', cursor: cartQuantity >= 99 ? 'not-allowed' : 'pointer', display: 'grid',
+          placeItems: 'center', padding: 0, lineHeight: 0,
           opacity: cartQuantity >= 99 ? 0.5 : 1,
         }}
-      >+</button>
+      ><AppIcons.plus size={stepperIconSize} /></button>
     </div>
   )
 

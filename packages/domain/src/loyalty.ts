@@ -53,7 +53,7 @@ export interface LoyaltyConfig {
 export interface LoyaltyActivity {
   id: string
   type: 'stamp' | 'points' | 'visit'
-  direction: 'earn' | 'redeem' | 'refund'
+  direction: 'earn' | 'redeem' | 'refund' | 'reversal'
   delta: number
   reason: string
   createdAt: string
@@ -78,6 +78,7 @@ export interface MemberBalances {
   consentGiven: boolean
   marketingConsentGiven: boolean
   recentActivity: LoyaltyActivity[]
+  activityNextCursor: string | null
 }
 
 export type RawLoyaltySettings = Record<string, unknown> | null

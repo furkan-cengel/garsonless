@@ -1,4 +1,4 @@
-import { RecoveryScreen } from '@garsonless/ui'
+import { RecoveryScreen } from "@garsonless/ui";
 
 export default function DashboardNotFound() {
   return (
@@ -9,6 +9,7 @@ export default function DashboardNotFound() {
       code="MAS-ROUTE-404"
       homeHref="/dashboard"
       homeLabel="Panoya dön"
+      statusHref={process.env.NEXT_PUBLIC_STATUS_URL}
     />
-  )
+  );
 }

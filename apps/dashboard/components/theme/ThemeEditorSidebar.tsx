@@ -73,7 +73,7 @@ export function ThemeEditorSidebar({
   onOpenSectionPicker,
 }: ThemeEditorSidebarProps) {
   return (
-    <aside style={{
+    <aside aria-labelledby="theme-editor-page-heading" style={{
       width,
       flexShrink: 0,
       borderRight: '1px solid var(--border)',
@@ -83,9 +83,9 @@ export function ThemeEditorSidebar({
     }}>
       <div style={{ padding: '16px 16px 14px', borderBottom: '1px solid var(--divider)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>
-            Tema Düzenleyici
-          </div>
+          <h2 id="theme-editor-page-heading" style={{ margin: 0, flex: 1, minWidth: 0, fontWeight: 700, fontSize: 15, lineHeight: 1.25, color: 'var(--text)' }}>
+            Tema araçları
+          </h2>
           <span style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -138,7 +138,7 @@ export function ThemeEditorSidebar({
       <div style={{ flex: 1, overflow: 'auto', padding: '4px 8px 12px' }}>
         {navGroups.map((group, groupIndex) => (
           <div key={group.title} style={{ marginTop: groupIndex === 0 ? 8 : 18 }}>
-            <div style={navGroupLabelStyle}>{group.title}</div>
+            <h3 style={navGroupLabelStyle}>{group.title}</h3>
             {group.items.map((item, itemIndex) => (
               <div key={item.id}>
               {item.parentLabel && group.items[itemIndex - 1]?.parentLabel !== item.parentLabel && (
@@ -182,7 +182,7 @@ export function ThemeEditorSidebar({
 
         {visiblePageBlocks.length > 0 && (
           <div style={{ marginTop: 18 }}>
-            <div style={navGroupLabelStyle}>Sayfa Akışı</div>
+            <h3 style={navGroupLabelStyle}>Sayfa Akışı</h3>
             {editorQuery && (
               <div role="note" style={{ margin: '0 8px 8px', fontSize: 11, lineHeight: 1.4, color: 'var(--text-3)' }}>
                 Arama sırasında sıralama kapalıdır. Taşımak için aramayı temizleyin.
@@ -212,7 +212,7 @@ export function ThemeEditorSidebar({
 
               return (
                 <div key={key}>
-                {startsDrawerGroup && <div style={{ ...navGroupLabelStyle, marginTop: 16 }}>Menü Çekmecesi İçeriği</div>}
+                {startsDrawerGroup && <h3 style={{ ...navGroupLabelStyle, marginTop: 16 }}>Menü Çekmecesi İçeriği</h3>}
                 <div
                   data-page-flow-row
                   data-drawer-flow-row={isDrawerSection || undefined}
@@ -375,6 +375,7 @@ function getSectionScopeLabel(block: PageBlock) {
 }
 
 const navGroupLabelStyle = {
+  margin: 0,
   padding: '0 10px 7px',
   color: 'var(--text-4)',
   fontSize: 10.5,

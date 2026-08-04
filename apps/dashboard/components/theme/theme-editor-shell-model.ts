@@ -1,25 +1,37 @@
 interface ThemeEditorSaveStatusOptions {
-  saving: boolean
+  savingDraft: boolean
+  publishing: boolean
   hasUnsavedChanges: boolean
+  hasUnpublishedChanges: boolean
   lastSavedAt: Date | null
+  lastPublishedAt: Date | null
 }
 
 export function getThemeEditorSaveStatus({
-  saving,
+  savingDraft,
+  publishing,
   hasUnsavedChanges,
+  hasUnpublishedChanges,
   lastSavedAt,
+  lastPublishedAt,
 }: ThemeEditorSaveStatusOptions) {
-  const text = saving
-    ? 'Kaydediliyor'
+  const text = publishing
+    ? 'Yayınlanıyor'
+    : savingDraft
+      ? 'Kaydediliyor'
     : hasUnsavedChanges
       ? 'Kaydedilmedi'
-      : lastSavedAt
-        ? `Kaydedildi ${formatThemeEditorTime(lastSavedAt)}`
-        : 'Kaydedildi'
+      : hasUnpublishedChanges
+        ? lastSavedAt
+          ? `Taslak ${formatThemeEditorTime(lastSavedAt)}`
+          : 'Taslak kaydedildi'
+        : lastPublishedAt
+          ? `Yayında ${formatThemeEditorTime(lastPublishedAt)}`
+          : 'Yayında'
 
   return {
     text,
-    color: hasUnsavedChanges ? '#b86408' : 'var(--positive)',
+    color: hasUnsavedChanges || hasUnpublishedChanges ? '#b86408' : 'var(--positive)',
   }
 }
 

@@ -81,6 +81,14 @@ test('explicit section defaults are visible before a setting is stored', () => {
   assert.equal(resolveSectionSettingValue(range, { height: '200' }), '200')
 })
 
+test('hero yatay konumu legacy metin hizasıyla aynı başlangıç noktasını gösterir', () => {
+  const position = { ...field('contentPositionX', 'range'), default: 0 }
+  assert.equal(resolveSectionSettingValue(position, { align: 'left' }), '0')
+  assert.equal(resolveSectionSettingValue(position, { align: 'center' }), '50')
+  assert.equal(resolveSectionSettingValue(position, { align: 'right' }), '100')
+  assert.equal(resolveSectionSettingValue(position, { align: 'right', contentPositionX: '35' }), '35')
+})
+
 test('hero controls hide disabled copy and irrelevant image controls', () => {
   const fields = [
     field('showTitle', 'toggle'),
@@ -97,6 +105,21 @@ test('hero controls hide disabled copy and irrelevant image controls', () => {
   assert.deepEqual(
     getVisibleSectionSettingFields(fields, { imageMode: 'side' }).map((item) => item.key),
     ['showTitle', 'title', 'imageMode', 'imageFit', 'imagePosition'],
+  )
+})
+
+test('hero content toggles hide only their own editable copy field', () => {
+  const fields = [
+    field('showEyebrow', 'toggle'), field('eyebrow'),
+    field('showTitle', 'toggle'), field('title'),
+    field('showBody', 'toggle'), field('body'),
+    field('showCta', 'toggle'), field('cta'),
+  ]
+  assert.deepEqual(
+    getVisibleSectionSettingFields(fields, {
+      showEyebrow: 'false', showTitle: 'true', showBody: 'false', showCta: 'false',
+    }).map((item) => item.key),
+    ['showEyebrow', 'showTitle', 'title', 'showBody', 'showCta'],
   )
 })
 

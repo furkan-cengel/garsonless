@@ -176,3 +176,12 @@ test('stale unverified TOTP factors are reset from the complete factor collectio
   assert.match(challenge, /mfa\.unenroll/)
   assert.match(challenge, /unenrollError/)
 })
+
+test('platform route, global and not-found failures use the shared safe recovery surface', () => {
+  for (const file of ['error.tsx', 'global-error.tsx', 'not-found.tsx']) {
+    const source = read(`./app/${file}`)
+    assert.match(source, /RecoveryScreen/)
+    assert.match(source, /MAS-(UI-500|ROUTE-404)/)
+    assert.doesNotMatch(source, /error\.message|error\.stack/)
+  }
+})

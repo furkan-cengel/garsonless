@@ -8,12 +8,14 @@ export function HeroSection({
   restaurantName,
   pageDescription,
   onOpenCart,
+  forcedHref,
 }: {
   sectionId: string
   config: Record<string, string>
   restaurantName: string
   pageDescription?: string | undefined
   onOpenCart?: (() => void) | undefined
+  forcedHref?: string | undefined
 }) {
   const { text, number, bool } = makeReaders(config)
   const optionalText = (key: string, fallback: string) => Object.prototype.hasOwnProperty.call(config, key)
@@ -36,7 +38,7 @@ export function HeroSection({
   const showEyebrow = bool('showEyebrow', true) && Boolean(eyebrow)
   const showTitle = bool('showTitle', true) && Boolean(title)
   const showBody = bool('showBody', true) && Boolean(body)
-  const showCta = sectionId === 'hero-banner' && Boolean(cta) && target.kind !== 'none' && (target.kind !== 'cart' || Boolean(onOpenCart))
+  const showCta = sectionId === 'hero-banner' && Boolean(cta) && (Boolean(forcedHref) || (target.kind !== 'none' && (target.kind !== 'cart' || Boolean(onOpenCart))))
   const sideImage = Boolean(imageUrl && imageMode === 'side')
   const heroBackground = imageUrl && imageMode === 'background'
     ? `linear-gradient(rgba(0,0,0,${overlay}), rgba(0,0,0,${overlay})), url("${imageUrl}") ${imagePosition}/${imageFit} no-repeat, linear-gradient(135deg, ${bgStart}, ${bgEnd})`
@@ -100,12 +102,12 @@ export function HeroSection({
           }}>
             {body}
           </p>}
-          {showCta && target.kind === 'cart' && (
+          {showCta && !forcedHref && target.kind === 'cart' && (
             <button type="button" onClick={onOpenCart} style={ctaStyle(text('buttonBg', '#ffffff'), text('buttonText', 'var(--p-accent)'))}>
               {cta}
             </button>
           )}
-          {showCta && (target.kind === 'anchor' || target.kind === 'external') && (
+          {showCta && !forcedHref && (target.kind === 'anchor' || target.kind === 'external') && (
             <a
               href={target.href}
               {...(target.kind === 'external' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
@@ -113,6 +115,9 @@ export function HeroSection({
             >
               {cta}
             </a>
+          )}
+          {showCta && forcedHref && (
+            <a href={forcedHref} style={ctaStyle(text('buttonBg', '#ffffff'), text('buttonText', 'var(--p-accent)'))}>{cta}</a>
           )}
         </div>
         {sideImage && (

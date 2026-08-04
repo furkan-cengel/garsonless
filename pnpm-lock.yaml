@@ -107,6 +107,9 @@ importers:
       server-only:
         specifier: ^0.0.1
         version: 0.0.1
+      sharp:
+        specifier: 0.34.5
+        version: 0.34.5
       web-push:
         specifier: ^3.6.7
         version: 3.6.7
@@ -291,6 +294,9 @@ importers:
       '@garsonless/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@garsonless/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@supabase/ssr':
         specifier: ^0.5.2
         version: 0.5.2(@supabase/supabase-js@2.105.4)

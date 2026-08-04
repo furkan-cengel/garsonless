@@ -100,6 +100,7 @@ export function getVisibleSectionSettingFields(
     if (field.key === 'eyebrow' && values.showEyebrow === 'false') return false
     if (field.key === 'title' && values.showTitle === 'false') return false
     if (field.key === 'body' && values.showBody === 'false') return false
+    if (field.key === 'cta' && values.showCta === 'false') return false
     if (field.key === 'repeatText' && values.showRepeatText === 'false') return false
     if ((field.key === 'imageFit' || field.key === 'imagePosition') && values.imageMode === 'none') return false
     if (field.key === 'overlay' && values.imageMode !== undefined && values.imageMode !== 'background') return false
@@ -176,6 +177,10 @@ export function resolveSectionSettingValue(
   const stored = values[field.key]
   if (stored !== undefined) return stored
   if (promoSlider && field.key === 'sourceMode') return resolvePromoSliderSourceMode(values)
+  if (field.key === 'contentPositionX') {
+    if (values.align === 'center') return '50'
+    if (values.align === 'right') return '100'
+  }
   if (field.default !== undefined) return String(field.default)
   if (!promoSlider || !field.key.endsWith('Enabled')) return ''
   const slide = PROMO_SLIDES.find(({ prefix }) => field.key === `${prefix}Enabled`)

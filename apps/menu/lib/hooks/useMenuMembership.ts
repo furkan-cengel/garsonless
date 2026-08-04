@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CartItem, MenuItem } from '@garsonless/ui'
 import type { MemberBalances } from '@garsonless/db/types'
+import type { MembershipDiscountPreview } from '../menu-membership-client'
 
 interface LoyaltyConfig {
   stamp_enabled?: boolean
@@ -14,21 +15,6 @@ interface LoyaltyConfig {
   reward_catalog?: Array<{ itemId?: string; pointCost?: number; tag?: string | null }>
 }
 
-interface DiscountPreview {
-  subtotal: number
-  memberDiscountAmount: number
-  memberDiscountPct: number
-  memberTierName: string | null
-  pointsDiscountAmount: number
-  stampDiscountAmount: number
-  rewardItemName: string | null
-  catalogDiscountAmount: number
-  catalogItemName: string | null
-  catalogPointsCost: number
-  finalTotal: number
-  loyaltySuppressedByPromotion?: boolean
-}
-
 interface UseMenuMembershipOptions {
   restaurantId: string
   restaurantSettings: unknown
@@ -36,6 +22,7 @@ interface UseMenuMembershipOptions {
   cartItems: CartItem[]
   initialMember: { name: string | null } | null
   initialBalances: MemberBalances | null
+  initialOpen?: boolean
 }
 
 /** Owns member identity, loyalty redemption intent and server-computed previews. */
@@ -46,14 +33,15 @@ export function useMenuMembership({
   cartItems,
   initialMember,
   initialBalances,
+  initialOpen = false,
 }: UseMenuMembershipOptions) {
   const [member, setMember] = useState<{ name: string | null } | null>(initialMember)
   const [memberBalances, setMemberBalances] = useState<MemberBalances | null>(initialBalances)
-  const [isMemberOpen, setIsMemberOpen] = useState(false)
+  const [isMemberOpen, setIsMemberOpen] = useState(initialOpen)
   const [redeemPoints, setRedeemPoints] = useState(0)
   const [claimStamp, setClaimStamp] = useState(false)
   const [catalogItemId, setCatalogItemId] = useState<string | null>(null)
-  const [discountPreview, setDiscountPreview] = useState<DiscountPreview | null>(null)
+  const [discountPreview, setDiscountPreview] = useState<MembershipDiscountPreview | null>(null)
 
   const loyaltyConfig = (restaurantSettings as Record<string, unknown> | null)?.['loyalty'] as LoyaltyConfig | undefined
   const loyaltyEnabled = Boolean(loyaltyConfig?.stamp_enabled || loyaltyConfig?.points_enabled)
@@ -94,13 +82,9 @@ export function useMenuMembership({
     setDiscountPreview(null)
   }, [])
 
-  const handleLogout = useCallback(async () => {
-    try {
-      const { createMenuAuthBrowserClient } = await import('../supabase-browser')
-      await createMenuAuthBrowserClient().auth.signOut()
-    } catch {
-      // Clear the local member state even if remote sign-out cannot be reached.
-    }
+  const handleLogout = useCallback(async (scope: 'device' | 'all' = 'device') => {
+    const { logoutCustomerDevice } = await import('../menu-membership-client')
+    if (!await logoutCustomerDevice(scope)) return
     setMember(null)
     setMemberBalances(null)
     clearRedemption()
@@ -121,33 +105,16 @@ export function useMenuMembership({
     const controller = new AbortController()
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch('/api/loyalty/preview-discount', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const { fetchMembershipDiscountPreview } = await import('../menu-membership-client')
+        const preview = await fetchMembershipDiscountPreview({
+          restaurantId,
+          items: cartItems,
+          redeemPoints,
+          redeemStampClaim: claimStamp,
+          catalogItemId,
           signal: controller.signal,
-          body: JSON.stringify({
-            restaurantId,
-            items: cartItems.map((item) => ({
-              itemId: item.itemId,
-              quantity: item.quantity,
-              selectedModifiers: item.modifiers,
-              removedIngredientIds: item.removedIngredientIds,
-              ...(item.productNote ? { productNote: item.productNote } : {}),
-              ...(item.recommendationSourceItemId ? { recommendationSourceItemId: item.recommendationSourceItemId } : {}),
-              ...(item.combo ? { combo: item.combo } : {}),
-              ...(item.promotion ? { promotion: item.promotion } : {}),
-            })),
-            redeemPoints,
-            redeemStampClaim: claimStamp,
-            catalogItemId,
-          }),
         })
-        if (!response.ok) {
-          setDiscountPreview(null)
-          return
-        }
-        const payload = await response.json() as { ok: boolean; preview?: DiscountPreview }
-        setDiscountPreview(payload.ok && payload.preview ? payload.preview : null)
+        if (!controller.signal.aborted) setDiscountPreview(preview)
       } catch {
         if (!controller.signal.aborted) setDiscountPreview(null)
       }
