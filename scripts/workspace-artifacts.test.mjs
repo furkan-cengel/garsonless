@@ -16,8 +16,13 @@ function fixture() {
   file('apps/dashboard/.next/cache/pack')
   file('apps/dashboard/tsconfig.tsbuildinfo')
   file('apps/dashboard/.env.local', 'SECRET=keep')
+  file('assets/.DS_Store')
+  file('scripts/nested/.DS_Store')
   file('node_modules/package/index.js')
+  file('node_modules/.DS_Store')
   file('agent-skills/README.md')
+  file('agent-skills/.DS_Store')
+  file('.git/.DS_Store')
   file('test-results/old-audit/screenshot.png')
   file('test-results/dashboard-spinner-audit/REPORT.md')
   file('test-results/shell-entrypoints-audit/REPORT.md')
@@ -31,6 +36,8 @@ test('cleanup is dry-run by default and only exposes allowlisted artifacts', () 
     assert.deepEqual(targets, [
       'apps/dashboard/.next',
       'apps/dashboard/tsconfig.tsbuildinfo',
+      'assets/.DS_Store',
+      'scripts/nested/.DS_Store',
       'test-results/old-audit',
     ])
     cleanArtifacts({ rootDirectory: root })
@@ -46,7 +53,10 @@ test('apply removes artifacts while preserving env, dependencies, agent clone an
     cleanArtifacts({ rootDirectory: root, apply: true })
     assert.equal(readFileSync(join(root, 'apps/dashboard/.env.local'), 'utf8'), 'SECRET=keep')
     assert.equal(readFileSync(join(root, 'node_modules/package/index.js'), 'utf8'), 'fixture')
+    assert.equal(readFileSync(join(root, 'node_modules/.DS_Store'), 'utf8'), 'fixture')
     assert.equal(readFileSync(join(root, 'agent-skills/README.md'), 'utf8'), 'fixture')
+    assert.equal(readFileSync(join(root, 'agent-skills/.DS_Store'), 'utf8'), 'fixture')
+    assert.equal(readFileSync(join(root, '.git/.DS_Store'), 'utf8'), 'fixture')
     assert.equal(readFileSync(join(root, 'test-results/dashboard-spinner-audit/REPORT.md'), 'utf8'), 'fixture')
     assert.equal(readFileSync(join(root, 'test-results/shell-entrypoints-audit/REPORT.md'), 'utf8'), 'fixture')
   } finally {

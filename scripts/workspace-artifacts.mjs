@@ -9,6 +9,10 @@ import { relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const APP_NAMES = ['dashboard', 'kitchen', 'marketing', 'menu', 'platform-admin']
+const DS_STORE_SCAN_ROOTS = [
+  '.claude', '.github', '.vscode', 'apps', 'assets', 'config', 'docs',
+  'packages', 'scripts', 'skills', 'test-results', 'tests', 'tmp',
+]
 const PRESERVED_TEST_RESULTS = new Set(['dashboard-spinner-audit', 'shell-entrypoints-audit'])
 const NEVER_DELETE_SEGMENTS = new Set(['.git', 'agent-skills', 'node_modules'])
 
@@ -61,7 +65,12 @@ export function collectArtifactTargets(rootDirectory = process.cwd()) {
 
   for (const sourceRoot of [resolve(root, 'apps'), resolve(root, 'packages')]) {
     walk(sourceRoot, (path, name) => {
-      if (name === 'tsconfig.tsbuildinfo' || name === '.DS_Store') targets.add(path)
+      if (name === 'tsconfig.tsbuildinfo') targets.add(path)
+    })
+  }
+  for (const sourceRootName of DS_STORE_SCAN_ROOTS) {
+    walk(resolve(root, sourceRootName), (path, name) => {
+      if (name === '.DS_Store') targets.add(path)
     })
   }
   const rootDsStore = resolve(root, '.DS_Store')
