@@ -9,6 +9,7 @@ import { err, ok } from '@garsonless/domain'
 import { DASHBOARD_INSIGHTS_PROJECTIONS } from './dashboard-read-model-contract'
 import {
   createStructuredDashboardInsightsObserver,
+  dashboardInsightsLogDetail,
   withDashboardInsightsObservability,
 } from './dashboard-read-model-observability'
 import { createPersistentDashboardInsightsObserver } from './dashboard-read-model-observation-sink'
@@ -160,6 +161,39 @@ test('observer failures never break successful reads', async () => {
     observer: { observe() { throw new Error('telemetry backend down') } },
   })
   assert.equal((await port.readTableRefs({ restaurantId: 'restaurant-a' })).ok, true)
+})
+
+test('async observers never extend the dashboard read critical path', async () => {
+  let finishObservation: (() => void) | undefined
+  const observationPending = new Promise<void>((resolve) => { finishObservation = resolve })
+  const port = withDashboardInsightsObservability(createPort(), {
+    observer: { observe: () => observationPending },
+  })
+
+  const result = await port.readTableRefs({ restaurantId: 'restaurant-a' })
+  assert.equal(result.ok, true)
+  finishObservation?.()
+})
+
+test('default insight log detail replaces raw tenant and error fields with bounded metadata', () => {
+  const detail = dashboardInsightsLogDetail({
+    operation: 'pano-metrics',
+    restaurantId: 'restaurant-sensitive-id',
+    durationMs: 100.6,
+    outcome: 'failure',
+    issueCount: 1,
+    error: 'email@example.com failed',
+  })
+  assert.match(detail.restaurantRef, /^[a-f0-9]{12}$/)
+  assert.equal(detail.durationMs, 101)
+  assert.equal(detail.hasError, true)
+  assert.doesNotMatch(JSON.stringify(detail), /restaurant-sensitive-id|email@example\.com/)
+})
+
+test('dashboard read-model defaults to structured non-persistent observation', () => {
+  const adapter = readFileSync(new URL('./dashboard-read-model-port.ts', import.meta.url), 'utf8')
+  assert.match(adapter, /observer: observability\.observer \?\? createStructuredDashboardInsightsObserver\(\)/)
+  assert.doesNotMatch(adapter, /createPersistentDashboardInsightsObserver/)
 })
 
 test('structured observer emits only degraded, failed, or slow reads', () => {

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type {
   DashboardInsightsOperation,
   DashboardInsightsQueryObservation,
@@ -16,11 +17,22 @@ export interface StructuredDashboardInsightsObserverOptions {
   write?: (message: string, observation: DashboardInsightsQueryObservation) => void
 }
 
+export function dashboardInsightsLogDetail(observation: DashboardInsightsQueryObservation) {
+  return {
+    operation: observation.operation,
+    restaurantRef: createHash('sha256').update(observation.restaurantId).digest('hex').slice(0, 12),
+    durationMs: Math.round(observation.durationMs),
+    outcome: observation.outcome,
+    issueCount: observation.issueCount,
+    hasError: Boolean(observation.error),
+  }
+}
+
 export function createStructuredDashboardInsightsObserver(
   options: StructuredDashboardInsightsObserverOptions = {},
 ): DashboardInsightsQueryObserver {
   const slowQueryThresholdMs = options.slowQueryThresholdMs ?? 1_000
-  const write = options.write ?? ((message, observation) => console.warn(message, observation))
+  const write = options.write ?? ((message, observation) => console.warn(message, dashboardInsightsLogDetail(observation)))
 
   return {
     observe(observation) {
@@ -34,12 +46,12 @@ function errorMessage(cause: unknown) {
   return cause instanceof Error ? cause.message : String(cause)
 }
 
-async function emitSafely(
+function emitSafely(
   observer: DashboardInsightsQueryObserver,
   observation: DashboardInsightsQueryObservation,
 ) {
   try {
-    await observer.observe(observation)
+    void Promise.resolve(observer.observe(observation)).catch(() => undefined)
   } catch {
     // Telemetry is deliberately best-effort and cannot change read semantics.
   }
@@ -58,7 +70,7 @@ async function observeResult<T>(
     const result = await run()
     const durationMs = Math.max(0, clock() - startedAt)
     if (!result.ok) {
-      await emitSafely(observer, {
+      emitSafely(observer, {
         operation,
         restaurantId,
         durationMs,
@@ -70,7 +82,7 @@ async function observeResult<T>(
     }
 
     const issues = issueCount(result.value)
-    await emitSafely(observer, {
+    emitSafely(observer, {
       operation,
       restaurantId,
       durationMs,
@@ -79,7 +91,7 @@ async function observeResult<T>(
     })
     return result
   } catch (cause) {
-    await emitSafely(observer, {
+    emitSafely(observer, {
       operation,
       restaurantId,
       durationMs: Math.max(0, clock() - startedAt),

@@ -8,8 +8,8 @@ import type {
 import { OPEN_ORDER_STATUSES, err, isServiceRequestType, ok } from '@garsonless/domain'
 import { createServiceClient } from './client'
 import { DASHBOARD_INSIGHTS_PROJECTIONS } from './dashboard-read-model-contract'
-import { createPersistentDashboardInsightsObserver } from './dashboard-read-model-observation-sink'
 import {
+  createStructuredDashboardInsightsObserver,
   withDashboardInsightsObservability,
   type DashboardInsightsObservabilityOptions,
 } from './dashboard-read-model-observability'
@@ -818,6 +818,6 @@ export function createDashboardInsightsReadModelPort(
 
   return withDashboardInsightsObservability(port, {
     ...observability,
-    observer: observability.observer ?? createPersistentDashboardInsightsObserver(),
+    observer: observability.observer ?? createStructuredDashboardInsightsObserver(),
   })
 }

@@ -3,7 +3,10 @@ import type {
   DashboardInsightsQueryObserver,
 } from '@garsonless/application/read-models'
 import { createServiceClient } from './client'
-import { createStructuredDashboardInsightsObserver } from './dashboard-read-model-observability'
+import {
+  createStructuredDashboardInsightsObserver,
+  dashboardInsightsLogDetail,
+} from './dashboard-read-model-observability'
 import { recordPlatformErrorEvent } from './platform-error-event-port'
 
 export interface PersistentDashboardInsightsObserverOptions {
@@ -23,7 +26,7 @@ async function persistDashboardInsightObservation(observation: DashboardInsights
     outcome: observation.outcome,
     duration_ms: Math.round(observation.durationMs),
     issue_count: observation.issueCount,
-    error: observation.error?.slice(0, 500) ?? null,
+    error: observation.error ? 'read_failed' : null,
   })
   if (error) throw error
   if (observation.outcome !== 'success') {
@@ -46,7 +49,10 @@ export function createPersistentDashboardInsightsObserver(
 ): DashboardInsightsQueryObserver {
   const slowQueryThresholdMs = options.slowQueryThresholdMs ?? 1_000
   const writeLog = options.writeLog ?? ((message, detail) => console.warn(message, detail))
-  const structured = createStructuredDashboardInsightsObserver({ slowQueryThresholdMs, write: writeLog })
+  const structured = createStructuredDashboardInsightsObserver({
+    slowQueryThresholdMs,
+    write: (message, observation) => writeLog(message, dashboardInsightsLogDetail(observation)),
+  })
   const persist = options.persist ?? persistDashboardInsightObservation
 
   return {
@@ -58,8 +64,8 @@ export function createPersistentDashboardInsightsObserver(
       } catch (cause) {
         writeLog('[dashboard-insights-query-sink-failure]', {
           operation: observation.operation,
-          restaurantId: observation.restaurantId,
-          cause: cause instanceof Error ? cause.message : String(cause),
+          restaurantRef: dashboardInsightsLogDetail(observation).restaurantRef,
+          hasCause: cause !== null && cause !== undefined,
         })
       }
     },
