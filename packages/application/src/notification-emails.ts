@@ -14,7 +14,7 @@ import {
 } from './notifications'
 
 export const NOTIFICATION_EMAIL_CONSUMER = 'notification-email'
-export const NOTIFICATION_EMAIL_EVENT_TYPES = [
+const NOTIFICATION_EMAIL_EVENT_TYPES = [
   'order.created',
   'service_request.created',
   ...BILLING_NOTIFICATION_EVENT_TYPES,
@@ -28,13 +28,13 @@ export function isNotificationEmailEventType(value: string): value is Notificati
   return (NOTIFICATION_EMAIL_EVENT_TYPES as readonly string[]).includes(value)
 }
 
-export function emailCategoryForEvent(eventType: NotificationEmailEventType): NotificationCategory {
+function emailCategoryForEvent(eventType: NotificationEmailEventType): NotificationCategory {
   if (eventType === 'order.created') return 'order'
   if (eventType === 'service_request.created') return 'service_request'
   return eventType === 'billing.reconciliation_required' ? 'system' : 'billing'
 }
 
-export function emailRecipientSection(eventType: NotificationEmailEventType): 'orders' | 'tables' | null {
+function emailRecipientSection(eventType: NotificationEmailEventType): 'orders' | 'tables' | null {
   if (eventType === 'order.created') return 'orders'
   if (eventType === 'service_request.created') return 'tables'
   return null
@@ -59,7 +59,7 @@ export type NotificationEmailRecipient = {
 
 export type EmailTemplate = { subject: string; bodyHtml: string }
 
-export type NotificationEmailProviderResult =
+type NotificationEmailProviderResult =
   | { outcome: 'sent'; messageId: string | null }
   | { outcome: 'failed'; error: string }
 

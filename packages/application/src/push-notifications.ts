@@ -2,7 +2,7 @@ import { serviceRequestLabel } from '@garsonless/domain/tables'
 import { err, ok, type Result } from '@garsonless/domain'
 
 export const DASHBOARD_PUSH_CONSUMER = 'dashboard-push'
-export const DASHBOARD_PUSH_EVENT_TYPES = ['order.created', 'service_request.created'] as const
+const DASHBOARD_PUSH_EVENT_TYPES = ['order.created', 'service_request.created'] as const
 export type DashboardPushEventType = (typeof DASHBOARD_PUSH_EVENT_TYPES)[number]
 export type PushRecipientSection = 'orders' | 'tables'
 
@@ -34,7 +34,7 @@ export type DashboardPushPayload = {
   data: { eventId: string; orderId?: string; url: string }
 }
 
-export type DashboardPushProviderResult =
+type DashboardPushProviderResult =
   | { outcome: 'sent' }
   | { outcome: 'gone'; error: string }
   | { outcome: 'failed'; error: string }
@@ -107,7 +107,7 @@ export function shouldDispatchDashboardPush(event: DashboardPushEvent): boolean 
     : readBoolean(event.settings, 'serviceRequestPush', false)
 }
 
-export function pushTopic(eventId: string): string {
+function pushTopic(eventId: string): string {
   return eventId.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32)
 }
 

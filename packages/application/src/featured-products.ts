@@ -1,7 +1,7 @@
 import type { Result } from '@garsonless/domain'
 import { ok } from '@garsonless/domain'
 
-export type FeaturedProductSalesSource = 'today' | 'previous-day' | 'catalog'
+type FeaturedProductSalesSource = 'today' | 'previous-day' | 'catalog'
 
 export interface FeaturedProductOrderRow {
   status: string
