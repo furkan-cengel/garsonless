@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import path from 'node:path'
 
 const nextConfig: NextConfig = {
   transpilePackages: [
@@ -9,6 +10,9 @@ const nextConfig: NextConfig = {
     '@garsonless/ai',
   ],
   serverExternalPackages: ['iyzipay'],
+  turbopack: {
+    root: path.join(process.cwd(), '../..'),
+  },
 }
 
 export default nextConfig

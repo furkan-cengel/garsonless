@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "node --env-file-if-exists=../dashboard/.env.local node_modules/next/dist/bin/next dev --port 3004",
+    "dev": "node --env-file-if-exists=../dashboard/.env.local node_modules/next/dist/bin/next dev --turbopack --port 3004",
     "build": "next build",
     "start": "next start --port 3004",
     "lint": "eslint .",

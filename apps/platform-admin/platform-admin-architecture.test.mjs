@@ -161,7 +161,7 @@ test('tenant privacy operations are superadmin-only, audited and keep exports tr
 test('local platform development reuses the linked dashboard env without copying secrets', () => {
   const packageJson = JSON.parse(read('./package.json'))
   assert.match(packageJson.scripts.dev, /--env-file-if-exists=\.\.\/dashboard\/\.env\.local/)
-  assert.match(packageJson.scripts.dev, /next dev --port 3004/)
+  assert.match(packageJson.scripts.dev, /next dev --turbopack --port 3004/)
 })
 
 test('Supabase TOTP QR data is normalized before Next Image receives it', () => {

@@ -11,6 +11,7 @@ export default tseslint.config(
       '**/.next/**',
       '**/dist/**',
       '**/coverage/**',
+      'test-results/**',
       '**/*.d.ts',
       '**/*.tsbuildinfo',
       'pnpm-lock.yaml',

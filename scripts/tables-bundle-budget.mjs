@@ -113,6 +113,9 @@ export function measureTablesRoute({ buildDirectory, manifest, budget }) {
     initialGzipBytes,
     maxEntryGzipBytes: budget.maxEntryGzipBytes,
     maxInitialGzipBytes: budget.maxInitialGzipBytes,
+    ...(budget.hardMaxInitialGzipBytes ? { hardMaxInitialGzipBytes: budget.hardMaxInitialGzipBytes } : {}),
+    ...(budget.baselineInitialGzipBytes ? { baselineInitialGzipBytes: budget.baselineInitialGzipBytes } : {}),
+    ...(budget.maxRegressionPercent ? { maxRegressionPercent: budget.maxRegressionPercent } : {}),
     entryHeadroomBytes: budget.maxEntryGzipBytes - entry.gzipBytes,
     initialHeadroomBytes: budget.maxInitialGzipBytes - initialGzipBytes,
   }

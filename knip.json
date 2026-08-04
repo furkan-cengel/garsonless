@@ -13,6 +13,7 @@
     "**/dist/**",
     "**/coverage/**",
     "**/node_modules/**",
+    "test-results/**",
     "packages/db/src/types.gen.ts",
     "packages/db/supabase/**",
     "tests/visual/dashboard-auth.setup.ts"

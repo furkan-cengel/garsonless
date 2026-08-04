@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import path from 'node:path'
 
 const nextConfig: NextConfig = {
   transpilePackages: [
@@ -8,6 +9,9 @@ const nextConfig: NextConfig = {
     '@garsonless/domain',
   ],
   serverExternalPackages: ['iyzipay', 'sharp'],
+  turbopack: {
+    root: path.join(process.cwd(), '../..'),
+  },
   experimental: {
     serverActions: {
       // Theme/menu media validates at 2–8 MB inside authenticated actions.
