@@ -1,5 +1,8 @@
 'use client'
 
+import type { CSSProperties } from 'react'
+import { normalizeProgress } from './spinner-model'
+
 const spinnerTokens = {
   action: 'var(--action, var(--p-cta, currentColor))',
   actionSoft: 'var(--surface-inset, var(--p-accent-soft, #ececef))',
@@ -20,20 +23,19 @@ interface HeroSpinnerProps {
 
 export function HeroSpinner({ size = 96, label = 'Yükleniyor...' }: HeroSpinnerProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
-      <div style={{
+    <div role="status" aria-live="polite" aria-label={label || 'Yükleniyor'} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
+      <div aria-hidden="true" style={{
         position: 'relative', width: size, height: size,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         {/* Outer rotating arc */}
-        <svg width={size} height={size} viewBox="0 0 100 100" style={{
+        <svg className="gl-spinner-arc" width={size} height={size} viewBox="0 0 100 100" style={{
           position: 'absolute', inset: 0,
-          animation: 'arc-rotate 1.4s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite',
         }}>
           <circle cx="50" cy="50" r="44" fill="none" stroke={spinnerTokens.actionSoft} strokeWidth="3" />
           <circle cx="50" cy="50" r="44" fill="none"
             stroke={spinnerTokens.action} strokeWidth="3" strokeLinecap="round"
-            style={{ animation: 'dash 1.6s ease-in-out infinite' }} />
+            className="gl-spinner-dash" />
         </svg>
 
         {/* Steam — 3 wisps */}
@@ -43,10 +45,9 @@ export function HeroSpinner({ size = 96, label = 'Yükleniyor...' }: HeroSpinner
           display: 'flex', gap: 4,
         }}>
           {[0, 1, 2].map(i => (
-            <span key={i} style={{
+            <span className="gl-spinner-steam" key={i} style={{
               width: 3, height: 3, borderRadius: 99,
               background: spinnerTokens.action,
-              animation: 'steam 2s ease-out infinite',
               animationDelay: `${i * 0.4}s`,
               opacity: 0,
             }} />
@@ -79,11 +80,10 @@ export function HeroSpinner({ size = 96, label = 'Yükleniyor...' }: HeroSpinner
 
 export function DotPulse() {
   return (
-    <div style={{ display: 'inline-flex', gap: 5, marginTop: 8 }}>
+    <div aria-hidden="true" style={{ display: 'inline-flex', gap: 5, marginTop: 8 }}>
       {[0, 1, 2].map(i => (
-        <span key={i} style={{
+        <span className="gl-spinner-dot" key={i} style={{
           width: 5, height: 5, borderRadius: 99, background: spinnerTokens.muted,
-          animation: 'dot-bounce 1.4s ease-in-out infinite',
           animationDelay: `${i * 0.16}s`,
         }} />
       ))}
@@ -100,14 +100,28 @@ interface InlineSpinnerProps {
 
 export function InlineSpinner({ size = 16, color = 'currentColor' }: InlineSpinnerProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <svg aria-hidden="true" focusable="false" width={size} height={size} viewBox="0 0 24 24" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
       <circle cx="12" cy="12" r="9" fill="none" stroke={color} strokeWidth="2.5" opacity={0.2} />
-      <circle cx="12" cy="12" r="9" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round"
-        strokeDasharray="14 60" style={{
-          transformOrigin: 'center',
-          animation: 'spin 0.9s linear infinite',
-        }} />
+      <circle className="gl-spinner-inline" cx="12" cy="12" r="9" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="14 60" />
     </svg>
+  )
+}
+
+interface LoadingStatusProps {
+  label: string
+  showLabel?: boolean
+  size?: number
+  color?: string
+  className?: string
+  style?: CSSProperties
+}
+
+export function LoadingStatus({ label, showLabel = true, size = 16, color = 'currentColor', className, style }: LoadingStatusProps) {
+  return (
+    <span className={`gl-loading-status${className ? ` ${className}` : ''}`} style={style} role="status" aria-live="polite" aria-atomic="true">
+      <InlineSpinner size={size} color={color} />
+      <span className={showLabel ? undefined : 'gl-visually-hidden'}>{label}</span>
+    </span>
   )
 }
 
@@ -119,11 +133,10 @@ interface DotsSpinnerProps {
 
 export function DotsSpinner({ color = spinnerTokens.text }: DotsSpinnerProps) {
   return (
-    <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+    <div aria-hidden="true" style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
       {[0, 1, 2].map(i => (
-        <span key={i} style={{
+        <span className="gl-spinner-dot" key={i} style={{
           width: 8, height: 8, borderRadius: 99, background: color,
-          animation: 'dot-bounce 1.4s ease-in-out infinite',
           animationDelay: `${i * 0.16}s`,
         }} />
       ))}
@@ -135,35 +148,34 @@ export function DotsSpinner({ color = spinnerTokens.text }: DotsSpinnerProps) {
 
 interface BrewBarProps {
   progress: number
+  label: string
 }
 
-export function BrewBar({ progress }: BrewBarProps) {
+export function BrewBar({ progress, label }: BrewBarProps) {
+  const normalized = normalizeProgress(progress)
   return (
-    <div style={{ width: 280 }}>
+    <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={normalized} style={{ width: 280 }}>
       <div style={{
         display: 'flex', justifyContent: 'space-between',
         fontSize: 11, color: spinnerTokens.muted, marginBottom: 8,
       }}>
         <span style={{ fontFamily: 'monospace', letterSpacing: '.05em' }}>DEMLENİYOR</span>
-        <span style={{ fontFamily: 'monospace' }}>{progress}%</span>
+        <span style={{ fontFamily: 'monospace' }}>{normalized}%</span>
       </div>
       <div style={{
         height: 8, background: spinnerTokens.surface, borderRadius: 99,
         border: `1px solid ${spinnerTokens.border}`, overflow: 'hidden',
         position: 'relative',
       }}>
-        <div style={{
-          height: '100%', width: `${progress}%`,
+        <div className="gl-brew-fill" style={{
+          height: '100%', width: `${normalized}%`,
           background: `linear-gradient(90deg, ${spinnerTokens.positive} 0%, ${spinnerTokens.action} 100%)`,
           borderRadius: 99,
-          transition: 'width 600ms cubic-bezier(0.4, 0.0, 0.2, 1)',
           position: 'relative', overflow: 'hidden',
         }}>
-          <div style={{
+          <div aria-hidden="true" className="gl-brew-shimmer" style={{
             position: 'absolute', inset: 0,
             background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,.35) 50%, transparent 100%)',
-            animation: 'spin 1.5s linear infinite',
-            transformOrigin: 'center',
           }} />
         </div>
       </div>
@@ -177,7 +189,6 @@ export function SkeletonCard() {
   const shimmerStyle = {
     background: `linear-gradient(90deg, ${spinnerTokens.surface} 0%, ${spinnerTokens.border} 50%, ${spinnerTokens.surface} 100%)`,
     backgroundSize: '200% 100%',
-    animation: 'shimmer-bg 1.4s ease-in-out infinite',
   } as const
 
   return (
@@ -186,9 +197,9 @@ export function SkeletonCard() {
       background: 'var(--surface, var(--p-card, #fff))', borderRadius: 8,
       border: `1px solid ${spinnerTokens.border}`,
     }}>
-      <div style={{ aspectRatio: '4/3', borderRadius: 8, marginBottom: 10, ...shimmerStyle }} />
-      <div style={{ height: 12, borderRadius: 4, width: '70%', marginBottom: 6, ...shimmerStyle }} />
-      <div style={{ height: 10, borderRadius: 4, width: '50%', ...shimmerStyle, animationDelay: '0.2s' }} />
+      <div aria-hidden="true" className="gl-skeleton-shimmer" style={{ aspectRatio: '4/3', borderRadius: 8, marginBottom: 10, ...shimmerStyle }} />
+      <div aria-hidden="true" className="gl-skeleton-shimmer" style={{ height: 12, borderRadius: 4, width: '70%', marginBottom: 6, ...shimmerStyle }} />
+      <div aria-hidden="true" className="gl-skeleton-shimmer" style={{ height: 10, borderRadius: 4, width: '50%', ...shimmerStyle, animationDelay: '0.2s' }} />
     </div>
   )
 }
@@ -201,10 +212,9 @@ interface LogomarkSpinnerProps {
 
 export function LogomarkSpinner({ size = 64 }: LogomarkSpinnerProps) {
   return (
-    <div style={{ position: 'relative', width: size, height: size }}>
-      <svg width={size} height={size} viewBox="0 0 64 64" style={{
+    <div aria-hidden="true" style={{ position: 'relative', width: size, height: size }}>
+      <svg className="gl-spinner-slow" width={size} height={size} viewBox="0 0 64 64" style={{
         position: 'absolute', inset: 0,
-        animation: 'spin 2.4s linear infinite',
       }}>
         <defs>
           <linearGradient id="gradRing" x1="0" y1="0" x2="1" y2="1">
@@ -236,11 +246,10 @@ interface BarSpinnerProps {
 
 export function BarSpinner({ color = spinnerTokens.text }: BarSpinnerProps) {
   return (
-    <div style={{ display: 'inline-flex', alignItems: 'flex-end', gap: 3, height: 22 }}>
+    <div aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'flex-end', gap: 3, height: 22 }}>
       {[0.6, 1.0, 0.4, 0.8].map((_, i) => (
-        <span key={i} style={{
+        <span className="gl-spinner-bar" key={i} style={{
           width: 4, height: '100%', background: color, borderRadius: 2,
-          animation: 'bar-bounce 0.9s ease-in-out infinite',
           animationDelay: `${i * 0.12}s`,
           transformOrigin: 'bottom',
         }} />

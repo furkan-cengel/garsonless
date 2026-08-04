@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 import { AppIcons } from '@garsonless/ui/icons'
 import { fetchTableDetail, type TableDetail } from '../../lib/actions/tables'
 import type { OpenTableSessionView, PendingTableRequestView, TableItem } from './tables-builder-types'

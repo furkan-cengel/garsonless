@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react'
 import { createCategory, updateCategory, uploadMenuImage } from '../../lib/actions/menu'
 import { prepareMenuImage } from '../../lib/menu-image-client'
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 import type { Tables } from '@garsonless/db/types'
 
 interface Props {

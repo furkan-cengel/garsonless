@@ -282,7 +282,7 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
   }
 
   return (
-    <form onSubmit={handleSave}>
+    <form onSubmit={handleSave} aria-busy={isPending || isLogoPending}>
       <SettingsCard title="Mağaza kimliği" subtitle="Müşterilere ve sisteme gösterilen temel bilgiler">
         <SettingsRow label="Mağaza adı" hint="Müşteri menüsü ve faturalarda görünür">
           <input value={name} onChange={e => setName(e.target.value)} style={inp} required />
@@ -309,11 +309,11 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
               : <span style={{ color: 'var(--text-4)', display: 'inline-flex' }}><I.cutlery size={24} /></span>}
           </div>
           <div>
-            <label style={{
+            <label aria-busy={isLogoPending} style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               ...btnGhost(), cursor: 'pointer',
             }}>
-              <I.image size={13} />{isLogoPending ? 'Yükleniyor…' : 'Logo değiştir'}
+              <I.image size={13} />{isLogoPending ? <span role="status" aria-live="polite">Logo yükleniyor…</span> : 'Logo değiştir'}
               <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoChange} disabled={isLogoPending} style={{ display: 'none' }} />
             </label>
             <div style={{ fontSize: 11.5, color: logoFeedback ? 'var(--positive)' : 'var(--text-3)', marginTop: 6 }}>{logoFeedback || 'PNG, JPG veya WEBP · max 2 MB'}</div>
@@ -336,7 +336,7 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
         <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
           {saved ? '✓ Kaydedildi' : 'Kaydetmek için değişiklik yap'}
         </span>
-        <button type="submit" disabled={isPending} style={btnPrimary()}>
+        <button type="submit" aria-busy={isPending} disabled={isPending} style={btnPrimary()}>
           <I.check size={13} />{isPending ? 'Kaydediliyor…' : 'Kaydet'}
         </button>
       </div>

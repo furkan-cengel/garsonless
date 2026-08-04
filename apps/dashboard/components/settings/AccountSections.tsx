@@ -58,7 +58,7 @@ export function ProfileSection({ user }: { user: User | null }) {
   }
 
   return (
-    <>
+    <div aria-busy={isPending}>
       <SCard title="Profil bilgisi" subtitle="Mağaza ekibi seni bu bilgilerle görür">
         <div style={{ padding: 18, display: 'flex', gap: 18, alignItems: 'flex-start', borderBottom: '1px solid var(--divider)' }}>
           <div>
@@ -102,14 +102,14 @@ export function ProfileSection({ user }: { user: User | null }) {
         border: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
-          {saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydet'}
+        <span role="status" aria-live="polite" style={{ fontSize: 12, color: 'var(--text-3)' }}>
+          {isPending ? 'Profil kaydediliyor…' : saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydet'}
         </span>
         <button onClick={handleSave} disabled={isPending} style={btnPrimary()}>
           <I.check size={13} />{isPending ? 'Kaydediliyor…' : 'Kaydet'}
         </button>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -171,7 +171,8 @@ function MemberRow({ restaurantId, member }: { restaurantId: string; member: Tea
   }
 
   return (
-    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--divider)', opacity: member.status === 'disabled' ? 0.6 : 1 }}>
+    <div aria-busy={isPending} style={{ padding: '12px 16px', borderBottom: '1px solid var(--divider)', opacity: member.status === 'disabled' ? 0.6 : 1 }}>
+      {isPending && <span role="status" aria-live="polite" className="sr-only">Ekip işlemi sürüyor…</span>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{
           width: 30, height: 30, borderRadius: 999, background: 'var(--surface-3)',
@@ -279,7 +280,8 @@ export function TeamSection({ restaurantId, ownerEmail, members, auditEvents }: 
   return (
     <>
       <SCard title="Ekip üyesi davet et" subtitle="E-posta ile davet et, erişebileceği bölümleri seç">
-        <div style={{ padding: 18 }}>
+        <div aria-busy={isPending} style={{ padding: 18 }}>
+          {isPending && <span role="status" aria-live="polite" className="sr-only">Davet gönderiliyor…</span>}
           <FormRow label="E-posta">
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ekip@ornek.com" style={inputStyle({ width: 280 })} />
           </FormRow>

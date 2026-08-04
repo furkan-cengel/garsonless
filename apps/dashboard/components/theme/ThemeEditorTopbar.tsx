@@ -113,8 +113,8 @@ export function ThemeEditorTopbar({
       </div>
 
       <div data-theme-editor-actions style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexWrap: 'nowrap', minWidth: 0 }}>
-        <span data-theme-editor-save-status style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--text-3)', fontSize: 12.5, whiteSpace: 'nowrap' }}>
-          <span style={{ width: 6, height: 6, borderRadius: 999, background: saveStatusColor }} />
+        <span data-theme-editor-save-status role="status" aria-live="polite" aria-atomic="true" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--text-3)', fontSize: 12.5, whiteSpace: 'nowrap' }}>
+          <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: saveStatusColor }} />
           {saveStatusText}
         </span>
         <span

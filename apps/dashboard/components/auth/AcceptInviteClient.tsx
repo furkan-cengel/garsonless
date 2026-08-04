@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { acceptInviteAction } from '../../lib/actions/team'
-import { signOut } from '../../lib/actions/auth'
+import { logoutCurrentBrowser } from '../../lib/client-logout'
 
 const SECTION_LABELS: Record<string, string> = {
   pano: 'Pano', orders: 'Siparişler', menu: 'Menü', tables: 'Masalar',
@@ -81,6 +81,18 @@ export default function AcceptInviteClient(props: Props) {
     })
   }
 
+  function handleMismatchLogout() {
+    setError('')
+    startTransition(async () => {
+      const result = await logoutCurrentBrowser()
+      if ('error' in result) {
+        setError(result.error)
+        return
+      }
+      window.location.replace('/auth/login')
+    })
+  }
+
   if (props.state === 'invalid') {
     return (
       <div style={wrap}><div style={card}>
@@ -101,9 +113,10 @@ export default function AcceptInviteClient(props: Props) {
           Bu davet <b>{props.inviteEmail}</b> için. Şu anda <b>{props.currentEmail}</b> ile giriş yaptınız.
           Daveti kabul etmek için doğru hesapla giriş yapın.
         </p>
-        <form action={signOut} style={{ marginTop: 20 }}>
-          <button type="submit" style={primaryBtn(false)}>Çıkış yap ve değiştir</button>
-        </form>
+        {error && <div role="alert" style={{ fontSize: 13, color: 'var(--critical)', marginTop: 16 }}>{error}</div>}
+        <button type="button" onClick={handleMismatchLogout} disabled={isPending} style={{ ...primaryBtn(isPending), marginTop: 20 }}>
+          {isPending ? 'Çıkış yapılıyor…' : 'Çıkış yap ve değiştir'}
+        </button>
       </div></div>
     )
   }

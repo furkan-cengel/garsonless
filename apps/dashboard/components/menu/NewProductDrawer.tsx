@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useRef, useState, useTransition } from 'react'
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 import type { Tables } from '@garsonless/db/types'
 import { normalizeMenuNumericText, parseMenuNumericInput } from '@garsonless/domain/menu'
 import { createItem } from '../../lib/actions/menu'

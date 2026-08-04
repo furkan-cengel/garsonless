@@ -15,7 +15,7 @@ import {
 import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
 
 const chartLoading = () => (
-  <div style={{ height: 272, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-4)', fontSize: 12 }}>Grafik yükleniyor…</div>
+  <div role="status" aria-live="polite" style={{ height: 272, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-4)', fontSize: 12 }}>Grafik yükleniyor…</div>
 )
 const ProductScatterChart = dynamic(() => loadAnalyticsChart(() => import('./chart-primitives/ProductScatterChart')), { ssr: false, loading: chartLoading })
 const s = { mono: { fontFamily: "'Geist Mono', ui-monospace, monospace" } as CSSProperties }

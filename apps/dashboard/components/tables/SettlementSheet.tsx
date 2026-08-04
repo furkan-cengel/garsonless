@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
 import { AccessibleDialog } from './AccessibleDialog'
 import { SETTLEMENT_LOAD_ERROR } from './settlement-load'
@@ -117,7 +117,7 @@ export default function SettlementSheet({
           )}
 
           {loadState === 'loading' ? (
-            <div style={{ padding: '30px 0', textAlign: 'center', color: 'var(--text-3)' }}><InlineSpinner size={16} /> Yükleniyor…</div>
+            <div role="status" aria-live="polite" aria-busy="true" style={{ padding: '30px 0', textAlign: 'center', color: 'var(--text-3)' }}><InlineSpinner size={16} /> Adisyon yükleniyor…</div>
           ) : loadState === 'error' ? (
             <div role="alert" style={{ padding: '26px 18px', textAlign: 'center', borderRadius: 12, background: 'var(--critical-bg)', color: 'var(--critical)' }}>
               <div style={{ fontSize: 13, fontWeight: 650 }}>{loadError ?? SETTLEMENT_LOAD_ERROR}</div>
@@ -266,7 +266,7 @@ export default function SettlementSheet({
           <div style={{ padding: '14px 20px 16px', borderTop: '1px solid var(--divider)', background: 'var(--surface-2)' }}>
             <div style={{ display: 'flex', gap: 10 }}>
               <button type="button" disabled={busy} onClick={onClose} style={{ ...settlementGhostButton, opacity: busy ? 0.6 : 1 }}>Vazgeç</button>
-              <button type="button" disabled={!allStaged || busy} onClick={() => void commit()} style={{
+              <button type="button" aria-busy={committing} disabled={!allStaged || busy} onClick={() => void commit()} style={{
                 ...settlementPrimaryButton, flex: 1.6,
                 opacity: allStaged && !busy ? 1 : 0.45, cursor: allStaged && !busy ? 'pointer' : 'not-allowed',
                 background: allStaged ? 'var(--positive)' : 'var(--action)',
@@ -311,11 +311,11 @@ export default function SettlementSheet({
                     flex: 1, height: 32, borderRadius: 8, fontSize: 11.5, fontWeight: 600,
                     border: '1px solid var(--border-strong)', background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer',
                   }}>Vazgeç</button>
-                  <button type="button" disabled={busy || !abnormalReason.trim()} onClick={() => void confirmAbnormal()} style={{
+                  <button type="button" aria-busy={committing} disabled={busy || !abnormalReason.trim()} onClick={() => void confirmAbnormal()} style={{
                     flex: 1, height: 32, borderRadius: 8, fontSize: 11.5, fontWeight: 700,
                     border: 'none', background: 'var(--critical)', color: '#fff',
                     cursor: busy || !abnormalReason.trim() ? 'not-allowed' : 'pointer', opacity: abnormalReason.trim() ? 1 : 0.5,
-                  }}>{committing ? <InlineSpinner size={11} color="#fff" /> : 'Yine de kapat'}</button>
+                  }}>{committing ? <><InlineSpinner size={11} color="#fff" /> Kapatılıyor…</> : 'Yine de kapat'}</button>
                 </div>
               </div>
             )}

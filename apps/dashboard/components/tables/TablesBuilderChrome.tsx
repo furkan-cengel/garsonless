@@ -2,6 +2,7 @@
 
 import React, { useEffect, useId, useRef, useState } from 'react'
 import { AppIconNodes } from '@garsonless/ui/icons'
+import { LoadingStatus } from '@garsonless/ui/spinners'
 import { useShell } from '../../lib/shell-context'
 import type { QRConfig, SaveState } from './tables-builder-types'
 
@@ -420,7 +421,24 @@ export function TablesStatusBar({ saveState, saveError, onRetry, tableCount, act
 
 /* ─── MobilePreview (Shopify-style phone mockup) ────────────── */
 export function TablesMobilePreview({ src, title, onClose }: { src: string; title: string; onClose: () => void }) {
-  const [loaded, setLoaded] = useState(false)
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error' | 'stalled'>('loading')
+  const [frameKey, setFrameKey] = useState(0)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clearLoadTimeout = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    timeoutRef.current = null
+  }
+  const retry = () => {
+    clearLoadTimeout()
+    setLoadState('loading')
+    setFrameKey((current) => current + 1)
+  }
+  useEffect(() => {
+    setLoadState('loading')
+    clearLoadTimeout()
+    timeoutRef.current = setTimeout(() => setLoadState('stalled'), 10_000)
+    return clearLoadTimeout
+  }, [frameKey, src])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -437,8 +455,6 @@ export function TablesMobilePreview({ src, title, onClose }: { src: string; titl
         gap: 16, padding: 24,
       }}
     >
-      <style dangerouslySetInnerHTML={{ __html: '@keyframes tbmp-spin{to{transform:rotate(360deg)}}' }} />
-
       {/* Top controls */}
       <div onClick={(e) => e.stopPropagation()} style={{
         display: 'flex', alignItems: 'center', gap: 8, maxWidth: '92vw',
@@ -489,19 +505,28 @@ export function TablesMobilePreview({ src, title, onClose }: { src: string; titl
           width: 104, height: 28, background: '#000', borderRadius: 999, zIndex: 3,
         }} />
         {/* Screen */}
-        <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 40, overflow: 'hidden', background: 'var(--surface)' }}>
-          {!loaded && (
+        <div aria-busy={loadState === 'loading'} style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 40, overflow: 'hidden', background: 'var(--surface)' }}>
+          {loadState === 'loading' && (
             <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--text-3)', zIndex: 1 }}>
-              <div style={{
-                width: 24, height: 24, borderRadius: 999,
-                border: '2px solid currentColor', borderRightColor: 'transparent',
-                animation: 'tbmp-spin 700ms linear infinite',
-              }} />
+              <LoadingStatus size={24} label="Mobil önizleme yükleniyor…" />
+            </div>
+          )}
+          {(loadState === 'error' || loadState === 'stalled') && (
+            <div role="alert" style={{ position: 'absolute', inset: 0, zIndex: 4, display: 'grid', placeItems: 'center', padding: 24, background: 'var(--surface)', color: 'var(--text)', textAlign: 'center' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{loadState === 'stalled' ? 'Önizleme beklenenden uzun sürüyor.' : 'Önizleme yüklenemedi.'}</div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 14 }}>
+                  <button type="button" onClick={retry} style={{ minHeight: 44, padding: '0 14px', border: 0, borderRadius: 8, background: 'var(--action)', color: 'var(--on-action)', fontWeight: 700, cursor: 'pointer' }}>Tekrar dene</button>
+                  <button type="button" onClick={onClose} style={{ minHeight: 44, padding: '0 14px', border: '1px solid var(--border-strong)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontWeight: 700, cursor: 'pointer' }}>Kapat</button>
+                </div>
+              </div>
             </div>
           )}
           <iframe
+            key={frameKey}
             src={src}
-            onLoad={() => setLoaded(true)}
+            onLoad={() => { clearLoadTimeout(); setLoadState('ready') }}
+            onError={() => { clearLoadTimeout(); setLoadState('error') }}
             title="Mobil önizleme"
             style={{ position: 'relative', zIndex: 2, width: '100%', height: '100%', border: 'none', background: 'transparent' }}
           />

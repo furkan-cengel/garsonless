@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition, type CSSProperties, type ReactNode } from 'react'
 import type { Tables } from '@garsonless/db/types'
 import { I, S, Tag, btnPrimary } from '../../lib/ui'
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 import { SCard, FormRow, Toggle, inputStyle } from './primitives'
 import { saveBusinessHours, updateSettings } from '../../lib/actions/restaurant'
 import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
@@ -135,7 +135,7 @@ export function StoreSection({ restaurant }: { restaurant: Tables<'restaurants'>
   }
 
   return (
-    <form onSubmit={handleSave}>
+    <form onSubmit={handleSave} aria-busy={isPending}>
       <SCard title="Mağaza kimliği" subtitle="Menü, fiş ve müşteri bilgi bölümlerinde kullanılan gerçek bilgiler">
         <div style={{ padding: 18, display: 'flex', gap: 14, alignItems: 'center' }}>
           <div style={{
@@ -360,7 +360,7 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
   const todayIdx = ((new Date().getDay() + 6) % 7)
 
   return (
-    <form onSubmit={handleSave}>
+    <form onSubmit={handleSave} aria-busy={isPending}>
       <SCard title="Haftalık program" subtitle="Müşteriler menüde bu saatleri görür. Gece yarısını aşan saatler için ayrı vardiya desteği yakında.">
         {HOUR_DAYS.map((day, i) => {
           const s = schedule[day.key]!
@@ -474,7 +474,7 @@ export function TaxSection({ restaurant }: { restaurant: Tables<'restaurants'> }
   }
 
   return (
-    <form onSubmit={handleSave}>
+    <form onSubmit={handleSave} aria-busy={isPending}>
       <SCard title="KDV politikası" subtitle="Ürün fiyatları müşteriye KDV dahil gösterilir.">
         <div style={{
           padding: '12px 14px',

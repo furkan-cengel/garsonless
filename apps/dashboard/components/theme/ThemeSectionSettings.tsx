@@ -613,7 +613,7 @@ export function SectionImageUploadPanel({ restaurantId, label, value, onChange, 
   }
 
   return (
-    <div style={{ marginBottom: 10 }}>
+    <div aria-busy={uploading} style={{ marginBottom: 10 }}>
       <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={handleUpload} />
       <div style={{
         minHeight: 116,
@@ -641,7 +641,7 @@ export function SectionImageUploadPanel({ restaurantId, label, value, onChange, 
           onClick={() => inputRef.current?.click()}
           style={{ ...uploadActionStyle, flex: 1, background: 'var(--text)', color: 'var(--surface)' }}
         >
-          {uploading ? 'Yükleniyor…' : value ? `${mode === 'icon' ? 'İkonu' : 'Görseli'} değiştir` : `${mode === 'icon' ? 'İkon' : 'Görsel'} yükle`}
+          {uploading ? <span role="status" aria-live="polite">{mode === 'icon' ? 'İkon' : 'Görsel'} yükleniyor…</span> : value ? `${mode === 'icon' ? 'İkonu' : 'Görseli'} değiştir` : `${mode === 'icon' ? 'İkon' : 'Görsel'} yükle`}
         </button>
         {value && (
           <button type="button" disabled={uploading} onClick={handleRemove} style={{ ...uploadActionStyle, background: 'var(--surface)', color: 'var(--text-2)' }}>
@@ -847,7 +847,7 @@ export function GalleryUploadPanel({ restaurantId, values, onChange }: {
   }
 
   return (
-    <div data-gallery-upload-panel style={{ marginBottom: 8 }}>
+    <div data-gallery-upload-panel aria-busy={uploading !== null} style={{ marginBottom: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
         <div>
           <strong style={{ display: 'block', fontSize: 12, color: 'var(--text)' }}>Galeri fotoğrafları</strong>
@@ -870,7 +870,7 @@ export function GalleryUploadPanel({ restaurantId, values, onChange }: {
                 ) : (
                   <span style={{ display: 'grid', justifyItems: 'center', gap: 5, color: 'var(--text-3)' }}>
                     <I.image size={19} />
-                    <span style={{ fontSize: 10.5, fontWeight: 700 }}>{loading ? 'Yükleniyor…' : 'Fotoğraf yükle'}</span>
+                    <span role={loading ? 'status' : undefined} aria-live={loading ? 'polite' : undefined} style={{ fontSize: 10.5, fontWeight: 700 }}>{loading ? 'Fotoğraf yükleniyor…' : 'Fotoğraf yükle'}</span>
                   </span>
                 )}
               </button>

@@ -9,13 +9,14 @@ const ThemeEditorClient = dynamic(() => import('./ThemeEditorClient'), {
 
 function ThemeEditorLoading() {
   return (
-    <div data-theme-editor-loading style={{
+    <div data-theme-editor-loading role="status" aria-live="polite" aria-busy="true" aria-label="Tema düzenleyici hazırlanıyor" style={{
       minHeight: 'calc(100vh - 56px)',
       display: 'grid',
       gridTemplateColumns: '320px minmax(0, 1fr)',
       background: 'var(--bg)',
       color: 'var(--text)',
     }}>
+      <div aria-hidden="true" style={{ display: 'contents' }}>
       <div data-theme-editor-loading-nav style={{
         borderRight: '1px solid var(--border)',
         background: 'var(--surface)',
@@ -51,6 +52,9 @@ function ThemeEditorLoading() {
         </div>
       </div>
       <style jsx>{`
+        @media (prefers-reduced-motion: reduce) {
+          [data-theme-editor-skeleton] { animation: none !important; }
+        }
         @media (max-width: 900px) {
           [data-theme-editor-loading] {
             grid-template-columns: minmax(0, 1fr) !important;
@@ -63,13 +67,14 @@ function ThemeEditorLoading() {
           }
         }
       `}</style>
+      </div>
     </div>
   )
 }
 
 function Skeleton({ style }: { style: React.CSSProperties }) {
   return (
-    <div style={{
+    <div data-theme-editor-skeleton aria-hidden="true" style={{
       borderRadius: 7,
       background: 'linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2))',
       backgroundSize: '220% 100%',

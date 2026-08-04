@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useRef } from 'react'
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 import { AppIcons } from '@garsonless/ui/icons'
 import { UNASSIGNED_LOCATION_FILTER } from './tables-operation-model'
 import { TablesFloorCard } from './TablesFloorCard'

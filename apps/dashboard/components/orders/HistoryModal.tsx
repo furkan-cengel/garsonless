@@ -6,7 +6,7 @@ import { getOrderHistory, type HistoryOrder } from '../../lib/actions/orders'
 import { I, S, Tag, IconButton, btnGhost } from '../../lib/ui'
 import { formatCurrency } from '../../lib/utils'
 import { paymentMethodBadge } from '../../lib/payment-method'
-import { InlineSpinner } from '@garsonless/ui'
+import { LoadingStatus } from '@garsonless/ui/spinners'
 import { AccessibleDialog } from '../tables/AccessibleDialog'
 
 type Tab = 'all' | 'done' | 'cancelled'
@@ -118,7 +118,7 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
               Son 200 kayıt gösteriliyor. Daha eski kayıtlar için rapor dışa aktarımını kullanın.
             </div>
           )}
-          {loading && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)' }}><InlineSpinner size={18} /></div>}
+          {loading && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)' }}><LoadingStatus size={18} label="Geçmiş siparişler yükleniyor…" /></div>}
           {error && <div style={{ padding: 40, textAlign: 'center', color: 'var(--critical)', fontSize: 12.5 }}>{error}</div>}
           {!loading && !error && rows.length === 0 && (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-4)', fontSize: 12.5 }}>Kayıt bulunamadı</div>

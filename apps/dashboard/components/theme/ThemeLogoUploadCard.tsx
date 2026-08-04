@@ -20,7 +20,7 @@ export function ThemeLogoUploadCard({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   return (
-    <div style={{
+    <div aria-busy={uploading} style={{
       borderRadius: 10,
       border: '1.5px dashed var(--border-strong)',
       background: 'var(--surface-2)',
@@ -58,7 +58,7 @@ export function ThemeLogoUploadCard({
           <I.tag size={22} />
         </div>
       )}
-      <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+      <div aria-busy={uploading} style={{ display: 'flex', gap: 6, width: '100%' }}>
         <button
           type="button"
           disabled={uploading}
@@ -70,7 +70,7 @@ export function ThemeLogoUploadCard({
             opacity: uploading ? 0.6 : 1,
           }}
         >
-          {uploading ? 'Yükleniyor…' : logoUrl ? 'Değiştir' : 'Logo yükle'}
+          {uploading ? <span role="status" aria-live="polite">Logo yükleniyor…</span> : logoUrl ? 'Değiştir' : 'Logo yükle'}
         </button>
         {logoUrl && (
           <button

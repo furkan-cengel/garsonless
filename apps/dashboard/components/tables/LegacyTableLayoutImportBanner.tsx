@@ -1,6 +1,6 @@
 'use client'
 
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 import { AppIcons } from '@garsonless/ui/icons'
 import type { LegacyTableLayoutCandidate } from './legacy-table-layout-model'
 

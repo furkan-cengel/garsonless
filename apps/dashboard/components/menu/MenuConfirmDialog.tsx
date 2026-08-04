@@ -1,6 +1,6 @@
 'use client'
 
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 
 import { I, btnGhost } from '../../lib/ui'
 
@@ -54,6 +54,7 @@ export function MenuConfirmDialog({
           <button type="button" onClick={onCancel} disabled={loading} style={btnGhost()}>{cancelLabel}</button>
           <button
             type="button"
+            aria-busy={loading}
             onClick={onConfirm}
             disabled={loading}
             style={{

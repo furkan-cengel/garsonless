@@ -88,6 +88,10 @@ export function PanoActivityFeed({
           animation: pano-feed-spin .7s linear infinite;
         }
         @keyframes pano-feed-spin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) {
+          .pano-feed-spinner { animation: none; }
+          .pano-feed-action, .pano-feed-time { transition: none; }
+        }
         @media (hover: none) {
           .pano-feed-action { opacity: 1; pointer-events: auto; transform: none; }
           .pano-feed-time { opacity: 0; }
@@ -165,6 +169,7 @@ function PanoActivityFeedRow({
             type="button"
             className="pano-feed-action"
             disabled={isPending}
+            aria-busy={isPending}
             onClick={onApprove}
             aria-label={`${event.tableLabel ?? 'Sipariş'} siparişini onayla`}
             style={{
@@ -174,8 +179,8 @@ function PanoActivityFeedRow({
               fontSize: 11.5, fontWeight: 700, cursor: isPending ? 'wait' : 'pointer',
             }}
           >
-            {isPending ? <span className="pano-feed-spinner" /> : <I.check size={13} />}
-            {isPending ? 'Onaylanıyor' : 'Onayla'}
+            {isPending ? <span aria-hidden="true" className="pano-feed-spinner" /> : <I.check size={13} />}
+            {isPending ? 'Onaylanıyor…' : 'Onayla'}
           </button>
         </div>
       ) : (

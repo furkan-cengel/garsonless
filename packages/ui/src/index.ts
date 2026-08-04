@@ -1,6 +1,7 @@
 // Spinners
 export {
   InlineSpinner,
+  LoadingStatus,
   BrewBar,
 } from './spinners'
 

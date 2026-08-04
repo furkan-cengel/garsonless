@@ -171,9 +171,10 @@ export function MenuManagerSkeleton() {
     backgroundSize: '200% 100%',
     animation: 'shimmer-bg 1.4s ease-in-out infinite',
   }
-  const skel = (style: CSSProperties) => <div style={{ borderRadius: 7, ...shimmer, ...style }} />
+  const skel = (style: CSSProperties) => <div className="dashboard-shimmer" style={{ borderRadius: 7, ...shimmer, ...style }} />
   return (
-    <div className="menu-manager" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="menu-manager" role="status" aria-live="polite" aria-busy="true" aria-label="Menü yöneticisi yükleniyor" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div aria-hidden="true" style={{ display: 'contents' }}>
       <div style={{
         height: 52,
         borderBottom: '1px solid var(--border)',
@@ -208,7 +209,7 @@ export function MenuManagerSkeleton() {
           </div>
           <div style={{ flex: 1, padding: '18px 8px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[0, 1, 2].map(i => (
-              <div key={i} style={{ height: 39, width: '100%', borderRadius: 7, ...shimmer }} />
+              <div key={i} className="dashboard-shimmer" style={{ height: 39, width: '100%', borderRadius: 7, ...shimmer }} />
             ))}
             {skel({ height: 35, width: '100%', marginTop: 10, background: 'transparent', border: '1px dashed var(--border-strong)' })}
           </div>
@@ -250,6 +251,7 @@ export function MenuManagerSkeleton() {
           {skel({ width: 116, height: 14 })}
           {skel({ width: 194, height: 12 })}
         </div>
+      </div>
       </div>
     </div>
   )

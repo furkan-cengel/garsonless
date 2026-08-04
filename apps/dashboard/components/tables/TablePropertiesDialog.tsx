@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 import { AppIcons } from '@garsonless/ui/icons'
 import type { TableItem } from './tables-builder-types'
 import { AccessibleDialog } from './AccessibleDialog'

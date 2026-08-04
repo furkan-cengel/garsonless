@@ -25,7 +25,7 @@ import {
 import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
 
 const chartLoading = (height: number) => () => (
-  <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-4)', fontSize: 12 }}>Grafik yükleniyor…</div>
+  <div role="status" aria-live="polite" style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-4)', fontSize: 12 }}>Grafik yükleniyor…</div>
 )
 const CancellationTrendChart = dynamic(() => loadAnalyticsChart(() => import('./chart-primitives/CancellationTrendChart')), { ssr: false, loading: chartLoading(148) })
 const s = { mono: { fontFamily: "'Geist Mono', ui-monospace, monospace" } as CSSProperties }

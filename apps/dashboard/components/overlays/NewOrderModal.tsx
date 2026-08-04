@@ -498,7 +498,7 @@ function PickItemsPanel({ items, setItems, menuItems, loading, error }: {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 0', color: 'var(--text-3)' }}>
+      <div role="status" aria-live="polite" aria-busy="true" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 0', color: 'var(--text-3)' }}>
         <div style={{ fontSize: 13 }}>Menü yükleniyor…</div>
       </div>
     )

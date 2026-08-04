@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { I, S, Tag, btnGhost, btnPrimary } from '../../lib/ui'
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 import { SCard, FormRow, inputStyle } from './primitives'
 import { changePassword, sendPasswordResetEmail } from '../../lib/actions/auth'
 
@@ -149,7 +149,7 @@ export function SecuritySection({ events, renderedAt, userEmail, authProvider }:
             </button>
             {resetMessage && <div role={resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'status' : 'alert'} style={{ marginTop: 10, fontSize: 12, color: resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'var(--positive)' : 'var(--critical)' }}>{resetMessage}</div>}
           </div>
-        ) : <form onSubmit={handleChangePassword}>
+        ) : <form onSubmit={handleChangePassword} aria-busy={isPending}>
           <FormRow label="Mevcut şifre">
             <input type="password" value={current} onChange={e => setCurrent(e.target.value)} autoComplete="current-password" style={inputStyle({ width: 220 })} />
           </FormRow>

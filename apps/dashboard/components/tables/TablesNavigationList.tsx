@@ -1,5 +1,5 @@
 import React from 'react'
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 import type { OpenTableSessionView, TableItem } from './tables-builder-types'
 import { sessionDuration, tableOperationalState } from './tables-operation-model'
 import { TABLES_NAV_ICONS, TABLES_NAV_STYLES, tablesNavGhostButton, tablesNavPrimaryButton } from './tables-navigation-ui'

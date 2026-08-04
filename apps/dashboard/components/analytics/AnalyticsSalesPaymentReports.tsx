@@ -14,7 +14,7 @@ import {
 import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
 
 const chartLoading = (height: number) => () => (
-  <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-4)', fontSize: 12 }}>Grafik yükleniyor…</div>
+  <div role="status" aria-live="polite" style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-4)', fontSize: 12 }}>Grafik yükleniyor…</div>
 )
 const SalesLineChart = dynamic(() => loadAnalyticsChart(() => import('./chart-primitives/SalesLineChart')), { ssr: false, loading: chartLoading(300) })
 const PaymentDonutChart = dynamic(() => loadAnalyticsChart(() => import('./chart-primitives/PaymentDonutChart')), { ssr: false, loading: chartLoading(240) })

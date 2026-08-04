@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 import type { OpenTableSessionView, TableItem } from './tables-builder-types'
 import { TABLE_OPERATIONAL_COPY, type TableOperationalState } from './tables-operation-model'
 import {

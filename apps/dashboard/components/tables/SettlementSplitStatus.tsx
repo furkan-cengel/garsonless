@@ -1,4 +1,4 @@
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 import type { SettlementShare } from './settlement-sheet-model'
 import { cardIcon, cashIcon, formatSettlementAmount } from './settlement-sheet-ui'
 
@@ -79,6 +79,7 @@ export function SettlementSplitStatus({
               {!settled && isCash && (
                 <button
                   type="button"
+                  aria-busy={confirmingShareId === share.id}
                   disabled={busy || confirmingShareId === share.id}
                   onClick={() => onConfirmShare(share.id)}
                   style={{
@@ -94,7 +95,7 @@ export function SettlementSplitStatus({
                     opacity: busy || confirmingShareId === share.id ? 0.65 : 1,
                   }}
                 >
-                  {confirmingShareId === share.id ? <InlineSpinner size={11} /> : 'Onayla'}
+                  {confirmingShareId === share.id ? <><InlineSpinner size={11} /> Onaylanıyor…</> : 'Onayla'}
                 </button>
               )}
             </div>

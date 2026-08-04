@@ -12,7 +12,7 @@ import {
 import type { Tables } from '@garsonless/db/types'
 import type { MenuModifierGroup as ModifierGroup } from '@garsonless/db/browser'
 import { calculateMarginPercent } from '@garsonless/domain/menu'
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner, LoadingStatus } from '@garsonless/ui/spinners'
 import { deleteItem, updateItem, uploadMenuImage } from '../../lib/actions/menu'
 import { prepareMenuImage } from '../../lib/menu-image-client'
 import { I, S, Tag, btnGhost, btnPrimary } from '../../lib/ui'
@@ -324,7 +324,7 @@ export function MenuItemEditPanel({
             style={{ display: 'none' }}
             onChange={handleUpload}
           />
-          <div style={{
+          <div aria-busy={uploading} style={{
             aspectRatio: '4/3', borderRadius: 10, background: tint,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: 'rgba(17,17,19,.34)',
@@ -339,7 +339,7 @@ export function MenuItemEditPanel({
                 background: 'rgba(17,17,19,.45)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <InlineSpinner size={22} color="#fff" />
+                <LoadingStatus size={22} color="#fff" showLabel={false} label="Görsel yükleniyor…" />
               </div>
             )}
             <div style={{ position: 'absolute', bottom: 8, right: 8, display: 'flex', gap: 4 }}>

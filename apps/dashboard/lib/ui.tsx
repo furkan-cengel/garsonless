@@ -150,7 +150,7 @@ export function Tag({ children, tone = 'neutral' }: TagProps) {
 
 export function Skeleton({ width, height, style }: { width?: number | string; height?: number | string; style?: CSSProperties }) {
   return (
-    <div style={{
+    <div aria-hidden="true" className="dashboard-skeleton" style={{
       width: width ?? '100%',
       height: height ?? 16,
       background: 'var(--surface-3)',

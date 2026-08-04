@@ -123,7 +123,8 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
 
   return (
     <div style={{ display: 'grid', gap: 18 }}>
-      <section id="kitchen-stations" style={{ padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', scrollMarginTop: 80 }}>
+      <section id="kitchen-stations" aria-busy={isPending} style={{ padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)', scrollMarginTop: 80 }}>
+      {isPending && <span role="status" aria-live="polite" className="sr-only">Mutfak erişimi güncelleniyor…</span>}
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Mutfak Erişimi</div>
         <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 3, lineHeight: 1.45 }}>
@@ -222,7 +223,8 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
           </div>
         </div>
 
-        <form onSubmit={handleCreateStation} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, marginBottom: 14 }}>
+        <form onSubmit={handleCreateStation} aria-busy={stationPending} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, marginBottom: 14 }}>
+          {stationPending && <span role="status" aria-live="polite" className="sr-only">Mutfak istasyonu kaydediliyor…</span>}
           <input
             aria-label="Yeni istasyon adı"
             value={stationName}

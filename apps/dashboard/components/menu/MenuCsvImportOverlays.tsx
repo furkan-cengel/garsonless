@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { BrewBar, InlineSpinner } from '@garsonless/ui'
+import { BrewBar, InlineSpinner, LoadingStatus } from '@garsonless/ui/spinners'
 import { I, IconButton, Tag, btnGhost, btnPrimary } from '../../lib/ui'
 import type { CsvImportPreview, CsvPreviewRow } from './use-menu-csv-import'
 
@@ -223,7 +223,9 @@ export function CsvImportModal({
 
         {preview.importing && preview.importProgress && (
           <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <BrewBar progress={Math.round((preview.importProgress.done / preview.importProgress.total) * 100)} />
+            {preview.importProgress.total > 0
+              ? <BrewBar label="Menü içe aktarma ilerlemesi" progress={(preview.importProgress.done / preview.importProgress.total) * 100} />
+              : <LoadingStatus label="Menü içe aktarılıyor…" />}
             <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
               {preview.importProgress.done}/{preview.importProgress.total} içe aktarıldı…
             </div>

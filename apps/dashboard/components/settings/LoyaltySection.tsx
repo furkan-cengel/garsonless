@@ -507,7 +507,7 @@ export default function LoyaltySection({
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
+    <form onSubmit={handleSubmit} aria-busy={isPending} style={{ display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
         <SummaryChip on={cfg.stamp_enabled} icon={<AppI.stamp size={14} />} label={cfg.stamp_enabled ? `Damga · ${cfg.stamp_goal} hedef` : 'Damga kapalı'} />
         <SummaryChip on={cfg.points_enabled} icon={<AppI.star size={14} />} label={cfg.points_enabled ? `Puan · ${cfg.points_per_lira}p/₺` : 'Puan kapalı'} />
@@ -707,9 +707,9 @@ export default function LoyaltySection({
       {success && <p style={{ fontSize: 12.5, color: 'var(--positive)', margin: '0 0 12px' }}>Sadakat ayarları kaydedildi.</p>}
 
       <div style={{ position: 'sticky', bottom: 0, zIndex: 2, marginTop: 8, padding: '14px 18px', background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', boxShadow: 'var(--shadow-2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
-        <span style={{ fontSize: 12.5, color: dirty ? 'var(--warning)' : 'var(--text-3)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 6, height: 6, borderRadius: 999, background: dirty ? 'var(--warning)' : 'var(--positive)' }} />
-          {dirty ? 'Kaydedilmemiş değişiklikler var' : success ? 'Tüm değişiklikler kaydedildi' : 'Değişiklik yok'}
+        <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12.5, color: dirty ? 'var(--warning)' : 'var(--text-3)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: dirty ? 'var(--warning)' : 'var(--positive)' }} />
+          {isPending ? 'Sadakat ayarları kaydediliyor…' : dirty ? 'Kaydedilmemiş değişiklikler var' : success ? 'Tüm değişiklikler kaydedildi' : 'Değişiklik yok'}
         </span>
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={() => { setCfg(initial); setDirty(false); setError(''); setSuccess(false) }} disabled={isPending}

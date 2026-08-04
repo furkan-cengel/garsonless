@@ -569,6 +569,15 @@ function CustomersSkeleton() {
 }
 
 export default function DashboardRouteSkeleton({ kind = 'pano' }: Props) {
+  const labels: Record<SkeletonKind, string> = {
+    pano: 'Pano yükleniyor',
+    analytics: 'Raporlar yükleniyor',
+    orders: 'Siparişler yükleniyor',
+    menu: 'Menü yükleniyor',
+    theme: 'Tema düzenleyici yükleniyor',
+    settings: 'Ayarlar yükleniyor',
+    customers: 'Müşteriler yükleniyor',
+  }
   const content: Record<SkeletonKind, ReactNode> = {
     pano: <PanoSkeleton />,
     analytics: <AnalyticsSkeleton />,
@@ -580,10 +589,12 @@ export default function DashboardRouteSkeleton({ kind = 'pano' }: Props) {
   }
 
   return (
-    <div style={shell}>
-      <TopBarSkeleton kind={kind} />
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        {content[kind]}
+    <div role="status" aria-live="polite" aria-busy="true" aria-label={labels[kind]} style={shell}>
+      <div aria-hidden="true" style={{ display: 'contents' }}>
+        <TopBarSkeleton kind={kind} />
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {content[kind]}
+        </div>
       </div>
     </div>
   )

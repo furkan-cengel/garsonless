@@ -301,11 +301,12 @@ export default function CustomerDetailClient({
             {timelineHasMore && timelineCursor && (
               <button
                 type="button"
+                aria-busy={timelineLoading}
                 disabled={timelineLoading}
                 onClick={() => { void loadOlderTimeline() }}
                 style={{ ...btnGhost({ height: 44, alignSelf: 'center', padding: '0 18px' }), opacity: timelineLoading ? 0.6 : 1 }}
               >
-                {timelineLoading ? 'Yükleniyor…' : 'Daha eski hareketleri yükle'}
+                {timelineLoading ? <span role="status" aria-live="polite">Daha eski hareketler yükleniyor…</span> : 'Daha eski hareketleri yükle'}
               </button>
             )}
           </div>

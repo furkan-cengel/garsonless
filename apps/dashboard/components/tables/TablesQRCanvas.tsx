@@ -436,6 +436,7 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
           <div className="tb-qr-export-actions" style={{ display: 'inline-flex' }}>
             <button
               className="tb-hover"
+              aria-busy={exportState === 'working'}
               onClick={() => { if (table) void download('png') }}
               disabled={!table || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'}
               title={health.state === 'invalid' ? health.message : undefined}
@@ -483,7 +484,7 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
                 <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>Aynı stil, farklı bağlantılar — {tables.length} QR</div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className="tb-hover" onClick={() => { void printAll() }} disabled={tables.length === 0 || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'} title={health.state === 'invalid' ? health.message : undefined} style={{ ...btnGhost(), opacity: tables.length && exportState !== 'working' && health.state !== 'invalid' && health.state !== 'checking' ? 1 : .45, cursor: tables.length && exportState !== 'working' && health.state !== 'invalid' && health.state !== 'checking' ? 'pointer' : 'not-allowed' }}>
+                <button className="tb-hover" aria-busy={exportState === 'working'} onClick={() => { void printAll() }} disabled={tables.length === 0 || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'} title={health.state === 'invalid' ? health.message : undefined} style={{ ...btnGhost(), opacity: tables.length && exportState !== 'working' && health.state !== 'invalid' && health.state !== 'checking' ? 1 : .45, cursor: tables.length && exportState !== 'working' && health.state !== 'invalid' && health.state !== 'checking' ? 'pointer' : 'not-allowed' }}>
                   {React.cloneElement(QRI.print as React.ReactElement<{ size?: number }>, { size: 13 })}{exportState === 'working' ? 'Hazırlanıyor…' : 'Yazdır'}
                 </button>
               </div>

@@ -61,12 +61,12 @@ export function PanoSalesChart({
 
   return (
     <PanoCard title="Tahsilat akışı" subtitle={isDay ? 'Saatlik tahsilat · TRY' : `${data.rangeLabel} · günlük tahsilat · TRY`}>
-      <div style={{ padding: '12px 16px 16px' }}>
+      <div aria-busy={isPending} style={{ padding: '12px 16px 16px' }}>
         <div className="pano-chart-head" style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 14 }}>
           <span style={{ ...S.mono, fontSize: 24, fontWeight: 700, letterSpacing: '-.02em', opacity: isPending ? 0.5 : 1 }}>
             ₺{data.total.toLocaleString('tr-TR')}
           </span>
-          {isPending && <span style={{ fontSize: 11, color: 'var(--text-3)' }}>yükleniyor…</span>}
+          {isPending && <span role="status" aria-live="polite" style={{ fontSize: 11, color: 'var(--text-3)' }}>Tahsilat grafiği yükleniyor…</span>}
           <div className="pano-chart-ranges" role="group" aria-label="Tahsilat grafiği tarih aralığı" style={{ marginLeft: 'auto', display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 6, padding: 2 }}>
             {PANO_CHART_RANGES.map(({ label, range }) => (
               <button type="button" className="pano-range-action" key={range} onClick={() => onSelectRange(range)} disabled={isPending} aria-pressed={data.range === range} style={{

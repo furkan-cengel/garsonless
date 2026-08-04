@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, useTransition } from 'react'
 import type { ReactNode } from 'react'
 import type { Tables } from '@garsonless/db/types'
-import { InlineSpinner } from '@garsonless/ui'
+import { InlineSpinner } from '@garsonless/ui/spinners'
 import { I, S, Tag, btnGhost, btnPrimary } from '../../lib/ui'
 import { Toggle, SCard, FormRow, inputStyle } from './primitives'
 import {
@@ -556,7 +556,7 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
   }
 
   return (
-    <form onSubmit={handleSave}>
+    <form onSubmit={handleSave} aria-busy={isPending}>
       <SCard title="Bildirimler" subtitle="Sipariş ve garson çağrısı uyarılarını yönet">
         {NOTIFICATION_ROWS.map(row => {
           const locked = (row.key === 'newOrderPush' || row.key === 'serviceRequestPush') && !browserNotificationsEnabled

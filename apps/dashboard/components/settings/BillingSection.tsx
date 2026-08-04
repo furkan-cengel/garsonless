@@ -204,7 +204,10 @@ export default function BillingSection({
   const [feedback, setFeedback] = useState(checkoutState === 'success' ? 'Abonelik bilgileri doğrulandı. Ödeme sonucu işlenirken durum otomatik güncellenecek.' : '')
   const [checkoutContent, setCheckoutContent] = useState<string | null>(null)
   const [showCancel, setShowCancel] = useState(false)
-  const [pending, startTransition] = useTransition()
+  const [profilePending, startProfileTransition] = useTransition()
+  const [checkoutPending, startCheckoutTransition] = useTransition()
+  const [cancelPending, startCancelTransition] = useTransition()
+  const pending = profilePending || checkoutPending || cancelPending
   const effectiveProfile = useMemo(() => shippingSame
     ? { ...profile, shippingAddress: { ...profile.billingAddress } }
     : profile, [profile, shippingSame])
@@ -215,7 +218,7 @@ export default function BillingSection({
 
   function saveProfile() {
     setFeedback('')
-    startTransition(async () => {
+    startProfileTransition(async () => {
       const result = await saveBillingProfileAction(restaurantId, effectiveProfile)
       if ('error' in result) return setFeedback(failureMessage(result))
       setFeedback('Fatura profili kaydedildi.')
@@ -226,7 +229,7 @@ export default function BillingSection({
 
   function startCheckout() {
     setFeedback('')
-    startTransition(async () => {
+    startCheckoutTransition(async () => {
       const result = await startBillingCheckoutAction(restaurantId, {
         plan: selectedPlan, profile: effectiveProfile, requestId: crypto.randomUUID(),
       })
@@ -239,7 +242,7 @@ export default function BillingSection({
 
   function cancelSubscription() {
     setFeedback('')
-    startTransition(async () => {
+    startCancelTransition(async () => {
       const result = await cancelBillingSubscriptionAction(restaurantId, { requestId: crypto.randomUUID() })
       if ('error' in result) return setFeedback(failureMessage(result))
       setShowCancel(false)
@@ -275,7 +278,7 @@ export default function BillingSection({
           </div>
         </div>
         {subscription && subscription.status !== 'cancelled' && (
-          <button type="button" onClick={() => setShowCancel(true)} style={btnGhost({ color: 'var(--critical)', borderColor: 'var(--critical-bg)' })}>Aboneliği iptal et</button>
+          <button type="button" onClick={() => setShowCancel(true)} disabled={pending} style={btnGhost({ color: 'var(--critical)', borderColor: 'var(--critical-bg)', opacity: pending ? .55 : 1 })}>Aboneliği iptal et</button>
         )}
       </div>
 
@@ -319,8 +322,8 @@ export default function BillingSection({
           </label>
           {!shippingSame && <AddressFields title="Teslimat adresi" value={profile.shippingAddress} onChange={(shippingAddress) => setProfile((current) => ({ ...current, shippingAddress }))} />}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <button type="button" onClick={saveProfile} disabled={pending} style={btnGhost()}>{pending ? 'Kaydediliyor…' : 'Profili kaydet'}</button>
-            <button type="button" onClick={startCheckout} disabled={pending || planPrices[selectedPlan] === null} style={btnPrimary({ opacity: pending || planPrices[selectedPlan] === null ? .55 : 1, cursor: pending || planPrices[selectedPlan] === null ? 'not-allowed' : 'pointer' })}><I.card size={13} />{pending ? 'Hazırlanıyor…' : `${PLAN_DEFINITIONS[selectedPlan].label} ödeme adımını aç`}</button>
+            <button type="button" aria-busy={profilePending} onClick={saveProfile} disabled={pending} style={btnGhost()}>{profilePending ? 'Kaydediliyor…' : 'Profili kaydet'}</button>
+            <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={pending || planPrices[selectedPlan] === null} style={btnPrimary({ opacity: pending || planPrices[selectedPlan] === null ? .55 : 1, cursor: pending || planPrices[selectedPlan] === null ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : `${PLAN_DEFINITIONS[selectedPlan].label} ödeme adımını aç`}</button>
           </div>
           {feedback && <div role="status" style={{ fontSize: 12, color: feedback.includes('MAS-') ? 'var(--critical)' : 'var(--positive)', lineHeight: 1.5 }}>{feedback}</div>}
         </div>
@@ -337,8 +340,8 @@ export default function BillingSection({
           <div id="billing-cancel-title" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--critical)' }}>Aboneliği hemen iptal et?</div>
           <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-2)', margin: '5px 0 12px' }}>İyzico aboneliği anında iptal edilir ve işletme Free plana döner. Ücretli özellikler hemen kapanabilir.</p>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={() => setShowCancel(false)} style={btnGhost()}>Vazgeç</button>
-            <button type="button" onClick={cancelSubscription} disabled={pending} style={btnPrimary({ background: 'var(--critical)', borderColor: 'var(--critical)' })}>{pending ? 'İptal ediliyor…' : 'Evet, aboneliği iptal et'}</button>
+            <button type="button" onClick={() => setShowCancel(false)} disabled={cancelPending} style={btnGhost()}>Vazgeç</button>
+            <button type="button" aria-busy={cancelPending} onClick={cancelSubscription} disabled={pending} style={btnPrimary({ background: 'var(--critical)', borderColor: 'var(--critical)' })}>{cancelPending ? 'Abonelik iptal ediliyor…' : 'Evet, aboneliği iptal et'}</button>
           </div>
         </div>
       )}
