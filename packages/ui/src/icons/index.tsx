@@ -216,11 +216,6 @@ export const AppIcons = {
 
 export type AppIconName = keyof typeof AppIcons
 
-export function appIconNode(name: AppIconName, props?: AppIconProps) {
-  const Icon = AppIcons[name]
-  return <Icon {...props} />
-}
-
 export const AppIconNodes = Object.fromEntries(
   Object.entries(AppIcons).map(([name, Icon]) => [name, <Icon key={name} />]),
 ) as Record<AppIconName, ReactElement>
