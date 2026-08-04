@@ -43,6 +43,7 @@ const menuManagementQueriesSource = readFileSync(`${directory}/../../lib/queries
 const themeEditorQueriesSource = readFileSync(`${directory}/../../lib/queries/theme-editor.ts`, 'utf8')
 const tablesQueriesSource = readFileSync(`${directory}/../../lib/queries/tables.ts`, 'utf8')
 const featureQueryContextSource = readFileSync(`${directory}/../../lib/queries/context.ts`, 'utf8')
+const currentUserSource = readFileSync(`${directory}/../../lib/auth/current-user.ts`, 'utf8')
 const settingsPageSource = readFileSync(`${directory}/../../app/dashboard/[restaurantId]/settings/page.tsx`, 'utf8')
 const analyticsActionsSource = readFileSync(`${directory}/../../lib/actions/analytics.ts`, 'utf8')
 const panoActionsSource = readFileSync(`${directory}/../../lib/actions/pano.ts`, 'utf8')
@@ -408,9 +409,11 @@ test('dashboard SSR feature reads cross actor-aware application and DB adapter b
     assert.match(source, /getDashboardFeatureContext|getDashboardUserContext/)
   }
 
-  assert.match(featureQueryContextSource, /supabase\.auth\.getUser\(\)/)
+  assert.match(featureQueryContextSource, /getDashboardAuthenticatedUser/)
   assert.match(featureQueryContextSource, /getUserRestaurantAccess/)
   assert.doesNotMatch(featureQueryContextSource, /\.from\(|createServiceClient/)
+  assert.match(currentUserSource, /cache\(async function getDashboardRequestAuth/)
+  assert.match(currentUserSource, /supabase\.auth\.getUser\(\)/)
 
   assert.match(restaurantsQueriesSource, /listDashboardRestaurants/)
   assert.match(restaurantsQueriesSource, /createDashboardRestaurantReadModelPort/)

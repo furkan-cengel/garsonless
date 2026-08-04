@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import { notFound, redirect } from 'next/navigation'
-import { createDashboardServerClient } from '../supabase-server'
+import { getDashboardRequestAuth } from './current-user'
 import {
   firstPermittedPath,
   normalizeDashboardPermissions,
@@ -17,7 +17,7 @@ const ALL_SECTIONS: Section[] = [
   'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'theme', 'settings',
 ]
 
-export interface RestaurantAccess {
+interface RestaurantAccess {
   isOwner: boolean
   isMember: boolean
   /** Owner → all sections. Member → their granted sections. */
@@ -42,8 +42,7 @@ export interface ResolvedRestaurantAccess extends RestaurantAccess {
 export const getUserRestaurantAccess = cache(async function getUserRestaurantAccess(
   restaurantId: string,
 ): Promise<ResolvedRestaurantAccess | null> {
-  const supabase = await createDashboardServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user } = await getDashboardRequestAuth()
   if (!user) return null
 
   // Owner fast-path — explicit owner_id match (not RLS row-visibility).
@@ -108,8 +107,7 @@ export async function assertAccess(
 export async function assertOwner(
   restaurantId: string,
 ): Promise<{ userId: string } | { error: string }> {
-  const supabase = await createDashboardServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user } = await getDashboardRequestAuth()
   if (!user) return { error: 'Not authenticated' }
 
   const { data } = await supabase
@@ -129,7 +127,7 @@ export async function assertOwner(
  * never notFound for a logged-in member). Returns the access for the page to use.
  * MUST be called before any data fetch.
  */
-export async function requireSection(restaurantId: string, section: Section): Promise<RestaurantAccess> {
+export async function requireSection(restaurantId: string, section: Section): Promise<ResolvedRestaurantAccess> {
   const access = await getUserRestaurantAccess(restaurantId)
   if (!access) notFound()
   if (!access.isOwner && !access.permissions.includes(section)) {

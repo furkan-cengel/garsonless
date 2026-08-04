@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { getRestaurantById } from '../../../../lib/queries/restaurants'
 import { getTablesForRestaurant } from '../../../../lib/queries/tables'
 import TablesOperationsShell from '../../../../components/tables/TablesOperationsShell'
-import { assertAccess, requireSection } from '../../../../lib/auth/access'
+import { requireSection } from '../../../../lib/auth/access'
 import { getOpenTableSessions, getTableLayout } from '../../../../lib/actions/tables'
 import { resolveTableDeepLink } from '../../../../components/tables/tables-operation-model'
 
@@ -14,8 +14,6 @@ interface Props {
 export default async function TablesPage({ params, searchParams }: Props) {
   const [{ restaurantId }, query] = await Promise.all([params, searchParams])
   await requireSection(restaurantId, 'tables')
-  const gate = await assertAccess(restaurantId, 'tables')
-  if ('error' in gate) notFound()
   const [restaurant, tables, openSessionsResult, layoutResult] = await Promise.all([
     getRestaurantById(restaurantId),
     getTablesForRestaurant(restaurantId),

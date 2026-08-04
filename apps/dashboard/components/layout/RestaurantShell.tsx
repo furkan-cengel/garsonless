@@ -4,14 +4,14 @@ import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
-import type { Tables } from '@garsonless/db/types'
 import { serviceRequestLabel } from '@garsonless/domain/tables'
 import { OPEN_ORDER_STATUSES } from '@garsonless/domain/orders'
 import { ShellContext, type ShellOverlay } from '../../lib/shell-context'
 import { createDashboardBrowserClient } from '../../lib/supabase'
-import { readNotificationPrefs } from '../../lib/notification-prefs'
+import type { NotificationPrefs } from '../../lib/notification-prefs'
 import { useGlobalOrderAlerts } from '../notifications/useGlobalOrderAlerts'
 import type { Order } from '../orders/useOrdersRealtime'
+import type { RestaurantSwitcherItem } from './restaurant-shell-model'
 
 import { Skeleton } from '../../lib/ui'
 import IconRail from './IconRail'
@@ -88,7 +88,7 @@ const MOBILE_RAIL_SHELL_CSS = `
 
 interface Props {
   restaurantId: string
-  restaurants: Tables<'restaurants'>[]
+  restaurants: RestaurantSwitcherItem[]
   userEmail: string
   userDisplayName: string
   userInitials: string
@@ -98,6 +98,7 @@ interface Props {
   permissions: string[]
   isOwner: boolean
   browserNotificationsEnabled: boolean
+  notificationPrefs: NotificationPrefs
   children: ReactNode
 }
 
@@ -112,6 +113,7 @@ export default function RestaurantShell({
   permissions,
   isOwner,
   browserNotificationsEnabled,
+  notificationPrefs,
   children,
 }: Props) {
   const pathname = usePathname()
@@ -137,14 +139,12 @@ export default function RestaurantShell({
 
   useEffect(() => closeOverlay(), [closeOverlay, pathname])
 
-  // "Garson çağrısı uyarısı" toggle. Read via a ref so the realtime effect
-  // (keyed only on restaurantId) always sees the current setting without
-  // resubscribing the channel.
-  const currentRestaurant = restaurants.find(r => r.id === restaurantId)
-  const serviceRequestAlert = readNotificationPrefs(currentRestaurant?.settings ?? null).serviceRequestAlert
-  const serviceAlertRef = useRef(serviceRequestAlert)
-  useEffect(() => { serviceAlertRef.current = serviceRequestAlert }, [serviceRequestAlert])
-  const notificationPrefs = readNotificationPrefs(currentRestaurant?.settings ?? null)
+  // Read via a ref so the realtime effect always sees server-resolved prefs
+  // without serializing the restaurant settings blob into the client shell.
+  const serviceAlertRef = useRef(notificationPrefs.serviceRequestAlert)
+  useEffect(() => {
+    serviceAlertRef.current = notificationPrefs.serviceRequestAlert
+  }, [notificationPrefs.serviceRequestAlert])
   const orderAlerts = useGlobalOrderAlerts({
     restaurantId,
     prefs: notificationPrefs,
@@ -162,6 +162,7 @@ export default function RestaurantShell({
   const isFullScreen = pathname.includes('/tables')
 
   const refreshInboxUnread = useCallback(() => {
+    if (document.visibilityState !== 'visible') return
     void getUnreadInboxCount(restaurantId).then((result) => {
       if ('unread' in result) setInboxUnread(result.unread)
     })
@@ -170,33 +171,24 @@ export default function RestaurantShell({
   useEffect(() => {
     const supabase = createDashboardBrowserClient()
     let cancelled = false
+    let reconcileTimeout: ReturnType<typeof setTimeout> | null = null
 
     const refreshCount = async () => {
+      if (document.visibilityState !== 'visible') return
       // Same operational scope as the Orders board: every order that still
       // needs action, including work carried across restaurant-day rollover.
-      const { data } = await supabase
+      const { count } = await supabase
         .from('orders')
-        .select('id, restaurant_id, table_id, status, source, items, total, created_at')
+        .select('id', { count: 'exact', head: true })
         .eq('restaurant_id', restaurantId)
         .in('status', [...OPEN_ORDER_STATUSES])
         .is('deleted_at', null)
-      const rows = (data ?? []) as Order[]
-      if (!cancelled) {
-        setOrdersBadge(rows.length)
-        const recentCutoff = Date.now() - 10 * 60_000
-        for (const order of rows) {
-          if (
-            order.source !== 'staff'
-            && (order.status === 'pending' || order.status === 'pending_approval')
-            && new Date(order.created_at).getTime() >= recentCutoff
-          ) {
-            onOrderInsert(order)
-            void syncDashboardInboxEvent(restaurantId, order.id).then((result) => {
-              if ('unread' in result) setInboxUnread(result.unread)
-            })
-          }
-        }
-      }
+      if (!cancelled) setOrdersBadge(count ?? 0)
+    }
+
+    const scheduleReconciliation = () => {
+      if (reconcileTimeout) clearTimeout(reconcileTimeout)
+      reconcileTimeout = setTimeout(() => { void refreshCount() }, 250)
     }
 
     void refreshCount()
@@ -223,7 +215,7 @@ export default function RestaurantShell({
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
           (payload: { new: Record<string, unknown> }) => {
-            void refreshCount()
+            scheduleReconciliation()
             onOrderInsert(payload.new as Order)
             syncInboxForOrder(typeof payload.new['id'] === 'string' ? payload.new['id'] : null)
           },
@@ -232,7 +224,7 @@ export default function RestaurantShell({
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` },
           (payload: { new: Record<string, unknown> }) => {
-            void refreshCount()
+            scheduleReconciliation()
             onOrderUpdate(payload.new as Order)
           },
         )
@@ -243,10 +235,16 @@ export default function RestaurantShell({
     // Keep the operational badge eventually consistent without depending on
     // a page refresh; Realtime remains the instant path.
     const interval = setInterval(() => { void refreshCount() }, 45_000)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') scheduleReconciliation()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       cancelled = true
       clearInterval(interval)
+      if (reconcileTimeout) clearTimeout(reconcileTimeout)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       void channelPromise.then((channel) => { if (channel) void supabase.removeChannel(channel) })
     }
   }, [restaurantId, onOrderInsert, onOrderUpdate])
@@ -289,53 +287,66 @@ export default function RestaurantShell({
     // slow/absent realtime path must not leave the bell stale. Cheap head
     // count every 45s.
     const interval = setInterval(() => { refreshInboxUnread() }, 45_000)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refreshInboxUnread()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       cancelled = true
       clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       void channelPromise.then((channel) => { if (channel) void supabase.removeChannel(channel) })
     }
   }, [restaurantId, refreshInboxUnread])
 
-  // Waiter-call notifications: load table labels once, then toast on each new request.
+  // Waiter-call notifications: resolve a table label only after the first
+  // request for that table, then retain it in a restaurant-scoped client cache.
   useEffect(() => {
     const supabase = createDashboardBrowserClient()
     let cancelled = false
 
-    const loadLabels = async () => {
+    const resolveTableLabel = async (tableId: string): Promise<string> => {
+      const cached = tableLabelsRef.current[tableId]
+      if (cached) return cached
       const { data } = await supabase
         .from('tables')
-        .select('id, label')
+        .select('label')
+        .eq('id', tableId)
         .eq('restaurant_id', restaurantId)
         .is('deleted_at', null)
-      if (cancelled) return
-      const map: Record<string, string> = {}
-      for (const row of (data ?? []) as Array<{ id: string; label: string }>) {
-        map[row.id] = row.label
-      }
-      tableLabelsRef.current = map
+        .maybeSingle()
+      const label = (data as { label?: string } | null)?.label ?? 'Masa'
+      tableLabelsRef.current[tableId] = label
+      return label
     }
-    void loadLabels()
 
-    const channel = supabase
-      .channel(`service-requests:${restaurantId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'service_requests', filter: `restaurant_id=eq.${restaurantId}` },
-        (payload: { new: Record<string, unknown> }) => {
-          const tableId = payload.new['table_id'] as string | undefined
-          const label = (tableId && tableLabelsRef.current[tableId]) || 'Masa'
-          const requestLabel = serviceRequestLabel(payload.new['request_type'])
-          // The waiter toast respects the alert toggle; the bell badge is fed
-          // by the durable inbox, not this live count.
-          if (serviceAlertRef.current) setWaiterToast({ tableLabel: label, label: requestLabel })
-        },
-      )
-      .subscribe()
+    const subscribe = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (cancelled) return null
+      if (data.session) await supabase.realtime.setAuth(data.session.access_token)
+      return supabase
+        .channel(`service-requests:${restaurantId}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'service_requests', filter: `restaurant_id=eq.${restaurantId}` },
+          (payload: { new: Record<string, unknown> }) => {
+            if (!serviceAlertRef.current) return
+            const tableId = typeof payload.new['table_id'] === 'string' ? payload.new['table_id'] : null
+            const requestLabel = serviceRequestLabel(payload.new['request_type'])
+            void (tableId ? resolveTableLabel(tableId) : Promise.resolve('Masa')).then((label) => {
+              if (!cancelled) setWaiterToast({ tableLabel: label, label: requestLabel })
+            })
+          },
+        )
+        .subscribe()
+    }
+    const channelPromise = subscribe()
 
     return () => {
       cancelled = true
-      void supabase.removeChannel(channel)
+      tableLabelsRef.current = {}
+      void channelPromise.then((channel) => { if (channel) void supabase.removeChannel(channel) })
     }
   }, [restaurantId])
 

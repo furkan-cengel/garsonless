@@ -46,12 +46,13 @@ test('logout retires only the current browser endpoint and uses local auth scope
   assert.doesNotMatch(auth, /deleteDashboardPushSubscriptionsForUser/)
 })
 
-test('shell authenticates RLS-scoped Realtime before orders and inbox subscriptions', () => {
+test('shell authenticates RLS-scoped Realtime before orders, inbox and service request subscriptions', () => {
   const shell = source('../layout/RestaurantShell.tsx')
   const authCalls = shell.match(/await supabase\.realtime\.setAuth\(data\.session\.access_token\)/g) ?? []
-  assert.equal(authCalls.length, 2)
+  assert.equal(authCalls.length, 3)
   assert.match(shell, /table: 'orders'/)
   assert.match(shell, /table: 'notification_inbox'/)
+  assert.match(shell, /table: 'service_requests'/)
 })
 
 test('orders board carries unfinished work while the shell owns the only alert subscription', () => {

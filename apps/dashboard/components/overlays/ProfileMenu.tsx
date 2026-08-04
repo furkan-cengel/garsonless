@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Tables } from '@garsonless/db/types'
 import { I, S, Tag } from '../../lib/ui'
 import { SHELL_OVERLAY_IDS, useShell } from '../../lib/shell-context'
 import { logoutCurrentBrowser } from '../../lib/client-logout'
 import UnsavedChangesDialog from './UnsavedChangesDialog'
 import ProfileAvatar from './ProfileAvatar'
+import type { RestaurantSwitcherItem } from '../layout/restaurant-shell-model'
 
 const GRADIENTS = [
   'linear-gradient(135deg, #ffd089 0%, #ff8b6b 100%)',
@@ -47,7 +47,7 @@ interface Props {
   avatarUrl: string | null
   planLabel: string
   unreadCount: number
-  restaurants: Tables<'restaurants'>[]
+  restaurants: RestaurantSwitcherItem[]
   currentRestaurantId: string
   onOpenNotifications: () => void
   onOpenStoreSwitcher: () => void

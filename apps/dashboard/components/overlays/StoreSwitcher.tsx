@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Tables } from '@garsonless/db/types'
 import { I, S } from '../../lib/ui'
 import { useModalDialogFocus } from './use-modal-dialog-focus'
 import { useShell } from '../../lib/shell-context'
+import type { RestaurantSwitcherItem } from '../layout/restaurant-shell-model'
 
 const GRADIENTS = [
   'linear-gradient(135deg, #ffd089 0%, #ff8b6b 100%)',
@@ -33,7 +33,7 @@ const STORE_SWITCHER_CSS = `
 `
 
 interface Props {
-  restaurants: Tables<'restaurants'>[]
+  restaurants: RestaurantSwitcherItem[]
   currentRestaurantId: string
   isOwner: boolean
   onClose: () => void

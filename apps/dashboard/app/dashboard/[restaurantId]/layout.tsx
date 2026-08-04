@@ -4,10 +4,13 @@ import type { ReactNode } from 'react'
 import RestaurantShell, { RestaurantShellSkeleton } from '../../../components/layout/RestaurantShell'
 import { getRestaurantById, getRestaurantsForUser } from '../../../lib/queries/restaurants'
 import { getUserRestaurantAccess } from '../../../lib/auth/access'
-import { createDashboardServerClient } from '../../../lib/supabase-server'
+import { getDashboardAuthenticatedUser } from '../../../lib/auth/current-user'
 import { canRestaurantUseFeature } from '@garsonless/db/server'
 import { normalizeRestaurantPlan, PLAN_DEFINITIONS } from '@garsonless/domain/entitlements'
 import { createDashboardProfileViewModel } from '../../../lib/profile-view-model'
+import { readNotificationPrefs } from '../../../lib/notification-prefs'
+import WebVitalsReporter from '../../../components/analytics/WebVitalsReporter'
+import { normalizeWebVitalsSampleRate } from '../../../components/analytics/web-vitals-model'
 
 interface Props {
   children: ReactNode
@@ -17,11 +20,10 @@ interface Props {
 export default async function RestaurantLayout({ children, params }: Props) {
   const { restaurantId } = await params
 
-  const supabase = await createDashboardServerClient()
-  const [restaurant, restaurants, { data: authData }, access] = await Promise.all([
+  const [restaurant, restaurantRows, user, access] = await Promise.all([
     getRestaurantById(restaurantId),
     getRestaurantsForUser(),
-    supabase.auth.getUser(),
+    getDashboardAuthenticatedUser(),
     getUserRestaurantAccess(restaurantId),
   ])
 
@@ -33,29 +35,35 @@ export default async function RestaurantLayout({ children, params }: Props) {
     feature: 'browser_notifications',
   })
 
-  const userEmail = authData.user?.email ?? ''
+  const restaurants = restaurantRows.map(({ id, name, slug }) => ({ id, name, slug }))
+  const notificationPrefs = readNotificationPrefs(restaurant.settings)
+  const userEmail = user?.email ?? ''
   const profile = createDashboardProfileViewModel({
     email: userEmail,
-    metadata: authData.user?.user_metadata as Record<string, unknown> | undefined,
+    metadata: user?.user_metadata as Record<string, unknown> | undefined,
   })
   const planLabel = PLAN_DEFINITIONS[normalizeRestaurantPlan(restaurant.plan)].label
 
   return (
-    <RestaurantShell
-      restaurantId={restaurantId}
-      restaurants={restaurants}
-      userEmail={userEmail}
-      userDisplayName={profile.displayName}
-      userInitials={profile.initials}
-      userAvatarUrl={profile.avatarUrl}
-      planLabel={planLabel}
-      permissions={access.permissions}
-      isOwner={access.isOwner}
-      browserNotificationsEnabled={browserNotificationsEnabled}
-    >
-      <Suspense fallback={<RestaurantShellSkeleton />}>
-        {children}
-      </Suspense>
-    </RestaurantShell>
+    <>
+      <WebVitalsReporter sampleRate={normalizeWebVitalsSampleRate(process.env['DASHBOARD_WEB_VITALS_SAMPLE_RATE'])} />
+      <RestaurantShell
+        restaurantId={restaurantId}
+        restaurants={restaurants}
+        userEmail={userEmail}
+        userDisplayName={profile.displayName}
+        userInitials={profile.initials}
+        userAvatarUrl={profile.avatarUrl}
+        planLabel={planLabel}
+        permissions={access.permissions}
+        isOwner={access.isOwner}
+        browserNotificationsEnabled={browserNotificationsEnabled}
+        notificationPrefs={notificationPrefs}
+      >
+        <Suspense fallback={<RestaurantShellSkeleton />}>
+          {children}
+        </Suspense>
+      </RestaurantShell>
+    </>
   )
 }

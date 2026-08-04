@@ -7,7 +7,7 @@ import { createOrdersBoardReadModelPort } from '@garsonless/db/server'
 import OrderBoard from '../../../../components/orders/OrderBoard'
 import type { Order } from '../../../../components/orders/useOrdersRealtime'
 import { readLateThresholdMin } from '../../../../lib/orders-prefs'
-import { assertAccess, requireSection } from '../../../../lib/auth/access'
+import { requireSection } from '../../../../lib/auth/access'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -15,17 +15,15 @@ interface Props {
 
 export default async function OrdersPage({ params }: Props) {
   const { restaurantId } = await params
-  await requireSection(restaurantId, 'orders')
+  const access = await requireSection(restaurantId, 'orders')
   const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
 
   // Restaurant-local "today" — the board scopes to the café's own day, not the
   // server's (consistent with every reporting query).
   const today = startOfRestaurantDay(await getRestaurantTimezone(restaurantId))
-  const gate = await assertAccess(restaurantId, 'orders')
-  if ('error' in gate) throw new Error(gate.error)
   const board = await readOrdersBoard(
-    { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['orders'] },
+    { actor: 'dashboard-member', restaurantId, userId: access.userId, permissions: ['orders'] },
     { restaurantId, since: today.toISOString() },
     createOrdersBoardReadModelPort(),
   )
@@ -43,7 +41,7 @@ export default async function OrdersPage({ params }: Props) {
       initialOrders={board.value.orders as Order[]}
       tables={board.value.tables}
       hasKitchenAccess={board.value.hasKitchenAccess}
-      isOwner={gate.access.isOwner}
+      isOwner={access.isOwner}
       receiptTax={receiptTax}
       lateThresholdMin={readLateThresholdMin(restaurant.settings)}
       initialSince={today.toISOString()}

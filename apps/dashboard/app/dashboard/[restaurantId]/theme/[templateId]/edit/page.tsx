@@ -4,7 +4,7 @@ import { readThemeForEditor } from '@garsonless/application/themes'
 import { canRestaurantUseFeature, createThemeApplicationPort } from '@garsonless/db/server'
 import { getThemeEditorMenuRefs } from '../../../../../../lib/queries/theme-editor'
 import ThemeEditorClientLoader from '../../../../../../components/theme/ThemeEditorClientLoader'
-import { assertAccess, requireSection } from '../../../../../../lib/auth/access'
+import { requireSection } from '../../../../../../lib/auth/access'
 
 interface Props {
   params: Promise<{ restaurantId: string; templateId: string }>
@@ -12,17 +12,14 @@ interface Props {
 
 export default async function ThemeEditPage({ params }: Props) {
   const { restaurantId, templateId } = await params
-  await requireSection(restaurantId, 'theme')
+  const access = await requireSection(restaurantId, 'theme')
   if (templateId !== CANONICAL_THEME_ID) {
     redirect(`/dashboard/${restaurantId}/theme/${CANONICAL_THEME_ID}/edit`)
   }
-  const gate = await assertAccess(restaurantId, 'theme')
-  if ('error' in gate) notFound()
-
   const [themeResult, menuRefs] = await Promise.all([
     readThemeForEditor({
       actor: 'dashboard-member',
-      userId: gate.userId,
+      userId: access.userId,
       restaurantId,
       permissions: ['theme'],
     }, { restaurantId, templateId }, createThemeApplicationPort()),
