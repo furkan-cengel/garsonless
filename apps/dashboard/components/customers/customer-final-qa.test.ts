@@ -47,7 +47,7 @@ test('customer list and detail reflow at 320px without topbar breadcrumb collisi
   assert.match(list, /customer-page-content\s*\{\s*padding:\s*20px 12px 44px !important/)
   assert.match(list, /customer-list-header\s*\{\s*align-items:\s*stretch !important;\s*flex-direction:\s*column !important/)
   assert.match(list, /customer-table-scroll-hint/)
-  assert.match(detail, /customer-page-content\{padding:20px 12px 44px!important\}/)
+  assert.match(detail, /customer-page-content\s*\{\s*padding:\s*20px 12px 44px !important/)
 })
 
 test('customer routes use one natural vertical scroll container with reachable pagination', () => {
@@ -65,4 +65,6 @@ test('customer routes use one natural vertical scroll container with reachable p
 test('customer detail navigation announces pending state before changing routes', () => {
   assert.match(list, /beginNavigation\(href\)[\s\S]*router\.push\(href\)/)
   assert.match(topbar, /beginNavigation\(backHref\)[\s\S]*router\.push\(backHref\)/)
+  assert.match(topbar, /className="page-topbar-back"/)
+  assert.match(globalCss, /\.page-topbar-back:not\(:disabled\):hover/)
 })

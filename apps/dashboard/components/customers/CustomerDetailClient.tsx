@@ -244,31 +244,33 @@ export default function CustomerDetailClient({
             <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 3, marginBottom: 14 }}>Manuel puan kredisi; müşterinin bakiyesine anında eklenir, hareketlerde görünür.</div>
             <div className="customer-grant-form" style={{ display: 'flex', gap: 10 }}>
               <input
+                className="customer-detail-field"
                 aria-label="Tanımlanacak puan"
                 value={points}
                 onChange={(e) => { grantRequestId.current = null; setPoints(e.target.value.replace(/[^\d]/g, '')); setGrantConfirmed(false); setMsg(null) }}
                 placeholder="Puan"
                 inputMode="numeric"
-                style={{ width: 130, height: 44, padding: '0 14px', border: '1px solid var(--border-strong)', borderRadius: 9, fontSize: 14, fontWeight: 650, outline: 'none', textAlign: 'center', background: 'var(--surface)', color: 'var(--text)' }}
+                style={{ width: 110, height: 38, padding: '0 12px', border: '1px solid var(--border-strong)', borderRadius: 8, fontSize: 13, fontWeight: 650, outline: 'none', textAlign: 'center', background: 'var(--surface)', color: 'var(--text)' }}
               />
               <input
+                className="customer-detail-field"
                 aria-label="Puan tanımlama notu"
                 value={note}
                 onChange={(e) => { grantRequestId.current = null; setNote(e.target.value); setGrantConfirmed(false); setMsg(null) }}
                 placeholder="Not (opsiyonel)"
                 maxLength={80}
-                style={{ flex: 1, minWidth: 160, height: 44, padding: '0 14px', border: '1px solid var(--border-strong)', borderRadius: 9, fontSize: 14, outline: 'none', background: 'var(--surface)', color: 'var(--text)' }}
+                style={{ flex: 1, minWidth: 160, height: 38, padding: '0 12px', border: '1px solid var(--border-strong)', borderRadius: 8, fontSize: 13, outline: 'none', background: 'var(--surface)', color: 'var(--text)' }}
               />
-              <button type="button" onClick={submitGrant} disabled={pending || !points}
-                style={{ height: 44, padding: '0 22px', borderRadius: 9, border: 'none', background: points && !pending ? 'var(--action)' : 'var(--border-strong)', color: '#fff', fontSize: 14, fontWeight: 650, cursor: points && !pending ? 'pointer' : 'not-allowed' }}>
+              <button type="button" className="customer-detail-action customer-detail-action-primary" onClick={submitGrant} disabled={pending || !points}
+                style={{ height: 38, padding: '0 16px', borderRadius: 8, border: 'none', background: points && !pending ? 'var(--action)' : 'var(--border-strong)', color: '#fff', fontSize: 13, fontWeight: 650, cursor: points && !pending ? 'pointer' : 'not-allowed' }}>
                 {pending ? 'Tanımlanıyor...' : grantConfirmed ? 'Puanı onayla' : 'Tanımla'}
               </button>
             </div>
             <div style={{ display: 'flex', gap: 7, marginTop: 12, flexWrap: 'wrap' }}>
               {[50, 100, 250, 500].map((v) => (
-                <button key={v} type="button" onClick={() => { grantRequestId.current = null; setPoints(String(v)); setGrantConfirmed(false); setMsg(null) }} style={{ minWidth: 44, height: 44, padding: '0 12px', borderRadius: 99, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>+{v}</button>
+                <button key={v} type="button" className="customer-detail-action customer-detail-quick-action" onClick={() => { grantRequestId.current = null; setPoints(String(v)); setGrantConfirmed(false); setMsg(null) }} style={{ minWidth: 38, height: 34, padding: '0 10px', borderRadius: 99, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>+{v}</button>
               ))}
-              <button type="button" onClick={() => { grantRequestId.current = null; setPoints(''); setNote(''); setGrantConfirmed(false); setMsg(null) }} style={{ ...btnGhost({ height: 44, padding: '0 12px', borderRadius: 99, fontSize: 12.5 }) }}>Temizle</button>
+              <button type="button" className="customer-detail-action customer-detail-action-secondary" onClick={() => { grantRequestId.current = null; setPoints(''); setNote(''); setGrantConfirmed(false); setMsg(null) }} style={{ ...btnGhost({ height: 34, padding: '0 10px', borderRadius: 99, fontSize: 12 }) }}>Temizle</button>
             </div>
             {msg && <div role={msg.kind === 'err' ? 'alert' : 'status'} aria-live="polite" style={{ marginTop: 10, fontSize: 12.5, color: msg.kind === 'ok' ? 'var(--positive)' : 'var(--critical)' }}>{msg.text}</div>}
           </div>}
@@ -301,16 +303,67 @@ export default function CustomerDetailClient({
             {timelineHasMore && timelineCursor && (
               <button
                 type="button"
+                className="customer-detail-action customer-detail-action-secondary"
                 aria-busy={timelineLoading}
                 disabled={timelineLoading}
                 onClick={() => { void loadOlderTimeline() }}
-                style={{ ...btnGhost({ height: 44, alignSelf: 'center', padding: '0 18px' }), opacity: timelineLoading ? 0.6 : 1 }}
+                style={{ ...btnGhost({ height: 34, alignSelf: 'center', padding: '0 13px' }), opacity: timelineLoading ? 0.6 : 1 }}
               >
                 {timelineLoading ? <span role="status" aria-live="polite">Daha eski hareketler yükleniyor…</span> : 'Daha eski hareketleri yükle'}
               </button>
             )}
           </div>
-          <style>{`.customer-page-topbar{position:sticky;top:0;z-index:30} @media (max-width:760px){.customer-page-content{padding:22px 20px 48px!important}.customer-detail-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}.customer-grant-form{flex-direction:column!important}.customer-grant-form input{width:100%!important;min-height:44px!important;flex:none!important}.customer-profile{flex-wrap:wrap!important}} @media (max-width:460px){.customer-page-content{padding:20px 12px 44px!important}.customer-detail-stats{grid-template-columns:1fr!important}}`}</style>
+          <style>{`
+            .customer-page-topbar { position: sticky; top: 0; z-index: 30; }
+            .customer-detail-action,
+            .customer-detail-field {
+              transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, filter 140ms ease, transform 140ms ease;
+            }
+            .customer-detail-action-primary:not(:disabled):hover {
+              filter: brightness(.82);
+              box-shadow: 0 5px 14px rgba(17,17,19,.22);
+              transform: translateY(-1px);
+            }
+            .customer-detail-action-secondary:not(:disabled):hover,
+            .customer-detail-quick-action:not(:disabled):hover {
+              background: var(--surface-inset) !important;
+              border-color: var(--text-2) !important;
+              color: var(--text) !important;
+              box-shadow: 0 4px 12px rgba(17,17,19,.1);
+              transform: translateY(-1px);
+            }
+            .customer-detail-action:not(:disabled):active {
+              box-shadow: none;
+              transform: translateY(0);
+            }
+            .customer-detail-field:hover { border-color: var(--text-3) !important; }
+            .customer-detail-field:focus {
+              border-color: var(--action) !important;
+              box-shadow: 0 0 0 3px color-mix(in srgb, var(--action) 12%, transparent);
+            }
+            @media (pointer: coarse) {
+              .customer-detail-action,
+              .customer-detail-field { min-height: 44px !important; }
+              .customer-detail-quick-action { min-width: 44px !important; }
+            }
+            @media (max-width: 760px) {
+              .customer-page-content { padding: 22px 20px 48px !important; }
+              .customer-detail-stats { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+              .customer-grant-form { flex-direction: column !important; }
+              .customer-grant-form input { width: 100% !important; min-height: 44px !important; flex: none !important; }
+              .customer-detail-action { min-height: 44px !important; }
+              .customer-detail-quick-action { min-width: 44px !important; }
+              .customer-profile { flex-wrap: wrap !important; }
+            }
+            @media (max-width: 460px) {
+              .customer-page-content { padding: 20px 12px 44px !important; }
+              .customer-detail-stats { grid-template-columns: 1fr !important; }
+            }
+            @media (prefers-reduced-motion: reduce) {
+              .customer-detail-action,
+              .customer-detail-field { transition: none !important; transform: none !important; }
+            }
+          `}</style>
         </div>
       </div>
     </div>

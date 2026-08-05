@@ -36,6 +36,8 @@ export default function PageTopBar({ restaurantName, title, className, tag, cent
         <div className="page-topbar-context" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         {backHref && (
           <button
+            type="button"
+            className="page-topbar-back"
             onClick={() => {
               beginNavigation(backHref)
               router.push(backHref)
