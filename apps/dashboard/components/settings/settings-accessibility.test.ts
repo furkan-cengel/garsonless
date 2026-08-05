@@ -29,13 +29,25 @@ test('shared form rows associate labels and hint descriptions with native contro
   }
 })
 
-test('settings focus rings and minimum pointer targets are scoped to the settings root', () => {
+test('settings controls stay compact on desktop while coarse pointers retain safe targets', () => {
   assert.match(styles, /\.root :is\(button, a\)/)
+  assert.match(styles, /min-width: 34px/)
+  assert.match(styles, /min-height: 34px/)
+  assert.match(styles, /@media \(pointer: coarse\)[\s\S]*min-width: 44px/)
+  assert.match(styles, /@media \(max-width: 760px\)[\s\S]*min-height: 44px/)
+  assert.match(styles, /input\[type='range'\]/)
+})
+
+test('settings buttons and fields expose consistent hover and focus feedback', () => {
+  assert.match(styles, /@media \(hover: hover\) and \(pointer: fine\)/)
+  assert.match(styles, /label:has\(input\[type='file'\]:not\(:disabled\)\):hover/)
+  assert.match(styles, /\.navRow:not\(:disabled\):hover/)
+  assert.match(styles, /filter: brightness\(\.94\) !important/)
+  assert.match(styles, /border-color: var\(--text-3\) !important/)
   assert.match(styles, /min-width: 44px/)
   assert.match(styles, /min-height: 44px/)
   assert.match(styles, /:focus-visible/)
   assert.match(styles, /outline: 2px solid var\(--text\) !important/)
-  assert.match(styles, /input\[type='range'\]/)
 })
 
 test('settings honors reduced-motion without depending on component inline transitions', () => {

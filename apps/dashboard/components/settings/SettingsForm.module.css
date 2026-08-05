@@ -69,10 +69,12 @@
   color: var(--text);
   cursor: pointer;
   text-align: left;
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
 }
 
 .navRow:hover {
   background: var(--surface-3);
+  transform: translateX(2px);
 }
 
 .navRowActive,
@@ -129,20 +131,54 @@
 }
 
 .root :is(button, a) {
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 34px;
+  min-height: 34px;
 }
 
 .root :is(input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea) {
-  min-height: 44px;
+  min-height: 34px;
 }
 
 .root label:has(input[type='checkbox'], input[type='radio'], input[type='range'], input[type='file']) {
-  min-height: 44px;
+  min-height: 34px;
 }
 
 .root input[type='range'] {
-  min-height: 44px;
+  min-height: 34px;
+}
+
+.root :is(button, a[href], label:has(input[type='file'])) {
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, filter 140ms ease, transform 140ms ease;
+}
+
+.root :is(input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea) {
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .root :is(button, a[href]):not(:disabled):hover,
+  .root label:has(input[type='file']:not(:disabled)):hover {
+    filter: brightness(.94) !important;
+    box-shadow: 0 4px 12px rgba(17, 17, 19, .12) !important;
+    transform: translateY(-1px) !important;
+  }
+
+  .root .navRow:not(:disabled):hover {
+    filter: none !important;
+    box-shadow: none !important;
+    transform: translateX(2px) !important;
+  }
+
+  .root :is(button, a[href]):not(:disabled):active,
+  .root label:has(input[type='file']:not(:disabled)):active {
+    box-shadow: none !important;
+    transform: translateY(0) !important;
+  }
+
+  .root :is(input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea):not(:disabled):hover {
+    border-color: var(--text-3) !important;
+    background: var(--surface-2) !important;
+  }
 }
 
 .root :is(button, a[href], input, select, textarea, [tabindex]):focus-visible {
@@ -161,6 +197,23 @@
     animation-iteration-count: 1 !important;
     transition-delay: 0s !important;
     transition-duration: 0s !important;
+  }
+
+  .root :is(button, a[href], label:has(input[type='file'])):hover {
+    transform: none !important;
+  }
+}
+
+@media (pointer: coarse) {
+  .root :is(button, a) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .root :is(input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea),
+  .root label:has(input[type='checkbox'], input[type='radio'], input[type='range'], input[type='file']),
+  .root input[type='range'] {
+    min-height: 44px;
   }
 }
 
@@ -226,5 +279,16 @@
   .contentArea select,
   .contentArea textarea {
     max-width: 100%;
+  }
+
+  .root :is(button, a) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .root :is(input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea),
+  .root label:has(input[type='checkbox'], input[type='radio'], input[type='range'], input[type='file']),
+  .root input[type='range'] {
+    min-height: 44px;
   }
 }
