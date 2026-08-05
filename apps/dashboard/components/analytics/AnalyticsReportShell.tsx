@@ -112,7 +112,7 @@ export function AnalyticsReportShell({
                     alignItems: 'center',
                     gap: 10,
                     width: '100%',
-                    padding: '8px 10px',
+                    padding: '6px 8px',
                     marginBottom: 1,
                     borderRadius: 7,
                     background: selected ? 'var(--surface-inset)' : 'transparent',
@@ -183,7 +183,7 @@ export function AnalyticsReportShell({
             {loadError && (
               <div role="alert" style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, border: '1px solid var(--critical)', background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 13 }}>
                 {loadError}{' '}
-                <button type="button" onClick={onRetry} disabled={isPending} style={{ marginLeft: 8, border: 0, background: 'transparent', color: 'inherit', fontWeight: 700, textDecoration: 'underline', cursor: isPending ? 'wait' : 'pointer' }}>
+                <button className="analytics-retry-button" type="button" onClick={onRetry} disabled={isPending} style={{ marginLeft: 8, border: 0, background: 'transparent', color: 'inherit', fontWeight: 700, textDecoration: 'underline', cursor: isPending ? 'wait' : 'pointer' }}>
                   Tekrar dene
                 </button>
               </div>

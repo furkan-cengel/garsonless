@@ -69,11 +69,11 @@ export default function PaymentDonutChart({ segments }: { segments: PaymentBreak
       </div>
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {segments.map((seg, i) => (
-          <button key={seg.key} type="button"
+          <button key={seg.key} type="button" className="analytics-payment-legend-button"
             onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(null)}
             onFocus={() => setActive(i)} onBlur={() => setActive(null)}
             aria-label={`${seg.label}: ${money(seg.amount)}, ${percent(seg.pct)}, ${seg.count} ödeme`}
-            style={{ minHeight: 44, padding: '0 4px', border: 0, borderRadius: 6, background: 'transparent', width: '100%', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', opacity: active === null || active === i ? 1 : 0.5, transition: 'opacity .12s' }}>
+            style={{ minHeight: 34, padding: '0 4px', border: 0, borderRadius: 6, background: 'transparent', width: '100%', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', opacity: active === null || active === i ? 1 : 0.5, transition: 'opacity .12s, background-color .14s, transform .14s' }}>
             <span style={{ width: 8, height: 8, borderRadius: 2, background: CAT[i % CAT.length] }} />
             <span style={{ flex: 1, fontSize: 12, color: 'var(--text)' }}>{seg.label}</span>
             <span style={{ fontFamily: "'Geist Mono', ui-monospace, monospace", fontSize: 11, color: 'var(--text-3)' }}>{percent(seg.pct)}</span>

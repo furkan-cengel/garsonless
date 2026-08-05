@@ -537,8 +537,89 @@ button, input, select, textarea { font-family: inherit; }
 .analytics-range-button,
 .analytics-range-select,
 .analytics-export-button {
-  min-height: 44px;
+  min-height: 36px;
 }
+.analytics-report-tab,
+.analytics-range-select,
+.analytics-export-button,
+.analytics-filter-bar select,
+.analytics-filter-actions button,
+.analytics-custom-range-actions button,
+.analytics-data-table-controls select,
+.analytics-data-table-controls button,
+.analytics-pagination button,
+.analytics-table-detail-button,
+.analytics-detail-dialog button,
+.analytics-chart-data summary,
+.analytics-payment-legend-button,
+.analytics-retry-button {
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, filter 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+.analytics-report-tab,
+.analytics-range-select,
+.analytics-export-button,
+.analytics-filter-bar select,
+.analytics-data-table-controls select,
+.analytics-data-table-controls button,
+.analytics-pagination button,
+.analytics-table-detail-button,
+.analytics-detail-dialog button,
+.analytics-payment-legend-button { cursor: pointer; }
+.analytics-report-tab:not(:disabled):hover {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+  transform: translateX(2px);
+}
+.analytics-report-tab[aria-current="page"]:not(:disabled):hover {
+  background: var(--surface-inset) !important;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  filter: brightness(.95);
+}
+.analytics-range-select:not(:disabled):hover,
+.analytics-filter-bar select:not(:disabled):hover,
+.analytics-data-table-controls select:not(:disabled):hover,
+.analytics-custom-range-fields input:not(:disabled):hover {
+  border-color: var(--text-3) !important;
+  background: var(--surface-2) !important;
+}
+.analytics-export-button:not(:disabled):hover,
+.analytics-custom-range-actions button:last-child:not(:disabled):hover {
+  filter: brightness(.82);
+  box-shadow: 0 5px 14px rgba(17,17,19,.22);
+  transform: translateY(-1px);
+}
+.analytics-filter-actions button:not(:disabled):hover,
+.analytics-custom-range-actions button:not(:last-child):not(:disabled):hover,
+.analytics-data-table-controls button:not(:disabled):hover,
+.analytics-pagination button:not(:disabled):hover,
+.analytics-table-detail-button:not(:disabled):hover,
+.analytics-detail-dialog button:not(:disabled):hover {
+  background: var(--surface-inset) !important;
+  border-color: var(--text-2) !important;
+  color: var(--text) !important;
+  box-shadow: 0 4px 12px rgba(17,17,19,.1);
+  transform: translateY(-1px);
+}
+.analytics-chart-data summary:hover,
+.analytics-payment-legend-button:not(:disabled):hover {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+  transform: translateY(-1px);
+}
+.analytics-retry-button:not(:disabled):hover { opacity: .72; }
+.analytics-export-button:not(:disabled):active,
+.analytics-filter-actions button:not(:disabled):active,
+.analytics-custom-range-actions button:not(:disabled):active,
+.analytics-data-table-controls button:not(:disabled):active,
+.analytics-pagination button:not(:disabled):active,
+.analytics-table-detail-button:not(:disabled):active,
+.analytics-detail-dialog button:not(:disabled):active,
+.analytics-payment-legend-button:not(:disabled):active {
+  box-shadow: none;
+  transform: translateY(0);
+}
+.analytics-report-tab:not(:disabled):active,
+.analytics-chart-data summary:active { transform: translate(0); }
 .analytics-report-tab:focus-visible,
 .analytics-range-button:focus-visible,
 .analytics-range-select:focus-visible,
@@ -559,7 +640,7 @@ button, input, select, textarea { font-family: inherit; }
   text-transform: uppercase;
 }
 .analytics-chart-data summary {
-  min-height: 44px;
+  min-height: 34px;
   display: flex;
   align-items: center;
   width: fit-content;
@@ -567,6 +648,8 @@ button, input, select, textarea { font-family: inherit; }
   color: var(--text-2);
   font-size: 12px;
   font-weight: 650;
+  padding: 0 6px;
+  border-radius: 6px;
 }
 .analytics-chart-data-region,
 .analytics-table-scroll {
@@ -610,7 +693,7 @@ button, input, select, textarea { font-family: inherit; }
 }
 .analytics-filter-context {
   width: 150px;
-  min-height: 44px;
+  min-height: 36px;
   padding: 5px 10px;
   display: grid;
   align-content: center;
@@ -631,8 +714,8 @@ button, input, select, textarea { font-family: inherit; }
 .analytics-filter-semantics { color: var(--text-3); font-size: 10px; text-align: right; }
 .analytics-filter-actions button,
 .analytics-custom-range-actions button {
-  min-height: 44px;
-  padding: 0 12px;
+  min-height: 34px;
+  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
@@ -661,7 +744,7 @@ button, input, select, textarea { font-family: inherit; }
 .analytics-custom-range-dialog p { margin: 6px 0 18px; color: var(--text-2); font-size: 12px; line-height: 1.5; }
 .analytics-custom-range-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .analytics-custom-range-fields label { display: grid; gap: 5px; color: var(--text-2); font-size: 11px; font-weight: 650; }
-.analytics-custom-range-fields input { min-height: 44px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface); }
+.analytics-custom-range-fields input { min-height: 38px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface); }
 .analytics-custom-range-error { margin-top: 12px; color: var(--critical); font-size: 12px; }
 .analytics-custom-range-actions { margin-top: 18px; display: flex; justify-content: flex-end; gap: 8px; }
 .analytics-custom-range-actions button:last-child { border-color: var(--action); background: var(--action); color: var(--on-action); }
@@ -679,8 +762,8 @@ button, input, select, textarea { font-family: inherit; }
 .analytics-pagination button,
 .analytics-table-detail-button,
 .analytics-detail-dialog button {
-  min-height: 44px;
-  padding: 0 11px;
+  min-height: 34px;
+  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
@@ -691,7 +774,7 @@ button, input, select, textarea { font-family: inherit; }
 .analytics-pagination { justify-content: flex-end; border-top: 1px solid var(--divider); border-bottom: 0; }
 .analytics-pagination span { min-width: 52px; color: var(--text-2); font-size: 11px; text-align: center; }
 .analytics-pagination button:disabled { opacity: .4; }
-.analytics-table-detail-button { min-height: 44px; }
+.analytics-table-detail-button { min-height: 34px; }
 .analytics-detail-dialog {
   position: fixed;
   inset: 0;
@@ -713,6 +796,36 @@ button, input, select, textarea { font-family: inherit; }
 .analytics-detail-dialog dt { color: var(--text-3); font-size: 12px; }
 .analytics-detail-dialog dd { margin: 0; color: var(--text); font-size: 12px; font-weight: 700; }
 .analytics-detail-dialog > div > button { width: 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .analytics-report-tab,
+  .analytics-export-button,
+  .analytics-filter-actions button,
+  .analytics-custom-range-actions button,
+  .analytics-data-table-controls button,
+  .analytics-pagination button,
+  .analytics-table-detail-button,
+  .analytics-detail-dialog button,
+  .analytics-chart-data summary,
+  .analytics-payment-legend-button { transform: none !important; }
+}
+
+@media (pointer: coarse) {
+  .analytics-report-tab,
+  .analytics-range-select,
+  .analytics-export-button,
+  .analytics-filter-bar select,
+  .analytics-filter-actions button,
+  .analytics-custom-range-actions button,
+  .analytics-custom-range-fields input,
+  .analytics-data-table-controls select,
+  .analytics-data-table-controls button,
+  .analytics-pagination button,
+  .analytics-table-detail-button,
+  .analytics-detail-dialog button,
+  .analytics-chart-data summary,
+  .analytics-payment-legend-button { min-height: 44px !important; }
+}
 
 @media (max-width: 1100px) {
   .analytics-filter-bar {
@@ -749,7 +862,7 @@ button, input, select, textarea { font-family: inherit; }
     min-width: 0 !important;
     gap: 4px !important;
   }
-  .analytics-range-select { width: 100%; min-width: 0; }
+  .analytics-range-select { width: 100%; min-width: 0; min-height: 44px; }
   .analytics-export-button {
     width: 44px;
     height: 44px;
@@ -797,6 +910,7 @@ button, input, select, textarea { font-family: inherit; }
   .analytics-report-tab--compact {
     flex: 0 0 auto;
     min-width: 92px;
+    min-height: 44px;
     padding: 0 10px;
     display: inline-flex;
     align-items: center;
@@ -832,6 +946,18 @@ button, input, select, textarea { font-family: inherit; }
   }
   .analytics-filter-semantics { text-align: left; }
   .analytics-filter-actions button { width: 100%; }
+  .analytics-filter-context,
+  .analytics-filter-bar select,
+  .analytics-filter-actions button,
+  .analytics-custom-range-actions button,
+  .analytics-custom-range-fields input,
+  .analytics-data-table-controls select,
+  .analytics-data-table-controls button,
+  .analytics-pagination button,
+  .analytics-table-detail-button,
+  .analytics-detail-dialog button,
+  .analytics-chart-data summary,
+  .analytics-payment-legend-button { min-height: 44px !important; }
   .analytics-content { padding: 16px 12px 52px !important; }
   .analytics-active-label { margin-bottom: 14px; }
   .analytics-responsive-grid {

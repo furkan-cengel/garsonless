@@ -143,9 +143,23 @@ test('analytics shell keeps mobile navigation, heading order and touch targets e
   assert.doesNotMatch(shellSource, /<h2/)
   assert.doesNotMatch(shellSource, /<main/)
   assert.match(shellSource, /<section className="analytics-main" aria-label=/)
-  assert.match(globalStylesSource, /\.analytics-report-tab,[\s\S]*min-height: 44px/)
+  assert.match(globalStylesSource, /\.analytics-report-tab,[\s\S]{0,180}\.analytics-export-button \{[\s\S]{0,80}min-height: 36px/)
+  assert.match(globalStylesSource, /@media \(pointer: coarse\)[\s\S]{0,520}\.analytics-report-tab,[\s\S]{0,520}min-height: 44px !important/)
+  assert.match(globalStylesSource, /@media \(max-width: 760px\)[\s\S]*\.analytics-report-tab--compact \{[\s\S]{0,140}min-height: 44px/)
   assert.match(globalStylesSource, /@media \(max-width: 760px\)[\s\S]*\.analytics-sidebar \{ display: none/)
   assert.match(globalStylesSource, /\.analytics-responsive-grid[\s\S]*grid-template-columns: minmax\(0, 1fr\) !important/)
+})
+
+test('report controls stay compact on desktop and expose consistent hover feedback', () => {
+  assert.match(shellSource, /padding: '6px 8px'/)
+  assert.match(filterBarSource, /minHeight: 36/)
+  assert.match(paymentChartSource, /className="analytics-payment-legend-button"/)
+  assert.match(globalStylesSource, /\.analytics-report-tab:not\(:disabled\):hover/)
+  assert.match(globalStylesSource, /\.analytics-export-button:not\(:disabled\):hover/)
+  assert.match(globalStylesSource, /\.analytics-filter-actions button:not\(:disabled\):hover/)
+  assert.match(globalStylesSource, /\.analytics-data-table-controls button:not\(:disabled\):hover/)
+  assert.match(globalStylesSource, /\.analytics-chart-data summary:hover/)
+  assert.match(globalStylesSource, /\.analytics-payment-legend-button:not\(:disabled\):hover/)
 })
 
 test('custom range validation identifies and describes both date fields', () => {

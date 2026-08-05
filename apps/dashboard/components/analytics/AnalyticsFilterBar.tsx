@@ -4,7 +4,7 @@ import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
 import { hasAnalyticsFilters } from '../../lib/analytics-filter-contract'
 
 const selectStyle = {
-  minHeight: 44,
+  minHeight: 36,
   border: '1px solid var(--border)',
   borderRadius: 8,
   background: 'var(--surface)',
