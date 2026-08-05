@@ -170,7 +170,7 @@ test('Pano peak-hour cells expose hover and keyboard tooltips', () => {
   assert.match(widgetSource, /role="tooltip"/)
   assert.match(widgetSource, /<span>\{tooltip\.count\} sipariş<\/span>/)
   assert.doesNotMatch(widgetSource, /title=\{label\}/)
-  assert.match(stylesSource, /\.pano-heatmap-scroll \{[^}]*overflow-y: hidden;[^}]*padding-block: 6px;/)
+  assert.match(stylesSource, /\.pano-heatmap-scroll \{[^}]*overflow-x: auto;[^}]*overflow-y: hidden;[^}]*padding: 6px;/)
   assert.match(stylesSource, /\.pano-heatmap-cell\[tabindex="0"\]:hover/)
   assert.match(stylesSource, /\.pano-heatmap-tooltip \{ position: fixed;/)
 })
