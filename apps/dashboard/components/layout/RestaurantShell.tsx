@@ -444,7 +444,8 @@ export default function RestaurantShell({
       <style>{MOBILE_RAIL_SHELL_CSS}</style>
       <div className="restaurant-shell restaurant-shell--mobile-rail" style={{
         display: 'flex',
-        height: '100vh',
+        height: '100dvh',
+        maxHeight: '100dvh',
         overflow: 'hidden',
         background: 'var(--bg)',
       }}>

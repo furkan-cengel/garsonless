@@ -208,7 +208,7 @@ export default function PanoClient(props: Props) {
           onCreated={() => void refreshSnapshot()}
         />
       )}
-      <div style={{ flex: 1, overflow: 'auto', minWidth: 0, background: 'var(--bg)' }}>
+      <div style={{ flex: 1, overflow: 'auto', minWidth: 0, background: 'var(--bg)', overscrollBehaviorY: 'contain' }}>
         <div className="pano-shell">
 
           {/* Greeting */}

@@ -12,6 +12,7 @@ const chartControllerSource = readFileSync(`${directory}/use-pano-sales-chart.ts
 const chartModelSource = readFileSync(`${directory}/../../lib/pano-chart-model.ts`, 'utf8')
 const panoActionsSource = readFileSync(`${directory}/../../lib/actions/pano.ts`, 'utf8')
 const globalStylesSource = readFileSync(`${directory}/../../app/globals.css`, 'utf8')
+const shellSource = readFileSync(`${directory}/../layout/RestaurantShell.tsx`, 'utf8')
 const activityFeedSource = readFileSync(`${directory}/PanoActivityFeed.tsx`, 'utf8')
 const liveStateSource = readFileSync(`${directory}/use-pano-live-state.ts`, 'utf8')
 const approvalControllerSource = readFileSync(`${directory}/use-pano-order-approval.ts`, 'utf8')
@@ -182,4 +183,12 @@ test('Pano peak-hour view switches in place instead of appending an expanding ta
   assert.doesNotMatch(widgetSource, /<details|<summary/)
   assert.match(stylesSource, /\.pano-peak-view-switch/)
   assert.match(stylesSource, /\.pano-peak-view \{ min-height: 292px; \}/)
+})
+
+test('Pano ends at its final cards without a chained blank scroll tail', () => {
+  assert.match(stylesSource, /\.pano-shell \{[^}]*padding: 28px 32px 16px;/)
+  assert.match(stylesSource, /\.pano-lower-grid \{[^}]*margin-bottom: 0;/)
+  assert.match(clientSource, /overscrollBehaviorY: 'contain'/)
+  assert.match(shellSource, /height: '100dvh'/)
+  assert.match(shellSource, /maxHeight: '100dvh'/)
 })

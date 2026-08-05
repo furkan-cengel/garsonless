@@ -1,11 +1,11 @@
 export default function PanoStyles() {
   return <style>{`
-    .pano-shell { max-width: 1280px; margin: 0 auto; padding: 28px 32px 60px; }
+    .pano-shell { max-width: 1280px; margin: 0 auto; padding: 28px 32px 16px; }
     .pano-greeting { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
     .pano-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
     .pano-attention { margin-bottom: 12px; }
     .pano-main-grid, .pano-wide-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 12px; margin-bottom: 12px; }
-    .pano-lower-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .pano-lower-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 0; }
     .pano-wide-grid { margin-bottom: 0; }
     .pano-heatmap-scroll { min-width: 0; overflow-x: auto; overflow-y: hidden; padding-block: 6px; }
     .pano-data-table-scroll { min-width: 0; overflow-x: auto; padding-bottom: 2px; }
@@ -80,7 +80,7 @@ export default function PanoStyles() {
       .page-topbar--pano .page-topbar-restaurant-name { max-width: 176px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .pano-status-full { display: none; }
       .pano-status-compact { display: inline; }
-      .pano-shell { padding: 18px 14px 48px; }
+      .pano-shell { padding: 18px 14px 16px; }
       .pano-greeting { align-items: flex-start; flex-direction: column; margin-bottom: 18px; }
       .pano-kpis, .pano-lower-grid { grid-template-columns: minmax(0, 1fr); }
       .pano-chart-head { align-items: flex-start !important; flex-wrap: wrap; }
