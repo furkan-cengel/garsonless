@@ -10,6 +10,7 @@ const modelSource = readFileSync(`${directory}/pano-view-model.ts`, 'utf8')
 const salesChartSource = readFileSync(`${directory}/PanoSalesChart.tsx`, 'utf8')
 const chartControllerSource = readFileSync(`${directory}/use-pano-sales-chart.ts`, 'utf8')
 const chartModelSource = readFileSync(`${directory}/../../lib/pano-chart-model.ts`, 'utf8')
+const panoActionsSource = readFileSync(`${directory}/../../lib/actions/pano.ts`, 'utf8')
 const activityFeedSource = readFileSync(`${directory}/PanoActivityFeed.tsx`, 'utf8')
 const liveStateSource = readFileSync(`${directory}/use-pano-live-state.ts`, 'utf8')
 const approvalControllerSource = readFileSync(`${directory}/use-pano-order-approval.ts`, 'utf8')
@@ -74,6 +75,13 @@ test('Pano chart controller owns refreshes while its view owns SVG and tooltip s
   assert.match(chartModelSource, /export function createDayPanoChart/)
   assert.match(chartModelSource, /export function navigatePanoChartIndex/)
   assert.doesNotMatch(chartModelSource, /useState|useEffect|lib\/actions|createClient|supabase|react/i)
+})
+
+test('Pano server action module only exports async functions', () => {
+  assert.match(panoActionsSource, /^'use server'/)
+  assert.match(panoActionsSource, /export async function fetchPanoSnapshot/)
+  assert.match(panoActionsSource, /export async function fetchPanoChart/)
+  assert.doesNotMatch(panoActionsSource, /export\s+(?:type|interface|const|class|enum)\b|export\s*\{/)
 })
 
 test('Pano responsive shell exposes a two-row mobile header, 44px targets and reduced-motion support', () => {

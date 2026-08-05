@@ -8,8 +8,6 @@ import type { PanoSnapshot } from '../queries/pano'
 import { restaurantHour } from '@garsonless/db/browser'
 import type { PanoChartData, PanoChartPoint, PanoChartRange } from '../pano-chart-model'
 
-export type { PanoChartData, PanoChartRange } from '../pano-chart-model'
-
 export async function fetchPanoSnapshot(
   restaurantId: string,
 ): Promise<{ error: string } | { snapshot: PanoSnapshot }> {
