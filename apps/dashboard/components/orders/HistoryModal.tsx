@@ -75,6 +75,37 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
     <AccessibleDialog labelledBy="order-history-title" onClose={onClose} className="order-history-overlay" style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(17,17,19,.42)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <style>{`
         .order-history-dialog button, .order-history-dialog input { min-height: 44px; }
+        .order-history-action {
+          transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, filter 140ms ease, transform 140ms ease;
+        }
+        .order-history-tab:not(:disabled):hover {
+          background: var(--surface) !important;
+          color: var(--text) !important;
+          box-shadow: var(--shadow-1);
+          transform: translateY(-1px);
+        }
+        .order-history-tab[aria-pressed="true"]:not(:disabled):hover {
+          filter: brightness(.94);
+        }
+        .order-history-receipt:not(:disabled):hover {
+          background: var(--surface-inset) !important;
+          border-color: var(--text-2) !important;
+          color: var(--text) !important;
+          box-shadow: 0 4px 12px rgba(17,17,19,.1);
+          transform: translateY(-1px);
+        }
+        .order-history-close:not(:disabled):hover {
+          background: var(--surface-inset) !important;
+          color: var(--text) !important;
+          transform: scale(1.04);
+        }
+        .order-history-action:not(:disabled):active {
+          box-shadow: none;
+          transform: translateY(0);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .order-history-action { transition: none !important; transform: none !important; }
+        }
         @media (max-width: 600px) {
           .order-history-overlay { padding: 0 !important; }
           .order-history-dialog { height: 100dvh !important; max-width: none !important; border-radius: 0 !important; }
@@ -90,7 +121,7 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
             <div id="order-history-title" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-.01em' }}>Geçmiş siparişler</div>
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>Son 30 günün tamamlanan ve iptal edilen siparişleri</div>
           </div>
-          <IconButton icon={<I.close size={15} />} ariaLabel="Geçmiş siparişleri kapat" onClick={onClose} />
+          <IconButton className="order-history-action order-history-close" icon={<I.close size={15} />} ariaLabel="Geçmiş siparişleri kapat" onClick={onClose} />
         </div>
 
         {/* Search + tabs */}
@@ -101,7 +132,7 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
           </div>
           <div className="order-history-tabs" role="group" aria-label="Geçmiş sipariş durumu" style={{ display: 'flex', gap: 4, background: 'var(--surface-3)', borderRadius: 8, padding: 3 }}>
             {tabs.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{
+              <button key={t.id} type="button" className="order-history-action order-history-tab" aria-pressed={tab === t.id} onClick={() => setTab(t.id)} style={{
                 padding: '5px 11px', borderRadius: 6, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', border: 'none',
                 background: tab === t.id ? 'var(--surface)' : 'transparent',
                 color: tab === t.id ? 'var(--text)' : 'var(--text-3)',
@@ -174,7 +205,7 @@ function HistoryRow({ order, tableLabel, onReceipt }: {
       </div>
       <span style={{ ...S.mono, fontSize: 13.5, fontWeight: 700, color: cancelled ? 'var(--text-4)' : 'var(--text)', textDecoration: cancelled ? 'line-through' : 'none' }}>{formatCurrency(order.total)}</span>
       {!cancelled && (
-        <button onClick={() => onReceipt(order, tableLabel)} style={{ ...btnGhost(), height: 30, padding: '0 11px' }}>
+        <button type="button" className="order-history-action order-history-receipt" aria-label={`${tableLabel} siparişinin fişini göster`} onClick={() => onReceipt(order, tableLabel)} style={{ ...btnGhost(), height: 30, padding: '0 11px' }}>
           <I.history size={12} />Fiş
         </button>
       )}

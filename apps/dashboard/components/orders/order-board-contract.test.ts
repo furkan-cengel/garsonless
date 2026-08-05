@@ -7,6 +7,7 @@ import { ORDER_BOARD_COLUMNS } from './order-board-contract'
 const directory = fileURLToPath(new URL('.', import.meta.url))
 const boardSource = readFileSync(`${directory}/OrderBoard.tsx`, 'utf8')
 const cardSource = readFileSync(`${directory}/OrderCard.tsx`, 'utf8')
+const historySource = readFileSync(`${directory}/HistoryModal.tsx`, 'utf8')
 
 test('order board columns map drop destinations to canonical lifecycle targets', () => {
   assert.deepEqual(
@@ -50,4 +51,15 @@ test('density, closed-order, source and history controls expose hover feedback',
   assert.match(boardSource, /\.orders-density-option:not\(:disabled\):hover/)
   assert.match(boardSource, /\.orders-filter-option:not\(:disabled\):hover/)
   assert.match(boardSource, /\.orders-filter-option\[aria-pressed="true"\]:not\(:disabled\):hover/)
+})
+
+test('history dialog tabs, receipts and close control expose hover feedback', () => {
+  assert.match(historySource, /className="order-history-action order-history-tab" aria-pressed=/)
+  assert.match(historySource, /className="order-history-action order-history-receipt"/)
+  assert.match(historySource, /className="order-history-action order-history-close"/)
+  assert.match(historySource, /\.order-history-tab:not\(:disabled\):hover/)
+  assert.match(historySource, /\.order-history-tab\[aria-pressed="true"\]:not\(:disabled\):hover/)
+  assert.match(historySource, /\.order-history-receipt:not\(:disabled\):hover/)
+  assert.match(historySource, /\.order-history-close:not\(:disabled\):hover/)
+  assert.match(historySource, /@media \(prefers-reduced-motion: reduce\)/)
 })
