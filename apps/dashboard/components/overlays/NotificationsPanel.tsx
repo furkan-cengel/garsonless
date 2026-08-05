@@ -112,7 +112,57 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
       onClick={onClose}
       style={{ position: 'fixed', inset: 0, zIndex: 95, background: 'rgba(17,17,19,.2)' }}
     >
+      <style>{`
+        .dashboard-notification-history-row {
+          position: relative;
+          transition: background-color 140ms ease, box-shadow 140ms ease;
+        }
+        .dashboard-notification-history-row[data-interactive="true"]:hover {
+          background: var(--surface-inset) !important;
+          box-shadow: inset 3px 0 0 var(--action);
+        }
+        .dashboard-notification-history-row[data-interactive="true"]:focus-visible {
+          background: var(--surface-inset) !important;
+          box-shadow: inset 3px 0 0 var(--action);
+          outline: 2px solid var(--focus-ring, var(--text));
+          outline-offset: -2px;
+        }
+        .dashboard-notification-footer-action {
+          min-height: 36px;
+          padding: 0 14px;
+          border-radius: 8px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+          transition: background-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+        }
+        .dashboard-notification-footer-action:hover {
+          background: var(--surface-inset) !important;
+          box-shadow: inset 0 0 0 1px var(--border-strong), 0 2px 8px rgba(17, 17, 19, .08);
+          transform: translateY(-1px);
+        }
+        .dashboard-notification-footer-arrow {
+          display: inline-flex;
+          transition: transform 140ms ease;
+        }
+        .dashboard-notification-footer-action:hover .dashboard-notification-footer-arrow {
+          transform: translateX(3px);
+        }
+        .dashboard-notification-footer-action:active { transform: translateY(0) scale(.98); }
+        .dashboard-notification-footer-action:focus-visible {
+          background: var(--surface-inset) !important;
+          outline: 2px solid var(--focus-ring, var(--text));
+          outline-offset: 1px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .dashboard-notification-history-row,
+          .dashboard-notification-footer-action,
+          .dashboard-notification-footer-arrow { transition: none !important; }
+        }
+      `}</style>
       <div
+        className="dashboard-notifications-panel"
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'absolute', right: 16, top: 56,
@@ -222,14 +272,24 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
               {inboxItems.map((n) => {
                 const unread = !n.readAt
                 const critical = n.severity === 'critical'
+                const interactive = unread || Boolean(n.linkPath)
                 return (
                   <div
                     key={n.id}
-                    onClick={() => void handleInboxClick(n)}
+                    className="dashboard-notification-history-row"
+                    data-interactive={interactive}
+                    role={interactive ? 'button' : undefined}
+                    tabIndex={interactive ? 0 : undefined}
+                    onClick={interactive ? () => void handleInboxClick(n) : undefined}
+                    onKeyDown={interactive ? (event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return
+                      event.preventDefault()
+                      void handleInboxClick(n)
+                    } : undefined}
                     style={{
                       padding: '10px 16px', display: 'flex', gap: 10,
                       borderBottom: '1px solid var(--divider)',
-                      cursor: n.linkPath ? 'pointer' : 'default',
+                      cursor: interactive ? 'pointer' : 'default',
                       alignItems: 'center',
                       background: unread ? 'var(--surface-2)' : 'transparent',
                     }}
@@ -267,13 +327,14 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
             )}
             <button
               type="button"
+              className="dashboard-notification-footer-action"
               onClick={goToOrders}
               style={{
                 background: 'transparent', border: 'none', cursor: 'pointer',
                 fontSize: 12, fontWeight: 600, color: 'var(--text)',
               }}
             >
-              Tümünü gör →
+              Tümünü gör <span className="dashboard-notification-footer-arrow" aria-hidden="true">→</span>
             </button>
           </div>
         </div>

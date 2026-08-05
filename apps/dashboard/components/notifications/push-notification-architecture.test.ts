@@ -81,3 +81,15 @@ test('order inbox self-heal is member-gated and aggregate-scoped', () => {
   assert.match(port, /\.eq\('aggregate_id', input\.aggregateId\)/)
   assert.match(port, /\.eq\('consumer', DASHBOARD_INBOX_CONSUMER\)/)
 })
+
+test('notification history and footer expose visible pointer and keyboard feedback', () => {
+  const panel = source('../overlays/NotificationsPanel.tsx')
+  assert.match(panel, /className="dashboard-notification-history-row"/)
+  assert.match(panel, /data-interactive=\{interactive\}/)
+  assert.match(panel, /role=\{interactive \? 'button' : undefined\}/)
+  assert.match(panel, /event\.key !== 'Enter' && event\.key !== ' '/)
+  assert.match(panel, /\.dashboard-notification-history-row\[data-interactive="true"\]:hover/)
+  assert.match(panel, /className="dashboard-notification-footer-action"/)
+  assert.match(panel, /\.dashboard-notification-footer-action:hover/)
+  assert.match(panel, /\.dashboard-notification-footer-action:hover \.dashboard-notification-footer-arrow/)
+})
