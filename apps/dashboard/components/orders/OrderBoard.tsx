@@ -594,7 +594,7 @@ function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, s
 
       </div>
       <div style={{ borderTop: '1px solid var(--divider)', padding: '10px 14px', background: 'var(--surface-2)' }}>
-        <button className="orders-touch-target" onClick={onHistory} style={{ ...btnGhost(), width: '100%', justifyContent: 'center' }}>
+        <button className="orders-touch-target orders-action-secondary" onClick={onHistory} style={{ ...btnGhost(), width: '100%', justifyContent: 'center' }}>
           <I.history size={13} />Geçmiş siparişler
         </button>
       </div>
@@ -681,8 +681,11 @@ const ORDERS_RESPONSIVE_CSS = `
 .order-card-open:focus-visible { border-radius: 9px; outline-offset: -3px !important; }
 
 .orders-topbar-action,
+.orders-action-secondary,
 .order-card-action,
-.order-detail-action {
+.order-detail-action,
+.orders-density-option,
+.orders-filter-option {
   transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, filter 140ms ease, transform 140ms ease;
 }
 .orders-action-secondary:not(:disabled):hover,
@@ -714,9 +717,30 @@ const ORDERS_RESPONSIVE_CSS = `
   box-shadow: 0 4px 12px color-mix(in srgb, var(--critical) 18%, transparent);
   transform: translateY(-1px);
 }
+.orders-density-option:not(:disabled):hover {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-1);
+  transform: translateY(-1px);
+}
+.orders-density-option[aria-pressed="true"]:not(:disabled):hover {
+  filter: brightness(.94);
+}
+.orders-filter-option:not(:disabled):hover {
+  background: var(--surface-3) !important;
+  transform: translateX(2px);
+}
+.orders-filter-option[aria-pressed="true"]:not(:disabled):hover {
+  background: var(--surface-inset) !important;
+  box-shadow: inset 0 0 0 1px var(--border);
+  filter: brightness(.94);
+}
 .orders-topbar-action:not(:disabled):active,
+.orders-action-secondary:not(:disabled):active,
 .order-card-action:not(:disabled):active,
-.order-detail-action:not(:disabled):active {
+.order-detail-action:not(:disabled):active,
+.orders-density-option:not(:disabled):active,
+.orders-filter-option:not(:disabled):active {
   box-shadow: none;
   transform: translateY(0);
 }
@@ -1248,11 +1272,11 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
           <div className="orders-board-toolbar" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
             <div role="group" aria-label="Sipariş kartı yoğunluğu" style={{ display: 'inline-flex', padding: 3, gap: 2, borderRadius: 8, background: 'var(--surface-3)' }}>
               {([['comfortable', 'Rahat'], ['compact', 'Kompakt'], ['dense', 'Yoğun']] as const).map(([value, label]) => (
-                <button className="orders-touch-target" key={value} type="button" aria-pressed={density === value} onClick={() => changeDensity(value)} style={{ height: 32, padding: '0 9px', border: 0, borderRadius: 6, background: density === value ? 'var(--surface)' : 'transparent', color: density === value ? 'var(--text)' : 'var(--text-3)', boxShadow: density === value ? 'var(--shadow-1)' : 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: density === value ? 650 : 500 }}>{label}</button>
+                <button className="orders-touch-target orders-density-option" key={value} type="button" aria-pressed={density === value} onClick={() => changeDensity(value)} style={{ height: 32, padding: '0 9px', border: 0, borderRadius: 6, background: density === value ? 'var(--surface)' : 'transparent', color: density === value ? 'var(--text)' : 'var(--text-3)', boxShadow: density === value ? 'var(--shadow-1)' : 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: density === value ? 650 : 500 }}>{label}</button>
               ))}
             </div>
             {closedCount > 0 && filter !== 'done' && filter !== 'cancelled' && (
-              <button className="orders-touch-target" type="button" aria-expanded={!closedCollapsed} onClick={() => setClosedCollapsed(value => !value)} style={{ ...btnGhost(), height: 36 }}>
+              <button className="orders-touch-target orders-action-secondary" type="button" aria-expanded={!closedCollapsed} onClick={() => setClosedCollapsed(value => !value)} style={{ ...btnGhost(), height: 36 }}>
                 {closedCollapsed ? <I.eye size={13} /> : <I.eyeOff size={13} />}
                 {closedCollapsed ? `Kapananı göster (${closedCount})` : 'Kapananı gizle'}
               </button>

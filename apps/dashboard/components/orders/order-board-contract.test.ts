@@ -42,3 +42,12 @@ test('order actions expose contextual hover feedback without animating disabled 
   assert.match(boardSource, /\.order-card-action\[data-order-action-tone="prep"\]:not\(:disabled\):hover/)
   assert.match(boardSource, /@media \(prefers-reduced-motion: reduce\)/)
 })
+
+test('density, closed-order, source and history controls expose hover feedback', () => {
+  assert.match(boardSource, /orders-touch-target orders-density-option/)
+  assert.match(boardSource, /orders-touch-target orders-action-secondary[\s\S]{0,300}Kapananı/)
+  assert.match(boardSource, /orders-touch-target orders-action-secondary[\s\S]{0,300}Geçmiş siparişler/)
+  assert.match(boardSource, /\.orders-density-option:not\(:disabled\):hover/)
+  assert.match(boardSource, /\.orders-filter-option:not\(:disabled\):hover/)
+  assert.match(boardSource, /\.orders-filter-option\[aria-pressed="true"\]:not\(:disabled\):hover/)
+})
