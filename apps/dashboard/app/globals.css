@@ -408,12 +408,16 @@ button, input, select, textarea { font-family: inherit; }
 .menu-manager a:hover { text-decoration-thickness: 2px; }
 .menu-manager button:not(:disabled):active { transform: translateY(1px); }
 .menu-manager button:focus-visible,
-.menu-manager [role="button"]:focus-visible,
+.menu-manager [role="button"]:focus-visible {
+  outline: 2px solid var(--text) !important;
+  outline-offset: 2px;
+}
 .menu-manager input:focus-visible,
 .menu-manager textarea:focus-visible,
 .menu-manager select:focus-visible {
-  outline: 2px solid var(--text) !important;
-  outline-offset: 2px;
+  outline: none !important;
+  outline-offset: 0;
+  box-shadow: none !important;
 }
 .menu-search-control,
 .nutrition-macro-field {

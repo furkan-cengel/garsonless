@@ -157,6 +157,8 @@ test('menu search and nutrition macros replace black input outlines with surface
   assert.match(chromeSource, /className="menu-search-input"/)
   assert.match(nutritionSource, /className="nutrition-macro-field"/)
   assert.match(nutritionSource, /className="nutrition-macro-input"/)
+  assert.match(globalStylesSource, /\.menu-manager input:focus-visible,[\s\S]*?outline: none !important;/)
+  assert.doesNotMatch(globalStylesSource, /\.menu-manager input:focus-visible,[^{]*\{[^}]*outline: 2px solid/)
   assert.match(globalStylesSource, /\.menu-manager \.menu-search-input:focus-visible,[\s\S]*outline: none !important;/)
   assert.match(globalStylesSource, /\.menu-search-control:focus-within \{[\s\S]*background: var\(--surface-inset\) !important;/)
   assert.match(globalStylesSource, /\.nutrition-macro-field:focus-within \{[\s\S]*background: var\(--surface-2\) !important;/)
