@@ -14,6 +14,8 @@ export default function PanoStyles() {
     }
     .page-topbar--pano .page-topbar-restaurant { min-height: 44px; }
     .page-topbar--pano .page-topbar-notification { width: 44px !important; height: 44px !important; }
+    .page-topbar--pano .pano-action-primary { position: relative; min-height: 30px; }
+    .page-topbar--pano .pano-action-primary::after { content: ''; position: absolute; inset: -7px 0; }
     .pano-action:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
     .pano-action-primary:hover { filter: brightness(1.15); }
     .pano-action-secondary:hover { background: var(--surface-2) !important; border-color: var(--border-strong) !important; }

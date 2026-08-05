@@ -72,7 +72,9 @@ export default function PageTopBar({ restaurantName, title, className, tag, cent
           }}
         >
           <span className="page-topbar-restaurant-name">{restaurantName}</span>
-          <I.chevDown size={13} />
+          <span className="page-topbar-restaurant-chevron" aria-hidden="true">
+            <I.chevDown size={13} />
+          </span>
         </button>
 
         <span className="page-topbar-separator" style={{ color: 'var(--text-4)', fontSize: 13 }}>/</span>
