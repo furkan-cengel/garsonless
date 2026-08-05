@@ -274,7 +274,6 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
                         role="img"
                         tabIndex={count > 0 ? 0 : -1}
                         aria-label={label}
-                        title={label}
                         onMouseEnter={(event) => showMouseTooltip(event, key, day, hour, count)}
                         onMouseLeave={() => setTooltip((current) => current?.key === key ? null : current)}
                         onFocus={(event) => showFocusTooltip(event, key, day, hour, count)}

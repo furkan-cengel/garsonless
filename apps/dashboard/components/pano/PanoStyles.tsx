@@ -7,7 +7,8 @@ export default function PanoStyles() {
     .pano-main-grid, .pano-wide-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 12px; margin-bottom: 12px; }
     .pano-lower-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
     .pano-wide-grid { margin-bottom: 0; }
-    .pano-heatmap-scroll, .pano-data-table-scroll { min-width: 0; overflow-x: auto; padding-bottom: 2px; }
+    .pano-heatmap-scroll { min-width: 0; overflow-x: auto; overflow-y: hidden; padding-block: 6px; }
+    .pano-data-table-scroll { min-width: 0; overflow-x: auto; padding-bottom: 2px; }
     .pano-heatmap-cell { position: relative; display: block; transition: transform 120ms ease, box-shadow 120ms ease; }
     .pano-heatmap-cell[tabindex="0"]:hover, .pano-heatmap-cell:focus-visible { z-index: 2; transform: scale(1.12); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); outline: none; }
     .pano-heatmap-tooltip { position: fixed; z-index: 130; min-width: 132px; padding: 8px 10px; border-radius: 8px; display: flex; flex-direction: column; gap: 2px; transform: translate(-50%, -100%); pointer-events: none; color: #fff; background: rgba(17,17,19,.96); box-shadow: var(--shadow-pop); font-size: 11px; line-height: 1.35; }
