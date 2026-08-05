@@ -15,6 +15,7 @@ const modifierEditorSource = readFileSync(`${directory}/MenuModifierGroupEditor.
 const shellStateSource = readFileSync(`${directory}/use-menu-manager-shell-state.ts`, 'utf8')
 const chromeSource = readFileSync(`${directory}/MenuManagerChrome.tsx`, 'utf8')
 const categoryWorkspaceSource = readFileSync(`${directory}/MenuCategoryWorkspace.tsx`, 'utf8')
+const nutritionSource = readFileSync(`${directory}/NutritionFields.tsx`, 'utf8')
 const globalStylesSource = readFileSync(`${directory}/../../app/globals.css`, 'utf8')
 const saveFeedbackSource = readFileSync(`${directory}/use-menu-save-feedback.ts`, 'utf8')
 
@@ -149,6 +150,16 @@ test('live menu manager keeps desktop controls compact and touch targets accessi
   assert.match(chromeSource, /height: 32, padding: '0 12px'/)
   assert.match(itemsWorkspaceSource, /width: 26, height: 26, borderRadius: 6/)
   assert.match(newProductDrawerSource, /const btnGhost: React\.CSSProperties = \{ height: 36/)
+})
+
+test('menu search and nutrition macros replace black input outlines with surface feedback', () => {
+  assert.match(chromeSource, /className="menu-search-control"/)
+  assert.match(chromeSource, /className="menu-search-input"/)
+  assert.match(nutritionSource, /className="nutrition-macro-field"/)
+  assert.match(nutritionSource, /className="nutrition-macro-input"/)
+  assert.match(globalStylesSource, /\.menu-manager \.menu-search-input:focus-visible,[\s\S]*outline: none !important;/)
+  assert.match(globalStylesSource, /\.menu-search-control:focus-within \{[\s\S]*background: var\(--surface-inset\) !important;/)
+  assert.match(globalStylesSource, /\.nutrition-macro-field:focus-within \{[\s\S]*background: var\(--surface-2\) !important;/)
 })
 
 test('MenuManager stays below its shell-state and chrome strangler decomposition budget', () => {

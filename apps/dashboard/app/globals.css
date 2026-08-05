@@ -415,6 +415,24 @@ button, input, select, textarea { font-family: inherit; }
   outline: 2px solid var(--text) !important;
   outline-offset: 2px;
 }
+.menu-search-control,
+.nutrition-macro-field {
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+.menu-manager .menu-search-input:focus-visible,
+.menu-manager .nutrition-macro-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+.menu-search-control:focus-within {
+  background: var(--surface-inset) !important;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.nutrition-macro-field:focus-within {
+  border-color: var(--border-strong) !important;
+  background: var(--surface-2) !important;
+  box-shadow: none;
+}
 .menu-manager button:disabled { cursor: not-allowed !important; }
 
 @media (prefers-reduced-motion: reduce) {

@@ -146,10 +146,10 @@ function NSection({ title, hint, right, first, children }: { title: string; hint
 
 function MacroInput({ label, value, onChange, suffix, accent }: { label: string; value: string; onChange: (v: string) => void; suffix: string; accent?: boolean }) {
   return (
-    <div style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 9, padding: '7px 10px', background: 'var(--surface)' }}>
+    <div className="nutrition-macro-field" style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 9, padding: '7px 10px', background: 'var(--surface)' }}>
       <div style={{ fontSize: 9.5, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-3)', fontWeight: 600 }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, marginTop: 2 }}>
-        <input value={value} onChange={(e) => onChange(normalizeMenuNumericText(e.target.value))} placeholder="—"
+        <input className="nutrition-macro-input" aria-label={label} value={value} onChange={(e) => onChange(normalizeMenuNumericText(e.target.value))} placeholder="—"
           style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontFamily: "'Geist Mono', monospace", fontSize: 15, fontWeight: 700, color: accent ? 'var(--accent)' : 'var(--text)', padding: 0 }} />
         <span style={{ fontSize: 10, color: 'var(--text-4)', flexShrink: 0 }}>{suffix}</span>
       </div>
