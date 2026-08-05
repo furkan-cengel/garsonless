@@ -142,10 +142,13 @@ test('empty menu actions route to category creation before product creation', ()
   assert.match(chromeSource, /requiresCategory \? 'Kategori ekle' : 'Yeni ürün'/)
 })
 
-test('live menu manager enforces the 44px interaction target contract', () => {
+test('live menu manager keeps desktop controls compact and touch targets accessible', () => {
   assert.match(managerSource, /className="menu-manager"/)
-  assert.match(globalStylesSource, /\.menu-manager button,[\s\S]*min-height: 44px/)
-  assert.match(globalStylesSource, /button\[aria-label\],[\s\S]*min-width: 44px/)
+  assert.match(globalStylesSource, /@media \(pointer: coarse\) \{[\s\S]*\.menu-manager button,[\s\S]*min-height: 44px/)
+  assert.match(globalStylesSource, /@media \(pointer: coarse\) \{[\s\S]*button\[aria-label\],[\s\S]*min-width: 44px/)
+  assert.match(chromeSource, /height: 32, padding: '0 12px'/)
+  assert.match(itemsWorkspaceSource, /width: 26, height: 26, borderRadius: 6/)
+  assert.match(newProductDrawerSource, /const btnGhost: React\.CSSProperties = \{ height: 36/)
 })
 
 test('MenuManager stays below its shell-state and chrome strangler decomposition budget', () => {

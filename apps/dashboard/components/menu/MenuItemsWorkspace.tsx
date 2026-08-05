@@ -286,7 +286,7 @@ function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, sel
                 onClick={e => { e.stopPropagation(); onToggleAvailable?.() }}
                 title={item.is_available ? 'Pasife al' : 'Aktife al'}
                 style={{
-                  width: 44, height: 44, borderRadius: 8, border: 'none', cursor: 'pointer', pointerEvents: 'auto',
+                  width: 26, height: 26, borderRadius: 6, border: 'none', cursor: 'pointer', pointerEvents: 'auto',
                   background: item.is_available ? 'var(--surface)' : 'var(--warning-bg)',
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   boxShadow: 'var(--shadow-1)',
@@ -324,7 +324,7 @@ function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, sel
               onKeyDown={e => { if (e.key === 'Enter') commitPrice(); if (e.key === 'Escape') setEditingPrice(false) }}
               onClick={e => e.stopPropagation()}
               style={{
-                width: 82, height: 44, padding: '2px 6px', fontWeight: 700, fontSize: 13,
+                width: 72, padding: '2px 6px', fontWeight: 700, fontSize: 13,
                 border: '1px solid var(--action)', borderRadius: 5, outline: 'none',
                 background: 'var(--surface-2)', color: 'var(--text)',
                 fontFamily: "'Geist Mono', monospace",
@@ -336,7 +336,7 @@ function ItemCard({ item, active, onClick, onPriceUpdate, onToggleAvailable, sel
               aria-label={`${item.name} fiyatını düzenle`}
               title="Düzenlemek için tıkla"
               onClick={e => { e.stopPropagation(); setEditingPrice(true); setPriceVal(String(item.price)) }}
-              style={{ minWidth: 44, minHeight: 44, padding: 0, border: 0, background: 'transparent', color: 'inherit', textAlign: 'left', fontWeight: 700, fontSize: 14, cursor: 'text' }}
+              style={{ padding: 0, border: 0, background: 'transparent', color: 'inherit', textAlign: 'left', fontWeight: 700, fontSize: 14, cursor: 'text' }}
             >₺{item.price}</button>
           )}
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -429,7 +429,7 @@ function ItemsList({ items, selected, selectedIds, onToggleSelected, onSelect, h
   return (
     <div style={{ background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
       <div style={{
-        display: 'grid', gridTemplateColumns: '44px 40px 1fr 90px 70px',
+        display: 'grid', gridTemplateColumns: '24px 40px 1fr 90px 70px',
         padding: '10px 14px', borderBottom: '1px solid var(--divider)',
         background: 'var(--surface-2)', fontSize: 11, color: 'var(--text-3)',
         fontWeight: 500, letterSpacing: '.05em', textTransform: 'uppercase',
@@ -447,12 +447,12 @@ function ItemsList({ items, selected, selectedIds, onToggleSelected, onSelect, h
           <div
             key={item.id}
             style={{
-              display: 'grid', gridTemplateColumns: '44px 1fr', alignItems: 'center',
+              display: 'grid', gridTemplateColumns: '24px 1fr', alignItems: 'center',
               padding: '10px 14px', borderBottom: '1px solid var(--divider)',
               background: selected?.id === item.id ? 'var(--surface-inset)' : 'transparent',
             }}
           >
-            <label style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+            <label style={{ width: 24, height: 24, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
               <input
                 type="checkbox"
                 aria-label={`${item.name} ürününü seç`}

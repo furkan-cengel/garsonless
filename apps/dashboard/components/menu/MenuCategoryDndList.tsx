@@ -222,7 +222,7 @@ function CategoryRow({ id: _id, name, count, active, onClick, onEdit, onDelete, 
         <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: active ? 600 : 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
       </button>
       <span style={{ ...S.mono, width: 20, textAlign: 'right', fontSize: 10.5, color: 'var(--text-3)', flexShrink: 0 }}>{count}</span>
-      <span style={{ minWidth: 90, minHeight: 44, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
+      <span style={{ minWidth: 42, height: 24, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
         {showActions ? (
           <>
             <button
@@ -273,10 +273,7 @@ function SortableCategoryRow(props: {
               cursor: 'grab',
               color: 'var(--text-4)',
               display: 'inline-flex',
-              width: 44,
-              height: 44,
-              alignItems: 'center',
-              justifyContent: 'center',
+              padding: 2,
               touchAction: 'none',
             }}
             aria-label="Sırala"

@@ -44,7 +44,7 @@ export function MenuManagerTopBar({
       center={(
         <div style={{
           width: 'min(420px, 34vw)', minWidth: 300, display: 'flex', alignItems: 'center', gap: 8,
-          height: 44, padding: '0 12px',
+          height: 32, padding: '0 12px',
           background: 'var(--surface-3)', borderRadius: 8, color: 'var(--text-3)',
         }}>
           <I.search size={14} />

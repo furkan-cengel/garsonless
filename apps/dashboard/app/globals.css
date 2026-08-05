@@ -80,18 +80,20 @@ button, input, select, textarea { font-family: inherit; }
 .menu-manager button:not(:disabled) {
   transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease, opacity 120ms ease;
 }
-.menu-manager button,
-.menu-manager [role="button"] {
-  min-height: 44px;
-}
-.menu-manager button[aria-label],
-.menu-manager [role="button"][aria-label] {
-  min-width: 44px;
-}
-.menu-manager input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
-.menu-manager select,
-.menu-manager textarea {
-  min-height: 44px;
+@media (pointer: coarse) {
+  .menu-manager button,
+  .menu-manager [role="button"] {
+    min-height: 44px;
+  }
+  .menu-manager button[aria-label],
+  .menu-manager [role="button"][aria-label] {
+    min-width: 44px;
+  }
+  .menu-manager input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .menu-manager select,
+  .menu-manager textarea {
+    min-height: 44px;
+  }
 }
 .menu-manager button:not(:disabled):hover {
   filter: brightness(.97);

@@ -350,7 +350,7 @@ function CategoryRow({
         <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: active ? 600 : 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
       </button>
       <span style={{ ...S.mono, width: 20, textAlign: 'right', fontSize: 10.5, color: 'var(--text-3)', flexShrink: 0 }}>{count}</span>
-      <span style={{ minWidth: 90, minHeight: 44, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
+      <span style={{ minWidth: 42, height: 24, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
         {showActions ? (
           <>
             <button type="button" aria-label="Düzenle" onClick={onEdit} style={{ color: 'var(--text-2)', display: 'inline-flex', padding: 4, border: 0, background: 'transparent', borderRadius: 4, cursor: 'pointer' }}><I.gear size={13} /></button>

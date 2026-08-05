@@ -99,9 +99,9 @@ export function MenuItemRecommendationEditor({
                   <div style={{ marginTop: 2, fontSize: 10.5, color: item.is_available ? 'var(--positive)' : 'var(--text-3)' }}>{item.is_available ? 'Yayında' : 'Pasif · müşteriye gizli'}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 3 }}>
-                  <button type="button" aria-label={`${item.name} yukarı taşı`} disabled={index === 0} onClick={() => move(index, -1)} style={btnGhost({ width: 44, height: 44, padding: 0, justifyContent: 'center' })}><I.chevRight size={13} style={{ transform: 'rotate(-90deg)' }} /></button>
-                  <button type="button" aria-label={`${item.name} aşağı taşı`} disabled={index === selectedIds.length - 1} onClick={() => move(index, 1)} style={btnGhost({ width: 44, height: 44, padding: 0, justifyContent: 'center' })}><I.chevRight size={13} style={{ transform: 'rotate(90deg)' }} /></button>
-                  <button type="button" aria-label={`${item.name} önerisini kaldır`} onClick={() => changeSelection((current) => current.filter((entry) => entry !== id))} style={btnGhost({ width: 44, height: 44, padding: 0, justifyContent: 'center', color: 'var(--critical)' })}><I.close size={13} /></button>
+                  <button type="button" aria-label={`${item.name} yukarı taşı`} disabled={index === 0} onClick={() => move(index, -1)} style={btnGhost({ width: 30, height: 30, padding: 0, justifyContent: 'center' })}><I.chevRight size={13} style={{ transform: 'rotate(-90deg)' }} /></button>
+                  <button type="button" aria-label={`${item.name} aşağı taşı`} disabled={index === selectedIds.length - 1} onClick={() => move(index, 1)} style={btnGhost({ width: 30, height: 30, padding: 0, justifyContent: 'center' })}><I.chevRight size={13} style={{ transform: 'rotate(90deg)' }} /></button>
+                  <button type="button" aria-label={`${item.name} önerisini kaldır`} onClick={() => changeSelection((current) => current.filter((entry) => entry !== id))} style={btnGhost({ width: 30, height: 30, padding: 0, justifyContent: 'center', color: 'var(--critical)' })}><I.close size={13} /></button>
                 </div>
               </div>
             )
@@ -114,7 +114,7 @@ export function MenuItemRecommendationEditor({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Ürün ara ve ekle…"
-            style={{ width: '100%', height: 44, border: '1px solid var(--border)', borderRadius: 7, padding: '0 10px', background: 'var(--surface)', color: 'var(--text)', fontSize: 12, outline: 'none' }}
+            style={{ width: '100%', height: 32, border: '1px solid var(--border)', borderRadius: 7, padding: '0 10px', background: 'var(--surface)', color: 'var(--text)', fontSize: 12, outline: 'none' }}
           />
           {query.trim() && (
             <div style={{ marginTop: 5, maxHeight: 150, overflowY: 'auto', border: '1px solid var(--divider)', borderRadius: 8, background: 'var(--surface)' }}>

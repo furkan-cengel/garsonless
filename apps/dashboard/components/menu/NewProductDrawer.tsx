@@ -170,7 +170,7 @@ export default function NewProductDrawer({
               <div id="new-product-title" style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-.01em', color: 'var(--text)' }}>Yeni ürün ekle</div>
               <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>Adım {step}/3 · {categoryName} kategorisine</div>
             </div>
-            <button className="new-product-close" type="button" disabled={pending} onClick={requestClose} aria-label="Yeni ürün penceresini kapat" style={{ width: 44, height: 44, borderRadius: 9, background: 'var(--surface-2)', color: 'var(--text-3)', display: 'grid', placeItems: 'center', border: '1px solid var(--border)', cursor: pending ? 'not-allowed' : 'pointer' }}>{icX}</button>
+            <button className="new-product-close" type="button" disabled={pending} onClick={requestClose} aria-label="Yeni ürün penceresini kapat" style={{ width: 30, height: 30, borderRadius: 7, background: 'var(--surface-2)', color: 'var(--text-3)', display: 'grid', placeItems: 'center', border: '1px solid var(--border)', cursor: pending ? 'not-allowed' : 'pointer' }}>{icX}</button>
           </div>
           <div className="new-product-steps" aria-label={`3 adımın ${step}. adımı`}>
             {['Temel bilgiler', 'Gıda bilgileri', 'Yayın ayarları'].map((label, index) => {
@@ -268,10 +268,10 @@ const inp = (height?: number, fontSize = 12.5): React.CSSProperties => ({
   width: '100%', height: height ?? 32, padding: '0 10px', border: '1px solid var(--border-strong)', borderRadius: 7,
   background: 'var(--surface)', fontSize, outline: 'none', color: 'var(--text)', fontFamily: 'inherit',
 })
-const btnGhost: React.CSSProperties = { minHeight: 44, padding: '0 14px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, border: '1px solid var(--border-strong)', cursor: 'pointer' }
-const btnPrimary: React.CSSProperties = { minHeight: 44, padding: '0 16px', borderRadius: 8, background: 'var(--action)', color: 'var(--on-action)', fontSize: 12.5, fontWeight: 600, border: 'none', display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer' }
+const btnGhost: React.CSSProperties = { height: 36, padding: '0 14px', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600, border: '1px solid var(--border-strong)', cursor: 'pointer' }
+const btnPrimary: React.CSSProperties = { height: 36, padding: '0 16px', borderRadius: 8, background: 'var(--action)', color: 'var(--on-action)', fontSize: 12.5, fontWeight: 600, border: 'none', display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer' }
 const segment = (active: boolean): React.CSSProperties => ({
-  minHeight: 44,
+  height: 32,
   borderRadius: 7,
   border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
   background: active ? 'var(--text)' : 'var(--surface)',
