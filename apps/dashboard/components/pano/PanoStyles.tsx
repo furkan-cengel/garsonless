@@ -8,6 +8,11 @@ export default function PanoStyles() {
     .pano-lower-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
     .pano-wide-grid { margin-bottom: 0; }
     .pano-heatmap-scroll, .pano-data-table-scroll { min-width: 0; overflow-x: auto; padding-bottom: 2px; }
+    .pano-heatmap-cell { position: relative; display: block; transition: transform 120ms ease, box-shadow 120ms ease; }
+    .pano-heatmap-cell[tabindex="0"]:hover, .pano-heatmap-cell:focus-visible { z-index: 2; transform: scale(1.12); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); outline: none; }
+    .pano-heatmap-tooltip { position: fixed; z-index: 130; min-width: 132px; padding: 8px 10px; border-radius: 8px; display: flex; flex-direction: column; gap: 2px; transform: translate(-50%, -100%); pointer-events: none; color: #fff; background: rgba(17,17,19,.96); box-shadow: var(--shadow-pop); font-size: 11px; line-height: 1.35; }
+    .pano-heatmap-tooltip strong { font-size: 11.5px; font-weight: 700; }
+    .pano-heatmap-tooltip span { color: rgba(255,255,255,.72); }
     .pano-action, .pano-range-action, .pano-attention-action, .pano-data-toggle {
       min-height: 44px;
       transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease, border-color 140ms ease, opacity 140ms ease;

@@ -1,4 +1,6 @@
-import { Fragment, type ReactNode } from 'react'
+'use client'
+
+import { Fragment, useState, type FocusEvent, type MouseEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import { EmptyState, I, S } from '../../lib/ui'
 import type { HeatmapCell, PanoAttentionItem, TopItem } from '../../lib/queries/pano'
@@ -191,6 +193,14 @@ const HEATMAP_HOURS = Array.from({ length: 15 }, (_, index) => index + 8)
 
 export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
   const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
+  const [tooltip, setTooltip] = useState<{
+    key: string
+    day: string
+    hour: number
+    count: number
+    x: number
+    y: number
+  } | null>(null)
   const grid: Record<string, number> = {}
   let maximum = 0
   let peakDay = 0
@@ -204,6 +214,34 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
     }
   }
 
+  const showTooltip = (
+    target: HTMLElement,
+    key: string,
+    day: string,
+    hour: number,
+    count: number,
+  ) => {
+    if (count === 0) return
+    const bounds = target.getBoundingClientRect()
+    const viewportWidth = target.ownerDocument.defaultView?.innerWidth ?? 320
+    setTooltip({
+      key,
+      day,
+      hour,
+      count,
+      x: Math.max(88, Math.min(bounds.left + bounds.width / 2, viewportWidth - 88)),
+      y: bounds.top - 8,
+    })
+  }
+
+  const showMouseTooltip = (event: MouseEvent<HTMLSpanElement>, key: string, day: string, hour: number, count: number) => {
+    showTooltip(event.currentTarget, key, day, hour, count)
+  }
+
+  const showFocusTooltip = (event: FocusEvent<HTMLSpanElement>, key: string, day: string, hour: number, count: number) => {
+    showTooltip(event.currentTarget, key, day, hour, count)
+  }
+
   return (
     <PanoCard title="Yoğun saatler" subtitle="Son 30 gün · sipariş yoğunluğu">
       {maximum === 0 ? (
@@ -213,7 +251,7 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
           <p role="status" style={{ margin: '0 0 10px', fontSize: 11.5, color: 'var(--text-2)' }}>
             En yoğun zaman: <strong>{days[peakDay]} {String(peakHour).padStart(2, '0')}:00</strong> · {maximum} sipariş
           </p>
-          <div className="pano-heatmap-scroll" aria-hidden="true">
+          <div className="pano-heatmap-scroll">
             <div style={{ minWidth: 300, display: 'grid', gridTemplateColumns: `auto repeat(${HEATMAP_HOURS.length}, 1fr)`, gap: 1.5, alignItems: 'center' }}>
               <span />
               {HEATMAP_HOURS.map((hour) => (
@@ -227,13 +265,24 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
                   {HEATMAP_HOURS.map((hour) => {
                     const count = grid[`${dayIndex}-${hour}`] ?? 0
                     const intensity = count / maximum
+                    const key = `${day}-${hour}`
+                    const label = `${day} ${String(hour).padStart(2, '0')}:00 · ${count} sipariş`
                     return (
-                      <div
-                        key={`${day}-${hour}`}
-                        title={`${day} ${String(hour).padStart(2, '0')}:00 · ${count} sipariş`}
+                      <span
+                        key={key}
+                        className="pano-heatmap-cell"
+                        role="img"
+                        tabIndex={count > 0 ? 0 : -1}
+                        aria-label={label}
+                        title={label}
+                        onMouseEnter={(event) => showMouseTooltip(event, key, day, hour, count)}
+                        onMouseLeave={() => setTooltip((current) => current?.key === key ? null : current)}
+                        onFocus={(event) => showFocusTooltip(event, key, day, hour, count)}
+                        onBlur={() => setTooltip((current) => current?.key === key ? null : current)}
                         style={{
                           aspectRatio: '1', borderRadius: 1.5,
                           background: count === 0 ? 'var(--surface-3)' : `rgba(47, 111, 78, ${0.18 + intensity * 0.82})`,
+                          cursor: count > 0 ? 'help' : 'default',
                         }}
                       />
                     )
@@ -242,6 +291,16 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
               ))}
             </div>
           </div>
+          {tooltip && (
+            <div
+              role="tooltip"
+              className="pano-heatmap-tooltip"
+              style={{ left: tooltip.x, top: tooltip.y }}
+            >
+              <strong>{tooltip.day} {String(tooltip.hour).padStart(2, '0')}:00</strong>
+              <span>{tooltip.count} sipariş</span>
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 11, color: 'var(--text-3)' }}>
             <span>Az</span>
             <div style={{ display: 'flex', gap: 2, flex: 1, margin: '0 8px', maxWidth: 100 }}>

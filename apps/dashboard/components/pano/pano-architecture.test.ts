@@ -159,3 +159,15 @@ test('Pano table navigation has hover feedback and chart ranges stay visually co
   assert.match(stylesSource, /\.pano-chart-ranges \.pano-range-action \{ position: relative; min-height: 26px; \}/)
   assert.match(stylesSource, /\.pano-range-action::after \{[^}]*inset: -9px 0;/)
 })
+
+test('Pano peak-hour cells expose hover and keyboard tooltips', () => {
+  assert.doesNotMatch(widgetSource, /className="pano-heatmap-scroll" aria-hidden/)
+  assert.match(widgetSource, /className="pano-heatmap-cell"/)
+  assert.match(widgetSource, /tabIndex=\{count > 0 \? 0 : -1\}/)
+  assert.match(widgetSource, /onMouseEnter=/)
+  assert.match(widgetSource, /onFocus=/)
+  assert.match(widgetSource, /role="tooltip"/)
+  assert.match(widgetSource, /<span>\{tooltip\.count\} sipariş<\/span>/)
+  assert.match(stylesSource, /\.pano-heatmap-cell\[tabindex="0"\]:hover/)
+  assert.match(stylesSource, /\.pano-heatmap-tooltip \{ position: fixed;/)
+})
