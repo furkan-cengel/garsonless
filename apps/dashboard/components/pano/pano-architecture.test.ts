@@ -151,3 +151,11 @@ test('Pano topbar keeps its primary action compact and restaurant switching visi
   assert.match(globalStylesSource, /background: var\(--surface-inset\) !important;/)
   assert.match(globalStylesSource, /transform: translateY\(-1px\);/)
 })
+
+test('Pano table navigation has hover feedback and chart ranges stay visually compact', () => {
+  assert.match(stylesSource, /\.pano-table-plan-link:hover \{[^}]*background: var\(--surface-inset\);/)
+  assert.match(stylesSource, /\.pano-table-plan-link:hover svg \{ transform: translateX\(2px\); \}/)
+  assert.match(stylesSource, /\.pano-chart-ranges \{ min-height: 30px; \}/)
+  assert.match(stylesSource, /\.pano-chart-ranges \.pano-range-action \{ position: relative; min-height: 26px; \}/)
+  assert.match(stylesSource, /\.pano-range-action::after \{[^}]*inset: -9px 0;/)
+})

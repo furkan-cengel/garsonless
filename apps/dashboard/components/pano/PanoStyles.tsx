@@ -23,13 +23,20 @@ export default function PanoStyles() {
     .pano-attention-action:hover { background: var(--surface-3); color: var(--text); }
     .pano-table-attention-row:hover { background: var(--surface-2); }
     .pano-table-attention-row:focus-visible, .pano-table-plan-link:focus-visible { outline: 2px solid var(--focus-ring, var(--text)); outline-offset: -2px; }
-    .pano-table-plan-link { min-height: 44px; padding: 0 4px; display: inline-flex; align-items: center; gap: 3px; color: var(--text-2); font-size: 11.5px; font-weight: 650; text-decoration: none; }
+    .pano-table-plan-link { min-height: 44px; padding: 0 8px; border-radius: 8px; display: inline-flex; align-items: center; gap: 3px; color: var(--text-2); font-size: 11.5px; font-weight: 650; text-decoration: none; transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 140ms ease; }
+    .pano-table-plan-link svg { transition: transform 140ms ease; }
+    .pano-table-plan-link:hover { background: var(--surface-inset); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong), 0 2px 8px rgba(17,17,19,.08); transform: translateY(-1px); }
+    .pano-table-plan-link:hover svg { transform: translateX(2px); }
+    .pano-table-plan-link:active { box-shadow: inset 0 0 0 1px var(--border-strong); transform: translateY(0) scale(.98); }
     .pano-live-retry { min-height: 44px; padding: 0 6px; border: 0; border-radius: 8px; display: inline-flex; align-items: center; gap: 5px; background: transparent; color: var(--text-2); font-size: 11.5px; font-weight: 650; cursor: pointer; }
     .pano-live-retry:hover:not(:disabled) { background: var(--surface-3); color: var(--text); }
     .pano-live-retry:disabled { opacity: .55; cursor: wait; }
     .pano-kpi-link > div:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); border-color: var(--border-strong) !important; }
     .pano-kpi-link:focus-visible { outline: 2px solid var(--focus-ring, var(--text)); outline-offset: 2px; border-radius: 12px; }
     .pano-range-action:not(:disabled):hover { background: var(--surface-2) !important; color: var(--text) !important; }
+    .pano-chart-ranges { min-height: 30px; }
+    .pano-chart-ranges .pano-range-action { position: relative; min-height: 26px; }
+    .pano-chart-ranges .pano-range-action::after { content: ''; position: absolute; inset: -9px 0; }
     .pano-action:focus-visible, .pano-range-action:focus-visible, .pano-attention-action:focus-visible, .pano-live-retry:focus-visible, .pano-data-toggle:focus-visible, .pano-chart-keyboard:focus-visible, .pano-analytics-summary:focus-visible {
       outline: 2px solid var(--focus-ring, var(--text)); outline-offset: 2px;
     }
@@ -74,7 +81,7 @@ export default function PanoStyles() {
       .page-topbar--pano .pano-action-primary { padding-inline: 10px !important; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .pano-shell *, .page-topbar--pano *, .pano-analytics-summary::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+      .pano-shell *, .page-topbar--pano *, .pano-analytics-summary::after, .pano-table-plan-link svg { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
     }
   `}</style>
 }
