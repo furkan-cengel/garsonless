@@ -88,7 +88,7 @@ test('Pano server action module only exports async functions', () => {
 test('Pano responsive shell exposes a two-row mobile header, 44px targets and reduced-motion support', () => {
   assert.match(clientSource, /className="page-topbar--pano"/)
   assert.match(clientSource, /<details className="pano-analytics" open>/)
-  assert.match(widgetSource, /Yoğunluk verisini tablo olarak göster/)
+  assert.match(widgetSource, /aria-label="Yoğun saat görünümü"/)
   assert.match(widgetSource, /<table className="pano-data-table">/)
   assert.match(stylesSource, /grid-template-rows: 52px 52px/)
   assert.match(stylesSource, /min-height: 44px/)
@@ -172,4 +172,14 @@ test('Pano peak-hour cells expose hover and keyboard tooltips', () => {
   assert.match(stylesSource, /\.pano-heatmap-scroll \{[^}]*overflow-y: hidden;[^}]*padding-block: 6px;/)
   assert.match(stylesSource, /\.pano-heatmap-cell\[tabindex="0"\]:hover/)
   assert.match(stylesSource, /\.pano-heatmap-tooltip \{ position: fixed;/)
+})
+
+test('Pano peak-hour view switches in place instead of appending an expanding table', () => {
+  assert.match(widgetSource, /useState<'heatmap' \| 'table'>\('heatmap'\)/)
+  assert.match(widgetSource, /aria-pressed=\{view === 'heatmap'\}/)
+  assert.match(widgetSource, /aria-pressed=\{view === 'table'\}/)
+  assert.match(widgetSource, /view === 'heatmap' \? \(/)
+  assert.doesNotMatch(widgetSource, /<details|<summary/)
+  assert.match(stylesSource, /\.pano-peak-view-switch/)
+  assert.match(stylesSource, /\.pano-peak-view \{ min-height: 292px; \}/)
 })

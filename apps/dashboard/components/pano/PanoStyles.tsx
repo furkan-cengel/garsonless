@@ -14,6 +14,13 @@ export default function PanoStyles() {
     .pano-heatmap-tooltip { position: fixed; z-index: 130; min-width: 132px; padding: 8px 10px; border-radius: 8px; display: flex; flex-direction: column; gap: 2px; transform: translate(-50%, -100%); pointer-events: none; color: #fff; background: rgba(17,17,19,.96); box-shadow: var(--shadow-pop); font-size: 11px; line-height: 1.35; }
     .pano-heatmap-tooltip strong { font-size: 11.5px; font-weight: 700; }
     .pano-heatmap-tooltip span { color: rgba(255,255,255,.72); }
+    .pano-peak-view-switch { min-height: 30px; padding: 2px; border-radius: 7px; display: inline-flex; background: var(--surface-3); }
+    .pano-peak-view-switch button { position: relative; min-height: 26px; padding: 0 9px; border: 0; border-radius: 5px; background: transparent; color: var(--text-2); font-size: 11px; font-weight: 600; cursor: pointer; }
+    .pano-peak-view-switch button::after { content: ''; position: absolute; inset: -9px 0; }
+    .pano-peak-view-switch button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+    .pano-peak-view-switch button:not([aria-pressed="true"]):hover { background: var(--surface-inset); color: var(--text); }
+    .pano-peak-view-switch button:focus-visible { outline: 2px solid var(--focus-ring, var(--text)); outline-offset: 1px; }
+    .pano-peak-view { min-height: 292px; }
     .pano-action, .pano-range-action, .pano-attention-action, .pano-data-toggle {
       min-height: 44px;
       transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease, border-color 140ms ease, opacity 140ms ease;

@@ -193,6 +193,7 @@ const HEATMAP_HOURS = Array.from({ length: 15 }, (_, index) => index + 8)
 
 export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
   const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
+  const [view, setView] = useState<'heatmap' | 'table'>('heatmap')
   const [tooltip, setTooltip] = useState<{
     key: string
     day: string
@@ -242,8 +243,22 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
     showTooltip(event.currentTarget, key, day, hour, count)
   }
 
+  const selectView = (nextView: 'heatmap' | 'table') => {
+    setTooltip(null)
+    setView(nextView)
+  }
+
   return (
-    <PanoCard title="Yoğun saatler" subtitle="Son 30 gün · sipariş yoğunluğu">
+    <PanoCard
+      title="Yoğun saatler"
+      subtitle="Son 30 gün · sipariş yoğunluğu"
+      action={maximum > 0 ? (
+        <div className="pano-peak-view-switch" role="group" aria-label="Yoğun saat görünümü">
+          <button type="button" aria-pressed={view === 'heatmap'} onClick={() => selectView('heatmap')}>Isı haritası</button>
+          <button type="button" aria-pressed={view === 'table'} onClick={() => selectView('table')}>Tablo</button>
+        </div>
+      ) : undefined}
+    >
       {maximum === 0 ? (
         <EmptyState title="Yeterli veri yok" sub="Siparişler biriktikçe yoğun saatler burada görünür" />
       ) : (
@@ -251,67 +266,59 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
           <p role="status" style={{ margin: '0 0 10px', fontSize: 11.5, color: 'var(--text-2)' }}>
             En yoğun zaman: <strong>{days[peakDay]} {String(peakHour).padStart(2, '0')}:00</strong> · {maximum} sipariş
           </p>
-          <div className="pano-heatmap-scroll">
-            <div style={{ minWidth: 300, display: 'grid', gridTemplateColumns: `auto repeat(${HEATMAP_HOURS.length}, 1fr)`, gap: 1.5, alignItems: 'center' }}>
-              <span />
-              {HEATMAP_HOURS.map((hour) => (
-                <span key={hour} style={{ fontSize: 8, color: 'var(--text-4)', textAlign: 'center', ...S.mono }}>
-                  {hour % 3 === 0 ? hour : ''}
-                </span>
-              ))}
-              {days.map((day, dayIndex) => (
-                <Fragment key={day}>
-                  <span style={{ fontSize: 9.5, color: 'var(--text-3)', paddingRight: 5, fontWeight: 500 }}>{day}</span>
-                  {HEATMAP_HOURS.map((hour) => {
-                    const count = grid[`${dayIndex}-${hour}`] ?? 0
-                    const intensity = count / maximum
-                    const key = `${day}-${hour}`
-                    const label = `${day} ${String(hour).padStart(2, '0')}:00 · ${count} sipariş`
-                    return (
-                      <span
-                        key={key}
-                        className="pano-heatmap-cell"
-                        role="img"
-                        tabIndex={count > 0 ? 0 : -1}
-                        aria-label={label}
-                        onMouseEnter={(event) => showMouseTooltip(event, key, day, hour, count)}
-                        onMouseLeave={() => setTooltip((current) => current?.key === key ? null : current)}
-                        onFocus={(event) => showFocusTooltip(event, key, day, hour, count)}
-                        onBlur={() => setTooltip((current) => current?.key === key ? null : current)}
-                        style={{
-                          aspectRatio: '1', borderRadius: 1.5,
-                          background: count === 0 ? 'var(--surface-3)' : `rgba(47, 111, 78, ${0.18 + intensity * 0.82})`,
-                          cursor: count > 0 ? 'help' : 'default',
-                        }}
-                      />
-                    )
-                  })}
-                </Fragment>
-              ))}
+          {view === 'heatmap' ? (
+            <div className="pano-peak-view" aria-label="Isı haritası görünümü">
+              <div className="pano-heatmap-scroll">
+                <div style={{ minWidth: 300, display: 'grid', gridTemplateColumns: `auto repeat(${HEATMAP_HOURS.length}, 1fr)`, gap: 1.5, alignItems: 'center' }}>
+                  <span />
+                  {HEATMAP_HOURS.map((hour) => (
+                    <span key={hour} style={{ fontSize: 8, color: 'var(--text-4)', textAlign: 'center', ...S.mono }}>
+                      {hour % 3 === 0 ? hour : ''}
+                    </span>
+                  ))}
+                  {days.map((day, dayIndex) => (
+                    <Fragment key={day}>
+                      <span style={{ fontSize: 9.5, color: 'var(--text-3)', paddingRight: 5, fontWeight: 500 }}>{day}</span>
+                      {HEATMAP_HOURS.map((hour) => {
+                        const count = grid[`${dayIndex}-${hour}`] ?? 0
+                        const intensity = count / maximum
+                        const key = `${day}-${hour}`
+                        const label = `${day} ${String(hour).padStart(2, '0')}:00 · ${count} sipariş`
+                        return (
+                          <span
+                            key={key}
+                            className="pano-heatmap-cell"
+                            role="img"
+                            tabIndex={count > 0 ? 0 : -1}
+                            aria-label={label}
+                            onMouseEnter={(event) => showMouseTooltip(event, key, day, hour, count)}
+                            onMouseLeave={() => setTooltip((current) => current?.key === key ? null : current)}
+                            onFocus={(event) => showFocusTooltip(event, key, day, hour, count)}
+                            onBlur={() => setTooltip((current) => current?.key === key ? null : current)}
+                            style={{
+                              aspectRatio: '1', borderRadius: 1.5,
+                              background: count === 0 ? 'var(--surface-3)' : `rgba(47, 111, 78, ${0.18 + intensity * 0.82})`,
+                              cursor: count > 0 ? 'help' : 'default',
+                            }}
+                          />
+                        )
+                      })}
+                    </Fragment>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 11, color: 'var(--text-3)' }}>
+                <span>Az</span>
+                <div style={{ display: 'flex', gap: 2, flex: 1, margin: '0 8px', maxWidth: 100 }}>
+                  {[0.2, 0.4, 0.6, 0.8, 1].map((opacity) => (
+                    <div key={opacity} style={{ flex: 1, height: 8, borderRadius: 1, background: `rgba(47, 111, 78, ${opacity})` }} />
+                  ))}
+                </div>
+                <span>Çok</span>
+              </div>
             </div>
-          </div>
-          {tooltip && (
-            <div
-              role="tooltip"
-              className="pano-heatmap-tooltip"
-              style={{ left: tooltip.x, top: tooltip.y }}
-            >
-              <strong>{tooltip.day} {String(tooltip.hour).padStart(2, '0')}:00</strong>
-              <span>{tooltip.count} sipariş</span>
-            </div>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 11, color: 'var(--text-3)' }}>
-            <span>Az</span>
-            <div style={{ display: 'flex', gap: 2, flex: 1, margin: '0 8px', maxWidth: 100 }}>
-              {[0.2, 0.4, 0.6, 0.8, 1].map((opacity) => (
-                <div key={opacity} style={{ flex: 1, height: 8, borderRadius: 1, background: `rgba(47, 111, 78, ${opacity})` }} />
-              ))}
-            </div>
-            <span>Çok</span>
-          </div>
-          <details style={{ marginTop: 8 }}>
-            <summary className="pano-data-toggle" style={{ display: 'inline-flex', alignItems: 'center' }}>Yoğunluk verisini tablo olarak göster</summary>
-            <div className="pano-data-table-scroll" style={{ marginTop: 8 }}>
+          ) : (
+            <div className="pano-peak-view pano-data-table-scroll" aria-label="Tablo görünümü">
               <table className="pano-data-table">
                 <caption className="sr-only">Son 30 günün gün ve saat bazında sipariş yoğunluğu</caption>
                 <thead>
@@ -327,7 +334,17 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
                 </tbody>
               </table>
             </div>
-          </details>
+          )}
+          {tooltip && (
+            <div
+              role="tooltip"
+              className="pano-heatmap-tooltip"
+              style={{ left: tooltip.x, top: tooltip.y }}
+            >
+              <strong>{tooltip.day} {String(tooltip.hour).padStart(2, '0')}:00</strong>
+              <span>{tooltip.count} sipariş</span>
+            </div>
+          )}
         </div>
       )}
     </PanoCard>
