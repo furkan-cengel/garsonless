@@ -289,10 +289,10 @@ export default function CustomersClient({
               <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '5px 0 0' }}>Üyeler, sadakat bakiyeleri ve ziyaret geçmişi</p>
             </div>
             <div className="customer-page-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              {canManageCampaigns && <button type="button" onClick={() => setCampaignOpen(true)} style={{ ...btnGhost({ height: 44, padding: '0 16px', borderRadius: 9, fontSize: 13.5 }) }}>
+              {canManageCampaigns && <button type="button" className="customer-control customer-action-secondary" onClick={() => setCampaignOpen(true)} style={{ ...btnGhost({ height: 36, padding: '0 12px', borderRadius: 7, fontSize: 12.5 }) }}>
                 <I.bell size={14} />SMS kampanyası
               </button>}
-              <button type="button" onClick={openCreateFromCurrent} style={{ ...btnPrimary({ height: 44, padding: '0 16px', borderRadius: 9, fontSize: 13.5 }) }}>
+              <button type="button" className="customer-control customer-action-primary" onClick={openCreateFromCurrent} style={{ ...btnPrimary({ height: 36, padding: '0 12px', borderRadius: 7, fontSize: 12.5 }) }}>
                 <I.plus size={13} />Filtreyi kaydet
               </button>
             </div>
@@ -307,7 +307,7 @@ export default function CustomersClient({
           {listError && (
             <div role="alert" aria-live="polite" style={{ marginBottom: 16, padding: '10px 12px', border: '1px solid var(--critical)', borderRadius: 10, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 12.5, lineHeight: 1.45, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <span>{listError}</span>
-              <button type="button" onClick={() => setListRetry((value) => value + 1)} style={btnGhost({ height: 44, padding: '0 14px' })}>Yeniden dene</button>
+              <button type="button" className="customer-control customer-action-secondary" onClick={() => setListRetry((value) => value + 1)} style={btnGhost({ height: 34, padding: '0 11px' })}>Yeniden dene</button>
             </div>
           )}
 
@@ -319,23 +319,24 @@ export default function CustomersClient({
           </div>
 
           <div className="customer-toolbar" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-            <div className="customer-search" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, height: 46, padding: '0 4px 0 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-1)' }}>
+            <div className="customer-search" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, height: 40, padding: '0 3px 0 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-1)' }}>
               <span style={{ color: 'var(--text-3)', display: 'inline-flex' }}><I.search size={16} /></span>
               <input
                 aria-label="Müşteri ara"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 placeholder="Ad veya telefon sonu (örn. 67)"
-                style={{ flex: 1, minWidth: 0, height: 44, border: 'none', outline: 'none', background: 'transparent', fontSize: 13.5, color: 'var(--text)' }}
+                style={{ flex: 1, minWidth: 0, height: 38, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--text)' }}
               />
-              {search && <button type="button" aria-label="Aramayı temizle" onClick={() => { setSearch(''); setPage(1) }} style={{ ...btnGhost({ width: 44, minWidth: 44, height: 44, padding: 0, justifyContent: 'center', border: 'none' }) }}><I.close size={13} /></button>}
+              {search && <button type="button" className="customer-control customer-clear-action" aria-label="Aramayı temizle" onClick={() => { setSearch(''); setPage(1) }} style={{ ...btnGhost({ width: 32, minWidth: 32, height: 32, padding: 0, justifyContent: 'center', border: 'none' }) }}><I.close size={13} /></button>}
             </div>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13, color: 'var(--text-3)' }}>Sırala</span>
               <select
                 value={sort}
                 onChange={(e) => { setSort(e.target.value as CustomerSort); setPage(1) }}
-                style={{ height: 44, padding: '0 32px 0 14px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', color: 'var(--text)', fontSize: 13.5, fontWeight: 500, outline: 'none', cursor: 'pointer', boxShadow: 'var(--shadow-1)' }}
+                className="customer-sort-control"
+                style={{ height: 38, padding: '0 30px 0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 500, outline: 'none', cursor: 'pointer', boxShadow: 'var(--shadow-1)' }}
               >
                 {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
@@ -349,10 +350,12 @@ export default function CustomersClient({
                 <button
                   key={sg.id}
                   type="button"
+                  className="customer-control customer-segment-filter"
+                  aria-pressed={active}
                   onClick={() => applyBuiltInSegment(sg.id)}
                   style={{
-                    minHeight: 44,
-                    padding: '0 14px',
+                    minHeight: 34,
+                    padding: '0 11px',
                     borderRadius: 99,
                     cursor: 'pointer',
                     fontSize: 13,
@@ -381,13 +384,13 @@ export default function CustomersClient({
               {savedSegments.map((saved) => {
                 const active = customSegmentId === saved.id
                 return (
-                  <span key={saved.id} style={{ display: 'inline-flex', alignItems: 'center', height: 44, borderRadius: 99, border: `1px solid ${active ? 'var(--action)' : 'var(--border)'}`, background: active ? 'var(--action)' : 'var(--surface)', overflow: 'hidden', boxShadow: active ? 'none' : 'var(--shadow-1)' }}>
-                    <button type="button" onClick={() => applySavedSegment(saved.id)} title={describeDefinition(saved.definition)}
-                      style={{ height: 42, padding: '0 10px 0 14px', border: 'none', background: 'transparent', color: active ? '#fff' : 'var(--text-2)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  <span key={saved.id} className="customer-saved-segment" data-active={active} style={{ display: 'inline-flex', alignItems: 'center', height: 34, borderRadius: 99, border: `1px solid ${active ? 'var(--action)' : 'var(--border)'}`, background: active ? 'var(--action)' : 'var(--surface)', overflow: 'hidden', boxShadow: active ? 'none' : 'var(--shadow-1)' }}>
+                    <button type="button" className="customer-control customer-saved-segment-label" aria-pressed={active} onClick={() => applySavedSegment(saved.id)} title={describeDefinition(saved.definition)}
+                      style={{ height: 32, padding: '0 8px 0 11px', border: 'none', background: 'transparent', color: active ? '#fff' : 'var(--text-2)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
                       {saved.name}
                     </button>
-                    <button type="button" onClick={() => openEditSegment(saved)} aria-label={`${saved.name} düzenle`} style={segmentIconBtn(active)}><I.gear size={12} /></button>
-                    <button type="button" onClick={() => setSegmentToDelete(saved)} aria-label={`${saved.name} sil`} style={segmentIconBtn(active)}><I.trash size={12} /></button>
+                    <button type="button" className="customer-control customer-saved-segment-icon" onClick={() => openEditSegment(saved)} aria-label={`${saved.name} düzenle`} style={segmentIconBtn(active)}><I.gear size={12} /></button>
+                    <button type="button" className="customer-control customer-saved-segment-icon customer-saved-segment-delete" onClick={() => setSegmentToDelete(saved)} aria-label={`${saved.name} sil`} style={segmentIconBtn(active)}><I.trash size={12} /></button>
                   </span>
                 )
               })}
@@ -409,7 +412,7 @@ export default function CustomersClient({
               <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)', fontSize: 13.5 }}>
                 <div style={{ fontWeight: 650, color: 'var(--text-2)', marginBottom: 6 }}>Eşleşen müşteri yok</div>
                 <div style={{ marginBottom: 14 }}>Arama veya segment ölçütlerini değiştirin.</div>
-                {hasActiveFilters && <button type="button" onClick={resetFilters} style={btnGhost()}>Filtreleri temizle</button>}
+                {hasActiveFilters && <button type="button" className="customer-control customer-action-secondary" onClick={resetFilters} style={btnGhost()}>Filtreleri temizle</button>}
               </div>
             ) : (
               data.customers.map((c, i) => (
@@ -439,9 +442,9 @@ export default function CustomersClient({
 
           {data.total > data.pageSize && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 14, fontSize: 12.5, color: 'var(--text-2)' }}>
-              <button type="button" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} style={pagerBtn(page <= 1)}>‹ Önceki</button>
+              <button type="button" className="customer-control customer-pager" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} style={pagerBtn(page <= 1)}>‹ Önceki</button>
               <span>{page} / {totalPages}</span>
-              <button type="button" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} style={pagerBtn(page >= totalPages)}>Sonraki ›</button>
+              <button type="button" className="customer-control customer-pager" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} style={pagerBtn(page >= totalPages)}>Sonraki ›</button>
             </div>
           )}
         </div>
@@ -476,7 +479,108 @@ export default function CustomersClient({
           onConfirm={() => { void handleDeleteSegment(segmentToDelete) }}
         />
       )}
-      <style>{`.customer-page-topbar{position:sticky;top:0;z-index:30} @media (max-width:820px){.customer-page-content{padding:22px 20px 48px!important}.customer-list-header{align-items:stretch!important;flex-direction:column!important}.customer-page-actions{justify-content:stretch!important}.customer-page-actions>button{flex:1 1 0!important}.customer-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}.customer-toolbar{align-items:stretch!important;flex-direction:column!important}.customer-toolbar label{justify-content:space-between!important}.customer-toolbar select{flex:1!important;min-width:0!important}.customer-table{overflow-x:auto!important}.customer-grid-row{min-width:900px}.customer-table-scroll-hint{display:block!important}} @media (max-width:520px){.customer-page-content{padding:20px 12px 44px!important}.customer-stats{grid-template-columns:1fr!important}.customer-page-actions>button{padding-left:10px!important;padding-right:10px!important}}`}</style>
+      <style>{`
+        .customer-page-topbar { position: sticky; top: 0; z-index: 30; }
+        .customer-control,
+        .customer-campaign-strip {
+          transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, filter 140ms ease, transform 140ms ease;
+        }
+        .customer-action-secondary:not(:disabled):hover,
+        .customer-pager:not(:disabled):hover {
+          background: var(--surface-inset) !important;
+          border-color: var(--text-2) !important;
+          color: var(--text) !important;
+          box-shadow: 0 4px 12px rgba(17,17,19,.1);
+          transform: translateY(-1px);
+        }
+        .customer-action-primary:not(:disabled):hover {
+          filter: brightness(.82);
+          box-shadow: 0 5px 14px rgba(17,17,19,.22);
+          transform: translateY(-1px);
+        }
+        .customer-segment-filter:not(:disabled):hover {
+          background: var(--surface-3) !important;
+          border-color: var(--text-3) !important;
+          color: var(--text) !important;
+          box-shadow: var(--shadow-1);
+          transform: translateY(-1px);
+        }
+        .customer-segment-filter[aria-pressed="true"]:not(:disabled):hover {
+          background: var(--action) !important;
+          border-color: var(--action) !important;
+          color: #fff !important;
+          filter: brightness(.84);
+        }
+        .customer-clear-action:not(:disabled):hover,
+        .customer-saved-segment-label:not(:disabled):hover,
+        .customer-saved-segment-icon:not(:disabled):hover {
+          background: var(--surface-3) !important;
+          color: var(--text) !important;
+        }
+        .customer-saved-segment[data-active="true"] .customer-saved-segment-label:not(:disabled):hover,
+        .customer-saved-segment[data-active="true"] .customer-saved-segment-icon:not(:disabled):hover {
+          background: rgba(255,255,255,.16) !important;
+          color: #fff !important;
+        }
+        .customer-saved-segment-delete:not(:disabled):hover {
+          background: var(--critical-bg) !important;
+          color: var(--critical) !important;
+        }
+        .customer-campaign-strip:not(:disabled):hover {
+          background: var(--surface-2) !important;
+          border-color: var(--text-3) !important;
+          box-shadow: var(--shadow-2);
+          transform: translateY(-1px);
+        }
+        .customer-sort-control:hover { border-color: var(--text-3) !important; }
+        button.customer-row-action:hover { background: var(--surface-2) !important; }
+        .customer-control:not(:disabled):active,
+        .customer-campaign-strip:not(:disabled):active {
+          box-shadow: none;
+          transform: translateY(0);
+        }
+        @media (pointer: coarse) {
+          .customer-control,
+          .customer-segment-filter,
+          .customer-pager { min-height: 44px !important; }
+          .customer-clear-action,
+          .customer-saved-segment-icon { min-width: 44px !important; }
+          .customer-saved-segment { height: 46px !important; }
+          .customer-search { height: 46px !important; }
+          .customer-search input,
+          .customer-sort-control { height: 44px !important; }
+        }
+        @media (max-width: 820px) {
+          .customer-page-content { padding: 22px 20px 48px !important; }
+          .customer-list-header { align-items: stretch !important; flex-direction: column !important; }
+          .customer-page-actions { justify-content: stretch !important; }
+          .customer-page-actions > button { flex: 1 1 0 !important; min-height: 44px !important; }
+          .customer-control,
+          .customer-segment-filter,
+          .customer-pager { min-height: 44px !important; }
+          .customer-clear-action,
+          .customer-saved-segment-icon { min-width: 44px !important; }
+          .customer-saved-segment { height: 46px !important; }
+          .customer-stats { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+          .customer-toolbar { align-items: stretch !important; flex-direction: column !important; }
+          .customer-toolbar label { justify-content: space-between !important; }
+          .customer-toolbar select { flex: 1 !important; min-width: 0 !important; height: 44px !important; }
+          .customer-search { height: 46px !important; }
+          .customer-search input { height: 44px !important; }
+          .customer-table { overflow-x: auto !important; }
+          .customer-grid-row { min-width: 900px; }
+          .customer-table-scroll-hint { display: block !important; }
+        }
+        @media (max-width: 520px) {
+          .customer-page-content { padding: 20px 12px 44px !important; }
+          .customer-stats { grid-template-columns: 1fr !important; }
+          .customer-page-actions > button { padding-left: 10px !important; padding-right: 10px !important; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .customer-control,
+          .customer-campaign-strip { transition: none !important; transform: none !important; }
+        }
+      `}</style>
     </div>
   )
 }
@@ -520,7 +624,7 @@ function CustomerRow({ c, onClick, delay, referenceNow }: { c: RestaurantCustome
   const soft = softForTier(c.tier.color)
   return (
     <button
-      className="customer-grid-row"
+      className="customer-grid-row customer-row-action"
       type="button"
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
@@ -573,6 +677,7 @@ function CampaignStrip({ campaigns, onOpen }: { campaigns: CampaignSummary[]; on
   return (
     <button
       type="button"
+      className="customer-campaign-strip"
       onClick={onOpen}
       style={{
         width: '100%',
@@ -846,8 +951,8 @@ function StatusPill({ status }: { status: CampaignSummary['status'] }) {
 
 function pagerBtn(disabled: boolean): React.CSSProperties {
   return {
-    height: 44,
-    padding: '0 12px',
+    height: 34,
+    padding: '0 10px',
     borderRadius: 7,
     border: '1px solid var(--border)',
     background: 'var(--surface)',
@@ -860,8 +965,8 @@ function pagerBtn(disabled: boolean): React.CSSProperties {
 
 function segmentIconBtn(active: boolean): React.CSSProperties {
   return {
-    width: 44,
-    height: 42,
+    width: 32,
+    height: 32,
     border: 'none',
     borderLeft: active ? '1px solid rgba(255,255,255,.2)' : '1px solid var(--divider)',
     background: 'transparent',
