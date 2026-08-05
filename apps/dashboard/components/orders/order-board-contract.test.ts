@@ -6,6 +6,7 @@ import { ORDER_BOARD_COLUMNS } from './order-board-contract'
 
 const directory = fileURLToPath(new URL('.', import.meta.url))
 const boardSource = readFileSync(`${directory}/OrderBoard.tsx`, 'utf8')
+const cardSource = readFileSync(`${directory}/OrderCard.tsx`, 'utf8')
 
 test('order board columns map drop destinations to canonical lifecycle targets', () => {
   assert.deepEqual(
@@ -25,4 +26,19 @@ test('desktop order controls stay compact while touch and narrow layouts keep sa
   assert.match(boardSource, /@media \(pointer: coarse\) \{[\s\S]*\.orders-touch-target,[\s\S]*min-height: 44px !important;/)
   assert.match(boardSource, /@media \(max-width: 1180px\) \{[\s\S]*\.orders-filter-option \{ min-width: 44px !important; min-height: 44px !important; \}/)
   assert.doesNotMatch(boardSource, /\.orders-filter-option \{ min-width: 44px !important; min-height: 44px !important; \}\n\.orders-search-field/)
+})
+
+test('order actions expose contextual hover feedback without animating disabled controls', () => {
+  assert.match(boardSource, /orders-topbar-action orders-action-secondary/)
+  assert.match(boardSource, /orders-topbar-action orders-action-primary/)
+  assert.match(boardSource, /order-detail-action--critical/)
+  assert.match(boardSource, /order-detail-action--positive/)
+  assert.match(boardSource, /order-detail-action--secondary/)
+  assert.match(boardSource, /\.orders-action-primary:not\(:disabled\):hover/)
+  assert.match(boardSource, /\.order-detail-action--critical:not\(:disabled\):hover/)
+  assert.match(boardSource, /\.order-detail-action--positive:not\(:disabled\):hover/)
+  assert.match(boardSource, /\.orders-topbar-action:not\(:disabled\):active/)
+  assert.match(cardSource, /data-order-action-tone=\{group\}/)
+  assert.match(boardSource, /\.order-card-action\[data-order-action-tone="prep"\]:not\(:disabled\):hover/)
+  assert.match(boardSource, /@media \(prefers-reduced-motion: reduce\)/)
 })

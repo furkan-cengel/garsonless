@@ -318,7 +318,7 @@ function OrderDetailPanel({
             type="button"
             disabled={actionPending}
             onClick={() => onRefund(order)}
-            className="orders-touch-target"
+            className="orders-touch-target order-detail-action order-detail-action--critical"
             style={{ ...btnGhost(), width: '100%', minHeight: 40, justifyContent: 'center', color: 'var(--critical)' }}
           >
             Parasal iade kaydet
@@ -331,7 +331,7 @@ function OrderDetailPanel({
             type="button"
             disabled={settleLoading || actionPending}
             onClick={() => onSettle(order)}
-            className="orders-touch-target"
+            className="orders-touch-target order-detail-action order-detail-action--positive"
             style={{
               ...btnGhost(), width: '100%', justifyContent: 'center',
               color: 'var(--positive)', borderColor: 'var(--positive)',
@@ -346,7 +346,7 @@ function OrderDetailPanel({
             <button
               type="button"
               onClick={() => onReceipt(order)}
-              className="orders-touch-target"
+              className="orders-touch-target order-detail-action order-detail-action--primary"
               style={{ ...btnPrimary(), flex: 1, minHeight: 40, justifyContent: 'center' }}
             >
               <I.history size={14} />Fiş yazdır
@@ -367,7 +367,7 @@ function OrderDetailPanel({
                   data-order-detail-cancel
                   disabled={actionPending}
                   onClick={() => onCancel(order)}
-                  className="orders-touch-target"
+                  className="orders-touch-target order-detail-action order-detail-action--secondary"
                   style={{ ...btnGhost(), flex: 1, minHeight: 40, justifyContent: 'center', opacity: actionPending ? 0.6 : 1 }}
                 >
                   İptal et
@@ -379,7 +379,7 @@ function OrderDetailPanel({
                   data-order-detail-advance
                   disabled={actionPending}
                   onClick={() => onAdvance(order)}
-                  className="orders-touch-target"
+                  className="orders-touch-target order-detail-action order-detail-action--primary"
                   style={{ ...btnPrimary(), flex: 2, minHeight: 40, justifyContent: 'center', opacity: actionPending ? 0.65 : 1, cursor: actionPending ? 'wait' : 'pointer' }}
                 >
                   <I.check size={13} />{actionPending ? 'İşleniyor…' : advanceLabel}
@@ -679,6 +679,47 @@ const ORDERS_RESPONSIVE_CSS = `
 .orders-filter-drawer { height: 100dvh; width: min(340px, calc(100vw - 24px)); }
 .orders-nav--drawer { width: 100% !important; height: 100%; box-shadow: 16px 0 46px rgba(17,17,19,.2); }
 .order-card-open:focus-visible { border-radius: 9px; outline-offset: -3px !important; }
+
+.orders-topbar-action,
+.order-card-action,
+.order-detail-action {
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, filter 140ms ease, transform 140ms ease;
+}
+.orders-action-secondary:not(:disabled):hover,
+.order-detail-action--secondary:not(:disabled):hover,
+.order-card-action[data-order-action-tone="prep"]:not(:disabled):hover {
+  background: var(--surface-inset) !important;
+  border-color: var(--text-2) !important;
+  color: var(--text) !important;
+  box-shadow: 0 4px 12px rgba(17,17,19,.1);
+  transform: translateY(-1px);
+}
+.orders-action-primary:not(:disabled):hover,
+.order-detail-action--primary:not(:disabled):hover,
+.order-card-action[data-order-action-tone="new"]:not(:disabled):hover {
+  filter: brightness(.82);
+  box-shadow: 0 5px 14px rgba(17,17,19,.22);
+  transform: translateY(-1px);
+}
+.order-detail-action--positive:not(:disabled):hover,
+.order-card-action[data-order-action-tone="ready"]:not(:disabled):hover {
+  filter: brightness(.88);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--positive) 24%, transparent);
+  transform: translateY(-1px);
+}
+.order-detail-action--critical:not(:disabled):hover {
+  background: var(--critical-bg) !important;
+  border-color: var(--critical) !important;
+  color: var(--critical) !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--critical) 18%, transparent);
+  transform: translateY(-1px);
+}
+.orders-topbar-action:not(:disabled):active,
+.order-card-action:not(:disabled):active,
+.order-detail-action:not(:disabled):active {
+  box-shadow: none;
+  transform: translateY(0);
+}
 
 @media (pointer: coarse) {
   .orders-topbar button,
@@ -1142,10 +1183,10 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
           </div>
         }
         right={<div style={{display:'flex',gap:6}}>
-          <button type="button" className="orders-topbar-action" aria-label="Hesap taşı" onClick={() => { setSelectedOrderId(null); setTransferOpen(true) }} style={btnGhost()}><I.arrow size={15} /><span className="orders-action-label">Hesap taşı</span></button>
+          <button type="button" className="orders-topbar-action orders-action-secondary" aria-label="Hesap taşı" onClick={() => { setSelectedOrderId(null); setTransferOpen(true) }} style={btnGhost()}><I.arrow size={15} /><span className="orders-action-label">Hesap taşı</span></button>
           <button
             type="button"
-            className="orders-topbar-action"
+            className="orders-topbar-action orders-action-primary"
             aria-label="Mutfak ekranını aç"
             style={{ ...btnPrimary(), opacity: hasKitchenAccess ? 1 : 0.5, cursor: hasKitchenAccess ? 'pointer' : 'not-allowed' }}
             disabled={!hasKitchenAccess}

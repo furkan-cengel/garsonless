@@ -257,6 +257,7 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
             <button
               type="button"
               data-order-card-advance
+              data-order-action-tone={group}
               className="order-card-action orders-touch-target"
               disabled={actionPending}
               onClick={(e) => { e.stopPropagation(); onAdvance(order) }}
