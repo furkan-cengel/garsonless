@@ -418,6 +418,7 @@ button, input, select, textarea { font-family: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .menu-manager button { transition: none !important; }
   .page-topbar-restaurant,
+  .page-topbar-notification,
   .page-topbar-restaurant-chevron { transition: none !important; }
   .analytics-shell,
   .analytics-shell * {
@@ -428,8 +429,9 @@ button, input, select, textarea { font-family: inherit; }
   }
 }
 
-.page-topbar-restaurant {
-  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+.page-topbar-restaurant,
+.page-topbar-notification {
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 .page-topbar-restaurant-chevron {
   display: inline-flex;
@@ -437,15 +439,30 @@ button, input, select, textarea { font-family: inherit; }
   transition: color 140ms ease, transform 140ms ease;
 }
 .page-topbar-restaurant:not(:disabled):hover {
-  background: var(--surface-3) !important;
+  background: var(--surface-inset) !important;
   color: var(--text) !important;
-  box-shadow: inset 0 0 0 1px var(--border);
+  box-shadow: inset 0 0 0 1px var(--border-strong), 0 3px 10px rgba(17, 17, 19, .10);
+  transform: translateY(-1px);
 }
 .page-topbar-restaurant:not(:disabled):hover .page-topbar-restaurant-chevron {
   color: var(--text);
-  transform: translateY(1px);
+  transform: translateY(2px);
 }
-.page-topbar-restaurant:focus-visible {
+.page-topbar-notification:not(:disabled):hover {
+  background: var(--surface-inset) !important;
+  color: var(--text) !important;
+  box-shadow: inset 0 0 0 1px var(--border-strong), 0 3px 10px rgba(17, 17, 19, .10);
+  transform: translateY(-1px);
+}
+.page-topbar-restaurant:not(:disabled):active,
+.page-topbar-notification:not(:disabled):active {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  transform: translateY(0) scale(.98);
+}
+.page-topbar-restaurant:focus-visible,
+.page-topbar-notification:focus-visible {
+  background: var(--surface-inset) !important;
+  color: var(--text) !important;
   outline: 2px solid var(--focus-ring, var(--text));
   outline-offset: 1px;
 }

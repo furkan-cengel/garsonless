@@ -147,4 +147,7 @@ test('Pano topbar keeps its primary action compact and restaurant switching visi
   assert.match(pageTopBarSource, /className="page-topbar-restaurant-chevron"/)
   assert.match(globalStylesSource, /\.page-topbar-restaurant:not\(:disabled\):hover \{/)
   assert.match(globalStylesSource, /\.page-topbar-restaurant:not\(:disabled\):hover \.page-topbar-restaurant-chevron \{/)
+  assert.match(globalStylesSource, /\.page-topbar-notification:not\(:disabled\):hover \{/)
+  assert.match(globalStylesSource, /background: var\(--surface-inset\) !important;/)
+  assert.match(globalStylesSource, /transform: translateY\(-1px\);/)
 })
