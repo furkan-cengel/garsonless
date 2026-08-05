@@ -535,7 +535,7 @@ function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, s
                 width: '100%', padding: '7px 8px', marginBottom: 1,
                 background: isActive ? 'var(--surface-inset)' : 'transparent',
                 border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left',
-                minHeight: 40, transition: 'background 120ms ease',
+                minHeight: 38, transition: 'background 120ms ease',
               }}
             >
               <span style={{ color: isActive ? 'var(--text)' : 'var(--text-3)', display: 'inline-flex' }}>{f.icon}</span>
@@ -556,7 +556,7 @@ function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, s
                 aria-pressed={active}
                 onClick={() => setSourceFilter(source.id)}
                 className="orders-filter-option"
-                style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minHeight: 40, padding: '6px 8px', border: 0, borderRadius: 7, background: active ? 'var(--surface-inset)' : 'transparent', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minHeight: 36, padding: '6px 8px', border: 0, borderRadius: 7, background: active ? 'var(--surface-inset)' : 'transparent', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}
               >
                 <span style={{ color: active ? 'var(--text)' : 'var(--text-3)', display: 'inline-flex' }}>{source.icon}</span>
                 <span style={{ flex: 1, fontSize: 12.5, fontWeight: active ? 650 : 500 }}>{source.label}</span>
@@ -581,7 +581,7 @@ function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, s
                   onMouseEnter={event => { if (!active) event.currentTarget.style.background = 'var(--surface-3)' }}
                   onMouseLeave={event => { if (!active) event.currentTarget.style.background = 'transparent' }}
                   className="orders-filter-option"
-                  style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minHeight: 40, padding: '6px 8px', border: 0, borderRadius: 7, background: active ? 'var(--surface-inset)' : 'transparent', color: 'var(--text)', cursor: 'pointer', textAlign: 'left', transition: 'background 120ms ease' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minHeight: 36, padding: '6px 8px', border: 0, borderRadius: 7, background: active ? 'var(--surface-inset)' : 'transparent', color: 'var(--text)', cursor: 'pointer', textAlign: 'left', transition: 'background 120ms ease' }}
                 >
                   <I.cutlery size={14} />
                   <span style={{ flex: 1, fontSize: 12.5, fontWeight: active ? 650 : 500 }}>{station}</span>
@@ -594,7 +594,7 @@ function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, s
 
       </div>
       <div style={{ borderTop: '1px solid var(--divider)', padding: '10px 14px', background: 'var(--surface-2)' }}>
-        <button className="orders-touch-target" onClick={onHistory} style={{ ...btnGhost(), width: '100%', minHeight: 40, justifyContent: 'center' }}>
+        <button className="orders-touch-target" onClick={onHistory} style={{ ...btnGhost(), width: '100%', justifyContent: 'center' }}>
           <I.history size={13} />Geçmiş siparişler
         </button>
       </div>
@@ -662,10 +662,6 @@ const ORDERS_RESPONSIVE_CSS = `
   outline: 2px solid var(--focus-ring, var(--text));
   outline-offset: 2px;
 }
-.orders-topbar button,
-.orders-touch-target,
-.orders-filter-option { min-width: 44px !important; min-height: 44px !important; }
-.orders-search-field { height: 44px !important; }
 .orders-kanban { width: 100%; min-width: 0 !important; }
 .orders-column { min-width: 0 !important; }
 .orders-mobile-toolbar { display: none; }
@@ -683,6 +679,13 @@ const ORDERS_RESPONSIVE_CSS = `
 .orders-filter-drawer { height: 100dvh; width: min(340px, calc(100vw - 24px)); }
 .orders-nav--drawer { width: 100% !important; height: 100%; box-shadow: 16px 0 46px rgba(17,17,19,.2); }
 .order-card-open:focus-visible { border-radius: 9px; outline-offset: -3px !important; }
+
+@media (pointer: coarse) {
+  .orders-topbar button,
+  .orders-touch-target,
+  .orders-filter-option { min-width: 44px !important; min-height: 44px !important; }
+  .orders-search-field { height: 44px !important; }
+}
 
 @media (max-width: 1180px) {
   .orders-topbar {
@@ -705,7 +708,9 @@ const ORDERS_RESPONSIVE_CSS = `
   .orders-topbar .page-topbar-notification,
   .orders-topbar .page-topbar-restaurant,
   .orders-topbar-action,
-  .orders-touch-target { min-width: 44px !important; min-height: 44px !important; }
+  .orders-touch-target,
+  .orders-filter-option { min-width: 44px !important; min-height: 44px !important; }
+  .orders-search-field { height: 44px !important; }
   .orders-body { position: relative; min-width: 0; }
   .orders-nav--desktop, .orders-detail-panel--empty { display: none !important; }
   .orders-mobile-toolbar {
