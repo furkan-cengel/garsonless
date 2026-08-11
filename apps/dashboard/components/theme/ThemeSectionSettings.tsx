@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import type { CSSProperties, ChangeEvent } from 'react'
+import type { ChangeEvent } from 'react'
 
 import { I } from '../../lib/ui'
 import { removeUnusedThemeMedia, uploadThemeMedia } from '../../lib/actions/theme'
@@ -14,13 +14,51 @@ import type { SectionSettingField } from './theme-editor-properties-model'
 import {
   getSectionSettingLabel,
   getVisibleSectionSettingFields,
-  groupMenuItems,
   isPromoSliderFields,
   resolvePromoSliderSourceMode,
   resolveSectionSettingValue,
   sectionSettingControlId,
-  togglePromoSliderCampaignSelection,
 } from './theme-section-settings-model'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  Attachment,
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentContent,
+  AttachmentDescription,
+  AttachmentMedia,
+  AttachmentTitle,
+  AttachmentTrigger,
+} from '@/components/ui/attachment'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from '@/components/ui/combobox'
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldSeparator,
+  FieldTitle,
+} from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Slider } from '@/components/ui/slider'
+import { Spinner } from '@/components/ui/spinner'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 type MenuCategoryRef = { id: string; name: string }
 type CampaignRef = {
@@ -40,18 +78,6 @@ type MenuItemRef = {
   isAvailable?: boolean
 }
 
-const sectionInputStyle: CSSProperties = {
-  width: '100%', minWidth: 0, height: 32, boxSizing: 'border-box', borderRadius: 7,
-  border: '1px solid var(--border-strong)', background: 'var(--surface)',
-  color: 'var(--text)', fontSize: 12.5, padding: '0 9px', outline: 'none',
-}
-
-const menuLinkStyle = {
-  fontSize: 11.5, color: 'var(--text-2)', background: 'none', border: 'none',
-  padding: 0, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit',
-  display: 'inline-flex', alignItems: 'center', gap: 3,
-} as const
-
 export function SectionSettingsEditor({ fields, values, menuCategories, menuItems, campaignOptions = [], menuHref, onChange }: {
   fields: SectionSettingField[]
   values: Record<string, string>
@@ -66,7 +92,7 @@ export function SectionSettingsEditor({ fields, values, menuCategories, menuItem
   const visibleFields = getVisibleSectionSettingFields(fields, values)
 
   return (
-    <div data-section-settings-editor style={{ width: '100%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <FieldGroup data-section-settings-editor className="min-w-0 gap-2.5">
       <style>{`
         [data-section-settings-editor] .garsonless-section-option-tile:hover {
           border-color: var(--text-3) !important;
@@ -92,23 +118,17 @@ export function SectionSettingsEditor({ fields, values, menuCategories, menuItem
       `}</style>
       {visibleFields.map((field) => {
         if (field.type === 'heading') {
-          return (
-            <div key={field.key} style={{
-              marginTop: 8, paddingTop: 12, borderTop: '1px solid var(--border-strong)',
-              fontSize: 11.5, fontWeight: 700, letterSpacing: '.06em', color: 'var(--text-3)',
-              textTransform: 'uppercase',
-            }}>{field.label}</div>
-          )
+          return <FieldSeparator key={field.key} className="mt-2 uppercase tracking-[.06em] text-[11.5px] font-bold">{field.label}</FieldSeparator>
         }
         const controlId = sectionSettingControlId(field.key)
         const isIconGrid = field.type === 'icon-grid'
         const resolvedValue = resolveSectionSettingValue(field, values, promoSlider)
         return (
-          <div key={field.key} style={{ width: '100%', minWidth: 0, display: 'grid', gridTemplateColumns: isIconGrid ? 'minmax(0, 1fr)' : 'minmax(72px, 82px) minmax(0, 1fr)', alignItems: 'start', gap: isIconGrid ? 7 : 8, minHeight: 32 }}>
-            <label htmlFor={controlId} style={{ minWidth: 0, paddingTop: 6, fontSize: 12.5, color: 'var(--text-2)' }}>
+          <Field key={field.key} orientation={isIconGrid ? 'vertical' : 'horizontal'} className="min-h-8 items-start">
+            <FieldLabel htmlFor={controlId} className={isIconGrid ? undefined : 'w-[82px] shrink-0 pt-1.5'}>
               <span>{getSectionSettingLabel(field, targetType)}</span>
-              {field.type === 'range' && field.key !== 'cols' ? <small style={{ display: 'block', marginTop: 2, color: 'var(--text-3)', fontSize: 10.5, fontWeight: 650 }}>{resolvedValue}{field.unit ?? ''}</small> : null}
-            </label>
+              {field.type === 'range' && field.key !== 'cols' ? <small className="mt-0.5 block text-[10.5px] font-semibold text-muted-foreground">{resolvedValue}{field.unit ?? ''}</small> : null}
+            </FieldLabel>
             <SectionSettingControl
               field={field}
               value={resolvedValue}
@@ -120,10 +140,10 @@ export function SectionSettingsEditor({ fields, values, menuCategories, menuItem
               {...(menuHref ? { menuHref } : {})}
               onChange={(value) => onChange(field.key, value)}
             />
-          </div>
+          </Field>
         )
       })}
-    </div>
+    </FieldGroup>
   )
 }
 
@@ -152,150 +172,152 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
       .map(([label, count]) => `${label} ${count}`)
       .join(' · ')
     return (
-      <div id={controlId} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <FieldGroup id={controlId} className="gap-1.5">
         {campaignOptions.length === 0 ? (
-          <div role="status" style={{ padding: '9px 10px', borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text-3)', fontSize: 11.5, lineHeight: 1.4 }}>
-            Sayfa akışında süresi devam eden İndirim Rozeti, Günün Özeli veya Kombo Şerit kampanyası yok.
-          </div>
+          <Alert><AlertDescription>Sayfa akışında süresi devam eden İndirim Rozeti, Günün Özeli veya Kombo Şerit kampanyası yok.</AlertDescription></Alert>
         ) : (
           <>
-            <button
+            <Button
               type="button"
+              variant={allSelected ? 'secondary' : 'outline'}
               aria-pressed={allSelected}
               onClick={() => onChange('')}
-              style={campaignChoiceStyle(allSelected)}
+              className="h-auto min-h-11 w-full justify-start gap-2 whitespace-normal p-1.5 text-left"
             >
-              <span style={{ width: 28, height: 28, borderRadius: 7, display: 'grid', placeItems: 'center', background: allSelected ? 'var(--text)' : 'var(--surface-3)', color: allSelected ? 'var(--surface)' : 'var(--text-2)' }}><I.sparkles size={15} /></span>
-              <span style={{ minWidth: 0, flex: 1 }}>
-                <strong style={{ display: 'block', fontSize: 11.5, color: 'var(--text)' }}>Tüm aktif kampanyalar ({campaignOptions.length})</strong>
-                <span style={{ display: 'block', marginTop: 2, fontSize: 10.5, color: 'var(--text-3)', lineHeight: 1.35 }}>{sourceSummary}</span>
+              <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground"><I.sparkles data-icon="inline-start" /></span>
+              <span className="min-w-0 flex-1">
+                <strong className="block text-[11.5px] text-foreground">Tüm aktif kampanyalar ({campaignOptions.length})</strong>
+                <span className="mt-0.5 block text-[10.5px] leading-snug text-muted-foreground">{sourceSummary}</span>
               </span>
-              {allSelected && <span aria-hidden="true" style={{ color: 'var(--text)' }}><I.check size={14} /></span>}
-            </button>
-            {campaignOptions.map((campaign) => {
-              const active = allSelected || selectedIds.has(campaign.id)
-              return (
-                <button
-                  key={campaign.id}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => {
-                    onChange(togglePromoSliderCampaignSelection(value, campaign.id, activeIds))
-                  }}
-                  style={campaignChoiceStyle(active)}
-                >
-                  <span style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, overflow: 'hidden', display: 'grid', placeItems: 'center', background: 'var(--surface-3)', color: 'var(--text-2)', fontSize: 10, fontWeight: 800 }}>
-                    {campaign.imageUrl ? <img src={campaign.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : campaign.sourceLabel.slice(0, 2).toUpperCase()}
+              {allSelected && <I.check data-icon="inline-end" aria-hidden="true" />}
+            </Button>
+            <ToggleGroup
+              value={allSelected ? activeIds : activeIds.filter((id) => selectedIds.has(id))}
+              onValueChange={(next) => onChange(next.length === activeIds.length ? '' : next.join(','))}
+              orientation="vertical"
+              variant="outline"
+              spacing={1}
+              className="w-full"
+              aria-label="Gösterilecek kampanyalar"
+            >
+              {campaignOptions.map((campaign) => (
+                <ToggleGroupItem key={campaign.id} value={campaign.id} className="h-auto min-h-11 w-full justify-start gap-2 whitespace-normal p-1.5 text-left">
+                  <span className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-muted text-[10px] font-extrabold text-muted-foreground">
+                    {campaign.imageUrl ? <img src={campaign.imageUrl} alt="" className="size-full object-cover" /> : campaign.sourceLabel.slice(0, 2).toUpperCase()}
                   </span>
-                  <span style={{ minWidth: 0, flex: 1 }}>
-                    <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, color: 'var(--text)' }}>{campaign.title}</strong>
-                    <span style={{ display: 'block', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10.5, color: 'var(--text-3)' }}>{campaign.sourceLabel} · {campaign.badge}</span>
+                  <span className="min-w-0 flex-1">
+                    <strong className="block truncate text-[11.5px] text-foreground">{campaign.title}</strong>
+                    <span className="mt-0.5 block truncate text-[10.5px] text-muted-foreground">{campaign.sourceLabel} · {campaign.badge}</span>
                   </span>
-                  <span aria-hidden="true" style={{ width: 18, height: 18, borderRadius: 6, display: 'grid', placeItems: 'center', border: active ? '1px solid var(--text)' : '1px solid var(--border-strong)', background: active ? 'var(--text)' : 'var(--surface)', color: 'var(--surface)' }}>{active ? <I.check size={11} /> : null}</span>
-                </button>
-              )
-            })}
+                  <I.check data-icon="inline-end" aria-hidden="true" className="opacity-0 group-data-pressed/toggle:opacity-100" />
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           </>
         )}
         {staleSelectionCount > 0 && (
-          <div role="status" style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '7px 8px', borderRadius: 8, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 10.5, lineHeight: 1.35 }}>
+          <Alert style={{ color: 'var(--warning)' }}>
             <I.warn size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-            Süresi dolmuş veya kaldırılmış {staleSelectionCount} seçim artık slaytta gösterilmiyor. Yeni bir seçim yaptığınızda liste temizlenir.
-          </div>
+            <AlertDescription>Süresi dolmuş veya kaldırılmış {staleSelectionCount} seçim artık slaytta gösterilmiyor. Yeni bir seçim yaptığınızda liste temizlenir.</AlertDescription>
+          </Alert>
         )}
-        <div style={{ fontSize: 10.5, color: 'var(--text-3)', lineHeight: 1.35 }}>
+        <FieldDescription className="text-[10.5px] leading-snug">
           Yalnız ürünü seçili, süresi devam eden ve fiyat kuralı geçerli kampanyalar sayılır. Ürün, fiyat ve bitiş bilgisi kendi bölümünden yönetilir.
-        </div>
-      </div>
+        </FieldDescription>
+      </FieldGroup>
     )
   }
 
   if (field.type === 'product-select') {
-    const groups = groupMenuItems(menuItems)
+    const productOptions = menuItems.map((item) => ({
+      value: item.id,
+      label: productOptionLabel(item),
+      item,
+    }))
     const selectedItem = menuItems.find((item) => item.id === value)
+    const selectedOption = productOptions.find((option) => option.value === value) ?? null
     if (menuItems.length === 0 && menuHref) {
       return (
-        <div style={{ fontSize: 12, color: 'var(--text-3)', padding: '8px 0' }}>
+        <div className="py-2 text-xs text-muted-foreground">
           Henüz ürün yok —{' '}
-          <button type="button" style={menuLinkStyle} onClick={() => window.open(menuHref, '_blank', 'noopener')}>
+          <Button type="button" variant="link" size="xs" onClick={() => window.open(menuHref, '_blank', 'noopener')}>
             Menü&apos;den ekle <I.arrow size={11} />
-          </button>
+          </Button>
         </div>
       )
     }
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <select id={controlId} value={value} onChange={(event) => onChange(event.target.value)} style={selectStyle(36, Boolean(value))}>
-          <option value="">— Ürün seç —</option>
-          {groups.map((group) => (
-            <optgroup key={group.categoryName} label={group.categoryName}>
-              {group.items.map((item) => (
-                <option key={item.id} value={item.id} disabled={item.isAvailable === false}>
-                  {productOptionLabel(item)}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+      <div className="flex min-w-0 flex-col gap-1">
+        <Combobox
+          items={productOptions}
+          value={selectedOption}
+          onValueChange={(next) => onChange(next?.value ?? '')}
+          autoHighlight
+        >
+          <ComboboxInput id={controlId} placeholder="Ürün ara…" showClear={Boolean(selectedOption)} className="w-full" />
+          <ComboboxContent className="min-w-(--anchor-width)">
+            <ComboboxEmpty>Ürün bulunamadı.</ComboboxEmpty>
+            <ComboboxList>
+              {(option) => (
+                <ComboboxItem key={option.value} value={option} disabled={option.item.isAvailable === false}>
+                  <span className="min-w-0">
+                    <span className="block truncate">{option.item.name}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">{option.item.categoryName}{typeof option.item.price === 'number' ? ` · ${formatProductPrice(option.item.price)}` : ''}{option.item.isAvailable === false ? ' · Pasif' : ''}</span>
+                  </span>
+                </ComboboxItem>
+              )}
+            </ComboboxList>
+          </ComboboxContent>
+        </Combobox>
         {selectedItem && (
-          <div style={{
-            display: 'grid', gridTemplateColumns: '38px minmax(0, 1fr) auto', alignItems: 'center', gap: 8,
-            minHeight: 46, padding: 6, border: '1px solid var(--border)', borderRadius: 8,
-            background: 'var(--surface-2)',
-          }}>
-            <ProductThumbnail item={selectedItem} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, lineHeight: 1.25, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {selectedItem.name}
-              </div>
-              <div style={{ marginTop: 2, fontSize: 10.5, lineHeight: 1.2, color: selectedItem.isAvailable === false ? 'var(--danger)' : 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <Item variant="muted" size="xs">
+            <ItemMedia><ProductThumbnail item={selectedItem} /></ItemMedia>
+            <ItemContent className="min-w-0">
+              <ItemTitle className="text-xs">{selectedItem.name}</ItemTitle>
+              <ItemDescription className={selectedItem.isAvailable === false ? 'text-destructive' : undefined}>
                 {selectedItem.categoryName}{selectedItem.isAvailable === false ? ' · Pasif' : ''}
-              </div>
-            </div>
+              </ItemDescription>
+            </ItemContent>
             {typeof selectedItem.price === 'number' && Number.isFinite(selectedItem.price) && (
-              <strong style={{ fontSize: 11.5, color: 'var(--text)', whiteSpace: 'nowrap' }}>
+              <ItemActions className="text-[11.5px] font-bold">
                 {formatProductPrice(selectedItem.price)}
-              </strong>
+              </ItemActions>
             )}
-          </div>
+          </Item>
         )}
         {value && !selectedItem && (
-          <div role="status" style={{ fontSize: 11, color: 'var(--danger)', padding: '3px 1px' }}>
-            Bu ürün artık menüde bulunmuyor. Yeni bir ürün seçin.
-          </div>
+          <Alert variant="destructive"><AlertDescription>Bu ürün artık menüde bulunmuyor. Yeni bir ürün seçin.</AlertDescription></Alert>
         )}
         {value && menuHref && (
-          <button type="button" style={{ ...menuLinkStyle, alignSelf: 'flex-start' }} onClick={() => window.open(menuHref, '_blank', 'noopener')}>
+          <Button type="button" variant="link" size="xs" className="self-start" onClick={() => window.open(menuHref, '_blank', 'noopener')}>
             Menüde düzenle <I.arrow size={11} />
-          </button>
+          </Button>
         )}
       </div>
     )
   }
 
   if (field.type === 'category-select') {
+    const items = menuCategories.map((category) => ({ value: category.id, label: category.name }))
     return (
-      <select id={controlId} value={value} onChange={(event) => onChange(event.target.value)} style={selectStyle(36, Boolean(value))}>
-        <option value="">— Kategori seç —</option>
-        {menuCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-      </select>
+      <Select items={items} value={value || null} onValueChange={(next) => onChange(next ?? '')}>
+        <SelectTrigger id={controlId} className="w-full"><SelectValue placeholder="— Kategori seç —" /></SelectTrigger>
+        <SelectContent><SelectGroup>{menuCategories.map((category) => <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select>
     )
   }
 
   if (field.type === 'icon-grid') {
     return (
-      <div id={controlId} role="radiogroup" aria-label={field.label} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
+      <ToggleGroup id={controlId} value={[value]} onValueChange={(values) => { const next = values[0]; if (next) onChange(next) }} spacing={2} className="grid w-full grid-cols-3" aria-label={field.label}>
         {(field.options ?? []).map((option) => {
           const active = value === option.value
           return (
-            <button
+            <ToggleGroupItem
               key={option.value}
-              type="button"
               className="garsonless-section-option-tile"
-              role="radio"
-              aria-checked={active}
+              value={option.value}
               aria-label={option.label}
-              onClick={() => onChange(option.value)}
               style={{
                 minWidth: 0,
                 minHeight: 58,
@@ -316,10 +338,10 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
               <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 9.5, lineHeight: 1.15, fontWeight: 700 }}>
                 {option.label}
               </span>
-            </button>
+            </ToggleGroupItem>
           )
         })}
-      </div>
+      </ToggleGroup>
     )
   }
 
@@ -328,20 +350,22 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
       ? menuCategories.map((category) => ({ value: category.id, label: category.name, meta: 'Kategori' }))
       : menuItems.map((item) => ({ value: item.id, label: item.name, meta: item.categoryName }))
     return (
-      <select id={controlId} value={value} onChange={(event) => onChange(event.target.value)} style={selectStyle(32, Boolean(value))}>
-        <option value="">{targetType === 'category' ? 'Kategori seç' : 'Ürün seç'}</option>
-        {options.map((option) => <option key={option.value} value={option.value}>{option.label} · {option.meta}</option>)}
-      </select>
+      <Select items={options} value={value || null} onValueChange={(next) => onChange(next ?? '')}>
+        <SelectTrigger id={controlId} className="w-full"><SelectValue placeholder={targetType === 'category' ? 'Kategori seç' : 'Ürün seç'} /></SelectTrigger>
+        <SelectContent><SelectGroup>{options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label} · {option.meta}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select>
     )
   }
 
   if (field.type === 'color') {
     const colorValue = /^#[0-9a-f]{6}$/i.test(value) ? value : field.placeholder || '#000000'
     return (
-      <div style={{ height: 32, display: 'flex', alignItems: 'center', border: '1px solid var(--border-strong)', borderRadius: 7, overflow: 'hidden', background: 'var(--surface)' }}>
-        <input aria-label={`${field.label} renk seçici`} type="color" value={colorValue} onChange={(event) => onChange(event.target.value)} style={{ width: 34, height: 32, border: 'none', padding: 0, background: 'transparent', cursor: 'pointer' }} />
-        <input id={controlId} type="text" value={value} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} style={sectionInputStyle} />
-      </div>
+      <InputGroup>
+        <InputGroupAddon className="p-1">
+          <input aria-label={`${field.label} renk seçici`} type="color" value={colorValue} onChange={(event) => onChange(event.target.value)} className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" />
+        </InputGroupAddon>
+        <InputGroupInput id={controlId} type="text" value={value} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} className="font-mono" />
+      </InputGroup>
     )
   }
 
@@ -354,9 +378,7 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
     const numeric = Number(value)
     const numericValue = Number.isFinite(numeric) ? numeric : fallback
     return (
-      <div style={{ width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', height: 32 }}>
-        <input id={controlId} type="range" min={field.min} max={field.max} step={field.step} value={numericValue} onChange={(event) => onChange(event.target.value)} style={{ width: '100%', minWidth: 0, maxWidth: '100%', accentColor: 'var(--text)' }} />
-      </div>
+      <Slider id={controlId} min={field.min} max={field.max} step={field.step} value={numericValue} onValueChange={(next) => onChange(String(Array.isArray(next) ? next[0] ?? numericValue : next))} aria-label={field.label} />
     )
   }
 
@@ -365,32 +387,29 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
   }
 
   if (field.type === 'select') {
+    const items = (field.options ?? []).map((option) => ({ value: option.value, label: option.label }))
     return (
-      <select id={controlId} value={value || String(field.default ?? field.options?.[0]?.value ?? '')} onChange={(event) => onChange(event.target.value)} style={selectStyle(32, true)}>
-        {(field.options ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
+      <Select items={items} value={value || String(field.default ?? field.options?.[0]?.value ?? '')} onValueChange={(next) => { if (next) onChange(next) }}>
+        <SelectTrigger id={controlId} className="w-full"><SelectValue /></SelectTrigger>
+        <SelectContent><SelectGroup>{(field.options ?? []).map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select>
     )
   }
 
   if (field.type === 'toggle') {
     const checked = value === 'true'
     return (
-      <button type="button" id={controlId} role="switch" aria-checked={checked} aria-label={field.label} onClick={() => onChange(checked ? 'false' : 'true')} style={{
-        width: 38, height: 22, justifySelf: 'start', borderRadius: 999, border: 'none',
-        background: checked ? 'var(--text)' : 'var(--surface-3)', position: 'relative', cursor: 'pointer',
-      }}>
-        <span aria-hidden style={{ position: 'absolute', top: 3, left: checked ? 19 : 3, width: 16, height: 16, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.2)', transition: 'left 150ms' }} />
-      </button>
+      <Switch id={controlId} checked={checked} aria-label={field.label} onCheckedChange={(next) => onChange(next ? 'true' : 'false')} />
     )
   }
 
   if (field.type === 'textarea') {
-    return <textarea id={controlId} value={value} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} rows={3} style={{ ...sectionInputStyle, height: 70, paddingTop: 8, resize: 'vertical', lineHeight: 1.35 }} />
+    return <Textarea id={controlId} value={value} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} rows={3} />
   }
 
   if (field.type === 'datetime') {
     return (
-      <input
+      <Input
         id={controlId}
         type="datetime-local"
         step={60}
@@ -403,22 +422,11 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
           const date = new Date(event.target.value)
           onChange(Number.isFinite(date.getTime()) ? date.toISOString() : '')
         }}
-        style={sectionInputStyle}
       />
     )
   }
 
-  return <input id={controlId} type={field.type === 'url' ? 'url' : 'text'} value={value} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} style={sectionInputStyle} />
-}
-
-function campaignChoiceStyle(active: boolean): CSSProperties {
-  return {
-    width: '100%', minWidth: 0, minHeight: 46, padding: 6,
-    display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left',
-    border: active ? '1.5px solid var(--text)' : '1px solid var(--border)',
-    borderRadius: 9, background: active ? 'var(--surface-3)' : 'var(--surface)',
-    cursor: 'pointer', fontFamily: 'inherit',
-  }
+  return <Input id={controlId} type={field.type === 'url' ? 'url' : 'text'} value={value} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} />
 }
 
 function toLocalDateTimeValue(value: string) {
@@ -471,19 +479,13 @@ function TileOptions({ controlId, value, options, onChange, render }: {
   render: (value: string) => React.ReactNode
 }) {
   return (
-    <div id={controlId} role="group" style={{ display: 'flex', gap: 6 }}>
+    <ToggleGroup id={controlId} value={[value]} onValueChange={(values) => { const next = values[0]; if (next) onChange(next) }} variant="outline" spacing={2} className="grid w-full grid-flow-col">
       {options.map((option) => {
-        const active = value === option
         return (
-          <button key={option} type="button" aria-pressed={active} onClick={() => onChange(option)} style={{
-            flex: 1, height: 44, border: active ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-            borderRadius: 9, background: active ? 'var(--accent-soft)' : 'var(--surface-2)',
-            color: active ? 'var(--accent)' : 'var(--text-3)', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', cursor: 'pointer', transition: 'border-color 120ms, background 120ms, color 120ms',
-          }}>{render(option)}</button>
+          <ToggleGroupItem key={option} value={option} className="h-11 min-w-0">{render(option)}</ToggleGroupItem>
         )
       })}
-    </div>
+    </ToggleGroup>
   )
 }
 
@@ -538,10 +540,6 @@ function VerticalPositionIcon({ direction }: { direction: 'up' | 'down' }) {
       <path d={up ? 'M12 5v14' : 'M12 19V5'} />
     </svg>
   )
-}
-
-function selectStyle(height: number, hasValue: boolean): CSSProperties {
-  return { width: '100%', minWidth: 0, boxSizing: 'border-box', height, borderRadius: 7, border: '1px solid var(--border-strong)', background: 'var(--surface)', color: hasValue ? 'var(--text)' : 'var(--text-3)', fontSize: 12.5, padding: '0 9px', cursor: 'pointer' }
 }
 
 const GALLERY_TILES: Array<{ id: string; key: string; label: string }> = [
@@ -613,45 +611,23 @@ export function SectionImageUploadPanel({ restaurantId, label, value, onChange, 
   }
 
   return (
-    <div aria-busy={uploading} style={{ marginBottom: 10 }}>
-      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={handleUpload} />
-      <div style={{
-        minHeight: 116,
-        border: `1px ${value ? 'solid' : 'dashed'} var(--border-strong)`,
-        borderRadius: 10,
-        background: 'var(--surface-2)',
-        overflow: 'hidden',
-        position: 'relative',
-        display: 'grid',
-        placeItems: 'center',
-      }}>
-        {value ? (
-          <img src={value} alt={`${label} önizlemesi`} style={{ width: '100%', height: 116, objectFit: mode === 'icon' ? 'contain' : 'cover', padding: mode === 'icon' ? 20 : 0, display: 'block' }} />
-        ) : (
-          <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-3)' }}>
-            <I.image size={22} aria-hidden="true" />
-            <div style={{ marginTop: 5, fontSize: 11.5, lineHeight: 1.4 }}>Henüz {mode === 'icon' ? 'ikon' : 'görsel'} yüklenmedi</div>
-          </div>
-        )}
-      </div>
-      <div style={{ display: 'flex', gap: 7, marginTop: 7 }}>
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => inputRef.current?.click()}
-          style={{ ...uploadActionStyle, flex: 1, background: 'var(--text)', color: 'var(--surface)' }}
-        >
-          {uploading ? <span role="status" aria-live="polite">{mode === 'icon' ? 'İkon' : 'Görsel'} yükleniyor…</span> : value ? `${mode === 'icon' ? 'İkonu' : 'Görseli'} değiştir` : `${mode === 'icon' ? 'İkon' : 'Görsel'} yükle`}
-        </button>
-        {value && (
-          <button type="button" disabled={uploading} onClick={handleRemove} style={{ ...uploadActionStyle, background: 'var(--surface)', color: 'var(--text-2)' }}>
-            Kaldır
-          </button>
-        )}
-      </div>
-      <p style={{ margin: '6px 0 0', color: error ? '#b42318' : 'var(--text-3)', fontSize: 10.5, lineHeight: 1.4 }} role={error ? 'alert' : undefined}>
-        {error ?? (mode === 'icon' ? 'JPEG, PNG veya WebP · en fazla 2 MB · SVG desteklenmez' : 'JPEG, PNG veya WebP · en fazla 8 MB')}
-      </p>
+    <div aria-busy={uploading} className="mb-2.5">
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label={`${label} dosyası`} onChange={handleUpload} />
+      <Attachment state={error ? 'error' : uploading ? 'uploading' : value ? 'done' : 'idle'} orientation="vertical" className="w-full">
+        <AttachmentMedia variant={value ? 'image' : 'icon'} className="h-28 w-full">
+          {value
+            ? <img src={value} alt={`${label} önizlemesi`} className={mode === 'icon' ? 'object-contain p-5' : 'object-cover'} />
+            : uploading ? <Spinner /> : <I.image />}
+        </AttachmentMedia>
+        <AttachmentContent className="w-full">
+          <AttachmentTitle>{value ? label : `Henüz ${mode === 'icon' ? 'ikon' : 'görsel'} yüklenmedi`}</AttachmentTitle>
+          <AttachmentDescription>{error ?? (mode === 'icon' ? 'JPEG, PNG veya WebP · en fazla 2 MB · SVG desteklenmez' : 'JPEG, PNG veya WebP · en fazla 8 MB')}</AttachmentDescription>
+        </AttachmentContent>
+        <AttachmentActions>
+          <AttachmentAction type="button" variant="outline" size="xs" disabled={uploading} onClick={() => inputRef.current?.click()}>{value ? 'Değiştir' : 'Yükle'}</AttachmentAction>
+          {value && <AttachmentAction type="button" variant="destructive" size="xs" disabled={uploading} onClick={handleRemove}>Kaldır</AttachmentAction>}
+        </AttachmentActions>
+      </Attachment>
     </div>
   )
 }
@@ -673,17 +649,11 @@ export function ServiceRequestIconUploadPanels({ restaurantId, values, onChange 
   const activeUploads = SERVICE_REQUEST_ICON_UPLOADS.filter(({ iconKey }) => values[iconKey] === 'custom')
 
   return (
-    <div style={{ display: 'grid', gap: 12, marginBottom: 12 }}>
-      <div style={{
-        padding: '10px 11px', borderRadius: 9, border: '1px solid var(--border)',
-        background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: 11.5, lineHeight: 1.5,
-      }}>
-        Her isteğin ikon seçicisinden <strong style={{ color: 'var(--text)' }}>Özel ikon</strong> seçebilirsiniz.
-        İlgili JPEG, PNG veya WebP yükleme alanı burada açılır. Güvenlik nedeniyle SVG kabul edilmez. <strong style={{ color: 'var(--text)' }}>İkonsuz</strong> seçeneği ise simgeyi kaldırır; buton hizasını korur.
-      </div>
+    <FieldGroup className="mb-3 gap-3">
+      <Alert><AlertDescription>Her isteğin ikon seçicisinden <strong>Özel ikon</strong> seçebilirsiniz. İlgili JPEG, PNG veya WebP yükleme alanı burada açılır. Güvenlik nedeniyle SVG kabul edilmez. <strong>İkonsuz</strong> seçeneği ise simgeyi kaldırır; buton hizasını korur.</AlertDescription></Alert>
       {activeUploads.map(({ valueKey, label }) => (
-        <div key={valueKey}>
-          <div style={{ marginBottom: 7, fontSize: 11.5, fontWeight: 750, color: 'var(--text-2)' }}>{label} özel ikonu</div>
+        <Field key={valueKey}>
+          <FieldTitle className="text-[11.5px] font-bold">{label} özel ikonu</FieldTitle>
           <SectionImageUploadPanel
             restaurantId={restaurantId}
             label={`${label} özel ikonu`}
@@ -691,9 +661,9 @@ export function ServiceRequestIconUploadPanels({ restaurantId, values, onChange 
             onChange={(value) => onChange(valueKey, value)}
             mode="icon"
           />
-        </div>
+        </Field>
       ))}
-    </div>
+    </FieldGroup>
   )
 }
 
@@ -707,30 +677,30 @@ export function ChefPickIconUploadPanels({ restaurantId, values, onChange }: {
   if (!customChefIcon && !customButtonIcon) return null
 
   return (
-    <div style={{ display: 'grid', gap: 12, marginBottom: 12 }}>
+    <FieldGroup className="mb-3 gap-3">
       {customChefIcon && (
-        <div>
-          <div style={{ marginBottom: 7, fontSize: 11.5, fontWeight: 750, color: 'var(--text-2)' }}>Özel şef rozeti</div>
+        <Field>
+          <FieldTitle className="text-[11.5px] font-bold">Özel şef rozeti</FieldTitle>
           <SectionImageUploadPanel
             restaurantId={restaurantId}
             label="Özel şef rozeti"
             value={values.chefIconUrl ?? ''}
             onChange={(value) => onChange('chefIconUrl', value)}
           />
-        </div>
+        </Field>
       )}
       {customButtonIcon && (
-        <div>
-          <div style={{ marginBottom: 7, fontSize: 11.5, fontWeight: 750, color: 'var(--text-2)' }}>Özel sepete ekle ikonu</div>
+        <Field>
+          <FieldTitle className="text-[11.5px] font-bold">Özel sepete ekle ikonu</FieldTitle>
           <SectionImageUploadPanel
             restaurantId={restaurantId}
             label="Özel sepete ekle ikonu"
             value={values.buttonIconUrl ?? ''}
             onChange={(value) => onChange('buttonIconUrl', value)}
           />
-        </div>
+        </Field>
       )}
-    </div>
+    </FieldGroup>
   )
 }
 
@@ -744,30 +714,19 @@ export function PromoSliderImageUploadPanel({ restaurantId, values, onChange }: 
   if (sourceMode === 'active' || !comboEnabled) return null
 
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ marginBottom: 7, fontSize: 11.5, fontWeight: 750, color: 'var(--text-2)' }}>Combo kartı görseli</div>
+    <Field className="mb-3">
+      <FieldTitle className="text-[11.5px] font-bold">Combo kartı görseli</FieldTitle>
       <SectionImageUploadPanel
         restaurantId={restaurantId}
         label="Combo kartı"
         value={values.comboImageUrl ?? ''}
         onChange={(value) => onChange('comboImageUrl', value)}
       />
-      <p style={{ margin: '-2px 0 0', color: 'var(--text-3)', fontSize: 10.5, lineHeight: 1.4 }}>
+      <FieldDescription className="-mt-0.5 text-[10.5px] leading-snug">
         Görsel eklemezsen kartta emoji kullanılır. Yerleşim ve odak ayarlarını aşağıdan değiştirebilirsin.
-      </p>
-    </div>
+      </FieldDescription>
+    </Field>
   )
-}
-
-const uploadActionStyle: CSSProperties = {
-  minHeight: 34,
-  padding: '0 11px',
-  border: '1px solid var(--border-strong)',
-  borderRadius: 8,
-  fontFamily: 'inherit',
-  fontSize: 11.5,
-  fontWeight: 750,
-  cursor: 'pointer',
 }
 
 export function GalleryUploadPanel({ restaurantId, values, onChange }: {
@@ -847,72 +806,54 @@ export function GalleryUploadPanel({ restaurantId, values, onChange }: {
   }
 
   return (
-    <div data-gallery-upload-panel aria-busy={uploading !== null} style={{ marginBottom: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
-        <div>
-          <strong style={{ display: 'block', fontSize: 12, color: 'var(--text)' }}>Galeri fotoğrafları</strong>
-          <span style={{ display: 'block', marginTop: 2, fontSize: 10.5, color: 'var(--text-3)' }}>{photoCount} / 6 fotoğraf yüklendi</span>
-        </div>
-        <span style={{ padding: '5px 8px', borderRadius: 999, background: photoCount > 0 ? 'var(--success-bg)' : 'var(--surface-2)', color: photoCount > 0 ? 'var(--success)' : 'var(--text-3)', fontSize: 10.5, fontWeight: 750 }}>
+    <div data-gallery-upload-panel aria-busy={uploading !== null} className="mb-2">
+      <Field orientation="horizontal" className="mb-2 items-center">
+        <FieldContent>
+          <FieldTitle className="text-xs">Galeri fotoğrafları</FieldTitle>
+          <FieldDescription className="text-[10.5px]">{photoCount} / 6 fotoğraf yüklendi</FieldDescription>
+        </FieldContent>
+        <Badge variant={photoCount > 0 ? 'positive' : 'secondary'}>
           {photoCount > 0 ? 'Menüde görünür' : 'Galeri boş'}
-        </span>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+        </Badge>
+      </Field>
+      <div className="mb-2 grid grid-cols-2 gap-2">
         {orderedTiles.map((tile, index) => {
           const imageUrl = values[tile.key] ?? ''
           const loading = uploading === tile.key
           return (
-            <div key={tile.key} style={{ minHeight: 104, borderRadius: 10, overflow: 'hidden', position: 'relative', background: imageUrl ? 'transparent' : 'var(--surface-3)', border: `1px ${imageUrl ? 'solid' : 'dashed'} ${imageUrl ? 'var(--border)' : 'var(--border-strong)'}` }}>
-              <input ref={(element) => { fileRefs.current[tile.key] = element }} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={(event) => handleUpload(tile.key, event)} />
-              <button type="button" aria-label={`Galeri karesi ${tile.label} ${imageUrl ? 'görselini değiştir' : 'görseli yükle'}`} disabled={loading} onClick={() => fileRefs.current[tile.key]?.click()} style={{ width: '100%', height: '100%', minHeight: 104, border: 'none', padding: 0, background: 'transparent', cursor: loading ? 'wait' : 'pointer', display: 'grid', placeItems: 'center', fontFamily: 'inherit' }}>
+            <Attachment key={tile.key} state={loading ? 'uploading' : imageUrl ? 'done' : 'idle'} orientation="vertical" className="min-h-[104px] w-full flex-nowrap overflow-hidden p-0">
+              <input ref={(element) => { fileRefs.current[tile.key] = element }} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label={`Galeri karesi ${tile.label} dosyası`} onChange={(event) => handleUpload(tile.key, event)} />
+              <AttachmentMedia variant={imageUrl ? 'image' : 'icon'} className="h-[104px] w-full rounded-none p-0">
                 {imageUrl ? (
-                  <img src={imageUrl} alt="" style={{ width: '100%', height: '100%', minHeight: 104, objectFit: values.imageFit === 'contain' ? 'contain' : 'cover', objectPosition: values.imagePosition || 'center', display: 'block', background: 'var(--surface-3)' }} />
+                  <img src={imageUrl} alt="" className="size-full min-h-[104px] bg-muted" style={{ objectFit: values.imageFit === 'contain' ? 'contain' : 'cover', objectPosition: values.imagePosition || 'center' }} />
                 ) : (
-                  <span style={{ display: 'grid', justifyItems: 'center', gap: 5, color: 'var(--text-3)' }}>
-                    <I.image size={19} />
-                    <span role={loading ? 'status' : undefined} aria-live={loading ? 'polite' : undefined} style={{ fontSize: 10.5, fontWeight: 700 }}>{loading ? 'Fotoğraf yükleniyor…' : 'Fotoğraf yükle'}</span>
+                  <span className="grid justify-items-center gap-1.5 text-muted-foreground">
+                    {loading ? <Spinner /> : <I.image />}
+                    <span role={loading ? 'status' : undefined} aria-live={loading ? 'polite' : undefined} className="text-[10.5px] font-bold">{loading ? 'Fotoğraf yükleniyor…' : 'Fotoğraf yükle'}</span>
                   </span>
                 )}
-              </button>
-              <span aria-hidden style={{ position: 'absolute', top: 6, left: 6, minWidth: 23, height: 23, padding: '0 6px', borderRadius: 999, display: 'grid', placeItems: 'center', color: imageUrl ? '#fff' : 'var(--text-2)', background: imageUrl ? 'rgba(0,0,0,.58)' : 'var(--surface)', boxShadow: '0 2px 8px rgba(0,0,0,.08)', fontSize: 10, fontWeight: 850 }}>{index + 1}</span>
-              <div style={{ position: 'absolute', right: 5, bottom: 5, display: 'flex', gap: 3 }}>
-                <button type="button" aria-label={`Galeri karesi ${index + 1} önceye taşı`} disabled={index === 0} onClick={() => moveTile(index, -1)} style={galleryMiniActionStyle(index === 0)}>←</button>
-                <button type="button" aria-label={`Galeri karesi ${index + 1} sonraya taşı`} disabled={index === orderedTiles.length - 1} onClick={() => moveTile(index, 1)} style={galleryMiniActionStyle(index === orderedTiles.length - 1)}>→</button>
-                {imageUrl && <button type="button" aria-label={`Galeri karesi ${tile.label} görselini kaldır`} disabled={loading} onClick={() => removeTile(tile.key, imageUrl)} style={{ ...galleryMiniActionStyle(loading), color: '#fff', background: 'rgba(166,28,28,.82)' }}>✕</button>}
-              </div>
-            </div>
+              </AttachmentMedia>
+              <AttachmentTrigger aria-label={`Galeri karesi ${tile.label} ${imageUrl ? 'görselini değiştir' : 'görseli yükle'}`} disabled={loading} onClick={() => fileRefs.current[tile.key]?.click()} />
+              <Badge aria-hidden className="absolute top-1.5 left-1.5 z-20 min-w-6 justify-center" variant={imageUrl ? 'default' : 'secondary'}>{index + 1}</Badge>
+              <AttachmentActions className="top-auto right-1.5 bottom-1.5">
+                <ButtonGroup>
+                  <AttachmentAction type="button" variant="secondary" size="icon-xs" aria-label={`Galeri karesi ${index + 1} önceye taşı`} disabled={index === 0} onClick={() => moveTile(index, -1)}><I.chevRight className="rotate-180" /></AttachmentAction>
+                  <AttachmentAction type="button" variant="secondary" size="icon-xs" aria-label={`Galeri karesi ${index + 1} sonraya taşı`} disabled={index === orderedTiles.length - 1} onClick={() => moveTile(index, 1)}><I.chevRight /></AttachmentAction>
+                  {imageUrl && <AttachmentAction type="button" variant="destructive" size="icon-xs" aria-label={`Galeri karesi ${tile.label} görselini kaldır`} disabled={loading} onClick={() => removeTile(tile.key, imageUrl)}><I.close /></AttachmentAction>}
+                </ButtonGroup>
+              </AttachmentActions>
+            </Attachment>
           )
         })}
       </div>
-      <div role={error ? 'alert' : undefined} style={{ display: 'grid', gap: 2, color: error ? 'var(--danger)' : 'var(--text-3)', fontSize: 10.5, lineHeight: 1.45 }}>
-        {error ? (
-          <span>{error}</span>
-        ) : (
-          <>
-            <span>Önerilen: 1600 × 1200 px (4:3) · minimum 1200 × 900 px</span>
-            <span>JPG, PNG veya WEBP · en fazla 8 MB · oklarla sıralayabilirsin</span>
-          </>
-        )}
-      </div>
+      {error ? (
+        <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
+      ) : (
+        <FieldDescription className="grid gap-0.5 text-[10.5px] leading-snug">
+          <span>Önerilen: 1600 × 1200 px (4:3) · minimum 1200 × 900 px</span>
+          <span>JPG, PNG veya WEBP · en fazla 8 MB · oklarla sıralayabilirsin</span>
+        </FieldDescription>
+      )}
     </div>
   )
-}
-
-function galleryMiniActionStyle(disabled: boolean): CSSProperties {
-  return {
-    width: 24,
-    height: 24,
-    padding: 0,
-    display: 'grid',
-    placeItems: 'center',
-    border: '1px solid rgba(255,255,255,.22)',
-    borderRadius: 7,
-    background: disabled ? 'rgba(0,0,0,.24)' : 'rgba(0,0,0,.62)',
-    color: '#fff',
-    fontFamily: 'inherit',
-    fontSize: 11,
-    fontWeight: 850,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.45 : 1,
-  }
 }

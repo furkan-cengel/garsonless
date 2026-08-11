@@ -1,20 +1,26 @@
 'use client'
 
 import { type ReactNode } from 'react'
-import { EmptyState, I, S } from '../../lib/ui'
+import { I } from '../../lib/ui'
+import { formatPanoCurrency } from '../../lib/pano-format'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from '@/components/ui/item'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Spinner } from '@/components/ui/spinner'
 import type { ActivityEvent } from '../../lib/queries/pano'
-import { PanoCard } from './PanoOverviewWidgets'
+import { PanoCard, PanoEmptyState } from './PanoOverviewWidgets'
 import type { PanoOrderApprovalState } from './use-pano-order-approval'
 
-const STATUS_TONES: Record<string, { bg: string; fg: string }> = {
-  pending: { bg: 'var(--warning-bg)', fg: 'var(--warning)' },
-  pending_approval: { bg: 'var(--warning-bg)', fg: 'var(--warning)' },
-  sent_to_kitchen: { bg: 'var(--info-bg)', fg: 'var(--info)' },
-  preparing: { bg: 'var(--info-bg)', fg: 'var(--info)' },
-  ready: { bg: 'var(--positive-bg)', fg: 'var(--positive)' },
-  served: { bg: 'var(--surface-3)', fg: 'var(--text-2)' },
-  paid: { bg: 'var(--surface-3)', fg: 'var(--text-2)' },
-  cancelled: { bg: 'var(--critical-bg)', fg: 'var(--critical)' },
+const STATUS_VARIANTS: Record<string, 'warning' | 'info' | 'positive' | 'secondary' | 'destructive'> = {
+  pending: 'warning',
+  pending_approval: 'warning',
+  sent_to_kitchen: 'info',
+  preparing: 'info',
+  ready: 'positive',
+  served: 'secondary',
+  paid: 'secondary',
+  cancelled: 'destructive',
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -29,14 +35,14 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const STATUS_ICONS: Record<string, ReactNode> = {
-  pending: <I.receipt size={13} />,
-  pending_approval: <I.clock size={13} />,
-  sent_to_kitchen: <I.cutlery size={13} />,
-  preparing: <I.clock size={13} />,
-  ready: <I.check size={13} />,
-  served: <I.cutlery size={13} />,
-  paid: <I.card size={13} />,
-  cancelled: <I.x size={13} />,
+  pending: <I.receipt />,
+  pending_approval: <I.clock />,
+  sent_to_kitchen: <I.cutlery />,
+  preparing: <I.clock />,
+  ready: <I.check />,
+  served: <I.cutlery />,
+  paid: <I.card />,
+  cancelled: <I.x />,
 }
 
 function relativeTime(iso: string, now: Date): string {
@@ -79,17 +85,7 @@ export function PanoActivityFeed({
         .pano-feed-time { transition: opacity 120ms ease; }
         .pano-feed-row:hover .pano-feed-time,
         .pano-feed-row:focus-within .pano-feed-time { opacity: 0; }
-        .pano-feed-spinner {
-          width: 12px;
-          height: 12px;
-          border: 2px solid color-mix(in srgb, var(--positive) 25%, transparent);
-          border-top-color: var(--positive);
-          border-radius: 999px;
-          animation: pano-feed-spin .7s linear infinite;
-        }
-        @keyframes pano-feed-spin { to { transform: rotate(360deg); } }
         @media (prefers-reduced-motion: reduce) {
-          .pano-feed-spinner { animation: none; }
           .pano-feed-action, .pano-feed-time { transition: none; }
         }
         @media (hover: none) {
@@ -97,10 +93,11 @@ export function PanoActivityFeed({
           .pano-feed-time { opacity: 0; }
         }
       `}</style>
-      {feed.length === 0
-        ? <EmptyState title="Bugün henüz sipariş yok" sub="Yeni siparişler burada anlık görünür" />
-        : (
-          <div style={{ padding: '0 0 8px', maxHeight: 360, overflow: 'auto' }}>
+      {feed.length === 0 ? (
+        <PanoEmptyState title="Bugün henüz sipariş yok" sub="Yeni siparişler burada anlık görünür" />
+      ) : (
+        <ScrollArea className="h-[360px]">
+          <ItemGroup className="gap-0 pb-2">
             {feed.map((event, index) => (
               <PanoActivityFeedRow
                 key={event.id}
@@ -112,8 +109,9 @@ export function PanoActivityFeed({
                 now={now}
               />
             ))}
-          </div>
-        )}
+          </ItemGroup>
+        </ScrollArea>
+      )}
     </PanoCard>
   )
 }
@@ -133,61 +131,52 @@ function PanoActivityFeedRow({
   onApprove: () => void
   now: Date
 }) {
-  const tone = STATUS_TONES[event.status] ?? STATUS_TONES.pending!
+  const tone = STATUS_VARIANTS[event.status] ?? 'warning'
   const canApprove = canManageOrders && event.status === 'pending_approval'
   const isPending = approval?.isPending ?? false
   const error = approval?.error ?? null
 
   return (
-    <div
-      className="pano-feed-row"
-      style={{
-        position: 'relative', padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 10,
-        minHeight: 58, borderBottom: last ? 'none' : '1px solid var(--divider)',
-        background: error ? 'var(--critical-bg)' : 'transparent', transition: 'background 120ms ease',
-      }}
-    >
-      <div style={{
-        width: 26, height: 26, borderRadius: 999, background: tone.bg, color: tone.fg,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-      }}>{STATUS_ICONS[event.status] ?? <I.bell size={13} />}</div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 500, color: error ? 'var(--critical)' : 'var(--text)' }}>
-          {error ?? STATUS_LABELS[event.status] ?? event.status}
-        </div>
-        <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 1 }}>
-          {(event.tableLabel ?? (event.tableId ? 'Masa' : 'Paket'))} · ₺{event.total.toLocaleString('tr-TR')}
-        </div>
-      </div>
-      {canApprove ? (
-        <div style={{ position: 'relative', width: 96, height: 44, flexShrink: 0 }}>
-          <span className="pano-feed-time" style={{
-            ...S.mono, position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-            fontSize: 10.5, color: 'var(--text-3)',
-          }}>{relativeTime(event.createdAt, now)}</span>
-          <button
-            type="button"
-            className="pano-feed-action"
-            disabled={isPending}
-            aria-busy={isPending}
-            onClick={onApprove}
-            aria-label={`${event.tableLabel ?? 'Sipariş'} siparişini onayla`}
-            style={{
-              position: 'absolute', right: 0, top: 0, height: 44, padding: '0 10px',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-              border: '1px solid var(--positive)', borderRadius: 7, background: 'var(--positive-bg)', color: 'var(--positive)',
-              fontSize: 11.5, fontWeight: 700, cursor: isPending ? 'wait' : 'pointer',
-            }}
-          >
-            {isPending ? <span aria-hidden="true" className="pano-feed-spinner" /> : <I.check size={13} />}
-            {isPending ? 'Onaylanıyor…' : 'Onayla'}
-          </button>
-        </div>
-      ) : (
-        <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)', flexShrink: 0 }}>
-          {relativeTime(event.createdAt, now)}
-        </span>
-      )}
-    </div>
+    <>
+      <Item className="pano-feed-row min-h-[58px] rounded-none" size="sm" variant={error ? 'muted' : 'default'}>
+        <ItemMedia variant="icon">
+          <Badge variant={error ? 'destructive' : tone} className="size-7 rounded-full p-0" aria-hidden="true">
+            {STATUS_ICONS[event.status] ?? <I.bell />}
+          </Badge>
+        </ItemMedia>
+        <ItemContent>
+          <ItemTitle>{error ?? STATUS_LABELS[event.status] ?? event.status}</ItemTitle>
+          <ItemDescription className="pano-number">
+            {event.tableLabel ?? (event.tableId ? 'Masa' : 'Paket')} · {formatPanoCurrency(event.total)}
+          </ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          {canApprove ? (
+            <div className="relative h-11 w-24 shrink-0">
+              <span className="pano-feed-time pano-number absolute inset-0 flex items-center justify-end text-muted-foreground">
+                {relativeTime(event.createdAt, now)}
+              </span>
+              <Button
+                variant="positive"
+                size="sm"
+                className="pano-feed-action absolute top-0 right-0 min-h-11"
+                disabled={isPending}
+                aria-busy={isPending}
+                onClick={onApprove}
+                aria-label={`${event.tableLabel ?? 'Sipariş'} siparişini onayla`}
+              >
+                {isPending ? <Spinner data-icon="inline-start" aria-label="Onaylanıyor" /> : <I.check data-icon="inline-start" />}
+                {isPending ? 'Onaylanıyor…' : 'Onayla'}
+              </Button>
+            </div>
+          ) : (
+            <span className="pano-number shrink-0 text-muted-foreground">
+              {relativeTime(event.createdAt, now)}
+            </span>
+          )}
+        </ItemActions>
+      </Item>
+      {!last && <ItemSeparator className="my-0" />}
+    </>
   )
 }

@@ -16,8 +16,8 @@ import {
   isProductConfigurable,
 } from '@garsonless/ui/menu'
 import type {
-  DietaryFilter,
   MenuCategory,
+  MenuFilterDefinition,
   MenuItem,
   ProductModalSubmitOptions,
   SectionPromotionContext,
@@ -486,7 +486,7 @@ export function MenuPageClient({
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(() => initialProductId ? items.find((item) => item.id === initialProductId) ?? null : null)
   const [pendingCombo, setPendingCombo] = useState<PendingCombo | null>(null)
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null)
-  const [dietaryFilters, setDietaryFilters] = useState<DietaryFilter[]>([])
+  const [menuFilters, setMenuFilters] = useState<MenuFilterDefinition[]>([])
   const [isCartOpen, setIsCartOpen] = useState(initialOpenCart)
   const [hasOpenedCart, setHasOpenedCart] = useState(false)
   const [hasOpenedProduct, setHasOpenedProduct] = useState(false)
@@ -1007,11 +1007,11 @@ export function MenuPageClient({
     firstCardItemId,
     cartQuantityByItemId,
     cartSummary,
-  } = useMenuCatalog({ items, categories, dietaryFilters, cartItems })
+  } = useMenuCatalog({ items, categories, menuFilters, cartItems })
 
-  const toggleDietaryFilter = useCallback((filter: DietaryFilter) => {
-    setDietaryFilters((current) => current.includes(filter)
-      ? current.filter((candidate) => candidate !== filter)
+  const toggleMenuFilter = useCallback((filter: MenuFilterDefinition) => {
+    setMenuFilters((current) => current.some((candidate) => candidate.id === filter.id)
+      ? current.filter((candidate) => candidate.id !== filter.id)
       : [...current, filter])
   }, [])
 
@@ -1092,8 +1092,10 @@ export function MenuPageClient({
         renderItems={renderItems}
         menuFilters={(
           <DietaryFilterBar
-            selected={dietaryFilters}
-            onToggle={toggleDietaryFilter}
+            selected={menuFilters}
+            onToggle={toggleMenuFilter}
+            onClear={() => setMenuFilters([])}
+            onSelectionChange={setMenuFilters}
           />
         )}
         orderStatus={orderId && orderStatus && orderView === 'bubble' ? (
@@ -1104,7 +1106,7 @@ export function MenuPageClient({
             onOpen={openOrderSheet}
           />
         ) : null}
-        filterEmptyState={dietaryFilters.length > 0 && filteredItems.length === 0 ? (
+        filterEmptyState={menuFilters.length > 0 && filteredItems.length === 0 ? (
           <div
             data-component="filter-empty-state"
             role="status"

@@ -1,8 +1,12 @@
-import React from 'react'
-import { InlineSpinner } from '@garsonless/ui/spinners'
+import { Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import { FieldError, FieldGroup } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
 import type { OpenTableSessionView, TableItem } from './tables-builder-types'
 import { sessionDuration, tableOperationalState } from './tables-operation-model'
-import { TABLES_NAV_ICONS, TABLES_NAV_STYLES, tablesNavGhostButton, tablesNavPrimaryButton } from './tables-navigation-ui'
+import { TABLES_NAV_ICONS, TABLES_NAV_STYLES } from './tables-navigation-ui'
 import { TablesNavigationTableRow } from './TablesNavigationTableRow'
 
 export function TablesNavigationList({
@@ -65,14 +69,12 @@ export function TablesNavigationList({
         <span aria-live="polite">{filteredTables.length}</span>
       </div>
       {filteredTables.length === 0 && (
-        <div style={{ margin: '8px 4px 12px', padding: '18px 12px', border: '1px dashed var(--border-strong)', borderRadius: 9, textAlign: 'center', color: 'var(--text-3)', background: 'var(--surface-2)' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-2)' }}>
-            {tables.length === 0 ? 'Henüz masa yok' : 'Filtrelere uyan masa yok'}
-          </div>
-          <div style={{ fontSize: 11.5, marginTop: 4 }}>
-            {tables.length === 0 ? 'İlk masanızı ekleyerek başlayın.' : 'Arama, durum veya konum filtresini değiştirin.'}
-          </div>
-        </div>
+        <Empty className="mx-1 my-2 min-h-28 border bg-muted/30 p-4">
+          <EmptyHeader className="gap-1">
+            <EmptyTitle>{tables.length === 0 ? 'Henüz masa yok' : 'Filtrelere uyan masa yok'}</EmptyTitle>
+            <EmptyDescription className="text-xs">{tables.length === 0 ? 'İlk masanızı ekleyerek başlayın.' : 'Arama, durum veya konum filtresini değiştirin.'}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       )}
       {filteredTables.map((table) => {
         const session = openSessions[table.id]
@@ -98,7 +100,7 @@ export function TablesNavigationList({
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#b8690f', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                   {TABLES_NAV_ICONS.bellSmall}{request.label}
                 </span>
-                <button type="button" onClick={(event) => { event.stopPropagation(); onResolveRequest(request.id) }} style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', border: '1px solid #d98324', borderRadius: 5, background: 'var(--surface)', color: '#b8690f', cursor: 'pointer', flexShrink: 0 }}>Tamamla</button>
+                <Button type="button" variant="outline" size="xs" onClick={(event) => { event.stopPropagation(); onResolveRequest(request.id) }} className="border-[var(--warning)] text-[var(--warning)]">Tamamla</Button>
               </div>
             ))}
             {session && (
@@ -108,9 +110,9 @@ export function TablesNavigationList({
                   {session.unpaidTotal > 0 && ` · ₺${session.unpaidTotal.toLocaleString('tr-TR')} açık`}
                   {session.splitDeclaredCashTotal > 0 && ` · ₺${session.splitDeclaredCashTotal.toLocaleString('tr-TR')} nakit onayı`}
                 </span>
-                <button className="tb-tables__session-action" type="button" aria-label={`${table.label} masasını taşı`} title="Masayı taşı" onClick={(event) => { event.stopPropagation(); onTransfer('table_move', table.id) }} style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', border: '1px solid var(--border-strong)', borderRadius: 5, background: 'var(--surface)', cursor: 'pointer', flexShrink: 0 }}>Taşı</button>
-                <button className="tb-tables__session-action" type="button" aria-label={`${table.label} ürün veya hesabını taşı`} title="Ürün veya hesap taşı" onClick={(event) => { event.stopPropagation(); onTransfer('account_transfer', table.id) }} style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', border: '1px solid var(--border-strong)', borderRadius: 5, background: 'var(--surface)', cursor:'pointer', flexShrink: 0 }}>Ürün</button>
-                <button className="tb-tables__session-action" type="button" onClick={(event) => { event.stopPropagation(); onCloseSession(session, table.label) }} style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', border: '1px solid var(--positive)', borderRadius: 5, background: 'var(--surface)', color: 'var(--positive)', cursor: 'pointer', flexShrink: 0 }}>Kapat</button>
+                <Button className="tb-tables__session-action" type="button" variant="outline" size="xs" aria-label={`${table.label} masasını taşı`} title="Masayı taşı" onClick={(event) => { event.stopPropagation(); onTransfer('table_move', table.id) }}>Taşı</Button>
+                <Button className="tb-tables__session-action" type="button" variant="outline" size="xs" aria-label={`${table.label} ürün veya hesabını taşı`} title="Ürün veya hesap taşı" onClick={(event) => { event.stopPropagation(); onTransfer('account_transfer', table.id) }}>Ürün</Button>
+                <Button className="tb-tables__session-action" type="button" variant="positive" size="xs" onClick={(event) => { event.stopPropagation(); onCloseSession(session, table.label) }}>Kapat</Button>
               </div>
             )}
           </div>
@@ -118,8 +120,8 @@ export function TablesNavigationList({
       })}
 
       {adding ? (
-        <div style={{ margin: '8px 4px 4px', padding: 8, border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface-2)' }}>
-          <input
+        <FieldGroup className="mx-1 mt-2 gap-1.5 rounded-lg border bg-muted/30 p-2">
+          <Input
             aria-label="Yeni masa adı"
             autoFocus
             value={newLabel}
@@ -129,22 +131,20 @@ export function TablesNavigationList({
               if (event.key === 'Escape') cancelAdding()
             }}
             placeholder="örn. Masa 11"
-            style={{ width: '100%', height: 28, padding: '0 8px', marginBottom: 6, border: '1px solid var(--border-strong)', borderRadius: 6, outline: 'none', fontSize: 12.5 }}
+            className="h-7 text-xs"
           />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
-            <input aria-label="Yeni masa katı" value={newFloorLabel} maxLength={40} onChange={(event) => setNewFloorLabel(event.target.value)} placeholder="Kat" style={{ width: '100%', minWidth: 0, height: 30, padding: '0 8px', border: '1px solid var(--border-strong)', borderRadius: 6, outline: 'none', fontSize: 11.5 }} />
-            <input aria-label="Yeni masa alanı" value={newAreaLabel} maxLength={40} onChange={(event) => setNewAreaLabel(event.target.value)} placeholder="Alan" style={{ width: '100%', minWidth: 0, height: 30, padding: '0 8px', border: '1px solid var(--border-strong)', borderRadius: 6, outline: 'none', fontSize: 11.5 }} />
+          <div className="grid grid-cols-2 gap-1.5">
+            <Input aria-label="Yeni masa katı" value={newFloorLabel} maxLength={40} onChange={(event) => setNewFloorLabel(event.target.value)} placeholder="Kat" className="h-7 min-w-0 text-xs" />
+            <Input aria-label="Yeni masa alanı" value={newAreaLabel} maxLength={40} onChange={(event) => setNewAreaLabel(event.target.value)} placeholder="Alan" className="h-7 min-w-0 text-xs" />
           </div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button onClick={addTable} disabled={saving} style={{ ...tablesNavPrimaryButton(), height: 26, fontSize: 11.5, padding: '0 10px', flex: 1, opacity: saving ? 0.6 : 1 }}>{saving ? <><InlineSpinner size={11} color="var(--on-action)" /> Kaydediliyor…</> : 'Ekle'}</button>
-            <button onClick={cancelAdding} style={{ ...tablesNavGhostButton(), height: 26, fontSize: 11.5, padding: '0 10px' }}>İptal</button>
+          <div className="flex gap-1">
+            <Button type="button" size="xs" onClick={addTable} disabled={saving} className="flex-1">{saving && <Spinner data-icon="inline-start" />}Ekle</Button>
+            <Button type="button" variant="outline" size="xs" onClick={cancelAdding}>İptal</Button>
           </div>
-          {addError && <div style={{ marginTop: 6, fontSize: 11, color: 'var(--critical)' }}>{addError}</div>}
-        </div>
+          {addError && <FieldError className="text-xs">{addError}</FieldError>}
+        </FieldGroup>
       ) : (
-        <button onClick={startAdding} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', marginTop: 8, border: '1px dashed var(--border-strong)', background: 'transparent', color: 'var(--text-2)', borderRadius: 7, cursor: 'pointer', fontSize: 12.5, fontWeight: 500 }}>
-          {React.cloneElement(TABLES_NAV_ICONS.plus as React.ReactElement<{ size?: number }>, { size: 13 })}Masa ekle
-        </button>
+        <Button type="button" variant="outline" size="sm" onClick={startAdding} className="mt-2 w-full border-dashed"><Plus />Masa ekle</Button>
       )}
     </div>
   )

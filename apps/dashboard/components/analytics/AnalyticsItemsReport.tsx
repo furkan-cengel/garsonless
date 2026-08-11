@@ -1,9 +1,17 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import type { ProductReportItem } from '../../lib/queries/analytics'
 import { formatCurrency } from '../../lib/utils'
+import { Badge } from '../ui/badge'
+import { Button } from '../ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '../ui/empty'
+import { Field, FieldLabel } from '../ui/field'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '../ui/item'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { AnalyticsCard as Card, AnalyticsKpi as KPISmall } from './AnalyticsReportPrimitives'
 import { loadAnalyticsChart } from './chart-primitives/load-analytics-chart'
 import { analyticsRangePeriodLabel as rangePeriodLabel } from './analytics-report-model'
@@ -65,9 +73,12 @@ function ABCAnalysis({
 }) {
   if (items.length === 0 || totalRevenue <= 0) {
     return (
-      <div style={{ padding: '42px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-        Bu aralıkta ürün tahsilatı yok
-      </div>
+      <Empty className="min-h-36">
+        <EmptyHeader>
+          <EmptyTitle>Ürün tahsilatı yok</EmptyTitle>
+          <EmptyDescription>Seçili tarih aralığında tahsil edilmiş ürün bulunamadı.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
   }
 
@@ -100,7 +111,6 @@ function ProductTable({ items }: { items: ProductReportItem[] }) {
   const [direction, setDirection] = useState<'desc' | 'asc'>('desc')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<ProductReportItem | null>(null)
-  const dialogRef = useRef<HTMLDialogElement>(null)
   const pageSize = 5
   const sorted = useMemo(() => [...items].sort((left, right) => {
     const result = sort === 'name'
@@ -138,11 +148,6 @@ function ProductTable({ items }: { items: ProductReportItem[] }) {
     return () => window.removeEventListener('popstate', applyUrlState)
   }, [items, pageCount])
 
-  useEffect(() => {
-    if (selected && !dialogRef.current?.open) dialogRef.current?.showModal()
-    else if (!selected && dialogRef.current?.open) dialogRef.current.close()
-  }, [selected])
-
   const closeDetail = () => {
     setSelected(null)
     writeTableState({ detail: null })
@@ -151,139 +156,130 @@ function ProductTable({ items }: { items: ProductReportItem[] }) {
   return (
     <div>
       <div className="analytics-data-table-controls">
-        <label>
-          Sırala
-          <select value={sort} onChange={(event) => {
-            const next = event.target.value as typeof sort
+        <Field orientation="horizontal" className="w-auto gap-2">
+          <FieldLabel>Sırala</FieldLabel>
+          <Select value={sort} onValueChange={(value) => {
+            if (!value) return
+            const next = value as typeof sort
             setSort(next); setPage(1); writeTableState({ sort: next, page: null })
           }}>
-            <option value="revenue">Tutar</option>
-            <option value="count">Adet</option>
-            <option value="name">Ürün adı</option>
-          </select>
-        </label>
-        <button type="button" onClick={() => {
+            <SelectTrigger size="sm" aria-label="Ürün tablosu sıralama alanı"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="revenue">Tutar</SelectItem>
+                <SelectItem value="count">Adet</SelectItem>
+                <SelectItem value="name">Ürün adı</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Button variant="outline" size="sm" type="button" onClick={() => {
           const next = direction === 'desc' ? 'asc' : 'desc'
           setDirection(next); setPage(1); writeTableState({ dir: next, page: null })
         }} aria-label={direction === 'desc' ? 'Artan sıraya geç' : 'Azalan sıraya geç'}>
           {direction === 'desc' ? 'Azalan ↓' : 'Artan ↑'}
-        </button>
+        </Button>
       </div>
       <div className="analytics-table-scroll" role="region" aria-label="ABC ürün analizi tablosu" tabIndex={0}>
-      <div style={{ minWidth: 700 }}>
-      <div style={{
-        display: 'grid', gridTemplateColumns: '32px 1fr 70px 110px 70px 54px 76px',
-        padding: '8px 0', borderBottom: '1px solid var(--divider)',
-        fontSize: 10.5, color: 'var(--text-3)', fontWeight: 500, letterSpacing: '.05em', textTransform: 'uppercase',
-        alignItems: 'center', gap: 10,
-      }}>
-        <span>#</span><span>Ürün</span>
-        <span style={{ textAlign: 'right' }}>Adet</span>
-        <span style={{ textAlign: 'right' }}>Tutar</span>
-        <span style={{ textAlign: 'right' }}>Pay</span>
-        <span style={{ textAlign: 'right' }}>Sınıf</span><span />
-      </div>
-      {visible.map((item, i) => (
-        <div key={item.name} style={{
-          display: 'grid', gridTemplateColumns: '32px 1fr 70px 110px 70px 54px 76px',
-          padding: '10px 0', alignItems: 'center', gap: 10,
-          borderBottom: i === visible.length - 1 ? 'none' : '1px solid var(--divider)',
-        }}>
-          <span style={{ ...s.mono, fontSize: 11, color: 'var(--text-3)', fontWeight: 600 }}>{(page - 1) * pageSize + i + 1}</span>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
-          <span style={{ ...s.mono, fontSize: 12.5, fontWeight: 600, textAlign: 'right', color: 'var(--text)' }}>{item.count}</span>
-          <span style={{ ...s.mono, fontSize: 12.5, fontWeight: 600, textAlign: 'right', color: 'var(--text)' }}>{formatCurrency(item.revenue)}</span>
-          <span style={{ ...s.mono, fontSize: 12, textAlign: 'right', color: 'var(--text-3)' }}>%{item.sharePct.toLocaleString('tr-TR')}</span>
-          <span style={{ ...s.mono, fontSize: 11, fontWeight: 700, textAlign: 'right', color: item.abcClass === 'A' ? 'var(--positive)' : item.abcClass === 'B' ? 'var(--warning)' : 'var(--text-3)' }}>{item.abcClass}</span>
-          <button type="button" className="analytics-table-detail-button" onClick={() => {
-            setSelected(item); writeTableState({ detail: item.name }, true)
-          }}>Detay</button>
-        </div>
-      ))}
-      </div>
+        <Table className="min-w-[700px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">#</TableHead>
+              <TableHead>Ürün</TableHead>
+              <TableHead className="text-right">Adet</TableHead>
+              <TableHead className="text-right">Tutar</TableHead>
+              <TableHead className="text-right">Pay</TableHead>
+              <TableHead className="text-right">Sınıf</TableHead>
+              <TableHead className="w-20"><span className="sr-only">İşlem</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visible.map((item, index) => (
+              <TableRow key={item.name}>
+                <TableCell style={s.mono} className="text-xs text-muted-foreground">{(page - 1) * pageSize + index + 1}</TableCell>
+                <TableCell className="max-w-64 truncate font-medium">{item.name}</TableCell>
+                <TableCell style={s.mono} className="text-right font-medium tabular-nums">{item.count}</TableCell>
+                <TableCell style={s.mono} className="text-right font-medium tabular-nums">{formatCurrency(item.revenue)}</TableCell>
+                <TableCell style={s.mono} className="text-right text-muted-foreground tabular-nums">%{item.sharePct.toLocaleString('tr-TR')}</TableCell>
+                <TableCell className="text-right"><Badge variant={item.abcClass === 'A' ? 'positive' : item.abcClass === 'B' ? 'warning' : 'secondary'}>{item.abcClass}</Badge></TableCell>
+                <TableCell><Button type="button" variant="ghost" size="xs" className="analytics-table-detail-button" onClick={() => {
+                  setSelected(item); writeTableState({ detail: item.name }, true)
+                }}>Detay</Button></TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
       <div className="analytics-pagination" aria-label="Ürün tablosu sayfaları">
-        <button type="button" disabled={page <= 1} onClick={() => {
+        <Button variant="outline" size="sm" type="button" disabled={page <= 1} onClick={() => {
           const next = page - 1; setPage(next); writeTableState({ page: next === 1 ? null : String(next) })
-        }}>Önceki</button>
+        }}>Önceki</Button>
         <span>{page} / {pageCount}</span>
-        <button type="button" disabled={page >= pageCount} onClick={() => {
+        <Button variant="outline" size="sm" type="button" disabled={page >= pageCount} onClick={() => {
           const next = page + 1; setPage(next); writeTableState({ page: String(next) })
-        }}>Sonraki</button>
+        }}>Sonraki</Button>
       </div>
-      <dialog ref={dialogRef} className="analytics-detail-dialog" onClose={closeDetail} aria-labelledby="analytics-product-detail-title">
+      <Dialog open={selected !== null} onOpenChange={(nextOpen) => { if (!nextOpen) closeDetail() }}>
         {selected && (
-          <div>
-            <div id="analytics-product-detail-title" role="heading" aria-level={2}>{selected.name}</div>
-            <dl>
-              <div><dt>Adet</dt><dd>{selected.count}</dd></div>
-              <div><dt>Tutar</dt><dd>{formatCurrency(selected.revenue)}</dd></div>
-              <div><dt>Tahsilat payı</dt><dd>%{selected.sharePct.toLocaleString('tr-TR')}</dd></div>
-              <div><dt>ABC sınıfı</dt><dd>{selected.abcClass}</dd></div>
-              <div><dt>Önceki dönem değişimi</dt><dd>{formatProductDelta(selected.deltaPct)}</dd></div>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{selected.name}</DialogTitle>
+              <DialogDescription>Seçili dönemdeki ürün performansı</DialogDescription>
+            </DialogHeader>
+            <dl className="grid gap-2">
+              {[
+                ['Adet', String(selected.count)],
+                ['Tutar', formatCurrency(selected.revenue)],
+                ['Tahsilat payı', `%${selected.sharePct.toLocaleString('tr-TR')}`],
+                ['ABC sınıfı', selected.abcClass],
+                ['Önceki dönem değişimi', formatProductDelta(selected.deltaPct)],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between gap-4 border-b py-2 last:border-b-0">
+                  <dt className="text-muted-foreground">{label}</dt>
+                  <dd className="font-medium tabular-nums">{value}</dd>
+                </div>
+              ))}
             </dl>
-            <button type="button" onClick={() => dialogRef.current?.close()}>Kapat</button>
-          </div>
+            <DialogFooter><Button type="button" variant="outline" onClick={closeDetail}>Kapat</Button></DialogFooter>
+          </DialogContent>
         )}
-      </dialog>
+      </Dialog>
     </div>
   )
 }
 
 function RisersList({ items }: { items: ProductReportItem[] }) {
   if (items.length === 0) {
-    return <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Yükselen ürün yok</div>
+    return <Empty className="min-h-28"><EmptyHeader><EmptyTitle>Yükselen ürün yok</EmptyTitle><EmptyDescription>Bu dönemde anlamlı artış gösteren ürün bulunamadı.</EmptyDescription></EmptyHeader></Empty>
   }
 
   return (
-    <div style={{ padding: 12 }}>
-      {items.map((it, i, arr) => (
-        <div key={i} style={{
-          padding: '10px 6px', display: 'flex', alignItems: 'center', gap: 10,
-          borderBottom: i === arr.length - 1 ? 'none' : '1px solid var(--divider)',
-        }}>
-          <span style={{ ...s.mono, fontSize: 10.5, width: 22, textAlign: 'center', color: 'var(--text-3)' }}>{i + 1}</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{it.name}</div>
-            <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 1 }}>{formatCurrency(it.revenue)} · {it.count} adet</div>
-          </div>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 3,
-            padding: '2px 8px', borderRadius: 999,
-            background: 'var(--positive-bg)', color: 'var(--positive)',
-            fontSize: 11, fontWeight: 600,
-          }}>↑ {formatProductDelta(it.deltaPct)}</span>
-        </div>
+    <ItemGroup className="p-2">
+      {items.map((item, index) => (
+        <Item key={item.name} size="sm">
+          <ItemMedia style={s.mono} className="text-xs text-muted-foreground">{index + 1}</ItemMedia>
+          <ItemContent><ItemTitle>{item.name}</ItemTitle><ItemDescription>{formatCurrency(item.revenue)} · {item.count} adet</ItemDescription></ItemContent>
+          <ItemActions><Badge variant="positive">↑ {formatProductDelta(item.deltaPct)}</Badge></ItemActions>
+        </Item>
       ))}
-    </div>
+    </ItemGroup>
   )
 }
 
 function FallersList({ items }: { items: ProductReportItem[] }) {
   if (items.length === 0) {
-    return <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Düşen ürün yok</div>
+    return <Empty className="min-h-28"><EmptyHeader><EmptyTitle>Düşen ürün yok</EmptyTitle><EmptyDescription>Bu dönemde anlamlı düşüş gösteren ürün bulunamadı.</EmptyDescription></EmptyHeader></Empty>
   }
 
   return (
-    <div style={{ padding: 12 }}>
-      {items.map((it, i, arr) => (
-        <div key={i} style={{
-          padding: '10px 6px', display: 'flex', alignItems: 'center', gap: 10,
-          borderBottom: i === arr.length - 1 ? 'none' : '1px solid var(--divider)',
-        }}>
-          <span style={{ ...s.mono, fontSize: 10.5, width: 22, textAlign: 'center', color: 'var(--text-3)' }}>{i + 1}</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{it.name}</div>
-            <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 1 }}>{formatCurrency(it.revenue)} · {it.count} adet</div>
-          </div>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 3,
-            padding: '2px 8px', borderRadius: 999,
-            background: 'var(--critical-bg)', color: 'var(--critical)',
-            fontSize: 11, fontWeight: 600,
-          }}>↓ {formatProductDelta(it.deltaPct)}</span>
-        </div>
+    <ItemGroup className="p-2">
+      {items.map((item, index) => (
+        <Item key={item.name} size="sm">
+          <ItemMedia style={s.mono} className="text-xs text-muted-foreground">{index + 1}</ItemMedia>
+          <ItemContent><ItemTitle>{item.name}</ItemTitle><ItemDescription>{formatCurrency(item.revenue)} · {item.count} adet</ItemDescription></ItemContent>
+          <ItemActions><Badge variant="destructive">↓ {formatProductDelta(item.deltaPct)}</Badge></ItemActions>
+        </Item>
       ))}
-    </div>
+    </ItemGroup>
   )
 }

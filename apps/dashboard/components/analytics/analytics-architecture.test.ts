@@ -150,14 +150,20 @@ test('analytics shell keeps mobile navigation, heading order and touch targets e
   assert.match(globalStylesSource, /\.analytics-responsive-grid[\s\S]*grid-template-columns: minmax\(0, 1fr\) !important/)
 })
 
-test('report controls stay compact on desktop and expose consistent hover feedback', () => {
-  assert.match(shellSource, /padding: '6px 8px'/)
-  assert.match(filterBarSource, /minHeight: 36/)
+test('report controls use compact shadcn composition and retain chart hover feedback', () => {
+  assert.match(shellSource, /<TabsTrigger[\s\S]*className="analytics-report-tab h-auto w-full flex-none justify-start px-2 py-2 text-left"/)
+  assert.equal(shellSource.match(/aria-current=\{activeReport === report\.id \? 'page' : undefined\}/g)?.length, 2)
+  assert.match(globalStylesSource, /\.analytics-desktop-report-tabs \.analytics-report-tab:not\(\[data-active\]\):hover \{[\s\S]{0,240}background: var\(--surface-3\);[\s\S]{0,100}transform: translateX\(2px\);/)
+  assert.match(globalStylesSource, /\.analytics-desktop-report-tabs \.analytics-report-tab\[data-active\] \{[\s\S]{0,260}background: var\(--surface-inset\);[\s\S]{0,140}box-shadow: inset 3px 0 0 var\(--text\)/)
+  assert.match(shellSource, /<Button[\s\S]*className="analytics-export-button"[\s\S]*size="sm"/)
+  assert.match(filterBarSource, /<FieldGroup className="analytics-filter-fields"/)
+  assert.match(filterBarSource, /<SelectTrigger[\s\S]*size="sm"/)
+  assert.match(filterBarSource, /const selectedLabel = options\.find/)
+  assert.doesNotMatch(filterBarSource, /min-w-32/)
+  assert.match(rangePickerSource, /const selectedRangeLabel = ANALYTICS_RANGES\.find/)
+  assert.match(globalStylesSource, /\.analytics-filter-fields \{[\s\S]{0,120}max-width: 520px;[\s\S]{0,100}flex: 0 1 520px;/)
+  assert.match(globalStylesSource, /\.analytics-filter-fields \{[\s\S]{0,220}display: grid;[\s\S]{0,120}grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/)
   assert.match(paymentChartSource, /className="analytics-payment-legend-button"/)
-  assert.match(globalStylesSource, /\.analytics-report-tab:not\(:disabled\):hover/)
-  assert.match(globalStylesSource, /\.analytics-export-button:not\(:disabled\):hover/)
-  assert.match(globalStylesSource, /\.analytics-filter-actions button:not\(:disabled\):hover/)
-  assert.match(globalStylesSource, /\.analytics-data-table-controls button:not\(:disabled\):hover/)
   assert.match(globalStylesSource, /\.analytics-chart-data summary:hover/)
   assert.match(globalStylesSource, /\.analytics-payment-legend-button:not\(:disabled\):hover/)
 })
@@ -166,7 +172,8 @@ test('custom range validation identifies and describes both date fields', () => 
   assert.match(rangePickerSource, /const DATE_ERROR_ID = 'analytics-custom-range-error'/)
   assert.equal(rangePickerSource.match(/aria-invalid=\{dateError \? true : undefined\}/g)?.length, 2)
   assert.equal(rangePickerSource.match(/aria-describedby=\{dateError \? DATE_ERROR_ID : undefined\}/g)?.length, 2)
-  assert.match(rangePickerSource, /<div id=\{DATE_ERROR_ID\} role="alert"/)
+  assert.match(rangePickerSource, /<FieldError id=\{DATE_ERROR_ID\}/)
+  assert.match(rangePickerSource, /<Dialog open=\{open\}/)
 })
 
 test('analytics range and filters are allow-listed, shareable and server revalidated', () => {
@@ -188,9 +195,12 @@ test('analytics range and filters are allow-listed, shareable and server revalid
   assert.match(analyticsOperationsQueriesSource, /filters: \{ \.\.\.query\.filters, status: 'all' \}/)
 })
 
-test('analytics dialogs use viewport-centered, bounded top-layer geometry', () => {
-  assert.match(globalStylesSource, /\.analytics-custom-range-dialog \{[\s\S]{0,260}position: fixed;[\s\S]{0,180}inset: 0;[\s\S]{0,180}margin: auto;[\s\S]{0,220}max-height: calc\(100dvh - 32px\);[\s\S]{0,100}overflow: auto;/)
-  assert.match(globalStylesSource, /\.analytics-detail-dialog \{[\s\S]{0,260}position: fixed;[\s\S]{0,180}inset: 0;[\s\S]{0,180}margin: auto;[\s\S]{0,220}max-height: calc\(100dvh - 32px\);[\s\S]{0,100}overflow: auto;/)
+test('analytics dialogs use the shared shadcn top-layer composition', () => {
+  assert.match(rangePickerSource, /<DialogContent/)
+  assert.match(rangePickerSource, /<DialogTitle>Özel tarih aralığı<\/DialogTitle>/)
+  assert.match(itemsSource, /<Dialog open=\{selected !== null\}/)
+  assert.match(itemsSource, /<DialogContent>/)
+  assert.match(itemsSource, /<DialogTitle>\{selected\.name\}<\/DialogTitle>/)
 })
 
 test('analytics charts expose names, keyboard paths and same-data tables', () => {
@@ -200,7 +210,9 @@ test('analytics charts expose names, keyboard paths and same-data tables', () =>
     assert.match(source, /accessibilityLayer/)
     assert.match(source, /AccessibleChartData/)
   }
-  assert.match(accessibleChartDataSource, /<caption/)
+  assert.match(accessibleChartDataSource, /<TableCaption/)
+  assert.match(accessibleChartDataSource, /<TableHeader>/)
+  assert.match(accessibleChartDataSource, /<TableBody>/)
   assert.match(accessibleChartDataSource, /Veri tablosunu göster/)
   assert.match(accessibleChartDataSource, /role="region"/)
   assert.match(heatmapSource, /role="grid"/)
@@ -289,7 +301,8 @@ test('item performance reports stay behind one infrastructure-free feature view'
   assert.match(itemsSource, /ABCAnalysis/)
   assert.match(itemsSource, /analytics-data-table-controls/)
   assert.match(itemsSource, /analytics-pagination/)
-  assert.match(itemsSource, /analytics-detail-dialog/)
+  assert.match(itemsSource, /<Table className="min-w-\[700px\]">/)
+  assert.match(itemsSource, /<DialogContent>/)
   assert.match(itemsSource, /items\.find\(\(item\) => item\.name === requestedDetail\) \?\? null/)
   assert.doesNotMatch(itemsSource, /lib\/actions|createClient|supabase|restaurantId/i)
 })

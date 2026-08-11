@@ -12,19 +12,20 @@ const picker = readFileSync(`${directory}/TablesQRTablePicker.tsx`, 'utf8')
 const mobilePicker = readFileSync(`${directory}/TablesQRMobileTablePicker.tsx`, 'utf8')
 const pickerContent = readFileSync(`${directory}/TablesQRPickerContent.tsx`, 'utf8')
 
-test('property tabs use roving focus and the complete horizontal keyboard contract', () => {
-  assert.match(propertiesChrome, /tabIndex=\{tab === item\.id \? 0 : -1\}/)
-  for (const key of ['ArrowRight', 'ArrowLeft', 'Home', 'End']) assert.match(propertiesChrome, new RegExp(`event\\.key === '${key}'`))
-  assert.match(propertiesChrome, /tabRefs\.current\[index\]\?\.focus\(\)/)
+test('property tabs delegate roving focus and keyboard behavior to shadcn Tabs', () => {
+  assert.match(propertiesChrome, /from '@\/components\/ui\/tabs'/)
+  assert.match(propertiesChrome, /<TabsList variant="line"/)
+  assert.match(propertiesChrome, /<TabsTrigger[^>]*value=\{item\.id\}/)
 })
 
 test('field labels programmatically name sliders, switches, segmented groups, colors and text', () => {
   assert.match(controls, /FieldContext\.Provider/)
   assert.match(controls, /aria-labelledby=\{field\?\.labelledBy\}/)
-  assert.match(controls, /role="switch"/)
+  assert.match(controls, /<Switch[^>]*aria-labelledby/)
+  assert.match(controls, /<SliderPrimitive/)
+  assert.match(controls, /<ToggleGroup/)
   assert.match(controls, /renk seçici/)
   assert.match(controls, /hex renk değeri/)
-  assert.match(controls, /minHeight: 44/)
 })
 
 test('clipboard success is announced only after writeText resolves and failures are visible', () => {
@@ -34,21 +35,24 @@ test('clipboard success is announced only after writeText resolves and failures 
   assert.match(canvas, /role=\{copyState === 'error' \? 'alert' : 'status'\}/)
 })
 
-test('preset and download popups expose menu semantics, keyboard navigation and Escape', () => {
-  for (const source of [canvas, chrome]) {
-    assert.match(source, /aria-haspopup="menu"/)
-    assert.match(source, /aria-expanded=/)
-    assert.match(source, /role="menu"/)
-    assert.match(source, /ArrowDown/)
-    assert.match(source, /ArrowUp/)
-    assert.match(source, /event\.key (?:===|!==) 'Escape'/)
-  }
+test('download popup delegates menu semantics and keyboard behavior to shadcn DropdownMenu', () => {
+  assert.match(canvas, /from '@\/components\/ui\/dropdown-menu'/)
+  assert.match(canvas, /<DropdownMenuItem/)
 })
 
-test('mobile table selection is a labelled shared dialog with an initial search focus', () => {
+test('topbar exposes only the five primary presets without an overflow menu', () => {
+  assert.match(chrome, /PRESETS\.slice\(0, 5\)\.map/)
+  assert.doesNotMatch(chrome, /MoreHorizontal/)
+  assert.doesNotMatch(chrome, /<DropdownMenu/)
+  assert.doesNotMatch(chrome, /Tüm stiller/)
+})
+
+test('mobile table selection is a labelled shadcn Sheet with an initial search focus', () => {
   assert.match(picker, /dynamic\(/)
-  assert.match(mobilePicker, /<AccessibleDialog labelledBy="qr-mobile-picker-title"/)
+  assert.match(mobilePicker, /from '@\/components\/ui\/sheet'/)
+  assert.match(mobilePicker, /<Sheet open=\{open\}/)
+  assert.match(mobilePicker, /<SheetTitle>Masa seçin<\/SheetTitle>/)
+  assert.match(mobilePicker, /<SheetDescription>/)
   assert.match(pickerContent, /data-modal-initial-focus/)
-  assert.match(mobilePicker, /aria-haspopup="dialog"/)
-  assert.match(mobilePicker, /aria-expanded=\{open\}/)
+  assert.match(mobilePicker, /<SheetTrigger/)
 })

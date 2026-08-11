@@ -1,27 +1,35 @@
 'use client'
 
+import { Fragment } from 'react'
 import Link from 'next/link'
 import { serviceRequestLabel } from '@garsonless/domain/tables'
-import { EmptyState, I, S } from '../../lib/ui'
+import { I } from '../../lib/ui'
+import { formatPanoCurrency, formatPanoInteger } from '../../lib/pano-format'
+import { Badge } from '@/components/ui/badge'
+import { buttonVariants } from '@/components/ui/button'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from '@/components/ui/item'
 import type { PanoServiceRequest, TableStatusData } from '../../lib/queries/pano'
-import { PanoCard } from './PanoOverviewWidgets'
+import { PanoCard, PanoEmptyState } from './PanoOverviewWidgets'
 
 const STATUS = {
-  late: { label: 'Geciken', color: 'var(--critical)', background: 'var(--critical-bg)' },
-  active: { label: 'Aktif', color: 'var(--info)', background: 'var(--info-bg)' },
-  new: { label: 'Yeni', color: 'var(--warning)', background: 'var(--warning-bg)' },
-  paid: { label: 'Tahsil edildi', color: 'var(--positive)', background: 'var(--positive-bg)' },
-  empty: { label: 'Boş', color: 'var(--text-3)', background: 'var(--surface-3)' },
-} satisfies Record<TableStatusData['status'], { label: string; color: string; background: string }>
+  late: { label: 'Geciken', variant: 'destructive' },
+  active: { label: 'Aktif', variant: 'info' },
+  new: { label: 'Yeni', variant: 'warning' },
+  paid: { label: 'Tahsil edildi', variant: 'positive' },
+  empty: { label: 'Boş', variant: 'secondary' },
+} satisfies Record<
+  TableStatusData['status'],
+  {
+    label: string
+    variant: 'destructive' | 'info' | 'warning' | 'positive' | 'secondary'
+  }
+>
 
 function remainingTotal(table: TableStatusData): number {
   return Math.max(0, table.unpaidTotal - table.splitSettledTotal)
 }
 
-function attentionTables(
-  tables: TableStatusData[],
-  requests: PanoServiceRequest[],
-): Array<{ table: TableStatusData; requests: PanoServiceRequest[] }> {
+function attentionTables(tables: TableStatusData[], requests: PanoServiceRequest[]): Array<{ table: TableStatusData; requests: PanoServiceRequest[] }> {
   const requestsByTable = new Map<string, PanoServiceRequest[]>()
   for (const request of requests) {
     const current = requestsByTable.get(request.tableId) ?? []
@@ -53,41 +61,45 @@ function TableAttentionRow({
   const tone = STATUS[table.status]
   const content = (
     <>
-      <span aria-hidden="true" style={{
-        width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-        display: 'grid', placeItems: 'center', color: tone.color, background: tone.background,
-      }}><I.chair size={17} /></span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-          <strong style={{ fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{table.label}</strong>
-          <span style={{ color: tone.color, fontSize: 10.5, fontWeight: 700 }}>{tone.label}</span>
-        </span>
-        <span style={{ display: 'block', marginTop: 3, color: 'var(--text-3)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <ItemMedia variant="icon">
+        <Badge variant={tone.variant} className="size-9 p-0" aria-hidden="true">
+          <I.chair />
+        </Badge>
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>
+          <span className="truncate">{table.label}</span>
+          <Badge variant={tone.variant}>{tone.label}</Badge>
+        </ItemTitle>
+        <ItemDescription className="pano-number line-clamp-1">
           {requests.length > 0
             ? requests.map((request) => serviceRequestLabel(request.requestType)).join(' · ')
-            : `${table.time} dk açık · ${remainingTotal(table).toLocaleString('tr-TR')} TL kalan`}
+            : `${formatPanoInteger(table.time)} dk açık · ${formatPanoCurrency(remainingTotal(table))} kalan`}
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <span className="pano-number font-semibold">
+          {remainingTotal(table) > 0 ? formatPanoCurrency(remainingTotal(table)) : '—'}
         </span>
-      </span>
-      <span style={{ ...S.mono, flexShrink: 0, fontSize: 12, fontWeight: 700, color: remainingTotal(table) > 0 ? 'var(--text)' : tone.color }}>
-        {remainingTotal(table) > 0 ? `₺${remainingTotal(table).toLocaleString('tr-TR')}` : '—'}
-      </span>
-      {canViewTables && <span aria-hidden="true" style={{ color: 'var(--text-3)', display: 'inline-flex' }}><I.chevRight size={14} /></span>}
+        {canViewTables && <I.chevRight aria-hidden="true" />}
+      </ItemActions>
     </>
   )
 
-  const style = {
-    minHeight: 58, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10,
-    color: 'inherit', textDecoration: 'none', borderBottom: '1px solid var(--divider)',
-  } as const
-
   return canViewTables ? (
-    <Link
-      className="pano-table-attention-row"
-      href={`/dashboard/${restaurantId}/tables?tableId=${encodeURIComponent(table.id)}`}
+    <Item
+      render={<Link href={`/dashboard/${restaurantId}/tables?tableId=${encodeURIComponent(table.id)}`} />}
       aria-label={`${table.label} detayını Canlı Masalar'da aç`}
-      style={style}
-    >{content}</Link>
-  ) : <div style={style}>{content}</div>
+      size="sm"
+      className="min-h-[58px] rounded-none"
+    >
+      {content}
+    </Item>
+  ) : (
+    <Item size="sm" className="min-h-[58px] rounded-none">
+      {content}
+    </Item>
+  )
 }
 
 export default function PanoAttentionTables({
@@ -107,33 +119,32 @@ export default function PanoAttentionTables({
     <PanoCard
       title="Dikkat gereken masalar"
       subtitle={attention.length > 0 ? `${attention.length} masa müdahale bekliyor` : 'Masa operasyonları normal'}
-      action={canViewTables ? (
-        <Link className="pano-table-plan-link" href={`/dashboard/${restaurantId}/tables`}>
-          Canlı Masalar <I.chevRight size={13} />
-        </Link>
-      ) : undefined}
+      action={
+        canViewTables ? (
+          <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} href={`/dashboard/${restaurantId}/tables`}>
+            Canlı Masalar <I.chevRight data-icon="inline-end" />
+          </Link>
+        ) : undefined
+      }
     >
       {visible.length === 0 ? (
         <div role="status">
-          <EmptyState title="Dikkat gereken masa yok" sub="Geciken masalar ve servis çağrıları burada görünür" />
+          <PanoEmptyState title="Dikkat gereken masa yok" sub="Geciken masalar ve servis çağrıları burada görünür" />
         </div>
       ) : (
-        <div>
-          {visible.map(({ table, requests }) => (
-            <TableAttentionRow
-              key={table.id}
-              restaurantId={restaurantId}
-              table={table}
-              requests={requests}
-              canViewTables={canViewTables}
-            />
+        <ItemGroup className="gap-0">
+          {visible.map(({ table, requests }, index) => (
+            <Fragment key={table.id}>
+              <TableAttentionRow restaurantId={restaurantId} table={table} requests={requests} canViewTables={canViewTables} />
+              {index < visible.length - 1 && <ItemSeparator className="my-0" />}
+            </Fragment>
           ))}
           {attention.length > visible.length && (
-            <div style={{ padding: '8px 14px', color: 'var(--text-3)', fontSize: 11 }}>
-              {attention.length - visible.length} masa daha Canlı Masalar&apos;da bekliyor.
-            </div>
+            <Item size="xs" variant="muted" className="rounded-none">
+              <ItemDescription>{attention.length - visible.length} masa daha Canlı Masalar&apos;da bekliyor.</ItemDescription>
+            </Item>
           )}
-        </div>
+        </ItemGroup>
       )}
     </PanoCard>
   )

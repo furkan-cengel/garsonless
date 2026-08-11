@@ -20,6 +20,7 @@ const pageTopBarSource = readFileSync(`${directory}/../layout/PageTopBar.tsx`, '
 const attentionTablesSource = readFileSync(`${directory}/PanoAttentionTables.tsx`, 'utf8')
 const stylesSource = readFileSync(`${directory}/PanoStyles.tsx`, 'utf8')
 const iconRailSource = readFileSync(`${directory}/../layout/IconRail.tsx`, 'utf8')
+const formatSource = readFileSync(`${directory}/../../lib/pano-format.ts`, 'utf8')
 
 test('PanoClient delegates attention, KPI, health and operational widgets', () => {
   assert.match(clientSource, /PanoAttentionQueue/)
@@ -69,7 +70,8 @@ test('Pano chart controller owns refreshes while its view owns SVG and tooltip s
   assert.match(salesChartSource, /Veriyi tablo olarak göster/)
   assert.doesNotMatch(salesChartSource, /tabIndex={0}[\s\S]{0,200}role="graphics-symbol"/)
   assert.match(salesChartSource, /role="tooltip"/)
-  assert.match(salesChartSource, /aria-pressed/)
+  assert.match(salesChartSource, /<ToggleGroup/)
+  assert.match(salesChartSource, /value=\{\[data\.range\]\}/)
   assert.doesNotMatch(salesChartSource, /<title|<desc/)
   assert.doesNotMatch(salesChartSource, /lib\/actions|createClient|supabase|restaurantId/i)
 
@@ -88,9 +90,10 @@ test('Pano server action module only exports async functions', () => {
 
 test('Pano responsive shell exposes a two-row mobile header, 44px targets and reduced-motion support', () => {
   assert.match(clientSource, /className="page-topbar--pano"/)
-  assert.match(clientSource, /<details className="pano-analytics" open>/)
+  assert.match(clientSource, /<Collapsible className="pano-analytics"/)
+  assert.match(clientSource, /<CollapsibleTrigger className="pano-analytics-summary">/)
   assert.match(widgetSource, /aria-label="Yoğun saat görünümü"/)
-  assert.match(widgetSource, /<table className="pano-data-table">/)
+  assert.match(widgetSource, /<Table>/)
   assert.match(stylesSource, /grid-template-rows: 52px 52px/)
   assert.match(stylesSource, /min-height: 44px/)
   assert.match(stylesSource, /prefers-reduced-motion: reduce/)
@@ -144,7 +147,7 @@ test('Pano hydration starts from the server-generated clock', () => {
 
 test('Pano topbar keeps its primary action compact and restaurant switching visibly interactive', () => {
   assert.match(stylesSource, /\.page-topbar--pano \.pano-action-primary \{ position: relative; min-height: 30px; \}/)
-  assert.match(stylesSource, /\.pano-action-primary::after \{[^}]*inset: -7px 0;/)
+  assert.match(stylesSource, /\.page-topbar--pano \.pano-action-primary::after,[\s\S]*inset: -7px 0;/)
   assert.match(pageTopBarSource, /className="page-topbar-restaurant-chevron"/)
   assert.match(globalStylesSource, /\.page-topbar-restaurant:not\(:disabled\):hover \{/)
   assert.match(globalStylesSource, /\.page-topbar-restaurant:not\(:disabled\):hover \.page-topbar-restaurant-chevron \{/)
@@ -153,12 +156,12 @@ test('Pano topbar keeps its primary action compact and restaurant switching visi
   assert.match(globalStylesSource, /transform: translateY\(-1px\);/)
 })
 
-test('Pano table navigation has hover feedback and chart ranges stay visually compact', () => {
-  assert.match(stylesSource, /\.pano-table-plan-link:hover \{[^}]*background: var\(--surface-inset\);/)
-  assert.match(stylesSource, /\.pano-table-plan-link:hover svg \{ transform: translateX\(2px\); \}/)
+test('Pano table navigation uses shadcn link composition and chart ranges stay visually compact', () => {
+  assert.match(attentionTablesSource, /render=\{<Link href=/)
+  assert.match(attentionTablesSource, /buttonVariants\(\{ variant: 'ghost', size: 'sm' \}\)/)
   assert.match(stylesSource, /\.pano-chart-ranges \{ min-height: 30px; \}/)
-  assert.match(stylesSource, /\.pano-chart-ranges \.pano-range-action \{ position: relative; min-height: 26px; \}/)
-  assert.match(stylesSource, /\.pano-range-action::after \{[^}]*inset: -9px 0;/)
+  assert.match(stylesSource, /\.pano-chart-ranges button \{ position: relative; min-height: 26px; \}/)
+  assert.match(stylesSource, /\.pano-chart-ranges button::after[\s\S]*inset: -7px 0;/)
 })
 
 test('Pano peak-hour cells expose hover and keyboard tooltips', () => {
@@ -177,12 +180,39 @@ test('Pano peak-hour cells expose hover and keyboard tooltips', () => {
 
 test('Pano peak-hour view switches in place instead of appending an expanding table', () => {
   assert.match(widgetSource, /useState<'heatmap' \| 'table'>\('heatmap'\)/)
-  assert.match(widgetSource, /aria-pressed=\{view === 'heatmap'\}/)
-  assert.match(widgetSource, /aria-pressed=\{view === 'table'\}/)
+  assert.match(widgetSource, /value=\{\[view\]\}/)
+  assert.match(widgetSource, /<ToggleGroupItem value="heatmap">/)
+  assert.match(widgetSource, /<ToggleGroupItem value="table">/)
   assert.match(widgetSource, /view === 'heatmap' \? \(/)
   assert.doesNotMatch(widgetSource, /<details|<summary/)
-  assert.match(stylesSource, /\.pano-peak-view-switch/)
+  assert.doesNotMatch(widgetSource, /<button[^>]*aria-pressed/)
   assert.match(stylesSource, /\.pano-peak-view \{ min-height: 292px; \}/)
+})
+
+test('Pano composes shadcn primitives for cards, feedback, lists, loading and data controls', () => {
+  assert.match(widgetSource, /from '@\/components\/ui\/card'/)
+  assert.match(widgetSource, /from '@\/components\/ui\/empty'/)
+  assert.match(widgetSource, /from '@\/components\/ui\/item'/)
+  assert.match(widgetSource, /from '@\/components\/ui\/progress'/)
+  assert.match(widgetSource, /from '@\/components\/ui\/skeleton'/)
+  assert.match(clientSource, /from '@\/components\/ui\/alert'/)
+  assert.match(clientSource, /from '@\/components\/ui\/badge'/)
+  assert.match(activityFeedSource, /from '@\/components\/ui\/scroll-area'/)
+  assert.match(salesChartSource, /from '@\/components\/ui\/table'/)
+})
+
+test('Pano uses one sans-serif numeric hierarchy and one TRY formatter', () => {
+  assert.match(widgetSource, /min-h-\[126px\]/)
+  assert.match(widgetSource, /pano-metric-value text-\[24px\] leading-none font-bold/)
+  assert.match(widgetSource, /text-\[11\.5px\]/)
+  assert.match(widgetSource, /text-\[10\.5px\]/)
+  assert.match(stylesSource, /\.pano-number, \.pano-metric-value \{ font-variant-numeric: tabular-nums lining-nums;/)
+  assert.match(formatSource, /new Intl\.NumberFormat\('tr-TR'/)
+  assert.match(formatSource, /currencyDisplay: 'narrowSymbol'/)
+  assert.match(attentionTablesSource, /formatPanoCurrency\(remainingTotal\(table\)\)/)
+  assert.match(activityFeedSource, /formatPanoCurrency\(event\.total\)/)
+  assert.match(salesChartSource, /formatPanoCurrency\(data\.total\)/)
+  assert.doesNotMatch(`${widgetSource}\n${attentionTablesSource}\n${activityFeedSource}\n${salesChartSource}`, /S\.mono|font-mono| TL kalan|₺\{/)
 })
 
 test('Pano ends at its final cards without a chained blank scroll tail', () => {

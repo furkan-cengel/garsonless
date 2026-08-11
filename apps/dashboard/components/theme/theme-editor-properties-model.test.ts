@@ -62,18 +62,24 @@ test('footer hides dependent fields while disabled', () => {
 
 test('visual navigation hides pill-only controls and reveals overlay controls only for overlay cards', () => {
   const fields = [
-    field('align', 'catnavAlign'),
-    field('visual', 'catnavVisualWidth'),
-    field('overlay', 'catnavOverlayOpacity'),
+    { ...field('align', 'catnavAlign'), editorTab: 'design' as const },
+    { ...field('active', 'catnavActiveStyle'), editorTab: 'design' as const },
+    { ...field('visual', 'catnavVisualCardHeight'), editorTab: 'design' as const },
+    { ...field('overlay', 'catnavOverlayOpacity'), editorTab: 'design' as const },
   ]
-  const cardsTheme = { catnavStyle: 'visual', catnavVisualStyle: 'cards' } as unknown as GarsonlessTheme
+  const cardsTheme = { catnavStyle: 'visual', catnavVisualStyle: 'compact' } as unknown as GarsonlessTheme
   const overlayTheme = { catnavStyle: 'visual', catnavVisualStyle: 'overlay' } as unknown as GarsonlessTheme
+  const pillsTheme = { catnavStyle: 'pills', catnavVisualStyle: 'compact' } as unknown as GarsonlessTheme
   assert.deepEqual(
     getVisibleThemeFields(fields, 'nav', cardsTheme, 'design').map((item) => item.themeField),
-    ['catnavVisualWidth'],
+    ['catnavVisualCardHeight'],
   )
   assert.deepEqual(
     getVisibleThemeFields(fields, 'nav', overlayTheme, 'design').map((item) => item.themeField),
-    ['catnavVisualWidth', 'catnavOverlayOpacity'],
+    ['catnavVisualCardHeight', 'catnavOverlayOpacity'],
+  )
+  assert.deepEqual(
+    getVisibleThemeFields(fields, 'nav', pillsTheme, 'design').map((item) => item.themeField),
+    ['catnavAlign', 'catnavActiveStyle'],
   )
 })

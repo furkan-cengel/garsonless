@@ -1,74 +1,203 @@
 'use client'
 
-import type { MenuItem } from './types'
-
-export type DietaryFilter = 'vegan' | 'vegetarian' | 'halal'
-
-const FILTERS: Array<{ id: DietaryFilter; label: string }> = [
-  { id: 'vegan', label: 'Vegan' },
-  { id: 'vegetarian', label: 'Vejetaryen' },
-  { id: 'halal', label: 'Helal' },
-]
-
-export function itemMatchesDietaryFilters(
-  item: MenuItem,
-  filters: readonly DietaryFilter[],
-): boolean {
-  return filters.every((filter) => {
-    if (filter === 'vegan') return item.is_vegan === true
-    if (filter === 'vegetarian') return item.is_vegetarian === true
-    return item.is_halal === true
-  })
-}
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Check, SlidersHorizontal, X } from 'lucide-react'
+import { useTheme } from './ThemeContext'
+import { resolveMenuFilterDefinitions, type MenuFilterDefinition } from './menuFilterModel'
 
 export function DietaryFilterBar({
   selected,
   onToggle,
+  onClear,
+  onSelectionChange,
 }: {
-  selected: readonly DietaryFilter[]
-  onToggle: (filter: DietaryFilter) => void
+  selected: readonly MenuFilterDefinition[]
+  onToggle: (filter: MenuFilterDefinition) => void
+  onClear: () => void
+  onSelectionChange: (filters: MenuFilterDefinition[]) => void
 }) {
+  const { theme } = useTheme()
+  const filters = useMemo(() => resolveMenuFilterDefinitions(theme), [theme])
+  const selectedIds = useMemo(() => new Set(selected.map((filter) => filter.id)), [selected])
+  const activeCount = filters.filter((filter) => selectedIds.has(filter.id)).length
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const panelId = useId()
+
+  useEffect(() => {
+    const reconciled = selected.flatMap((selectedFilter) => {
+      const current = filters.find((filter) => filter.id === selectedFilter.id)
+      return current ? [current] : []
+    })
+    const unchanged = reconciled.length === selected.length && reconciled.every((filter, index) => {
+      const previous = selected[index]
+      if (!previous || filter.id !== previous.id || filter.label !== previous.label || filter.kind !== previous.kind) return false
+      if (filter.kind !== 'custom' || previous.kind !== 'custom') return true
+      return filter.itemIds.length === previous.itemIds.length && filter.itemIds.every((id, itemIndex) => id === previous.itemIds[itemIndex])
+    })
+    if (!unchanged) onSelectionChange(reconciled)
+  }, [filters, onSelectionChange, selected])
+
+  useEffect(() => {
+    if (!open) return
+    const closeFromOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) setOpen(false)
+    }
+    const closeFromKeyboard = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setOpen(false)
+      triggerRef.current?.focus()
+    }
+    document.addEventListener('pointerdown', closeFromOutside)
+    document.addEventListener('keydown', closeFromKeyboard)
+    const frame = requestAnimationFrame(() => panelRef.current?.focus())
+    return () => {
+      cancelAnimationFrame(frame)
+      document.removeEventListener('pointerdown', closeFromOutside)
+      document.removeEventListener('keydown', closeFromKeyboard)
+    }
+  }, [open])
+
+  if (filters.length === 0) return null
+
   return (
     <div
-      data-component="dietary-filters"
-      role="group"
-      aria-label="Diyet filtreleri"
+      ref={rootRef}
+      data-component="menu-filters"
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 7,
-        overflowX: 'auto',
-        padding: '10px var(--p-pad) 4px',
-        scrollbarWidth: 'none',
+        position: 'relative',
+        flexShrink: 0,
       }}
     >
-      {FILTERS.map((filter) => {
-        const active = selected.includes(filter.id)
-        return (
-          <button
-            key={filter.id}
-            type="button"
-            aria-pressed={active}
-            onClick={() => onToggle(filter.id)}
-            style={{
-              minHeight: 44,
-              padding: '0 12px',
-              borderRadius: 999,
-              border: active ? '1px solid var(--p-accent)' : 'var(--p-border-w) solid var(--p-border)',
-              background: active ? 'var(--p-accent)' : 'var(--p-card)',
-              color: active ? '#fff' : 'var(--p-text-2)',
-              fontFamily: 'var(--p-body)',
-              fontSize: 12,
-              fontWeight: 750,
-              whiteSpace: 'nowrap',
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            {filter.label}
-          </button>
-        )
-      })}
+      <style>{`
+        [data-component="menu-filters"] button:focus-visible{outline:2px solid var(--p-accent);outline-offset:2px}
+        [data-component="menu-filters"] [data-filter-trigger]:hover{background:var(--p-accent-soft);border-color:var(--p-accent)}
+        [data-component="menu-filters"] [data-filter-option]:hover{background:var(--p-accent-soft)}
+      `}</style>
+      <button
+        ref={triggerRef}
+        data-filter-trigger
+        type="button"
+        aria-label={activeCount > 0 ? `Filtreler, ${activeCount} seçili` : 'Filtreleri aç'}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((current) => !current)}
+        style={{
+          width: 42,
+          height: 38,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 4,
+          padding: 0,
+          borderRadius: 999,
+          border: 'var(--p-border-w) solid var(--p-border)',
+          background: activeCount > 0 ? 'var(--p-accent-soft)' : 'var(--p-card)',
+          color: activeCount > 0 ? 'var(--p-accent)' : 'var(--p-text-2)',
+          cursor: 'pointer',
+          position: 'relative',
+          transition: 'background 140ms ease, border-color 140ms ease, color 140ms ease',
+        }}
+      >
+        <SlidersHorizontal size={17} strokeWidth={2} aria-hidden="true" />
+        {activeCount > 0 && (
+          <span aria-hidden="true" style={{
+            position: 'absolute',
+            top: -4,
+            right: -3,
+            minWidth: 17,
+            height: 17,
+            padding: '0 4px',
+            borderRadius: 999,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'var(--p-accent)',
+            color: 'var(--p-cta-text)',
+            fontSize: 9,
+            lineHeight: 1,
+            fontWeight: 800,
+            boxShadow: '0 0 0 2px var(--p-bg)',
+          }}>{activeCount}</span>
+        )}
+      </button>
+      {open && (
+        <div
+          ref={panelRef}
+          id={panelId}
+          role="dialog"
+          aria-modal="false"
+          aria-label="Menü filtreleri"
+          tabIndex={-1}
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            left: 0,
+            width: 'min(276px, calc(100vw - (var(--p-pad) * 2)))',
+            padding: 10,
+            borderRadius: 14,
+            border: 'var(--p-border-w) solid var(--p-border)',
+            background: 'var(--p-card)',
+            color: 'var(--p-text)',
+            boxShadow: '0 18px 44px -20px rgba(10,15,20,.34)',
+            zIndex: 40,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '1px 2px 8px' }}>
+            <strong style={{ flex: 1, fontSize: 13, lineHeight: 1.2 }}>Filtreler</strong>
+            {activeCount > 0 && (
+              <button type="button" onClick={onClear} style={{ border: 0, background: 'transparent', color: 'var(--p-accent)', font: 'inherit', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: '4px 6px' }}>Temizle</button>
+            )}
+            <button type="button" aria-label="Filtreleri kapat" onClick={() => { setOpen(false); triggerRef.current?.focus() }} style={{ width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: 0, borderRadius: 8, background: 'transparent', color: 'var(--p-text-2)', cursor: 'pointer', padding: 0 }}><X size={16} aria-hidden="true" /></button>
+          </div>
+          <div role="group" aria-label="Ürün filtreleri" style={{ display: 'grid', gap: 4 }}>
+            {filters.map((filter) => {
+              const active = selectedIds.has(filter.id)
+              return (
+                <button
+                  key={filter.id}
+                  data-filter-option
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onToggle(filter)}
+                  style={{
+                    width: '100%',
+                    minHeight: 38,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 9,
+                    padding: '6px 8px',
+                    border: 0,
+                    borderRadius: 9,
+                    background: active ? 'var(--p-accent-soft)' : 'transparent',
+                    color: active ? 'var(--p-accent)' : 'var(--p-text-2)',
+                    fontFamily: 'var(--p-body)',
+                    fontSize: 12.5,
+                    fontWeight: active ? 750 : 650,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span aria-hidden="true" style={{ width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: `1px solid ${active ? 'var(--p-accent)' : 'var(--p-border)'}`, background: active ? 'var(--p-accent)' : 'var(--p-card)', color: 'var(--p-cta-text)', flexShrink: 0 }}>
+                    {active && <Check size={13} strokeWidth={2.5} />}
+                  </span>
+                  <span style={{ flex: 1 }}>{filter.label}</span>
+                  {filter.kind === 'custom' && <span style={{ color: 'var(--p-text-2)', fontSize: 10, fontWeight: 650 }}>Özel</span>}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
+export type { MenuFilterDefinition } from './menuFilterModel'
+export { itemMatchesDietaryFilters, itemMatchesMenuFilters, resolveMenuFilterDefinitions } from './menuFilterModel'
+
+// Backward-compatible type name for preset-only callers.
+export type DietaryFilter = 'vegan' | 'vegetarian' | 'halal'

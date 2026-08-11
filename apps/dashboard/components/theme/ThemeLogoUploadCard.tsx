@@ -3,6 +3,16 @@
 import { useRef } from 'react'
 import type { ChangeEvent } from 'react'
 import { I } from '../../lib/ui'
+import {
+  Attachment,
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentContent,
+  AttachmentDescription,
+  AttachmentMedia,
+  AttachmentTitle,
+} from '@/components/ui/attachment'
+import { Spinner } from '@/components/ui/spinner'
 
 interface ThemeLogoUploadCardProps {
   logoUrl: string | null
@@ -20,94 +30,38 @@ export function ThemeLogoUploadCard({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   return (
-    <div aria-busy={uploading} style={{
-      borderRadius: 10,
-      border: '1.5px dashed var(--border-strong)',
-      background: 'var(--surface-2)',
-      padding: 12,
-      marginBottom: 4,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 10,
-    }}>
+    <div aria-busy={uploading}>
       <input
         ref={fileInputRef}
         type="file"
         accept="image/png,image/jpeg,image/webp"
-        style={{ display: 'none' }}
+        className="sr-only"
+        aria-label="Restoran logosu dosyası"
         onChange={onUpload}
       />
-      {logoUrl ? (
-        <img
-          src={logoUrl}
-          alt="Yüklü restoran logosu"
-          style={{ height: 56, maxWidth: 160, objectFit: 'contain', borderRadius: 8 }}
-        />
-      ) : (
-        <div style={{
-          width: 56,
-          height: 56,
-          borderRadius: 12,
-          background: 'var(--surface-3)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--text-3)',
-        }}>
-          <I.tag size={22} />
-        </div>
-      )}
-      <div aria-busy={uploading} style={{ display: 'flex', gap: 6, width: '100%' }}>
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => fileInputRef.current?.click()}
-          style={{
-            ...buttonStyle,
-            flex: 1,
-            cursor: uploading ? 'not-allowed' : 'pointer',
-            opacity: uploading ? 0.6 : 1,
-          }}
-        >
-          {uploading ? <span role="status" aria-live="polite">Logo yükleniyor…</span> : logoUrl ? 'Değiştir' : 'Logo yükle'}
-        </button>
-        {logoUrl && (
-          <button
+      <Attachment state={uploading ? 'uploading' : logoUrl ? 'done' : 'idle'} size="xs" className="w-full flex-nowrap">
+        <AttachmentMedia variant={logoUrl ? 'image' : 'icon'}>
+          {logoUrl
+            ? <img src={logoUrl} alt="Yüklü restoran logosu" />
+            : uploading ? <Spinner /> : <I.tag />}
+        </AttachmentMedia>
+        <AttachmentContent>
+          <AttachmentTitle>{uploading ? 'Logo yükleniyor…' : logoUrl ? 'Restoran logosu' : 'Logo yükle'}</AttachmentTitle>
+          <AttachmentDescription>PNG, JPG veya WEBP · Maks 2MB</AttachmentDescription>
+        </AttachmentContent>
+        <AttachmentActions>
+          <AttachmentAction
             type="button"
+            variant="outline"
+            size="xs"
             disabled={uploading}
-            onClick={onRemove}
-            style={{
-              ...buttonStyle,
-              padding: '0 10px',
-              borderColor: 'var(--critical-bg, #fee2e2)',
-              background: 'var(--critical-bg, #fff5f5)',
-              color: 'var(--critical, #dc2626)',
-              cursor: uploading ? 'not-allowed' : 'pointer',
-              opacity: uploading ? 0.6 : 1,
-            }}
+            onClick={() => fileInputRef.current?.click()}
           >
-            Kaldır
-          </button>
-        )}
-      </div>
-      <p style={{ margin: 0, fontSize: 11, color: 'var(--text-3)', textAlign: 'center', lineHeight: 1.4 }}>
-        PNG, JPG veya WEBP · Maks 2MB
-      </p>
+            {logoUrl ? 'Değiştir' : 'Seç'}
+          </AttachmentAction>
+          {logoUrl && <AttachmentAction type="button" variant="destructive" size="xs" disabled={uploading} onClick={onRemove}>Kaldır</AttachmentAction>}
+        </AttachmentActions>
+      </Attachment>
     </div>
   )
-}
-
-const buttonStyle: React.CSSProperties = {
-  height: 32,
-  border: '1px solid var(--border-strong)',
-  borderRadius: 7,
-  background: 'var(--surface)',
-  color: 'var(--text)',
-  fontSize: 12,
-  fontWeight: 500,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 6,
 }

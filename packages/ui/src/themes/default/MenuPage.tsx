@@ -463,7 +463,7 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
         storeInfo={storeInfo ?? null}
       />
       {orderStatus}
-      <main style={{ paddingBottom: theme.footerEnabled ? Math.max(24, theme.sectionGap) : 96, width: '100%', maxWidth: pageMaxWidth, marginInline: 'auto' }}>
+      <main style={{ paddingBottom: Math.max(24, theme.sectionGap), width: '100%', maxWidth: pageMaxWidth, marginInline: 'auto' }}>
         {pageBlocks.map((block) => {
           if (block.type === 'section') {
             if (block.placement === 'drawer') return null
@@ -493,7 +493,9 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
                     activeId: activeVisualCategoryId,
                     onSelect: (id) => { setActiveVisualCategoryId(id); setVisualStage('products') },
                   })}
-                  {visualStage === 'products' && menuFilters}
+                  {visualStage === 'products' && menuFilters && (
+                    <div style={{ padding: `${theme.navTopGap ?? 8}px var(--p-pad) 0` }}>{menuFilters}</div>
+                  )}
                   {visualStage === 'products' && filterEmptyState}
                   {visualStage === 'products' && categoryById.get(activeVisualCategoryId) && renderSection(categoryById.get(activeVisualCategoryId)!)}
                 </div>
@@ -506,8 +508,8 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
                   categoryMeta={categoryMeta}
                   activeCategoryId={undefined}
                   onCategorySelect={undefined}
+                  leadingControl={menuFilters}
                 />
-                {menuFilters}
                 {filterEmptyState}
               </div>
             )

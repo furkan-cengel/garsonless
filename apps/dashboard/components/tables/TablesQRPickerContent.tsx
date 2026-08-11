@@ -1,8 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import React from 'react'
-import { AppIconNodes } from '@garsonless/ui/icons'
+import { QrCode, Search } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
 import type { TableItem } from './tables-builder-types'
 
 export function TablesQRPickerContent({ restaurantId, tables, filtered, activeId, query, setQuery, onSelect, mobile = false }: {
@@ -18,63 +23,64 @@ export function TablesQRPickerContent({ restaurantId, tables, filtered, activeId
   return (
     <>
       {!mobile && (
-        <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--divider)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <strong style={{ flex: 1, fontSize: 14 }}>QR masaları</strong>
-            <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{tables.length}</span>
+        <div className="border-b px-4 py-3">
+          <div className="flex items-center gap-2">
+            <strong className="flex-1 text-sm">QR masaları</strong>
+            <Badge variant="secondary">{tables.length}</Badge>
           </div>
-          <p style={{ margin: '5px 0 0', fontSize: 11.5, color: 'var(--text-3)' }}>Önizlenecek ve indirilecek masayı seçin.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Önizlenecek ve indirilecek masayı seçin.</p>
         </div>
       )}
-      <div style={{ padding: '10px 12px 4px' }}>
-        <label className="tb-tables__search" style={{
-          display: 'flex', alignItems: 'center', gap: 6, height: 44, padding: '0 10px',
-          background: 'var(--surface-3)', borderRadius: 7, color: 'var(--text-3)',
-        }}>
-          {React.cloneElement(AppIconNodes.search as React.ReactElement<{ size?: number }>, { size: 13 })}
-          <span className="sr-only">QR masası ara</span>
-          <input data-modal-initial-focus={mobile ? true : undefined} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Masa ara" style={{ flex: 1, minWidth: 0, minHeight: 44, border: 0, outline: 0, background: 'transparent', fontSize: 12.5 }} />
-        </label>
+      <div className="px-3 pb-1 pt-2.5">
+        <InputGroup className="tb-tables__search h-9 bg-muted/60">
+          <InputGroupAddon><Search /></InputGroupAddon>
+          <InputGroupInput
+            aria-label="QR masası ara"
+            data-modal-initial-focus={mobile ? true : undefined}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Masa ara"
+          />
+        </InputGroup>
       </div>
-      <div className="tb-tables__nav-list" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '6px 8px 12px' }}>
-        {filtered.map((table) => {
-          const active = table.id === activeId
-          return (
-            <button
-              key={table.id}
-              type="button"
-              aria-pressed={active}
-              aria-label={`${table.label} QR kodunu düzenle`}
-              onClick={() => onSelect(table.id)}
-              style={{
-                width: '100%', minHeight: 52, display: 'flex', alignItems: 'center', gap: 9,
-                marginBottom: 4, padding: '7px 10px', borderRadius: 8, textAlign: 'left', cursor: 'pointer',
-                border: active ? '1px solid var(--action)' : '1px solid transparent',
-                background: active ? 'var(--positive-bg)' : 'transparent', color: 'var(--text)',
-              }}
-            >
-              <span aria-hidden="true" style={{ width: 32, height: 32, borderRadius: 7, display: 'grid', placeItems: 'center', background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                {React.cloneElement(AppIconNodes.qr as React.ReactElement<{ size?: number }>, { size: 15 })}
-              </span>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{table.label}</span>
-                <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)' }}>{table.qrToken ? 'QR etkin' : 'QR hazırlanıyor'}</span>
-              </span>
-              {active && <span style={{ color: 'var(--positive)', fontSize: 11, fontWeight: 750 }}>Seçili</span>}
-            </button>
-          )
-        })}
-        {filtered.length === 0 && (
-          <div style={{ margin: 8, padding: 16, border: '1px dashed var(--border-strong)', borderRadius: 9, textAlign: 'center', color: 'var(--text-3)' }}>
-            <strong style={{ display: 'block', color: 'var(--text-2)' }}>{tables.length === 0 ? 'Henüz masa yok' : 'Eşleşen masa yok'}</strong>
-            <span style={{ display: 'block', marginTop: 4, fontSize: 11.5 }}>{tables.length === 0 ? 'Canlı Masalar bölümünden ilk masanızı ekleyin.' : 'Arama ifadesini değiştirin.'}</span>
-          </div>
-        )}
-      </div>
-      <div style={{ padding: 12, borderTop: '1px solid var(--border)' }}>
-        <Link href={`/dashboard/${restaurantId}/tables`} style={{ minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-strong)', borderRadius: 8, color: 'var(--text)', fontWeight: 700, textDecoration: 'none' }}>
+      <ScrollArea className="tb-tables__nav-list min-h-0 flex-1">
+        <div className="space-y-1 px-2 pb-3 pt-1.5">
+          {filtered.map((table) => {
+            const active = table.id === activeId
+            return (
+              <Button
+                key={table.id}
+                type="button"
+                variant={active ? 'outline' : 'ghost'}
+                aria-pressed={active}
+                aria-label={`${table.label} QR kodunu düzenle`}
+                onClick={() => onSelect(table.id)}
+                className={cn('h-auto min-h-13 w-full justify-start gap-2.5 px-2.5 py-2 text-left', active && 'border-foreground bg-[var(--positive-bg)] hover:bg-[var(--positive-bg)]')}
+              >
+                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg border bg-background"><QrCode className="size-4" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{table.label}</span>
+                  <span className="block text-xs font-normal text-muted-foreground">{table.qrToken ? 'QR etkin' : 'QR hazırlanıyor'}</span>
+                </span>
+                {active && <Badge variant="positive">Seçili</Badge>}
+              </Button>
+            )
+          })}
+          {filtered.length === 0 && (
+            <Empty className="my-2 border py-8">
+              <EmptyHeader>
+                <EmptyMedia variant="icon"><QrCode /></EmptyMedia>
+                <EmptyTitle>{tables.length === 0 ? 'Henüz masa yok' : 'Eşleşen masa yok'}</EmptyTitle>
+                <EmptyDescription>{tables.length === 0 ? 'Canlı Masalar bölümünden ilk masanızı ekleyin.' : 'Arama ifadesini değiştirin.'}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
+        </div>
+      </ScrollArea>
+      <div className="border-t p-3">
+        <Button variant="outline" className="w-full" render={<Link href={`/dashboard/${restaurantId}/tables`} />}>
           Masaları yönet
-        </Link>
+        </Button>
       </div>
     </>
   )

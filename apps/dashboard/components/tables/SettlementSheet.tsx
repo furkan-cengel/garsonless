@@ -1,14 +1,24 @@
 'use client'
 
-import React from 'react'
-import { InlineSpinner } from '@garsonless/ui/spinners'
+import { Check, TriangleAlert, X } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import { Field, FieldGroup } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Progress } from '@/components/ui/progress'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Spinner } from '@/components/ui/spinner'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
-import { AccessibleDialog } from './AccessibleDialog'
 import { SETTLEMENT_LOAD_ERROR } from './settlement-load'
 import { SettlementOrderItems } from './SettlementOrderItems'
 import { SettlementSplitStatus } from './SettlementSplitStatus'
 import { SettlementSuccessDialog } from './SettlementSuccessDialog'
-import type { SettlementMethod } from './settlement-sheet-model'
 import {
   cardIcon,
   formatSettlementAmount,
@@ -17,11 +27,6 @@ import {
   SETTLEMENT_KEYFRAMES,
   SettlementMethodPicker,
   settlementDurationLabel,
-  settlementGhostButton,
-  settlementIconButton,
-  settlementModalBox,
-  settlementOverlay,
-  settlementPrimaryButton,
 } from './settlement-sheet-ui'
 import { useSettlementSheet } from './use-settlement-sheet'
 
@@ -86,79 +91,64 @@ export default function SettlementSheet({
     tally,
     collected,
   } = projection
+  const progressValue = isSplitMode
+    ? (total > 0 ? ((total - splitRemaining) / total) * 100 : 0)
+    : (all.length > 0 ? (assigned / all.length) * 100 : 0)
 
   if (done) {
     return <SettlementSuccessDialog tableLabel={tableLabel} tally={tally} collected={collected} onDone={onSessionClosed} zIndex={zIndex} />
   }
 
   return (
-    <AccessibleDialog labelledBy="settlement-dialog-title" onClose={onClose} closeDisabled={busy} style={settlementOverlay(zIndex)}>
-      <div style={{ ...settlementModalBox, maxWidth: 468 }} onClick={(e) => e.stopPropagation()}>
+    <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose() }}>
+      <DialogContent showCloseButton={false} className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
         <style dangerouslySetInnerHTML={{ __html: SETTLEMENT_KEYFRAMES }} />
 
-        {/* Header */}
-        <div style={{ padding: '16px 20px 14px', display: 'flex', alignItems: 'flex-start', gap: 12, borderBottom: '1px solid var(--divider)' }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-3)' }}>{tableLabel} · Adisyonu kapat</div>
-            <div id="settlement-dialog-title" style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-.02em', marginTop: 4 }}>Tahsilatı tamamla</div>
-            <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <DialogHeader className="flex-row items-start gap-3 border-b px-5 py-4">
+          <div className="flex flex-1 flex-col gap-1">
+            <span className="text-[10.5px] font-semibold tracking-[.08em] text-muted-foreground uppercase">{tableLabel} · Adisyonu kapat</span>
+            <DialogTitle id="settlement-dialog-title" className="text-lg">Tahsilatı tamamla</DialogTitle>
+            <DialogDescription className="flex items-center gap-2 text-xs">
               <span>{loadState === 'loading' ? 'Siparişler yükleniyor' : loadState === 'error' ? 'Siparişler yüklenemedi' : `${all.length} sipariş`}</span><span style={{ color: 'var(--border-strong)' }}>·</span>
               <span>{settlementDurationLabel(session.openedAt)}</span>
-            </div>
+            </DialogDescription>
           </div>
-          <button type="button" data-modal-initial-focus disabled={busy} onClick={onClose} aria-label="Pencereyi kapat" style={{ ...settlementIconButton, opacity: busy ? 0.6 : 1 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
-          </button>
-        </div>
+          <DialogClose disabled={busy} render={<Button type="button" variant="outline" size="icon" aria-label="Pencereyi kapat" />}><X /><span className="sr-only">Pencereyi kapat</span></DialogClose>
+        </DialogHeader>
 
-        <div style={{ padding: 20, overflow: 'auto' }}>
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="p-5">
           {error && (
-            <div style={{ fontSize: 12, color: 'var(--critical)', background: 'var(--critical-bg)', padding: '9px 11px', borderRadius: 9, marginBottom: 14 }}>{error}</div>
+            <Alert variant="destructive" className="mb-4"><AlertDescription>{error}</AlertDescription></Alert>
           )}
 
           {loadState === 'loading' ? (
-            <div role="status" aria-live="polite" aria-busy="true" style={{ padding: '30px 0', textAlign: 'center', color: 'var(--text-3)' }}><InlineSpinner size={16} /> Adisyon yükleniyor…</div>
+            <div role="status" aria-live="polite" aria-busy="true" className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Spinner />Adisyon yükleniyor…</div>
           ) : loadState === 'error' ? (
-            <div role="alert" style={{ padding: '26px 18px', textAlign: 'center', borderRadius: 12, background: 'var(--critical-bg)', color: 'var(--critical)' }}>
-              <div style={{ fontSize: 13, fontWeight: 650 }}>{loadError ?? SETTLEMENT_LOAD_ERROR}</div>
-              <button type="button" onClick={reload} style={{ ...settlementGhostButton, width: '100%', marginTop: 14, color: 'var(--critical)' }}>Tekrar dene</button>
-            </div>
+            <Alert variant="destructive"><AlertDescription className="flex flex-col gap-3 text-center">{loadError ?? SETTLEMENT_LOAD_ERROR}<Button type="button" variant="outline" onClick={reload}>Tekrar dene</Button></AlertDescription></Alert>
           ) : (
             <>
-              {/* Summary */}
-              <div style={{ borderRadius: 16, background: allStaged ? 'var(--positive-bg)' : 'var(--surface-2)', border: '1px solid ' + (allStaged ? 'transparent' : 'var(--border)'), padding: '15px 17px', transition: 'background .25s ease' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <Card className={allStaged ? 'bg-[var(--positive-bg)] text-[var(--positive)]' : 'bg-muted/40'}>
+                <CardHeader>
                   <div>
-                    <div style={{ fontSize: 11.5, color: allStaged ? 'var(--positive)' : 'var(--text-3)', fontWeight: 500 }}>
+                    <CardTitle className="text-xs text-muted-foreground">
                       {isSplitMode
                         ? allStaged ? 'Split ödeme tamamlandı' : 'Split ödemede kalan'
                         : allStaged ? 'Tümü işaretlendi' : 'İşaretlenecek kalan'}
-                    </div>
-                    <div key={remaining} className="sm-mono" style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.1, marginTop: 3, color: allStaged ? 'var(--positive)' : 'var(--text)', fontVariantNumeric: 'tabular-nums', animation: 'sm-count .25s ease' }}>
+                    </CardTitle>
+                    <div key={remaining} className="sm-mono mt-1 text-3xl leading-none font-bold tracking-tight tabular-nums">
                       {isSplitMode
                         ? allStaged ? formatSettlementAmount(settledShareTotal) : formatSettlementAmount(splitRemaining)
                         : allStaged ? formatSettlementAmount(collected) : formatSettlementAmount(remaining)}
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right', fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.6 }}>
-                    <div>Toplam <span className="sm-mono" style={{ color: 'var(--text-2)', fontWeight: 600 }}>{formatSettlementAmount(total)}</span></div>
+                  <CardAction className="text-right text-xs leading-relaxed text-muted-foreground">
+                    <div>Toplam <span className="sm-mono font-semibold text-foreground">{formatSettlementAmount(total)}</span></div>
                     <div>{isSplitMode ? `${shares.length} pay · ${settledShares.length} onaylı` : `${assigned}/${all.length} sipariş işaretlendi`}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', height: 7, borderRadius: 999, overflow: 'hidden', marginTop: 13, background: 'rgba(17,17,19,.06)', gap: 2 }}>
-                  {all.map((o) => {
-                    const m: SettlementMethod | null = o.paidAt !== null
-                      ? (o.paymentMethod && o.paymentMethod !== 'iyzico' && o.paymentMethod !== 'split' ? o.paymentMethod : null)
-                      : (staged[o.id] ?? null)
-                    const color = o.paidAt !== null && o.paymentMethod === 'iyzico'
-                      ? 'var(--positive)'
-                      : o.paidAt !== null && o.paymentMethod === 'split'
-                        ? '#b45309'
-                        : m ? METHODS[m].dot : 'transparent'
-                    return <div key={o.id} style={{ flex: o.total, background: color, transition: 'background .2s ease' }} />
-                  })}
-                </div>
-              </div>
+                  </CardAction>
+                </CardHeader>
+                <CardContent><Progress value={progressValue} aria-label={`Tahsilat ilerlemesi yüzde ${Math.round(progressValue)}`} /></CardContent>
+              </Card>
 
               {isSplitMode && (
                 <SettlementSplitStatus
@@ -175,49 +165,32 @@ export default function SettlementSheet({
 
               {/* Quick fill */}
               {!isSplitMode && unpaid.length > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
-                  <span style={{ fontSize: 11.5, color: 'var(--text-3)', fontWeight: 500 }}>Tümüne uygula</span>
-                  <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+                <div className="mt-4 flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">Tümüne uygula</span>
+                  <div className="ml-auto flex gap-1.5">
                     {METHOD_LIST.map((m) => (
-                      <button key={m.id} type="button" disabled={busy} onClick={() => fillAll(m.id)} style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5, height: 30, padding: '0 11px', borderRadius: 8,
-                        fontSize: 12, fontWeight: 600, color: m.fg, background: m.bg,
-                        border: m.dashed ? `1px dashed ${m.fg}` : '1px solid transparent',
-                        cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
-                      }}>{m.icon}{m.label}</button>
+                      <Button key={m.id} type="button" variant="outline" size="sm" disabled={busy} onClick={() => fillAll(m.id)}>{m.icon}{m.label}</Button>
                     ))}
                   </div>
                 </div>
               )}
 
               {/* Orders */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+              <div className="mt-3.5 flex flex-col gap-2.5">
                 {all.map((o, i) => {
                   const locked = o.paidAt !== null
                   const staged_m = staged[o.id] ?? null
-                  const borderM = locked
-                    ? (o.paymentMethod === 'iyzico'
-                      ? '#137a4d'
-                      : o.paymentMethod === 'split'
-                        ? '#b45309'
-                        : o.paymentMethod ? METHODS[o.paymentMethod].dot : 'var(--border)')
-                    : staged_m ? METHODS[staged_m].dot : 'var(--border)'
                   return (
-                    <div key={o.id} style={{ border: `1px solid ${borderM}`, borderRadius: 14, padding: '13px 14px 14px', background: locked ? 'var(--surface-2)' : 'var(--surface)', transition: 'border-color .15s ease' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                            <span style={{ fontSize: 13.5, fontWeight: 600 }}>Sipariş {i + 1}</span>
-                            <span className="sm-mono" style={{ fontSize: 10.5, color: 'var(--text-4)', background: 'var(--surface-3)', padding: '1px 6px', borderRadius: 5 }}>#{o.id.slice(0, 6).toUpperCase()}</span>
-                          </div>
-                        </div>
-                        <span className="sm-mono" style={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{formatSettlementAmount(o.total)}</span>
-                      </div>
-                      <div style={{ marginTop: 9 }}>
+                    <Card key={o.id} className={locked ? 'bg-muted/40' : undefined}>
+                      <CardHeader className="border-b">
+                        <CardTitle className="flex items-center gap-2">Sipariş {i + 1}<Badge variant="secondary">#{o.id.slice(0, 6).toUpperCase()}</Badge></CardTitle>
+                        <CardAction className="sm-mono text-sm font-bold tabular-nums">{formatSettlementAmount(o.total)}</CardAction>
+                      </CardHeader>
+                      <CardContent>
                         <SettlementOrderItems items={o.items} />
-                      </div>
+                      </CardContent>
                       {locked || isSplitMode ? (
-                        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5 }}>
+                        <CardFooter className="gap-1.5 text-xs">
                           {(() => {
                             const isComp = o.paymentMethod === 'comp'
                             const isSplit = o.paymentMethod === 'split' || (isSplitMode && !locked)
@@ -227,101 +200,77 @@ export default function SettlementSheet({
                               : isSplit
                                 ? locked ? 'Hesap bölüşme · ödendi' : 'Split ödeme bekleniyor'
                                 : m ? m.label : 'Ödendi'
-                            const fg = o.paymentMethod === 'iyzico' ? 'var(--positive)' : isSplit ? '#b45309' : m ? m.fg : 'var(--text-2)'
-                            const bg = o.paymentMethod === 'iyzico' ? 'var(--positive-bg)' : isSplit ? '#fff7ed' : m ? m.bg : 'var(--surface-3)'
                             return (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: fg, background: bg, padding: '4px 9px', borderRadius: 999, fontWeight: 700, ...(isComp ? { border: `1px dashed ${fg}` } : null) }}>
-                                {locked ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4.5 4.5L19 7" /></svg> : cardIcon}
+                              <Badge variant={o.paymentMethod === 'iyzico' ? 'positive' : isSplit ? 'warning' : 'secondary'}>
+                                {locked ? <Check /> : cardIcon}
                                 {isComp ? `${label} · ₺0` : label}
-                              </span>
+                              </Badge>
                             )
                           })()}
-                          {o.settledByLabel && <span style={{ color: 'var(--text-3)' }}>· {o.settledByLabel}</span>}
-                        </div>
+                          {o.settledByLabel && <span className="text-muted-foreground">· {o.settledByLabel}</span>}
+                        </CardFooter>
                       ) : (
-                        <SettlementMethodPicker value={staged_m} disabled={busy} onChange={(method) => setMethod(o.id, method)} />
+                        <CardFooter className="block border-0 bg-transparent pt-0"><SettlementMethodPicker value={staged_m} disabled={busy} onChange={(method) => setMethod(o.id, method)} /></CardFooter>
                       )}
-                    </div>
+                    </Card>
                   )
                 })}
               </div>
 
               {/* Tally */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <div className="mt-4 grid grid-cols-3 gap-2">
                 {METHOD_LIST.map((m) => (
-                  <div key={m.id} style={{ flex: 1, padding: '9px 11px', borderRadius: 11, background: tally[m.id] ? m.bg : 'var(--surface-2)', border: '1px solid ' + (tally[m.id] ? 'transparent' : 'var(--divider)'), transition: 'background .2s ease' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: tally[m.id] ? m.fg : 'var(--text-3)', fontWeight: 600 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: 999, background: tally[m.id] ? m.dot : 'var(--text-4)' }} />{m.label}
-                    </div>
-                    <div className="sm-mono" style={{ fontSize: 14, fontWeight: 700, marginTop: 3, color: tally[m.id] ? m.fg : 'var(--text-4)', fontVariantNumeric: 'tabular-nums' }}>{formatSettlementAmount(tally[m.id])}</div>
-                  </div>
+                  <Card key={m.id} size="sm"><CardHeader><CardTitle className="text-xs text-muted-foreground">{m.label}</CardTitle></CardHeader><CardContent className="sm-mono font-bold tabular-nums">{formatSettlementAmount(tally[m.id])}</CardContent></Card>
                 ))}
               </div>
             </>
           )}
-        </div>
+          </div>
+        </ScrollArea>
 
-        {/* Footer */}
         {loadState === 'ready' && orders !== null && (
-          <div style={{ padding: '14px 20px 16px', borderTop: '1px solid var(--divider)', background: 'var(--surface-2)' }}>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button type="button" disabled={busy} onClick={onClose} style={{ ...settlementGhostButton, opacity: busy ? 0.6 : 1 }}>Vazgeç</button>
-              <button type="button" aria-busy={committing} disabled={!allStaged || busy} onClick={() => void commit()} style={{
-                ...settlementPrimaryButton, flex: 1.6,
-                opacity: allStaged && !busy ? 1 : 0.45, cursor: allStaged && !busy ? 'pointer' : 'not-allowed',
-                background: allStaged ? 'var(--positive)' : 'var(--action)',
-              }}>
+          <DialogFooter className="mx-0 mb-0 flex-col gap-2 p-4 sm:flex-col">
+            <div className="flex w-full gap-2">
+              <Button type="button" variant="outline" size="lg" disabled={busy} onClick={onClose} className="flex-1">Vazgeç</Button>
+              <Button type="button" variant={allStaged ? 'positive' : 'default'} size="lg" aria-busy={committing} disabled={!allStaged || busy} onClick={() => void commit()} className="flex-[1.6]">
                 {committing
-                  ? <><InlineSpinner size={13} color="#fff" /> Kapatılıyor…</>
+                  ? <><Spinner data-icon="inline-start" />Kapatılıyor…</>
                   : allStaged
-                    ? <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4.5 4.5L19 7" /></svg>Masayı kapat · {formatSettlementAmount(collected)} tahsil</>
+                    ? <><Check data-icon="inline-start" />Masayı kapat · {formatSettlementAmount(collected)} tahsil</>
                     : isSplitMode
                       ? `Split ödeme kalan ${formatSettlementAmount(splitRemaining)}`
                       : `Kalan ${formatSettlementAmount(remaining)} işaretle`}
-              </button>
+              </Button>
             </div>
 
             {!abnormal ? (
-              <button type="button" disabled={busy} onClick={() => setAbnormal(true)} style={{
-                width: '100%', marginTop: 11, fontSize: 11.5, color: 'var(--text-4)', fontWeight: 500,
-                padding: 4, background: 'transparent', border: 'none', cursor: busy ? 'default' : 'pointer',
-              }}>Ödeme almadan kapat</button>
+              <Button type="button" variant="link" size="sm" disabled={busy} onClick={() => setAbnormal(true)}>Ödeme almadan kapat</Button>
             ) : (
-              <div style={{ marginTop: 11, padding: '11px 12px', borderRadius: 11, background: 'var(--critical-bg)' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
-                  <span style={{ color: 'var(--critical)', flexShrink: 0, marginTop: 1 }}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 2 20h20L12 3Z" /><path d="M12 10v4M12 17v.01" /></svg>
-                  </span>
-                  <div style={{ fontSize: 11.5, color: 'var(--critical)', fontWeight: 500, lineHeight: 1.4 }}>
-                    Tahsilat kaydı olmadan kapatılacak — <b>anormal kapatma</b> olarak raporlanır. Sebep zorunlu.
-                  </div>
-                </div>
-                <input
+              <Alert variant="destructive" className="w-full">
+                <TriangleAlert />
+                <AlertDescription className="flex flex-col gap-2">
+                  Tahsilat kaydı olmadan kapatılacak — <b>anormal kapatma</b> olarak raporlanır. Sebep zorunlu.
+                <FieldGroup className="gap-2">
+                  <Field data-invalid={!abnormalReason.trim()}>
+                  <Input
                   value={abnormalReason}
                   onChange={(e) => setAbnormalReason(e.target.value)}
                   placeholder="Sebep (örn. müşteri ödemeden ayrıldı)"
                   autoFocus
-                  style={{
-                    width: '100%', height: 32, marginTop: 9, padding: '0 10px', fontSize: 12,
-                    border: '1px solid var(--critical)', borderRadius: 8, outline: 'none', background: 'var(--surface)',
-                  }}
+                  aria-invalid={!abnormalReason.trim()}
                 />
-                <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
-                  <button type="button" disabled={busy} onClick={cancelAbnormal} style={{
-                    flex: 1, height: 32, borderRadius: 8, fontSize: 11.5, fontWeight: 600,
-                    border: '1px solid var(--border-strong)', background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer',
-                  }}>Vazgeç</button>
-                  <button type="button" aria-busy={committing} disabled={busy || !abnormalReason.trim()} onClick={() => void confirmAbnormal()} style={{
-                    flex: 1, height: 32, borderRadius: 8, fontSize: 11.5, fontWeight: 700,
-                    border: 'none', background: 'var(--critical)', color: '#fff',
-                    cursor: busy || !abnormalReason.trim() ? 'not-allowed' : 'pointer', opacity: abnormalReason.trim() ? 1 : 0.5,
-                  }}>{committing ? <><InlineSpinner size={11} color="#fff" /> Kapatılıyor…</> : 'Yine de kapat'}</button>
-                </div>
-              </div>
+                  </Field>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" disabled={busy} onClick={cancelAbnormal} className="flex-1">Vazgeç</Button>
+                    <Button type="button" variant="destructive" size="sm" aria-busy={committing} disabled={busy || !abnormalReason.trim()} onClick={() => void confirmAbnormal()} className="flex-1">{committing && <Spinner data-icon="inline-start" />}Yine de kapat</Button>
+                  </div>
+                </FieldGroup>
+                </AlertDescription>
+              </Alert>
             )}
-          </div>
+          </DialogFooter>
         )}
-      </div>
-    </AccessibleDialog>
+      </DialogContent>
+    </Dialog>
   )
 }

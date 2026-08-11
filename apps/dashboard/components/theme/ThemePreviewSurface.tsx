@@ -3,6 +3,9 @@
 import type { RefObject } from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { ThemePreviewStatus } from './use-theme-preview-bridge'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 
 interface ThemePreviewSurfaceProps {
   iframeRef: RefObject<HTMLIFrameElement | null>
@@ -17,13 +20,6 @@ interface ThemePreviewSurfaceProps {
 export function ThemePreviewSurface({ iframeRef, previewUrl, status, theme, onRetry, onLoad, onError }: ThemePreviewSurfaceProps) {
   return (
     <>
-      <style jsx>{`
-        @keyframes theme-preview-spin { to { transform: rotate(360deg); } }
-        .theme-preview-spinner { animation: theme-preview-spin 700ms linear infinite; }
-        @media (prefers-reduced-motion: reduce) {
-          .theme-preview-spinner { animation: none; }
-        }
-      `}</style>
       <iframe
         ref={iframeRef}
         src={previewUrl}
@@ -50,11 +46,7 @@ export function ThemePreviewSurface({ iframeRef, previewUrl, status, theme, onRe
           }}
         >
           <div style={{ display: 'grid', justifyItems: 'center', gap: 12 }}>
-            <span className="theme-preview-spinner" aria-hidden="true" style={{
-              width: 22, height: 22, borderRadius: 999,
-              border: '2px solid currentColor',
-              borderRightColor: 'transparent',
-            }} />
+            <Spinner aria-hidden="true" style={{ width: 22, height: 22 }} />
             <span style={{ fontSize: 13, fontWeight: 700 }}>Önizleme hazırlanıyor</span>
           </div>
         </div>
@@ -68,31 +60,17 @@ export function ThemePreviewSurface({ iframeRef, previewUrl, status, theme, onRe
             background: theme.bg, color: theme.textColor,
           }}
         >
-          <div style={{ maxWidth: 320, textAlign: 'center' }}>
-            <strong style={{ display: 'block', fontSize: 16 }}>Önizleme yüklenemedi</strong>
-            <p style={{ margin: '8px 0 16px', color: theme.mutedTextColor, fontSize: 13, lineHeight: 1.5 }}>
+          <Alert className="max-w-xs text-center" style={{ background: theme.bg, color: theme.textColor }}>
+            <AlertTitle>Önizleme yüklenemedi</AlertTitle>
+            <AlertDescription style={{ color: theme.mutedTextColor }}>
               Menü önizlemesi yanıt vermedi. Tasarım değişiklikleriniz korunuyor.
-            </p>
-            <button type="button" onClick={onRetry} style={retryButtonStyle}>
+            </AlertDescription>
+            <Button type="button" size="sm" onClick={onRetry} className="mx-auto mt-3 min-w-[118px]">
               Yeniden dene
-            </button>
-          </div>
+            </Button>
+          </Alert>
         </div>
       )}
     </>
   )
-}
-
-const retryButtonStyle: React.CSSProperties = {
-  minWidth: 118,
-  height: 36,
-  padding: '0 16px',
-  border: 0,
-  borderRadius: 10,
-  background: 'var(--action)',
-  color: 'var(--on-action)',
-  font: 'inherit',
-  fontSize: 13,
-  fontWeight: 800,
-  cursor: 'pointer',
 }

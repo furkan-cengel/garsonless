@@ -20,6 +20,14 @@ export interface ThemePageBlock {
   placement?: 'page' | 'drawer'
 }
 
+export type MenuFilterPresetId = 'vegan' | 'vegetarian' | 'halal'
+
+export interface ThemeMenuCustomFilter {
+  id: string
+  label: string
+  itemIds: string[]
+}
+
 export type ThemeEditorSurface = 'home' | 'menu' | 'auth' | 'checkout'
 export type AuthPreviewState = 'join' | 'otp' | 'success' | 'error'
 export type CheckoutPreviewState = 'cart' | 'payment' | 'success' | 'table-payment' | 'error'
@@ -464,6 +472,8 @@ export interface GarsonlessTheme {
   catnavActiveStyle?: 'filled' | 'soft' | 'outline'
   catnavAutoCenter?: boolean
   catnavEdgeFade?: boolean
+  menuFilterPresetIds?: MenuFilterPresetId[]
+  menuCustomFilters?: ThemeMenuCustomFilter[]
   cardLayout: 'vertical' | 'horizontal' | 'minimal'
   cardImageAspect: '1:1' | '4:3' | '16:9'
   cardShowDesc: boolean
@@ -657,6 +667,8 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   catnavActiveStyle: 'filled',
   catnavAutoCenter: true,
   catnavEdgeFade: true,
+  menuFilterPresetIds: ['vegan', 'vegetarian', 'halal'],
+  menuCustomFilters: [],
   cardLayout: 'vertical',
   cardImageAspect: '4:3',
   cardShowDesc: true,

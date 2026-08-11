@@ -1,33 +1,17 @@
 'use client'
 
+import { useEffect } from 'react'
+import { Toaster, toast } from '@/components/ui/toast'
+
 interface ThemeEditorToastProps {
   message: string
 }
 
 export function ThemeEditorToast({ message }: ThemeEditorToastProps) {
-  if (!message) return null
+  useEffect(() => {
+    if (!message) return
+    toast.add({ title: message, type: 'info', timeout: 3200 })
+  }, [message])
 
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      style={{
-        position: 'fixed',
-        bottom: 24,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        background: 'var(--text)',
-        color: '#fff',
-        padding: '10px 20px',
-        borderRadius: 8,
-        fontSize: 13,
-        fontWeight: 500,
-        boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-        zIndex: 100,
-        pointerEvents: 'none',
-      }}
-    >
-      {message}
-    </div>
-  )
+  return <Toaster />
 }

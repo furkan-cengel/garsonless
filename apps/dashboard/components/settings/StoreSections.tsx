@@ -12,6 +12,9 @@ import {
   prepareSettingsMutationAttempt,
   type SettingsMutationAttempt,
 } from './settings-save-contract'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Spinner } from '../ui/spinner'
 
 /* ── STORE ────────────────────────────────────────── */
 function StoreField({
@@ -495,11 +498,11 @@ export function TaxSection({ restaurant }: { restaurant: Tables<'restaurants'> }
       </SCard>
 
       <SCard title="Firma bilgisi" subtitle="Checkout adres alanlarında kullanılır; e-fatura entegrasyonu bu sürümde yok" style={{ marginTop: 16 }}>
-        <FormRow label="Şirket adı"><input value={company} onChange={e => setCompany(e.target.value)} style={inputStyle({ width: 320 })} /></FormRow>
-        <FormRow label="Vergi numarası"><input value={taxNumber} onChange={e => setTaxNumber(e.target.value)} style={inputStyle({ width: 200, fontFamily: "'Geist Mono'" })} /></FormRow>
-        <FormRow label="Vergi dairesi"><input value={office} onChange={e => setOffice(e.target.value)} style={inputStyle({ width: 200 })} /></FormRow>
-        <FormRow label="TC / VKN"><input value={tcVkn} onChange={e => setTcVkn(e.target.value)} style={inputStyle({ width: 200, fontFamily: "'Geist Mono'" })} /></FormRow>
-        <FormRow label="Fatura adresi" hint="Şirket adresi"><input value={address} onChange={e => setAddress(e.target.value)} style={inputStyle({ width: 360 })} /></FormRow>
+        <FormRow label="Şirket adı"><Input value={company} onChange={e => setCompany(e.target.value)} className="w-80" /></FormRow>
+        <FormRow label="Vergi numarası"><Input value={taxNumber} onChange={e => setTaxNumber(e.target.value)} className="w-50 font-mono" /></FormRow>
+        <FormRow label="Vergi dairesi"><Input value={office} onChange={e => setOffice(e.target.value)} className="w-50" /></FormRow>
+        <FormRow label="TC / VKN"><Input value={tcVkn} onChange={e => setTcVkn(e.target.value)} className="w-50 font-mono" /></FormRow>
+        <FormRow label="Fatura adresi" hint="Şirket adresi"><Input value={address} onChange={e => setAddress(e.target.value)} className="w-90" /></FormRow>
       </SCard>
 
       <div style={{
@@ -510,9 +513,10 @@ export function TaxSection({ restaurant }: { restaurant: Tables<'restaurants'> }
         <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
           {error || (saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydedin')}
         </span>
-        <button type="submit" disabled={isPending} style={btnPrimary()}>
-          {isPending ? <InlineSpinner size={13} color="var(--on-action)" /> : <I.check size={13} />}{isPending ? 'Kaydediliyor…' : 'Kaydet'}
-        </button>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? <Spinner data-icon="inline-start" /> : <I.check data-icon="inline-start" />}
+          {isPending ? 'Kaydediliyor…' : 'Kaydet'}
+        </Button>
       </div>
     </form>
   )

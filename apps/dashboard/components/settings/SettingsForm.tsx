@@ -1,6 +1,6 @@
 'use client'
 
-import { cloneElement, isValidElement, useEffect, useId, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import type { Tables } from '@garsonless/db/types'
@@ -29,7 +29,7 @@ const BillingSection         = dynamic(() => import('./BillingSection'))
 import PageTopBar from '../layout/PageTopBar'
 import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import { useShell } from '../../lib/shell-context'
-import { I, S, Tag, btnPrimary, btnGhost } from '../../lib/ui'
+import { I, S, Tag } from '../../lib/ui'
 import { notifySettingsSaved, SETTINGS_DIRTY_EVENT, SETTINGS_SAVED_EVENT } from './settings-dirty-state'
 import {
   canAccessSettingsSection,
@@ -37,6 +37,15 @@ import {
   type SettingsSectionId,
 } from './settings-sections'
 import styles from './SettingsForm.module.css'
+import { Alert, AlertDescription } from '../ui/alert'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Spinner } from '../ui/spinner'
+import { FormRow, SCard } from './primitives'
+import {
+  Attachment,
+  AttachmentMedia,
+} from '../ui/attachment'
 
 /* ============================================================
    NAV STRUCTURE
@@ -180,7 +189,9 @@ function NavRow({ item, active, onClick, buttonRef }: {
   buttonRef?: React.Ref<HTMLButtonElement>
 }) {
   return (
-    <button
+    <Button
+      type="button"
+      variant={active ? 'secondary' : 'ghost'}
       ref={buttonRef}
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
@@ -193,7 +204,7 @@ function NavRow({ item, active, onClick, buttonRef }: {
         <span className={styles.navRowDescription}>{item.desc}</span>
       </span>
       {item.badge && <Tag tone={item.tone ?? 'neutral'}>{item.badge}</Tag>}
-    </button>
+    </Button>
   )
 }
 
@@ -225,6 +236,8 @@ function ContentArea({ active, children, onChangeCapture }: { active: SectionId;
    ============================================================ */
 function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
   const router = useRouter()
+  const identitySnapshotRef = useRef({ name: restaurant.name, slug: restaurant.slug })
+  const logoInputRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState(restaurant.name)
   const [slug, setSlug] = useState(restaurant.slug)
   const [logoUrl, setLogoUrl] = useState(restaurant.logo_url)
@@ -233,6 +246,7 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
   const [saved, setSaved] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [isLogoPending, startLogoTransition] = useTransition()
+  const identityDirty = name !== identitySnapshotRef.current.name || slug !== identitySnapshotRef.current.slug
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -245,6 +259,7 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
       fd.append('slug', slug)
       const result = await updateRestaurant(fd)
       if ('error' in result) { setError(result.error); return }
+      identitySnapshotRef.current = { name, slug }
       setSaved(true)
       notifySettingsSaved()
     })
@@ -253,6 +268,7 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
   async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    e.target.value = ''
     setError('')
     setLogoFeedback('')
     startLogoTransition(async () => {
@@ -270,76 +286,109 @@ function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> })
       setLogoFeedback('✓ Logo güncellendi')
       notifySettingsSaved()
       router.refresh()
-      e.target.value = ''
     })
-  }
-
-  const inp: React.CSSProperties = {
-    height: 36, padding: '0 10px', width: '100%',
-    border: '1px solid var(--border-strong)', borderRadius: 6,
-    background: 'var(--surface)', fontSize: 13, outline: 'none',
-    color: 'var(--text)', fontFamily: 'inherit',
   }
 
   return (
     <form onSubmit={handleSave} aria-busy={isPending || isLogoPending}>
-      <SettingsCard title="Mağaza kimliği" subtitle="Müşterilere ve sisteme gösterilen temel bilgiler">
-        <SettingsRow label="Mağaza adı" hint="Müşteri menüsü ve faturalarda görünür">
-          <input value={name} onChange={e => setName(e.target.value)} style={inp} required />
-        </SettingsRow>
-        <SettingsRow label="URL slug" hint={`menu.masabu.co/${slug}`}>
-          <input
-            value={slug}
-            onChange={e => setSlug(e.target.value.replace(/[^a-z0-9-]/g, ''))}
-            style={{ ...inp, fontFamily: "'Geist Mono', monospace" }}
+      <SCard
+        title="Mağaza kimliği"
+        subtitle="Müşterilere ve sisteme gösterilen temel bilgiler"
+        footer={(
+          <>
+            <span role="status" aria-live="polite" className="text-xs text-muted-foreground">
+              {isPending
+                ? 'Mağaza bilgileri kaydediliyor…'
+                : saved
+                  ? '✓ Mağaza bilgileri güncellendi'
+                  : identityDirty
+                    ? 'Kaydedilmemiş değişiklik var'
+                    : 'Mağaza bilgileri güncel'}
+            </span>
+            <Button type="submit" aria-busy={isPending} disabled={isPending || !identityDirty}>
+              {isPending ? <Spinner data-icon="inline-start" /> : <I.check data-icon="inline-start" />}
+              {isPending ? 'Kaydediliyor…' : 'Kaydet'}
+            </Button>
+          </>
+        )}
+      >
+        <FormRow label="Mağaza adı" hint="Müşteri menüsü ve faturalarda görünür">
+          <Input
+            value={name}
+            onChange={e => { setName(e.target.value); setSaved(false) }}
+            autoComplete="organization"
+            className="w-72 max-w-full"
             required
           />
-        </SettingsRow>
-      </SettingsCard>
+        </FormRow>
+        <FormRow label="URL slug" hint={`menu.masabu.co/${slug}`}>
+          <Input
+            value={slug}
+            onChange={e => { setSlug(e.target.value.replace(/[^a-z0-9-]/g, '')); setSaved(false) }}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            className="w-72 max-w-full font-mono"
+            required
+          />
+        </FormRow>
+      </SCard>
 
-      <SettingsCard title="Logo" subtitle="PNG, JPG veya WEBP · en fazla 2 MB" style={{ marginTop: 16 }}>
-        <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: 12,
-            background: 'var(--surface-3)', border: '1px solid var(--border)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0,
-          }}>
-            {logoUrl
-              ? <img src={logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              : <span style={{ color: 'var(--text-4)', display: 'inline-flex' }}><I.cutlery size={24} /></span>}
-          </div>
-          <div>
-            <label aria-busy={isLogoPending} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              ...btnGhost(), cursor: 'pointer',
-            }}>
-              <I.image size={13} />{isLogoPending ? <span role="status" aria-live="polite">Logo yükleniyor…</span> : 'Logo değiştir'}
-              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleLogoChange} disabled={isLogoPending} style={{ display: 'none' }} />
-            </label>
-            <div style={{ fontSize: 11.5, color: logoFeedback ? 'var(--positive)' : 'var(--text-3)', marginTop: 6 }}>{logoFeedback || 'PNG, JPG veya WEBP · max 2 MB'}</div>
+      <SCard title="Mağaza logosu" subtitle="Müşteri menüsü ve QR ekranlarında görünür" style={{ marginTop: 16 }}>
+        <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+          <Input
+            ref={logoInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            onChange={handleLogoChange}
+            disabled={isLogoPending}
+          />
+          <Attachment
+            state={isLogoPending ? 'uploading' : logoUrl ? 'done' : 'idle'}
+            size="sm"
+            orientation="vertical"
+            className="size-32 shrink-0 overflow-hidden p-0!"
+            aria-busy={isLogoPending}
+          >
+            <AttachmentMedia variant={logoUrl ? 'image' : 'icon'} className="size-full! rounded-none! bg-background">
+              {logoUrl
+                ? <img src={logoUrl} alt="Mağaza logosu" className="size-full object-cover!" />
+                : isLogoPending
+                  ? <Spinner />
+                  : <I.cutlery />}
+            </AttachmentMedia>
+          </Attachment>
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <div className="text-sm font-medium">
+                {isLogoPending ? 'Logo yükleniyor…' : logoFeedback || (logoUrl ? 'Logo yüklendi' : 'Henüz logo yüklenmedi')}
+              </div>
+              <div className="text-sm leading-relaxed text-muted-foreground">
+                Logo önizleme alanını tamamen doldurur. Farklı oranlardaki görseller kenarlardan kırpılabilir. PNG, JPG veya WEBP · en fazla 2 MB.
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              disabled={isLogoPending}
+              onClick={() => logoInputRef.current?.click()}
+            >
+              {isLogoPending ? <Spinner data-icon="inline-start" /> : <I.image data-icon="inline-start" />}
+              {isLogoPending ? 'Yükleniyor…' : logoUrl ? 'Logoyu değiştir' : 'Logo yükle'}
+            </Button>
           </div>
         </div>
-      </SettingsCard>
+      </SCard>
 
       {error && (
-        <div role="alert" style={{ marginTop: 12, padding: '8px 12px', background: 'var(--critical-bg)', color: 'var(--critical)', borderRadius: 7, fontSize: 12 }}>
-          {error}
-        </div>
+        <Alert variant="destructive" className="mt-3">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      <div style={{
-        marginTop: 20, padding: '12px 16px',
-        background: 'var(--surface)', borderRadius: 10,
-        border: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
-          {saved ? '✓ Kaydedildi' : 'Kaydetmek için değişiklik yap'}
-        </span>
-        <button type="submit" aria-busy={isPending} disabled={isPending} style={btnPrimary()}>
-          <I.check size={13} />{isPending ? 'Kaydediliyor…' : 'Kaydet'}
-        </button>
-      </div>
     </form>
   )
 }
@@ -402,69 +451,6 @@ function KitchenSectionWrapper({
       initialHasAccess={hasKitchenAccess}
       initialStations={kitchenStations}
     />
-  )
-}
-
-/* ============================================================
-   SHARED CARD PRIMITIVES
-   ============================================================ */
-function SettingsCard({ title, subtitle, children, style }: {
-  title: string
-  subtitle?: string
-  children: React.ReactNode
-  style?: React.CSSProperties
-}) {
-  return (
-    <div style={{
-      background: 'var(--surface)', borderRadius: 12,
-      border: '1px solid var(--border)', overflow: 'hidden',
-      ...style,
-    }}>
-      <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid var(--divider)' }}>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>{subtitle}</div>}
-      </div>
-      <div>{children}</div>
-    </div>
-  )
-}
-
-function SettingsRow({ label, hint, children }: {
-  label: string
-  hint?: string
-  children: React.ReactNode
-}) {
-  const generatedControlId = useId()
-  const hintId = useId()
-  const nativeControl = isValidElement(children)
-    && typeof children.type === 'string'
-    && ['input', 'select', 'textarea'].includes(children.type)
-  const control = nativeControl
-    ? cloneElement(children as React.ReactElement<{ id?: string; 'aria-describedby'?: string }>, {
-      id: (children.props as { id?: string }).id ?? generatedControlId,
-      'aria-describedby': [
-        (children.props as { 'aria-describedby'?: string })['aria-describedby'],
-        hint ? hintId : undefined,
-      ].filter(Boolean).join(' ') || undefined,
-    })
-    : children
-  const controlId = nativeControl
-    ? ((children.props as { id?: string }).id ?? generatedControlId)
-    : undefined
-
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 14,
-      padding: '12px 18px', borderBottom: '1px solid var(--divider)',
-    }}>
-      <div style={{ width: 180, flexShrink: 0 }}>
-        {controlId
-          ? <label htmlFor={controlId} style={{ fontSize: 13, fontWeight: 500 }}>{label}</label>
-          : <div style={{ fontSize: 13, fontWeight: 500 }}>{label}</div>}
-        {hint && <div id={hintId} style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 1 }}>{hint}</div>}
-      </div>
-      <div style={{ flex: 1 }}>{control}</div>
-    </div>
   )
 }
 

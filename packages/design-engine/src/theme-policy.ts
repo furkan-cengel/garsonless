@@ -21,6 +21,8 @@ import {
   type HomeSurfaceBlock,
   type HomeSurfaceSection,
   type HomeSurfaceTheme,
+  type MenuFilterPresetId,
+  type ThemeMenuCustomFilter,
   type ThemePageBlock,
   type ThemeSurfaceOverride,
   type ThemeSurfaces,
@@ -33,6 +35,8 @@ const MAX_THEME_BYTES = 128 * 1024
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i
 const FONT_NAME = /^[\p{L}\p{N} .,'_-]{1,80}$/u
 const SAFE_ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/
+const SAFE_FILTER_LABEL = /^[\p{L}\p{N} .,&+'-]{1,40}$/u
+const MENU_FILTER_PRESETS = new Set<MenuFilterPresetId>(['vegan', 'vegetarian', 'halal'])
 const REMOVED_SECTION_DEFINITION_IDS = new Set(['social-block', 'footer'])
 const HOME_SECTION_TYPES = new Set<HomeSectionType>([
   'announcement', 'header', 'hero', 'about', 'featured-categories', 'hours-location',
@@ -193,6 +197,32 @@ function safeUrlArray(value: unknown, maxEntries: number): string[] | undefined 
     return url ? [url] : []
   })
   return Array.from(new Set(entries))
+}
+
+function sanitizeMenuFilterPresetIds(value: unknown): MenuFilterPresetId[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  return Array.from(new Set(value.filter((candidate): candidate is MenuFilterPresetId =>
+    typeof candidate === 'string' && MENU_FILTER_PRESETS.has(candidate as MenuFilterPresetId))))
+}
+
+function sanitizeMenuCustomFilters(value: unknown): ThemeMenuCustomFilter[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const filters = value.slice(0, 12).flatMap((candidate) => {
+    if (!isRecord(candidate)) return []
+    const id = safeString(candidate['id'], 100)
+    const label = safeString(candidate['label'], 40)?.trim()
+    const itemIds = safeStringArray(candidate['itemIds'], 200)
+    if (
+      !id ||
+      !SAFE_ID.test(id) ||
+      MENU_FILTER_PRESETS.has(id as MenuFilterPresetId) ||
+      !label ||
+      !SAFE_FILTER_LABEL.test(label) ||
+      !itemIds
+    ) return []
+    return [{ id, label, itemIds }]
+  })
+  return filters.filter((filter, index) => filters.findIndex((candidate) => candidate.id === filter.id) === index)
 }
 
 function sanitizeSurfaceOverride(value: unknown): ThemeSurfaceOverride | undefined {
@@ -846,6 +876,16 @@ export function sanitizeThemeTokens(input: unknown, templateId: string): Garsonl
     if (key === 'sectionSettings') {
       const settings = sanitizeSectionSettings(value, removedSectionInstanceIds, homeBlockDefinitions)
       if (settings) result[key] = settings
+      continue
+    }
+    if (key === 'menuFilterPresetIds') {
+      const presetIds = sanitizeMenuFilterPresetIds(value)
+      if (presetIds) result[key] = presetIds
+      continue
+    }
+    if (key === 'menuCustomFilters') {
+      const customFilters = sanitizeMenuCustomFilters(value)
+      if (customFilters) result[key] = customFilters
       continue
     }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type CSSProperties, type ChangeEvent, type PointerEvent as ReactPointerEvent, type RefObject } from 'react'
+import { Children, cloneElement, isValidElement, useEffect, useId, useMemo, useState, type CSSProperties, type ChangeEvent, type PointerEvent as ReactPointerEvent, type ReactElement, type RefObject } from 'react'
 import {
   inspectAuthSurfaceContrast,
   inspectCheckoutSurfaceContrast,
@@ -53,6 +53,25 @@ import {
   SectionSettingsEditor,
 } from './ThemeSectionSettings'
 import { getAvailableSectionTabs, resolveEffectiveEditorTab, type EditorTab } from './theme-editor-properties-model'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Attachment, AttachmentContent, AttachmentDescription, AttachmentMedia, AttachmentTitle } from '@/components/ui/attachment'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty'
+import { Field as ShadcnField, FieldContent, FieldDescription, FieldLabel, FieldTitle } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
+import { Slider } from '@/components/ui/slider'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 const AUTH_STATES: Array<{ id: AuthPreviewState; label: string }> = [
   { id: 'join', label: 'Üyelik' },
@@ -144,7 +163,6 @@ export function ThemeExperienceSidebar({
   onCheckoutStateChange: (state: CheckoutPreviewState) => void
   onPatch: (patch: Partial<GarsonlessTheme>) => void
 }) {
-  const surfaces = resolvedSurfaces(theme)
   const [dragId, setDragId] = useState<string | null>(null)
 
   if (surface !== 'home') {
@@ -153,27 +171,34 @@ export function ThemeExperienceSidebar({
     return (
       <SurfaceAside width={width} title={surface === 'auth' ? 'Giriş' : 'Checkout'} subtitle="Önizleme durumu">
         <div style={{ padding: 8 }}>
+          <ToggleGroup
+            value={[current]}
+            onValueChange={(values) => {
+              const next = values[0]
+              if (!next) return
+              if (surface === 'auth') onAuthStateChange(next as AuthPreviewState)
+              else onCheckoutStateChange(next as CheckoutPreviewState)
+            }}
+            orientation="vertical"
+            className="w-full flex-col items-stretch"
+            aria-label={surface === 'auth' ? 'Giriş önizleme durumu' : 'Checkout önizleme durumu'}
+          >
           {states.map((state) => (
-            <button
+            <ToggleGroupItem
               key={state.id}
-              type="button"
-              aria-pressed={current === state.id}
-              onClick={() => surface === 'auth'
-                ? onAuthStateChange(state.id as AuthPreviewState)
-                : onCheckoutStateChange(state.id as CheckoutPreviewState)}
-              style={navButtonStyle(current === state.id)}
+              value={state.id}
+              variant="outline"
+              className="h-auto min-h-10 w-full justify-start gap-2.5 px-2.5 py-1.5"
             >
               <span style={{ width: 32, height: 32, display: 'grid', placeItems: 'center', borderRadius: 8, background: current === state.id ? 'var(--surface)' : 'var(--surface-3)' }}>
                 {state.id === 'error' ? <I.warn size={17} /> : state.id === 'success' ? <I.check size={17} /> : surface === 'auth' ? <I.userCircle size={17} /> : <I.receipt size={17} />}
               </span>
               <span>{state.label}</span>
               {current === state.id && <I.chevRight size={17} style={{ marginLeft: 'auto' }} />}
-            </button>
+            </ToggleGroupItem>
           ))}
-          <div role="note" style={noticeStyle}>
-            <I.shield size={17} />
-            <span>{surface === 'auth' ? 'Önizleme OTP veya OAuth isteği oluşturmaz.' : 'Önizleme sipariş veya ödeme isteği oluşturmaz.'}</span>
-          </div>
+          </ToggleGroup>
+          <Alert className="my-4"><I.shield /><AlertDescription>{surface === 'auth' ? 'Önizleme OTP veya OAuth isteği oluşturmaz.' : 'Önizleme sipariş veya ödeme isteği oluşturmaz.'}</AlertDescription></Alert>
         </div>
       </SurfaceAside>
     )
@@ -201,29 +226,36 @@ export function ThemeExperienceSidebar({
   return (
     <SurfaceAside width={width} title="Ana sayfa" subtitle="Menü bileşenleri + Video Hero">
       <div style={{ padding: '12px 12px 8px', borderBottom: '1px solid var(--divider)' }}>
-        <label style={{ minHeight: 52, display: 'flex', alignItems: 'center', gap: 10, padding: '0 10px', borderRadius: 10, background: surfaces.home.enabled ? 'var(--positive-bg)' : 'var(--surface-3)', color: 'var(--text)', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
+        <ShadcnField orientation="horizontal" className="min-h-13 rounded-lg bg-muted px-2.5">
+          <FieldContent>
+          <FieldLabel htmlFor="theme-home-enabled">Ana sayfayı etkinleştir</FieldLabel>
+          <FieldDescription>Yayınlanınca /{'{slug}'} ana sayfa olur</FieldDescription>
+          </FieldContent>
+          <Switch
+            id="theme-home-enabled"
             checked={homeState.home.enabled}
-            onChange={(event) => onPatch(homeV2Patch(theme, { ...homeState.home, enabled: event.target.checked }, homeState.sectionSettings))}
-            style={{ width: 18, height: 18, accentColor: 'var(--positive)' }}
+            onCheckedChange={(checked) => onPatch(homeV2Patch(theme, { ...homeState.home, enabled: checked === true }, homeState.sectionSettings))}
           />
-          <span style={{ flex: 1 }}>
-            <span style={{ display: 'block', fontSize: 13, fontWeight: 750 }}>Ana sayfayı etkinleştir</span>
-            <span style={{ display: 'block', marginTop: 2, color: 'var(--text-3)', fontSize: 11.5 }}>Yayınlanınca /{`{slug}`} ana sayfa olur</span>
-          </span>
-        </label>
+        </ShadcnField>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '10px 8px 20px' }}>
-        <h3 style={groupLabelStyle}>Ortak alanlar</h3>
-        <button type="button" aria-pressed={selectedSectionId === '__shared-header'} onClick={() => onSelectShared('header')} style={sharedChromeRowStyle(selectedSectionId === '__shared-header')}>
-          <span style={sharedChromeIconStyle}><I.header size={17} /></span>
-          <span style={{ flex: 1, minWidth: 0 }}><strong style={{ display: 'block', fontSize: 12.5 }}>Ortak Header</strong><span style={sharedChromeMetaStyle}>Menü ile aynı bileşen ve ayarlar</span></span>
-          <span style={sharedBadgeStyle}>Ortak</span><I.chevRight size={16} />
-        </button>
+      <ScrollArea className="min-h-0 flex-1"><div className="px-2 pt-2.5 pb-5">
+        <FieldTitle className="mx-2.5 mt-1.5 mb-2 text-[10.5px] font-bold uppercase tracking-[.06em] text-muted-foreground">Ortak alanlar</FieldTitle>
+        <Item
+          render={<Button type="button" variant="ghost" aria-pressed={selectedSectionId === '__shared-header'} onClick={() => onSelectShared('header')} />}
+          variant={selectedSectionId === '__shared-header' ? 'muted' : 'default'}
+          size="sm"
+          className="min-h-[54px] text-left"
+        >
+          <ItemMedia variant="icon" className="size-8 rounded-lg border bg-background"><I.header /></ItemMedia>
+          <ItemContent className="min-w-0">
+            <ItemTitle className="text-[12.5px]">Ortak Header</ItemTitle>
+            <ItemDescription className="text-[10.5px]">Menü ile aynı bileşen ve ayarlar</ItemDescription>
+          </ItemContent>
+          <ItemActions><Badge variant="secondary">Ortak</Badge><I.chevRight /></ItemActions>
+        </Item>
 
-        <h3 style={groupLabelStyle}>Sayfa akışı</h3>
+        <FieldTitle className="mx-2.5 mt-1.5 mb-2 text-[10.5px] font-bold uppercase tracking-[.06em] text-muted-foreground">Sayfa akışı</FieldTitle>
         {sections.map((section, index) => {
           const catalog = HOME_SECTION_LIBRARY.find((item) => item.id === section.sectionId)
           if (!catalog) return null
@@ -232,72 +264,78 @@ export function ThemeExperienceSidebar({
           const settings = homeState.sectionSettings[section.id] ?? {}
           const displayTitle = settings.title?.trim() || catalog.label
           return (
-            <div
+            <Item
               key={section.id}
+              size="xs"
+              variant={selected ? 'muted' : 'default'}
               draggable
               onDragStart={() => setDragId(section.id)}
               onDragEnd={() => setDragId(null)}
               onDragOver={(event) => event.preventDefault()}
               onDrop={() => { if (dragId) moveSection(dragId, section.id) }}
-              style={{ ...sectionRowStyle, background: selected ? 'var(--surface-inset)' : 'transparent', opacity: section.enabled ? 1 : .55 }}
+              className="min-h-[58px] gap-1.5 px-2 py-1.5 text-muted-foreground"
+              style={{ opacity: section.enabled ? 1 : .55 }}
             >
-              <I.drag size={17} style={{ color: 'var(--text-4)', cursor: 'grab' }} />
-              <button type="button" aria-label={`${displayTitle} bölümünü düzenle`} title={displayTitle} onClick={() => onSelectSection(section.id)} style={{ flex: 1, minWidth: 0, padding: 0, border: 0, background: 'transparent', display: 'flex', alignItems: 'center', gap: 9, color: 'inherit', textAlign: 'left', cursor: 'pointer' }}>
-                <Icon size={17} />
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: '-webkit-box', fontSize: 12.5, fontWeight: 700, lineHeight: 1.2, overflow: 'hidden', overflowWrap: 'anywhere', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2 }}>{displayTitle}</span>
-                  <span style={{ display: 'block', marginTop: 1, color: 'var(--text-3)', fontSize: 10.5 }}>{catalog.plan === 'pro' ? 'Pro · ' : ''}{catalog.sub}</span>
-                </span>
-              </button>
-              <button type="button" aria-label={section.enabled ? 'Bölümü gizle' : 'Bölümü göster'} onClick={() => patchSection(section.id, { enabled: !section.enabled })} style={iconButtonStyle}>
-                {section.enabled ? <I.eye size={16} /> : <I.eyeOff size={16} />}
-              </button>
-              {selected ? <details
-                style={{ position: 'relative', flex: '0 0 auto' }}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Escape') return
-                  event.preventDefault()
-                  event.currentTarget.removeAttribute('open')
-                  event.currentTarget.querySelector<HTMLElement>('summary')?.focus()
-                }}
-              >
-                <summary aria-label="Bölüm işlemleri" style={actionSummaryStyle}><I.more size={16} /></summary>
-                <div role="menu" aria-label={`${displayTitle} işlemleri`} style={sectionActionMenuStyle}>
-                  <button type="button" role="menuitem" onClick={(event) => {
-                    event.currentTarget.closest('details')?.removeAttribute('open')
+              <ItemMedia variant="icon" className="cursor-grab text-muted-foreground"><I.drag /></ItemMedia>
+              <Button type="button" variant="ghost" aria-label={`${displayTitle} bölümünü düzenle`} title={displayTitle} onClick={() => onSelectSection(section.id)} className="h-auto min-w-0 flex-1 justify-start gap-2 p-0 text-left hover:bg-transparent">
+                <Icon />
+                <ItemContent className="min-w-0">
+                  <ItemTitle className="line-clamp-2 text-[12.5px]">{displayTitle}</ItemTitle>
+                  <ItemDescription className="text-[10.5px]">{catalog.plan === 'pro' ? 'Pro · ' : ''}{catalog.sub}</ItemDescription>
+                </ItemContent>
+              </Button>
+              <Button type="button" variant="ghost" size="icon-sm" aria-label={section.enabled ? 'Bölümü gizle' : 'Bölümü göster'} onClick={() => patchSection(section.id, { enabled: !section.enabled })}>
+                {section.enabled ? <I.eye /> : <I.eyeOff />}
+              </Button>
+              {selected ? <DropdownMenu>
+                <DropdownMenuTrigger aria-label="Bölüm işlemleri" render={<Button type="button" variant="ghost" size="icon-sm" />}><I.more /></DropdownMenuTrigger>
+                <DropdownMenuContent align="end" aria-label={`${displayTitle} işlemleri`}>
+                  <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => {
                     const clone = { ...section, id: `${section.id}-copy-${Date.now().toString(36)}` }
                     const next = [...sections]
                     next.splice(index + 1, 0, clone)
                     const nextSettings = { ...homeState.sectionSettings, [clone.id]: { ...(homeState.sectionSettings[section.id] ?? {}) } }
                     onPatch(homeV2Patch(theme, { ...homeState.home, blocks: next }, nextSettings))
                     onSelectSection(clone.id)
-                  }} style={actionMenuItemStyle}><I.copy size={16} />Bölümü çoğalt</button>
-                  <button type="button" role="menuitem" onClick={(event) => {
-                    event.currentTarget.closest('details')?.removeAttribute('open')
+                  }}><I.copy />Bölümü çoğalt</DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onClick={() => {
                     const nextSettings = { ...homeState.sectionSettings }
                     delete nextSettings[section.id]
                     onPatch(homeV2Patch(theme, { ...homeState.home, blocks: sections.filter((candidate) => candidate.id !== section.id) }, nextSettings))
                     if (selected) onSelectSection(null)
-                  }} style={actionMenuItemStyle}><I.trash size={16} />Bölümü kaldır</button>
-                </div>
-              </details> : null}
-            </div>
+                  }}><I.trash />Bölümü kaldır</DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu> : null}
+            </Item>
           )
         })}
 
-        <button ref={sectionTriggerRef} type="button" onClick={onOpenSectionPicker} style={addSectionButtonStyle}>
-          <span style={addSectionIconStyle}><I.plus size={18} /></span>
-          <span style={{ flex: 1, textAlign: 'left' }}><strong style={{ display: 'block' }}>Bölüm ekle</strong><span style={{ display: 'block', marginTop: 2, color: 'var(--text-3)', fontSize: 10.5, fontWeight: 550 }}>Menü bileşenlerini ve Video Hero’yu ekle</span></span>
-          <I.chevRight size={17} />
-        </button>
+        <Item render={<Button ref={sectionTriggerRef} type="button" variant="outline" aria-label="Bölüm ekle" onClick={onOpenSectionPicker} />} variant="outline" size="sm" className="mt-3.5 min-h-14 justify-start border-dashed text-left whitespace-normal">
+          <ItemMedia variant="icon" className="size-9 rounded-lg bg-primary/10 text-primary"><I.plus /></ItemMedia>
+          <ItemContent className="min-w-0">
+            <ItemTitle className="text-[12.5px]">Bölüm ekle</ItemTitle>
+            <ItemDescription className="truncate text-[10.5px]">Menü bileşenlerini ve Video Hero’yu ekle</ItemDescription>
+          </ItemContent>
+          <ItemActions><I.chevRight /></ItemActions>
+        </Item>
 
-        <h3 style={{ ...groupLabelStyle, marginTop: 18 }}>Ortak alanlar</h3>
-        <button type="button" aria-pressed={selectedSectionId === '__shared-footer'} onClick={() => onSelectShared('footer')} style={sharedChromeRowStyle(selectedSectionId === '__shared-footer')}>
-          <span style={sharedChromeIconStyle}><I.layout size={17} /></span>
-          <span style={{ flex: 1, minWidth: 0 }}><strong style={{ display: 'block', fontSize: 12.5 }}>Ortak Footer</strong><span style={sharedChromeMetaStyle}>İletişim ve sosyal bağlantılar Menü ile ortak</span></span>
-          <span style={sharedBadgeStyle}>Ortak</span><I.chevRight size={16} />
-        </button>
-      </div>
+        <FieldTitle className="mx-2.5 mt-4.5 mb-2 text-[10.5px] font-bold uppercase tracking-[.06em] text-muted-foreground">Ortak alanlar</FieldTitle>
+        <Item
+          render={<Button type="button" variant="ghost" aria-pressed={selectedSectionId === '__shared-footer'} onClick={() => onSelectShared('footer')} />}
+          variant={selectedSectionId === '__shared-footer' ? 'muted' : 'default'}
+          size="sm"
+          className="min-h-[54px] text-left"
+        >
+          <ItemMedia variant="icon" className="size-8 rounded-lg border bg-background"><I.layout /></ItemMedia>
+          <ItemContent className="min-w-0">
+            <ItemTitle className="text-[12.5px]">Ortak Footer</ItemTitle>
+            <ItemDescription className="text-[10.5px]">İletişim ve sosyal bağlantılar Menü ile ortak</ItemDescription>
+          </ItemContent>
+          <ItemActions><Badge variant="secondary">Ortak</Badge><I.chevRight /></ItemActions>
+        </Item>
+      </div></ScrollArea>
     </SurfaceAside>
   )
 }
@@ -449,19 +487,21 @@ export function ThemeExperienceProperties({
   const checkoutContrastIssues = inspectCheckoutSurfaceContrast(theme)
 
   return (
-    <aside style={{ width, minWidth: 0, boxSizing: 'border-box', flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', overflowX: 'hidden', overflowY: 'auto' }}>
+    <aside style={{ width, minWidth: 0, minHeight: 0, boxSizing: 'border-box', flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '16px', borderBottom: '1px solid var(--divider)' }}>
         <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 14, fontWeight: 750 }}>Yüzey ayarları</h2>
         <p style={{ margin: '4px 0 0', color: 'var(--text-3)', fontSize: 11.5 }}>Güvenli içerik ve görünüm alanları</p>
       </div>
-      <div style={{ minWidth: 0, boxSizing: 'border-box', padding: 16 }}>
+      <ScrollArea className="min-h-0 flex-1"><div style={{ minWidth: 0, boxSizing: 'border-box', padding: 16 }}>
         {surface === 'home' && selectedSection && (
           <>
-            <div style={{ ...settingsCardStyle, marginBottom: 14 }}>
+            <SettingsCard className="mb-3.5">
               <SettingsCardHeader icon={selectedHomeDefinition ? (() => { const Icon = I[selectedHomeDefinition.icon]; return <Icon size={17} /> })() : <I.layout size={17} />} title={selectedHomeDefinition?.label ?? 'Ana sayfa bölümü'} meta={selectedHomeDefinition?.id === 'storefront-video-hero' ? 'Pro · Ana sayfa' : selectedHomeDefinition?.plan === 'pro' ? 'Pro · Menü bileşeni' : 'Menü bileşeni'} />
-              <div role="tablist" aria-label="Ana sayfa bölüm ayarları" style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, homeTabs.length)},minmax(0,1fr))`, gap: 5, marginBottom: 14 }}>
-                {homeTabs.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={effectiveHomeTab === tab.id} onClick={() => setHomeEditorTab(tab.id)} style={homeTabStyle(effectiveHomeTab === tab.id)}>{tab.label}</button>)}
-              </div>
+              <Tabs value={effectiveHomeTab} onValueChange={(value) => setHomeEditorTab(value as EditorTab)}>
+                <TabsList aria-label="Ana sayfa bölüm ayarları" style={{ width: '100%', display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, homeTabs.length)},minmax(0,1fr))`, marginBottom: 14 }}>
+                  {homeTabs.map((tab) => <TabsTrigger key={tab.id} value={tab.id}>{tab.label}</TabsTrigger>)}
+                </TabsList>
+              </Tabs>
 
               {effectiveHomeTab === 'design' && selectedSection.sectionId === 'hero-banner' && <SectionImageUploadPanel restaurantId={restaurantId} label="Hero Banner" value={selectedHomeSettings.imageUrl ?? ''} onChange={(value) => updateSelected({ imageUrl: value })} />}
               {effectiveHomeTab === 'design' && selectedSection.sectionId === 'gallery' && <GalleryUploadPanel restaurantId={restaurantId} values={selectedHomeSettings} onChange={(key, value) => updateSelected({ [key]: value })} />}
@@ -485,12 +525,12 @@ export function ThemeExperienceProperties({
                 menuHref={`/dashboard/${restaurantId}/menu`}
                 onChange={(key, value) => updateSelected({ [key]: value })}
               />
-              <button type="button" onClick={() => {
+              <Button type="button" onClick={() => {
                 const next = { ...homeState.sectionSettings }
                 delete next[selectedSection.id]
                 onPatch(homeV2Patch(theme, homeState.home, next))
-              }} style={homeResetButtonStyle}>Bu bölümün ayarlarını varsayılana döndür</button>
-            </div>
+              }} variant="link" className="mt-3 w-full border-t">Bu bölümün ayarlarını varsayılana döndür</Button>
+            </SettingsCard>
           </>
         )}
         {surface === 'home' && !selectedSection && <EmptyProperties text="Düzenlemek için soldan bir ana sayfa bölümü seç." />}
@@ -504,45 +544,45 @@ export function ThemeExperienceProperties({
               onReset={() => resetAuthState(authState)}
             />}
 
-            <div style={settingsCardStyle}>
+            <SettingsCard>
               <SettingsCardHeader icon={<I.image size={17} />} title="Header medyası" meta="Tüm durumlarda sabit" />
               <AuthHeaderMediaUploader
                 restaurantId={restaurantId}
                 header={surfaces.auth.header}
                 onChange={updateAuthHeader}
               />
-              <Field label="Görsel yerleşimi"><select value={surfaces.auth.header.imageFit ?? 'cover'} onChange={(event) => updateAuthHeader({ imageFit: event.target.value as AuthHeaderTheme['imageFit'] })} style={inputStyle}><option value="cover">Alanı doldur (cover)</option><option value="contain">Görselin tamamı (contain)</option></select></Field>
+              <Field label="Görsel yerleşimi"><NativeSelect value={surfaces.auth.header.imageFit ?? 'cover'} onChange={(event) => updateAuthHeader({ imageFit: event.target.value as AuthHeaderTheme['imageFit'] })} style={inputStyle}><NativeSelectOption value="cover">Alanı doldur (cover)</NativeSelectOption><NativeSelectOption value="contain">Görselin tamamı (contain)</NativeSelectOption></NativeSelect></Field>
               {surfaces.auth.header.backgroundImageUrl && <AuthImageFocusControl header={surfaces.auth.header} onChange={updateAuthHeader} />}
-              <Field label="Header yüksekliği"><select value={surfaces.auth.header.height ?? 'standard'} onChange={(event) => updateAuthHeader({ height: event.target.value as AuthHeaderTheme['height'] })} style={inputStyle}><option value="compact">Kompakt</option><option value="standard">Standart</option><option value="wide">Geniş</option></select></Field>
-              <Field label={`Fotoğraf karartması · %${surfaces.auth.header.overlay}`}><input type="range" min={0} max={85} step={1} value={surfaces.auth.header.overlay} onChange={(event) => updateAuthHeader({ overlay: Number(event.target.value) })} style={rangeStyle} /></Field>
-              <Field label="Header zemin rengi"><div style={{ display: 'flex', gap: 8 }}><input aria-label="Header zemin rengini seç" type="color" value={surfaces.auth.header.backgroundColor ?? '#12271c'} onChange={(event) => updateAuthHeader({ backgroundColor: event.target.value })} style={colorSwatchStyle} /><input aria-label="Header zemin rengi" value={surfaces.auth.header.backgroundColor ?? '#12271c'} onChange={(event) => { if (/^#[0-9a-f]{6}$/i.test(event.target.value)) updateAuthHeader({ backgroundColor: event.target.value }) }} style={inputStyle} /></div></Field>
-            </div>
+              <Field label="Header yüksekliği"><NativeSelect value={surfaces.auth.header.height ?? 'standard'} onChange={(event) => updateAuthHeader({ height: event.target.value as AuthHeaderTheme['height'] })} style={inputStyle}><NativeSelectOption value="compact">Kompakt</NativeSelectOption><NativeSelectOption value="standard">Standart</NativeSelectOption><NativeSelectOption value="wide">Geniş</NativeSelectOption></NativeSelect></Field>
+              <Field label={`Fotoğraf karartması · %${surfaces.auth.header.overlay}`}><RangeControl label="Fotoğraf karartması" min={0} max={85} value={surfaces.auth.header.overlay} onChange={(value) => updateAuthHeader({ overlay: value })} /></Field>
+              <Field label="Header zemin rengi"><InputGroup><InputGroupAddon className="border-r px-1.5"><input aria-label="Header zemin rengini seç" type="color" value={surfaces.auth.header.backgroundColor ?? '#12271c'} onChange={(event) => updateAuthHeader({ backgroundColor: event.target.value })} className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" /></InputGroupAddon><InputGroupInput aria-label="Header zemin rengi" value={surfaces.auth.header.backgroundColor ?? '#12271c'} onChange={(event) => { if (/^#[0-9a-f]{6}$/i.test(event.target.value)) updateAuthHeader({ backgroundColor: event.target.value }) }} /></InputGroup></Field>
+            </SettingsCard>
 
-            <div style={{ ...settingsCardStyle, marginTop: 14 }}>
+            <SettingsCard className="mt-3.5">
               <SettingsCardHeader icon={<I.header size={17} />} title="Header içeriği" />
-              {surfaces.auth.header.backgroundImageUrl && surfaces.auth.header.logoMode === 'restaurant' && <div role="alert" style={warningNoticeStyle}><I.warn size={17} /><span>Fotoğraf ve varsayılan işletme logosu aynı alanda çakışabilir.</span><button type="button" onClick={() => updateAuthHeader({ logoMode: 'none' })} style={warningActionStyle}>Logoyu gizle</button></div>}
-              <Field label="Logo"><select value={surfaces.auth.header.logoMode} onChange={(event) => updateAuthHeader({ logoMode: event.target.value as AuthHeaderTheme['logoMode'] })} style={inputStyle}><option value="none">Gösterme</option><option value="restaurant">İşletme logosu</option><option value="custom">Özel logo</option></select></Field>
+              {surfaces.auth.header.backgroundImageUrl && surfaces.auth.header.logoMode === 'restaurant' && <Alert variant="destructive"><I.warn /><AlertDescription>Fotoğraf ve varsayılan işletme logosu aynı alanda çakışabilir.</AlertDescription><Button type="button" variant="outline" size="xs" onClick={() => updateAuthHeader({ logoMode: 'none' })} className="mt-2">Logoyu gizle</Button></Alert>}
+              <Field label="Logo"><NativeSelect value={surfaces.auth.header.logoMode} onChange={(event) => updateAuthHeader({ logoMode: event.target.value as AuthHeaderTheme['logoMode'] })} style={inputStyle}><NativeSelectOption value="none">Gösterme</NativeSelectOption><NativeSelectOption value="restaurant">İşletme logosu</NativeSelectOption><NativeSelectOption value="custom">Özel logo</NativeSelectOption></NativeSelect></Field>
               {surfaces.auth.header.logoMode === 'custom' && <AuthHeaderMediaUploader restaurantId={restaurantId} header={surfaces.auth.header} onChange={updateAuthHeader} logoOnly />}
-              <Field label="Header başlığı (isteğe bağlı)"><input value={surfaces.auth.header.title ?? ''} maxLength={100} onChange={(event) => updateAuthHeader({ title: event.target.value })} style={inputStyle} placeholder="Örn. Masana hoş geldin" /></Field>
-              <Field label="Slogan (isteğe bağlı)"><textarea value={surfaces.auth.header.slogan ?? ''} maxLength={180} rows={3} onChange={(event) => updateAuthHeader({ slogan: event.target.value })} style={{ ...inputStyle, paddingTop: 10, resize: 'vertical' }} placeholder="Kısa marka mesajın" /></Field>
-              <Field label="Hizalama"><select value={surfaces.auth.header.align} onChange={(event) => updateAuthHeader({ align: event.target.value as AuthHeaderTheme['align'] })} style={inputStyle}><option value="center">Ortala</option><option value="left">Sola</option></select></Field>
-              <Field label="İçerik tonu"><select value={surfaces.auth.header.contentTone ?? 'light'} onChange={(event) => updateAuthHeader({ contentTone: event.target.value as AuthHeaderTheme['contentTone'] })} style={inputStyle}><option value="light">Açık metin</option><option value="dark">Koyu metin</option></select></Field>
-            </div>
+              <Field label="Header başlığı (isteğe bağlı)"><Input value={surfaces.auth.header.title ?? ''} maxLength={100} onChange={(event) => updateAuthHeader({ title: event.target.value })} style={inputStyle} placeholder="Örn. Masana hoş geldin" /></Field>
+              <Field label="Slogan (isteğe bağlı)"><Textarea value={surfaces.auth.header.slogan ?? ''} maxLength={180} rows={3} onChange={(event) => updateAuthHeader({ slogan: event.target.value })} style={{ ...inputStyle, paddingTop: 10, resize: 'vertical' }} placeholder="Kısa marka mesajın" /></Field>
+              <Field label="Hizalama"><NativeSelect value={surfaces.auth.header.align} onChange={(event) => updateAuthHeader({ align: event.target.value as AuthHeaderTheme['align'] })} style={inputStyle}><NativeSelectOption value="center">Ortala</NativeSelectOption><NativeSelectOption value="left">Sola</NativeSelectOption></NativeSelect></Field>
+              <Field label="İçerik tonu"><NativeSelect value={surfaces.auth.header.contentTone ?? 'light'} onChange={(event) => updateAuthHeader({ contentTone: event.target.value as AuthHeaderTheme['contentTone'] })} style={inputStyle}><NativeSelectOption value="light">Açık metin</NativeSelectOption><NativeSelectOption value="dark">Koyu metin</NativeSelectOption></NativeSelect></Field>
+            </SettingsCard>
 
-            <div style={{ ...settingsCardStyle, marginTop: 14 }}>
+            <SettingsCard className="mt-3.5">
               <SettingsCardHeader icon={<I.layout size={17} />} title="Form yüzeyi" />
-              <Field label="Görünüm"><select value={surfaces.auth.preset} onChange={(event) => updateSurface({ ...surfaces.auth, preset: event.target.value as ThemeSurfaces['auth']['preset'] })} style={inputStyle}><option value="brand-panel">Marka paneli</option><option value="minimal">Minimal</option><option value="immersive">Görsel odaklı</option></select></Field>
+              <Field label="Görünüm"><NativeSelect value={surfaces.auth.preset} onChange={(event) => updateSurface({ ...surfaces.auth, preset: event.target.value as ThemeSurfaces['auth']['preset'] })} style={inputStyle}><NativeSelectOption value="brand-panel">Marka paneli</NativeSelectOption><NativeSelectOption value="minimal">Minimal</NativeSelectOption><NativeSelectOption value="immersive">Görsel odaklı</NativeSelectOption></NativeSelect></Field>
               <AuthColorField label="Dış zemin" field="background" value={surfaces.auth.override?.background} effectiveValue={authPalette.background} onChange={updateAuthOverride} />
               <AuthColorField label="Form paneli" field="surface" value={surfaces.auth.override?.surface} effectiveValue={authPalette.surface} onChange={updateAuthOverride} />
               <AuthColorField label="Alan zemini" field="fieldSurface" value={surfaces.auth.override?.fieldSurface} effectiveValue={authPalette.fieldSurface} onChange={updateAuthOverride} />
               <AuthColorField label="Alan kenarlığı" field="fieldBorder" value={surfaces.auth.override?.fieldBorder} effectiveValue={authPalette.fieldBorder} onChange={updateAuthOverride} />
-            </div>
+            </SettingsCard>
 
-            <div style={{ ...settingsCardStyle, marginTop: 14 }}>
+            <SettingsCard className="mt-3.5">
               <SettingsCardHeader icon={<I.type size={17} />} title={authState === 'join' ? 'Form içeriği' : 'Form renkleri'} />
               {authState === 'join' && <>
-                <Field label="Form başlığı"><input value={surfaces.auth.title ?? ''} maxLength={100} onChange={(event) => updateSurface({ ...surfaces.auth, title: event.target.value })} style={inputStyle} /></Field>
-                <Field label="Form açıklaması"><textarea value={surfaces.auth.subtitle ?? ''} maxLength={240} rows={4} onChange={(event) => updateSurface({ ...surfaces.auth, subtitle: event.target.value })} style={{ ...inputStyle, paddingTop: 10 }} /></Field>
+                <Field label="Form başlığı"><Input value={surfaces.auth.title ?? ''} maxLength={100} onChange={(event) => updateSurface({ ...surfaces.auth, title: event.target.value })} style={inputStyle} /></Field>
+                <Field label="Form açıklaması"><Textarea value={surfaces.auth.subtitle ?? ''} maxLength={240} rows={4} onChange={(event) => updateSurface({ ...surfaces.auth, subtitle: event.target.value })} style={{ ...inputStyle, paddingTop: 10 }} /></Field>
               </>}
               <AuthColorField label="Ana metin" field="text" value={surfaces.auth.override?.text} effectiveValue={authPalette.text} onChange={updateAuthOverride} />
               <AuthColorField label="İkincil metin" field="mutedText" value={surfaces.auth.override?.mutedText} effectiveValue={authPalette.mutedText} onChange={updateAuthOverride} />
@@ -550,7 +590,7 @@ export function ThemeExperienceProperties({
               <AuthColorField label="Ana CTA" field="cta" value={surfaces.auth.override?.cta} effectiveValue={authPalette.cta} onChange={updateAuthOverride} />
               <AuthColorField label="CTA metni" field="ctaText" value={surfaces.auth.override?.ctaText} effectiveValue={authPalette.ctaText} onChange={updateAuthOverride} />
               <ContrastStatus issues={authContrastIssues} />
-            </div>
+            </SettingsCard>
           </>
         )}
         {surface === 'checkout' && (
@@ -564,14 +604,14 @@ export function ThemeExperienceProperties({
               onReset={() => resetCheckoutState(checkoutState)}
             />}
 
-            <div style={{ ...settingsCardStyle, marginTop: checkoutState === 'cart' ? 0 : 14 }}>
+            <SettingsCard className={checkoutState === 'cart' ? undefined : 'mt-3.5'}>
               <SettingsCardHeader icon={<I.receipt size={17} />} title="Checkout görünümü" meta="Tüm durumlarda ortak" />
-              <Field label="Görünüm"><select value={surfaces.checkout.preset} onChange={(event) => updateSurface({ ...surfaces.checkout, preset: event.target.value as ThemeSurfaces['checkout']['preset'] })} style={inputStyle}><option value="clean">Temiz</option><option value="brand-header">Marka başlığı</option><option value="soft">Yumuşak yüzey</option></select></Field>
-              <Field label="Panel boyutu"><select value={surfaces.checkout.sheetSize ?? 'standard'} onChange={(event) => updateSurface({ ...surfaces.checkout, sheetSize: event.target.value as NonNullable<ThemeSurfaces['checkout']['sheetSize']> })} style={inputStyle}><option value="compact">Kompakt</option><option value="standard">Standart</option><option value="large">Geniş</option></select></Field>
-              <Field label={`Köşe yuvarlaklığı · ${surfaces.checkout.override?.radius ?? theme.radius}px`}><input type="range" min={4} max={28} step={1} value={surfaces.checkout.override?.radius ?? theme.radius} onChange={(event) => updateCheckoutRadius(Number(event.target.value))} style={rangeStyle} /></Field>
-            </div>
+              <Field label="Görünüm"><NativeSelect value={surfaces.checkout.preset} onChange={(event) => updateSurface({ ...surfaces.checkout, preset: event.target.value as ThemeSurfaces['checkout']['preset'] })} style={inputStyle}><NativeSelectOption value="clean">Temiz</NativeSelectOption><NativeSelectOption value="brand-header">Marka başlığı</NativeSelectOption><NativeSelectOption value="soft">Yumuşak yüzey</NativeSelectOption></NativeSelect></Field>
+              <Field label="Panel boyutu"><NativeSelect value={surfaces.checkout.sheetSize ?? 'standard'} onChange={(event) => updateSurface({ ...surfaces.checkout, sheetSize: event.target.value as NonNullable<ThemeSurfaces['checkout']['sheetSize']> })} style={inputStyle}><NativeSelectOption value="compact">Kompakt</NativeSelectOption><NativeSelectOption value="standard">Standart</NativeSelectOption><NativeSelectOption value="large">Geniş</NativeSelectOption></NativeSelect></Field>
+              <Field label={`Köşe yuvarlaklığı · ${surfaces.checkout.override?.radius ?? theme.radius}px`}><RangeControl label="Köşe yuvarlaklığı" min={4} max={28} value={surfaces.checkout.override?.radius ?? theme.radius} onChange={updateCheckoutRadius} /></Field>
+            </SettingsCard>
 
-            <div style={{ ...settingsCardStyle, marginTop: 14 }}>
+            <SettingsCard className="mt-3.5">
               <SettingsCardHeader icon={<I.palette size={17} />} title="Checkout renkleri" meta="Semantik alanlar" />
               <AuthColorField label="Dış zemin" field="background" value={surfaces.checkout.override?.background} effectiveValue={checkoutPalette.background} onChange={updateCheckoutOverride} />
               <AuthColorField label="Panel ve kart" field="surface" value={surfaces.checkout.override?.surface} effectiveValue={checkoutPalette.surface} onChange={updateCheckoutOverride} />
@@ -583,11 +623,11 @@ export function ThemeExperienceProperties({
               <AuthColorField label="Ana CTA" field="cta" value={surfaces.checkout.override?.cta} effectiveValue={checkoutPalette.cta} onChange={updateCheckoutOverride} />
               <AuthColorField label="CTA metni" field="ctaText" value={surfaces.checkout.override?.ctaText} effectiveValue={checkoutPalette.ctaText} onChange={updateCheckoutOverride} />
               <ContrastStatus issues={checkoutContrastIssues} />
-            </div>
+            </SettingsCard>
           </>
         )}
         {surface === 'home' && <SurfaceOverrideFields surface={surface} theme={theme} onPatch={onPatch} />}
-      </div>
+      </div></ScrollArea>
     </aside>
   )
 }
@@ -623,29 +663,25 @@ function CheckoutStateSettings({
   const stateLabel = state === 'payment' ? 'Ödeme formu' : state === 'success' ? 'Başarılı' : state === 'table-payment' ? 'Masada ödeme' : 'Hata'
 
   return <>
-    <div style={settingsCardStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        {state === 'payment' ? <I.card size={17} /> : state === 'success' ? <I.check size={17} /> : state === 'table-payment' ? <I.bell size={17} /> : <I.warn size={17} />}
-        <strong style={{ fontSize: 12.5 }}>{stateLabel} içeriği</strong>
-        <button type="button" onClick={onReset} disabled={!hasOverride} style={{ ...stateResetButtonStyle, opacity: hasOverride ? 1 : .45 }}>Varsayılana dön</button>
-      </div>
+    <SettingsCard>
+      <SettingsCardHeader icon={state === 'payment' ? <I.card /> : state === 'success' ? <I.check /> : state === 'table-payment' ? <I.bell /> : <I.warn />} title={`${stateLabel} içeriği`} action={<Button type="button" variant="ghost" size="xs" onClick={onReset} disabled={!hasOverride}>Varsayılana dön</Button>} />
 
       {payment && <>
-        <Field label="Başlık"><input value={payment.title} maxLength={100} onChange={(event) => onChange({ title: event.target.value })} style={inputStyle} /></Field>
-        <Field label="Açıklama"><textarea value={payment.description} maxLength={240} rows={3} onChange={(event) => onChange({ description: event.target.value })} style={{ ...inputStyle, paddingTop: 10, resize: 'vertical' }} /></Field>
-        <Field label="Tutar etiketi"><input value={payment.amountLabel} maxLength={60} onChange={(event) => onChange({ amountLabel: event.target.value })} style={inputStyle} /></Field>
-        <Field label="Ödeme yöntemi başlığı"><input value={payment.methodSectionTitle} maxLength={60} onChange={(event) => onChange({ methodSectionTitle: event.target.value })} style={inputStyle} /></Field>
-        <Field label="Ödeyen kişi başlığı"><input value={payment.buyerSectionTitle} maxLength={60} onChange={(event) => onChange({ buyerSectionTitle: event.target.value })} style={inputStyle} /></Field>
-        <Field label="Ödeyen kişi açıklaması"><input value={payment.buyerSectionDescription} maxLength={160} onChange={(event) => onChange({ buyerSectionDescription: event.target.value })} style={inputStyle} /></Field>
-        <Field label="Kart butonu etiketi"><input value={payment.cardActionLabel} maxLength={60} onChange={(event) => onChange({ cardActionLabel: event.target.value })} style={inputStyle} /></Field>
-        <Field label="Masada ödeme butonu"><input value={payment.tableActionLabel} maxLength={60} onChange={(event) => onChange({ tableActionLabel: event.target.value })} style={inputStyle} /></Field>
+        <Field label="Başlık"><Input value={payment.title} maxLength={100} onChange={(event) => onChange({ title: event.target.value })} style={inputStyle} /></Field>
+        <Field label="Açıklama"><Textarea value={payment.description} maxLength={240} rows={3} onChange={(event) => onChange({ description: event.target.value })} style={{ ...inputStyle, paddingTop: 10, resize: 'vertical' }} /></Field>
+        <Field label="Tutar etiketi"><Input value={payment.amountLabel} maxLength={60} onChange={(event) => onChange({ amountLabel: event.target.value })} style={inputStyle} /></Field>
+        <Field label="Ödeme yöntemi başlığı"><Input value={payment.methodSectionTitle} maxLength={60} onChange={(event) => onChange({ methodSectionTitle: event.target.value })} style={inputStyle} /></Field>
+        <Field label="Ödeyen kişi başlığı"><Input value={payment.buyerSectionTitle} maxLength={60} onChange={(event) => onChange({ buyerSectionTitle: event.target.value })} style={inputStyle} /></Field>
+        <Field label="Ödeyen kişi açıklaması"><Input value={payment.buyerSectionDescription} maxLength={160} onChange={(event) => onChange({ buyerSectionDescription: event.target.value })} style={inputStyle} /></Field>
+        <Field label="Kart butonu etiketi"><Input value={payment.cardActionLabel} maxLength={60} onChange={(event) => onChange({ cardActionLabel: event.target.value })} style={inputStyle} /></Field>
+        <Field label="Masada ödeme butonu"><Input value={payment.tableActionLabel} maxLength={60} onChange={(event) => onChange({ tableActionLabel: event.target.value })} style={inputStyle} /></Field>
       </>}
 
       {status && <>
-        <Field label="Başlık"><input value={status.title} maxLength={100} onChange={(event) => onChange({ title: event.target.value })} style={inputStyle} /></Field>
-        {'description' in status && <Field label="Açıklama"><textarea value={status.description} maxLength={240} rows={4} onChange={(event) => onChange({ description: event.target.value })} style={{ ...inputStyle, paddingTop: 10, resize: 'vertical' }} /></Field>}
-        <Field label={state === 'error' ? 'Tekrar dene butonu' : 'Ana buton metni'}><input value={status.primaryActionLabel} maxLength={60} onChange={(event) => onChange({ primaryActionLabel: event.target.value })} style={inputStyle} /></Field>
-        {state === 'error' && 'secondaryActionLabel' in status && <Field label="Kapat butonu"><input value={status.secondaryActionLabel} maxLength={60} onChange={(event) => onChange({ secondaryActionLabel: event.target.value })} style={inputStyle} /></Field>}
+        <Field label="Başlık"><Input value={status.title} maxLength={100} onChange={(event) => onChange({ title: event.target.value })} style={inputStyle} /></Field>
+        {'description' in status && <Field label="Açıklama"><Textarea value={status.description} maxLength={240} rows={4} onChange={(event) => onChange({ description: event.target.value })} style={{ ...inputStyle, paddingTop: 10, resize: 'vertical' }} /></Field>}
+        <Field label={state === 'error' ? 'Tekrar dene butonu' : 'Ana buton metni'}><Input value={status.primaryActionLabel} maxLength={60} onChange={(event) => onChange({ primaryActionLabel: event.target.value })} style={inputStyle} /></Field>
+        {state === 'error' && 'secondaryActionLabel' in status && <Field label="Kapat butonu"><Input value={status.secondaryActionLabel} maxLength={60} onChange={(event) => onChange({ secondaryActionLabel: event.target.value })} style={inputStyle} /></Field>}
         <CheckoutStatusIconPicker state={state as Exclude<EditableCheckoutState, 'payment'>} value={status.icon} onChange={(icon) => onChange({ icon } as Partial<EditableCheckoutStateTheme>)} />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 8 }}>
           <AuthStateColorField
@@ -663,25 +699,25 @@ function CheckoutStateSettings({
         </div>
       </>}
 
-      <div role="note" style={{ ...noticeStyle, margin: '4px 0 0' }}><I.shield size={16} /><span>Gerçek tutar, sağlayıcı, alan adları, sistem hata metni ve buton hedefleri tema tarafından değiştirilemez.</span></div>
-    </div>
+      <Alert role="note"><I.shield /><AlertDescription>Gerçek tutar, sağlayıcı, alan adları, sistem hata metni ve buton hedefleri tema tarafından değiştirilemez.</AlertDescription></Alert>
+    </SettingsCard>
 
-    <div style={{ ...settingsCardStyle, marginTop: 14 }}>
+    <SettingsCard className="mt-3.5">
       <SettingsCardHeader icon={<I.spacing size={17} />} title={`${stateLabel} yerleşimi`} meta="Güvenli aralık" />
       {payment ? <>
-        <Field label={`Yatay panel padding · ${payment.layout.paddingX}px`}><input type="range" min={12} max={28} step={1} value={payment.layout.paddingX} onChange={(event) => onPaymentLayoutChange({ paddingX: Number(event.target.value) })} style={rangeStyle} /></Field>
-        <Field label={`Bölüm aralığı · ${payment.layout.sectionGap}px`}><input type="range" min={12} max={28} step={1} value={payment.layout.sectionGap} onChange={(event) => onPaymentLayoutChange({ sectionGap: Number(event.target.value) })} style={rangeStyle} /></Field>
-        <Field label="Kontrol yoğunluğu"><select value={payment.layout.density} onChange={(event) => onPaymentLayoutChange({ density: event.target.value as CheckoutPaymentLayoutTheme['density'] })} style={inputStyle}><option value="compact">Kompakt</option><option value="standard">Standart</option></select></Field>
-        <Field label="İçerik genişliği"><select value={payment.layout.contentWidth} onChange={(event) => onPaymentLayoutChange({ contentWidth: event.target.value as CheckoutPaymentLayoutTheme['contentWidth'] })} style={inputStyle}><option value="standard">Standart · 520px</option><option value="wide">Geniş · 620px</option></select></Field>
+        <Field label={`Yatay panel padding · ${payment.layout.paddingX}px`}><RangeControl label="Yatay panel padding" min={12} max={28} value={payment.layout.paddingX} onChange={(value) => onPaymentLayoutChange({ paddingX: value })} /></Field>
+        <Field label={`Bölüm aralığı · ${payment.layout.sectionGap}px`}><RangeControl label="Bölüm aralığı" min={12} max={28} value={payment.layout.sectionGap} onChange={(value) => onPaymentLayoutChange({ sectionGap: value })} /></Field>
+        <Field label="Kontrol yoğunluğu"><NativeSelect value={payment.layout.density} onChange={(event) => onPaymentLayoutChange({ density: event.target.value as CheckoutPaymentLayoutTheme['density'] })} style={inputStyle}><NativeSelectOption value="compact">Kompakt</NativeSelectOption><NativeSelectOption value="standard">Standart</NativeSelectOption></NativeSelect></Field>
+        <Field label="İçerik genişliği"><NativeSelect value={payment.layout.contentWidth} onChange={(event) => onPaymentLayoutChange({ contentWidth: event.target.value as CheckoutPaymentLayoutTheme['contentWidth'] })} style={inputStyle}><NativeSelectOption value="standard">Standart · 520px</NativeSelectOption><NativeSelectOption value="wide">Geniş · 620px</NativeSelectOption></NativeSelect></Field>
       </> : status ? <>
-        <Field label={`Yatay panel padding · ${status.layout.paddingX}px`}><input type="range" min={12} max={40} step={1} value={status.layout.paddingX} onChange={(event) => onResultLayoutChange({ paddingX: Number(event.target.value) })} style={rangeStyle} /></Field>
-        <Field label={`Dikey panel padding · ${status.layout.paddingY}px`}><input type="range" min={12} max={56} step={1} value={status.layout.paddingY} onChange={(event) => onResultLayoutChange({ paddingY: Number(event.target.value) })} style={rangeStyle} /></Field>
-        <Field label={`İçerik aralığı · ${status.layout.contentGap}px`}><input type="range" min={8} max={32} step={1} value={status.layout.contentGap} onChange={(event) => onResultLayoutChange({ contentGap: Number(event.target.value) })} style={rangeStyle} /></Field>
-        <Field label="İçerik hizalama"><select value={status.layout.align} onChange={(event) => onResultLayoutChange({ align: event.target.value as CheckoutResultLayoutTheme['align'] })} style={inputStyle}><option value="left">Sola</option><option value="center">Ortala</option></select></Field>
-        <Field label="İçerik genişliği"><select value={status.layout.contentWidth} onChange={(event) => onResultLayoutChange({ contentWidth: event.target.value as CheckoutResultLayoutTheme['contentWidth'] })} style={inputStyle}><option value="compact">Kompakt · 320px</option><option value="standard">Standart · 380px</option><option value="full">Tam genişlik</option></select></Field>
-        <Field label={`İkon boyutu · ${status.layout.iconSize}px`}><input type="range" min={56} max={96} step={1} value={status.layout.iconSize} onChange={(event) => onResultLayoutChange({ iconSize: Number(event.target.value) })} style={rangeStyle} /></Field>
+        <Field label={`Yatay panel padding · ${status.layout.paddingX}px`}><RangeControl label="Yatay panel padding" min={12} max={40} value={status.layout.paddingX} onChange={(value) => onResultLayoutChange({ paddingX: value })} /></Field>
+        <Field label={`Dikey panel padding · ${status.layout.paddingY}px`}><RangeControl label="Dikey panel padding" min={12} max={56} value={status.layout.paddingY} onChange={(value) => onResultLayoutChange({ paddingY: value })} /></Field>
+        <Field label={`İçerik aralığı · ${status.layout.contentGap}px`}><RangeControl label="İçerik aralığı" min={8} max={32} value={status.layout.contentGap} onChange={(value) => onResultLayoutChange({ contentGap: value })} /></Field>
+        <Field label="İçerik hizalama"><NativeSelect value={status.layout.align} onChange={(event) => onResultLayoutChange({ align: event.target.value as CheckoutResultLayoutTheme['align'] })} style={inputStyle}><NativeSelectOption value="left">Sola</NativeSelectOption><NativeSelectOption value="center">Ortala</NativeSelectOption></NativeSelect></Field>
+        <Field label="İçerik genişliği"><NativeSelect value={status.layout.contentWidth} onChange={(event) => onResultLayoutChange({ contentWidth: event.target.value as CheckoutResultLayoutTheme['contentWidth'] })} style={inputStyle}><NativeSelectOption value="compact">Kompakt · 320px</NativeSelectOption><NativeSelectOption value="standard">Standart · 380px</NativeSelectOption><NativeSelectOption value="full">Tam genişlik</NativeSelectOption></NativeSelect></Field>
+        <Field label={`İkon boyutu · ${status.layout.iconSize}px`}><RangeControl label="İkon boyutu" min={56} max={96} value={status.layout.iconSize} onChange={(value) => onResultLayoutChange({ iconSize: value })} /></Field>
       </> : null}
-    </div>
+    </SettingsCard>
   </>
 }
 
@@ -698,20 +734,18 @@ function CheckoutStatusIconPicker({
     ? CHECKOUT_SUCCESS_ICON_OPTIONS
     : state === 'table-payment' ? CHECKOUT_TABLE_ICON_OPTIONS : CHECKOUT_ERROR_ICON_OPTIONS
   return <Field label="Durum ikonu">
-    <div role="radiogroup" aria-label={`${state === 'success' ? 'Başarı' : state === 'table-payment' ? 'Masada ödeme' : 'Hata'} ikonu`} style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 8 }}>
+    <ToggleGroup value={[value]} onValueChange={(values) => values[0] && onChange(values[0] as CheckoutStatusIcon)} aria-label={`${state === 'success' ? 'Başarı' : state === 'table-payment' ? 'Masada ödeme' : 'Hata'} ikonu`} className="grid w-full grid-cols-2">
       {options.map((option) => {
         const Icon = option.icon
         const selected = value === option.id
-        return <button
+        return <ToggleGroupItem
           key={option.id}
-          type="button"
-          role="radio"
-          aria-checked={selected}
-          onClick={() => onChange(option.id)}
-          style={{ minHeight: 40, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${selected ? 'var(--action)' : 'var(--border-strong)'}`, borderRadius: 9, background: selected ? 'var(--surface)' : 'transparent', color: selected ? 'var(--text)' : 'var(--text-2)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}
-        ><Icon size={17} /><span>{option.label}</span>{selected && <I.check size={14} style={{ marginLeft: 'auto' }} />}</button>
+          value={option.id}
+          variant="outline"
+          className="min-h-10 min-w-0 justify-start gap-2"
+        ><Icon /><span>{option.label}</span>{selected && <I.check className="ml-auto" />}</ToggleGroupItem>
       })}
-    </div>
+    </ToggleGroup>
   </Field>
 }
 
@@ -740,16 +774,12 @@ function AuthStateSettings({
   const hasOverride = Boolean(auth.states?.[state])
 
   return <>
-    <div style={settingsCardStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        {state === 'otp' ? <I.mail size={17} /> : state === 'success' ? <I.check size={17} /> : <I.warn size={17} />}
-        <strong style={{ fontSize: 12.5 }}>{stateLabel} içeriği</strong>
-        <button type="button" onClick={onReset} disabled={!hasOverride} style={{ ...stateResetButtonStyle, opacity: hasOverride ? 1 : .45 }}>Varsayılana dön</button>
-      </div>
-      <Field label="Başlık"><input value={resolved.title} maxLength={100} onChange={(event) => onChange({ title: event.target.value })} style={inputStyle} /></Field>
-      <Field label="Açıklama"><textarea value={resolved.description} maxLength={240} rows={4} onChange={(event) => onChange({ description: event.target.value })} style={{ ...inputStyle, paddingTop: 10, resize: 'vertical' }} /></Field>
-      <Field label="Ana buton metni"><input value={resolved.primaryActionLabel} maxLength={60} onChange={(event) => onChange({ primaryActionLabel: event.target.value })} style={inputStyle} /></Field>
-      {otpState && <Field label="Tekrar gönder metni"><input value={otpState.resendLabel} maxLength={60} onChange={(event) => onChange({ resendLabel: event.target.value })} style={inputStyle} /></Field>}
+    <SettingsCard>
+      <SettingsCardHeader icon={state === 'otp' ? <I.mail /> : state === 'success' ? <I.check /> : <I.warn />} title={`${stateLabel} içeriği`} action={<Button type="button" variant="ghost" size="xs" onClick={onReset} disabled={!hasOverride}>Varsayılana dön</Button>} />
+      <Field label="Başlık"><Input value={resolved.title} maxLength={100} onChange={(event) => onChange({ title: event.target.value })} style={inputStyle} /></Field>
+      <Field label="Açıklama"><Textarea value={resolved.description} maxLength={240} rows={4} onChange={(event) => onChange({ description: event.target.value })} style={{ ...inputStyle, paddingTop: 10, resize: 'vertical' }} /></Field>
+      <Field label="Ana buton metni"><Input value={resolved.primaryActionLabel} maxLength={60} onChange={(event) => onChange({ primaryActionLabel: event.target.value })} style={inputStyle} /></Field>
+      {otpState && <Field label="Tekrar gönder metni"><Input value={otpState.resendLabel} maxLength={60} onChange={(event) => onChange({ resendLabel: event.target.value })} style={inputStyle} /></Field>}
       {state !== 'otp' && statusState && <AuthStatusIconPicker
         state={state}
         value={statusState.icon}
@@ -769,18 +799,18 @@ function AuthStateSettings({
           onChange={(iconBackground) => onChange({ iconBackground } as Partial<EditableAuthStateTheme>)}
         />
       </div>}
-      <div role="note" style={{ ...noticeStyle, margin: '4px 0 0' }}><I.shield size={16} /><span>E-posta, sayaç, sistem hata metinleri ve buton hedefi tema tarafından değiştirilemez.</span></div>
-    </div>
+      <Alert role="note"><I.shield /><AlertDescription>E-posta, sayaç, sistem hata metinleri ve buton hedefi tema tarafından değiştirilemez.</AlertDescription></Alert>
+    </SettingsCard>
 
-    <div style={{ ...settingsCardStyle, marginTop: 14 }}>
+    <SettingsCard className="mt-3.5">
       <SettingsCardHeader icon={<I.spacing size={17} />} title={`${stateLabel} yerleşimi`} meta="Güvenli aralık" />
-      <Field label={`Yatay panel padding · ${resolved.layout.paddingX}px`}><input type="range" min={12} max={40} step={1} value={resolved.layout.paddingX} onChange={(event) => onLayoutChange({ paddingX: Number(event.target.value) })} style={rangeStyle} /></Field>
-      <Field label={`Dikey panel padding · ${resolved.layout.paddingY}px`}><input type="range" min={12} max={56} step={1} value={resolved.layout.paddingY} onChange={(event) => onLayoutChange({ paddingY: Number(event.target.value) })} style={rangeStyle} /></Field>
-      <Field label={`İçerik aralığı · ${resolved.layout.contentGap}px`}><input type="range" min={8} max={32} step={1} value={resolved.layout.contentGap} onChange={(event) => onLayoutChange({ contentGap: Number(event.target.value) })} style={rangeStyle} /></Field>
-      <Field label="İçerik hizalama"><select value={resolved.layout.align} onChange={(event) => onLayoutChange({ align: event.target.value as AuthStateLayoutTheme['align'] })} style={inputStyle}><option value="left">Sola</option><option value="center">Ortala</option></select></Field>
-      <Field label="İçerik genişliği"><select value={resolved.layout.contentWidth} onChange={(event) => onLayoutChange({ contentWidth: event.target.value as AuthStateLayoutTheme['contentWidth'] })} style={inputStyle}><option value="compact">Kompakt · 320px</option><option value="standard">Standart · 380px</option><option value="full">Tam genişlik</option></select></Field>
-      {state !== 'otp' && <Field label={`İkon boyutu · ${resolved.layout.iconSize}px`}><input type="range" min={56} max={96} step={1} value={resolved.layout.iconSize} onChange={(event) => onLayoutChange({ iconSize: Number(event.target.value) })} style={rangeStyle} /></Field>}
-    </div>
+      <Field label={`Yatay panel padding · ${resolved.layout.paddingX}px`}><RangeControl label="Yatay panel padding" min={12} max={40} value={resolved.layout.paddingX} onChange={(value) => onLayoutChange({ paddingX: value })} /></Field>
+      <Field label={`Dikey panel padding · ${resolved.layout.paddingY}px`}><RangeControl label="Dikey panel padding" min={12} max={56} value={resolved.layout.paddingY} onChange={(value) => onLayoutChange({ paddingY: value })} /></Field>
+      <Field label={`İçerik aralığı · ${resolved.layout.contentGap}px`}><RangeControl label="İçerik aralığı" min={8} max={32} value={resolved.layout.contentGap} onChange={(value) => onLayoutChange({ contentGap: value })} /></Field>
+      <Field label="İçerik hizalama"><NativeSelect value={resolved.layout.align} onChange={(event) => onLayoutChange({ align: event.target.value as AuthStateLayoutTheme['align'] })} style={inputStyle}><NativeSelectOption value="left">Sola</NativeSelectOption><NativeSelectOption value="center">Ortala</NativeSelectOption></NativeSelect></Field>
+      <Field label="İçerik genişliği"><NativeSelect value={resolved.layout.contentWidth} onChange={(event) => onLayoutChange({ contentWidth: event.target.value as AuthStateLayoutTheme['contentWidth'] })} style={inputStyle}><NativeSelectOption value="compact">Kompakt · 320px</NativeSelectOption><NativeSelectOption value="standard">Standart · 380px</NativeSelectOption><NativeSelectOption value="full">Tam genişlik</NativeSelectOption></NativeSelect></Field>
+      {state !== 'otp' && <Field label={`İkon boyutu · ${resolved.layout.iconSize}px`}><RangeControl label="İkon boyutu" min={56} max={96} value={resolved.layout.iconSize} onChange={(value) => onLayoutChange({ iconSize: value })} /></Field>}
+    </SettingsCard>
   </>
 }
 
@@ -802,20 +832,19 @@ function AuthStateColorField({
     if (/^#[0-9a-f]{6}$/i.test(normalized)) onChange(normalized)
   }
   return <Field label={label}>
-    <div style={{ display: 'flex', gap: 6 }}>
-      <input aria-label={`${label} seç`} type="color" value={value} onChange={(event) => { setDraft(event.target.value); onChange(event.target.value) }} style={colorSwatchStyle} />
-      <input
+    <InputGroup>
+      <InputGroupAddon className="border-r px-1.5"><input aria-label={`${label} seç`} type="color" value={value} onChange={(event) => { setDraft(event.target.value); onChange(event.target.value) }} className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" /></InputGroupAddon>
+      <InputGroupInput
         aria-label={`${label} hex değeri`}
         value={draft}
         maxLength={7}
         onChange={(event) => { setDraft(event.target.value); commit(event.target.value) }}
         onBlur={() => { if (!/^#[0-9a-f]{6}$/i.test(draft)) setDraft(value) }}
-        style={{ ...inputStyle, minWidth: 0, paddingInline: 8 }}
       />
-    </div>
-    <button type="button" disabled={inherited} onClick={() => onChange(undefined)} style={{ ...inheritButtonStyle, opacity: inherited ? .6 : 1, cursor: inherited ? 'default' : 'pointer' }}>
+    </InputGroup>
+    <Button type="button" variant="link" size="xs" disabled={inherited} onClick={() => onChange(undefined)} className="self-start px-0">
       {inherited ? 'Durum varsayılanı' : 'Varsayılanı kullan'}
-    </button>
+    </Button>
   </Field>
 }
 
@@ -830,20 +859,18 @@ function AuthStatusIconPicker({
 }) {
   const options = state === 'success' ? SUCCESS_ICON_OPTIONS : ERROR_ICON_OPTIONS
   return <Field label="Durum ikonu">
-    <div role="radiogroup" aria-label={`${state === 'success' ? 'Başarı' : 'Hata'} ikonu`} style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 8 }}>
+    <ToggleGroup value={[value]} onValueChange={(values) => values[0] && onChange(values[0] as AuthSuccessIcon | AuthErrorIcon)} aria-label={`${state === 'success' ? 'Başarı' : 'Hata'} ikonu`} className="grid w-full grid-cols-2">
       {options.map((option) => {
         const Icon = option.icon
         const selected = value === option.id
-        return <button
+        return <ToggleGroupItem
           key={option.id}
-          type="button"
-          role="radio"
-          aria-checked={selected}
-          onClick={() => onChange(option.id)}
-          style={{ minHeight: 40, padding: '0 10px', display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${selected ? 'var(--action)' : 'var(--border-strong)'}`, borderRadius: 9, background: selected ? 'var(--surface)' : 'transparent', color: selected ? 'var(--text)' : 'var(--text-2)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}
-        ><Icon size={17} /><span>{option.label}</span>{selected && <I.check size={14} style={{ marginLeft: 'auto' }} />}</button>
+          value={option.id}
+          variant="outline"
+          className="min-h-10 min-w-0 justify-start gap-2"
+        ><Icon /><span>{option.label}</span>{selected && <I.check className="ml-auto" />}</ToggleGroupItem>
       })}
-    </div>
+    </ToggleGroup>
   </Field>
 }
 
@@ -889,12 +916,12 @@ function AuthHeaderMediaUploader({
     <div style={{ marginBottom: 15 }}>
       {!logoOnly && <>
         {header.backgroundImageUrl && <AuthHeaderThumbnail header={header} />}
-        <label style={uploadLabelStyle}><I.image size={16} /><span>{busy === 'background' ? 'İşleniyor…' : header.backgroundImageUrl ? 'Header fotoğrafını değiştir' : 'Header fotoğrafı yükle'}</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy !== null} onChange={(event) => void upload(event, 'background')} style={visuallyHiddenInputStyle} /></label>
-        {header.backgroundImageUrl && <button type="button" onClick={() => onChange({ backgroundImageUrl: undefined })} style={inlineRemoveButtonStyle}>Fotoğrafı kaldır</button>}
+        <UploadAttachment title={header.backgroundImageUrl ? 'Header fotoğrafını değiştir' : 'Header fotoğrafı yükle'} description="JPEG, PNG veya WebP" icon={<I.image size={16} />} state={busy === 'background' ? 'processing' : header.backgroundImageUrl ? 'done' : 'idle'} accept="image/jpeg,image/png,image/webp" disabled={busy !== null} onChange={(event) => void upload(event, 'background')} />
+        {header.backgroundImageUrl && <Button type="button" variant="link" size="xs" onClick={() => onChange({ backgroundImageUrl: undefined })} className="text-destructive">Fotoğrafı kaldır</Button>}
       </>}
       {logoOnly && <>
-        <label style={{ ...uploadLabelStyle, marginTop: 8 }}><I.upload size={16} /><span>{busy === 'logo' ? 'İşleniyor…' : header.logoUrl ? 'Özel logoyu değiştir' : 'Özel logo yükle'}</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy !== null} onChange={(event) => void upload(event, 'logo')} style={visuallyHiddenInputStyle} /></label>
-        {header.logoUrl && <button type="button" onClick={() => onChange({ logoUrl: undefined })} style={inlineRemoveButtonStyle}>Özel logoyu kaldır</button>}
+        <UploadAttachment title={header.logoUrl ? 'Özel logoyu değiştir' : 'Özel logo yükle'} description="JPEG, PNG veya WebP" icon={<I.upload size={16} />} state={busy === 'logo' ? 'processing' : header.logoUrl ? 'done' : 'idle'} accept="image/jpeg,image/png,image/webp" disabled={busy !== null} onChange={(event) => void upload(event, 'logo')} style={{ marginTop: 8 }} />
+        {header.logoUrl && <Button type="button" variant="link" size="xs" onClick={() => onChange({ logoUrl: undefined })} className="text-destructive">Özel logoyu kaldır</Button>}
       </>}
       <p style={{ margin: '8px 0 0', color: message.includes('hazır') ? 'var(--positive)' : 'var(--text-3)', fontSize: 10.5, lineHeight: 1.45 }} aria-live="polite">{message || (logoOnly ? 'JPEG, PNG veya WebP. Logo en fazla 2 MB.' : 'JPEG, PNG veya WebP. Fotoğraf en fazla 8 MB.')}</p>
     </div>
@@ -905,7 +932,7 @@ function AuthHeaderThumbnail({ header }: { header: AuthHeaderTheme }) {
   const tone = header.contentTone ?? 'light'
   const overlay = Math.min(85, Math.max(0, header.overlay)) / 100
   return (
-    <div aria-label="Giriş Header gerçek kadraj önizlemesi" style={{ position: 'relative', height: 88, marginBottom: 8, overflow: 'hidden', border: '1px solid var(--border)', borderRadius: 10, background: header.backgroundColor ?? '#12271c' }}>
+    <div role="img" aria-label="Giriş Header gerçek kadraj önizlemesi" style={{ position: 'relative', height: 88, marginBottom: 8, overflow: 'hidden', border: '1px solid var(--border)', borderRadius: 10, background: header.backgroundColor ?? '#12271c' }}>
       {/* Tenant uploads have arbitrary aspect ratios; native img mirrors the menu renderer. */}
       <img src={header.backgroundImageUrl} alt="" style={{ width: '100%', height: '100%', display: 'block', objectFit: header.imageFit ?? 'cover', objectPosition: `${header.imagePositionX ?? 50}% ${header.imagePositionY ?? 50}%` }} />
       <img aria-hidden="true" src={header.backgroundImageUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', pointerEvents: 'none', objectFit: header.imageFit ?? 'cover', objectPosition: `${header.imagePositionX ?? 50}% ${header.imagePositionY ?? 50}%`, filter: tone === 'dark' ? 'brightness(0) invert(1)' : 'brightness(0)', opacity: overlay }} />
@@ -953,8 +980,8 @@ function AuthImageFocusControl({ header, onChange }: {
         <span aria-hidden="true" style={{ position: 'absolute', left: `calc(${x}% - 9px)`, top: `calc(${y}% - 9px)`, width: 18, height: 18, border: '2px solid #ffffff', borderRadius: 999, boxShadow: '0 0 0 2px rgba(0,0,0,.5)' }} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-        <Field label={`X · %${x}`}><input aria-label="Yatay odak" type="range" min={0} max={100} value={x} onChange={(event) => onChange({ imagePositionX: Number(event.target.value) })} style={rangeStyle} /></Field>
-        <Field label={`Y · %${y}`}><input aria-label="Dikey odak" type="range" min={0} max={100} value={y} onChange={(event) => onChange({ imagePositionY: Number(event.target.value) })} style={rangeStyle} /></Field>
+        <Field label={`X · %${x}`}><RangeControl label="Yatay odak" min={0} max={100} value={x} onChange={(value) => onChange({ imagePositionX: value })} /></Field>
+        <Field label={`Y · %${y}`}><RangeControl label="Dikey odak" min={0} max={100} value={y} onChange={(value) => onChange({ imagePositionY: value })} /></Field>
       </div>
     </div>
   )
@@ -977,38 +1004,49 @@ function AuthColorField({ label, field, value, effectiveValue, onChange }: {
   }
   return (
     <Field label={label}>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input aria-label={`${label} rengini seç`} type="color" value={value ?? effectiveValue} onChange={(event) => { setDraft(event.target.value); onChange(field, event.target.value) }} style={colorSwatchStyle} />
-        <input
+      <InputGroup>
+        <InputGroupAddon className="border-r px-1.5"><input aria-label={`${label} rengini seç`} type="color" value={value ?? effectiveValue} onChange={(event) => { setDraft(event.target.value); onChange(field, event.target.value) }} className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" /></InputGroupAddon>
+        <InputGroupInput
           aria-label={`${label} hex değeri`}
           value={draft}
           onChange={(event) => { setDraft(event.target.value); commit(event.target.value) }}
           onBlur={() => { if (!/^#[0-9a-f]{6}$/i.test(draft)) setDraft(value ?? effectiveValue) }}
           placeholder="#000000"
-          style={inputStyle}
         />
-      </div>
-      <button type="button" disabled={inherited} onClick={() => { setDraft(effectiveValue); onChange(field, undefined) }} style={{ ...inheritButtonStyle, opacity: inherited ? .6 : 1, cursor: inherited ? 'default' : 'pointer' }}>
+      </InputGroup>
+      <Button type="button" variant="link" size="xs" disabled={inherited} onClick={() => { setDraft(effectiveValue); onChange(field, undefined) }} className="self-start px-0">
         {inherited ? 'Ortak temadan kullanılıyor' : 'Ortak temadan kullan'}
-      </button>
+      </Button>
     </Field>
   )
 }
 
 function ContrastStatus({ issues }: { issues: Array<AuthContrastIssue | CheckoutContrastIssue> }) {
   if (issues.length === 0) {
-    return <div role="status" style={contrastPassStyle}><I.check size={17} /><span>Metin, alan ve CTA kontrastları yayın için uygun.</span></div>
+    return <Alert role="status"><I.check /><AlertDescription>Metin, alan ve CTA kontrastları yayın için uygun.</AlertDescription></Alert>
   }
   return (
-    <div role="alert" style={contrastFailStyle}>
-      <I.warn size={17} />
-      <div><strong style={{ display: 'block', marginBottom: 4 }}>Yayınlama için kontrastı düzelt</strong>{issues.map((issue) => <div key={issue.id}>{issue.label}: {issue.ratio}:1 · gereken {issue.minimum}:1</div>)}</div>
-    </div>
+    <Alert variant="destructive">
+      <I.warn />
+      <div><AlertTitle>Yayınlama için kontrastı düzelt</AlertTitle><AlertDescription>{issues.map((issue) => <div key={issue.id}>{issue.label}: {issue.ratio}:1 · gereken {issue.minimum}:1</div>)}</AlertDescription></div>
+    </Alert>
   )
 }
 
-function SettingsCardHeader({ icon, title, meta }: { icon: React.ReactNode; title: string; meta?: string }) {
-  return <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>{icon}<strong style={{ fontSize: 12.5 }}>{title}</strong>{meta && <span style={{ marginLeft: 'auto', color: 'var(--text-3)', fontSize: 10.5 }}>{meta}</span>}</div>
+function SettingsCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  const nodes = Children.toArray(children)
+  const [header, ...content] = nodes
+  return <Card size="sm" className={className}>
+    {header}
+    <CardContent className="flex flex-col">{content}</CardContent>
+  </Card>
+}
+
+function SettingsCardHeader({ icon, title, meta, action }: { icon: React.ReactNode; title: string; meta?: string; action?: React.ReactNode }) {
+  return <CardHeader>
+    <div className="flex items-center gap-2">{icon}<CardTitle>{title}</CardTitle></div>
+    {(meta || action) && <CardAction>{action ?? <Badge variant="secondary">{meta}</Badge>}</CardAction>}
+  </CardHeader>
 }
 
 function HeroVideoUploader({
@@ -1084,26 +1122,18 @@ function HeroVideoUploader({
       : posterUrl
         ? { tone: 'info' as const, text: 'Poster hazır. Önizleme için videoyu yükleyin.' }
         : null)
-  return <div style={{ marginBottom: 16, padding: 12, border: '1px solid var(--border)', borderRadius: 11, background: 'var(--surface-3)' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}><I.play size={17} /><strong style={{ fontSize: 12.5 }}>Pro hero video</strong><span style={{ marginLeft: 'auto', padding: '2px 6px', borderRadius: 999, background: enabled ? 'var(--positive-bg)' : 'var(--surface)', color: enabled ? 'var(--positive)' : 'var(--text-3)', fontSize: 10, fontWeight: 750 }}>{enabled ? 'Açık' : 'Kilitli'}</span></div>
-    <label style={uploadLabelStyle} aria-disabled={!enabled}><I.upload size={16} /><span>{busy === 'video' ? 'Doğrulanıyor…' : videoUrl ? 'Video hazır · değiştir' : 'MP4 / WebM yükle'}</span><input type="file" accept="video/mp4,video/webm" disabled={!enabled || busy !== null} onChange={(event) => void uploadVideo(event)} style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }} /></label>
-    <label style={{ ...uploadLabelStyle, marginTop: 8 }} aria-disabled={!enabled}><I.image size={16} /><span>{busy === 'poster' ? 'İşleniyor…' : posterUrl ? 'Poster hazır · değiştir' : 'Zorunlu poster yükle'}</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={!enabled || busy !== null} onChange={(event) => void uploadPoster(event)} style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }} /></label>
-    {effectiveFeedback ? <div
-      role={effectiveFeedback.tone === 'error' ? 'alert' : 'status'}
-      style={{
-        marginTop: 9,
-        padding: '8px 9px',
-        border: `1px solid ${effectiveFeedback.tone === 'error' ? 'var(--critical)' : effectiveFeedback.tone === 'success' ? 'var(--positive)' : 'var(--border)'}`,
-        borderRadius: 8,
-        background: effectiveFeedback.tone === 'error' ? 'var(--critical-bg)' : effectiveFeedback.tone === 'success' ? 'var(--positive-bg)' : 'var(--surface)',
-        color: effectiveFeedback.tone === 'error' ? 'var(--critical)' : effectiveFeedback.tone === 'success' ? 'var(--positive)' : 'var(--text-2)',
-        fontSize: 10.5,
-        fontWeight: 650,
-        lineHeight: 1.45,
-      }}
-    >{effectiveFeedback.text}</div> : null}
-    <p style={{ margin: '9px 0 0', color: 'var(--text-3)', fontSize: 10.5, lineHeight: 1.45 }}>En fazla 8 MB ve 15 sn. H.264 MP4 veya VP8/VP9 WebM. Önizleme için video ve poster gereklidir.</p>
-  </div>
+  return <Card size="sm" className="mb-4">
+    <CardHeader><div className="flex items-center gap-2"><I.play /><CardTitle>Pro hero video</CardTitle></div><CardAction><Badge variant={enabled ? 'secondary' : 'outline'}>{enabled ? 'Açık' : 'Kilitli'}</Badge></CardAction></CardHeader>
+    <CardContent>
+    <UploadAttachment title={videoUrl ? 'Video hazır · değiştir' : 'MP4 / WebM yükle'} description="H.264 MP4 veya VP8/VP9 WebM" icon={<I.upload size={16} />} state={busy === 'video' ? 'processing' : videoUrl ? 'done' : 'idle'} accept="video/mp4,video/webm" disabled={!enabled || busy !== null} onChange={(event) => void uploadVideo(event)} />
+    <UploadAttachment title={posterUrl ? 'Poster hazır · değiştir' : 'Zorunlu poster yükle'} description="JPEG, PNG veya WebP" icon={<I.image size={16} />} state={busy === 'poster' ? 'processing' : posterUrl ? 'done' : 'idle'} accept="image/jpeg,image/png,image/webp" disabled={!enabled || busy !== null} onChange={(event) => void uploadPoster(event)} style={{ marginTop: 8 }} />
+    {effectiveFeedback ? <Alert
+      variant={effectiveFeedback.tone === 'error' ? 'destructive' : 'default'}
+      className="mt-2"
+    ><AlertDescription>{effectiveFeedback.text}</AlertDescription></Alert> : null}
+    <FieldDescription className="mt-2">En fazla 8 MB ve 15 sn. H.264 MP4 veya VP8/VP9 WebM. Önizleme için video ve poster gereklidir.</FieldDescription>
+    </CardContent>
+  </Card>
 }
 
 function SurfaceOverrideFields({ surface, theme, onPatch }: { surface: ThemeEditorSurface; theme: GarsonlessTheme; onPatch: (patch: Partial<GarsonlessTheme>) => void }) {
@@ -1114,14 +1144,15 @@ function SurfaceOverrideFields({ surface, theme, onPatch }: { surface: ThemeEdit
     onPatch({ experienceVersion: 2, surfaces: { ...surfaces, [surface]: { ...surfaces[surface], override: { ...current, [key]: value } } } })
   }
   return (
-    <div style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--divider)' }}>
+    <div className="mt-5.5 flex min-w-0 w-full flex-col gap-3">
+      <Separator />
       <h3 style={{ margin: '0 0 12px', color: 'var(--text)', fontSize: 12.5, fontWeight: 750 }}>Yüzey renkleri</h3>
       {([['background', 'Arka plan'], ['surface', 'Kart yüzeyi'], ['accent', 'Vurgu'], ['text', 'Metin'], ['cta', 'Ana buton']] as const).map(([key, label]) => (
         <Field key={key} label={label}>
-          <div style={{ width: '100%', minWidth: 0, display: 'flex', gap: 8 }}>
-            <input type="color" value={current[key] ?? (key === 'background' ? theme.bg : key === 'surface' ? theme.cardColor ?? '#ffffff' : key === 'text' ? theme.textColor ?? '#1c1d20' : key === 'cta' ? theme.cta : theme.accent)} onChange={(event) => update(key, event.target.value)} style={colorSwatchStyle} />
-            <input value={current[key] ?? ''} onChange={(event) => update(key, event.target.value)} placeholder="Ortak temadan" style={{ ...inputStyle, width: 'auto', flex: '1 1 0' }} />
-          </div>
+          <InputGroup>
+            <InputGroupAddon className="border-r px-1.5"><input aria-label={`${label} rengini seç`} type="color" value={current[key] ?? (key === 'background' ? theme.bg : key === 'surface' ? theme.cardColor ?? '#ffffff' : key === 'text' ? theme.textColor ?? '#1c1d20' : key === 'cta' ? theme.cta : theme.accent)} onChange={(event) => update(key, event.target.value)} className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" /></InputGroupAddon>
+            <InputGroupInput value={current[key] ?? ''} onChange={(event) => update(key, event.target.value)} placeholder="Ortak temadan" />
+          </InputGroup>
         </Field>
       ))}
     </div>
@@ -1136,39 +1167,35 @@ function SurfaceAside({ width, title, subtitle, children }: { width: number; tit
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label style={{ display: 'block', marginBottom: 15 }}><span style={{ display: 'block', marginBottom: 6, color: 'var(--text-2)', fontSize: 11.5, fontWeight: 700 }}>{label}</span>{children}</label>
+  const controlId = useId()
+  const directControl = isValidElement(children) && (children.type === Input || children.type === Textarea || children.type === NativeSelect)
+  const labelledControlId = directControl ? (children.props as { id?: string }).id ?? controlId : undefined
+  const labelledControl = directControl
+    ? cloneElement(children as ReactElement<{ id?: string }>, { id: labelledControlId })
+    : children
+  return <ShadcnField className="mb-4">
+    {directControl ? <FieldLabel htmlFor={labelledControlId}>{label}</FieldLabel> : <FieldTitle>{label}</FieldTitle>}
+    {labelledControl}
+  </ShadcnField>
 }
 
 function EmptyProperties({ text }: { text: string }) {
-  return <div style={{ padding: '28px 12px', textAlign: 'center', color: 'var(--text-3)', fontSize: 12.5, lineHeight: 1.5 }}><I.layout size={22} style={{ marginBottom: 8 }} /><div>{text}</div></div>
+  return <Empty style={{ padding: '28px 12px' }}><EmptyHeader><EmptyMedia variant="icon"><I.layout size={18} /></EmptyMedia><EmptyDescription>{text}</EmptyDescription></EmptyHeader></Empty>
 }
 
-const inputStyle: CSSProperties = { width: '100%', minWidth: 0, boxSizing: 'border-box', minHeight: 34, padding: '0 9px', border: '1px solid var(--border-strong)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 12.5, outline: 'none' }
-const colorSwatchStyle: CSSProperties = { width: 34, height: 34, flexShrink: 0, padding: 3, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)' }
-const rangeStyle: CSSProperties = { width: '100%', minWidth: 0, minHeight: 30, accentColor: 'var(--action)' }
-const groupLabelStyle: CSSProperties = { margin: '6px 10px 7px', color: 'var(--text-3)', fontSize: 10.5, fontWeight: 750, letterSpacing: '.06em', textTransform: 'uppercase' }
-const sectionRowStyle: CSSProperties = { minHeight: 58, position: 'relative', display: 'flex', alignItems: 'center', gap: 6, padding: '5px 7px', borderRadius: 9, color: 'var(--text-2)' }
-const iconButtonStyle: CSSProperties = { width: 30, height: 30, minWidth: 30, minHeight: 30, padding: 0, display: 'grid', placeItems: 'center', border: 0, borderRadius: 7, background: 'transparent', color: 'var(--text-3)', cursor: 'pointer' }
-const actionSummaryStyle: CSSProperties = { width: 30, height: 30, minWidth: 30, minHeight: 30, display: 'grid', placeItems: 'center', borderRadius: 7, color: 'var(--text-3)', cursor: 'pointer', listStyle: 'none' }
-const sectionActionMenuStyle: CSSProperties = { position: 'absolute', zIndex: 30, top: 36, right: 0, width: 176, padding: 6, border: '1px solid var(--border-strong)', borderRadius: 10, background: 'var(--surface)', boxShadow: '0 12px 32px rgba(17,19,24,.16)' }
-const actionMenuItemStyle: CSSProperties = { width: '100%', minHeight: 34, padding: '0 9px', border: 0, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 9, background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', textAlign: 'left', fontSize: 12, fontWeight: 650 }
-const noticeStyle: CSSProperties = { margin: '16px 4px', padding: 12, display: 'flex', gap: 9, alignItems: 'flex-start', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface-3)', color: 'var(--text-3)', fontSize: 11.5, lineHeight: 1.45 }
-const uploadLabelStyle: CSSProperties = { minHeight: 36, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: '1px dashed var(--border-strong)', borderRadius: 9, background: 'var(--surface)', color: 'var(--text-2)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }
-const settingsCardStyle: CSSProperties = { width: '100%', minWidth: 0, boxSizing: 'border-box', padding: 12, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface-3)' }
-const warningNoticeStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 8, marginBottom: 14, padding: 10, border: '1px solid #f1c27d', borderRadius: 9, background: '#fff7e8', color: '#7a4600', fontSize: 11.5, lineHeight: 1.45 }
-const warningActionStyle: CSSProperties = { gridColumn: '2', justifySelf: 'start', minHeight: 32, padding: '0 10px', border: '1px solid #d99b43', borderRadius: 7, background: '#ffffff', color: '#7a4600', fontSize: 11, fontWeight: 750, cursor: 'pointer' }
-const stateResetButtonStyle: CSSProperties = { minHeight: 32, marginLeft: 'auto', padding: '0 8px', border: 0, borderRadius: 7, background: 'transparent', color: 'var(--action)', fontSize: 10.5, fontWeight: 750, cursor: 'pointer' }
-const inheritButtonStyle: CSSProperties = { minHeight: 32, marginTop: 4, padding: 0, border: 0, background: 'transparent', color: 'var(--action)', fontSize: 10.5, fontWeight: 700 }
-const contrastPassStyle: CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 8, padding: 10, border: '1px solid var(--positive)', borderRadius: 9, background: 'var(--positive-bg)', color: 'var(--positive)', fontSize: 11.5, lineHeight: 1.45 }
-const contrastFailStyle: CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 8, padding: 10, border: '1px solid #d98b84', borderRadius: 9, background: '#fff1f0', color: '#8f2923', fontSize: 11.5, lineHeight: 1.45 }
-const visuallyHiddenInputStyle: CSSProperties = { position: 'absolute', width: 1, height: 1, opacity: 0 }
-const inlineRemoveButtonStyle: CSSProperties = { minHeight: 36, marginTop: 4, padding: '0 8px', border: 0, background: 'transparent', color: 'var(--danger)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }
-const navButtonStyle = (active: boolean): CSSProperties => ({ width: '100%', minHeight: 40, padding: '6px 10px', border: 0, borderRadius: 9, display: 'flex', alignItems: 'center', gap: 10, background: active ? 'var(--surface-inset)' : 'transparent', color: active ? 'var(--text)' : 'var(--text-2)', cursor: 'pointer', textAlign: 'left', fontSize: 12.5, fontWeight: 650 })
-const sharedChromeRowStyle = (active: boolean): CSSProperties => ({ width: '100%', minHeight: 54, padding: '7px 10px', border: active ? '1px solid var(--text)' : '1px solid transparent', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 9, background: active ? 'var(--surface-inset)' : 'var(--surface-2)', color: active ? 'var(--text)' : 'var(--text-2)', cursor: 'pointer', textAlign: 'left' })
-const sharedChromeIconStyle: CSSProperties = { width: 34, height: 34, display: 'grid', placeItems: 'center', flexShrink: 0, borderRadius: 9, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }
-const sharedChromeMetaStyle: CSSProperties = { display: 'block', marginTop: 2, color: 'var(--text-3)', fontSize: 10.5, lineHeight: 1.3, fontWeight: 550 }
-const sharedBadgeStyle: CSSProperties = { padding: '3px 7px', borderRadius: 999, background: 'var(--positive-bg)', color: 'var(--positive)', fontSize: 9.5, fontWeight: 800 }
-const addSectionButtonStyle: CSSProperties = { width: '100%', minHeight: 56, marginTop: 14, padding: '7px 10px', border: '1px dashed var(--border-strong)', borderRadius: 11, display: 'flex', alignItems: 'center', gap: 10, background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer', fontSize: 12.5, fontWeight: 750 }
-const addSectionIconStyle: CSSProperties = { width: 36, height: 36, display: 'grid', placeItems: 'center', flexShrink: 0, borderRadius: 10, background: 'var(--positive-bg)', color: 'var(--positive)' }
-const homeTabStyle = (active: boolean): CSSProperties => ({ minHeight: 38, border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`, borderRadius: 8, background: active ? 'var(--surface)' : 'transparent', color: active ? 'var(--text)' : 'var(--text-3)', fontSize: 11, fontWeight: 750, cursor: 'pointer' })
-const homeResetButtonStyle: CSSProperties = { width: '100%', minHeight: 40, marginTop: 14, border: 0, borderTop: '1px solid var(--border)', background: 'transparent', color: 'var(--text-3)', textDecoration: 'underline', textUnderlineOffset: 2, fontSize: 11, cursor: 'pointer' }
+function UploadAttachment({ title, description, icon, accept, disabled, state, style, onChange }: { title: string; description: string; icon: React.ReactNode; accept: string; disabled?: boolean; state: 'idle' | 'processing' | 'done'; style?: CSSProperties; onChange: (event: ChangeEvent<HTMLInputElement>) => void }) {
+  const inputId = useId()
+  return <label htmlFor={inputId} aria-disabled={disabled} style={{ display: 'block', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.55 : 1, ...style }}>
+    <Attachment size="sm" state={state} style={{ width: '100%', pointerEvents: 'none' }}>
+      <AttachmentMedia>{icon}</AttachmentMedia>
+      <AttachmentContent><AttachmentTitle>{title}</AttachmentTitle><AttachmentDescription>{description}</AttachmentDescription></AttachmentContent>
+    </Attachment>
+    <Input id={inputId} type="file" accept={accept} disabled={disabled} onChange={onChange} className="sr-only" />
+  </label>
+}
+
+function RangeControl({ label, value, min, max, step = 1, onChange }: { label: string; value: number; min: number; max: number; step?: number; onChange: (value: number) => void }) {
+  return <Slider aria-label={label} value={value} min={min} max={max} step={step} onValueChange={(next) => onChange(Number(Array.isArray(next) ? next[0] ?? value : next))} />
+}
+
+const inputStyle: CSSProperties = { width: '100%', minWidth: 0 }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { buildPanoAttentionItems, getPanoAttentionTableCount, withPanoConnectionAttention } from './pano-attention-model'
+import { formatPanoCurrency, formatPanoInteger } from './pano-format'
 import type { TableStatusData } from './queries/insights-shared'
 
 const table = (overrides: Partial<TableStatusData> = {}): TableStatusData => ({
@@ -8,6 +9,12 @@ const table = (overrides: Partial<TableStatusData> = {}): TableStatusData => ({
   sessionId: 'session-1', openedAt: '2026-07-29T08:00:00.000Z', unpaidTotal: 400,
   splitSettledTotal: 150, splitDeclaredCashTotal: 0, orderCount: 2, hasUnfinished: false,
   ...overrides,
+})
+
+test('Pano numbers share Turkish currency and integer formatting', () => {
+  assert.equal(formatPanoCurrency(1234.5), '₺1.234,5')
+  assert.equal(formatPanoCurrency(Number.NaN), '₺0')
+  assert.equal(formatPanoInteger(1415), '1.415')
 })
 
 test('attention queue prioritizes pending orders and late tables before service and payment setup', () => {

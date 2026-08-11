@@ -1,7 +1,13 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { GarsonlessTheme } from "@garsonless/design-engine";
 import type { SettingField } from "@garsonless/ui/themes";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldDescription, FieldGroup } from "@/components/ui/field";
 
 import {
   contrastRatio,
@@ -13,6 +19,7 @@ import {
   PropertySection,
   ThemeColorField,
 } from "./ThemePropertyControls";
+import { MenuFilterPropertyEditor } from "./MenuFilterPropertyEditor";
 
 const HEADER_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
   {
@@ -210,22 +217,28 @@ const FOOTER_FIELD_SECTIONS: Array<{ title: string; ids: string[] }> = [
   { title: "Görünüm", ids: ["footerTone"] },
 ];
 
-const panelStyle = {
-  padding: 14,
-  minWidth: 0,
-  maxWidth: "100%",
-  boxSizing: "border-box" as const,
-  border: "1px solid var(--border)",
-  borderRadius: 12,
-  background: "var(--surface)",
-  boxShadow: "0 1px 2px rgba(20,25,31,.03)",
-};
-
 type FieldPanelProps = {
   fields: SettingField[];
   getValue: (field: SettingField) => unknown;
   onChange: (field: SettingField, value: unknown) => void;
 };
+
+function CompactPanelCard({
+  title,
+  children,
+  contentClassName,
+}: {
+  title: string;
+  children: ReactNode;
+  contentClassName?: string;
+}) {
+  return (
+    <Card data-theme-property-card size="sm" className={panelCard}>
+      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
+      <CardContent className={contentClassName}>{children}</CardContent>
+    </Card>
+  );
+}
 
 function PanelFields({
   sections,
@@ -246,54 +259,29 @@ function PanelFields({
       .filter((field) => filter?.(field) ?? true);
     if (!sectionFields.length) return null;
     return (
-      <div key={section.title} style={panelStyle}>
-        <div
-          style={{
-            marginBottom: 12,
-            fontSize: 13,
-            fontWeight: 750,
-            color: "var(--text)",
-          }}
-        >
-          {section.title}
-        </div>
-        <div style={{ display: "grid", gap: 12 }}>
+      <CompactPanelCard key={section.title} title={section.title}>
+        <FieldGroup className={panelFieldGroup}>
           {sectionFields.map((field) => (
-            <div key={field.id}>
+            <div key={field.id} className="flex flex-col gap-1">
               <HeaderPropertyField
                 field={field}
                 value={getValue(field)}
                 onChange={(value) => onChange(field, value)}
               />
               {fieldNote?.(field) && (
-                <div
-                  style={{
-                    marginTop: 5,
-                    fontSize: 10.5,
-                    color: "var(--text-3)",
-                  }}
-                >
+                <FieldDescription className="text-xs">
                   {fieldNote(field)}
-                </div>
+                </FieldDescription>
               )}
             </div>
           ))}
-        </div>
+        </FieldGroup>
         {section.title === "Ürün grid’i" && (
-          <div
-            role="note"
-            style={{
-              marginTop: 10,
-              fontSize: 10.5,
-              lineHeight: 1.45,
-              color: "var(--text-3)",
-            }}
-          >
-            Sütun sayısı ve kart yapısı Kartlar → Düzen bölümünden yönetilir.
-            Mobilde en fazla iki sütun gösterilir.
-          </div>
+          <Alert role="note" className="mt-2.5"><AlertDescription>
+            Sütun sayısı ve kart yapısı Kartlar → Düzen bölümünden yönetilir. Mobilde en fazla iki sütun gösterilir.
+          </AlertDescription></Alert>
         )}
-      </div>
+      </CompactPanelCard>
     );
   });
 }
@@ -303,7 +291,7 @@ function HeaderPropertyPanel(props: FieldPanelProps) {
     <div
       data-header-property-panel
       data-modern-property-panel
-      style={panelLayout}
+      className={panelLayout}
     >
       <PanelFields sections={HEADER_FIELD_SECTIONS} {...props} />
     </div>
@@ -312,7 +300,7 @@ function HeaderPropertyPanel(props: FieldPanelProps) {
 
 function DrawerPropertyPanel(props: FieldPanelProps) {
   return (
-    <div data-drawer-property-panel data-modern-property-panel style={panelLayout}>
+    <div data-drawer-property-panel data-modern-property-panel className={panelLayout}>
       <InfoNote>
         Drawer içeriğini Bölüm Ekle alanından taşıyabilir; canlı konumunu, görünümünü ve yalnız kullanılabilir müşteri aksiyonlarını buradan düzenleyebilirsiniz.
       </InfoNote>
@@ -329,7 +317,7 @@ function CardPropertyPanel({
     <div
       data-card-property-panel
       data-modern-property-panel
-      style={panelLayout}
+      className={panelLayout}
     >
       {layout === "minimal" && (
         <InfoNote>
@@ -353,17 +341,33 @@ function CardPropertyPanel({
 
 function NavPropertyPanel({
   visual,
+  menuItems,
   ...props
-}: FieldPanelProps & { visual: boolean }) {
+}: FieldPanelProps & {
+  visual: boolean;
+  menuItems: Array<{ id: string; name: string; categoryName: string; isAvailable?: boolean }>;
+}) {
+  const regularFields = props.fields.filter((field) => !["menuFilterPresetIds", "menuCustomFilters"].includes(field.id));
+  const presetField = props.fields.find((field) => field.id === "menuFilterPresetIds");
+  const customField = props.fields.find((field) => field.id === "menuCustomFilters");
   return (
-    <div data-nav-property-panel data-modern-property-panel style={panelLayout}>
+    <div data-nav-property-panel data-modern-property-panel className={panelLayout}>
       {visual && (
         <InfoNote>
           Görselli navigasyon kategori kartlarıyla çalışır; sticky ve aktif
           öğeyi ortalama ayarları yalnız yatay metin navigasyonunda kullanılır.
         </InfoNote>
       )}
-      <PanelFields sections={NAV_FIELD_SECTIONS} {...props} />
+      <PanelFields sections={NAV_FIELD_SECTIONS} {...props} fields={regularFields} />
+      {presetField && customField && (
+        <MenuFilterPropertyEditor
+          presetValue={props.getValue(presetField)}
+          customValue={props.getValue(customField)}
+          menuItems={menuItems}
+          onPresetChange={(value) => props.onChange(presetField, value)}
+          onCustomChange={(value) => props.onChange(customField, value)}
+        />
+      )}
     </div>
   );
 }
@@ -376,7 +380,7 @@ function LayoutPropertyPanel({
     <div
       data-layout-property-panel
       data-modern-property-panel
-      style={panelLayout}
+      className={panelLayout}
     >
       <PanelFields
         sections={LAYOUT_FIELD_SECTIONS}
@@ -415,7 +419,7 @@ function ThemePropertyPanel({ fields, getValue, onChange }: FieldPanelProps) {
     <div
       data-theme-property-panel
       data-modern-property-panel
-      style={panelLayout}
+      className={panelLayout}
     >
       {[
         { title: "Renk sistemi", ids: THEME_COLOR_IDS },
@@ -426,11 +430,8 @@ function ThemePropertyPanel({ fields, getValue, onChange }: FieldPanelProps) {
           .filter((field): field is SettingField => Boolean(field));
         if (!sectionFields.length) return null;
         return (
-          <div key={section.title} style={panelStyle}>
-            <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750 }}>
-              {section.title}
-            </div>
-            <div style={{ display: "grid", gap: 12 }}>
+          <CompactPanelCard key={section.title} title={section.title}>
+            <FieldGroup className={panelFieldGroup}>
               {sectionFields.map((field) =>
                 field.type === "color" ? (
                   <ThemeColorField
@@ -448,52 +449,39 @@ function ThemePropertyPanel({ fields, getValue, onChange }: FieldPanelProps) {
                   />
                 ),
               )}
-            </div>
+            </FieldGroup>
             {section.title === "Renk sistemi" && fieldMap.get("accentSoft") && (
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() =>
                   onChange(
                     fieldMap.get("accentSoft")!,
                     deriveSoftColor(valueFor("accent", "#2e7d52")),
                   )
                 }
-                style={softColorButtonStyle}
+                className="mt-3 w-full"
               >
                 Vurgu Soft’u otomatik üret
-              </button>
+              </Button>
             )}
-          </div>
+          </CompactPanelCard>
         );
       })}
-      <div style={panelStyle}>
-        <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 750 }}>
-          Erişilebilirlik
-        </div>
-        <div style={{ display: "grid", gap: 7 }}>
+      <CompactPanelCard title="Erişilebilirlik" contentClassName="flex flex-col gap-2">
           {contrastPairs.map(([label, fg, bg]) => {
             const ratio = contrastRatio(fg, bg);
             const pass = ratio >= 4.5;
             return (
-              <div
-                key={label}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 8,
-                  fontSize: 11.5,
-                  color: "var(--text-2)",
-                }}
-              >
+              <div key={label} className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span>{label}</span>
-                <strong style={{ color: pass ? "var(--positive)" : "var(--critical)" }}>
+                <Badge variant={pass ? "positive" : "destructive"}>
                   {ratio.toFixed(2)}:1 · {pass ? "Geçer" : "Zayıf"}
-                </strong>
+                </Badge>
               </div>
             );
           })}
-        </div>
-      </div>
+      </CompactPanelCard>
     </div>
   );
 }
@@ -503,40 +491,17 @@ function CartPropertyPanel({
   getValue,
   onChange,
 }: FieldPanelProps) {
-  const fieldById = new Map(fields.map((field) => [field.id, field]));
   return (
     <div
       data-cart-property-panel
       data-modern-property-panel
-      style={panelLayout}
+      className={panelLayout}
     >
       <InfoNote>
         Sepetin yüzeyi Header → Aksiyon Konumları bölümünden seçilir. Burada
         yalnız seçili yüzeyin görünümü düzenlenir.
       </InfoNote>
-      {CART_FIELD_SECTIONS.map((section) => {
-        const sectionFields = section.ids
-          .map((id) => fieldById.get(id))
-          .filter((field): field is SettingField => Boolean(field));
-        if (!sectionFields.length) return null;
-        return (
-          <div key={section.title} style={panelStyle}>
-            <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750 }}>
-              {section.title}
-            </div>
-            <div style={{ display: "grid", gap: 12 }}>
-              {sectionFields.map((field) => (
-                <HeaderPropertyField
-                  key={field.id}
-                  field={field}
-                  value={getValue(field)}
-                  onChange={(value) => onChange(field, value)}
-                />
-              ))}
-            </div>
-          </div>
-        );
-      })}
+      <PanelFields sections={CART_FIELD_SECTIONS} fields={fields} getValue={getValue} onChange={onChange} />
     </div>
   );
 }
@@ -546,78 +511,27 @@ function FooterPropertyPanel({
   getValue,
   onChange,
 }: FieldPanelProps) {
-  const fieldById = new Map(fields.map((field) => [field.id, field]));
   return (
     <div
       data-footer-property-panel
       data-modern-property-panel
-      style={panelLayout}
+      className={panelLayout}
     >
       <InfoNote>Adres, iletişim ve sosyal medya bilgileri Ayarlar &gt; Mağaza bölümündeki gerçek işletme verilerinden gelir.</InfoNote>
-      {FOOTER_FIELD_SECTIONS.map((section) => {
-        const sectionFields = section.ids
-          .map((id) => fieldById.get(id))
-          .filter((field): field is SettingField => Boolean(field));
-        if (!sectionFields.length) return null;
-        return (
-          <div key={section.title} style={panelStyle}>
-            <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 750 }}>
-              {section.title}
-            </div>
-            <div style={{ display: "grid", gap: 12 }}>
-              {sectionFields.map((field) => (
-                <HeaderPropertyField
-                  key={field.id}
-                  field={field}
-                  value={getValue(field)}
-                  onChange={(value) => onChange(field, value)}
-                />
-              ))}
-            </div>
-          </div>
-        );
-      })}
+      <PanelFields sections={FOOTER_FIELD_SECTIONS} fields={fields} getValue={getValue} onChange={onChange} />
     </div>
   );
 }
 
 function InfoNote({ children }: { children: string }) {
   return (
-    <div
-      role="note"
-      style={{
-        padding: "10px 12px",
-        borderRadius: 10,
-        background: "var(--surface-3)",
-        color: "var(--text-2)",
-        fontSize: 11.5,
-        lineHeight: 1.45,
-      }}
-    >
-      {children}
-    </div>
+    <Alert data-theme-property-note role="note"><AlertDescription>{children}</AlertDescription></Alert>
   );
 }
 
-const panelLayout = {
-  display: "grid",
-  gap: 14,
-  minWidth: 0,
-  maxWidth: "100%",
-  overflow: "hidden",
-};
-const softColorButtonStyle = {
-  marginTop: 12,
-  width: "100%",
-  height: 34,
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  background: "var(--surface)",
-  color: "var(--text)",
-  cursor: "pointer",
-  fontSize: 11.5,
-  fontWeight: 700,
-};
+const panelCard = "data-[size=sm]:[--card-spacing:--spacing(2.5)]";
+const panelFieldGroup = "gap-2.5";
+const panelLayout = "grid min-w-0 max-w-full gap-2.5 overflow-hidden";
 
 export {
   FooterPropertyPanel,

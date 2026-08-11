@@ -1,11 +1,22 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { X } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
 import { getSessionSettlement } from '../../lib/actions/settlement'
 import type { SettlementLineItem } from '../../lib/settlement-items'
 import { getTransferHistory, moveTable, transferOrderItemsToTable, transferOrdersToTable, undoTransfer, type TransferHistoryItem } from '../../lib/actions/tables'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
-import { AccessibleDialog } from './AccessibleDialog'
 import { SETTLEMENT_LOAD_ERROR, withSettlementLoadTimeout } from './settlement-load'
 import { TableTransferOrderSelector } from './TableTransferOrderSelector'
 import { TableTransferHistory, type TransferHistoryLoadState } from './TableTransferHistory'
@@ -149,13 +160,19 @@ export default function TableTransferDialog({ open, mode: initialMode, sourceTab
     }
   }
 
-  return <AccessibleDialog labelledBy="table-transfer-dialog-title" onClose={onClose} closeDisabled={busy} style={{ position:'fixed',inset:0,zIndex:180,background:'rgba(0,0,0,.38)',display:'grid',placeItems:'center',padding:20 }}>
-    <div className="tb-transfer-dialog-panel" style={{ width:'min(560px,100%)',maxHeight:'82vh',overflow:'hidden',display:'flex',flexDirection:'column',background:'var(--surface)',borderRadius:14,border:'1px solid var(--border)',boxShadow:'0 24px 80px rgba(0,0,0,.28)' }}>
-      <div style={{ padding:'16px 18px',borderBottom:'1px solid var(--divider)',display:'flex',alignItems:'center',gap:8 }}>
-        <strong id="table-transfer-dialog-title" style={{ flex:1 }}>{dialogTitle}</strong>
-        <button type="button" data-modal-initial-focus disabled={busy} aria-label="Pencereyi kapat" onClick={onClose} style={{ width:44,height:44,display:'grid',placeItems:'center',border:'1px solid var(--border)',borderRadius:10,background:'var(--surface-2)',fontSize:20,cursor:busy?'not-allowed':'pointer',color:'var(--text-3)',opacity:busy?.6:1 }}>×</button>
-      </div>
-      <div className="tb-transfer-dialog-scroll" style={{ padding:18,display:'grid',gap:14,overflowY:'auto',overscrollBehavior:'contain' }}>
+  const submitDisabled = busy || !targetId || (mode === 'account_transfer' && (ordersLoadState !== 'ready' || selectedTransferUnitCount(selected) === 0))
+
+  return <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen && !busy) onClose() }}>
+    <DialogContent showCloseButton={false} className="tb-transfer-dialog-panel flex max-h-[82dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+      <DialogHeader className="flex-row items-center gap-3 border-b px-5 py-4">
+        <DialogTitle id="table-transfer-dialog-title" className="flex-1">{dialogTitle}</DialogTitle>
+        <DialogClose disabled={busy} render={<Button type="button" variant="outline" size="icon" aria-label="Pencereyi kapat" />}>
+          <X /><span className="sr-only">Pencereyi kapat</span>
+        </DialogClose>
+      </DialogHeader>
+      <DialogDescription className="sr-only">Masa, sipariş veya ürün taşıma işlemini tamamlayın.</DialogDescription>
+      <ScrollArea className="tb-transfer-dialog-scroll min-h-0 flex-1">
+        <div className="flex flex-col gap-4 p-5">
         {mode==='history' ? <TableTransferHistory
           history={history}
           loadState={historyLoadState}
@@ -167,20 +184,31 @@ export default function TableTransferDialog({ open, mode: initialMode, sourceTab
           onClose={onClose}
           onUndo={(item) => { void undo(item) }}
         /> : <>
-          <div style={{fontSize:12.5,color:'var(--text-3)'}}><strong style={{color:'var(--text)'}}>{sourceTableId?tableLabel(sourceTableId):'Masa'}</strong> üzerindeki {mode==='table_move'?'açık adisyon bütünüyle boş hedef masaya taşınacak.':'taşınacak ürünleri ve adetleri seçin. Tam seçilen siparişler bütün olarak korunur.'}</div>
-          {mode==='account_transfer'&&<div style={{display:'grid',gap:7}}>
-            {ordersLoadState==='loading'&&<div role="status" style={{padding:12,textAlign:'center',color:'var(--text-3)',fontSize:12.5}}>Siparişler yükleniyor…</div>}
-            {ordersLoadState==='error'&&<div role="alert" style={{padding:12,borderRadius:8,background:'var(--critical-bg)',color:'var(--critical)',fontSize:12}}>{ordersLoadError||SETTLEMENT_LOAD_ERROR}<button type="button" onClick={()=>setOrdersReloadKey((value)=>value+1)} style={{display:'block',marginTop:9,border:'1px solid currentColor',borderRadius:7,background:'transparent',color:'inherit',padding:'6px 9px',fontWeight:700,cursor:'pointer'}}>Tekrar dene</button></div>}
-            {ordersLoadState==='ready'&&orders.length===0&&<div style={{padding:12,textAlign:'center',color:'var(--text-3)',fontSize:12.5}}>Taşınabilecek sipariş yok.</div>}
-            {wholeAccountOnlyReason&&<div role="status" style={{padding:10,borderRadius:8,background:'var(--warning-bg)',color:'var(--warning)',fontSize:12}}>{wholeAccountOnlyReason}</div>}
+          <p className="text-sm text-muted-foreground"><strong className="text-foreground">{sourceTableId?tableLabel(sourceTableId):'Masa'}</strong> üzerindeki {mode==='table_move'?'açık adisyon bütünüyle boş hedef masaya taşınacak.':'taşınacak ürünleri ve adetleri seçin. Tam seçilen siparişler bütün olarak korunur.'}</p>
+          {mode==='account_transfer'&&<div className="flex flex-col gap-2">
+            {ordersLoadState==='loading'&&<div role="status" className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground"><Spinner />Siparişler yükleniyor…</div>}
+            {ordersLoadState==='error'&&<Alert variant="destructive"><AlertDescription className="flex flex-col gap-2">{ordersLoadError||SETTLEMENT_LOAD_ERROR}<Button type="button" variant="outline" size="sm" className="w-fit" onClick={()=>setOrdersReloadKey((value)=>value+1)}>Tekrar dene</Button></AlertDescription></Alert>}
+            {ordersLoadState==='ready'&&orders.length===0&&<Empty className="border"><EmptyHeader><EmptyTitle>Taşınabilecek sipariş yok</EmptyTitle><EmptyDescription>Bu masada aktarılabilecek açık ürün bulunmuyor.</EmptyDescription></EmptyHeader></Empty>}
+            {wholeAccountOnlyReason&&<Alert><AlertDescription>{wholeAccountOnlyReason}</AlertDescription></Alert>}
             {ordersLoadState==='ready'&&orders.length>0&&<TableTransferOrderSelector orders={orders} selected={selected} wholeAccountOnlyReason={wholeAccountOnlyReason} onChange={setSelected} />}
           </div>}
-          <label style={{display:'grid',gap:6,fontSize:12,fontWeight:700}}>Hedef masa<select value={targetId} onChange={(event)=>setTargetId(event.target.value)} style={{height:38,border:'1px solid var(--border-strong)',borderRadius:8,background:'var(--surface)',padding:'0 10px'}}><option value="">Masa seçin</option>{targets.map((table)=><option key={table.id} value={table.id}>{table.label}{sessions[table.id]?' · Dolu, adisyon birleşir':' · Boş'}</option>)}</select></label>
-          {targetId&&sessions[targetId]&&mode==='account_transfer'&&<div role="status" style={{padding:10,borderRadius:8,background:'var(--warning-bg)',color:'var(--warning)',fontSize:12}}>Hedef masada açık adisyon var. Seçili ürünler mevcut hesaba eklenecek.</div>}
-          <button className="tb-transfer-dialog-submit" disabled={busy||!targetId||(mode==='account_transfer'&&(ordersLoadState!=='ready'||selectedTransferUnitCount(selected)===0))} type="button" onClick={()=>void submit()} style={{height:44,position:'sticky',bottom:0,zIndex:2,border:'none',borderRadius:8,background:'var(--action)',color:'var(--on-action)',fontWeight:750,cursor:'pointer',boxShadow:'0 -10px 20px var(--surface)'}}>{busy?'Taşınıyor…':mode==='account_transfer'?`Taşımayı onayla · ${selectedTransferUnitCount(selected)} adet`:'Taşımayı onayla'}</button>
+          <Field>
+            <FieldLabel>Hedef masa</FieldLabel>
+            <Select value={targetId || null} onValueChange={(value) => setTargetId(value ?? '')}>
+              <SelectTrigger className="h-10 w-full"><SelectValue placeholder="Masa seçin" /></SelectTrigger>
+              <SelectContent><SelectGroup>{targets.map((table)=><SelectItem key={table.id} value={table.id}>{table.label}{sessions[table.id]?' · Dolu, adisyon birleşir':' · Boş'}</SelectItem>)}</SelectGroup></SelectContent>
+            </Select>
+          </Field>
+          {targetId&&sessions[targetId]&&mode==='account_transfer'&&<Alert><AlertDescription>Hedef masada açık adisyon var. Seçili ürünler mevcut hesaba eklenecek.</AlertDescription></Alert>}
         </>}
-        {error&&<div role="alert" style={{padding:10,borderRadius:8,background:'var(--critical-bg)',color:'var(--critical)',fontSize:12}}>{error}</div>}
-      </div>
-    </div>
-  </AccessibleDialog>
+        {error&&<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+        </div>
+      </ScrollArea>
+      {mode !== 'history' && <DialogFooter className="mx-0 mb-0 p-4">
+        <Button className="tb-transfer-dialog-submit w-full" size="lg" disabled={submitDisabled} type="button" onClick={()=>void submit()}>
+          {busy && <Spinner data-icon="inline-start" />}{mode==='account_transfer'?`Taşımayı onayla · ${selectedTransferUnitCount(selected)} adet`:'Taşımayı onayla'}
+        </Button>
+      </DialogFooter>}
+    </DialogContent>
+  </Dialog>
 }

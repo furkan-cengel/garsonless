@@ -7,6 +7,12 @@ import { formatTRY } from "./formatCurrency";
 import { useTheme } from "./ThemeContext";
 import { AllergenIconList, DietaryBadges, getDefiniteAllergens } from "./FoodInfoBadges";
 import { isProductConfigurable } from "./productConfiguration";
+import {
+  areModifierSelectionsValid,
+  getModifierGroupMinimum,
+  getModifierGroupSelectionCount,
+  isModifierGroupSelectionValid,
+} from "./modifierSelectionValidation";
 import { AppIcons as I } from "../icons";
 
 const FOCUSABLE_SELECTOR = ["button:not([disabled])", "a[href]", "input:not([disabled])", "select:not([disabled])", "textarea:not([disabled])", '[tabindex]:not([tabindex="-1"])'].join(",");
@@ -34,6 +40,86 @@ interface ProductModalProps {
   submitLabel?: string;
   closeAfterAdd?: boolean;
   stackLevel?: number;
+}
+
+interface CompactSelectionControlProps {
+  id?: string;
+  type: "checkbox" | "radio";
+  name?: string;
+  label: string;
+  checked: boolean;
+  disabled?: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}
+
+function CompactSelectionControl({
+  id,
+  type,
+  name,
+  label,
+  checked,
+  disabled = false,
+  onCheckedChange,
+}: CompactSelectionControlProps) {
+  const [focusVisible, setFocusVisible] = useState(false);
+
+  return (
+    <span
+      data-component="compact-selection-control"
+      data-state={checked ? "checked" : "unchecked"}
+      style={{
+        position: "relative",
+        width: 20,
+        height: 20,
+        display: "inline-grid",
+        placeItems: "center",
+        flexShrink: 0,
+        opacity: disabled ? 0.45 : 1,
+      }}
+    >
+      <input
+        id={id}
+        type={type}
+        name={name}
+        aria-label={label}
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onCheckedChange(event.currentTarget.checked)}
+        onFocus={(event) => setFocusVisible(event.currentTarget.matches(":focus-visible"))}
+        onBlur={() => setFocusVisible(false)}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          margin: 0,
+          opacity: 0,
+          cursor: disabled ? "not-allowed" : "pointer",
+        }}
+      />
+      <span
+        aria-hidden="true"
+        style={{
+          width: 20,
+          height: 20,
+          boxSizing: "border-box",
+          display: "grid",
+          placeItems: "center",
+          border: checked
+            ? "1.5px solid var(--p-accent)"
+            : "1.5px solid rgba(71,85,105,.58)",
+          borderRadius: 6,
+          background: checked ? "var(--p-accent)" : "var(--p-card)",
+          color: "#fff",
+          boxShadow: focusVisible ? "0 0 0 3px var(--p-accent-soft)" : "none",
+          pointerEvents: "none",
+          transition: "background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease",
+        }}
+      >
+        {checked ? <I.check size={14} /> : null}
+      </span>
+    </span>
+  );
 }
 
 export function ProductModal({ item, onClose, onAddToCart, recommendationItems = [], contextLabel, contextTitle, lockQuantity = false, submitLabel, closeAfterAdd = true, stackLevel = 0 }: ProductModalProps) {
@@ -129,12 +215,8 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
 
   if (!item) return null;
 
-  const isValid = configurableGroups.every((group) => {
-    const count = (selections[group.id] ?? []).reduce((sum, selection) => sum + (group.selection_mode === "quantity" ? (selection.quantity ?? 1) : 1), 0);
-    return count >= group.min && count <= group.max;
-  });
-
   const allModifiers = Object.values(selections).flat();
+  const isValid = areModifierSelectionsValid(item.modifier_groups, allModifiers);
 
   const modifierTotal = allModifiers.reduce((sum, sel) => {
     for (const group of configurableGroups) {
@@ -615,14 +697,26 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "space-between",
-                          gap: 10,
-                          padding: "10px 0",
-                          fontSize: 14,
+                          gap: 9,
+                          minHeight: 40,
+                          padding: "6px 0",
+                          fontSize: 13,
                           cursor: "pointer",
                         }}
                       >
                         <span>{ingredient.name} olmasın</span>
-                        <input type="checkbox" checked={removedIngredientIds.includes(ingredient.id)} onChange={(event) => setRemovedIngredientIds((current) => (event.target.checked ? [...current, ingredient.id] : current.filter((id) => id !== ingredient.id)))} style={{ accentColor: "var(--p-accent)" }} />
+                        <CompactSelectionControl
+                          type="checkbox"
+                          label={`${ingredient.name} malzemesini çıkar`}
+                          checked={removedIngredientIds.includes(ingredient.id)}
+                          onCheckedChange={(checked) =>
+                            setRemovedIngredientIds((current) =>
+                              checked
+                                ? [...current, ingredient.id]
+                                : current.filter((id) => id !== ingredient.id),
+                            )
+                          }
+                        />
                       </label>
                     ))}
                 </div>
@@ -753,22 +847,17 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
               {configurableGroups.map((group) => {
                 const groupLabelId = `${titleId}-${group.id}-label`;
                 const groupHintId = `${titleId}-${group.id}-hint`;
+                const minimumSelections = getModifierGroupMinimum(group);
+                const selectionCount = getModifierGroupSelectionCount(group, allModifiers);
+                const groupIsValid = isModifierGroupSelectionValid(group, allModifiers);
                 return (
                   <div
                     key={group.id}
                     role="group"
-                    data-modifier-invalid={
-                      validationAttempted &&
-                      (() => {
-                        const count = (selections[group.id] ?? []).reduce((sum, selection) => sum + (group.selection_mode === "quantity" ? (selection.quantity ?? 1) : 1), 0);
-                        return count < group.min || count > group.max;
-                      })()
-                        ? "true"
-                        : "false"
-                    }
+                    data-modifier-invalid={validationAttempted && !groupIsValid ? "true" : "false"}
                     aria-labelledby={groupLabelId}
                     aria-describedby={groupHintId}
-                    aria-required={group.min > 0}
+                    aria-required={minimumSelections > 0}
                     tabIndex={-1}
                     style={{
                       borderTop: "1px solid rgba(15,23,42,.08)",
@@ -804,10 +893,14 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                             color: "var(--p-text-2)",
                           }}
                         >
-                          {group.min === group.max ? `${group.min} seçim yap` : group.min > 0 ? `En az ${group.min}, en fazla ${group.max} seçim` : `En fazla ${group.max} seçim`}
+                          {minimumSelections === group.max
+                            ? `${minimumSelections} seçim yap`
+                            : minimumSelections > 0
+                              ? `En az ${minimumSelections}, en fazla ${group.max} seçim`
+                              : `En fazla ${group.max} seçim`}
                         </p>
                       </div>
-                      {group.required && (
+                      {minimumSelections > 0 && (
                         <span
                           style={{
                             backgroundColor: "var(--p-accent)",
@@ -826,6 +919,8 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                     {group.options.map((opt) => {
                       const isSelected = (selections[group.id] ?? []).some((s) => s.option_id === opt.id);
                       const priceDeltaStr = opt.price_delta !== 0 ? (opt.price_delta > 0 ? "+" : "") + formatTRY(opt.price_delta) : null;
+                      const optionQuantity = (selections[group.id] ?? []).find((selection) => selection.option_id === opt.id)?.quantity ?? 0;
+                      const selectionLimitReached = group.selection_mode === "multiple" && !isSelected && selectionCount >= group.max;
 
                       return (
                         <div
@@ -834,8 +929,9 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "space-between",
-                            gap: 12,
-                            padding: "9px 0",
+                            gap: 10,
+                            minHeight: 40,
+                            padding: "5px 0",
                           }}
                         >
                           <div
@@ -847,87 +943,119 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                             }}
                           >
                             {group.selection_mode === "quantity" ? (
-                              <div
+                              <>
+                                <div
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    aria-label={`${opt.name} azalt`}
+                                    disabled={optionQuantity <= 0}
+                                    onClick={() => handleQuantityChange(group, opt.id, -1)}
+                                    style={{
+                                      width: 32,
+                                      height: 32,
+                                      display: "grid",
+                                      placeItems: "center",
+                                      padding: 0,
+                                      border: "none",
+                                      borderRadius: 8,
+                                      background: "var(--p-accent-soft)",
+                                      color: "var(--p-accent)",
+                                      cursor: optionQuantity <= 0 ? "not-allowed" : "pointer",
+                                      opacity: optionQuantity <= 0 ? 0.45 : 1,
+                                    }}
+                                  >
+                                    <I.minus size={13} />
+                                  </button>
+                                  <span
+                                    aria-live="polite"
+                                    aria-label={`${opt.name} adedi`}
+                                    style={{
+                                      minWidth: 14,
+                                      textAlign: "center",
+                                      fontSize: 12,
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    {optionQuantity}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    aria-label={`${opt.name} artır`}
+                                    disabled={selectionCount >= group.max}
+                                    onClick={() => handleQuantityChange(group, opt.id, 1)}
+                                    style={{
+                                      width: 32,
+                                      height: 32,
+                                      display: "grid",
+                                      placeItems: "center",
+                                      padding: 0,
+                                      border: "none",
+                                      borderRadius: 8,
+                                      background: "var(--p-accent)",
+                                      color: "#fff",
+                                      cursor: selectionCount >= group.max ? "not-allowed" : "pointer",
+                                      opacity: selectionCount >= group.max ? 0.45 : 1,
+                                    }}
+                                  >
+                                    <I.plus size={13} />
+                                  </button>
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: 13,
+                                    color: "var(--p-text)",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {opt.name}
+                                </span>
+                              </>
+                            ) : (
+                              <label
                                 style={{
+                                  minWidth: 0,
+                                  minHeight: 32,
                                   display: "inline-flex",
                                   alignItems: "center",
-                                  gap: 7,
+                                  gap: 9,
+                                  cursor: selectionLimitReached ? "not-allowed" : "pointer",
                                 }}
                               >
-                                <button
-                                  type="button"
-                                  aria-label={`${opt.name} azalt`}
-                                  onClick={() => handleQuantityChange(group, opt.id, -1)}
-                                  style={{
-                                    width: 44,
-                                    height: 44,
-                                    border: "none",
-                                    borderRadius: 8,
-                                    background: "var(--p-accent-soft)",
-                                    color: "var(--p-accent)",
-                                    cursor: "pointer",
+                                <CompactSelectionControl
+                                  type={group.selection_mode === "single" ? "radio" : "checkbox"}
+                                  name={`${titleId}-${group.id}`}
+                                  label={opt.name}
+                                  checked={isSelected}
+                                  disabled={selectionLimitReached}
+                                  onCheckedChange={(checked) => {
+                                    if (group.selection_mode === "single") {
+                                      if (checked) handleRadioChange(group, opt.id);
+                                      return;
+                                    }
+                                    handleCheckboxChange(group, opt.id, checked);
                                   }}
-                                >
-                                  <I.minus size={14} />
-                                </button>
+                                />
                                 <span
-                                  aria-live="polite"
-                                  aria-label={`${opt.name} adedi`}
                                   style={{
-                                    minWidth: 16,
-                                    textAlign: "center",
-                                    fontSize: 12,
-                                    fontWeight: 800,
+                                    fontSize: 13,
+                                    color: "var(--p-text)",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
                                   }}
                                 >
-                                  {(selections[group.id] ?? []).find((selection) => selection.option_id === opt.id)?.quantity ?? 0}
+                                  {opt.name}
                                 </span>
-                                <button
-                                  type="button"
-                                  aria-label={`${opt.name} artır`}
-                                  onClick={() => handleQuantityChange(group, opt.id, 1)}
-                                  style={{
-                                    width: 44,
-                                    height: 44,
-                                    border: "none",
-                                    borderRadius: 8,
-                                    background: "var(--p-accent)",
-                                    color: "#fff",
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  <I.plus size={14} />
-                                </button>
-                              </div>
-                            ) : (
-                              <input
-                                type={group.selection_mode === "single" ? "radio" : "checkbox"}
-                                name={group.id}
-                                aria-label={opt.name}
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  if (group.selection_mode === "single") handleRadioChange(group, opt.id);
-                                  else handleCheckboxChange(group, opt.id, e.target.checked);
-                                }}
-                                style={{
-                                  width: 24,
-                                  height: 24,
-                                  accentColor: "var(--p-accent)",
-                                  flexShrink: 0,
-                                }}
-                              />
+                              </label>
                             )}
-                            <span
-                              style={{
-                                fontSize: 14,
-                                color: "var(--p-text)",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {opt.name}
-                            </span>
                           </div>
                           <span
                             style={{
@@ -950,7 +1078,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                   data-component="product-recommendations"
                   style={{
                     borderTop: "1px solid rgba(15,23,42,.08)",
-                    padding: "20px 18px",
+                    padding: "14px 18px",
                   }}
                 >
                   <div
@@ -958,8 +1086,8 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                       display: "flex",
                       alignItems: "flex-start",
                       justifyContent: "space-between",
-                      gap: 12,
-                      marginBottom: 13,
+                      gap: 10,
+                      marginBottom: 8,
                     }}
                   >
                     <div>
@@ -967,8 +1095,8 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                         id={`${titleId}-recommendations`}
                         style={{
                           margin: 0,
-                          fontSize: 17,
-                          fontWeight: 850,
+                          fontSize: 14,
+                          fontWeight: 800,
                           color: "var(--p-text)",
                         }}
                       >
@@ -977,7 +1105,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                       <p
                         style={{
                           margin: "4px 0 0",
-                          fontSize: 12,
+                          fontSize: 11.5,
                           color: "var(--p-text-2)",
                         }}
                       >
@@ -997,7 +1125,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                       İsteğe bağlı
                     </span>
                   </div>
-                  <div id={`${titleId}-recommendation-list`} role="group" aria-labelledby={`${titleId}-recommendations`} style={{ display: "grid", gap: 9 }}>
+                  <div id={`${titleId}-recommendation-list`} role="group" aria-labelledby={`${titleId}-recommendations`} style={{ display: "grid", gap: 6 }}>
                     {(recommendationsExpanded ? recommendationItems : recommendationItems.slice(0, 3)).map((recommendation) => {
                       const selected = selectedRecommendations[recommendation.id];
                       const needsConfiguration = isProductConfigurable(recommendation);
@@ -1006,11 +1134,11 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                         <div
                           key={recommendation.id}
                           style={{
-                            minHeight: 62,
+                            minHeight: 52,
                             display: "grid",
-                            gridTemplateColumns: recommendation.images[0] ? "54px minmax(0,1fr) auto" : "minmax(0,1fr) auto",
+                            gridTemplateColumns: recommendation.images[0] ? "48px minmax(0,1fr) auto" : "minmax(0,1fr) auto",
                             alignItems: "center",
-                            gap: 10,
+                            gap: 9,
                           }}
                         >
                           {recommendation.images[0] ? (
@@ -1020,76 +1148,47 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                               loading="lazy"
                               decoding="async"
                               style={{
-                                width: 54,
-                                height: 54,
-                                borderRadius: 11,
+                                width: 48,
+                                height: 48,
+                                borderRadius: 9,
                                 objectFit: "cover",
                               }}
                             />
                           ) : null}
                           <span style={{ minWidth: 0 }}>
-                            {needsConfiguration ? (
-                              <span style={{ display: "block" }}>
-                                <span
-                                  style={{
-                                    display: "block",
-                                    color: "var(--p-text)",
-                                    fontSize: 13.5,
-                                    fontWeight: 750,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  {recommendation.name}
-                                </span>
-                                <span
-                                  style={{
-                                    display: "block",
-                                    marginTop: 4,
-                                    color: "var(--p-accent)",
-                                    fontSize: 12.5,
-                                    fontWeight: 850,
-                                  }}
-                                >
-                                  +{formatTRY(recommendation.price)}
-                                </span>
+                            <label htmlFor={checkboxId} style={{ display: "block", cursor: "pointer" }}>
+                              <span
+                                style={{
+                                  display: "block",
+                                  color: "var(--p-text)",
+                                  fontSize: 13,
+                                  fontWeight: 750,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {recommendation.name}
                               </span>
-                            ) : (
-                              <label htmlFor={checkboxId} style={{ display: "block", cursor: "pointer" }}>
-                                <span
-                                  style={{
-                                    display: "block",
-                                    color: "var(--p-text)",
-                                    fontSize: 13.5,
-                                    fontWeight: 750,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  {recommendation.name}
-                                </span>
-                                <span
-                                  style={{
-                                    display: "block",
-                                    marginTop: 4,
-                                    color: "var(--p-accent)",
-                                    fontSize: 12.5,
-                                    fontWeight: 850,
-                                  }}
-                                >
-                                  +{formatTRY(recommendation.price)}
-                                </span>
-                              </label>
-                            )}
+                              <span
+                                style={{
+                                  display: "block",
+                                  marginTop: 2,
+                                  color: "var(--p-accent)",
+                                  fontSize: 12,
+                                  fontWeight: 850,
+                                }}
+                              >
+                                +{formatTRY(recommendation.price)}
+                              </span>
+                            </label>
                             {selected && needsConfiguration ? (
                               <button
                                 type="button"
                                 onClick={() => setConfiguringRecommendation(recommendation)}
                                 style={{
                                   display: "block",
-                                  minHeight: 44,
+                                  minHeight: 30,
                                   marginTop: 1,
                                   padding: 0,
                                   border: 0,
@@ -1104,69 +1203,40 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                               </button>
                             ) : null}
                           </span>
-                          {needsConfiguration ? (
-                            <button
-                              type="button"
-                              aria-label={selected ? `${recommendation.name} önerisini kaldır` : `${recommendation.name} ürününü yapılandır ve ekle`}
-                              aria-pressed={Boolean(selected)}
-                              onClick={() => {
-                                if (selected) {
-                                  setSelectedRecommendations((current) => {
-                                    const next = { ...current };
-                                    delete next[recommendation.id];
-                                    return next;
-                                  });
-                                  return;
-                                }
-                                setConfiguringRecommendation(recommendation);
-                              }}
-                              style={{
-                                width: 44,
-                                height: 44,
-                                display: "inline-grid",
-                                placeItems: "center",
-                                border: "1.5px solid var(--p-text-2)",
-                                borderRadius: 10,
-                                background: selected ? "var(--p-accent)" : "transparent",
-                                color: selected ? "#fff" : "transparent",
-                                cursor: "pointer",
-                              }}
-                            >
-                              {selected ? <I.check size={20} aria-hidden="true" /> : null}
-                            </button>
-                          ) : (
-                            <input
-                              id={checkboxId}
-                              type="checkbox"
-                              aria-label={`${recommendation.name} ürününü öneri olarak ekle`}
-                              checked={Boolean(selected)}
-                              onChange={(event) => {
-                                if (!event.target.checked) {
-                                  setSelectedRecommendations((current) => {
-                                    const next = { ...current };
-                                    delete next[recommendation.id];
-                                    return next;
-                                  });
-                                  return;
-                                }
+                          <CompactSelectionControl
+                            id={checkboxId}
+                            type="checkbox"
+                            label={
+                              selected
+                                ? `${recommendation.name} önerisini kaldır`
+                                : needsConfiguration
+                                  ? `${recommendation.name} ürününü yapılandır ve ekle`
+                                  : `${recommendation.name} ürününü öneri olarak ekle`
+                            }
+                            checked={Boolean(selected)}
+                            onCheckedChange={(checked) => {
+                              if (!checked) {
                                 setSelectedRecommendations((current) => {
-                                  return {
-                                    ...current,
-                                    [recommendation.id]: {
-                                      item: recommendation,
-                                      modifiers: [],
-                                      removedIngredientIds: [],
-                                    },
-                                  };
+                                  const next = { ...current };
+                                  delete next[recommendation.id];
+                                  return next;
                                 });
-                              }}
-                              style={{
-                                width: 24,
-                                height: 24,
-                                accentColor: "var(--p-accent)",
-                              }}
-                            />
-                          )}
+                                return;
+                              }
+                              if (needsConfiguration) {
+                                setConfiguringRecommendation(recommendation);
+                                return;
+                              }
+                              setSelectedRecommendations((current) => ({
+                                ...current,
+                                [recommendation.id]: {
+                                  item: recommendation,
+                                  modifiers: [],
+                                  removedIngredientIds: [],
+                                },
+                              }));
+                            }}
+                          />
                         </div>
                       );
                     })}

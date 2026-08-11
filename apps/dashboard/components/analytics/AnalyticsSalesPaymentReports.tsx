@@ -4,6 +4,10 @@ import dynamic from 'next/dynamic'
 import type { CSSProperties } from 'react'
 import type { AnalyticsRangeKPIs, DailySale, HeatmapCell, PaymentBreakdown, PaymentReport, TopItem } from '../../lib/queries/analytics'
 import { formatCurrency } from '../../lib/utils'
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert'
+import { Badge } from '../ui/badge'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '../ui/empty'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import HeatmapGrid from './chart-primitives/HeatmapGrid'
 import { loadAnalyticsChart } from './chart-primitives/load-analytics-chart'
 import { AnalyticsCard, AnalyticsKpi } from './AnalyticsReportPrimitives'
@@ -111,38 +115,22 @@ const PAYMENT_COLORS = ['var(--chart-cat-1)', 'var(--chart-cat-2)', 'var(--chart
 function TopItemsTable({ items, period }: { items: TopItem[]; period: string }) {
   if (items.length === 0) {
     return (
-      <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-        {period} için tahsil edilmiş sipariş yok
-      </div>
+      <Empty className="min-h-32"><EmptyHeader><EmptyTitle>Tahsil edilmiş sipariş yok</EmptyTitle><EmptyDescription>{period} için ürün performansı oluşmadı.</EmptyDescription></EmptyHeader></Empty>
     )
   }
   return (
     <div className="analytics-table-scroll" role="region" aria-label="En çok satan ürünler tablosu" tabIndex={0}>
-      <div style={{ minWidth: 430 }}>
-      <div style={{
-        display: 'grid', gridTemplateColumns: '32px 1fr 80px 110px',
-        padding: '8px 16px', background: 'var(--surface-2)',
-        borderBottom: '1px solid var(--divider)',
-        fontSize: 10.5, color: 'var(--text-3)', fontWeight: 500, letterSpacing: '.05em', textTransform: 'uppercase',
-        alignItems: 'center', gap: 10,
-      }}>
-        <span>#</span><span>Ürün</span>
-        <span style={{ textAlign: 'right' }}>Adet</span>
-        <span style={{ textAlign: 'right' }}>Tutar</span>
-      </div>
-      {items.map((it, i) => (
-        <div key={it.name} style={{
-          display: 'grid', gridTemplateColumns: '32px 1fr 80px 110px',
-          padding: '10px 16px', alignItems: 'center', gap: 10,
-          borderBottom: '1px solid var(--divider)',
-        }}>
-          <span style={{ ...s.mono, fontSize: 11, color: 'var(--text-3)', fontWeight: 600 }}>{i + 1}</span>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</div>
-          <span style={{ ...s.mono, fontSize: 13, fontWeight: 600, textAlign: 'right', color: 'var(--text)' }}>{it.count}</span>
-          <span style={{ ...s.mono, fontSize: 13, fontWeight: 600, textAlign: 'right', color: 'var(--text)' }}>{formatCurrency(it.revenue)}</span>
-        </div>
-      ))}
-      </div>
+      <Table className="min-w-[430px]">
+        <TableHeader><TableRow><TableHead className="w-10">#</TableHead><TableHead>Ürün</TableHead><TableHead className="text-right">Adet</TableHead><TableHead className="text-right">Tutar</TableHead></TableRow></TableHeader>
+        <TableBody>{items.map((item, index) => (
+          <TableRow key={item.name}>
+            <TableCell style={s.mono} className="text-xs text-muted-foreground">{index + 1}</TableCell>
+            <TableCell className="max-w-72 truncate font-medium">{item.name}</TableCell>
+            <TableCell style={s.mono} className="text-right font-medium tabular-nums">{item.count}</TableCell>
+            <TableCell style={s.mono} className="text-right font-medium tabular-nums">{formatCurrency(item.revenue)}</TableCell>
+          </TableRow>
+        ))}</TableBody>
+      </Table>
     </div>
   )
 }
@@ -186,10 +174,13 @@ export function AnalyticsPaymentsReport({ paymentBreakdown, query }: { paymentBr
         />
       </div>
 
-      <div role="note" style={{ marginBottom: 12, padding: '10px 12px', border: '1px solid var(--warning-border, #e6c989)', borderRadius: 9, background: 'var(--warning-bg, #fff8e8)', color: 'var(--text-2)', fontSize: 11.5, lineHeight: 1.45 }}>
-        {!refundsAvailable && <><strong>İade defteri şu an okunamıyor.</strong> İade ve net tahsilat alanları bu nedenle kullanılamaz. </>}
-        Servis ücreti ve bahşiş için ayrı kaynak alanları bulunmadığından bu iki tutar rapora dahil değildir. Ürün finansalı tahakkuk görünümüdür{refundsAvailable ? '; iade sonrası nakit sonuç için “İade sonrası net tahsilat” kullanılır.' : '.'}
-      </div>
+      <Alert className="mb-3" role="note">
+        <AlertTitle>{refundsAvailable ? 'Finansal kapsam' : 'İade defteri okunamıyor'}</AlertTitle>
+        <AlertDescription>
+          {!refundsAvailable && <>İade ve net tahsilat alanları şu an kullanılamaz. </>}
+          Servis ücreti ve bahşiş için ayrı kaynak alanları bulunmadığından bu iki tutar rapora dahil değildir. Ürün finansalı tahakkuk görünümüdür{refundsAvailable ? '; iade sonrası nakit sonuç için “İade sonrası net tahsilat” kullanılır.' : '.'}
+        </AlertDescription>
+      </Alert>
 
       <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 12 }}>
         <AnalyticsCard title="Dağılım" subtitle="Tahsil edilen tutara göre" style={{ overflow: 'visible' }}>
@@ -217,7 +208,7 @@ function CompLine({ comp }: { comp: { amount: number; count: number } }) {
   if (comp.count === 0) return null
   return (
     <div style={{ padding: '12px 14px', borderTop: '1px solid var(--divider)', display: 'flex', alignItems: 'center', gap: 10 }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', background: '#f3e8ff', border: '1px dashed #c4b5fd', borderRadius: 6, padding: '2px 8px' }}>İkram</span>
+      <Badge variant="secondary">İkram</Badge>
       <span style={{ flex: 1, fontSize: 12, color: 'var(--text-2)' }}>Tahsilat dışı (₺0 toplanan)</span>
       <span style={{ ...s.mono, fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{formatCurrency(comp.amount)}</span>
       <span style={{ ...s.mono, fontSize: 11.5, color: 'var(--text-3)', minWidth: 56, textAlign: 'right' }}>{comp.count} adet</span>
@@ -228,9 +219,7 @@ function CompLine({ comp }: { comp: { amount: number; count: number } }) {
 function PaymentRows({ rows }: { rows: PaymentBreakdown[] }) {
   if (rows.length === 0) {
     return (
-      <div style={{ padding: '42px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-        Bu aralıkta tahsil edilmiş ödeme yok
-      </div>
+      <Empty className="min-h-32"><EmptyHeader><EmptyTitle>Tahsil edilmiş ödeme yok</EmptyTitle><EmptyDescription>Seçili aralıkta ödeme yöntemi dağılımı oluşmadı.</EmptyDescription></EmptyHeader></Empty>
     )
   }
 

@@ -5,10 +5,14 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, type OperationalOrderStatus, type OrderLifecycleTarget, type PaymentMethod } from '@garsonless/db/browser'
 import type { Order } from './useOrdersRealtime'
-import { I, S, Tag } from '../../lib/ui'
+import { I, S } from '../../lib/ui'
 import { paymentMethodBadge } from '../../lib/payment-method'
 import { formatOrderElapsedMinutes, isLateOrder, isReadyWaitingOrder, orderStageStartedAt, orderStatusGroup } from './order-status'
 import { ORDER_SOURCE_LABELS } from './order-filters'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Spinner } from '@/components/ui/spinner'
 
 export function nextStatus(s: OperationalOrderStatus): OrderLifecycleTarget | null {
   if (s === 'pending' || s === 'pending_approval') return 'sent_to_kitchen'
@@ -86,15 +90,10 @@ function ElapsedLabel({ startAt, group, lateThresholdMin }: {
   if (mins === null) return null
   const c = URG[urgencyFor(group, mins, lateThresholdMin)]
   return (
-    <span style={{
-      background: c.bg, color: c.fg,
-      padding: '2px 7px', borderRadius: 4,
-      fontSize: 10, fontWeight: 600, letterSpacing: '.03em', textTransform: 'uppercase',
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-    }}>
+    <Badge variant="secondary" style={{ background: c.bg, color: c.fg }} className="h-5 rounded-md px-1.5 text-[10px] uppercase tracking-[.03em]">
       <span style={{ width: 4, height: 4, borderRadius: 999, background: c.fg, display: 'inline-block', animation: group !== 'done' ? 'pulse-dot 2s infinite' : 'none' }} />
       {formatOrderElapsedMinutes(mins)}
-    </span>
+    </Badge>
   )
 }
 
@@ -161,7 +160,7 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
     >
-      <div className="order-card-shell" style={{
+      <Card size="sm" className="order-card-shell gap-0 py-0" style={{
         background: 'var(--surface)', borderRadius: 10,
         border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
         boxShadow: active ? '0 0 0 3px rgba(17,17,19,.06)' : hov ? 'var(--shadow-2)' : 'var(--shadow-1)',
@@ -172,8 +171,9 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
         {/* Status stripe */}
         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: accent.left }} />
 
-        <button
+        <Button
           type="button"
+          variant="ghost"
           data-order-card-open
           className="order-card-open"
           aria-pressed={active}
@@ -181,8 +181,9 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
           onClick={onClick}
           style={{
             width: '100%', display: 'block', padding: contentPadding,
-            border: 0, background: 'transparent', color: 'inherit',
-            textAlign: 'left', cursor: 'pointer', font: 'inherit',
+            height: 'auto', border: 0, background: 'transparent', color: 'inherit',
+            textAlign: 'left', cursor: 'pointer', font: 'inherit', borderRadius: 0,
+            whiteSpace: 'normal', alignItems: 'stretch', justifyContent: 'stretch',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
@@ -190,30 +191,25 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 700, fontSize: 13.5 }}>{tableLabel ?? 'Walk-in'}</span>
                 {methodBadge && (
-                  <span style={{
-                    fontSize: 9.5, fontWeight: 800, letterSpacing: '.04em',
-                    color: methodBadge.fg, background: methodBadge.bg,
-                    padding: '2px 7px', borderRadius: 999, flexShrink: 0,
-                    ...(methodBadge.isComp ? { border: `1px dashed ${methodBadge.fg}` } : null),
-                  }}>{methodBadge.label}</span>
+                  <Badge className={methodBadge.isComp ? 'border border-dashed' : ''} style={{ color: methodBadge.fg, background: methodBadge.bg }}>{methodBadge.label}</Badge>
                 )}
                 {tier?.priorityService && (
-                  <Tag tone="warning">
+                  <Badge variant="warning">
                     <span style={{ width: 6, height: 6, borderRadius: 999, background: tier.color, display: 'inline-block' }} />
                     Öncelikli · {tier.name}
-                  </Tag>
+                  </Badge>
                 )}
                 {isLate && (
-                  <Tag tone="critical">
+                  <Badge variant="destructive">
                     <I.warn size={10} />
                     Gecikme
-                  </Tag>
+                  </Badge>
                 )}
                 {isReadyWaiting && (
-                  <Tag tone="warning">
+                  <Badge variant="warning">
                     <I.clock size={10} />
                     Servis bekliyor
-                  </Tag>
+                  </Badge>
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, color: 'var(--text-3)', marginTop: 3, ...S.mono }}>
@@ -243,7 +239,7 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
             </div>
           )}
 
-        </button>
+        </Button>
 
         {/* Bottom row stays outside the detail button so the action remains a
             separate, valid interactive target. */}
@@ -254,27 +250,22 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
         }}>
           <ElapsedLabel startAt={stageStartFor(order, group)} group={group} lateThresholdMin={lateThresholdMin} />
           {actionLabel && onAdvance && (
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant={group === 'ready' ? 'positive' : group === 'new' ? 'default' : 'outline'}
               data-order-card-advance
               data-order-action-tone={group}
               className="order-card-action orders-touch-target"
               disabled={actionPending}
               onClick={(e) => { e.stopPropagation(); onAdvance(order) }}
-              style={{
-                background: group === 'new' ? 'var(--action)' : group === 'ready' ? 'var(--positive)' : 'transparent',
-                color: group === 'new' || group === 'ready' ? '#fff' : 'var(--text-2)',
-                border: group === 'prep' ? '1px solid var(--border)' : 'none',
-                minHeight: 34, padding: '4px 10px', borderRadius: 6,
-                fontSize: 11, fontWeight: 600, cursor: actionPending ? 'wait' : 'pointer',
-                opacity: actionPending ? 0.65 : 1,
-              }}
             >
+              {actionPending && <Spinner data-icon="inline-start" />}
               {actionPending ? 'İşleniyor…' : actionLabel}
-            </button>
+            </Button>
           )}
         </div>
-      </div>
+      </Card>
     </article>
   )
 }

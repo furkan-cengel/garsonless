@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
-import { AppIconNodes } from '@garsonless/ui/icons'
-import { AccessibleDialog } from './AccessibleDialog'
+import { useMemo, useState } from 'react'
+import { Search } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { filterTables } from './tables-builder-model'
 import type { TableItem } from './tables-builder-types'
 import { TablesQRPickerContent } from './TablesQRPickerContent'
@@ -23,25 +24,21 @@ export function TablesQRMobileTablePicker({ restaurantId, tables, activeId, setA
   }
 
   return (
-    <>
+    <Sheet open={open} onOpenChange={setOpen}>
       <div className="tb-qr-mobile-selector">
         <div><span>Seçili masa</span><strong>{activeTable?.label ?? 'Masa seçilmedi'}</strong></div>
-        <button type="button" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
-          {React.cloneElement(AppIconNodes.search as React.ReactElement<{ size?: number }>, { size: 16 })}
+        <SheetTrigger render={<Button type="button" variant="outline" />}>
+          <Search />
           Masa seç
-        </button>
+        </SheetTrigger>
       </div>
-      {open && (
-        <AccessibleDialog labelledBy="qr-mobile-picker-title" onClose={() => setOpen(false)} className="tb-qr-mobile-picker-overlay" style={{ position: 'fixed', inset: 0, zIndex: 160, display: 'flex', alignItems: 'flex-end', background: 'rgba(17,17,19,.42)' }}>
-          <div className="tb-qr-mobile-picker-panel">
-            <header>
-              <div><span>QR Studio</span><strong id="qr-mobile-picker-title">Masa seçin</strong></div>
-              <button type="button" aria-label="Masa seçimini kapat" onClick={() => setOpen(false)}>×</button>
-            </header>
-            <TablesQRPickerContent mobile restaurantId={restaurantId} tables={tables} filtered={filtered} activeId={activeId} query={query} setQuery={setQuery} onSelect={select} />
-          </div>
-        </AccessibleDialog>
-      )}
-    </>
+      <SheetContent side="bottom" className="tb-qr-mobile-picker-panel h-[min(82dvh,720px)] gap-0 p-0">
+        <SheetHeader className="border-b pr-14">
+          <SheetTitle>Masa seçin</SheetTitle>
+          <SheetDescription>Önizlenecek ve indirilecek QR masasını seçin.</SheetDescription>
+        </SheetHeader>
+        <TablesQRPickerContent mobile restaurantId={restaurantId} tables={tables} filtered={filtered} activeId={activeId} query={query} setQuery={setQuery} onSelect={select} />
+      </SheetContent>
+    </Sheet>
   )
 }

@@ -11,7 +11,7 @@ import { getOpenTableSessions } from '../../lib/actions/tables'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
 import { formatCurrency } from '../../lib/utils'
 import PageTopBar from '../layout/PageTopBar'
-import { I, S, Tag, IconButton, btnPrimary, btnGhost } from '../../lib/ui'
+import { I, S } from '../../lib/ui'
 import type { ReceiptOrder } from './ReceiptModal'
 import type { OrderDensity } from './OrderCard'
 import { isActiveOrder, isCancelledOrder, isCompletedOrder, isLateOrder, isReadyWaitingOrder } from './order-status'
@@ -27,7 +27,19 @@ import {
   orderPaymentLabel,
   readOrderFinancialBreakdown,
 } from './order-detail-model'
-import { AccessibleDialog } from '../tables/AccessibleDialog'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Spinner } from '@/components/ui/spinner'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 /* ============================================================
    COLUMN DEFINITIONS
@@ -118,20 +130,14 @@ function OrderDetailPanel({
 }) {
   if (!order) {
     return (
-      <aside className="orders-detail-panel orders-detail-panel--empty" aria-label="Sipariş detayları" style={{
-        width: 'var(--props)', flexShrink: 0,
-        borderLeft: '1px solid var(--border)', background: 'var(--surface)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: 24, textAlign: 'center', color: 'var(--text-3)',
-      }}>
-        <div style={{
-          width: 56, height: 56, borderRadius: 14, background: 'var(--surface-3)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-2)', marginBottom: 14,
-        }}><I.clipboard size={24} /></div>
-        <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Bir sipariş seç</div>
-        <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: 240 }}>
-          Detaylar ve ödeme bilgisi için kanban'dan bir kart aç.
-        </div>
+      <aside className="orders-detail-panel orders-detail-panel--empty border-l bg-card" aria-label="Sipariş detayları" style={{ width: 'var(--props)', flexShrink: 0 }}>
+        <Empty className="h-full rounded-none">
+          <EmptyHeader>
+            <EmptyMedia variant="icon" className="size-12 rounded-xl"><I.clipboard size={22} /></EmptyMedia>
+            <EmptyTitle>Bir sipariş seç</EmptyTitle>
+            <EmptyDescription>Detaylar ve ödeme bilgisi için kanban&apos;dan bir kart aç.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </aside>
     )
   }
@@ -164,14 +170,14 @@ function OrderDetailPanel({
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', ...S.mono }}>#{order.id.slice(0, 8).toUpperCase()}</div>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
-            <IconButton className="orders-touch-target" icon={<I.copy size={15} />} ariaLabel="Sipariş numarasını kopyala" onClick={() => void navigator.clipboard?.writeText(order.id)} />
-            <IconButton className="orders-touch-target" initialFocus icon={<I.close size={15} />} ariaLabel={`${tableLabel} sipariş detayını kapat`} onClick={onClose} />
+            <Button size="icon-sm" variant="ghost" aria-label="Sipariş numarasını kopyala" onClick={() => void navigator.clipboard?.writeText(order.id)}><I.copy size={15} /></Button>
+            <Button size="icon-sm" variant="ghost" aria-label={`${tableLabel} sipariş detayını kapat`} onClick={onClose}><I.close size={15} /></Button>
           </div>
         </div>
         <StatusTimeline order={order} />
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <ScrollArea className="min-h-0 flex-1">
         {/* Operational context — only persisted order fields; no inferred actor/provider. */}
         <div data-order-detail-context style={{ padding: '12px 16px', borderBottom: '1px solid var(--divider)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 14px' }}>
           <DetailMeta label="Kaynak" value={sourceLabel} />
@@ -242,7 +248,7 @@ function OrderDetailPanel({
               value={`${row.kind === 'discount' ? '−' : '+'}${formatCurrency(row.amount)}`}
             />
           ))}
-          <div style={{ height: 1, background: 'var(--divider)', margin: '8px 0' }} />
+          <Separator className="my-2" />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontSize: 13.5, fontWeight: 600 }}>Toplam</span>
             <span style={{ ...S.mono, fontSize: 18, fontWeight: 700, letterSpacing: '-.02em' }}>
@@ -255,21 +261,21 @@ function OrderDetailPanel({
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--divider)' }}>
           <div style={{ ...S.label, marginBottom: 8 }}>Durum</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Tag tone={
+            <Badge variant={
               order.status === 'pending' || order.status === 'pending_approval' ? 'warning' :
               order.status === 'sent_to_kitchen' || order.status === 'preparing' ? 'info' :
-              order.status === 'ready' ? 'positive' : 'neutral'
+              order.status === 'ready' ? 'positive' : 'secondary'
             }>
               {OPERATIONAL_STATUS_LABELS[order.status]}
-            </Tag>
+            </Badge>
             {order.paid_at !== null && (
-              <Tag tone="positive">ÖDENDİ</Tag>
+              <Badge variant="positive">ÖDENDİ</Badge>
             )}
             {tier?.priorityService && (
-              <Tag tone="warning">
+              <Badge variant="warning">
                 <span style={{ width: 6, height: 6, borderRadius: 999, background: tier.color, display: 'inline-block' }} />
                 Öncelikli · {tier.name}
-              </Tag>
+              </Badge>
             )}
           </div>
         </div>
@@ -288,7 +294,7 @@ function OrderDetailPanel({
             ))}
           </div>
         </div>
-      </div>
+      </ScrollArea>
 
       {/* Footer — cancel rules by payment state: İyzico-paid is BLOCKED in-app
           (verified provider refund flow); cash/pos-paid requires a recorded
@@ -298,59 +304,55 @@ function OrderDetailPanel({
         display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--surface-2)',
       }}>
         {order.paid_at !== null && (order.payment_method === 'iyzico' || order.payment_method === 'split') && order.status !== 'served' && order.status !== 'cancelled' && (
-          <div style={{
-            fontSize: 11.5, color: 'var(--info)', background: 'var(--info-bg)',
-            borderRadius: 8, padding: '8px 10px', lineHeight: 1.45,
-          }}>
+          <Alert className="border-[var(--info)]/20 bg-[var(--info-bg)]">
+            <AlertDescription className="text-xs text-[var(--info)]">
             {order.payment_method === 'split'
               ? 'Bu sipariş hesap bölüşme ile ödendi — iptal için pay iade akışı gerekir.'
               : 'Bu sipariş online ödendi — iade İyzico sağlayıcısına gönderilir ve doğrulanmış cevapla kaydedilir.'}
-          </div>
+            </AlertDescription>
+          </Alert>
         )}
         {order.paid_at !== null && (order.payment_method === 'cash' || order.payment_method === 'pos') && !isOwner && order.status !== 'cancelled' && (
-          <div style={{ fontSize: 11.5, color: 'var(--warning)', background: 'var(--warning-bg)', borderRadius: 8, padding: '8px 10px' }}>
-            Tahsil edilmiş nakit/POS siparişinin iade ve iptal kaydını yalnız işletme sahibi tamamlayabilir.
-          </div>
+          <Alert className="border-[var(--warning)]/20 bg-[var(--warning-bg)]"><AlertDescription className="text-xs text-[var(--warning)]">Tahsil edilmiş nakit/POS siparişinin iade ve iptal kaydını yalnız işletme sahibi tamamlayabilir.</AlertDescription></Alert>
         )}
         {isOwner && order.paid_at !== null && order.status !== 'cancelled'
           && (order.payment_method === 'cash' || order.payment_method === 'pos' || order.payment_method === 'iyzico') && (
-          <button
+          <Button
             type="button"
+            variant="destructive"
+            size="lg"
             disabled={actionPending}
             onClick={() => onRefund(order)}
-            className="orders-touch-target order-detail-action order-detail-action--critical"
-            style={{ ...btnGhost(), width: '100%', minHeight: 40, justifyContent: 'center', color: 'var(--critical)' }}
+            className="w-full"
           >
             Parasal iade kaydet
-          </button>
+          </Button>
         )}
         {/* Settle-from-board: unpaid order on an open adisyon → open the Tables
             SettlementSheet here (the exact same money flow, no screen switch). */}
         {order.paid_at === null && order.table_session_id && order.status !== 'cancelled' && (
-          <button
+          <Button
             type="button"
+            variant="positive"
+            size="lg"
             disabled={settleLoading || actionPending}
             onClick={() => onSettle(order)}
-            className="orders-touch-target order-detail-action order-detail-action--positive"
-            style={{
-              ...btnGhost(), width: '100%', justifyContent: 'center',
-              color: 'var(--positive)', borderColor: 'var(--positive)',
-              opacity: settleLoading || actionPending ? 0.6 : 1,
-            }}
+            className="w-full"
           >
+            {settleLoading && <Spinner data-icon="inline-start" />}
             {settleLoading ? 'Adisyon yükleniyor…' : 'Masayı tahsil et (adisyon)'}
-          </button>
+          </Button>
         )}
         <div style={{ display: 'flex', gap: 6 }}>
           {order.status === 'served' ? (
-            <button
+            <Button
               type="button"
+              size="lg"
               onClick={() => onReceipt(order)}
-              className="orders-touch-target order-detail-action order-detail-action--primary"
-              style={{ ...btnPrimary(), flex: 1, minHeight: 40, justifyContent: 'center' }}
+              className="flex-1"
             >
               <I.history size={14} />Fiş yazdır
-            </button>
+            </Button>
           ) : order.status === 'cancelled' ? (
             <div style={{ flex: 1, textAlign: 'center', fontSize: 12, color: 'var(--text-3)', padding: '7px 0' }}>
               Bu sipariş iptal edildi
@@ -362,28 +364,30 @@ function OrderDetailPanel({
             <>
               {!(order.paid_at !== null && (order.payment_method === 'iyzico' || order.payment_method === 'split'))
                 && !(order.paid_at !== null && (order.payment_method === 'cash' || order.payment_method === 'pos') && !isOwner) && (
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="lg"
                   data-order-detail-cancel
                   disabled={actionPending}
                   onClick={() => onCancel(order)}
-                  className="orders-touch-target order-detail-action order-detail-action--secondary"
-                  style={{ ...btnGhost(), flex: 1, minHeight: 40, justifyContent: 'center', opacity: actionPending ? 0.6 : 1 }}
+                  className="flex-1"
                 >
                   İptal et
-                </button>
+                </Button>
               )}
               {advanceLabel && nextSt && (
-                <button
+                <Button
                   type="button"
+                  size="lg"
                   data-order-detail-advance
                   disabled={actionPending}
                   onClick={() => onAdvance(order)}
-                  className="orders-touch-target order-detail-action order-detail-action--primary"
-                  style={{ ...btnPrimary(), flex: 2, minHeight: 40, justifyContent: 'center', opacity: actionPending ? 0.65 : 1, cursor: actionPending ? 'wait' : 'pointer' }}
+                  className="flex-[2]"
                 >
-                  <I.check size={13} />{actionPending ? 'İşleniyor…' : advanceLabel}
-                </button>
+                  {actionPending ? <Spinner data-icon="inline-start" /> : <I.check size={13} />}
+                  {actionPending ? 'İşleniyor…' : advanceLabel}
+                </Button>
               )}
             </>
           )}
@@ -490,58 +494,51 @@ function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, s
           </div>
         </div>
         {onClose && (
-          <button type="button" data-modal-initial-focus className="orders-touch-target" aria-label="Filtreleri kapat" onClick={onClose} style={{ width: 44, height: 44, border: 0, borderRadius: 8, background: 'transparent', color: 'var(--text-2)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+          <Button type="button" size="icon" variant="ghost" aria-label="Filtreleri kapat" onClick={onClose}>
             <I.close size={18} />
-          </button>
+          </Button>
         )}
       </div>
       <div style={{ padding: '8px 12px 4px' }}>
-        <div className="orders-search-field" style={{
-          display: 'flex', alignItems: 'center', gap: 6, height: 36,
-          padding: '0 10px', background: 'var(--surface-3)', borderRadius: 7,
-          color: 'var(--text-3)',
-        }}>
-          <I.search size={13} />
-          <input
+        <InputGroup className="orders-search-field h-9 bg-muted/50">
+          <InputGroupAddon><I.search size={14} /></InputGroupAddon>
+          <InputGroupInput
             ref={searchInputRef}
             aria-label="Siparişlerde ara"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Sipariş, masa, ürün..."
-            style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 12.5 }}
           />
           {search && (
-            <button type="button" aria-label="Aramayı temizle" onClick={() => setSearch('')} style={{ border: 0, background: 'transparent', color: 'var(--text-3)', cursor: 'pointer', padding: 2, display: 'inline-flex' }}>
-              <I.close size={12} />
-            </button>
+            <InputGroupAddon align="inline-end"><InputGroupButton size="icon-xs" aria-label="Aramayı temizle" onClick={() => setSearch('')}><I.close size={12} /></InputGroupButton></InputGroupAddon>
           )}
-        </div>
+        </InputGroup>
       </div>
-      <div style={{ flex: 1, overflow: 'auto', padding: '6px 8px' }}>
+      <ScrollArea className="min-h-0 flex-1">
+      <div style={{ padding: '6px 8px' }}>
         <div style={{ ...S.label, padding: '6px 8px 6px' }}>Görünümler</div>
         {filters.map(f => {
           const isActive = filter === f.id
           return (
-            <button
+            <Button
               key={f.id}
               type="button"
+              variant="ghost"
               aria-pressed={isActive}
               onClick={() => setFilter(f.id)}
-              onMouseEnter={event => { if (!isActive) event.currentTarget.style.background = 'var(--surface-3)' }}
-              onMouseLeave={event => { if (!isActive) event.currentTarget.style.background = 'transparent' }}
               className="orders-filter-option"
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 width: '100%', padding: '7px 8px', marginBottom: 1,
                 background: isActive ? 'var(--surface-inset)' : 'transparent',
-                border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left',
+                borderRadius: 7, textAlign: 'left', justifyContent: 'flex-start',
                 minHeight: 38, transition: 'background 120ms ease',
               }}
             >
               <span style={{ color: isActive ? 'var(--text)' : 'var(--text-3)', display: 'inline-flex' }}>{f.icon}</span>
               <span style={{ flex: 1, fontSize: 13, fontWeight: isActive ? 600 : 500, color: 'var(--text)' }}>{f.label}</span>
               <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)' }}>{counts[f.id]}</span>
-            </button>
+            </Button>
           )
         })}
 
@@ -550,18 +547,19 @@ function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, s
           {sources.map((source) => {
             const active = sourceFilter === source.id
             return (
-              <button
+              <Button
                 key={source.id}
                 type="button"
+                variant="ghost"
                 aria-pressed={active}
                 onClick={() => setSourceFilter(source.id)}
                 className="orders-filter-option"
-                style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minHeight: 36, padding: '6px 8px', border: 0, borderRadius: 7, background: active ? 'var(--surface-inset)' : 'transparent', color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 9, width: '100%', minHeight: 36, padding: '6px 8px', borderRadius: 7, background: active ? 'var(--surface-inset)' : 'transparent', color: 'var(--text)', textAlign: 'left' }}
               >
                 <span style={{ color: active ? 'var(--text)' : 'var(--text-3)', display: 'inline-flex' }}>{source.icon}</span>
                 <span style={{ flex: 1, fontSize: 12.5, fontWeight: active ? 650 : 500 }}>{source.label}</span>
                 <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)' }}>{sourceCounts[source.id]}</span>
-              </button>
+              </Button>
             )
           })}
         </div>
@@ -573,30 +571,30 @@ function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, s
               const active = selectedStation === station
               const count = orders.filter(order => orderStationNames(order).includes(station)).length
               return (
-                <button
+                <Button
                   key={station}
                   type="button"
+                  variant="ghost"
                   aria-pressed={active}
                   onClick={() => setSelectedStation(active ? null : station)}
-                  onMouseEnter={event => { if (!active) event.currentTarget.style.background = 'var(--surface-3)' }}
-                  onMouseLeave={event => { if (!active) event.currentTarget.style.background = 'transparent' }}
                   className="orders-filter-option"
-                  style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minHeight: 36, padding: '6px 8px', border: 0, borderRadius: 7, background: active ? 'var(--surface-inset)' : 'transparent', color: 'var(--text)', cursor: 'pointer', textAlign: 'left', transition: 'background 120ms ease' }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 9, width: '100%', minHeight: 36, padding: '6px 8px', borderRadius: 7, background: active ? 'var(--surface-inset)' : 'transparent', color: 'var(--text)', textAlign: 'left', transition: 'background 120ms ease' }}
                 >
                   <I.cutlery size={14} />
                   <span style={{ flex: 1, fontSize: 12.5, fontWeight: active ? 650 : 500 }}>{station}</span>
                   <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)' }}>{count}</span>
-                </button>
+                </Button>
               )
             })}
           </div>
         )}
 
       </div>
+      </ScrollArea>
       <div style={{ borderTop: '1px solid var(--divider)', padding: '10px 14px', background: 'var(--surface-2)' }}>
-        <button className="orders-touch-target orders-action-secondary" onClick={onHistory} style={{ ...btnGhost(), width: '100%', justifyContent: 'center' }}>
+        <Button variant="outline" className="w-full" onClick={onHistory}>
           <I.history size={13} />Geçmiş siparişler
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -1148,53 +1146,26 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
     <div className="orders-shell" data-orders-connection-status={connectionStatus} data-orders-presentation={presentation} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <style>{ORDERS_RESPONSIVE_CSS}</style>
       {actionError && (
-        <div
-          role="alert"
-          style={{
-            position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 210, maxWidth: 420,
-            background: 'var(--critical-bg)', color: 'var(--critical)',
-            border: '1px solid var(--critical)', borderRadius: 10,
-            padding: '10px 14px', fontSize: 12.5, fontWeight: 600,
-            boxShadow: 'var(--shadow-pop)',
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}
-        >
+        <Alert variant="destructive" className="fixed left-1/2 top-4 z-[210] max-w-[420px] -translate-x-1/2 shadow-lg">
           <I.warn size={14} />
-          <span style={{ flex: 1 }}>{actionError}</span>
-          <button
-            type="button"
-            className="orders-touch-target"
-            onClick={() => setActionError(null)}
-            aria-label="Kapat"
-            style={{ border: 'none', background: 'transparent', color: 'var(--critical)', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: 0 }}
-          >×</button>
-        </div>
+          <AlertDescription>{actionError}</AlertDescription>
+          <Button size="icon-xs" variant="ghost" className="absolute right-2 top-1.5" onClick={() => setActionError(null)} aria-label="Kapat"><I.close size={12} /></Button>
+        </Alert>
       )}
       {actionSuccess && (
-        <div
-          role="status"
-          aria-live="polite"
-          style={{
-            position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 205, maxWidth: 420, background: 'var(--positive-bg)', color: 'var(--positive)',
-            border: '1px solid var(--positive)', borderRadius: 10, padding: '10px 14px',
-            fontSize: 12.5, fontWeight: 650, boxShadow: 'var(--shadow-pop)',
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}
-        >
-          <I.check size={14} />{actionSuccess}
-        </div>
+        <Alert className="fixed left-1/2 top-4 z-[205] max-w-[420px] -translate-x-1/2 border-[var(--positive)]/30 bg-[var(--positive-bg)] text-[var(--positive)] shadow-lg" aria-live="polite">
+          <I.check size={14} /><AlertDescription className="font-medium text-[var(--positive)]">{actionSuccess}</AlertDescription>
+        </Alert>
       )}
       <PageTopBar
         className="orders-topbar"
         restaurantName={restaurantName}
         title="Siparişler"
         tag={
-          <Tag tone={connectionStatus === 'live' ? 'positive' : connectionStatus === 'offline' ? 'critical' : 'warning'}>
+          <Badge variant={connectionStatus === 'live' ? 'positive' : connectionStatus === 'offline' ? 'destructive' : 'warning'}>
             <span style={{ width: 5, height: 5, borderRadius: 999, background: 'currentColor', display: 'inline-block', animation: connectionStatus === 'connecting' ? 'pulse-dot 2s infinite' : 'none' }} />
             {connectionStatus === 'live' ? 'Canlı' : connectionStatus === 'connecting' ? 'Bağlanıyor' : connectionStatus === 'reconnecting' ? 'Uzlaştırılıyor' : 'Çevrimdışı'}
-          </Tag>
+          </Badge>
         }
         center={
           <div className="orders-kpi-strip" style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
@@ -1207,12 +1178,11 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
           </div>
         }
         right={<div style={{display:'flex',gap:6}}>
-          <button type="button" className="orders-topbar-action orders-action-secondary" aria-label="Hesap taşı" onClick={() => { setSelectedOrderId(null); setTransferOpen(true) }} style={btnGhost()}><I.arrow size={15} /><span className="orders-action-label">Hesap taşı</span></button>
-          <button
+          <Button type="button" variant="outline" className="orders-topbar-action" aria-label="Hesap taşı" onClick={() => { setSelectedOrderId(null); setTransferOpen(true) }}><I.arrow size={15} /><span className="orders-action-label">Hesap taşı</span></Button>
+          <Button
             type="button"
             className="orders-topbar-action orders-action-primary"
             aria-label="Mutfak ekranını aç"
-            style={{ ...btnPrimary(), opacity: hasKitchenAccess ? 1 : 0.5, cursor: hasKitchenAccess ? 'pointer' : 'not-allowed' }}
             disabled={!hasKitchenAccess}
             title={hasKitchenAccess ? undefined : 'Ayarlar → Mutfak Ekranı bölümünden erişim oluşturun'}
             onClick={() => {
@@ -1221,7 +1191,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             }}
           >
             <I.monitor size={15} /><span className="orders-action-label">Mutfak ekranı</span>
-          </button>
+          </Button>
         </div>}
       />
 
@@ -1240,9 +1210,9 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
           {connectionStatus === 'offline' ? <I.warn size={14} /> : <I.refresh size={14} />}
           <span style={{ flex: 1 }}>{ORDERS_REALTIME_COPY[connectionStatus]}</span>
           {(connectionStatus === 'offline' || connectionStatus === 'reconnecting') && (
-            <button type="button" onClick={retryRealtime} style={{ ...btnGhost(), height: 26, background: 'var(--surface)' }}>
+            <Button type="button" size="xs" variant="outline" onClick={retryRealtime}>
               Yeniden bağlan
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -1255,77 +1225,75 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         {/* Kanban */}
         <div className="orders-board-scroll" style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '16px 16px 32px', background: 'var(--bg)' }}>
           <div className="orders-mobile-toolbar">
-            <button
+            <Button
               ref={mobileFilterTriggerRef}
               type="button"
+              variant="outline"
+              size="lg"
               className="orders-touch-target"
               aria-haspopup="dialog"
               aria-expanded={filtersOpen}
               onClick={() => setFiltersOpen(true)}
-              style={{ ...btnGhost(), minHeight: 44, justifyContent: 'center' }}
             >
               <I.search size={15} /> Filtreler ve ara
-            </button>
-            <Tag tone={filter === 'attention' || filter === 'late' ? 'warning' : 'neutral'}>{FILTER_LABELS[filter]} · {filteredOrders.length}</Tag>
+            </Button>
+            <Badge variant={filter === 'attention' || filter === 'late' ? 'warning' : 'secondary'}>{FILTER_LABELS[filter]} · {filteredOrders.length}</Badge>
             <span className="orders-mobile-toolbar-copy" style={{ marginLeft: 'auto', color: 'var(--text-3)', fontSize: 11.5 }}>Kolonlar arasında yatay kaydır</span>
           </div>
           <div className="orders-board-toolbar" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div role="group" aria-label="Sipariş kartı yoğunluğu" style={{ display: 'inline-flex', padding: 3, gap: 2, borderRadius: 8, background: 'var(--surface-3)' }}>
+            <Tabs value={density} onValueChange={(value) => changeDensity(value as OrderDensity)} aria-label="Sipariş kartı yoğunluğu">
+              <TabsList>
               {([['comfortable', 'Rahat'], ['compact', 'Kompakt'], ['dense', 'Yoğun']] as const).map(([value, label]) => (
-                <button className="orders-touch-target orders-density-option" key={value} type="button" aria-pressed={density === value} onClick={() => changeDensity(value)} style={{ height: 32, padding: '0 9px', border: 0, borderRadius: 6, background: density === value ? 'var(--surface)' : 'transparent', color: density === value ? 'var(--text)' : 'var(--text-3)', boxShadow: density === value ? 'var(--shadow-1)' : 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: density === value ? 650 : 500 }}>{label}</button>
+                <TabsTrigger key={value} value={value} className="px-2 text-xs">{label}</TabsTrigger>
               ))}
-            </div>
+              </TabsList>
+            </Tabs>
             {closedCount > 0 && filter !== 'done' && filter !== 'cancelled' && (
-              <button className="orders-touch-target orders-action-secondary" type="button" aria-expanded={!closedCollapsed} onClick={() => setClosedCollapsed(value => !value)} style={{ ...btnGhost(), height: 36 }}>
+              <Button variant="outline" type="button" aria-expanded={!closedCollapsed} onClick={() => setClosedCollapsed(value => !value)}>
                 {closedCollapsed ? <I.eye size={13} /> : <I.eyeOff size={13} />}
                 {closedCollapsed ? `Kapananı göster (${closedCount})` : 'Kapananı gizle'}
-              </button>
+              </Button>
             )}
             <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-4)' }}>Hazır bekleme alarmı: 5 dk</span>
           </div>
           {/* New-café hero: ONLY when today has zero orders at all (not when a
               search/filter merely matches nothing — that keeps the column view). */}
           {orders.length === 0 && (
-            <div style={{
-              marginBottom: 14, padding: '26px 20px', textAlign: 'center',
-              background: 'var(--surface)', border: '1px dashed var(--border-strong)', borderRadius: 12,
-            }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: 12, background: 'var(--surface-3)',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                color: 'var(--text-2)', marginBottom: 10,
-              }}><I.clipboard size={20} /></div>
-              <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text)' }}>Bugün henüz sipariş yok</div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.5 }}>
-                Müşterilerin QR menüden verdiği siparişler burada canlı görünür.
-                Masa QR’larını Masalar &amp; QR bölümünden yazdırabilirsiniz.
-              </div>
-            </div>
+            <Empty className="mb-3 min-h-48 border bg-card">
+              <EmptyHeader>
+                <EmptyMedia variant="icon" className="size-11"><I.clipboard size={20} /></EmptyMedia>
+                <EmptyTitle>Bugün henüz sipariş yok</EmptyTitle>
+                <EmptyDescription>Müşterilerin QR menüden verdiği siparişler burada canlı görünür. Masa QR’larını Masalar &amp; QR bölümünden yazdırabilirsiniz.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
           {orders.length > 0 && (filter !== 'all' || sourceFilter !== 'all' || search.trim() || selectedStation) && (
             <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 7, minHeight: 28 }}>
-              {filter !== 'all' && <Tag tone={filter === 'late' || filter === 'attention' ? 'warning' : 'neutral'}>{FILTER_LABELS[filter]} · {filteredOrders.length}</Tag>}
-              {sourceFilter !== 'all' && <Tag tone="info">{ORDER_SOURCE_LABELS[sourceFilter]} · {filteredOrders.length}</Tag>}
-              {search.trim() && <Tag>“{search.trim()}”</Tag>}
-              {selectedStation && <Tag tone="info"><I.cutlery size={11} />{selectedStation}</Tag>}
-              <button type="button" onClick={() => { setFilter('all'); setSourceFilter('all'); setSearch(''); setSelectedStation(null) }} style={{ ...btnGhost(), height: 26, border: 'none', background: 'transparent', color: 'var(--text-3)' }}>
+              {filter !== 'all' && <Badge variant={filter === 'late' || filter === 'attention' ? 'warning' : 'secondary'}>{FILTER_LABELS[filter]} · {filteredOrders.length}</Badge>}
+              {sourceFilter !== 'all' && <Badge variant="info">{ORDER_SOURCE_LABELS[sourceFilter]} · {filteredOrders.length}</Badge>}
+              {search.trim() && <Badge variant="secondary">“{search.trim()}”</Badge>}
+              {selectedStation && <Badge variant="info"><I.cutlery size={11} />{selectedStation}</Badge>}
+              <Button type="button" size="xs" variant="ghost" onClick={() => { setFilter('all'); setSourceFilter('all'); setSearch(''); setSelectedStation(null) }}>
                 <I.close size={12} />Filtreleri temizle
-              </button>
+              </Button>
               <span style={{ marginLeft: 'auto', color: 'var(--text-4)', fontSize: 10.5 }}>J/K seç · / ara · Esc temizle</span>
             </div>
           )}
           {orders.length > 0 && filteredOrders.length === 0 && (
-            <div role="status" style={{ marginBottom: 12, padding: '18px 16px', borderRadius: 10, border: '1px dashed var(--border-strong)', background: 'var(--surface)', textAlign: 'center' }}>
-              <div style={{ fontSize: 13.5, fontWeight: 700 }}>Bu görünümde sipariş yok</div>
-              <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-3)' }}>
+            <Empty className="mb-3 min-h-40 border bg-card">
+              <EmptyHeader>
+              <EmptyMedia variant="icon"><I.search size={16} /></EmptyMedia>
+              <EmptyTitle>Bu görünümde sipariş yok</EmptyTitle>
+              <EmptyDescription>
                 {search.trim()
                   ? 'Aramanızı değiştirin veya filtreleri temizleyin.'
                   : sourceFilter !== 'all'
                     ? `${ORDER_SOURCE_LABELS[sourceFilter]} kaynağında eşleşen sipariş bulunmuyor.`
                     : `${FILTER_LABELS[filter]} görünümünde eşleşen sipariş bulunmuyor.`}
-              </div>
-              <button type="button" onClick={() => { setFilter('all'); setSourceFilter('all'); setSearch(''); setSelectedStation(null) }} style={{ ...btnGhost(), marginTop: 10 }}>Filtreleri temizle</button>
-            </div>
+              </EmptyDescription>
+              <Button type="button" size="sm" variant="outline" onClick={() => { setFilter('all'); setSourceFilter('all'); setSearch(''); setSelectedStation(null) }}>Filtreleri temizle</Button>
+              </EmptyHeader>
+            </Empty>
           )}
           <OrderBoardDnd
             columns={visibleColumns}
@@ -1347,27 +1315,23 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
       </div>
 
       {presentation !== 'desktop' && selectedOrder && !detailModalBlocked && (
-        <AccessibleDialog
-          labelledBy="order-detail-title"
-          onClose={() => setSelectedOrderId(null)}
-          className="orders-detail-overlay"
-          style={{}}
-        >
+        <Sheet open onOpenChange={(open) => { if (!open) setSelectedOrderId(null) }}>
+          <SheetContent side="right" showCloseButton={false} className="w-[min(430px,100vw)] gap-0 p-0 sm:max-w-[430px]">
+            <SheetHeader className="sr-only"><SheetTitle>Sipariş detayları</SheetTitle><SheetDescription>{labelFor(selectedOrder.table_id)} siparişinin operasyon ve ödeme detayları</SheetDescription></SheetHeader>
           {detailPanel}
-        </AccessibleDialog>
+          </SheetContent>
+        </Sheet>
       )}
 
       {presentation !== 'desktop' && filtersOpen && (
-        <AccessibleDialog
-          labelledBy="orders-filter-title"
-          onClose={() => setFiltersOpen(false)}
-          className="orders-filter-overlay"
-          style={{}}
-        >
-          <div className="orders-filter-drawer">
+        <Sheet open onOpenChange={(open) => { if (!open) setFiltersOpen(false) }}>
+          <SheetContent side="left" showCloseButton={false} className="w-[min(340px,calc(100vw-18px))] gap-0 p-0 sm:max-w-[340px]">
+            <SheetHeader className="sr-only"><SheetTitle>Sipariş filtreleri</SheetTitle><SheetDescription>Sipariş görünümünü kaynak, durum ve istasyona göre filtreleyin.</SheetDescription></SheetHeader>
+            <div className="orders-filter-drawer">
             <OrdersNav filter={filter} setFilter={setFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} orders={orders} search={search} setSearch={setSearch} onHistory={() => { setFiltersOpen(false); setHistoryOpen(true) }} onClose={() => setFiltersOpen(false)} lateThresholdMin={lateThresholdMin} searchInputRef={searchInputRef} now={now} stations={stations} selectedStation={selectedStation} setSelectedStation={setSelectedStation} />
-          </div>
-        </AccessibleDialog>
+            </div>
+          </SheetContent>
+        </Sheet>
       )}
 
       {settleSheet && (
@@ -1441,7 +1405,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         />
       )}
       {transferOpen && <OrdersTransferDialog restaurantId={restaurantId} orders={orders} tables={tables} onClose={() => setTransferOpen(false)} onDone={() => setTransferDone(true)} />}
-      {transferDone && <div role="status" style={{position:'fixed',right:18,bottom:18,zIndex:170,background:'var(--night)',color:'#fff',padding:'10px 13px',borderRadius:9}}>Hesap taşındı. <button className="orders-touch-target" type="button" onClick={()=>setTransferDone(false)} style={{border:0,background:'transparent',color:'#ffd089',fontWeight:700}}>Tamam</button></div>}
+      {transferDone && <Alert className="fixed bottom-4 right-4 z-[170] w-auto min-w-56 bg-foreground text-background shadow-lg"><I.check size={14} /><AlertDescription className="pr-14 text-background">Hesap taşındı.</AlertDescription><Button size="xs" variant="ghost" className="absolute right-1.5 top-1.5 text-background hover:bg-background/10 hover:text-background" onClick={() => setTransferDone(false)}>Tamam</Button></Alert>}
     </div>
   )
 }
@@ -1464,70 +1428,40 @@ function CancelOrderModal({ order, tableLabel, onClose, onConfirm, pending }: {
   const reasonOk = !paidManual || reason.trim().length >= 3
 
   return (
-    <AccessibleDialog
-      labelledBy="cancel-order-title"
-      onClose={onClose}
-      closeDisabled={pending}
-      className="orders-cancel-overlay"
-      style={{
-        position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(17,17,19,.42)', backdropFilter: 'blur(3px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-      }}
-    >
-      <div aria-busy={pending} style={{
-        width: 'min(420px, 94vw)', background: 'var(--surface)', borderRadius: 14,
-        boxShadow: 'var(--shadow-pop)', overflow: 'hidden',
-      }}>
-        <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid var(--divider)' }}>
-          <div id="cancel-order-title" style={{ fontSize: 15, fontWeight: 700 }}>Siparişi iptal et</div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 3 }}>
-            {tableLabel} · #{order.id.slice(0, 6).toUpperCase()} · {formatCurrency(order.total)}
-          </div>
-        </div>
-        <div style={{ padding: '14px 18px' }}>
+    <Dialog open onOpenChange={(open) => { if (!open && !pending) onClose() }}>
+      <DialogContent showCloseButton={!pending} className="sm:max-w-md" aria-busy={pending}>
+        <DialogHeader>
+          <DialogTitle>Siparişi iptal et</DialogTitle>
+          <DialogDescription>{tableLabel} · #{order.id.slice(0, 6).toUpperCase()} · {formatCurrency(order.total)}</DialogDescription>
+        </DialogHeader>
+        <FieldGroup>
           {paidManual ? (
-            <div style={{
-              fontSize: 12, color: 'var(--warning)', background: 'var(--warning-bg)',
-              borderRadius: 8, padding: '9px 11px', marginBottom: 12, lineHeight: 1.45,
-            }}>
+            <Alert className="border-[var(--warning)]/20 bg-[var(--warning-bg)]"><AlertDescription className="text-xs text-[var(--warning)]">
               Bu sipariş <b>{order.payment_method === 'cash' ? 'nakit' : 'fiziksel POS'}</b> ile tahsil edildi.
               İptal kayıt altına alınır — parayı elden iade ettiğinizi onaylıyorsunuz. Gerekçe zorunlu.
-            </div>
+            </AlertDescription></Alert>
           ) : (
-            <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 12 }}>
-              Sipariş iptal edilecek; kullanılan puan/damga otomatik iade edilir.
-            </div>
+            <FieldDescription>Sipariş iptal edilecek; kullanılan puan/damga otomatik iade edilir.</FieldDescription>
           )}
-          <input
-            value={reason}
-            disabled={pending}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder={paidManual ? 'İptal gerekçesi (zorunlu)' : 'Gerekçe (opsiyonel)'}
-            data-modal-initial-focus
-            style={{
-              width: '100%', height: 44, padding: '0 11px', fontSize: 12.5,
-              border: `1px solid ${paidManual && !reasonOk ? 'var(--warning)' : 'var(--border-strong)'}`,
-              borderRadius: 8, outline: 'none', boxSizing: 'border-box',
-            }}
-          />
-        </div>
-        <div style={{ padding: '12px 18px 16px', display: 'flex', gap: 8 }}>
-          <button type="button" disabled={pending} onClick={onClose} style={{ ...btnGhost(), flex: 1, minHeight: 44, justifyContent: 'center', opacity: pending ? 0.6 : 1 }}>Vazgeç</button>
-          <button
+          <Field>
+            <FieldLabel htmlFor="cancel-order-reason">Gerekçe {paidManual ? '(zorunlu)' : '(opsiyonel)'}</FieldLabel>
+            <Input id="cancel-order-reason" value={reason} disabled={pending} onChange={(e) => setReason(e.target.value)} placeholder="İptal gerekçesini yazın" aria-invalid={paidManual && reason.length > 0 && !reasonOk} />
+          </Field>
+        </FieldGroup>
+        <DialogFooter>
+          <Button type="button" variant="outline" disabled={pending} onClick={onClose}>Vazgeç</Button>
+          <Button
             type="button"
+            variant="destructive"
             disabled={!reasonOk || pending}
             onClick={() => reasonOk && onConfirm(reason.trim())}
-            style={{
-              ...btnPrimary(), flex: 1, minHeight: 44, justifyContent: 'center',
-              background: 'var(--critical)', borderColor: 'var(--critical)',
-              opacity: reasonOk && !pending ? 1 : 0.5, cursor: pending ? 'wait' : reasonOk ? 'pointer' : 'not-allowed',
-            }}
           >
+            {pending && <Spinner data-icon="inline-start" />}
             {pending ? 'İptal ediliyor…' : 'İptal et'}
-          </button>
-        </div>
-      </div>
-    </AccessibleDialog>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -1547,63 +1481,56 @@ function RefundOrderModal({ order, tableLabel, onClose, onConfirm, pending }: {
   const isProvider = order.payment_method === 'iyzico'
 
   return (
-    <AccessibleDialog
-      labelledBy="refund-order-title"
-      onClose={onClose}
-      closeDisabled={pending}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 125, background: 'rgba(17,17,19,.42)', backdropFilter: 'blur(3px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-      }}
-    >
-      <div aria-busy={pending} style={{ width: 'min(430px, 94vw)', background: 'var(--surface)', borderRadius: 14, boxShadow: 'var(--shadow-pop)', overflow: 'hidden' }}>
-        <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid var(--divider)' }}>
-          <div id="refund-order-title" style={{ fontSize: 15, fontWeight: 700 }}>Parasal iade</div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 3 }}>
-            {tableLabel} · #{order.id.slice(0, 6).toUpperCase()} · en çok {formatCurrency(order.total)}
-          </div>
-        </div>
-        <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 12, color: isProvider ? 'var(--info)' : 'var(--warning)', background: isProvider ? 'var(--info-bg)' : 'var(--warning-bg)', borderRadius: 8, padding: '9px 11px', lineHeight: 1.45 }}>
+    <Dialog open onOpenChange={(open) => { if (!open && !pending) onClose() }}>
+      <DialogContent showCloseButton={!pending} className="sm:max-w-md" aria-busy={pending}>
+        <DialogHeader>
+          <DialogTitle>Parasal iade</DialogTitle>
+          <DialogDescription>{tableLabel} · #{order.id.slice(0, 6).toUpperCase()} · en çok {formatCurrency(order.total)}</DialogDescription>
+        </DialogHeader>
+        <Alert className={isProvider ? 'border-[var(--info)]/20 bg-[var(--info-bg)]' : 'border-[var(--warning)]/20 bg-[var(--warning-bg)]'}>
+          <AlertDescription className={isProvider ? 'text-xs text-[var(--info)]' : 'text-xs text-[var(--warning)]'}>
             {isProvider
               ? 'İade İyzico’ya gönderilir. Ledger yalnız sağlayıcının imzalı başarılı cevabından sonra tamamlanır; belirsiz yanıtta tekrar gönderim kilitlenir.'
               : `Bu alan yalnız ${order.payment_method === 'cash' ? 'elden nakit' : 'fiziksel POS'} iadesi gerçekten tamamlandıktan sonra kaydedilmelidir.`}
-          </div>
-          <label style={{ fontSize: 11.5, fontWeight: 600 }}>
-            İade tutarı (₺)
-            <input
-              data-modal-initial-focus
+          </AlertDescription>
+        </Alert>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="refund-order-amount">İade tutarı (₺)</FieldLabel>
+            <Input
+              id="refund-order-amount"
               inputMode="decimal"
               disabled={pending}
               value={amountText}
               onChange={(event) => setAmountText(event.target.value)}
-              style={{ width: '100%', height: 44, marginTop: 5, padding: '0 11px', border: '1px solid var(--border-strong)', borderRadius: 8, boxSizing: 'border-box' }}
+              aria-invalid={amountText.length > 0 && (!Number.isFinite(amount) || amount <= 0 || amount > order.total)}
             />
-          </label>
-          <label style={{ fontSize: 11.5, fontWeight: 600 }}>
-            Gerekçe
-            <input
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="refund-order-reason">Gerekçe</FieldLabel>
+            <Input
+              id="refund-order-reason"
               disabled={pending}
               value={reason}
               maxLength={200}
               onChange={(event) => setReason(event.target.value)}
               placeholder="En az 3 karakter"
-              style={{ width: '100%', height: 44, marginTop: 5, padding: '0 11px', border: '1px solid var(--border-strong)', borderRadius: 8, boxSizing: 'border-box' }}
+              aria-invalid={reason.length > 0 && reason.trim().length < 3}
             />
-          </label>
-        </div>
-        <div style={{ padding: '12px 18px 16px', display: 'flex', gap: 8 }}>
-          <button type="button" disabled={pending} onClick={onClose} style={{ ...btnGhost(), flex: 1, minHeight: 44, justifyContent: 'center' }}>Vazgeç</button>
-          <button
+          </Field>
+        </FieldGroup>
+        <DialogFooter>
+          <Button type="button" variant="outline" disabled={pending} onClick={onClose}>Vazgeç</Button>
+          <Button
             type="button"
             disabled={!valid || pending}
             onClick={() => valid && onConfirm({ amount, reason: reason.trim(), requestId })}
-            style={{ ...btnPrimary(), flex: 1, minHeight: 44, justifyContent: 'center', opacity: valid && !pending ? 1 : 0.5 }}
           >
+            {pending && <Spinner data-icon="inline-start" />}
             {pending ? 'İade işleniyor…' : isProvider ? 'İyzico’ya iade et' : 'İadeyi kaydet'}
-          </button>
-        </div>
-      </div>
-    </AccessibleDialog>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

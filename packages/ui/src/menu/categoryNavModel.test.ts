@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   getActiveCategoryAtLine,
+  getCategoryNavActiveTreatment,
   getCategoryScrollEdges,
   getCenteredCategoryScrollLeft,
 } from './categoryNavModel'
@@ -54,4 +55,17 @@ test('centering stays horizontal and clamps at both strip edges', () => {
 test('scroll edge hints reflect the actual horizontal viewport', () => {
   assert.deepEqual(getCategoryScrollEdges({ scrollLeft: 0, containerWidth: 320, scrollWidth: 800 }), { left: false, right: true })
   assert.deepEqual(getCategoryScrollEdges({ scrollLeft: 480, containerWidth: 320, scrollWidth: 800 }), { left: true, right: false })
+})
+
+test('active category styles map to distinct filled, soft and outline treatments', () => {
+  const filled = getCategoryNavActiveTreatment('filled')
+  const soft = getCategoryNavActiveTreatment('soft')
+  const outline = getCategoryNavActiveTreatment('outline')
+
+  assert.equal(filled.background, 'var(--p-accent)')
+  assert.equal(filled.color, 'var(--p-cta-text)')
+  assert.equal(soft.background, 'var(--p-accent-soft)')
+  assert.equal(soft.color, 'var(--p-accent)')
+  assert.equal(outline.background, 'transparent')
+  assert.equal(outline.borderColor, 'var(--p-accent)')
 })

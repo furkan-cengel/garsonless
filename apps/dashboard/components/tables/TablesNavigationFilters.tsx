@@ -1,7 +1,9 @@
-import React from 'react'
+import { Search } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import type { TableOperationalFilter } from './tables-operation-model'
 import { UNASSIGNED_LOCATION_FILTER } from './tables-operation-model'
-import { TABLES_NAV_ICONS } from './tables-navigation-ui'
 
 type LocationOptions = { values: string[]; hasUnassigned: boolean }
 
@@ -37,44 +39,45 @@ export function TablesNavigationFilters({
   onClearFilters: () => void
 }) {
   return (
-    <div style={{ padding: '10px 12px 4px' }}>
-      <div className="tb-tables__search" style={{ display: 'flex', alignItems: 'center', gap: 6, height: 30, padding: '0 10px', background: 'var(--surface-3)', borderRadius: 7, color: 'var(--text-3)' }}>
-        {React.cloneElement(TABLES_NAV_ICONS.search as React.ReactElement<{ size?: number }>, { size: 13 })}
-        <input
+    <div className="px-3 pt-2.5 pb-1">
+      <InputGroup className="tb-tables__search border-transparent bg-muted/70">
+        <InputGroupInput
           aria-label="Masa ara"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
           placeholder="Masa ara"
-          style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 12.5, color: 'var(--text)' }}
+          className="text-xs"
         />
-      </div>
-      <div className="tb-tables__filters" style={{ display: 'grid', gap: 6, marginTop: 7 }}>
-        <select
+        <InputGroupAddon><Search /></InputGroupAddon>
+      </InputGroup>
+      <div className="tb-tables__filters mt-2 grid gap-1.5">
+        <NativeSelect
           aria-label="Masa durumu"
           value={statusFilter}
           onChange={(event) => onStatusFilterChange(event.target.value as TableOperationalFilter)}
-          style={{ width: '100%', height: 32, border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', padding: '0 8px', fontSize: 11.5 }}
+          className="w-full"
+          size="sm"
         >
-          <option value="all">Tüm durumlar ({tableCount})</option>
-          <option value="late">Gecikiyor ({stateCounts.late})</option>
-          <option value="open">Açık ({stateCounts.open})</option>
-          <option value="new">Yeni açıldı ({stateCounts.new})</option>
-          <option value="empty">Boş ({stateCounts.empty})</option>
-        </select>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-          <select aria-label="Kat filtresi" value={floorFilter} onChange={(event) => onFloorFilterChange(event.target.value)} style={{ width: '100%', minWidth: 0, height: 32, border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', padding: '0 6px', fontSize: 11 }}>
-            <option value="">Tüm katlar</option>
-            {floorOptions.values.map((value) => <option key={value} value={value}>{value}</option>)}
-            {floorOptions.hasUnassigned && <option value={UNASSIGNED_LOCATION_FILTER}>Atanmamış</option>}
-          </select>
-          <select aria-label="Alan filtresi" value={areaFilter} onChange={(event) => onAreaFilterChange(event.target.value)} style={{ width: '100%', minWidth: 0, height: 32, border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface)', color: 'var(--text)', padding: '0 6px', fontSize: 11 }}>
-            <option value="">Tüm alanlar</option>
-            {areaOptions.values.map((value) => <option key={value} value={value}>{value}</option>)}
-            {areaOptions.hasUnassigned && <option value={UNASSIGNED_LOCATION_FILTER}>Atanmamış</option>}
-          </select>
+          <NativeSelectOption value="all">Tüm durumlar ({tableCount})</NativeSelectOption>
+          <NativeSelectOption value="late">Gecikiyor ({stateCounts.late})</NativeSelectOption>
+          <NativeSelectOption value="open">Açık ({stateCounts.open})</NativeSelectOption>
+          <NativeSelectOption value="new">Yeni açıldı ({stateCounts.new})</NativeSelectOption>
+          <NativeSelectOption value="empty">Boş ({stateCounts.empty})</NativeSelectOption>
+        </NativeSelect>
+        <div className="grid grid-cols-2 gap-1.5">
+          <NativeSelect aria-label="Kat filtresi" value={floorFilter} onChange={(event) => onFloorFilterChange(event.target.value)} className="w-full" size="sm">
+            <NativeSelectOption value="">Tüm katlar</NativeSelectOption>
+            {floorOptions.values.map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}
+            {floorOptions.hasUnassigned && <NativeSelectOption value={UNASSIGNED_LOCATION_FILTER}>Atanmamış</NativeSelectOption>}
+          </NativeSelect>
+          <NativeSelect aria-label="Alan filtresi" value={areaFilter} onChange={(event) => onAreaFilterChange(event.target.value)} className="w-full" size="sm">
+            <NativeSelectOption value="">Tüm alanlar</NativeSelectOption>
+            {areaOptions.values.map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}
+            {areaOptions.hasUnassigned && <NativeSelectOption value={UNASSIGNED_LOCATION_FILTER}>Atanmamış</NativeSelectOption>}
+          </NativeSelect>
         </div>
         {filtersActive && (
-          <button type="button" onClick={onClearFilters} style={{ justifySelf: 'start', border: 0, background: 'transparent', color: 'var(--action)', padding: '2px 0', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Filtreleri temizle</button>
+          <Button type="button" variant="link" size="xs" onClick={onClearFilters} className="justify-self-start px-0">Filtreleri temizle</Button>
         )}
       </div>
     </div>

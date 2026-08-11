@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { areModifierSelectionsValid } from '@garsonless/ui/menu'
 import type { CartItem, MenuItem, ModifierGroup, SelectedModifier } from '@garsonless/ui/menu'
 import { canonicalModifierSignature, canonicalRemovalSignature, clampCartQuantity } from './cartIdentity'
 import { menuTenantScopeKey } from '../menu-scope-key'
@@ -99,6 +100,7 @@ export const useCartStore = create<CartState>()(
       setTableId: (tableId) => set((state) => withActiveCartScope(state, { tableId })),
 
       addItem: (item, modifiers, modifierGroups, quantity, originalPrice, removedIngredientIds = [], combo, promotion, productNote, recommendationSourceItemId) => {
+        if (!areModifierSelectionsValid(modifierGroups, modifiers)) return
         const normalizedQuantity = Math.max(1, clampCartQuantity(quantity))
         const modifiersPriceDelta = modifiers.reduce((total, sel) => {
           for (const group of modifierGroups) {

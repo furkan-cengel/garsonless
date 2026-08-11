@@ -29,6 +29,14 @@ test('settlement sheet delegates split and success presentation without infrastr
   assert.doesNotMatch(`${splitSource}\n${successSource}`, /lib\/actions|useState|useEffect|createClient|supabase/i)
 })
 
+test('settlement flow composes shadcn dialog, feedback and payment controls', () => {
+  assert.match(sheetSource, /from '@\/components\/ui\/dialog'/)
+  assert.match(sheetSource, /from '@\/components\/ui\/progress'/)
+  assert.match(sheetSource, /from '@\/components\/ui\/card'/)
+  assert.match(sheetSource, /from '@\/components\/ui\/alert'/)
+  assert.match(successSource, /from '@\/components\/ui\/dialog'/)
+})
+
 test('settlement decomposition budgets keep the orchestration and presentation boundaries reviewable', () => {
   const sheetLines = sheetSource.split('\n').length
   const controllerLines = controllerSource.split('\n').length

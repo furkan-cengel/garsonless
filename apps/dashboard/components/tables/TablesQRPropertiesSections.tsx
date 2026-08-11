@@ -1,7 +1,7 @@
 'use client'
 
-import React from 'react'
-import { AppIconNodes } from '@garsonless/ui/icons'
+import { Link2 } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
 import type { QRConfig, TableItem } from './tables-builder-types'
 import type { QRPropertiesTab, SetQRField } from './use-tables-qr-properties-model'
 import { TablesQRLogoSection } from './TablesQRLogoSection'
@@ -13,7 +13,6 @@ import {
   Field,
   FramePreview,
   Group,
-  MONO_STYLE,
   Segmented,
   Slider,
   StylePicker,
@@ -40,11 +39,11 @@ const EYE_BALL_STYLES = [
   { value: 'dot', label: 'Nokta' },
 ]
 const FRAME_STYLES = [
-  { id: 'none', label: 'Yok' },
-  { id: 'card', label: 'Kart' },
-  { id: 'banner', label: 'Şerit' },
-  { id: 'speech', label: 'Balon' },
-  { id: 'phone', label: 'Telefon' },
+  { value: 'none', label: 'Yok' },
+  { value: 'card', label: 'Kart' },
+  { value: 'banner', label: 'Şerit' },
+  { value: 'speech', label: 'Balon' },
+  { value: 'phone', label: 'Telefon' },
 ]
 
 function ShapeSection({ qr, set }: { qr: QRConfig; set: SetQRField }) {
@@ -98,12 +97,12 @@ function ColorSection({ qr, set }: { qr: QRConfig; set: SetQRField }) {
             <Field label="Açı"><Slider value={qr.gradAngle} min={0} max={360} step={15} onBegin={() => set('gradAngle', qr.gradAngle, 'begin')} onChange={(value, transient) => set('gradAngle', value, transient ? 'replace' : 'push')} suffix="°" /></Field>
           )}
         </>}
-        <div style={{ marginTop: 4 }}><Swatches label="Hazır ön plan renkleri" value={qr.fg} onChange={value => set('fg', value)} options={['#111113', '#a13b7a', '#2f6f4e', '#b8551c', '#1f4e8f', '#0e0e10']} /></div>
+        <div className="mt-1"><Swatches label="Hazır ön plan renkleri" value={qr.fg} onChange={value => set('fg', value)} options={['#111113', '#a13b7a', '#2f6f4e', '#b8551c', '#1f4e8f', '#0e0e10']} /></div>
       </Group>
       <Group title="Arka plan">
         <Field label="Renk"><ColorField value={qr.bg} onChange={value => set('bg', value)} /></Field>
         <Field label="Şeffaf"><Toggle on={qr.bgTransparent} onChange={value => set('bgTransparent', value)} /></Field>
-        <div style={{ marginTop: 4 }}><Swatches label="Hazır arka plan renkleri" value={qr.bg} onChange={value => set('bg', value)} options={['#ffffff', '#fdf6ec', '#eaf3ed', '#fff6ef', '#f3f3f5', '#e7eef8']} /></div>
+        <div className="mt-1"><Swatches label="Hazır arka plan renkleri" value={qr.bg} onChange={value => set('bg', value)} options={['#ffffff', '#fdf6ec', '#eaf3ed', '#fff6ef', '#f3f3f5', '#e7eef8']} /></div>
       </Group>
     </>
   )
@@ -113,20 +112,7 @@ function FrameSection({ qr, set }: { qr: QRConfig; set: SetQRField }) {
   return (
     <>
       <Group title="Çerçeve stili" defaultOpen>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-          {FRAME_STYLES.map(frame => (
-            <button key={frame.id} type="button" aria-pressed={qr.frame === frame.id} onClick={() => set('frame', frame.id)} style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-              minHeight: 72, padding: '12px 6px 8px', cursor: 'pointer',
-              background: qr.frame === frame.id ? 'var(--surface)' : 'var(--surface-2)',
-              border: `1px solid ${qr.frame === frame.id ? 'var(--text)' : 'var(--border)'}`,
-              borderRadius: 8, boxShadow: qr.frame === frame.id ? '0 0 0 3px rgba(17,17,19,.06)' : 'none',
-            }}>
-              <FramePreview kind={frame.id} />
-              <span style={{ fontSize: 11, fontWeight: 500, color: qr.frame === frame.id ? 'var(--text)' : 'var(--text-2)' }}>{frame.label}</span>
-            </button>
-          ))}
-        </div>
+        <StylePicker label="QR çerçeve stili" value={qr.frame} onChange={value => set('frame', value)} options={FRAME_STYLES} renderPreview={kind => <FramePreview kind={kind} />} />
       </Group>
       <Group title="Etiket">
         <Field label="Başlık"><TextInput value={qr.frameTitle} onChange={value => set('frameTitle', value)} placeholder="Menüyü tara" /></Field>
@@ -143,20 +129,9 @@ function DataSection({ qr, set, tables }: { qr: QRConfig; set: SetQRField; table
     <>
       <Group title="Bağlantı">
         <Field label="Menü adresi" hint="Her masa için benzersiz, tahmin edilemez bir bağlantı oluşturulur">
-          <div style={{
-            minHeight: 34, display: 'flex', alignItems: 'center', gap: 7,
-            padding: '7px 9px', border: '1px solid var(--divider)', borderRadius: 6,
-            background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: 12,
-          }}>
-            {React.cloneElement(AppIconNodes.link2 as React.ReactElement<{ size?: number }>, { size: 13 })}
-            <span style={MONO_STYLE}>{qr.baseUrl}</span>
-          </div>
+          <Card size="sm"><CardContent className="flex items-center gap-2 font-mono text-xs text-muted-foreground"><Link2 /> <span className="truncate">{qr.baseUrl}</span></CardContent></Card>
         </Field>
-        <div style={{
-          marginTop: 6, padding: '8px 10px', background: 'var(--surface-2)',
-          border: '1px solid var(--divider)', borderRadius: 6,
-          fontSize: 11, color: 'var(--text-2)', ...MONO_STYLE,
-        }}>Örnek: {qr.baseUrl}/table/{exampleTableId}</div>
+        <Card size="sm" className="mt-2"><CardContent className="break-all font-mono text-xs text-muted-foreground">Örnek: {qr.baseUrl}/table/{exampleTableId}</CardContent></Card>
       </Group>
       <Group title="UTM parametreleri" defaultOpen={false}>
         <Field label="Kaynak"><TextInput value={qr.utmSource} onChange={value => set('utmSource', value)} placeholder="qr" /></Field>

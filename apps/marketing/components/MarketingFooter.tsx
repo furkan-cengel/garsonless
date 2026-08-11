@@ -1,4 +1,3 @@
-import { MI } from '../lib/icons'
 import Image from 'next/image'
 
 const COLS = [
@@ -46,16 +45,6 @@ export function MarketingFooter() {
             <p style={{ fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.6, maxWidth: 280, margin: 0 }}>
               Türk gastronomisi için tasarlandı.<br />Mekanınız ister kafe ister fine-dining — biz oradayız.
             </p>
-            <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
-              {([<MI.ig key="ig" size={16} />, <MI.tw key="tw" size={16} />, <MI.lk key="lk" size={16} />]).map((ic, i) => (
-                <a key={i} href="#" style={{
-                  width: 36, height: 36, borderRadius: 999,
-                  background: 'var(--surface)', border: '1px solid var(--line)',
-                  color: 'var(--ink-2)',
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                }}>{ic}</a>
-              ))}
-            </div>
           </div>
 
           {COLS.map((col) => (
@@ -87,7 +76,7 @@ export function MarketingFooter() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--ink-3)' }}>
             <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--positive)' }} />
-            Tüm sistemler operasyonel
+            Masabu · Restoran teknolojileri
           </div>
         </div>
       </div>

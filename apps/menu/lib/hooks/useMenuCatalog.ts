@@ -1,24 +1,24 @@
 'use client'
 
 import { useMemo } from 'react'
-import { itemMatchesDietaryFilters } from '@garsonless/ui/menu'
-import type { CartItem, DietaryFilter, MenuCategory, MenuItem } from '@garsonless/ui/menu'
+import { itemMatchesMenuFilters } from '@garsonless/ui/menu'
+import type { CartItem, MenuCategory, MenuFilterDefinition, MenuItem } from '@garsonless/ui/menu'
 
 export function useMenuCatalog({
   items,
   categories,
-  dietaryFilters,
+  menuFilters,
   cartItems,
 }: {
   items: MenuItem[]
   categories: MenuCategory[]
-  dietaryFilters: DietaryFilter[]
+  menuFilters: MenuFilterDefinition[]
   cartItems: CartItem[]
 }) {
   return useMemo(() => {
-    const filteredItems = dietaryFilters.length === 0
+    const filteredItems = menuFilters.length === 0
       ? items
-      : items.filter((item) => itemMatchesDietaryFilters(item, dietaryFilters))
+      : items.filter((item) => itemMatchesMenuFilters(item, menuFilters))
     const visibleIds = new Set(filteredItems.map((item) => item.category_id))
     let changed = true
     while (changed) {
@@ -80,5 +80,5 @@ export function useMenuCatalog({
       cartQuantityByItemId,
       cartSummary,
     }
-  }, [cartItems, categories, dietaryFilters, items])
+  }, [cartItems, categories, items, menuFilters])
 }

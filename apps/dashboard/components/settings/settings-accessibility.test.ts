@@ -16,17 +16,70 @@ const unsavedDialog = source('../overlays/UnsavedChangesDialog.tsx')
 const modalFocus = source('../overlays/use-modal-dialog-focus.ts')
 const iconRail = source('../layout/IconRail.tsx')
 const advanced = source('AdvancedSections.tsx')
+const account = source('AccountSections.tsx')
+const business = source('BusinessSections.tsx')
 const settingsPage = source('../../app/dashboard/[restaurantId]/settings/page.tsx')
 
 test('settings navigation exposes the canonical current section', () => {
   assert.match(settingsForm, /aria-current=\{active \? 'page' : undefined\}/)
 })
 
-test('shared form rows associate labels and hint descriptions with native controls', () => {
-  for (const component of [settingsForm, primitives]) {
-    assert.match(component, /<label htmlFor=\{controlId\}/)
-    assert.match(component, /'aria-describedby'/)
-  }
+test('shared shadcn form rows associate labels and hint descriptions with controls', () => {
+  assert.match(settingsForm, /<FormRow label="Mağaza adı"/)
+  assert.match(settingsForm, /<Input[\s\S]*value=\{name\}/)
+  assert.match(primitives, /<Field orientation="horizontal"/)
+  assert.match(primitives, /<FieldLabel htmlFor=\{controlId\}/)
+  assert.match(primitives, /<FieldDescription id=\{hintId\}/)
+  assert.match(primitives, /'aria-describedby'/)
+})
+
+test('shared settings surfaces compose shadcn cards and switches', () => {
+  assert.match(primitives, /<Card size="sm"/)
+  assert.match(primitives, /<CardHeader/)
+  assert.match(primitives, /<CardTitle>/)
+  assert.match(primitives, /<CardDescription>/)
+  assert.match(primitives, /<CardContent/)
+  assert.match(primitives, /<CardFooter/)
+  assert.match(primitives, /<Switch[\s\S]*checked=\{on\}/)
+  assert.match(settingsForm, /variant=\{active \? 'secondary' : 'ghost'\}/)
+  assert.match(settingsForm, /<Alert variant="destructive"/)
+  assert.match(settingsForm, /<Attachment[\s\S]*state=\{isLogoPending \? 'uploading'/)
+  assert.match(settingsForm, /orientation="vertical"[\s\S]*className="size-32 shrink-0 overflow-hidden p-0!"/)
+  assert.match(settingsForm, /className="size-full! rounded-none! bg-background"/)
+  assert.match(settingsForm, /className="size-full object-cover!"/)
+  assert.doesNotMatch(settingsForm, /className="size-full object-contain!"/)
+  assert.match(settingsForm, /className="w-fit"[\s\S]*Logoyu değiştir/)
+  assert.doesNotMatch(settingsForm, /<AttachmentTrigger/)
+  assert.match(settingsForm, /disabled=\{isPending \|\| !identityDirty\}/)
+  assert.match(account, /<Avatar className="size-16"/)
+  assert.match(account, /<Input value=\{fullName\}/)
+  assert.match(advanced, /<Alert className="mb-5"/)
+  assert.match(advanced, /<Input type="password"/)
+  assert.match(hours, /<Input value=\{company\}/)
+})
+
+test('payment settings compose shadcn provider, method, form, and confirmation primitives', () => {
+  assert.match(business, /<Card size="sm" className="gap-0 py-0">/)
+  assert.match(business, /<Badge variant="positive">Bağlandı<\/Badge>/)
+  assert.match(business, /<ItemGroup className="gap-0">/)
+  assert.match(business, /<ItemMedia variant="icon"/)
+  assert.match(business, /<Input[\s\S]*value=\{apiKey\}/)
+  assert.match(business, /<ToggleGroup[\s\S]*value=\{\[mode\]\}/)
+  assert.match(business, /<AlertDialog[\s\S]*<AlertDialogTitle>/)
+  assert.match(business, /<AlertDialogAction[\s\S]*variant=\{confirming === 'delete' \? 'destructive' : 'default'\}/)
+})
+
+test('notification settings compose accessible shadcn controls and grouped fields', () => {
+  assert.match(business, /<CardTitle>Bildirimler<\/CardTitle>/)
+  assert.match(business, /notification-\$\{row\.key\}/)
+  assert.match(business, /<Switch[\s\S]*checked=\{prefs\[row\.key\]\}/)
+  assert.match(business, /<FieldSet>[\s\S]*<FieldLegend[\s\S]*Yeni sipariş sesi[\s\S]*<\/FieldLegend>/)
+  assert.match(business, /<SelectGroup>[\s\S]*<SelectItem value="classic">Klasik<\/SelectItem>/)
+  assert.match(business, /<Slider[\s\S]*aria-label="Yeni sipariş ses seviyesi"/)
+  assert.match(business, /<Input[\s\S]*id="late-threshold"/)
+  assert.match(business, /<AlertTitle>Bildirim teslimatı<\/AlertTitle>/)
+  assert.doesNotMatch(business, /<input[\s\S]*type="range"/)
+  assert.doesNotMatch(business, /<select/)
 })
 
 test('settings controls stay compact on desktop while coarse pointers retain safe targets', () => {
@@ -36,6 +89,14 @@ test('settings controls stay compact on desktop while coarse pointers retain saf
   assert.match(styles, /@media \(pointer: coarse\)[\s\S]*min-width: 44px/)
   assert.match(styles, /@media \(max-width: 760px\)[\s\S]*min-height: 44px/)
   assert.match(styles, /input\[type='range'\]/)
+  assert.match(styles, /\[data-slot='switch'\][\s\S]*min-width: 32px !important/)
+  assert.match(styles, /\[data-slot='switch'\][\s\S]*min-height: 18\.4px !important/)
+})
+
+test('settings navigation keeps two-line items separated and selected state visible', () => {
+  assert.match(styles, /\.navGroup \{[\s\S]*gap: 4px/)
+  assert.match(styles, /\.navRow \{[\s\S]*height: auto[\s\S]*min-height: 48px/)
+  assert.match(styles, /\.navRowActive,[\s\S]*box-shadow: inset 2px 0 0 var\(--text\)/)
 })
 
 test('settings buttons and fields expose consistent hover and focus feedback', () => {

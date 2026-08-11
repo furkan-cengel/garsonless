@@ -20,9 +20,15 @@ export { ProductCard } from './ProductCard'
 export { ProductModal } from './ProductModal'
 export type { ProductModalSubmitOptions, ProductRecommendationSelection } from './ProductModal'
 export { hasConfigurableModifierGroups, isProductConfigurable } from './productConfiguration'
+export {
+  areModifierSelectionsValid,
+  getModifierGroupMinimum,
+  getModifierGroupSelectionCount,
+  isModifierGroupSelectionValid,
+} from './modifierSelectionValidation'
 export { AllergenIcon, AllergenIconList, AllergenSummary, ProductAllergenSummary, getDefiniteAllergens, hasAllergenInformation, sortAllergenCodes } from './FoodInfoBadges'
-export { DietaryFilterBar, itemMatchesDietaryFilters } from './DietaryFilterBar'
-export type { DietaryFilter } from './DietaryFilterBar'
+export { DietaryFilterBar, itemMatchesDietaryFilters, itemMatchesMenuFilters, resolveMenuFilterDefinitions } from './DietaryFilterBar'
+export type { DietaryFilter, MenuFilterDefinition } from './DietaryFilterBar'
 export type {
   CartItem,
   MenuCategory,

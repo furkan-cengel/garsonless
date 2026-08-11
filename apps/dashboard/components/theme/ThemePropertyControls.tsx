@@ -1,9 +1,22 @@
 "use client";
 
-import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { SettingField } from "@garsonless/ui/themes";
+import { ChevronDown } from "lucide-react";
 
 import { I } from "../../lib/ui";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Field, FieldError, FieldLabel, FieldTitle } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { cn } from "@/lib/utils";
 import {
   CardLayoutOptionIcon,
   ThemeEditorControlIcon,
@@ -15,30 +28,7 @@ import { LayoutOptionIcon } from "./LayoutOptionIcon";
 import { NavigationOptionIcon } from "./NavigationOptionIcon";
 import { sanitizePropertyControlId } from "./theme-property-renderer-model";
 
-export const THEME_PROPERTY_CONTROL_CSS = `
-  [data-modern-property-panel] .header-modern-range {
-    width: 100%; height: 20px; margin: 0; appearance: none; -webkit-appearance: none;
-    background: transparent; cursor: pointer;
-  }
-  [data-modern-property-panel] .header-modern-range::-webkit-slider-runnable-track {
-    height: 4px; border-radius: 999px; background: #dedfe2;
-  }
-  [data-modern-property-panel] .header-modern-range::-webkit-slider-thumb {
-    appearance: none; -webkit-appearance: none; width: 16px; height: 16px;
-    margin-top: -6px; border: 3px solid #fff; border-radius: 50%;
-    background: #111318; box-shadow: 0 1px 4px rgba(17,19,24,.28);
-  }
-  [data-modern-property-panel] .header-modern-range::-moz-range-track {
-    height: 4px; border-radius: 999px; background: #dedfe2;
-  }
-  [data-modern-property-panel] .header-modern-range::-moz-range-thumb {
-    width: 12px; height: 12px; border: 3px solid #fff; border-radius: 50%;
-    background: #111318; box-shadow: 0 1px 4px rgba(17,19,24,.28);
-  }
-  [data-modern-property-panel] .header-modern-range:focus-visible {
-    outline: 2px solid #111318; outline-offset: 3px; border-radius: 999px;
-  }
-`;
+export const THEME_PROPERTY_CONTROL_CSS = ``;
 
 export function ThemeColorField({
   field,
@@ -52,70 +42,39 @@ export function ThemeColorField({
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   const valid = /^#[0-9a-fA-F]{6}$/.test(draft);
+  const controlId = `theme-field-${sanitizePropertyControlId(field.id)}`;
   return (
-    <div>
-      <label
-        style={{
-          display: "block",
-          marginBottom: 6,
-          fontSize: 12.5,
-          color: "var(--text-2)",
-        }}
-      >
+    <Field data-invalid={!valid} className="gap-1.5">
+      <FieldLabel htmlFor={controlId}>
         {field.label}
-      </label>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "38px minmax(0,1fr)",
-          border: `1px solid ${valid ? "var(--border)" : "#d92d20"}`,
-          borderRadius: 8,
-          overflow: "hidden",
-          background: "#fff",
-        }}
-      >
-        <input
-          aria-label={`${field.label} renk seçici`}
-          type="color"
-          value={valid ? draft : "#000000"}
-          onChange={(event) => {
-            setDraft(event.target.value);
-            onChange(event.target.value);
-          }}
-          style={{
-            width: 38,
-            height: 34,
-            padding: 2,
-            border: 0,
-            background: "#fff",
-            cursor: "pointer",
-          }}
-        />
-        <input
-          aria-label={`${field.label} hex değeri`}
+      </FieldLabel>
+      <InputGroup>
+        <InputGroupAddon className="border-r px-1.5">
+          <input
+            aria-label={`${field.label} renk seçici`}
+            type="color"
+            value={valid ? draft : "#000000"}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              onChange(event.target.value);
+            }}
+            className="size-6 cursor-pointer rounded border-0 bg-transparent p-0"
+          />
+        </InputGroupAddon>
+        <InputGroupInput
+          id={controlId}
+          aria-invalid={!valid}
           value={draft}
           onChange={(event) => {
             const next = event.target.value;
             setDraft(next);
             if (/^#[0-9a-fA-F]{6}$/.test(next)) onChange(next);
           }}
-          style={{
-            minWidth: 0,
-            border: 0,
-            borderLeft: "1px solid var(--border)",
-            padding: "0 9px",
-            fontFamily: "monospace",
-            fontSize: 12,
-            outline: 0,
-          }}
+          className="font-mono"
         />
-      </div>
-      {!valid && (
-        <div style={{ marginTop: 4, color: "#b42318", fontSize: 10.5 }}>
-          Geçerli format: #RRGGBB
-        </div>
-      )}
-    </div>
+      </InputGroup>
+      {!valid && <FieldError>Geçerli format: #RRGGBB</FieldError>}
+    </Field>
   );
 }
 
@@ -136,24 +95,34 @@ export function HeaderPropertyField({
     "servicePlacement",
   ].includes(field.id);
   if (segmentedSelect) {
+    const options = field.options ?? [];
     return (
-      <div>
-        <div style={{ marginBottom: 7, fontSize: 12.5, color: "var(--text-2)" }}>{field.label}</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, padding: 3, borderRadius: 10, background: "var(--surface-3)" }}>
-          {field.options?.map((option) => {
-            const active = value === option.value;
+      <Field className="gap-1.5">
+        <FieldTitle id={`${controlId}-label`}>{field.label}</FieldTitle>
+        <ToggleGroup
+          data-theme-action-placement-options
+          value={[String(value)]}
+          onValueChange={(values) => { const next = values[0]; if (next) onChange(next) }}
+          variant="outline"
+          size="sm"
+          spacing={1}
+          className={cn(
+            "grid w-full items-stretch",
+            options.length > 3 ? "grid-cols-2" : "grid-cols-3",
+          )}
+          aria-labelledby={`${controlId}-label`}
+        >
+          {options.map((option) => {
             return (
-              <button
+              <ToggleGroupItem
                 key={option.value}
-                type="button"
-                aria-pressed={active}
-                onClick={() => onChange(option.value)}
-                style={{ minHeight: 34, flex: "1 1 76px", padding: "0 8px", borderRadius: 8, border: active ? "1px solid var(--border-strong)" : "1px solid transparent", background: active ? "var(--surface)" : "transparent", color: active ? "var(--text)" : "var(--text-2)", boxShadow: active ? "0 1px 2px rgba(20,25,31,.08)" : "none", fontSize: 11, fontWeight: active ? 750 : 600, cursor: "pointer" }}
-              >{option.label}</button>
+                value={String(option.value)}
+                className="h-auto min-h-8 min-w-0 whitespace-normal px-1.5 py-1 text-center leading-tight"
+              >{option.label}</ToggleGroupItem>
             );
           })}
-        </div>
-      </div>
+        </ToggleGroup>
+      </Field>
     );
   }
   const tiledSelect =
@@ -191,60 +160,26 @@ export function HeaderPropertyField({
     ].includes(field.id);
   if (tiledSelect) {
     return (
-      <div>
-        <div
-          style={{ marginBottom: 7, fontSize: 12.5, color: "var(--text-2)" }}
-        >
-          {field.label}
-        </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: `repeat(${Math.min(field.options?.length ?? 1, 3)}, minmax(0, 1fr))`,
-            gap: 7,
-            minWidth: 0,
-          }}
-        >
+      <Field className="gap-1.5">
+        <FieldLabel>{field.label}</FieldLabel>
+        <ToggleGroup value={[String(value)]} onValueChange={(values) => { const next = values[0]; if (next) onChange(next) }} size="sm" spacing={1} className="grid w-full grid-cols-3" aria-label={field.label}>
           {field.options?.map((option) => {
-            const active = value === option.value;
             return (
-              <button
+              <ToggleGroupItem
                 key={String(option.value)}
-                type="button"
-                aria-pressed={active}
-                onClick={() => onChange(option.value)}
-                style={{
-                  minHeight: 54,
-                  padding: "7px 5px",
-                  minWidth: 0,
-                  border: active
-                    ? "1.5px solid #111318"
-                    : "1px solid var(--border)",
-                  borderRadius: 9,
-                  background: active ? "#f1f2f3" : "#fff",
-                  color: active ? "#111318" : "var(--text-2)",
-                  cursor: "pointer",
-                  fontSize: 11.5,
-                  fontWeight: active ? 700 : 550,
-                }}
+                value={String(option.value)}
+                variant="outline"
+                className="h-auto min-h-11 min-w-0 flex-col gap-0.5 py-1.5"
               >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    marginBottom: 5,
-                    lineHeight: 1,
-                  }}
-                >
+                <span aria-hidden="true" className="flex justify-center leading-none">
                   {headerOptionIcon(field.id, String(option.value))}
                 </span>
                 {option.label}
-              </button>
+              </ToggleGroupItem>
             );
           })}
-        </div>
-      </div>
+        </ToggleGroup>
+      </Field>
     );
   }
   if (field.id === "headerHeight") {
@@ -256,144 +191,79 @@ export function HeaderPropertyField({
     ];
     const customHeight = !presets.some((preset) => preset.value === height);
     return (
-      <div>
-        <div
-          style={{
-            marginBottom: 7,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-            fontSize: 12.5,
-            color: "var(--text-2)",
-          }}
-        >
-          <span>Header yüksekliği</span>
+      <Field className="gap-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <FieldTitle id={`${controlId}-label`}>Header yüksekliği</FieldTitle>
           {customHeight && (
-            <span
-              style={{
-                padding: "2px 6px",
-                borderRadius: 999,
-                background: "#f1f2f3",
-                color: "#111318",
-                fontSize: 10.5,
-                fontWeight: 700,
-              }}
-            >
+            <Badge variant="secondary">
               Özel · {height}px
-            </span>
+            </Badge>
           )}
         </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 7,
-            marginBottom: 9,
-          }}
-        >
+        <ToggleGroup value={[String(height)]} onValueChange={(values) => { const next = values[0]; if (next) onChange(Number(next)) }} size="sm" spacing={1} className="mb-1.5 grid w-full grid-cols-3" aria-label="Header yüksekliği hazır değerleri">
           {presets.map((preset) => {
-            const active = height === preset.value;
             return (
-              <button
+              <ToggleGroupItem
                 key={preset.value}
-                type="button"
-                aria-pressed={active}
-                onClick={() => onChange(preset.value)}
-                style={{
-                  height: 48,
-                  borderRadius: 9,
-                  cursor: "pointer",
-                  border: active
-                    ? "1.5px solid #111318"
-                    : "1px solid var(--border)",
-                  background: active ? "#f1f2f3" : "#fff",
-                  color: active ? "#111318" : "var(--text-2)",
-                  fontSize: 11.5,
-                }}
+                value={String(preset.value)}
+                variant="outline"
+                className="h-11 min-w-0 flex-col gap-0"
               >
-                <strong style={{ display: "block" }}>{preset.label}</strong>
+                <strong>{preset.label}</strong>
                 {preset.value}px
-              </button>
+              </ToggleGroupItem>
             );
           })}
-        </div>
+        </ToggleGroup>
         <HeaderRangeControl
           field={field}
           value={height}
           onChange={onChange}
           controlId={controlId}
         />
-      </div>
+      </Field>
     );
   }
   if (field.type === "toggle")
     return (
-      <div
-        style={{
-          minWidth: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-        }}
-      >
-        <label
-          htmlFor={controlId}
-          style={{ minWidth: 0, fontSize: 12.5, color: "var(--text-2)" }}
-        >
+      <Field orientation="horizontal" className="gap-2">
+        <FieldLabel htmlFor={controlId}>
           {field.label}
-        </label>
+        </FieldLabel>
         <HeaderToggleControl
           controlId={controlId}
           value={Boolean(value)}
           onChange={onChange}
           label={field.label}
         />
-      </div>
+      </Field>
     );
   if (field.type === "range")
     return (
-      <div style={{ minWidth: 0 }}>
-        <label
-          htmlFor={controlId}
-          style={{
-            display: "block",
-            marginBottom: 7,
-            fontSize: 12.5,
-            color: "var(--text-2)",
-          }}
-        >
+      <Field className="gap-1.5">
+        <FieldLabel htmlFor={controlId}>
           {field.label}
-        </label>
+        </FieldLabel>
         <HeaderRangeControl
           field={field}
           value={Number(value ?? field.default ?? 0)}
           onChange={onChange}
           controlId={controlId}
         />
-      </div>
+      </Field>
     );
   return (
-    <div style={{ minWidth: 0 }}>
-      <label
-        htmlFor={controlId}
-        style={{
-          display: "block",
-          marginBottom: 7,
-          fontSize: 12.5,
-          color: "var(--text-2)",
-        }}
-      >
+    <Field className="gap-1.5">
+      <FieldLabel htmlFor={controlId}>
         {field.label}
-      </label>
+      </FieldLabel>
       <PropertyControl
         field={field}
         value={value}
         onChange={onChange}
         controlId={controlId}
       />
-    </div>
+    </Field>
   );
 }
 
@@ -413,76 +283,44 @@ function HeaderRangeControl({
   const step = field.step ?? 1;
   const clamp = (next: number) => Math.min(max, Math.max(min, next));
   return (
-    <div
-      style={{
-        minWidth: 0,
-        display: "grid",
-        gridTemplateColumns: "28px minmax(0,1fr) 50px 28px",
-        alignItems: "center",
-        gap: 6,
-      }}
-    >
-      <button
-        type="button"
-        aria-label={`${field.label} azalt`}
-        onClick={() => onChange(clamp(value - step))}
-        disabled={value <= min}
-        style={headerRangeStepButtonStyle}
-      >
-        <ThemeEditorControlIcon name="minus" size={18} />
-      </button>
-      <input
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+      <Slider
         id={controlId}
-        className="header-modern-range"
-        type="range"
         min={min}
         max={max}
         step={step}
         value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
+        onValueChange={(next) => onChange(Array.isArray(next) ? next[0] ?? value : next)}
+        aria-label={field.label}
       />
-      <output
-        htmlFor={controlId}
-        style={{
-          height: 30,
-          border: "1px solid var(--border)",
-          borderRadius: 8,
-          background: "#fff",
-          color: "#111318",
-          display: "grid",
-          placeItems: "center",
-          fontSize: 12,
-          fontVariantNumeric: "tabular-nums",
-        }}
-      >
-        {value}
-        {field.unit ?? ""}
-      </output>
-      <button
-        type="button"
-        aria-label={`${field.label} artır`}
-        onClick={() => onChange(clamp(value + step))}
-        disabled={value >= max}
-        style={headerRangeStepButtonStyle}
-      >
-        <ThemeEditorControlIcon name="plus" size={18} />
-      </button>
+      <ButtonGroup aria-label={`${field.label} hassas ayarı`}>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          aria-label={`${field.label} azalt`}
+          onClick={() => onChange(clamp(value - step))}
+          disabled={value <= min}
+        >
+          <ThemeEditorControlIcon name="minus" />
+        </Button>
+        <ButtonGroupText render={<output htmlFor={controlId} className="min-w-12 justify-center tabular-nums" />}>
+          {value}{field.unit ?? ""}
+        </ButtonGroupText>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          aria-label={`${field.label} artır`}
+          onClick={() => onChange(clamp(value + step))}
+          disabled={value >= max}
+        >
+          <ThemeEditorControlIcon name="plus" />
+        </Button>
+      </ButtonGroup>
     </div>
   );
 }
-
-const headerRangeStepButtonStyle: CSSProperties = {
-  width: 28,
-  height: 28,
-  padding: 0,
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  background: "#fff",
-  color: "#111318",
-  cursor: "pointer",
-  fontSize: 16,
-  lineHeight: 1,
-};
 
 function HeaderToggleControl({
   controlId,
@@ -496,40 +334,12 @@ function HeaderToggleControl({
   label: string;
 }) {
   return (
-    <button
+    <Switch
       id={controlId}
-      type="button"
-      role="switch"
-      aria-checked={value}
+      checked={value}
       aria-label={label}
-      onClick={() => onChange(!value)}
-      style={{
-        width: 38,
-        height: 22,
-        padding: 0,
-        border: "1px solid #d7d9dd",
-        borderRadius: 999,
-        background: value ? "#111318" : "#e7e8eb",
-        position: "relative",
-        cursor: "pointer",
-        flexShrink: 0,
-        transition: "background 150ms, border-color 150ms",
-      }}
-    >
-      <span
-        style={{
-          position: "absolute",
-          top: 2,
-          left: value ? 18 : 2,
-          width: 16,
-          height: 16,
-          borderRadius: "50%",
-          background: "#fff",
-          boxShadow: "0 1px 3px rgba(17,19,24,.22)",
-          transition: "left 150ms",
-        }}
-      />
-    </button>
+      onCheckedChange={onChange}
+    />
   );
 }
 
@@ -616,47 +426,16 @@ export function PropertySection({
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const sectionId = useId();
-  const contentId = `${sectionId}-content`;
   return (
-    <div style={{ borderBottom: "1px solid var(--divider)" }}>
-      <h3 style={{ margin: 0 }}>
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={contentId}
-          onClick={() => setOpen((o) => !o)}
-          style={{
-            width: "100%",
-            height: 44,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "0 16px",
-            border: "none",
-            background: "transparent",
-            cursor: "pointer",
-          }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 750, color: "var(--text)" }}>
-            {title}
-          </span>
-          <span
-            aria-hidden="true"
-            style={{
-              color: "var(--text-3)",
-              transform: open ? "rotate(0deg)" : "rotate(-90deg)",
-              transition: "transform 120ms",
-            }}
-          >
-            <ThemeEditorControlIcon name="menu" size={17} />
-          </span>
-        </button>
+    <Collapsible open={open} onOpenChange={setOpen} className="border-b">
+      <h3 className="m-0">
+        <CollapsibleTrigger render={<Button type="button" variant="ghost" size="sm" className="h-9 w-full justify-between rounded-none px-3" />}>
+          <span>{title}</span>
+          <ChevronDown className={open ? undefined : "-rotate-90"} />
+        </CollapsibleTrigger>
       </h3>
-      <div id={contentId} hidden={!open} style={{ padding: open ? "0 16px 16px" : 0 }}>
-        {open ? children : null}
-      </div>
-    </div>
+      <CollapsibleContent className="px-3 pb-3">{children}</CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -671,32 +450,20 @@ export function PropertyFieldEditor({
 }) {
   const controlId = `theme-field-${sanitizePropertyControlId(field.id)}`;
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "96px 1fr",
-        alignItems: field.type === "toggle" ? "center" : "start",
-        gap: 10,
-        minHeight: 32,
-      }}
-    >
-      <label
+    <Field orientation="horizontal" className="min-h-8 grid-cols-[96px_minmax(0,1fr)] items-start">
+      <FieldLabel
         htmlFor={controlId}
-        style={{
-          paddingTop: field.type === "toggle" ? 0 : 6,
-          fontSize: 12.5,
-          color: "var(--text-2)",
-        }}
+        className={field.type === "toggle" ? undefined : "pt-1.5"}
       >
         {field.label}
-      </label>
+      </FieldLabel>
       <PropertyControl
         field={field}
         value={value}
         onChange={onChange}
         controlId={controlId}
       />
-    </div>
+    </Field>
   );
 }
 
@@ -713,78 +480,37 @@ function PropertyControl({
 }) {
   if (field.type === "color")
     return (
-      <div
-        style={{
-          height: 32,
-          display: "flex",
-          alignItems: "center",
-          border: "1px solid var(--border-strong)",
-          borderRadius: 7,
-          overflow: "hidden",
-          background: "var(--surface)",
-        }}
-      >
-        <input
-          id={`${controlId}-color`}
-          type="color"
-          value={value as string}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            width: 34,
-            height: 32,
-            border: "none",
-            padding: 0,
-            background: "transparent",
-            cursor: "pointer",
-          }}
-        />
-        <input
+      <InputGroup>
+        <InputGroupAddon className="border-r px-1.5">
+          <input
+            id={`${controlId}-color`}
+            type="color"
+            value={value as string}
+            onChange={(e) => onChange(e.target.value)}
+            aria-label={`${field.label} renk seçici`}
+            className="size-6 cursor-pointer rounded border-0 bg-transparent p-0"
+          />
+        </InputGroupAddon>
+        <InputGroupInput
           id={controlId}
           type="text"
           value={value as string}
           onChange={(e) => onChange(e.target.value)}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            height: "100%",
-            border: "none",
-            outline: "none",
-            borderLeft: "1px solid var(--border-strong)",
-            padding: "0 9px",
-            fontSize: 12.5,
-            color: "var(--text)",
-            background: "transparent",
-          }}
+          className="font-mono"
         />
-      </div>
+      </InputGroup>
     );
   if (field.type === "range" && field.themeField === "cols") {
     const numVal = Number(value || 2);
     return (
-      <div style={{ display: "flex", gap: 6 }}>
+      <ToggleGroup value={[String(numVal)]} onValueChange={(values) => { const next = values[0]; if (next) onChange(Number(next)) }} variant="outline" spacing={2} className="grid w-full grid-cols-3" aria-label={field.label}>
         {([1, 2, 3] as const).map((col) => {
-          const active = numVal === col;
           return (
-            <button
+            <ToggleGroupItem
               key={col}
-              type="button"
+              value={String(col)}
               title={`${col} sütun`}
-              onClick={() => onChange(col)}
-              style={{
-                flex: 1,
-                height: 44,
-                border: active
-                  ? "2px solid var(--accent)"
-                  : "1.5px solid var(--border)",
-                borderRadius: 9,
-                background: active ? "var(--accent-soft)" : "var(--surface-2)",
-                color: active ? "var(--accent)" : "var(--text-3)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                transition: "border-color 120ms, background 120ms, color 120ms",
-              }}
+              className="h-11 min-w-0"
             >
               <svg width="28" height="22" viewBox="0 0 28 22" fill="none">
                 {col === 1 && (
@@ -852,10 +578,10 @@ function PropertyControl({
                   </>
                 )}
               </svg>
-            </button>
+            </ToggleGroupItem>
           );
         })}
-      </div>
+      </ToggleGroup>
     );
   }
   if (field.type === "range") {
@@ -863,134 +589,53 @@ function PropertyControl({
     const parsed = Number(value ?? fallback);
     const numVal = Number.isFinite(parsed) ? parsed : Number(fallback) || 0;
     return (
-      <div
-        style={{ display: "flex", alignItems: "center", gap: 10, height: 32 }}
-      >
-        <input
+      <div className="flex h-8 items-center gap-2.5">
+        <Slider
           id={controlId}
-          type="range"
           min={field.min}
           max={field.max}
           step={field.step}
           value={numVal}
-          onChange={(e) => onChange(Number(e.target.value))}
-          style={{ flex: 1, accentColor: "var(--text)" }}
+          onValueChange={(next) => onChange(Array.isArray(next) ? next[0] ?? numVal : next)}
+          aria-label={field.label}
+          className="flex-1"
         />
-        <span
-          style={{
-            minWidth: 46,
-            textAlign: "right",
-            border: "1px solid var(--border)",
-            borderRadius: 6,
-            padding: "3px 6px",
-            color: "var(--text-2)",
-            fontSize: 12,
-          }}
-        >
+        <Badge variant="outline" className="min-w-12 justify-center tabular-nums">
           {numVal}
           {field.unit ?? ""}
-        </span>
+        </Badge>
       </div>
     );
   }
   if (field.type === "toggle") {
     const boolVal = Boolean(value);
     return (
-      <button
-        type="button"
+      <Switch
         id={controlId}
-        role="switch"
-        aria-checked={boolVal}
-        onClick={() => onChange(!boolVal)}
-        style={{
-          width: 38,
-          height: 22,
-          justifySelf: "start",
-          borderRadius: 999,
-          border: "none",
-          background: boolVal ? "var(--text)" : "var(--surface-3)",
-          position: "relative",
-          cursor: "pointer",
-        }}
-      >
-        <span
-          style={{
-            position: "absolute",
-            top: 3,
-            left: boolVal ? 19 : 3,
-            width: 16,
-            height: 16,
-            borderRadius: "50%",
-            background: "#fff",
-            boxShadow: "0 1px 3px rgba(0,0,0,.2)",
-            transition: "left 150ms",
-          }}
-        />
-      </button>
+        checked={boolVal}
+        onCheckedChange={onChange}
+        aria-label={field.label}
+      />
     );
   }
-  if (field.type === "select" || field.type === "font")
+  if (field.type === "select" || field.type === "font") {
+    const items = (field.options ?? []).map((option) => ({ label: option.label, value: String(option.value) }));
     return (
-      <span style={{ position: "relative", display: "block", minWidth: 0 }}>
-        <select
-          id={controlId}
-          value={value as string}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            width: "100%",
-            height: 32,
-            appearance: "none",
-            borderRadius: 7,
-            border: "1px solid var(--border-strong)",
-            background: "var(--surface)",
-            color: "var(--text)",
-            fontSize: 12.5,
-            padding: "0 32px 0 9px",
-            cursor: "pointer",
-          }}
-        >
-          {(field.options ?? []).map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        <span
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            top: "50%",
-            right: 8,
-            display: "grid",
-            placeItems: "center",
-            color: "var(--text-2)",
-            pointerEvents: "none",
-            transform: "translateY(-50%)",
-          }}
-        >
-          <ThemeEditorControlIcon name="down" size={16} />
-        </span>
-      </span>
+      <Select items={items} value={String(value ?? "")} onValueChange={(next) => { if (next != null) onChange(next) }}>
+        <SelectTrigger id={controlId} className="w-full"><SelectValue /></SelectTrigger>
+        <SelectContent><SelectGroup>{(field.options ?? []).map((opt) => (
+          <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+        ))}</SelectGroup></SelectContent>
+      </Select>
     );
+  }
   if (field.type === "text")
     return (
-      <input
+      <Input
         id={controlId}
         type="text"
         value={(value as string | undefined) ?? ""}
         onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: "100%",
-          minWidth: 0,
-          height: 32,
-          borderRadius: 7,
-          border: "1px solid var(--border-strong)",
-          background: "var(--surface)",
-          color: "var(--text)",
-          fontSize: 12.5,
-          padding: "0 9px",
-          outline: "none",
-        }}
       />
     );
   return null;

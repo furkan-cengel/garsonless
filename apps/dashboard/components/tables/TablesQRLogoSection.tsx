@@ -1,10 +1,22 @@
 'use client'
 
-import React, { useState } from 'react'
-import { AppIconNodes } from '@garsonless/ui/icons'
+import { useRef, useState } from 'react'
+import { ImageIcon, Trash2, Upload } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  Attachment,
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentContent,
+  AttachmentDescription,
+  AttachmentMedia,
+  AttachmentTitle,
+  AttachmentTrigger,
+} from '@/components/ui/attachment'
+import { Input } from '@/components/ui/input'
 import type { QRConfig } from './tables-builder-types'
 import type { SetQRField } from './use-tables-qr-properties-model'
-import { buttonGhost, Field, Group, Slider, Toggle } from './tables-qr-property-controls'
+import { Field, Group, Slider, Toggle } from './tables-qr-property-controls'
 
 // The logo is persisted inside restaurants.settings and read on every dashboard
 // SSR plus the public menu. Only a downscaled PNG crosses the server boundary.
@@ -13,14 +25,12 @@ const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
 export function TablesQRLogoSection({ qr, set, legacyLogoRejected }: { qr: QRConfig; set: SetQRField; legacyLogoRejected: boolean }) {
   const [logoError, setLogoError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const onUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  const onUpload = (file: File) => {
     setLogoError(null)
     if (!ALLOWED_LOGO_TYPES.has(file.type)) {
       setLogoError('Yalnız PNG, JPEG veya WebP logo yükleyebilirsiniz.')
-      event.target.value = ''
       return
     }
     const reader = new FileReader()
@@ -48,7 +58,6 @@ export function TablesQRLogoSection({ qr, set, legacyLogoRejected }: { qr: QRCon
           return
         }
         set('logo', output)
-        event.target.value = ''
       }
       image.onerror = () => setLogoError('Görsel okunamadı.')
       image.src = result
@@ -59,50 +68,52 @@ export function TablesQRLogoSection({ qr, set, legacyLogoRejected }: { qr: QRCon
   return (
     <>
       <Group title="Marka logosu">
-        <div style={{
-          border: '1.5px dashed var(--border-strong)', borderRadius: 10,
-          padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-          background: 'var(--surface-2)',
-        }}>
-          {qr.logo ? (
-            <div style={{
-              width: 80, height: 80, borderRadius: 12, overflow: 'hidden',
-              background: '#fff', border: '1px solid var(--border)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <img src={qr.logo} style={{ maxWidth: '100%', maxHeight: '100%' }} alt="" />
-            </div>
-          ) : (
-            <div style={{
-              width: 80, height: 80, borderRadius: 12,
-              background: 'var(--surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text-3)',
-            }}>
-              {React.cloneElement(AppIconNodes.upload as React.ReactElement<{ size?: number }>, { size: 22 })}
-            </div>
-          )}
-          <label style={{ ...buttonGhost(), cursor: 'pointer', minHeight: 44, fontSize: 12 }}>
-            {qr.logo ? 'Değiştir' : 'Logo yükle'}
-            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onUpload} style={{ display: 'none' }} />
-          </label>
-          {qr.logo && (
-            <button type="button" onClick={() => set('logo', null)} style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              minHeight: 44, fontSize: 11.5, color: 'var(--critical)', padding: '2px 10px',
-            }}>Logoyu kaldır</button>
-          )}
-          <div style={{ fontSize: 10.5, color: 'var(--text-3)', textAlign: 'center', maxWidth: 200 }}>
-            PNG, JPEG veya WebP · en fazla 256×256 px olarak güvenle dönüştürülür
-          </div>
-          {legacyLogoRejected && !qr.logo && (
-            <div role="alert" style={{ fontSize: 11, color: 'var(--warning)', textAlign: 'center', maxWidth: 220 }}>
-              Eski veya desteklenmeyen logo güvenlik nedeniyle gösterilmedi. Lütfen yeniden yükleyin.
-            </div>
-          )}
-          {logoError && (
-            <div role="alert" style={{ fontSize: 11, color: 'var(--critical)', textAlign: 'center', maxWidth: 200 }}>{logoError}</div>
-          )}
-        </div>
+        <Input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (file) onUpload(file)
+          }}
+        />
+        <Attachment
+          orientation="horizontal"
+          size="sm"
+          state={logoError ? 'error' : qr.logo ? 'done' : 'idle'}
+          className="w-full"
+        >
+          <AttachmentMedia variant={qr.logo ? 'image' : 'icon'}>
+            {qr.logo ? <img src={qr.logo} alt="Yüklenen QR logosu" /> : <ImageIcon />}
+          </AttachmentMedia>
+          <AttachmentContent>
+            <AttachmentTitle>{qr.logo ? 'QR logosu' : 'Logo yükle'}</AttachmentTitle>
+            <AttachmentDescription>PNG, JPEG veya WebP · en fazla 256×256 px</AttachmentDescription>
+          </AttachmentContent>
+          <AttachmentActions>
+            {qr.logo && (
+              <AttachmentAction type="button" variant="destructive" aria-label="QR logosunu kaldır" onClick={() => set('logo', null)}>
+                <Trash2 />
+              </AttachmentAction>
+            )}
+            <AttachmentAction type="button" aria-label={qr.logo ? 'QR logosunu değiştir' : 'QR logosu yükle'} onClick={() => inputRef.current?.click()}>
+              <Upload />
+            </AttachmentAction>
+          </AttachmentActions>
+          <AttachmentTrigger aria-label={qr.logo ? 'QR logosunu değiştir' : 'QR logosu yükle'} onClick={() => inputRef.current?.click()} />
+        </Attachment>
+        {legacyLogoRejected && !qr.logo && (
+          <Alert className="mt-2">
+            <AlertDescription>Eski veya desteklenmeyen logo güvenlik nedeniyle gösterilmedi. Lütfen yeniden yükleyin.</AlertDescription>
+          </Alert>
+        )}
+        {logoError && (
+          <Alert variant="destructive" className="mt-2">
+            <AlertDescription>{logoError}</AlertDescription>
+          </Alert>
+        )}
       </Group>
       <Group title="Yerleşim">
         <Field label="Boyut"><Slider value={Math.round(qr.logoSize * 100)} min={10} max={50} onBegin={() => set('logoSize', qr.logoSize, 'begin')} onChange={(value, transient) => set('logoSize', value / 100, transient ? 'replace' : 'push')} suffix="%" /></Field>

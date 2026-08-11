@@ -1,9 +1,13 @@
 'use client'
 
-import React, { useEffect, useId, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { AppIconNodes } from '@garsonless/ui/icons'
 import { LoadingStatus } from '@garsonless/ui/spinners'
+import { Bell, Check, Eye, Redo2, Undo2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import { useShell } from '../../lib/shell-context'
 import type { QRConfig, SaveState } from './tables-builder-types'
 
@@ -63,25 +67,9 @@ const S = {
   mono:  { fontFamily: "'Geist Mono', ui-monospace, monospace", fontVariantNumeric: 'tabular-nums' as const },
 }
 
-function btnGhost(): React.CSSProperties {
-  return {
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    height: 30, padding: '0 10px', borderRadius: 7,
-    border: '1px solid var(--border-strong)', background: 'var(--surface)',
-    color: 'var(--text)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
-    whiteSpace: 'nowrap', flexShrink: 0,
-  }
-}
 function PresetChip({ preset, active, onClick }: { preset: typeof PRESETS[number]; active: boolean; onClick: () => void }) {
   return (
-    <button className="tb-hover" onClick={onClick} title={preset.name} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6,
-      height: 28, padding: '0 10px 0 4px',
-      background: active ? 'var(--surface)' : 'transparent',
-      border: '1px solid ' + (active ? 'var(--text)' : 'var(--border)'),
-      borderRadius: 6, cursor: 'pointer',
-      boxShadow: active ? '0 0 0 3px rgba(17,17,19,.06)' : 'none',
-    }}>
+    <Button type="button" size="sm" variant={active ? 'outline' : 'ghost'} className={active ? 'border-foreground' : undefined} onClick={onClick} title={preset.name}>
       <span style={{
         width: 20, height: 20, borderRadius: 4, background: preset.bg,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -102,8 +90,8 @@ function PresetChip({ preset, active, onClick }: { preset: typeof PRESETS[number
           }
         </svg>
       </span>
-      <span style={{ fontSize: 11.5, fontWeight: 500, color: active ? 'var(--text)' : 'var(--text-2)' }}>{preset.name}</span>
-    </button>
+      <span>{preset.name}</span>
+    </Button>
   )
 }
 
@@ -121,10 +109,6 @@ export function TablesTopBar({ qr, setQR, restaurantName, sectionTitle, saveStat
   onPreview: () => void
 }) {
   const { openNotifications, notificationCount } = useShell()
-  const [morePresets, setMorePresets] = useState(false)
-  const presetTriggerRef = useRef<HTMLButtonElement>(null)
-  const presetMenuRef = useRef<HTMLDivElement>(null)
-  const presetMenuId = useId()
   const applyPreset = (p: typeof PRESETS[number]) => setQR({
     ...qr,
     fg: p.fg, bg: p.bg,
@@ -133,54 +117,17 @@ export function TablesTopBar({ qr, setQR, restaurantName, sectionTitle, saveStat
     fg2: ('gradTo' in p ? p.gradTo : qr.fg2) as string,
     _presetId: p.id,
   })
-  useEffect(() => {
-    if (!morePresets) return
-    const menu = presetMenuRef.current
-    const items = () => Array.from(menu?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? [])
-    const frame = window.requestAnimationFrame(() => items()[0]?.focus())
-    const close = (restoreFocus = false) => {
-      setMorePresets(false)
-      if (restoreFocus) window.requestAnimationFrame(() => presetTriggerRef.current?.focus())
-    }
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !menu?.contains(event.target) && !presetTriggerRef.current?.contains(event.target)) close()
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      close(true)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      window.cancelAnimationFrame(frame)
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [morePresets])
-  const onPresetMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const items = Array.from(presetMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? [])
-    const index = items.indexOf(document.activeElement as HTMLButtonElement)
-    let next: number | null = null
-    if (event.key === 'ArrowDown') next = index < 0 ? 0 : (index + 1) % items.length
-    else if (event.key === 'ArrowUp') next = index < 0 ? items.length - 1 : (index - 1 + items.length) % items.length
-    else if (event.key === 'Home') next = 0
-    else if (event.key === 'End') next = items.length - 1
-    if (next === null || !items[next]) return
-    event.preventDefault()
-    items[next]?.focus()
-  }
   const status = saveState === 'validating'
-    ? { label: 'Okunabilirlik doğrulanıyor', color: 'var(--warning)' }
+    ? { label: 'Okunabilirlik doğrulanıyor', tone: 'warning' as const }
     : saveState === 'blocked'
-      ? { label: 'Güvensiz stil kaydedilmedi', color: 'var(--critical)' }
+      ? { label: 'Güvensiz stil kaydedilmedi', tone: 'destructive' as const }
       : saveState === 'saving'
-    ? { label: 'Stil kaydediliyor', color: 'var(--warning)' }
+    ? { label: 'Stil kaydediliyor', tone: 'warning' as const }
     : saveState === 'error'
-      ? { label: 'Stil kaydedilemedi', color: 'var(--critical)' }
+      ? { label: 'Stil kaydedilemedi', tone: 'destructive' as const }
       : saveState === 'conflict'
-        ? { label: 'Sunucu sürümü yüklendi', color: 'var(--warning)' }
-      : { label: 'Stil kaydedildi', color: 'var(--positive)' }
+        ? { label: 'Sunucu sürümü yüklendi', tone: 'warning' as const }
+      : { label: 'Stil kaydedildi', tone: 'positive' as const }
   return (
     <div className="tb-tables__topbar" style={{
       height: 'var(--topbar)', flexShrink: 0,
@@ -209,150 +156,65 @@ export function TablesTopBar({ qr, setQR, restaurantName, sectionTitle, saveStat
         {PRESETS.slice(0, 5).map(p => (
           <PresetChip key={p.id} preset={p} active={qr._presetId === p.id} onClick={() => applyPreset(p)} />
         ))}
-        <div style={{ position: 'relative' }}>
-          <button
-            ref={presetTriggerRef}
-            type="button"
-            className="tb-hover"
-            aria-label="Tüm stiller"
-            aria-haspopup="menu"
-            aria-expanded={morePresets}
-            aria-controls={morePresets ? presetMenuId : undefined}
-            title="Tüm stiller"
-            onClick={() => setMorePresets(v => !v)}
-            style={{
-              height: 28, width: 28, border: '1px solid var(--border-strong)',
-              background: morePresets ? 'var(--surface-3)' : 'var(--surface)', borderRadius: 6, cursor: 'pointer',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text-2)',
-            }}
-          >
-            {React.cloneElement(QRI.more as React.ReactElement<{ size?: number }>, { size: 14 })}
-          </button>
-          {morePresets && (
-              <div ref={presetMenuRef} id={presetMenuId} role="menu" aria-label="Tüm hazır QR stilleri" onKeyDown={onPresetMenuKeyDown} style={{
-                position: 'absolute', top: '110%', left: '50%', transform: 'translateX(-50%)', zIndex: 21,
-                minWidth: 190, padding: 6, background: 'var(--surface)',
-                border: '1px solid var(--border)', borderRadius: 10, boxShadow: 'var(--shadow-pop)',
-              }}>
-                <div style={{ ...S.label, padding: '4px 8px 6px' }}>Tüm stiller</div>
-                {PRESETS.map(p => {
-                  const active = qr._presetId === p.id
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={active}
-                      tabIndex={-1}
-                      className="tb-hover"
-                      onClick={() => { applyPreset(p); setMorePresets(false); window.requestAnimationFrame(() => presetTriggerRef.current?.focus()) }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 9, width: '100%',
-                        padding: '6px 8px', border: 'none', borderRadius: 6, cursor: 'pointer', textAlign: 'left',
-                        background: active ? 'var(--surface-inset)' : 'transparent',
-                      }}
-                    >
-                      <span style={{ width: 18, height: 18, borderRadius: 4, background: p.bg, border: '1px solid var(--border)', flexShrink: 0, display: 'inline-block', position: 'relative' }}>
-                        <span style={{ position: 'absolute', inset: 4, borderRadius: 2, background: p.grad && 'gradTo' in p ? `linear-gradient(135deg, ${p.fg}, ${p.gradTo})` : p.fg }} />
-                      </span>
-                      <span style={{ flex: 1, fontSize: 12.5, fontWeight: active ? 600 : 500, color: 'var(--text)' }}>{p.name}</span>
-                      {active && React.cloneElement(I.check as React.ReactElement<{ size?: number }>, { size: 13 })}
-                    </button>
-                  )
-                })}
-              </div>
-          )}
-        </div>
       </div>
 
       <div className="tb-tables__topbar-right" style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, width: 112, flexShrink: 0, padding: '0 6px', color: 'var(--text-3)', fontSize: 11.5, whiteSpace: 'nowrap' }}>
-          <div style={{ width: 6, height: 6, borderRadius: 999, background: status.color }} />
+        <Badge variant={status.tone} className="max-w-40 truncate">
+          <span className="size-1.5 shrink-0 rounded-full bg-current" />
           {status.label}
-        </div>
-        <div style={{ display: 'inline-flex', gap: 2 }}>
-          <button
-            className="tb-hover"
+        </Badge>
+        <div className="inline-flex gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
             onClick={onUndo}
             disabled={!canUndo}
             aria-label="Geri al"
             title="Geri al"
-            style={{
-              width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 6,
-              background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            }}
           >
-            {React.cloneElement(I.undo as React.ReactElement<{ size?: number }>, { size: 14 })}
-          </button>
-          <button
-            className="tb-hover"
+            <Undo2 />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
             onClick={onRedo}
             disabled={!canRedo}
             aria-label="İleri al"
             title="İleri al"
-            style={{
-              width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 6,
-              background: 'var(--surface)', color: 'var(--text-2)', cursor: 'pointer',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            }}
           >
-            {React.cloneElement(I.redo as React.ReactElement<{ size?: number }>, { size: 14 })}
-          </button>
+            <Redo2 />
+          </Button>
         </div>
-        <button
-          className="tb-hover"
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="relative"
           onClick={openNotifications}
           aria-label="Bildirimler"
-          style={{
-            position: 'relative',
-            width: 30, height: 30, border: 'none', borderRadius: 7,
-            background: 'transparent', color: 'var(--text-2)',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer',
-          }}
         >
-          {React.cloneElement(I.bell as React.ReactElement<{ size?: number }>, { size: 16 })}
+          <Bell />
           {notificationCount > 0 && (
-            <span style={{
-              position: 'absolute', top: 2, right: 2,
-              minWidth: 15, height: 15, padding: '0 4px', borderRadius: 999,
-              background: 'var(--critical)', color: '#fff',
-              fontSize: 9.5, fontWeight: 700, lineHeight: '15px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: '1.5px solid var(--surface)',
-            }}>
+            <Badge variant="destructive" className="absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[9px]">
               {notificationCount > 9 ? '9+' : notificationCount}
-            </span>
+            </Badge>
           )}
-        </button>
-        <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
-        <button className="tb-hover" style={btnGhost()} onClick={onPreview}>
-          {React.cloneElement(I.eye as React.ReactElement<{ size?: number }>, { size: 13 })}Menüyü önizle
-        </button>
-        <div
+        </Button>
+        <Separator orientation="vertical" className="mx-1 h-5" />
+        <Button type="button" variant="outline" size="sm" onClick={onPreview}>
+          <Eye data-icon="inline-start" />Menüyü önizle
+        </Button>
+        <Badge
+          variant="positive"
           title="Kaydedilen QR stili otomatik olarak tüm masalara yayınlanır"
           aria-label="Otomatik yayın açık"
-          style={{
-            height: 30, minWidth: 82, padding: '0 10px 0 7px', flexShrink: 0,
-            display: 'inline-flex', alignItems: 'center', gap: 7,
-            border: '1px solid rgba(19,122,77,.18)', borderRadius: 999,
-            background: 'linear-gradient(180deg, #f3fbf6 0%, var(--positive-bg) 100%)',
-            color: 'var(--positive)', whiteSpace: 'nowrap',
-            fontSize: 11.5, fontWeight: 650, lineHeight: 1,
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,.8)',
-          }}
+          className="h-7"
         >
-          <span aria-hidden="true" style={{
-            width: 18, height: 18, flexShrink: 0, borderRadius: 999,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--positive)', color: '#fff',
-          }}>
-            {React.cloneElement(I.check as React.ReactElement<{ size?: number; strokeWidth?: number }>, { size: 11, strokeWidth: 2.5 })}
-          </span>
+          <Check data-icon="inline-start" />
           Canlı
-        </div>
+        </Badge>
       </div>
     </div>
   )

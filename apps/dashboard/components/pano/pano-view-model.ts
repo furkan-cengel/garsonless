@@ -6,6 +6,7 @@ import type {
   TableStatusData,
 } from '../../lib/queries/pano'
 import type { PanoLiveStatus } from './pano-live-model'
+import { formatPanoCurrency } from '../../lib/pano-format'
 
 type PanoTrend = 'up' | 'down'
 type PanoIndicatorTone = 'positive' | 'warning' | 'critical' | 'neutral'
@@ -49,10 +50,6 @@ function percentageChange(current: number, previous: number): string {
   return delta >= 0 ? `+${delta}%` : `${Math.abs(delta)}%`
 }
 
-function formatCurrency(value: number): string {
-  return `₺${value.toLocaleString('tr-TR')}`
-}
-
 export function getPanoGreeting(timezone: string, now = new Date()): string {
   const hour = Number(new Intl.DateTimeFormat('en-GB', {
     timeZone: timezone,
@@ -93,16 +90,16 @@ export function getPanoKpiCards(
   return [
     {
       label: 'Tahsil edilen ciro',
-      value: formatCurrency(kpis.revenue),
+      value: formatPanoCurrency(kpis.revenue),
       delta: percentageChange(kpis.revenue, kpis.revenueYesterday),
       trend: kpis.revenue >= kpis.revenueYesterday ? 'up' : 'down',
-      sub: `vs. dün ${formatCurrency(kpis.revenueYesterday)}`,
+      sub: `vs. dün ${formatPanoCurrency(kpis.revenueYesterday)}`,
       featured: true,
       href: operational.canAnalytics ? `/dashboard/${restaurantId}/analytics` : undefined,
     },
     {
       label: 'Açık hesap',
-      value: formatCurrency(openAccount),
+      value: formatPanoCurrency(openAccount),
       delta: `${openTables.length} masa`,
       indicatorTone: openAccount > 0 ? 'warning' : 'neutral',
       sub: 'Tahsil edilmemiş kalan tutar',

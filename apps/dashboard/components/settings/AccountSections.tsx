@@ -12,6 +12,11 @@ import {
   inviteMember, updateMemberPermissionsAction, setMemberStatusAction,
   removeMemberAction, resendInviteAction,
 } from '../../lib/actions/team'
+import { Alert, AlertDescription } from '../ui/alert'
+import { Avatar, AvatarFallback } from '../ui/avatar'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Spinner } from '../ui/spinner'
 
 const TEAM_SECTION_OPTIONS: { key: string; label: string }[] = [
   { key: 'pano', label: 'Pano' },
@@ -59,56 +64,52 @@ export function ProfileSection({ user }: { user: User | null }) {
 
   return (
     <div aria-busy={isPending}>
-      <SCard title="Profil bilgisi" subtitle="Mağaza ekibi seni bu bilgilerle görür">
-        <div style={{ padding: 18, display: 'flex', gap: 18, alignItems: 'flex-start', borderBottom: '1px solid var(--divider)' }}>
-          <div>
-            <div style={{
-              width: 72, height: 72, borderRadius: 999,
-              background: 'linear-gradient(135deg, #ffd089 0%, #ff8b6b 100%)',
-              color: '#5a2a14', fontWeight: 700, fontSize: 24,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>{initials}</div>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 600 }}>Hesap profili</div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2, lineHeight: 1.45 }}>
-              Bu bilgiler Supabase kullanıcı metadata alanına kaydedilir. Profil fotoğrafı yükleme ve oturum yönetimi bu sürümde desteklenmiyor.
+      <SCard
+        title="Profil bilgisi"
+        subtitle="Mağaza ekibi seni bu bilgilerle görür"
+        footer={(
+          <>
+            <span role="status" aria-live="polite" className="text-xs text-muted-foreground">
+              {isPending ? 'Profil kaydediliyor…' : saved ? '✓ Profil bilgileri güncellendi' : 'Değişiklikler bu hesaba kaydedilir'}
+            </span>
+            <Button onClick={handleSave} disabled={isPending}>
+              {isPending ? <Spinner data-icon="inline-start" /> : <I.check data-icon="inline-start" />}
+              {isPending ? 'Kaydediliyor…' : 'Kaydet'}
+            </Button>
+          </>
+        )}
+      >
+        <div className="flex items-center gap-4 border-b p-4">
+          <Avatar className="size-16">
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium">Profil görünümü</div>
+            <div className="mt-1 text-sm leading-relaxed text-muted-foreground">
+              Adın ve görüntüleme adın ekip görünümünde ve sipariş işlemlerinde kullanılır.
             </div>
           </div>
         </div>
         <FormRow label="Ad Soyad">
-          <input value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle({ width: 240 })} />
+          <Input value={fullName} onChange={e => setFullName(e.target.value)} autoComplete="name" className="w-72 max-w-full" />
         </FormRow>
         <FormRow label="E-posta" hint="Değiştirmek için destek ile iletişime geç">
-          <input value={email} disabled style={inputStyle({ width: 240, opacity: 0.6, cursor: 'default' })} />
+          <Input value={email} disabled type="email" autoComplete="email" className="w-72 max-w-full" />
         </FormRow>
         <FormRow label="Telefon">
-          <input value={phone} onChange={e => setPhone(e.target.value)} style={inputStyle({ width: 200 })} />
+          <Input value={phone} onChange={e => setPhone(e.target.value)} type="tel" autoComplete="tel" className="w-72 max-w-full" />
         </FormRow>
         <FormRow label="Görüntüleme adı" hint="Siparişlerde görünür">
-          <input value={displayName} onChange={e => setDisplayName(e.target.value)} style={inputStyle({ width: 180 })} />
+          <Input value={displayName} onChange={e => setDisplayName(e.target.value)} className="w-72 max-w-full" />
         </FormRow>
       </SCard>
 
       {error && (
-        <div role="alert" style={{ marginTop: 12, padding: '8px 12px', background: 'var(--critical-bg)', color: 'var(--critical)', borderRadius: 7, fontSize: 12 }}>
-          {error}
-        </div>
+        <Alert variant="destructive" className="mt-3">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      <div style={{
-        marginTop: 16, padding: '12px 16px',
-        background: 'var(--surface)', borderRadius: 10,
-        border: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <span role="status" aria-live="polite" style={{ fontSize: 12, color: 'var(--text-3)' }}>
-          {isPending ? 'Profil kaydediliyor…' : saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydet'}
-        </span>
-        <button onClick={handleSave} disabled={isPending} style={btnPrimary()}>
-          <I.check size={13} />{isPending ? 'Kaydediliyor…' : 'Kaydet'}
-        </button>
-      </div>
     </div>
   )
 }

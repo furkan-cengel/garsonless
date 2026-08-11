@@ -1,20 +1,19 @@
 'use client'
 
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet, FieldTitle } from '@/components/ui/field'
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
+
 import React from 'react'
-import {
-  ALLERGEN_CODES,
-  ALLERGEN_LABELS,
-  normalizeAllergenCodes,
-  normalizeIngredients,
-} from '@garsonless/db/browser'
+import { ALLERGEN_CODES, ALLERGEN_LABELS, normalizeAllergenCodes, normalizeIngredients } from '@garsonless/db/browser'
 import type { AllergenCode, MenuIngredient } from '@garsonless/db/browser'
-import {
-  applyReviewInvalidatingPatch,
-  moveListItem,
-  normalizeMenuNumericText,
-  toggleAllergenDeclaration,
-} from '@garsonless/domain/menu'
+import { applyReviewInvalidatingPatch, moveListItem, normalizeMenuNumericText, toggleAllergenDeclaration } from '@garsonless/domain/menu'
 import { AllergenIcon } from '@garsonless/ui/menu'
+import { I } from '../../lib/ui'
 
 /* ============================================================
    Shared nutrition / allergen / dietary editor — used by the
@@ -37,8 +36,8 @@ export interface NutritionState {
   protein: string
   carb: string
   fat: string
-  contains: AllergenCode[]      // DEFINITELY contains → contains_allergens
-  traces: AllergenCode[]        // cross-contact → may_contain_allergens
+  contains: AllergenCode[] // DEFINITELY contains → contains_allergens
+  traces: AllergenCode[] // cross-contact → may_contain_allergens
   allergenNote: string
   crossContactNote: string
   alcohol: boolean
@@ -73,8 +72,22 @@ export function nutritionFromItem(item: RawItem | null): NutritionState {
   const ings = normalizeIngredients(item?.ingredients) as MenuIngredient[]
   return {
     ingredients: ings.length
-      ? ings.map((i) => ({ id: i.id, name: i.name, amount: i.amount ?? '', removable: i.removable, allergen_codes: i.allergen_codes }))
-      : [{ id: crypto.randomUUID(), name: '', amount: '', removable: false, allergen_codes: [] }],
+      ? ings.map((i) => ({
+          id: i.id,
+          name: i.name,
+          amount: i.amount ?? '',
+          removable: i.removable,
+          allergen_codes: i.allergen_codes,
+        }))
+      : [
+          {
+            id: crypto.randomUUID(),
+            name: '',
+            amount: '',
+            removable: false,
+            allergen_codes: [],
+          },
+        ],
     energyKcal: numStr(item?.energy_kcal),
     protein: numStr(item?.protein_g),
     carb: numStr(item?.carb_g),
@@ -96,7 +109,13 @@ export function nutritionFromItem(item: RawItem | null): NutritionState {
 export function appendNutritionToFormData(fd: FormData, s: NutritionState): void {
   const ingredients = s.ingredients
     .filter((i) => i.name.trim())
-    .map((i) => ({ id: i.id, name: i.name.trim(), removable: i.removable, allergen_codes: i.allergen_codes, ...(i.amount.trim() ? { amount: i.amount.trim() } : {}) }))
+    .map((i) => ({
+      id: i.id,
+      name: i.name.trim(),
+      removable: i.removable,
+      allergen_codes: i.allergen_codes,
+      ...(i.amount.trim() ? { amount: i.amount.trim() } : {}),
+    }))
   fd.set('ingredients', JSON.stringify(ingredients))
   fd.set('energy_kcal', s.energyKcal.trim())
   fd.set('protein_g', s.protein.trim())
@@ -118,24 +137,38 @@ function nutritionComplete(s: NutritionState): boolean {
   return s.ingredients.some((i) => i.name.trim()) && s.energyKcal.trim() !== '' && s.reviewed
 }
 
-export function applyNutritionPatch(
-  current: NutritionState,
-  patch: Partial<NutritionState>,
-): NutritionState {
+export function applyNutritionPatch(current: NutritionState, patch: Partial<NutritionState>): NutritionState {
   return applyReviewInvalidatingPatch(current, patch)
 }
-
-const icDrag = <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.4" /><circle cx="15" cy="6" r="1.4" /><circle cx="9" cy="12" r="1.4" /><circle cx="15" cy="12" r="1.4" /><circle cx="9" cy="18" r="1.4" /><circle cx="15" cy="18" r="1.4" /></svg>
-const icX = <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
-const icPlus = <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-const icCheck = (sz = 11) => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4.5 4.5L19 7" /></svg>
 
 /* ── sub-pieces ────────────────────────────────────────────────────────── */
 function NSection({ title, hint, right, first, children }: { title: string; hint?: string; right?: React.ReactNode; first?: boolean; children: React.ReactNode }) {
   return (
-    <div style={{ padding: '14px 16px', borderTop: first ? 'none' : '1px solid var(--divider)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}>
-        <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--text-3)' }}>{title}</span>
+    <div
+      style={{
+        padding: '14px 16px',
+        borderTop: first ? 'none' : '1px solid var(--divider)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 11,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 600,
+            letterSpacing: '.07em',
+            textTransform: 'uppercase',
+            color: 'var(--text-3)',
+          }}
+        >
+          {title}
+        </span>
         {hint && <span style={{ fontSize: 10.5, color: 'var(--text-4)' }}>{hint}</span>}
         {right && <span style={{ marginLeft: 'auto' }}>{right}</span>}
       </div>
@@ -145,67 +178,135 @@ function NSection({ title, hint, right, first, children }: { title: string; hint
 }
 
 function MacroInput({ label, value, onChange, suffix, accent }: { label: string; value: string; onChange: (v: string) => void; suffix: string; accent?: boolean }) {
+  const id = React.useId()
   return (
-    <div className="nutrition-macro-field" style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 9, padding: '7px 10px', background: 'var(--surface)' }}>
-      <div style={{ fontSize: 9.5, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-3)', fontWeight: 600 }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, marginTop: 2 }}>
-        <input className="nutrition-macro-input" aria-label={label} value={value} onChange={(e) => onChange(normalizeMenuNumericText(e.target.value))} placeholder="—"
-          style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontFamily: "'Geist Mono', monospace", fontSize: 15, fontWeight: 700, color: accent ? 'var(--accent)' : 'var(--text)', padding: 0 }} />
-        <span style={{ fontSize: 10, color: 'var(--text-4)', flexShrink: 0 }}>{suffix}</span>
-      </div>
-    </div>
+    <Field className="nutrition-macro-field gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2">
+      <FieldLabel htmlFor={id} className="text-[10px] font-semibold uppercase tracking-[.05em] text-[var(--text-3)]">
+        {label}
+      </FieldLabel>
+      <InputGroup className="h-7 border-0 bg-transparent shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0">
+        <InputGroupInput
+          id={id}
+          className="nutrition-macro-input"
+          aria-label={label}
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => onChange(normalizeMenuNumericText(e.target.value))}
+          placeholder="—"
+          style={{
+            width: '100%',
+            border: 'none',
+            outline: 'none',
+            background: 'transparent',
+            fontFamily: "'Geist Mono', monospace",
+            fontSize: 15,
+            fontWeight: 700,
+            color: accent ? 'var(--accent)' : 'var(--text)',
+            padding: '0 2px',
+          }}
+        />
+        <InputGroupAddon align="inline-end" className="pr-1">
+          <InputGroupText className="text-[10px] font-normal text-[var(--text-4)]">{suffix}</InputGroupText>
+        </InputGroupAddon>
+      </InputGroup>
+    </Field>
   )
 }
 
 function AllergenChip({ code, on, variant, onClick }: { code: AllergenCode; on: boolean; variant: 'contains' | 'trace'; onClick: () => void }) {
   const contains = variant === 'contains'
   return (
-    <button type="button" onClick={onClick} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 11px 5px 9px', borderRadius: 999,
-      fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
-      background: on ? (contains ? 'var(--warning-bg)' : 'var(--surface-2)') : 'var(--surface)',
-      color: on ? (contains ? 'var(--warning)' : 'var(--text-2)') : 'var(--text-3)',
-      border: on ? (contains ? '1px solid var(--warning)' : '1px dashed var(--warning)') : '1px solid var(--border)',
-      transition: 'all .12s ease',
-    }}>
-      <span style={{ display: 'flex', opacity: on ? 1 : 0.7 }}><AllergenIcon code={code} size={14} decorative /></span>
-      {ALLERGEN_LABELS[code]}
-    </button>
-  )
-}
-
-function FlagRow({ icon, label, desc, on, onToggle, tone }: { icon: React.ReactNode; label: string; desc: string; on: boolean; onToggle: () => void; tone: 'critical' | 'positive' | 'accent' }) {
-  const c = { critical: { bg: 'var(--critical-bg)', fg: 'var(--critical)' }, positive: { bg: 'var(--positive-bg)', fg: 'var(--positive)' }, accent: { bg: 'var(--accent-soft)', fg: 'var(--accent)' } }[tone]
-  return (
-    <button type="button" onClick={onToggle} style={{
-      display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '9px 11px', borderRadius: 10, cursor: 'pointer',
-      background: on ? c.bg : 'var(--surface)', border: '1px solid ' + (on ? 'transparent' : 'var(--border)'), transition: 'background .12s ease',
-    }}>
-      <span style={{ width: 28, height: 28, borderRadius: 7, flexShrink: 0, display: 'grid', placeItems: 'center', background: on ? '#fff' : 'var(--surface-3)', color: on ? c.fg : 'var(--text-3)' }}>{icon}</span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: on ? c.fg : 'var(--text)' }}>{label}</span>
-        <span style={{ display: 'block', fontSize: 10.5, color: on ? c.fg : 'var(--text-3)', opacity: on ? 0.85 : 1 }}>{desc}</span>
+    <Button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '5px 11px 5px 9px',
+        borderRadius: 999,
+        fontSize: 11.5,
+        fontWeight: 600,
+        cursor: 'pointer',
+        background: on ? (contains ? 'var(--warning-bg)' : 'var(--surface-2)') : 'var(--surface)',
+        color: on ? (contains ? 'var(--warning)' : 'var(--text-2)') : 'var(--text-3)',
+        border: on ? (contains ? '1px solid var(--warning)' : '1px dashed var(--warning)') : '1px solid var(--border)',
+        transition: 'all .12s ease',
+      }}
+    >
+      <span style={{ display: 'flex', opacity: on ? 1 : 0.7 }}>
+        <AllergenIcon code={code} size={14} decorative />
       </span>
-      <span style={{ width: 18, height: 18, borderRadius: 6, flexShrink: 0, border: '2px solid ' + (on ? c.fg : 'var(--border-strong)'), background: on ? c.fg : 'transparent', color: '#fff', display: 'grid', placeItems: 'center' }}>{on && icCheck(11)}</span>
-    </button>
+      {ALLERGEN_LABELS[code]}
+    </Button>
   )
 }
 
-const flagIcon = (d: React.ReactNode) => <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">{d}</svg>
+function FlagRow({
+  icon,
+  label,
+  desc,
+  on,
+  onToggle,
+  tone,
+}: {
+  icon: React.ReactNode
+  label: string
+  desc: string
+  on: boolean
+  onToggle: () => void
+  tone: 'critical' | 'positive' | 'accent'
+}) {
+  const id = React.useId()
+  return (
+    <FieldLabel htmlFor={id} className="nutrition-choice-card" data-tone={tone}>
+      <Field orientation="horizontal" className="min-w-0 gap-2.5 p-2.5">
+        <span className={cn('nutrition-choice-icon grid size-7 shrink-0 place-items-center rounded-md bg-[var(--surface-3)] text-[var(--text-3)]', on && 'is-selected')}>
+          {icon}
+        </span>
+        <FieldContent className="min-w-0 gap-0">
+          <FieldTitle className="w-full whitespace-normal text-[12.5px] leading-4">{label}</FieldTitle>
+          <FieldDescription className="w-full whitespace-normal text-[10.5px] leading-4">{desc}</FieldDescription>
+        </FieldContent>
+        <Checkbox id={id} checked={on} onCheckedChange={onToggle} aria-label={label} />
+      </Field>
+    </FieldLabel>
+  )
+}
+
+const flagIcon = (d: React.ReactNode) => (
+  <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    {d}
+  </svg>
+)
 
 /* ── main ──────────────────────────────────────────────────────────────── */
 export default function NutritionFields({ s, set, firstBorderless }: { s: NutritionState; set: (patch: Partial<NutritionState>) => void; firstBorderless?: boolean }) {
   const allergenNoteId = React.useId()
   const crossContactNoteId = React.useId()
-  const updIng = (id: string, patch: Partial<NutritionIngredient>) => set({ ingredients: s.ingredients.map((i) => (i.id === id ? { ...i, ...patch } : i)) })
-  const addIng = () => set({ ingredients: [...s.ingredients, { id: crypto.randomUUID(), name: '', amount: '', removable: false, allergen_codes: [] }] })
+  const reviewId = React.useId()
+  const updIng = (id: string, patch: Partial<NutritionIngredient>) =>
+    set({
+      ingredients: s.ingredients.map((i) => (i.id === id ? { ...i, ...patch } : i)),
+    })
+  const addIng = () =>
+    set({
+      ingredients: [
+        ...s.ingredients,
+        {
+          id: crypto.randomUUID(),
+          name: '',
+          amount: '',
+          removable: false,
+          allergen_codes: [],
+        },
+      ],
+    })
   const rmIng = (id: string) => set({ ingredients: s.ingredients.filter((i) => i.id !== id) })
   const moveIng = (index: number, direction: -1 | 1) => {
     set({ ingredients: moveListItem(s.ingredients, index, direction) })
   }
-  const toggleContains = (code: AllergenCode) => set(
-    toggleAllergenDeclaration(s.contains, s.traces, code, 'contains'),
-  )
+  const toggleContains = (code: AllergenCode) => set(toggleAllergenDeclaration(s.contains, s.traces, code, 'contains'))
   const toggleTrace = (code: AllergenCode) => {
     set(toggleAllergenDeclaration(s.contains, s.traces, code, 'trace'))
   }
@@ -213,68 +314,231 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
 
   return (
     <div className="nutrition-editor">
-      <NSection first={firstBorderless} title="İçindekiler ve enerji"
-        right={ingredientCount > 0 ? <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: "'Geist Mono', monospace" }}>{ingredientCount} bileşen</span> : undefined}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <NSection
+        first={firstBorderless}
+        title="İçindekiler ve enerji"
+        right={
+          ingredientCount > 0 ? (
+            <span
+              style={{
+                fontSize: 10.5,
+                color: 'var(--text-3)',
+                fontFamily: "'Geist Mono', monospace",
+              }}
+            >
+              {ingredientCount} bileşen
+            </span>
+          ) : undefined
+        }
+      >
+        <FieldGroup className="gap-2">
           {s.ingredients.map((ing, index) => (
-            <div key={ing.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ color: 'var(--text-4)', flexShrink: 0, display: 'flex' }} aria-hidden="true">{icDrag}</span>
-              <input value={ing.name} onChange={(e) => updIng(ing.id, { name: e.target.value })} placeholder="Bileşen adı"
-                style={{ flex: 1, minWidth: 0, height: 32, padding: '0 10px', border: '1px solid var(--border)', borderRadius: 8, outline: 'none', fontSize: 12.5, background: 'var(--surface)', fontFamily: 'inherit' }} />
-              <input value={ing.amount} maxLength={40} onChange={(e) => updIng(ing.id, { amount: e.target.value })} placeholder="miktar"
-                style={{ width: 64, flexShrink: 0, height: 32, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, outline: 'none', fontSize: 12, textAlign: 'center', background: 'var(--surface)', color: 'var(--text-2)', fontFamily: 'inherit' }} />
-              <button type="button" title="Müşteri çıkarabilir" onClick={() => updIng(ing.id, { removable: !ing.removable })}
-                style={{ width: 30, height: 32, flexShrink: 0, borderRadius: 7, fontSize: 9.5, fontWeight: 700, cursor: 'pointer', border: '1px solid ' + (ing.removable ? 'var(--accent)' : 'var(--border)'), background: ing.removable ? 'var(--accent-soft)' : 'var(--surface)', color: ing.removable ? 'var(--accent)' : 'var(--text-4)' }}>çıkar</button>
-              <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
-                <button
-                  type="button"
-                  aria-label={`${ing.name.trim() || `Bileşen ${index + 1}`} yukarı taşı`}
-                  disabled={index === 0}
-                  onClick={() => moveIng(index, -1)}
-                  style={{ width: 24, height: 15, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--surface-2)', color: 'var(--text-2)', cursor: index === 0 ? 'default' : 'pointer', opacity: index === 0 ? 0.35 : 1, fontSize: 10, lineHeight: 1 }}
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  aria-label={`${ing.name.trim() || `Bileşen ${index + 1}`} aşağı taşı`}
-                  disabled={index === s.ingredients.length - 1}
-                  onClick={() => moveIng(index, 1)}
-                  style={{ width: 24, height: 15, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--surface-2)', color: 'var(--text-2)', cursor: index === s.ingredients.length - 1 ? 'default' : 'pointer', opacity: index === s.ingredients.length - 1 ? 0.35 : 1, fontSize: 10, lineHeight: 1 }}
-                >
-                  ↓
-                </button>
-              </span>
-              <button type="button" onClick={() => rmIng(ing.id)} disabled={s.ingredients.length <= 1}
-                style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 7, display: 'grid', placeItems: 'center', color: s.ingredients.length > 1 ? 'var(--text-3)' : 'var(--text-4)', background: 'transparent', border: 'none', cursor: s.ingredients.length > 1 ? 'pointer' : 'default', opacity: s.ingredients.length > 1 ? 1 : 0.4 }}>{icX}</button>
-            </div>
+            <Field key={ing.id} className="nutrition-ingredient-card gap-2 rounded-lg border border-[var(--divider)] bg-[var(--surface-2)] p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-[.05em] text-[var(--text-3)]">Bileşen {index + 1}</span>
+                <div className="flex items-center gap-0.5">
+                  <Button
+                    className="nutrition-ingredient-action"
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`${ing.name.trim() || `Bileşen ${index + 1}`} yukarı taşı`}
+                    disabled={index === 0}
+                    onClick={() => moveIng(index, -1)}
+                  >
+                    <I.chevDown className="rotate-180" />
+                  </Button>
+                  <Button
+                    className="nutrition-ingredient-action"
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`${ing.name.trim() || `Bileşen ${index + 1}`} aşağı taşı`}
+                    disabled={index === s.ingredients.length - 1}
+                    onClick={() => moveIng(index, 1)}
+                  >
+                    <I.chevDown />
+                  </Button>
+                  <Button
+                    className="nutrition-ingredient-action"
+                    type="button"
+                    variant="destructive"
+                    size="icon-xs"
+                    aria-label={`${ing.name.trim() || `Bileşen ${index + 1}`} sil`}
+                    onClick={() => rmIng(ing.id)}
+                    disabled={s.ingredients.length <= 1}
+                  >
+                    <I.trash />
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_88px] gap-2">
+                <InputGroup>
+                  <InputGroupInput
+                    aria-label={`Bileşen ${index + 1} adı`}
+                    value={ing.name}
+                    onChange={(e) => updIng(ing.id, { name: e.target.value })}
+                    placeholder="Bileşen adı"
+                  />
+                </InputGroup>
+                <InputGroup>
+                  <InputGroupInput
+                    aria-label={`${ing.name.trim() || `Bileşen ${index + 1}`} miktarı`}
+                    value={ing.amount}
+                    maxLength={40}
+                    onChange={(e) => updIng(ing.id, { amount: e.target.value })}
+                    placeholder="Miktar"
+                    className="text-center"
+                  />
+                </InputGroup>
+              </div>
+              <Field orientation="horizontal" className="w-auto gap-2">
+                <Switch
+                  id={`ingredient-removable-${ing.id}`}
+                  className="nutrition-removable-switch"
+                  size="sm"
+                  checked={ing.removable}
+                  onCheckedChange={(checked) => updIng(ing.id, { removable: checked })}
+                />
+                <FieldLabel htmlFor={`ingredient-removable-${ing.id}`} className="text-[11px] font-normal text-[var(--text-2)]">
+                  Müşteri çıkarabilir
+                </FieldLabel>
+              </Field>
+            </Field>
           ))}
-        </div>
-        <button type="button" onClick={addIng} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 8, padding: '7px 11px', fontSize: 11.5, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-soft)', border: 'none', borderRadius: 8, cursor: 'pointer' }}>{icPlus}Bileşen ekle</button>
+        </FieldGroup>
+        <Button type="button" variant="positive" size="sm" className="mt-2" onClick={addIng}>
+          <I.plus data-icon="inline-start" />
+          Bileşen ekle
+        </Button>
 
-        <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+        <div className="mt-3 grid grid-cols-2 gap-2">
           <MacroInput label="Enerji" value={s.energyKcal} onChange={(v) => set({ energyKcal: v })} suffix="kcal" accent />
           <MacroInput label="Protein" value={s.protein} onChange={(v) => set({ protein: v })} suffix="g" />
-          <MacroInput label="Karbon." value={s.carb} onChange={(v) => set({ carb: v })} suffix="g" />
+          <MacroInput label="Karbonhidrat" value={s.carb} onChange={(v) => set({ carb: v })} suffix="g" />
           <MacroInput label="Yağ" value={s.fat} onChange={(v) => set({ fat: v })} suffix="g" />
         </div>
-        <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 7 }}>Porsiyon başına. Enerji müşteriye gösterilir; makrolar işletme içi kalır.</div>
+        <div className="mt-2 text-[10.5px] leading-4 text-[var(--text-4)]">Porsiyon başına. Enerji müşteriye gösterilir; makrolar işletme içi kalır.</div>
       </NSection>
 
-      <NSection title="Alerjenler"
-        right={s.contains.length > 0 ? <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--warning)', background: 'var(--warning-bg)', padding: '2px 8px', borderRadius: 999 }}>{s.contains.length} içerir</span> : undefined}>
-        <label style={{ display: 'block', fontSize: 11, color: 'var(--text-2)', fontWeight: 600, marginBottom: 6 }} htmlFor={allergenNoteId}>İşletme açıklaması · içerir</label>
-        <textarea id={allergenNoteId} value={s.allergenNote} maxLength={500} onChange={(event) => set({ allergenNote: event.target.value })} placeholder="Örn. Süt ve fındık içerir. Aynı mutfakta susam kullanılmaktadır." style={{ width: '100%', minHeight: 62, resize: 'vertical', padding: '9px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 11.5, lineHeight: 1.45, outline: 'none' }} />
-        <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, marginBottom: 10 }}>Bu metin müşteriye aynen gösterilir. Kesin ve doğrulanmış bilgi girin.</div>
-        <div style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 600, marginBottom: 7 }}>Resmi alerjen etiketleri · içerir</div>
+      <NSection
+        title="Alerjenler"
+        right={
+          s.contains.length > 0 ? (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: 'var(--warning)',
+                background: 'var(--warning-bg)',
+                padding: '2px 8px',
+                borderRadius: 999,
+              }}
+            >
+              {s.contains.length} içerir
+            </span>
+          ) : undefined
+        }
+      >
+        <label
+          style={{
+            display: 'block',
+            fontSize: 11,
+            color: 'var(--text-2)',
+            fontWeight: 600,
+            marginBottom: 6,
+          }}
+          htmlFor={allergenNoteId}
+        >
+          İşletme açıklaması · içerir
+        </label>
+        <Textarea
+          id={allergenNoteId}
+          value={s.allergenNote}
+          maxLength={500}
+          onChange={(event) => set({ allergenNote: event.target.value })}
+          placeholder="Örn. Süt ve fındık içerir. Aynı mutfakta susam kullanılmaktadır."
+          style={{
+            width: '100%',
+            minHeight: 62,
+            resize: 'vertical',
+            padding: '9px 10px',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            background: 'var(--surface)',
+            color: 'var(--text)',
+            fontSize: 11.5,
+            lineHeight: 1.45,
+            outline: 'none',
+          }}
+        />
+        <div
+          style={{
+            fontSize: 10.5,
+            color: 'var(--text-4)',
+            marginTop: 5,
+            marginBottom: 10,
+          }}
+        >
+          Bu metin müşteriye aynen gösterilir. Kesin ve doğrulanmış bilgi girin.
+        </div>
+        <div
+          style={{
+            fontSize: 11,
+            color: 'var(--text-2)',
+            fontWeight: 600,
+            marginBottom: 7,
+          }}
+        >
+          Resmi alerjen etiketleri · içerir
+        </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {ALLERGEN_CODES.map((code) => (
             <AllergenChip key={code} code={code} variant="contains" on={s.contains.includes(code)} onClick={() => toggleContains(code)} />
           ))}
         </div>
-        <label style={{ display: 'block', fontSize: 11, color: 'var(--text-2)', fontWeight: 600, marginTop: 14, marginBottom: 6 }} htmlFor={crossContactNoteId}>İşletme açıklaması · eser miktarda</label>
-        <textarea id={crossContactNoteId} value={s.crossContactNote} maxLength={500} onChange={(event) => set({ crossContactNote: event.target.value })} placeholder="Örn. Üretim alanında yer fıstığı işlendiği için eser miktarda içerebilir." style={{ width: '100%', minHeight: 62, resize: 'vertical', padding: '9px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 11.5, lineHeight: 1.45, outline: 'none' }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 14, marginBottom: 7 }}>
+        <label
+          style={{
+            display: 'block',
+            fontSize: 11,
+            color: 'var(--text-2)',
+            fontWeight: 600,
+            marginTop: 14,
+            marginBottom: 6,
+          }}
+          htmlFor={crossContactNoteId}
+        >
+          İşletme açıklaması · eser miktarda
+        </label>
+        <Textarea
+          id={crossContactNoteId}
+          value={s.crossContactNote}
+          maxLength={500}
+          onChange={(event) => set({ crossContactNote: event.target.value })}
+          placeholder="Örn. Üretim alanında yer fıstığı işlendiği için eser miktarda içerebilir."
+          style={{
+            width: '100%',
+            minHeight: 62,
+            resize: 'vertical',
+            padding: '9px 10px',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            background: 'var(--surface)',
+            color: 'var(--text)',
+            fontSize: 11.5,
+            lineHeight: 1.45,
+            outline: 'none',
+          }}
+        />
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            marginTop: 14,
+            marginBottom: 7,
+          }}
+        >
           <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 600 }}>Eser miktar</span>
           <span style={{ fontSize: 10.5, color: 'var(--text-4)' }}>· olası çapraz temas</span>
         </div>
@@ -286,31 +550,78 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
       </NSection>
 
       <NSection title="Özel içerik & diyet">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <FlagRow tone="critical" on={s.alcohol} onToggle={() => set({ alcohol: !s.alcohol })}
-            icon={flagIcon(<path d="M8 22h8M12 15v7M5 3h14l-6 10H11L5 3ZM7.5 7h9" />)} label="Alkol içerir" desc="Müşteri detayında içerik uyarısı gösterilir" />
-          <FlagRow tone="critical" on={s.pork} onToggle={() => set({ pork: !s.pork })}
-            icon={flagIcon(<path d="M5 11a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5v-2ZM3 10l2 1M21 10l-2 1M11 12h.01M15 12h.01" />)} label="Domuz kaynaklı bileşen içerir" desc="Helal beyanıyla birlikte seçilemez" />
-          <FlagRow tone="positive" on={s.vegetarian} onToggle={() => set({ vegetarian: !s.vegetarian, vegan: false })}
-            icon={flagIcon(<path d="M5 19c8 1 14-5 14-14C11 4 5 11 5 19ZM9 15c2-3 4-5 7-6" />)} label="Vejetaryen" desc="Et içermez" />
-          <FlagRow tone="positive" on={s.vegan} onToggle={() => set({ vegan: !s.vegan, vegetarian: s.vegan ? s.vegetarian : true })}
-            icon={flagIcon(<path d="M5 19c8 1 14-5 14-14C11 4 5 11 5 19Z" />)} label="Vegan" desc="Hayvansal ürün içermez" />
-          <FlagRow tone="accent" on={s.halal} onToggle={() => set({ halal: !s.halal })}
-            icon={flagIcon(<path d="M12 3 4 7v5c0 4 3.5 7 8 9 4.5-2 8-5 8-9V7l-8-4ZM9 12l2 2 4-4" />)} label="Helal onaylı" desc="İşletmenin ürün beyanıdır" />
-        </div>
+        <FieldSet>
+          <FieldLegend className="sr-only">Özel içerik ve diyet beyanları</FieldLegend>
+          <FieldGroup data-slot="checkbox-group" className="gap-1.5">
+            <FlagRow
+              tone="critical"
+              on={s.alcohol}
+              onToggle={() => set({ alcohol: !s.alcohol })}
+              icon={flagIcon(<path d="M8 22h8M12 15v7M5 3h14l-6 10H11L5 3ZM7.5 7h9" />)}
+              label="Alkol içerir"
+              desc="Müşteri detayında içerik uyarısı gösterilir"
+            />
+            <FlagRow
+              tone="critical"
+              on={s.pork}
+              onToggle={() => set({ pork: !s.pork })}
+              icon={flagIcon(<path d="M5 11a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5v-2ZM3 10l2 1M21 10l-2 1M11 12h.01M15 12h.01" />)}
+              label="Domuz kaynaklı bileşen içerir"
+              desc="Helal beyanıyla birlikte seçilemez"
+            />
+            <FlagRow
+              tone="positive"
+              on={s.vegetarian}
+              onToggle={() => set({ vegetarian: !s.vegetarian, vegan: false })}
+              icon={flagIcon(<path d="M5 19c8 1 14-5 14-14C11 4 5 11 5 19ZM9 15c2-3 4-5 7-6" />)}
+              label="Vejetaryen"
+              desc="Et içermez"
+            />
+            <FlagRow
+              tone="positive"
+              on={s.vegan}
+              onToggle={() =>
+                set({
+                  vegan: !s.vegan,
+                  vegetarian: s.vegan ? s.vegetarian : true,
+                })
+              }
+              icon={flagIcon(<path d="M5 19c8 1 14-5 14-14C11 4 5 11 5 19Z" />)}
+              label="Vegan"
+              desc="Hayvansal ürün içermez"
+            />
+            <FlagRow
+              tone="accent"
+              on={s.halal}
+              onToggle={() => set({ halal: !s.halal })}
+              icon={flagIcon(<path d="M12 3 4 7v5c0 4 3.5 7 8 9 4.5-2 8-5 8-9V7l-8-4ZM9 12l2 2 4-4" />)}
+              label="Helal onaylı"
+              desc="İşletmenin ürün beyanıdır"
+            />
+          </FieldGroup>
+        </FieldSet>
       </NSection>
 
       <NSection title="Kontrol">
-        <button type="button" onClick={() => set({ reviewed: !s.reviewed })} style={{
-          display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left', padding: '12px 13px', borderRadius: 12, cursor: 'pointer',
-          background: s.reviewed ? 'var(--positive-bg)' : 'var(--surface-2)', border: '1px solid ' + (s.reviewed ? 'transparent' : 'var(--border)'),
-        }}>
-          <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, border: '2px solid ' + (s.reviewed ? 'var(--positive)' : 'var(--border-strong)'), background: s.reviewed ? 'var(--positive)' : 'transparent', color: '#fff', display: 'grid', placeItems: 'center' }}>{s.reviewed && icCheck(13)}</span>
-          <span style={{ flex: 1 }}>
-            <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: s.reviewed ? 'var(--positive)' : 'var(--text)' }}>İçerik, enerji ve alerjen bilgilerini gözden geçirdim</span>
-            <span style={{ display: 'block', fontSize: 11, color: s.reviewed ? 'var(--positive)' : 'var(--text-3)', marginTop: 1 }}>{s.reviewed ? 'Onaylandı' : 'İşletme beyanını kaydeder'}</span>
-          </span>
-        </button>
+        <FieldSet>
+          <FieldLegend className="sr-only">Gıda bilgisi kontrolü</FieldLegend>
+          <FieldLabel htmlFor={reviewId} className="nutrition-choice-card nutrition-review-card" data-tone="positive">
+            <Field orientation="horizontal" className="min-w-0 gap-2.5 p-2.5">
+              <FieldContent className="min-w-0 gap-0.5">
+                <FieldTitle className="w-full whitespace-normal text-[12.5px] leading-[1.35]">İçerik, enerji ve alerjen bilgilerini gözden geçirdim</FieldTitle>
+                <FieldDescription className="w-full whitespace-normal text-[10.5px] leading-4">
+                  {s.reviewed ? 'Onaylandı' : 'İşletme beyanını kaydeder'}
+                </FieldDescription>
+              </FieldContent>
+              <Checkbox
+                id={reviewId}
+                checked={s.reviewed}
+                onCheckedChange={() => set({ reviewed: !s.reviewed })}
+                aria-label="Gıda bilgilerini gözden geçirdim"
+              />
+            </Field>
+          </FieldLabel>
+        </FieldSet>
       </NSection>
     </div>
   )
@@ -319,8 +630,27 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
 export function NutritionStatusPill({ s }: { s: NutritionState }) {
   const done = nutritionComplete(s)
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 999, background: done ? 'var(--positive-bg)' : 'var(--warning-bg)', color: done ? 'var(--positive)' : 'var(--warning)' }}>
-      <span style={{ width: 6, height: 6, borderRadius: 999, background: done ? 'var(--positive)' : 'var(--warning)' }} />
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        fontSize: 11,
+        fontWeight: 600,
+        padding: '3px 9px',
+        borderRadius: 999,
+        background: done ? 'var(--positive-bg)' : 'var(--warning-bg)',
+        color: done ? 'var(--positive)' : 'var(--warning)',
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: 999,
+          background: done ? 'var(--positive)' : 'var(--warning)',
+        }}
+      />
       {done ? 'Bilgi tam' : 'Bilgi eksik'}
     </span>
   )

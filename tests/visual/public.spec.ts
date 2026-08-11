@@ -25,7 +25,7 @@ test.describe("public visual smoke", () => {
       waitUntil: "domcontentloaded",
     });
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole("heading", { name: /garson beklemeden/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /garsonsuz sipariş/i })).toBeVisible();
     await assertVisualHealth(page, testInfo, "marketing-home");
     expect(failures).toEqual([]);
   });

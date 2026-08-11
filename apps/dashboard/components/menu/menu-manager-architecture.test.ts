@@ -8,6 +8,7 @@ const managerSource = readFileSync(`${directory}/MenuManager.tsx`, 'utf8')
 const controllerSource = readFileSync(`${directory}/use-menu-manager-commands.ts`, 'utf8')
 const modelSource = readFileSync(`${directory}/menu-manager-command-model.ts`, 'utf8')
 const itemEditorSource = readFileSync(`${directory}/MenuItemEditPanel.tsx`, 'utf8')
+const itemEditorFrameSource = readFileSync(`${directory}/MenuItemEditorFrame.tsx`, 'utf8')
 const recommendationEditorSource = readFileSync(`${directory}/MenuItemRecommendationEditor.tsx`, 'utf8')
 const newProductDrawerSource = readFileSync(`${directory}/NewProductDrawer.tsx`, 'utf8')
 const itemsWorkspaceSource = readFileSync(`${directory}/MenuItemsWorkspace.tsx`, 'utf8')
@@ -15,7 +16,9 @@ const modifierEditorSource = readFileSync(`${directory}/MenuModifierGroupEditor.
 const shellStateSource = readFileSync(`${directory}/use-menu-manager-shell-state.ts`, 'utf8')
 const chromeSource = readFileSync(`${directory}/MenuManagerChrome.tsx`, 'utf8')
 const categoryWorkspaceSource = readFileSync(`${directory}/MenuCategoryWorkspace.tsx`, 'utf8')
+const categoryFormSource = readFileSync(`${directory}/CategoryForm.tsx`, 'utf8')
 const nutritionSource = readFileSync(`${directory}/NutritionFields.tsx`, 'utf8')
+const imageAttachmentSource = readFileSync(`${directory}/MenuImageAttachment.tsx`, 'utf8')
 const globalStylesSource = readFileSync(`${directory}/../../app/globals.css`, 'utf8')
 const saveFeedbackSource = readFileSync(`${directory}/use-menu-save-feedback.ts`, 'utf8')
 
@@ -45,6 +48,35 @@ test('MenuManager delegates allergen and modifier option editing to a tenant-agn
   assert.match(modifierEditorSource, /role="listbox"/)
   assert.match(modifierEditorSource, /aria-multiselectable="true"/)
   assert.doesNotMatch(modifierEditorSource, /lib\/actions|createClient|supabase|restaurantId/i)
+})
+
+test('modifier selection mode uses the searchable shadcn combobox', () => {
+  assert.match(modifierEditorSource, /from '@\/components\/ui\/combobox'/)
+  assert.match(modifierEditorSource, /<SelectionModeCombobox/)
+  assert.match(modifierEditorSource, /<ComboboxInput[\s\S]*aria-label="Seçim biçimi"/)
+  assert.match(modifierEditorSource, /<ComboboxList>[\s\S]*<ComboboxItem/)
+  assert.match(modifierEditorSource, /Tek seçim/)
+  assert.match(modifierEditorSource, /Çoklu seçim/)
+  assert.match(modifierEditorSource, /Adetli seçim/)
+  assert.doesNotMatch(modifierEditorSource, /NativeSelect/)
+})
+
+test('category forms use a compact searchable combobox for kitchen stations', () => {
+  assert.match(categoryFormSource, /from '@\/components\/ui\/combobox'/)
+  assert.match(categoryFormSource, /function KitchenStationCombobox/)
+  assert.match(categoryFormSource, /aria-label="Varsayılan mutfak istasyonu"/)
+  assert.match(categoryFormSource, /<ComboboxEmpty>İstasyon bulunamadı\.<\/ComboboxEmpty>/)
+  assert.match(categoryFormSource, /<ComboboxList>[\s\S]*<ComboboxItem/)
+  assert.match(categoryFormSource, /\{ value: '', label: 'Atanmamış' \}/)
+  assert.doesNotMatch(categoryFormSource, /NativeSelect/)
+})
+
+test('category VAT controls stay bounded in the narrow category rail', () => {
+  assert.match(categoryFormSource, /from '@\/components\/ui\/toggle-group'/)
+  assert.match(categoryFormSource, /grid-cols-\[minmax\(0,1fr\)_64px\]/)
+  assert.match(categoryFormSource, /<ToggleGroup[\s\S]*className="grid min-w-0 grid-cols-3"/)
+  assert.match(categoryFormSource, /<ToggleGroupItem[\s\S]*className="min-w-0 px-1/)
+  assert.match(categoryFormSource, /className="h-7 min-w-0 px-1\.5 text-right font-mono text-xs"/)
 })
 
 test('MenuManager delegates product editor state, persistence and dirty lifecycle to its feature panel', () => {
@@ -86,6 +118,18 @@ test('new product drawer traps focus, protects drafts and restores page scrollin
   assert.match(newProductDrawerSource, /const \[initialNutrition\].*nutritionFromItem\(null\)/)
   assert.match(newProductDrawerSource, /isNewMenuItemDraftDirty/)
   assert.doesNotMatch(newProductDrawerSource, /JSON\.stringify\(nutri\).*nutritionFromItem\(null\)/)
+})
+
+test('new product flow composes compact shadcn form controls', () => {
+  assert.match(newProductDrawerSource, /from '@\/components\/ui\/field'/)
+  assert.match(newProductDrawerSource, /from '@\/components\/ui\/input-group'/)
+  assert.match(newProductDrawerSource, /from '@\/components\/ui\/toggle-group'/)
+  assert.match(newProductDrawerSource, /from '@\/components\/ui\/combobox'/)
+  assert.match(newProductDrawerSource, /<FieldGroup className="gap-4 p-5">/)
+  assert.match(newProductDrawerSource, /<InputGroup className="new-product-currency h-9 overflow-hidden">/)
+  assert.match(newProductDrawerSource, /aria-label="Mutfak istasyonu kaynağı"/)
+  assert.match(newProductDrawerSource, /aria-label="Ürün mutfak istasyonu"/)
+  assert.doesNotMatch(newProductDrawerSource, /NativeSelect/)
 })
 
 test('product and recommendation saves share one feedback state contract', () => {
@@ -143,25 +187,79 @@ test('empty menu actions route to category creation before product creation', ()
   assert.match(chromeSource, /requiresCategory \? 'Kategori ekle' : 'Yeni ürün'/)
 })
 
+test('empty product panel keeps the same fixed width contract as the item editor', () => {
+  assert.match(itemEditorFrameSource, /width: 'var\(--props\)'/)
+  assert.match(chromeSource, /className="menu-manager-empty-panel[^"\n]*"/)
+  assert.match(chromeSource, /width: 'var\(--props\)',\s*flex: '0 0 var\(--props\)'/)
+})
+
+test('menu shell contains vertical scrolling inside its bounded workspaces', () => {
+  assert.match(managerSource, /height: '100%', minHeight: 0, overflow: 'hidden'/)
+  assert.match(managerSource, /overscrollBehaviorY: 'none'/)
+  assert.match(managerSource, /flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden'/)
+  assert.match(categoryWorkspaceSource, /flexDirection: 'column',\s*minHeight: 0,\s*overflow: 'hidden'/)
+  assert.match(itemsWorkspaceSource, /minWidth: 0,\s*minHeight: 0,\s*overflow: 'hidden'/)
+  assert.match(itemEditorFrameSource, /minWidth: 0,\s*minHeight: 0,\s*flexShrink: 0/)
+  assert.match(itemEditorFrameSource, /className="menu-item-editor-scroll"/)
+  assert.match(itemEditorFrameSource, /overflowY: 'auto',[\s\S]{0,100}overscrollBehaviorY: 'contain'/)
+})
+
 test('live menu manager keeps desktop controls compact and touch targets accessible', () => {
   assert.match(managerSource, /className="menu-manager"/)
   assert.match(globalStylesSource, /@media \(pointer: coarse\) \{[\s\S]*\.menu-manager button,[\s\S]*min-height: 44px/)
   assert.match(globalStylesSource, /@media \(pointer: coarse\) \{[\s\S]*button\[aria-label\],[\s\S]*min-width: 44px/)
-  assert.match(chromeSource, /height: 32, padding: '0 12px'/)
-  assert.match(itemsWorkspaceSource, /width: 26, height: 26, borderRadius: 6/)
-  assert.match(newProductDrawerSource, /const btnGhost: React\.CSSProperties = \{ height: 36/)
+  assert.match(chromeSource, /<InputGroup[\s\S]*className="menu-search-control[^"\n]*"/)
+  assert.match(chromeSource, /className="menu-top-action[^"\n]*"[\s\S]*size="sm"/)
+  assert.match(itemsWorkspaceSource, /width: 26,\s*height: 26,\s*borderRadius: 6/)
+  assert.match(newProductDrawerSource, /className="new-product-action[^"\n]*"[\s\S]*size="lg"/)
+})
+
+test('product card selection stays visible over photos and color swatches', () => {
+  assert.match(itemsWorkspaceSource, /className="menu-product-select-hit-area"/)
+  assert.match(itemsWorkspaceSource, /className="menu-product-select-surface[^"\n]*bg-card[^"\n]*shadow-sm"/)
+  assert.match(itemsWorkspaceSource, /className="size-\[18px\] border-border bg-card"/)
+  assert.match(globalStylesSource, /\.menu-product-select-hit-area:hover \.menu-product-select-surface/)
 })
 
 test('menu search and nutrition macros replace black input outlines with surface feedback', () => {
-  assert.match(chromeSource, /className="menu-search-control"/)
+  assert.match(chromeSource, /className="menu-search-control[^"\n]*"/)
   assert.match(chromeSource, /className="menu-search-input"/)
-  assert.match(nutritionSource, /className="nutrition-macro-field"/)
+  assert.match(nutritionSource, /className="nutrition-macro-field[^"\n]*"/)
   assert.match(nutritionSource, /className="nutrition-macro-input"/)
   assert.match(globalStylesSource, /\.menu-manager input:focus-visible,[\s\S]*?outline: none !important;/)
   assert.doesNotMatch(globalStylesSource, /\.menu-manager input:focus-visible,[^{]*\{[^}]*outline: 2px solid/)
   assert.match(globalStylesSource, /\.menu-manager \.menu-search-input:focus-visible,[\s\S]*outline: none !important;/)
   assert.match(globalStylesSource, /\.menu-search-control:focus-within \{[\s\S]*background: var\(--surface-inset\) !important;/)
   assert.match(globalStylesSource, /\.nutrition-macro-field:focus-within \{[\s\S]*background: var\(--surface-2\) !important;/)
+})
+
+test('nutrition declarations use compact labelled shadcn checkbox cards without clipped copy', () => {
+  assert.match(nutritionSource, /<FieldSet>/)
+  assert.match(nutritionSource, /<FieldLabel htmlFor=\{id\} className="nutrition-choice-card"/)
+  assert.match(nutritionSource, /<Checkbox id=\{id\} checked=\{on\}/)
+  assert.match(nutritionSource, /whitespace-normal text-\[12\.5px\]/)
+  assert.match(globalStylesSource, /\.nutrition-choice-card \{[\s\S]*overflow: hidden;/)
+  assert.doesNotMatch(nutritionSource, /onClick=\{onToggle\}[\s\S]{0,300}whiteSpace: 'nowrap'/)
+})
+
+test('nutrition ingredients use compact shadcn field groups within the narrow editor', () => {
+  assert.match(nutritionSource, /<FieldGroup className="gap-2">/)
+  assert.match(nutritionSource, /className="nutrition-ingredient-card[^"\n]*"/)
+  assert.match(nutritionSource, /grid-cols-\[minmax\(0,1fr\)_88px\]/)
+  assert.match(nutritionSource, /<InputGroupInput[\s\S]*placeholder="Bileşen adı"/)
+  assert.match(nutritionSource, /<Switch[\s\S]*Müşteri çıkarabilir/)
+  assert.match(nutritionSource, /className="mt-3 grid grid-cols-2 gap-2"/)
+  assert.doesNotMatch(nutritionSource, />\s*çıkar\s*</)
+})
+
+test('menu image uploads compose the shadcn Attachment lifecycle and accessible actions', () => {
+  assert.match(imageAttachmentSource, /from '@\/components\/ui\/attachment'/)
+  assert.match(imageAttachmentSource, /state=\{uploading \? 'uploading' : hasImage \? 'done' : 'idle'\}/)
+  assert.match(imageAttachmentSource, /<AttachmentMedia[\s\S]*variant=\{hasImage \? 'image' : 'icon'\}/)
+  assert.match(imageAttachmentSource, /<AttachmentAction[\s\S]*aria-label=\{`\$\{title\} görselini kaldır`\}/)
+  assert.match(imageAttachmentSource, /<AttachmentTrigger aria-label=\{selectLabel\}/)
+  assert.match(categoryFormSource, /<MenuImageAttachment/)
+  assert.match(itemEditorSource, /<MenuImageAttachment/)
 })
 
 test('MenuManager stays below its shell-state and chrome strangler decomposition budget', () => {

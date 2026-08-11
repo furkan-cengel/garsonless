@@ -79,6 +79,8 @@ test('favorite controls are accessible and reorder remains an explicit preview',
   const accountCenter = readFileSync(new URL('../app/[slug]/components/AccountCenter.tsx', import.meta.url), 'utf8')
   assert.match(productCard, /aria-pressed=\{favorite\}/)
   assert.match(productCard, /width: 44, height: 44/)
+  assert.match(productCard, /width: 38, height: 38/)
+  assert.match(productCard, /AppIcons\.heart size=\{17\}/)
   assert.match(menuPage, /\.\.\.\(member \? \{[\s\S]*?onToggleFavorite:[\s\S]*?\} : \{\}\)/)
   assert.match(accountCenter, /Güvenli önizleme/)
   assert.match(accountCenter, /Sipariş verilmedi; güncel menü doğrulandı\./)

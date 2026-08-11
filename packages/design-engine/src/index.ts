@@ -24,6 +24,8 @@ export type {
   HomeSurfaceBlock,
   HomeSurfaceSection,
   HomeSurfaceTheme,
+  MenuFilterPresetId,
+  ThemeMenuCustomFilter,
   ThemeEditorSurface,
   ThemePageBlock,
   ThemeSectionVisibility,

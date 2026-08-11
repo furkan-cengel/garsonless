@@ -3,7 +3,13 @@
 import type { ReactNode } from 'react'
 import type { AnalyticsReportId } from '../../lib/actions/analytics'
 import PageTopBar from '../layout/PageTopBar'
-import { I, btnPrimary } from '../../lib/ui'
+import { I } from '../../lib/ui'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '../ui/alert'
+import { Badge } from '../ui/badge'
+import { Button } from '../ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '../ui/empty'
+import { Spinner } from '../ui/spinner'
+import { Tabs, TabsList, TabsTrigger } from '../ui/tabs'
 import {
   ANALYTICS_REPORTS,
   analyticsRangeLabel,
@@ -70,15 +76,15 @@ export function AnalyticsReportShell({
         right={(
           <>
             <AnalyticsRangePicker query={query} onRangeChange={onRangeChange} onQueryChange={onQueryChange} loading={isPending} />
-            <button
+            <Button
               className="analytics-export-button"
               type="button"
               onClick={onExport}
               disabled={!canExport}
-              style={{ ...btnPrimary(), opacity: canExport ? 1 : 0.45, cursor: canExport ? 'pointer' : 'not-allowed' }}
+              size="sm"
             >
-              <I.download size={13} /><span className="analytics-export-label">Dışa aktar</span>
-            </button>
+              <I.download data-icon="inline-start" /><span className="analytics-export-label">Dışa aktar</span>
+            </Button>
           </>
         )}
       />
@@ -97,48 +103,27 @@ export function AnalyticsReportShell({
               {analyticsRangeLabel(range)} · gerçek veri
             </div>
           </div>
-          <nav aria-label="Rapor türleri" style={{ flex: 1, overflow: 'auto', padding: 8 }}>
-            {visibleReports.map((report) => {
-              const selected = activeReport === report.id
-              return (
-                <button
+          <Tabs value={activeReport} onValueChange={(value) => onReportChange(value as AnalyticsReportId)} orientation="vertical" className="min-h-0 flex-1 gap-0">
+            <TabsList variant="line" aria-label="Rapor türleri" className="analytics-desktop-report-tabs h-full w-full items-stretch justify-start overflow-y-auto p-2">
+              {visibleReports.map((report) => (
+                <TabsTrigger
                   key={report.id}
-                  type="button"
-                  onClick={() => onReportChange(report.id)}
-                  aria-current={selected ? 'page' : undefined}
-                  className="analytics-report-tab"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    width: '100%',
-                    padding: '6px 8px',
-                    marginBottom: 1,
-                    borderRadius: 7,
-                    background: selected ? 'var(--surface-inset)' : 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
+                  value={report.id}
+                  aria-current={activeReport === report.id ? 'page' : undefined}
+                  className="analytics-report-tab h-auto w-full flex-none justify-start px-2 py-2 text-left"
                 >
-                  <span style={{ width: 18, display: 'inline-flex', justifyContent: 'center', color: selected ? 'var(--text)' : 'var(--text-3)' }}>
-                    {REPORT_ICONS[report.id]}
-                  </span>
-                  <span style={{ flex: 1 }}>
-                    <span style={{ fontSize: 13, fontWeight: selected ? 600 : 500, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span aria-hidden="true" className="inline-flex w-5 justify-center">{REPORT_ICONS[report.id]}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5 font-medium text-foreground">
                       {report.label}
-                      {report.badge && (
-                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--accent)', background: 'var(--accent-soft)', padding: '1px 5px', borderRadius: 4 }}>
-                          {report.badge}
-                        </span>
-                      )}
+                      {report.badge && <Badge variant="secondary" className="text-[9px] uppercase">{report.badge}</Badge>}
                     </span>
-                    <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', marginTop: 1 }}>{report.desc}</span>
+                    <span className="block truncate text-[11px] font-normal text-muted-foreground">{report.desc}</span>
                   </span>
-                </button>
-              )
-            })}
-          </nav>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </aside>
 
         <div className="analytics-mobile-navigation">
@@ -146,23 +131,21 @@ export function AnalyticsReportShell({
             <span>Raporlar</span>
             <span>{analyticsRangeLabel(range)} · gerçek veri</span>
           </div>
-          <nav aria-label="Rapor türleri" className="analytics-mobile-report-tabs">
-            {visibleReports.map((report) => {
-              const selected = activeReport === report.id
-              return (
-                <button
+          <Tabs value={activeReport} onValueChange={(value) => onReportChange(value as AnalyticsReportId)}>
+            <TabsList variant="line" aria-label="Rapor türleri" className="analytics-mobile-report-tabs">
+              {visibleReports.map((report) => (
+                <TabsTrigger
                   className="analytics-report-tab analytics-report-tab--compact"
                   key={report.id}
-                  type="button"
-                  onClick={() => onReportChange(report.id)}
-                  aria-current={selected ? 'page' : undefined}
+                  value={report.id}
+                  aria-current={activeReport === report.id ? 'page' : undefined}
                 >
                   <span aria-hidden="true">{REPORT_ICONS[report.id]}</span>
                   <span>{report.label}</span>
-                </button>
-              )
-            })}
-          </nav>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </div>
 
         <section className="analytics-main" aria-label={`${activeLabel} raporu`} aria-busy={isPending} style={{ flex: 1, overflow: 'auto', minWidth: 0, opacity: isPending ? 0.6 : 1 }}>
@@ -181,12 +164,12 @@ export function AnalyticsReportShell({
           <div className="analytics-content" style={{ padding: '24px 28px 60px' }}>
             <div className="analytics-active-label">{activeLabel}</div>
             {loadError && (
-              <div role="alert" style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, border: '1px solid var(--critical)', background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 13 }}>
-                {loadError}{' '}
-                <button className="analytics-retry-button" type="button" onClick={onRetry} disabled={isPending} style={{ marginLeft: 8, border: 0, background: 'transparent', color: 'inherit', fontWeight: 700, textDecoration: 'underline', cursor: isPending ? 'wait' : 'pointer' }}>
-                  Tekrar dene
-                </button>
-              </div>
+              <Alert variant="destructive" className="mb-4">
+                <I.warn aria-hidden="true" />
+                <AlertTitle>Rapor yüklenemedi</AlertTitle>
+                <AlertDescription>{loadError}</AlertDescription>
+                <AlertAction><Button className="analytics-retry-button" type="button" variant="outline" size="xs" onClick={onRetry} disabled={isPending}>Tekrar dene</Button></AlertAction>
+              </Alert>
             )}
             {!activeReportLoaded && isPending ? <AnalyticsReportLoading /> : children}
           </div>
@@ -198,15 +181,12 @@ export function AnalyticsReportShell({
 
 function AnalyticsReportLoading() {
   return (
-    <div role="status" aria-live="polite" style={{
-      minHeight: 320,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: 'var(--text-3)',
-      fontSize: 13,
-    }}>
-      Rapor yükleniyor…
-    </div>
+    <Empty role="status" aria-live="polite" className="min-h-80">
+      <EmptyHeader>
+        <EmptyMedia variant="icon"><Spinner /></EmptyMedia>
+        <EmptyTitle>Rapor yükleniyor</EmptyTitle>
+        <EmptyDescription>Seçili dönem için veriler hazırlanıyor.</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   )
 }

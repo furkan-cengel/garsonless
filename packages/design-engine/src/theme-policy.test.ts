@@ -35,6 +35,23 @@ test('theme sanitizer rejects CSS-shaped values and keeps canonical fallbacks', 
   assert.equal(sanitized.cols, 4)
 })
 
+test('menu filters keep supported presets and bounded product-backed manual filters', () => {
+  const sanitized = sanitizeThemeTokens({
+    menuFilterPresetIds: ['halal', 'vegan', 'unknown', 'halal'],
+    menuCustomFilters: [
+      { id: 'manual-spicy', label: 'Acılı', itemIds: ['item-1', 'item-2', 'item-1'] },
+      { id: 'manual-spicy', label: 'Tekrar', itemIds: ['item-3'] },
+      { id: 'vegan', label: 'Hazır filtre çakışması', itemIds: ['item-4'] },
+      { id: 'unsafe', label: 'url(javascript:1)', itemIds: ['item-4'] },
+    ],
+  }, 'default')
+
+  assert.deepEqual(sanitized?.menuFilterPresetIds, ['halal', 'vegan'])
+  assert.deepEqual(sanitized?.menuCustomFilters, [
+    { id: 'manual-spicy', label: 'Acılı', itemIds: ['item-1', 'item-2'] },
+  ])
+})
+
 test('legacy temayı güvenli V2 yüzey varsayılanlarıyla okur', () => {
   const sanitized = sanitizeThemeTokens({ accent: '#123456' }, 'default')
   assert.ok(sanitized?.surfaces)

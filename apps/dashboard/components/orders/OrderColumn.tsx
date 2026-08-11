@@ -7,6 +7,9 @@ import type { Order } from './useOrdersRealtime'
 import { sortOrdersByPriorityThenCreatedAt, type OperationalOrderStatus } from '@garsonless/db/browser'
 import OrderCard, { type OrderDensity } from './OrderCard'
 import { INITIAL_COLUMN_ORDER_LIMIT, boundedColumnWindow } from './order-board-performance'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 
 interface ColumnDef {
   id: string
@@ -66,11 +69,7 @@ export default function OrderColumn({ column, orders, tableLabels, selectedOrder
         borderBottom: '1px solid var(--divider)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            background: tone.bg, color: tone.fg,
-            padding: '2px 8px', borderRadius: 999,
-            fontSize: 11.5, fontWeight: 600,
-          }} aria-label={`${orders.length} sipariş`}>{orders.length}</span>
+          <Badge variant="secondary" style={{ background: tone.bg, color: tone.fg }} aria-label={`${orders.length} sipariş`}>{orders.length}</Badge>
           <div>
             <div id={headingId} style={{ fontWeight: 600, fontSize: 13 }}>{column.label}</div>
             <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>{column.desc}</div>
@@ -103,29 +102,18 @@ export default function OrderColumn({ column, orders, tableLabels, selectedOrder
           ))}
         </SortableContext>
         {sortedOrders.length === 0 && (
-          <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-4)', fontSize: 12 }}>
-            Sipariş yok
-          </div>
+          <Empty className="min-h-28 p-4"><EmptyDescription>Sipariş yok</EmptyDescription></Empty>
         )}
         {orderWindow.hiddenCount > 0 && (
-          <button
+          <Button
             type="button"
+            variant="outline"
             className="orders-load-more orders-touch-target"
             onClick={() => setVisibleLimit(orderWindow.nextLimit)}
-            style={{
-              minHeight: 40,
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              background: 'var(--surface)',
-              color: 'var(--text-2)',
-              cursor: 'pointer',
-              fontSize: 11.5,
-              fontWeight: 650,
-            }}
           >
             {Math.min(orderWindow.hiddenCount, orderWindow.nextLimit - orderWindow.visible.length)} sipariş daha göster
             <span className="sr-only"> · {orderWindow.hiddenCount} sipariş henüz gösterilmiyor</span>
-          </button>
+          </Button>
         )}
       </div>
     </section>

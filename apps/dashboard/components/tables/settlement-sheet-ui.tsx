@@ -1,9 +1,11 @@
 import React from 'react'
+import { Banknote, CreditCard, Gift } from 'lucide-react'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import type { SettlementMethod } from './settlement-sheet-model'
 
-export const cashIcon = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2" /><circle cx="12" cy="12" r="2.6" /></svg>
-export const cardIcon = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5" /><path d="M2.5 9.5h19" /></svg>
-const giftIcon = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="9" width="17" height="11" rx="1.5" /><path d="M3.5 13h17M12 9v11M12 9S9.5 5 7.5 6.5 9 9 12 9Zm0 0s2.5-4 4.5-2.5S15 9 12 9Z" /></svg>
+export const cashIcon = <Banknote />
+export const cardIcon = <CreditCard />
+const giftIcon = <Gift />
 
 type MethodDefinition = {
   id: SettlementMethod
@@ -16,9 +18,9 @@ type MethodDefinition = {
 }
 
 export const METHODS: Record<SettlementMethod, MethodDefinition> = {
-  cash: { id: 'cash', label: 'Nakit', fg: '#137a4d', bg: '#e6f4ec', dot: '#137a4d', icon: cashIcon },
-  pos: { id: 'pos', label: 'Fiziksel POS', fg: '#2c5282', bg: '#e8eef6', dot: '#2c5282', icon: cardIcon },
-  comp: { id: 'comp', label: 'İkram', fg: '#7c3aed', bg: '#f3e8ff', dot: '#7c3aed', icon: giftIcon, dashed: true },
+  cash: { id: 'cash', label: 'Nakit', fg: 'var(--positive)', bg: 'var(--positive-bg)', dot: 'var(--positive)', icon: cashIcon },
+  pos: { id: 'pos', label: 'Fiziksel POS', fg: 'var(--info)', bg: 'var(--info-bg)', dot: 'var(--info)', icon: cardIcon },
+  comp: { id: 'comp', label: 'İkram', fg: 'var(--warning)', bg: 'var(--warning-bg)', dot: 'var(--warning)', icon: giftIcon, dashed: true },
 }
 
 export const METHOD_LIST = [METHODS.cash, METHODS.pos, METHODS.comp]
@@ -122,38 +124,8 @@ export function SettlementMethodPicker({
   onChange: (method: SettlementMethod) => void
 }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginTop: 10 }}>
-      {METHOD_LIST.map((method) => {
-        const selected = value === method.id
-        return (
-          <button
-            key={method.id}
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(method.id)}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 4,
-              padding: '9px 4px',
-              borderRadius: 10,
-              fontSize: 11.5,
-              fontWeight: 600,
-              color: selected ? method.fg : 'var(--text-2)',
-              background: selected ? method.bg : 'var(--surface)',
-              border: `${selected ? '1.5px' : '1px'} ${method.dashed && selected ? 'dashed' : 'solid'} ${selected ? method.dot : 'var(--border)'}`,
-              boxShadow: selected ? 'none' : 'var(--shadow-1)',
-              cursor: disabled ? 'default' : 'pointer',
-              opacity: disabled ? 0.6 : 1,
-              transition: 'all .12s ease',
-            }}
-          >
-            <span style={{ color: selected ? method.fg : 'var(--text-3)' }}>{method.icon}</span>
-            {method.label}
-          </button>
-        )
-      })}
-    </div>
+    <ToggleGroup value={value ? [value] : []} onValueChange={(values) => { const method = values[0] as SettlementMethod | undefined; if (method) onChange(method) }} variant="outline" spacing={1} className="mt-2.5 grid w-full grid-cols-3" aria-label="Ödeme yöntemi">
+      {METHOD_LIST.map((method) => <ToggleGroupItem key={method.id} value={method.id} disabled={disabled} className="h-auto min-w-0 flex-col py-2.5"><span>{method.icon}</span>{method.label}</ToggleGroupItem>)}
+    </ToggleGroup>
   )
 }

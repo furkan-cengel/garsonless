@@ -2,10 +2,11 @@
 
 import Image from 'next/image'
 import { computeVatBreakdown, readOrderLineSnapshots, type PaymentMethod } from '@garsonless/db/browser'
-import { I, S, btnPrimary, btnGhost } from '../../lib/ui'
+import { I, S } from '../../lib/ui'
 import { formatCurrency } from '../../lib/utils'
 import { paymentMethodBadge } from '../../lib/payment-method'
-import { AccessibleDialog } from '../tables/AccessibleDialog'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 export interface ReceiptOrder {
   id: string
@@ -41,18 +42,14 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
   const taxAddress = taxText(tax?.['address'])
 
   return (
-    <AccessibleDialog
-      labelledBy="order-receipt-title"
-      onClose={onClose}
-      className="order-receipt-overlay"
-      style={{
-        position: 'fixed', inset: 0, zIndex: 210,
-        background: 'rgba(17,17,19,.5)', backdropFilter: 'blur(3px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-      }}
-    >
-      <style dangerouslySetInnerHTML={{ __html: '@media print{body *{visibility:hidden!important}.receipt-print,.receipt-print *{visibility:visible!important}.receipt-print{position:absolute;left:0;top:0;box-shadow:none!important}}@media(max-width:390px){.order-receipt-overlay{padding:12px!important}.order-receipt-shell,.receipt-print,.order-receipt-actions{width:100%!important}}' }} />
-      <div className="order-receipt-shell" style={{ width: 340, maxWidth: '100%', maxHeight: '94dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent showCloseButton={false} className="max-h-[94dvh] gap-3 overflow-hidden bg-transparent p-0 ring-0 sm:max-w-[340px]">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{restaurantName} sipariş fişi</DialogTitle>
+          <DialogDescription>{tableLabel} için sipariş ve ödeme özeti</DialogDescription>
+        </DialogHeader>
+        <style dangerouslySetInnerHTML={{ __html: '@media print{body *{visibility:hidden!important}.receipt-print,.receipt-print *{visibility:visible!important}.receipt-print{position:absolute;left:0;top:0;box-shadow:none!important}}@media(max-width:390px){.receipt-print,.order-receipt-actions{width:100%!important}}' }} />
+      <div className="order-receipt-shell flex max-h-[94dvh] w-full flex-col items-center gap-3">
         <div className="receipt-print" style={{
           width: 320, background: '#fff', borderRadius: 6, boxShadow: 'var(--shadow-pop)',
           overflow: 'auto', padding: '22px 24px',
@@ -132,13 +129,14 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
         </div>
 
         <div className="order-receipt-actions" style={{ display: 'flex', gap: 8, width: 320 }}>
-          <button type="button" data-modal-initial-focus onClick={onClose} style={{ flex: 1, minHeight: 44, ...btnGhost(), justifyContent: 'center' }}>Kapat</button>
-          <button type="button" onClick={() => window.print()} style={{ flex: 2, minHeight: 44, ...btnPrimary(), justifyContent: 'center' }}>
+          <Button type="button" variant="outline" onClick={onClose} className="h-10 flex-1 bg-background">Kapat</Button>
+          <Button type="button" onClick={() => window.print()} className="h-10 flex-[2]">
             <I.history size={14} />Yazdır
-          </button>
+          </Button>
         </div>
       </div>
-    </AccessibleDialog>
+      </DialogContent>
+    </Dialog>
   )
 }
 

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table'
 
 export interface AccessibleChartColumn<Row> {
   key: keyof Row
@@ -31,36 +32,36 @@ export default function AccessibleChartData<Row extends object>({
           aria-label={`${caption} veri tablosu`}
           tabIndex={0}
         >
-          <table style={{ width: '100%', minWidth: 460, borderCollapse: 'collapse', fontSize: 11.5 }}>
-            <caption className="sr-only">{caption}</caption>
-            <thead>
-              <tr>
+          <Table className="min-w-[460px] text-xs">
+            <TableCaption className="sr-only">{caption}</TableCaption>
+            <TableHeader>
+              <TableRow>
                 {columns.map((column) => (
-                  <th
+                  <TableHead
                     key={String(column.key)}
                     scope="col"
-                    style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-3)', textAlign: column.align ?? 'left', whiteSpace: 'nowrap' }}
+                    className={column.align === 'right' ? 'text-right' : undefined}
                   >
                     {column.label}
-                  </th>
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((row, rowIndex) => (
-                <tr key={rowIndex}>
+                <TableRow key={rowIndex}>
                   {columns.map((column) => (
-                    <td
+                    <TableCell
                       key={String(column.key)}
-                      style={{ padding: '8px 10px', borderBottom: '1px solid var(--divider)', color: 'var(--text)', textAlign: column.align ?? 'left', whiteSpace: 'nowrap' }}
+                      className={column.align === 'right' ? 'text-right' : undefined}
                     >
                       {column.render ? column.render(row[column.key], row) : String(row[column.key] ?? '')}
-                    </td>
+                    </TableCell>
                   ))}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </details>
     </div>

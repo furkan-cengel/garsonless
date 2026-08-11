@@ -15,7 +15,7 @@
     "exactOptionalPropertyTypes": false,
     "paths": {
       "@/*": [
-        "./src/*"
+        "./*"
       ]
     },
     "allowJs": true,

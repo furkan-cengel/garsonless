@@ -1,52 +1,25 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { InlineSpinner } from '@garsonless/ui/spinners'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { FieldError } from '@/components/ui/field'
+import { Spinner } from '@/components/ui/spinner'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import type { OpenTableSessionView, TableItem } from './tables-builder-types'
 import { TABLE_OPERATIONAL_COPY, type TableOperationalState } from './tables-operation-model'
 import {
   TABLES_NAV_ICONS,
   TABLES_NAV_STYLES,
   TablesMiniQR,
-  tablesNavGhostButton,
-  tablesNavPrimaryButton,
 } from './tables-navigation-ui'
-
-function DeleteTableDialog({
-  label,
-  busy,
-  onCancel,
-  onConfirm,
-}: {
-  label: string
-  busy: boolean
-  onCancel: () => void
-  onConfirm: () => void
-}) {
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !busy) onCancel()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [busy, onCancel])
-  return (
-    <div onClick={() => { if (!busy) onCancel() }} style={{ position: 'fixed', inset: 0, zIndex: 90, padding: 20, display: 'grid', placeItems: 'center', background: 'rgba(17,17,19,.48)', backdropFilter: 'blur(4px)' }}>
-      <div role="alertdialog" aria-modal="true" aria-labelledby="delete-table-title" aria-describedby="delete-table-description" onClick={(event) => event.stopPropagation()} style={{ width: 'min(420px, 100%)', padding: 20, borderRadius: 14, background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-pop)' }}>
-        <div id="delete-table-title" style={{ fontSize: 16, fontWeight: 750 }}>Masayı sil</div>
-        <div id="delete-table-description" style={{ marginTop: 8, color: 'var(--text-2)', fontSize: 12.5, lineHeight: 1.55 }}>
-          <strong>{label}</strong> listeden kaldırılacak. Bu masanın tahmin edilemez QR bağlantısı artık kullanılamayacak.
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
-          <button type="button" autoFocus disabled={busy} onClick={onCancel} style={tablesNavGhostButton()}>Vazgeç</button>
-          <button type="button" disabled={busy} onClick={onConfirm} style={{ ...tablesNavPrimaryButton(), background: 'var(--critical)', opacity: busy ? 0.6 : 1 }}>
-            {busy ? <><InlineSpinner size={12} color="#fff" /> Siliniyor…</> : 'Masayı sil'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export function TablesNavigationTableRow({
   table,
@@ -140,8 +113,8 @@ export function TablesNavigationTableRow({
 
   if (editing) {
     return (
-      <div style={{ padding: 8, marginBottom: 3, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8 }}>
-        <input
+      <div className="mb-1 rounded-lg border bg-muted/30 p-2">
+        <Input
           aria-label="Masa adı"
           autoFocus
           value={draft}
@@ -153,21 +126,21 @@ export function TablesNavigationTableRow({
               setError(null)
             }
           }}
-          style={{ width: '100%', height: 28, padding: '0 8px', marginBottom: 6, border: '1px solid var(--border-strong)', borderRadius: 6, outline: 'none', fontSize: 12.5 }}
+          className="mb-1.5 h-7 text-xs"
         />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
-          <input aria-label="Kat" value={floorDraft} maxLength={40} onChange={(event) => setFloorDraft(event.target.value)} placeholder="Kat" style={{ width: '100%', minWidth: 0, height: 30, padding: '0 8px', border: '1px solid var(--border-strong)', borderRadius: 6, outline: 'none', fontSize: 11.5 }} />
-          <input aria-label="Alan" value={areaDraft} maxLength={40} onChange={(event) => setAreaDraft(event.target.value)} placeholder="Alan" style={{ width: '100%', minWidth: 0, height: 30, padding: '0 8px', border: '1px solid var(--border-strong)', borderRadius: 6, outline: 'none', fontSize: 11.5 }} />
+        <div className="mb-1.5 grid grid-cols-2 gap-1.5">
+          <Input aria-label="Kat" value={floorDraft} maxLength={40} onChange={(event) => setFloorDraft(event.target.value)} placeholder="Kat" className="h-7 min-w-0 text-xs" />
+          <Input aria-label="Alan" value={areaDraft} maxLength={40} onChange={(event) => setAreaDraft(event.target.value)} placeholder="Alan" className="h-7 min-w-0 text-xs" />
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button type="button" disabled={busy} onClick={() => void commitRename()} style={{ ...tablesNavPrimaryButton(), height: 26, fontSize: 11.5, padding: '0 10px', flex: 1, opacity: busy ? 0.6 : 1 }}>
-            {busy ? <><InlineSpinner size={11} color="var(--on-action)" /> Kaydediliyor…</> : <>{React.cloneElement(TABLES_NAV_ICONS.check as React.ReactElement<{ size?: number }>, { size: 12 })}Kaydet</>}
-          </button>
-          <button type="button" onClick={() => { setEditing(false); setError(null) }} style={{ ...tablesNavGhostButton(), height: 26, fontSize: 11.5, padding: '0 10px' }}>
+        <div className="flex gap-1">
+          <Button type="button" size="xs" disabled={busy} onClick={() => void commitRename()} className="flex-1">
+            {busy ? <Spinner data-icon="inline-start" /> : React.cloneElement(TABLES_NAV_ICONS.check as React.ReactElement<{ size?: number }>, { size: 12 })}Kaydet
+          </Button>
+          <Button type="button" variant="outline" size="icon-xs" aria-label="Düzenlemeyi iptal et" onClick={() => { setEditing(false); setError(null) }}>
             {React.cloneElement(TABLES_NAV_ICONS.close as React.ReactElement<{ size?: number }>, { size: 12 })}
-          </button>
+          </Button>
         </div>
-        {error && <div style={{ marginTop: 6, fontSize: 11, color: 'var(--critical)' }}>{error}</div>}
+        {error && <FieldError className="mt-1.5 text-xs">{error}</FieldError>}
       </div>
     )
   }
@@ -197,37 +170,36 @@ export function TablesNavigationTableRow({
         </span>
         <span style={{ ...TABLES_NAV_STYLES.mono, fontSize: 10, color: 'var(--text-4)', marginRight: hovered || active || menuOpen ? 28 : 0 }}>/{table.slug}</span>
       </button>
-      {(hovered || active || menuOpen) && (
-        <button
-          className="tb-tables__table-options"
-          type="button"
-          aria-label={`${table.label} seçenekleri`}
-          disabled={busy}
-          onClick={(event) => { event.stopPropagation(); setMenuOpen((open) => !open) }}
-          style={{ position: 'absolute', top: 7, right: 6, width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text-2)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: busy ? 'default' : 'pointer' }}
-        >
-          {React.cloneElement(TABLES_NAV_ICONS.more as React.ReactElement<{ size?: number }>, { size: 13 })}
-        </button>
-      )}
-      {menuOpen && (
-        <>
-          <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 4 }} />
-          <div style={{ position: 'absolute', top: 34, right: 4, zIndex: 5, minWidth: 160, padding: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-pop)' }}>
-            <button type="button" onClick={() => { setMenuOpen(false); setEditing(true); setError(null) }} style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 5, padding: '7px 9px', textAlign: 'left', fontSize: 12, color: 'var(--text)', cursor: 'pointer' }}>Masa bilgilerini düzenle</button>
-            <button
-              type="button"
-              disabled={deleteDisabled}
-              onClick={() => { setMenuOpen(false); setDeleteOpen(true); setError(null) }}
-              style={{ width: '100%', border: 'none', background: 'transparent', borderRadius: 5, padding: '7px 9px', textAlign: 'left', fontSize: 12, color: deleteDisabled ? 'var(--text-4)' : 'var(--critical)', cursor: deleteDisabled ? 'default' : 'pointer' }}
-              title={deleteDisabled ? 'Açık adisyonu olan masa silinemez' : undefined}
-            >Sil</button>
-          </div>
-        </>
-      )}
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        {(hovered || active || menuOpen) && (
+          <DropdownMenuTrigger
+            aria-label={`${table.label} seçenekleri`}
+            disabled={busy}
+            onClick={(event) => event.stopPropagation()}
+            render={<Button className="tb-tables__table-options absolute top-[7px] right-1.5" type="button" variant="outline" size="icon-xs" />}
+          >
+            {React.cloneElement(TABLES_NAV_ICONS.more as React.ReactElement<{ size?: number }>, { size: 13 })}
+          </DropdownMenuTrigger>
+        )}
+        <DropdownMenuContent align="end" sideOffset={2} className="w-44">
+          <DropdownMenuItem onClick={() => { setEditing(true); setError(null) }}>Masa bilgilerini düzenle</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" disabled={deleteDisabled} onClick={() => { setDeleteOpen(true); setError(null) }} title={deleteDisabled ? 'Açık adisyonu olan masa silinemez' : undefined}>Sil</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       {error && <div style={{ margin: '3px 6px 4px 36px', fontSize: 11, color: 'var(--critical)' }}>{error}</div>}
-      {deleteOpen && (
-        <DeleteTableDialog label={table.label} busy={busy} onCancel={() => setDeleteOpen(false)} onConfirm={() => { void commitDelete() }} />
-      )}
+      <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!busy) setDeleteOpen(open) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Masayı sil</AlertDialogTitle>
+            <AlertDialogDescription><strong>{table.label}</strong> listeden kaldırılacak. Bu masanın QR bağlantısı artık kullanılamayacak.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Vazgeç</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={busy} onClick={() => { void commitDelete() }}>{busy && <Spinner data-icon="inline-start" />}Masayı sil</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

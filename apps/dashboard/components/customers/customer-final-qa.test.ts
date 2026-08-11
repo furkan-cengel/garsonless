@@ -10,23 +10,20 @@ const globalCss = readFileSync(new URL('../../app/globals.css', import.meta.url)
 
 test('customer list exposes bounded offline recovery instead of an unhandled action failure', () => {
   assert.match(list, /setListError\('Müşteriler yüklenemedi\. Bağlantınızı kontrol edip yeniden deneyin\.'\)/)
-  assert.match(list, /role="alert" aria-live="polite"/)
-  assert.match(list, />Yeniden dene<\/button>/)
+  assert.match(list, /<Alert variant="destructive" aria-live="polite"/)
+  assert.match(list, />Yeniden dene<\/Button>/)
   assert.match(list, /window\.addEventListener\('online', retryWhenOnline\)/)
 })
 
-test('customer controls stay compact on desktop while touch and narrow layouts keep safe targets', () => {
+test('customer controls use compact shadcn variants while narrow layouts keep safe targets', () => {
   assert.match(topbar, /aria-label="Geri"[\s\S]*width: 44, height: 44/)
   assert.match(topbar, /page-topbar-notification[\s\S]*width: 44, height: 44/)
   assert.match(topbar, /minHeight: 44/)
-  assert.match(list, /customer-action-secondary[\s\S]*height: 36/)
-  assert.match(list, /customer-action-primary[\s\S]*height: 36/)
-  assert.match(list, /className="customer-search"[\s\S]*height: 40/)
-  assert.match(list, /minWidth: 0, height: 38/)
-  assert.match(list, /className="customer-control customer-segment-filter"[\s\S]*minHeight: 34/)
-  assert.match(list, /function pagerBtn[\s\S]*height: 34/)
-  assert.match(list, /function segmentIconBtn[\s\S]*width: 32,[\s\S]*height: 32/)
-  assert.match(list, /@media \(pointer: coarse\)[\s\S]*\.customer-control,[\s\S]*min-height: 44px !important/)
+  assert.match(list, /<Button type="button" variant="outline" size="sm"/)
+  assert.match(list, /<InputGroup className="customer-search h-9 flex-1/)
+  assert.match(list, /<ToggleGroup[\s\S]*variant="outline"[\s\S]*size="sm"/)
+  assert.match(list, /<Button type="button" variant="outline" size="sm" disabled=\{page <= 1\}/)
+  assert.match(list, /<Button type="button" variant="ghost" size="icon-xs"/)
   assert.match(list, /@media \(max-width: 820px\)[\s\S]*\.customer-page-actions > button[\s\S]*min-height: 44px !important/)
 })
 

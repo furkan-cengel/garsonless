@@ -1,7 +1,8 @@
 'use client'
 
-import { useRef, type KeyboardEvent, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { ThemeEditorToast } from './ThemeEditorToast'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   THEME_EDITOR_SURFACES,
   type ThemeEditorSurface,
@@ -237,18 +238,9 @@ export function ThemeEditorShell({
     >
       <style>{EDITOR_INTERACTION_CSS}</style>
       {topbar}
-      {taskBased && (
-        <ThemeEditorTaskNavigation
-          activeSurface={activeSurface}
-          onSurfaceChange={onSurfaceChange}
-        />
-      )}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        minHeight: 0,
-        overflow: 'hidden',
-      }}>
+      <Tabs value={activeSurface} onValueChange={(value) => onSurfaceChange(value as ThemeEditorSurface)} className="min-h-0 flex-1 gap-0">
+      {taskBased && <ThemeEditorTaskNavigation />}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <div
           id="theme-editor-page-panel"
           role={taskBased ? 'tabpanel' : undefined}
@@ -271,53 +263,26 @@ export function ThemeEditorShell({
           style={{ display: !taskBased || activeSurface === 'design' ? 'flex' : 'none' }}
         >{properties}</div>
       </div>
+      </Tabs>
       {dialogs}
       <ThemeEditorToast message={toastMessage} />
     </div>
   )
 }
 
-function ThemeEditorTaskNavigation({
-  activeSurface,
-  onSurfaceChange,
-}: {
-  activeSurface: ThemeEditorSurface
-  onSurfaceChange: (surface: ThemeEditorSurface) => void
-}) {
-  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([])
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    let nextIndex: number
-    if (event.key === 'ArrowRight') nextIndex = (index + 1) % THEME_EDITOR_SURFACES.length
-    else if (event.key === 'ArrowLeft') nextIndex = (index - 1 + THEME_EDITOR_SURFACES.length) % THEME_EDITOR_SURFACES.length
-    else if (event.key === 'Home') nextIndex = 0
-    else if (event.key === 'End') nextIndex = THEME_EDITOR_SURFACES.length - 1
-    else return
-
-    event.preventDefault()
-    const nextSurface = THEME_EDITOR_SURFACES[nextIndex]!
-    onSurfaceChange(nextSurface.id)
-    buttonRefs.current[nextIndex]?.focus()
-  }
-
+function ThemeEditorTaskNavigation() {
   return (
-    <div data-theme-editor-task-nav role="tablist" aria-label="Tema düzenleme çalışma alanı">
-      {THEME_EDITOR_SURFACES.map((surface, index) => (
-        <button
+    <TabsList data-theme-editor-task-nav aria-label="Tema düzenleme çalışma alanı">
+      {THEME_EDITOR_SURFACES.map((surface) => (
+        <TabsTrigger
           key={surface.id}
-          ref={(node) => { buttonRefs.current[index] = node }}
           id={`theme-editor-${surface.id}-tab`}
-          type="button"
-          role="tab"
-          aria-selected={activeSurface === surface.id}
+          value={surface.id}
           aria-controls={`theme-editor-${surface.id}-panel`}
-          tabIndex={activeSurface === surface.id ? 0 : -1}
-          onClick={() => onSurfaceChange(surface.id)}
-          onKeyDown={(event) => handleKeyDown(event, index)}
         >
           {surface.label}
-        </button>
+        </TabsTrigger>
       ))}
-    </div>
+    </TabsList>
   )
 }

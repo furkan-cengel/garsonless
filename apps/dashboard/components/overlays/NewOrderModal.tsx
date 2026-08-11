@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { I, S, btnPrimary, btnGhost, IconButton } from '../../lib/ui'
+import { useEffect, useState } from 'react'
+import { Armchair, Check, ChevronLeft, ChevronRight, CircleAlert, Minus, Plus, Search, X } from 'lucide-react'
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import { createOrderFromDashboard } from '../../lib/actions/orders'
 import type { TableStatusData } from '../../lib/queries/pano'
@@ -12,7 +12,28 @@ import {
   type MenuModifierGroup,
   type SelectedMenuModifier,
 } from '@garsonless/db/browser'
-import { AccessibleDialog } from '../tables/AccessibleDialog'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
+import { Spinner } from '@/components/ui/spinner'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { cn } from '@/lib/utils'
 
 interface Props {
   restaurantId: string
@@ -45,7 +66,16 @@ interface RealMenuItem {
   modifier_groups: MenuModifierGroup[]
 }
 
-const mono = S.mono
+const currencyFormatter = new Intl.NumberFormat('tr-TR', {
+  style: 'currency',
+  currency: 'TRY',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+})
+
+function formatCurrency(value: number) {
+  return currencyFormatter.format(value)
+}
 
 export default function NewOrderModal({ restaurantId, tableStatuses, initialTableId = null, onClose, onCreated }: Props) {
   const [step, setStep] = useState(initialTableId ? 2 : 1)
@@ -138,220 +168,128 @@ export default function NewOrderModal({ restaurantId, tableStatuses, initialTabl
   }
 
   return (
-    <AccessibleDialog
-      labelledBy="new-order-title"
-      onClose={onClose}
-      className="new-order-overlay"
-      style={{
-        position: 'fixed', inset: 0, zIndex: 100,
-        background: 'rgba(17,17,19,.4)', backdropFilter: 'blur(3px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-      }}
-    >
-      <style>{`
-        .new-order-overlay { animation: new-order-fade 160ms ease-out; }
-        .new-order-dialog { animation: new-order-rise 180ms ease-out; outline: none; }
-        .new-order-action, .new-order-table, .new-order-product, .new-order-category, .new-order-qty {
-          transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease, border-color 140ms ease, color 140ms ease, filter 140ms ease;
-        }
-        .new-order-action:not(:disabled):hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
-        .new-order-action-primary:not(:disabled):hover { filter: brightness(1.15); }
-        .new-order-action-secondary:not(:disabled):hover { background: var(--surface-3) !important; border-color: var(--border-strong) !important; }
-        .new-order-action:active:not(:disabled), .new-order-table:active, .new-order-product:active { transform: scale(.98); }
-        .new-order-table:hover { transform: translateY(-2px); border-color: var(--border-strong) !important; box-shadow: var(--shadow-2); }
-        .new-order-table[data-selected="true"] { box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 8%, transparent), var(--shadow-1); }
-        .new-order-product:hover { transform: translateY(-2px); border-color: var(--border-strong) !important; box-shadow: var(--shadow-2); }
-        .new-order-category:not([aria-pressed="true"]):hover, .new-order-qty:hover { background: var(--surface) !important; box-shadow: var(--shadow-1); }
-        .new-order-search:focus-within { background: var(--surface) !important; box-shadow: 0 0 0 2px var(--border-strong); }
-        .new-order-action:focus-visible, .new-order-table:focus-visible, .new-order-product:focus-visible, .new-order-category:focus-visible, .new-order-qty:focus-visible {
-          outline: 2px solid var(--focus-ring, var(--text)); outline-offset: 2px;
-        }
-        @keyframes new-order-fade { from { opacity: 0; } }
-        @keyframes new-order-rise { from { opacity: 0; transform: translateY(10px) scale(.99); } }
-        @media (max-width: 760px) {
-          .new-order-overlay { padding: 0 !important; }
-          .new-order-dialog { height: 100dvh !important; max-height: none !important; border-radius: 0 !important; }
-          .new-order-body { grid-template-columns: minmax(0, 1fr) !important; }
-          .new-order-summary { display: none !important; }
-          .new-order-steps { display: none !important; }
-          .new-order-content { border-right: 0 !important; padding: 16px !important; }
-        }
-      `}</style>
-      <div
-        className="new-order-dialog"
-        style={{
-          width: '100%', maxWidth: 1080, height: '85vh', maxHeight: 720,
-          background: 'var(--surface)', borderRadius: 14,
-          boxShadow: '0 30px 80px -10px rgba(0,0,0,.4)',
-          overflow: 'hidden', display: 'flex', flexDirection: 'column',
-        }}
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent
+        showCloseButton={false}
+        className="flex h-[min(85dvh,720px)] max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl max-sm:h-dvh max-sm:max-h-dvh max-sm:max-w-none max-sm:rounded-none"
       >
-        {/* Header */}
-        <div className="new-order-search" style={{
-          padding: '14px 20px 12px', borderBottom: '1px solid var(--divider)',
-          display: 'flex', alignItems: 'center', gap: 14,
-        }}>
-          <div style={{ flex: 1 }}>
-            <div id="new-order-title" style={{ fontSize: 18, fontWeight: 750, letterSpacing: '-.02em', color: 'var(--text)' }}>
-              Yeni sipariş oluştur
-            </div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
+        <DialogHeader className="flex-row items-center gap-4 border-b px-5 py-4 text-left">
+          <div className="min-w-0 flex-1">
+            <DialogTitle className="text-lg">Yeni sipariş oluştur</DialogTitle>
+            <DialogDescription className="mt-1 text-xs">
               {selectedTable ? `${selectedTable.label} için sipariş hazırlanıyor` : 'Bir masa seç'}
-            </div>
+            </DialogDescription>
           </div>
-          <div className="new-order-steps" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            {[{ n: 1, l: 'Masa' }, { n: 2, l: 'Ürünler' }, { n: 3, l: 'Onay' }].map((s, i, arr) => (
-              <span key={s.n} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '3px 9px', borderRadius: 999,
-                  background: step === s.n ? 'var(--text)' : step > s.n ? 'var(--positive-bg)' : 'var(--surface-3)',
-                  color: step === s.n ? '#fff' : step > s.n ? 'var(--positive)' : 'var(--text-3)',
-                  fontSize: 11, fontWeight: 600,
-                }}>
-                  <span style={mono}>{step > s.n ? <I.check size={11} /> : s.n}</span>{s.l}
-                </span>
-                {i < arr.length - 1 && <span style={{ color: 'var(--text-4)', fontSize: 12 }}>·</span>}
-              </span>
-            ))}
-          </div>
-          <IconButton icon={<I.close size={16} />} ariaLabel="Kapat" onClick={onClose} />
-        </div>
+          <OrderSteps step={step} />
+          <DialogClose render={<Button variant="ghost" size="icon" aria-label="Kapat" />}>
+            <X />
+          </DialogClose>
+        </DialogHeader>
 
-        {/* Body */}
-        <div className="new-order-body" style={{ flex: 1, overflow: 'hidden', display: 'grid', gridTemplateColumns: '1.4fr 1fr', minHeight: 0 }}>
-          <div className="new-order-content" style={{ overflow: 'auto', padding: 24, borderRight: '1px solid var(--divider)' }}>
-            {step === 1 && (
-              <PickTablePanel
-                tables={tableStatuses}
-                selected={selectedTableId}
-                setSelected={setSelectedTableId}
-              />
-            )}
-            {step === 2 && (
-              <PickItemsPanel
-                items={items}
-                setItems={setItems}
-                menuItems={menuItems}
-                loading={loadingMenu}
-                error={menuError}
-              />
-            )}
-            {step === 3 && <ConfirmPanel />}
-          </div>
-          {/* Right: live summary */}
-          <div className="new-order-summary" style={{ background: 'var(--surface-2)', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--divider)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{
-                  width: 30, height: 30, borderRadius: 7,
-                  background: 'var(--text)', color: '#fff',
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, ...mono,
-                }}>
-                  {selectedTable ? selectedTable.label.slice(0, 3) : '—'}
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                    {selectedTable?.label ?? 'Masa seçilmedi'}
-                  </div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
-                    {items.length} kalem · {items.reduce((s, i) => s + i.qty, 0)} adet
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div style={{ flex: 1, overflow: 'auto', padding: '12px 0' }}>
-              {items.map((it) => (
-                <div key={it.cartId} style={{ padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text)' }}>{it.name}</div>
-                    <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>₺{it.price + it.modifiersPriceDelta} × {it.qty}</div>
-                    {it.modifierNames.length > 0 && <div style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 2 }}>{it.modifierNames.join(', ')}</div>}
-                    {it.removedIngredientNames.length > 0 && <div style={{ fontSize: 10, color: 'var(--critical)', fontWeight: 700, marginTop: 2 }}>ÇIKAR: {it.removedIngredientNames.join(', ')}</div>}
-                  </div>
-                  <span style={{ ...mono, fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>
-                    ₺{(it.price + it.modifiersPriceDelta) * it.qty}
-                  </span>
-                </div>
-              ))}
-              {items.length === 0 && (
-                <div style={{ padding: '24px 18px', fontSize: 12, color: 'var(--text-4)', textAlign: 'center' }}>
-                  Henüz ürün eklenmedi
-                </div>
+        <div className="grid min-h-0 flex-1 lg:grid-cols-[1.4fr_1fr]">
+          <ScrollArea className="min-h-0 border-r max-lg:border-r-0">
+            <div className="p-4 sm:p-6">
+              {step === 1 && <PickTablePanel tables={tableStatuses} selected={selectedTableId} setSelected={setSelectedTableId} />}
+              {step === 2 && (
+                <PickItemsPanel items={items} setItems={setItems} menuItems={menuItems} loading={loadingMenu} error={menuError} />
               )}
+              {step === 3 && <ConfirmPanel />}
             </div>
-            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--divider)', background: 'var(--surface)' }}>
-              <SummaryRow label="Ara toplam" value={`₺${total}`} />
-              <div style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-                marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--divider)',
-              }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Toplam</span>
-                <span style={{ ...mono, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
-                  ₺{total}
-                </span>
-              </div>
-            </div>
-          </div>
+          </ScrollArea>
+          <OrderSummary selectedTable={selectedTable} items={items} total={total} />
         </div>
 
-        {/* Footer */}
-        <div style={{
-          padding: '12px 20px', borderTop: '1px solid var(--divider)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: 'var(--surface-2)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button type="button" className="new-order-action new-order-action-secondary" onClick={onClose} style={btnGhost()}>İptal</button>
-            {error && <span style={{ fontSize: 12, color: 'var(--critical)' }}>{error}</span>}
+        <DialogFooter className="m-0 flex-row items-center justify-between rounded-none border-t bg-muted/30 px-5 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button type="button" variant="outline" onClick={onClose}>İptal</Button>
+            {error && <p role="alert" className="truncate text-xs text-destructive">{error}</p>}
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div className="flex items-center gap-2">
             {step > 1 && (
-              <button type="button" className="new-order-action new-order-action-secondary" onClick={() => setStep(step - 1)} style={btnGhost()}><I.chevLeft size={13} />Geri</button>
+              <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
+                <ChevronLeft data-icon="inline-start" />Geri
+              </Button>
             )}
-            <button
-              onClick={() => {
-                if (step < 3) {
-                  setStep(step + 1)
-                } else {
-                  void handleSubmit()
-                }
-              }}
+            <Button
+              type="button"
               disabled={nextDisabled}
-              className="new-order-action new-order-action-primary"
-              style={{
-                ...btnPrimary(),
-                opacity: nextDisabled ? 0.4 : 1,
-                cursor: nextDisabled ? 'not-allowed' : 'pointer',
-              }}
+              onClick={() => { if (step < 3) setStep(step + 1); else void handleSubmit() }}
             >
+              {submitting && <Spinner data-icon="inline-start" />}
               {step === 3 ? (submitting ? 'Gönderiliyor…' : 'Siparişi başlat') : 'Devam'}
-              {step < 3 && <I.chevRight size={13} />}
-            </button>
+              {step < 3 && <ChevronRight data-icon="inline-end" />}
+            </Button>
           </div>
-        </div>
-      </div>
-    </AccessibleDialog>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function OrderSteps({ step }: { step: number }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 12 }}>
-      <span style={{ color: 'var(--text-2)' }}>{label}</span>
-      <span style={{ ...S.mono, color: 'var(--text)' }}>{value}</span>
+    <div className="hidden items-center gap-1.5 sm:flex" aria-label={`Sipariş adımı ${step}/3`}>
+      {[{ n: 1, label: 'Masa' }, { n: 2, label: 'Ürünler' }, { n: 3, label: 'Onay' }].map((item) => (
+        <Badge key={item.n} variant={step === item.n ? 'default' : step > item.n ? 'positive' : 'secondary'}>
+          {step > item.n ? <Check data-icon="inline-start" /> : item.n} {item.label}
+        </Badge>
+      ))}
     </div>
   )
 }
 
-const TABLE_COLORS = {
-  empty:  { bg: 'var(--surface)',   fg: 'var(--text)',   border: 'var(--border)' },
-  active: { bg: 'var(--info-bg)',   fg: 'var(--info)',   border: 'var(--info-bg)' },
-  new:    { bg: 'var(--warning-bg)', fg: 'var(--warning)', border: 'var(--warning-bg)' },
-  late:   { bg: 'var(--critical-bg)', fg: 'var(--critical)', border: 'var(--critical-bg)' },
-  paid:   { bg: 'var(--positive-bg)', fg: 'var(--positive)', border: 'var(--positive-bg)' },
+function OrderSummary({ selectedTable, items, total }: { selectedTable?: TableStatusData; items: CartItem[]; total: number }) {
+  return (
+    <aside className="hidden min-h-0 flex-col bg-muted/20 lg:flex" aria-label="Sipariş özeti">
+      <div className="flex items-center gap-3 border-b p-4">
+        <Badge className="size-9 rounded-lg px-0 font-mono">{selectedTable ? selectedTable.label.slice(0, 3) : '—'}</Badge>
+        <div className="min-w-0">
+          <p className="truncate font-medium">{selectedTable?.label ?? 'Masa seçilmedi'}</p>
+          <p className="text-xs text-muted-foreground">{items.length} kalem · {items.reduce((sum, item) => sum + item.qty, 0)} adet</p>
+        </div>
+      </div>
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex flex-col gap-1 p-3">
+          {items.map((item) => (
+            <Card key={item.cartId} size="sm" className="gap-2 py-3 shadow-none">
+              <CardHeader>
+                <CardTitle>{item.name}</CardTitle>
+                <CardDescription>{formatCurrency(item.price + item.modifiersPriceDelta)} × {item.qty}</CardDescription>
+                <CardAction className="font-mono font-semibold tabular-nums">
+                  {formatCurrency((item.price + item.modifiersPriceDelta) * item.qty)}
+                </CardAction>
+              </CardHeader>
+              {(item.modifierNames.length > 0 || item.removedIngredientNames.length > 0) && (
+                <CardContent className="flex flex-col gap-1 text-xs text-muted-foreground">
+                  {item.modifierNames.length > 0 && <p>{item.modifierNames.join(', ')}</p>}
+                  {item.removedIngredientNames.length > 0 && <p className="font-medium text-destructive">Çıkar: {item.removedIngredientNames.join(', ')}</p>}
+                </CardContent>
+              )}
+            </Card>
+          ))}
+          {items.length === 0 && (
+            <Empty className="border-0 py-12">
+              <EmptyHeader><EmptyTitle>Henüz ürün eklenmedi</EmptyTitle><EmptyDescription>Soldaki listeden ürün ekleyebilirsin.</EmptyDescription></EmptyHeader>
+            </Empty>
+          )}
+        </div>
+      </ScrollArea>
+      <div className="border-t bg-background p-4">
+        <div className="flex items-center justify-between text-sm text-muted-foreground"><span>Ara toplam</span><span className="font-mono tabular-nums">{formatCurrency(total)}</span></div>
+        <Separator className="my-3" />
+        <div className="flex items-baseline justify-between"><span className="font-medium">Toplam</span><span className="font-mono text-xl font-semibold tabular-nums">{formatCurrency(total)}</span></div>
+      </div>
+    </aside>
+  )
 }
+
+const TABLE_STATUS = {
+  empty: { label: 'Boş', variant: 'secondary' },
+  active: { label: 'Açık adisyon', variant: 'info' },
+  new: { label: 'Yeni sipariş', variant: 'warning' },
+  late: { label: 'Gecikmeli', variant: 'destructive' },
+  paid: { label: 'Ödendi', variant: 'positive' },
+} as const
 
 function PickTablePanel({ tables, selected, setSelected }: {
   tables: TableStatusData[]
@@ -360,62 +298,54 @@ function PickTablePanel({ tables, selected, setSelected }: {
 }) {
   if (tables.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-3)' }}>
-        <I.chair size={32} />
-        <div style={{ marginTop: 10, fontSize: 13 }}>Henüz masa eklenmedi</div>
-      </div>
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon"><Armchair /></EmptyMedia>
+          <EmptyTitle>Henüz masa eklenmedi</EmptyTitle>
+          <EmptyDescription>Sipariş oluşturmak için önce bir masa eklemelisin.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
   }
 
   return (
-    <div>
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
-          Hangi masaya sipariş alıyorsun?
-        </div>
-        <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
-          Boş masa yeni adisyon açar; aktif masa mevcut adisyona ekler.
-        </div>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(138px, 1fr))', gap: 10 }}>
+    <FieldSet>
+      <FieldLegend>Hangi masaya sipariş alıyorsun?</FieldLegend>
+      <FieldDescription>Boş masa yeni adisyon açar; aktif masa mevcut adisyona ekler.</FieldDescription>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(138px,1fr))] gap-2.5">
         {tables.map((t) => {
-          const c = TABLE_COLORS[t.status] ?? TABLE_COLORS.empty
+          const status = TABLE_STATUS[t.status] ?? TABLE_STATUS.empty
           const isSel = selected === t.id
           return (
-            <button
+            <Button
               type="button"
-              className="new-order-table"
+              variant="outline"
+              className={cn(
+                "h-auto min-h-24 items-start justify-start p-3 text-left",
+                isSel && "border-primary bg-muted ring-2 ring-primary/15",
+              )}
               data-selected={isSel}
               aria-pressed={isSel}
               key={t.id}
               onClick={() => setSelected(t.id)}
-              style={{
-                padding: '14px 8px', borderRadius: 10, background: c.bg,
-                border: '1.5px solid ' + (isSel ? 'var(--text)' : c.border),
-                cursor: 'pointer',
-                boxShadow: isSel ? '0 0 0 3px rgba(17,17,19,.06)' : 'none',
-                position: 'relative', textAlign: 'left',
-              }}
             >
-              {isSel && (
-                <span style={{ position: 'absolute', top: 6, right: 6, color: 'var(--text)', display: 'flex' }}>
-                  <I.check size={14} />
-                </span>
-              )}
-              <div style={{ fontSize: 13, fontWeight: 700, color: c.fg }}>{t.label}</div>
-              <div style={{ fontSize: 10, color: c.fg, opacity: 0.8, marginTop: 2 }}>
-                {t.status === 'empty' ? 'Boş' : t.status === 'paid' ? 'Ödendi' : t.status === 'late' ? 'Gecikmeli' : t.status === 'new' ? 'Yeni sipariş' : 'Açık adisyon'}
-              </div>
-              {t.total > 0 && (
-                <div style={{ ...S.mono, fontSize: 10, color: c.fg, opacity: 0.9, marginTop: 2 }}>
-                  ₺{(t.unpaidTotal > 0 ? t.unpaidTotal : t.total).toLocaleString('tr-TR')}
+              <div className="flex w-full flex-col gap-2">
+                <div className="flex w-full items-start justify-between gap-2">
+                  <span className="truncate font-semibold">{t.label}</span>
+                  {isSel && <Check aria-hidden="true" />}
                 </div>
-              )}
-            </button>
+                <Badge variant={status.variant}>{status.label}</Badge>
+                {t.total > 0 && (
+                  <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                    {formatCurrency(t.unpaidTotal > 0 ? t.unpaidTotal : t.total)}
+                  </span>
+                )}
+              </div>
+            </Button>
           )
         })}
       </div>
-    </div>
+    </FieldSet>
   )
 }
 
@@ -498,116 +428,86 @@ function PickItemsPanel({ items, setItems, menuItems, loading, error }: {
 
   if (loading) {
     return (
-      <div role="status" aria-live="polite" aria-busy="true" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 0', color: 'var(--text-3)' }}>
-        <div style={{ fontSize: 13 }}>Menü yükleniyor…</div>
-      </div>
+      <Empty role="status" aria-live="polite" aria-busy="true">
+        <EmptyHeader>
+          <EmptyMedia variant="icon"><Spinner /></EmptyMedia>
+          <EmptyTitle>Menü yükleniyor…</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
     )
   }
 
   if (error) {
     return (
-      <div role="alert" style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--critical)' }}>
-        <I.warn size={28} />
-        <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700 }}>{error}</div>
-        <div style={{ marginTop: 4, fontSize: 11.5, color: 'var(--text-3)' }}>Modalı kapatıp yeniden deneyebilirsin.</div>
-      </div>
+      <Alert variant="destructive">
+        <CircleAlert />
+        <AlertTitle>{error}</AlertTitle>
+        <AlertDescription>Modalı kapatıp yeniden deneyebilirsin.</AlertDescription>
+      </Alert>
     )
   }
 
   if (menuItems.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-3)' }}>
-        <div style={{ fontSize: 13 }}>Menüde ürün yok</div>
-      </div>
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>Menüde ürün yok</EmptyTitle>
+          <EmptyDescription>Siparişe eklenebilecek yayınlanmış ürün bulunamadı.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <div style={{
-          flex: 1, display: 'flex', alignItems: 'center', gap: 6, height: 32,
-          padding: '0 10px', background: 'var(--surface-3)', borderRadius: 7, color: 'var(--text-3)',
-        }}>
-          <I.search size={14} />
-          <input
-            placeholder="Ürün ara"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 12.5, color: 'var(--text)' }}
-          />
-        </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {categories.slice(0, 5).map((cat) => (
-            <button type="button" className="new-order-category" aria-pressed={activeCat === cat} key={cat} onClick={() => setActiveCat(cat)} style={{
-              height: 32, padding: '0 10px', border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 500,
-              background: activeCat === cat ? 'var(--text)' : 'var(--surface-3)',
-              color: activeCat === cat ? '#fff' : 'var(--text-2)',
-              cursor: 'pointer',
-            }}>{cat}</button>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <InputGroup className="sm:flex-1">
+          <InputGroupAddon><Search /></InputGroupAddon>
+          <InputGroupInput placeholder="Ürün ara" value={search} onChange={(event) => setSearch(event.target.value)} />
+        </InputGroup>
+        <ToggleGroup
+          value={[activeCat]}
+          onValueChange={(values) => { const category = values[0]; if (category) setActiveCat(category) }}
+          size="sm"
+          spacing={1}
+          className="max-w-full overflow-x-auto"
+          aria-label="Ürün kategorisi"
+        >
+          {categories.slice(0, 5).map((category) => (
+            <ToggleGroupItem key={category} value={category}>{category}</ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2.5">
         {filtered.map((it) => {
           const inCart = items.find((x) => x.itemId === it.id)
           return (
-            <div
-              key={it.id}
-              className="new-order-product"
-              role="button"
-              tabIndex={0}
-              aria-label={`${it.name}, ₺${it.price}, siparişe ekle`}
-              onClick={() => addItem(it)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  addItem(it)
-                }
-              }}
-              style={{
-                padding: 12, borderRadius: 10,
-                background: inCart ? 'var(--surface-inset)' : 'var(--surface)',
-                border: '1.5px solid ' + (inCart ? 'var(--text)' : 'var(--border)'),
-                cursor: 'pointer', transition: 'all 100ms',
-              }}
-            >
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.2, color: 'var(--text)' }}>{it.name}</div>
-                <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 1 }}>{it.categoryName}</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                <span style={{ ...S.mono, fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>₺{it.price}</span>
+            <Card key={it.id} size="sm" className={cn("min-h-28 gap-3", inCart && "ring-2 ring-primary")}>
+              <CardHeader>
+                <CardTitle>{it.name}</CardTitle>
+                <CardDescription>{it.categoryName}</CardDescription>
+              </CardHeader>
+              <CardFooter className="mt-auto justify-between bg-muted/30">
+                <span className="font-mono font-semibold tabular-nums">{formatCurrency(it.price)}</span>
                 {inCart ? (
-                  <div
-                    style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <button type="button" className="new-order-qty" aria-label={`${it.name} miktarını azalt`} onClick={() => changeQty(inCart.cartId, -1)} style={qtyBtnStyle()}>−</button>
-                    <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, minWidth: 18, textAlign: 'center', color: 'var(--text)' }}>
-                      {inCart.qty}
-                    </span>
-                    <button type="button" className="new-order-qty" aria-label={`${it.name} miktarını artır`} onClick={() => changeQty(inCart.cartId, 1)} style={qtyBtnStyle()}>+</button>
+                  <div className="flex items-center gap-1">
+                    <Button type="button" variant="outline" size="icon-sm" aria-label={`${it.name} miktarını azalt`} onClick={() => changeQty(inCart.cartId, -1)}><Minus /></Button>
+                    <span className="min-w-6 text-center font-mono font-semibold tabular-nums">{inCart.qty}</span>
+                    <Button type="button" variant="outline" size="icon-sm" aria-label={`${it.name} miktarını artır`} onClick={() => changeQty(inCart.cartId, 1)}><Plus /></Button>
                   </div>
                 ) : (
-                  <div style={{
-                    width: 22, height: 22, borderRadius: 999,
-                    background: 'var(--text)', color: '#fff',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <I.plus size={12} />
-                  </div>
+                  <Button type="button" size="icon-sm" aria-label={`${it.name}, ${formatCurrency(it.price)}, siparişe ekle`} onClick={() => addItem(it)}><Plus /></Button>
                 )}
-              </div>
-            </div>
+              </CardFooter>
+            </Card>
           )
         })}
       </div>
       {filtered.length === 0 && (
-        <div style={{ padding: '36px 12px', textAlign: 'center', color: 'var(--text-3)', fontSize: 12.5 }}>
-          Bu aramayla eşleşen ürün bulunamadı.
-        </div>
+        <Empty>
+          <EmptyHeader><EmptyTitle>Ürün bulunamadı</EmptyTitle><EmptyDescription>Arama veya kategori filtresini değiştirmeyi dene.</EmptyDescription></EmptyHeader>
+        </Empty>
       )}
       {customizing && (
         <DashboardItemCustomizer
@@ -646,16 +546,11 @@ function DashboardItemCustomizer({
     return count >= group.min && count <= group.max
   })
 
-  function toggle(group: MenuModifierGroup, optionId: string, checked: boolean) {
+  function setChoiceGroup(group: MenuModifierGroup, optionIds: string[]) {
+    if (optionIds.length > group.max) return
     setSelections((current) => {
       const otherGroups = current.filter((selection) => selection.group_id !== group.id)
-      const groupSelections = current.filter((selection) => selection.group_id === group.id)
-      if (group.selection_mode === 'single') {
-        return checked ? [...otherGroups, { group_id: group.id, option_id: optionId }] : otherGroups
-      }
-      if (!checked) return current.filter((selection) => !(selection.group_id === group.id && selection.option_id === optionId))
-      if (groupSelections.length >= group.max) return current
-      return [...current, { group_id: group.id, option_id: optionId }]
+      return [...otherGroups, ...optionIds.map((optionId) => ({ group_id: group.id, option_id: optionId }))]
     })
   }
 
@@ -672,96 +567,105 @@ function DashboardItemCustomizer({
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(17,17,19,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ width: 'min(520px,100%)', maxHeight: '80vh', overflow: 'auto', background: 'var(--surface)', borderRadius: 12, boxShadow: 'var(--shadow-pop)' }}>
-        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--divider)', fontSize: 15, fontWeight: 700 }}>{item.name}</div>
-        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {item.modifier_groups.map((group) => (
-            <div key={group.id}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>{group.name}{group.required ? ' · Zorunlu' : ''}</div>
-              {group.options.map((option) => {
-                const selected = selections.find((selection) => selection.group_id === group.id && selection.option_id === option.id)
-                return (
-                  <div key={option.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34, borderBottom: '1px solid var(--divider)' }}>
-                    <span style={{ fontSize: 12.5 }}>{option.name}{option.price_delta ? ` · +₺${option.price_delta}` : ''}</span>
-                    {group.selection_mode === 'quantity' ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                        <button type="button" className="new-order-qty" aria-label={`${option.name} miktarını azalt`} onClick={() => quantity(group, option.id, -1)} style={qtyBtnStyle()}>−</button>
-                        <span style={{ width: 18, textAlign: 'center', fontSize: 12 }}>{selected?.quantity ?? 0}</span>
-                        <button type="button" className="new-order-qty" aria-label={`${option.name} miktarını artır`} onClick={() => quantity(group, option.id, 1)} style={qtyBtnStyle()}>+</button>
-                      </div>
-                    ) : (
-                      <input
-                        type={group.selection_mode === 'single' ? 'radio' : 'checkbox'}
-                        name={group.id}
-                        checked={Boolean(selected)}
-                        onChange={(event) => toggle(group, option.id, event.target.checked)}
-                      />
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          ))}
-          {item.ingredients.some((ingredient) => ingredient.removable) && (
-            <div>
-              <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Çıkarma tercihleri</div>
-              {item.ingredients.filter((ingredient) => ingredient.removable).map((ingredient) => (
-                <label key={ingredient.id} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 32, fontSize: 12.5 }}>
-                  <input
-                    type="checkbox"
-                    checked={removals.includes(ingredient.id)}
-                    onChange={(event) => setRemovals((current) => event.target.checked ? [...current, ingredient.id] : current.filter((id) => id !== ingredient.id))}
-                  />
-                  {ingredient.name} çıkarılsın
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--divider)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button type="button" className="new-order-action new-order-action-secondary" onClick={onCancel} style={btnGhost()}>Vazgeç</button>
-          <button type="button" className="new-order-action new-order-action-primary" disabled={!valid} onClick={() => onAdd(selections, removals)} style={{ ...btnPrimary(), opacity: valid ? 1 : .5 }}>Siparişe ekle</button>
-        </div>
-      </div>
-    </div>
+    <Dialog open onOpenChange={(open) => { if (!open) onCancel() }}>
+      <DialogContent showCloseButton={false} className="flex max-h-[80dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogHeader className="flex-row items-start border-b px-5 py-4 text-left">
+          <div className="min-w-0 flex-1">
+            <DialogTitle>{item.name}</DialogTitle>
+            <DialogDescription>Ürün seçeneklerini ve çıkarılacak malzemeleri belirle.</DialogDescription>
+          </div>
+          <DialogClose render={<Button variant="ghost" size="icon-sm" aria-label="Kapat" />}><X /></DialogClose>
+        </DialogHeader>
+        <ScrollArea className="min-h-0 flex-1">
+          <FieldGroup className="p-5">
+            {item.modifier_groups.map((group) => {
+              const groupSelections = selections.filter((selection) => selection.group_id === group.id)
+              return (
+                <FieldSet key={group.id}>
+                  <FieldLegend variant="label">{group.name}{group.required ? ' · Zorunlu' : ''}</FieldLegend>
+                  <FieldDescription>En az {group.min}, en fazla {group.max} seçim.</FieldDescription>
+                  {group.selection_mode === 'quantity' ? (
+                    <div className="flex flex-col gap-2">
+                      {group.options.map((option) => {
+                        const selected = groupSelections.find((selection) => selection.option_id === option.id)
+                        return (
+                          <Card key={option.id} size="sm" className="py-3">
+                            <CardHeader>
+                              <CardTitle>{option.name}</CardTitle>
+                              {option.price_delta > 0 && <CardDescription>+{formatCurrency(option.price_delta)}</CardDescription>}
+                              <CardAction className="flex items-center gap-1">
+                                <Button type="button" variant="outline" size="icon-sm" aria-label={`${option.name} miktarını azalt`} onClick={() => quantity(group, option.id, -1)}><Minus /></Button>
+                                <span className="min-w-6 text-center font-mono font-semibold tabular-nums">{selected?.quantity ?? 0}</span>
+                                <Button type="button" variant="outline" size="icon-sm" aria-label={`${option.name} miktarını artır`} onClick={() => quantity(group, option.id, 1)}><Plus /></Button>
+                              </CardAction>
+                            </CardHeader>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <ToggleGroup
+                      value={groupSelections.map((selection) => selection.option_id)}
+                      onValueChange={(values) => setChoiceGroup(group, values)}
+                      multiple={group.selection_mode !== 'single'}
+                      orientation="vertical"
+                      variant="outline"
+                      className="w-full"
+                      aria-label={group.name}
+                    >
+                      {group.options.map((option) => (
+                        <ToggleGroupItem key={option.id} value={option.id} className="h-auto w-full justify-between py-2.5">
+                          <span>{option.name}</span>
+                          {option.price_delta > 0 && <span className="text-muted-foreground">+{formatCurrency(option.price_delta)}</span>}
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
+                  )}
+                </FieldSet>
+              )
+            })}
+            {item.ingredients.some((ingredient) => ingredient.removable) && (
+              <FieldSet>
+                <FieldLegend variant="label">Çıkarma tercihleri</FieldLegend>
+                <FieldDescription>Üründe olmasını istemediğin malzemeleri işaretle.</FieldDescription>
+                <FieldGroup data-slot="checkbox-group">
+                  {item.ingredients.filter((ingredient) => ingredient.removable).map((ingredient) => {
+                    const checked = removals.includes(ingredient.id)
+                    return (
+                      <Field key={ingredient.id} orientation="horizontal">
+                        <Checkbox
+                          id={`remove-${ingredient.id}`}
+                          checked={checked}
+                          onCheckedChange={(nextChecked) => setRemovals((current) => nextChecked ? [...current, ingredient.id] : current.filter((id) => id !== ingredient.id))}
+                        />
+                        <FieldContent><FieldLabel htmlFor={`remove-${ingredient.id}`}>{ingredient.name} çıkarılsın</FieldLabel></FieldContent>
+                      </Field>
+                    )
+                  })}
+                </FieldGroup>
+              </FieldSet>
+            )}
+          </FieldGroup>
+        </ScrollArea>
+        <DialogFooter className="m-0 flex-row rounded-none px-5 py-3">
+          <Button type="button" variant="outline" onClick={onCancel}>Vazgeç</Button>
+          <Button type="button" disabled={!valid} onClick={() => onAdd(selections, removals)}>Siparişe ekle</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
-}
-
-function qtyBtnStyle(): React.CSSProperties {
-  return {
-    width: 22, height: 22, borderRadius: 5,
-    background: 'var(--surface-3)', color: 'var(--text)',
-    border: 'none', cursor: 'pointer',
-    fontSize: 14, fontWeight: 700, lineHeight: 1,
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  }
 }
 
 function ConfirmPanel() {
   return (
-    <div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Son kontrol</div>
-      <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginBottom: 16 }}>
-        Sipariş mutfak ve bara gönderilecek
-      </div>
-
-      <div style={{
-        padding: 14, background: 'var(--positive-bg)',
-        borderRadius: 10, border: '1px solid var(--positive)',
-        borderLeft: '3px solid var(--positive)',
-        display: 'flex', alignItems: 'center', gap: 10,
-      }}>
-        <span style={{ color: 'var(--positive)', display: 'flex' }}>
-          <I.check size={16} />
-        </span>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--positive)' }}>Mutfak hazır</div>
-          <div style={{ fontSize: 11, color: 'var(--positive)', opacity: 0.8, marginTop: 1 }}>
-            Sipariş "Hazırlanıyor" olarak eklenir
-          </div>
-        </div>
-      </div>
-    </div>
+    <FieldSet>
+      <FieldLegend>Son kontrol</FieldLegend>
+      <FieldDescription>Sipariş mutfak ve bara gönderilecek.</FieldDescription>
+      <Alert>
+        <Check />
+        <AlertTitle>Mutfak hazır</AlertTitle>
+        <AlertDescription>Sipariş “Hazırlanıyor” olarak eklenir.</AlertDescription>
+      </Alert>
+    </FieldSet>
   )
 }

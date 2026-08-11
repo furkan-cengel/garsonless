@@ -1,12 +1,11 @@
-import { AccessibleDialog } from './AccessibleDialog'
+import { Check } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { SettlementMethod } from './settlement-sheet-model'
 import {
   formatSettlementAmount,
   METHOD_LIST,
   SETTLEMENT_KEYFRAMES,
-  settlementModalBox,
-  settlementOverlay,
-  settlementPrimaryButton,
 } from './settlement-sheet-ui'
 
 export function SettlementSuccessDialog({
@@ -14,7 +13,7 @@ export function SettlementSuccessDialog({
   tally,
   collected,
   onDone,
-  zIndex,
+  zIndex: _zIndex,
 }: {
   tableLabel: string
   tally: Record<SettlementMethod, number>
@@ -24,22 +23,16 @@ export function SettlementSuccessDialog({
 }) {
   const lines = METHOD_LIST.filter((method) => tally[method.id] > 0)
   return (
-    <AccessibleDialog labelledBy="settlement-success-title" onClose={onDone} style={settlementOverlay(zIndex)}>
-      <div style={{ ...settlementModalBox, maxWidth: 392 }} onClick={(event) => event.stopPropagation()}>
+    <Dialog open onOpenChange={(open) => { if (!open) onDone() }}>
+      <DialogContent showCloseButton={false} className="gap-0 overflow-hidden p-0 sm:max-w-sm">
         <style dangerouslySetInnerHTML={{ __html: SETTLEMENT_KEYFRAMES }} />
-        <div style={{ padding: '30px 24px 22px', textAlign: 'center' }}>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <div style={{ width: 72, height: 72, borderRadius: 999, background: 'var(--positive-bg)', display: 'grid', placeItems: 'center', animation: 'sm-badge .45s cubic-bezier(.2,.8,.3,1.3) both' }}>
-              <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                <circle cx="20" cy="20" r="17" stroke="var(--positive)" strokeWidth="2.6" strokeDasharray="107" strokeDashoffset="107" style={{ animation: 'sm-ring .5s .15s ease forwards' }} />
-                <path d="M12 20.5l5 5L29 14" stroke="var(--positive)" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="28" strokeDashoffset="28" style={{ animation: 'sm-ring .35s .5s ease forwards' }} />
-              </svg>
-            </div>
-          </div>
-          <div id="settlement-success-title" style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.02em', marginTop: 16 }}>{tableLabel} kapatıldı</div>
-          <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4 }}>Adisyon tahsil edildi ve masa boşa alındı.</div>
+        <DialogHeader className="items-center px-6 pt-7 text-center">
+          <div className="grid size-14 place-items-center rounded-full bg-[var(--positive-bg)] text-[var(--positive)]"><Check /></div>
+          <DialogTitle id="settlement-success-title" className="mt-2 text-xl">{tableLabel} kapatıldı</DialogTitle>
+          <DialogDescription>Adisyon tahsil edildi ve masa boşa alındı.</DialogDescription>
+        </DialogHeader>
 
-          <div style={{ marginTop: 20, border: '1px solid var(--divider)', borderRadius: 14, overflow: 'hidden', textAlign: 'left' }}>
+          <div className="mx-5 my-5 overflow-hidden rounded-xl border text-left">
             {lines.map((method, index) => (
               <div key={method.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: index === lines.length - 1 ? 'none' : '1px solid var(--divider)' }}>
                 <span style={{ width: 26, height: 26, borderRadius: 7, background: method.bg, color: method.fg, display: 'grid', placeItems: 'center', ...(method.dashed ? { border: `1px dashed ${method.fg}` } : null) }}>{method.icon}</span>
@@ -52,11 +45,8 @@ export function SettlementSuccessDialog({
               <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--positive)', fontVariantNumeric: 'tabular-nums' }}>{formatSettlementAmount(collected)}</span>
             </div>
           </div>
-        </div>
-        <div style={{ padding: '0 20px 18px' }}>
-          <button type="button" data-modal-initial-focus onClick={onDone} style={{ ...settlementPrimaryButton, width: '100%', background: 'var(--action)' }}>Bitti</button>
-        </div>
-      </div>
-    </AccessibleDialog>
+        <DialogFooter className="mx-0 mb-0"><Button type="button" onClick={onDone} className="w-full">Bitti</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

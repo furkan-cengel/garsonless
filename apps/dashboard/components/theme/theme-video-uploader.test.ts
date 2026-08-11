@@ -9,5 +9,6 @@ test('video uploader distinguishes rejected, partial and preview-ready media sta
   assert.match(panel, /Video hazır · değiştir/)
   assert.match(panel, /Poster hazır · değiştir/)
   assert.match(panel, /Önizleme için video ve poster gereklidir/)
-  assert.match(panel, /effectiveFeedback\.tone === 'error' \? 'alert' : 'status'/)
+  assert.match(panel, /variant=\{effectiveFeedback\.tone === 'error' \? 'destructive' : 'default'\}/)
+  assert.match(panel, /<AlertDescription>\{effectiveFeedback\.text\}<\/AlertDescription>/)
 })

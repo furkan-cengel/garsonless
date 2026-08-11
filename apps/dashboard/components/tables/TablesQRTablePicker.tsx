@@ -23,10 +23,7 @@ export function TablesQRTablePicker({ restaurantId, tables, activeId, setActiveI
   return (
     <>
       <TablesQRMobileTablePicker restaurantId={restaurantId} tables={tables} activeId={activeId} setActiveId={setActiveId} />
-      <aside className="tb-tables__nav tb-qr-picker-desktop" aria-label="QR masası seçimi" style={{
-        width: 'var(--nav)', flexShrink: 0, borderRight: '1px solid var(--border)',
-        background: 'var(--surface)', display: 'flex', flexDirection: 'column',
-      }}>
+      <aside className="tb-tables__nav tb-qr-picker-desktop flex shrink-0 flex-col border-r bg-background" aria-label="QR masası seçimi" style={{ width: 'var(--nav)' }}>
         <TablesQRPickerContent restaurantId={restaurantId} tables={tables} filtered={filtered} activeId={activeId} query={query} setQuery={setQuery} onSelect={setActiveId} />
       </aside>
     </>

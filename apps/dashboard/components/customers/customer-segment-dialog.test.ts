@@ -3,17 +3,17 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 const customersClient = readFileSync(new URL('./CustomersClient.tsx', import.meta.url), 'utf8')
-const accessibleDialog = readFileSync(new URL('../tables/AccessibleDialog.tsx', import.meta.url), 'utf8')
+const dialog = readFileSync(new URL('../ui/dialog.tsx', import.meta.url), 'utf8')
 
-test('segment editor uses the shared modal accessibility contract', () => {
-  assert.match(customersClient, /<AccessibleDialog[\s\S]*labelledBy="customer-segment-editor-title"/)
-  assert.match(customersClient, /describedBy="customer-segment-editor-description"/)
-  assert.match(customersClient, /closeDisabled=\{saving\}/)
-  assert.match(customersClient, /id="customer-segment-editor-title"/)
-  assert.match(customersClient, /role="alert"/)
-  assert.match(accessibleDialog, /event\.key === 'Escape'/)
-  assert.match(accessibleDialog, /event\.key !== 'Tab'/)
-  assert.match(accessibleDialog, /document\.body\.style\.overflow = 'hidden'/)
-  assert.match(accessibleDialog, /sibling\.inert = true/)
-  assert.match(accessibleDialog, /previousFocus.*focus\(\)/)
+test('segment editor uses the shadcn modal accessibility contract', () => {
+  assert.match(customersClient, /<Dialog open onOpenChange=/)
+  assert.match(customersClient, /showCloseButton=\{!saving\}/)
+  assert.match(customersClient, /<DialogTitle id="customer-segment-editor-title"/)
+  assert.match(customersClient, /<DialogDescription id="customer-segment-editor-description"/)
+  assert.match(customersClient, /<Alert variant="destructive"/)
+  assert.match(customersClient, /<Checkbox checked=\{active\}/)
+  assert.match(dialog, /DialogPrimitive\.Root/)
+  assert.match(dialog, /DialogPrimitive\.Backdrop/)
+  assert.match(dialog, /DialogPrimitive\.Popup/)
+  assert.match(dialog, /DialogPrimitive\.Close/)
 })

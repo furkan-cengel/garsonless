@@ -1,8 +1,21 @@
 'use client'
 
-import React, { memo, useCallback, useEffect, useId, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { AppIconNodes } from '@garsonless/ui/icons'
+import { Check, ChevronDown, Copy, Download, Grid3X3, Printer, QrCode, RefreshCw } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Separator } from '@/components/ui/separator'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { buildUrl } from './tables-builder-model'
 import type { QRConfig, QRHealth, TableItem } from './tables-builder-types'
 import type { TableCardExportFormat } from './tables-qr-export'
@@ -13,42 +26,8 @@ interface QRStylingInstance {
   update: (options: ReturnType<typeof buildQRCodeStylingOptions>) => void
 }
 
-const I = {
-  check: AppIconNodes.check,
-  chevDown: AppIconNodes.chevDown,
-  copy: AppIconNodes.copy,
-  layout: AppIconNodes.layout,
-}
-
-const QRI = {
-  download: AppIconNodes.download,
-  print: AppIconNodes.print,
-  qr: AppIconNodes.qr,
-}
-
 const S = {
   mono: { fontFamily: "'Geist Mono', ui-monospace, monospace", fontVariantNumeric: 'tabular-nums' as const },
-}
-
-function btnPrimary(): React.CSSProperties {
-  return {
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    height: 30, padding: '0 12px', borderRadius: 7, border: '1px solid var(--action)',
-    background: 'var(--action)', color: 'var(--on-action)',
-    fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
-    whiteSpace: 'nowrap', flexShrink: 0,
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,.08), 0 1px 0 rgba(0,0,0,.04)',
-  }
-}
-
-function btnGhost(): React.CSSProperties {
-  return {
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    height: 30, padding: '0 10px', borderRadius: 7,
-    border: '1px solid var(--border-strong)', background: 'var(--surface)',
-    color: 'var(--text)', fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
-    whiteSpace: 'nowrap', flexShrink: 0,
-  }
 }
 
 
@@ -128,92 +107,24 @@ function Frame({ qr, table, children }: { qr: QRConfig; table?: TableItem; child
 
 /* ─── DownloadMenu ──────────────────────────────────────────── */
 function DownloadMenu({ onPick, disabled = false }: { onPick: (fmt: TableCardExportFormat) => void; disabled?: boolean }) {
-  const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const menuId = useId()
-  const close = useCallback((restoreFocus = false) => {
-    setOpen(false)
-    if (restoreFocus) triggerRef.current?.focus()
-  }, [])
-  useEffect(() => {
-    if (!open) return
-    const menu = menuRef.current
-    const focusable = () => Array.from(menu?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])
-    const frame = window.requestAnimationFrame(() => focusable()[0]?.focus())
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !menu?.contains(event.target) && !triggerRef.current?.contains(event.target)) close()
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        close(true)
-      }
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      window.cancelAnimationFrame(frame)
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [close, open])
-  const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])
-    const index = items.indexOf(document.activeElement as HTMLButtonElement)
-    let next: number | null = null
-    if (event.key === 'ArrowDown') next = index < 0 ? 0 : (index + 1) % items.length
-    else if (event.key === 'ArrowUp') next = index < 0 ? items.length - 1 : (index - 1 + items.length) % items.length
-    else if (event.key === 'Home') next = 0
-    else if (event.key === 'End') next = items.length - 1
-    if (next === null || !items[next]) return
-    event.preventDefault()
-    items[next]?.focus()
-  }
   return (
-    <div style={{ position: 'relative' }}>
-      <button
-        ref={triggerRef}
-        className="tb-hover"
-        type="button"
-        disabled={disabled}
-        aria-label="İndirme biçimini seç"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-        onClick={() => { if (!disabled) setOpen(!open) }}
-        style={{ ...btnPrimary(), borderRadius: '0 7px 7px 0', padding: '0 8px', opacity: disabled ? 0.45 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
-      >
-        {React.cloneElement(I.chevDown as React.ReactElement<{ size?: number }>, { size: 14 })}
-      </button>
-      {open && (
-          <div ref={menuRef} id={menuId} role="menu" aria-label="QR indirme biçimleri" onKeyDown={onMenuKeyDown} style={{
-            position: 'absolute', right: 0, top: '110%',
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: 8, boxShadow: 'var(--shadow-pop)', padding: 4,
-            minWidth: 160, zIndex: 6,
-          }}>
-            {[
-              { fmt: 'png',  label: 'PNG',      hint: 'Web için' },
-              { fmt: 'svg',  label: 'SVG',      hint: 'Vektör' },
-              { fmt: 'jpeg', label: 'JPG',      hint: 'Düşük boyut' },
-              { fmt: 'pdf',  label: 'PDF · A4', hint: 'Yazdırılabilir' },
-            ].map(o => (
-              <button key={o.fmt} type="button" role="menuitem" tabIndex={-1}
-                onClick={() => { onPick(o.fmt as TableCardExportFormat); close(true) }}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  width: '100%', padding: '7px 10px', border: 'none', background: 'transparent',
-                  borderRadius: 5, cursor: 'pointer', textAlign: 'left',
-                  color: 'var(--text)', fontSize: 12.5,
-                }}>
-                <span style={{ fontWeight: 500 }}>{o.label}</span>
-                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{o.hint}</span>
-              </button>
-            ))}
-          </div>
-      )}
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button type="button" size="icon" className="rounded-l-none border-l border-primary-foreground/15" disabled={disabled} aria-label="İndirme biçimini seç" />}>
+        <ChevronDown />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44" aria-label="QR indirme biçimleri">
+        {[
+          { fmt: 'png', label: 'PNG', hint: 'Web için' },
+          { fmt: 'svg', label: 'SVG', hint: 'Vektör' },
+          { fmt: 'jpeg', label: 'JPG', hint: 'Düşük boyut' },
+          { fmt: 'pdf', label: 'PDF · A4', hint: 'Yazdırılabilir' },
+        ].map((option) => (
+          <DropdownMenuItem key={option.fmt} onClick={() => onPick(option.fmt as TableCardExportFormat)}>
+            {option.label}<DropdownMenuShortcut>{option.hint}</DropdownMenuShortcut>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -358,22 +269,17 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
       display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden',
     }}>
       {/* Canvas toolbar */}
-      <div className="tb-tables__canvas-toolbar" style={{
-        height: 44, flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 14px', borderBottom: '1px solid var(--border)',
-        background: 'rgba(255,255,255,.7)', backdropFilter: 'blur(8px)',
-      }}>
-        <div className="tb-tables__canvas-toolbar-left" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text-2)', minWidth: 0 }}>
-          <span style={{ ...S.mono, fontSize: 11.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>
+      <div className="tb-tables__canvas-toolbar flex h-12 shrink-0 items-center justify-between gap-3 border-b bg-background/80 px-3 backdrop-blur-sm">
+        <div className="tb-tables__canvas-toolbar-left flex min-w-0 items-center gap-2">
+          <span className="max-w-[300px] truncate font-mono text-xs text-muted-foreground">
             {url}
           </span>
-          <button className="tb-hover" style={{
-            marginLeft: 2, minHeight: 44, padding: '3px 9px', border: '1px solid ' + (copyState === 'success' ? 'var(--positive)' : copyState === 'error' ? 'var(--critical)' : 'var(--border)'),
-            background: copyState === 'success' ? 'var(--positive-bg)' : copyState === 'error' ? 'var(--critical-bg)' : 'var(--surface)',
-            borderRadius: 7, color: copyState === 'success' ? 'var(--positive)' : copyState === 'error' ? 'var(--critical)' : 'var(--text-2)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
-            fontSize: 11, fontWeight: copyState === 'success' ? 600 : 400,
-          }} aria-label="Masa QR bağlantısını kopyala" onClick={() => {
+          <Button
+            type="button"
+            size="sm"
+            variant={copyState === 'success' ? 'positive' : copyState === 'error' ? 'destructive' : 'outline'}
+            aria-label="Masa QR bağlantısını kopyala"
+            onClick={() => {
             void (async () => {
               try {
                 if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
@@ -386,65 +292,62 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
             })()
           }}>
             {copyState === 'success'
-              ? <>{React.cloneElement(I.check as React.ReactElement<{ size?: number }>, { size: 11 })}Kopyalandı</>
+              ? <><Check data-icon="inline-start" />Kopyalandı</>
               : copyState === 'error'
                 ? 'Kopyalanamadı'
-                : <>{React.cloneElement(I.copy as React.ReactElement<{ size?: number }>, { size: 11 })}Kopyala</>}
-          </button>
+                : <><Copy data-icon="inline-start" />Kopyala</>}
+          </Button>
         </div>
 
-        <div className="tb-tables__canvas-toolbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span className="tb-qr-health" title={health.message} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5, maxWidth: 190,
-            color: health.state === 'invalid' ? 'var(--critical)' : health.state === 'warning' || health.state === 'checking' ? 'var(--warning)' : 'var(--positive)',
-            fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: 999, background: 'currentColor', flexShrink: 0 }} />
+        <div className="tb-tables__canvas-toolbar-actions flex shrink-0 items-center gap-2">
+          <Badge
+            className="tb-qr-health max-w-48 truncate"
+            title={health.message}
+            variant={health.state === 'invalid' ? 'destructive' : health.state === 'warning' || health.state === 'checking' ? 'warning' : 'positive'}
+          >
+            <span className="size-1.5 shrink-0 rounded-full bg-current" />
             {health.message}
-          </span>
+          </Badge>
           {table && (
-            <button
+            <Button
               type="button"
-              className="tb-hover"
+              size="sm"
+              variant="outline"
               onClick={() => onRotateToken(table)}
               disabled={rotationPending}
               title="Eski QR bağlantısını geçersiz kılıp yeni bir QR üretir"
-              style={{ ...btnGhost(), padding: '4px 8px', fontSize: 11, opacity: rotationPending ? .55 : 1 }}
-            >{rotationPending ? 'QR yenileniyor…' : 'Yeni QR'}</button>
+            ><RefreshCw data-icon="inline-start" />{rotationPending ? 'QR yenileniyor…' : 'Yeni QR'}</Button>
           )}
-          <div className="tb-qr-view-switch" style={{
-            display: 'inline-flex', alignItems: 'center', gap: 2,
-            background: 'var(--surface-3)', borderRadius: 7, padding: 3,
-          }}>
+          <ToggleGroup
+            className="tb-qr-view-switch bg-muted p-0.5"
+            value={[view]}
+            onValueChange={(values) => { const next = values[0] as typeof view | undefined; if (next) setView(next) }}
+            size="sm"
+            spacing={1}
+            aria-label="QR önizleme görünümü"
+          >
             {([
-              { id: 'preview', label: 'Tek',    icon: QRI.qr },
-              { id: 'grid',    label: 'Izgara', icon: I.layout },
-              { id: 'print',   label: 'Baskı',  icon: QRI.print },
+              { id: 'preview', label: 'Tek', icon: QrCode },
+              { id: 'grid', label: 'Izgara', icon: Grid3X3 },
+              { id: 'print', label: 'Baskı', icon: Printer },
             ] as const).map(v => (
-              <button key={v.id} type="button" aria-pressed={view === v.id} className="tb-hover" onClick={() => setView(v.id as typeof view)} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px',
-                fontSize: 11.5, fontWeight: 500, borderRadius: 5, border: 'none',
-                background: view === v.id ? 'var(--surface)' : 'transparent',
-                color: view === v.id ? 'var(--text)' : 'var(--text-2)',
-                boxShadow: view === v.id ? 'var(--shadow-1)' : 'none',
-                cursor: 'pointer',
-              }}>
-                {React.cloneElement(v.icon as React.ReactElement<{ size?: number }>, { size: 12 })}{v.label}
-              </button>
+              <ToggleGroupItem key={v.id} value={v.id} aria-label={v.label} className="gap-1 px-2">
+                <v.icon />{v.label}
+              </ToggleGroupItem>
             ))}
-          </div>
-          <div className="tb-qr-divider" style={{ width: 1, height: 20, background: 'var(--border)' }} />
-          <div className="tb-qr-export-actions" style={{ display: 'inline-flex' }}>
-            <button
-              className="tb-hover"
+          </ToggleGroup>
+          <Separator orientation="vertical" className="tb-qr-divider h-5" />
+          <div className="tb-qr-export-actions inline-flex">
+            <Button
+              type="button"
               aria-busy={exportState === 'working'}
               onClick={() => { if (table) void download('png') }}
               disabled={!table || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'}
               title={health.state === 'invalid' ? health.message : undefined}
-              style={{ ...btnPrimary(), borderRadius: '7px 0 0 7px', borderRight: '1px solid rgba(255,255,255,.15)', paddingRight: 10, opacity: table && health.state !== 'invalid' && health.state !== 'checking' ? 1 : 0.45, cursor: table && health.state !== 'invalid' && health.state !== 'checking' ? 'pointer' : 'not-allowed' }}
+              className="rounded-r-none"
             >
-              {React.cloneElement(QRI.download as React.ReactElement<{ size?: number }>, { size: 13 })}{exportState === 'working' ? 'Hazırlanıyor…' : 'İndir PNG'}
-            </button>
+              <Download data-icon="inline-start" />{exportState === 'working' ? 'Hazırlanıyor…' : 'İndir PNG'}
+            </Button>
             <DownloadMenu onPick={download} disabled={!table || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'} />
           </div>
         </div>
@@ -455,18 +358,21 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
       </span>
 
       {exportError && (
-        <div role="alert" style={{ padding: '8px 14px', color: 'var(--critical)', background: 'var(--critical-bg)', borderBottom: '1px solid var(--critical)', fontSize: 12 }}>
-          {exportError} · QR stilini sadeleştirip yeniden deneyin.
-        </div>
+        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
+          <AlertDescription>{exportError} · QR stilini sadeleştirip yeniden deneyin.</AlertDescription>
+        </Alert>
       )}
 
       {/* Canvas body */}
       {view === 'preview' && !table && tables.length === 0 && (
-        <div className="tb-tables__canvas-body" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, overflow: 'auto' }}>
-          <div style={{ textAlign: 'center', color: 'var(--text-3)' }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Henüz masa yok</div>
-            <div style={{ fontSize: 12, marginTop: 6 }}>QR önizlemesi için sol panelden masa ekleyin.</div>
-          </div>
+        <div className="tb-tables__canvas-body flex flex-1 items-center justify-center overflow-auto p-10">
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon"><QrCode /></EmptyMedia>
+              <EmptyTitle>Henüz masa yok</EmptyTitle>
+              <EmptyDescription>QR önizlemesi için sol panelden masa ekleyin.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         </div>
       )}
       {view === 'preview' && (table || tables.length > 0) && (
@@ -485,9 +391,9 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
                 <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>Aynı stil, farklı bağlantılar — {tables.length} QR</div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className="tb-hover" aria-busy={exportState === 'working'} onClick={() => { void printAll() }} disabled={tables.length === 0 || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'} title={health.state === 'invalid' ? health.message : undefined} style={{ ...btnGhost(), opacity: tables.length && exportState !== 'working' && health.state !== 'invalid' && health.state !== 'checking' ? 1 : .45, cursor: tables.length && exportState !== 'working' && health.state !== 'invalid' && health.state !== 'checking' ? 'pointer' : 'not-allowed' }}>
-                  {React.cloneElement(QRI.print as React.ReactElement<{ size?: number }>, { size: 13 })}{exportState === 'working' ? 'Hazırlanıyor…' : 'Yazdır'}
-                </button>
+                <Button variant="outline" aria-busy={exportState === 'working'} onClick={() => { void printAll() }} disabled={tables.length === 0 || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'} title={health.state === 'invalid' ? health.message : undefined}>
+                  <Printer data-icon="inline-start" />{exportState === 'working' ? 'Hazırlanıyor…' : 'Yazdır'}
+                </Button>
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>

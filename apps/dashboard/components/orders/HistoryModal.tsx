@@ -3,11 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { readOrderLineSnapshots, type PaymentMethod } from '@garsonless/db/browser'
 import { getOrderHistory, type HistoryOrder } from '../../lib/actions/orders'
-import { I, S, Tag, IconButton, btnGhost } from '../../lib/ui'
+import { I } from '../../lib/ui'
 import { formatCurrency } from '../../lib/utils'
 import { paymentMethodBadge } from '../../lib/payment-method'
-import { LoadingStatus } from '@garsonless/ui/spinners'
-import { AccessibleDialog } from '../tables/AccessibleDialog'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Spinner } from '@/components/ui/spinner'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 type Tab = 'all' | 'done' | 'cancelled'
 
@@ -72,99 +80,57 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
   ]
 
   return (
-    <AccessibleDialog labelledBy="order-history-title" onClose={onClose} className="order-history-overlay" style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(17,17,19,.42)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <style>{`
-        .order-history-dialog button, .order-history-dialog input { min-height: 44px; }
-        .order-history-action {
-          transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, filter 140ms ease, transform 140ms ease;
-        }
-        .order-history-tab:not(:disabled):hover {
-          background: var(--surface) !important;
-          color: var(--text) !important;
-          box-shadow: var(--shadow-1);
-          transform: translateY(-1px);
-        }
-        .order-history-tab[aria-pressed="true"]:not(:disabled):hover {
-          filter: brightness(.94);
-        }
-        .order-history-receipt:not(:disabled):hover {
-          background: var(--surface-inset) !important;
-          border-color: var(--text-2) !important;
-          color: var(--text) !important;
-          box-shadow: 0 4px 12px rgba(17,17,19,.1);
-          transform: translateY(-1px);
-        }
-        .order-history-close:not(:disabled):hover {
-          background: var(--surface-inset) !important;
-          color: var(--text) !important;
-          transform: scale(1.04);
-        }
-        .order-history-action:not(:disabled):active {
-          box-shadow: none;
-          transform: translateY(0);
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .order-history-action { transition: none !important; transform: none !important; }
-        }
-        @media (max-width: 600px) {
-          .order-history-overlay { padding: 0 !important; }
-          .order-history-dialog { height: 100dvh !important; max-width: none !important; border-radius: 0 !important; }
-          .order-history-toolbar { align-items: stretch !important; flex-direction: column; }
-          .order-history-tabs { width: 100%; }
-          .order-history-tabs > button { flex: 1; padding-inline: 6px !important; }
-        }
-      `}</style>
-      <div className="order-history-dialog" aria-busy={loading} style={{ width: '100%', maxWidth: 620, height: '84vh', background: 'var(--surface)', borderRadius: 16, boxShadow: 'var(--shadow-pop)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Header */}
-        <div style={{ padding: '15px 20px 13px', borderBottom: '1px solid var(--divider)', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <div id="order-history-title" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-.01em' }}>Geçmiş siparişler</div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>Son 30 günün tamamlanan ve iptal edilen siparişleri</div>
-          </div>
-          <IconButton className="order-history-action order-history-close" icon={<I.close size={15} />} ariaLabel="Geçmiş siparişleri kapat" onClick={onClose} />
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="flex h-[min(84dvh,720px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <DialogHeader className="border-b px-5 py-4 pr-12">
+          <DialogTitle>Geçmiş siparişler</DialogTitle>
+          <DialogDescription>Son 30 günün tamamlanan ve iptal edilen siparişleri</DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-2 border-b px-5 py-3 sm:flex-row sm:items-center">
+          <InputGroup className="h-9 flex-1 bg-muted/50">
+            <InputGroupAddon><I.search size={14} /></InputGroupAddon>
+            <InputGroupInput ref={searchRef} aria-label="Geçmiş siparişlerde ara" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sipariş #, masa..." />
+          </InputGroup>
+          <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
+            <TabsList className="w-full sm:w-auto">
+              {tabs.map((item) => (
+                <TabsTrigger key={item.id} value={item.id} className="min-w-0 px-2 text-xs">
+                  {item.label}{item.n > 0 && <span className="font-mono text-[10px] opacity-60">{item.n}</span>}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </div>
 
-        {/* Search + tabs */}
-        <div className="order-history-toolbar" style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--divider)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minHeight: 44, padding: '0 11px', background: 'var(--surface-3)', borderRadius: 8, color: 'var(--text-3)' }}>
-            <I.search size={13} />
-            <input ref={searchRef} data-modal-initial-focus aria-label="Geçmiş siparişlerde ara" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sipariş #, masa..." style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: 12.5, color: 'var(--text)' }} />
-          </div>
-          <div className="order-history-tabs" role="group" aria-label="Geçmiş sipariş durumu" style={{ display: 'flex', gap: 4, background: 'var(--surface-3)', borderRadius: 8, padding: 3 }}>
-            {tabs.map(t => (
-              <button key={t.id} type="button" className="order-history-action order-history-tab" aria-pressed={tab === t.id} onClick={() => setTab(t.id)} style={{
-                padding: '5px 11px', borderRadius: 6, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', border: 'none',
-                background: tab === t.id ? 'var(--surface)' : 'transparent',
-                color: tab === t.id ? 'var(--text)' : 'var(--text-3)',
-                boxShadow: tab === t.id ? 'var(--shadow-1)' : 'none',
-              }}>{t.label}{t.n > 0 && <span style={{ ...S.mono, opacity: .6, marginLeft: 4 }}>{t.n}</span>}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* Body */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '8px 20px 20px' }}>
+        <ScrollArea className="min-h-0 flex-1" aria-busy={loading}>
+          <div className="px-5 pb-5 pt-2">
           {truncated && !loading && !error && (
-            <div role="status" style={{ margin: '8px 0', padding: '9px 11px', borderRadius: 8, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 11.5, fontWeight: 600 }}>
-              Son 200 kayıt gösteriliyor. Daha eski kayıtlar için rapor dışa aktarımını kullanın.
-            </div>
+            <Alert className="my-2 border-[var(--warning)]/20 bg-[var(--warning-bg)]"><AlertDescription className="text-[var(--warning)]">Son 200 kayıt gösteriliyor. Daha eski kayıtlar için rapor dışa aktarımını kullanın.</AlertDescription></Alert>
           )}
-          {loading && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)' }}><LoadingStatus size={18} label="Geçmiş siparişler yükleniyor…" /></div>}
-          {error && <div style={{ padding: 40, textAlign: 'center', color: 'var(--critical)', fontSize: 12.5 }}>{error}</div>}
+          {loading && <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground"><Spinner />Geçmiş siparişler yükleniyor…</div>}
+          {error && <Alert className="my-3" variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
           {!loading && !error && rows.length === 0 && (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-4)', fontSize: 12.5 }}>Kayıt bulunamadı</div>
+            <Empty className="min-h-52">
+              <EmptyHeader>
+                <EmptyMedia variant="icon"><I.history /></EmptyMedia>
+                <EmptyTitle>Kayıt bulunamadı</EmptyTitle>
+                <EmptyDescription>Arama metnini veya durum filtresini değiştirin.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
           {!loading && !error && Object.entries(groups).map(([day, list]) => (
             <div key={day}>
-              <div style={{ ...S.label, padding: '14px 2px 8px', position: 'sticky', top: 0, background: 'var(--surface)' }}>{day} · {list.length} sipariş</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="sticky top-0 z-10 bg-popover px-0.5 py-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{day} · {list.length} sipariş</div>
+              <div className="flex flex-col gap-2">
                 {list.map(o => <HistoryRow key={o.id} order={o} tableLabel={tableLabels[o.table_id ?? ''] ?? (o.table_id ? 'Masa' : 'Kasa')} onReceipt={onReceipt} />)}
               </div>
             </div>
           ))}
-        </div>
-      </div>
-    </AccessibleDialog>
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -173,7 +139,6 @@ function HistoryRow({ order, tableLabel, onReceipt }: {
   tableLabel: string
   onReceipt: (order: HistoryOrder, tableLabel: string) => void
 }) {
-  const [hov, setHov] = useState(false)
   const cancelled = order.status === 'cancelled'
   const items = readOrderLineSnapshots(order.items)
   const names = items.map(i => `${i.quantity}× ${i.name}`).join(' · ')
@@ -182,33 +147,29 @@ function HistoryRow({ order, tableLabel, onReceipt }: {
   const methodBadge = isPaid ? paymentMethodBadge((order.payment_method as PaymentMethod | null | undefined) ?? null) : null
 
   return (
-    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
-      display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px',
-      border: '1px solid var(--border)', borderRadius: 11, background: 'var(--surface)',
-      boxShadow: hov ? 'var(--shadow-2)' : 'var(--shadow-1)', transition: 'box-shadow .12s',
-    }}>
-      <div style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, display: 'grid', placeItems: 'center', background: cancelled ? 'var(--critical-bg)' : 'var(--positive-bg)', color: cancelled ? 'var(--critical)' : 'var(--positive)' }}>
+    <Card size="sm" className="flex-row items-center gap-3 p-3 transition-shadow hover:shadow-sm">
+      <div className={cancelled ? 'grid size-8 shrink-0 place-items-center rounded-lg bg-destructive/10 text-destructive' : 'grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--positive-bg)] text-[var(--positive)]'}>
         {cancelled ? <I.close size={16} /> : <I.check size={16} />}
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>{tableLabel}</span>
-          <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-4)' }}>#{order.id.slice(0, 6).toUpperCase()}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-sm font-medium">{tableLabel}</span>
+          <span className="font-mono text-[10px] text-muted-foreground">#{order.id.slice(0, 6).toUpperCase()}</span>
           {methodBadge && (
-            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '.04em', color: methodBadge.fg, background: methodBadge.bg, padding: '1px 6px', borderRadius: 999, ...(methodBadge.isComp ? { border: `1px dashed ${methodBadge.fg}` } : null) }}>{methodBadge.label}</span>
+            <Badge className={methodBadge.isComp ? 'border border-dashed' : ''} style={{ color: methodBadge.fg, background: methodBadge.bg }}>{methodBadge.label}</Badge>
           )}
-          {cancelled && <Tag tone="critical">İptal</Tag>}
+          {cancelled && <Badge variant="destructive">İptal</Badge>}
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div className="mt-0.5 truncate text-xs text-muted-foreground">
           {time} · {names || '—'}
         </div>
       </div>
-      <span style={{ ...S.mono, fontSize: 13.5, fontWeight: 700, color: cancelled ? 'var(--text-4)' : 'var(--text)', textDecoration: cancelled ? 'line-through' : 'none' }}>{formatCurrency(order.total)}</span>
+      <span className={cancelled ? 'font-mono text-sm font-semibold text-muted-foreground line-through' : 'font-mono text-sm font-semibold'}>{formatCurrency(order.total)}</span>
       {!cancelled && (
-        <button type="button" className="order-history-action order-history-receipt" aria-label={`${tableLabel} siparişinin fişini göster`} onClick={() => onReceipt(order, tableLabel)} style={{ ...btnGhost(), height: 30, padding: '0 11px' }}>
+        <Button type="button" size="sm" variant="outline" aria-label={`${tableLabel} siparişinin fişini göster`} onClick={() => onReceipt(order, tableLabel)}>
           <I.history size={12} />Fiş
-        </button>
+        </Button>
       )}
-    </div>
+    </Card>
   )
 }

@@ -1,3 +1,139 @@
+# Pano KPI Kartları — Önceki Tasarım Yoğunluğu QA
+
+- Source visual truth: kullanıcının bu konuşmada paylaştığı 2048×1200 Pano ekran görüntüsü; kırmızı çerçeve dört KPI kartı satırını işaretliyor. Yerel ek dosya yolu sunulmadı.
+- Implementation: `apps/dashboard/components/pano/PanoOverviewWidgets.tsx` içindeki `PanoKpiCard`.
+- Implementation screenshot: yakalanamadı; bu oturumda in-app Browser keşfi kullanılabilir bir browser backend döndürmedi.
+- Hedef viewport: kaynak görseldeki geniş masaüstü Pano görünümü; kesin CSS viewport ve device pixel ratio bilgisi mevcut değil.
+- State: tahsil edilen ciro, açık hesap, bekleyen sipariş ve dikkat gereken masa kartlarının birlikte göründüğü durum.
+- Full-view comparison evidence: blocked; kaynak görsel görülebiliyor ancak aynı durumda browser-rendered implementation capture alınamadı.
+- Focused region comparison evidence: blocked; KPI satırının post-fix ekran görüntüsü yok.
+- Primary interactions tested: KPI bağlantı kompozisyonu ve Pano mimari sözleşmeleri otomatik testlerle doğrulandı; browser etkileşimi çalıştırılamadı.
+- Console errors checked: browser testi yapılamadı.
+
+## Bulgular ve uygulanan düzeltme
+
+1. [P1 fixed in code] Shadcn `Card` üzerindeki `size="sm"`, `CardTitle` değerlerini 14 px'e geri bastırarak KPI rakamlarının etiketlerle aynı görsel seviyeye düşmesine neden oluyordu.
+2. KPI kartı normal Card yoğunluğuna alındı ve eski tasarımın ölçüleri geri getirildi: 126 px minimum yükseklik, 16 px inset, 28 px/800 metrik, 11.5 px etiket, 11 px yardımcı metin ve 10.5 px kompakt badge.
+3. Shadcn `Card`, `CardHeader`, `CardTitle`, `CardDescription` ve `Badge` kompozisyonu korunurken önceki Pano'nun hiyerarşisi tekrar kuruldu.
+
+## Zorunlu görsel yüzeyler
+
+- Fonts/typography: eski Pano kaynak kodundaki 28/11.5/11/10.5 px hiyerarşisi birebir geri taşındı; optik eşleşme browser capture olmadan doğrulanamadı.
+- Spacing/layout rhythm: 126 px minimum kart yüksekliği ve 16 px iç boşluk geri getirildi; dört kolonlu mevcut grid korunuyor.
+- Colors/tokens: mevcut semantik Pano/shadcn tokenları korundu; featured kart `primary`, değer vurgusu mevcut `accent-2` tokenını kullanıyor.
+- Image quality/assets: bu bölgede raster görsel veya özel medya bulunmuyor.
+- Copy/content: KPI etiketleri, değerleri, delta metinleri ve alt açıklamalar değiştirilmedi.
+
+## Otomatik kanıt
+
+- Dashboard typecheck geçti.
+- Dashboard lint geçti.
+- Pano testleri 28/28 geçti; yeni regresyon testi eski metrik hiyerarşisini koruyor.
+- `git diff --check` temiz.
+
+## Kalan görsel kontrol
+
+- Aynı restoran/veri durumunda geniş masaüstü Pano'yu açıp dört KPI kartını kaynak ekran görüntüsüyle aynı ölçekte karşılaştırmak gerekiyor.
+- Rakamların 28 px, badge'lerin kompakt ve kartların eşit yükseklikte göründüğü; yatay taşma ve beklenmeyen satır kırılması olmadığı doğrulanmalı.
+
+final result: blocked
+
+---
+
+# Marketing Mobil Navigasyon — Video Referansı QA
+
+## Kaynak ve karşılaştırma
+
+- Source visual truth: `/Users/furkancengelm3/Desktop/Screenrecorder-2026-08-08-23-25-02-367.mp4`.
+- Referans açık-menü karesi: `/tmp/masabu-nav-ref/frame-2.mov.png` (539×1170 px).
+- Uygulama açık-menü yakalaması: `/tmp/masabu-nav-ref/implementation-open.png` (481×1041 px).
+- Birleşik karşılaştırma: `/tmp/masabu-nav-ref/comparison.png`; uygulama yakalaması referansla aynı 539×1170 karşılaştırma tuvaline normalize edildi.
+- In-app Browser mobil viewport isteği 390×844, ölçülen içerik viewport'u 433×938 CSS px. Mobil breakpoint ve yatay taşma bu ölçülen yüzeyde doğrulandı.
+- State: ana sayfa en üstte, hamburger ile açılmış mobil navigasyon paneli.
+
+## Bulgular ve uygulanan tasarım
+
+1. Mobilde masaüstü `Dene` aksiyonu kaldırılarak 42×42 px hamburger/X kontrolüne dönüştürüldü.
+2. Referanstaki gibi navigasyon başlığın hemen altında opak kırık-beyaz bir panel olarak açılıyor; hero içeriğini aşağı itmeden üzerinde katmanlanıyor.
+3. Masaüstündeki Özellikler, Çözümler, Fiyatlandırma, Kaynaklar ve Şirket bağlantıları geniş, ayrı ve dokunulabilir satırlar halinde korunuyor. Giriş ve 14 günlük deneme aksiyonları panelin altında tam genişlikte sunuluyor.
+4. Kaynak markanın mavi CTA'sı ve dil seçicisi kopyalanmadı; Masabu'nun kömür/yeşil tasarım dili ve mevcut masaüstü navigasyon kapsamı korundu.
+5. Panelde görünür kırpılma, üst üste binme veya yatay sayfa taşması bulunmadı. Açık ve kapalı durumda hero'nun dikey konumu değişmiyor.
+
+## Etkileşim, erişilebilirlik ve regresyon
+
+- Hamburger tıklaması `aria-expanded` ve `aria-hidden` durumlarını doğru güncelliyor; X ile kapanıyor.
+- `Escape` ile kapanma doğrulandı ve kontrol tekrar `Menüyü aç` erişilebilir adına dönüyor.
+- Menü bağlantılarının tamamı açık durumda görünür; bir bağlantı seçildiğinde panel kapanıyor.
+- 900 px üzerindeki masaüstü düzenine geçildiğinde mobil panel otomatik kapanıyor; mevcut masaüstü navigasyonu korunuyor.
+- Logo boyutlandırmasından gelen Next.js uyarısı giderildi; son yeniden yüklemeden sonra yeni console error/warn kaydı oluşmadı.
+- Marketing lint, typecheck, production build ve `git diff --check` geçti.
+
+## Görsel kalite kararı
+
+- Fonts/typography: mevcut Marketing tipografisi ve desktop navigation ağırlıkları korunuyor; mobil satırlar tek hizada ve okunaklı.
+- Spacing/layout rhythm: 10 px panel aralıkları, 52 px aksiyon yüksekliği ve 12 px radius referanstaki geniş dokunma hedeflerini Masabu yoğunluğuna uyarlıyor.
+- Colors/tokens: yeni panel mevcut `--ink`, `--positive`, `--line` ve kırık-beyaz yüzey tokenlarını kullanıyor.
+- Assets: logo gerçek Masabu SVG'si; hamburger, kapatma ve ok ikonları paylaşılan Lucide tabanlı ikon setinden geliyor.
+- P0/P1/P2 açık bulgu kalmadı.
+
+final result: passed
+
+---
+
+# Marketing Ana Sayfa — Hero Sonrası Ürün Hikâyesi QA
+
+## Kaynak ve kapsam
+
+- Source visual truth: `/Users/furkancengelm3/Desktop/problem-solution.html`, `/Users/furkancengelm3/Desktop/process-flow.html` ve `/Users/furkancengelm3/Desktop/menu-customization.html` ile kullanıcının paylaştığı masaüstü referans görselleri.
+- Implementation: `http://localhost:3003/`; Hero korunarak altına Problem → Çözüm, Uçtan Uca Süreç, Menü Özelleştirme, Operasyon Bento, Deneme, SSS ve Final CTA sırası kuruldu.
+- Browser viewport: 1422×800 CSS px. Ölçülen sayfa genişliğinde `scrollWidth === innerWidth`; masaüstünde yatay taşma bulunmadı.
+- Product media: `/product/qr-menu.jpg`, `/product/kiosk.jpg`, `/product/payment-cart.jpg` ve `/product/menu-customization.jpg`. Dört medya da çalışan Masabu ürün yüzeylerinden alınmış yerel posterlerdir; placeholder veya CSS ile çizilmiş dashboard kullanılmadı.
+
+## Bulgular ve uygulanan düzeltmeler
+
+1. [P1 fixed] Dönüşümlü süreç grid'inde ters adımlarda poster dar kolona yerleşiyordu. Ters grid oranı da çevrilerek dört posterin masaüstünde aynı 611 px genişlikte görünmesi sağlandı.
+2. [P1 fixed] Eski ana sayfadaki doğrulanmamış POS entegrasyonu, komisyon, SOC 2, 7/24 destek, iki dakikalık kurulum ve kart gerektirmeme ifadeleri kaldırıldı. SSS ve CTA yalnız kodda doğrulanmış plan/ürün davranışlarını kullanıyor.
+3. [P1 fixed] Supademo kaynağı yokken boş iframe alanı oluşması engellendi. Geçerli `app.supademo.com` URL'si yoksa erişilebilir modal gerçek ürün posterini büyütüyor; geçerli URL geldiğinde tek iframe etkileşim anında yükleniyor.
+4. [P2 fixed] Marquee sayfa dışında da çalışıyordu. IntersectionObserver ile yalnız Menü Özelleştirme bölümü görünürken çalışacak şekilde duraklatıldı; hover, focus ve reduced-motion durumları ayrıca animasyonu durduruyor.
+5. [P2 fixed] Footer'daki hedefi olmayan ve erişilebilir adı bulunmayan üç sosyal bağlantı kaldırıldı. Son DOM kontrolünde isimsiz buton veya bağlantı kalmadı.
+6. [P2 fixed] Next Image logo oranı ve ilk süreç posteri LCP uyarıları giderildi. Son iki dakikalık Browser log penceresinde warning/error kaydı yok.
+
+## Etkileşim ve erişilebilirlik
+
+- Sayfada tek `h1`, benzersiz bölüm kimlikleri ve isimlendirilmiş bütün buton/bağlantılar doğrulandı.
+- Ürün önizleme modalı açıldığında focus kapatma düğmesine taşınıyor, gövde kaydırması kilitleniyor, `Escape` ile kapanıyor ve focus tetikleyiciye geri dönüyor.
+- Modal `role="dialog"`, `aria-modal`, başlık ilişkisi ve focus trap içeriyor. Supademo hata durumunda poster görünür kalıyor.
+- SSS düğmeleri `aria-expanded` ve `aria-controls` durumlarını doğru güncelliyor; yalnız seçilen panel görünür kalıyor.
+- `Özellikler`, `Nasıl çalışır` ve `Fiyatlandırma` hedefleri sırasıyla `#özellikler`, `#demo` ve `#fiyatlandırma` ile mevcut.
+- 700 px altında süreç tek kolona, operasyon kartları tek kolona ve Menü Özelleştirme sabit listeye dönüşür; responsive kurallar yatay taşmayı engelleyecek şekilde scoped tutuldu.
+- Reduced-motion altında reveal, süreç çizgisi ve marquee tamamlanmış/statik halde sunuluyor.
+
+## Görsel kalite
+
+- Problem/Çözüm: referanstaki koyu iki kolonlu giriş, dağınık ağ ve yeşil tek-akış panelleri korunuyor; mobil ağ dikey önce/sonra akışına dönüşüyor.
+- Süreç: referanstaki dönüşümlü poster/metin ritmi ve yeşil bağlantı hattı dört doğrulanmış adımla uygulanıyor; scroll kilidi kullanılmıyor.
+- Menü Özelleştirme: iki ters marquee sütunu, koyu sahne ve merkez mesajı korunuyor; doğrulanmamış `48+` yerine “Her üründe tam kontrol” kullanılıyor.
+- Operasyon Bento: dört kartta gerçek ürün posterleri `next/image`, sabit oran ve `object-fit: contain` ile kırpılmadan gösteriliyor.
+- Deneme/SSS/CTA: fiyat gösterilmiyor; 14 günlük Pro denemesi, ücretsiz plana dönüş ve veri koruma davranışı net bir karar bandında anlatılıyor.
+
+## Otomatik ve runtime doğrulama
+
+- Marketing typecheck: passed.
+- Marketing lint: passed.
+- Marketing production build: passed.
+- Existing Playwright visual smoke: `public-desktop` (1440×950), `public-tablet` (768×1024) ve `public-mobile` (iPhone 15 / 393×852) projelerinde 3/3 passed; tam sayfa ekran görüntüsü üretimi, görünür içerik ve sayfa-seviyesi yatay taşma kontrolleri geçti.
+- `git diff --check -- apps/marketing design-qa.md`: passed.
+- Browser: yeni bölüm sırası, medya yüklenmesi, sıfır yatay taşma, modal, SSS, anchor hedefleri ve konsol sağlığı doğrulandı.
+
+## Production içerik handoff'u
+
+- `NEXT_PUBLIC_SUPADEMO_DEMO_URL` tanımlandığında yalnız `https://app.supademo.com` kaynağı kabul edilir ve dört adım `?step=` ile aynı turu açar. Değişken şu an tanımlı olmadığı için güvenli poster fallback'i aktiftir.
+- Kullanıcı tarafından dört nihai aynı-restoran poster seti sağlandığında `ProcessStep.poster` yolları veri modelinden değiştirilebilir; layout veya modal kodu değişmez.
+
+final result: passed
+
+---
+
 # Active Product Design Gate — Siparişli Masa Kartı İçerik Yerleşimi
 
 - Source visual truth: user-supplied 2048×1024 Canlı Masalar screenshot in the conversation, with the occupied `Masa 2` card marked as vertically clipped.
@@ -129,6 +265,106 @@ final result: blocked
 ## Follow-up Polish
 
 - P3: a future tenant with an unusually wide horizontal logo may benefit from a dedicated maximum-logo-width editor control; current long-name and no-logo fallbacks already truncate safely.
+
+final result: passed
+
+---
+
+# Menü Kategori Navigasyonu ve Müşteri Filtreleri QA
+
+## Kaynak ve hedef
+
+- Source visual truth: `/Users/furkancengelm3/.codex/attachments/22c85c3a-9e68-4982-b16b-9af456dfc53d/image-1.jpg` (971×2048 px) ve mevcut durum `/Users/furkancengelm3/.codex/attachments/22c85c3a-9e68-4982-b16b-9af456dfc53d/image-2.png` (1094×1410 px).
+- Implementation: `packages/ui/src/menu/CategoryNav.tsx`, `packages/ui/src/menu/DietaryFilterBar.tsx` ve dashboard `Navigation → İçerik` filtre editörü.
+- Implementation screenshot: yakalanamadı; bu oturumda Browser runtime kullanılabilir bir in-app veya extension browser döndürmedi.
+- Hedef CSS viewport: tema önizlemesindeki yaklaşık 390 px mobil menü yüzeyi; implementation pixel boyutu ve device pixel ratio browser capture olmadığı için ölçülemedi.
+- State: kategori şeridi görünür, filtre kapalı/açık ve birden fazla hazır veya manuel filtre seçili durumları.
+
+## Görsel karar ve uygulama
+
+- Yemeksepeti referansındaki yatay araç çubuğu oranı esas alındı: filtre kontrolü şeridin solunda sabit, kategori öğeleri onun sağında bağımsız yatay kaydırma alanında.
+- Kategori minimum yükseklikleri `compact 34px`, `normal 38px`, `comfortable 44px` olarak sıkılaştırıldı; eski ayrı Vegan/Vejetaryen/Helal satırı kaldırıldı.
+- Filtre düğmesi 42×38 px ve seçili filtre sayacıyla tasarlandı. Açılan panel Escape, dışarı tıklama, focus geri yükleme, `aria-expanded`, `aria-controls`, `aria-pressed` ve açıklayıcı erişilebilir adları koruyor.
+- İşletme tarafında hazır beslenme filtreleri checkbox alanlarıyla; manuel filtreler ise ad + gerçek ürünleri seçen çoklu shadcn Combobox ile yönetiliyor.
+- Ürün atanmamış manuel filtre müşteriye gösterilmiyor; ürün üyeliği veya filtre tanımı canlı önizlemede değişirse seçili filtre yeni tanımla uzlaştırılıyor.
+
+## Zorunlu fidelity yüzeyleri
+
+- Fonts/typography: müşteri menüsünün tenant body fontu ve mevcut kategori font boyutu korunuyor; optik ağırlık ve satır kırılımı browser capture olmadan karşılaştırılamadı.
+- Spacing/layout rhythm: iki şişkin satır tek 34–44 px kategori şeridine indirildi; sol filtre kontrolü kategori kaydırmasından ayrıldı. Post-fix piksel ölçümü browser engeli nedeniyle yok.
+- Colors/tokens: mevcut `--p-*` arka plan, kart, border, accent ve metin tokenları kullanılıyor; yeni sabit marka rengi eklenmedi.
+- Image quality/assets: bu kontrol yüzeyinde raster varlık bulunmuyor; filtre ikonu mevcut Lucide ikon kütüphanesinden geliyor ve ürün görsellerine dokunulmuyor.
+- Copy/content: kategori adları ve ürün içeriği korunuyor; hazır filtre adları Vegan, Vejetaryen ve Helal. Manuel filtre adları 40 karakter, 12 filtre ve 200 ürün kimliği sınırlarıyla korunuyor.
+
+## Otomatik kanıt
+
+- Design Engine testleri 26/26 geçti; filtre payload güvenliği, deduplikasyon ve hazır filtre kimliği çakışması doğrulandı.
+- UI testleri 38/38 geçti; kompakt navigasyon, sabit filtre kontrolü, klavye davranışı ve preset/manual AND filtreleme sözleşmeleri doğrulandı.
+- Menu testleri 66/66 geçti; müşteri filtresinin katalog projeksiyonuna bağlandığı doğrulandı.
+- Menu production build geçti; tema önizleme rotası başarıyla üretildi.
+- Dashboard mimari testleri 548/548 geçti; filtre editörü kompozisyon sınırına ayrıldı.
+- Dashboard, Menu, UI ve Design Engine typecheck geçti. Değiştirilen dosyalarda dört paket lint kontrolü geçti.
+
+## Engelleyici görsel doğrulama
+
+- Full-view comparison evidence: blocked; browser-rendered implementation ekran görüntüsü yok.
+- Focused region comparison evidence: blocked; kategori şeridi ve açık filtre panelinin post-fix yakalaması yok.
+- Primary interactions tested: kaynak sözleşme testleriyle doğrulandı; browser üzerinde tıklama/klavye akışı çalıştırılamadı.
+- Console errors checked: browser testi yapılamadı.
+- Aynı 390 px durumda uygulama görüntüsü alınmadan kaynak ve uygulama tek karşılaştırma girdisinde değerlendirilemez; bu nedenle görsel kapı geçilmiş sayılmıyor.
+
+final result: blocked
+
+---
+
+# Marketing Hero Alt Boşluk QA
+
+## Görsel karşılaştırma
+
+- Kaynak: `/Users/furkancengelm3/Library/Containers/com.skitch.skitch/Data/tmp/DMD68D156C0-5C88-48DA-BF00-75F2FEA19147/Screenshot_8_08_2026__22_26.png`
+- Uygulama: `/private/tmp/marketing-hero-spacing-1394x860.jpg`
+- Yan yana karşılaştırma: `/private/tmp/marketing-hero-spacing-comparison.jpg`
+- Kaynak 2788×1720 pikselden DPR 2 kabulüyle 1394×860 CSS viewport'una normalize edildi; uygulama aynı 1394×860 viewport'ta ve ilk QR adımı seçiliyken incelendi.
+
+## Sonuç
+
+- Masaüstünde slogan ve CTA grubunun üst boşluğu `26px` değerinden `-42px` değerine alınarak grup toplam 68px yukarı taşındı.
+- CTA alt kenarı ile viewport arasında yaklaşık 99px nefes alanı oluştu; kartlarla gerçek bir çakışma veya yatay taşma oluşmadı.
+- 768×1024 tablet ve 390×844 mobil kuralları değiştirilmedi; her iki görünümde de yatay taşma bulunmuyor.
+- Tipografi, renkler, içerik ve hero animasyon davranışı korunuyor.
+- Tarayıcı konsolunda hata bulunmadı.
+
+final result: passed
+
+---
+
+# Marketing Hero — Uçtan Uca Sipariş Hikâyesi QA
+
+## Kaynak ve kanıt
+
+- Source visual truth: `/Users/furkancengelm3/Library/Containers/com.skitch.skitch/Data/tmp/DMDD52B0704-AC19-45EB-B196-CAE97D0BC0B2/Screenshot_8_08_2026__21_41.png` ve `/Users/furkancengelm3/Desktop/hero.html`.
+- Implementation: `http://localhost:3003/` üzerindeki `apps/marketing/components/HeroSection.tsx` ve client `HeroFlow.tsx`.
+- Eş oranlı masaüstü karşılaştırma girdisi: `/private/tmp/marketing-hero-comparison.jpg`; kaynak ve uygulama aynı 1.621:1 görünüm oranında yan yana incelendi.
+- Responsive kanıt: in-app Browser ile 1440×950, 768×1024 ve 390×844 CSS viewport kontrolleri.
+- Son durum: Masa 5 siparişi, portakal suyu önerisi, operasyon kontrolleri, KDS hazır durumu, İyzico ödemesi, +1 damga ve ₺830 toplam.
+
+## Görsel ve davranış sonucu
+
+- Desktop kompozisyon referanstaki yatay yeşil hat, dört farklı kart ölçeği ve altta sol hizalı iki satırlı Fraunces başlığı koruyor. Placeholder sonuç medyası gerçek, optimize edilmiş yerel WebP ile değiştirildi.
+- Tablet 2×2 akışta dört kartın ölçülen kutuları çakışmıyor; doküman genişliği viewport genişliğini aşmıyor.
+- Mobilde başlık ve iki CTA ilk 414 px içinde kalıyor; akış tek kartlık stepper'a dönüşüyor ve `scrollWidth === innerWidth` ile yatay taşma bulunmuyor.
+- Dört kart aynı `Masa 5` sipariş modelini ve `₺830` toplamını kullanıyor. Desteklenmeyen stok vaadi, sahte QR, emoji ve placeholder görsel bulunmuyor.
+- Step kontrolleri tıklama ve klavye Enter/Space ile adım seçiyor, `aria-pressed` durumunu güncelliyor ve görünür focus halkası kullanıyor.
+- IntersectionObserver testi hero görünür alandan çıkınca frame'in ilerlemediğini doğruladı. Sekme görünürlüğü ve `prefers-reduced-motion` kontrolleri aynı client akışında uygulanıyor.
+- CTA hedefleri doğrulandı: `Ücretsiz dene` → `http://localhost:3000/signup`, `Nasıl çalışır` → `#demo`.
+- Uygulama kaynaklı console error yok. Mevcut navigasyon logosunun en-boy oranı hakkında hero dışı bir Next.js geliştirme uyarısı var; bu değişikliğin kapsamına girmiyor.
+
+## Otomatik doğrulama
+
+- Marketing typecheck geçti.
+- Marketing lint geçti.
+- Marketing production build geçti.
+- Görsel karşılaştırma sonrası P0/P1/P2 hero yerleşim, taşma, kırpma veya etkileşim sorunu kalmadı.
 
 final result: passed
 
@@ -982,5 +1218,122 @@ final result: passed
 - Design Engine: 19 test geçti.
 - Dashboard, Menu, UI ve Design Engine lint/typecheck geçti.
 - Dashboard ve Menu production build geçti; kalıcı Menü rotası 276 kB first-load JS ile sınır içinde kaldı.
+
+final result: passed
+
+---
+
+# Marketing Hero Mobil Video Referansı QA
+
+## Kaynak ve normalizasyon
+
+- Source visual truth: `/Users/furkancengelm3/Desktop/Screenrecorder-2026-08-08-22-36-11-255.mp4` (886×1920 kayıt, 18 saniye).
+- Temiz referans karesi: `/private/tmp/auxia-mobile-reference-clean.png` (388×838 QuickTime görünümü); tarayıcı kromu çıkarılarak 388×693 içerik alanı kullanıldı.
+- Implementation: `http://localhost:3003/` üzerindeki mobil Marketing Hero.
+- Implementation screenshot: `/private/tmp/marketing-hero-mobile-final.png`.
+- Full-view comparison: `/private/tmp/marketing-mobile-final-comparison.jpg`.
+- In-app Browser viewport isteği 390×696; ölçülen CSS viewport 433×773. Kaynak içerik karesi aynı 433×773 boyutuna normalize edilerek karşılaştırıldı.
+- State: `Ödeme · Sadakat` adımı seçili; ürün görseli, ₺830 ödeme ve +1 damga durumu görünür.
+
+## Bulgular ve karşılaştırma geçmişi
+
+1. [P1 fixed] Önceki mobil sürüm slogan ve CTA ile başlıyor, akış kartını aşağıya itiyordu. Referans videoda önce bağlı adım rail'i ve yatay akış sahnesi, ardından slogan bulunuyor. Mobil order tersine çevrildi; desktop ve tablet sırası korunuyor.
+2. [P2 fixed] İlk mobil uygulamada yalnız aktif kart tam genişlikteydi ve alttaki bar tipi pagination referanstaki bağlı workflow hissini vermiyordu. Dört erişilebilir step butonu ikonlu rail'e taşındı; aktif adım metinli pill olurken önceki/sonraki kartlar yatay sahnede soluk ve kısmi görünür hale getirildi.
+3. [P2 fixed] İlk post-fix karşılaştırmada sloganın dikey başlangıcı referans içerik alanına göre yukarıdaydı. Mobil akış sahnesi 436px'e ayarlanarak görsel→slogan ritmi referansla hizalandı.
+4. Post-fix karşılaştırmada yatay taşma, kart çakışması, kırpılmış aktif durum veya erişilemeyen step kontrolü bulunmadı.
+
+## Zorunlu fidelity yüzeyleri
+
+- Fonts/typography: mevcut Fraunces başlık ve Geist arayüz tipografisi korunuyor; mobil satır kırılımı üç satırda okunaklı.
+- Spacing/layout rhythm: referanstaki üst workflow sahnesi, merkezlenen aktif durum, kenarlardan görünen komşu içerikler ve aşağıdaki slogan ritmi eşlendi.
+- Colors/tokens: desktop hero'nun kırık beyaz, kömür ve Masabu yeşili tokenları mobilde aynen korunuyor.
+- Image quality/assets: ödeme kartında optimize edilmiş yerel WebP kullanılıyor; placeholder, emoji veya sahte görsel bulunmuyor.
+- Copy/content: dört adım, Masa 5 siparişi, ₺830 toplam ve CTA metinleri değiştirilmedi.
+
+## Etkileşim ve regresyon
+
+- Dört step butonu tıklanarak `aria-pressed` tek-seçim durumu ve doğru aktif etiket doğrulandı.
+- Klavye Enter ile `Sipariş · Tek akış` adımına geçiş ve focus korunumu doğrulandı.
+- Mobilde `scrollWidth === innerWidth`; yatay sayfa taşması yok.
+- 768×1024 tablet ve 1440×950 desktop kompozisyonları regresyon kontrolünden geçti; mobil kurallar bu breakpoint'lere sızmıyor.
+- Marketing lint, typecheck ve `git diff --check` geçti.
+- Focused comparison ayrıca gerekmedi; step rail, kart içeriği, başlık ve metin aynı full-view karşılaştırmada okunaklı boyutta.
+
+final result: passed
+
+---
+
+# Current Build Gate — Menü Kategori Navigasyonu ve Müşteri Filtreleri
+
+Kod, tip güvenliği, lint ve otomatik etkileşim sözleşmeleri geçti. Bu oturumda kullanılabilir browser backend bulunmadığından 390 px post-fix uygulama görüntüsü, açık filtre paneli, konsol kontrolü ve kaynakla birleşik görsel karşılaştırma üretilemedi. Ayrıntılı aktif rapor yukarıdaki “Menü Kategori Navigasyonu ve Müşteri Filtreleri QA” bölümündedir.
+
+final result: blocked
+
+---
+
+# Current Build Gate — Marketing Mobil Navigasyon
+
+Video referansı ile açık mobil menü aynı karşılaştırma tuvalinde incelendi. Görsel hiyerarşi, responsive yerleşim, hamburger/X akışı, Escape davranışı, konsol sağlığı ve production build doğrulandı; açık P0/P1/P2 bulgu kalmadı.
+
+final result: passed
+
+---
+
+# Problem → Çözüm “Masabu olmadan” İkon ve Animasyon QA
+
+## Kaynaklar
+
+- Görsel referans: `/Users/furkancengelm3/Library/Containers/com.skitch.skitch/Data/tmp/DMD13F01C7B-5E4C-477D-AE83-3DF933204C8F/Cursor.png`.
+- Hareket referansı: `/Users/furkancengelm3/Desktop/problem-solution.html`.
+- Kullanıcı tarafından sağlanan altı SVG, `apps/marketing/public/problem-solution/before/` altında yerel ve optimize edilebilir varlıklar olarak kullanıldı.
+- Masaüstü uygulama görüntüsü: `/private/tmp/masabu-problem-solution-focused-final.png`.
+- Mobil uygulama görüntüsü: `/private/tmp/masabu-problem-solution-mobile-final-2.png`.
+
+## Görsel ve hareket doğrulaması
+
+- Referanstaki çizgi oluşumu ve düğümlerin sırayla belirme ritmi uygulandı; hareket sürekli tekrarlamak yerine bölüm viewport'a her girdiğinde bir kez oynatılıyor.
+- Altı problem düğümü ile beş bağlantı çizgisinin DOM sözleşmesi ve tamamlanmış durumları doğrulandı.
+- İlk problem düğümü karşılaştırma için kullanıcı tarafından sağlanan `try to give order.svg` illüstrasyonuyla değiştirildi; beyaz tuval ve C2PA metadata kaldırıldı. Ayrıntıların okunabilmesi için diğerlerinden bağımsız olarak 64×64px ikon / 70×70px kutu ölçüsüne getirildi.
+- İkinci problem düğümü kullanıcı tarafından sağlanan `handorder.svg` illüstrasyonuyla değiştirildi; beyaz tuval ve gereksiz metadata temizlenerek ilk düğümle aynı 64×64px ikon / 70×70px kutu ölçüsünde doğrulandı.
+- Üçüncü problem düğümü kullanıcı tarafından sağlanan `wrong order.svg` illüstrasyonuyla değiştirildi; beyaz tuval ve C2PA metadata kaldırılarak ilk iki düğümle aynı 64×64px ikon / 70×70px kutu ölçüsüne getirildi.
+- Dördüncü problem düğümü kullanıcı tarafından sağlanan `kitchendelay2.svg` illüstrasyonuyla değiştirildi; beyaz tuval ve C2PA metadata kaldırılarak ilk üç düğümle aynı 64×64px ikon / 70×70px kutu ölçüsüne getirildi.
+- Beşinci problem düğümü kullanıcı tarafından sağlanan `wrongsiparis.svg` illüstrasyonuyla değiştirildi; beyaz tuval ve C2PA metadata kaldırılarak ilk dört düğümle aynı 64×64px ikon / 70×70px kutu ölçüsüne getirildi.
+- Altıncı problem düğümü kullanıcı tarafından sağlanan `payment queue.svg` illüstrasyonuyla değiştirildi; beyaz tuval ve C2PA metadata kaldırılarak diğer beş düğümle aynı 64×64px ikon / 70×70px kutu ölçüsüne getirildi.
+- Animasyon yalnız bölüm görünürken ve sekme açıkken çalışır; görünürlük kaybında durur. `prefers-reduced-motion` durumunda tamamlanmış statik kompozisyon gösterilir.
+- Masaüstü geometri, başlık/kopya oranı, panel aralığı, ikon ölçeği ve koyu/yeşil kontrast referansla yan yana karşılaştırıldı.
+- Mobilde başlık 42px üst sınırına indirildi; panel 348px ölçüldü ve `scrollWidth === clientWidth` ile yatay sayfa taşması olmadığı doğrulandı.
+- Çözüm paneli referanstaki gibi üst, orta ve alt olmak üzere üç bağımsız animasyonlu şeride ayrıldı. Kullanıcı tarafından sağlanan `01-scan-qr.svg` → `06-order-complete.svg` varlıkları orta şeritte QR taramadan sipariş tamamlamaya kadar tek akış olarak, eşit 30px optik ikon / 48px düğüm ölçüsünde kullanıldı. Üst ve alt şeritler sonraki ikon teslimleri için ayrı veri katmanları olarak hazırlandı.
+- Üç şeridin solundaki tekrarlı başlangıç terminalleri kaldırıldı. Orta şeridin ilk adımı kullanıcı tarafından sağlanan `qr.svg` illüstrasyonuyla değiştirildi; C2PA metadata ve tam tuval beyaz arka planı temizlenerek mevcut 30px optik ölçüde doğrulandı.
+- Üç şeridin ilk düğümünden önce kalan bağlantı parçaları kaldırıldı. Orta şeridin ilk QR düğümü karşılaştırma için tam %50 büyütülerek masaüstünde 72×72px kutu / 45×45px görsel, mobilde 57×57px kutu / 40×40px görsel ölçüsünde tarayıcıda doğrulandı.
+- Orta şeridin ikinci düğümü kullanıcı tarafından sağlanan `icon-of-a-smartphone-screen-displaying-a-digital-m.svg` ile değiştirildi. C2PA metadata ve tam tuval beyaz arka plan kaldırıldı; ilk QR düğümüyle aynı masaüstü ve mobil ölçüler uygulanarak tarayıcıda karşılaştırıldı.
+- Orta şeridin üçüncü düğümü kullanıcı tarafından sağlanan `kitchensync.svg` ile değiştirildi. C2PA metadata ve tam tuval beyaz arka plan kaldırıldı; ilk iki düğümle aynı ölçüler uygulanarak yükselen hat üzerinde çakışmasız görünümü tarayıcıda doğrulandı.
+- Orta şeridin dördüncü düğümü kullanıcı tarafından sağlanan `status.svg` ile değiştirildi. C2PA metadata ve beyaz tuval arka planı kaldırıldı; önceki üç düğümle aynı ölçüler uygulanarak yatay hatta çakışmasız görünümü tarayıcıda doğrulandı.
+- Çözüm panelindeki SVG düğümlerinin beyaz kutu, border ve gölgeleri kaldırılarak yalnız çizimler bırakıldı. Optik ölçü masaüstünde 56px, mobilde 44px'e yükseltildi; yeşil zemin üzerinde okunurluk ve bağlantı çizgileriyle çakışmama tarayıcıda doğrulandı.
+- Orta şeridin dördüncü düğümü `flat-minimalist-black-and-white-icon-illustration-.svg` ile yenilendi; metadata ve 2048px beyaz tuval arka planı kaldırıldı. Çözüm şeridindeki tüm masaüstü SVG'ler %25 büyütülerek 70px'e çıkarıldı, mobil ölçü 44px olarak korundu ve çakışmasız görünüm doğrulandı.
+- Dördüncü düğüm `flat-minimalist-black-and-white-icon-illustration- (1).svg` ile tekrar yenilendi. Metadata ve düzensiz 2048px beyaz tuval arka planı kaldırıldı; çizimin baskın dolgusu ilk üç ikonun beyaz ağırlıklı karakterine yaklaşması için yalnız bu düğümde ters çevrildi ve tarayıcıda doğrulandı.
+- Dördüncü düğüm son olarak `flat-minimalist-black-and-white-icon-illustration- (2).svg` ile değiştirildi. Metadata ve 3072×1536 beyaz tuval kaldırıldı; ilk üç illüstrasyonun siyah konturları ve yeşil panelin kontrastı dikkate alınarak doğal siyah-beyaz palet korundu, önceki özel invert filtresi kaldırıldı.
+- Dördüncü düğüm kullanıcı tercihiyle `icon-illustration-of-a-three-stage-food-service-tr.svg` ile değiştirildi. Metadata ve 2048×1024 beyaz tuval kaldırıldı; mor-siyah tonlar kömür siyahına, turuncu vurgular beyaza eşlenerek bölüm paletine uyarlandı. Yatay 2:1 kompozisyonun optik olarak küçük kalmaması için yalnız bu düğüm masaüstünde 98px, mobilde 72px genişliğe getirildi.
+- Dördüncü ikonun tek renk kömür siyahına dönüşmesi iç detayları birleştirdiği için orijinal katman ayrımı geri getirildi. Tam tuval arka planı şeffaf kalırken ana konturlar kömür siyahı, iç yüzeyler beyaz ve küçük vurgu mint olarak düzenlendi; üç aşamalı servis akışı yeşil panel üzerinde tarayıcıda okunaklı doğrulandı.
+- Orta şeridin beşinci düğümü kullanıcı tarafından sağlanan `icon-of-a-smartphone-displaying-a-payment-card-and.svg` ile değiştirildi. C2PA metadata ve 1024×1024 beyaz tuval kaldırıldı; bordo ve gri çizimler kömür siyahına eşlenirken okunurluk sağlayan iç beyaz detaylar korundu. İkon diğer standart orta şerit düğümleriyle aynı masaüstü 70px / mobil 44px optik ölçüde tarayıcıda doğrulandı.
+- Orta şeridin altıncı ve son düğümü kullanıcı tarafından sağlanan `icon-illustration-of-an--order-complete--concept--.svg` ile değiştirildi. C2PA metadata ve 1024×1024 beyaz tuval kaldırıldı; koyu çizimler kömür siyahına eşlenip beyaz iç detaylar korundu. Tamamlanmış animasyon durumunda standart masaüstü 70px / mobil 44px ölçü ve önceki illüstrasyonlarla renk uyumu tarayıcıda doğrulandı.
+- Üst şeridin ilk düğümü kullanıcı tarafından sağlanan `live operations .svg` illüstrasyonuyla değiştirildi. 1024×1024 beyaz tuval kaldırıldı, bordo çizimler kömür siyahına eşlendi ve iç beyaz detaylar korundu. Orta şerit ile aynı standart masaüstü 70px / mobil 44px optik ölçüde, üst hatla çakışmadan tarayıcıda doğrulandı.
+- Üst şeridin ikinci düğümü kullanıcı tarafından sağlanan `sales anlaytics.svg` illüstrasyonuyla değiştirildi. 1024×1024 beyaz tuval kaldırıldı, koyu çizimler kömür siyahına eşlendi ve beyaz iç detaylar korundu. Üst hattın yükselen merkez noktasında diğer özel SVG düğümleriyle aynı masaüstü 70px / mobil 44px ölçüde tarayıcıda doğrulandı.
+- Üst şeridin üçüncü ve son düğümü kullanıcı tarafından sağlanan `customner insight.svg` illüstrasyonuyla değiştirildi. Bej 1024×1024 tuval kaldırıldı; bordo konturlar kömür siyahına, kalan bej iç detaylar beyaza eşlendi. Üst hattın kapanış noktasında önceki iki düğümle aynı masaüstü 70px / mobil 44px ölçüde tarayıcıda doğrulandı.
+- Üst şeride dördüncü düğüm olarak kullanıcı tarafından sağlanan `campaign.svg` illüstrasyonu eklendi. 1024×1024 beyaz tuval kaldırıldı, koyu çizimler kömür siyahına eşlendi ve beyaz iç detaylar korundu. Dört üst düğüm hat boyunca yeniden dengelenerek kampanya görselinin bitiş onayıyla çakışmadığı, masaüstü 70px / mobil 44px ölçüde tarayıcıda doğrulandı.
+- Üst şeridin beşinci ve son düğümü kullanıcı tarafından sağlanan `loyaltygrowth.svg` illüstrasyonuyla değiştirildi. 1024×1024 beyaz tuval ve metadata kaldırıldı; koyu çizimler kömür siyahına eşlenirken iç beyaz ayrıntılar korundu. Üst rota orta şeritteki yatay-yükselen-yatay ritme uyarlandı; ikon standart masaüstü 70px / mobil 44px ölçüde bitiş onayıyla çakışmadan tarayıcıda doğrulandı.
+- Alt şerit ilk olarak beş ikonlu ters tepe rota geometrisine hazırlandı. İlk düğümde kullanıcı tarafından sağlanan `ingredient details.svg` kullanıldı; metadata ve tam beyaz tuval kaldırıldı, koyu çizimler kömür siyahına çevrilip iç açık tonlar korundu. Masaüstünde standart 70px optik ölçüde rota üzerinde okunaklı görünüm tarayıcıda doğrulandı.
+- Alt şeridin ikinci düğümüne kullanıcı tarafından sağlanan `allergen filter.svg` yerleştirildi. Metadata ve tam beyaz tuval kaldırıldı; koyu tonlar kömür siyahında birleştirilip iç beyaz ayrıntılar korundu. İlk alt şerit ikonu ile aynı masaüstü 70px / mobil 44px ölçü ve `x:31, y:34` rota hizasında tarayıcıda doğrulandı.
+- Alt şeridin üçüncü, merkez düğümüne kullanıcı tarafından sağlanan `informed choice.svg` yerleştirildi. Metadata ve tam beyaz tuval kaldırıldı; koyu tonlar kömür siyahına, açık gri dolgu beyaza uyarlandı. İkon ilk iki alt şerit düğümüyle aynı masaüstü 70px / mobil 44px ölçüde ve ters tepenin `x:50, y:72` noktasında tarayıcıda doğrulandı.
+- Alt şeridin dördüncü düğümüne kullanıcı tarafından sağlanan `discount.svg` yerleştirildi. Metadata ve tam açık renk tuval kaldırıldı; bordo çizimler kömür siyahına, iç açık alanlar beyaza uyarlandı. İkon önceki alt şerit düğümleriyle aynı masaüstü 70px / mobil 44px ölçüde, yükselen sağ hattın `x:69, y:34` konumuna hizalandı.
+- Alt şeridin beşinci düğümüne kullanıcı tarafından sağlanan `loyalty points.svg` yerleştirildi. Metadata ve tam beyaz tuval kaldırıldı; bordo tonlar kömür siyahında birleştirilirken iç beyaz ve açık gri detaylar korundu. İkon diğer alt şerit düğümleriyle aynı masaüstü 70px / mobil 44px ölçüde hizalandı.
+- Alt şeride altıncı düğüm olarak kullanıcı tarafından sağlanan `return guest.svg` eklendi. Metadata ve tam beyaz tuval kaldırıldı; koyu çizimler kömür siyahına eşlenip iç beyaz ayrıntılar korundu. Altı ikon `12 / 27 / 42 / 58 / 73 / 88` konumlarında simetrik iki seviyeli bir rota üzerine yeniden dağıtıldı; bağlantı çizgilerinin şeffaf ikon alanlarından görünmesini engelleyen yeşil optik maskeler eklendi. Animasyon sürekli döngüden çıkarılarak bölüm viewport'a her girişinde bir kez oynayacak, sekme veya görünürlük kaybında durup yeniden girişte baştan başlayacak şekilde güncellendi; bitiş onayları son ikonlardan sonra beliriyor.
+- Çözüm paneli mutlak koordinatlı üç rota yerine semantik CSS Grid şeritlerine dönüştürüldü. `Sipariş akışı` yaklaşık %35 daha yüksek açık bir bant ve 82px ana ikonlarla baskınlaştırıldı; `İçgörü & büyüme` ve `Misafir deneyimi` şeritleri 52px ikon, gri filtre ve düşük opaklıkla destek katmanına çekildi. Tüm adımlar görünür kısa etiket aldı, destek bitiş onayları kaldırıldı ve yalnız ana akışta tek tamamlanma işareti bırakıldı.
+- 1440 masaüstü ve 768 tablet görünümünde üç şeridin düz yatay çizgisi, eşit kolonları ve iki satırı aşmayan etiketleri görsel olarak doğrulandı. 390 mobilde ana şerit önce gelen altı adımlı dikey timeline'a, destek şeritleri çizgisiz iki kolonlu gruplara dönüştü; ölçülen yatay taşma `0px` oldu. Sekme arka plana alındığında aktif CSS animasyonları `animation-play-state: paused` ile kaldığı noktada durur; reduced-motion durumunda animasyon sınıfı uygulanmadan tamamlanmış statik görünüm sunulur.
+- Çözüm animasyonunun gözlem hedefi tüm Problem → Çözüm bölümünden doğrudan yeşil `Masabu ile toparlayın` paneline taşındı. Tarayıcı scroll testinde sayfa başında ve panelin yalnız 78px'i görünürken `is-solution-playing=false`, panel yaklaşık 198px görünür olduğunda `is-solution-playing=true` ölçüldü; böylece akış kullanıcı panele geldiğinde başlıyor ve önceki problem animasyonundan bağımsız yeniden tetikleniyor.
+
+## Otomatik kontroller
+
+- Marketing typecheck geçti.
+- Marketing lint geçti.
 
 final result: passed

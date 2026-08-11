@@ -23,9 +23,11 @@ test('campaign intent keeps one request id and exposes exclusion reasons separat
   assert.match(client, /Tekrar telefon/)
 })
 
-test('campaign modal uses the shared accessible responsive dialog', () => {
-  assert.match(client, /<AccessibleDialog[\s\S]*labelledBy="customer-campaign-title"/)
-  assert.match(client, /data-modal-initial-focus/)
+test('campaign modal uses the shadcn accessible responsive dialog', () => {
+  assert.match(client, /<Dialog open onOpenChange=/)
+  assert.match(client, /<DialogTitle id="customer-campaign-title"/)
+  assert.match(client, /<DialogDescription id="customer-campaign-description"/)
+  assert.match(client, /showCloseButton=\{!sending\}/)
   assert.match(client, /customer-campaign-panel/)
   assert.match(client, /@media \(max-width:760px\)/)
   assert.match(client, /grid-template-columns:1fr!important/)

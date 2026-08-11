@@ -360,6 +360,8 @@ export const SETTINGS_SCHEMA: SettingsGroup[] = [
       { id: 'catnavActiveStyle', label: 'Aktif Öğe', type: 'select', editorTab: 'design', themeField: 'catnavActiveStyle', default: THEME_DEFAULTS.catnavActiveStyle, options: [{ value: 'filled', label: 'Dolgu' }, { value: 'soft', label: 'Hafif' }, { value: 'outline', label: 'Çizgi' }] },
       { id: 'catnavAutoCenter', label: 'Aktifi Otomatik Ortala', type: 'toggle', editorTab: 'content', themeField: 'catnavAutoCenter', default: THEME_DEFAULTS.catnavAutoCenter },
       { id: 'catnavEdgeFade', label: 'Kaydırma Kenarı Göstergesi', type: 'toggle', editorTab: 'content', themeField: 'catnavEdgeFade', default: THEME_DEFAULTS.catnavEdgeFade },
+      { id: 'menuFilterPresetIds', label: 'Hazır Menü Filtreleri', type: 'text', editorTab: 'content', themeField: 'menuFilterPresetIds', default: THEME_DEFAULTS.menuFilterPresetIds },
+      { id: 'menuCustomFilters', label: 'Manuel Menü Filtreleri', type: 'text', editorTab: 'content', themeField: 'menuCustomFilters', default: THEME_DEFAULTS.menuCustomFilters },
       { id: 'navTopGap', label: 'Üst Boşluk', type: 'range', editorTab: 'layout', min: 0, max: 40, step: 2, unit: 'px', themeField: 'navTopGap', default: THEME_DEFAULTS.navTopGap },
       { id: 'navBottomGap', label: 'Alt Boşluk', type: 'range', editorTab: 'layout', min: 0, max: 48, step: 2, unit: 'px', themeField: 'navBottomGap', default: THEME_DEFAULTS.navBottomGap },
     ],
@@ -520,7 +522,7 @@ export const SETTINGS_SCHEMA: SettingsGroup[] = [
     id: 'footer',
     label: 'Footer',
     fields: [
-      { id: 'footerEnabled', label: 'Footer', type: 'toggle', editorTab: 'content', themeField: 'footerEnabled', default: THEME_DEFAULTS.footerEnabled },
+      { id: 'footerEnabled', label: 'İşletme bilgileri', type: 'toggle', editorTab: 'content', themeField: 'footerEnabled', default: THEME_DEFAULTS.footerEnabled },
       { id: 'footerShowLogo', label: 'Logo', type: 'toggle', editorTab: 'content', themeField: 'footerShowLogo', default: THEME_DEFAULTS.footerShowLogo },
       { id: 'footerShowAddress', label: 'Adres', type: 'toggle', editorTab: 'content', themeField: 'footerShowAddress', default: THEME_DEFAULTS.footerShowAddress },
       { id: 'footerShowContact', label: 'İletişim', type: 'toggle', editorTab: 'content', themeField: 'footerShowContact', default: THEME_DEFAULTS.footerShowContact },

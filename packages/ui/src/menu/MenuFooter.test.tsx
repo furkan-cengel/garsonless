@@ -45,15 +45,23 @@ test('footer renders real contact and social links without placeholder content',
   assert.match(markup, /data-component="footer"/)
   assert.match(markup, /Örnek Caddesi 1, Kadıköy, İstanbul/)
   assert.match(markup, /href="tel:\+902160000000"/)
+  assert.match(markup, /aria-label="Telefonla ara: \+90 216 000 00 00"/)
+  assert.doesNotMatch(markup, />\+90 216 000 00 00</)
   assert.match(markup, /href="mailto:hello@example.com"/)
   assert.match(markup, /href="https:\/\/example.com\/"/)
-  assert.match(markup, /aria-label="Instagram"/)
+  assert.match(markup, /aria-label="Instagram sayfasını aç"/)
+  assert.match(markup, /aria-label="Facebook sayfasını aç"/)
+  assert.match(markup, /aria-label="TikTok sayfasını aç"/)
+  assert.match(markup, /aria-label="WhatsApp sayfasını aç"/)
   assert.match(markup, /href="https:\/\/wa.me\/905320000000"/)
+  assert.match(markup, /href="https:\/\/masabu.co\/"/)
+  assert.match(markup, /aria-label="Powered by Masabu"/)
   assert.match(markup, new RegExp(`© ${new Date().getFullYear()} · Çok Uzun Restoran Adı`))
   assert.doesNotMatch(markup, /henüz eklenmedi|bilgi girilmedi/i)
+  assert.ok(markup.indexOf('href="tel:+902160000000"') < markup.indexOf('aria-label="Instagram sayfasını aç"'))
 })
 
-test('footer omits unavailable groups and can be disabled globally', () => {
+test('footer omits unavailable business groups while Masabu attribution is always rendered', () => {
   const emptyMarkup = renderFooter(DEFAULT_THEME, { contact: {} })
   assert.match(emptyMarkup, /Çok Uzun Restoran Adı/)
   assert.doesNotMatch(
@@ -62,7 +70,10 @@ test('footer omits unavailable groups and can be disabled globally', () => {
   )
 
   const disabledMarkup = renderFooter({ ...DEFAULT_THEME, footerEnabled: false })
-  assert.equal(disabledMarkup, '')
+  assert.doesNotMatch(disabledMarkup, /Çok Uzun Restoran Adı/)
+  assert.match(disabledMarkup, /data-business-footer-enabled="false"/)
+  assert.match(disabledMarkup, /aria-label="Powered by Masabu"/)
+  assert.match(disabledMarkup, /href="https:\/\/masabu.co\/"/)
 })
 
 test('footer link normalization rejects unsafe or malformed destinations', () => {

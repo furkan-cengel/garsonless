@@ -1,32 +1,72 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { MI } from '../lib/icons'
-import { SectionHead } from './ui/SectionHead'
 
 const FAQ_ITEMS = [
-  { q: 'Kurulum ne kadar sürer?', a: "Ortalama 2 dakika. Mağazanı oluşturuyorsun, menünü yükleyebiliyor (CSV/Yemeksepeti/Trendyol'dan içe aktarma destekli) ve QR kodlarını yazdırıyorsun. Yardıma ihtiyacın olursa Türkçe ekibimiz 7/24 yanında." },
-  { q: 'Mevcut POS sistemimle çalışır mı?', a: "Evet — iyzico, Vallet, Logo, Mikro ve Netsis ile direkt entegre. Webhook + API ile her POS'a bağlanabilirsin. Sipariş Tezgah'a düşer, hesabı masabu üzerinden alabilirsin." },
-  { q: 'Sipariş başı komisyon var mı?', a: "Yok. Bizden alınan tek ücret aylık abonelik. Ödeme komisyonu doğrudan iyzico'ya gider (kart için %1,8 + ₺2,5). Nakit ödemeler tamamen sizin." },
-  { q: 'Müşterilerimin uygulama indirmesi gerekir mi?', a: "Hayır. QR'ı tarayınca tarayıcıda menü açılır. iOS, Android, hatta tuşlu telefonların tarayıcısında bile çalışır." },
-  { q: 'Bir mağazadan fazla mı yöneteceğim?', a: "Pro plan 3'e kadar, Business sınırsız mağaza destekler. Tek kullanıcıyla hepsini geziniyor, hangi şubenin nasıl çalıştığını tek panoda görebiliyorsun." },
-  { q: 'Verilerim güvende mi?', a: "Türkiye'de sunucularımızda barındırılır, KVKK uyumludur. SOC 2 Type II sertifikalıdır. Otomatik günlük yedek + 90 gün geri yükleme." },
-  { q: 'İptal etmek istersem?', a: "Tek tıkla iptal et. Verilerini dışa aktarmak için 60 günün var. Hiç kalan sayfa yok — kredi kartınız basılan tutardan başka hiçbir şeyle silinmez." },
+  {
+    q: 'Misafirlerin uygulama indirmesi gerekir mi?',
+    a: 'Hayır. Misafir masadaki QR kodu taradığında menü doğrudan telefonunun tarayıcısında açılır; ürünleri inceleyip sipariş akışını buradan tamamlar.',
+  },
+  {
+    q: '14 günlük deneme nasıl çalışır?',
+    a: 'Yeni işletme 14 gün boyunca Pro özelliklerini deneyebilir. Bu sürenin sonunda abonelik başlamazsa işletme ücretsiz plana döner ve menü ile işletme verileri korunur.',
+  },
+  {
+    q: 'Mutfak ekranında neleri takip edebilirim?',
+    a: 'Pro planda siparişleri istasyon ve hazırlık durumlarına göre izleyebilir; hazırlanan, hazır ve geciken siparişleri mutfak akışında takip edebilirsin.',
+  },
+  {
+    q: 'Menüde ürünleri ne kadar özelleştirebilirim?',
+    a: 'Ürün görselleri, varyant ve porsiyonlar, ekstra seçimleri, alerjen ve diyet bilgileri, ilgili ürün önerileri, kategori ve mutfak istasyonu gibi alanları panelden yönetebilirsin.',
+  },
+  {
+    q: 'Hangi tahsilat akışları destekleniyor?',
+    a: 'İyzico yapılandırıldığında çevrimiçi kart ödemesi alınabilir. Nakit, fiziksel POS ve ikram gibi personel tahsilatları ise masa kapatma akışında panel üzerinden işlenir.',
+  },
+  {
+    q: 'Birden fazla işletmeyi yönetebilir miyim?',
+    a: 'Çoklu işletme yönetimi plan kapsamına göre kullanılabilir. Her işletmenin menü, masa, ekip ve raporları kendi çalışma alanında tutulur.',
+  },
+  {
+    q: 'Aboneliği sürdürmezsem verilerime ne olur?',
+    a: 'İşletme ücretsiz plana döner; menü ve işletme verileri korunur. Pro özelliklerine erişim plan kapsamına göre kapanır.',
+  },
 ]
 
-function FAQItem({ item, open, onClick }: { item: typeof FAQ_ITEMS[0]; open: boolean; onClick: () => void }) {
+function FAQItem({
+  item,
+  open,
+  onClick,
+  index,
+}: {
+  item: (typeof FAQ_ITEMS)[number]
+  open: boolean
+  onClick: () => void
+  index: number
+}) {
+  const id = useId()
+  const panelId = `faq-panel-${id}`
+  const buttonId = `faq-button-${id}`
+
   return (
-    <div style={{ background: open ? 'var(--surface)' : 'transparent', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden', transition: 'background 200ms' }}>
-      <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '20px 24px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--ink)' }}>
-        <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-.01em' }}>{item.q}</span>
-        <span style={{ width: 28, height: 28, borderRadius: 999, background: open ? 'var(--ink)' : 'var(--bg-2)', color: open ? '#fff' : 'var(--ink-2)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transition: 'all 200ms', flexShrink: 0, marginLeft: 16 }}>
-          {open ? <MI.x size={14} /> : <MI.plus size={14} />}
-        </span>
-      </button>
-      {open && (
-        <div style={{ padding: '0 24px 22px', fontSize: 15, color: 'var(--ink-2)', lineHeight: 1.65 }}>{item.a}</div>
-      )}
-    </div>
+    <article className="faq-item" data-open={open}>
+      <h3>
+        <button
+          id={buttonId}
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={onClick}
+        >
+          <span><small>{String(index + 1).padStart(2, '0')}</small>{item.q}</span>
+          <i>{open ? <MI.x size={15} /> : <MI.plus size={15} />}</i>
+        </button>
+      </h3>
+      <div id={panelId} className="faq-item__answer" role="region" aria-labelledby={buttonId} hidden={!open}>
+        <p>{item.a}</p>
+      </div>
+    </article>
   )
 }
 
@@ -34,16 +74,24 @@ export function FAQSection() {
   const [open, setOpen] = useState(0)
 
   return (
-    <section style={{ padding: '120px 0', background: 'var(--bg)' }}>
-      <div className="container" style={{ maxWidth: 880 }}>
-        <SectionHead
-          eyebrow="SSS"
-          title={<>Aklındaki <em style={{ fontStyle: 'italic', color: 'var(--brand)' }}>sorular</em>.</>}
-          sub="Burada cevabını bulamadın mı? Bize yaz — 5 dakikada dönelim."
-        />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {FAQ_ITEMS.map((item, i) => (
-            <FAQItem key={i} item={item} open={open === i} onClick={() => setOpen(open === i ? -1 : i)} />
+    <section className="faq-section story-section">
+      <div className="story-container story-container--narrow">
+        <div className="story-heading story-heading--split">
+          <div>
+            <span>Sık sorulanlar</span>
+            <h2 className="font-display">Başlamadan önce bilmeniz gerekenler.</h2>
+          </div>
+          <p>Ürün kapsamı, deneme süreci ve operasyon akışıyla ilgili net cevaplar.</p>
+        </div>
+        <div className="faq-list">
+          {FAQ_ITEMS.map((item, index) => (
+            <FAQItem
+              key={item.q}
+              item={item}
+              index={index}
+              open={open === index}
+              onClick={() => setOpen(open === index ? -1 : index)}
+            />
           ))}
         </div>
       </div>

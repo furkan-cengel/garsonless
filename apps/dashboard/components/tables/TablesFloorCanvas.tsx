@@ -1,8 +1,12 @@
 'use client'
 
 import { useCallback, useMemo, useRef } from 'react'
-import { InlineSpinner } from '@garsonless/ui/spinners'
 import { AppIcons } from '@garsonless/ui/icons'
+import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { Spinner } from '@/components/ui/spinner'
 import { UNASSIGNED_LOCATION_FILTER } from './tables-operation-model'
 import { TablesFloorCard } from './TablesFloorCard'
 import { LegacyTableLayoutImportBanner } from './LegacyTableLayoutImportBanner'
@@ -79,15 +83,15 @@ export function TablesFloorCanvas({
         <div className="tb-floor__actions">
           {layout.editing ? (
             <>
-              <button type="button" className="tb-floor__button" disabled={layout.saving} onClick={layout.cancelEditing}>İptal</button>
-              <button type="button" className="tb-floor__button tb-floor__button--primary" disabled={layout.saving || layout.collisions.size > 0} onClick={() => { void layout.save() }}>
-                {layout.saving ? <><InlineSpinner size={12} color="var(--on-action)" />Kaydediliyor…</> : <><AppIcons.check size={14} />Düzeni kaydet</>}
-              </button>
+              <Button type="button" variant="outline" className="tb-floor__button" disabled={layout.saving} onClick={layout.cancelEditing}>İptal</Button>
+              <Button type="button" className="tb-floor__button tb-floor__button--primary" disabled={layout.saving || layout.collisions.size > 0} onClick={() => { void layout.save() }}>
+                {layout.saving ? <Spinner data-icon="inline-start" /> : <AppIcons.check data-icon="inline-start" />}Düzeni kaydet
+              </Button>
             </>
           ) : (
-            <button type="button" className="tb-floor__button tb-floor__edit-button" disabled={Boolean(editDisabledReason)} onClick={layout.startEditing} title={editDisabledReason ?? 'Masa yerleşimini düzenle'}>
-              <AppIcons.grid size={14} />Düzeni düzenle
-            </button>
+            <Button type="button" variant="outline" className="tb-floor__button tb-floor__edit-button" disabled={Boolean(editDisabledReason)} onClick={layout.startEditing} title={editDisabledReason ?? 'Masa yerleşimini düzenle'}>
+              <AppIcons.grid data-icon="inline-start" />Düzeni düzenle
+            </Button>
           )}
         </div>
       </header>
@@ -96,19 +100,19 @@ export function TablesFloorCanvas({
         <div className="tb-floor__properties" aria-label={`${selectedTable.label} yerleşim özellikleri`}>
           <strong>{selectedTable.label}</strong>
           <label>Şekil
-            <select value={selectedEntry.shape} onChange={(event) => layout.patchEntry(selectedTable.id, { shape: event.target.value === 'square' ? 'square' : 'rectangle' })}>
-              <option value="rectangle">Dikdörtgen</option><option value="square">Kare</option>
-            </select>
+            <NativeSelect size="sm" value={selectedEntry.shape} onChange={(event) => layout.patchEntry(selectedTable.id, { shape: event.target.value === 'square' ? 'square' : 'rectangle' })}>
+              <NativeSelectOption value="rectangle">Dikdörtgen</NativeSelectOption><NativeSelectOption value="square">Kare</NativeSelectOption>
+            </NativeSelect>
           </label>
           <label>Yön
-            <select value={selectedEntry.rotation} disabled={selectedEntry.shape === 'square'} onChange={(event) => layout.patchEntry(selectedTable.id, { rotation: event.target.value === '90' ? 90 : 0 })}>
-              <option value="0">Yatay</option><option value="90">Dikey</option>
-            </select>
+            <NativeSelect size="sm" value={selectedEntry.rotation} disabled={selectedEntry.shape === 'square'} onChange={(event) => layout.patchEntry(selectedTable.id, { rotation: event.target.value === '90' ? 90 : 0 })}>
+              <NativeSelectOption value="0">Yatay</NativeSelectOption><NativeSelectOption value="90">Dikey</NativeSelectOption>
+            </NativeSelect>
           </label>
           <label>Kapasite
-            <select value={selectedEntry.seatCount} onChange={(event) => layout.patchEntry(selectedTable.id, { seatCount: Number(event.target.value) })}>
-              {Array.from({ length: 20 }, (_, index) => <option value={index + 1} key={index + 1}>{index + 1} kişi</option>)}
-            </select>
+            <NativeSelect size="sm" value={selectedEntry.seatCount} onChange={(event) => layout.patchEntry(selectedTable.id, { seatCount: Number(event.target.value) })}>
+              {Array.from({ length: 20 }, (_, index) => <NativeSelectOption value={index + 1} key={index + 1}>{index + 1} kişi</NativeSelectOption>)}
+            </NativeSelect>
           </label>
           <span className="tb-floor__edit-help">Sürükleyin veya ok tuşlarını kullanın. Shift + ok: büyük adım.</span>
         </div>
@@ -124,18 +128,20 @@ export function TablesFloorCanvas({
       )}
 
       {(layout.error || layout.notice) && (
-        <div className={`tb-floor__message ${layout.error ? 'is-error' : 'is-success'}`} role={layout.error ? 'alert' : 'status'}>
-          <span>{layout.error ?? layout.notice}</span>
-          {layout.conflict && <span className="tb-floor__conflict-actions"><button type="button" onClick={layout.loadRemoteConflict}>Güncel düzeni yükle</button><button type="button" onClick={layout.keepLocalDraft}>Taslağımı koru</button></span>}
-          {layout.notice && <button type="button" aria-label="Bildirimi kapat" onClick={layout.dismissNotice}><AppIcons.close size={14} /></button>}
-        </div>
+        <Alert variant={layout.error ? 'destructive' : 'default'} className={`tb-floor__message ${layout.error ? 'is-error' : 'is-success'}`} role={layout.error ? 'alert' : 'status'}>
+          <AlertDescription className="text-current">{layout.error ?? layout.notice}</AlertDescription>
+          {layout.conflict && <span className="tb-floor__conflict-actions"><Button type="button" variant="outline" size="xs" onClick={layout.loadRemoteConflict}>Güncel düzeni yükle</Button><Button type="button" variant="outline" size="xs" onClick={layout.keepLocalDraft}>Taslağımı koru</Button></span>}
+          {layout.notice && <AlertAction><Button type="button" variant="ghost" size="icon-xs" aria-label="Bildirimi kapat" onClick={layout.dismissNotice}><AppIcons.close /></Button></AlertAction>}
+        </Alert>
       )}
 
       <div className="tb-floor__viewport">
         <div ref={canvasRef} className={`tb-floor__canvas${layout.editing ? ' is-editing' : ''}`}>
           {layout.editing && <div className="tb-floor__grid" aria-hidden="true" />}
           {filteredTables.length === 0 ? (
-            <div className="tb-floor__empty"><AppIcons.grid size={24} /><strong>{tables.length === 0 ? 'Henüz masa yok' : 'Bu filtrede masa bulunamadı'}</strong><span>{filtersActive ? 'Sol paneldeki filtreleri değiştirin.' : 'Sol panelden ilk masanızı ekleyin.'}</span></div>
+            <Empty className="tb-floor__empty border-0">
+              <EmptyHeader><EmptyMedia variant="icon"><AppIcons.grid /></EmptyMedia><EmptyTitle>{tables.length === 0 ? 'Henüz masa yok' : 'Bu filtrede masa bulunamadı'}</EmptyTitle><EmptyDescription>{filtersActive ? 'Sol paneldeki filtreleri değiştirin.' : 'Sol panelden ilk masanızı ekleyin.'}</EmptyDescription></EmptyHeader>
+            </Empty>
           ) : filteredTables.map((table) => {
             const entry = displayedDraft[table.id]
             return entry ? <TablesFloorCard

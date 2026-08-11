@@ -1,10 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { MenuCategory } from './types'
 import { useTheme } from './ThemeContext'
 import {
   getActiveCategoryAtLine,
+  getCategoryNavActiveTreatment,
   getCategoryScrollEdges,
   getCenteredCategoryScrollLeft,
 } from './categoryNavModel'
@@ -14,6 +16,7 @@ interface CategoryNavProps {
   categoryMeta?: Record<string, { imageUrl?: string | null; itemCount?: number }> | undefined
   activeCategoryId?: string | undefined
   onCategorySelect?: ((id: string) => void) | undefined
+  leadingControl?: ReactNode
 }
 
 function usePrefersReducedMotion() {
@@ -30,12 +33,13 @@ function usePrefersReducedMotion() {
   return reduced
 }
 
-export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, onCategorySelect }: CategoryNavProps) {
+export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, onCategorySelect, leadingControl }: CategoryNavProps) {
   const { theme } = useTheme()
   const prefersReducedMotion = usePrefersReducedMotion()
   const [internalActiveId, setInternalActiveId] = useState(categories[0]?.id ?? '')
   const [scrollEdges, setScrollEdges] = useState({ left: false, right: false })
   const navRef = useRef<HTMLDivElement>(null)
+  const shellRef = useRef<HTMLElement>(null)
   const manualActiveIdRef = useRef<string | null>(null)
   const manualActiveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const style = theme.catnavStyle
@@ -54,7 +58,7 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
     setScrollEdges((current) => current.left === nextEdges.left && current.right === nextEdges.right
       ? current
       : nextEdges)
-    document.documentElement.style.setProperty('--p-catnav-sticky-height', `${nav.getBoundingClientRect().height}px`)
+    document.documentElement.style.setProperty('--p-catnav-sticky-height', `${shellRef.current?.getBoundingClientRect().height ?? nav.getBoundingClientRect().height}px`)
   }, [])
 
   const centerCategory = useCallback((id: string, behavior: ScrollBehavior) => {
@@ -80,6 +84,7 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
     const frame = requestAnimationFrame(updateMeasurements)
     const observer = new ResizeObserver(updateMeasurements)
     if (navRef.current) observer.observe(navRef.current)
+    if (shellRef.current) observer.observe(shellRef.current)
     return () => { cancelAnimationFrame(frame); observer.disconnect() }
   }, [categories, style, updateMeasurements])
 
@@ -89,7 +94,7 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
     const updateActiveCategory = () => {
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
-        const activationLine = Math.max(0, navRef.current?.getBoundingClientRect().bottom ?? 0) + 1
+        const activationLine = Math.max(0, shellRef.current?.getBoundingClientRect().bottom ?? 0) + 1
         const sections = categories.flatMap((category) => {
           const section = document.getElementById(`section-${category.id}`)
           return section ? [{ id: category.id, top: section.getBoundingClientRect().top }] : []
@@ -172,8 +177,7 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
     <nav
       data-component="catnav"
       aria-label="Ürün kategorileri"
-      ref={navRef}
-      onScroll={updateMeasurements}
+      ref={shellRef}
       data-scroll-left={scrollEdges.left ? 'true' : 'false'}
       data-scroll-right={scrollEdges.right ? 'true' : 'false'}
       style={{
@@ -181,48 +185,60 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
         position: theme.stickyNav ? 'sticky' : 'relative',
         top: theme.stickyNav ? (theme.stickyHeader ? `var(--p-header-sticky-height, ${theme.headerHeight}px)` : 0) : undefined,
         zIndex: theme.stickyNav ? 10 : undefined,
-        overflowX: 'auto',
-        overscrollBehaviorX: 'contain',
-        WebkitOverflowScrolling: 'touch',
-        scrollPaddingInline: 'var(--p-pad)',
-        scrollbarWidth: 'none',
         borderBottom: style === 'underline' ? '1px solid var(--p-border)' : 'none',
-        maskImage: theme.catnavEdgeFade && (scrollEdges.left || scrollEdges.right)
-          ? `linear-gradient(90deg, ${scrollEdges.left ? 'transparent 0, #000 18px' : '#000 0'}, #000 calc(100% - 18px), ${scrollEdges.right ? 'transparent 100%' : '#000 100%'})`
-          : undefined,
       }}
     >
-      <style>{`[data-component="catnav"]::-webkit-scrollbar{display:none}[data-component="catnav"] button:focus-visible{outline:2px solid var(--p-accent);outline-offset:2px}`}</style>
+      <style>{`[data-catnav-scroll]::-webkit-scrollbar{display:none}[data-component="catnav"] button:focus-visible{outline:2px solid var(--p-accent);outline-offset:2px}`}</style>
       <div style={{
         padding: style === 'visual'
           ? `${theme.navTopGap ?? 4}px var(--p-pad) ${theme.navBottomGap ?? 16}px`
           : `${theme.navTopGap ?? 10}px var(--p-pad) ${theme.navBottomGap ?? 14}px`,
         display: 'flex',
-        justifyContent: align === 'center' ? 'center' : 'flex-start',
-        minWidth: align === 'spread' ? '100%' : 'max-content',
+        alignItems: 'center',
+        gap: 8,
       }}>
-        <div style={{
-          display: 'flex',
-          width: align === 'spread' ? '100%' : 'max-content',
-          justifyContent: align === 'spread' ? 'space-between' : undefined,
-          gap,
-          background: style === 'segmented' ? 'var(--p-accent-soft)' : 'transparent',
-          padding: style === 'segmented' ? 3 : 0,
-          borderRadius: style === 'segmented' ? 9 : 0,
-        }}>
-          {categories.map((cat, index) => (
-            <NavItem
-              key={cat.id}
-              cat={cat}
-              index={index}
-              isActive={activeId === cat.id}
-              navStyle={style}
-              meta={categoryMeta[cat.id] ?? null}
-              acc={acc}
-              onClick={() => scrollToCategory(cat.id)}
-              onKeyDown={(event) => handleCategoryKeyDown(event, index)}
-            />
-          ))}
+        {leadingControl}
+        <div
+          ref={navRef}
+          data-catnav-scroll
+          onScroll={updateMeasurements}
+          style={{
+            minWidth: 0,
+            flex: 1,
+            overflowX: 'auto',
+            overscrollBehaviorX: 'contain',
+            WebkitOverflowScrolling: 'touch',
+            scrollPaddingInline: 2,
+            scrollbarWidth: 'none',
+            maskImage: theme.catnavEdgeFade && (scrollEdges.left || scrollEdges.right)
+              ? `linear-gradient(90deg, ${scrollEdges.left ? 'transparent 0, #000 18px' : '#000 0'}, #000 calc(100% - 18px), ${scrollEdges.right ? 'transparent 100%' : '#000 100%'})`
+              : undefined,
+          }}
+        >
+          <div style={{
+            display: 'flex',
+            width: 'max-content',
+            minWidth: '100%',
+            justifyContent: align === 'spread' ? 'space-between' : align === 'center' ? 'center' : undefined,
+            gap,
+            background: style === 'segmented' ? 'color-mix(in srgb, var(--p-border) 68%, transparent)' : 'transparent',
+            padding: style === 'segmented' ? 3 : 0,
+            borderRadius: style === 'segmented' ? 9 : 0,
+          }}>
+            {categories.map((cat, index) => (
+              <NavItem
+                key={cat.id}
+                cat={cat}
+                index={index}
+                isActive={activeId === cat.id}
+                navStyle={style}
+                meta={categoryMeta[cat.id] ?? null}
+                acc={acc}
+                onClick={() => scrollToCategory(cat.id)}
+                onKeyDown={(event) => handleCategoryKeyDown(event, index)}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </nav>
@@ -251,34 +267,43 @@ function NavItem({
   const { theme } = useTheme()
   const countSuffix = theme.catnavShowCount ? ` · ${meta?.itemCount ?? 0}` : ''
   const density = theme.catnavDensity ?? 'normal'
-  const minHeight = density === 'compact' ? 44 : density === 'comfortable' ? 52 : 48
+  const minHeight = density === 'compact' ? 34 : density === 'comfortable' ? 44 : 38
   const fontSize = theme.catnavFontSize ?? 12
   const activeStyle = theme.catnavActiveStyle ?? 'filled'
+  const activeTreatment = getCategoryNavActiveTreatment(activeStyle, acc)
   const base: React.CSSProperties = {
     flexShrink: 0, cursor: 'pointer', border: 'none',
     fontFamily: 'inherit', transition: 'all 150ms ease',
     background: 'transparent', minHeight,
   }
+  const selectedSurface: React.CSSProperties = isActive ? {
+    background: activeTreatment.background,
+    color: activeTreatment.color,
+    borderColor: activeTreatment.borderColor,
+    boxShadow: activeTreatment.boxShadow,
+  } : {}
   const a11y = { type: 'button' as const, 'aria-current': isActive ? 'location' as const : undefined, onKeyDown }
 
   if (navStyle === 'underline') {
     return (
       <button {...a11y} data-cat={cat.id} onClick={onClick} style={{
-        ...base, padding: '6px 2px', fontSize: fontSize + 1,
+        ...base, padding: '6px 8px', borderRadius: 6, fontSize: fontSize + 1,
         fontWeight: isActive ? 600 : 500,
-        color: isActive ? acc : 'var(--p-text-2)',
-        borderBottom: `2px solid ${isActive ? acc : 'transparent'}`,
+        color: 'var(--p-text-2)',
+        border: '1px solid transparent',
+        borderBottomWidth: 2,
+        ...selectedSurface,
+        borderBottomColor: isActive ? acc : 'transparent',
       }}>{cat.name}{countSuffix}</button>
     )
   }
   if (navStyle === 'segmented') {
     return (
       <button {...a11y} data-cat={cat.id} onClick={onClick} style={{
-        ...base, padding: '5px 11px', borderRadius: 7,
+        ...base, padding: '5px 11px', borderRadius: 7, border: '1px solid transparent',
         fontSize, fontWeight: isActive ? 600 : 500,
-        background: isActive ? (activeStyle === 'soft' ? 'var(--p-accent-soft)' : 'var(--p-card)') : 'transparent',
-        color: isActive ? acc : 'var(--p-text-2)',
-        boxShadow: isActive ? '0 1px 2px rgba(0,0,0,.06)' : 'none',
+        color: 'var(--p-text-2)',
+        ...selectedSurface,
       }}>{cat.name}{countSuffix}</button>
     )
   }
@@ -362,21 +387,23 @@ function NavItem({
         ...base, padding: '5px 11px', borderRadius: 6,
         fontSize, fontWeight: isActive ? 600 : 500,
         background: 'var(--p-card)',
-        color: isActive ? acc : 'var(--p-text-2)',
-        border: `1px solid ${isActive ? acc : 'var(--p-border)'}`,
+        color: 'var(--p-text-2)',
+        border: '1px solid var(--p-border)',
+        ...selectedSurface,
       }}>{cat.name}{countSuffix}</button>
     )
   }
   if (navStyle === 'dots') {
     return (
       <button {...a11y} data-cat={cat.id} onClick={onClick} style={{
-        ...base, padding: '4px 8px',
+        ...base, padding: '4px 8px', borderRadius: 7, border: '1px solid transparent',
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
         fontSize, fontWeight: isActive ? 600 : 500,
-        color: isActive ? acc : 'var(--p-text-2)',
+        color: 'var(--p-text-2)',
+        ...selectedSurface,
       }}>
         {cat.name}{countSuffix}
-        <span style={{ width: 4, height: 4, borderRadius: 999, background: isActive ? acc : 'transparent' }} />
+        <span style={{ width: 4, height: 4, borderRadius: 999, background: isActive ? (activeStyle === 'filled' ? 'var(--p-cta-text)' : acc) : 'transparent' }} />
       </button>
     )
   }
@@ -384,9 +411,9 @@ function NavItem({
     <button {...a11y} data-cat={cat.id} onClick={onClick} style={{
       ...base, padding: '6px 12px', borderRadius: 999,
       fontSize, fontWeight: isActive ? 600 : 500,
-      background: isActive ? (activeStyle === 'filled' ? acc : activeStyle === 'soft' ? 'var(--p-accent-soft)' : 'transparent') : 'transparent',
-      color: isActive ? (activeStyle === 'filled' ? 'var(--p-cta-text)' : acc) : 'var(--p-text-2)',
-      border: `1px solid ${isActive && activeStyle === 'outline' ? acc : isActive && activeStyle === 'filled' ? 'transparent' : 'var(--p-border)'}`,
+      color: 'var(--p-text-2)',
+      border: '1px solid var(--p-border)',
+      ...selectedSurface,
     }}>{cat.name}{countSuffix}</button>
   )
 }

@@ -1,8 +1,14 @@
 'use client'
 
+import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Progress, ProgressLabel } from '@/components/ui/progress'
+import { Spinner } from '@/components/ui/spinner'
+
 import { useState } from 'react'
-import { BrewBar, InlineSpinner, LoadingStatus } from '@garsonless/ui/spinners'
-import { I, IconButton, Tag, btnGhost, btnPrimary } from '../../lib/ui'
+import { I } from '../../lib/ui'
 import type { CsvImportPreview, CsvPreviewRow } from './use-menu-csv-import'
 
 export function CsvImportStartModal({
@@ -21,35 +27,41 @@ export function CsvImportStartModal({
   const [dragging, setDragging] = useState(false)
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(17,17,19,.5)', zIndex: 100,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-    }}>
-      <div style={{
-        background: 'var(--surface)', borderRadius: 12, padding: 24,
-        width: 520, maxWidth: '100%', boxShadow: 'var(--shadow-pop)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 20 }}>
-          <div style={{
-            width: 38, height: 38, borderRadius: 8, flexShrink: 0,
-            display: 'grid', placeItems: 'center', background: 'var(--surface-2)',
-            border: '1px solid var(--border)',
-          }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onCancel()
+      }}
+    >
+      <DialogContent className="w-[520px] max-w-[calc(100%-2rem)] sm:max-w-[520px]">
+        <DialogHeader className="grid grid-cols-[auto_1fr] gap-x-3 pr-8">
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 8,
+              flexShrink: 0,
+              display: 'grid',
+              placeItems: 'center',
+              background: 'var(--surface-2)',
+              border: '1px solid var(--border)',
+            }}
+          >
             <I.upload size={18} />
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 650 }}>Menüyü CSV’den içe aktar</div>
-            <div style={{ marginTop: 4, color: 'var(--text-3)', fontSize: 12.5, lineHeight: 1.5 }}>
-              Ürünleri eklemeden önce satırları kontrol edip sorunları göstereceğiz.
-            </div>
+          <div className="min-w-0">
+            <DialogTitle>Menüyü CSV’den içe aktar</DialogTitle>
+            <DialogDescription className="mt-1">Ürünleri eklemeden önce satırları kontrol edip sorunları göstereceğiz.</DialogDescription>
           </div>
-          <IconButton icon={<I.close size={15} />} ariaLabel="Kapat" onClick={onCancel} />
-        </div>
+        </DialogHeader>
 
-        <button
+        <Button
           type="button"
           onClick={onChoose}
-          onDragEnter={(event) => { event.preventDefault(); setDragging(true) }}
+          onDragEnter={(event) => {
+            event.preventDefault()
+            setDragging(true)
+          }}
           onDragOver={(event) => event.preventDefault()}
           onDragLeave={() => setDragging(false)}
           onDrop={(event) => {
@@ -59,67 +71,96 @@ export function CsvImportStartModal({
             if (file) onFile(file)
           }}
           style={{
-            width: '100%', minHeight: 156, borderRadius: 9,
+            width: '100%',
+            minHeight: 156,
+            borderRadius: 9,
             border: `1.5px dashed ${dragging ? 'var(--text)' : 'var(--border-strong)'}`,
             background: dragging ? 'var(--surface-2)' : 'var(--surface-inset)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            gap: 8, cursor: 'pointer', color: 'var(--text)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            cursor: 'pointer',
+            color: 'var(--text)',
           }}
         >
           <I.upload size={22} />
           <span style={{ fontSize: 13.5, fontWeight: 600 }}>CSV dosyası seç</span>
           <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>En fazla 1.000 ürün ve 5 MB</span>
-        </button>
+        </Button>
 
         {error && (
-          <div style={{
-            marginTop: 12, padding: '9px 11px', borderRadius: 7,
-            background: 'rgba(255,80,65,.08)', color: 'var(--critical)',
-            fontSize: 12.5, lineHeight: 1.45,
-          }}>
-            {error}
-          </div>
+          <Alert variant="destructive">
+            <I.warn />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
-        <div style={{
-          marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--divider)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-        }}>
+        <DialogFooter className="items-center sm:justify-between">
           <div style={{ fontSize: 12, color: 'var(--text-3)' }}>İlk kez mi aktarıyorsun?</div>
-          <button type="button" onClick={onDownloadTemplate} style={btnGhost()}>
+          <Button type="button" variant="outline" onClick={onDownloadTemplate}>
             Şablonu indir
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
 function CsvPreviewTable({ rows }: { rows: CsvPreviewRow[] }) {
   return (
     <div style={{ flex: 1, overflow: 'auto', marginBottom: 16 }}>
-      <div className="csv-preview-grid" style={{
-        padding: '8px 12px', background: 'var(--surface-2)',
-        borderRadius: '8px 8px 0 0', border: '1px solid var(--border)',
-        borderBottom: 'none', fontSize: 10.5, fontWeight: 500,
-        letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-3)',
-      }}>
+      <div
+        className="csv-preview-grid"
+        style={{
+          padding: '8px 12px',
+          background: 'var(--surface-2)',
+          borderRadius: '8px 8px 0 0',
+          border: '1px solid var(--border)',
+          borderBottom: 'none',
+          fontSize: 10.5,
+          fontWeight: 500,
+          letterSpacing: '.05em',
+          textTransform: 'uppercase',
+          color: 'var(--text-3)',
+        }}
+      >
         <span>Satır</span>
         <span className="csv-preview-category">Kategori</span>
         <span>Ürün</span>
         <span className="csv-preview-price">Fiyat</span>
         <span>Durum</span>
       </div>
-      <div style={{ border: '1px solid var(--border)', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
+      <div
+        style={{
+          border: '1px solid var(--border)',
+          borderRadius: '0 0 8px 8px',
+          overflow: 'hidden',
+        }}
+      >
         {rows.map((row, index) => (
-          <div key={row.sourceRow} className="csv-preview-grid" style={{
-            padding: '8px 12px',
-            borderBottom: index < rows.length - 1 ? '1px solid var(--divider)' : 'none',
-            background: row.error ? 'rgba(255,80,65,.04)' : 'transparent',
-            fontSize: 12.5,
-          }}>
-            <span style={{ color: 'var(--text-4)', fontFamily: "'Geist Mono', monospace" }}>{row.sourceRow}</span>
-            <span className="csv-preview-category" style={{ color: 'var(--text-2)' }}>{row.category || '—'}</span>
+          <div
+            key={row.sourceRow}
+            className="csv-preview-grid"
+            style={{
+              padding: '8px 12px',
+              borderBottom: index < rows.length - 1 ? '1px solid var(--divider)' : 'none',
+              background: row.error ? 'rgba(255,80,65,.04)' : 'transparent',
+              fontSize: 12.5,
+            }}
+          >
+            <span
+              style={{
+                color: 'var(--text-4)',
+                fontFamily: "'Geist Mono', monospace",
+              }}
+            >
+              {row.sourceRow}
+            </span>
+            <span className="csv-preview-category" style={{ color: 'var(--text-2)' }}>
+              {row.category || '—'}
+            </span>
             <span className="csv-preview-name" style={{ fontWeight: 500 }}>
               {row.name || '—'}
               <span className="csv-preview-mobile-meta">
@@ -129,10 +170,13 @@ function CsvPreviewTable({ rows }: { rows: CsvPreviewRow[] }) {
             <span className="csv-preview-price" style={{ fontFamily: "'Geist Mono', monospace" }}>
               {!isNaN(row.price) ? `₺${row.price}` : '—'}
             </span>
-            <span className="csv-preview-status" style={{
-              color: row.error ? 'var(--critical)' : row.warning ? 'var(--warning)' : 'var(--positive)',
-              fontWeight: 500,
-            }}>
+            <span
+              className="csv-preview-status"
+              style={{
+                color: row.error ? 'var(--critical)' : row.warning ? 'var(--warning)' : 'var(--positive)',
+                fontWeight: 500,
+              }}
+            >
               {row.error ?? row.warning ?? 'Hazır'}
             </span>
           </div>
@@ -158,10 +202,12 @@ export function CsvImportModal({
   const warnings = preview.rows.filter((row) => !row.error && row.warning).length
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(17,17,19,.5)', zIndex: 100,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-    }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !preview.importing) onCancel()
+      }}
+    >
       <style>{`
         .csv-preview-grid {
           display: grid;
@@ -188,66 +234,85 @@ export function CsvImportModal({
           }
         }
       `}</style>
-      <div style={{
-        background: 'var(--surface)', borderRadius: 12, padding: 24,
-        width: 720, maxWidth: '100%', maxHeight: '86vh', display: 'flex', flexDirection: 'column',
-        boxShadow: 'var(--shadow-pop)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 16 }}>
+      <DialogContent className="flex max-h-[86vh] w-[720px] max-w-[calc(100%-2rem)] flex-col sm:max-w-[720px]" showCloseButton={!preview.importing}>
+        <DialogHeader className="grid grid-cols-[1fr_auto] items-start gap-3 pr-8">
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 650, fontSize: 15 }}>İçe aktarma önizlemesi</div>
-            <div style={{
-              color: 'var(--text-3)', fontSize: 11.5, marginTop: 4,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {preview.fileName}
-            </div>
+            <DialogTitle>İçe aktarma önizlemesi</DialogTitle>
+            <DialogDescription className="mt-1 truncate text-xs">{preview.fileName}</DialogDescription>
           </div>
-          <button type="button" onClick={onDownloadTemplate} style={btnGhost()}>
+          <Button type="button" variant="outline" size="sm" onClick={onDownloadTemplate}>
             Şablon indir
-          </button>
-        </div>
+          </Button>
+        </DialogHeader>
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          <Tag tone="positive">{valid} hazır</Tag>
-          {warnings > 0 && <Tag tone="warning">{warnings} eksik bilgi</Tag>}
-          {invalid > 0 && <Tag tone="critical">{invalid} sorunlu</Tag>}
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            marginBottom: 14,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Badge variant="positive">{valid} hazır</Badge>
+          {warnings > 0 && <Badge variant="warning">{warnings} eksik bilgi</Badge>}
+          {invalid > 0 && <Badge variant="destructive">{invalid} sorunlu</Badge>}
         </div>
 
         <CsvPreviewTable rows={preview.rows} />
 
-        <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 14, lineHeight: 1.5 }}>
-          Sorunlu satırlar atlanır. İçe aktarılan ürünler yayımlanır; gıda bilgileri işletme tarafından
-          kontrol edilene kadar <strong style={{ color: 'var(--text)' }}>Bilgi eksik</strong> etiketi taşır.
+        <div
+          style={{
+            fontSize: 12,
+            color: 'var(--text-3)',
+            marginBottom: 14,
+            lineHeight: 1.5,
+          }}
+        >
+          Sorunlu satırlar atlanır. İçe aktarılan ürünler yayımlanır; gıda bilgileri işletme tarafından kontrol edilene kadar{' '}
+          <strong style={{ color: 'var(--text)' }}>Bilgi eksik</strong> etiketi taşır.
         </div>
 
         {preview.importing && preview.importProgress && (
-          <div style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {preview.importProgress.total > 0
-              ? <BrewBar label="Menü içe aktarma ilerlemesi" progress={(preview.importProgress.done / preview.importProgress.total) * 100} />
-              : <LoadingStatus label="Menü içe aktarılıyor…" />}
-            <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
-              {preview.importProgress.done}/{preview.importProgress.total} içe aktarıldı…
-            </div>
+          <div
+            style={{
+              marginBottom: 14,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+            }}
+          >
+            {preview.importProgress.total > 0 ? (
+              <Progress value={(preview.importProgress.done / preview.importProgress.total) * 100}>
+                <ProgressLabel>Menü içe aktarma ilerlemesi</ProgressLabel>
+                <span className="ml-auto text-sm text-muted-foreground tabular-nums">
+                  {preview.importProgress.done}/{preview.importProgress.total}
+                </span>
+              </Progress>
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Spinner />
+                Menü içe aktarılıyor…
+              </div>
+            )}
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onCancel} disabled={preview.importing} style={btnGhost()}>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={preview.importing}>
             İptal
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={preview.importing || valid === 0}
-            style={{ ...btnPrimary(), opacity: preview.importing || valid === 0 ? 0.55 : 1 }}
-          >
-            {preview.importing
-              ? <><InlineSpinner size={13} color="var(--on-action)" />İçe aktarılıyor…</>
-              : `${valid} ürünü içe aktar`}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+          <Button type="button" onClick={onConfirm} disabled={preview.importing || valid === 0}>
+            {preview.importing ? (
+              <>
+                <Spinner data-icon="inline-start" />
+                İçe aktarılıyor…
+              </>
+            ) : (
+              `${valid} ürünü içe aktar`
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

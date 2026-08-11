@@ -3,6 +3,8 @@
 import type { CSSProperties } from 'react'
 import type { LoyaltyReport } from '../../lib/queries/analytics'
 import { formatCurrency } from '../../lib/utils'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '../ui/empty'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { AnalyticsCard as Card, AnalyticsKpi as KPISmall } from './AnalyticsReportPrimitives'
 import { analyticsRangePeriodLabel as rangePeriodLabel } from './analytics-report-model'
 import { projectLoyaltyReport, resolveLoyaltyReasonLabel } from './analytics-loyalty-model'
@@ -23,12 +25,9 @@ export function AnalyticsLoyaltyReport({ loyalty, query }: { loyalty: LoyaltyRep
       </div>
 
       {!report.hasActivity ? (
-        <div style={{
-          padding: '48px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13,
-          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,
-        }}>
-          Bu dönemde sadakat hareketi yok. Sadakat programı Ayarlar → Sadakat bölümünden yönetilir.
-        </div>
+        <Empty className="min-h-48 border bg-card">
+          <EmptyHeader><EmptyTitle>Sadakat hareketi yok</EmptyTitle><EmptyDescription>Bu dönemde hareket oluşmadı. Sadakat programı Ayarlar → Sadakat bölümünden yönetilir.</EmptyDescription></EmptyHeader>
+        </Empty>
       ) : (
         <>
           <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
@@ -53,23 +52,20 @@ export function AnalyticsLoyaltyReport({ loyalty, query }: { loyalty: LoyaltyRep
 
           <Card title="Kullanımlar" subtitle="Defterdeki ham sebep bazında (redeem satırları)">
             {loyalty.redemptionsByReason.length === 0 ? (
-              <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Bu dönemde kullanım yok</div>
+              <Empty className="min-h-32"><EmptyHeader><EmptyTitle>Kullanım yok</EmptyTitle><EmptyDescription>Bu dönemde puan veya damga kullanımı oluşmadı.</EmptyDescription></EmptyHeader></Empty>
             ) : (
-              <div className="analytics-table-scroll" role="region" aria-label="Sadakat kullanımları" tabIndex={0} style={{ padding: '4px 0' }}>
-                <div style={{ minWidth: 520 }}>
-                {loyalty.redemptionsByReason.map((r, i, arr) => (
-                  <div key={r.reason} style={{
-                    display: 'grid', gridTemplateColumns: 'minmax(160px, 1fr) 90px 110px 110px', gap: 10,
-                    alignItems: 'center', padding: '10px 16px',
-                    borderBottom: i === arr.length - 1 ? 'none' : '1px solid var(--divider)',
-                  }}>
-                    <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{resolveLoyaltyReasonLabel(r.reason)}</span>
-                    <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{r.count} işlem</span>
-                    <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{r.points ? `${r.points.toLocaleString('tr-TR')} puan` : '—'}</span>
-                    <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{r.stamps ? `${r.stamps} damga` : '—'}</span>
-                  </div>
-                ))}
-                </div>
+              <div className="analytics-table-scroll" role="region" aria-label="Sadakat kullanımları" tabIndex={0}>
+                <Table className="min-w-[520px]">
+                  <TableHeader><TableRow><TableHead>Sebep</TableHead><TableHead className="text-right">İşlem</TableHead><TableHead className="text-right">Puan</TableHead><TableHead className="text-right">Damga</TableHead></TableRow></TableHeader>
+                  <TableBody>{loyalty.redemptionsByReason.map((row) => (
+                    <TableRow key={row.reason}>
+                      <TableCell className="font-medium">{resolveLoyaltyReasonLabel(row.reason)}</TableCell>
+                      <TableCell style={s.mono} className="text-right text-muted-foreground">{row.count} işlem</TableCell>
+                      <TableCell style={s.mono} className="text-right text-muted-foreground">{row.points ? `${row.points.toLocaleString('tr-TR')} puan` : '—'}</TableCell>
+                      <TableCell style={s.mono} className="text-right text-muted-foreground">{row.stamps ? `${row.stamps} damga` : '—'}</TableCell>
+                    </TableRow>
+                  ))}</TableBody>
+                </Table>
               </div>
             )}
           </Card>

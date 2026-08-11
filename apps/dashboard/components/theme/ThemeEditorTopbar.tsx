@@ -2,6 +2,13 @@
 
 import Image from 'next/image'
 import { I } from '../../lib/ui'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
+import { Separator } from '@/components/ui/separator'
+import { Spinner } from '@/components/ui/spinner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 export type ThemePreviewMode = 'mobile' | 'desktop'
 
@@ -90,36 +97,27 @@ export function ThemeEditorTopbar({
         <span aria-hidden="true" style={{ fontWeight: 650, fontSize: 13, color: 'var(--text)' }}>Tema Düzenleyici</span>
       </div>
 
-      <div data-theme-editor-device-switch style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifySelf: 'center',
-        background: 'var(--surface-3)',
-        borderRadius: 9,
-        padding: 3,
-        gap: 2,
-      }}>
-        <SegmentButton
-          active={previewMode === 'mobile'}
-          icon={<I.phone size={17} />}
-          label="Mobil"
-          onClick={() => onPreviewModeChange('mobile')}
-        />
-        <SegmentButton
-          active={previewMode === 'desktop'}
-          icon={<I.monitor size={17} />}
-          label="Masaüstü"
-          onClick={() => onPreviewModeChange('desktop')}
-        />
-      </div>
+      <ToggleGroup
+        data-theme-editor-device-switch
+        value={[previewMode]}
+        onValueChange={(values) => { const next = values[0] as ThemePreviewMode | undefined; if (next) onPreviewModeChange(next) }}
+        size="sm"
+        spacing={1}
+        className="justify-self-center bg-muted p-1"
+        aria-label="Önizleme cihazı"
+      >
+        <ToggleGroupItem value="mobile"><I.phone data-icon="inline-start" />Mobil</ToggleGroupItem>
+        <ToggleGroupItem value="desktop"><I.monitor data-icon="inline-start" />Masaüstü</ToggleGroupItem>
+      </ToggleGroup>
 
       <div data-theme-editor-actions style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexWrap: 'nowrap', minWidth: 0 }}>
-        <span data-theme-editor-save-status role="status" aria-live="polite" aria-atomic="true" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--text-3)', fontSize: 12.5, whiteSpace: 'nowrap' }}>
+        <Badge data-theme-editor-save-status variant="outline" role="status" aria-live="polite" aria-atomic="true">
           <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: saveStatusColor }} />
           {saveStatusText}
-        </span>
-        <span
+        </Badge>
+        <Badge
           data-theme-editor-change-count
+          variant="warning"
           role="status"
           aria-live="polite"
           aria-atomic="true"
@@ -128,55 +126,43 @@ export function ThemeEditorTopbar({
               ? unsavedFieldLabels.join(', ')
               : 'Tema yapısı değişti'
             : undefined}
-          style={{
-            width: 104,
-            height: 28,
-            padding: '0 8px',
-            border: '1px solid var(--border)',
-            borderRadius: 999,
-            background: '#fff7ed',
-            color: '#9a4d00',
-            visibility: hasUnsavedChanges ? 'visible' : 'hidden',
-            display: 'inline-flex',
-            flexShrink: 0,
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 11.5,
-            fontWeight: 650,
-            whiteSpace: 'nowrap',
-          }}
+          className={hasUnsavedChanges ? 'w-[104px]' : 'invisible w-[104px]'}
         >
           {hasUnsavedChanges ? `${unsavedFieldLabels.length || 1} değişiklik` : ''}
-        </span>
-        <div style={{
-          height: 34,
-          display: 'inline-flex',
-          alignItems: 'center',
-          borderRight: '1px solid var(--border)',
-          paddingRight: 10,
-          gap: 2,
-        }}>
-          <IconButton title="Geri al" disabled={!canUndo} onClick={onUndo}><I.undo size={17} /></IconButton>
-          <IconButton title="Yinele" disabled={!canRedo} onClick={onRedo}><I.redo size={17} /></IconButton>
+        </Badge>
+        <div className="inline-flex h-8 items-center gap-1">
+          <ButtonGroup aria-label="Düzenleme geçmişi">
+            <Tooltip>
+              <TooltipTrigger render={<span className="inline-flex" />}>
+                <Button type="button" variant="ghost" size="icon-sm" aria-label="Geri al" disabled={!canUndo} onClick={onUndo}><I.undo /></Button>
+              </TooltipTrigger>
+              <TooltipContent>Geri al</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger render={<span className="inline-flex" />}>
+                <Button type="button" variant="ghost" size="icon-sm" aria-label="Yinele" disabled={!canRedo} onClick={onRedo}><I.redo /></Button>
+              </TooltipTrigger>
+              <TooltipContent>Yinele</TooltipContent>
+            </Tooltip>
+          </ButtonGroup>
+          <Separator orientation="vertical" className="ml-1 h-5" />
         </div>
-        <button data-theme-editor-open-preview type="button" aria-label="Önizlemeyi yeni sekmede aç" onClick={onOpenPreview} style={topbarButtonStyle}>
-          <I.eye size={17} />
+        <Button data-theme-editor-open-preview type="button" variant="outline" aria-label="Önizlemeyi yeni sekmede aç" onClick={onOpenPreview}>
+          <I.eye data-icon="inline-start" />
           {showFullCopy && 'Önizle'}
-        </button>
-        <button
+        </Button>
+        <Button
           data-theme-editor-save-draft
           type="button"
+          variant="outline"
           onClick={onSave}
           disabled={!hasUnsavedChanges || savingDraft || publishing}
           title={!hasUnsavedChanges ? 'Kaydedilecek yeni değişiklik yok' : 'Değişiklikleri özel taslak olarak kaydet'}
-          style={{
-            ...topbarButtonStyle,
-            cursor: savingDraft ? 'wait' : !hasUnsavedChanges || publishing ? 'not-allowed' : 'pointer',
-          }}
         >
+          {savingDraft && <Spinner data-icon="inline-start" />}
           {savingDraft ? 'Kaydediliyor…' : 'Kaydet'}
-        </button>
-        <button
+        </Button>
+        <Button
           data-theme-editor-publish
           type="button"
           onClick={onPublish}
@@ -188,91 +174,11 @@ export function ThemeEditorTopbar({
             : !hasUnpublishedChanges
               ? 'Yayınlanacak kayıtlı taslak yok'
               : 'Kaydedilmiş taslağı canlı menüde yayınla'}
-          style={{
-            height: 34, padding: '0 18px', borderRadius: 8,
-            border: 'none', background: 'var(--text)',
-            color: '#fff', fontSize: 13, fontWeight: 700,
-            cursor: publishing ? 'wait' : hasUnsavedChanges || !hasUnpublishedChanges || savingDraft || publishBlockedReason ? 'not-allowed' : 'pointer',
-          }}
         >
+          {publishing && <Spinner data-icon="inline-start" />}
           {publishing ? 'Yayınlanıyor…' : 'Yayınla'}
-        </button>
+        </Button>
       </div>
     </div>
   )
-}
-
-function SegmentButton({ active, icon, label, onClick }: {
-  active: boolean
-  icon: React.ReactNode
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button type="button" onClick={onClick} style={{
-      minHeight: 30,
-      border: 'none',
-      borderRadius: 7,
-      background: active ? 'var(--surface)' : 'transparent',
-      color: active ? 'var(--text)' : 'var(--text-2)',
-      boxShadow: active ? 'var(--shadow-1)' : 'none',
-      padding: '0 12px',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 7,
-      fontSize: 13,
-      fontWeight: 650,
-      cursor: 'pointer',
-    }}>
-      {icon}
-      {label}
-    </button>
-  )
-}
-
-function IconButton({ children, title, disabled, onClick }: {
-  children: React.ReactNode
-  title: string
-  disabled: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      disabled={disabled}
-      onClick={onClick}
-      style={{
-        width: 28,
-        height: 28,
-        border: 'none',
-        background: 'transparent',
-        color: disabled ? 'var(--text-4)' : 'var(--text-2)',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 7,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.45 : 1,
-      }}
-    >
-      {children}
-    </button>
-  )
-}
-
-const topbarButtonStyle: React.CSSProperties = {
-  height: 34,
-  padding: '0 12px',
-  borderRadius: 8,
-  border: '1px solid var(--border)',
-  background: 'var(--surface)',
-  color: 'var(--text)',
-  fontSize: 13,
-  fontWeight: 650,
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 7,
 }

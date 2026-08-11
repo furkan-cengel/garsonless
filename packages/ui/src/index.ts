@@ -23,9 +23,11 @@ export {
   sortAllergenCodes,
   DietaryFilterBar,
   itemMatchesDietaryFilters,
+  itemMatchesMenuFilters,
+  resolveMenuFilterDefinitions,
   ML_STAMP_POP_KEYFRAME,
 } from './menu/index'
-export type { DietaryFilter } from './menu/index'
+export type { DietaryFilter, MenuFilterDefinition } from './menu/index'
 export type { ProductModalSubmitOptions } from './menu/index'
 
 export type {

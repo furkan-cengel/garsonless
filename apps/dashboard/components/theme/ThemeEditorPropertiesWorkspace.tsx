@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useId, useMemo, type ReactNode } from "react";
 import {
   getSectionDefinitionId,
   getSectionVisibility,
@@ -17,6 +17,16 @@ import { deriveActivePromoSliderCampaigns } from "@garsonless/ui/themes/default"
 import type { MenuItem } from "@garsonless/ui/menu";
 import { ThemeEditorControlIcon } from "./CardLayoutOptionIcon";
 import { ThemePropertiesFrame } from "./ThemePropertiesFrame";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   FooterPropertyPanel,
   CardPropertyPanel,
@@ -195,32 +205,21 @@ export function ThemeEditorPropertiesWorkspace({
             </PropertySection>
             <PropertySection title="Bölüm Davranışı" defaultOpen={false}>
               {selectedSectionBlock && !selectedSectionIsGlobal ? (
-                <div style={{ marginBottom: 12 }}>
-                  <div style={fieldLabelStyle}>Konum</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+                <Field className="mb-3">
+                  <FieldTitle id="section-placement-label">Konum</FieldTitle>
+                  <ToggleGroup value={[selectedSectionBlock.placement ?? 'page']} onValueChange={(value) => value[0] && onSectionPlacementChange(value[0] as 'page' | 'drawer')} className="grid w-full grid-cols-2" aria-labelledby="section-placement-label">
                     {([['page', 'Sayfa'], ['drawer', 'Menü Drawer']] as const).map(([placement, label]) => {
-                      const active = (selectedSectionBlock.placement ?? 'page') === placement;
                       return (
-                        <button
+                        <ToggleGroupItem
                           key={placement}
-                          type="button"
-                          aria-pressed={active}
-                          onClick={() => onSectionPlacementChange(placement)}
-                          style={{
-                            minHeight: 38,
-                            borderRadius: 9,
-                            border: `1px solid ${active ? "var(--text)" : "var(--border)"}`,
-                            background: active ? "var(--surface-inset)" : "var(--surface)",
-                            color: "var(--text)",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            cursor: "pointer",
-                          }}
-                        >{label}</button>
+                          value={placement}
+                          variant="outline"
+                          className="min-h-9 min-w-0"
+                        >{label}</ToggleGroupItem>
                       );
                     })}
-                  </div>
-                </div>
+                  </ToggleGroup>
+                </Field>
               ) : null}
               {selectedSectionBlock && !selectedSectionIsGlobal && selectedSectionBlock.placement !== "drawer" ? (
                 <SectionVisibilityEditor
@@ -229,19 +228,16 @@ export function ThemeEditorPropertiesWorkspace({
                   onChange={onSectionVisibilityChange}
                 />
               ) : null}
-              <div style={{ ...messageStyle, marginTop: 10 }}>
-                {selectedSectionIsGlobal
+              <Alert role="note" className="mt-2.5">
+                <AlertDescription>{selectedSectionIsGlobal
                   ? "Bu araç kategori bağımsızdır. Konumu Header → Aksiyon Konumları bölümünden; istek türleri ve metinleri yukarıdaki ayarlardan yönetilir."
-                  : "Bölüm sırasını sol panelden değiştirebilirsin. Görünürlük seçimi ve sıra önizlemeye anında yansır."}
-              </div>
+                  : "Bölüm sırasını sol panelden değiştirebilirsin. Görünürlük seçimi ve sıra önizlemeye anında yansır."}</AlertDescription>
+              </Alert>
             </PropertySection>
           </>
         ) : (
           <>
-            <PropertySection
-              title={activeGroupData?.label ?? "Ayarlar"}
-              defaultOpen
-            >
+            <div data-theme-properties-body className="flex min-w-0 flex-col gap-2.5 px-3 py-3">
               {logoCard}
               {activeGroup.startsWith("header") && visibleFields.length > 0 ? (
                 <HeaderPropertyPanel
@@ -266,6 +262,7 @@ export function ThemeEditorPropertiesWorkspace({
                 <NavPropertyPanel
                   fields={visibleFields}
                   visual={mergedTheme.catnavStyle === "visual"}
+                  menuItems={menuItems}
                   getValue={getValue}
                   onChange={onFieldChange}
                 />
@@ -296,9 +293,7 @@ export function ThemeEditorPropertiesWorkspace({
                   onChange={onFieldChange}
                 />
               ) : visibleFields.length > 0 ? (
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 10 }}
-                >
+                <FieldGroup className="gap-2.5">
                   {visibleFields.map((field) => (
                     <PropertyFieldEditor
                       key={field.id}
@@ -307,25 +302,19 @@ export function ThemeEditorPropertiesWorkspace({
                       onChange={(value) => onFieldChange(field, value)}
                     />
                   ))}
-                </div>
+                </FieldGroup>
               ) : (
                 <EmptySettingsMessage
                   label={activeGroupData?.label ?? "Bu bölüm"}
                   tab={effectiveEditorTab}
                 />
               )}
-            </PropertySection>
+            </div>
             {effectiveEditorTab === "design" &&
               activeGroup !== THEME_EDITOR_THEME_GROUP_ID &&
               activeGroup !== "footer" && (
                 <PropertySection title="Marka rengi" defaultOpen={false}>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 10,
-                    }}
-                  >
+                  <FieldGroup className="gap-2.5">
                     {["accent", "cta"].map((key) => {
                       const field = schema
                         .flatMap((group) => group.fields)
@@ -340,7 +329,7 @@ export function ThemeEditorPropertiesWorkspace({
                         />
                       );
                     })}
-                  </div>
+                  </FieldGroup>
                 </PropertySection>
               )}
           </>
@@ -358,13 +347,14 @@ function EmptySettingsMessage({
   tab: EditorTab;
 }) {
   return (
-    <div style={messageStyle}>
-      {label} için{" "}
-      {EDITOR_TABS.find(
-        (candidate) => candidate.id === tab,
-      )?.label.toLowerCase()}{" "}
-      sekmesinde ayar yok.
-    </div>
+    <Empty className="min-h-20 p-3">
+      <EmptyHeader>
+        <EmptyTitle>Ayar bulunmuyor</EmptyTitle>
+        <EmptyDescription>
+          {label} için {EDITOR_TABS.find((candidate) => candidate.id === tab)?.label.toLowerCase()} sekmesinde ayar yok.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 }
 
@@ -447,123 +437,87 @@ function SectionVisibilityEditor({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div>
-        <div style={fieldLabelStyle}>Nerede gösterilsin?</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 7 }}>
+    <FieldGroup className="gap-3">
+      <FieldSet>
+        <FieldLegend variant="label">Nerede gösterilsin?</FieldLegend>
+        <ToggleGroup value={[visibility.mode]} onValueChange={(values) => values[0] && updateMode(values[0] as ThemeSectionVisibilityMode)} className="grid w-full grid-cols-1" aria-label="Bölüm görünürlüğü">
           {([
             ["all", "Tüm menü", "Ana ekran ve bütün kategori görünümleri"],
             ["home", "Ana kategori ekranı", "Yalnız kategori seçilmeden önce"],
             ["categories", "Seçili kategoriler", "Belirlediğin kategori sayfalarında"],
           ] as const).map(([mode, label, description]) => {
-            const active = visibility.mode === mode;
             return (
-              <button
+              <ToggleGroupItem
                 key={mode}
-                type="button"
-                aria-pressed={active}
-                onClick={() => updateMode(mode)}
-                style={{
-                  width: "100%",
-                  minHeight: 50,
-                  padding: "9px 11px",
-                  borderRadius: 9,
-                  border: `1px solid ${active ? "var(--text)" : "var(--border)"}`,
-                  background: active ? "var(--surface-inset)" : "var(--surface)",
-                  color: "var(--text)",
-                  textAlign: "left",
-                  cursor: "pointer",
-                }}
+                variant="outline"
+                value={mode}
+                className="h-auto min-h-[50px] w-full min-w-0 flex-col items-start gap-0.5 px-3 py-2 text-left"
               >
-                <span style={{ display: "block", fontSize: 12.5, fontWeight: 750 }}>{label}</span>
-                <span style={{ display: "block", marginTop: 2, color: "var(--text-3)", fontSize: 11, lineHeight: 1.35 }}>
+                <span className="font-semibold">{label}</span>
+                <span className="text-xs font-normal text-muted-foreground">
                   {description}
                 </span>
-              </button>
+              </ToggleGroupItem>
             );
           })}
-        </div>
-      </div>
+        </ToggleGroup>
+      </FieldSet>
 
       {visibility.mode === "categories" ? (
-        <div style={{ padding: 10, border: "1px solid var(--border)", borderRadius: 10, background: "var(--surface-2)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 750, color: "var(--text)" }}>Kategoriler</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <button
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Kategoriler</CardTitle>
+            <CardAction className="flex items-center gap-1">
+              <Button
                 type="button"
+                variant="link"
+                size="xs"
                 onClick={() => setSelectedCategories(categories.map((category) => category.id))}
-                style={visibilityUtilityButtonStyle}
               >
                 Tümü
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="link"
+                size="xs"
                 disabled={selectedIds.size === 0}
                 onClick={() => setSelectedCategories([])}
-                style={{
-                  ...visibilityUtilityButtonStyle,
-                  opacity: selectedIds.size === 0 ? 0.45 : 1,
-                  cursor: selectedIds.size === 0 ? "default" : "pointer",
-                }}
               >
                 Temizle
-              </button>
-              <span style={{ fontSize: 10.5, color: "var(--text-3)" }}>{selectedIds.size} seçili</span>
-            </span>
-          </div>
+              </Button>
+              <Badge variant="secondary">{selectedIds.size} seçili</Badge>
+            </CardAction>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
           {selectedIds.size === 0 ? (
-            <div
-              role="status"
-              style={{
-                marginBottom: 8,
-                padding: "8px 9px",
-                borderRadius: 8,
-                background: "color-mix(in srgb, #f59e0b 11%, var(--surface))",
-                color: "#9a5b05",
-                fontSize: 10.5,
-                lineHeight: 1.4,
-              }}
-            >
-              En az bir kategori seçilene kadar bu bölüm menüde görünmez.
-            </div>
+            <Alert role="note"><AlertDescription>En az bir kategori seçilene kadar bu bölüm menüde görünmez.</AlertDescription></Alert>
           ) : null}
-          <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 230, overflow: "auto" }}>
+          <ScrollArea className="h-[230px] pr-2">
             {roots.map((root) => renderCategoryRows(root))}
-          </div>
-          <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--divider)", cursor: "pointer" }}>
-            <input
-              type="checkbox"
+          </ScrollArea>
+          <Field orientation="horizontal" className="border-t pt-2.5">
+            <Checkbox
+              id="theme-section-visibility-include-children"
               checked={visibility.includeChildren ?? true}
-              onChange={(event) => onChange({
+              onCheckedChange={(checked) => onChange({
                 mode: "categories",
                 categoryIds: visibility.categoryIds ?? [],
-                includeChildren: event.target.checked,
+                includeChildren: checked === true,
               })}
-              style={{ marginTop: 1 }}
             />
-            <span>
-              <span style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: "var(--text)" }}>Alt kategorilere de uygula</span>
-              <span style={{ display: "block", marginTop: 2, fontSize: 10.5, lineHeight: 1.35, color: "var(--text-3)" }}>
+            <div className="flex flex-col gap-0.5">
+              <FieldLabel htmlFor="theme-section-visibility-include-children">Alt kategorilere de uygula</FieldLabel>
+              <FieldDescription>
                 Üst kategori seçiliyse alt kategori ekranlarında da görünür.
-              </span>
-            </span>
-          </label>
-        </div>
+              </FieldDescription>
+            </div>
+          </Field>
+          </CardContent>
+        </Card>
       ) : null}
-    </div>
+    </FieldGroup>
   );
 }
-
-const visibilityUtilityButtonStyle: React.CSSProperties = {
-  padding: 0,
-  border: 0,
-  background: "transparent",
-  color: "var(--text-2)",
-  fontSize: 10.5,
-  fontWeight: 700,
-  cursor: "pointer",
-};
 
 function CategoryVisibilityRow({
   category,
@@ -576,13 +530,14 @@ function CategoryVisibilityRow({
   onToggle: (id: string) => void;
   depth?: number;
 }) {
+  const controlId = useId();
   return (
-    <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 30, padding: `4px 7px 4px ${7 + Math.min(depth, 4) * 17}px`, borderRadius: 7, color: "var(--text-2)", cursor: "pointer" }}>
-      <input type="checkbox" checked={checked} onChange={() => onToggle(category.id)} />
-      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11.5, fontWeight: depth > 0 ? 550 : 700 }}>
+    <Field orientation="horizontal" className="min-h-8 gap-2 rounded-md px-2 py-1" style={{ paddingInlineStart: 7 + Math.min(depth, 4) * 17 }}>
+      <Checkbox id={controlId} checked={checked} onCheckedChange={() => onToggle(category.id)} />
+      <FieldLabel htmlFor={controlId} className={depth > 0 ? "min-w-0 truncate font-normal" : "min-w-0 truncate font-semibold"}>
         {category.name}
-      </span>
-    </label>
+      </FieldLabel>
+    </Field>
   );
 }
 
@@ -608,41 +563,11 @@ function IconButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      onClick={onClick}
-      style={{
-        width: 26,
-        height: 26,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: 6,
-        color: "var(--text-3)",
-        border: "none",
-        background: "transparent",
-        cursor: "pointer",
-      }}
-    >
-      {children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-xs" aria-label={title} onClick={onClick} />}>
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{title}</TooltipContent>
+    </Tooltip>
   );
 }
-
-const messageStyle: React.CSSProperties = {
-  padding: "12px",
-  borderRadius: 8,
-  background: "var(--surface-3)",
-  color: "var(--text-3)",
-  fontSize: 12.5,
-  lineHeight: 1.45,
-};
-
-const fieldLabelStyle: React.CSSProperties = {
-  marginBottom: 7,
-  color: "var(--text-2)",
-  fontSize: 12,
-  fontWeight: 650,
-};

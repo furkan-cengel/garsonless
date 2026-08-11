@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Fraunces, Geist, Geist_Mono, Pacifico } from 'next/font/google'
 import './globals.css'
 import spinnerStyles from '@garsonless/ui/spinners/styles'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist', display: 'swap' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono', display: 'swap' })
@@ -30,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         className={`${spinnerStyles.scope} ${geist.variable} ${geistMono.variable} ${fraunces.variable} ${pacifico.variable}`}
         style={{ fontFamily: geist.style.fontFamily }}
       >
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>
   )

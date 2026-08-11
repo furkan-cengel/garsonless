@@ -2,45 +2,40 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { I, S, Tag, btnGhost, btnPrimary } from '../../lib/ui'
-import { InlineSpinner } from '@garsonless/ui/spinners'
-import { SCard, FormRow, inputStyle } from './primitives'
+import { I, S, Tag } from '../../lib/ui'
+import { SCard, FormRow } from './primitives'
 import { changePassword, sendPasswordResetEmail } from '../../lib/actions/auth'
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Spinner } from '../ui/spinner'
 
 /* ── API & WEBHOOKS ───────────────────────────────── */
 export function ApiSection() {
   return (
     <>
-      <div style={{
-        padding: 14, marginBottom: 20,
-        background: 'var(--surface)', borderRadius: 10,
-        border: '1px solid var(--border)',
-        borderLeft: '3px solid var(--text-3)',
-        display: 'flex', alignItems: 'flex-start', gap: 10,
-      }}>
-        <span style={{ color: 'var(--text-3)', marginTop: 1 }}><I.code size={16} /></span>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>Geliştirici erişimi henüz kapalı</div>
-          <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2, lineHeight: 1.5 }}>
-            Bu restorana ait gerçek API endpoint doğrulaması ve webhook gönderimi bu sürümde yok. Bu yüzden anahtar üretimi ve webhook ayarları pasif tutulur.
-          </div>
-        </div>
-      </div>
+      <Alert className="mb-5">
+        <I.code />
+        <AlertTitle>Geliştirici erişimi henüz kapalı</AlertTitle>
+        <AlertDescription>
+          Bu restorana ait gerçek API endpoint doğrulaması ve webhook gönderimi bu sürümde yok. Bu yüzden anahtar üretimi ve webhook ayarları pasif tutulur.
+        </AlertDescription>
+      </Alert>
 
       <SCard title="API anahtarları" subtitle="Gerçek API gateway eklendiğinde açılacak">
         <FormRow label="Durum" hint="Şu anda hiçbir endpoint bu anahtarlarla istek kabul etmiyor">
           <Tag tone="neutral">Yakında</Tag>
         </FormRow>
         <FormRow label="Anahtar üretimi">
-          <button type="button" disabled style={{ ...btnGhost(), opacity: 0.55, cursor: 'not-allowed' }}>
-            <I.lock size={13} />Pasif
-          </button>
+          <Button type="button" variant="outline" disabled>
+            <I.lock data-icon="inline-start" />Pasif
+          </Button>
         </FormRow>
       </SCard>
 
       <SCard title="Webhooks" subtitle="Gerçek gönderim altyapısı henüz yok" style={{ marginTop: 16 }}>
         <FormRow label="Hedef URL">
-          <input disabled value="" placeholder="Webhook URL desteği yakında" style={inputStyle({ width: 320, opacity: 0.65, fontFamily: "'Geist Mono'" })} />
+          <Input disabled value="" placeholder="Webhook URL desteği yakında" className="w-80 font-mono" />
         </FormRow>
         <FormRow label="Olaylar" hint="Sipariş/ödeme/menu event gönderimi ayrı API epic'inde açılacak">
           <Tag tone="neutral">Kapalı</Tag>
@@ -144,30 +139,35 @@ export function SecuritySection({ events, renderedAt, userEmail, authProvider }:
           <div style={{ padding: 18 }}>
             <div style={{ fontSize: 13, fontWeight: 600 }}>Bu hesap {providerLabel(authProvider)} ile giriş yapıyor</div>
             <p style={{ margin: '5px 0 14px', fontSize: 12, color: 'var(--text-3)', lineHeight: 1.5 }}>Mevcut şifre istenmez. İstersen e-posta ile doğrudan giriş için yeni bir şifre belirleyebilirsin.</p>
-            <button type="button" onClick={handleSendPasswordReset} disabled={isResetPending} style={btnPrimary()}>
+            <Button type="button" onClick={handleSendPasswordReset} disabled={isResetPending}>
+              {isResetPending && <Spinner data-icon="inline-start" />}
               {isResetPending ? 'Gönderiliyor…' : 'Şifre belirleme e-postası gönder'}
-            </button>
+            </Button>
             {resetMessage && <div role={resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'status' : 'alert'} style={{ marginTop: 10, fontSize: 12, color: resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'var(--positive)' : 'var(--critical)' }}>{resetMessage}</div>}
           </div>
         ) : <form onSubmit={handleChangePassword} aria-busy={isPending}>
           <FormRow label="Mevcut şifre">
-            <input type="password" value={current} onChange={e => setCurrent(e.target.value)} autoComplete="current-password" style={inputStyle({ width: 220 })} />
+            <Input type="password" value={current} onChange={e => setCurrent(e.target.value)} autoComplete="current-password" className="w-55" />
           </FormRow>
           <FormRow label="Yeni şifre" hint="En az 8 karakter">
-            <input type="password" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" style={inputStyle({ width: 220 })} />
+            <Input type="password" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" className="w-55" />
           </FormRow>
           <FormRow label="Yeni şifre (tekrar)">
-            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" style={inputStyle({ width: 220 })} />
+            <Input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" className="w-55" />
           </FormRow>
           <div style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)', maxWidth: 280 }}>
               {error || (saved ? '✓ Şifre güncellendi' : 'Mevcut şifreni doğrulamamız gerekiyor. Parolan yoksa e-posta ile belirleyebilirsin.')}
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={handleSendPasswordReset} disabled={isResetPending} style={btnGhost({ height: 30, fontSize: 12 })}>{isResetPending ? 'Gönderiliyor…' : 'Şifre belirle'}</button>
-              <button type="submit" disabled={isPending || !current || !next || !confirm} style={btnPrimary()}>
-                {isPending ? <InlineSpinner size={13} color="var(--on-action)" /> : <I.lock size={13} />}{isPending ? 'Güncelleniyor…' : 'Şifre değiştir'}
-              </button>
+              <Button type="button" variant="outline" size="sm" onClick={handleSendPasswordReset} disabled={isResetPending}>
+                {isResetPending && <Spinner data-icon="inline-start" />}
+                {isResetPending ? 'Gönderiliyor…' : 'Şifre belirle'}
+              </Button>
+              <Button type="submit" disabled={isPending || !current || !next || !confirm}>
+                {isPending ? <Spinner data-icon="inline-start" /> : <I.lock data-icon="inline-start" />}
+                {isPending ? 'Güncelleniyor…' : 'Şifre değiştir'}
+              </Button>
             </div>
           </div>
           {resetMessage && <div role={resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'status' : 'alert'} style={{ padding: '0 18px 14px', fontSize: 12, color: resetMessage === 'Şifre belirleme bağlantısını e-posta adresine gönderdik.' ? 'var(--positive)' : 'var(--critical)' }}>{resetMessage}</div>}
@@ -191,7 +191,7 @@ export function SecuritySection({ events, renderedAt, userEmail, authProvider }:
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>İki faktörlü doğrulama bu sürümde henüz mevcut değil.</div>
           </div>
-          <button type="button" disabled style={{ ...btnGhost(), opacity: 0.5, cursor: 'not-allowed' }}>Yönet</button>
+          <Button type="button" variant="outline" disabled>Yönet</Button>
         </div>
       </SCard>
 

@@ -232,15 +232,26 @@ function FavoriteButton({ itemName, favorite, onToggle }: { itemName: string; fa
       style={{
         position: 'absolute', top: 6, right: 6, zIndex: 3,
         width: 44, height: 44, borderRadius: '50%',
-        border: '1px solid color-mix(in srgb,var(--p-border) 85%,transparent)',
-        background: favorite ? 'var(--p-cta)' : 'color-mix(in srgb,var(--p-card) 90%,transparent)',
-        color: favorite ? 'var(--p-cta-text)' : 'var(--p-text)',
+        padding: 0, border: 'none', background: 'transparent',
         display: 'grid', placeItems: 'center', cursor: 'pointer',
-        boxShadow: '0 4px 14px rgba(15,17,21,.12)',
-        backdropFilter: 'blur(8px)',
+        touchAction: 'manipulation',
       }}
     >
-      <AppIcons.heart size={19} fill={favorite ? 'currentColor' : 'none'} />
+      <span
+        aria-hidden="true"
+        style={{
+          width: 38, height: 38, borderRadius: '50%',
+          border: '1px solid color-mix(in srgb,var(--p-border) 85%,transparent)',
+          background: favorite ? 'var(--p-cta)' : 'color-mix(in srgb,var(--p-card) 90%,transparent)',
+          color: favorite ? 'var(--p-cta-text)' : 'var(--p-text)',
+          display: 'grid', placeItems: 'center',
+          boxShadow: '0 3px 10px rgba(15,17,21,.11)',
+          backdropFilter: 'blur(8px)',
+          pointerEvents: 'none',
+        }}
+      >
+        <AppIcons.heart size={17} fill={favorite ? 'currentColor' : 'none'} />
+      </span>
     </button>
   )
 }

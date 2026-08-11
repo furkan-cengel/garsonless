@@ -16,6 +16,35 @@ import {
   prepareSettingsMutationAttempt,
   type SettingsMutationAttempt,
 } from './settings-save-contract'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import {
+  Field as ShadcnField,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { Spinner } from '@/components/ui/spinner'
+import { Switch } from '@/components/ui/switch'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 
 const TIER_COLORS = ['#b87333', '#8a9099', '#c8922a', '#5b7a86', '#3b82f6', '#a855f7']
 
@@ -40,59 +69,15 @@ function numberFrom(value: string, fallback: number) {
   return Number.isFinite(n) ? n : fallback
 }
 
-function inputStyle(extra?: React.CSSProperties): React.CSSProperties {
-  return {
-    height: 38,
-    padding: '0 12px',
-    border: '1px solid var(--border-strong)',
-    borderRadius: 9,
-    background: 'var(--surface)',
-    color: 'var(--text)',
-    fontSize: 14,
-    outline: 'none',
-    width: '100%',
-    ...extra,
-  }
-}
-
 function Toggle({ on, onChange, size = 'md', ariaLabel = 'Ayarı aç veya kapat' }: { on: boolean; onChange: (on: boolean) => void; size?: 'md' | 'lg'; ariaLabel?: string }) {
-  const w = size === 'lg' ? 42 : 34
-  const h = size === 'lg' ? 24 : 20
-  const k = h - 4
   return (
-    <button
-      type="button"
+    <Switch
       role="switch"
-      aria-checked={on}
       aria-label={ariaLabel}
-      onClick={() => onChange(!on)}
-      style={{
-        width: 44,
-        height: 44,
-        padding: 0,
-        background: 'transparent',
-        border: 'none',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        flexShrink: 0,
-      }}
-    >
-      <span aria-hidden="true" style={{ width: w, height: h, borderRadius: 999, background: on ? 'var(--accent)' : 'var(--border-strong)', position: 'relative', transition: 'background 160ms' }}>
-        <span style={{
-          position: 'absolute',
-          top: 2,
-          left: on ? w - k - 2 : 2,
-          width: k,
-          height: k,
-          borderRadius: 999,
-          background: '#fff',
-          transition: 'left 160ms cubic-bezier(.3,.8,.4,1)',
-          boxShadow: '0 1px 3px rgba(0,0,0,.2)',
-        }} />
-      </span>
-    </button>
+      checked={on}
+      onCheckedChange={onChange}
+      size={size === 'lg' ? 'default' : 'sm'}
+    />
   )
 }
 
@@ -117,9 +102,9 @@ function NumberField({
   ariaLabel?: string
   ariaDescribedBy?: string
 }) {
-  return (
-    <div style={{ position: 'relative', width, flexShrink: 0 }}>
-      <input
+  const control = (
+    <InputGroup className="h-9">
+      <InputGroupInput
         aria-label={ariaLabel}
         aria-describedby={ariaDescribedBy}
         type="number"
@@ -127,30 +112,22 @@ function NumberField({
         max={max}
         step={step}
         value={value}
+        className="text-center font-semibold"
         onChange={(e) => {
           const n = numberFrom(e.target.value, value)
           onChange(max === undefined ? Math.max(min, n) : clamp(n, min, max))
         }}
-        style={inputStyle({
-          width: '100%',
-          textAlign: 'center',
-          fontWeight: 650,
-          paddingRight: suffix ? 30 : 12,
-        })}
       />
       {suffix && (
-        <span style={{
-          position: 'absolute',
-          right: 12,
-          top: 0,
-          height: 38,
-          display: 'flex',
-          alignItems: 'center',
-          fontSize: 13,
-          color: 'var(--text-3)',
-          pointerEvents: 'none',
-        }}>{suffix}</span>
+        <InputGroupAddon align="inline-end">
+          <InputGroupText>{suffix}</InputGroupText>
+        </InputGroupAddon>
       )}
+    </InputGroup>
+  )
+  return (
+    <div className="shrink-0" style={{ width }}>
+      {control}
     </div>
   )
 }
@@ -171,14 +148,14 @@ function TextField({
   ariaDescribedBy?: string
 }) {
   return (
-    <input
+    <Input
       aria-label={ariaLabel}
       aria-describedby={ariaDescribedBy}
       value={value}
       maxLength={maxLength}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      style={inputStyle()}
+      className="h-9"
     />
   )
 }
@@ -197,17 +174,15 @@ function SelectField({
   ariaDescribedBy?: string
 }) {
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
-      <select
-        aria-label={ariaLabel}
-        aria-describedby={ariaDescribedBy}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={inputStyle({ appearance: 'auto', cursor: 'pointer', fontWeight: 500 })}
-      >
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </div>
+    <NativeSelect
+      aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full"
+    >
+      {options.map((o) => <NativeSelectOption key={o.value} value={o.value}>{o.label}</NativeSelectOption>)}
+    </NativeSelect>
   )
 }
 
@@ -225,38 +200,35 @@ function Segmented<T extends string>({
   ariaDescribedBy?: string
 }) {
   return (
-    <div role="group" aria-label={ariaLabel} aria-describedby={ariaDescribedBy} style={{ display: 'grid', gridTemplateColumns: `repeat(${options.length}, 1fr)`, gap: 8 }}>
+    <ToggleGroup
+      value={[value]}
+      onValueChange={(values) => {
+        const next = values[0] as T | undefined
+        if (next) onChange(next)
+      }}
+      variant="outline"
+      spacing={2}
+      role="group"
+      aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
+      className="grid w-full"
+      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+    >
       {options.map((opt) => {
         const active = value === opt.value
         return (
-          <button
+          <ToggleGroupItem
             key={opt.value}
-            type="button"
+            value={opt.value}
             aria-pressed={active}
-            onClick={() => onChange(opt.value)}
-            style={{
-              textAlign: 'left',
-              padding: '13px 15px',
-              borderRadius: 11,
-              cursor: 'pointer',
-              background: active ? 'var(--accent)' : 'var(--surface)',
-              color: active ? '#fff' : 'var(--text)',
-              border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-              transition: 'all 140ms',
-              boxShadow: active ? '0 4px 12px -4px rgba(47,111,78,.4)' : 'none',
-            }}
+            className="h-auto min-w-0 flex-col items-start gap-0.5 px-3 py-2.5 text-left data-pressed:border-primary data-pressed:bg-primary data-pressed:text-primary-foreground"
           >
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontSize: 14, fontWeight: 650 }}>{opt.label}</span>
-              {active && (
-                <span style={{ width: 18, height: 18, borderRadius: 999, background: 'rgba(255,255,255,.25)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{I.check}</span>
-              )}
-            </span>
-            <span style={{ display: 'block', fontSize: 12, marginTop: 3, color: active ? 'rgba(255,255,255,.8)' : 'var(--text-3)' }}>{opt.desc}</span>
-          </button>
+            <span className="font-medium">{opt.label}</span>
+            <span className="text-xs opacity-70">{opt.desc}</span>
+          </ToggleGroupItem>
         )
       })}
-    </div>
+    </ToggleGroup>
   )
 }
 
@@ -269,11 +241,11 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     })
     : children
   return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ display: 'block', fontSize: 13, fontWeight: 650, marginBottom: 7 }}>{label}</div>
+    <ShadcnField>
+      <FieldLabel>{label}</FieldLabel>
       {labelledChild}
-      {hint && <div id={hintId} style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 7, lineHeight: 1.5 }}>{hint}</div>}
-    </div>
+      {hint && <FieldDescription id={hintId}>{hint}</FieldDescription>}
+    </ShadcnField>
   )
 }
 
@@ -283,8 +255,6 @@ function Module({
   desc,
   on,
   onToggle,
-  accent = 'var(--accent)',
-  accentSoft = 'var(--accent-soft)',
   alwaysOn,
   children,
 }: {
@@ -293,59 +263,40 @@ function Module({
   desc: string
   on: boolean
   onToggle?: (on: boolean) => void
-  accent?: string
-  accentSoft?: string
   alwaysOn?: boolean
   children: React.ReactNode
 }) {
   return (
-    <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', boxShadow: 'var(--shadow-1)', overflow: 'hidden', marginBottom: 18 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px', borderBottom: on ? '1px solid var(--divider)' : 'none' }}>
-        <div style={{ width: 42, height: 42, borderRadius: 11, background: on ? accentSoft : 'var(--surface-3)', color: on ? accent : 'var(--text-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 200ms' }}>{icon}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <span style={{ fontSize: 16, fontWeight: 650, letterSpacing: '-0.01em' }}>{title}</span>
-            {on && !alwaysOn && <span style={{ fontSize: 10.5, fontWeight: 700, color: accent, background: accentSoft, padding: '2px 8px', borderRadius: 999, letterSpacing: '.02em' }}>AKTİF</span>}
+    <Card className="gap-0 py-0">
+      <CardHeader className={on ? 'border-b py-4' : 'py-4'}>
+        <div className="flex min-w-0 items-center gap-3">
+          <div className={on ? 'flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary' : 'flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground'}>{icon}</div>
+          <div className="min-w-0">
+            <CardTitle className="flex items-center gap-2">
+              {title}
+              {on && !alwaysOn && <Badge variant="positive">Aktif</Badge>}
+            </CardTitle>
+            <CardDescription>{desc}</CardDescription>
           </div>
-          <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 2 }}>{desc}</div>
         </div>
+        <CardAction className="self-center">
         {alwaysOn ? (
-          <span style={{ fontSize: 11.5, color: 'var(--text-4)', fontWeight: 500 }}>Her zaman açık</span>
+          <Badge variant="secondary">Her zaman açık</Badge>
         ) : (
           <Toggle on={on} onChange={onToggle ?? (() => undefined)} size="lg" ariaLabel={`${title} ${on ? 'açık' : 'kapalı'}`} />
         )}
-      </div>
-      {on && <div style={{ padding: 20 }}>{children}</div>}
-    </div>
+        </CardAction>
+      </CardHeader>
+      {on && <CardContent className="py-5">{children}</CardContent>}
+    </Card>
   )
 }
 
 function SummaryChip({ on, icon, label }: { on: boolean; icon: React.ReactNode; label: string }) {
   return (
-    <span style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 7,
-      padding: '7px 13px',
-      borderRadius: 999,
-      fontSize: 12.5,
-      fontWeight: 500,
-      background: on ? 'var(--surface)' : 'var(--surface-3)',
-      border: `1px solid ${on ? 'var(--border)' : 'transparent'}`,
-      color: on ? 'var(--text)' : 'var(--text-4)',
-      boxShadow: on ? 'var(--shadow-1)' : 'none',
-    }}>
-      <span style={{ width: 15, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', opacity: on ? 1 : 0.4 }}>{icon}</span>{label}
-    </span>
-  )
-}
-
-function Perk({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 11.5, color: 'var(--text-2)' }}>
-      <span style={{ whiteSpace: 'nowrap' }}>{label}</span>
-      {children}
-    </label>
+    <Badge variant={on ? 'outline' : 'secondary'} className="h-8 gap-1.5 px-3">
+      <span className={on ? 'inline-flex' : 'inline-flex opacity-40'}>{icon}</span>{label}
+    </Badge>
   )
 }
 
@@ -476,39 +427,26 @@ export default function LoyaltySection({
 
   if (!hasLoyaltyAccess) {
     return (
-      <section style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 16,
-        padding: 28,
-        boxShadow: 'var(--shadow-1)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-          <div style={{
-            width: 44,
-            height: 44,
-            borderRadius: 12,
-            display: 'grid',
-            placeItems: 'center',
-            background: 'var(--accent-soft)',
-            color: 'var(--accent)',
-            flexShrink: 0,
-          }}>{I.crown}</div>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 17, letterSpacing: '-0.01em' }}>Sadakat programı Pro pakette</h3>
-            <p style={{ margin: '7px 0 0', color: 'var(--text-3)', fontSize: 13.5, lineHeight: 1.55, maxWidth: 560 }}>
-              Damga, puan, üyelik indirimi ve hoş geldin bonusu yalnızca Pro pakette işler.
-              Kaydedilmiş ayarlarınız korunur; Pro&apos;ya geçtiğinizde tekrar etkinleştirebilirsiniz.
-            </p>
+      <Card>
+        <CardHeader>
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">{I.crown}</div>
+            <div className="min-w-0">
+              <CardTitle className="flex items-center gap-2">Sadakat programı <Badge>Pro</Badge></CardTitle>
+              <CardDescription className="mt-1 max-w-xl">
+                Damga, puan, üyelik indirimi ve hoş geldin bonusu Pro pakette çalışır. Kaydedilmiş
+                ayarlarınız korunur; Pro&apos;ya geçtiğinizde tekrar etkinleştirebilirsiniz.
+              </CardDescription>
+            </div>
           </div>
-        </div>
-      </section>
+        </CardHeader>
+      </Card>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} aria-busy={isPending} style={{ display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
+    <form onSubmit={handleSubmit} aria-busy={isPending} className="flex flex-col gap-5">
+      <div className="flex flex-wrap gap-2">
         <SummaryChip on={cfg.stamp_enabled} icon={<AppI.stamp size={14} />} label={cfg.stamp_enabled ? `Damga · ${cfg.stamp_goal} hedef` : 'Damga kapalı'} />
         <SummaryChip on={cfg.points_enabled} icon={<AppI.star size={14} />} label={cfg.points_enabled ? `Puan · ${cfg.points_per_lira}p/₺` : 'Puan kapalı'} />
         <SummaryChip on={hasTierDiscount || cfg.member_discount_pct > 0} icon={<AppI.card size={14} />} label={hasTierDiscount ? `Seviye indirimi max %${maxTierDiscount}` : cfg.member_discount_pct > 0 ? `Üye indirimi %${cfg.member_discount_pct}` : 'İndirim yok'} />
@@ -524,8 +462,8 @@ export default function LoyaltySection({
         on={cfg.stamp_enabled}
         onToggle={(on) => patch({ stamp_enabled: on })}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 28 }}>
-          <div>
+        <div className="grid gap-7 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="flex flex-col gap-5">
             <Field label="Hedef damga sayısı" hint="Ödül için gereken damga (örn. 10 = 10. sipariş bedava)">
               <NumberField value={cfg.stamp_goal} min={2} max={50} onChange={(stamp_goal) => patch({ stamp_goal: Math.floor(stamp_goal) })} />
             </Field>
@@ -542,8 +480,8 @@ export default function LoyaltySection({
             <div style={{ fontSize: 16, fontWeight: 750, marginTop: 6 }}>{cfg.stamp_reward_text || 'Ödülünü topla'}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 7, marginTop: 14 }}>
               {Array.from({ length: Math.min(Math.max(cfg.stamp_goal || 1, 1), 12) }).map((_, i) => {
-                const filled = i < Math.min(6, cfg.stamp_goal)
                 const isReward = i === Math.min(Math.max(cfg.stamp_goal, 1), 12) - 1
+                const filled = i < Math.min(6, cfg.stamp_goal) && !isReward
                 return (
                   <div key={i} style={{
                     aspectRatio: '1',
@@ -552,9 +490,13 @@ export default function LoyaltySection({
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: 13,
-                    background: filled ? 'rgba(255,255,255,.95)' : 'transparent',
-                    border: filled ? 'none' : '1.5px dashed rgba(255,255,255,.4)',
-                  }}>{filled ? <AppI.stamp size={13} /> : isReward ? <AppI.gift size={13} /> : null}</div>
+                    color: filled ? '#1f5642' : '#fff',
+                    background: filled ? '#fff' : isReward ? 'rgba(255,255,255,.16)' : 'transparent',
+                    border: filled ? '1px solid rgba(255,255,255,.9)' : '1.5px dashed rgba(255,255,255,.55)',
+                    boxShadow: filled ? '0 2px 6px rgba(0,0,0,.12)' : 'none',
+                  }}>
+                    {filled ? <AppI.stamp size={15} strokeWidth={2.25} /> : isReward ? <AppI.gift size={15} strokeWidth={2.25} /> : null}
+                  </div>
                 )
               })}
             </div>
@@ -572,8 +514,6 @@ export default function LoyaltySection({
         desc="Harcamadan puan kazanımı (₺ → puan)"
         on={cfg.points_enabled}
         onToggle={(on) => patch({ points_enabled: on })}
-        accent="#c8922a"
-        accentSoft="#f6ecd6"
       >
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 4 }}>
           <Field label="₺ başına puan" hint="1 ₺ harcama kaç puan kazandırır">
@@ -590,7 +530,7 @@ export default function LoyaltySection({
             <span style={{ fontSize: 13.5, fontWeight: 650 }}>Ödül kataloğu</span>
             <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>· {catalog.length} ödül</span>
           </div>
-          <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+          <div className="overflow-hidden rounded-xl border">
             <div style={{ display: 'grid', gridTemplateColumns: '20px minmax(0, 1fr) 110px 130px 44px', gap: 10, padding: '9px 14px', background: 'var(--surface-2)', borderBottom: '1px solid var(--divider)', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '.03em' }}>
               <span /><span>ÜRÜN</span><span style={{ textAlign: 'center' }}>PUAN</span><span>ETİKET</span><span />
             </div>
@@ -600,19 +540,31 @@ export default function LoyaltySection({
                 <SelectField ariaLabel={`Ödül ${i + 1} ürünü`} value={r.itemId} onChange={(itemId) => updateCatalogReward(i, { itemId })} options={itemOptions} />
                 <NumberField ariaLabel={`Ödül ${i + 1} puan bedeli`} width="100%" min={1} value={r.pointCost} onChange={(pointCost) => updateCatalogReward(i, { pointCost: Math.max(1, Math.floor(pointCost)) })} />
                 <TextField ariaLabel={`Ödül ${i + 1} etiketi`} value={r.tag ?? ''} maxLength={24} onChange={(tag) => updateCatalogReward(i, { tag })} placeholder="etiket" />
-                <button type="button" onClick={() => removeCatalogReward(i)} aria-label={`Ödül ${i + 1} kaldır`} style={{ width: 44, height: 44, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{I.x}</button>
+                <Button type="button" variant="destructive" size="icon" onClick={() => removeCatalogReward(i)} aria-label={`Ödül ${i + 1} kaldır`}>
+                  <AppI.x data-icon="inline-start" />
+                </Button>
               </div>
             ))}
             {catalog.length === 0 && (
-              <div style={{ padding: '18px 14px', textAlign: 'center', color: 'var(--text-3)', fontSize: 12.5 }}>Henüz puan ödülü eklenmedi.</div>
+              <Empty className="border-0 py-5">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">{I.gift}</EmptyMedia>
+                  <EmptyTitle>Henüz puan ödülü eklenmedi</EmptyTitle>
+                  <EmptyDescription>Ürün ve puan bedelini tanımlayarak ilk ödülü ekleyin.</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             )}
-            <button type="button" onClick={addCatalogReward} style={{ width: '100%', padding: '11px', background: 'var(--surface-2)', border: 'none', borderTop: '1px solid var(--divider)', color: 'var(--accent)', fontSize: 13, fontWeight: 650, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{I.plus} Ödül ekle</button>
+            <div className="border-t bg-muted/40 p-2">
+              <Button type="button" variant="ghost" className="w-full" onClick={addCatalogReward}>
+                <AppI.plus data-icon="inline-start" /> Ödül ekle
+              </Button>
+            </div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 9, lineHeight: 1.5 }}>Puanla alınabilen bedava ürünler. Üye yeterli puana sahipse, sepetteki bu üründen 1 adet bedava olur; serbest puan indirimi ile aynı siparişte birlikte kullanılamaz.</div>
         </div>
       </Module>
 
-      <Module icon={I.crown} title="Üyelik & Seviyeler" desc="Kapsam, kazanım kuralları, seviye eşikleri ve ayrıcalıklar" on alwaysOn accent="#5b7a86" accentSoft="#e3edf0">
+      <Module icon={I.crown} title="Üyelik & Seviyeler" desc="Kapsam, kazanım kuralları, seviye eşikleri ve ayrıcalıklar" on alwaysOn>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
           <Field label="Kapsam" hint="Bakiye yalnızca bu restoranda mı, yoksa tüm ağ genelinde mi geçerli">
             <Segmented
@@ -645,83 +597,136 @@ export default function LoyaltySection({
           </Field>
         </div>
 
-        <div style={{ marginTop: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 650 }}>Seviye eşikleri</div>
-            <button type="button" onClick={addTier} disabled={cfg.tiers.length >= MAX_TIERS}
-              style={{ height: 30, padding: '0 12px', borderRadius: 8, border: '1px dashed var(--border-strong)', background: 'var(--surface)', color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 650, cursor: cfg.tiers.length >= MAX_TIERS ? 'not-allowed' : 'pointer', opacity: cfg.tiers.length >= MAX_TIERS ? 0.5 : 1 }}>
-              {I.plus} Seviye ekle
-            </button>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 14 }}>Seviye, üyenin ömür boyu kazandığı puana göre belirlenir; harcanan puan seviyeyi düşürmez.</div>
+        <Separator className="my-1" />
 
-          <div style={{ position: 'relative', paddingLeft: 8 }}>
-            <div style={{ position: 'absolute', left: 15, top: 18, bottom: 18, width: 2, background: 'var(--divider)' }} />
+        <section className="flex flex-col gap-4" aria-labelledby="loyalty-tier-heading">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 id="loyalty-tier-heading" className="text-sm font-medium">Seviye eşikleri</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Ömür boyu kazanılan puana göre belirlenir; kullanılan puan seviyeyi düşürmez.
+              </p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={addTier} disabled={cfg.tiers.length >= MAX_TIERS}>
+              <AppI.plus data-icon="inline-start" /> Seviye ekle
+            </Button>
+          </div>
+
+          <div className="grid gap-3 xl:grid-cols-2">
             {cfg.tiers.map((tier, i) => {
               const err = tierRowError(tier, i)
+              const priorityId = `loyalty-tier-priority-${i}`
               return (
-                <div key={i} style={{ position: 'relative', padding: '8px 0' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '18px minmax(92px, 1fr) 150px 52px', alignItems: 'center', gap: 14 }}>
-                    <input
-                      type="color"
-                      aria-label="Seviye rengi"
-                      value={tier.color}
-                      onChange={(e) => setTier(i, { color: e.target.value })}
-                      style={{ width: 18, height: 18, borderRadius: 999, padding: 0, border: 'none', background: tier.color, zIndex: 1, boxShadow: '0 0 0 4px var(--surface)', cursor: 'pointer' }}
-                    />
-                    <TextField ariaLabel={`Seviye ${i + 1} adı`} value={tier.name} maxLength={24} onChange={(name) => setTier(i, { name })} placeholder={`Seviye ${i + 1}`} />
-                    <NumberField ariaLabel={`Seviye ${i + 1} minimum puanı`} value={tier.min} width={150} min={0} step={50} onChange={(min) => setTier(i, { min: i === 0 ? 0 : Math.floor(min) })} />
-                    <button type="button" onClick={() => removeTier(i)} disabled={i === 0} aria-label="Seviyeyi kaldır" style={{ width: 34, height: 34, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: i === 0 ? 'not-allowed' : 'pointer', opacity: i === 0 ? 0.35 : 1 }}>{I.x}</button>
-                  </div>
-                  <div style={{ marginLeft: 32, marginTop: 9, padding: 10, border: `1px solid ${err ? 'var(--critical)' : 'var(--border)'}`, borderRadius: 12, background: 'var(--surface-2)' }}>
-                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <Perk label="İndirim %">
-                        <NumberField value={tier.discountPct} min={0} max={100} width={70} onChange={(discountPct) => setTier(i, { discountPct: Math.floor(discountPct) })} />
-                      </Perk>
-                      <Perk label="Puan ×">
-                        <NumberField value={tier.pointsMultiplier} min={0.1} max={10} step={0.1} width={70} onChange={(pointsMultiplier) => setTier(i, { pointsMultiplier })} />
-                      </Perk>
-                      <Perk label="Bonus damga">
-                        <NumberField value={tier.bonusStamps} min={0} max={20} width={70} onChange={(bonusStamps) => setTier(i, { bonusStamps: Math.floor(bonusStamps) })} />
-                      </Perk>
-                      <Perk label="Öncelikli servis">
-                        <Toggle on={tier.priorityService} onChange={(priorityService) => setTier(i, { priorityService })} ariaLabel={`${tier.name || `Seviye ${i + 1}`} için öncelikli servis ${tier.priorityService ? 'açık' : 'kapalı'}`} />
-                      </Perk>
-                    </div>
-                    {err && <div style={{ fontSize: 11.5, color: 'var(--critical)', marginTop: 8 }}>{err}</div>}
-                    {!err && (
-                      <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 8 }}>
-                        {i === 0 ? 'Taban seviye · her zaman' : `${tier.min} puan ve üzeri`} · {tier.discountPct > 0 ? `%${tier.discountPct} indirim` : 'fallback indirim'} · {tier.pointsMultiplier}× puan · +{tier.bonusStamps} damga
+                <Card key={i} size="sm" className={cn('gap-0 py-0', err && 'ring-destructive/50')}>
+                  <CardHeader className="border-b py-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <label
+                        className="relative flex size-9 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg ring-1 ring-foreground/10"
+                        style={{ backgroundColor: tier.color }}
+                        title="Seviye rengini değiştir"
+                      >
+                        <input
+                          type="color"
+                          aria-label={`${tier.name || `Seviye ${i + 1}`} rengi`}
+                          value={tier.color}
+                          onChange={(e) => setTier(i, { color: e.target.value })}
+                          className="absolute inset-0 cursor-pointer opacity-0"
+                        />
+                        <AppI.crown size={16} color="#fff" strokeWidth={2} />
+                      </label>
+                      <div className="min-w-0">
+                        <CardTitle className="flex items-center gap-2">
+                          {tier.name || `Seviye ${i + 1}`}
+                          {i === 0 && <Badge variant="secondary">Taban</Badge>}
+                        </CardTitle>
+                        <CardDescription>{i === 0 ? 'Tüm üyeler bu seviyeden başlar' : `${tier.min} puan ve üzeri`}</CardDescription>
                       </div>
-                    )}
-                  </div>
-                </div>
+                    </div>
+                    <CardAction className="self-center">
+                      <Button type="button" variant="ghost" size="icon-sm" onClick={() => removeTier(i)} disabled={i === 0} aria-label="Seviyeyi kaldır">
+                        <AppI.trash data-icon="inline-start" />
+                      </Button>
+                    </CardAction>
+                  </CardHeader>
+
+                  <CardContent className="flex flex-col gap-4 py-4">
+                    <FieldGroup className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
+                      <ShadcnField data-invalid={Boolean(err)}>
+                        <FieldLabel>Seviye adı</FieldLabel>
+                        <TextField ariaLabel={`Seviye ${i + 1} adı`} value={tier.name} maxLength={24} onChange={(name) => setTier(i, { name })} placeholder={`Seviye ${i + 1}`} />
+                      </ShadcnField>
+                      <ShadcnField data-invalid={Boolean(err)}>
+                        <FieldLabel>Başlangıç puanı</FieldLabel>
+                        <NumberField ariaLabel={`Seviye ${i + 1} minimum puanı`} value={tier.min} width="100%" min={0} step={50} onChange={(min) => setTier(i, { min: i === 0 ? 0 : Math.floor(min) })} />
+                      </ShadcnField>
+                    </FieldGroup>
+
+                    <FieldGroup className="grid grid-cols-3 gap-3">
+                      <ShadcnField>
+                        <FieldLabel>İndirim</FieldLabel>
+                        <NumberField ariaLabel={`${tier.name} indirim yüzdesi`} value={tier.discountPct} min={0} max={100} width="100%" suffix="%" onChange={(discountPct) => setTier(i, { discountPct: Math.floor(discountPct) })} />
+                      </ShadcnField>
+                      <ShadcnField>
+                        <FieldLabel>Puan çarpanı</FieldLabel>
+                        <NumberField ariaLabel={`${tier.name} puan çarpanı`} value={tier.pointsMultiplier} min={0.1} max={10} step={0.1} width="100%" suffix="×" onChange={(pointsMultiplier) => setTier(i, { pointsMultiplier })} />
+                      </ShadcnField>
+                      <ShadcnField>
+                        <FieldLabel>Bonus damga</FieldLabel>
+                        <NumberField ariaLabel={`${tier.name} bonus damgası`} value={tier.bonusStamps} min={0} max={20} width="100%" onChange={(bonusStamps) => setTier(i, { bonusStamps: Math.floor(bonusStamps) })} />
+                      </ShadcnField>
+                    </FieldGroup>
+
+                    <ShadcnField orientation="horizontal" className="rounded-lg border bg-muted/40 p-3">
+                      <FieldContent>
+                        <FieldLabel htmlFor={priorityId}>Öncelikli servis</FieldLabel>
+                        <FieldDescription>Bu seviyedeki siparişleri servis akışında öne çıkarır.</FieldDescription>
+                      </FieldContent>
+                      <Switch
+                        id={priorityId}
+                        checked={tier.priorityService}
+                        onCheckedChange={(priorityService) => setTier(i, { priorityService })}
+                        aria-label={`${tier.name || `Seviye ${i + 1}`} için öncelikli servis ${tier.priorityService ? 'açık' : 'kapalı'}`}
+                      />
+                    </ShadcnField>
+                  </CardContent>
+
+                  <CardFooter className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <Badge variant="secondary">{i === 0 ? 'Her zaman' : `${tier.min}+ puan`}</Badge>
+                    <span>{tier.discountPct > 0 ? `%${tier.discountPct} indirim` : 'İndirim yok'}</span>
+                    <span>·</span>
+                    <span>{tier.pointsMultiplier}× puan</span>
+                    <span>·</span>
+                    <span>+{tier.bonusStamps} damga</span>
+                    {err && <FieldError className="basis-full">{err}</FieldError>}
+                  </CardFooter>
+                </Card>
               )
             })}
           </div>
-        </div>
+        </section>
       </Module>
 
-      {!tiersValid && <p style={{ fontSize: 12.5, color: 'var(--critical)', margin: '0 0 12px' }}>Seviye merdiveni geçersiz — eşikler artan sırada ve isimler benzersiz olmalı.</p>}
-      {error && <p role="alert" style={{ fontSize: 12.5, color: 'var(--critical)', margin: '0 0 12px' }}>{error}</p>}
-      {success && <p style={{ fontSize: 12.5, color: 'var(--positive)', margin: '0 0 12px' }}>Sadakat ayarları kaydedildi.</p>}
+      {!tiersValid && <Alert variant="destructive"><AlertDescription>Seviye merdiveni geçersiz — eşikler artan sırada ve isimler benzersiz olmalı.</AlertDescription></Alert>}
+      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      {success && <Alert><AlertDescription>Sadakat ayarları kaydedildi.</AlertDescription></Alert>}
 
-      <div style={{ position: 'sticky', bottom: 0, zIndex: 2, marginTop: 8, padding: '14px 18px', background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', boxShadow: 'var(--shadow-2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
-        <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12.5, color: dirty ? 'var(--warning)' : 'var(--text-3)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: dirty ? 'var(--warning)' : 'var(--positive)' }} />
-          {isPending ? 'Sadakat ayarları kaydediliyor…' : dirty ? 'Kaydedilmemiş değişiklikler var' : success ? 'Tüm değişiklikler kaydedildi' : 'Değişiklik yok'}
-        </span>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={() => { setCfg(initial); setDirty(false); setError(''); setSuccess(false) }} disabled={isPending}
-            style={{ height: 38, padding: '0 16px', borderRadius: 9, border: '1px solid var(--border-strong)', background: 'var(--surface)', color: 'var(--text-2)', fontSize: 13.5, fontWeight: 500, cursor: isPending ? 'not-allowed' : 'pointer' }}>
-            Geri al
-          </button>
-          <button type="submit" disabled={isPending || !tiersValid}
-            style={{ height: 38, padding: '0 20px', borderRadius: 9, border: 'none', background: 'var(--action)', color: '#fff', fontSize: 13.5, fontWeight: 650, cursor: (isPending || !tiersValid) ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7, opacity: (isPending || !tiersValid) ? 0.55 : 1 }}>
-            {I.check}{isPending ? 'Kaydediliyor...' : 'Kaydet'}
-          </button>
-        </div>
-      </div>
+      <Card className="sticky bottom-3 z-20 isolate gap-0 bg-card py-0 shadow-xl ring-1 ring-foreground/15">
+        <CardFooter className="flex flex-wrap justify-between gap-3 border-t-0 bg-card py-3">
+          <span role="status" aria-live="polite" aria-atomic="true" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <span aria-hidden="true" className={dirty ? 'size-2 rounded-full bg-[var(--warning)]' : 'size-2 rounded-full bg-[var(--positive)]'} />
+            {isPending ? 'Sadakat ayarları kaydediliyor…' : dirty ? 'Kaydedilmemiş değişiklikler var' : success ? 'Tüm değişiklikler kaydedildi' : 'Değişiklik yok'}
+          </span>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={() => { setCfg(initial); setDirty(false); setError(''); setSuccess(false) }} disabled={isPending}>
+              Geri al
+            </Button>
+            <Button type="submit" disabled={isPending || !tiersValid}>
+              {isPending ? <Spinner data-icon="inline-start" /> : <AppI.check data-icon="inline-start" />}
+              {isPending ? 'Kaydediliyor...' : 'Kaydet'}
+            </Button>
+          </div>
+        </CardFooter>
+      </Card>
     </form>
   )
 }

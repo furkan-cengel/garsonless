@@ -7,6 +7,12 @@ import type { ThemePreviewMode } from './ThemeEditorTopbar'
 import { ThemeExperienceSurfaceSelector } from './ThemeExperienceSurfaceSelector'
 import { ThemePreviewSurface } from './ThemePreviewSurface'
 import type { ThemePreviewStatus } from './use-theme-preview-bridge'
+import { Badge } from '@/components/ui/badge'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { ButtonGroup, ButtonGroupText } from '@/components/ui/button-group'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { cn } from '@/lib/utils'
+import { ZoomInIcon, ZoomOutIcon } from 'lucide-react'
 
 interface ThemeEditorCanvasProps {
   iframeRef: RefObject<HTMLIFrameElement | null>
@@ -80,47 +86,26 @@ export function ThemeEditorCanvas({
             {previewUrl.replace(/^https?:\/\//, '')}
           </span>
           {previewStatus === 'stale' && (
-            <span
+            <Badge
+              variant="warning"
               role="status"
               title="Son başarılı önizleme gösteriliyor; güncel tema onayı zamanında alınamadı."
-              style={{
-                flexShrink: 0,
-                padding: '2px 6px',
-                borderRadius: 5,
-                background: 'var(--warning-bg)',
-                color: 'var(--warning)',
-                fontSize: 10.5,
-                fontWeight: 650,
-              }}
             >
               Güncelleme gecikti
-            </span>
+            </Badge>
           )}
           {previewStatus === 'stale' && (
-            <button type="button" onClick={onPreviewRetry} style={{ ...previewRetryButtonStyle, minHeight: isTaskBased ? 44 : 32 }}>
+            <Button type="button" variant="outline" size={isTaskBased ? 'lg' : 'default'} onClick={onPreviewRetry}>
               Yeniden dene
-            </button>
+            </Button>
           )}
           <a
             href={previewUrl}
             target="_blank"
             rel="noreferrer"
-            style={{
-              height: 34,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '0 8px',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              background: 'var(--surface)',
-              color: 'var(--text-2)',
-              textDecoration: 'none',
-              fontSize: 11.5,
-              fontWeight: 600,
-            }}
+            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'h-[34px]')}
           >
-            <I.globe size={17} />
+            <I.globe data-icon="inline-start" />
             Aç
           </a>
         </div>
@@ -133,39 +118,26 @@ export function ThemeEditorCanvas({
             />
           )}
           {isTaskBased && (
-            <div
-              role="group"
+            <ToggleGroup
+              value={[previewMode]}
+              onValueChange={(values) => { const next = values[0] as ThemePreviewMode | undefined; if (next) onPreviewModeChange(next) }}
               aria-label="Önizleme cihazı"
-              style={{ display: 'inline-flex', gap: 2, padding: 2, borderRadius: 9, background: 'var(--surface-3)' }}
+              spacing={1}
+              size="sm"
+              className="bg-muted p-1"
             >
-              <DeviceButton
-                active={previewMode === 'mobile'}
-                label="Mobil önizleme"
-                onClick={() => onPreviewModeChange('mobile')}
-              ><I.phone size={17} /></DeviceButton>
-              <DeviceButton
-                active={previewMode === 'desktop'}
-                label="Masaüstü önizleme"
-                onClick={() => onPreviewModeChange('desktop')}
-              ><I.monitor size={17} /></DeviceButton>
-            </div>
+              <ToggleGroupItem value="mobile" aria-label="Mobil önizleme"><I.phone /></ToggleGroupItem>
+              <ToggleGroupItem value="desktop" aria-label="Masaüstü önizleme"><I.monitor /></ToggleGroupItem>
+            </ToggleGroup>
           )}
-          <div style={{
-            height: 34,
-            display: 'inline-flex',
-            alignItems: 'center',
-            border: '1px solid var(--border)',
-            borderRadius: 7,
-            background: 'var(--surface)',
-            overflow: 'hidden',
-          }}>
-            <button type="button" aria-label="Önizlemeyi küçült" onClick={() => onZoom(-0.1)} style={zoomButtonStyle}>−</button>
-            <output style={{ minWidth: 48, textAlign: 'center', color: 'var(--text-2)', fontSize: 12 }}>
+          <ButtonGroup aria-label="Önizleme yakınlaştırma" data-theme-preview-zoom className="h-8">
+            <Button type="button" variant="outline" size="icon" aria-label="Önizlemeyi küçült" onClick={() => onZoom(-0.1)}><ZoomOutIcon data-icon="inline-start" /></Button>
+            <ButtonGroupText render={<output data-theme-preview-zoom-value aria-live="polite" className="size-8 justify-center px-0 text-xs tabular-nums" />}>
               %{Math.round(previewScale * 100)}
-            </output>
-            <button type="button" aria-label="Önizlemeyi büyüt" onClick={() => onZoom(0.1)} style={zoomButtonStyle}>+</button>
-          </div>
-          <button type="button" onClick={onFit} style={canvasButtonStyle}>Sığdır</button>
+            </ButtonGroupText>
+            <Button type="button" variant="outline" size="icon" aria-label="Önizlemeyi büyüt" onClick={() => onZoom(0.1)}><ZoomInIcon data-icon="inline-start" /></Button>
+          </ButtonGroup>
+          <Button type="button" variant="outline" onClick={onFit}>Sığdır</Button>
         </div>
       </div>
 
@@ -192,39 +164,6 @@ export function ThemeEditorCanvas({
         </PreviewFrame>
       </div>
     </div>
-  )
-}
-
-function DeviceButton({
-  active,
-  children,
-  label,
-  onClick,
-}: {
-  active: boolean
-  children: React.ReactNode
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-pressed={active}
-      onClick={onClick}
-      style={{
-        width: 32,
-        height: 32,
-        border: 0,
-        borderRadius: 7,
-        display: 'inline-grid',
-        placeItems: 'center',
-        background: active ? 'var(--surface)' : 'transparent',
-        color: active ? 'var(--text)' : 'var(--text-3)',
-        boxShadow: active ? 'var(--shadow-1)' : 'none',
-        cursor: 'pointer',
-      }}
-    >{children}</button>
   )
 }
 
@@ -268,40 +207,4 @@ function PreviewFrame({ children, mode, scale }: {
       </div>
     </div>
   )
-}
-
-const canvasButtonStyle: React.CSSProperties = {
-  height: 34,
-  padding: '0 12px',
-  borderRadius: 8,
-  border: '1px solid var(--border)',
-  background: 'var(--surface)',
-  color: 'var(--text)',
-  fontSize: 13,
-  fontWeight: 650,
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 7,
-}
-
-const zoomButtonStyle: React.CSSProperties = {
-  width: 32,
-  height: 32,
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-2)',
-  cursor: 'pointer',
-}
-
-const previewRetryButtonStyle: React.CSSProperties = {
-  minHeight: 32,
-  padding: '0 9px',
-  border: '1px solid var(--border)',
-  borderRadius: 7,
-  background: 'var(--surface)',
-  color: 'var(--text)',
-  fontSize: 11.5,
-  fontWeight: 700,
-  cursor: 'pointer',
 }

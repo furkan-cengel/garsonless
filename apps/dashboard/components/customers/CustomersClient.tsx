@@ -30,10 +30,35 @@ import {
   sendCampaignTestAction,
 } from '../../lib/actions/campaigns'
 import { formatCurrency } from '../../lib/utils'
-import { I, S, btnGhost, btnPrimary } from '../../lib/ui'
+import { I, S } from '../../lib/ui'
 import PageTopBar from '../layout/PageTopBar'
-import { AccessibleDialog } from '../tables/AccessibleDialog'
 import { useShell } from '../../lib/shell-context'
+import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   customerListHref,
   parseCustomerListState,
@@ -279,7 +304,7 @@ export default function CustomersClient({
 
   return (
     <div className="customer-route-shell" style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
-      <PageTopBar className="customer-page-topbar" restaurantName={restaurantName} title="Müşteriler" tag={<span style={{ ...S.caption }}>{initialSegmentCounts.all} müşteri</span>} />
+      <PageTopBar className="customer-page-topbar" restaurantName={restaurantName} title="Müşteriler" tag={<Badge variant="secondary">{initialSegmentCounts.all} müşteri</Badge>} />
 
       <div className="customer-page-scroll" style={{ flex: '1 0 auto', overflow: 'visible', background: 'var(--bg)', minWidth: 0 }}>
         <div className="customer-page-content" style={{ maxWidth: 1180, margin: '0 auto', padding: '28px 32px 60px' }}>
@@ -289,26 +314,28 @@ export default function CustomersClient({
               <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '5px 0 0' }}>Üyeler, sadakat bakiyeleri ve ziyaret geçmişi</p>
             </div>
             <div className="customer-page-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              {canManageCampaigns && <button type="button" className="customer-control customer-action-secondary" onClick={() => setCampaignOpen(true)} style={{ ...btnGhost({ height: 36, padding: '0 12px', borderRadius: 7, fontSize: 12.5 }) }}>
+              {canManageCampaigns && <Button type="button" variant="outline" size="sm" onClick={() => setCampaignOpen(true)}>
                 <I.bell size={14} />SMS kampanyası
-              </button>}
-              <button type="button" className="customer-control customer-action-primary" onClick={openCreateFromCurrent} style={{ ...btnPrimary({ height: 36, padding: '0 12px', borderRadius: 7, fontSize: 12.5 }) }}>
+              </Button>}
+              <Button type="button" size="sm" onClick={openCreateFromCurrent}>
                 <I.plus size={13} />Filtreyi kaydet
-              </button>
+              </Button>
             </div>
           </div>
 
           {!canManageCampaigns && (
-            <div role="status" style={{ margin: '-6px 0 18px', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', color: 'var(--text-2)', fontSize: 12.5, lineHeight: 1.45 }}>
-              İletişim bilgileri güvenlik nedeniyle maskeli gösterilir. SMS kampanyası ve manuel puan/bakiye düzenlemeleri yalnız işletme sahibine açıktır.
-            </div>
+            <Alert className="mb-5" role="status">
+              <I.lock size={16} />
+              <AlertDescription>İletişim bilgileri güvenlik nedeniyle maskeli gösterilir. SMS kampanyası ve manuel puan/bakiye düzenlemeleri yalnız işletme sahibine açıktır.</AlertDescription>
+            </Alert>
           )}
 
           {listError && (
-            <div role="alert" aria-live="polite" style={{ marginBottom: 16, padding: '10px 12px', border: '1px solid var(--critical)', borderRadius: 10, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 12.5, lineHeight: 1.45, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <span>{listError}</span>
-              <button type="button" className="customer-control customer-action-secondary" onClick={() => setListRetry((value) => value + 1)} style={btnGhost({ height: 34, padding: '0 11px' })}>Yeniden dene</button>
-            </div>
+            <Alert variant="destructive" aria-live="polite" className="mb-4 pr-28">
+              <I.warn size={16} />
+              <AlertDescription>{listError}</AlertDescription>
+              <AlertAction><Button type="button" variant="outline" size="xs" onClick={() => setListRetry((value) => value + 1)}>Yeniden dene</Button></AlertAction>
+            </Alert>
           )}
 
           <div className="customer-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 22 }}>
@@ -319,64 +346,42 @@ export default function CustomersClient({
           </div>
 
           <div className="customer-toolbar" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-            <div className="customer-search" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, height: 40, padding: '0 3px 0 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-1)' }}>
-              <span style={{ color: 'var(--text-3)', display: 'inline-flex' }}><I.search size={16} /></span>
-              <input
+            <InputGroup className="customer-search h-9 flex-1 bg-card shadow-xs">
+              <InputGroupAddon><I.search size={16} /></InputGroupAddon>
+              <InputGroupInput
                 aria-label="Müşteri ara"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 placeholder="Ad veya telefon sonu (örn. 67)"
-                style={{ flex: 1, minWidth: 0, height: 38, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--text)' }}
               />
-              {search && <button type="button" className="customer-control customer-clear-action" aria-label="Aramayı temizle" onClick={() => { setSearch(''); setPage(1) }} style={{ ...btnGhost({ width: 32, minWidth: 32, height: 32, padding: 0, justifyContent: 'center', border: 'none' }) }}><I.close size={13} /></button>}
-            </div>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, color: 'var(--text-3)' }}>Sırala</span>
-              <select
+              {search && <InputGroupAddon align="inline-end"><InputGroupButton size="icon-xs" aria-label="Aramayı temizle" onClick={() => { setSearch(''); setPage(1) }}><I.close size={13} /></InputGroupButton></InputGroupAddon>}
+            </InputGroup>
+            <Field orientation="horizontal" className="w-auto items-center">
+              <FieldLabel className="text-muted-foreground">Sırala</FieldLabel>
+              <Select
                 value={sort}
-                onChange={(e) => { setSort(e.target.value as CustomerSort); setPage(1) }}
-                className="customer-sort-control"
-                style={{ height: 38, padding: '0 30px 0 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 500, outline: 'none', cursor: 'pointer', boxShadow: 'var(--shadow-1)' }}
+                onValueChange={(value) => { if (value) setSort(value as CustomerSort); setPage(1) }}
               >
-                {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-              </select>
-            </label>
+                <SelectTrigger className="w-48 bg-card"><SelectValue /></SelectTrigger>
+                <SelectContent>{SORTS.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-            {SEGMENTS.map((sg) => {
-              const active = !customSegmentId && segment === sg.id
-              return (
-                <button
-                  key={sg.id}
-                  type="button"
-                  className="customer-control customer-segment-filter"
-                  aria-pressed={active}
-                  onClick={() => applyBuiltInSegment(sg.id)}
-                  style={{
-                    minHeight: 34,
-                    padding: '0 11px',
-                    borderRadius: 99,
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    fontWeight: active ? 650 : 500,
-                    background: active ? 'var(--action)' : 'var(--surface)',
-                    color: active ? '#fff' : 'var(--text-2)',
-                    border: `1px solid ${active ? 'var(--action)' : 'var(--border)'}`,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 7,
-                    transition: 'all 140ms',
-                  }}
-                >
-                  {sg.label}
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 99, background: active ? 'rgba(255,255,255,.2)' : 'var(--surface-3)', color: active ? '#fff' : 'var(--text-3)' }}>
-                    {countForBuiltIn(sg.id)}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+          <ToggleGroup
+            value={!customSegmentId ? [segment || 'all'] : []}
+            onValueChange={(values) => { const next = values[0]; if (next) applyBuiltInSegment(next === 'all' ? '' : next as CustomerSegment) }}
+            variant="outline"
+            size="sm"
+            className="mb-4 flex w-full flex-wrap justify-start"
+            aria-label="Müşteri segmenti"
+          >
+            {SEGMENTS.map((sg) => (
+              <ToggleGroupItem key={sg.id || 'all'} value={sg.id || 'all'} className="rounded-full px-3">
+                {sg.label}<Badge variant="secondary" className="ml-1.5">{countForBuiltIn(sg.id)}</Badge>
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
 
           {savedSegments.length > 0 && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
@@ -385,12 +390,11 @@ export default function CustomersClient({
                 const active = customSegmentId === saved.id
                 return (
                   <span key={saved.id} className="customer-saved-segment" data-active={active} style={{ display: 'inline-flex', alignItems: 'center', height: 34, borderRadius: 99, border: `1px solid ${active ? 'var(--action)' : 'var(--border)'}`, background: active ? 'var(--action)' : 'var(--surface)', overflow: 'hidden', boxShadow: active ? 'none' : 'var(--shadow-1)' }}>
-                    <button type="button" className="customer-control customer-saved-segment-label" aria-pressed={active} onClick={() => applySavedSegment(saved.id)} title={describeDefinition(saved.definition)}
-                      style={{ height: 32, padding: '0 8px 0 11px', border: 'none', background: 'transparent', color: active ? '#fff' : 'var(--text-2)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+                    <Button type="button" variant="ghost" size="xs" className="customer-saved-segment-label rounded-none" aria-pressed={active} onClick={() => applySavedSegment(saved.id)} title={describeDefinition(saved.definition)}>
                       {saved.name}
-                    </button>
-                    <button type="button" className="customer-control customer-saved-segment-icon" onClick={() => openEditSegment(saved)} aria-label={`${saved.name} düzenle`} style={segmentIconBtn(active)}><I.gear size={12} /></button>
-                    <button type="button" className="customer-control customer-saved-segment-icon customer-saved-segment-delete" onClick={() => setSegmentToDelete(saved)} aria-label={`${saved.name} sil`} style={segmentIconBtn(active)}><I.trash size={12} /></button>
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon-xs" className="customer-saved-segment-icon rounded-none" onClick={() => openEditSegment(saved)} aria-label={`${saved.name} düzenle`}><I.gear size={12} /></Button>
+                    <Button type="button" variant="ghost" size="icon-xs" className="customer-saved-segment-icon customer-saved-segment-delete rounded-none" onClick={() => setSegmentToDelete(saved)} aria-label={`${saved.name} sil`}><I.trash size={12} /></Button>
                   </span>
                 )
               })}
@@ -401,21 +405,23 @@ export default function CustomersClient({
             <CampaignStrip campaigns={campaigns.slice(0, 3)} onOpen={() => setCampaignOpen(true)} />
           )}
 
-          {segmentError && <div style={{ marginBottom: 12, color: 'var(--critical)', fontSize: 12.5 }}>{segmentError}</div>}
+          {segmentError && <Alert variant="destructive" className="mb-3"><AlertDescription>{segmentError}</AlertDescription></Alert>}
 
-          <div className="customer-table" aria-busy={pending} style={{ position: 'relative', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow-1)', overflow: 'auto', opacity: pending ? 0.72 : 1, transition: 'opacity 120ms' }}>
-            {pending && <div role="status" aria-live="polite" style={{ position: 'absolute', right: 14, top: 10, zIndex: 2, padding: '5px 9px', borderRadius: 99, background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-1)', fontSize: 11.5, color: 'var(--text-2)' }}>Güncelleniyor…</div>}
-            <div className="customer-grid-row" style={{ display: 'grid', gridTemplateColumns: '2.2fr 1.6fr 1.1fr .8fr 1.1fr .8fr 1.1fr', gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--divider)', background: 'var(--surface-2)', fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '.04em' }}>
-              <span>MÜŞTERİ</span><span>TELEFON</span><span>SEVİYE</span><span style={{ textAlign: 'right' }}>ZİYARET</span><span style={{ textAlign: 'right' }}>HARCAMA</span><span style={{ textAlign: 'right' }}>PUAN</span><span style={{ textAlign: 'right' }}>SON GÖRÜLME</span>
-            </div>
-            {data.customers.length === 0 ? (
-              <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-3)', fontSize: 13.5 }}>
-                <div style={{ fontWeight: 650, color: 'var(--text-2)', marginBottom: 6 }}>Eşleşen müşteri yok</div>
-                <div style={{ marginBottom: 14 }}>Arama veya segment ölçütlerini değiştirin.</div>
-                {hasActiveFilters && <button type="button" className="customer-control customer-action-secondary" onClick={resetFilters} style={btnGhost()}>Filtreleri temizle</button>}
-              </div>
-            ) : (
-              data.customers.map((c, i) => (
+          <Card className="customer-table relative gap-0 py-0" aria-busy={pending} style={{ opacity: pending ? 0.72 : 1 }}>
+            {pending && <Badge variant="secondary" className="absolute right-3 top-3 z-10 gap-1.5"><Spinner className="size-3" />Güncelleniyor</Badge>}
+            <Table className="min-w-[900px]">
+              <TableHeader><TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className="pl-5">MÜŞTERİ</TableHead><TableHead>TELEFON</TableHead><TableHead>SEVİYE</TableHead><TableHead className="text-right">ZİYARET</TableHead><TableHead className="text-right">HARCAMA</TableHead><TableHead className="text-right">PUAN</TableHead><TableHead className="pr-5 text-right">SON GÖRÜLME</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {data.customers.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} className="p-0">
+                    <Empty className="min-h-56">
+                      <EmptyHeader><EmptyMedia variant="icon"><I.users size={18} /></EmptyMedia><EmptyTitle>Eşleşen müşteri yok</EmptyTitle><EmptyDescription>Arama veya segment ölçütlerini değiştirin.</EmptyDescription></EmptyHeader>
+                      {hasActiveFilters && <EmptyContent><Button type="button" variant="outline" size="sm" onClick={resetFilters}>Filtreleri temizle</Button></EmptyContent>}
+                    </Empty>
+                  </TableCell></TableRow>
+                ) : data.customers.map((c, i) => (
                 <CustomerRow
                   key={c.customerId}
                   c={c}
@@ -428,9 +434,10 @@ export default function CustomersClient({
                     router.push(href)
                   }}
                 />
-              ))
-            )}
-          </div>
+              ))}
+              </TableBody>
+            </Table>
+          </Card>
 
           <div className="customer-table-scroll-hint" role="status" style={{ display: 'none', marginTop: 8, color: 'var(--text-3)', fontSize: 11.5, lineHeight: 1.4 }}>
             Tüm sütunları görmek için tabloyu yatay kaydırın.
@@ -442,9 +449,9 @@ export default function CustomersClient({
 
           {data.total > data.pageSize && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 14, fontSize: 12.5, color: 'var(--text-2)' }}>
-              <button type="button" className="customer-control customer-pager" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} style={pagerBtn(page <= 1)}>‹ Önceki</button>
+              <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>‹ Önceki</Button>
               <span>{page} / {totalPages}</span>
-              <button type="button" className="customer-control customer-pager" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} style={pagerBtn(page >= totalPages)}>Sonraki ›</button>
+              <Button type="button" variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Sonraki ›</Button>
             </div>
           )}
         </div>
@@ -586,113 +593,85 @@ export default function CustomersClient({
 }
 
 function ConfirmDialog({ title, description, confirmLabel, onClose, onConfirm }: { title: string; description: string; confirmLabel: string; onClose: () => void; onConfirm: () => void }) {
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
   return (
-    <div role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }} style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(17,17,19,.45)', display: 'grid', placeItems: 'center', padding: 20 }}>
-      <div role="alertdialog" aria-modal="true" aria-labelledby="customer-confirm-title" aria-describedby="customer-confirm-description" style={{ width: 'min(440px,100%)', padding: 20, borderRadius: 16, background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 24px 80px rgba(0,0,0,.24)' }}>
-        <div id="customer-confirm-title" style={{ fontSize: 17, fontWeight: 750 }}>{title}</div>
-        <p id="customer-confirm-description" style={{ margin: '8px 0 20px', color: 'var(--text-2)', fontSize: 13.5, lineHeight: 1.55 }}>{description}</p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button type="button" onClick={onClose} style={btnGhost()}>Vazgeç</button>
-          <button type="button" onClick={onConfirm} style={btnPrimary({ background: 'var(--critical)' })}>{confirmLabel}</button>
-        </div>
-      </div>
-    </div>
+    <AlertDialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={onConfirm}>{confirmLabel}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
 function MiniStat({ label, value, icon, sub, mono }: { label: string; value: string; icon: ReactNode; sub?: string; mono?: boolean }) {
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', boxShadow: 'var(--shadow-1)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 12, color: 'var(--text-3)', fontWeight: 500 }}>{label}</span>
-        <span style={{ width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-4)' }}>{icon}</span>
-      </div>
-      <div style={{ fontSize: 24, fontWeight: 750, marginTop: 6, letterSpacing: '-0.02em', ...(mono ? S.mono : {}) }}>{value}</div>
-      {sub && <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>{sub}</div>}
-    </div>
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle>
+        <CardAction className="text-muted-foreground">{icon}</CardAction>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-semibold tracking-tight tabular-nums" style={mono ? S.mono : undefined}>{value}</div>
+        {sub && <CardDescription className="mt-1 text-xs">{sub}</CardDescription>}
+      </CardContent>
+    </Card>
   )
 }
 
 function CustomerRow({ c, onClick, delay, referenceNow }: { c: RestaurantCustomer; onClick: () => void; delay: number; referenceNow: string }) {
-  const [hover, setHover] = useState(false)
   const tags = tagsForCustomer(c, referenceNow)
   const soft = softForTier(c.tier.color)
   return (
-    <button
-      className="customer-grid-row customer-row-action"
-      type="button"
+    <TableRow
+      className="customer-row-action cursor-pointer"
+      tabIndex={0}
+      role="button"
       onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick() } }}
       style={{
-        display: 'grid',
-        gridTemplateColumns: '2.2fr 1.6fr 1.1fr .8fr 1.1fr .8fr 1.1fr',
-        gap: 12,
-        width: '100%',
-        padding: '14px 20px',
-        border: 'none',
-        borderBottom: '1px solid var(--divider)',
-        alignItems: 'center',
-        cursor: 'pointer',
-        background: hover ? 'var(--surface-2)' : 'transparent',
-        transition: 'background 120ms',
-        textAlign: 'left',
         animation: 'rowIn 300ms ease both',
         animationDelay: `${delay}ms`,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-        <div style={{ width: 38, height: 38, borderRadius: 999, background: soft, color: c.tier.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 750, fontSize: 13, flexShrink: 0 }}>{initials(c.name)}</div>
+      <TableCell className="pl-5">
+        <div className="flex min-w-0 items-center gap-3">
+        <Avatar size="lg"><AvatarFallback style={{ background: soft, color: c.tier.color }}>{initials(c.name)}</AvatarFallback></Avatar>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 650, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name || 'İsimsiz'}</div>
           {tags.length > 0 && <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tags.join(' · ')}</div>}
         </div>
-      </div>
-      <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2, ...S.mono }}>
+        </div>
+      </TableCell>
+      <TableCell><span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2, ...S.mono }}>
         <span style={{ fontSize: 13, color: c.phoneMasked ? 'var(--text-3)' : 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.phone}</span>
         <span style={{ fontSize: 11, color: c.emailMasked ? 'var(--text-4)' : 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.email}</span>
-      </span>
-      <span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: c.tier.color, background: soft, padding: '3px 10px', borderRadius: 99 }}>
+      </span></TableCell>
+      <TableCell>
+        <Badge variant="secondary" style={{ color: c.tier.color, background: soft }}>
           <span style={{ width: 6, height: 6, borderRadius: 999, background: c.tier.color }} />{c.tier.name}
-        </span>
-      </span>
-      <span style={{ textAlign: 'right', fontSize: 14, fontWeight: 500, color: c.visits ? 'var(--text)' : 'var(--text-4)' }}>{c.visits}</span>
-      <span style={{ textAlign: 'right', fontSize: 13.5, fontWeight: 500, color: c.spend ? 'var(--text)' : 'var(--text-4)', ...S.mono }}>{formatCurrency(c.spend)}</span>
-      <span style={{ textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#c8922a' }}>{c.points}</span>
-      <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--text-3)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-        {relTime(c.lastSeen, referenceNow)}
-        <span style={{ color: 'var(--text-4)', opacity: hover ? 1 : 0, transition: 'opacity 120ms' }}><I.chevRight size={11} /></span>
-      </span>
-    </button>
+        </Badge>
+      </TableCell>
+      <TableCell className="text-right tabular-nums">{c.visits}</TableCell>
+      <TableCell className="text-right font-mono tabular-nums">{formatCurrency(c.spend)}</TableCell>
+      <TableCell className="text-right font-semibold tabular-nums text-amber-700">{c.points}</TableCell>
+      <TableCell className="pr-5 text-right text-muted-foreground"><span className="inline-flex items-center gap-2">{relTime(c.lastSeen, referenceNow)}<I.chevRight size={11} /></span></TableCell>
+    </TableRow>
   )
 }
 
 function CampaignStrip({ campaigns, onOpen }: { campaigns: CampaignSummary[]; onOpen: () => void }) {
   return (
-    <button
+    <Button
       type="button"
-      className="customer-campaign-strip"
+      variant="outline"
       onClick={onOpen}
-      style={{
-        width: '100%',
-        margin: '0 0 16px',
-        padding: '12px 14px',
-        borderRadius: 12,
-        border: '1px solid var(--border)',
-        background: 'var(--surface)',
-        boxShadow: 'var(--shadow-1)',
-        cursor: 'pointer',
-        textAlign: 'left',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-      }}
+      className="customer-campaign-strip mb-4 h-auto w-full justify-start gap-3 rounded-xl p-3 text-left"
     >
       <span style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--surface-3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-2)' }}>
         <I.bell size={16} />
@@ -704,7 +683,7 @@ function CampaignStrip({ campaigns, onOpen }: { campaigns: CampaignSummary[]; on
         </span>
       </span>
       <span style={{ color: 'var(--text-4)' }}><I.chevRight size={14} /></span>
-    </button>
+    </Button>
   )
 }
 
@@ -819,43 +798,31 @@ function CampaignModal({
   }
 
   return (
-    <AccessibleDialog
-      labelledBy="customer-campaign-title"
-      describedBy="customer-campaign-description"
-      onClose={onClose}
-      closeDisabled={sending}
-      className="customer-campaign-dialog"
-      style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(17,17,19,.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-    >
-      <div className="customer-campaign-panel" style={{ width: 'min(940px, 100%)', maxHeight: 'min(760px, 92vh)', overflow: 'hidden', borderRadius: 14, border: '1px solid var(--border)', background: 'var(--surface)', boxShadow: '0 24px 80px rgba(0,0,0,.22)', display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) 300px' }}>
+    <Dialog open onOpenChange={(open) => { if (!open && !sending) onClose() }}>
+      <DialogContent showCloseButton={!sending} className="customer-campaign-dialog max-h-[92dvh] gap-0 overflow-hidden p-0 sm:max-w-[940px]">
+      <div className="customer-campaign-panel" style={{ overflow: 'hidden', display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) 300px' }}>
         <div className="customer-campaign-main" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: 'min(760px, 92vh)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '16px 18px', borderBottom: '1px solid var(--divider)' }}>
-            <div>
-              <div id="customer-campaign-title" style={{ fontSize: 16, fontWeight: 750, color: 'var(--text)' }}>SMS kampanyası</div>
-              <div id="customer-campaign-description" style={{ ...S.caption, marginTop: 3 }}>Önizleme güncel pazarlama izni ve canonical telefon kurallarını kullanır</div>
-            </div>
-            <button data-modal-initial-focus type="button" onClick={onClose} disabled={sending} aria-label="Kapat" style={{ ...btnGhost({ width: 44, minWidth: 44, height: 44, padding: 0, justifyContent: 'center' }), flexShrink: 0 }}><I.close size={14} /></button>
-          </div>
+          <DialogHeader className="border-b px-5 py-4 pr-12">
+            <DialogTitle id="customer-campaign-title">SMS kampanyası</DialogTitle>
+            <DialogDescription id="customer-campaign-description">Önizleme güncel pazarlama izni ve canonical telefon kurallarını kullanır.</DialogDescription>
+          </DialogHeader>
 
           <div className="customer-campaign-content" style={{ padding: 18, overflow: 'auto', display: 'grid', gap: 14 }}>
             {!smsDeliveryEnabled && (
-              <div role="status" style={{ border: '1px solid var(--warning)', borderRadius: 10, padding: '10px 12px', background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 12.5, lineHeight: 1.45 }}>
-                SMS gönderimi şirket ve provider aktivasyonuna kadar kapalı. Hedef kitle önizlemesi kullanılabilir; test veya kampanya gönderilemez.
-              </div>
+              <Alert role="status" className="border-warning/30 bg-warning/10 text-warning"><I.warn size={16} /><AlertDescription className="text-inherit">SMS gönderimi şirket ve provider aktivasyonuna kadar kapalı. Hedef kitle önizlemesi kullanılabilir; test veya kampanya gönderilemez.</AlertDescription></Alert>
             )}
             <div className="customer-campaign-fields" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={S.label}>Kampanya adı</span>
-                <input value={name} onChange={(e) => { sendRequestId.current = null; setName(e.target.value) }} maxLength={80} style={fieldStyle()} />
-              </label>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={S.label}>Hedef segment</span>
-                <select value={target} onChange={(e) => { sendRequestId.current = null; setTarget(e.target.value as CampaignTargetValue) }} style={fieldStyle()}>
-                  <option value="all">Tüm müşteriler</option>
-                  {SEGMENTS.filter((sg) => sg.id).map((sg) => <option key={sg.id} value={`builtin:${sg.id}`}>{sg.label}</option>)}
-                  {savedSegments.map((sg) => <option key={sg.id} value={`custom:${sg.id}`}>Kayıtlı: {sg.name}</option>)}
-                </select>
-              </label>
+              <Field><FieldLabel htmlFor="customer-campaign-name">Kampanya adı</FieldLabel><Input id="customer-campaign-name" value={name} onChange={(e) => { sendRequestId.current = null; setName(e.target.value) }} maxLength={80} /></Field>
+              <Field><FieldLabel>Hedef segment</FieldLabel>
+                <Select value={target} onValueChange={(value) => { if (value) { sendRequestId.current = null; setTarget(value as CampaignTargetValue) } }}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tüm müşteriler</SelectItem>
+                    {SEGMENTS.filter((sg) => sg.id).map((sg) => <SelectItem key={sg.id} value={`builtin:${sg.id}`}>{sg.label}</SelectItem>)}
+                    {savedSegments.map((sg) => <SelectItem key={sg.id} value={`custom:${sg.id}`}>Kayıtlı: {sg.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </Field>
             </div>
 
             <div className="customer-campaign-audience" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
@@ -866,39 +833,34 @@ function CampaignModal({
               <AudienceBox label="Tekrar telefon" value={previewing ? '...' : (preview?.skippedDuplicatePhone ?? 0).toLocaleString('tr-TR')} />
             </div>
 
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={S.label}>Mesaj</span>
-              <textarea
+            <Field>
+              <FieldLabel htmlFor="customer-campaign-message">Mesaj</FieldLabel>
+              <Textarea id="customer-campaign-message"
                 value={message}
                 onChange={(e) => { sendRequestId.current = null; setMessage(e.target.value.slice(0, 459)) }}
                 rows={5}
-                style={{ ...fieldStyle({ height: 'auto', minHeight: 132, padding: 12, resize: 'vertical', lineHeight: 1.5 }) }}
+                className="min-h-32"
               />
-              <span style={{ ...S.caption, textAlign: 'right' }}>{message.length}/459</span>
-            </label>
+              <FieldDescription className="text-right tabular-nums">{message.length}/459</FieldDescription>
+            </Field>
 
             <div className="customer-campaign-test" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'end' }}>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={S.label}>Test telefon</span>
-                <input value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="0555 123 45 67" style={fieldStyle()} />
-              </label>
-              <button type="button" disabled={!smsDeliveryEnabled || testing || message.trim().length < 5} onClick={() => { void handleTest() }} style={btnGhost({ height: 44, opacity: smsDeliveryEnabled && !testing ? 1 : 0.55 })}>
-                <I.phone size={13} />{testing ? 'Gönderiliyor...' : 'Test gönder'}
-              </button>
+              <Field><FieldLabel htmlFor="customer-test-phone">Test telefon</FieldLabel><Input id="customer-test-phone" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="0555 123 45 67" /></Field>
+              <Button type="button" variant="outline" disabled={!smsDeliveryEnabled || testing || message.trim().length < 5} onClick={() => { void handleTest() }}>
+                {testing ? <Spinner /> : <I.phone size={13} />}{testing ? 'Gönderiliyor...' : 'Test gönder'}
+              </Button>
             </div>
 
             {(error || notice) && (
-              <div role={error ? 'alert' : 'status'} aria-live="polite" style={{ borderRadius: 10, padding: '10px 12px', fontSize: 12.5, background: error ? 'var(--critical-bg)' : 'var(--positive-bg)', color: error ? 'var(--critical)' : 'var(--positive)' }}>
-                {error ?? notice}
-              </div>
+              <Alert variant={error ? 'destructive' : 'default'} role={error ? 'alert' : 'status'} aria-live="polite"><AlertDescription>{error ?? notice}</AlertDescription></Alert>
             )}
           </div>
 
           <div className="customer-campaign-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 18px', borderTop: '1px solid var(--divider)', background: 'var(--surface)' }}>
-            <button type="button" onClick={onClose} disabled={sending} style={btnGhost({ height: 44 })}>Kapat</button>
-            <button type="button" disabled={!canSend} onClick={() => { void handleSend() }} style={btnPrimary({ height: 44, padding: '0 15px', opacity: canSend ? 1 : 0.52, cursor: canSend ? 'pointer' : 'not-allowed' })}>
-              <I.bell size={13} />{sending ? 'Gönderiliyor...' : 'Kampanyayı gönder'}
-            </button>
+            <Button type="button" variant="outline" onClick={onClose} disabled={sending}>Kapat</Button>
+            <Button type="button" disabled={!canSend} onClick={() => { void handleSend() }}>
+              {sending ? <Spinner /> : <I.bell size={13} />}{sending ? 'Gönderiliyor...' : 'Kampanyayı gönder'}
+            </Button>
           </div>
         </div>
 
@@ -924,58 +886,30 @@ function CampaignModal({
           )}
         </aside>
       </div>
-      <style>{`@media (max-width:760px){.customer-campaign-dialog{padding:10px!important;align-items:stretch!important}.customer-campaign-panel{grid-template-columns:1fr!important;max-height:calc(100vh - 20px)!important;overflow-y:auto!important}.customer-campaign-main{max-height:none!important}.customer-campaign-content{overflow:visible!important}.customer-campaign-fields,.customer-campaign-test{grid-template-columns:1fr!important}.customer-campaign-audience{grid-template-columns:repeat(2,minmax(0,1fr))!important}.customer-campaign-footer{position:sticky!important;bottom:0!important;z-index:2}.customer-campaign-history{border-left:0!important;border-top:1px solid var(--divider)!important;overflow:visible!important}} @media (max-width:430px){.customer-campaign-audience{grid-template-columns:1fr!important}}`}</style>
-    </AccessibleDialog>
+      <style>{`@media (max-width:760px){.customer-campaign-dialog{max-height:calc(100dvh - 20px)!important}.customer-campaign-panel{grid-template-columns:1fr!important;overflow-y:auto!important}.customer-campaign-main{max-height:none!important}.customer-campaign-content{overflow:visible!important}.customer-campaign-fields,.customer-campaign-test{grid-template-columns:1fr!important}.customer-campaign-audience{grid-template-columns:repeat(2,minmax(0,1fr))!important}.customer-campaign-footer{position:sticky!important;bottom:0!important;z-index:2}.customer-campaign-history{border-left:0!important;border-top:1px solid var(--divider)!important;overflow:visible!important}} @media (max-width:430px){.customer-campaign-audience{grid-template-columns:1fr!important}}`}</style>
+      </DialogContent>
+    </Dialog>
   )
 }
 
 function AudienceBox({ label, value, tone }: { label: string; value: string; tone?: 'positive' }) {
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 11, background: tone === 'positive' ? 'var(--positive-bg)' : 'var(--surface-2)', padding: 12 }}>
-      <div style={{ fontSize: 11, color: tone === 'positive' ? 'var(--positive)' : 'var(--text-3)', fontWeight: 700, letterSpacing: '.04em' }}>{label.toLocaleUpperCase('tr-TR')}</div>
-      <div style={{ marginTop: 5, fontSize: 22, fontWeight: 780, color: tone === 'positive' ? 'var(--positive)' : 'var(--text)', ...S.mono }}>{value}</div>
-    </div>
+    <Card size="sm" className={tone === 'positive' ? 'bg-emerald-50 text-emerald-800' : 'bg-muted/40'}>
+      <CardHeader><CardTitle className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</CardTitle></CardHeader>
+      <CardContent><div className="text-xl font-semibold tabular-nums" style={S.mono}>{value}</div></CardContent>
+    </Card>
   )
 }
 
 function StatusPill({ status }: { status: CampaignSummary['status'] }) {
   const meta = status === 'sent'
-    ? { label: 'Gönderildi', bg: 'var(--positive-bg)', fg: 'var(--positive)' }
+    ? { label: 'Gönderildi', variant: 'positive' as const }
     : status === 'failed'
-      ? { label: 'Hata', bg: 'var(--critical-bg)', fg: 'var(--critical)' }
+      ? { label: 'Hata', variant: 'destructive' as const }
       : status === 'sending'
-        ? { label: 'Gönderiliyor', bg: 'var(--warning-bg)', fg: 'var(--warning)' }
-        : { label: status, bg: 'var(--surface-3)', fg: 'var(--text-3)' }
-  return <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '2px 7px', background: meta.bg, color: meta.fg, whiteSpace: 'nowrap' }}>{meta.label}</span>
-}
-
-function pagerBtn(disabled: boolean): React.CSSProperties {
-  return {
-    height: 34,
-    padding: '0 10px',
-    borderRadius: 7,
-    border: '1px solid var(--border)',
-    background: 'var(--surface)',
-    color: 'var(--text-2)',
-    fontSize: 12.5,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.45 : 1,
-  }
-}
-
-function segmentIconBtn(active: boolean): React.CSSProperties {
-  return {
-    width: 32,
-    height: 32,
-    border: 'none',
-    borderLeft: active ? '1px solid rgba(255,255,255,.2)' : '1px solid var(--divider)',
-    background: 'transparent',
-    color: active ? '#fff' : 'var(--text-3)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-  }
+        ? { label: 'Gönderiliyor', variant: 'warning' as const }
+        : { label: status, variant: 'secondary' as const }
+  return <Badge variant={meta.variant}>{meta.label}</Badge>
 }
 
 type RuleKey = 'last_seen_days' | 'visits' | 'spend' | 'points' | 'lifetime_points'
@@ -1060,90 +994,61 @@ function SegmentEditorModal({
   const canSave = name.trim().length > 0 && !saving
 
   return (
-    <AccessibleDialog
-      labelledBy="customer-segment-editor-title"
-      describedBy="customer-segment-editor-description"
-      onClose={onClose}
-      closeDisabled={saving}
-      style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(17,17,19,.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-    >
-      <div style={{ width: 'min(620px, 100%)', maxHeight: 'min(720px, 92vh)', overflowY: 'auto', borderRadius: 14, border: '1px solid var(--border)', background: 'var(--surface)', boxShadow: '0 24px 80px rgba(0,0,0,.22)' }}>
-        <div style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '16px 18px', borderBottom: '1px solid var(--divider)' }}>
-          <div>
-            <div id="customer-segment-editor-title" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{state.mode === 'edit' ? 'Segmenti düzenle' : 'Segment kaydet'}</div>
-            <div id="customer-segment-editor-description" style={{ ...S.caption, marginTop: 3 }}>{describeDefinition(pruneDefinition(definition))}</div>
-          </div>
-          <button type="button" onClick={onClose} disabled={saving} aria-label="Kapat" style={{ ...btnGhost({ width: 44, height: 44, padding: 0, justifyContent: 'center' }) }}><I.close size={14} /></button>
-        </div>
+    <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose() }}>
+      <DialogContent showCloseButton={!saving} className="max-h-[92dvh] gap-0 overflow-y-auto p-0 sm:max-w-[620px]">
+        <DialogHeader className="sticky top-0 z-10 border-b bg-popover px-5 py-4 pr-12">
+          <DialogTitle id="customer-segment-editor-title">{state.mode === 'edit' ? 'Segmenti düzenle' : 'Segment kaydet'}</DialogTitle>
+          <DialogDescription id="customer-segment-editor-description">{describeDefinition(pruneDefinition(definition))}</DialogDescription>
+        </DialogHeader>
 
-        <div style={{ padding: 16, display: 'grid', gap: 14 }}>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={S.label}>Segment adı</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} style={fieldStyle()} placeholder="Örn. VIP geri kazanım" />
-          </label>
+        <FieldGroup className="p-4">
+          <Field><FieldLabel htmlFor="customer-segment-name">Segment adı</FieldLabel><Input id="customer-segment-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="Örn. VIP geri kazanım" /></Field>
 
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={S.label}>İletişim izni</span>
-            <select value={definition.consent ?? ''} onChange={(e) => setDefinition((prev) => {
+          <Field><FieldLabel>İletişim izni</FieldLabel>
+            <Select value={definition.consent ?? 'any'} onValueChange={(selected) => setDefinition((prev) => {
               const next = { ...prev }
-              if (e.target.value === 'granted' || e.target.value === 'missing') next.consent = e.target.value
+              if (selected === 'granted' || selected === 'missing') next.consent = selected
               else delete next.consent
               return next
-            })} style={fieldStyle()}>
-              <option value="">Farketmez</option>
-              <option value="granted">Rıza var</option>
-              <option value="missing">Rıza yok</option>
-            </select>
-          </label>
+            })}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="any">Farketmez</SelectItem><SelectItem value="granted">Rıza var</SelectItem><SelectItem value="missing">Rıza yok</SelectItem></SelectContent>
+            </Select>
+          </Field>
 
           <div style={{ display: 'grid', gap: 8 }}>
             {RULES.map((rule) => {
               const active = Boolean(definition[rule.key])
               const value = definition[rule.key] ?? { op: rule.key === 'last_seen_days' ? '<=' : '>=', value: 0 }
               return (
-                <div key={rule.key} className="customer-segment-rule" style={{ display: 'grid', gridTemplateColumns: 'minmax(130px, 1fr) 84px minmax(120px, 1fr)', gap: 8, alignItems: 'center', padding: 10, border: '1px solid var(--border)', borderRadius: 10 }}>
-                  <label style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text)' }}>
-                    <input type="checkbox" checked={active} onChange={(e) => setRule(rule.key, e.target.checked)} />
+                <Card key={rule.key} size="sm" className="customer-segment-rule grid grid-cols-[minmax(130px,1fr)_84px_minmax(120px,1fr)] items-center gap-2 p-2">
+                  <label className="flex min-h-8 items-center gap-2 text-sm">
+                    <Checkbox checked={active} onCheckedChange={(checked) => setRule(rule.key, checked)} />
                     {rule.label}
                   </label>
-                  <select disabled={!active} value={value.op} onChange={(e) => updateRule(rule.key, { op: e.target.value as '>=' | '<=' })} style={fieldStyle({ opacity: active ? 1 : 0.45 })}>
-                    <option value=">=">&gt;=</option>
-                    <option value="<=">&lt;=</option>
-                  </select>
+                  <Select disabled={!active} value={value.op} onValueChange={(selected) => { if (selected) updateRule(rule.key, { op: selected as '>=' | '<=' }) }}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value=">=">&gt;=</SelectItem><SelectItem value="<=">&lt;=</SelectItem></SelectContent>
+                  </Select>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input disabled={!active} type="number" min={0} step={rule.integer ? 1 : 0.01} value={value.value} onChange={(e) => updateRule(rule.key, { value: Number(e.target.value) })} style={fieldStyle({ opacity: active ? 1 : 0.45, width: '100%' })} />
+                    <Input disabled={!active} type="number" min={0} step={rule.integer ? 1 : 0.01} value={value.value} onChange={(e) => updateRule(rule.key, { value: Number(e.target.value) })} />
                     {rule.unit && <span style={{ ...S.caption, minWidth: 28 }}>{rule.unit}</span>}
                   </div>
-                </div>
+                </Card>
               )
             })}
           </div>
 
-          {error && <div role="alert" style={{ color: 'var(--critical)', fontSize: 12.5 }}>{error}</div>}
-        </div>
+          {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+        </FieldGroup>
 
-        <div style={{ position: 'sticky', bottom: 0, zIndex: 1, background: 'var(--surface)', display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 16px', borderTop: '1px solid var(--divider)' }}>
-          <button type="button" onClick={onClose} disabled={saving} style={btnGhost({ height: 44 })}>İptal</button>
-          <button type="button" disabled={!canSave} onClick={() => { void onSave({ name: name.trim(), definition: pruneDefinition(definition) }) }} style={btnPrimary({ height: 44, opacity: canSave ? 1 : 0.55, cursor: canSave ? 'pointer' : 'not-allowed' })}>
-            {saving ? 'Kaydediliyor...' : 'Kaydet'}
-          </button>
+        <div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t bg-popover p-4">
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>İptal</Button>
+          <Button type="button" disabled={!canSave} onClick={() => { void onSave({ name: name.trim(), definition: pruneDefinition(definition) }) }}>
+            {saving && <Spinner />}{saving ? 'Kaydediliyor...' : 'Kaydet'}
+          </Button>
         </div>
-      </div>
       <style>{`@media (max-width: 560px) { .customer-segment-rule { grid-template-columns: 1fr !important; } }`}</style>
-    </AccessibleDialog>
+      </DialogContent>
+    </Dialog>
   )
-}
-
-function fieldStyle(overrides?: React.CSSProperties): React.CSSProperties {
-  return {
-    height: 44,
-    padding: '0 12px',
-    borderRadius: 9,
-    border: '1px solid var(--border-strong)',
-    background: 'var(--surface)',
-    color: 'var(--text)',
-    fontSize: 13.5,
-    outline: 'none',
-    ...overrides,
-  }
 }

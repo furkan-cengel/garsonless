@@ -1,14 +1,16 @@
+import { RefreshCw, X } from 'lucide-react'
+import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import { TABLE_LATE_AFTER_MINUTES } from './tables-operation-model'
 import { TABLES_REALTIME_COPY, type TablesRealtimeStatus } from './tables-realtime-model'
-import { TABLES_NAV_STYLES } from './tables-navigation-ui'
 
 export function TablesNavigationHeader({
   tableCount,
   activeCount,
   lateCount,
   connectionStatus,
-  realtimeColor,
-  realtimeBackground,
   onOpenHistory,
   onRetryRealtime,
 }: {
@@ -21,21 +23,30 @@ export function TablesNavigationHeader({
   onOpenHistory: () => void
   onRetryRealtime: () => void
 }) {
+  const realtimeVariant = connectionStatus === 'live'
+    ? 'positive'
+    : connectionStatus === 'connecting'
+      ? 'info'
+      : connectionStatus === 'reconnecting'
+        ? 'warning'
+        : 'destructive'
   return (
-    <div className="tb-tables__nav-header" style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--divider)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-        <div style={{ fontWeight: 600, fontSize: 14, letterSpacing: '-.01em', flex: 1 }}>Masalar</div>
-        <span style={{ ...TABLES_NAV_STYLES.mono, fontSize: 11, color: 'var(--text-3)' }}>{tableCount}</span>
-        <button className="tb-tables__nav-history" type="button" onClick={onOpenHistory} style={{ border: 0, background: 'transparent', fontSize: 11, color: 'var(--action)', cursor: 'pointer', padding: '0 8px' }}>Geçmiş</button>
+    <div className="tb-tables__nav-header border-b px-4 pt-3.5 pb-3">
+      <div className="mb-1 flex items-center gap-2">
+        <div className="flex-1 text-sm font-semibold tracking-tight">Masalar</div>
+        <Badge variant="outline" className="h-5 min-w-5 px-1.5 font-mono tabular-nums">{tableCount}</Badge>
+        <Button className="tb-tables__nav-history" type="button" variant="ghost" size="xs" onClick={onOpenHistory}>Geçmiş</Button>
       </div>
-      <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+      <div className="text-xs text-muted-foreground">
         {activeCount} açık · {lateCount} geciken · {TABLE_LATE_AFTER_MINUTES} dk eşik
       </div>
-      <div role="status" aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 7, color: realtimeColor, fontSize: 10.5, fontWeight: 650 }}>
-        <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: realtimeColor, boxShadow: `0 0 0 3px ${realtimeBackground}` }} />
-        <span style={{ flex: 1 }}>{TABLES_REALTIME_COPY[connectionStatus]}</span>
+      <div className="mt-2 flex items-center gap-1.5" role="status" aria-live="polite">
+        <Badge variant={realtimeVariant} className="h-5 max-w-full truncate px-1.5 text-[10.5px]">
+          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" />
+          {TABLES_REALTIME_COPY[connectionStatus]}
+        </Badge>
         {connectionStatus !== 'live' && (
-          <button type="button" onClick={onRetryRealtime} style={{ border: 0, padding: 0, background: 'transparent', color: realtimeColor, fontSize: 10.5, fontWeight: 750, cursor: 'pointer' }}>Yenile</button>
+          <Button type="button" variant="ghost" size="xs" onClick={onRetryRealtime}><RefreshCw />Yenile</Button>
         )}
       </div>
     </div>
@@ -64,22 +75,20 @@ export function TablesNavigationFeedback({
   return (
     <>
       {requestError && (
-        <div role="alert" style={{ margin: '8px 12px 0', padding: '8px 10px', borderRadius: 7, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 11.5 }}>
-          <div>İstek tamamlanamadı: {requestError}</div>
-          <button type="button" disabled={requestRetrying} onClick={onRetryPendingRequests} style={{ marginTop: 7, border: '1px solid currentColor', borderRadius: 6, background: 'transparent', color: 'inherit', padding: '5px 8px', fontWeight: 750, cursor: requestRetrying ? 'wait' : 'pointer' }}>{requestRetrying ? 'Yenileniyor…' : 'İstek listesini yenile'}</button>
-        </div>
+        <Alert variant="destructive" className="mx-3 mt-2 w-auto text-xs">
+          <AlertDescription className="grid gap-1.5 text-xs">İstek tamamlanamadı: {requestError}<Button type="button" variant="outline" size="xs" disabled={requestRetrying} onClick={onRetryPendingRequests} className="w-fit">{requestRetrying && <Spinner data-icon="inline-start" />}İstek listesini yenile</Button></AlertDescription>
+        </Alert>
       )}
       {sessionError && (
-        <div role="alert" style={{ margin: '8px 12px 0', padding: '8px 10px', borderRadius: 7, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 11.5 }}>
-          <div>Masa durumu yenilenemedi: {sessionError}</div>
-          <button type="button" disabled={sessionRetrying} onClick={onRetrySessions} style={{ marginTop: 7, border: '1px solid currentColor', borderRadius: 6, background: 'transparent', color: 'inherit', padding: '5px 8px', fontWeight: 750, cursor: sessionRetrying ? 'wait' : 'pointer' }}>{sessionRetrying ? 'Yenileniyor…' : 'Masa durumunu yeniden dene'}</button>
-        </div>
+        <Alert variant="destructive" className="mx-3 mt-2 w-auto text-xs">
+          <AlertDescription className="grid gap-1.5 text-xs">Masa durumu yenilenemedi: {sessionError}<Button type="button" variant="outline" size="xs" disabled={sessionRetrying} onClick={onRetrySessions} className="w-fit">{sessionRetrying && <Spinner data-icon="inline-start" />}Masa durumunu yeniden dene</Button></AlertDescription>
+        </Alert>
       )}
       {feedbackNotice && (
-        <div role="status" aria-live="polite" style={{ margin: '8px 12px 0', padding: '8px 8px 8px 10px', borderRadius: 7, background: 'var(--positive-bg)', color: 'var(--positive)', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ flex: 1 }}>{feedbackNotice}</span>
-          <button type="button" aria-label="İşlem bildirimini kapat" onClick={onDismissFeedbackNotice} style={{ width: 32, height: 32, border: 0, borderRadius: 6, background: 'transparent', color: 'inherit', fontSize: 17, cursor: 'pointer' }}>×</button>
-        </div>
+        <Alert className="mx-3 mt-2 w-auto border-[var(--positive)]/30 bg-[var(--positive-bg)] text-[var(--positive)]">
+          <AlertDescription className="text-xs font-medium text-current" role="status" aria-live="polite">{feedbackNotice}</AlertDescription>
+          <AlertAction><Button type="button" variant="ghost" size="icon-xs" aria-label="İşlem bildirimini kapat" onClick={onDismissFeedbackNotice}><X /></Button></AlertAction>
+        </Alert>
       )}
     </>
   )

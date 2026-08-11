@@ -2,7 +2,7 @@
 
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { CSSProperties } from 'react'
-import { AppIcons as I, type AppIcon } from '../icons'
+import { AppIcons as I, type AppIcon, type AppIconProps } from '../icons'
 import type { StoreInfo } from '../themes/types'
 import { useTheme } from './ThemeContext'
 
@@ -15,6 +15,42 @@ type FooterLink = {
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const MASABU_URL = 'https://masabu.co/'
+
+function InstagramIcon({ size = 18 }: AppIconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+      <rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2" stroke="currentColor" strokeWidth="1.9" />
+      <circle cx="12" cy="12" r="4.1" stroke="currentColor" strokeWidth="1.9" />
+      <circle cx="17.35" cy="6.7" r="1.15" fill="currentColor" />
+    </svg>
+  )
+}
+
+function FacebookIcon({ size = 18 }: AppIconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path fill="currentColor" d="M13.7 21v-8h2.8l.45-3.2H13.7V7.9c0-.93.3-1.55 1.62-1.55h1.75V3.5a24 24 0 0 0-2.55-.13c-2.52 0-4.25 1.54-4.25 4.37V9.8H7.42V13h2.85v8h3.43Z" />
+    </svg>
+  )
+}
+
+function TikTokIcon({ size = 18 }: AppIconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+      <path d="M14.2 4v10.1a4.45 4.45 0 1 1-3.7-4.39v3.02a1.55 1.55 0 1 0 .8 1.37V4h2.9Zm0 0c.55 2.12 2.05 3.47 4.3 3.87v2.98c-1.7-.12-3.13-.72-4.3-1.78" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function WhatsAppIcon({ size = 18 }: AppIconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+      <path d="M20.2 11.7a8.2 8.2 0 0 1-12.05 7.2L4 20l1.1-4.02A8.2 8.2 0 1 1 20.2 11.7Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8.75 7.85c.2-.45.42-.46.73-.47h.62c.2 0 .4.08.5.35l.82 1.93c.08.2.04.37-.08.55l-.64.82c-.13.16-.07.32.03.48.75 1.25 1.76 2.15 3.02 2.76.2.1.35.08.48-.08l.92-1.12c.15-.18.34-.2.54-.12l1.86.88c.25.12.36.27.34.5-.12 1.2-.67 1.88-1.42 2.2-.62.27-1.47.3-2.4-.02-1.07-.37-2.36-.98-3.66-2.13-1.1-.97-2.08-2.22-2.63-3.4-.47-1.02-.48-1.9-.05-2.9Z" fill="currentColor" />
+    </svg>
+  )
+}
 
 function safeHttpUrl(value: string) {
   const candidate = /^https?:\/\//i.test(value) ? value : `https://${value}`
@@ -63,13 +99,13 @@ export function normalizeFooterSocialLinks(contact?: NonNullable<StoreInfo['cont
   if (!contact) return []
   const links: FooterLink[] = []
   const instagram = contact.instagram ? socialUrl('instagram', contact.instagram) : null
-  if (instagram) links.push({ key: 'instagram', label: 'Instagram', href: instagram, external: true, Icon: I.image })
+  if (instagram) links.push({ key: 'instagram', label: 'Instagram', href: instagram, external: true, Icon: InstagramIcon })
   const facebook = contact.facebook ? socialUrl('facebook', contact.facebook) : null
-  if (facebook) links.push({ key: 'facebook', label: 'Facebook', href: facebook, external: true, Icon: I.users })
+  if (facebook) links.push({ key: 'facebook', label: 'Facebook', href: facebook, external: true, Icon: FacebookIcon })
   const tiktok = contact.tiktok ? socialUrl('tiktok', contact.tiktok) : null
-  if (tiktok) links.push({ key: 'tiktok', label: 'TikTok', href: tiktok, external: true, Icon: I.music })
+  if (tiktok) links.push({ key: 'tiktok', label: 'TikTok', href: tiktok, external: true, Icon: TikTokIcon })
   const whatsappDigits = contact.whatsapp?.replace(/\D/g, '')
-  if (whatsappDigits) links.push({ key: 'whatsapp', label: 'WhatsApp', href: `https://wa.me/${whatsappDigits}`, external: true, Icon: I.messageCircle })
+  if (whatsappDigits) links.push({ key: 'whatsapp', label: 'WhatsApp', href: `https://wa.me/${whatsappDigits}`, external: true, Icon: WhatsAppIcon })
   return links
 }
 
@@ -136,12 +172,16 @@ function footerPalette(theme: GarsonlessTheme) {
 
 export function MenuFooter({ storeInfo, cartCount = 0 }: { storeInfo?: StoreInfo | null; cartCount?: number }) {
   const { theme, restaurantName, logoUrl } = useTheme()
-  if (!(theme.footerEnabled ?? true)) return null
+  const businessFooterEnabled = theme.footerEnabled ?? true
 
   const contact = storeInfo?.contact
   const address = [contact?.address, contact?.district, contact?.city, contact?.zip].filter(Boolean).join(', ')
-  const contactLinks = (theme.footerShowContact ?? true) ? normalizeFooterContactLinks(contact) : []
-  const socialLinks = (theme.footerShowSocial ?? true) ? normalizeFooterSocialLinks(contact) : []
+  const normalizedContactLinks = normalizeFooterContactLinks(contact)
+  const showContact = businessFooterEnabled && (theme.footerShowContact ?? true)
+  const contactLinks = showContact ? normalizedContactLinks.filter((link) => link.key !== 'phone') : []
+  const phoneLink = showContact ? normalizedContactLinks.find((link) => link.key === 'phone') : undefined
+  const socialLinks = businessFooterEnabled && (theme.footerShowSocial ?? true) ? normalizeFooterSocialLinks(contact) : []
+  const iconLinks = phoneLink ? [phoneLink, ...socialLinks] : socialLinks
   const palette = footerPalette(theme)
   const needsActionClearance = (
     theme.cartPlacement === 'footer' && cartCount > 0
@@ -153,6 +193,7 @@ export function MenuFooter({ storeInfo, cartCount = 0 }: { storeInfo?: StoreInfo
       data-component="footer"
       data-menu-footer
       data-footer-tone={theme.footerTone ?? 'surface'}
+      data-business-footer-enabled={businessFooterEnabled ? 'true' : 'false'}
       style={{
         '--footer-fg': palette.foreground,
         '--footer-muted': palette.muted,
@@ -166,44 +207,58 @@ export function MenuFooter({ storeInfo, cartCount = 0 }: { storeInfo?: StoreInfo
           : 'env(safe-area-inset-bottom, 0px)',
       } as CSSProperties}
     >
-      <div data-menu-footer-inner>
-        <div data-menu-footer-brand>
-          {(theme.footerShowLogo ?? true) && (
-            <span data-menu-footer-logo aria-hidden="true">
-              {logoUrl ? <img src={logoUrl} alt="" /> : restaurantName.trim().charAt(0).toLocaleUpperCase('tr-TR') || 'M'}
-            </span>
-          )}
-          <div>
-            <strong>{restaurantName}</strong>
-            {(theme.footerShowAddress ?? true) && address && (
-              <span data-menu-footer-address><I.mapPin size={15} />{address}</span>
+      {businessFooterEnabled && (
+        <div data-menu-footer-inner>
+          <div data-menu-footer-brand>
+            {(theme.footerShowLogo ?? true) && (
+              <span data-menu-footer-logo aria-hidden="true">
+                {logoUrl ? <img src={logoUrl} alt="" /> : restaurantName.trim().charAt(0).toLocaleUpperCase('tr-TR') || 'M'}
+              </span>
             )}
+            <div>
+              <strong>{restaurantName}</strong>
+              {(theme.footerShowAddress ?? true) && address && (
+                <span data-menu-footer-address><I.mapPin size={15} />{address}</span>
+              )}
+            </div>
           </div>
+
+          {contactLinks.length > 0 && (
+            <div data-menu-footer-contact aria-label="İletişim bağlantıları">
+              {contactLinks.map(({ key, label, href, external, Icon }) => (
+                <a key={key} href={href} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+                  <Icon size={15} /><span>{label}</span>{external && <I.externalLink size={12} />}
+                </a>
+              ))}
+            </div>
+          )}
+
+          {iconLinks.length > 0 && (
+            <div data-menu-footer-social aria-label="Telefon ve sosyal medya bağlantıları">
+              {iconLinks.map(({ key, label, href, external, Icon }) => (
+                <a
+                  key={key}
+                  href={href}
+                  {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                  aria-label={key === 'phone' ? `Telefonla ara: ${label}` : `${label} sayfasını aç`}
+                  title={key === 'phone' ? 'Telefonla ara' : label}
+                >
+                  <Icon size={18} />
+                </a>
+              ))}
+            </div>
+          )}
+
+          {(theme.footerShowCopyright ?? true) && (
+            <small data-menu-footer-copyright>© {new Date().getFullYear()} · {restaurantName}</small>
+          )}
         </div>
-
-        {contactLinks.length > 0 && (
-          <div data-menu-footer-contact aria-label="İletişim bağlantıları">
-            {contactLinks.map(({ key, label, href, external, Icon }) => (
-              <a key={key} href={href} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
-                <Icon size={15} /><span>{label}</span>{external && <I.externalLink size={12} />}
-              </a>
-            ))}
-          </div>
-        )}
-
-        {socialLinks.length > 0 && (
-          <div data-menu-footer-social aria-label="Sosyal medya bağlantıları">
-            {socialLinks.map(({ key, label, href, Icon }) => (
-              <a key={key} href={href} target="_blank" rel="noopener noreferrer" aria-label={label} title={label}>
-                <Icon size={17} /><span>{label}</span>
-              </a>
-            ))}
-          </div>
-        )}
-
-        {(theme.footerShowCopyright ?? true) && (
-          <small data-menu-footer-copyright>© {new Date().getFullYear()} · {restaurantName}</small>
-        )}
+      )}
+      <div data-menu-footer-attribution>
+        <a href={MASABU_URL} target="_blank" rel="noopener noreferrer" aria-label="Powered by Masabu">
+          <span>Powered by</span>
+          <strong data-menu-footer-wordmark aria-hidden="true"><b>masa</b><b data-wordmark-accent>bu.</b></strong>
+        </a>
       </div>
       <style>{MENU_FOOTER_CSS}</style>
     </footer>
@@ -223,15 +278,23 @@ const MENU_FOOTER_CSS = `
 [data-menu-footer-contact] a{min-height:36px;max-width:100%;padding:0 11px;border:1px solid var(--footer-line);border-radius:999px;background:var(--footer-chip);color:var(--footer-fg);display:inline-flex;align-items:center;gap:7px;text-decoration:none;font:650 11.5px var(--p-body)}
 [data-menu-footer-contact] a span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 [data-menu-footer-social]{display:flex;flex-wrap:wrap;gap:8px}
-[data-menu-footer-social] a{min-width:38px;height:38px;padding:0 10px;border:1px solid var(--footer-line);border-radius:999px;background:var(--footer-chip);color:var(--footer-fg);display:inline-flex;align-items:center;justify-content:center;gap:7px;text-decoration:none;font:700 11px var(--p-body)}
+[data-menu-footer-social] a{width:38px;height:38px;padding:0;border:1px solid var(--footer-line);border-radius:999px;background:var(--footer-chip);color:var(--footer-fg);display:inline-flex;align-items:center;justify-content:center;text-decoration:none;transition:transform 150ms ease,background 150ms ease}
+[data-menu-footer-social] a:hover{transform:translateY(-1px);background:color-mix(in srgb,var(--footer-fg) 10%,transparent)}
 [data-menu-footer-copyright]{padding-top:14px;border-top:1px solid var(--footer-line);color:var(--footer-muted);font:550 10.5px var(--p-body)}
+[data-menu-footer-attribution]{max-width:1200px;margin:0 auto;padding:0 max(var(--p-pad),18px) 18px;display:flex;justify-content:center;box-sizing:border-box}
+[data-menu-footer-attribution] a{min-height:34px;padding:0 10px;border:1px solid rgba(17,19,24,.1);border-radius:999px;background:rgba(255,255,255,.94);color:#17191d;display:inline-flex;align-items:center;gap:6px;text-decoration:none;box-shadow:0 1px 3px rgba(15,17,21,.06)}
+[data-menu-footer-attribution] a>span{color:#747982;font:650 9.5px/1 var(--p-body);letter-spacing:.01em}
+[data-menu-footer-wordmark]{display:inline-flex;align-items:baseline;font:900 14px/1 var(--p-body);letter-spacing:-.055em}
+[data-menu-footer-wordmark] b{font:inherit}
+[data-menu-footer-wordmark] [data-wordmark-accent]{color:#2e7d52}
+[data-menu-footer][data-business-footer-enabled="false"] [data-menu-footer-attribution]{padding-top:16px}
 [data-menu-footer] a:focus-visible{outline:2px solid var(--footer-fg);outline-offset:3px}
+@media(prefers-reduced-motion:reduce){[data-menu-footer-social] a{transition:none}[data-menu-footer-social] a:hover{transform:none}}
 @media(min-width:700px){
   [data-menu-footer-inner]{grid-template-columns:minmax(180px,1.15fr) minmax(260px,1.7fr) auto;align-items:start;padding-block:28px}
   [data-menu-footer-contact]{align-self:center}
   [data-menu-footer-social]{justify-content:flex-end;align-self:center}
-  [data-menu-footer-social] a span{display:none}
   [data-menu-footer-copyright]{grid-column:1/-1}
 }
-@media(max-width:360px){[data-menu-footer-contact] a{width:100%;box-sizing:border-box}[data-menu-footer-social] a span{display:none}}
+@media(max-width:360px){[data-menu-footer-contact] a{width:100%;box-sizing:border-box}}
 `

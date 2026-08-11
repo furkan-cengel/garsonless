@@ -41,19 +41,22 @@
 .navScroller {
   flex: 1;
   overflow: auto;
-  padding: 4px 8px 12px;
+  padding: 8px 10px 16px;
 }
 
 .navGroup {
-  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 18px;
 }
 
 .navGroup:first-child {
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .navGroupTitle {
-  padding: 6px 8px;
+  padding: 4px 10px 3px;
 }
 
 .navRow {
@@ -61,8 +64,10 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  margin-bottom: 1px;
-  padding: 7px 8px;
+  height: auto;
+  min-height: 48px;
+  margin: 0;
+  padding: 8px 10px;
   border: 0;
   border-radius: 7px;
   background: transparent;
@@ -80,6 +85,7 @@
 .navRowActive,
 .navRowActive:hover {
   background: var(--surface-inset);
+  box-shadow: inset 2px 0 0 var(--text);
 }
 
 .navRowIcon {
@@ -96,7 +102,8 @@
   flex: 1;
   min-width: 0;
   flex-direction: column;
-  line-height: 1.2;
+  gap: 3px;
+  line-height: 1.25;
 }
 
 .navRowLabel {
@@ -111,7 +118,6 @@
 
 .navRowDescription {
   overflow: hidden;
-  margin-top: 2px;
   color: var(--text-3);
   font-size: 10.5px;
   text-overflow: ellipsis;
@@ -133,6 +139,13 @@
 .root :is(button, a) {
   min-width: 34px;
   min-height: 34px;
+}
+
+/* Switch already provides its own expanded hit area. Keep the visible control
+   at the shadcn size instead of inheriting the generic settings button box. */
+.root [data-slot='switch'] {
+  min-width: 32px !important;
+  min-height: 18.4px !important;
 }
 
 .root :is(input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea) {
@@ -167,6 +180,12 @@
     filter: none !important;
     box-shadow: none !important;
     transform: translateX(2px) !important;
+  }
+
+  .root [data-slot='switch']:not(:disabled):hover {
+    filter: none !important;
+    box-shadow: none !important;
+    transform: none !important;
   }
 
   .root :is(button, a[href]):not(:disabled):active,

@@ -7,6 +7,45 @@ export interface HorizontalScrollMetrics {
   scrollWidth: number
 }
 
+export type CategoryNavActiveStyle = 'filled' | 'soft' | 'outline'
+
+export interface CategoryNavActiveTreatment {
+  background: string
+  color: string
+  borderColor: string
+  boxShadow: string
+}
+
+export function getCategoryNavActiveTreatment(
+  activeStyle: CategoryNavActiveStyle,
+  accent = 'var(--p-accent)',
+): CategoryNavActiveTreatment {
+  if (activeStyle === 'soft') {
+    return {
+      background: 'var(--p-accent-soft)',
+      color: accent,
+      borderColor: 'color-mix(in srgb, var(--p-accent) 24%, transparent)',
+      boxShadow: 'none',
+    }
+  }
+
+  if (activeStyle === 'outline') {
+    return {
+      background: 'transparent',
+      color: accent,
+      borderColor: accent,
+      boxShadow: 'none',
+    }
+  }
+
+  return {
+    background: accent,
+    color: 'var(--p-cta-text)',
+    borderColor: accent,
+    boxShadow: 'none',
+  }
+}
+
 export function getCenteredCategoryScrollLeft({
   containerLeft,
   containerWidth,

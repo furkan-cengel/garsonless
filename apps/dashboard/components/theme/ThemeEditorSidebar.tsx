@@ -4,6 +4,15 @@ import type { ReactNode, RefObject } from 'react'
 import { getSectionDefinitionId, getSectionVisibility } from '@garsonless/design-engine'
 import { I } from '../../lib/ui'
 import { getCategoryParentId, pageBlockKey, type MenuCategory, type PageBlock } from './theme-page-flow-model'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
+import { ArrowDownIcon, ArrowUpIcon, GripVerticalIcon, XIcon } from 'lucide-react'
 
 type EditorNavGroup = {
   title: string
@@ -86,56 +95,29 @@ export function ThemeEditorSidebar({
           <h2 id="theme-editor-page-heading" style={{ margin: 0, flex: 1, minWidth: 0, fontWeight: 700, fontSize: 15, lineHeight: 1.25, color: 'var(--text)' }}>
             Tema araçları
           </h2>
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            fontSize: 11,
-            fontWeight: 650,
-            color: 'var(--positive)',
-            background: 'var(--positive-bg)',
-            borderRadius: 999,
-            padding: '3px 8px',
-          }}>
+          <Badge variant="positive">
             <span style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--positive)' }} />
             Canlı
-          </span>
+          </Badge>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-3)' }}>v2.4 · {templateName}</div>
       </div>
 
       <div style={{ padding: '12px 12px 6px' }}>
-        <div style={{
-          height: 34,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '0 10px',
-          background: 'var(--surface-3)',
-          borderRadius: 8,
-          color: 'var(--text-3)',
-        }}>
-          <I.search size={17} />
-          <input
+        <InputGroup>
+          <InputGroupAddon><InputGroupText><I.search /></InputGroupText></InputGroupAddon>
+          <InputGroupInput
             value={editorSearch}
             onChange={(event) => onEditorSearchChange(event.target.value)}
             placeholder="Bölümlerde ara"
             aria-label="Tema bölümlerinde ara"
-            style={{
-              flex: 1,
-              minWidth: 0,
-              border: 'none',
-              outline: 'none',
-              background: 'transparent',
-              color: 'var(--text)',
-              fontSize: 12.5,
-            }}
           />
-          <span style={{ fontSize: 10, color: 'var(--text-4)' }}>⌘K</span>
-        </div>
+          <InputGroupAddon align="inline-end"><kbd className="text-xs text-muted-foreground">⌘K</kbd></InputGroupAddon>
+        </InputGroup>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '4px 8px 12px' }}>
+      <ScrollArea className="min-h-0 flex-1">
+      <div style={{ padding: '4px 8px 12px' }}>
         {navGroups.map((group, groupIndex) => (
           <div key={group.title} style={{ marginTop: groupIndex === 0 ? 8 : 18 }}>
             <h3 style={navGroupLabelStyle}>{group.title}</h3>
@@ -146,23 +128,11 @@ export function ThemeEditorSidebar({
                   {item.parentLabel}
                 </div>
               )}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => onSelectGroup(item.id)}
-                style={{
-                  width: '100%',
-                  minHeight: 48,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  textAlign: 'left',
-                  padding: item.depth ? '8px 10px 8px 22px' : '8px 10px',
-                  border: 'none',
-                  borderRadius: 8,
-                  background: activeGroup === item.id ? 'var(--surface-inset)' : 'transparent',
-                  color: activeGroup === item.id ? 'var(--text)' : 'var(--text-2)',
-                  cursor: 'pointer',
-                }}
+                className={cn('h-auto min-h-12 w-full justify-start gap-2.5 px-2.5 py-2 text-left text-muted-foreground', item.depth && 'pl-5.5', activeGroup === item.id && 'bg-muted text-foreground')}
               >
                 <span style={{ display: 'inline-flex', color: activeGroup === item.id ? 'var(--text)' : 'var(--text-3)' }}>
                   {item.icon}
@@ -174,7 +144,7 @@ export function ThemeEditorSidebar({
                   </span>
                 </span>
                 {activeGroup === item.id && <I.chevRight size={17} />}
-              </button>
+              </Button>
               </div>
             ))}
           </div>
@@ -184,9 +154,9 @@ export function ThemeEditorSidebar({
           <div style={{ marginTop: 18 }}>
             <h3 style={navGroupLabelStyle}>Sayfa Akışı</h3>
             {editorQuery && (
-              <div role="note" style={{ margin: '0 8px 8px', fontSize: 11, lineHeight: 1.4, color: 'var(--text-3)' }}>
+              <Alert role="note" className="mx-2 mb-2"><AlertDescription>
                 Arama sırasında sıralama kapalıdır. Taşımak için aramayı temizleyin.
-              </div>
+              </AlertDescription></Alert>
             )}
             {[...visiblePageBlocks.filter((block) => block.placement !== 'drawer'), ...visiblePageBlocks.filter((block) => block.placement === 'drawer')].map((block, blockIndex, orderedBlocks) => {
               const key = pageBlockKey(block)
@@ -209,11 +179,18 @@ export function ThemeEditorSidebar({
                 : block.type === 'nav'
                   ? 'Kategori Menüsü'
                   : category?.name ?? block.id
+              const description = block.type === 'section'
+                ? `${isDrawerSection ? 'Menü Drawer' : getSectionScopeLabel(block)} · ${preset?.sub ?? 'Özel bölüm'}`
+                : block.type === 'nav'
+                  ? 'Kaydırılabilir kategori navigasyonu'
+                  : isChildCategory
+                    ? `${menuCategories.find((item) => item.id === categoryParentId)?.name ?? 'Üst kategori'} alt kategorisi`
+                    : 'Menü kategorisi'
 
               return (
                 <div key={key}>
                 {startsDrawerGroup && <h3 style={{ ...navGroupLabelStyle, marginTop: 16 }}>Menü Çekmecesi İçeriği</h3>}
-                <div
+                <Item
                   data-page-flow-row
                   data-drawer-flow-row={isDrawerSection || undefined}
                   role="group"
@@ -223,19 +200,13 @@ export function ThemeEditorSidebar({
                   onDragEnd={onDragEnd}
                   onDragOver={(event) => { if (!editorQuery) event.preventDefault() }}
                   onDrop={() => onDrop(key)}
+                  variant={selected ? 'muted' : 'default'}
+                  size="xs"
+                  className={cn('relative min-h-10 flex-nowrap gap-1.5', selected ? 'text-foreground' : 'text-muted-foreground')}
                   style={{
-                    minHeight: 44,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: isChildCategory ? '6px 10px 6px 34px' : isDrawerSection ? '7px 10px 7px 22px' : '7px 10px',
-                    borderRadius: 8,
-                    background: selected ? 'var(--surface-inset)' : 'transparent',
-                    color: selected ? 'var(--text)' : 'var(--text-2)',
+                    padding: isChildCategory ? '5px 6px 5px 28px' : isDrawerSection ? '5px 6px 5px 18px' : '5px 6px',
                     cursor: editorQuery ? 'default' : dragBlockKey === key ? 'grabbing' : 'grab',
                     opacity: dragBlockKey === key ? 0.55 : 1,
-                    position: 'relative',
-                    outline: 'none',
                   }}
                 >
                   {isChildCategory && (
@@ -243,123 +214,105 @@ export function ThemeEditorSidebar({
                       aria-hidden
                       style={{
                         position: 'absolute',
-                        left: 17,
+                        left: 13,
                         top: -8,
-                        bottom: 18,
-                        width: 14,
+                        bottom: 14,
+                        width: 10,
                         borderLeft: '1px solid var(--border-strong)',
                         borderBottom: '1px solid var(--border-strong)',
                         borderBottomLeftRadius: 6,
                       }}
                     />
                   )}
-                  <span aria-hidden style={{ color: 'var(--text-4)', fontSize: 13, letterSpacing: -2 }}>⋮⋮</span>
-                  <button
+                  <ItemMedia data-page-flow-drag-handle variant="icon" aria-hidden className="shrink-0">
+                    <GripVerticalIcon />
+                  </ItemMedia>
+                  <Button
                     data-page-flow-select
                     type="button"
+                    variant="ghost"
                     onClick={() => onSelectPageBlock(block)}
+                    className="h-auto min-w-0 flex-1 justify-start gap-1.5 overflow-hidden p-0 text-left hover:bg-transparent"
                     style={{
-                      flex: 1,
-                      minWidth: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: 0,
-                      border: 0,
-                      background: 'transparent',
                       color: 'inherit',
-                      textAlign: 'left',
-                      cursor: 'pointer',
                     }}
                   >
-                    <span style={{ display: 'inline-flex', color: selected ? 'var(--text)' : 'var(--text-3)' }}>
+                    <ItemMedia variant="icon" style={{ color: selected ? 'var(--text)' : 'var(--text-3)' }}>
                       {block.type === 'section'
                         ? <I.page size={17} />
                         : block.type === 'nav'
                           ? <I.header size={17} />
                           : <I.section size={17} />}
-                    </span>
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ display: 'block', fontSize: 13, fontWeight: 650 }}>{label}</span>
-                      <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-3)', marginTop: 1 }}>
-                        {block.type === 'section'
-                          ? `${isDrawerSection ? 'Menü Drawer' : getSectionScopeLabel(block)} · ${preset?.sub ?? 'Özel bölüm'}`
-                          : block.type === 'nav'
-                            ? 'Kaydırılabilir kategori navigasyonu'
-                            : isChildCategory
-                              ? `${menuCategories.find((item) => item.id === categoryParentId)?.name ?? 'Üst kategori'} alt kategorisi`
-                              : 'Menü kategorisi'}
-                      </span>
-                    </span>
-                  </button>
-                  {!editorQuery && (
-                    <span style={{ display: 'inline-flex', gap: 2 }}>
-                      <button
+                    </ItemMedia>
+                    <ItemContent data-page-flow-content className="min-w-0 items-start gap-0">
+                      <ItemTitle className="w-full truncate" title={label}>{label}</ItemTitle>
+                      <ItemDescription className="w-full truncate" title={description}>
+                        {description}
+                      </ItemDescription>
+                    </ItemContent>
+                  </Button>
+                  <ItemActions data-page-flow-actions className="shrink-0 gap-0.5">
+                    {!editorQuery && (
+                      <ButtonGroup aria-label={`${label} sıralaması`} className="shrink-0">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={`${label} öğesini yukarı taşı`}
+                          disabled={pageBlocks[0] === block}
+                          onClick={() => onMove(key, -1)}
+                        >
+                          <ArrowUpIcon data-icon="inline-start" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={`${label} öğesini aşağı taşı`}
+                          disabled={pageBlocks[pageBlocks.length - 1] === block}
+                          onClick={() => onMove(key, 1)}
+                        >
+                          <ArrowDownIcon data-icon="inline-start" />
+                        </Button>
+                      </ButtonGroup>
+                    )}
+                    {block.type === 'section' && (
+                      <Button
                         type="button"
-                        aria-label="Yukarı taşı"
-                        disabled={pageBlocks[0] === block}
-                        onClick={() => onMove(key, -1)}
-                        style={moveButtonStyle}
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={`${label} bölümünü kaldır`}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onRemoveSection(block.id)
+                        }}
                       >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Aşağı taşı"
-                        disabled={pageBlocks[pageBlocks.length - 1] === block}
-                        onClick={() => onMove(key, 1)}
-                        style={moveButtonStyle}
-                      >
-                        ↓
-                      </button>
-                    </span>
-                  )}
-                  {block.type === 'section' && (
-                    <button
-                      type="button"
-                      aria-label="Bölümü kaldır"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onRemoveSection(block.id)
-                      }}
-                      style={moveButtonStyle}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
+                        <XIcon data-icon="inline-start" />
+                      </Button>
+                    )}
+                  </ItemActions>
+                </Item>
                 </div>
               )
             })}
           </div>
         )}
 
-        <div style={{ position: 'relative', marginTop: 14 }}>
-          <button
+        <div data-page-flow-add className="relative px-1 pb-1 pt-3">
+          <Button
             ref={sectionTriggerRef}
             type="button"
+            variant="outline"
+            size="sm"
             onClick={onOpenSectionPicker}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              width: '100%',
-              height: 36,
-              border: '1px dashed var(--border-strong)',
-              background: 'transparent',
-              color: 'var(--text-2)',
-              borderRadius: 8,
-              cursor: 'pointer',
-              fontSize: 13,
-              fontWeight: 600,
-            }}
+            className="w-full border-dashed"
           >
-            <I.plus size={17} />
+            <I.plus data-icon="inline-start" />
             Bölüm ekle
-          </button>
+          </Button>
         </div>
       </div>
+      </ScrollArea>
     </aside>
   )
 }
@@ -382,14 +335,4 @@ const navGroupLabelStyle = {
   fontWeight: 750,
   letterSpacing: '.08em',
   textTransform: 'uppercase',
-} as const
-
-const moveButtonStyle = {
-  width: 24,
-  height: 24,
-  border: 0,
-  borderRadius: 6,
-  background: 'transparent',
-  color: 'var(--text-3)',
-  cursor: 'pointer',
 } as const

@@ -1,17 +1,19 @@
 'use client'
 
-import React from 'react'
-import { AppIconNodes } from '@garsonless/ui/icons'
+import { Frame, ImageIcon, Link2, Paintbrush, QrCode, RotateCcw } from 'lucide-react'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { QRHealth, SaveState } from './tables-builder-types'
 import { QR_PROPERTY_TABS, type QRPropertiesTab } from './use-tables-qr-properties-model'
-import { Tag } from './tables-qr-property-controls'
 
 const TAB_ICONS = {
-  qr: AppIconNodes.qr,
-  paint: AppIconNodes.paint,
-  image: AppIconNodes.image,
-  frame: AppIconNodes.frame,
-  link2: AppIconNodes.link2,
+  qr: QrCode,
+  paint: Paintbrush,
+  image: ImageIcon,
+  frame: Frame,
+  link2: Link2,
 }
 
 export function TablesQRPropertiesHeader({
@@ -28,97 +30,49 @@ export function TablesQRPropertiesHeader({
   onRetry: () => void
 }) {
   return (
-    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--divider)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div className="border-b p-4">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <div style={{ fontWeight: 600, fontSize: 13.5 }}>QR Stüdyosu</div>
-          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>Tüm masalara uygulanır</div>
+          <p className="font-medium">QR Stüdyosu</p>
+          <p className="text-xs text-muted-foreground">Tüm masalara uygulanır</p>
         </div>
-        <Tag tone={status.tone}>
-          <span style={{ width: 5, height: 5, borderRadius: 999, background: status.dot }} />
-          {status.label}
-        </Tag>
+        <Badge variant={status.tone === 'positive' ? 'positive' : 'secondary'}>{status.label}</Badge>
       </div>
       {(saveState === 'blocked' || health.state === 'invalid') && (
-        <div role="alert" aria-live="assertive" style={{ marginTop: 10, padding: '8px 9px', borderRadius: 7, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 11.5 }}>
-          <strong style={{ display: 'block', marginBottom: 2 }}>Kaydetme engellendi</strong>
-          {saveError ?? health.message}
-        </div>
+        <Alert variant="destructive" aria-live="assertive" className="mt-3">
+          <AlertTitle>Kaydetme engellendi</AlertTitle>
+          <AlertDescription>{saveError ?? health.message}</AlertDescription>
+        </Alert>
       )}
       {(saveState === 'error' || saveState === 'conflict') && (
-        <div role={saveState === 'error' ? 'alert' : 'status'} aria-live="polite" style={{ marginTop: 10, padding: '8px 9px', borderRadius: 7, background: saveState === 'error' ? 'var(--critical-bg)' : 'var(--warning-bg)', color: saveState === 'error' ? 'var(--critical)' : 'var(--warning)', fontSize: 11.5 }}>
-          <div>{saveError ?? (saveState === 'conflict' ? 'Sunucudaki güncel QR stili yüklendi.' : 'Değişiklikler kaydedilemedi.')}</div>
-          {saveState === 'error' && <button type="button" onClick={onRetry} style={{ marginTop: 6, minHeight: 44, padding: '0 8px', border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 750, textDecoration: 'underline' }}>Tekrar dene</button>}
-        </div>
+        <Alert variant={saveState === 'error' ? 'destructive' : 'default'} role={saveState === 'error' ? 'alert' : 'status'} aria-live="polite" className="mt-3">
+          <AlertTitle>{saveState === 'conflict' ? 'Stil güncellendi' : 'Değişiklikler kaydedilemedi'}</AlertTitle>
+          <AlertDescription>{saveError ?? (saveState === 'conflict' ? 'Sunucudaki güncel QR stili yüklendi.' : 'Lütfen tekrar deneyin.')}</AlertDescription>
+          {saveState === 'error' && <AlertAction><Button type="button" variant="outline" size="xs" onClick={onRetry}>Tekrar dene</Button></AlertAction>}
+        </Alert>
       )}
     </div>
   )
 }
 
-export function TablesQRPropertiesTabs({ tab, onChange }: {
-  tab: QRPropertiesTab
+export function TablesQRPropertiesTabs({ onChange }: {
   onChange: (tab: QRPropertiesTab) => void
 }) {
-  const tabRefs = React.useRef<Array<HTMLButtonElement | null>>([])
-  const moveFocus = (index: number) => {
-    const item = QR_PROPERTY_TABS[index]
-    if (!item) return
-    onChange(item.id)
-    tabRefs.current[index]?.focus()
-  }
-  const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
-    let nextIndex: number | null = null
-    if (event.key === 'ArrowRight') nextIndex = (index + 1) % QR_PROPERTY_TABS.length
-    else if (event.key === 'ArrowLeft') nextIndex = (index - 1 + QR_PROPERTY_TABS.length) % QR_PROPERTY_TABS.length
-    else if (event.key === 'Home') nextIndex = 0
-    else if (event.key === 'End') nextIndex = QR_PROPERTY_TABS.length - 1
-    if (nextIndex === null) return
-    event.preventDefault()
-    moveFocus(nextIndex)
-  }
   return (
-    <div className="tb-tables__props-tabs" role="tablist" aria-label="QR stüdyosu ayarları" style={{ display: 'flex', borderBottom: '1px solid var(--divider)', padding: '0 8px', overflowX: 'auto' }}>
-      {QR_PROPERTY_TABS.map((item, index) => (
-        <button
-          key={item.id}
-          id={`qr-properties-tab-${item.id}`}
-          type="button"
-          role="tab"
-          aria-selected={tab === item.id}
-          aria-controls="qr-properties-panel"
-          tabIndex={tab === item.id ? 0 : -1}
-          ref={(node) => { tabRefs.current[index] = node }}
-          onClick={() => onChange(item.id)}
-          onKeyDown={(event) => onKeyDown(event, index)}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            minHeight: 44, padding: '10px 10px', fontSize: 12, fontWeight: 500,
-            border: 'none', background: 'transparent', flexShrink: 0,
-            color: tab === item.id ? 'var(--text)' : 'var(--text-2)',
-            borderBottom: `1.5px solid ${tab === item.id ? 'var(--text)' : 'transparent'}`,
-            marginBottom: -1, cursor: 'pointer',
-          }}
-        >
-          {React.cloneElement(TAB_ICONS[item.icon] as React.ReactElement<{ size?: number }>, { size: 13 })}
-          {item.label}
-        </button>
-      ))}
-    </div>
+    <TabsList variant="line" className="tb-tables__props-tabs h-11 w-full justify-start overflow-x-auto rounded-none border-b px-2" aria-label="QR stüdyosu ayarları">
+      {QR_PROPERTY_TABS.map((item) => {
+        const Icon = TAB_ICONS[item.icon]
+        return <TabsTrigger key={item.id} value={item.id} onClick={() => onChange(item.id)} className="px-2.5"><Icon data-icon="inline-start" />{item.label}</TabsTrigger>
+      })}
+    </TabsList>
   )
 }
 
 export function TablesQRPropertiesFooter({ tableCount, onReset }: { tableCount: number; onReset: () => void }) {
   return (
-    <div style={{
-      borderTop: '1px solid var(--divider)', padding: '10px 14px',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      background: 'var(--surface-2)',
-    }}>
-      <button type="button" onClick={onReset} style={{
-        fontSize: 11.5, color: 'var(--text-2)', background: 'transparent',
-        border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2,
-      }}>Stili sıfırla</button>
-      <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{tableCount} masa</span>
+    <div className="flex items-center justify-between border-t bg-muted/30 p-3">
+      <Button type="button" variant="ghost" size="sm" onClick={onReset}><RotateCcw data-icon="inline-start" />Stili sıfırla</Button>
+      <Badge variant="secondary">{tableCount} masa</Badge>
     </div>
   )
 }

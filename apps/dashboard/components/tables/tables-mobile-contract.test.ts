@@ -41,9 +41,11 @@ test('mobile QR uses task surfaces, compact table selection and reachable action
   assert.match(mobileStyles, /\.tb-tables__canvas-toolbar button \{[\s\S]*min-height: 44px !important/)
 })
 
-test('transfer keeps one scroll owner with a sticky CTA', () => {
-  assert.match(transfer, /className="tb-transfer-dialog-panel"/)
-  assert.match(transfer, /className="tb-transfer-dialog-scroll"/)
-  assert.match(transfer, /className="tb-transfer-dialog-submit"/)
-  assert.match(transfer, /position:'sticky',bottom:0/)
+test('transfer keeps one shadcn scroll owner with a fixed dialog footer', () => {
+  assert.match(transfer, /className="tb-transfer-dialog-panel/)
+  assert.match(transfer, /className="tb-transfer-dialog-scroll/)
+  assert.match(transfer, /className="tb-transfer-dialog-submit/)
+  assert.match(transfer, /<ScrollArea/)
+  assert.match(transfer, /<DialogFooter/)
+  assert.doesNotMatch(transfer, /position:'sticky',bottom:0/)
 })

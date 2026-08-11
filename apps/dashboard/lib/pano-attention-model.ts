@@ -3,6 +3,7 @@ import type { PanoMetricsSource, PanoOperationalSource } from '@garsonless/appli
 import type { PaymentStatus, PanoAttentionItem } from './queries/pano'
 import type { TableStatusData } from './queries/insights-shared'
 import type { PanoLiveStatus } from '../components/pano/pano-live-model'
+import { formatPanoCurrency, formatPanoInteger } from './pano-format'
 
 const SEVERITY_RANK: Record<PanoAttentionItem['severity'], number> = {
   critical: 0,
@@ -20,10 +21,6 @@ type AttentionInput = {
   paymentStatus: PaymentStatus | null
 }
 
-function formatCurrency(value: number): string {
-  return `₺${value.toLocaleString('tr-TR')}`
-}
-
 export function buildPanoAttentionItems(input: AttentionInput): PanoAttentionItem[] {
   const recentPendingOrder = input.recentOrders.find(
     (order) => order.status === 'pending' || order.status === 'pending_approval',
@@ -35,7 +32,7 @@ export function buildPanoAttentionItems(input: AttentionInput): PanoAttentionIte
         severity: 'critical',
         title: `${input.pendingOrderCount} sipariş onay bekliyor`,
         detail: recentPendingOrder
-          ? `Son sipariş: ${recentPendingOrder.tableLabel ?? 'Paket sipariş'} · ${formatCurrency(recentPendingOrder.total)}`
+          ? `Son sipariş: ${recentPendingOrder.tableLabel ?? 'Paket sipariş'} · ${formatPanoCurrency(recentPendingOrder.total)}`
           : 'Sipariş panosunda işlem sırasına alındı.',
         createdAt: recentPendingOrder?.createdAt ?? input.generatedAt,
         ...(recentPendingOrder?.tableId ? { tableId: recentPendingOrder.tableId } : {}),
@@ -51,7 +48,7 @@ export function buildPanoAttentionItems(input: AttentionInput): PanoAttentionIte
       kind: 'late_table',
       severity: 'critical',
       title: `${table.label} gecikiyor`,
-      detail: `${table.time} dk · ${formatCurrency(Math.max(0, table.unpaidTotal - table.splitSettledTotal))} açık`,
+      detail: `${formatPanoInteger(table.time)} dk · ${formatPanoCurrency(Math.max(0, table.unpaidTotal - table.splitSettledTotal))} açık`,
       createdAt: table.openedAt ?? input.generatedAt,
       tableId: table.id,
       actionHref: `/dashboard/${input.restaurantId}/tables`,

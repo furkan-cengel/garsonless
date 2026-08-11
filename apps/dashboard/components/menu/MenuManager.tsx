@@ -1,4 +1,5 @@
 'use client'
+import { Toaster } from '@/components/ui/toast'
 import type { Tables } from '@garsonless/db/types'
 import NewProductDrawer from './NewProductDrawer'
 import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
@@ -10,16 +11,10 @@ import { deriveMenuManagerView } from './menu-manager-view-model'
 import { MenuCategoryWorkspace } from './MenuCategoryWorkspace'
 import { MenuItemEditPanel } from './MenuItemEditPanel'
 import { MenuItemsWorkspace } from './MenuItemsWorkspace'
-import {
-  MenuManagerEmptyPanel,
-  MenuManagerSkeleton,
-  MenuManagerToast,
-  MenuManagerTopBar,
-} from './MenuManagerChrome'
+import { MenuManagerEmptyPanel, MenuManagerSkeleton, MenuManagerToast, MenuManagerTopBar } from './MenuManagerChrome'
 import { useMenuManagerCommands } from './use-menu-manager-commands'
 import { useMenuManagerShellState } from './use-menu-manager-shell-state'
 import { useMenuItemRecommendations } from './use-menu-item-recommendations'
-
 interface Props {
   restaurantId: string
   restaurantName: string
@@ -29,10 +24,7 @@ interface Props {
   kitchenStations: Tables<'kitchen_stations'>[]
   initialRecommendations: MenuItemRecommendationRow[]
 }
-export default function MenuManager({
-  restaurantId, restaurantName, publicMenuPath, initialCategories,
-  initialItems, kitchenStations, initialRecommendations,
-}: Props) {
+export default function MenuManager({ restaurantId, restaurantName, publicMenuPath, initialCategories, initialItems, kitchenStations, initialRecommendations }: Props) {
   const router = useRouter()
   const recommendations = useMenuItemRecommendations(initialRecommendations)
   const shell = useMenuManagerShellState({ initialCategories, initialItems })
@@ -121,21 +113,27 @@ export default function MenuManager({
     search,
   })
   return (
-    <div className="menu-manager" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div
+      className="menu-manager"
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden', overscrollBehaviorY: 'none' }}
+    >
+      <Toaster />
       <MenuManagerTopBar
         restaurantName={restaurantName}
         publicMenuPath={publicMenuPath}
         search={search}
         searchFocused={searchFocused}
         searchInputRef={searchInputRef}
-        importFileInputRef={csvImport.fileInputRef} categoryCount={categories.length}
+        importFileInputRef={csvImport.fileInputRef}
+        categoryCount={categories.length}
         onSearchChange={setSearch}
         onSearchFocusChange={setSearchFocused}
         onImportFileChange={csvImport.handleFileChange}
-        onOpenImport={csvImport.openStart} onOpenAddCategory={requestAddCategory}
+        onOpenImport={csvImport.openStart}
+        onOpenAddCategory={requestAddCategory}
         onOpenAddItem={requestAddItem}
       />
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
         <MenuCategoryWorkspace
           categories={categories}
           items={items}
@@ -185,12 +183,7 @@ export default function MenuManager({
             onRecommendationsSaved={(ids) => recommendations.replaceForItem(selectedItem.id, ids)}
           />
         ) : (
-          <MenuManagerEmptyPanel
-            categoryCount={categories.length}
-            itemCount={items.length}
-            onAddCategory={requestAddCategory}
-            onAddItem={requestAddItem}
-          />
+          <MenuManagerEmptyPanel categoryCount={categories.length} itemCount={items.length} onAddCategory={requestAddCategory} onAddItem={requestAddItem} />
         )}
       </div>
 
@@ -213,14 +206,8 @@ export default function MenuManager({
           onDownloadTemplate={csvImport.downloadTemplate}
         />
       )}
-
       {csvImport.preview && (
-        <CsvImportModal
-          preview={csvImport.preview}
-          onConfirm={csvImport.importPreview}
-          onCancel={csvImport.cancelPreview}
-          onDownloadTemplate={csvImport.downloadTemplate}
-        />
+        <CsvImportModal preview={csvImport.preview} onConfirm={csvImport.importPreview} onCancel={csvImport.cancelPreview} onDownloadTemplate={csvImport.downloadTemplate} />
       )}
 
       {showAddItem && (activeSubCat ?? activeCategory) && (

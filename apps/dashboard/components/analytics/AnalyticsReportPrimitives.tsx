@@ -1,4 +1,12 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { Badge } from '../ui/badge'
+import {
+  Card as UiCard,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../ui/card'
 
 const mono = { fontFamily: "'Geist Mono', ui-monospace, monospace" } as CSSProperties
 
@@ -24,20 +32,18 @@ export function AnalyticsKpi({
   const neutral = resolvedTone === 'neutral'
   const positive = resolvedTone === 'positive'
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 14 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: '.05em', textTransform: 'uppercase', fontWeight: 500 }}>{label}</div>
-      <div style={{ ...mono, fontSize: 22, fontWeight: 700, letterSpacing: '-.02em', marginTop: 4, color: 'var(--text)' }}>{value}</div>
-      <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, minHeight: 19 }}>
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 3,
-          padding: '2px 7px', borderRadius: 999,
-          background: neutral ? 'var(--surface-3)' : positive ? 'var(--positive-bg)' : 'var(--critical-bg)',
-          color: neutral ? 'var(--text-3)' : positive ? 'var(--positive)' : 'var(--critical)',
-          fontSize: 10.5, fontWeight: 600,
-        }}>{resolvedDirection === 'up' ? '↑ ' : resolvedDirection === 'down' ? '↓ ' : ''}{delta}</div>
-        {hint && <span style={{ fontSize: 10.5, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{hint}</span>}
-      </div>
-    </div>
+    <UiCard size="sm">
+      <CardHeader className="gap-1">
+        <CardDescription className="text-[11px] font-medium uppercase tracking-[0.05em]">{label}</CardDescription>
+        <CardTitle style={mono} className="text-2xl font-bold tracking-tight tabular-nums">{value}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex min-h-5 items-center gap-1.5">
+        <Badge variant={neutral ? 'secondary' : positive ? 'positive' : 'destructive'}>
+          {resolvedDirection === 'up' ? '↑ ' : resolvedDirection === 'down' ? '↓ ' : ''}{delta}
+        </Badge>
+        {hint && <span className="truncate text-[11px] text-muted-foreground">{hint}</span>}
+      </CardContent>
+    </UiCard>
   )
 }
 
@@ -53,21 +59,12 @@ export function AnalyticsCard({
   style?: CSSProperties
 }) {
   return (
-    <div style={{
-      background: 'var(--surface)', borderRadius: 12,
-      border: '1px solid var(--border)', overflow: 'hidden', ...style,
-    }}>
-      <div style={{
-        padding: '12px 16px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        borderBottom: '1px solid var(--divider)',
-      }}>
-        <div>
-          <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>{title}</div>
-          {subtitle && <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>{subtitle}</div>}
-        </div>
-      </div>
-      <div>{children}</div>
-    </div>
+    <UiCard size="sm" className="gap-0 py-0" style={style}>
+      <CardHeader className="border-b py-3">
+        <CardTitle>{title}</CardTitle>
+        {subtitle && <CardDescription className="text-xs">{subtitle}</CardDescription>}
+      </CardHeader>
+      <CardContent className="p-0">{children}</CardContent>
+    </UiCard>
   )
 }

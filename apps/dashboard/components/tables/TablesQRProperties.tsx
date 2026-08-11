@@ -1,6 +1,8 @@
 'use client'
 
 import type { QRConfig, QRHealth, SaveState, TableItem } from './tables-builder-types'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { useTablesQRPropertiesModel } from './use-tables-qr-properties-model'
 import {
   TablesQRPropertiesFooter,
@@ -35,11 +37,7 @@ export function TablesQRProperties({
   const model = useTablesQRPropertiesModel({ qr, setQR, replaceQR, beginQRChange, saveState })
 
   return (
-    <div id="qr-design-panel" role="tabpanel" className="tb-tables__props" style={{
-      width: 'var(--props)', flexShrink: 0,
-      borderLeft: '1px solid var(--border)', background: 'var(--surface)',
-      display: 'flex', flexDirection: 'column',
-    }}>
+    <div id="qr-design-panel" role="tabpanel" className="tb-tables__props flex shrink-0 flex-col border-l bg-background" style={{ width: 'var(--props)' }}>
       <TablesQRPropertiesHeader
         status={model.status}
         saveState={saveState}
@@ -47,15 +45,14 @@ export function TablesQRProperties({
         health={health}
         onRetry={onRetry}
       />
-      <TablesQRPropertiesTabs tab={model.tab} onChange={model.setTab} />
-      <div
-        id="qr-properties-panel"
-        role="tabpanel"
-        aria-labelledby={`qr-properties-tab-${model.tab}`}
-        style={{ flex: 1, overflowY: 'auto' }}
-      >
-        <TablesQRPropertiesSection tab={model.tab} qr={qr} set={model.setField} tables={tables} legacyLogoRejected={legacyLogoRejected} />
-      </div>
+      <Tabs value={model.tab} onValueChange={(value) => model.setTab(value as typeof model.tab)} className="min-h-0 flex-1 gap-0">
+        <TablesQRPropertiesTabs onChange={model.setTab} />
+        <ScrollArea className="min-h-0 flex-1">
+          <TabsContent value={model.tab} id="qr-properties-panel" className="m-0">
+            <TablesQRPropertiesSection tab={model.tab} qr={qr} set={model.setField} tables={tables} legacyLogoRejected={legacyLogoRejected} />
+          </TabsContent>
+        </ScrollArea>
+      </Tabs>
       <TablesQRPropertiesFooter tableCount={tables.length} onReset={model.reset} />
     </div>
   )
