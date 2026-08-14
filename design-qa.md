@@ -78,6 +78,86 @@ final result: blocked
 
 final result: passed
 
+# Marketing Footer — Masabu Wordmark Motion QA
+
+## Kaynak, uygulama ve normalizasyon
+
+- Source visual truth: `/Users/furkancengelm3/Desktop/Screen Recording 2026-08-13 at 18.10.15.mp4`; yükseliş karesi `/Users/furkancengelm3/Documents/Codex/2026-08-13/u/outputs/footer-reference-02-wordmark-rise.jpg` ve final karesi `/Users/furkancengelm3/Documents/Codex/2026-08-13/u/outputs/footer-reference-03-wordmark-settled.jpg` (`1280×720`).
+- Onaylanmış Masabu adaptasyon planı: `/Users/furkancengelm3/Documents/Codex/2026-08-13/u/outputs/masabu-footer-motion-plan.md`.
+- Browser-rendered masaüstü final: `/Users/furkancengelm3/Documents/Codex/2026-08-13/u/work/footer-desktop-final-latest.png` (`1422×800`, CSS viewport `1422×800`).
+- Düz wordmark yükseliş yakalaması: `/Users/furkancengelm3/Documents/Codex/2026-08-13/u/work/footer-desktop-solid.png` (`1422×800`).
+- Birleşik karşılaştırma: `/Users/furkancengelm3/Documents/Codex/2026-08-13/u/work/footer-design-qa-comparison.jpg` (`2862×1726`). Referans kareler `1422×800` karşılaştırma alanına normalize edildi; iki kaynak da 16:9 olduğu için görünür oran değişmedi.
+- State: final CTA sonrası footer girişi; önce düz `masa` siyah / `bu` yeşil wordmark yükseliyor, ardından glow–hop ile mevcut QR dokulu Masabu logo varlığına dönüşüyor.
+
+## Karşılaştırma geçmişi
+
+1. [P2 — düzeltildi] İlk uygulamada QR eşiği footer sahnesinin üst kenarına göre hesaplanıyordu; masaüstünde dokulu katman wordmark tamamen görünmeden tetiklenebiliyordu. Eşik, logonun gerçek görünürlük oranına taşındı.
+2. [P2 — düzeltildi] Mobilde uzun sahne ve yatay wordmark oranı nedeniyle yalnız sahne konumuna dayalı ilerleme final eşiğine ulaşmıyordu. Yükseliş sahne görünürlüğünden, QR geçişi ise wordmark'ın gerçek görünür oranından hesaplandı; final mobil durumda `data-qr-active="true"`, wordmark `743.25–824.23px` aralığında ve viewport içinde ölçüldü.
+3. Histerezis yukarı kaydırmada `%48` görünürlüğün altında düz katmana, aşağı kaydırmada `%82` üzerinde QR katmanına geçiyor; eşik çevresinde titreme oluşmuyor.
+
+## Zorunlu görsel yüzeyler
+
+- Fonts/typography: Footer kimliği yazı tipiyle yeniden çizilmedi. İki motion katmanı da gerçek Masabu wordmark varlıklarından geliyor; footer yardımcı metinleri mevcut Geist hiyerarşisini koruyor.
+- Spacing/layout rhythm: Referanstaki büyük, alta oturan marka finali `94vw` masaüstü wordmark ve `88svh` sahneyle kuruldu. CTA kartı kaldırıldığı için footer artık satış kartı değil marka kapanışı olarak okunuyor.
+- Colors/tokens: Düz katmanda `masa` için kömür siyahı, `bu` için marka yeşili `#137a4d`; yüzey mevcut kırık beyaz `--bg`. Glow yalnız marka yeşilinin drop-shadow etkisini kullanıyor.
+- Image quality/assets: QR finalinde mevcut `/brand/masabu-logo-transparent.svg` kullanılıyor. Düz başlangıç varlığı aynı resmi wordmark sınırlarından türetildi; HTML/CSS ile logo çizilmedi, dış ölçüler iki katmanda aynı kaldı ve dönüşümde sıçrama görülmedi.
+- Copy/content: Keşfet bağlantıları, telif ve konum metni korundu. Footer içindeki deneme kartı ve `Ücretsiz dene` bağlantısı kaldırıldı; yalnız `Giriş yap` hesap yardımcısı kaldı.
+
+## Etkileşim, responsive ve tarayıcı sağlığı
+
+- Masaüstü final ölçümü: wordmark `1336.88px` genişlikte, `463.73–752.93px` aralığında; `data-qr-active="true"`; yatay taşma `0px`.
+- Mobil ölçüm: CSS viewport `390×844`; wordmark `374.39px` genişlikte ve tamamen görünür; yatay taşma `0px`; QR final durumu etkin.
+- Footer DOM'unda `.marketing-footer__trial` sayısı `0`, `Ücretsiz dene` footer bağlantısı sayısı `0`.
+- `prefers-reduced-motion` kuralında yükseliş, clip ve glow animasyonları kapanıyor; doğrudan kararlı QR finali gösteriliyor.
+- Tarayıcıda console error yok. Aşağıda yüklenen logoyu test sırasında doğrudan LCP olarak gören Next.js geliştirme uyarısı ve mevcut navigasyon logosunun oran uyarısı işlevsel hata değil.
+- Marketing lint geçti; marketing typecheck geçti; `git diff --check` temiz.
+
+## Odaklı karşılaştırma ve kalan P3
+
+- Wordmark her iki masaüstü karede de ana görsel yüzey olduğu için ayrı mikro kırpma gerekmedi; iki durumlu birleşik karşılaştırma yükseliş oranını, marka ölçeğini ve final dokusunu okunur büyüklükte gösteriyor.
+- Mobil için ayrı kaynak tasarım bulunmuyor. Mobil uygulama state ve kutu ölçüleri browser'da doğrulandı; cihazda optik olarak daha yukarıda konumlandırmak istenirse bu yalnız P3 yerleşim tercihi olur.
+
+final result: passed
+
+---
+
+# Marketing Deneme CTA — QR Akışı QA
+
+## Kaynak ve uygulama kanıtı
+
+- Source visual truth: `/Users/furkancengelm3/.codex/generated_images/019ff934-ad84-73f1-ae45-5991163bfe29/exec-01a92faf-35be-42d6-8621-9c544f99245f.png` (2014×781 px).
+- Browser-rendered desktop implementation: `/private/tmp/masabu-trial-desktop-v2.png` (1600×1111 px); ölçülen CSS viewport 1600×1111.
+- Browser-rendered mobile implementation: `/private/tmp/masabu-trial-mobile-v4.png` (481×976 px); 390×844 viewport override altında ölçülen CSS viewport 433×938.
+- Aynı tuvalde masaüstü karşılaştırma: `/private/tmp/masabu-trial-comparison-desktop.png` (2544×540 px). Kaynak solda, uygulama sağda; iki CTA bandı aynı optik yüksekliğe normalize edildi.
+- State: Menü Özelleştirme sonrasındaki `#ucretsiz-deneme` bölümü; CTA varsayılan durumda ve hedef bağlantı görünür.
+- Density normalization: kaynak ve uygulama aynı optik bant yüksekliğine ölçeklenerek karşılaştırıldı; mobil kaynak tasarım bulunmadığı için mobil ekran yalnız responsive hiyerarşi ve taşma açısından değerlendirildi.
+
+## Karşılaştırma geçmişi
+
+1. İlk masaüstü capture'da başlık üç satıra düşerek kaynak tasarımın iki satırlı hiyerarşisinden sapıyordu (P2). Başlık üst sınırı 52px'ten 46px'e indirildi.
+2. İkinci masaüstü capture'da başlık iki satıra oturdu; QR alanı, metin kolonu, CTA hizası ve bölüm oranlarında açık P0/P1/P2 fark kalmadı.
+
+## Zorunlu görsel yüzeyler
+
+- Fonts/typography: Fraunces ve Geist aileleri korundu. Başlık iki satır, eyebrow/body/CTA hiyerarşisi kaynakla uyumlu; mobilde başlık dört okunaklı satıra kontrollü biçimde kırılıyor.
+- Spacing/layout rhythm: masaüstünde 1200px bant, 456px yükseklik ve iki kolonlu yapı; 900px altında yığılmış düzen kullanılıyor. Masaüstü ve mobilde yatay taşma ölçülmedi.
+- Colors/tokens: kaynak kompozisyon, landing sayfasının `--story-green-dark`, `--story-bg` ve mint vurgu ailesine uyarlandı. Kaynaktaki daha koyu ton yerine ürünün mevcut marka tokenı bilinçli olarak korundu.
+- Image quality/assets: QR'lar üretken görselden kırpılmadı. İki gerçek QR matrisi ve kare parçacık izi, 2160×1040 şeffaf PNG varlık olarak keskin kenarlarla üretildi; bulanık veya bozuk modül yok.
+- Copy/content: `QR’ı masaya koyun. Servis akmaya başlasın.` başlığı, deneme açıklaması ve CTA metni eksiksiz; Türkçe karakterler doğru.
+
+## Etkileşim ve tarayıcı sağlığı
+
+- `14 gün ücretsiz dene` bağlantısı görünür ve etkin; hedefi `http://localhost:3000/signup` olarak doğrulandı.
+- Desktop ve mobile capture sırasında console error bulunmadı.
+- Marketing lint ve typecheck geçti; `git diff --check` temiz.
+- Kaynakta olmayan mobil kompozisyon için ek focused comparison gerekmedi; mobile capture, ölçülen kutular ve `scrollWidth === clientWidth` kanıtı responsive doğrulama için yeterli kabul edildi.
+
+## Kalan P3 notu
+
+- Kaynak görseldeki koyu/ışıklı yeşil atmosfer yerine markanın mevcut düz koyu yeşil tokenı kullanıldı; bu fark kullanıcı isteğiyle uyumlu, kasıtlı bir marka adaptasyonudur.
+
+final result: passed
+
 ---
 
 # Marketing Ana Sayfa — Hero Sonrası Ürün Hikâyesi QA
@@ -1335,5 +1415,282 @@ final result: passed
 
 - Marketing typecheck geçti.
 - Marketing lint geçti.
+
+final result: passed
+
+---
+
+# Deneme CTA — Referans QR Parçacık Akışı QA
+
+## Kaynak ve karşılaştırma
+
+- Görsel ve hareket referansı: `/Users/furkancengelm3/Desktop/QR CTA.dc.html` ve `/Users/furkancengelm3/Desktop/support.js`.
+- Referans masaüstü görüntüsü: `/private/tmp/qr-cta-reference.png` (`1422×600`).
+- Uygulama masaüstü görüntüsü: `/private/tmp/masabu-trial-animated-desktop.png` (`1422×800`).
+- Yoğunluk-normalize yan yana karşılaştırma: `/private/tmp/qr-cta-live-comparison.png` (`2384×537`); referans solda, uygulama sağda.
+- Mobil görüntü: `/private/tmp/masabu-trial-animated-mobile.png` (`481×976`). In-app Browser `390×844` override'ını CSS viewport'ta `433×938` olarak raporladı.
+
+## Bulgular ve düzeltmeler
+
+- [P1 — düzeltildi] Önceki kompozisyon iki tamamlanmış QR gösteriyordu. Referanstaki gibi tek, net QR matrisi ve sağ kenardan ayrılıp sağa akan bağımsız parçacıklar oluşturuldu.
+- [P1 — düzeltildi] QR iç desenlerinin raster üretimde bozulmaması için ana kod `700×700` gerçek PNG varlığına taşındı; CSS ile yeniden çizim veya inline SVG kullanılmadı.
+- [P2 — düzeltildi] Akış, referanstaki 70 parçacık, deterministik dağılım, negatif gecikme ve `2.4–5.4s` süre aralığıyla eşlendi. Parçacıklar başta tam ölçekten çıkıyor, sağa/yukarı-aşağı dağılıyor ve küçülerek kayboluyor.
+- [P2 — düzeltildi] Mobilde ayrı ve kırılgan bir illüstrasyon yerine aynı sahne oransal olarak küçülüyor; QR ve akış birlikte korunuyor.
+
+## Görsel doğrulama
+
+- Masaüstünde bant `1180×590.66`, illüstrasyon yüzeyi `570×350`, QR `349.99×350` ölçüldü. Referanstaki tek QR / geniş parçacık alanı / sağ metin hiyerarşisi korunuyor.
+- Başlık ve gövde metni birebir korundu. Referanstaki Newsreader/Hanken Grotesk karakteri, landing page tasarım diliyle tutarlılık için mevcut Fraunces/Geist marka fontlarına eşlendi.
+- Bant rengi mevcut `--story-green-dark` token'ına bağlandı; beyaz, mint ve koyu yeşil parçacıklar marka paletine uyarlandı.
+- Mobilde bant `401.34×683.95`, illüstrasyon `356.23×218.73`, QR `218.73×218.73` ölçüldü; CTA tam genişlikte kaldı ve yatay taşma oluşmadı.
+
+## Davranış ve erişilebilirlik
+
+- DOM'da tam QR sayısı `1`, parçacık sayısı `70`. Masaüstü örneklemesinde parçacık transform değerlerinin `700ms` içinde değiştiği doğrulandı.
+- `prefers-reduced-motion` durumunda animasyon kaldırılıyor ve parçacıklar akışın ortasında statik bir kompozisyon olarak gösteriliyor.
+- Dekoratif QR sahnesi `aria-hidden`; gerçek CTA metni, bağlantı hedefi ve klavye odağı korunuyor. CTA hedefi `http://localhost:3000/signup` olarak doğrulandı.
+- Masaüstü ve mobilde `scrollWidth === clientWidth`; yatay taşma yok.
+- Tarayıcı konsolunda yeni hata yok. QR için önceki LCP uyarısı `priority` ile giderildi; kalan logo en-boy oranı uyarısı bu değişiklikten bağımsız mevcut bir uyarı.
+
+## Otomatik kontroller
+
+- Marketing lint geçti.
+- Marketing typecheck geçti.
+- `git diff --check` geçti.
+- Kullanılmayan eski `trial-qr-flow.png` referansı ve kaldırılan bento selector/import'ları bulunmadı.
+
+final result: passed
+
+---
+
+# Deneme CTA — Kompakt Boyut ve Mobil Dikey Akış QA
+
+## Kaynak ve durum
+
+- Boyut referansı: `/Users/furkancengelm3/Library/Containers/com.skitch.skitch/Data/tmp/DMD14093F7F-A242-4C30-83ED-21B3A61D8F44/Screenshot_13_08_2026__12_55.png` (`2580×804`).
+- QR kompozisyon referansı: `/Users/furkancengelm3/Library/Containers/com.skitch.skitch/Data/tmp/DMDA3988D5F-5662-4B76-8403-C878CC02BDDA/Screenshot_13_08_2026__14_46.png`.
+- Uygulama masaüstü görüntüsü: `/private/tmp/masabu-trial-compact-desktop.jpg` (`1422×800`, CSS viewport `1422×800`).
+- Normalize karşılaştırma: `/private/tmp/masabu-trial-size-comparison.png` (`2384×340`). Boyut referansındaki bant `2401×674` pikselden `1180×331` boyutuna indirildi; uygulama bandı `1180×340` olarak kırpıldı. Referans solda, uygulama sağda.
+- Durum: varsayılan görünüm, parçacık animasyonu çalışıyor.
+
+## Karşılaştırma geçmişi
+
+- [P1 — düzeltildi] Önceki uygulama bandı masaüstünde `1180×590.66` ölçülmüş ve eski CTA oranına göre belirgin biçimde fazla yüksek kalmıştı. İç boşluk, grid, QR ve tipografi birlikte küçültülerek bant `1180×340.24` ölçüsüne indirildi.
+- [P2 — düzeltildi] Mobilde masaüstü yönü korunuyor ve parçacıklar sloganın yanına akıyordu. `700px` altında QR ortalandı; tüm parçacık başlangıç noktaları alt kenara, hareket vektörleri aşağı yöne taşındı.
+
+## Beş yüzey doğrulaması
+
+- Tipografi: Fraunces/Geist marka eşleşmesi korundu. Masaüstü başlık üst sınırı `44px`, gövde `15.5px`, CTA `15px` olacak şekilde kompakt hiyerarşiye yeniden ölçeklendi; metin içeriği değişmedi.
+- Yerleşim ve ritim: masaüstü grid `430px + 48px + içerik`, bant iç boşluğu `34px 58px`, radius `26px`. Eski CTA’nın `1180×331` normalize yüksekliğine karşı yeni sürüm `1180×340` ile aynı yoğunluk sınıfında.
+- Renkler: mevcut `--story-green-dark`, mint ve açık parçacık paleti değişmedi.
+- Görsel kalite: tek gerçek QR PNG keskin kaldı; masaüstünde `264×264`, mobilde `218.73×218.73` ölçüldü. Parçacıklar aynı dört raster varlığı kullanıyor.
+- Kopya: slogan, açıklama, deneme etiketi ve CTA metni birebir korundu.
+
+## Mobil davranış
+
+- In-app Browser `390×844` override'ını CSS viewport'ta `433×938` olarak raporladı.
+- Mobil bant `401.34×757.70`, QR `218.73×218.73`, dikey hareket alanı `356.23×312.48` ölçüldü; yatay sayfa taşması yok.
+- 70 parçacığın tamamı `trial-qr-flow-mobile` animasyonunu kullanıyor ve 70/70 aşağı yönlü pozitif `dy` vektörüne sahip. Doğal dağılma için 36 parça sola, 34 parça sağa hafif sapıyor.
+- QR’ın alt sınırı `403.39px`, hareket alanının alt sınırı `497.14px`, içerik başlangıcı `505.13px`; böylece akış QR’dan çıkıp slogan alanına doğru kesintisiz ilerliyor.
+- `prefers-reduced-motion` mobil durumda aynı dikey kompozisyonun statik orta karesi gösteriliyor.
+
+## Otomatik kontroller
+
+- Marketing lint geçti.
+- Marketing typecheck geçti.
+- `git diff --check` geçti.
+- Tarayıcı konsolunda yeni hata yok; yalnız bu değişiklikten bağımsız mevcut logo en-boy oranı uyarısı bulunuyor.
+
+final result: passed
+
+---
+
+# Deneme CTA — Tablet Yatay Düzen QA
+
+## Kaynak ve kanıt
+
+- Düzeltilmesi istenen tablet görünümü: `/Users/furkancengelm3/Library/Containers/com.skitch.skitch/Data/tmp/DMD56B4CE54-DF9D-4F89-A054-FBC26216BD3F/Screenshot_13_08_2026__15_03.png` (`1188×1074`).
+- Browser-rendered uygulama: `/private/tmp/masabu-trial-tablet-horizontal.jpg` (`853×1137`); ölçülen CSS viewport `853×1138`.
+- Odaklanmış önce/sonra karşılaştırması: `/private/tmp/masabu-trial-tablet-before-after.png` (`1650×752`). Önceki dikey bant solda `625×578` kırpılıp `813px` genişliğe normalize edildi; yeni yatay bant sağda gerçek `813×276` ölçüsüyle gösterildi.
+- Durum: varsayılan tablet görünümü, QR parçacık animasyonu çalışıyor.
+
+## Karşılaştırma geçmişi
+
+- [P1 — düzeltildi] `1100px` ve `900px` breakpoint'leri tablet CTA'yı tek kolona indiriyor, sloganı QR'ın altına taşıyor ve bandı gereksiz uzatıyordu.
+- Düzeltme sonrası `701–1100px` aralığı masaüstü yönünü koruyan iki kolonlu tablete dönüştürüldü. Dikey QR → slogan kompozisyonu yalnız `700px` ve altında bırakıldı.
+
+## Beş yüzey doğrulaması
+
+- Tipografi: tablet üst sınırında başlık `42px`, dar tablet aralığında `31–36px`; eyebrow, gövde ve CTA aynı oranla küçültülüyor. Slogan içerik kolonunun sağında ve iki okunaklı satırda kaldı.
+- Yerleşim ve ritim: ölçülen tablette bant `813.33×275.86`, sol illüstrasyon `290×178.06`, sağ içerik `442.24×218.76`. Grid yataylık testi `content.x > artwork.x + artwork.width` ile geçti.
+- Renkler: mevcut yeşil, mint ve kırık beyaz marka tokenları değişmedi.
+- Görsel kalite: gerçek QR PNG tablette `178.06×178.06` ölçüsünde keskin; parçacıklar masaüstündeki `trial-qr-flow` animasyonuyla sağa akıyor.
+- Kopya: slogan, açıklama, deneme etiketi ve CTA metni değiştirilmedi.
+
+## Responsive ve otomatik kontroller
+
+- Tablet görünümünde yatay sayfa taşması yok.
+- Mobil `700px` altı dikey parçacık akışı ve masaüstü `1100px` üstü kompakt yatay düzen korunuyor.
+- Marketing lint geçti.
+- Marketing typecheck geçti.
+- `git diff --check` geçti.
+- Tarayıcı konsolunda yeni error yok; yalnız bu değişiklikten bağımsız mevcut logo en-boy oranı uyarısı bulunuyor.
+
+final result: passed
+
+---
+
+# Menü Özelleştirme — Kesintisiz Özellik Akışı QA
+
+## Kaynak ve kanıt
+
+- Görsel kaynak: `/Users/furkancengelm3/Library/Containers/com.skitch.skitch/Data/tmp/DMD57F6428C-3B7D-4871-847C-982E3585ED02/Screenshot_13_08_2026__18_04.png` (`2856×1278`).
+- Browser-rendered uygulama: `/Users/furkancengelm3/Documents/Codex/2026-08-13/u/work/menu-customization-marquee-stage.png` (`1422×800`, CSS viewport `1422×800`, DPR `1.8`).
+- Normalize yan yana karşılaştırma: `/Users/furkancengelm3/Documents/Codex/2026-08-13/u/work/menu-customization-marquee-comparison.png` (`2432×675`); kaynak solda, uygulama sağda.
+- Durum: Menü Özelleştirme bölümü görünür, iki dikey akış çalışıyor.
+
+## Karşılaştırma geçmişi
+
+- [P1 — düzeltildi] Sağ kolon dört öğeyle sahne yüksekliğinden kısa kaldığı için döngünün sonunda belirgin bir boşluk oluşuyordu. Her kolon gerçek ürün alanlarından seçilmiş dokuz öğeye çıkarıldı; tek döngü yüksekliği `647.89px`, görünür pencere yüksekliği `560px` olarak ölçüldü.
+- [P1 — düzeltildi] Döngü kopyalarının flex içinde küçülme riski vardı. Her grup `flex: 0 0 auto` yapıldı; iki kopyanın yükseklik farkı `0px`, birleşim aralığı iki yönde de yaklaşık `0px`, track yüksekliği tam `1295.78px` ölçüldü.
+- [P2 — düzeltildi] Mobilde daha özgül aşağı-yön selector'ı `animation-name` değerini koruyabiliyordu. Mobil ve reduced-motion kurallarında iki yön açıkça `animation: none` ve `transform: none` olacak şekilde eşlendi.
+
+## Beş yüzey doğrulaması
+
+- Tipografi: mevcut Fraunces/Geist hiyerarşisi, mono kategori etiketleri ve pill metin ölçüleri değişmedi.
+- Yerleşim ve ritim: merkezi mesaj ve iki kolonlu simetrik düzen korundu. Her iki kolonda dokuz satır var; üst ve alt fade maskeleri öğelerin sahneye girip çıkışını yumuşatıyor, arada boş kare oluşmuyor.
+- Renkler: mevcut koyu yüzey, yeşil ikon ve gri yardımcı metin tokenları değişmedi.
+- Görsel kalite: yeni raster veya yaklaşık çizim eklenmedi; tüm yeni satırlar mevcut `MI` ikon kitaplığını kullanıyor.
+- Kopya ve içerik: yeni maddeler uygulamadaki gerçek alanlardan alındı: fiyat–maliyet, çıkarılabilir malzemeler, kalori/makrolar, alerjen ve diyet bilgileri, KDV, sıralama, filtreler, sadakat damgası ve tema yayın akışı.
+
+## Davranış, responsive ve otomatik kontroller
+
+- Masaüstünde iki track `32s linear infinite` çalışıyor ve `650ms` örneklemede iki transform değerinin de değiştiği doğrulandı.
+- Masaüstünde iki kolonda `9+9` özgün öğe, aynı sayıda erişilebilirlikten gizlenmiş döngü kopyası var. Birleşim aralığı sırasıyla `-0.00003px` ve `0.00003px`.
+- Mobilde kopyalar gizli, iki `9` öğelik liste statik, her iki track için `animation-name: none`; yatay taşma `0px`.
+- Tarayıcı konsolunda error yok.
+- Marketing lint geçti.
+- Marketing typecheck `--incremental false` ile geçti.
+- `git diff --check` geçti.
+
+## Odaklı karşılaştırma
+
+- Bölüm tek bir koyu sahne olduğu ve tüm kritik metin/pill ayrıntıları `1422×800` uygulama görüntüsünde okunabildiği için ayrıca kırpılmış mikro karşılaştırma gerekmedi. Yan yana tam bölüm karşılaştırması hiyerarşi, yoğunluk, fade ve kolon dengesini değerlendirmek için yeterliydi.
+
+final result: passed
+
+---
+
+# Marketing Pricing — Folk Kart Yapısı Adaptasyonu QA
+
+## Kaynak ve kanıt
+
+- Source visual truth: `/Users/furkancengelm3/Library/Containers/com.skitch.skitch/Data/tmp/DMDB52006B2-8788-4C16-811A-9BF1D907935C/Folk_Pricing_Section___Saaspo.png` (`1700×1178`).
+- Browser-rendered implementation screenshot: bu görevdeki in-app Browser karşılaştırma çıktısına eklenen `1422×800` capture; browser backend dosya sistemi yolu sağlamıyor.
+- CSS viewport: `1422×800`; uygulama capture'ı aynı piksel ölçüsünde, ek density normalizasyonu uygulanmadı.
+- Durum: yıllık fiyat seçili, uzun özellik listeleri ilk dört maddeye daraltılmış, kartlar varsayılan kapalı durumda.
+- Full-view comparison evidence: kaynak ve uygulama aynı karşılaştırma çağrısında birlikte açıldı; son geçişte pricing bölümü viewport üstünden `43px` konumuna hizalandı.
+- Focused region comparison evidence: başlık, toggle, fiyat, CTA, ilk dört özellik ve “Daha fazla göster” kontrolleri aynı `1422×800` uygulama capture'ında okunabildiği için ayrı mikro kırpma gerekmedi.
+
+## Karşılaştırma geçmişi
+
+1. [P2 — düzeltildi] İlk uygulama referanstaki kompakt başlangıca göre pricing başlığı üzerinde fazla boşluk bırakıyordu. Bölüm üst/alt padding'i `116/120px` değerinden `84/96px` değerine indirildi; tablet ve mobil padding'leri de aynı yoğunluk yönünde azaltıldı.
+2. Son karşılaştırmada başlık → toggle → kart sırası, nötr kart yüzeyleri, tek öne çıkan CTA ve kart içi özellik hiyerarşisi referans yapıyla aynı okunuyor. Açık P0/P1/P2 fark kalmadı.
+
+## Zorunlu görsel yüzeyler
+
+- Fonts/typography: pricing başlığı, paket adları, fiyatlar ve küçük UI metinleri mevcut Geist ailesinde; referanstaki sade sans-serif hiyerarşi korunuyor. Önceki dekoratif Fraunces başlık kaldırıldı.
+- Spacing/layout rhythm: masaüstünde dört eşit kolon, `16px` aralık ve kapalı durumda dört adet `519px` yüksekliğinde kart ölçüldü. Referanstaki üç kart yerine mevcut Starter/Plus/Pro/Business kataloğunu koruyan dört kart bilinçli ürün adaptasyonu.
+- Colors/tokens: beyaz kartlar, ince nötr sınırlar ve siyah CTA referansın sade kontrastını koruyor; seçili toggle, Pro sınırı ve küçük rozet yalnız mevcut Masabu yeşil tokenlarını kullanıyor.
+- Image quality/assets: pricing bölümünde raster görsel yok. Kontrol ve onay işaretleri mevcut `MI` ikon kitaplığından geliyor; CSS/HTML ile özel ikon çizilmedi.
+- Copy/content: başlık yalnız “Fiyatlandırma”. Süslü slogan kaldırıldı; fiyat, yıllık toplam, vergi/komisyon/taahhüt notu ve paket kapsamları doğrudan ürün verisi olarak sunuluyor.
+
+## Etkileşim, responsive ve otomatik kontroller
+
+- Plus kartı ilk dört özelliği gösteriyor ve `Daha fazla göster (1)` ile beşinci özelliği açıyor. Pro aynı kontrolle `4 → 7` özelliğe geçiyor; `aria-expanded` ve `aria-controls` güncelleniyor.
+- Yıllık toggle `aria-pressed="true"` durumuna geçiyor ve aylık karşılıkları `₺279,20`, `₺559,20`, `₺959,20`; yıllık toplamları `₺3.350,40`, `₺6.710,40`, `₺11.510,40` olarak gösteriyor.
+- Eski `.pricing-comparison` DOM sayısı `0`; bütün paket ayrıntıları kartların içinde.
+- Mobil ölçümde tek kolon `401px` kart genişliği, `433px` viewport/scroll genişliği ve yatay taşma `0px`; iki gerekli “Daha fazla göster” kontrolü mevcut.
+- Marketing contract testleri `4/4`, lint ve typecheck geçti; `git diff --check` temiz.
+- Tarayıcı konsolunda pricing kaynaklı error yok. Mevcut navigasyon logosunun en-boy oranına ilişkin önceden var olan Next.js uyarısı bu değişiklikten bağımsız.
+
+## Kalan kasıtlı farklar
+
+- Referansta üç paket bulunuyor; Masabu'nun karar verilmiş dört paket kataloğu korunuyor.
+- Referans tüm uzun listeleri aynı anda gösteriyor; kullanıcının isteği doğrultusunda Masabu'da ilk dört madde sonrası erişilebilir aç/kapa kontrolü kullanılıyor.
+- Referanstaki nötr gri “Most popular” rozeti Masabu'nun mevcut yumuşak yeşil tokenına uyarlandı.
+
+final result: passed
+
+---
+
+# Marketing Pricing — Başlık Font Sistemi QA
+
+## Kaynak ve kanıt
+
+- Source visual truth: `/Users/furkancengelm3/Library/Containers/com.skitch.skitch/Data/tmp/DMD2AB130BC-54D9-4B64-8EB4-2B6379DCDF2E/Cursor_and_masabu_—_Kafenizi_2_dakikada_akıllandırın.png` (`2838×1392`).
+- Browser-rendered implementation screenshot: bu görevdeki in-app Browser karşılaştırma çıktısına eklenen `1422×800` capture; browser backend dosya sistemi yolu sağlamıyor.
+- CSS viewport: `1422×800`; uygulama capture'ı aynı piksel ölçüsünde, ek density normalizasyonu uygulanmadı.
+- Durum: aylık fiyat görünümü, pricing bölümü viewport üstünden yaklaşık `43px` konumuna hizalı.
+- Full-view comparison evidence: kullanıcı ekran görüntüsü ile canlı uygulama aynı karşılaştırma çağrısında birlikte incelendi.
+- Focused evidence: başlık tam görünümde yeterince büyük ve okunur olduğu için ayrı mikro kırpma gerekmedi; computed style ayrıca doğrulandı.
+
+## Karşılaştırma ve düzeltme
+
+1. [P2 — düzeltildi] “Fiyatlandırma” başlığı kartların düz sans-serif tipografisini kullanıyor, sitenin editoryal bölüm başlıklarından kopuyordu.
+2. Başlığa mevcut `font-display` sınıfı eklendi. Canlı computed style sonucu `Fraunces, Fraunces Fallback, Georgia, serif`, `500` ağırlık, `66px` boyut, `67.32px` satır yüksekliği ve `-2.64px` harf aralığı.
+3. Son karşılaştırmada başlık sitenin diğer bölüm başlıklarıyla aynı karaktere geçti; açık P0/P1/P2 fark kalmadı.
+
+## Zorunlu görsel yüzeyler
+
+- Fonts/typography: yalnız pricing başlığı mevcut Fraunces display sistemine geçirildi; kart metinleri mevcut sans-serif UI sistemiyle korundu.
+- Spacing/layout rhythm: kart yapısı, kolonlar, boşluklar ve responsive davranış değiştirilmedi.
+- Colors/tokens: renk, yüzey, sınır ve CTA tokenlarında değişiklik yok.
+- Image quality/assets: yeni varlık eklenmedi; pricing bölümündeki mevcut ikonlar değişmedi.
+- Copy/content: metin, fiyat, paket kapsamı ve CTA'larda değişiklik yok.
+
+## Otomatik kontroller
+
+- Marketing contract testleri `4/4`, lint ve typecheck geçti; `git diff --check` temiz.
+- `1422px` viewport genişliğinde `scrollWidth === innerWidth`; yatay taşma yok.
+- Tarayıcı konsolunda error yok. Mevcut navigasyon logosunun en-boy oranına ilişkin önceden var olan Next.js uyarısı bu değişiklikten bağımsız.
+
+final result: passed
+
+---
+
+# Marketing Process Flow — Supademo Arka Katman QA
+
+## Kaynak ve kanıt
+
+- Source visual truth: `/Users/furkancengelm3/Library/Containers/com.skitch.skitch/Data/tmp/DMD1A5AA02B-6656-482D-A4E3-B8F9CF231C64/masabu_—_Kafenizi_2_dakikada_akıllandırın.png` (`1478×958`).
+- Browser-rendered implementation screenshot: bu görevdeki in-app Browser karşılaştırma çıktısına eklenen `1422×800` capture; browser backend dosya sistemi yolu sağlamıyor.
+- CSS viewport: `1422×800`; uygulama capture'ı aynı piksel ölçüsünde, ek density normalizasyonu uygulanmadı.
+- Durum: “Menünüzü markanıza uyarlayın” Supademo'su, kaynakla aynı yakınlaştırılmış `2 of 17 / Devam` adımı.
+- Full-view comparison evidence: kaynak ekran görüntüsü ve düzeltilmiş canlı uygulama aynı karşılaştırma çağrısında birlikte açıldı.
+- Focused region comparison evidence: sorun iframe'in sağ boşluğundaki görünür poster şeridi olduğu için demo kartının tamamı odak bölgesi olarak aynı görünümde karşılaştırıldı; ayrı mikro kırpma gerekmedi.
+
+## Karşılaştırma geçmişi
+
+1. [P1 — düzeltildi] Her etkileşimli Supademo iframe'inin altında `step.poster` görseli kalıcı olarak render ediliyordu. Yarı saydam yükleme katmanında ve Supademo yakınlaştırmasının bıraktığı şeffaf/boş bölgelerde bu ilgisiz poster yeniden görünüyordu.
+2. Alt poster tüm etkileşimli kartlardan kaldırıldı. Iframe ve yükleme yüzeyi opak nötr renklere (`#fff` ve `#f7f9f8`) geçirildi; şeffaf alanlar artık arkadaki bir görseli açığa çıkaramıyor.
+3. [P2 — düzeltildi] Paylaşılan Supademo dialog'u da aynı gizli poster katmanını taşıyabiliyordu. Dialog posteri artık yalnız `demoUrl` bulunmayan statik önizlemelerde render ediliyor; etkileşimli hata metni poster gösterildiğini vaat etmiyor.
+4. Son karşılaştırmada kaynakta pembe kutuyla işaretlenen yemek görseli şeridi aynı `2/17` adımında tamamen yok. Açık P0/P1/P2 fark kalmadı.
+
+## Zorunlu görsel yüzeyler
+
+- Fonts/typography: akış başlıkları, açıklamalar, browser şeridi ve Supademo içi tipografi değiştirilmedi.
+- Spacing/layout rhythm: demo kartlarının oranları, çerçeveleri, bölüm kolonları ve bağlantı çizgileri korundu; yatay taşma oluşmadı.
+- Colors/tokens: yalnız iframe altı ve yükleme durumu nötr opak beyaz yüzeye geçirildi; mevcut yeşil akış tokenları korunuyor.
+- Image quality/assets: etkileşimli iframe'lerin altındaki alakasız poster varlıkları kaldırıldı. Statik ürün posterleri ve Supademo'nun kendi gerçek ekran kayıtları değişmedi.
+- Copy/content: akış metinleri değişmedi. Yalnız etkileşimli dialog hata mesajı gerçek davranışla uyumlu hâle getirildi.
+
+## Etkileşim ve otomatik kontroller
+
+- Altı Supademo iframe'i sayfa boyunca görünür hâle getirilerek yüklendi; `6` iframe için iframe altındaki etkileşimli `img` ve `.process-poster__fallback` sayısı `0`.
+- Altı iframe'in computed background değeri `rgb(255, 255, 255)`; viewport ölçümünde `scrollWidth === innerWidth === 1422`.
+- Sorunun görüldüğü tema demosunda `Next step` kontrolüyle `1/17 → 2/17` geçişi yapıldı; yakınlaştırılmış durumda ilgisiz poster görünmedi.
+- Marketing contract testleri `7/7`, lint ve typecheck geçti; `git diff --check` temiz.
+- Tarayıcı konsolunda error yok. Mevcut navigasyon logosunun en-boy oranına ilişkin önceden var olan Next.js uyarısı bu değişiklikten bağımsız.
 
 final result: passed
