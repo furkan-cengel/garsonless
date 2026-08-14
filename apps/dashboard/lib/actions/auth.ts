@@ -68,8 +68,8 @@ export async function signIn(
 }
 
 /** Only allow same-origin relative redirects (e.g. the accept-invite return path). */
-function safeNext(value: FormDataEntryValue | null): string {
-  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : '/dashboard'
+function safeNext(value: FormDataEntryValue | null, fallback = '/dashboard'): string {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : fallback
 }
 
 export async function signUp(
@@ -84,7 +84,9 @@ export async function signUp(
     return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
   }
 
-  const next = safeNext(formData.get('next'))
+  // Onboarding belongs to account creation. Login and other auth entrypoints
+  // keep /dashboard as their default so existing accounts never start here.
+  const next = safeNext(formData.get('next'), '/dashboard/onboarding')
   const callbackUrl = `${process.env['NEXT_PUBLIC_APP_URL']}/auth/callback?next=${encodeURIComponent(next)}`
 
   const supabase = await createDashboardServerClient()

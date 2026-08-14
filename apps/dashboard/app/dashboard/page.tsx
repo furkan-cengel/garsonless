@@ -4,7 +4,11 @@ import { getUserRestaurantAccess, firstPermittedPath } from '../../lib/auth/acce
 
 export default async function DashboardIndexPage() {
   const restaurants = await getRestaurantsForUser()
-  if (restaurants.length === 0) redirect('/dashboard/onboarding')
+  // An authenticated browser may still be carrying a session for a newly
+  // created or otherwise unprovisioned user. Do not trap that browser in
+  // onboarding: existing users must be able to replace the session from the
+  // login screen. New-account creation reaches onboarding explicitly.
+  if (restaurants.length === 0) redirect('/auth/login?next=/dashboard')
 
   // Land on the first restaurant's first PERMITTED section (owner → Pano; a
   // member without 'pano' → their first section in nav order). Never notFound.

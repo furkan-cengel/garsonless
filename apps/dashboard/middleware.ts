@@ -57,10 +57,10 @@ export async function middleware(req: NextRequest) {
     return redirectTo('/auth/login')
   }
 
-  if (
-    user &&
-    (req.nextUrl.pathname === '/auth/login' || req.nextUrl.pathname === '/auth/signup')
-  ) {
+  // Keep login reachable even when the browser already has a session. This is
+  // the account-switch escape hatch for an authenticated user with no
+  // restaurant access; signInWithPassword replaces that session in place.
+  if (user && req.nextUrl.pathname === '/auth/signup') {
     return redirectTo('/dashboard')
   }
 
