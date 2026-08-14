@@ -7,14 +7,21 @@ const form = readFileSync(new URL('./BusinessContactForm.tsx', import.meta.url),
 const endpoint = readFileSync(new URL('../app/api/contact/business/route.ts', import.meta.url), 'utf8')
 const company = readFileSync(new URL('../app/company/page.tsx', import.meta.url), 'utf8')
 const home = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8')
+const styles = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8')
 
 test('pricing defaults monthly and exposes four responsive commercial cards', () => {
   assert.match(pricing, /useState<BillingInterval>\('monthly'\)/)
   for (const plan of ['starter', 'plus', 'pro', 'business']) assert.match(pricing, new RegExp(`id: '${plan}'`))
-  assert.match(pricing, /grid-template-columns: repeat\(4/)
-  assert.match(pricing, /max-width: 1024px[\s\S]+repeat\(2/)
-  assert.match(pricing, /max-width: 640px[\s\S]+grid-template-columns: 1fr/)
+  assert.match(styles, /\.pricing-grid \{[\s\S]*?grid-template-columns: repeat\(4/)
+  assert.match(styles, /max-width: 1024px[\s\S]+repeat\(2/)
+  assert.match(styles, /max-width: 640px[\s\S]+grid-template-columns: 1fr/)
   assert.match(home, /<PricingSection \/>/)
+})
+
+test('pricing critical styles ship in the global stylesheet before client hydration', () => {
+  assert.doesNotMatch(pricing, /<style jsx/)
+  assert.match(styles, /\.pricing-section \{[\s\S]*?padding: 84px 0 96px;/)
+  assert.match(styles, /\.pricing-card \{[\s\S]*?display: flex;/)
 })
 
 test('pricing preserves exact CTA intent and honest commercial copy', () => {
