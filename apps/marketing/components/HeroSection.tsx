@@ -18,7 +18,7 @@ export function HeroSection() {
             her siparişi ve tüm cironuzu tek panodan yönetirsiniz.
           </p>
           <div className="marketing-hero__actions">
-            <a className="marketing-hero__primary" href={`${DASHBOARD_URL}/signup`}>
+            <a className="marketing-hero__primary" href={`${DASHBOARD_URL}/auth/signup`}>
               Ücretsiz dene
             </a>
             <a className="marketing-hero__secondary" href="#demo">

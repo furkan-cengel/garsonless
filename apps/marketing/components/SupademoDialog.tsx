@@ -108,7 +108,9 @@ export function SupademoDialog({
           </button>
         </div>
         <div className="product-dialog__media">
-          <Image src={poster} alt={posterAlt} fill sizes="(max-width: 760px) 92vw, 980px" />
+          {!demoUrl && (
+            <Image src={poster} alt={posterAlt} fill sizes="(max-width: 760px) 92vw, 980px" />
+          )}
           {demoUrl && !frameFailed && (
             <iframe
               title={`${title} etkileşimli ürün turu`}
@@ -127,7 +129,7 @@ export function SupademoDialog({
         </div>
         {frameFailed && (
           <p className="product-dialog__error">
-            Etkileşimli tur yüklenemedi. Gerçek ürün ekranı gösteriliyor.
+            Etkileşimli tur yüklenemedi. Lütfen daha sonra tekrar deneyin.
           </p>
         )}
       </div>

@@ -71,15 +71,15 @@ const SOLUTIONS: Solution[] = [
   {
     id: 'zincir',
     eyebrow: 'Zincir & Franchise',
-    title: 'Bir merkez, on şube, sıfır karmaşa.',
-    desc: 'Menüyü merkezden yönet, lokal fiyat ayarlamalarına izin ver, raporları konsolide gör.',
+    title: 'Şubeler arasında güvenle geçiş yapın.',
+    desc: 'Bağlı işletmelere tek organizasyon üyeliği ve ortak ekip erişimiyle ulaşın.',
     metric: '12', metricLabel: 'şube tek panelden',
     color: '#cfe8f8', accent: '#1f4e8f', icon: '🏢',
     features: [
-      ['Merkezi menü yönetimi', 'Tek değişiklik tüm şubelere anlık yayımlanır.'],
-      ['Şube bazlı fiyat & stok', 'Lokasyon farkları yerel kontrolde, marka tek.'],
-      ['Konsolide raporlama', 'Hangi şube parlıyor, hangisi dikkat istiyor — bir tabloda.'],
-      ['SSO + Rol matrisi', 'Bölge müdürü, şube müdürü, çalışan — yetkiler ayrı.'],
+      ['Şube değiştirici', 'Yetkili olduğunuz bağlı restoranlara aynı oturumdan geçin.'],
+      ['Organizasyon üyeliği', 'Şube bağlantıları satış destekli ve denetimli kurulur.'],
+      ['Ortak ekip erişimi', 'Owner, yönetici ve çalışan rollerini açıkça ayırın.'],
+      ['Yerel operasyon', 'Her şubenin menü ve fiyat yönetimi kendi güvenli sınırında kalır.'],
     ],
     quote: { t: '12 şubemizde menü güncellemeyi 1 günden 5 dakikaya indirdik.', n: 'Aslı Kara', r: 'Kahveci Mustafa Amca' },
   },
@@ -152,7 +152,7 @@ function SolutionSection({ sol, flip }: { sol: Solution; flip: boolean }) {
               ))}
             </ul>
             <div style={{ display: 'flex', gap: 10, marginTop: 32, flexWrap: 'wrap' }}>
-              <a href={`${DASHBOARD_URL}/signup`} style={{ textDecoration: 'none' }}>
+              <a href={`${DASHBOARD_URL}/auth/signup`} style={{ textDecoration: 'none' }}>
                 <PrimaryButton>14 gün ücretsiz dene <MI.arrow /></PrimaryButton>
               </a>
               <a href="/company#iletişim" style={{ textDecoration: 'none' }}>
@@ -202,7 +202,7 @@ function ComparisonTable() {
     ['Müzik isteği', false, false, true, false, false],
     ['PMS entegrasyonu', false, false, false, false, true],
     ['Çoklu şube', false, false, false, true, true],
-    ['SSO + rol matrisi', false, false, false, true, true],
+    ['Ortak ekip ve rol matrisi', false, false, false, true, true],
     ['AI çeviri (8+ dil)', false, true, false, false, true],
   ]
 

@@ -73,16 +73,16 @@ const DOCS: Record<string, LegalDoc> = {
       ]},
       { t: 'Abonelik & ödeme', items: [
         '14 gün ücretsiz deneme — kart bilgisi gerekmez',
-        'Yıllık veya aylık ödeme — yıllık %18 indirim',
-        'KDV dahil fiyatlandırma — KDV oranı: %10',
-        'İptal: tek tıkla, dönem sonuna kadar erişim devam eder',
-        'İade: deneme süresi içinde tam iade; sonrasında pro-rata',
+        'Yıllık veya aylık ödeme — yıllık %20 indirim',
+        'Gösterilen plan fiyatları KDV dâhildir',
+        'Yıllık ücret peşin tahsil edilir; dönem ortasında pro-rata uygulanmaz',
+        'İptal sonrası veriler geçerli saklama politikası boyunca korunur',
       ]},
       { t: 'Kabul edilebilir kullanım', items: [
         'Yasal olarak işlettiğiniz mekanlar için kullanın',
         'Spam, dolandırıcılık, yanıltıcı menü içeriği yasaktır',
         'Telif hakkı ihlali içeren görseller yüklemeyin',
-        "API'yi rate limit'leri aşacak şekilde kullanmayın",
+        'Otomatik isteklerle hizmetin güvenlik sınırlarını aşmayın',
         '3. taraflara hesabınızı satmayın',
       ]},
       { t: 'Sorumluluk reddi', items: [

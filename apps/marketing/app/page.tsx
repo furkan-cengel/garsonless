@@ -3,10 +3,9 @@ import { HeroSection } from '../components/HeroSection'
 import { ProblemSolutionSection } from '../components/ProblemSolutionSection'
 import { ProcessFlowSection } from '../components/ProcessFlowSection'
 import { MenuCustomizationSection } from '../components/MenuCustomizationSection'
-import { OperationsBentoSection } from '../components/OperationsBentoSection'
+import { PricingSection } from '../components/PricingSection'
 import { TrialSection } from '../components/TrialSection'
 import { FAQSection } from '../components/FAQSection'
-import { CTASection } from '../components/CTASection'
 import { MarketingFooter } from '../components/MarketingFooter'
 
 export default function HomePage() {
@@ -18,10 +17,9 @@ export default function HomePage() {
         <ProblemSolutionSection />
         <ProcessFlowSection />
         <MenuCustomizationSection />
-        <OperationsBentoSection />
+        <PricingSection />
         <TrialSection />
         <FAQSection />
-        <CTASection />
       </main>
       <MarketingFooter />
     </>

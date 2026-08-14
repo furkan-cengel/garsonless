@@ -1,83 +1,54 @@
 import Image from 'next/image'
 
-const COLS = [
-  { title: 'Ürün', items: [
-    { l: 'Menü',          href: '/#özellikler' },
-    { l: 'Sipariş',       href: '/#özellikler' },
-    { l: 'QR Stüdyosu',   href: '/#özellikler' },
-    { l: 'Tema',          href: '/#özellikler' },
-    { l: 'Analiz',        href: '/#özellikler' },
-    { l: 'Mutfak ekranı', href: '/#özellikler' },
-  ]},
-  { title: 'Çözümler', items: [
-    { l: 'Kafeler',            href: '/solutions#kafeler' },
-    { l: 'Restoranlar',        href: '/solutions#restoranlar' },
-    { l: 'Bar & meyhane',      href: '/solutions#bar' },
-    { l: 'Zincir & franchise', href: '/solutions#zincir' },
-    { l: 'Otel restoranları',  href: '/solutions#otel' },
-  ]},
-  { title: 'Kaynaklar', items: [
-    { l: 'Blog',              href: '/resources#blog' },
-    { l: 'Vaka çalışmaları',  href: '/resources#vaka' },
-    { l: 'Yardım merkezi',    href: '/resources#yardım' },
-    { l: 'API dokümanı',      href: '/resources#api' },
-    { l: 'Şablonlar',         href: '/resources#şablon' },
-    { l: 'Topluluk',          href: '/resources#topluluk' },
-  ]},
-  { title: 'Şirket', items: [
-    { l: 'Hakkımızda', href: '/company#hakkımızda' },
-    { l: 'Kariyer',    href: '/company#kariyer' },
-    { l: 'Basın',      href: '/company#basın' },
-    { l: 'İletişim',   href: '/company#iletişim' },
-    { l: 'Bayilik',    href: '/company#bayilik' },
-  ]},
+const DASHBOARD_URL = process.env.NEXT_PUBLIC_DASHBOARD_URL ?? 'http://localhost:3000'
+
+const PRODUCT_LINKS = [
+  { label: 'Özellikler', href: '/#özellikler' },
+  { label: 'Nasıl çalışır', href: '/#demo' },
+  { label: 'Menü özelleştirme', href: '/#menu-ozellestirme' },
+  { label: 'Fiyatlar', href: '/#fiyatlandırma' },
+  { label: 'Sık sorulanlar', href: '/#sss' },
 ]
 
 export function MarketingFooter() {
   return (
-    <footer style={{ background: 'var(--bg)', padding: '100px 0 40px', borderTop: '1px solid var(--line)' }}>
+    <footer className="marketing-footer">
       <div className="container">
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(4, 1fr)', gap: 48, marginBottom: 56 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 18 }}>
-              <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={102} height={22} style={{ height: 22, width: 'auto', display: 'block' }} />
-            </div>
-            <p style={{ fontSize: 14, color: 'var(--ink-3)', lineHeight: 1.6, maxWidth: 280, margin: 0 }}>
-              Türk gastronomisi için tasarlandı.<br />Mekanınız ister kafe ister fine-dining — biz oradayız.
-            </p>
+        <div className="marketing-footer__main">
+          <div className="marketing-footer__brand">
+            <a href="/" aria-label="Masabu ana sayfa">
+              <Image
+                src="/brand/masabu-logo-transparent.svg"
+                alt="Masabu"
+                width={102}
+                height={22}
+              />
+            </a>
+            <p>QR menüden mutfak ekranına, servis operasyonunu tek akışta yönetin.</p>
           </div>
 
-          {COLS.map((col) => (
-            <div key={col.title}>
-              <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)', textTransform: 'uppercase', letterSpacing: '.08em', margin: '0 0 16px' }}>
-                {col.title}
-              </h4>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 11 }}>
-                {col.items.map((item) => (
-                  <li key={item.l}>
-                    <a href={item.href} style={{ fontSize: 14, color: 'var(--ink-2)', textDecoration: 'none' }}>{item.l}</a>
-                  </li>
+          <nav className="marketing-footer__nav" aria-label="Footer navigasyonu">
+            <div>
+              <h2>Keşfet</h2>
+              <ul>
+                {PRODUCT_LINKS.map((link) => (
+                  <li key={link.label}><a href={link.href}>{link.label}</a></li>
                 ))}
               </ul>
             </div>
-          ))}
+
+            <div>
+              <h2>Hesap</h2>
+              <ul>
+                <li><a href={`${DASHBOARD_URL}/login`}>Giriş yap</a></li>
+              </ul>
+            </div>
+          </nav>
         </div>
 
-        <div style={{
-          paddingTop: 28, borderTop: '1px solid var(--line)',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16,
-        }}>
-          <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>© 2026 masabu · İstanbul, Türkiye</div>
-          <div style={{ display: 'flex', gap: 24, fontSize: 13, color: 'var(--ink-3)' }}>
-            <a href="/legal#gizlilik" style={{ textDecoration: 'none', color: 'inherit' }}>Gizlilik</a>
-            <a href="/legal#şartlar" style={{ textDecoration: 'none', color: 'inherit' }}>Şartlar</a>
-            <a href="/legal#kvkk" style={{ textDecoration: 'none', color: 'inherit' }}>KVKK</a>
-            <a href="/legal#çerezler" style={{ textDecoration: 'none', color: 'inherit' }}>Çerezler</a>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--ink-3)' }}>
-            <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--positive)' }} />
-            Masabu · Restoran teknolojileri
-          </div>
+        <div className="marketing-footer__bottom">
+          <span>© 2026 Masabu · İstanbul, Türkiye</span>
+          <span>Restoran operasyonları için tasarlandı.</span>
         </div>
       </div>
     </footer>

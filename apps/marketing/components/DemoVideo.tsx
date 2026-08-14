@@ -186,7 +186,7 @@ export function DemoVideo() {
         </div>
 
         <div style={{ textAlign: 'center', marginTop: 36 }}>
-          <a href={`${DASHBOARD_URL}/signup`} style={{ textDecoration: 'none' }}>
+          <a href={`${DASHBOARD_URL}/auth/signup`} style={{ textDecoration: 'none' }}>
             <PrimaryButton dark size="lg">14 gün ücretsiz dene <MI.arrow /></PrimaryButton>
           </a>
         </div>

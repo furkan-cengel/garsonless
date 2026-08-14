@@ -15,7 +15,7 @@ export function CTASection() {
               boyunca gerçek operasyonunuzda deneyin.
             </p>
             <div>
-              <a className="final-cta__primary" href={`${DASHBOARD_URL}/signup`}>
+              <a className="final-cta__primary" href={`${DASHBOARD_URL}/auth/signup`}>
                 14 gün ücretsiz dene <MI.arrow size={17} />
               </a>
               <a className="final-cta__secondary" href="#demo">Nasıl çalışır <MI.arrowDown size={17} /></a>

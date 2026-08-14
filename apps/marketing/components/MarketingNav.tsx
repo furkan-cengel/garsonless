@@ -1,34 +1,64 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { type MouseEvent, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
+import { usePathname, useRouter } from 'next/navigation'
 import { AppIcons } from '@garsonless/ui/icons'
 import { MI } from '../lib/icons'
 import { PrimaryButton } from './ui/Buttons'
 
 const DASHBOARD_URL = process.env.NEXT_PUBLIC_DASHBOARD_URL ?? 'http://localhost:3000'
+const PENDING_SECTION_KEY = 'masabu:pending-section'
 
 const LINKS = [
-  { label: 'Özellikler',      href: '/#özellikler' },
-  { label: 'Çözümler',        href: '/solutions' },
-  { label: 'Fiyatlandırma',   href: '/#fiyatlandırma' },
-  { label: 'Kaynaklar',       href: '/resources' },
-  { label: 'Şirket',          href: '/company' },
+  { label: 'Özellikler', href: '/#özellikler', sectionId: 'özellikler' },
+  { label: 'Nasıl çalışır', href: '/#demo', sectionId: 'demo' },
+  { label: 'Menü özelleştirme', href: '/#menu-ozellestirme', sectionId: 'menu-ozellestirme' },
+  { label: 'Fiyatlar', href: '/#fiyatlandırma', sectionId: 'fiyatlandırma' },
+  { label: 'SSS', href: '/#sss', sectionId: 'sss' },
 ]
 
-interface Props {
-  active?: string
-}
-
-export function MarketingNav({ active }: Props) {
+export function MarketingNav() {
+  const pathname = usePathname()
+  const router = useRouter()
   const [scrolled, setScrolled] = useState(false)
+  const [navHidden, setNavHidden] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const mobileMenuOpenRef = useRef(false)
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8)
-    window.addEventListener('scroll', onScroll)
-    return () => window.removeEventListener('scroll', onScroll)
+    let lastScrollY = window.scrollY
+    let frame = 0
+
+    const updateNav = () => {
+      const currentScrollY = window.scrollY
+      const delta = currentScrollY - lastScrollY
+      setScrolled(currentScrollY > 8)
+
+      if (mobileMenuOpenRef.current || currentScrollY <= 80) setNavHidden(false)
+      else if (delta > 2) setNavHidden(true)
+      else if (delta < -2) setNavHidden(false)
+
+      lastScrollY = currentScrollY
+      frame = 0
+    }
+
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(updateNav)
+    }
+
+    updateNav()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (frame) window.cancelAnimationFrame(frame)
+    }
   }, [])
+
+  useEffect(() => {
+    mobileMenuOpenRef.current = mobileMenuOpen
+    if (mobileMenuOpen) setNavHidden(false)
+  }, [mobileMenuOpen])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -47,42 +77,94 @@ export function MarketingNav({ active }: Props) {
     }
   }, [])
 
+  useEffect(() => {
+    if (pathname !== '/') return
+
+    const storedSection = window.sessionStorage.getItem(PENDING_SECTION_KEY)
+    const hashSection = decodeURIComponent(window.location.hash.slice(1))
+    const sectionId = storedSection ?? LINKS.find((link) => link.sectionId === hashSection)?.sectionId
+    if (!sectionId) return
+
+    let frame = 0
+    let attempts = 0
+    const scrollToPendingSection = () => {
+      const section = document.getElementById(sectionId)
+      if (!section && attempts < 10) {
+        attempts += 1
+        frame = window.requestAnimationFrame(scrollToPendingSection)
+        return
+      }
+
+      window.sessionStorage.removeItem(PENDING_SECTION_KEY)
+      if (!section) return
+
+      section.scrollIntoView({ behavior: storedSection ? 'smooth' : 'auto', block: 'start' })
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${window.location.pathname}${window.location.search}`,
+      )
+    }
+
+    frame = window.requestAnimationFrame(scrollToPendingSection)
+    return () => window.cancelAnimationFrame(frame)
+  }, [pathname])
+
   const closeMobileMenu = () => setMobileMenuOpen(false)
 
+  const navigateToSection = (event: MouseEvent<HTMLAnchorElement>, sectionId: string) => {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) return
+
+    event.preventDefault()
+    closeMobileMenu()
+
+    const section = document.getElementById(sectionId)
+    if (section) {
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${window.location.pathname}${window.location.search}`,
+      )
+      return
+    }
+
+    window.sessionStorage.setItem(PENDING_SECTION_KEY, sectionId)
+    router.push('/', { scroll: false })
+  }
+
   return (
-    <nav className="marketing-nav" data-menu-open={mobileMenuOpen} style={{
-      position: 'sticky', top: 0, zIndex: 50,
-      background: scrolled || mobileMenuOpen ? 'rgba(253, 250, 245, .94)' : 'transparent',
-      backdropFilter: scrolled || mobileMenuOpen ? 'blur(14px)' : 'none',
-      WebkitBackdropFilter: scrolled || mobileMenuOpen ? 'blur(14px)' : 'none',
-      borderBottom: scrolled ? '1px solid var(--line)' : '1px solid transparent',
-      transition: 'all 200ms',
-    }}>
+    <nav
+      aria-label="Ana navigasyon"
+      className="marketing-nav"
+      data-menu-open={mobileMenuOpen}
+      data-scrolled={scrolled}
+      data-hidden={navHidden && !mobileMenuOpen}
+    >
       <div className="container marketing-nav__inner" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64,
       }}>
-        <a href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', color: 'var(--ink)' }}>
+        <a className="marketing-nav__brand" href="/">
           <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={93} height={20} priority style={{ display: 'block', width: 'auto', height: 20 }} />
         </a>
 
         <div className="marketing-nav__links" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {LINKS.map((l) => (
-            <a key={l.label} href={l.href} style={{
-              padding: '8px 14px', fontSize: 14,
-              fontWeight: active === l.label ? 600 : 500,
-              color: active === l.label ? 'var(--ink)' : 'var(--ink-2)',
-              textDecoration: 'none', borderRadius: 7,
-              background: active === l.label ? 'var(--bg-2)' : 'transparent',
-            }}>{l.label}</a>
+            <a key={l.label} href={l.href} onClick={(event) => navigateToSection(event, l.sectionId)}>
+              {l.label}
+            </a>
           ))}
         </div>
 
         <div className="marketing-nav__actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <a className="marketing-nav__login" href={`${DASHBOARD_URL}/login`} style={{
-            padding: '8px 12px', fontSize: 14, fontWeight: 500,
-            color: 'var(--ink-2)', textDecoration: 'none',
-          }}>Giriş yap</a>
-          <a href={`${DASHBOARD_URL}/signup`} style={{ textDecoration: 'none' }}>
+          <a className="marketing-nav__login" href={`${DASHBOARD_URL}/login`}>Giriş yap</a>
+          <a className="marketing-nav__trial-link" href={`${DASHBOARD_URL}/auth/signup`}>
             <PrimaryButton size="sm" className="marketing-nav__trial">
               <span className="marketing-nav__trial-full">14 gün ücretsiz dene</span>
               <span className="marketing-nav__trial-short">Dene</span>
@@ -115,8 +197,7 @@ export function MarketingNav({ active }: Props) {
               <a
                 key={link.label}
                 href={link.href}
-                data-active={active === link.label}
-                onClick={closeMobileMenu}
+                onClick={(event) => navigateToSection(event, link.sectionId)}
               >
                 {link.label}
               </a>
@@ -133,7 +214,7 @@ export function MarketingNav({ active }: Props) {
             </a>
             <a
               className="marketing-nav__mobile-trial"
-              href={`${DASHBOARD_URL}/signup`}
+              href={`${DASHBOARD_URL}/auth/signup`}
               onClick={closeMobileMenu}
             >
               <span>14 gün ücretsiz dene</span>

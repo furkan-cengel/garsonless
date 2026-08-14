@@ -21,6 +21,15 @@ function safeDemoUrl(step: ProcessStep) {
   if (step.supademoDemo === 'tables-qr') {
     return getSupademoEmbedUrl(process.env.NEXT_PUBLIC_SUPADEMO_PROCESS_03_URL)
   }
+  if (step.supademoDemo === 'dashboard-reports') {
+    return getSupademoEmbedUrl(process.env.NEXT_PUBLIC_SUPADEMO_PROCESS_04_URL)
+  }
+  if (step.supademoDemo === 'customers-loyalty') {
+    return getSupademoEmbedUrl(process.env.NEXT_PUBLIC_SUPADEMO_PROCESS_05_URL)
+  }
+  if (step.supademoDemo === 'team-permissions') {
+    return getSupademoEmbedUrl(process.env.NEXT_PUBLIC_SUPADEMO_PROCESS_06_URL)
+  }
   return null
 }
 
@@ -133,17 +142,17 @@ export function ProcessFlowSection() {
           <span>Restoranınızı</span>
           <h2 className="font-display">Tek akışta yönetin.</h2>
           <p>
-            Menü yönetiminden tema ve QR görünümüne, masa operasyonundan raporlara kadar
-            işletmenizin temel araçları aynı panelde birlikte çalışır.
+            Menü yönetiminden tema ve QR görünümüne, masa operasyonundan raporlar ve
+            müşteri sadakatine kadar işletmenizin temel araçları aynı panelde birlikte çalışır.
           </p>
         </div>
 
-        <div className="process-flow__prompt" aria-hidden="true">
+        <div className="process-flow__prompt">
           <div>
-            <span>İşletme sahibi</span>
-            <strong>Akşam servisini uçtan uca yönetebilir misin?</strong>
+            <span>Tek merkezden yönetim</span>
+            <strong>Menüden rapora tüm operasyon aynı akışta ilerler.</strong>
           </div>
-          <i />
+          <i aria-hidden="true" />
           <b><MI.sparkles size={17} /> Masabu devrede</b>
         </div>
 
@@ -160,7 +169,6 @@ export function ProcessFlowSection() {
                   data-reverse={!demoUrl && index % 2 === 1}
                 >
                   <div className="process-step__copy">
-                    <span className="process-step__number">{step.number}</span>
                     <div className="process-step__eyebrow"><StoryIcon name={step.icon} /> {step.eyebrow}</div>
                     <h3 className="font-display">{step.title}</h3>
                     <p>{step.description}</p>
@@ -193,9 +201,9 @@ export function ProcessFlowSection() {
                     </button>
                   )}
                 </article>
-                {index < processSteps.length - 1 && (
-                  <div className="process-connector" data-visible={visible} data-reverse={index % 2 === 1} aria-hidden="true">
-                    <span>akış devam ediyor</span>
+                {index < processSteps.length - 1 && step.transitionLabel && (
+                  <div className="process-connector" data-visible={visible} data-reverse={index % 2 === 1}>
+                    <span>{step.transitionLabel}</span>
                   </div>
                 )}
               </div>
@@ -205,7 +213,7 @@ export function ProcessFlowSection() {
       </div>
       {activePreview && (
         <SupademoDialog
-          eyebrow={`${activePreview.number} · ${activePreview.eyebrow}`}
+          eyebrow={activePreview.eyebrow}
           title="Ürün ekranı"
           poster={activePreview.poster}
           posterAlt={activePreview.posterAlt}

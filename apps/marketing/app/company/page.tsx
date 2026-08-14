@@ -5,6 +5,7 @@ import { PrimaryButton } from '../../components/ui/Buttons'
 import { MarketingNav } from '../../components/MarketingNav'
 import { MarketingFooter } from '../../components/MarketingFooter'
 import { CTASection } from '../../components/CTASection'
+import { BusinessContactForm } from '../../components/BusinessContactForm'
 
 function HeroCompany() {
   return (
@@ -26,8 +27,8 @@ function AboutSection() {
   const timeline: [string, string, string, boolean?][] = [
     ['2019', 'Kuruluş', "Kadıköy'de tek bir kafe ve bir prototip."],
     ['2021', 'İlk 100 mekan', 'COVID döneminde kontaktsız sipariş ihtiyacı bizi büyüttü.'],
-    ['2023', 'Pro plan', 'Çoklu şube, API, gelişmiş raporlama.'],
-    ['2025', 'Business plan', 'Zincir & franchise için SSO + merkezi yönetim.'],
+    ['2023', 'Pro plan', 'QR siparişi, mutfak ekranı ve gelişmiş raporlama.'],
+    ['2025', 'Business plan', 'Çoklu şube, organizasyon ve ortak ekip erişimi.'],
     ['2026', 'AI çağı', 'Sesli sipariş, otomatik çeviri, akıllı öneriler.', true],
   ]
 
@@ -219,33 +220,7 @@ function ContactSection() {
       <div className="container">
         <SectionHead eyebrow="İletişim" title="Konuşalım." tone="warm" maxW={560} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, maxWidth: 1080, margin: '0 auto' }}>
-          <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1px solid var(--line)', padding: 32 }}>
-            <h3 className="font-display" style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.015em', margin: 0 }}>Bize yazın</h3>
-            <p style={{ fontSize: 13.5, color: 'var(--ink-3)', marginTop: 6 }}>Ortalama yanıt süresi 4 saat.</p>
-            <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {([['Ad Soyad', 'Ayşe Yılmaz'], ['E-posta', 'ayse@acimarka.co'], ['Mekan adı', 'Acımarka Kafe']] as [string, string][]).map(([l, p]) => (
-                <label key={l} style={{ display: 'block' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>{l}</div>
-                  <input placeholder={p} style={{ width: '100%', height: 42, padding: '0 14px', border: '1.5px solid var(--line)', borderRadius: 10, fontSize: 14, outline: 'none' }} />
-                </label>
-              ))}
-              <label>
-                <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>Konu</div>
-                <select style={{ width: '100%', height: 42, padding: '0 14px', border: '1.5px solid var(--line)', borderRadius: 10, fontSize: 14, background: '#fff', outline: 'none' }}>
-                  <option>Satış görüşmesi planlama</option>
-                  <option>Demo talebi</option>
-                  <option>Teknik destek</option>
-                  <option>Basın & medya</option>
-                  <option>Ortaklık</option>
-                </select>
-              </label>
-              <label>
-                <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>Mesajınız</div>
-                <textarea rows={4} placeholder="Bize neden ulaşıyorsunuz?" style={{ width: '100%', padding: 14, border: '1.5px solid var(--line)', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', resize: 'vertical', outline: 'none' }} />
-              </label>
-              <PrimaryButton style={{ marginTop: 6 }}>Gönder <MI.arrow /></PrimaryButton>
-            </div>
-          </div>
+          <BusinessContactForm />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {[

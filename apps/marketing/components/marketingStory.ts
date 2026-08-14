@@ -10,6 +10,8 @@ export type MarketingIconName =
   | 'sparkles'
   | 'phone'
   | 'bolt'
+  | 'arrowDown'
+  | 'star'
 
 export interface ProblemSolutionNode {
   label: string
@@ -41,9 +43,16 @@ export interface ProcessStep {
   eyebrow: string
   title: string
   description: string
+  transitionLabel?: string
   poster: string
   posterAlt: string
-  supademoDemo?: 'menu-management' | 'theme-editor' | 'tables-qr'
+  supademoDemo?:
+    | 'menu-management'
+    | 'theme-editor'
+    | 'tables-qr'
+    | 'dashboard-reports'
+    | 'customers-loyalty'
+    | 'team-permissions'
   icon: MarketingIconName
 }
 
@@ -51,16 +60,6 @@ export interface CustomizationFeature {
   label: string
   value: string
   icon: MarketingIconName
-}
-
-export interface CapabilityCard {
-  title: string
-  description: string
-  benefits: string[]
-  poster: string
-  posterAlt: string
-  icon: MarketingIconName
-  tone: 'green' | 'sand' | 'ink' | 'plum'
 }
 
 export const problemSolutionConfig: ProblemSolutionConfig = {
@@ -184,6 +183,7 @@ export const processSteps: ProcessStep[] = [
     title: 'Ürünü, fiyatı ve seçenekleri tek panelden düzenleyin.',
     description:
       'Kategorileri, ürün bilgilerini, görselleri, fiyatları ve seçim gruplarını aynı çalışma alanında yönetin. Değişikliklerin menüye nasıl yansıdığını etkileşimli olarak inceleyin.',
+    transitionLabel: 'menü markaya uyarlanır',
     poster: '/product/menu-customization.jpg',
     posterAlt: 'Masabu menü yönetimi ekranının gerçek uygulama görünümü',
     supademoDemo: 'menu-management',
@@ -195,6 +195,7 @@ export const processSteps: ProcessStep[] = [
     title: 'Her ayrıntıyı düzenleyin, sonucu anında görün.',
     description:
       'Yerleşimden ürün kartlarına, navigasyondan masa durumuna kadar menü görünümünü sol araçlardan seçin; sağ panelde ayrıntıları düzenleyip canlı önizlemede doğrulayın.',
+    transitionLabel: 'markalı QR masaya ulaşır',
     poster: '/product/qr-menu.jpg',
     posterAlt: 'Masabu tema düzenleyicisinin ve canlı menü önizlemesinin görünümü',
     supademoDemo: 'theme-editor',
@@ -206,6 +207,7 @@ export const processSteps: ProcessStep[] = [
     title: 'Canlı masa operasyonu, markalı QR’larla buluşur.',
     description:
       'Salon planındaki masa durumlarını izleyin; her masaya özel QR görünümünü şekil, renk, logo ve çerçeve seçenekleriyle düzenleyip tek tek veya toplu olarak dışa aktarın.',
+    transitionLabel: 'masa verisi raporlanır',
     poster: '/product/qr-menu.jpg',
     posterAlt: 'Masabu Canlı Masalar ve QR Studio ekranlarının gerçek uygulama görünümü',
     supademoDemo: 'tables-qr',
@@ -217,59 +219,54 @@ export const processSteps: ProcessStep[] = [
     title: 'Sipariş ve tahsilat, tek panoda görünür.',
     description:
       'Satış, ürün ve masa hareketleri aynı işletme verisinden raporlanır. Ekip operasyonu izlerken yönetici sonuçları tek yerden takip eder.',
+    transitionLabel: 'veri müşteriyi tanımlar',
     poster: '/product/menu-customization.jpg',
-    posterAlt: 'Masabu yönetim panelinin gerçek ürün düzenleme görünümü',
+    posterAlt: 'Masabu pano ve rapor ekranlarının gerçek uygulama görünümü',
+    supademoDemo: 'dashboard-reports',
     icon: 'chart',
+  },
+  {
+    number: '05',
+    eyebrow: 'Müşteriyi tanıyın',
+    title: 'Her ziyareti, kalıcı bir ilişkiye dönüştürün.',
+    description:
+      'Müşterileri puan, ziyaret ve harcama bilgileriyle görüntüleyin. Sadakat geçmişini inceleyin, puan tanımlayın ve hareketlerin müşteri bakiyesine nasıl yansıdığını aynı profilden takip edin.',
+    transitionLabel: 'erişim ekiple paylaşılır',
+    poster: '/product/payment-cart.jpg',
+    posterAlt: 'Masabu müşteri profili ve sadakat yönetimi ekranlarının gerçek uygulama görünümü',
+    supademoDemo: 'customers-loyalty',
+    icon: 'sparkles',
+  },
+  {
+    number: '06',
+    eyebrow: 'Ekip ve izinleri yönetin',
+    title: 'Doğru yetki, doğru kişide kalsın.',
+    description:
+      'Ekip üyelerinin rapor ve masa yönetimi erişimlerini görevlerine göre belirleyin. Her kullanıcı yalnız ihtiyaç duyduğu işletme araçlarına erişsin.',
+    poster: '/product/team-permissions-01.jpg',
+    posterAlt: 'Masabu ekip üyesi rol ve erişim izinleri ekranının gerçek uygulama görünümü',
+    supademoDemo: 'team-permissions',
+    icon: 'shield',
   },
 ]
 
 export const customizationFeatures: CustomizationFeature[] = [
   { label: 'Porsiyon', value: 'Varyant ve porsiyonlar', icon: 'layout' },
   { label: 'Seçimler', value: 'Ekstra ve seçim grupları', icon: 'sparkles' },
-  { label: 'İçerik', value: 'Alerjen, besin ve diyet', icon: 'shield' },
-  { label: 'Görsel', value: 'Ürün fotoğrafı', icon: 'palette' },
+  { label: 'Fiyat', value: 'Satış fiyatı ve maliyet', icon: 'chart' },
+  { label: 'İçindekiler', value: 'Malzeme ve çıkarma seçenekleri', icon: 'cutlery' },
+  { label: 'Besin', value: 'Kalori ve makro değerleri', icon: 'chart' },
+  { label: 'Alerjen', value: 'İçerir ve iz uyarıları', icon: 'shield' },
+  { label: 'Diyet', value: 'Vegan, vejetaryen ve helal', icon: 'globe' },
+  { label: 'Görsel', value: 'Ürün ve kategori fotoğrafı', icon: 'palette' },
   { label: 'Öneri', value: 'İlgili ürünler', icon: 'bolt' },
   { label: 'Menü', value: 'Gruplar ve kampanyalar', icon: 'layout' },
   { label: 'Akış', value: 'Kategori ve istasyon', icon: 'cutlery' },
   { label: 'Durum', value: 'Aktif / pasif yönetimi', icon: 'shield' },
+  { label: 'Vergi', value: 'Kategori ve ürün KDV oranı', icon: 'chart' },
+  { label: 'Sıralama', value: 'Kategori ve ürün sırası', icon: 'arrowDown' },
+  { label: 'Filtre', value: 'Hazır ve özel menü filtreleri', icon: 'sparkles' },
+  { label: 'Sadakat', value: 'Ürün bazlı damga kuralı', icon: 'star' },
+  { label: 'Tema', value: 'Taslak, önizleme ve yayın', icon: 'palette' },
   { label: 'QR', value: 'Tema ve QR görünümü', icon: 'qr' },
-]
-
-export const capabilityCards: CapabilityCard[] = [
-  {
-    title: 'Masalar & QR Studio',
-    description: 'Her masanın sipariş ve QR deneyimini aynı işletme akışında yönetin.',
-    benefits: ['Masa bazlı QR yönetimi', 'Canlı masa durumları', 'Özelleştirilebilir QR görünümü'],
-    poster: '/product/qr-menu.jpg',
-    posterAlt: 'Masabu QR menüsünün gerçek uygulama ekranı',
-    icon: 'qr',
-    tone: 'green',
-  },
-  {
-    title: 'Müşteriler & Sadakat',
-    description: 'Üyelik, puan ve damga hareketlerini sipariş geçmişiyle birlikte izleyin.',
-    benefits: ['Müşteri üyelikleri', 'Puan ve damga programı', 'Sadakat hareketleri'],
-    poster: '/product/payment-cart.jpg',
-    posterAlt: 'Masabu müşteri sepetinin gerçek uygulama ekranı',
-    icon: 'sparkles',
-    tone: 'sand',
-  },
-  {
-    title: 'Pano & Raporlar',
-    description: 'Günün sipariş, tahsilat ve ürün performansını ortak bir görünümde takip edin.',
-    benefits: ['Sipariş ve tahsilat özeti', 'Ürün performansı', 'Masa bazlı raporlama'],
-    poster: '/product/kiosk.jpg',
-    posterAlt: 'Masabu operasyon görünümünün gerçek uygulama ekranı',
-    icon: 'chart',
-    tone: 'ink',
-  },
-  {
-    title: 'Ekip & Yetkiler',
-    description: 'İşletme üyelerini ve erişim rollerini operasyon sorumluluğuna göre düzenleyin.',
-    benefits: ['Ekip üyesi davetleri', 'Rol bazlı erişim', 'İşletme bazlı yönetim'],
-    poster: '/product/menu-customization.jpg',
-    posterAlt: 'Masabu yönetim panelinin gerçek uygulama ekranı',
-    icon: 'shield',
-    tone: 'plum',
-  },
 ]

@@ -38,12 +38,10 @@ function FAQItem({
   item,
   open,
   onClick,
-  index,
 }: {
   item: (typeof FAQ_ITEMS)[number]
   open: boolean
   onClick: () => void
-  index: number
 }) {
   const id = useId()
   const panelId = `faq-panel-${id}`
@@ -59,22 +57,30 @@ function FAQItem({
           aria-controls={panelId}
           onClick={onClick}
         >
-          <span><small>{String(index + 1).padStart(2, '0')}</small>{item.q}</span>
-          <i>{open ? <MI.x size={15} /> : <MI.plus size={15} />}</i>
+          <span>{item.q}</span>
+          <i aria-hidden="true"><MI.plus size={15} /></i>
         </button>
       </h3>
-      <div id={panelId} className="faq-item__answer" role="region" aria-labelledby={buttonId} hidden={!open}>
-        <p>{item.a}</p>
+      <div
+        id={panelId}
+        className="faq-item__answer"
+        role="region"
+        aria-labelledby={buttonId}
+        aria-hidden={!open}
+      >
+        <div className="faq-item__answer-inner">
+          <p>{item.a}</p>
+        </div>
       </div>
     </article>
   )
 }
 
 export function FAQSection() {
-  const [open, setOpen] = useState(0)
+  const [open, setOpen] = useState(-1)
 
   return (
-    <section className="faq-section story-section">
+    <section id="sss" className="faq-section story-section">
       <div className="story-container story-container--narrow">
         <div className="story-heading story-heading--split">
           <div>
@@ -88,7 +94,6 @@ export function FAQSection() {
             <FAQItem
               key={item.q}
               item={item}
-              index={index}
               open={open === index}
               onClick={() => setOpen(open === index ? -1 : index)}
             />
