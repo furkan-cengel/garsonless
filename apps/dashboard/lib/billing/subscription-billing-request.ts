@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto'
 import type { SubscriptionBillingProfile } from '@garsonless/application/billing'
-import type { RestaurantPlan } from '@garsonless/domain/entitlements'
+import type { BillingInterval, SelfServePlan } from '@garsonless/domain/entitlements'
 import { z } from 'zod'
 import { readIyzicoSubscriptionBillingRuntimeConfig } from './iyzico-subscription-config'
 
-const paidPlanSchema = z.enum(['starter', 'pro', 'enterprise'])
-export type PaidBillingPlan = Exclude<RestaurantPlan, 'free'>
+const paidPlanSchema = z.enum(['starter', 'plus', 'pro'])
+const billingIntervalSchema = z.enum(['monthly', 'annual'])
+export type PaidBillingPlan = SelfServePlan
 
 const optionalText = (max: number) => z.string().trim().max(max).nullable()
 const addressSchema = z.object({
@@ -32,6 +33,7 @@ export const billingProfileSchema: z.ZodType<SubscriptionBillingProfile> = z.obj
 export const checkoutRequestSchema = z.object({
   requestId: z.string().uuid(),
   plan: paidPlanSchema,
+  interval: billingIntervalSchema,
   profile: billingProfileSchema,
 })
 
@@ -42,7 +44,7 @@ export const retryRequestSchema = z.object({
 
 export const cancellationRequestSchema = z.object({ requestId: z.string().uuid() })
 
-export type BillingPlanPrices = Record<PaidBillingPlan, number | null>
+export type BillingPlanPrices = Record<PaidBillingPlan, Record<BillingInterval, number | null>>
 
 /** Public display prices only. Provider plan references and credentials remain
  * server-side; an incomplete checkout/webhook contract renders every paid plan
@@ -53,12 +55,25 @@ export function readBillingPlanPrices(
   try {
     const { provider } = readIyzicoSubscriptionBillingRuntimeConfig(env)
     return {
-      starter: provider.plans.starter.amountMinor,
-      pro: provider.plans.pro.amountMinor,
-      enterprise: provider.plans.enterprise.amountMinor,
+      starter: {
+        monthly: provider.plans.starter.monthly.amountMinor,
+        annual: provider.plans.starter.annual.amountMinor,
+      },
+      plus: {
+        monthly: provider.plans.plus.monthly.amountMinor,
+        annual: provider.plans.plus.annual.amountMinor,
+      },
+      pro: {
+        monthly: provider.plans.pro.monthly.amountMinor,
+        annual: provider.plans.pro.annual.amountMinor,
+      },
     }
   } catch {
-    return { starter: null, pro: null, enterprise: null }
+    return {
+      starter: { monthly: null, annual: null },
+      plus: { monthly: null, annual: null },
+      pro: { monthly: null, annual: null },
+    }
   }
 }
 
@@ -66,7 +81,7 @@ export function requestFingerprint(value: Record<string, unknown>): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex')
 }
 
-export function billingPeriod(now: Date): {
+export function billingPeriod(now: Date, interval: BillingInterval): {
   periodStart: string
   periodEnd: string
   dueAt: string
@@ -75,7 +90,7 @@ export function billingPeriod(now: Date): {
   const end = new Date(now)
   const originalDay = end.getUTCDate()
   end.setUTCDate(1)
-  end.setUTCMonth(end.getUTCMonth() + 1)
+  end.setUTCMonth(end.getUTCMonth() + (interval === 'annual' ? 12 : 1))
   const lastDay = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0)).getUTCDate()
   end.setUTCDate(Math.min(originalDay, lastDay))
   return {

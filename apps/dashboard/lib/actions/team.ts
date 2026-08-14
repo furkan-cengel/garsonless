@@ -15,7 +15,7 @@ import {
   updateTeamMemberPermissions,
 } from '@garsonless/application/team'
 import { TEAM_SECTIONS, type TeamSection } from '@garsonless/domain/team'
-import { assertOwner, firstPermittedPath } from '../auth/access'
+import { assertOwner, assertRestaurantFeature, firstPermittedPath } from '../auth/access'
 import { createDashboardServerClient } from '../supabase-server'
 
 const sectionEnum = z.enum([...TEAM_SECTIONS] as [TeamSection, ...TeamSection[]])
@@ -115,6 +115,8 @@ export async function inviteMember(
 ): Promise<{ error: string; invitePending?: true } | { success: true; devInviteUrl?: string }> {
   const gate = await assertOwner(restaurantId)
   if ('error' in gate) return gate
+  const planGate = await assertRestaurantFeature(restaurantId, 'team_management')
+  if ('error' in planGate) return planGate
   const parsed = inviteSchema.safeParse(input)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Geçersiz davet' }
 
@@ -164,6 +166,8 @@ export async function updateMemberPermissionsAction(
 ): Promise<{ error: string } | { success: true }> {
   const gate = await assertOwner(restaurantId)
   if ('error' in gate) return gate
+  const planGate = await assertRestaurantFeature(restaurantId, 'team_management')
+  if ('error' in planGate) return planGate
   if (!idSchema.safeParse(memberId).success) return { error: 'Geçersiz üye' }
   const parsed = permsSchema.safeParse(permissions)
   if (!parsed.success) return { error: 'En az bir bölüm seç' }
@@ -191,6 +195,8 @@ export async function setMemberStatusAction(
 ): Promise<{ error: string } | { success: true }> {
   const gate = await assertOwner(restaurantId)
   if ('error' in gate) return gate
+  const planGate = await assertRestaurantFeature(restaurantId, 'team_management')
+  if ('error' in planGate) return planGate
   if (!idSchema.safeParse(memberId).success) return { error: 'Geçersiz üye' }
   if (status !== 'active' && status !== 'disabled') return { error: 'Geçersiz durum' }
   const res = await setTeamMemberStatus(
@@ -218,6 +224,8 @@ export async function removeMemberAction(
 ): Promise<{ error: string } | { success: true }> {
   const gate = await assertOwner(restaurantId)
   if ('error' in gate) return gate
+  const planGate = await assertRestaurantFeature(restaurantId, 'team_management')
+  if ('error' in planGate) return planGate
   if (!idSchema.safeParse(memberId).success) return { error: 'Geçersiz üye' }
   const res = await removeTeamMember(
     ownerContext(restaurantId, gate.userId),
@@ -265,6 +273,8 @@ export async function resendInviteAction(
 ): Promise<{ error: string } | { success: true; devInviteUrl?: string }> {
   const gate = await assertOwner(restaurantId)
   if ('error' in gate) return gate
+  const planGate = await assertRestaurantFeature(restaurantId, 'team_management')
+  if ('error' in planGate) return planGate
   if (!idSchema.safeParse(memberId).success) return { error: 'Geçersiz üye' }
   const res = await resendTeamInvite(
     ownerContext(restaurantId, gate.userId),

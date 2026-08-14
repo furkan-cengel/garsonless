@@ -23,7 +23,7 @@ export interface HomeV2BlockProps {
   memberSummary: StorefrontMemberSummary
   storeStatus?: string
   storeInfo: StoreInfo | null
-  onOpenMember: () => void
+  onOpenMember?: () => void
   onOpenProduct: (item: MenuItem) => void
 }
 
@@ -34,7 +34,7 @@ export function HomeV2Block(props: HomeV2BlockProps) {
     categories: props.categories,
     menuHref: props.menuHref,
     memberSummary: props.memberSummary,
-    onOpenMember: props.onOpenMember,
+    ...(props.onOpenMember ? { onOpenMember: props.onOpenMember } : {}),
     ...(props.storeStatus ? { storeStatus: props.storeStatus } : {}),
   }
   if (props.block.sectionId === 'storefront-video-hero') return <StorefrontHeroSection {...common} config={{ ...props.config, mediaType: 'video' }} />

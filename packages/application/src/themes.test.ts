@@ -8,6 +8,7 @@ import {
   readPublishedTheme,
   readThemeForEditor,
   saveRestaurantThemeDraft,
+  withoutAdvancedThemeSections,
   type ThemeApplicationPort,
 } from './themes'
 
@@ -308,6 +309,45 @@ test('home Pro bölümlerini istemci bayrağına güvenmeden sunucuda engeller',
   }, adapter)
   assert.deepEqual(result, err('Plan feature unavailable'))
   assert.equal(saved, false)
+})
+
+test('public theme projection hides Pro blocks without deleting the persisted document', () => {
+  const home = DEFAULT_THEME.surfaces!.home
+  const persisted = {
+    ...DEFAULT_THEME,
+    pageBlocks: [
+      { type: 'section' as const, id: 'product-grid' },
+      { type: 'section' as const, id: 'request-buttons' },
+    ],
+    sectionSettings: {
+      'product-grid': { title: 'Menü' },
+      'request-buttons': { title: 'Garson çağır' },
+      'video-home': { title: 'Video' },
+    },
+    surfaces: {
+      ...DEFAULT_THEME.surfaces!,
+      home: {
+        ...home,
+        compositionVersion: 2 as const,
+        blocks: [
+          { id: 'hero-home', sectionId: 'hero-banner' as const, enabled: true },
+          { id: 'video-home', sectionId: 'storefront-video-hero' as const, enabled: true },
+        ],
+        sections: [
+          ...home.sections,
+          { id: 'legacy-video', type: 'hero-video' as const, enabled: true },
+        ],
+      },
+    },
+  }
+
+  const projected = withoutAdvancedThemeSections(persisted)
+  assert.deepEqual(projected.pageBlocks?.map((block) => block.id), ['product-grid'])
+  assert.deepEqual(projected.surfaces?.home.blocks?.map((block) => block.id), ['hero-home'])
+  assert.equal(projected.surfaces?.home.sections.some((section) => section.type === 'hero-video'), false)
+  assert.deepEqual(Object.keys(projected.sectionSettings ?? {}), ['product-grid'])
+  assert.equal(persisted.pageBlocks.length, 2)
+  assert.equal(persisted.surfaces.home.blocks.length, 2)
 })
 
 test('hero video ile zorunlu poster birlikte değilse taslağı reddeder', async () => {

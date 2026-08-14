@@ -4,6 +4,7 @@ import type { RestaurantPlan } from './entitlements'
  * require an explicit migration and transition-policy review. */
 export const SUBSCRIPTION_STATUSES = [
   'trial',
+  'trial_expired',
   'active',
   'past_due',
   'grace_period',
@@ -65,7 +66,8 @@ export type BillingSubscriptionSnapshot = {
 /** Fail-closed lifecycle edges. Provider callbacks and admin actions both use
  * the same matrix; actor-specific authorization remains in the adapter. */
 export const SUBSCRIPTION_STATUS_TRANSITIONS: Readonly<Record<SubscriptionStatus, readonly SubscriptionStatus[]>> = {
-  trial: ['active', 'cancelled', 'manual_hold'],
+  trial: ['active', 'trial_expired', 'cancelled', 'manual_hold'],
+  trial_expired: ['active', 'cancelled', 'manual_hold'],
   active: ['past_due', 'cancelled', 'manual_hold'],
   past_due: ['active', 'grace_period', 'cancelled', 'manual_hold'],
   grace_period: ['active', 'suspended', 'cancelled', 'manual_hold'],

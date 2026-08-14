@@ -1,6 +1,8 @@
 import { cache } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { getDashboardRequestAuth } from './current-user'
+import { canRestaurantUseFeature } from '@garsonless/db/server'
+import type { BillableFeature } from '@garsonless/domain/entitlements'
 import {
   firstPermittedPath,
   normalizeDashboardPermissions,
@@ -81,6 +83,31 @@ export const getUserRestaurantAccess = cache(async function getUserRestaurantAcc
     }
   }
 
+  // Business shared access. RBAC is still resolved before plan entitlements;
+  // organization owners/admins receive the owner navigation surface while
+  // organization members keep their explicit section list.
+  const organizationRpc = supabase.rpc.bind(supabase) as unknown as (
+    name: 'read_organization_restaurant_access',
+    args: { p_restaurant_id: string },
+  ) => Promise<{ data: unknown; error: { message: string } | null }>
+  const { data: organizationAccess, error: organizationError } = await organizationRpc(
+    'read_organization_restaurant_access',
+    { p_restaurant_id: restaurantId },
+  )
+  if (!organizationError && organizationAccess && typeof organizationAccess === 'object' && !Array.isArray(organizationAccess)) {
+    const row = organizationAccess as { role?: unknown; permissions?: unknown }
+    const elevated = row.role === 'owner' || row.role === 'admin'
+    if (elevated || row.role === 'member') {
+      return {
+        isOwner: elevated,
+        isMember: !elevated,
+        permissions: elevated ? [...ALL_SECTIONS] : normalizeDashboardPermissions(row.permissions),
+        userId: user.id,
+        userEmail: user.email ?? null,
+      }
+    }
+  }
+
   return null
 })
 
@@ -96,7 +123,40 @@ export async function assertAccess(
   const access = await getUserRestaurantAccess(restaurantId)
   if (!access) return { error: 'Not authorized' }
   if (!access.isOwner && !access.permissions.includes(section)) return { error: 'Not authorized' }
+  const sectionFeature: Partial<Record<Section, BillableFeature>> = {
+    pano: 'analytics_basic',
+    orders: 'staff_orders',
+    menu: 'qr_menu',
+    tables: 'table_management',
+    customers: 'customer_accounts',
+    analytics: 'analytics_basic',
+    theme: 'theme_editor',
+  }
+  const requiredFeature = sectionFeature[section]
+  if (requiredFeature) {
+    const featureGate = await assertRestaurantFeature(restaurantId, requiredFeature)
+    if ('error' in featureGate) return featureGate
+  }
   return { userId: access.userId, access }
+}
+
+/** Call only after RBAC has passed. Subscription state is resolved inside the
+ * DB entitlement context, so expired trials cannot bypass this server gate. */
+export async function assertRestaurantFeature(
+  restaurantId: string,
+  feature: BillableFeature,
+): Promise<{ success: true } | { error: string }> {
+  const { supabase } = await getDashboardRequestAuth()
+  const { data, error } = await supabase
+    .from('restaurants')
+    .select('plan')
+    .eq('id', restaurantId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (error || !data) return { error: 'Feature entitlement could not be verified' }
+  const plan = (data as unknown as { plan: unknown }).plan
+  const allowed = await canRestaurantUseFeature({ restaurantId, plan, feature })
+  return allowed ? { success: true } : { error: 'Plan upgrade required' }
 }
 
 /**

@@ -15,9 +15,18 @@ const config: IyzicoSubscriptionProviderConfig = {
   secretKey: 'platform-secret-key',
   baseUrl: 'https://sandbox-api.iyzipay.com',
   plans: {
-    starter: { referenceCode: 'plan-starter', amountMinor: 14_990 },
-    pro: { referenceCode: 'plan-pro', amountMinor: 29_990 },
-    enterprise: { referenceCode: 'plan-enterprise', amountMinor: 59_990 },
+    starter: {
+      monthly: { referenceCode: 'plan-starter-monthly', amountMinor: 34_900 },
+      annual: { referenceCode: 'plan-starter-annual', amountMinor: 335_040 },
+    },
+    plus: {
+      monthly: { referenceCode: 'plan-plus-monthly', amountMinor: 69_900 },
+      annual: { referenceCode: 'plan-plus-annual', amountMinor: 671_040 },
+    },
+    pro: {
+      monthly: { referenceCode: 'plan-pro-monthly', amountMinor: 119_900 },
+      annual: { referenceCode: 'plan-pro-annual', amountMinor: 1_151_040 },
+    },
   },
 }
 
@@ -67,29 +76,35 @@ test('platform config is explicit and rejects generic/fallback origins', () => {
     IYZICO_BILLING_API_KEY: 'api',
     IYZICO_BILLING_SECRET_KEY: 'secret',
     IYZICO_BILLING_BASE_URL: 'https://example.com',
-    IYZICO_BILLING_STARTER_PLAN_REF: 'starter',
-    IYZICO_BILLING_STARTER_AMOUNT_MINOR: '14990',
-    IYZICO_BILLING_PRO_PLAN_REF: 'pro',
-    IYZICO_BILLING_PRO_AMOUNT_MINOR: '29990',
-    IYZICO_BILLING_ENTERPRISE_PLAN_REF: 'enterprise',
-    IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR: '59990',
+    IYZICO_BILLING_STARTER_MONTHLY_PLAN_REF: 'starter-monthly',
+    IYZICO_BILLING_STARTER_MONTHLY_AMOUNT_MINOR: '34900',
+    IYZICO_BILLING_STARTER_ANNUAL_PLAN_REF: 'starter-annual',
+    IYZICO_BILLING_STARTER_ANNUAL_AMOUNT_MINOR: '335040',
+    IYZICO_BILLING_PLUS_MONTHLY_PLAN_REF: 'plus-monthly',
+    IYZICO_BILLING_PLUS_MONTHLY_AMOUNT_MINOR: '69900',
+    IYZICO_BILLING_PLUS_ANNUAL_PLAN_REF: 'plus-annual',
+    IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR: '671040',
+    IYZICO_BILLING_PRO_MONTHLY_PLAN_REF: 'pro-monthly',
+    IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR: '119900',
+    IYZICO_BILLING_PRO_ANNUAL_PLAN_REF: 'pro-annual',
+    IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR: '1151040',
   }
   assert.throws(() => readIyzicoSubscriptionProviderConfig(env), /approved iyzico API origin/)
   assert.deepEqual(readIyzicoSubscriptionProviderConfig({
     ...env, IYZICO_BILLING_BASE_URL: config.baseUrl,
-  }).plans.pro, { referenceCode: 'pro', amountMinor: 29_990 })
+  }).plans.pro.monthly, { referenceCode: 'pro-monthly', amountMinor: 119_900 })
   assert.throws(() => readIyzicoSubscriptionProviderConfig({
     ...env, NODE_ENV: 'production', IYZICO_BILLING_BASE_URL: config.baseUrl,
   }), /live origin in production/)
   assert.throws(() => readIyzicoSubscriptionProviderConfig({
     ...env,
     IYZICO_BILLING_BASE_URL: config.baseUrl,
-    IYZICO_BILLING_PRO_PLAN_REF: 'starter',
+    IYZICO_BILLING_PRO_MONTHLY_PLAN_REF: 'starter-monthly',
   }), /must be unique/)
   assert.throws(() => readIyzicoSubscriptionProviderConfig({
     ...env,
     IYZICO_BILLING_BASE_URL: config.baseUrl,
-    IYZICO_BILLING_PRO_AMOUNT_MINOR: '29.99',
+    IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR: '29.99',
   }), /positive TRY minor-unit integer/)
 })
 
@@ -130,20 +145,21 @@ test('checkout enforces local/provider plan amount parity and returns hosted con
     customer,
     invoiceId: 'invoice-1',
     plan: 'starter' as const,
+    interval: 'monthly' as const,
     callbackUrl: 'http://localhost:3000/api/billing/iyzico/callback',
     idempotencyKey: 'checkout-op-1',
   }
   assert.deepEqual(await provider.createCheckout({
-    ...base, amount: { minor: 14_000, currency: 'TRY' },
+    ...base, amount: { minor: 34_000, currency: 'TRY' },
   }), { ok: false, error: 'Iyzico subscription checkout input is invalid' })
   assert.equal(calls, 0)
 
   const result = await provider.createCheckout({
-    ...base, amount: { minor: 14_990, currency: 'TRY' },
+    ...base, amount: { minor: 34_900, currency: 'TRY' },
   })
   assert.equal(result.ok && result.value.providerCheckoutRef, 'checkout-token')
-  assert.equal(result.ok && result.value.providerPlanRef, 'plan-starter')
-  assert.equal(requests[0]?.['pricingPlanReferenceCode'], 'plan-starter')
+  assert.equal(result.ok && result.value.providerPlanRef, 'plan-starter-monthly')
+  assert.equal(requests[0]?.['pricingPlanReferenceCode'], 'plan-starter-monthly')
   assert.equal(requests[0]?.['subscriptionInitialStatus'], 'ACTIVE')
   assert.equal(calls, 1)
 })

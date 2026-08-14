@@ -11,13 +11,13 @@ const migration = readFileSync(
 const projection = {
   profile: null,
   subscription: {
-    id: 'subscription-1', plan: 'pro', scheduledPlan: null, status: 'past_due',
+    id: 'subscription-1', plan: 'pro', billingInterval: 'monthly', scheduledPlan: null, status: 'past_due',
     currentPeriodStart: '2026-07-01T00:00:00.000Z',
     currentPeriodEnd: '2026-08-01T00:00:00.000Z',
     trialEndsAt: null, graceEndsAt: '2026-08-08T00:00:00.000Z', cancelledAt: null,
   },
   invoices: [{
-    id: 'invoice-1', plan: 'pro', amountDueMinor: 29990, amountPaidMinor: 0,
+    id: 'invoice-1', plan: 'pro', billingInterval: 'monthly', amountDueMinor: 29990, amountPaidMinor: 0,
     currency: 'TRY', status: 'past_due', periodStart: '2026-07-01T00:00:00.000Z',
     periodEnd: '2026-08-01T00:00:00.000Z', dueAt: '2026-07-01T00:00:00.000Z',
     paidAt: null, failedAt: '2026-07-01T10:00:00.000Z', canRetry: true,

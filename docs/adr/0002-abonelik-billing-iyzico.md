@@ -1,6 +1,6 @@
 # ADR-0002 — SaaS Abonelik Billing: İyzico (tek provider) + Dunning Politikası
 
-- **Durum:** Kabul edildi (2026-07-21)
+- **Durum:** Revize edildi (2026-08-14)
 - **Karar sahibi:** Ürün sahibi (Furkan)
 - **Bağımlılık:** ADR-0001 (paketler), ADR-0003 (tenant lifecycle)
 
@@ -123,11 +123,15 @@ yalnız kendi tenant'ının fatura/durum projection'ını owner-gated okur.
 7. Reconciliation job'ı provider ile lokal state arasındaki tutarsızlığı
    periyodik tarar; fark otomatik "düzeltilmez", görünür operasyon olayı olur.
 
-### Fatura dönemi ve vade
+### Plan referansları, tutar doğrulaması ve dönem
 
-- Faturalama dönemi **aylık**tır; vade, dönem başlangıç günüdür.
-- Dönem/ücret değişikliği (upgrade/downgrade) bir sonraki dönemde etkinleşir;
-  dönem ortası pro-rata v1'de yoktur (basitlik kararı — revize edilebilir).
+- Starter/Plus/Pro için aylık ve yıllık olmak üzere altı ayrı İyzico plan
+  referansı vardır. Business bu checkout'a giremez.
+- Checkout girdisi `plan + interval` taşır. Aylık dönem bir ay, yıllık dönem on
+  iki aydır; yıllık ücret peşin tahsil edilir.
+- Domain kataloğundaki KDV dâhil kuruş tutarı ile yapılandırılan provider
+  tutarı birebir uyuşmazsa checkout provider'a çağrı yapmadan fail-closed olur.
+- Dönem ortası pro-rata v1'de yoktur; mevcut iptal/retention politikası korunur.
 
 ### Dunning politikası (platform politikası — kod sabiti DEĞİL)
 

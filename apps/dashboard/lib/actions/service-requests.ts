@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { assertAccess } from '../auth/access'
+import { assertAccess, assertRestaurantFeature } from '../auth/access'
 import {
   listPendingTableServiceRequests,
   resolveTableServiceRequest,
@@ -15,6 +15,8 @@ export async function getPendingServiceRequests(
 ): Promise<PendingServiceRequest[] | { error: string }> {
   const gate = await assertAccess(restaurantId, 'tables')
   if ('error' in gate) return { error: gate.error }
+  const featureGate = await assertRestaurantFeature(restaurantId, 'service_requests')
+  if ('error' in featureGate) return featureGate
   const result = await listPendingTableServiceRequests(
     { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['tables'] },
     restaurantId,
@@ -29,6 +31,8 @@ export async function resolveServiceRequest(
 ): Promise<{ error: string } | { success: true }> {
   const gate = await assertAccess(restaurantId, 'tables')
   if ('error' in gate) return { error: gate.error }
+  const featureGate = await assertRestaurantFeature(restaurantId, 'service_requests')
+  if ('error' in featureGate) return featureGate
   const result = await resolveTableServiceRequest(
     { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['tables'] },
     { requestId, restaurantId },

@@ -196,7 +196,7 @@ export function createIyzicoSubscriptionBillingProvider(
     },
 
     async createCheckout(input) {
-      const plan = input.plan === 'free' ? null : config.plans[input.plan]
+      const plan = config.plans[input.plan]?.[input.interval]
       if (!plan || !validCustomer(input.customer) || !validUrl(input.callbackUrl)
         || !input.invoiceId.trim() || !input.idempotencyKey.trim()
         || input.amount.currency !== 'TRY' || input.amount.minor !== plan.amountMinor) {

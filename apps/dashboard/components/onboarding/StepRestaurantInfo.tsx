@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createRestaurant, checkSlugAvailable } from '../../lib/actions/restaurant'
 import { slugify } from '../../lib/utils'
 import { useDebounce } from '../../lib/hooks/useDebounce'
@@ -10,6 +11,11 @@ interface Props {
 }
 
 export default function StepRestaurantInfo({ onCreated }: Props) {
+  const searchParams = useSearchParams()
+  const requestedPlan = searchParams.get('plan')
+  const planIntent = requestedPlan === 'starter' || requestedPlan === 'plus' || requestedPlan === 'pro'
+    ? requestedPlan
+    : ''
   const [state, action, pending] = useActionState(createRestaurant, null)
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
@@ -41,6 +47,7 @@ export default function StepRestaurantInfo({ onCreated }: Props) {
 
   return (
     <form action={action}>
+      <input type="hidden" name="planIntent" value={planIntent} />
       {/* Name field */}
       <div style={{ marginBottom: 18 }}>
         <div style={{

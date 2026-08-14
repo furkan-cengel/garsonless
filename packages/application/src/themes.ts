@@ -11,6 +11,7 @@ import {
   hasSameRestaurant,
   ok,
   type DashboardActorContext,
+  type BillableFeature,
   type RestaurantPlan,
   type Result,
 } from '@garsonless/domain'
@@ -89,6 +90,7 @@ export type ThemePublishPersistenceResult =
  * them itself so a caller cannot bypass the dashboard's disabled UI state.
  */
 const ADVANCED_THEME_SECTION_IDS = new Set([
+  'storefront-video-hero',
   'featured-scroll',
   'chef-pick',
   'combo-ribbon',
@@ -113,7 +115,58 @@ function usesAdvancedThemeSections(theme: GarsonlessTheme): boolean {
       || section.type === 'promo-slider'
     ),
   )
-  return advancedMenu || advancedHome
+  const advancedHomeBlocks = (theme.surfaces?.home.blocks ?? []).some(
+    (block) => ADVANCED_THEME_SECTION_IDS.has(block.sectionId),
+  )
+  return advancedMenu || advancedHome || advancedHomeBlocks
+}
+
+/**
+ * Public rendering boundary for a theme created during Pro trial and later
+ * served on Starter/Plus. Persisted data is preserved; only Pro-only blocks
+ * are removed from the runtime projection.
+ */
+export function withoutAdvancedThemeSections(theme: GarsonlessTheme): GarsonlessTheme {
+  const removedSettingKeys = new Set<string>()
+  const pageBlocks = (theme.pageBlocks ?? []).filter((block) => {
+    const sectionId = getSectionDefinitionId(block)
+    const advanced = sectionId !== null && ADVANCED_THEME_SECTION_IDS.has(sectionId)
+    if (advanced) {
+      removedSettingKeys.add(block.id)
+      if (sectionId) removedSettingKeys.add(sectionId)
+    }
+    return !advanced
+  })
+  const home = theme.surfaces?.home
+  const homeBlocks = (home?.blocks ?? []).filter((block) => {
+    const advanced = ADVANCED_THEME_SECTION_IDS.has(block.sectionId)
+    if (advanced) {
+      removedSettingKeys.add(block.id)
+      removedSettingKeys.add(block.sectionId)
+    }
+    return !advanced
+  })
+  const homeSections = (home?.sections ?? []).filter((section) => !(
+    section.type === 'hero-video'
+    || section.type === 'featured-products'
+    || section.type === 'gallery'
+    || section.type === 'promo-slider'
+  ))
+  const sectionSettings = Object.fromEntries(
+    Object.entries(theme.sectionSettings ?? {}).filter(([key]) => !removedSettingKeys.has(key)),
+  )
+
+  return {
+    ...theme,
+    pageBlocks,
+    sectionSettings,
+    ...(theme.surfaces && home ? {
+      surfaces: {
+        ...theme.surfaces,
+        home: { ...home, blocks: homeBlocks, sections: homeSections },
+      },
+    } : {}),
+  }
 }
 
 function hasIncompleteHomeVideo(theme: GarsonlessTheme): boolean {
@@ -125,7 +178,7 @@ export interface ThemeApplicationPort {
   readRestaurant(input: { restaurantId: string }): Promise<Result<ThemeRestaurantSnapshot | null>>
   readConfig(input: { restaurantId: string }): Promise<Result<ThemeConfigSnapshot | null>>
   readDraft(input: { restaurantId: string }): Promise<Result<PersistedThemeDraftSnapshot | null>>
-  readFeatureAccess(input: { restaurantId: string; plan: RestaurantPlan; feature: 'theme_advanced_sections' }): Promise<Result<boolean>>
+  readFeatureAccess(input: { restaurantId: string; plan: RestaurantPlan; feature: BillableFeature }): Promise<Result<boolean>>
   publish(input: {
     restaurantId: string
     templateId: string

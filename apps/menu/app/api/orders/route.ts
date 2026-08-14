@@ -79,6 +79,8 @@ export async function POST(
       ? 503
       : result.error === 'İşletme şu anda yeni sipariş almıyor.'
         ? 423
+      : result.error === 'Bu işletmenin planında QR siparişi açık değil.'
+        ? 403
       : result.error.startsWith('Çok fazla sipariş')
         ? 429
         : result.error.startsWith('Failed to')

@@ -1,16 +1,22 @@
-import type { RestaurantPlan } from '@garsonless/domain/entitlements'
+import {
+  BILLING_INTERVALS,
+  getPlanPrice,
+  SELF_SERVE_PLANS,
+  type BillingInterval,
+  type SelfServePlan,
+} from '@garsonless/domain/entitlements'
 
 const IYZICO_SUBSCRIPTION_SANDBOX_URL = 'https://sandbox-api.iyzipay.com'
 const IYZICO_SUBSCRIPTION_LIVE_URL = 'https://api.iyzipay.com'
 
-type PaidPlan = Exclude<RestaurantPlan, 'free'>
 type BillingEnv = Readonly<Record<string, string | undefined>>
+type ProviderPlan = { referenceCode: string; amountMinor: number }
 
 export type IyzicoSubscriptionProviderConfig = {
   apiKey: string
   secretKey: string
   baseUrl: typeof IYZICO_SUBSCRIPTION_SANDBOX_URL | typeof IYZICO_SUBSCRIPTION_LIVE_URL
-  plans: Record<PaidPlan, { referenceCode: string; amountMinor: number }>
+  plans: Record<SelfServePlan, Record<BillingInterval, ProviderPlan>>
 }
 
 export type IyzicoSubscriptionWebhookConfig = {
@@ -34,18 +40,29 @@ function referenceEnv(env: BillingEnv, name: string): string {
 
 function amountEnv(env: BillingEnv, name: string): number {
   const raw = requiredEnv(env, name)
-  if (!/^[1-9]\d*$/.test(raw)) {
-    throw new Error(`${name} must be a positive TRY minor-unit integer`)
-  }
+  if (!/^[1-9]\d*$/.test(raw)) throw new Error(`${name} must be a positive TRY minor-unit integer`)
   const value = Number(raw)
-  if (!Number.isSafeInteger(value)) {
-    throw new Error(`${name} must be a positive TRY minor-unit integer`)
-  }
+  if (!Number.isSafeInteger(value)) throw new Error(`${name} must be a positive TRY minor-unit integer`)
   return value
 }
 
-/** Platform credentials are deliberately explicit. There is no fallback to
- * the per-restaurant order-payment IYZICO_* configuration. */
+function envPrefix(plan: SelfServePlan, interval: BillingInterval): string {
+  return `IYZICO_BILLING_${plan.toUpperCase()}_${interval.toUpperCase()}`
+}
+
+function providerPlan(env: BillingEnv, plan: SelfServePlan, interval: BillingInterval): ProviderPlan {
+  const prefix = envPrefix(plan, interval)
+  const amountMinor = amountEnv(env, `${prefix}_AMOUNT_MINOR`)
+  if (amountMinor !== getPlanPrice(plan, interval).amountMinor) {
+    throw new Error(`${prefix}_AMOUNT_MINOR does not match the canonical KDV-included catalogue price`)
+  }
+  return {
+    referenceCode: referenceEnv(env, `${prefix}_PLAN_REF`),
+    amountMinor,
+  }
+}
+
+/** Six immutable provider variants: Starter/Plus/Pro × monthly/annual. */
 export function readIyzicoSubscriptionProviderConfig(
   env: BillingEnv = process.env,
 ): IyzicoSubscriptionProviderConfig {
@@ -59,21 +76,19 @@ export function readIyzicoSubscriptionProviderConfig(
   if (env.NODE_ENV === 'production' && baseUrl !== IYZICO_SUBSCRIPTION_LIVE_URL) {
     throw new Error('IYZICO_BILLING_BASE_URL must use the live origin in production')
   }
-  const plans = {
-    starter: {
-      referenceCode: referenceEnv(env, 'IYZICO_BILLING_STARTER_PLAN_REF'),
-      amountMinor: amountEnv(env, 'IYZICO_BILLING_STARTER_AMOUNT_MINOR'),
-    },
-    pro: {
-      referenceCode: referenceEnv(env, 'IYZICO_BILLING_PRO_PLAN_REF'),
-      amountMinor: amountEnv(env, 'IYZICO_BILLING_PRO_AMOUNT_MINOR'),
-    },
-    enterprise: {
-      referenceCode: referenceEnv(env, 'IYZICO_BILLING_ENTERPRISE_PLAN_REF'),
-      amountMinor: amountEnv(env, 'IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR'),
-    },
-  }
-  if (new Set(Object.values(plans).map((plan) => plan.referenceCode)).size !== 3) {
+
+  const plans = Object.fromEntries(SELF_SERVE_PLANS.map((plan) => [
+    plan,
+    Object.fromEntries(BILLING_INTERVALS.map((interval) => [
+      interval,
+      providerPlan(env, plan, interval),
+    ])) as Record<BillingInterval, ProviderPlan>,
+  ])) as Record<SelfServePlan, Record<BillingInterval, ProviderPlan>>
+
+  const references = SELF_SERVE_PLANS.flatMap((plan) => (
+    BILLING_INTERVALS.map((interval) => plans[plan][interval].referenceCode)
+  ))
+  if (new Set(references).size !== references.length) {
     throw new Error('IYZICO_BILLING_*_PLAN_REF values must be unique')
   }
   return {
@@ -84,8 +99,6 @@ export function readIyzicoSubscriptionProviderConfig(
   }
 }
 
-/** Webhook verification deliberately has a smaller availability boundary:
- * existing subscriptions can still deliver events while checkout is paused. */
 export function readIyzicoSubscriptionWebhookConfig(
   env: BillingEnv = process.env,
 ): IyzicoSubscriptionWebhookConfig {
@@ -95,8 +108,6 @@ export function readIyzicoSubscriptionWebhookConfig(
   }
 }
 
-/** Used by the settings projection to expose prices only when both checkout
- * and webhook processing are configured. It returns no credentials. */
 export function readIyzicoSubscriptionBillingRuntimeConfig(env: BillingEnv = process.env) {
   return {
     provider: readIyzicoSubscriptionProviderConfig(env),

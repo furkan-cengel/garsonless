@@ -94,7 +94,7 @@ async function assertCleanup() {
 async function createFixture(ownerId: string, suffix: string): Promise<Fixture> {
   const { data: restaurant, error: restaurantError } = await admin.from('restaurants').insert({
     owner_id: ownerId, name: `Billing webhook ${suffix} ${marker}`,
-    slug: `${marker}-${suffix}`, plan: 'free',
+    slug: `${marker}-${suffix}`, plan: 'starter',
   }).select('id').single()
   assert.ifError(restaurantError)
   restaurantIds.push(restaurant!.id)

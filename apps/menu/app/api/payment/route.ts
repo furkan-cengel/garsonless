@@ -6,6 +6,7 @@ import { createOrderCheckoutPort, createPublicTableQueryPort } from '@garsonless
 import { createIyzicoClient, initializeCheckout } from '../../../lib/iyzico'
 import { resolveIyzicoCredentials, attachPaymentTokenToOrder } from '../../../lib/payment-credentials'
 import { buildCheckoutAddresses } from '../../../lib/checkout-address'
+import { publicRestaurantHasFeature } from '../../../lib/restaurant-feature-access'
 
 const paymentSchema = z.object({
   orderId: z.string().uuid(),
@@ -72,6 +73,9 @@ export async function POST(
   const table = tableResult.value
   if (!table || table.restaurantId !== restaurantId) {
     return NextResponse.json({ success: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
+  }
+  if (!await publicRestaurantHasFeature(restaurantId, 'online_payments')) {
+    return NextResponse.json({ success: false, error: 'Bu özellik Pro paketi gerektirir.' }, { status: 403 })
   }
   const prepared = await prepareOrderCheckout(
     { actor: 'table-guest', restaurantId, tableId: table.tableId, tableToken },

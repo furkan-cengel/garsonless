@@ -8,7 +8,7 @@ import type {
   SubscriptionBillingSettings,
   SubscriptionBillingSettingsInvoice,
 } from '@garsonless/application/billing'
-import { PLAN_DEFINITIONS, normalizeRestaurantPlan } from '@garsonless/domain/entitlements'
+import { PLAN_DEFINITIONS, normalizeRestaurantPlan, type BillingInterval } from '@garsonless/domain/entitlements'
 import type { BillingPlanPrices, PaidBillingPlan } from '../../lib/billing/subscription-billing-request'
 import {
   cancelBillingSubscriptionAction,
@@ -30,10 +30,10 @@ const EMPTY_PROFILE: SubscriptionBillingProfile = {
   billingAddress: { ...EMPTY_ADDRESS }, shippingAddress: { ...EMPTY_ADDRESS },
 }
 
-const PAID_PLANS: PaidBillingPlan[] = ['starter', 'pro', 'enterprise']
+const PAID_PLANS: PaidBillingPlan[] = ['starter', 'plus', 'pro']
 
 const STATUS_LABELS = {
-  trial: 'Deneme', active: 'Aktif', past_due: 'Ödeme gecikti', grace_period: 'Ek süre',
+  trial: 'Deneme', trial_expired: 'Deneme sona erdi', active: 'Aktif', past_due: 'Ödeme gecikti', grace_period: 'Ek süre',
   suspended: 'Askıya alındı', cancelled: 'İptal edildi', manual_hold: 'İncelemede',
 } as const
 
@@ -54,7 +54,7 @@ function date(value: string | null): string {
 function statusTone(status: string): 'positive' | 'warning' | 'critical' | 'neutral' {
   if (status === 'active' || status === 'paid') return 'positive'
   if (status === 'past_due' || status === 'grace_period' || status === 'open') return 'warning'
-  if (status === 'suspended' || status === 'uncollectible') return 'critical'
+  if (status === 'trial_expired' || status === 'suspended' || status === 'uncollectible') return 'critical'
   return 'neutral'
 }
 
@@ -164,7 +164,7 @@ function InvoiceRow({ restaurantId, invoice }: { restaurantId: string; invoice: 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr .9fr .8fr auto', gap: 12, alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid var(--divider)' }}>
       <div>
-        <div style={{ fontSize: 12.5, fontWeight: 600 }}>{PLAN_DEFINITIONS[invoice.plan].label} · {date(invoice.periodStart)}–{date(invoice.periodEnd)}</div>
+        <div style={{ fontSize: 12.5, fontWeight: 600 }}>{PLAN_DEFINITIONS[invoice.plan].label} · {invoice.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'} · {date(invoice.periodStart)}–{date(invoice.periodEnd)}</div>
         <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>Vade {date(invoice.dueAt)}</div>
         {message && <div role="status" style={{ fontSize: 11, color: message.includes('MAS-') ? 'var(--critical)' : 'var(--positive)', marginTop: 4 }}>{message}</div>}
       </div>
@@ -199,8 +199,9 @@ export default function BillingSection({
     billing?.profile ? JSON.stringify(billing.profile.billingAddress) === JSON.stringify(billing.profile.shippingAddress) : true,
   )
   const [selectedPlan, setSelectedPlan] = useState<PaidBillingPlan>(
-    currentPlan === 'free' ? 'starter' : currentPlan,
+    currentPlan === 'business' ? 'pro' : currentPlan,
   )
+  const [selectedInterval, setSelectedInterval] = useState<BillingInterval>('monthly')
   const [feedback, setFeedback] = useState(checkoutState === 'success' ? 'Abonelik bilgileri doğrulandı. Ödeme sonucu işlenirken durum otomatik güncellenecek.' : '')
   const [checkoutContent, setCheckoutContent] = useState<string | null>(null)
   const [showCancel, setShowCancel] = useState(false)
@@ -231,7 +232,7 @@ export default function BillingSection({
     setFeedback('')
     startCheckoutTransition(async () => {
       const result = await startBillingCheckoutAction(restaurantId, {
-        plan: selectedPlan, profile: effectiveProfile, requestId: crypto.randomUUID(),
+        plan: selectedPlan, interval: selectedInterval, profile: effectiveProfile, requestId: crypto.randomUUID(),
       })
       if ('error' in result) return setFeedback(failureMessage(result))
       notifySettingsSaved()
@@ -246,7 +247,7 @@ export default function BillingSection({
       const result = await cancelBillingSubscriptionAction(restaurantId, { requestId: crypto.randomUUID() })
       if ('error' in result) return setFeedback(failureMessage(result))
       setShowCancel(false)
-      setFeedback('Abonelik iptal edildi ve işletme Free plana geçirildi.')
+      setFeedback('Abonelik iptal edildi. Verileriniz korunurken ücretli yüzeyler kilitlendi.')
       router.refresh()
     })
   }
@@ -274,7 +275,7 @@ export default function BillingSection({
             <Tag tone={subscription ? statusTone(subscription.status) : 'neutral'}>{subscription ? STATUS_LABELS[subscription.status] : 'Abonelik yok'}</Tag>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 5 }}>
-            {subscription?.currentPeriodEnd ? `Mevcut dönem ${date(subscription.currentPeriodEnd)} tarihinde sona erer.` : 'Ücretli bir plan başlattığınızda dönem ve ödeme durumu burada görünür.'}
+            {subscription?.currentPeriodEnd ? `${subscription.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'} dönem ${date(subscription.currentPeriodEnd)} tarihinde sona erer.` : 'Ücretli bir plan başlattığınızda dönem ve ödeme durumu burada görünür.'}
           </div>
         </div>
         {subscription && subscription.status !== 'cancelled' && (
@@ -292,14 +293,21 @@ export default function BillingSection({
       )}
 
       <SCard title="Plan seçimi" subtitle="Kart bilgileri yalnız İyzico’nun güvenli ödeme formunda alınır">
+        <div role="group" aria-label="Fatura dönemi" style={{ padding: '16px 16px 0', display: 'flex', gap: 6 }}>
+          {(['monthly', 'annual'] as const).map((interval) => (
+            <button key={interval} type="button" aria-pressed={selectedInterval === interval} onClick={() => setSelectedInterval(interval)} style={selectedInterval === interval ? btnPrimary() : btnGhost()}>
+              {interval === 'monthly' ? 'Aylık' : 'Yıllık · %20 indirim'}
+            </button>
+          ))}
+        </div>
         <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
           {PAID_PLANS.map((plan) => {
             const selected = selectedPlan === plan
             return (
               <button key={plan} type="button" aria-pressed={selected} onClick={() => setSelectedPlan(plan)} style={{ minWidth: 0, padding: 14, borderRadius: 10, border: selected ? '1.5px solid var(--text)' : '1px solid var(--border)', background: selected ? 'var(--surface-inset)' : 'var(--surface)', textAlign: 'left', cursor: 'pointer' }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{PLAN_DEFINITIONS[plan].label}</div>
-                <div style={{ fontSize: 16, fontWeight: 750, marginTop: 8, overflowWrap: 'anywhere' }}>{planPrices[plan] ? `${money(planPrices[plan]!)}/ay` : 'Fiyat yapılandırılmadı'}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 5 }}>{PLAN_DEFINITIONS[plan].limits.tables ?? 'Sınırsız'} masa · {PLAN_DEFINITIONS[plan].limits.teamMembers ?? 'Sınırsız'} ekip üyesi</div>
+                <div style={{ fontSize: 16, fontWeight: 750, marginTop: 8, overflowWrap: 'anywhere' }}>{planPrices[plan][selectedInterval] ? `${money(planPrices[plan][selectedInterval]!)}${selectedInterval === 'monthly' ? '/ay' : '/yıl'}` : 'Fiyat yapılandırılmadı'}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 5 }}>{PLAN_DEFINITIONS[plan].description}</div>
               </button>
             )
           })}
@@ -323,7 +331,7 @@ export default function BillingSection({
           {!shippingSame && <AddressFields title="Teslimat adresi" value={profile.shippingAddress} onChange={(shippingAddress) => setProfile((current) => ({ ...current, shippingAddress }))} />}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <button type="button" aria-busy={profilePending} onClick={saveProfile} disabled={pending} style={btnGhost()}>{profilePending ? 'Kaydediliyor…' : 'Profili kaydet'}</button>
-            <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={pending || planPrices[selectedPlan] === null} style={btnPrimary({ opacity: pending || planPrices[selectedPlan] === null ? .55 : 1, cursor: pending || planPrices[selectedPlan] === null ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : `${PLAN_DEFINITIONS[selectedPlan].label} ödeme adımını aç`}</button>
+            <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={pending || planPrices[selectedPlan][selectedInterval] === null} style={btnPrimary({ opacity: pending || planPrices[selectedPlan][selectedInterval] === null ? .55 : 1, cursor: pending || planPrices[selectedPlan][selectedInterval] === null ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : `${PLAN_DEFINITIONS[selectedPlan].label} ödeme adımını aç`}</button>
           </div>
           {feedback && <div role="status" style={{ fontSize: 12, color: feedback.includes('MAS-') ? 'var(--critical)' : 'var(--positive)', lineHeight: 1.5 }}>{feedback}</div>}
         </div>
@@ -338,7 +346,7 @@ export default function BillingSection({
       {showCancel && (
         <div role="alertdialog" aria-modal="false" aria-labelledby="billing-cancel-title" style={{ marginTop: 16, padding: 16, borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--critical-bg)', borderLeft: '3px solid var(--critical)' }}>
           <div id="billing-cancel-title" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--critical)' }}>Aboneliği hemen iptal et?</div>
-          <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-2)', margin: '5px 0 12px' }}>İyzico aboneliği anında iptal edilir ve işletme Free plana döner. Ücretli özellikler hemen kapanabilir.</p>
+          <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-2)', margin: '5px 0 12px' }}>İyzico aboneliği anında iptal edilir. Veriler korunur; menü yayını ve ücretli özellikler kilitlenir.</p>
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" onClick={() => setShowCancel(false)} disabled={cancelPending} style={btnGhost()}>Vazgeç</button>
             <button type="button" aria-busy={cancelPending} onClick={cancelSubscription} disabled={pending} style={btnPrimary({ background: 'var(--critical)', borderColor: 'var(--critical)' })}>{cancelPending ? 'Abonelik iptal ediliyor…' : 'Evet, aboneliği iptal et'}</button>

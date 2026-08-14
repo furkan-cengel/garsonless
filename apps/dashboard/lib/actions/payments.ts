@@ -11,6 +11,7 @@ import {
   writePaymentCredentialVault,
 } from '@garsonless/db/server'
 import { createDashboardServerClient } from '../supabase-server'
+import { assertRestaurantFeature } from '../auth/access'
 
 const SANDBOX_URL = 'https://sandbox-api.iyzipay.com'
 const LIVE_URL = 'https://api.iyzipay.com'
@@ -94,6 +95,8 @@ export async function getPaymentCredentialsMeta(
   if (!z.string().uuid().safeParse(restaurantId).success) return { error: 'Geçersiz restoran.' }
   const gate = await assertOwner(restaurantId)
   if (!gate.userId) return { error: gate.error ?? 'Not authorized' }
+  const planGate = await assertRestaurantFeature(restaurantId, 'online_payments')
+  if ('error' in planGate) return planGate
 
   const result = await readPaymentCredentialMeta(restaurantId)
   if (result.error || !result.meta) {
@@ -119,6 +122,8 @@ export async function savePaymentCredentials(
 
   const gate = await assertOwnerPassword(parsed.data.restaurantId, parsed.data.currentPassword)
   if (!gate.userId) return { error: gate.error ?? 'Not authorized' }
+  const planGate = await assertRestaurantFeature(parsed.data.restaurantId, 'online_payments')
+  if ('error' in planGate) return planGate
 
   const result = await writePaymentCredentialVault({
     restaurantId: parsed.data.restaurantId,
@@ -145,6 +150,8 @@ export async function rotatePaymentCredentialsEncryption(
   if (!parsed.success) return { error: 'Geçersiz credential yenileme isteği.' }
   const gate = await assertOwnerPassword(parsed.data.restaurantId, parsed.data.currentPassword)
   if (!gate.userId) return { error: gate.error ?? 'Not authorized' }
+  const planGate = await assertRestaurantFeature(parsed.data.restaurantId, 'online_payments')
+  if ('error' in planGate) return planGate
 
   const result = await rotatePaymentCredentialVault({
     restaurantId: parsed.data.restaurantId,
@@ -166,6 +173,8 @@ export async function deletePaymentCredentials(
   if (!parsed.success) return { error: 'Geçersiz credential silme isteği.' }
   const gate = await assertOwnerPassword(parsed.data.restaurantId, parsed.data.currentPassword)
   if (!gate.userId) return { error: gate.error ?? 'Not authorized' }
+  const planGate = await assertRestaurantFeature(parsed.data.restaurantId, 'online_payments')
+  if ('error' in planGate) return planGate
 
   const result = await deletePaymentCredentialVault({
     restaurantId: parsed.data.restaurantId,
@@ -187,6 +196,8 @@ export async function testPaymentCredentials(
   }
   const gate = await assertOwner(restaurantId)
   if (!gate.userId) return { ok: false, message: gate.error ?? 'Not authorized' }
+  const planGate = await assertRestaurantFeature(restaurantId, 'online_payments')
+  if ('error' in planGate) return { ok: false, message: planGate.error }
 
   const credential = await readIyzicoCredentialRecord(restaurantId)
   if (credential.error) {

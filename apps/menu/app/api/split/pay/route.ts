@@ -6,6 +6,7 @@ import { createPublicTableQueryPort, createSplitPaymentPort } from '@garsonless/
 import { createIyzicoClient, initializeCheckout } from '../../../../lib/iyzico'
 import { resolveIyzicoCredentials, attachPaymentTokenToShare } from '../../../../lib/payment-credentials'
 import { buildCheckoutAddresses } from '../../../../lib/checkout-address'
+import { publicRestaurantHasFeature } from '../../../../lib/restaurant-feature-access'
 
 // Start an İyzico checkout for ONE split share. The charge is SERVER-AUTHORITATIVE
 // AND CLAMPED to the remaining uncovered total: charge = min(share.amount,
@@ -36,6 +37,9 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ pay
   const table = tableResult.value
   if (!table) return NextResponse.json({ success: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
   const restaurantId = table.restaurantId
+  if (!await publicRestaurantHasFeature(restaurantId, 'split_payments')) {
+    return NextResponse.json({ success: false, error: 'Bu özellik Pro paketi gerektirir.' }, { status: 403 })
+  }
   const prepared = await prepareSplitCheckout(
     { actor: 'table-guest', restaurantId, tableId: table.tableId, tableToken },
     { restaurantId, shareId },

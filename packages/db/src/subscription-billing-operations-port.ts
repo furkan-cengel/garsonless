@@ -79,10 +79,12 @@ function checkoutPreparation(value: unknown): Result<BillingCheckoutPreparation>
   const status = operationStatus(row?.status)
   const providerCheckoutRef = nullableText(row?.providerCheckoutRef)
   const plan = row?.plan
+  const interval = row?.interval
   const amountMinor = row?.amountMinor
   if (!row || !operationId || !customerId || !invoiceId || !parsedProfile || !status
     || providerCheckoutRef === undefined
-    || !['starter', 'pro', 'enterprise'].includes(plan as string)
+    || !['starter', 'plus', 'pro'].includes(plan as string)
+    || !['monthly', 'annual'].includes(interval as string)
     || typeof amountMinor !== 'number' || !Number.isSafeInteger(amountMinor) || amountMinor <= 0
     || row.currency !== 'TRY' || typeof row.dispatchable !== 'boolean'
     || typeof row.duplicate !== 'boolean') {
@@ -91,6 +93,7 @@ function checkoutPreparation(value: unknown): Result<BillingCheckoutPreparation>
   return ok({
     operationId, customerId, invoiceId, profile: parsedProfile,
     plan: plan as BillingCheckoutPreparation['plan'],
+    interval: interval as BillingCheckoutPreparation['interval'],
     amount: { minor: amountMinor, currency: 'TRY' },
     status, providerCheckoutRef,
     dispatchable: row.dispatchable, duplicate: row.duplicate,
@@ -152,6 +155,7 @@ export function createSubscriptionBillingOperationsPort(
       const result = await call('prepare_subscription_checkout_operation', {
         ...profileArgs(input.restaurantId, input.profile),
         p_plan: input.plan,
+        p_billing_interval: input.interval,
         p_amount_minor: input.amount.minor,
         p_period_start: input.periodStart,
         p_period_end: input.periodEnd,
@@ -187,7 +191,7 @@ export function createSubscriptionBillingOperationsPort(
       const requestedPlan = text(row?.requestedPlan)
       const expectedProviderPlanRef = text(row?.expectedProviderPlanRef)
       return operationId && restaurantId && invoiceId
-        && (requestedPlan === 'starter' || requestedPlan === 'pro' || requestedPlan === 'enterprise')
+        && (requestedPlan === 'starter' || requestedPlan === 'plus' || requestedPlan === 'pro')
         && expectedProviderPlanRef && /^[\x21-\x7e]{1,200}$/.test(expectedProviderPlanRef)
         ? ok({ operationId, restaurantId, invoiceId, requestedPlan, expectedProviderPlanRef })
         : err('Billing checkout callback result is invalid')

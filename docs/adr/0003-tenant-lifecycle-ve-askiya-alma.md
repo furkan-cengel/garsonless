@@ -1,6 +1,6 @@
 # ADR-0003 — Tenant Lifecycle, Askıya Alma Davranışı ve Veri Saklama
 
-- **Durum:** Kabul edildi (2026-07-21)
+- **Durum:** Revize edildi (2026-08-14)
 - **Karar sahibi:** Ürün sahibi (Furkan)
 - **Bağımlılık:** ADR-0001 (trial/paketler), ADR-0002 (dunning)
 
@@ -14,12 +14,12 @@ dürüstlüğü açısından koddan önce kilitlenmelidir.
 
 ### Abonelik state makinesi
 
-`trial → active → past_due → grace_period → suspended → cancelled` + platform
-admin'e özel `manual_hold`.
+`trial → trial_expired` veya `trial → active → past_due → grace_period →
+suspended → cancelled` + platform admin'e özel `manual_hold`.
 
-- `trial`: 14 gün Pro yetenekleri (ADR-0001). Süre sonunda ödeme yoksa tenant
-  `free` planında `active` sayılır (free ödemesiz kalıcı durumdur; suspend
-  trial'a uygulanmaz).
+- `trial`: Provider müşterisi gerektirmeyen 14 gün Pro yetenekleri (ADR-0001).
+- `trial_expired`: Ödeme yapılmadan deneme süresi dolmuştur. Tenant kilitlidir;
+  menü ve veriler korunur, owner faturalama/paket seçimine devam eder.
 - `past_due`: vade geçti, retry/dunning sürüyor; **tam erişim** devam eder,
   belirgin billing uyarıları görünür.
 - `grace_period`: son uyarı penceresi; tam erişim + susturulamaz uyarılar.
@@ -37,7 +37,7 @@ admin'e özel `manual_hold`.
 | Public menü (QR) | Sipariş kapalı; "Hizmet geçici olarak duraklatıldı" ekranı. Veri sızdırmaz, tenant'ı utandıran ödeme detayı göstermez. |
 | Yeni QR siparişi | Reddedilir (server-side `requireTenantActive`; UI'a güvenilmez). |
 | Kitchen (KDS) | Yeni iş kabul etmez; mevcut açık siparişler görünür kalır. |
-| Dashboard | Yalnız Billing, geçmiş sipariş/rapor (read-only) ve destek erişimi açık kalır. |
+| Dashboard | `trial_expired` için yalnız hesap/faturalama ve paket seçimi; dunning suspend için mevcut retention politikası. |
 | Açık siparişler | Veri kaybetmeden kapatılabilir: suspend anındaki açık adisyonlar için tahsilat/kapatma akışı ÇALIŞIR (para dürüstlüğü > ceza). Yalnız YENİ sipariş engellenir. |
 | Realtime/outbox | Consumer'lar çalışmaya devam eder; veri bütünlüğü bozulmaz. |
 

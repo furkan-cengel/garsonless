@@ -13,6 +13,7 @@ import {
 test('dashboard create derives the staff actor and rejects cross-tenant calls before the port', async () => {
   let write: Parameters<DashboardOrderCreatePort['createOrder']>[0] | null = null
   const port: DashboardOrderCreatePort = {
+    async canUseStaffOrders() { return true },
     async readOrderIngressStatus() { return 'active' },
     async createOrder(input) {
       write = input
@@ -44,6 +45,7 @@ test('dashboard create derives the staff actor and rejects cross-tenant calls be
 test('public order command rejects a mismatched verified table context before using the port', async () => {
   let touched = false
   const port: PublicOrderPort = {
+    async canUseGuestOrdering() { return true },
     async resolveRestaurantIdBySlug() { touched = true; return 'restaurant' },
     async readOrderIngressStatus() { return 'active' },
     async consumeRateLimit() { return { ok: true, value: true } },
@@ -61,6 +63,7 @@ test('public order command rejects a mismatched verified table context before us
 test('public and dashboard order ingress fail closed for platform holds', async () => {
   let publicWrites = 0
   const publicPort: PublicOrderPort = {
+    async canUseGuestOrdering() { return true },
     async resolveRestaurantIdBySlug() { return 'restaurant' },
     async readOrderIngressStatus() { return 'manual_hold' },
     async consumeRateLimit() { throw new Error('must not rate-limit a held tenant') },
@@ -79,12 +82,43 @@ test('public and dashboard order ingress fail closed for platform holds', async 
     { actor: 'dashboard-member', restaurantId: 'restaurant', userId: 'staff', permissions: ['orders'] },
     { restaurantId: 'restaurant', tableId: null, lines: [{ itemId: 'item', quantity: 1 }] },
     {
+      async canUseStaffOrders() { return true },
       async readOrderIngressStatus() { return 'suspended' },
       async createOrder() { dashboardWrites += 1; return { ok: true, value: { orderId: 'order' } } },
     },
   )
   assert.deepEqual(dashboardResult, { ok: false, error: 'İşletme şu anda yeni sipariş almıyor.' })
   assert.equal(dashboardWrites, 0)
+})
+
+test('guest and staff ordering entitlements are independent and fail before writes', async () => {
+  let guestWrites = 0
+  const guestResult = await placePublicOrder(
+    { actor: 'table-guest', restaurantId: 'restaurant', tableId: 'table', tableToken: 'token', sessionId: 'session' },
+    { restaurantId: 'restaurant', slug: 'cafe', tableToken: 'token', tableId: 'table', sessionId: 'session', requestId: 'request', lines: [{ itemId: 'item', quantity: 1 }], customerId: null, redeemPoints: 0, redeemStampClaim: false, catalogItemId: null, rateLimitKey: 'hash' },
+    {
+      async resolveRestaurantIdBySlug() { return 'restaurant' },
+      async readOrderIngressStatus() { return 'active' },
+      async canUseGuestOrdering() { return false },
+      async consumeRateLimit() { throw new Error('must not rate-limit a plan-locked tenant') },
+      async createOrder() { guestWrites += 1; return { ok: true, value: { orderId: 'order', breakdown: {} } } },
+    },
+  )
+  assert.deepEqual(guestResult, { ok: false, error: 'Bu işletmenin planında QR siparişi açık değil.' })
+  assert.equal(guestWrites, 0)
+
+  let staffWrites = 0
+  const staffResult = await createDashboardOrder(
+    { actor: 'dashboard-member', restaurantId: 'restaurant', userId: 'staff', permissions: ['orders'] },
+    { restaurantId: 'restaurant', tableId: null, lines: [{ itemId: 'item', quantity: 1 }] },
+    {
+      async readOrderIngressStatus() { return 'active' },
+      async canUseStaffOrders() { return false },
+      async createOrder() { staffWrites += 1; return { ok: true, value: { orderId: 'order' } } },
+    },
+  )
+  assert.deepEqual(staffResult, { ok: false, error: 'Bu özellik Plus veya üzeri paket gerektirir.' })
+  assert.equal(staffWrites, 0)
 })
 
 test('settlement keeps provider and dashboard payment methods separate', async () => {

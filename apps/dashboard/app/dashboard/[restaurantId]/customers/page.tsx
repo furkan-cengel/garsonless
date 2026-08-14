@@ -14,6 +14,8 @@ import {
   parseCustomerListState,
   type CustomerListState,
 } from '../../../../components/customers/customer-list-state'
+import { canRestaurantUseFeature } from '@garsonless/db/server'
+import PlanLockedPanel from '../../../../components/PlanLockedPanel'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -31,12 +33,15 @@ function toUrlSearchParams(input: Record<string, string | string[] | undefined>)
 
 export default async function CustomersPage({ params, searchParams }: Props) {
   const [{ restaurantId }, rawSearchParams] = await Promise.all([params, searchParams])
-  await requireSection(restaurantId, 'customers')
+  const access = await requireSection(restaurantId, 'customers')
   const [restaurant, actor] = await Promise.all([
     getRestaurantById(restaurantId),
     getDashboardFeatureContext(restaurantId),
   ])
   if (!restaurant || !actor) notFound()
+  if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'customer_accounts' })) {
+    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="customer_accounts" isOwner={access.isOwner} />
+  }
   const port = createCustomerApplicationPort()
   const requestedState = parseCustomerListState(toUrlSearchParams(rawSearchParams))
 

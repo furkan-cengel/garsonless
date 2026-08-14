@@ -50,7 +50,7 @@ async function main() {
       owner_id: fixture.owner_id,
       slug: `platform-support-view-${suffix}`,
       name: `Platform support view ${suffix}`,
-      plan: 'free',
+      plan: 'starter',
     }).select('id').single()
     if (restaurantError || !restaurant) throw restaurantError ?? new Error('Throwaway tenant unavailable')
     restaurantId = restaurant.id

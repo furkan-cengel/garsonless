@@ -48,7 +48,7 @@ async function main() {
       owner_id: fixture.owner_id,
       slug: `platform-entitlement-${suffix}`,
       name: `Platform entitlement ${suffix}`,
-      plan: 'free',
+      plan: 'starter',
     }).select('id').single()
     if (restaurantError || !restaurant) throw restaurantError ?? new Error('Throwaway tenant unavailable')
     restaurantId = restaurant.id
@@ -100,8 +100,8 @@ async function main() {
     assert(anonTableError?.code === '42501', 'Anonymous caller read entitlement projection')
 
     const port = createPlatformAdminEntitlementPort()
-    const baseline = await canRestaurantUseFeature({ restaurantId, plan: 'free', feature: 'loyalty' })
-    assert(!baseline, 'Free plan unexpectedly had loyalty access')
+    const baseline = await canRestaurantUseFeature({ restaurantId, plan: 'starter', feature: 'loyalty' })
+    assert(!baseline, 'Starter plan unexpectedly had loyalty access')
 
     const allowRequestId = randomUUID()
     const allow = await changePlatformTenantFeatureOverride(actor, {
@@ -109,7 +109,7 @@ async function main() {
       reason: 'Destek vakası için kontrollü bir günlük erişim', requestId: allowRequestId,
     }, port)
     assert(allow.ok && allow.value.after?.decision === 'allow', 'Allow override failed')
-    assert(await canRestaurantUseFeature({ restaurantId, plan: 'free', feature: 'loyalty' }), 'Allow override did not open runtime gate')
+    assert(await canRestaurantUseFeature({ restaurantId, plan: 'starter', feature: 'loyalty' }), 'Allow override did not open runtime gate')
 
     const replay = await changePlatformTenantFeatureOverride(actor, {
       restaurantId, action: 'set', feature: 'loyalty', decision: 'allow', durationDays: 1,
@@ -128,7 +128,7 @@ async function main() {
       reason: 'Geçici destek erişimi erken sonlandırıldı', requestId: randomUUID(),
     }, port)
     assert(revoke.ok && revoke.value.after === null, 'Override revoke failed')
-    assert(!await canRestaurantUseFeature({ restaurantId, plan: 'free', feature: 'loyalty' }), 'Revoke did not restore free plan gate')
+    assert(!await canRestaurantUseFeature({ restaurantId, plan: 'starter', feature: 'loyalty' }), 'Revoke did not restore Starter plan gate')
 
     const { error: planError } = await service.from('restaurants').update({ plan: 'pro' }).eq('id', restaurantId)
     if (planError) throw planError

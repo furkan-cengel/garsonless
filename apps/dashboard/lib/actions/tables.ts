@@ -39,7 +39,6 @@ import {
 import { readOrderLineSnapshots } from '@garsonless/db/browser'
 import type { Tables } from '@garsonless/db/types'
 import { assertAccess, assertMember, getUserRestaurantAccess } from '../auth/access'
-import { dashboardActionFailure } from '../server-action-error'
 import { transferActorLabel } from '../table-transfer-actor-label'
 
 const tableLocationSchema = z.preprocess(
@@ -163,12 +162,6 @@ export async function createTable(
     createDashboardTablePort(),
   )
   if (!result.ok) return { error: result.error }
-  if (result.value.kind === 'plan_limit') {
-    return dashboardActionFailure('PLAN_REQUIRED', {
-      operation: 'tables.create',
-      message: `Mevcut planınız en fazla ${result.value.limit} aktif masa destekliyor. Daha fazla masa için planınızı yükseltebilirsiniz.`,
-    })
-  }
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   return { id: result.value.id, token: result.value.token }

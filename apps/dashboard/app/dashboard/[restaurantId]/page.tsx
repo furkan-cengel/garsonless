@@ -3,6 +3,8 @@ import { getRestaurantById } from '../../../lib/queries/restaurants'
 import { getPanoSnapshot } from '../../../lib/queries/pano'
 import PanoClient from '../../../components/pano/PanoClient'
 import { requireSection } from '../../../lib/auth/access'
+import { canRestaurantUseFeature } from '@garsonless/db/server'
+import PlanLockedPanel from '../../../components/PlanLockedPanel'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -14,11 +16,12 @@ export default async function PanoPage({ params }: Props) {
   const access = await requireSection(restaurantId, 'pano')
   const isOwner = access.isOwner
 
-  const [restaurant, snapshot] = await Promise.all([
-    getRestaurantById(restaurantId),
-    getPanoSnapshot(restaurantId),
-  ])
+  const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
+  if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'analytics_basic' })) {
+    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="analytics_basic" isOwner={access.isOwner} />
+  }
+  const snapshot = await getPanoSnapshot(restaurantId)
 
   return (
     <PanoClient

@@ -66,7 +66,7 @@ async function authorizedPushContext(restaurantId: string) {
     return { ok: false as const,
       failure: dashboardActionFailure('PLAN_REQUIRED', {
         operation: 'notifications.push.authorize',
-        message: 'Masaüstü bildirimleri Starter ve üstü paketlerde kullanılabilir.',
+        message: 'Masaüstü bildirimleri Pro paketiyle kullanılabilir.',
       }),
     }
   }

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { customerActorContext, previewLoyaltyDiscount } from '@garsonless/application/loyalty'
 import { createLoyaltyQueryPort, resolveOrderLines } from '@garsonless/db/server'
 import { getCustomerSession } from '../../../../lib/customer-session'
+import { publicRestaurantHasFeature } from '../../../../lib/restaurant-feature-access'
 
 const schema = z.object({
   restaurantId: z.string().uuid(),
@@ -45,6 +46,9 @@ export async function POST(req: Request): Promise<NextResponse> {
   const parsed = schema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'Invalid request' }, { status: 400 })
+  }
+  if (!await publicRestaurantHasFeature(parsed.data.restaurantId, 'loyalty')) {
+    return NextResponse.json({ ok: false, error: 'Bu özellik Pro paketi gerektirir.' }, { status: 403 })
   }
 
   const session = await getCustomerSession()

@@ -1039,6 +1039,7 @@ export default function MemberSheet({
     switch (result.error.code) {
       case 'RATE_LIMITED': return 'Çok fazla deneme yapıldı. Lütfen biraz bekleyin.'
       case 'PROVIDER_DISABLED': return 'Bu giriş yöntemi şu anda kullanılamıyor.'
+      case 'PLAN_REQUIRED': return 'Bu işletmede müşteri hesabı özelliği açık değil.'
       case 'STAFF_ACCOUNT_REJECTED': return 'Personel hesabıyla müşteri girişi yapılamaz.'
       case 'IDENTITY_CONFLICT': return 'Bu kimlik başka bir müşteri hesabına bağlı.'
       case 'CONTEXT_EXPIRED': return 'Giriş isteğinin süresi doldu. Lütfen yeniden başlayın.'

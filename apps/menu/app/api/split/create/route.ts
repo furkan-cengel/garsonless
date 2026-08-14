@@ -4,6 +4,7 @@ import { declareSplitShare } from '@garsonless/application/splits'
 import { resolvePublicTableContext } from '@garsonless/application/tables'
 import { createPublicTableQueryPort, createSplitPaymentPort } from '@garsonless/db/server'
 import { getCustomerSession } from '../../../../lib/customer-session'
+import { publicRestaurantHasFeature } from '../../../../lib/restaurant-feature-access'
 
 // Customer declares a split share (card intent OR cash). Service-role, gated by
 // the slug↔restaurant cross-check + an OPEN session (mirrors /api/orders). The
@@ -35,6 +36,9 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ sha
   if (!tableResult.ok) return NextResponse.json({ success: false, error: 'Masa bağlantısı doğrulanamadı.' }, { status: 503 })
   const table = tableResult.value
   if (!table || table.restaurantSlug !== slug) return NextResponse.json({ success: false, error: 'Masa bağlantısı geçersiz veya yenilenmiş.' }, { status: 404 })
+  if (!await publicRestaurantHasFeature(table.restaurantId, 'split_payments')) {
+    return NextResponse.json({ success: false, error: 'Bu özellik Pro paketi gerektirir.' }, { status: 403 })
+  }
   const session = await getCustomerSession()
   const result = await declareSplitShare(
     { actor: 'table-guest', restaurantId: table.restaurantId, tableId: table.tableId, tableToken },

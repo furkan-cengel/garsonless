@@ -91,9 +91,7 @@ export interface TableServiceRequestPort {
 
 export type DeleteTableOutcome = 'deleted' | 'open_session' | 'not_found'
 
-export type DashboardTableCreateOutcome =
-  | { kind: 'created'; id: string; token: string }
-  | { kind: 'plan_limit'; limit: number }
+export type DashboardTableCreateOutcome = { kind: 'created'; id: string; token: string }
 
 export interface DashboardQrStyleSnapshot {
   revision: number

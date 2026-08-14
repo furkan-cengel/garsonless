@@ -81,7 +81,7 @@ test('favorite controls are accessible and reorder remains an explicit preview',
   assert.match(productCard, /width: 44, height: 44/)
   assert.match(productCard, /width: 38, height: 38/)
   assert.match(productCard, /AppIcons\.heart size=\{17\}/)
-  assert.match(menuPage, /\.\.\.\(member \? \{[\s\S]*?onToggleFavorite:[\s\S]*?\} : \{\}\)/)
+  assert.match(menuPage, /\.\.\.\(customerAccountsEnabled && member \? \{[\s\S]*?onToggleFavorite:[\s\S]*?\} : \{\}\)/)
   assert.match(accountCenter, /Güvenli önizleme/)
   assert.match(accountCenter, /Sipariş verilmedi; güncel menü doğrulandı\./)
   assert.doesNotMatch(accountCenter, /\/api\/orders\/place/)

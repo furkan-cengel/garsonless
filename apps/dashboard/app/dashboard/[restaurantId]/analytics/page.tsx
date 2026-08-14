@@ -9,6 +9,7 @@ import { requireSection } from '../../../../lib/auth/access'
 import { canRestaurantUseFeature } from '@garsonless/db/server'
 import { parseAnalyticsQuery } from '../../../../lib/analytics-filter-contract'
 import type { AnalyticsReportId } from '../../../../lib/actions/analytics'
+import PlanLockedPanel from '../../../../components/PlanLockedPanel'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -23,12 +24,15 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
   // filtered by isOwner and the queries themselves re-check server-side.
   const access = await requireSection(restaurantId, 'analytics')
   const asOf = new Date()
-  const [restaurant, liveKpis, salesReport] = await Promise.all([
-    getRestaurantById(restaurantId),
+  const restaurant = await getRestaurantById(restaurantId)
+  if (!restaurant) notFound()
+  if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'analytics_basic' })) {
+    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="analytics_basic" isOwner={access.isOwner} />
+  }
+  const [liveKpis, salesReport] = await Promise.all([
     getDashboardKPIs(restaurantId),
     getAnalyticsSalesReportData(restaurantId, initialQuery, asOf),
   ])
-  if (!restaurant) notFound()
   const hasAdvancedAnalytics = await canRestaurantUseFeature({
     restaurantId,
     plan: restaurant.plan,

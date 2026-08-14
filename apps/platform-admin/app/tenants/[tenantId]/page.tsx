@@ -267,10 +267,10 @@ function TenantOverview({
             <label className="reason-field">
               <span>Yeni paket</span>
               <select defaultValue={tenant.plan} name="plan">
-                <option value="free">Ücretsiz</option>
                 <option value="starter">Starter</option>
+                <option value="plus">Plus</option>
                 <option value="pro">Pro</option>
-                <option value="enterprise">Enterprise</option>
+                <option value="business">Business</option>
               </select>
               <small>Bu yol yalnızca ödeme sağlayıcı aboneliği olmayan işletmelerde elle paket düzeltmesi veya sözleşmeli tanımlama içindir.</small>
             </label>

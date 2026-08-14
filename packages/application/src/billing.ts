@@ -1,6 +1,6 @@
 import type { BillingAmount, SubscriptionInvoiceStatus, SubscriptionStatus } from '@garsonless/domain/billing'
 import type { DashboardActorContext, PaymentProviderContext, PlatformBillingContext } from '@garsonless/domain/context'
-import type { RestaurantPlan } from '@garsonless/domain/entitlements'
+import type { BillingInterval, RestaurantPlan, SelfServePlan } from '@garsonless/domain/entitlements'
 import { err, ok, type Result } from '@garsonless/domain/result'
 
 export const BILLING_PROVIDER_EVENT_TYPES = [
@@ -64,7 +64,8 @@ export interface SubscriptionBillingProvider {
      * checkout request and therefore requires the customer profile again. */
     customer: SubscriptionBillingCustomer
     invoiceId: string
-    plan: RestaurantPlan
+    plan: SelfServePlan
+    interval: BillingInterval
     amount: BillingAmount
     callbackUrl: string
     idempotencyKey: string
@@ -121,6 +122,7 @@ export type SubscriptionBillingProfile = SubscriptionBillingCustomer & {
 export type SubscriptionBillingSettingsSubscription = {
   id: string
   plan: RestaurantPlan
+  billingInterval: BillingInterval
   scheduledPlan: RestaurantPlan | null
   status: SubscriptionStatus
   currentPeriodStart: string | null
@@ -132,7 +134,8 @@ export type SubscriptionBillingSettingsSubscription = {
 
 export type SubscriptionBillingSettingsInvoice = {
   id: string
-  plan: Exclude<RestaurantPlan, 'free'>
+  plan: SelfServePlan
+  billingInterval: BillingInterval
   amountDueMinor: number
   amountPaidMinor: number
   currency: 'TRY'
@@ -185,7 +188,8 @@ export type BillingCheckoutPreparation = {
   customerId: string
   invoiceId: string
   profile: SubscriptionBillingProfile
-  plan: Exclude<RestaurantPlan, 'free'>
+  plan: SelfServePlan
+  interval: BillingInterval
   amount: BillingAmount
   dispatchable: boolean
   duplicate: boolean
@@ -219,7 +223,8 @@ export interface SubscriptionBillingOperationsPort {
   prepareCheckout(input: {
     restaurantId: string
     profile: SubscriptionBillingProfile
-    plan: Exclude<RestaurantPlan, 'free'>
+    plan: SelfServePlan
+    interval: BillingInterval
     amount: BillingAmount
     periodStart: string
     periodEnd: string
@@ -239,7 +244,7 @@ export interface SubscriptionBillingOperationsPort {
     operationId: string
     restaurantId: string
     invoiceId: string
-    requestedPlan: Exclude<RestaurantPlan, 'free'>
+    requestedPlan: SelfServePlan
     expectedProviderPlanRef: string
   }>>
   finalizeCheckout(input: {
@@ -401,7 +406,7 @@ export async function processSubscriptionBillingWebhook(
 export type CreateSubscriptionInvoiceInput = {
   restaurantId: string
   subscriptionId: string
-  plan: Exclude<RestaurantPlan, 'free'>
+  plan: SelfServePlan
   amount: BillingAmount
   periodStart: string
   periodEnd: string
@@ -498,7 +503,7 @@ export async function createSubscriptionInvoice(
   if (context.restaurantId !== input.restaurantId || context.provider !== 'iyzico') return err('Billing context mismatch')
   const common = validateCommon(input)
   if (!common.ok) return common
-  if (!['starter', 'pro', 'enterprise'].includes(input.plan)) return err('Paid billing plan is required')
+  if (!['starter', 'plus', 'pro'].includes(input.plan)) return err('Self-serve billing plan is required')
   if (!validTimestamp(input.periodStart) || !validTimestamp(input.periodEnd) || !validTimestamp(input.dueAt)) {
     return err('Invoice timestamps are invalid')
   }
@@ -576,7 +581,8 @@ export async function startSubscriptionCheckout(
   input: {
     restaurantId: string
     profile: SubscriptionBillingProfile
-    plan: Exclude<RestaurantPlan, 'free'>
+    plan: SelfServePlan
+    interval: BillingInterval
     amount: BillingAmount
     periodStart: string
     periodEnd: string
@@ -596,7 +602,8 @@ export async function startSubscriptionCheckout(
 }>> {
   if (!dashboardOwnerMatches(context, input.restaurantId)) return err('Billing owner context required')
   if (!validBillingProfile(input.profile) || !validOperationInput(input)) return err('Billing checkout input is invalid')
-  if (!['starter', 'pro', 'enterprise'].includes(input.plan)
+  if (!['starter', 'plus', 'pro'].includes(input.plan)
+    || !['monthly', 'annual'].includes(input.interval)
     || !Number.isSafeInteger(input.amount.minor) || input.amount.minor <= 0
     || input.amount.currency !== 'TRY'
     || !/^[\x21-\x7e]{1,200}$/.test(input.expectedProviderPlanRef)
@@ -636,6 +643,7 @@ export async function startSubscriptionCheckout(
     customer: prepared.value.profile,
     invoiceId: prepared.value.invoiceId,
     plan: prepared.value.plan,
+    interval: prepared.value.interval,
     amount: prepared.value.amount,
     callbackUrl: input.callbackUrl,
     idempotencyKey: input.idempotencyKey,

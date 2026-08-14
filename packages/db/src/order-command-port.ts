@@ -13,6 +13,17 @@ import type { Json } from './types.gen'
 import { cancelOrderDB, markOrderPaidDB, updateOrderStatusDB } from './orders-update'
 import { readOrderLineSnapshots } from './menu-domain'
 import { readTenantOrderIngressStatus } from './platform-admin-tenant-operations-port'
+import { canRestaurantUseFeature } from './feature-entitlement-port'
+
+async function restaurantFeature(restaurantId: string, feature: 'guest_ordering' | 'staff_orders'): Promise<boolean> {
+  const { data, error } = await createServiceClient()
+    .from('restaurants')
+    .select('plan')
+    .eq('id', restaurantId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  return !error && Boolean(data) && canRestaurantUseFeature({ restaurantId, plan: data?.plan, feature })
+}
 
 /** Supabase implementation of the public-order application port. */
 export function createPublicOrderPort(): PublicOrderPort {
@@ -45,6 +56,9 @@ export function createPublicOrderPort(): PublicOrderPort {
     },
     async readOrderIngressStatus(restaurantId) {
       return readTenantOrderIngressStatus(restaurantId)
+    },
+    async canUseGuestOrdering(restaurantId) {
+      return restaurantFeature(restaurantId, 'guest_ordering')
     },
     async createOrder(input) {
       const result = await createOrder({
@@ -139,6 +153,9 @@ export function createDashboardOrderPort(): DashboardOrderCreatePort {
   return {
     async readOrderIngressStatus(restaurantId) {
       return readTenantOrderIngressStatus(restaurantId)
+    },
+    async canUseStaffOrders(restaurantId) {
+      return restaurantFeature(restaurantId, 'staff_orders')
     },
     async createOrder(input) {
       const service = createServiceClient()

@@ -78,13 +78,13 @@ test('account routes derive ownership from the trusted session', () => {
   assert.match(dbPort, /\.eq\('customer_id', customerId\)/)
 })
 
-test('account UI keeps the global entry visible and ships account accessibility semantics', () => {
+test('account UI keeps the Pro-gated global entry accessible', () => {
   const menuPage = readFileSync(new URL('../app/[slug]/MenuPageClient.tsx', import.meta.url), 'utf8')
   const header = readFileSync(new URL('../../../packages/ui/src/menu/Header.tsx', import.meta.url), 'utf8')
   const drawer = readFileSync(new URL('../../../packages/ui/src/menu/NavDrawer.tsx', import.meta.url), 'utf8')
   const center = readFileSync(new URL('../app/[slug]/components/AccountCenter.tsx', import.meta.url), 'utf8')
 
-  assert.match(menuPage, /onOpenMember=\{\(\) => \{ setCustomerAuthSurface\('menu'\); setIsMemberOpen\(true\) \}\}/)
+  assert.match(menuPage, /onOpenMember=\{\(\) => \{ if \(customerAccountsEnabled\) \{ setCustomerAuthSurface\('menu'\); setIsMemberOpen\(true\) \} \}\}/)
   assert.match(header, /aria-label=\{memberIsMember \? 'Hesabımı aç' : 'Müşteri hesabını aç'\}/)
   assert.match(header, /height: 44, minWidth: 44/)
   assert.match(drawer, /'Hesap ve üyelik'/)

@@ -8,6 +8,8 @@ import OrderBoard from '../../../../components/orders/OrderBoard'
 import type { Order } from '../../../../components/orders/useOrdersRealtime'
 import { readLateThresholdMin } from '../../../../lib/orders-prefs'
 import { requireSection } from '../../../../lib/auth/access'
+import PlanLockedPanel from '../../../../components/PlanLockedPanel'
+import { canRestaurantUseFeature } from '@garsonless/db/server'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -18,6 +20,9 @@ export default async function OrdersPage({ params }: Props) {
   const access = await requireSection(restaurantId, 'orders')
   const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
+  if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'staff_orders' })) {
+    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="staff_orders" isOwner={access.isOwner} />
+  }
 
   // Restaurant-local "today" — the board scopes to the café's own day, not the
   // server's (consistent with every reporting query).

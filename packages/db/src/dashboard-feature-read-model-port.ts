@@ -52,6 +52,10 @@ function isUndefinedColumn(error: { code?: string } | null): boolean {
   return error?.code === '42703'
 }
 
+function isMissingRpc(error: { code?: string } | null): boolean {
+  return error?.code === 'PGRST202'
+}
+
 function withDefaultTableLayoutRestaurant(row: unknown): RestaurantRow {
   return {
     ...(row as RestaurantRow),
@@ -75,7 +79,11 @@ export function createDashboardRestaurantReadModelPort(): DashboardRestaurantRea
   return {
     async listAccessible({ userId }) {
       const service = createServiceClient()
-      const [ownedResult, membershipResult] = await Promise.all([
+      const organizationRpc = service.rpc.bind(service) as unknown as (
+        name: 'list_organization_restaurant_ids_for_user',
+        args: { p_user_id: string },
+      ) => Promise<{ data: unknown; error: { code?: string; message: string } | null }>
+      const [ownedResult, membershipResult, organizationResult] = await Promise.all([
         service.from('restaurants')
           .select(projection.restaurant)
           .eq('owner_id', userId)
@@ -84,9 +92,11 @@ export function createDashboardRestaurantReadModelPort(): DashboardRestaurantRea
           .select('restaurant_id')
           .eq('user_id', userId)
           .eq('status', 'active'),
+        organizationRpc('list_organization_restaurant_ids_for_user', { p_user_id: userId }),
       ])
       let { data: owned, error: ownedError } = ownedResult
       const { data: memberships, error: membershipError } = membershipResult
+      const { data: organizationRestaurants, error: organizationError } = organizationResult
       let usedLayoutFallback = false
       if (isUndefinedColumn(ownedError)) {
         const fallback = await service.from('restaurants')
@@ -99,14 +109,25 @@ export function createDashboardRestaurantReadModelPort(): DashboardRestaurantRea
       }
       if (ownedError) return err(dbError('İşletmeler yüklenemedi', ownedError))
       if (membershipError) return err(dbError('Üyelikler yüklenemedi', membershipError))
+      // The application can be deployed just before the organization migration.
+      // During that bounded rollout window PostgREST reports PGRST202. Preserve
+      // owner/direct-member access instead of discarding a valid portfolio;
+      // every other organization failure remains visible and fail-closed.
+      if (organizationError && !isMissingRpc(organizationError)) {
+        return err(dbError('Organizasyon işletmeleri yüklenemedi', organizationError))
+      }
 
       const ownedRows = usedLayoutFallback
         ? (owned ?? []).map(withDefaultTableLayoutRestaurant)
         : (owned ?? []) as unknown as RestaurantRow[]
       const ownedIds = new Set(ownedRows.map((restaurant) => restaurant.id))
-      const memberIds = ((memberships ?? []) as Array<{ restaurant_id: string }>)
-        .map((membership) => membership.restaurant_id)
-        .filter((id) => !ownedIds.has(id))
+      const memberIds = [
+        ...((memberships ?? []) as Array<{ restaurant_id: string }>).map((membership) => membership.restaurant_id),
+        ...(!organizationError && Array.isArray(organizationRestaurants)
+          ? organizationRestaurants.filter((id): id is string => typeof id === 'string')
+          : []),
+      ]
+        .filter((id, index, all) => !ownedIds.has(id) && all.indexOf(id) === index)
 
       let memberRows: RestaurantRow[] = []
       if (memberIds.length > 0) {

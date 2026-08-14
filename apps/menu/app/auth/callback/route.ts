@@ -7,6 +7,7 @@ import {
   consumeStoredCustomerAuthIntent,
   readCustomerAuthIntent,
 } from '../../../lib/customer-auth-server'
+import { publicRestaurantHasFeature } from '../../../lib/restaurant-feature-access'
 
 function withCustomerAuthResult(url: URL, result: 'complete' | 'failed'): URL {
   url.searchParams.set('customerAuth', result)
@@ -23,6 +24,10 @@ export async function GET(request: Request) {
   const intent = suppliedIntent ? await readCustomerAuthIntent(suppliedIntent) : null
   const returnUrl = new URL(intent?.returnPath ?? '/', menuOrigin)
   if (!code || !intent || intent.flow !== 'oauth') {
+    await clearCustomerAuthIntentCookie()
+    return NextResponse.redirect(withCustomerAuthResult(returnUrl, 'failed'))
+  }
+  if (!intent.restaurantId || !await publicRestaurantHasFeature(intent.restaurantId, 'customer_accounts')) {
     await clearCustomerAuthIntentCookie()
     return NextResponse.redirect(withCustomerAuthResult(returnUrl, 'failed'))
   }

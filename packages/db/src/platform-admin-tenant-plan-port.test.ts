@@ -15,7 +15,7 @@ test('tenant plan port maps trusted command arguments and parses projection', as
     received = { name, args }
     return {
       data: {
-        restaurantId, previousPlan: 'free', plan: 'pro', changed: true,
+        restaurantId, previousPlan: 'starter', plan: 'pro', changed: true,
         duplicate: false, requestId,
       },
       error: null,
@@ -62,7 +62,7 @@ test('live billing conflict is preserved without leaking other database errors',
 test('malformed plan projections fail closed', async () => {
   const malformed: PlatformTenantPlanRpc = async () => ({
     data: {
-      restaurantId, previousPlan: 'free', plan: 'business', changed: true,
+      restaurantId, previousPlan: 'starter', plan: 'unknown', changed: true,
       duplicate: false, requestId,
     },
     error: null,

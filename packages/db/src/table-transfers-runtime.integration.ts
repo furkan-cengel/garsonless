@@ -41,7 +41,7 @@ async function createFixture() {
       name: "Isolated Tables Runtime Gate",
       slug: `tables-runtime-${Date.now()}-${randomUUID().slice(0, 6)}`,
       owner_id: ownerRestaurant.owner_id,
-      plan: "enterprise",
+      plan: "business",
     })
     .select("id")
     .single();

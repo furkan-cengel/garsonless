@@ -18,7 +18,7 @@ function port(overrides: Partial<PlatformTenantPlanManagementPort> = {}): Platfo
   return {
     setPlan: async (input) => ok({
       restaurantId: input.restaurantId,
-      previousPlan: 'free', plan: input.plan, changed: true,
+      previousPlan: 'starter', plan: input.plan, changed: true,
       duplicate: false, requestId: input.requestId,
     }),
     ...overrides,
@@ -43,7 +43,7 @@ test('command trims reason and derives actor fields from trusted context', async
   }, port({ setPlan: async (input) => {
     received = input
     return ok({
-      restaurantId, previousPlan: 'free', plan: 'starter', changed: true,
+      restaurantId, previousPlan: 'starter', plan: 'starter', changed: true,
       duplicate: false, requestId,
     })
   } }))
@@ -58,7 +58,7 @@ test('invalid plan, reason and request fail before persistence', async () => {
   let calls = 0
   const database = port({ setPlan: async () => { calls += 1; return err('no') } })
   const base = { restaurantId, plan: 'pro' as const, reason: 'Sözleşmeli paket düzeltmesi', requestId }
-  assert.deepEqual(await setPlatformTenantPlan(actor('superadmin'), { ...base, plan: 'business' as never }, database), { ok: false, error: 'Invalid plan' })
+  assert.deepEqual(await setPlatformTenantPlan(actor('superadmin'), { ...base, plan: 'enterprise' as never }, database), { ok: false, error: 'Invalid plan' })
   assert.deepEqual(await setPlatformTenantPlan(actor('superadmin'), { ...base, reason: 'kısa' }, database), { ok: false, error: 'Invalid operation reason' })
   assert.deepEqual(await setPlatformTenantPlan(actor('superadmin'), { ...base, requestId: 'browser-value' }, database), { ok: false, error: 'Invalid request id' })
   assert.equal(calls, 0)
@@ -66,7 +66,7 @@ test('invalid plan, reason and request fail before persistence', async () => {
 
 test('live billing conflict remains a stable user-safe application error', async () => {
   const result = await setPlatformTenantPlan(actor('superadmin'), {
-    restaurantId, plan: 'enterprise', reason: 'Kurumsal paket sözleşmesi onaylandı', requestId,
+    restaurantId, plan: 'business', reason: 'Kurumsal paket sözleşmesi onaylandı', requestId,
   }, port({ setPlan: async () => err('platform_tenant_plan_billing_managed') }))
   assert.deepEqual(result, {
     ok: false,

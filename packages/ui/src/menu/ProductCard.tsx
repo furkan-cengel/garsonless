@@ -12,6 +12,7 @@ interface ProductCardProps {
   item: MenuItem
   onOpen: (item: MenuItem) => void
   onQuickAdd: (item: MenuItem) => void
+  orderingEnabled?: boolean
   cols?: number
   cartQuantity?: number
   onIncrement?: () => void
@@ -51,7 +52,7 @@ function FoodMeta({ item }: { item: MenuItem }) {
   )
 }
 
-export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, onIncrement, onDecrement, imagePriority = false, isFavorite = false, onToggleFavorite }: ProductCardProps) {
+export function ProductCard({ item, onOpen, onQuickAdd, orderingEnabled = true, cols, cartQuantity = 0, onIncrement, onDecrement, imagePriority = false, isFavorite = false, onToggleFavorite }: ProductCardProps) {
   const { theme } = useTheme()
   const [hovered, setHovered] = useState(false)
   const effectiveCols = cols ?? theme.cols
@@ -210,9 +211,9 @@ export function ProductCard({ item, onOpen, onQuickAdd, cols, cartQuantity = 0, 
           ctaStyle={theme.cardCtaStyle}
           narrow={narrow}
           cartQuantity={cartQuantity}
-          onQuickAdd={() => onQuickAdd(item)}
-          onIncrement={onIncrement}
-          onDecrement={onDecrement}
+          onQuickAdd={orderingEnabled ? () => onQuickAdd(item) : undefined}
+          onIncrement={orderingEnabled ? onIncrement : undefined}
+          onDecrement={orderingEnabled ? onDecrement : undefined}
           hidePrice={false}
           priceAlign={theme.cardPriceAlign ?? 'left'}
           iconKind={theme.cardCtaIcon ?? 'plus'}
@@ -271,6 +272,14 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
   const inCart = cartQuantity > 0
   const btnSz = narrow ? 24 : 28
   const stepperIconSize = narrow ? 11 : 13
+
+  if (!onQuickAdd) {
+    return hidePrice ? null : (
+      <div style={{ marginTop: 'auto', paddingTop: 10, textAlign: priceAlign }}>
+        <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--p-text)' }}>{formatTRY(item.price)}</span>
+      </div>
+    )
+  }
 
   const stepper = (
     <div

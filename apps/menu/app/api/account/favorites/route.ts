@@ -10,6 +10,7 @@ import {
 } from '../../../../lib/customer-account-contract'
 import { customerAuthErrorResponse, customerAuthSuccessResponse } from '../../../../lib/customer-auth-http'
 import { validateCustomerAuthMutation } from '../../../../lib/customer-auth-request'
+import { publicRestaurantHasFeature } from '../../../../lib/restaurant-feature-access'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -31,6 +32,7 @@ export async function PUT(request: Request) {
   if (!session) return customerAuthErrorResponse('AUTH_REQUIRED')
   const parsed = parseCustomerFavoritePut(await request.json().catch(() => null))
   if (!parsed) return customerAuthErrorResponse('CONFLICT')
+  if (!await publicRestaurantHasFeature(parsed.restaurantId, 'customer_accounts')) return customerAuthErrorResponse('PLAN_REQUIRED')
   try {
     return customerAuthSuccessResponse(await addCustomerFavorites(session, parsed.restaurantId, parsed.menuItemIds))
   } catch {
@@ -45,6 +47,7 @@ export async function DELETE(request: Request) {
   if (!session) return customerAuthErrorResponse('AUTH_REQUIRED')
   const parsed = parseCustomerFavoriteDelete(await request.json().catch(() => null))
   if (!parsed) return customerAuthErrorResponse('CONFLICT')
+  if (!await publicRestaurantHasFeature(parsed.restaurantId, 'customer_accounts')) return customerAuthErrorResponse('PLAN_REQUIRED')
   try {
     return customerAuthSuccessResponse(await removeCustomerFavorite(session, parsed.restaurantId, parsed.menuItemId))
   } catch {

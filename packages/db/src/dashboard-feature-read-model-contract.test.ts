@@ -18,6 +18,12 @@ test('dashboard feature adapter remains infrastructure-only', () => {
   assert.doesNotMatch(source, /auth\.getUser|DashboardActorContext|permissions\.includes/)
 })
 
+test('organization rollout does not erase existing owner or direct-member portfolios', () => {
+  assert.match(source, /function isMissingRpc[\s\S]+PGRST202/)
+  assert.match(source, /organizationError && !isMissingRpc\(organizationError\)/)
+  assert.match(source, /!organizationError && Array\.isArray\(organizationRestaurants\)/)
+})
+
 test('feature snapshots use pinned projections and do not resurrect wildcard or dead QR reads', () => {
   assert.match(source, /DASHBOARD_FEATURE_READ_PROJECTIONS/)
   assert.doesNotMatch(source, /\.select\('\*'\)|\.select\("\*"\)/)

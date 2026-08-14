@@ -34,7 +34,7 @@ interface Props {
   /** Operasyon is an owner-only AUDIT tab (staff emails + cash audit + fraud
       flags) — hidden from members; the queries re-check server-side anyway. */
   isOwner: boolean
-  /** Pro/Enterprise only. The action layer checks this again before data reads. */
+  /** Pro/Business only. The action layer checks this again before data reads. */
   hasAdvancedAnalytics: boolean
   initialQuery: AnalyticsQuery
   initialReport: AnalyticsReportId

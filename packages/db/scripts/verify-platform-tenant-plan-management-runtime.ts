@@ -56,7 +56,7 @@ async function main() {
         owner_id: fixture.owner_id,
         slug: `platform-plan-${suffix}`,
         name: `Platform plan ${suffix}`,
-        plan: 'free',
+        plan: 'starter',
         settings: { runtimeVerification: true },
       })
       .select('id, plan')
@@ -122,7 +122,7 @@ async function main() {
       reason: 'Runtime sözleşmeli Pro paket grant doğrulaması',
       requestId: changeRequestId,
     }, port)
-    assert(changed.ok && changed.value.changed && changed.value.previousPlan === 'free' && changed.value.plan === 'pro', 'Plan change failed')
+    assert(changed.ok && changed.value.changed && changed.value.previousPlan === 'starter' && changed.value.plan === 'pro', 'Plan change failed')
 
     const replay = await setPlatformTenantPlan(actor, {
       restaurantId,
@@ -171,7 +171,7 @@ async function main() {
     const conflictRequestId = randomUUID()
     const conflict = await setPlatformTenantPlan(actor, {
       restaurantId,
-      plan: 'enterprise',
+      plan: 'business',
       reason: 'Runtime canlı abonelikte yetkisiz projection ayrışması denemesi',
       requestId: conflictRequestId,
     }, port)

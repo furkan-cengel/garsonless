@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { assertOwner } from '../auth/access'
+import { assertOwner, assertRestaurantFeature } from '../auth/access'
 import {
   previewCustomerCampaign,
   sendCustomerCampaign,
@@ -62,6 +62,8 @@ export async function previewCampaignAudienceAction(
 ): Promise<{ error: string } | CampaignAudiencePreview> {
   const gate = await assertOwner(restaurantId)
   if ('error' in gate) return gate
+  const planGate = await assertRestaurantFeature(restaurantId, 'campaigns')
+  if ('error' in planGate) return planGate
   const audience = normalizeAudience(input)
   if (!audience) return { error: 'Hedef segment geçersiz' }
   const result = await previewCustomerCampaign(
@@ -78,6 +80,8 @@ export async function sendCampaignTestAction(
 ): Promise<{ error: string } | { success: true; messageId?: string }> {
   const gate = await assertOwner(restaurantId)
   if ('error' in gate) return gate
+  const planGate = await assertRestaurantFeature(restaurantId, 'campaigns')
+  if ('error' in planGate) return planGate
   const parsed = testSchema.safeParse(input)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Test SMS geçersiz' }
   const res = await sendCustomerCampaignTest(campaignActor(restaurantId, gate.userId), {
@@ -95,6 +99,8 @@ export async function sendCampaignAction(
 ): Promise<{ error: string; preview?: CampaignAudiencePreview } | { success: true; campaign: CampaignSummary; preview: CampaignAudiencePreview; replayed: boolean }> {
   const gate = await assertOwner(restaurantId)
   if ('error' in gate) return gate
+  const planGate = await assertRestaurantFeature(restaurantId, 'campaigns')
+  if ('error' in planGate) return planGate
   const parsed = campaignSchema.safeParse(input)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Kampanya geçersiz' }
   const audience = normalizeAudience(parsed.data.audience)

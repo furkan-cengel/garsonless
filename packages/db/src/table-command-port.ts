@@ -170,7 +170,7 @@ export function createDashboardTablePort(): DashboardTablePort {
   return {
     async createTable(input) {
       const service = createServiceClient()
-      const { data, error } = await service.rpc('create_located_table_with_plan_limit', {
+      const { data, error } = await service.rpc('create_located_table', {
         p_restaurant_id: input.restaurantId,
         p_label: input.label,
         p_floor_label: input.floorLabel ?? '',
@@ -180,9 +180,6 @@ export function createDashboardTablePort(): DashboardTablePort {
 
       const result = data?.[0]
       if (!result) return err('Masa oluşturma sonucu alınamadı.')
-      if (result.outcome === 'plan_limit' && result.table_limit != null) {
-        return ok({ kind: 'plan_limit', limit: result.table_limit })
-      }
       if (result.outcome === 'duplicate_label') return err('Bu isimde aktif bir masa zaten var.')
       if (result.outcome === 'restaurant_not_found') return err('Restaurant not found')
       if (result.outcome === 'invalid_label') return err('Geçerli bir masa adı girin.')

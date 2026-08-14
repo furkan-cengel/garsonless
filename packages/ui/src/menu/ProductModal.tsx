@@ -40,6 +40,7 @@ interface ProductModalProps {
   submitLabel?: string;
   closeAfterAdd?: boolean;
   stackLevel?: number;
+  orderingEnabled?: boolean;
 }
 
 interface CompactSelectionControlProps {
@@ -122,7 +123,7 @@ function CompactSelectionControl({
   );
 }
 
-export function ProductModal({ item, onClose, onAddToCart, recommendationItems = [], contextLabel, contextTitle, lockQuantity = false, submitLabel, closeAfterAdd = true, stackLevel = 0 }: ProductModalProps) {
+export function ProductModal({ item, onClose, onAddToCart, recommendationItems = [], contextLabel, contextTitle, lockQuantity = false, submitLabel, closeAfterAdd = true, stackLevel = 0, orderingEnabled = true }: ProductModalProps) {
   const { theme } = useTheme();
   const titleId = useId();
   const noteLabelId = useId();
@@ -306,6 +307,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
   };
 
   const handleAddToCart = () => {
+    if (!orderingEnabled) return;
     if (!isValid) {
       setValidationAttempted(true);
       window.requestAnimationFrame(() => {
@@ -1446,8 +1448,9 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
           )}
           <button
             type="button"
+            disabled={!orderingEnabled}
             aria-describedby={validationAttempted && !isValid ? validationMessageId : undefined}
-            aria-disabled={!isValid}
+            aria-disabled={!orderingEnabled || !isValid}
             onClick={handleAddToCart}
             style={{
               width: "100%",
@@ -1458,12 +1461,12 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
               color: "#fff",
               fontSize: 15,
               fontWeight: 850,
-              cursor: "pointer",
-              opacity: isValid ? 1 : 0.72,
+              cursor: orderingEnabled ? "pointer" : "not-allowed",
+              opacity: orderingEnabled && isValid ? 1 : 0.55,
               transition: "opacity 150ms ease",
             }}
           >
-            {submitLabel ?? "Sepete ekle"}
+            {orderingEnabled ? (submitLabel ?? "Sepete ekle") : "Yalnızca menü görüntüleme"}
           </button>
         </div>
       </motion.div>

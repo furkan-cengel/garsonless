@@ -7,7 +7,7 @@ import type {
   SubscriptionBillingSettingsSubscription,
 } from '@garsonless/application/billing'
 import { SUBSCRIPTION_INVOICE_STATUSES, SUBSCRIPTION_STATUSES } from '@garsonless/domain/billing'
-import { RESTAURANT_PLANS } from '@garsonless/domain/entitlements'
+import { BILLING_INTERVALS, RESTAURANT_PLANS } from '@garsonless/domain/entitlements'
 import { err, ok, type Result } from '@garsonless/domain/result'
 import { createServiceClient } from './client'
 
@@ -80,6 +80,7 @@ function subscription(value: unknown): SubscriptionBillingSettingsSubscription |
   const row = object(value)
   const id = text(row?.id)
   const plan = row?.plan
+  const billingInterval = row?.billingInterval
   const scheduledPlan = row?.scheduledPlan
   const status = row?.status
   const currentPeriodStart = nullableTimestamp(row?.currentPeriodStart ?? null)
@@ -88,6 +89,7 @@ function subscription(value: unknown): SubscriptionBillingSettingsSubscription |
   const graceEndsAt = nullableTimestamp(row?.graceEndsAt ?? null)
   const cancelledAt = nullableTimestamp(row?.cancelledAt ?? null)
   if (!row || !id || !RESTAURANT_PLANS.includes(plan as never)
+    || !BILLING_INTERVALS.includes(billingInterval as never)
     || !(scheduledPlan === null || RESTAURANT_PLANS.includes(scheduledPlan as never))
     || !SUBSCRIPTION_STATUSES.includes(status as never)
     || currentPeriodStart === undefined || currentPeriodEnd === undefined
@@ -95,6 +97,7 @@ function subscription(value: unknown): SubscriptionBillingSettingsSubscription |
   return {
     id,
     plan: plan as SubscriptionBillingSettingsSubscription['plan'],
+    billingInterval: billingInterval as SubscriptionBillingSettingsSubscription['billingInterval'],
     scheduledPlan: scheduledPlan as SubscriptionBillingSettingsSubscription['scheduledPlan'],
     status: status as SubscriptionBillingSettingsSubscription['status'],
     currentPeriodStart, currentPeriodEnd, trialEndsAt, graceEndsAt, cancelledAt,
@@ -105,13 +108,15 @@ function invoice(value: unknown): SubscriptionBillingSettingsInvoice | null {
   const row = object(value)
   const id = text(row?.id)
   const plan = row?.plan
+  const billingInterval = row?.billingInterval
   const status = row?.status
   const periodStart = timestamp(row?.periodStart)
   const periodEnd = timestamp(row?.periodEnd)
   const dueAt = timestamp(row?.dueAt)
   const paidAt = nullableTimestamp(row?.paidAt ?? null)
   const failedAt = nullableTimestamp(row?.failedAt ?? null)
-  if (!row || !id || !['starter', 'pro', 'enterprise'].includes(plan as string)
+  if (!row || !id || !['starter', 'plus', 'pro'].includes(plan as string)
+    || !BILLING_INTERVALS.includes(billingInterval as never)
     || !SUBSCRIPTION_INVOICE_STATUSES.includes(status as never)
     || !Number.isSafeInteger(row.amountDueMinor) || (row.amountDueMinor as number) < 0
     || !Number.isSafeInteger(row.amountPaidMinor) || (row.amountPaidMinor as number) < 0
@@ -120,6 +125,7 @@ function invoice(value: unknown): SubscriptionBillingSettingsInvoice | null {
   return {
     id,
     plan: plan as SubscriptionBillingSettingsInvoice['plan'],
+    billingInterval: billingInterval as SubscriptionBillingSettingsInvoice['billingInterval'],
     amountDueMinor: row.amountDueMinor as number,
     amountPaidMinor: row.amountPaidMinor as number,
     currency: 'TRY', status: status as SubscriptionBillingSettingsInvoice['status'],

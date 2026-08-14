@@ -10,8 +10,10 @@ import {
   requestClientAddress,
 } from '../../../../../lib/customer-auth-server'
 import { availableCustomerAuthProviders } from '../../../../../lib/customer-auth-provider'
+import { publicRestaurantHasFeature } from '../../../../../lib/restaurant-feature-access'
 
 const schema = customerAuthContextSchema.extend({
+  restaurantId: z.string().uuid(),
   provider: z.enum(['google', 'apple', 'facebook']),
 })
 
@@ -20,6 +22,9 @@ export async function POST(request: Request) {
   if (!requestCheck.ok) return customerAuthErrorResponse(requestCheck.error.code)
   const parsed = schema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return customerAuthErrorResponse('CONFLICT')
+  if (!await publicRestaurantHasFeature(parsed.data.restaurantId, 'customer_accounts')) {
+    return customerAuthErrorResponse('PLAN_REQUIRED')
+  }
   const availableProviders = await availableCustomerAuthProviders()
   if (!availableProviders.includes(parsed.data.provider)) {
     return customerAuthErrorResponse('PROVIDER_DISABLED')

@@ -10,6 +10,7 @@ import {
   readCustomerAuthIntent,
   requestClientAddress,
 } from '../../../../../lib/customer-auth-server'
+import { publicRestaurantHasFeature } from '../../../../../lib/restaurant-feature-access'
 
 const schema = z.object({
   intent: z.string().min(32).max(128),
@@ -25,6 +26,9 @@ export async function POST(request: Request) {
   const intent = await readCustomerAuthIntent(parsed.data.intent)
   if (!intent || intent.flow !== 'email' || !intent.email) {
     return customerAuthErrorResponse('CONTEXT_EXPIRED')
+  }
+  if (!intent.restaurantId || !await publicRestaurantHasFeature(intent.restaurantId, 'customer_accounts')) {
+    return customerAuthErrorResponse('PLAN_REQUIRED')
   }
 
   for (const limit of [

@@ -61,7 +61,7 @@ async function assertCleanup() {
 
 async function createTenant(ownerId: string, suffix: string, status: 'active' | 'manual_hold') {
   const { data: restaurant, error: restaurantError } = await admin.from('restaurants').insert({
-    owner_id: ownerId, name: `Billing transition ${suffix} ${marker}`, slug: `${marker}-${suffix}`, plan: 'free',
+    owner_id: ownerId, name: `Billing transition ${suffix} ${marker}`, slug: `${marker}-${suffix}`, plan: 'starter',
   }).select('id, plan').single()
   assert.ifError(restaurantError)
   restaurantIds.push(restaurant!.id)
@@ -195,7 +195,7 @@ async function main() {
   })
   assert.ifError(heldSuccess.error)
   assert.equal(row(heldSuccess.data).subscriptionStatus, 'manual_hold')
-  assert.equal((await admin.from('restaurants').select('plan').eq('id', heldTenant.restaurantId).single()).data?.plan, 'free')
+  assert.equal((await admin.from('restaurants').select('plan').eq('id', heldTenant.restaurantId).single()).data?.plan, 'starter')
   console.log('F ✅ paid callback did not clear manual_hold or unlock its entitlement projection')
 }
 

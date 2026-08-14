@@ -1,79 +1,75 @@
-# ADR-0001 — Plan & Paket Kataloğu, Trial ve Kotalar
+# ADR-0001 — Plan, Paket Kataloğu ve Pro Denemesi
 
-- **Durum:** Kabul edildi (2026-07-21)
+- **Durum:** Revize edildi (2026-08-14)
 - **Karar sahibi:** Ürün sahibi (Furkan)
 - **İlgili kod:** `packages/domain/src/entitlements.ts` (canonical katalog)
 
 ## Bağlam
 
-SaaS paketleri, feature matrisi ve kotalar koddan önce iş kararı olarak
-kilitlenmelidir. Entitlement foundation (Faz 3 çekirdeği) kodda zaten
-`free/starter/pro/enterprise` seti üzerine kuruludur ve 6 gerçek server gate
-(tema publish, masa limiti, KDS, loyalty, advanced analytics, browser
-notification) bu setle çalışır.
+Masabu'nun ana müşterisi 10–50 masalı bağımsız restoranlardır. Paketler ürün
+değeri üzerinden ayrışmalı; ürün, kategori, masa veya ekip sayısını yapay
+kotalarla sınırlamamalıdır. Pazarlama, dashboard ve ödeme altyapısı aynı kapalı
+plan ve fiyat sözlüğünü kullanır.
 
 ## Karar
 
-### Paket seti
+### Paket seti ve fiyatlar
 
-`free → starter → pro → enterprise`. Bu set **canonical**dır; pazarlama
-metnindeki `business` yalnız `enterprise`'a normalize edilir. Bilinmeyen plan
-değeri **fail-closed `free`** davranır.
+Canonical sıra `starter → plus → pro → business` şeklindedir. Kalıcı ücretsiz
+paket yoktur. Eski geliştirme verisi `free → starter`, `enterprise → business`
+olarak taşınır; bilinmeyen plan yetki kontrolünde fail-closed davranır.
 
-### Feature matrisi (kod ile birebir)
+| Plan | Aylık, KDV dâhil | Yıllık peşin | Yıllık aylık karşılığı |
+|---|---:|---:|---:|
+| Starter | ₺349 | ₺3.350,40 | ₺279,20 |
+| Plus | ₺699 | ₺6.710,40 | ₺559,20 |
+| Pro | ₺1.199 | ₺11.510,40 | ₺959,20 |
+| Business | Özel teklif | Özel teklif | — |
 
-| Feature | free | starter | pro | enterprise |
-|---|---|---|---|---|
-| qr_menu, orders, table_management, analytics_basic | ✅ | ✅ | ✅ | ✅ |
-| theme_editor, browser_notifications | — | ✅ | ✅ | ✅ |
-| kitchen_display, loyalty, analytics_advanced, theme_advanced_sections, multi_location | — | — | ✅ | ✅ |
-| api_access, webhooks, sso, white_label | — | — | — | ✅ |
+Tutarlar TRY kuruş cinsinden `PLAN_PRICES` içinde saklanır. Yıllık tutar on iki
+aylık fiyatın tam `%20` indirimlisidir.
 
-`api_access/webhooks/sso/white_label` katalogda tanımlıdır ancak ürün yüzeyi
-henüz yoktur; ilgili epic gelmeden UI'da vaat edilmez (Settings dürüstlük
-kuralı).
+### Feature matrisi
 
-### Kotalar
+- Starter: QR menü, zengin ürün içeriği ve çekirdek tema editörü.
+- Plus: Starter + masa bazlı QR/QR Studio, personel siparişi, canlı masa,
+  adisyon/tahsilat, temel analitik ve ekip yetkileri.
+- Pro: Plus + misafir QR siparişi, servis çağrısı, KDS, online/hesap bölüşmeli
+  ödeme, müşteri hesabı, CRM, sadakat, kampanya, gelişmiş analitik/bildirim ve
+  gelişmiş tema bölümleri.
+- Business: Pro + organizasyon, ortak ekip ve birden fazla şubeye erişim.
 
-| Limit | free | starter | pro | enterprise |
-|---|---|---|---|---|
-| Masa | 3 | 10 | 50 | sınırsız |
-| Şube (location) | 1 | 1 | 3 | sınırsız |
-| Ekip üyesi | 1 | 3 | 10 | sınırsız |
+Feature matrisi kümülatiftir. Genel `orders` yeteneği `staff_orders` ve
+`guest_ordering` olarak ayrıdır. API, webhook, SSO, white-label, merkezi rapor
+ve menü/fiyat senkronu çalışır bir ürün yüzeyi oluşmadan vaat edilmez.
 
-- Kota anlamı: limit **doluyken yeni kaynak oluşturulamaz**; mevcut fazla
-  kaynak (downgrade sonrası) silinmez, yalnız yeni ekleme engellenir.
-- Anlık-sayım kotaları (masa, ekip) atomik DB kontrolüyle uygulanır (örn.
-  `create_table_with_plan_limit` RPC kalıbı).
-- **Aylık sipariş / aktif QR kotası v1'de YOKTUR.** Eklenirse
-  `tenant_usage_periods`/`tenant_usage_events` modeliyle ölçülür (Faz 3
-  genişlemesi); sipariş akışını kesmek yerine önce soft-limit + bildirim
-  uygulanır.
+### Kotalar ve add-on'lar
 
-### Trial
+Ürün, kategori, masa ve ekip kotası yoktur. `multi_location` yalnız Business
+özelliğidir. POS/ÖKC ve özel entegrasyonlar, profesyonel kurulum/menü aktarımı
+ve fiziksel QR standları add-on olabilir. KDS, sadakat ve QR siparişi Plus
+add-on'u değildir.
 
-- Yeni kayıt: **14 gün Pro trial**. Trial süresince Pro feature seti ve Pro
-  kotaları geçerlidir.
-- Trial sonunda aktif abonelik yoksa tenant **`free`'ye düşer** (suspend
-  edilmez); Pro-only özellikler kilitlenir, veri korunur.
-- Trial durumu abonelik state makinesinde `trial` olarak tutulur
-  (bkz. ADR-0003); trial bir plan değil, bir subscription state'idir.
-- Trial yalnız ilk kayıtta bir kez verilir; tekrar trial platform admin
-  override'ı gerektirir (bkz. ADR-0004).
+### Deneme ve kilit
 
-### Grandfathering & geçiş
+Yeni işletme kaydı, provider müşterisi gerektirmeyen 14 günlük Pro denemesini
+aynı veritabanı transaction'ında oluşturur. Fiyat kartındaki Starter/Plus/Pro
+seçimi niyet olarak saklanır; deneme erişimi Pro kalır.
 
-- Entitlement enforcement'a geçişte mevcut tenant'lar o anki planlarını
-  **grandfathered** olarak korur; hiçbir mevcut tenant otomatik downgrade
-  edilmez.
-- Yeni gate'ler önce **shadow mode** (yalnız log) ile açılır, sonra düşük
-  riskli özelliklerden başlayarak enforce edilir.
-- Özel izinler yalnız platform admin tarafından, gerekçeli ve süreli
-  `tenant_feature_overrides` kaydıyla verilir.
+Süre sonunda durum `trial_expired` olur. Public menü ve ürün/operasyon yazma
+işlemleri kapanır; veri silinmez. Owner dashboard'da hesap, faturalama ve paket
+seçimini görür. Başarılı checkout aynı aboneliği yeniden etkinleştirir.
+
+### Business
+
+Business self-servis satılmaz. Platform superadmin tarafından gerekçeli ve
+audit'li biçimde etkinleştirilir. V1 kapsamı organizasyon üyeliği, ortak ekip
+erişimi ve şube değiştiricidir; konsolide rapor ve merkezi menü senkronu yoktur.
 
 ## Sonuçlar
 
-- Paket adları/kotalar UI kopyası değil platform kuralıdır; her değişiklik bu
-  ADR'nin revizyonunu gerektirir.
-- Fiyatlandırma (₺/ay) bu ADR'nin kapsamı dışındadır; İyzico ürün kataloğu
-  kurulurken ayrı karar verilecektir (ADR-0002 bağımlılığı).
+- Server action ve API kontrolleri UI kilitlerinden bağımsızdır.
+- Owner paket dışı yüzeyleri fayda, gerekli paket ve yükseltme CTA'sıyla görür;
+  ekip üyelerinde önce RBAC, sonra paket kontrolü çalışır.
+- Paket/fiyat değişikliği domain kataloğu, provider referansları, migrasyon ve
+  pazarlama sözleşme testlerini birlikte güncellemeyi gerektirir.

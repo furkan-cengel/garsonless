@@ -19,7 +19,7 @@ import {
   rotateKitchenAccessCredential,
 } from '@garsonless/application/kitchen'
 import { sanitizeTiers } from '@garsonless/domain/loyalty'
-import { assertOwner, getUserRestaurantAccess } from '../auth/access'
+import { assertOwner, assertRestaurantFeature, getUserRestaurantAccess } from '../auth/access'
 import type { DashboardActionFailure } from '../server-action-error'
 import { dashboardActionFailure } from '../server-action-error'
 import { inspectLogoImage, validateLogoImageMetadata } from '../logo-image-policy'
@@ -28,6 +28,7 @@ import { sanitizeServerDiagnostic } from '../server-log-redaction'
 const createRestaurantSchema = z.object({
   name: z.string().min(1).max(100),
   slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/),
+  planIntent: z.enum(['starter', 'plus', 'pro']).nullable(),
 })
 
 const updateRestaurantSchema = z.object({
@@ -121,15 +122,21 @@ export async function createRestaurant(
   const parsed = createRestaurantSchema.safeParse({
     name: rawName,
     slug: rawSlug ?? slugify(rawName ?? ''),
+    planIntent: formData.get('planIntent') || null,
   })
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
   }
 
-  const { data, error } = await mut(supabase, 'restaurants')
-    .insert({ name: parsed.data.name, slug: parsed.data.slug, owner_id: user.id })
-    .select('id')
-    .single()
+  const rpc = supabase.rpc.bind(supabase) as unknown as (
+    name: 'create_restaurant_with_pro_trial',
+    args: { p_name: string; p_slug: string; p_intended_plan: 'starter' | 'plus' | 'pro' | null },
+  ) => Promise<{ data: unknown; error: { code?: string; message: string } | null }>
+  const { data, error } = await rpc('create_restaurant_with_pro_trial', {
+    p_name: parsed.data.name,
+    p_slug: parsed.data.slug,
+    p_intended_plan: parsed.data.planIntent,
+  })
 
   if (error) {
     if (error.code === '23505') return { error: 'That slug is already taken' }
@@ -137,8 +144,10 @@ export async function createRestaurant(
     return { error: 'Restoran oluşturulamadı. Lütfen tekrar deneyin.' }
   }
 
-  const id = (data as { id: string } | null)?.id
-  if (!id) return { error: 'Failed to create restaurant' }
+  const id = data && typeof data === 'object' && !Array.isArray(data)
+    ? (data as { restaurantId?: unknown }).restaurantId
+    : null
+  if (typeof id !== 'string') return { error: 'Failed to create restaurant' }
 
   revalidatePath('/dashboard')
   return { id }
@@ -161,6 +170,10 @@ export async function updateRestaurant(
   }
 
   const { id, ...updates } = parsed.data
+  const ownerGate = await assertOwner(id)
+  if ('error' in ownerGate) return ownerGate
+  const planGate = await assertRestaurantFeature(id, 'qr_menu')
+  if ('error' in planGate) return planGate
   const { error } = await mut(supabase, 'restaurants')
     .update(updates as Record<string, unknown>)
     .eq('id', id)
@@ -190,6 +203,8 @@ export async function updateSettings(
   if (!access || (!access.isOwner && !access.permissions.includes('settings'))) {
     return { error: 'Not authorized' }
   }
+  const planGate = await assertRestaurantFeature(restaurantId, 'qr_menu')
+  if ('error' in planGate) return planGate
   const result = await patchRestaurantSettings(
     {
       actor: 'dashboard-member',
@@ -299,6 +314,8 @@ export async function saveNotificationPreferences(
   if (!access || (!access.isOwner && !access.permissions.includes('settings'))) {
     return { error: 'Not authorized' }
   }
+  const subscriptionGate = await assertRestaurantFeature(restaurantId, 'qr_menu')
+  if ('error' in subscriptionGate) return subscriptionGate
   const { data: restaurant, error: planError } = await supabase
     .from('restaurants')
     .select('plan')
@@ -318,7 +335,7 @@ export async function saveNotificationPreferences(
   ) {
     return dashboardActionFailure('PLAN_REQUIRED', {
       operation: 'notifications.settings.save',
-      message: 'Masaüstü bildirimleri Starter ve üstü paketlerde kullanılabilir.',
+      message: 'Masaüstü bildirimleri Pro paketiyle kullanılabilir.',
     })
   }
   const result = await patchRestaurantSettings(
@@ -359,6 +376,8 @@ export async function getRewardItemChoices(
   const { data: owned } = await supabase
     .from('restaurants').select('id').eq('id', restaurantId).eq('owner_id', user.id).single()
   if (!owned) return { error: 'Not authorized' }
+  const planGate = await assertRestaurantFeature(restaurantId, 'loyalty')
+  if ('error' in planGate) return planGate
 
   const { data } = await supabase
     .from('menu_items')
@@ -484,6 +503,10 @@ export async function removeLogo(
 ): Promise<{ error: string } | { success: true }> {
   const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'Not authenticated' }
+  const ownerGate = await assertOwner(restaurantId)
+  if ('error' in ownerGate) return ownerGate
+  const planGate = await assertRestaurantFeature(restaurantId, 'theme_editor')
+  if ('error' in planGate) return planGate
   const { error } = await mut(supabase, 'restaurants')
     .update({ logo_url: null })
     .eq('id', restaurantId)
@@ -514,6 +537,8 @@ export async function uploadLogo(
     .is('deleted_at', null)
     .maybeSingle()
   if (!ownedRestaurant) return { error: 'Not authorized' }
+  const planGate = await assertRestaurantFeature(restaurantId, 'theme_editor')
+  if ('error' in planGate) return planGate
 
   const file = formData.get('file')
   if (!(file instanceof File)) return { error: 'Logo dosyası bulunamadı.' }
@@ -577,6 +602,8 @@ export async function createKitchenStation(
   try {
     const gate = await assertRestaurantOwner(parsed.data.restaurantId)
     if (!gate.ok) return { error: gate.error }
+    const planGate = await assertRestaurantFeature(parsed.data.restaurantId, 'kitchen_display')
+    if ('error' in planGate) return planGate
 
     const { data: maxPos } = await gate.supabase
       .from('kitchen_stations')
@@ -627,6 +654,8 @@ export async function updateKitchenStation(
   try {
     const gate = await assertRestaurantOwner(parsed.data.restaurantId)
     if (!gate.ok) return { error: gate.error }
+    const planGate = await assertRestaurantFeature(parsed.data.restaurantId, 'kitchen_display')
+    if ('error' in planGate) return planGate
 
     const { id, restaurantId, ...updates } = parsed.data
     const { data, error } = await mut(gate.supabase, 'kitchen_stations')
@@ -660,6 +689,8 @@ export async function reorderKitchenStations(
   try {
     const gate = await assertOwner(parsedRestaurantId.data)
     if ('error' in gate) return gate
+    const planGate = await assertRestaurantFeature(parsedRestaurantId.data, 'kitchen_display')
+    if ('error' in planGate) return planGate
     const result = await reorderKitchenStationsCommand({
       actor: 'dashboard-member',
       userId: gate.userId,

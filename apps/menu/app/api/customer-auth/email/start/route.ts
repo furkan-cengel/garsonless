@@ -9,8 +9,10 @@ import {
   enforceCustomerAuthRateLimit,
   requestClientAddress,
 } from '../../../../../lib/customer-auth-server'
+import { publicRestaurantHasFeature } from '../../../../../lib/restaurant-feature-access'
 
 const schema = customerAuthContextSchema.extend({
+  restaurantId: z.string().uuid(),
   email: z.string().trim().email().max(254),
 })
 
@@ -19,6 +21,9 @@ export async function POST(request: Request) {
   if (!requestCheck.ok) return customerAuthErrorResponse(requestCheck.error.code)
   const parsed = schema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return customerAuthErrorResponse('CONFLICT')
+  if (!await publicRestaurantHasFeature(parsed.data.restaurantId, 'customer_accounts')) {
+    return customerAuthErrorResponse('PLAN_REQUIRED')
+  }
 
   const email = parsed.data.email.toLowerCase()
   for (const limit of [

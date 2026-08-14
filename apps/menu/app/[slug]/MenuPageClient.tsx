@@ -431,6 +431,10 @@ interface Props {
   isPreview?: boolean
   /** Server-resolved plan/override entitlement for the global request tool. */
   requestButtonsEnabled?: boolean
+  /** Server-resolved Pro entitlement for cart and QR ordering. */
+  guestOrderingEnabled?: boolean
+  /** Server-resolved Pro entitlement for member/CRM surfaces. */
+  customerAccountsEnabled?: boolean
   /** Server-verified intersection of the app allowlist and hosted providers. */
   customerAuthProviders?: readonly CustomerAuthOAuthProvider[]
   initialOpenCart?: boolean
@@ -471,10 +475,13 @@ export function MenuPageClient({
   initialCustomerAuthReturn = null,
   isPreview = false,
   requestButtonsEnabled = false,
+  guestOrderingEnabled = false,
+  customerAccountsEnabled = false,
   customerAuthProviders = [],
   initialOpenCart = false,
   initialProductId = null,
 }: Props) {
+  const orderingEnabled = guestOrderingEnabled || isPreview
   useEffect(() => {
     const root = document.documentElement
     root.dataset['menuHydrated'] = 'true'
@@ -487,7 +494,7 @@ export function MenuPageClient({
   const [pendingCombo, setPendingCombo] = useState<PendingCombo | null>(null)
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null)
   const [menuFilters, setMenuFilters] = useState<MenuFilterDefinition[]>([])
-  const [isCartOpen, setIsCartOpen] = useState(initialOpenCart)
+  const [isCartOpen, setIsCartOpen] = useState(orderingEnabled && initialOpenCart)
   const [hasOpenedCart, setHasOpenedCart] = useState(false)
   const [hasOpenedProduct, setHasOpenedProduct] = useState(false)
   const [paymentOrderId, setPaymentOrderId] = useState<string | null>(null)
@@ -1027,8 +1034,9 @@ export function MenuPageClient({
               item={item}
               onOpen={handleOpenProduct}
               onQuickAdd={handleQuickAdd}
-              cartQuantity={cartQuantity}
-              {...(member ? {
+              orderingEnabled={orderingEnabled}
+              cartQuantity={orderingEnabled ? cartQuantity : 0}
+              {...(customerAccountsEnabled && member ? {
                 isFavorite: favoriteIds.has(item.id),
                 onToggleFavorite: () => setFavoriteToggleRequest((current) => ({ itemId: item.id, requestId: (current?.requestId ?? 0) + 1 })),
               } : {})}
@@ -1078,14 +1086,14 @@ export function MenuPageClient({
       initialRestaurantName={restaurant.name}
       initialLogoUrl={restaurant.logo_url ?? null}
     >
-      <CustomerSessionSynchronizer authenticated={Boolean(member)} />
-      <MenuFavoritesController
+      <CustomerSessionSynchronizer authenticated={customerAccountsEnabled && Boolean(member)} />
+      {customerAccountsEnabled && <MenuFavoritesController
         restaurantId={restaurant.id}
         authenticated={Boolean(member)}
         availableItemIds={availableFavoriteItemIds}
         toggleRequest={favoriteToggleRequest}
         onChange={setFavoriteIds}
-      />
+      />}
       <DefaultMenuPage
         categories={visibleCategories}
         categoryMeta={categoryMeta}
@@ -1128,15 +1136,15 @@ export function MenuPageClient({
         ) : null}
         tableId={effectiveTableToken}
         {...(tableLabel ? { tableLabel } : {})}
-        cartSummary={cartSummary}
-        onOpenCart={() => setIsCartOpen(true)}
+        cartSummary={orderingEnabled ? cartSummary : undefined}
+        onOpenCart={() => { if (orderingEnabled) setIsCartOpen(true) }}
         items={filteredItems}
-        onQuickAdd={handleQuickAdd}
-        onAddCombo={handleAddCombo}
+        onQuickAdd={orderingEnabled ? handleQuickAdd : () => {}}
+        onAddCombo={orderingEnabled ? handleAddCombo : () => {}}
         billSummary={billSummary}
         onOpenBill={() => { void openBill() }}
         memberSummary={{
-          authenticated: Boolean(member),
+          authenticated: customerAccountsEnabled && Boolean(member),
           name: member?.name ?? null,
           welcomeBonus: loyaltyEnabled ? welcomeBonus : 0,
           ...(member && memberBalances ? {
@@ -1148,7 +1156,7 @@ export function MenuPageClient({
             tierColor: memberBalances.tier.color,
           } : {}),
         }}
-        onOpenMember={() => { setCustomerAuthSurface('menu'); setIsMemberOpen(true) }}
+        onOpenMember={() => { if (customerAccountsEnabled) { setCustomerAuthSurface('menu'); setIsMemberOpen(true) } }}
         onServiceRequest={isPreview ? async () => true : sendServiceRequest}
         onOpenServiceRequests={() => setIsServiceRequestsOpen(true)}
         memberLoyalty={member && memberBalances && memberBalances.stampEnabled
@@ -1165,6 +1173,7 @@ export function MenuPageClient({
           setPendingPromotion(null)
         }}
         onAddToCart={handleModalAdd}
+        orderingEnabled={orderingEnabled}
         recommendationItems={!pendingCombo && !pendingPromotion
           ? (selectedItem?.recommended_item_ids ?? []).flatMap((id) => {
               const candidate = itemById.get(id)
@@ -1183,7 +1192,7 @@ export function MenuPageClient({
         closeAfterAdd={!pendingCombo}
       />}
 
-      {hasOpenedCart && <CartDrawer
+      {orderingEnabled && hasOpenedCart && <CartDrawer
         isOpen={isCartOpen}
         items={cartItems}
         isPlacing={isPlacing}
@@ -1230,7 +1239,7 @@ export function MenuPageClient({
         />
       )}
 
-      {!isCartOpen && cartItems.length > 0 && (
+      {orderingEnabled && !isCartOpen && cartItems.length > 0 && (
         <LazyFloatingCartTrigger onClick={() => setIsCartOpen(true)} />
       )}
 

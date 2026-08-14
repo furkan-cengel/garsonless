@@ -43,9 +43,10 @@ test('billing mutations resolve owner authority before provider configuration or
 })
 
 test('checkout price and callback origin are server-derived instead of client supplied', () => {
-  assert.match(actions, /amount: \{ minor: config\.plans\[parsed\.data\.plan\]\.amountMinor, currency: 'TRY' \}/)
-  assert.match(actions, /expectedProviderPlanRef: config\.plans\[parsed\.data\.plan\]\.referenceCode/)
-  assert.match(actions, /providerPlanRef: config\.plans\[parsed\.data\.plan\]\.referenceCode/)
+  assert.match(actions, /const providerPlan = config\.plans\[parsed\.data\.plan\]\[parsed\.data\.interval\]/)
+  assert.match(actions, /amount: \{ minor: providerPlan\.amountMinor, currency: 'TRY' \}/)
+  assert.match(actions, /expectedProviderPlanRef: providerPlan\.referenceCode/)
+  assert.match(actions, /providerPlanRef: providerPlan\.referenceCode/)
   assert.match(actions, /billingCheckoutCallbackUrl\(process\.env\['NEXT_PUBLIC_APP_URL'\]\)/)
   assert.doesNotMatch(actions, /input\.amount|input\.callbackUrl/)
 })

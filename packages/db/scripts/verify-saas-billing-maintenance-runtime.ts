@@ -344,12 +344,12 @@ async function main() {
     admin.from('dunning_runs').select('status').eq('id', tenantA.dunningRunId).single(),
   ])
   assert.equal(subscriptionState.data?.status, 'suspended')
-  assert.equal(tenantState.data?.plan, 'free')
+  assert.equal(tenantState.data?.plan, 'starter')
   assert.equal(runState.data?.status, 'completed')
   const lifecycle = await admin.from('tenant_lifecycle_events').select('to_status, reason_code')
     .eq('restaurant_id', tenantA.restaurantId).order('occurred_at')
   assert.deepEqual(lifecycle.data?.map((row) => row.to_status), ['grace_period', 'suspended'])
-  console.log('F ✅ warning_3 → warning_7/grace → suspend; tenant plan projected to free')
+  console.log('F ✅ warning_3 → warning_7/grace → suspend; tenant plan projected to starter')
 
   const ambiguous = await operations.prepareRetry({
     restaurantId: tenantB.restaurantId,

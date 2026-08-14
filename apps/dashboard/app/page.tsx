@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { AppIconNodes } from '@garsonless/ui/icons'
+import { PLAN_PRICES, type SelfServePlan } from '@garsonless/domain/entitlements'
 
 /* ── CSS vars + keyframes ─────────────────────────────────── */
 const MARKETING_CSS = `
@@ -758,34 +759,46 @@ function Stories() {
 }
 
 /* ── PRICING ─────────────────────────────────────────────── */
-const PLANS = [
-  { id: 'free', name: 'Ücretsiz', price: 0, monthly: 0, desc: 'Küçük mekanlar için temel paket', cta: 'Hemen başla', highlight: false,
-    features: [{ text: '3 masaya kadar', on: true }, { text: 'QR menü', on: true }, { text: 'Sipariş alma', on: true }, { text: 'Temel raporlar', on: true }, { text: 'Tema özelleştirme', on: false }, { text: 'Çoklu mağaza', on: false }, { text: 'API erişimi', on: false }] },
-  { id: 'pro', name: 'Pro', price: 899, monthly: 1099, desc: 'Büyüyen restoranlar için', cta: '14 gün ücretsiz dene', highlight: true, badge: 'En popüler',
-    features: [{ text: '50 masaya kadar', on: true }, { text: 'QR + menü + sipariş', on: true }, { text: 'Mutfak/Bar ekranı', on: true }, { text: 'Tüm raporlar + AI içgörü', on: true }, { text: 'Tam tema özelleştirme', on: true }, { text: "Çoklu mağaza (3'e kadar)", on: true }, { text: 'Öncelikli destek', on: true }] },
-  { id: 'business', name: 'Business', price: -1, monthly: -1, desc: 'Zincir & franchise için', cta: 'Bizimle konuş', highlight: false,
-    features: [{ text: 'Sınırsız masa & mağaza', on: true }, { text: "Pro'nun tüm özellikleri", on: true }, { text: 'API + Webhooks', on: true }, { text: 'SSO & merkezi yönetim', on: true }, { text: 'Beyaz etiket seçeneği', on: true }, { text: 'Özel SLA + 7/24 destek', on: true }, { text: 'Adanmış hesap yöneticisi', on: true }] },
+type PricingCardPlan = {
+  id: SelfServePlan | 'business'; name: string; desc: string; cta: string
+  highlight: boolean; badge?: string; features: Array<{ text: string; on: boolean }>
+}
+
+const PLANS: PricingCardPlan[] = [
+  { id: 'starter', name: 'Starter', desc: 'Profesyonel dijital menü için', cta: '14 gün ücretsiz dene', highlight: false,
+    features: [{ text: 'Sınırsız ürün ve kategori', on: true }, { text: 'QR menü ve zengin ürün içeriği', on: true }, { text: 'Çekirdek tema editörü', on: true }] },
+  { id: 'plus', name: 'Plus', desc: 'Masa ve adisyon operasyonu için', cta: '14 gün ücretsiz dene', highlight: false,
+    features: [{ text: "Starter'daki her şey", on: true }, { text: 'Masa bazlı QR ve QR Studio', on: true }, { text: 'Personel siparişi ve temel raporlar', on: true }] },
+  { id: 'pro', name: 'Pro', desc: 'Misafir siparişinden sadakate tam operasyon', cta: '14 gün ücretsiz dene', highlight: true, badge: 'En çok tercih edilen',
+    features: [{ text: "Plus'taki her şey", on: true }, { text: 'QR siparişi, KDS ve online ödeme', on: true }, { text: 'CRM, sadakat ve gelişmiş raporlar', on: true }] },
+  { id: 'business', name: 'Business', desc: 'Birden fazla şube ve ortak ekip için', cta: 'Bizimle konuş', highlight: false,
+    features: [{ text: "Pro'nun tüm özellikleri", on: true }, { text: 'Organizasyon ve ortak ekip erişimi', on: true }, { text: 'Güvenli şube geçişi', on: true }] },
 ]
 
+function formatTry(minor: number, digits: number): string {
+  return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(minor / 100)
+}
+
 function Pricing() {
-  const [yearly, setYearly] = useState(true)
+  const [yearly, setYearly] = useState(false)
   return (
     <section id="fiyatlandırma" style={{ padding: '120px 0', background: 'var(--bg)' }}>
       <div style={ctr}>
-        <SectionHead eyebrow="Fiyatlandırma" title={<>Her şey dahil. <em style={{ fontStyle: 'italic', color: 'var(--brand)' }}>Sürpriz yok.</em></>} sub="Sipariş başı komisyon yok. Ücretsiz başla, dilediğinde yükselt." />
+        <SectionHead eyebrow="Fiyatlandırma" title={<>Her şey dahil. <em style={{ fontStyle: 'italic', color: 'var(--brand)' }}>Sürpriz yok.</em></>} sub="Tüm yeni işletmeler 14 günlük Pro denemesiyle başlar." />
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 36 }}>
           <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: 'var(--bg-2)', borderRadius: 999, border: '1px solid var(--line)' }}>
             <button onClick={() => setYearly(false)} style={{ padding: '7px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: !yearly ? 'var(--ink)' : 'transparent', color: !yearly ? '#fff' : 'var(--ink-2)', border: 'none', borderRadius: 999 }}>Aylık</button>
             <button onClick={() => setYearly(true)} style={{ padding: '7px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', background: yearly ? 'var(--ink)' : 'transparent', color: yearly ? '#fff' : 'var(--ink-2)', border: 'none', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              Yıllık <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: 'var(--accent-2)', color: 'var(--ink)' }}>−%18</span>
+              Yıllık <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: 'var(--accent-2)', color: 'var(--ink)' }}>−%20</span>
             </button>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, maxWidth: 1100, margin: '0 auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, maxWidth: 1240, margin: '0 auto' }}>
           {PLANS.map(plan => {
-            const price = yearly ? plan.price : plan.monthly
-            const isFree = plan.id === 'free'
             const isBusiness = plan.id === 'business'
+            const price = plan.id === 'business' ? null : PLAN_PRICES[plan.id][yearly ? 'annual' : 'monthly']
+            const displayedMinor = price && yearly ? Math.round(price.amountMinor / 12) : price?.amountMinor
+            const href = isBusiness ? 'https://masabu.co/company?subject=business#iletişim' : `/auth/signup?plan=${plan.id}`
             return (
               <article key={plan.id} style={{ background: plan.highlight ? 'var(--night)' : 'var(--surface)', color: plan.highlight ? '#fff' : 'var(--ink)', borderRadius: 20, padding: 32, border: plan.highlight ? '1px solid var(--night)' : '1px solid var(--line)', position: 'relative', ...(plan.highlight ? { transform: 'translateY(-12px)', boxShadow: '0 30px 60px -20px rgba(0,0,0,.3), 0 0 0 1px rgba(255,208,137,.2) inset', overflow: 'hidden' } : {}) }}>
                 {plan.highlight && <div style={{ position: 'absolute', top: -30, right: -30, width: 180, height: 180, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,208,137,.18), transparent 65%)' }} />}
@@ -795,12 +808,12 @@ function Pricing() {
                   <p style={{ fontSize: 13.5, color: plan.highlight ? 'rgba(255,255,255,.6)' : 'var(--ink-3)', marginTop: 6 }}>{plan.desc}</p>
                   <div style={{ margin: '24px 0 4px', display: 'flex', alignItems: 'baseline', gap: 6 }}>
                     {isBusiness ? <span style={{ ...fd, fontSize: 38, fontWeight: 600, letterSpacing: '-.02em' }}>Özel teklif</span> : (
-                      <><span style={{ ...fd, fontSize: 48, fontWeight: 600, letterSpacing: '-.03em', lineHeight: 1 }}>₺{isFree ? '0' : price.toLocaleString('tr-TR')}</span><span style={{ fontSize: 14, color: plan.highlight ? 'rgba(255,255,255,.55)' : 'var(--ink-3)' }}>/ay</span></>
+                      <><span style={{ ...fd, fontSize: 42, fontWeight: 600, letterSpacing: '-.03em', lineHeight: 1 }}>{formatTry(displayedMinor ?? 0, yearly ? 2 : 0)}</span><span style={{ fontSize: 14, color: plan.highlight ? 'rgba(255,255,255,.55)' : 'var(--ink-3)' }}>/ay</span></>
                     )}
                   </div>
-                  {!isFree && !isBusiness && yearly && <div style={{ fontSize: 12, color: 'var(--positive)', fontWeight: 600 }}>₺{plan.monthly}/ay yerine — ₺{(plan.monthly - plan.price) * 12}/yıl tasarruf</div>}
-                  <Link href="/auth/signup" style={{ textDecoration: 'none' }}>
-                    <button style={{ marginTop: 24, width: '100%', padding: '14px 18px', fontSize: 15, fontWeight: 600, background: plan.highlight ? 'var(--accent-2)' : isFree ? 'transparent' : 'var(--ink)', color: plan.highlight ? 'var(--ink)' : isFree ? 'var(--ink)' : '#fff', border: isFree ? '1.5px solid var(--ink)' : 'none', borderRadius: 999, cursor: 'pointer' }}>{plan.cta}</button>
+                  {!isBusiness && yearly && price && <div style={{ fontSize: 12, color: 'var(--positive)', fontWeight: 600 }}>Yıllık peşin {formatTry(price.amountMinor, 2)}</div>}
+                  <Link href={href} style={{ textDecoration: 'none' }}>
+                    <button style={{ marginTop: 24, width: '100%', padding: '14px 18px', fontSize: 15, fontWeight: 600, background: plan.highlight ? 'var(--accent-2)' : 'var(--ink)', color: plan.highlight ? 'var(--ink)' : '#fff', border: 'none', borderRadius: 999, cursor: 'pointer' }}>{plan.cta}</button>
                   </Link>
                   <ul style={{ listStyle: 'none', padding: 0, margin: '28px 0 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {plan.features.map((f, i) => (
@@ -817,7 +830,7 @@ function Pricing() {
             )
           })}
         </div>
-        <div style={{ textAlign: 'center', marginTop: 28, fontSize: 13, color: 'var(--ink-3)' }}>Tüm planlar 14 gün ücretsiz · KDV dahil · Kart gerekmez</div>
+        <div style={{ textAlign: 'center', marginTop: 28, fontSize: 13, color: 'var(--ink-3)' }}>KDV dâhil · Sipariş komisyonu yok · Yıllık ücret peşin tahsil edilir</div>
       </div>
     </section>
   )

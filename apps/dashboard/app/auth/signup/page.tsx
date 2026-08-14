@@ -117,7 +117,11 @@ function SignupForm() {
   const [prefillEmail, setPrefillEmail] = useState('')
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
-    setNext(p.get('next') ?? '')
+    const requestedPlan = p.get('plan')
+    const planNext = requestedPlan === 'starter' || requestedPlan === 'plus' || requestedPlan === 'pro'
+      ? `/dashboard/onboarding?plan=${requestedPlan}`
+      : ''
+    setNext(p.get('next') ?? planNext)
     setPrefillEmail(p.get('email') ?? '')
   }, [])
 

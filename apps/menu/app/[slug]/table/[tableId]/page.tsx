@@ -5,6 +5,7 @@ import {
   type MemberBalances,
 } from '@garsonless/application/loyalty'
 import { readPublicTableState } from '@garsonless/application/tables'
+import { withoutAdvancedThemeSections } from '@garsonless/application/themes'
 import { getRestaurantBySlug, getMenuCategories, getMenuItems } from '../../../../lib/queries'
 import { getCustomerSession } from '../../../../lib/customer-session'
 import { availableCustomerAuthProviders } from '../../../../lib/customer-auth-provider'
@@ -61,14 +62,18 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
   // balances — same pattern as the slug page; guests stay null.
   let initialMember: { name: string | null } | null = null
   let initialMemberBalances: MemberBalances | null = null
-  const [menuItems, requestButtonsAccess, memberBalancesResult] = await Promise.all([
+  const [menuAccess, guestOrderingAccess, requestButtonsAccess, customerAccountsAccess, advancedThemeAccess] = await Promise.all([
+    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'qr_menu' }),
+    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'guest_ordering' }),
+    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'service_requests' }),
+    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'customer_accounts' }),
+    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_advanced_sections' }),
+  ])
+  if (!menuAccess.ok || !menuAccess.value) notFound()
+  const customerAccountsEnabled = customerAccountsAccess.ok && customerAccountsAccess.value
+  const [menuItems, memberBalancesResult] = await Promise.all([
     getMenuItems(restaurant.id, categories.map((category) => category.id)),
-    themePort.readFeatureAccess({
-      restaurantId: restaurant.id,
-      plan: themeResult.value.restaurant.plan,
-      feature: 'theme_advanced_sections',
-    }),
-    session
+    session && customerAccountsEnabled
       ? readMemberLoyalty(customerActorContext({
           authUserId: session.authUserId,
           customerId: session.customerId,
@@ -87,13 +92,17 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
   // decides presence from the current (including live-preview) theme, while
   // this server result remains the authoritative PRO-plan gate.
   const requestButtonsEnabled = requestButtonsAccess?.ok === true && requestButtonsAccess.value
+  const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value
+  const servedTheme = advancedThemeAccess.ok && advancedThemeAccess.value
+    ? theme
+    : withoutAdvancedThemeSections(theme)
 
   return (
     <MenuPageClient
       restaurant={restaurant}
       categories={categories}
       items={items}
-      theme={theme}
+      theme={servedTheme}
       templateId={templateId}
       tableToken={tableId}
       tableLabel={tableState.token.tableLabel}
@@ -103,7 +112,9 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
       initialMemberBalances={initialMemberBalances}
       initialCustomerAuthReturn={initialCustomerAuthReturn}
       requestButtonsEnabled={requestButtonsEnabled}
-      customerAuthProviders={customerAuthProviders}
+      guestOrderingEnabled={guestOrderingEnabled}
+      customerAccountsEnabled={customerAccountsEnabled}
+      customerAuthProviders={customerAccountsEnabled ? customerAuthProviders : []}
     />
   )
 }

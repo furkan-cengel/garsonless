@@ -12,6 +12,8 @@ import {
 import SettingsForm from '../../../../components/settings/SettingsForm'
 import { resolveSettingsSection } from '../../../../components/settings/settings-sections'
 import { readBillingPlanPrices } from '../../../../lib/billing/subscription-billing-request'
+import BillingSection from '../../../../components/settings/BillingSection'
+import PlanLockedPanel from '../../../../components/PlanLockedPanel'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -33,6 +35,36 @@ export default async function SettingsPage({ params, searchParams }: Props) {
       isMember: true,
       permissions: [...actor.permissions] as Section[],
     }))
+  }
+  const productAccess = await canRestaurantUseFeature({
+    restaurantId,
+    plan: restaurant.plan,
+    feature: 'qr_menu',
+  })
+  if (!productAccess) {
+    if (!actor.isOwner) {
+      return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="qr_menu" isOwner={false} />
+    }
+    const billing = await readSubscriptionBillingSettings(
+      actor,
+      restaurantId,
+      createSubscriptionBillingSettingsReadPort(),
+    )
+    return (
+      <main style={{ padding: 24, maxWidth: 1040, margin: '0 auto' }}>
+        <div style={{ marginBottom: 18, padding: 16, borderRadius: 12, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 13, lineHeight: 1.55 }}>
+          <strong>Ürün erişiminiz kilitli.</strong> Verileriniz korunuyor. Bir paket seçerek menü yayınını ve operasyon araçlarını yeniden açabilirsiniz.
+        </div>
+        <BillingSection
+          restaurantId={restaurantId}
+          restaurantPlan={restaurant.plan}
+          billing={billing.ok ? billing.value : null}
+          loadError={billing.ok ? null : billing.error}
+          planPrices={readBillingPlanPrices()}
+          checkoutState={query.checkout === 'success' ? 'success' : null}
+        />
+      </main>
+    )
   }
   const initialSection = resolveSettingsSection(query.section, actor.isOwner === true)
   if (query.section && query.section !== initialSection) {

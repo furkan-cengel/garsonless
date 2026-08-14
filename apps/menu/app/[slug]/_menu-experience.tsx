@@ -4,6 +4,7 @@ import {
   readMemberLoyalty,
   type MemberBalances,
 } from '@garsonless/application/loyalty'
+import { withoutAdvancedThemeSections } from '@garsonless/application/themes'
 import { createLoyaltyQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
 import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
 import { getRestaurantBySlug, getMenuCategories, getMenuItems } from '../../lib/queries'
@@ -41,14 +42,18 @@ export async function renderMenuExperience({
   if (!themeResult.ok) notFound()
 
   const { theme, templateId } = themeResult.value
-  const [menuItems, requestButtonsAccess, memberBalancesResult] = await Promise.all([
+  const [menuAccess, guestOrderingAccess, requestButtonsAccess, customerAccountsAccess, advancedThemeAccess] = await Promise.all([
+    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'qr_menu' }),
+    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'guest_ordering' }),
+    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'service_requests' }),
+    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'customer_accounts' }),
+    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_advanced_sections' }),
+  ])
+  if (!menuAccess.ok || !menuAccess.value) notFound()
+  const customerAccountsEnabled = customerAccountsAccess.ok && customerAccountsAccess.value
+  const [menuItems, memberBalancesResult] = await Promise.all([
     getMenuItems(restaurant.id, categories.map((category) => category.id)),
-    themePort.readFeatureAccess({
-      restaurantId: restaurant.id,
-      plan: themeResult.value.restaurant.plan,
-      feature: 'theme_advanced_sections',
-    }),
-    session
+    session && customerAccountsEnabled
       ? readMemberLoyalty(customerActorContext({
           authUserId: session.authUserId,
           customerId: session.customerId,
@@ -58,6 +63,10 @@ export async function renderMenuExperience({
   ])
   const items = applyFeaturedProductRanking(menuItems, featuredRanking)
   const requestButtonsEnabled = requestButtonsAccess?.ok === true && requestButtonsAccess.value
+  const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value
+  const servedTheme = advancedThemeAccess.ok && advancedThemeAccess.value
+    ? theme
+    : withoutAdvancedThemeSections(theme)
 
   let initialMember: { name: string | null } | null = null
   let initialMemberBalances: MemberBalances | null = null
@@ -71,14 +80,16 @@ export async function renderMenuExperience({
       restaurant={restaurant}
       categories={categories as MenuCategory[]}
       items={items as MenuItem[]}
-      theme={theme}
+      theme={servedTheme}
       templateId={templateId}
       initialMember={initialMember}
       initialMemberBalances={initialMemberBalances}
       initialCustomerAuthReturn={initialCustomerAuthReturn}
       isPreview={isPreview}
       requestButtonsEnabled={requestButtonsEnabled}
-      customerAuthProviders={customerAuthProviders}
+      guestOrderingEnabled={guestOrderingEnabled}
+      customerAccountsEnabled={customerAccountsEnabled}
+      customerAuthProviders={customerAccountsEnabled ? customerAuthProviders : []}
       initialOpenCart={sp['open'] === 'cart'}
       initialProductId={typeof sp['item'] === 'string' ? sp['item'] : null}
     />

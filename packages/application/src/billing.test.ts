@@ -257,7 +257,7 @@ function operationsPort(calls: string[]): SubscriptionBillingOperationsPort {
       return ok({
         operationId: 'operation-checkout', customerId: 'customer-1',
         invoiceId: 'operation-checkout', profile: input.profile, plan: input.plan,
-        amount: input.amount, dispatchable: true, duplicate: false,
+        interval: input.interval, amount: input.amount, dispatchable: true, duplicate: false,
         providerCheckoutRef: null, status: 'processing',
       })
     },
@@ -349,7 +349,7 @@ test('owner-only billing profile and checkout reject unauthorized contexts befor
     restaurantId: 'restaurant-1', profile: billingProfile,
   }, operationsPort(calls)), { ok: false, error: 'Billing owner context required' })
   assert.deepEqual(await startSubscriptionCheckout(member, {
-    restaurantId: 'restaurant-1', profile: billingProfile, plan: 'pro', amount: baseAmount,
+    restaurantId: 'restaurant-1', profile: billingProfile, plan: 'pro', interval: 'monthly', amount: baseAmount,
     periodStart: '2026-07-22T10:00:00.000Z', periodEnd: '2026-08-22T10:00:00.000Z',
     dueAt: '2026-07-22T10:00:00.000Z', callbackUrl: 'https://app.masabu.co/api/billing/callback',
     expectedProviderPlanRef: 'provider-plan-1',
@@ -365,7 +365,7 @@ test('checkout is claimed before one hosted provider dispatch and duplicate clai
   const port = operationsPort(calls)
   const provider = capabilityProvider(calls)
   const input = {
-    restaurantId: 'restaurant-1', profile: billingProfile, plan: 'pro' as const, amount: baseAmount,
+    restaurantId: 'restaurant-1', profile: billingProfile, plan: 'pro' as const, interval: 'monthly' as const, amount: baseAmount,
     periodStart: '2026-07-22T10:00:00.000Z', periodEnd: '2026-08-22T10:00:00.000Z',
     dueAt: '2026-07-22T10:00:00.000Z', callbackUrl: 'https://app.masabu.co/api/billing/callback',
     expectedProviderPlanRef: 'provider-plan-1',
@@ -379,7 +379,7 @@ test('checkout is claimed before one hosted provider dispatch and duplicate clai
   calls.length = 0
   port.prepareCheckout = async (value) => ok({
     operationId: 'operation-checkout', customerId: 'customer-1', invoiceId: 'operation-checkout',
-    profile: value.profile, plan: value.plan, amount: value.amount,
+    profile: value.profile, plan: value.plan, interval: value.interval, amount: value.amount,
     dispatchable: false, duplicate: true, providerCheckoutRef: 'checkout-token', status: 'awaiting_callback',
   })
   assert.deepEqual(await startSubscriptionCheckout(billingOwner, input, port, provider), ok({
@@ -416,7 +416,7 @@ test('checkout never dispatches before durable plan binding and quarantines prov
   const port = operationsPort(calls)
   const provider = capabilityProvider(calls)
   const input = {
-    restaurantId: 'restaurant-1', profile: billingProfile, plan: 'pro' as const, amount: baseAmount,
+    restaurantId: 'restaurant-1', profile: billingProfile, plan: 'pro' as const, interval: 'monthly' as const, amount: baseAmount,
     periodStart: '2026-07-22T10:00:00.000Z', periodEnd: '2026-08-22T10:00:00.000Z',
     dueAt: '2026-07-22T10:00:00.000Z', callbackUrl: 'https://app.masabu.co/api/billing/callback',
     expectedProviderPlanRef: 'provider-plan-1',

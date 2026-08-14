@@ -88,7 +88,7 @@ async function main() {
     }
     const { data: restaurants, error: restaurantError } = await service.from('restaurants').insert([
       { owner_id: fixture.owner_id, slug: `platform-billing-${suffix}-a`, name: `Platform billing ${suffix} A`, plan: 'pro' },
-      { owner_id: fixture.owner_id, slug: `platform-billing-${suffix}-b`, name: `Platform billing ${suffix} B`, plan: 'free' },
+      { owner_id: fixture.owner_id, slug: `platform-billing-${suffix}-b`, name: `Platform billing ${suffix} B`, plan: 'starter' },
     ]).select('id, slug')
     if (restaurantError || restaurants?.length !== 2) throw restaurantError ?? new Error('Throwaway tenants unavailable')
     const restaurantA = restaurants.find((row) => row.slug.endsWith('-a'))!.id

@@ -69,15 +69,15 @@ test('dashboard table create rejects cross-tenant replay before touching persist
   assert.equal(touched, false)
 })
 
-test('dashboard table create preserves a typed plan-limit outcome for the HTTP adapter', async () => {
+test('dashboard table create returns the unlimited atomic writer result', async () => {
   const result = await createDashboardTable(
     tableContext,
     { restaurantId: 'restaurant-a', label: 'Masa 4' },
     dashboardTablePort({
-      async createTable() { return { ok: true, value: { kind: 'plan_limit', limit: 3 } } },
+      async createTable() { return { ok: true, value: { kind: 'created', id: 'table-4', token: 'token-4' } } },
     }),
   )
-  assert.deepEqual(result, { ok: true, value: { kind: 'plan_limit', limit: 3 } })
+  assert.deepEqual(result, { ok: true, value: { kind: 'created', id: 'table-4', token: 'token-4' } })
 })
 
 test('dashboard table create and update preserve normalized operational location intent', async () => {

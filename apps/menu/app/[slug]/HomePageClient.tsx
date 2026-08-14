@@ -29,6 +29,8 @@ export function HomePageRenderer({
   initialMember = null,
   initialMemberBalances = null,
   customerAuthProviders = [],
+  guestOrderingEnabled = false,
+  customerAccountsEnabled = false,
   isPreview = false,
 }: {
   restaurant: PublicRestaurant
@@ -38,10 +40,12 @@ export function HomePageRenderer({
   initialMember?: { name: string | null } | null
   initialMemberBalances?: MemberBalances | null
   customerAuthProviders?: readonly CustomerAuthOAuthProvider[]
+  guestOrderingEnabled?: boolean
+  customerAccountsEnabled?: boolean
   isPreview?: boolean
 }) {
   return <ThemeProvider initialTheme={theme} isPreview={isPreview} initialRestaurantName={restaurant.name} initialLogoUrl={restaurant.logo_url ?? null}>
-    <LiveHomePage restaurant={restaurant} categories={categories} items={items} initialMember={initialMember} initialMemberBalances={initialMemberBalances} customerAuthProviders={customerAuthProviders} />
+    <LiveHomePage restaurant={restaurant} categories={categories} items={items} initialMember={initialMember} initialMemberBalances={initialMemberBalances} customerAuthProviders={customerAuthProviders} guestOrderingEnabled={guestOrderingEnabled} customerAccountsEnabled={customerAccountsEnabled} />
   </ThemeProvider>
 }
 
@@ -52,6 +56,8 @@ function LiveHomePage({
   initialMember,
   initialMemberBalances,
   customerAuthProviders,
+  guestOrderingEnabled,
+  customerAccountsEnabled,
 }: {
   restaurant: PublicRestaurant
   categories: MenuCategory[]
@@ -59,10 +65,12 @@ function LiveHomePage({
   initialMember: { name: string | null } | null
   initialMemberBalances: MemberBalances | null
   customerAuthProviders: readonly CustomerAuthOAuthProvider[]
+  guestOrderingEnabled: boolean
+  customerAccountsEnabled: boolean
 }) {
   const { theme, isPreview } = useTheme()
   return theme.surfaces?.home.compositionVersion === 2 && theme.surfaces.home.blocks
-    ? <HomeV2 restaurant={restaurant} categories={categories} items={items} theme={theme} initialMember={initialMember} initialMemberBalances={initialMemberBalances} customerAuthProviders={customerAuthProviders} isPreview={isPreview} />
+    ? <HomeV2 restaurant={restaurant} categories={categories} items={items} theme={theme} initialMember={initialMember} initialMemberBalances={initialMemberBalances} customerAuthProviders={customerAuthProviders} guestOrderingEnabled={guestOrderingEnabled} customerAccountsEnabled={customerAccountsEnabled} isPreview={isPreview} />
     : <LegacyHomePageRenderer restaurant={restaurant} categories={categories} items={items} theme={theme} isPreview={isPreview} />
 }
 
@@ -74,6 +82,8 @@ function HomeV2({
   initialMember,
   initialMemberBalances,
   customerAuthProviders,
+  guestOrderingEnabled,
+  customerAccountsEnabled,
   isPreview,
 }: {
   restaurant: PublicRestaurant
@@ -83,6 +93,8 @@ function HomeV2({
   initialMember: { name: string | null } | null
   initialMemberBalances: MemberBalances | null
   customerAuthProviders: readonly CustomerAuthOAuthProvider[]
+  guestOrderingEnabled: boolean
+  customerAccountsEnabled: boolean
   isPreview: boolean
 }) {
   const home = theme.surfaces!.home
@@ -123,10 +135,11 @@ function HomeV2({
       categories={categories}
       categoryMeta={categoryMeta}
       onCategorySelect={(categoryId) => navigate(buildHomeMenuHref(restaurant.slug, { preview: isPreview, categoryId }))}
-      cartSummary={{ count: 0, subtotal: 0 }}
-      onOpenCart={() => navigate(buildHomeMenuHref(restaurant.slug, { preview: isPreview, openCart: true }))}
-      memberSummary={memberSummary}
-      onOpenMember={() => setMemberOpen(true)}
+      {...(guestOrderingEnabled ? {
+        cartSummary: { count: 0, subtotal: 0 },
+        onOpenCart: () => navigate(buildHomeMenuHref(restaurant.slug, { preview: isPreview, openCart: true })),
+      } : {})}
+      {...(customerAccountsEnabled ? { memberSummary, onOpenMember: () => setMemberOpen(true) } : {})}
       storeInfo={storeInfo}
     />
     <div data-home-blocks style={homeBlockStyle}>
@@ -144,7 +157,7 @@ function HomeV2({
           menuHref={menuHref}
           memberSummary={memberSummary}
           {...(storeStatus ? { storeStatus } : {})}
-          onOpenMember={() => setMemberOpen(true)}
+          {...(customerAccountsEnabled ? { onOpenMember: () => setMemberOpen(true) } : {})}
           onOpenProduct={(item) => navigate(buildHomeMenuHref(restaurant.slug, { preview: isPreview, itemId: item.id }))}
           storeInfo={storeInfo}
         />
@@ -152,7 +165,7 @@ function HomeV2({
     </div>
     <div id="home-shared-footer"><MenuFooter storeInfo={storeInfo} /></div>
     <StickyMenuCta href={menuHref} />
-    {memberOpen ? <MemberSheet
+    {customerAccountsEnabled && memberOpen ? <MemberSheet
       onClose={() => setMemberOpen(false)}
       authenticated={Boolean(member)}
       memberName={member?.name ?? null}

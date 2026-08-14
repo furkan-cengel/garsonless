@@ -658,7 +658,7 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                   <FieldContent>
                     <div className="flex flex-wrap items-center gap-2">
                       <FieldLabel htmlFor={controlId}>{row.label}</FieldLabel>
-                      {locked && <Badge variant="secondary">Starter</Badge>}
+                      {locked && <Badge variant="secondary">Pro</Badge>}
                     </div>
                     <FieldDescription>{row.hint}</FieldDescription>
                   </FieldContent>
@@ -666,7 +666,7 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                     id={controlId}
                     checked={prefs[row.key]}
                     disabled={locked}
-                    aria-label={locked ? `${row.label}, Starter paketi gerekir` : row.label}
+                    aria-label={locked ? `${row.label}, Pro paketi gerekir` : row.label}
                     onCheckedChange={value => setToggle(row.key, value)}
                   />
                 </Field>

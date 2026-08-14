@@ -22,7 +22,7 @@ export type ThemeSectionOption = {
   label: string
   sub: string
   icon: keyof typeof I
-  plan: 'free' | 'pro'
+  plan: 'starter' | 'pro'
   status: 'ready' | 'planned'
   singleton?: boolean
   global?: boolean
@@ -418,9 +418,9 @@ function StatusPill({ children, tone = 'added' }: { children: ReactNode; tone?: 
   return <Badge variant={variant}>{children}</Badge>
 }
 
-function PlanChip({ plan }: { plan: 'free' | 'pro' }) {
+function PlanChip({ plan }: { plan: 'starter' | 'pro' }) {
   const pro = plan === 'pro'
-  return <Badge variant={pro ? 'default' : 'outline'}>{pro && <I.lock data-icon="inline-start" aria-hidden="true" />}{pro ? 'PRO' : 'FREE'}</Badge>
+  return <Badge variant={pro ? 'default' : 'outline'}>{pro && <I.lock data-icon="inline-start" aria-hidden="true" />}{pro ? 'PRO' : 'STARTER'}</Badge>
 }
 
 const dialogStyle: CSSProperties = {

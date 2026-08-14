@@ -9,7 +9,7 @@ import { createServiceClient } from './client'
 
 type RpcResult = { data: unknown; error: { message: string } | null }
 export type FeatureEntitlementRpc = (
-  name: 'read_active_tenant_feature_override',
+  name: 'read_restaurant_entitlement_context',
   args: Record<string, unknown>,
 ) => PromiseLike<RpcResult>
 
@@ -32,6 +32,13 @@ function parseOverride(value: unknown): FeatureOverrideSnapshot | null {
   }
 }
 
+function parseContext(value: unknown): { accessAllowed: boolean; override: FeatureOverrideSnapshot | null } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid entitlement context')
+  const row = value as Record<string, unknown>
+  if (typeof row.accessAllowed !== 'boolean') throw new Error('invalid entitlement context')
+  return { accessAllowed: row.accessAllowed, override: parseOverride(row.override) }
+}
+
 function serviceRpc(): FeatureEntitlementRpc {
   const service = createServiceClient()
   return service.rpc.bind(service) as unknown as FeatureEntitlementRpc
@@ -45,13 +52,19 @@ export async function resolveRestaurantFeatureEntitlement(
     return err('feature_entitlement_resolution_failed')
   }
   try {
-    const { data, error } = await rpc('read_active_tenant_feature_override', {
+    const { data, error } = await rpc('read_restaurant_entitlement_context', {
       p_restaurant_id: input.restaurantId,
       p_feature: input.feature,
     })
     if (error) return err('feature_entitlement_resolution_failed')
-    const override = parseOverride(data)
-    return ok(getEffectiveFeatureEntitlement(input.plan, input.feature, override, input.now))
+    const context = parseContext(data)
+    const entitlement = getEffectiveFeatureEntitlement(input.plan, input.feature, context.override, input.now)
+    return ok(context.accessAllowed ? entitlement : {
+      ...entitlement,
+      allowed: false,
+      source: 'plan',
+      override: null,
+    })
   } catch {
     return err('feature_entitlement_resolution_failed')
   }

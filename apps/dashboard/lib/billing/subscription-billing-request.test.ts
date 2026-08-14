@@ -16,7 +16,7 @@ const address = {
 
 test('checkout input normalizes provider identity without accepting free or malformed identity', () => {
   const parsed = checkoutRequestSchema.parse({
-    requestId: '11111111-1111-4111-8111-111111111111', plan: 'pro',
+    requestId: '11111111-1111-4111-8111-111111111111', plan: 'pro', interval: 'annual',
     profile: {
       legalName: ' Masabu Test AŞ ', name: 'Masabu', surname: 'Test',
       identityNumber: '11111111111', email: 'OWNER@EXAMPLE.COM',
@@ -27,25 +27,34 @@ test('checkout input normalizes provider identity without accepting free or malf
   assert.equal(parsed.profile.email, 'owner@example.com')
   assert.equal(parsed.profile.gsmNumber, '+905551112233')
   assert.equal(checkoutRequestSchema.safeParse({ ...parsed, plan: 'free' }).success, false)
+  assert.equal(checkoutRequestSchema.safeParse({ ...parsed, plan: 'business' }).success, false)
+  assert.equal(checkoutRequestSchema.safeParse({ ...parsed, interval: 'weekly' }).success, false)
   assert.equal(checkoutRequestSchema.safeParse({
     ...parsed, profile: { ...parsed.profile, identityNumber: '123' },
   }).success, false)
 })
 
 test('billing request fingerprint is deterministic and changes with immutable intent', () => {
-  const left = requestFingerprint({ restaurantId: 'r1', plan: 'pro' })
-  const replay = requestFingerprint({ restaurantId: 'r1', plan: 'pro' })
-  const changed = requestFingerprint({ restaurantId: 'r1', plan: 'starter' })
+  const left = requestFingerprint({ restaurantId: 'r1', plan: 'pro', interval: 'monthly' })
+  const replay = requestFingerprint({ restaurantId: 'r1', plan: 'pro', interval: 'monthly' })
+  const changed = requestFingerprint({ restaurantId: 'r1', plan: 'starter', interval: 'monthly' })
+  const annual = requestFingerprint({ restaurantId: 'r1', plan: 'pro', interval: 'annual' })
   assert.equal(left, replay)
   assert.notEqual(left, changed)
+  assert.notEqual(left, annual)
   assert.match(left, /^[a-f0-9]{64}$/)
 })
 
 test('monthly period clamps end-of-month and callback URL is origin constrained', () => {
-  assert.deepEqual(billingPeriod(new Date('2026-01-31T10:00:00.000Z')), {
+  assert.deepEqual(billingPeriod(new Date('2026-01-31T10:00:00.000Z'), 'monthly'), {
     periodStart: '2026-01-31T10:00:00.000Z',
     periodEnd: '2026-02-28T10:00:00.000Z',
     dueAt: '2026-01-31T10:00:00.000Z',
+  })
+  assert.deepEqual(billingPeriod(new Date('2024-02-29T10:00:00.000Z'), 'annual'), {
+    periodStart: '2024-02-29T10:00:00.000Z',
+    periodEnd: '2025-02-28T10:00:00.000Z',
+    dueAt: '2024-02-29T10:00:00.000Z',
   })
   assert.equal(
     billingCheckoutCallbackUrl('https://dashboard.masabu.co'),
@@ -66,22 +75,34 @@ test('public billing plan prices require the complete checkout and webhook contr
     IYZICO_BILLING_API_KEY: 'platform-api-key',
     IYZICO_BILLING_SECRET_KEY: 'platform-secret-key',
     IYZICO_BILLING_BASE_URL: 'https://api.iyzipay.com',
-    IYZICO_BILLING_STARTER_PLAN_REF: 'starter-live',
-    IYZICO_BILLING_STARTER_AMOUNT_MINOR: '14990',
-    IYZICO_BILLING_PRO_PLAN_REF: 'pro-live',
-    IYZICO_BILLING_PRO_AMOUNT_MINOR: '29990',
-    IYZICO_BILLING_ENTERPRISE_PLAN_REF: 'enterprise-live',
-    IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR: '59990',
+    IYZICO_BILLING_STARTER_MONTHLY_PLAN_REF: 'starter-monthly-live',
+    IYZICO_BILLING_STARTER_MONTHLY_AMOUNT_MINOR: '34900',
+    IYZICO_BILLING_STARTER_ANNUAL_PLAN_REF: 'starter-annual-live',
+    IYZICO_BILLING_STARTER_ANNUAL_AMOUNT_MINOR: '335040',
+    IYZICO_BILLING_PLUS_MONTHLY_PLAN_REF: 'plus-monthly-live',
+    IYZICO_BILLING_PLUS_MONTHLY_AMOUNT_MINOR: '69900',
+    IYZICO_BILLING_PLUS_ANNUAL_PLAN_REF: 'plus-annual-live',
+    IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR: '671040',
+    IYZICO_BILLING_PRO_MONTHLY_PLAN_REF: 'pro-monthly-live',
+    IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR: '119900',
+    IYZICO_BILLING_PRO_ANNUAL_PLAN_REF: 'pro-annual-live',
+    IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR: '1151040',
   }
   assert.deepEqual(readBillingPlanPrices(complete), {
-    starter: 14_990, pro: 29_990, enterprise: 59_990,
+    starter: { monthly: 34_900, annual: 335_040 },
+    plus: { monthly: 69_900, annual: 671_040 },
+    pro: { monthly: 119_900, annual: 1_151_040 },
   })
   assert.deepEqual(readBillingPlanPrices({
     ...complete,
-    IYZICO_BILLING_PRO_AMOUNT_MINOR: '29.99',
-  }), { starter: null, pro: null, enterprise: null })
+    IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR: '29.99',
+  }), {
+    starter: { monthly: null, annual: null }, plus: { monthly: null, annual: null }, pro: { monthly: null, annual: null },
+  })
   assert.deepEqual(readBillingPlanPrices({
     ...complete,
     IYZICO_BILLING_MERCHANT_ID: undefined,
-  }), { starter: null, pro: null, enterprise: null })
+  }), {
+    starter: { monthly: null, annual: null }, plus: { monthly: null, annual: null }, pro: { monthly: null, annual: null },
+  })
 })

@@ -7,18 +7,18 @@ type ThemeSectionCatalogItem = ThemeSectionOption & {
 }
 
 export const SECTION_LIBRARY = [
-  { id: 'hero-banner', group: 'Üst Bölümler', label: 'Hero Banner', sub: 'Tam genişlik kampanya görseli + CTA', icon: 'image', plan: 'free', status: 'ready', surfaces: ['menu', 'home'] },
-  { id: 'promo-strip', group: 'Üst Bölümler', label: 'Promo Şeridi', sub: 'Kayan duyuru bandı', icon: 'megaphone', plan: 'free', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'hero-banner', group: 'Üst Bölümler', label: 'Hero Banner', sub: 'Tam genişlik kampanya görseli + CTA', icon: 'image', plan: 'starter', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'promo-strip', group: 'Üst Bölümler', label: 'Promo Şeridi', sub: 'Kayan duyuru bandı', icon: 'megaphone', plan: 'starter', status: 'ready', surfaces: ['menu', 'home'] },
   { id: 'featured-scroll', group: 'Ürün Gösterimi', label: 'Öne Çıkanlar', sub: 'Yatay kaydırılabilir ürün vitrini', icon: 'arrow', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
   { id: 'chef-pick', group: 'Ürün Gösterimi', label: "Şef'in Seçimi", sub: 'İmza tabaklar ve şef notu', icon: 'cutlery', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
   { id: 'combo-ribbon', group: 'Promosyon', label: 'Kombo Şerit', sub: 'Gerçek ürünlerden oluşan birlikte al paketleri', icon: 'gift', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
   { id: 'discount-badge', group: 'Promosyon', label: 'İndirim Rozeti', sub: 'Seçili ürüne özel, sunucuda doğrulanan kampanya', icon: 'tag', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
-  { id: 'daily-special', group: 'Promosyon', label: 'Günün Özeli', sub: 'Tek ürün + şef notu + sayaç', icon: 'clock', plan: 'free', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'daily-special', group: 'Promosyon', label: 'Günün Özeli', sub: 'Tek ürün + şef notu + sayaç', icon: 'clock', plan: 'starter', status: 'ready', surfaces: ['menu', 'home'] },
   { id: 'promo-slider', group: 'Promosyon', label: 'Kampanya Slider', sub: 'Dönen kampanya kartları (kupon, flash, combo…)', icon: 'section', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
   { id: 'gallery', group: 'Bağlam', label: 'Foto Galerisi', sub: 'Mekan kareleri grid görünümü', icon: 'image', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
   { id: 'request-buttons', group: 'Etkileşim', label: 'İstek Butonları', sub: 'Masadan ekibe iletilen özelleştirilebilir hızlı istekler', icon: 'bell', plan: 'pro', status: 'ready', singleton: true, global: true, surfaces: ['menu'] },
-  { id: 'hours', group: 'Bağlam', label: 'Çalışma Saatleri', sub: 'İşletme ayarlarındaki güncel saatler', icon: 'clock', plan: 'free', status: 'ready', surfaces: ['menu'] },
-  { id: 'wifi-info', group: 'Etkileşim', label: 'Wi-Fi Bilgisi', sub: 'Menü çekmecesinde güvenli ağ paylaşımı', icon: 'globe', plan: 'free', status: 'ready', surfaces: ['menu'] },
+  { id: 'hours', group: 'Bağlam', label: 'Çalışma Saatleri', sub: 'İşletme ayarlarındaki güncel saatler', icon: 'clock', plan: 'starter', status: 'ready', surfaces: ['menu'] },
+  { id: 'wifi-info', group: 'Etkileşim', label: 'Wi-Fi Bilgisi', sub: 'Menü çekmecesinde güvenli ağ paylaşımı', icon: 'globe', plan: 'starter', status: 'ready', surfaces: ['menu'] },
 ] as const satisfies readonly ThemeSectionCatalogItem[]
 const HOME_EXCLUDED_SECTION_IDS = new Set(['request-buttons', 'hours', 'wifi-info'])
 const HOME_VIDEO_SECTION = {

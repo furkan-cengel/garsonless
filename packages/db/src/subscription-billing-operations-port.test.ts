@@ -70,7 +70,7 @@ test('operations port normalizes profile input and fail-closes malformed checkou
   assert.equal(calls[0]?.args.p_gsm_number, '+905551112233')
 
   const checkout = await port.prepareCheckout({
-    restaurantId: 'restaurant-1', profile, plan: 'pro',
+    restaurantId: 'restaurant-1', profile, plan: 'pro', interval: 'monthly',
     amount: { minor: 29_990, currency: 'TRY' },
     periodStart: '2026-07-22T10:00:00.000Z', periodEnd: '2026-08-22T10:00:00.000Z',
     dueAt: '2026-07-22T10:00:00.000Z', idempotencyKey: 'checkout-1',

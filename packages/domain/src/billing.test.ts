@@ -15,10 +15,13 @@ test('subscription lifecycle allows recovery but keeps cancellation terminal', (
   assert.equal(canTransitionSubscriptionStatus('suspended', 'active'), true)
   assert.equal(canTransitionSubscriptionStatus('cancelled', 'active'), false)
   assert.equal(canTransitionSubscriptionStatus('active', 'suspended'), false)
+  assert.equal(canTransitionSubscriptionStatus('trial', 'trial_expired'), true)
+  assert.equal(canTransitionSubscriptionStatus('trial_expired', 'active'), true)
 })
 
 test('subscription status vocabulary fails closed', () => {
   assert.equal(isSubscriptionStatus('trial'), true)
+  assert.equal(isSubscriptionStatus('trial_expired'), true)
   assert.equal(isSubscriptionStatus('manual_hold'), true)
   assert.equal(isSubscriptionStatus('enabled'), false)
   assert.equal(isSubscriptionStatus(null), false)

@@ -2,6 +2,7 @@ const _CUSTOMER_AUTH_ERROR_CODES = [
   'AUTH_REQUIRED',
   'SESSION_EXPIRED',
   'PROVIDER_DISABLED',
+  'PLAN_REQUIRED',
   'OTP_INVALID',
   'OTP_EXPIRED',
   'RATE_LIMITED',
@@ -58,6 +59,7 @@ export function statusForCustomerAuthError(code: CustomerAuthErrorCode): number 
     case 'SESSION_EXPIRED': return 401
     case 'STAFF_ACCOUNT_REJECTED': return 403
     case 'PROVIDER_DISABLED': return 404
+    case 'PLAN_REQUIRED': return 403
     case 'RATE_LIMITED': return 429
     case 'CONTEXT_EXPIRED': return 410
     case 'OTP_INVALID': return 400

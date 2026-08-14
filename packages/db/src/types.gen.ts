@@ -207,7 +207,8 @@ export type Database = {
         Row: {
           amount_minor: number | null
           attempts: number
-          billing_customer_id: string
+          billing_interval: string | null
+          billing_customer_id: string | null
           completed_at: string | null
           created_at: string
           currency: string | null
@@ -219,7 +220,7 @@ export type Database = {
           operation_type: string
           period_end: string | null
           period_start: string | null
-          provider: string
+          provider: string | null
           provider_checkout_ref: string | null
           provider_payment_ref: string | null
           provider_subscription_ref: string | null
@@ -234,6 +235,7 @@ export type Database = {
         Insert: {
           amount_minor?: number | null
           attempts?: number
+          billing_interval?: string | null
           billing_customer_id: string
           completed_at?: string | null
           created_at?: string
@@ -261,6 +263,7 @@ export type Database = {
         Update: {
           amount_minor?: number | null
           attempts?: number
+          billing_interval?: string | null
           billing_customer_id?: string
           completed_at?: string | null
           created_at?: string
@@ -407,7 +410,8 @@ export type Database = {
       billing_subscriptions: {
         Row: {
           billing_anchor_day: number
-          billing_customer_id: string
+          billing_customer_id: string | null
+          billing_interval: string
           cancel_at_period_end: boolean
           cancelled_at: string | null
           created_at: string
@@ -415,8 +419,9 @@ export type Database = {
           current_period_start: string | null
           grace_ends_at: string | null
           id: string
+          intended_plan: string | null
           plan: string
-          provider: string
+          provider: string | null
           provider_subscription_ref: string | null
           restaurant_id: string
           scheduled_plan: string | null
@@ -428,7 +433,8 @@ export type Database = {
         }
         Insert: {
           billing_anchor_day?: number
-          billing_customer_id: string
+          billing_customer_id?: string | null
+          billing_interval?: string
           cancel_at_period_end?: boolean
           cancelled_at?: string | null
           created_at?: string
@@ -436,8 +442,9 @@ export type Database = {
           current_period_start?: string | null
           grace_ends_at?: string | null
           id?: string
+          intended_plan?: string | null
           plan: string
-          provider?: string
+          provider?: string | null
           provider_subscription_ref?: string | null
           restaurant_id: string
           scheduled_plan?: string | null
@@ -449,7 +456,8 @@ export type Database = {
         }
         Update: {
           billing_anchor_day?: number
-          billing_customer_id?: string
+          billing_customer_id?: string | null
+          billing_interval?: string
           cancel_at_period_end?: boolean
           cancelled_at?: string | null
           created_at?: string
@@ -457,8 +465,9 @@ export type Database = {
           current_period_start?: string | null
           grace_ends_at?: string | null
           id?: string
+          intended_plan?: string | null
           plan?: string
-          provider?: string
+          provider?: string | null
           provider_subscription_ref?: string | null
           restaurant_id?: string
           scheduled_plan?: string | null
@@ -2248,6 +2257,104 @@ export type Database = {
           },
         ]
       }
+      organization_members: {
+        Row: {
+          created_at: string
+          organization_id: string
+          permissions: Json
+          role: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          organization_id: string
+          permissions?: Json
+          role: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          organization_id?: string
+          permissions?: Json
+          role?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_restaurants: {
+        Row: {
+          created_at: string
+          organization_id: string
+          restaurant_id: string
+        }
+        Insert: {
+          created_at?: string
+          organization_id: string
+          restaurant_id: string
+        }
+        Update: {
+          created_at?: string
+          organization_id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_restaurants_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_restaurants_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payment_credentials: {
         Row: {
           api_key: string
@@ -3059,6 +3166,7 @@ export type Database = {
         Row: {
           amount_due_minor: number
           amount_paid_minor: number
+          billing_interval: string
           created_at: string
           currency: string
           due_at: string
@@ -3080,6 +3188,7 @@ export type Database = {
         Insert: {
           amount_due_minor: number
           amount_paid_minor?: number
+          billing_interval?: string
           created_at?: string
           currency?: string
           due_at: string
@@ -3101,6 +3210,7 @@ export type Database = {
         Update: {
           amount_due_minor?: number
           amount_paid_minor?: number
+          billing_interval?: string
           created_at?: string
           currency?: string
           due_at?: string
@@ -4264,6 +4374,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      create_located_table: {
+        Args: {
+          p_area_label: string
+          p_floor_label: string
+          p_label: string
+          p_restaurant_id: string
+        }
+        Returns: {
+          outcome: string
+          table_id: string
+          token: string
+        }[]
+      }
       create_located_table_with_plan_limit: {
         Args: {
           p_area_label: string
@@ -4299,6 +4422,14 @@ export type Database = {
         }
         Returns: Json
       }
+      create_table: {
+        Args: { p_label: string; p_restaurant_id: string }
+        Returns: {
+          outcome: string
+          table_id: string
+          token: string
+        }[]
+      }
       create_table_with_plan_limit: {
         Args: { p_label: string; p_restaurant_id: string }
         Returns: {
@@ -4307,6 +4438,14 @@ export type Database = {
           table_limit: number
           token: string
         }[]
+      }
+      create_restaurant_with_pro_trial: {
+        Args: {
+          p_intended_plan?: string | null
+          p_name: string
+          p_slug: string
+        }
+        Returns: Json
       }
       customer_access_token_hook: { Args: { event: Json }; Returns: Json }
       defer_domain_outbox: {
@@ -4654,6 +4793,10 @@ export type Database = {
           token: string
         }[]
       }
+      list_organization_restaurant_ids_for_user: {
+        Args: { p_user_id: string }
+        Returns: string[]
+      }
       list_platform_admin_tenants: {
         Args: {
           p_lifecycle?: string
@@ -4841,6 +4984,14 @@ export type Database = {
         }[]
       }
       read_active_tenant_feature_override: {
+        Args: { p_feature: string; p_restaurant_id: string }
+        Returns: Json
+      }
+      read_organization_restaurant_access: {
+        Args: { p_restaurant_id: string }
+        Returns: Json
+      }
+      read_restaurant_entitlement_context: {
         Args: { p_feature: string; p_restaurant_id: string }
         Returns: Json
       }

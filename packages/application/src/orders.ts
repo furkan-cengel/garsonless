@@ -45,6 +45,7 @@ export interface PlacePublicOrderResult {
 export interface PublicOrderPort {
   resolveRestaurantIdBySlug(slug: string): Promise<string | null>
   readOrderIngressStatus(restaurantId: string): Promise<'active' | 'suspended' | 'manual_hold' | 'unavailable'>
+  canUseGuestOrdering(restaurantId: string): Promise<boolean>
   consumeRateLimit(input: { restaurantId: string; keyHash: string; max: number; windowSeconds: number }): Promise<Result<true>>
   createOrder(input: Omit<PlacePublicOrderCommand, 'slug' | 'rateLimitKey'>): Promise<Result<PlacePublicOrderResult>>
 }
@@ -69,6 +70,9 @@ export async function placePublicOrder(
   const ingressStatus = await port.readOrderIngressStatus(command.restaurantId)
   if (ingressStatus === 'unavailable') return err('Sipariş güvenlik kontrolü kullanılamıyor')
   if (ingressStatus !== 'active') return err('İşletme şu anda yeni sipariş almıyor.')
+  if (!await port.canUseGuestOrdering(command.restaurantId)) {
+    return err('Bu işletmenin planında QR siparişi açık değil.')
+  }
 
   const rateLimit = await port.consumeRateLimit({
     restaurantId: command.restaurantId,
@@ -146,6 +150,7 @@ export interface DashboardOrderLifecyclePort {
 
 export interface DashboardOrderCreatePort {
   readOrderIngressStatus(restaurantId: string): Promise<'active' | 'suspended' | 'manual_hold' | 'unavailable'>
+  canUseStaffOrders(restaurantId: string): Promise<boolean>
   createOrder(input: {
     restaurantId: string
     tableId: string | null
@@ -173,6 +178,7 @@ export async function createDashboardOrder(
   const ingressStatus = await port.readOrderIngressStatus(input.restaurantId)
   if (ingressStatus === 'unavailable') return err('Sipariş güvenlik kontrolü kullanılamıyor')
   if (ingressStatus !== 'active') return err('İşletme şu anda yeni sipariş almıyor.')
+  if (!await port.canUseStaffOrders(input.restaurantId)) return err('Bu özellik Plus veya üzeri paket gerektirir.')
   return port.createOrder({ ...input, createdBy: context.userId })
 }
 
