@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { Skeleton } from '../../lib/ui'
+import { ThemeEditorLoadingFrame } from '../theme/ThemeEditorLoadingFrame'
 
 type SkeletonKind = 'pano' | 'analytics' | 'orders' | 'menu' | 'theme' | 'settings' | 'customers'
 
@@ -16,6 +17,28 @@ const shell: CSSProperties = {
   background: 'var(--bg)',
 }
 
+const ROUTE_SKELETON_CSS = `
+@media (max-width: 760px) {
+  .dashboard-route-skeleton-topbar {
+    height: 52px !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 8px !important;
+    padding: 6px 8px !important;
+  }
+  .dashboard-route-skeleton-topbar-start > :not(:first-child),
+  .dashboard-route-skeleton-topbar-center {
+    display: none !important;
+  }
+  .dashboard-route-skeleton-topbar-end {
+    gap: 5px !important;
+  }
+  .dashboard-route-skeleton-topbar-end > * {
+    width: 42px !important;
+    height: 32px !important;
+  }
+}
+`
+
 function Block({ height, width = '100%', style }: { height: number | string; width?: number | string; style?: CSSProperties }) {
   return <Skeleton width={width} height={height} style={{ borderRadius: 6, ...style }} />
 }
@@ -24,7 +47,7 @@ function TopBarSkeleton({ kind }: { kind: SkeletonKind }) {
   const isMenu = kind === 'menu'
   const isCustomers = kind === 'customers'
   return (
-    <div style={{
+    <div className="dashboard-route-skeleton-topbar" style={{
       height: 'var(--topbar)',
       flexShrink: 0,
       display: 'grid',
@@ -35,7 +58,7 @@ function TopBarSkeleton({ kind }: { kind: SkeletonKind }) {
       borderBottom: '1px solid var(--border)',
       background: 'var(--surface)',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+      <div className="dashboard-route-skeleton-topbar-start" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <Block width={26} height={26} style={{ borderRadius: 7, flexShrink: 0 }} />
         <Block width={84} height={13} />
         <Block width={1} height={28} style={{ borderRadius: 0, flexShrink: 0 }} />
@@ -45,15 +68,15 @@ function TopBarSkeleton({ kind }: { kind: SkeletonKind }) {
       {isMenu ? (
         <Block width="min(420px, 34vw)" height={32} style={{ minWidth: 300 }} />
       ) : isCustomers ? (
-        <div />
+        <div className="dashboard-route-skeleton-topbar-center" />
       ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+        <div className="dashboard-route-skeleton-topbar-center" style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
           <KpiShadow />
           <KpiShadow />
           <KpiShadow />
         </div>
       )}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
+      <div className="dashboard-route-skeleton-topbar-end" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
         {isMenu ? (
           <>
             <Block width={84} height={30} />
@@ -319,18 +342,6 @@ function MenuCardShadow() {
   )
 }
 
-function ThemeSkeleton() {
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '272px minmax(0, 1fr) 340px', height: '100%', minHeight: 0 }}>
-      <NavRailSkeleton compact rows={8} />
-      <div style={{ padding: 20, minHeight: 0, background: 'var(--bg)' }}>
-        <Block height="100%" style={{ minHeight: 420, borderRadius: 10 }} />
-      </div>
-      <Panel rows={10} style={{ borderRadius: 0, borderTop: 'none', borderBottom: 'none', borderRight: 'none' }} />
-    </div>
-  )
-}
-
 function SettingsSkeleton() {
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
@@ -569,6 +580,10 @@ function CustomersSkeleton() {
 }
 
 export default function DashboardRouteSkeleton({ kind = 'pano' }: Props) {
+  if (kind === 'theme') {
+    return <ThemeEditorLoadingFrame label="Tema düzenleyici yükleniyor" />
+  }
+
   const labels: Record<SkeletonKind, string> = {
     pano: 'Pano yükleniyor',
     analytics: 'Raporlar yükleniyor',
@@ -583,13 +598,14 @@ export default function DashboardRouteSkeleton({ kind = 'pano' }: Props) {
     analytics: <AnalyticsSkeleton />,
     orders: <OrdersSkeleton />,
     menu: <MenuSkeleton />,
-    theme: <ThemeSkeleton />,
+    theme: null,
     settings: <SettingsSkeleton />,
     customers: <CustomersSkeleton />,
   }
 
   return (
     <div role="status" aria-live="polite" aria-busy="true" aria-label={labels[kind]} style={shell}>
+      <style>{ROUTE_SKELETON_CSS}</style>
       <div aria-hidden="true" style={{ display: 'contents' }}>
         <TopBarSkeleton kind={kind} />
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>

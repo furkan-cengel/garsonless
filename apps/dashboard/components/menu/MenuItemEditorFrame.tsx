@@ -61,7 +61,7 @@ export function MenuItemEditorFrame({ itemId, itemName, position, createdAt, upd
             color: 'var(--text-2)',
           }}
         >
-          <I.cutlery size={15} />
+          <I.menuDish size={15} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.2 }}>{itemName}</div>

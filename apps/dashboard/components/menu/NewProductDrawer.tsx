@@ -386,7 +386,7 @@ export default function NewProductDrawer({
                   <ToggleRow
                     id="new-product-earns-stamp"
                     label="Sadakat damgası kazandırır"
-                    desc="Her adet bir damga sayılır (ör. kahve)"
+                    desc="Satın alınan her uygun adet 1 damga kazandırır"
                     checked={earnsStamp}
                     onCheckedChange={setEarnsStamp}
                   />

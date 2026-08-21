@@ -26,14 +26,26 @@ const StoreSwitcher = dynamic(() => import('../overlays/StoreSwitcher'), { ssr: 
 
 export function RestaurantShellSkeleton() {
   return (
-    <div role="status" aria-live="polite" aria-busy="true" aria-label="Dashboard hazırlanıyor" style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '16px 24px', height: '100%' }}>
-      <Skeleton height={44} width="100%" />
-      <div style={{ display: 'flex', gap: 16 }}>
-        <Skeleton height={90} style={{ flex: 1 }} />
-        <Skeleton height={90} style={{ flex: 1 }} />
-        <Skeleton height={90} style={{ flex: 1 }} />
+    <div className="restaurant-shell-skeleton" role="status" aria-live="polite" aria-busy="true" aria-label="Dashboard hazırlanıyor" style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '16px 24px', width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+      <style>{`
+        .restaurant-shell-skeleton-visuals { flex: 1; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 16px; }
+        .restaurant-shell-skeleton-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+        @media (max-width: 760px) {
+          .restaurant-shell-skeleton { gap: 12px !important; padding: 12px !important; }
+          .restaurant-shell-skeleton-visuals { gap: 12px; }
+          .restaurant-shell-skeleton-metrics { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+          .restaurant-shell-skeleton-metrics > :not(:first-child) { display: none; }
+        }
+      `}</style>
+      <div className="restaurant-shell-skeleton-visuals" aria-hidden="true">
+        <Skeleton height={44} width="100%" />
+        <div className="restaurant-shell-skeleton-metrics">
+          <Skeleton height={90} style={{ flex: 1 }} />
+          <Skeleton height={90} style={{ flex: 1 }} />
+          <Skeleton height={90} style={{ flex: 1 }} />
+        </div>
+        <Skeleton height="100%" style={{ flex: 1, minHeight: 320 }} />
       </div>
-      <Skeleton height="100%" style={{ flex: 1, minHeight: 320 }} />
     </div>
   )
 }
@@ -83,6 +95,14 @@ const MOBILE_RAIL_SHELL_CSS = `
     background: var(--surface);
   }
   .restaurant-shell--mobile-rail .restaurant-rail .rail-tooltip { display: none; }
+  .restaurant-shell--mobile-rail .restaurant-rail .rail-active-indicator {
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: 0;
+    width: auto;
+    height: 2.5px;
+  }
 }
 `
 

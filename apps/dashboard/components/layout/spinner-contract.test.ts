@@ -7,10 +7,12 @@ const read = (relative: string) => readFileSync(new URL(relative, import.meta.ur
 test('dashboard shell renders one navigation feedback surface and no legacy event', () => {
   const shell = read('./RestaurantShell.tsx')
   const context = read('../../lib/shell-context.tsx')
+  const feedback = read('./NavigationFeedback.tsx')
   assert.equal((shell.match(/<NavigationFeedback/g) ?? []).length, 2, 'one render per mutually exclusive shell branch')
   assert.match(context, /beginNavigation: \(targetHref: string\)/)
   assert.doesNotMatch(shell, /navigation-start|NavigationProgress|NavigationPendingOverlay/)
-  assert.doesNotMatch(read('./NavigationFeedback.tsx'), /Math\.random|aria-valuenow/)
+  assert.doesNotMatch(feedback, /Math\.random|aria-valuenow/)
+  assert.match(feedback, /className=\{styles\.bar\} aria-hidden="true"/)
 })
 
 test('all dashboard route loading boundaries use an accessible skeleton', () => {

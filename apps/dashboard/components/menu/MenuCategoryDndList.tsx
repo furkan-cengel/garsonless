@@ -9,6 +9,7 @@ import { CSS } from '@dnd-kit/utilities'
 import type { Tables } from '@garsonless/db/types'
 import { I, S } from '../../lib/ui'
 import CategoryForm from './CategoryForm'
+import { MenuCategoryGlyph } from './MenuCategoryGlyph'
 
 interface Props {
   topLevel: Tables<'menu_categories'>[]
@@ -207,7 +208,7 @@ export default function MenuCategoryDndList({
                 justifyContent: 'center',
               }}
             >
-              <I.cutlery size={15} />
+              <MenuCategoryGlyph name={dragActiveCat.name} />
             </span>
             <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{dragActiveCat.name}</span>
           </div>
@@ -287,7 +288,7 @@ function CategoryRow({
             justifyContent: 'center',
           }}
         >
-          <I.cutlery size={15} />
+          <MenuCategoryGlyph name={name} />
         </span>
         <span
           style={{

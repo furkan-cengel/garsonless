@@ -798,7 +798,7 @@ function Pricing() {
             const isBusiness = plan.id === 'business'
             const price = plan.id === 'business' ? null : PLAN_PRICES[plan.id][yearly ? 'annual' : 'monthly']
             const displayedMinor = price && yearly ? Math.round(price.amountMinor / 12) : price?.amountMinor
-            const href = isBusiness ? 'https://masabu.co/company?subject=business#iletişim' : `/auth/signup?plan=${plan.id}`
+            const href = isBusiness ? 'https://masabu.co/iletisim?subject=business#satis-formu' : `/auth/signup?plan=${plan.id}`
             return (
               <article key={plan.id} style={{ background: plan.highlight ? 'var(--night)' : 'var(--surface)', color: plan.highlight ? '#fff' : 'var(--ink)', borderRadius: 20, padding: 32, border: plan.highlight ? '1px solid var(--night)' : '1px solid var(--line)', position: 'relative', ...(plan.highlight ? { transform: 'translateY(-12px)', boxShadow: '0 30px 60px -20px rgba(0,0,0,.3), 0 0 0 1px rgba(255,208,137,.2) inset', overflow: 'hidden' } : {}) }}>
                 {plan.highlight && <div style={{ position: 'absolute', top: -30, right: -30, width: 180, height: 180, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,208,137,.18), transparent 65%)' }} />}
@@ -830,7 +830,7 @@ function Pricing() {
             )
           })}
         </div>
-        <div style={{ textAlign: 'center', marginTop: 28, fontSize: 13, color: 'var(--ink-3)' }}>KDV dâhil · Sipariş komisyonu yok · Yıllık ücret peşin tahsil edilir</div>
+        <div style={{ textAlign: 'center', marginTop: 28, fontSize: 13, color: 'var(--ink-3)' }}>KDV hariç · Sipariş komisyonu yok · Yıllık ücret peşin tahsil edilir</div>
       </div>
     </section>
   )

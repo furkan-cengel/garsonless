@@ -130,7 +130,7 @@ export function MenuManagerEmptyPanel({
     >
       <EmptyHeader>
         <EmptyMedia variant="icon" className="size-14 rounded-xl">
-          <I.cutlery size={24} />
+          <I.menuDish size={24} />
         </EmptyMedia>
         <EmptyTitle>{state.title}</EmptyTitle>
         <EmptyDescription>{state.description}</EmptyDescription>

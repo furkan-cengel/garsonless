@@ -141,7 +141,7 @@ function HistoryRow({ order, tableLabel, onReceipt }: {
 }) {
   const cancelled = order.status === 'cancelled'
   const items = readOrderLineSnapshots(order.items)
-  const names = items.map(i => `${i.quantity}× ${i.name}`).join(' · ')
+  const names = items.map(i => `${i.quantity}× ${i.name}${i.promotion?.offer === 'freebie' && i.promotion.role === 'reward' ? ' (hediye)' : ''}`).join(' · ')
   const time = new Date(order.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
   const isPaid = order.paid_at !== null
   const methodBadge = isPaid ? paymentMethodBadge((order.payment_method as PaymentMethod | null | undefined) ?? null) : null

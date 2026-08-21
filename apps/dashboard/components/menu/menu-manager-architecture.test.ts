@@ -16,6 +16,8 @@ const modifierEditorSource = readFileSync(`${directory}/MenuModifierGroupEditor.
 const shellStateSource = readFileSync(`${directory}/use-menu-manager-shell-state.ts`, 'utf8')
 const chromeSource = readFileSync(`${directory}/MenuManagerChrome.tsx`, 'utf8')
 const categoryWorkspaceSource = readFileSync(`${directory}/MenuCategoryWorkspace.tsx`, 'utf8')
+const categoryDndSource = readFileSync(`${directory}/MenuCategoryDndList.tsx`, 'utf8')
+const categoryGlyphSource = readFileSync(`${directory}/MenuCategoryGlyph.tsx`, 'utf8')
 const categoryFormSource = readFileSync(`${directory}/CategoryForm.tsx`, 'utf8')
 const nutritionSource = readFileSync(`${directory}/NutritionFields.tsx`, 'utf8')
 const imageAttachmentSource = readFileSync(`${directory}/MenuImageAttachment.tsx`, 'utf8')
@@ -150,6 +152,21 @@ test('MenuManager delegates product filtering, selection and grid/list rendering
   assert.match(itemsWorkspaceSource, /const \[selectedIds, setSelectedIds\]/)
   assert.match(itemsWorkspaceSource, /onBulkAvailability/)
   assert.doesNotMatch(itemsWorkspaceSource, /lib\/actions|createClient|supabase|restaurantId/i)
+})
+
+test('menu surfaces use category artwork first and the modern dish as their shared fallback', () => {
+  assert.match(categoryGlyphSource, /getMenuCategoryIconKey\(name\)/)
+  assert.match(categoryGlyphSource, /<MenuCategoryIcon icon=\{icon\}/)
+  assert.match(categoryGlyphSource, /<I\.menuDish size=\{size\}/)
+  assert.match(categoryWorkspaceSource, /<MenuCategoryGlyph name=\{name\}/)
+  assert.match(categoryDndSource, /<MenuCategoryGlyph name=\{dragActiveCat\.name\}/)
+  assert.match(categoryDndSource, /<MenuCategoryGlyph name=\{name\}/)
+  assert.match(itemsWorkspaceSource, /<I\.menuDish size=\{46\}/)
+  assert.match(itemEditorSource, /placeholder=\{<I\.menuDish size=\{58\}/)
+  assert.match(itemEditorFrameSource, /<I\.menuDish size=\{15\}/)
+  assert.doesNotMatch(itemsWorkspaceSource, /I\.cutlery/)
+  assert.doesNotMatch(itemEditorSource, /I\.cutlery/)
+  assert.doesNotMatch(itemEditorFrameSource, /I\.cutlery/)
 })
 
 test('MenuManager delegates local lifecycle and guarded navigation to its shell-state controller', () => {

@@ -204,7 +204,7 @@ function OrderDetailPanel({
                     fontSize: 11, fontWeight: 700, flexShrink: 0,
                   }}>{it.quantity}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{it.name}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 13, fontWeight: 600 }}>{it.name}{it.promotion?.offer === 'freebie' && it.promotion.role === 'reward' && <Badge variant="positive">Kampanya hediyesi</Badge>}</div>
                     {it.modifiers && it.modifiers.length > 0 && (
                       <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 2 }}>
                         {it.modifiers.map(m => `${m.optionName}${m.quantity > 1 ? ` ×${m.quantity}` : ''}`).join(', ')}

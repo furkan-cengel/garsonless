@@ -396,7 +396,7 @@ function ItemCard({
             }}
           />
         ) : (
-          <I.cutlery size={46} />
+          <I.menuDish size={46} />
         )}
         <Button
           type="button"
@@ -655,7 +655,7 @@ function EmptyProducts({
     <Empty className="min-h-80">
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <I.cutlery />
+          <I.menuDish />
         </EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>
@@ -789,7 +789,7 @@ function ItemsList({
                     }}
                   />
                 ) : (
-                  <I.cutlery size={15} />
+                  <I.menuDish size={15} />
                 )}
               </div>
               <div>

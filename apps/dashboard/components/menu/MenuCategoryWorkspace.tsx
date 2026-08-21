@@ -7,6 +7,7 @@ import type { Tables } from '@garsonless/db/types'
 
 import { I, S } from '../../lib/ui'
 import CategoryForm from './CategoryForm'
+import { MenuCategoryGlyph } from './MenuCategoryGlyph'
 import { MenuConfirmDialog } from './MenuConfirmDialog'
 import { deriveCategoryWorkspaceView } from './menu-category-workspace-model'
 
@@ -434,7 +435,7 @@ function CategoryRow({
             justifyContent: 'center',
           }}
         >
-          <I.cutlery size={15} />
+          <MenuCategoryGlyph name={name} />
         </span>
         <span
           style={{

@@ -1075,3 +1075,29 @@ button, input, select, textarea { font-family: inherit; }
     @apply font-sans;
   }
 }
+
+/* Pointer focus stays functional without drawing keyboard-only indicators. */
+html[data-focus-modality="pointer"] :focus,
+html[data-focus-modality="pointer"] :focus-visible,
+html[data-focus-modality="pointer"] :focus-within {
+  outline: none !important;
+  outline-offset: 0 !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-inset-ring-shadow: 0 0 #0000 !important;
+}
+
+html[data-focus-modality="pointer"] :where(input, textarea, select, [role="combobox"], [data-slot="input-group"], [data-slot="combobox-anchor"]):focus,
+html[data-focus-modality="pointer"] :where(input, textarea, select, [role="combobox"], [data-slot="input-group"], [data-slot="combobox-anchor"]):focus-visible,
+html[data-focus-modality="pointer"] :where([data-slot="input-group"], [data-slot="combobox-anchor"]):focus-within {
+  box-shadow: none !important;
+}
+
+html[data-focus-modality="pointer"] :where([data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"], [data-slot="native-select"], [data-slot="input-group"], [data-slot="combobox-anchor"]):is(:focus, :focus-visible),
+html[data-focus-modality="pointer"] :where([data-slot="input-group"], [data-slot="combobox-anchor"]):focus-within {
+  border-color: var(--input) !important;
+}
+
+html[data-focus-modality="pointer"] :where([aria-invalid="true"], [data-slot="input-group"]:has([aria-invalid="true"]), [data-slot="combobox-anchor"]:has([aria-invalid="true"])) {
+  border-color: var(--destructive) !important;
+}

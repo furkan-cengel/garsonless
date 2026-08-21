@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Fraunces, Geist, Geist_Mono, Pacifico } from 'next/font/google'
 import './globals.css'
 import spinnerStyles from '@garsonless/ui/spinners/styles'
+import { FocusModalityScript } from '@garsonless/ui/focus-modality'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist', display: 'swap' })
@@ -27,6 +28,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="tr">
+      <head>
+        <FocusModalityScript />
+      </head>
       <body
         className={`${spinnerStyles.scope} ${geist.variable} ${geistMono.variable} ${fraunces.variable} ${pacifico.variable}`}
         style={{ fontFamily: geist.style.fontFamily }}

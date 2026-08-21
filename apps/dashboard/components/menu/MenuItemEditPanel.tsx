@@ -366,7 +366,7 @@ export function MenuItemEditPanel({
           imageAlt={item.name}
           uploading={uploading}
           orientation="vertical"
-          placeholder={<I.cutlery size={58} />}
+          placeholder={<I.menuDish size={58} />}
           onFileSelected={handleUpload}
           onRemove={handleRemoveImage}
         />
@@ -731,7 +731,7 @@ export function MenuItemEditPanel({
             lineHeight: 1.4,
           }}
         >
-          Bu ürün sadakat damgası kazandırır (ör. kahve). Her adet bir damga sayılır.
+          Bu ürün satın alındığında her uygun adet için 1 sadakat damgası kazanılır.
         </p>
       </PanelSection>
     </MenuItemEditorFrame>

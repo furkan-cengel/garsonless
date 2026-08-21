@@ -81,7 +81,7 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
           <div style={{ borderTop: '1.5px dashed #cfcfcf', margin: '12px 0', paddingTop: 12 }}>
             {items.length ? items.map((it, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, padding: '4px 0', gap: 8 }}>
-                <span style={{ flex: 1 }}><span style={{ color: '#777' }}>{it.quantity}×</span> {it.name}</span>
+                <span style={{ flex: 1 }}><span style={{ color: '#777' }}>{it.quantity}×</span> {it.name}{it.promotion?.offer === 'freebie' && it.promotion.role === 'reward' ? ' · KAMPANYA HEDİYESİ' : ''}</span>
                 {it.price !== undefined && (
                   <span style={{ fontWeight: 600 }}>{formatCurrency(it.quantity * (it.price + it.modifiersPriceDelta))}</span>
                 )}

@@ -227,7 +227,7 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
             <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--divider)' }}>
               {items.slice(0, visibleItemCount).map((it, i) => (
                 <div key={i} style={{ fontSize: 11.5, color: 'var(--text-2)', padding: '2px 0' }}>
-                  <div style={{ display: 'flex' }}><span style={{ ...S.mono, color: 'var(--text-3)', marginRight: 4 }}>{it.quantity}×</span>{it.name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ ...S.mono, color: 'var(--text-3)' }}>{it.quantity}×</span>{it.name}{it.promotion?.offer === 'freebie' && it.promotion.role === 'reward' && <Badge variant="positive">Hediye</Badge>}</div>
                   {it.productNote && <div style={{ margin: '2px 0 0 17px', color: 'var(--warning)', fontSize: 10.5, fontWeight: 700 }}>Not: {it.productNote}</div>}
                 </div>
               ))}

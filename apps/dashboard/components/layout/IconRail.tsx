@@ -19,12 +19,24 @@ const RAIL_CSS = `
   transition:background 120ms,color 120ms;text-decoration:none;
 }
 .rail-link:hover { background:var(--surface-3); }
+.rail-menu-dish {
+  color:color-mix(in srgb,var(--text) 22%,var(--text-2));
+}
+.rail-menu-dish path {
+  stroke:currentColor;stroke-width:28;stroke-linecap:round;stroke-linejoin:round;
+}
+.rail-link--active .rail-menu-dish { color:inherit; }
 .rail-link:focus-visible,.rail-btn:focus-visible,.rail-profile:focus-visible {
   outline:2px solid var(--action);outline-offset:2px;
 }
 .rail-link--active { background:var(--surface-inset)!important;color:var(--text)!important; }
 .rail-primary { display:flex;flex-direction:column;gap:2px;align-items:center; }
 .rail-item { position:relative;width:48px;display:flex;justify-content:center; }
+.rail-active-indicator {
+  position:absolute;left:-1px;top:8px;bottom:8px;
+  z-index:1;width:2.5px;background:var(--text);border-radius:2px;
+  pointer-events:none;
+}
 .rail-tooltip {
   position:absolute;left:50px;top:50%;z-index:120;
   transform:translate(4px,-50%);opacity:0;visibility:hidden;
@@ -60,13 +72,15 @@ const RAIL_CSS = `
 interface NavItem {
   id: string
   Icon: Icon
+  iconClassName?: string
+  iconSize?: number
   label: string
   segment: string
 }
 
 const NAV: NavItem[] = [
   { id: 'home',      Icon: I.home,      label: 'Pano',       segment: '' },
-  { id: 'menu',      Icon: I.cutlery,   label: 'Menü',       segment: 'menu' },
+  { id: 'menu',      Icon: I.menuDish,  iconClassName: 'rail-menu-dish', iconSize: 20, label: 'Menü', segment: 'menu' },
   { id: 'tables',    Icon: I.chair,     label: 'Masalar',    segment: 'tables' },
   { id: 'theme',     Icon: I.palette,   label: 'Tema',       segment: 'theme' },
   { id: 'orders',    Icon: I.clipboard, label: 'Siparişler', segment: 'orders' },
@@ -135,6 +149,8 @@ export default function IconRail({
             <RailLink
               key={item.id}
               ItemIcon={item.Icon}
+              iconClassName={item.iconClassName}
+              iconSize={item.iconSize}
               label={item.label}
               href={`${base}${item.segment ? `/${item.segment}` : ''}`}
               active={activeId === item.id}
@@ -199,13 +215,15 @@ export default function IconRail({
 
 interface RailLinkProps {
   ItemIcon: Icon
+  iconClassName?: string
+  iconSize?: number
   label: string
   href: string
   active: boolean
   badge?: number
 }
 
-function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
+function RailLink({ ItemIcon, iconClassName, iconSize = 18, label, href, active, badge }: RailLinkProps) {
   const router = useRouter()
   const { beginNavigation, getNavigationGuard } = useShell()
   const [confirmNavigation, setConfirmNavigation] = useState(false)
@@ -217,17 +235,7 @@ function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
       onFocus={() => router.prefetch(href)}
       className="rail-item"
     >
-      {active && (
-        <div style={{
-          position: 'absolute',
-          left: -1,
-          top: 8,
-          bottom: 8,
-          width: 2.5,
-          background: 'var(--text)',
-          borderRadius: 2,
-        }} />
-      )}
+      {active && <div className="rail-active-indicator" aria-hidden="true" />}
       <Link
         href={href}
         aria-label={label}
@@ -246,7 +254,7 @@ function RailLink({ ItemIcon, label, href, active, badge }: RailLinkProps) {
           beginNavigation(href)
         }}
       >
-        <ItemIcon size={18} />
+        <ItemIcon className={iconClassName} size={iconSize} />
       </Link>
       <span id={tooltipId} role="tooltip" className="rail-tooltip">{label}</span>
       {badge !== undefined && (

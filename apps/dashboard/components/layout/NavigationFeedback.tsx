@@ -51,7 +51,7 @@ export default function NavigationFeedback({
 
   return (
     <>
-      <div className={styles.bar} role="status" aria-label="Sayfa yükleniyor" aria-live="polite" aria-busy="true" />
+      <div className={styles.bar} aria-hidden="true" />
       {snapshot.phase === 'stalled' && (
         <div className={styles.recovery} role="alert" aria-live="assertive">
           <span className={styles.message}>Yükleme beklenenden uzun sürüyor.</span>
