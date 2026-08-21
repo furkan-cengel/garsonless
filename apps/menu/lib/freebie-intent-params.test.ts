@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { consumeFreebieIntentHandoff, FREEBIE_HANDOFF_STORAGE_KEY, storeFreebieIntentHandoff } from './freebie-intent-params'
+import { consumeFreebieIntentHandoff, FREEBIE_HANDOFF_STORAGE_KEY, storeFreebieIntentHandoff } from './freebie-intent-params.ts'
 
 function memoryStorage() {
   const values = new Map<string, string>()

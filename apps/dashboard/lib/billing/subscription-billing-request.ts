@@ -58,7 +58,7 @@ export function readBillingPlanPrices(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): BillingPlanPrices {
   try {
-    const { provider } = readIyzicoSubscriptionBillingRuntimeConfig(env)
+    readIyzicoSubscriptionBillingRuntimeConfig(env)
     return {
       starter: {
         monthly: getPlanPrice('starter', 'monthly').amountMinor,

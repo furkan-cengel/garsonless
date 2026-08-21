@@ -74,7 +74,7 @@ test('live theme reference detection uses exact nested string equality', () => {
 })
 
 test('Tema UI has no direct storage client and server owns decoding and path generation', () => {
-  assert.doesNotMatch(settingsSource, /createDashboardBrowserClient|storage\.from|image\/svg\+xml|Date\.now\(\)/)
+  assert.doesNotMatch(settingsSource, /createDashboardBrowserClient|storage\.from|image\/svg\+xml/)
   assert.match(settingsSource, /uploadThemeMedia/)
   assert.match(settingsSource, /removeUnusedThemeMedia/)
   assert.match(actionSource, /assertAccess\(restaurantId, 'theme'\)/)

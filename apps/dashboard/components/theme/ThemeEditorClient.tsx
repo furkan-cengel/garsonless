@@ -262,10 +262,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
   )
   return (
     <ThemeEditorShell
-      taskBased={taskBased}
-      activeSurface={activeSurface}
-      onSurfaceChange={setActiveSurface}
-      toastMessage={toast}
+      taskBased={taskBased} activeSurface={activeSurface} onSurfaceChange={setActiveSurface} toastMessage={toast}
       topbar={<ThemeEditorTopbar
         restaurantName={restaurantName}
         previewMode={previewMode}

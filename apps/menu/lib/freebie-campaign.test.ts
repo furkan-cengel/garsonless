@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { MenuItem } from '@garsonless/ui/menu'
-import { getNextFreebieCampaignTransition, resolveAutomaticFreebieForItem, resolveFreebieCampaign } from './freebie-campaign'
+import { getNextFreebieCampaignTransition, resolveAutomaticFreebieForItem, resolveFreebieCampaign } from './freebie-campaign.ts'
 
 const item = (id: string, category_id: string, available = true) => ({ id, category_id, name: id, price: 100, images: [], modifier_groups: [], ingredients: [], is_available: available }) as unknown as MenuItem
 const theme = (settings: Record<string, string>) => ({

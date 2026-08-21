@@ -19,5 +19,6 @@ test('footer cart clearance disappears for empty styles and non-footer placement
 
 test('legacy footer trigger values normalize without migration', () => {
   assert.deepEqual(resolveFooterCartClearance({ ...DEFAULT_THEME, cartPlacement: 'footer', cartFooterTriggerStyle: 'tabbar' }), { style: 'pill', pixels: 98 })
-  assert.deepEqual(resolveFooterCartClearance({ ...DEFAULT_THEME, cartPlacement: 'footer', cartFooterTriggerStyle: undefined, cartStyle: 'banner' }), { style: 'bar', pixels: 96 })
+  const { cartFooterTriggerStyle: _legacyTrigger, ...themeWithoutTrigger } = DEFAULT_THEME
+  assert.deepEqual(resolveFooterCartClearance({ ...themeWithoutTrigger, cartPlacement: 'footer', cartStyle: 'banner' }), { style: 'bar', pixels: 96 })
 })
