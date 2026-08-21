@@ -26,7 +26,7 @@ import {
 export interface CustomerIdentityPort {
   upsertIdentity(input: {
     authUserId: string
-    email: string
+    verifiedEmail: string | null
     name: string | null
     verifiedPhone: string | null
   }): Promise<EnsureCustomerResult>
@@ -72,18 +72,19 @@ export async function ensureCustomerIdentity(
   options: EnsureCustomerOptions,
   port: CustomerIdentityPort,
 ): Promise<EnsureCustomerResult> {
-  const email = normalizeCustomerEmail(identity.email)
-  if (!email) return {
+  const verifiedEmail = normalizeCustomerEmail(identity.email)
+  const verifiedPhone = identity.phone?.trim() || null
+  if (!verifiedEmail && !verifiedPhone) return {
     ok: false,
-    error: 'Kimlik sağlayıcısı e-posta adresi döndürmedi.',
+    error: 'Kimlik sağlayıcısı doğrulanmış bir iletişim bilgisi döndürmedi.',
     code: 'IDENTITY_CONFLICT',
   }
 
   const linked = await port.upsertIdentity({
     authUserId: identity.authUserId,
-    email,
+    verifiedEmail,
     name: resolveCustomerName(options.name, identity.userMetadata),
-    verifiedPhone: identity.phone ?? null,
+    verifiedPhone,
   })
   if (!linked.ok) return linked
 

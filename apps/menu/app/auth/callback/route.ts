@@ -6,6 +6,7 @@ import {
   completeCustomerIdentity,
   consumeStoredCustomerAuthIntent,
   readCustomerAuthIntent,
+  recordCustomerAuthLegalEvidence,
 } from '../../../lib/customer-auth-server'
 import { publicRestaurantHasFeature } from '../../../lib/restaurant-feature-access'
 
@@ -49,5 +50,6 @@ export async function GET(request: Request) {
   const completed = await completeCustomerIdentity(data.user, intent)
   await clearCustomerAuthIntentCookie()
   if (!completed.ok) await supabase.auth.signOut({ scope: 'local' })
+  else await recordCustomerAuthLegalEvidence(request, data.user.id, intent)
   return NextResponse.redirect(withCustomerAuthResult(returnUrl, completed.ok ? 'complete' : 'failed'))
 }

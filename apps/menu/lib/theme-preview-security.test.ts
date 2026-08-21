@@ -39,13 +39,13 @@ test('auth theme preview renders the production member auth UI instead of a dupl
 })
 
 test('auth preview interactions are local and cannot start OTP or OAuth requests', () => {
-  const sendOtp = memberSheet.slice(memberSheet.indexOf('async function sendOtp'), memberSheet.indexOf('async function handleEmail'))
+  const sendOtp = memberSheet.slice(memberSheet.indexOf('async function sendEmailOtp'), memberSheet.indexOf('async function handleEmail'))
   const oauth = memberSheet.slice(memberSheet.indexOf('async function handleOAuth'), memberSheet.indexOf('async function handleVerify'))
   const verify = memberSheet.slice(memberSheet.indexOf('async function handleVerify'), memberSheet.indexOf('const name = localName'))
 
   assert.ok(sendOtp.indexOf('if (previewState)') < sendOtp.indexOf("fetch('/api/customer-auth/email/start'"))
   assert.ok(oauth.indexOf('if (previewState)') < oauth.indexOf("fetch('/api/customer-auth/oauth/start'"))
-  assert.ok(verify.indexOf('if (previewState)') < verify.indexOf("fetch('/api/customer-auth/email/verify'"))
+  assert.ok(verify.indexOf('if (previewState)') < verify.indexOf("fetch(authMethod === 'phone'"))
   assert.match(memberSheet, /if \(previewState\) \{\s*setOffline\(false\)\s*return/)
   assert.match(memberSheet, /const visiblePhase = accountPreviewState[\s\S]*\? 'home'/)
   assert.match(memberSheet, /\{visiblePhase === 'join' &&/)

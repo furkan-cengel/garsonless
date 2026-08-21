@@ -15,7 +15,7 @@ test('Giriş Header editor exposes bounded media, logo and copy controls', () =>
   assert.match(panel, /Slogan \(isteğe bağlı\)/)
   assert.match(panel, /maxLength=\{100\}/)
   assert.match(panel, /maxLength=\{180\}/)
-  assert.match(panel, /<RangeControl label="Fotoğraf karartması" min=\{0\} max=\{85\}/)
+  assert.match(panel, /<RangeField label="Fotoğraf karartması" unit="%" min=\{0\} max=\{85\}/)
   assert.match(panel, /import \{ Slider \} from '@\/components\/ui\/slider'/)
   assert.match(panel, /Alanı doldur \(cover\)/)
   assert.match(panel, /Görselin tamamı \(contain\)/)

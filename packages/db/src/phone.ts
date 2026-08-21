@@ -44,3 +44,9 @@ export function normalizePhone(input: string | null | undefined): string | null 
   if (digits.length === 12 && digits.startsWith('90')) return trNational(digits.slice(2))
   return trNational(digits)
 }
+
+/** Netgsm customer-auth boundary: Turkey mobile numbers only. */
+export function normalizeTurkishMobile(input: string | null | undefined): string | null {
+  const normalized = normalizePhone(input)
+  return normalized && /^\+905\d{9}$/.test(normalized) ? normalized : null
+}

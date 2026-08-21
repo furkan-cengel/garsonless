@@ -181,8 +181,8 @@ test('first-login preserves required ordering and only affirmative consent side 
   const calls: string[] = []
   const identityPort: CustomerIdentityPort = {
     async upsertIdentity(input) {
-      calls.push(`upsert:${input.email}:${input.name}:${input.verifiedPhone ?? 'none'}`)
-      return { ok: true, customer: { id: 'customer-a', email: input.email, name: input.name } }
+      calls.push(`upsert:${input.verifiedEmail}:${input.name}:${input.verifiedPhone ?? 'none'}`)
+      return { ok: true, customer: { id: 'customer-a', email: input.verifiedEmail, name: input.name } }
     },
     async stampCustomerRole() { calls.push('stamp'); return ok(null) },
     async associateRestaurant() { calls.push('associate'); return ok(null) },
@@ -208,6 +208,29 @@ test('first-login preserves required ordering and only affirmative consent side 
     'bonus',
     'consent:contact_data',
   ])
+})
+
+test('first-login accepts a confirmed phone without inventing an email', async () => {
+  let contact: { verifiedEmail: string | null; verifiedPhone: string | null } | null = null
+  const identityPort: CustomerIdentityPort = {
+    async upsertIdentity(input) {
+      contact = { verifiedEmail: input.verifiedEmail, verifiedPhone: input.verifiedPhone }
+      return { ok: true, customer: { id: 'customer-phone', email: null, name: null } }
+    },
+    async stampCustomerRole() { return ok(null) },
+    async associateRestaurant() { return ok(null) },
+    async creditWelcomeBonus() {},
+    async recordConsent() { return ok(null) },
+  }
+  const result = await ensureCustomerIdentity({
+    authUserId: 'auth-phone',
+    email: null,
+    phone: '+905321234567',
+    userMetadata: {},
+    appMetadata: { provider: 'phone' },
+  }, {}, identityPort)
+  assert.equal(result.ok, true)
+  assert.deepEqual(contact, { verifiedEmail: null, verifiedPhone: '+905321234567' })
 })
 
 test('consent updates reject a cross-tenant customer before persistence', async () => {

@@ -9,6 +9,8 @@ test('customer auth public surface is server-owned and closed', () => {
   for (const path of [
     'app/api/customer-auth/email/start/route.ts',
     'app/api/customer-auth/email/verify/route.ts',
+    'app/api/customer-auth/phone/start/route.ts',
+    'app/api/customer-auth/phone/verify/route.ts',
     'app/api/customer-auth/oauth/start/route.ts',
     'app/auth/callback/route.ts',
     'app/api/account/session/route.ts',
@@ -23,6 +25,8 @@ test('customer auth public surface is server-owned and closed', () => {
   assert.doesNotMatch(memberSheet, /createBrowserClient|createMenuAuthBrowserClient|signInWithOtp|verifyOtp|signInWithOAuth/)
   assert.match(memberSheet, /\/api\/customer-auth\/email\/start/)
   assert.match(memberSheet, /\/api\/customer-auth\/email\/verify/)
+  assert.match(memberSheet, /\/api\/customer-auth\/phone\/start/)
+  assert.match(memberSheet, /\/api\/customer-auth\/phone\/verify/)
   assert.match(memberSheet, /\/api\/customer-auth\/oauth\/start/)
 })
 

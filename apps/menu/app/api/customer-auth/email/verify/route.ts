@@ -8,6 +8,8 @@ import {
   consumeStoredCustomerAuthIntent,
   enforceCustomerAuthRateLimit,
   readCustomerAuthIntent,
+  recordCustomerAuthMetric,
+  recordCustomerAuthLegalEvidence,
   requestClientAddress,
 } from '../../../../../lib/customer-auth-server'
 import { publicRestaurantHasFeature } from '../../../../../lib/restaurant-feature-access'
@@ -18,6 +20,7 @@ const schema = z.object({
 })
 
 export async function POST(request: Request) {
+  const startedAt = Date.now()
   const requestCheck = validateCustomerAuthMutation(request)
   if (!requestCheck.ok) return customerAuthErrorResponse(requestCheck.error.code)
   const parsed = schema.safeParse(await request.json().catch(() => null))
@@ -36,7 +39,10 @@ export async function POST(request: Request) {
     { bucket: 'email-verify-intent', subject: intent.nonce, limit: 10, windowSeconds: 600 },
   ]) {
     const result = await enforceCustomerAuthRateLimit({ request, ...limit })
-    if (!result.ok) return customerAuthErrorResponse(result.error.code, result.error.retryAfterSeconds)
+    if (!result.ok) {
+      recordCustomerAuthMetric({ method: 'email', stage: 'failed', result: 'error', startedAt, errorCode: result.error.code })
+      return customerAuthErrorResponse(result.error.code, result.error.retryAfterSeconds)
+    }
   }
 
   const supabase = await createMenuServerClient()
@@ -47,7 +53,9 @@ export async function POST(request: Request) {
   })
   if (error || !data.user || !data.session) {
     const expired = error?.message.toLowerCase().includes('expired') === true
-    return customerAuthErrorResponse(expired ? 'OTP_EXPIRED' : 'OTP_INVALID')
+    const errorCode = expired ? 'OTP_EXPIRED' : 'OTP_INVALID'
+    recordCustomerAuthMetric({ method: 'email', stage: 'failed', result: 'error', startedAt, errorCode })
+    return customerAuthErrorResponse(errorCode)
   }
 
   const consumed = await consumeStoredCustomerAuthIntent(intent)
@@ -61,7 +69,10 @@ export async function POST(request: Request) {
   await clearCustomerAuthIntentCookie()
   if (!completed.ok) {
     await supabase.auth.signOut({ scope: 'local' })
+    recordCustomerAuthMetric({ method: 'email', stage: 'failed', result: 'error', startedAt, errorCode: completed.error.code })
     return customerAuthErrorResponse(completed.error.code)
   }
+  await recordCustomerAuthLegalEvidence(request, data.user.id, intent)
+  recordCustomerAuthMetric({ method: 'email', stage: 'verified', result: 'success', startedAt })
   return customerAuthSuccessResponse(completed.data)
 }

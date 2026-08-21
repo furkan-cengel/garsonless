@@ -9,7 +9,7 @@ import { createLoyaltyQueryPort, createThemeApplicationPort } from '@garsonless/
 import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
 import { getMenuCategories, getMenuItems, getPreviewRestaurantBySlug, getRestaurantBySlug } from '../../lib/queries'
 import { getCustomerSession } from '../../lib/customer-session'
-import { availableCustomerAuthProviders } from '../../lib/customer-auth-provider'
+import { availableCustomerAuthCapabilities } from '../../lib/customer-auth-provider'
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../lib/featured-products'
 import { MenuPageClient } from './MenuPageClient'
 import { getPreviewTheme, getPublishedTheme } from '../../lib/published-theme'
@@ -39,14 +39,14 @@ export async function renderMenuExperience({
   if (isPreview && !previewAccessGranted) notFound()
 
   const themePort = createThemeApplicationPort()
-  const [themeResult, categories, featuredRanking, session, customerAuthProviders] = await Promise.all([
+  const [themeResult, categories, featuredRanking, session, customerAuthCapabilities] = await Promise.all([
     isPreview && previewTemplate
       ? getPreviewTheme(restaurant.id, previewTemplate)
       : getPublishedTheme(restaurant.id),
     getMenuCategories(restaurant.id),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
     getCustomerSession(),
-    availableCustomerAuthProviders(),
+    availableCustomerAuthCapabilities(),
   ])
   if (!themeResult.ok) notFound()
 
@@ -100,7 +100,11 @@ export async function renderMenuExperience({
       requestButtonsEnabled={requestButtonsEnabled}
       guestOrderingEnabled={guestOrderingEnabled}
       customerAccountsEnabled={customerAccountsEnabled}
-      customerAuthProviders={customerAccountsEnabled ? customerAuthProviders : []}
+      customerAuthProviders={customerAccountsEnabled
+        ? (['google', 'apple'] as const).filter((provider) => customerAuthCapabilities.oauth[provider])
+        : []}
+      emailOtpEnabled={customerAccountsEnabled && customerAuthCapabilities.emailOtp}
+      phoneOtpEnabled={customerAccountsEnabled && customerAuthCapabilities.phoneOtp}
       initialOpenCart={sp['open'] === 'cart'}
       initialProductId={typeof sp['item'] === 'string' ? sp['item'] : null}
       initialPromotionSectionId={typeof sp['promotionSection'] === 'string' ? sp['promotionSection'] : null}

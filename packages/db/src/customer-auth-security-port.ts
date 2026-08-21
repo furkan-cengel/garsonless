@@ -12,7 +12,7 @@ function rpcClient(): LooseRpcClient {
 
 export async function registerCustomerAuthIntent(input: {
   nonceHash: string
-  flow: 'email' | 'oauth'
+  flow: 'email' | 'oauth' | 'phone'
   contextHash: string
   expiresAt: string
 }): Promise<boolean> {

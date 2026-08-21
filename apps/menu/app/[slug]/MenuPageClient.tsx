@@ -149,6 +149,8 @@ interface Props {
   customerAccountsEnabled?: boolean
   /** Server-verified intersection of the app allowlist and hosted providers. */
   customerAuthProviders?: readonly CustomerAuthOAuthProvider[]
+  emailOtpEnabled?: boolean
+  phoneOtpEnabled?: boolean
   initialOpenCart?: boolean
   initialProductId?: string | null
   initialPromotionSectionId?: string | null
@@ -289,6 +291,8 @@ export function MenuPageClient({
   guestOrderingEnabled = false,
   customerAccountsEnabled = false,
   customerAuthProviders = [],
+  emailOtpEnabled = true,
+  phoneOtpEnabled = false,
   initialOpenCart = false,
   initialProductId = null,
   initialPromotionSectionId = null,
@@ -1571,6 +1575,8 @@ export function MenuPageClient({
           initialTarget={memberTarget}
           authReturn={customerAuthReturn}
           oauthProviders={customerAuthProviders}
+          emailOtpEnabled={emailOtpEnabled}
+          phoneOtpEnabled={phoneOtpEnabled}
           welcomeBonus={welcomeBonus}
           rewardCatalog={rewardCatalog}
           onRedeemCatalog={handleRedeemCatalog}

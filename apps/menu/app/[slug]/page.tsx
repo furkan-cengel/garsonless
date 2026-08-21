@@ -7,7 +7,7 @@ import { getMenuCategories, getMenuItems, getRestaurantBySlug } from '../../lib/
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../lib/featured-products'
 import { HomePageRenderer } from './HomePageClient'
 import { getCustomerSession } from '../../lib/customer-session'
-import { availableCustomerAuthProviders } from '../../lib/customer-auth-provider'
+import { availableCustomerAuthCapabilities } from '../../lib/customer-auth-provider'
 import { getPublishedTheme } from '../../lib/published-theme'
 
 export const dynamic = 'force-dynamic'
@@ -45,11 +45,11 @@ export default async function MenuPage({ params, searchParams }: Props) {
     return renderMenuExperience({ slug, sp })
   }
 
-  const [categories, featuredRanking, session, customerAuthProviders] = await Promise.all([
+  const [categories, featuredRanking, session, customerAuthCapabilities] = await Promise.all([
     getMenuCategories(restaurant.id),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
     getCustomerSession(),
-    availableCustomerAuthProviders(),
+    availableCustomerAuthCapabilities(),
   ])
   const [menuItems, memberBalancesResult] = await Promise.all([
     getMenuItems(restaurant.id, categories.map((category) => category.id)),
@@ -70,7 +70,11 @@ export default async function MenuPage({ params, searchParams }: Props) {
       initialMemberBalances={initialMemberBalances}
       guestOrderingEnabled={guestOrderingEnabled}
       customerAccountsEnabled={customerAccountsEnabled}
-      customerAuthProviders={customerAccountsEnabled ? customerAuthProviders : []}
+      customerAuthProviders={customerAccountsEnabled
+        ? (['google', 'apple'] as const).filter((provider) => customerAuthCapabilities.oauth[provider])
+        : []}
+      emailOtpEnabled={customerAccountsEnabled && customerAuthCapabilities.emailOtp}
+      phoneOtpEnabled={customerAccountsEnabled && customerAuthCapabilities.phoneOtp}
     />
   )
 }

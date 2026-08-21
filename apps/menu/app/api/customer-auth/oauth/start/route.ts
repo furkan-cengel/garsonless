@@ -7,6 +7,7 @@ import {
   beginCustomerAuthIntent,
   clearCustomerAuthIntentCookie,
   enforceCustomerAuthRateLimit,
+  recordCustomerAuthMetric,
   requestClientAddress,
 } from '../../../../../lib/customer-auth-server'
 import { availableCustomerAuthProviders } from '../../../../../lib/customer-auth-provider'
@@ -18,6 +19,7 @@ const schema = customerAuthContextSchema.extend({
 })
 
 export async function POST(request: Request) {
+  const startedAt = Date.now()
   const requestCheck = validateCustomerAuthMutation(request)
   if (!requestCheck.ok) return customerAuthErrorResponse(requestCheck.error.code)
   const parsed = schema.safeParse(await request.json().catch(() => null))
@@ -37,7 +39,10 @@ export async function POST(request: Request) {
     limit: 20,
     windowSeconds: 900,
   })
-  if (!rateLimit.ok) return customerAuthErrorResponse(rateLimit.error.code, rateLimit.error.retryAfterSeconds)
+  if (!rateLimit.ok) {
+    recordCustomerAuthMetric({ method: parsed.data.provider, stage: 'failed', result: 'error', startedAt, errorCode: rateLimit.error.code })
+    return customerAuthErrorResponse(rateLimit.error.code, rateLimit.error.retryAfterSeconds)
+  }
 
   const intent = await beginCustomerAuthIntent({ ...parsed.data, flow: 'oauth' })
   if (!intent.ok) return customerAuthErrorResponse(intent.error.code)
@@ -61,7 +66,9 @@ export async function POST(request: Request) {
   })
   if (error || !data.url) {
     await clearCustomerAuthIntentCookie()
+    recordCustomerAuthMetric({ method: parsed.data.provider, stage: 'failed', result: 'error', startedAt, errorCode: 'SERVICE_UNAVAILABLE' })
     return customerAuthErrorResponse('SERVICE_UNAVAILABLE')
   }
+  recordCustomerAuthMetric({ method: parsed.data.provider, stage: 'start', result: 'success', startedAt })
   return customerAuthSuccessResponse({ redirectUrl: data.url })
 }

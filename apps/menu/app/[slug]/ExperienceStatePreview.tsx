@@ -60,6 +60,7 @@ function PreviewCanvas({
           restaurantName={restaurantName}
           tableLabel="Menü"
           oauthProviders={['google']}
+          phoneOtpEnabled
           welcomeBonus={200}
           previewState={state as AuthPreviewState}
           accountActions={PREVIEW_ACCOUNT_ACTIONS}

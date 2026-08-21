@@ -3,6 +3,8 @@ const _CUSTOMER_AUTH_ERROR_CODES = [
   'SESSION_EXPIRED',
   'PROVIDER_DISABLED',
   'PLAN_REQUIRED',
+  'PHONE_INVALID',
+  'CHALLENGE_REQUIRED',
   'OTP_INVALID',
   'OTP_EXPIRED',
   'RATE_LIMITED',
@@ -17,13 +19,22 @@ export const CUSTOMER_AUTH_OAUTH_PROVIDERS = ['google', 'apple', 'facebook'] as 
 
 export type CustomerAuthOAuthProvider = (typeof CUSTOMER_AUTH_OAUTH_PROVIDERS)[number]
 
+export interface CustomerAuthCapabilities {
+  emailOtp: boolean
+  phoneOtp: boolean
+  oauth: {
+    google: boolean
+    apple: boolean
+  }
+}
+
 export type CustomerAuthErrorCode = (typeof _CUSTOMER_AUTH_ERROR_CODES)[number]
 
 export type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: CustomerAuthErrorCode; retryAfterSeconds?: number } }
 
-interface VerifiedContactView {
+export interface VerifiedContactView {
   masked: string
   verified: boolean
 }
@@ -60,6 +71,8 @@ export function statusForCustomerAuthError(code: CustomerAuthErrorCode): number 
     case 'STAFF_ACCOUNT_REJECTED': return 403
     case 'PROVIDER_DISABLED': return 404
     case 'PLAN_REQUIRED': return 403
+    case 'PHONE_INVALID': return 400
+    case 'CHALLENGE_REQUIRED': return 403
     case 'RATE_LIMITED': return 429
     case 'CONTEXT_EXPIRED': return 410
     case 'OTP_INVALID': return 400

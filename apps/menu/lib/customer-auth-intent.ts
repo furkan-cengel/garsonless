@@ -8,7 +8,7 @@ import {
 } from 'node:crypto'
 
 export type CustomerAuthSurface = 'menu' | 'cart' | 'order' | 'bill' | 'split' | 'service'
-export type CustomerAuthFlow = 'email' | 'oauth'
+export type CustomerAuthFlow = 'email' | 'oauth' | 'phone'
 
 export interface CustomerAuthIntentV1 {
   version: 1
@@ -30,6 +30,31 @@ export interface CustomerAuthIntentV1 {
   issuedAt: number
   expiresAt: number
 }
+
+export interface CustomerAuthIntentV2 {
+  version: 2
+  keyVersion: string
+  flow: CustomerAuthFlow
+  nonce: string
+  returnPath: string
+  surface: CustomerAuthSurface
+  restaurantId?: string
+  restaurantSlug?: string
+  tableId?: string
+  qrToken?: string
+  guestSessionId?: string
+  deviceId?: string
+  email?: string
+  phone?: string
+  name?: string
+  /** Legacy fields remain readable during the rollout, but no longer gate auth. */
+  consent: boolean
+  marketingConsent: boolean
+  issuedAt: number
+  expiresAt: number
+}
+
+export type CustomerAuthIntent = CustomerAuthIntentV1 | CustomerAuthIntentV2
 
 interface CustomerAuthKeyring {
   active: string
@@ -76,7 +101,7 @@ export function hashCustomerAuthValue(value: string, keyVersion?: string): strin
   return key ? createHmac('sha256', key).update(value).digest('hex') : null
 }
 
-export function summarizeCustomerAuthContext(intent: CustomerAuthIntentV1): string {
+export function summarizeCustomerAuthContext(intent: CustomerAuthIntent): string {
   return createHash('sha256').update(JSON.stringify({
     flow: intent.flow,
     returnPath: intent.returnPath,
@@ -90,16 +115,20 @@ export function summarizeCustomerAuthContext(intent: CustomerAuthIntentV1): stri
   })).digest('hex')
 }
 
-export function encryptCustomerAuthIntent(intent: CustomerAuthIntentV1): string | null {
+export function encryptCustomerAuthIntent(intent: CustomerAuthIntent): string | null {
   const keyring = readKeyring()
   const key = keyring?.keys[intent.keyVersion]
   if (!key) return null
   const iv = randomBytes(12)
   const cipher = createCipheriv('aes-256-gcm', key, iv)
-  cipher.setAAD(Buffer.from(`masabu-customer-auth-intent:${intent.keyVersion}`))
+  const format = intent.version === 2 ? 'v2' : 'v1'
+  const aad = intent.version === 2
+    ? `masabu-customer-auth-intent:v2:${intent.keyVersion}`
+    : `masabu-customer-auth-intent:${intent.keyVersion}`
+  cipher.setAAD(Buffer.from(aad))
   const encrypted = Buffer.concat([cipher.update(JSON.stringify(intent), 'utf8'), cipher.final()])
   return [
-    'v1',
+    format,
     intent.keyVersion,
     iv.toString('base64url'),
     encrypted.toString('base64url'),
@@ -107,26 +136,28 @@ export function encryptCustomerAuthIntent(intent: CustomerAuthIntentV1): string 
   ].join('.')
 }
 
-export function decryptCustomerAuthIntent(value: string, now = Date.now()): CustomerAuthIntentV1 | null {
+export function decryptCustomerAuthIntent(value: string, now = Date.now()): CustomerAuthIntent | null {
   const keyring = readKeyring()
   const [format, version, ivValue, encryptedValue, tagValue, extra] = value.split('.')
-  if (!keyring || format !== 'v1' || !version || !ivValue || !encryptedValue || !tagValue || extra) return null
+  if (!keyring || (format !== 'v1' && format !== 'v2') || !version || !ivValue || !encryptedValue || !tagValue || extra) return null
   const key = keyring.keys[version]
   if (!key) return null
   try {
     const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(ivValue, 'base64url'))
-    decipher.setAAD(Buffer.from(`masabu-customer-auth-intent:${version}`))
+    decipher.setAAD(Buffer.from(format === 'v2'
+      ? `masabu-customer-auth-intent:v2:${version}`
+      : `masabu-customer-auth-intent:${version}`))
     decipher.setAuthTag(Buffer.from(tagValue, 'base64url'))
     const plaintext = Buffer.concat([
       decipher.update(Buffer.from(encryptedValue, 'base64url')),
       decipher.final(),
     ]).toString('utf8')
-    const parsed = JSON.parse(plaintext) as CustomerAuthIntentV1
+    const parsed = JSON.parse(plaintext) as CustomerAuthIntent
     const surfaces: ReadonlySet<string> = new Set(['menu', 'cart', 'order', 'bill', 'split', 'service'])
     if (
-      parsed.version !== 1
+      parsed.version !== (format === 'v2' ? 2 : 1)
       || parsed.keyVersion !== version
-      || (parsed.flow !== 'email' && parsed.flow !== 'oauth')
+      || (parsed.flow !== 'email' && parsed.flow !== 'oauth' && !(parsed.version === 2 && parsed.flow === 'phone'))
       || !surfaces.has(parsed.surface)
       || typeof parsed.nonce !== 'string'
       || typeof parsed.returnPath !== 'string'
@@ -140,6 +171,8 @@ export function decryptCustomerAuthIntent(value: string, now = Date.now()): Cust
       || (parsed.qrToken !== undefined && typeof parsed.qrToken !== 'string')
       || (parsed.guestSessionId !== undefined && typeof parsed.guestSessionId !== 'string')
       || (parsed.deviceId !== undefined && typeof parsed.deviceId !== 'string')
+      || (parsed.email !== undefined && typeof parsed.email !== 'string')
+      || (parsed.version === 2 && parsed.phone !== undefined && typeof parsed.phone !== 'string')
       || parsed.expiresAt <= now
       || parsed.issuedAt > now + 30_000
     ) return null
@@ -149,7 +182,7 @@ export function decryptCustomerAuthIntent(value: string, now = Date.now()): Cust
   }
 }
 
-export function intentNonceMatches(intent: CustomerAuthIntentV1, supplied: string): boolean {
+export function intentNonceMatches(intent: CustomerAuthIntent, supplied: string): boolean {
   const expected = Buffer.from(intent.nonce)
   const received = Buffer.from(supplied)
   return expected.length === received.length && timingSafeEqual(expected, received)

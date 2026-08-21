@@ -8,6 +8,7 @@ import Info from "lucide-react/dist/esm/icons/info.mjs";
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.mjs";
 import TriangleAlert from "lucide-react/dist/esm/icons/triangle-alert.mjs";
 import { MASABU_LOGO_DATA_URI } from "./masabu-logo-data";
+export { MASABU_LOGO_DATA_URI } from "./masabu-logo-data";
 
 type ClipboardWriter = Pick<Clipboard, "writeText">;
 

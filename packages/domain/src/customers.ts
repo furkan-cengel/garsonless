@@ -14,6 +14,7 @@ const DAY_MS = 86_400_000
 
 export interface CustomerAuthIdentity {
   authUserId: string
+  /** Only a provider-confirmed address may be supplied by the auth adapter. */
   email: string | null
   /** Supabase Auth's verified phone claim. Provider/user metadata is not trusted. */
   phone?: string | null
@@ -29,7 +30,7 @@ export interface EnsureCustomerOptions {
 }
 
 export type EnsureCustomerResult =
-  | { ok: true; customer: { id: string; email: string; name: string | null } }
+  | { ok: true; customer: { id: string; email: string | null; name: string | null } }
   | {
       ok: false
       error: string

@@ -7,7 +7,7 @@ const client = readFileSync(new URL('./ThemeEditorClient.tsx', import.meta.url),
 
 test('selected auth preview state owns its isolated content and layout editor', () => {
   assert.match(client, /<ThemeExperienceProperties[^>]*authState=\{authState\}/)
-  assert.match(panel, /authState !== 'join' && <AuthStateSettings/)
+  assert.match(panel, /authState !== 'join' && authState !== 'profile' && authState !== 'challenge' && <AuthStateSettings/)
   assert.match(panel, /updateAuthState\(authState, patch\)/)
   assert.match(panel, /delete states\[state\]/)
   assert.match(panel, /Varsayılana dön/)
@@ -34,6 +34,6 @@ test('auth state editor exposes only bounded safe controls and closed icon sets'
 })
 
 test('OTP system facts and auth behavior stay outside editable theme fields', () => {
-  assert.match(panel, /E-posta, sayaç, sistem hata metinleri ve buton hedefi tema tarafından değiştirilemez/)
+  assert.match(panel, /Telefon\/e-posta hedefi, sayaç, sistem hata metinleri ve buton hedefi tema tarafından değiştirilemez/)
   assert.doesNotMatch(panel, /label="OTP uzunluğu"|label="Sayaç süresi"|label="Buton hedefi"/)
 })

@@ -36,7 +36,7 @@ export default async function ThemeExperiencePreview({ params, searchParams }: P
   if (!themeResult.ok) notFound()
 
   if (surface === 'auth' || surface === 'account' || surface === 'checkout') {
-    const authStates = new Set<AuthPreviewState>(['join', 'otp', 'success', 'error'])
+    const authStates = new Set<AuthPreviewState>(['join', 'otp', 'profile', 'challenge', 'success', 'error'])
     const accountStates = new Set<AccountPreviewState>(['overview', 'orders', 'favorites', 'profile', 'detail', 'reorder', 'loading', 'error', 'empty'])
     const checkoutStates = new Set<CheckoutPreviewState>(['cart', 'payment', 'success', 'table-payment', 'error'])
     const state = surface === 'auth'

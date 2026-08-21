@@ -1,5 +1,6 @@
 import {
   CUSTOMER_AUTH_OAUTH_PROVIDERS,
+  type CustomerAuthCapabilities,
   type CustomerAuthOAuthProvider,
 } from './customer-auth-contract.ts'
 
@@ -59,5 +60,22 @@ export async function availableCustomerAuthProviders(
     ))
   } catch {
     return []
+  }
+}
+
+/** Server-owned capability projection. The phone flag is enabled only after
+ * the Supabase/Netgsm smoke test has been completed for that deployment. */
+export async function availableCustomerAuthCapabilities(
+  fetcher: ProviderSettingsFetcher = fetch,
+): Promise<CustomerAuthCapabilities> {
+  const providers = await availableCustomerAuthProviders(fetcher)
+  const phoneOtp = process.env['CUSTOMER_AUTH_PHONE_OTP_ENABLED'] === 'true'
+  return {
+    emailOtp: process.env['CUSTOMER_AUTH_EMAIL_OTP_ENABLED'] !== 'false',
+    phoneOtp,
+    oauth: {
+      google: providers.includes('google'),
+      apple: providers.includes('apple'),
+    },
   }
 }

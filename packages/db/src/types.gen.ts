@@ -4384,6 +4384,20 @@ export type Database = {
           name: string
         }[]
       }
+      claim_customer_identity_atomic_v2: {
+        Args: {
+          p_auth_user_id: string
+          p_email?: string | null
+          p_name?: string | null
+          p_verified_phone?: string | null
+        }
+        Returns: {
+          email: string | null
+          id: string
+          merged: boolean
+          name: string | null
+        }[]
+      }
       claim_domain_outbox: {
         Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string }
         Returns: {

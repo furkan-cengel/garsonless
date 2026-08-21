@@ -67,3 +67,26 @@ test('auth intent fails closed when the keyring is missing or malformed', () => 
   process.env['CUSTOMER_AUTH_STATE_KEYS'] = '{"active":"v1","keys":{"v1":"short"}}'
   assert.equal(hashCustomerAuthValue('value'), null)
 })
+
+test('V2 phone intent round-trips while V1 remains readable', () => {
+  process.env['CUSTOMER_AUTH_STATE_KEYS'] = JSON.stringify({
+    active: 'phone-v1',
+    keys: { 'phone-v1': randomBytes(32).toString('base64') },
+  })
+  const now = Date.now()
+  const encrypted = encryptCustomerAuthIntent({
+    version: 2,
+    keyVersion: 'phone-v1',
+    flow: 'phone',
+    nonce: 'phone-nonce',
+    returnPath: '/maf-lounge/menu',
+    surface: 'menu',
+    phone: '+905321234567',
+    consent: false,
+    marketingConsent: false,
+    issuedAt: now,
+    expiresAt: now + 300_000,
+  })
+  assert.ok(encrypted?.startsWith('v2.'))
+  assert.equal(decryptCustomerAuthIntent(encrypted!, now)?.flow, 'phone')
+})

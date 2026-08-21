@@ -14,17 +14,17 @@ type CustomerRow = {
 
 async function upsertCustomerIdentity(input: {
   authUserId: string
-  email: string
+  verifiedEmail: string | null
   name: string | null
   verifiedPhone: string | null
 }): Promise<EnsureCustomerResult> {
   const supabase = createServiceClient()
   const verifiedPhone = normalizePhone(input.verifiedPhone)
-  const { data, error } = await supabase.rpc('claim_customer_identity_atomic', {
+  const { data, error } = await supabase.rpc('claim_customer_identity_atomic_v2', {
     p_auth_user_id: input.authUserId,
-    p_email: input.email,
+    p_email: input.verifiedEmail,
     p_name: input.name ?? '',
-    ...(verifiedPhone ? { p_verified_phone: verifiedPhone } : {}),
+    p_verified_phone: verifiedPhone,
   })
   const customer = data?.[0] as Pick<CustomerRow, 'id' | 'email' | 'name'> | undefined
   if (error || !customer) {
@@ -51,7 +51,7 @@ async function upsertCustomerIdentity(input: {
     }
     return { ok: false, error: 'Müşteri hesabı bağlanamadı.', code: 'SERVICE_UNAVAILABLE' }
   }
-  return { ok: true, customer: { id: customer.id, email: customer.email ?? input.email, name: customer.name } }
+  return { ok: true, customer: { id: customer.id, email: customer.email ?? input.verifiedEmail, name: customer.name } }
 }
 
 export function createCustomerIdentityApplicationPort(): CustomerIdentityPort {

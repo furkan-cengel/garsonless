@@ -8,7 +8,7 @@ import { readPublicTableState } from '@garsonless/application/tables'
 import { withoutAdvancedThemeSections } from '@garsonless/application/themes'
 import { getRestaurantBySlug, getMenuCategories, getMenuItems } from '../../../../lib/queries'
 import { getCustomerSession } from '../../../../lib/customer-session'
-import { availableCustomerAuthProviders } from '../../../../lib/customer-auth-provider'
+import { availableCustomerAuthCapabilities } from '../../../../lib/customer-auth-provider'
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../../../lib/featured-products'
 import { MenuPageClient } from '../../MenuPageClient'
 import { HomePageRenderer } from '../../HomePageClient'
@@ -39,12 +39,12 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
   if (!tableState || tableState.token.restaurantId !== restaurant.id || tableState.token.restaurantSlug !== slug) notFound()
 
   const themePort = createThemeApplicationPort()
-  const [themeResult, categories, featuredRanking, session, customerAuthProviders] = await Promise.all([
+  const [themeResult, categories, featuredRanking, session, customerAuthCapabilities] = await Promise.all([
     getPublishedTheme(restaurant.id),
     getMenuCategories(restaurant.id),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
     getCustomerSession(),
-    availableCustomerAuthProviders(),
+    availableCustomerAuthCapabilities(),
   ])
   if (!themeResult.ok) notFound()
   const tableSession = tableState.session
@@ -113,7 +113,11 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
         initialMemberBalances={initialMemberBalances}
         guestOrderingEnabled={guestOrderingEnabled}
         customerAccountsEnabled={customerAccountsEnabled}
-        customerAuthProviders={customerAccountsEnabled ? customerAuthProviders : []}
+        customerAuthProviders={customerAccountsEnabled
+          ? (['google', 'apple'] as const).filter((provider) => customerAuthCapabilities.oauth[provider])
+          : []}
+        emailOtpEnabled={customerAccountsEnabled && customerAuthCapabilities.emailOtp}
+        phoneOtpEnabled={customerAccountsEnabled && customerAuthCapabilities.phoneOtp}
       />
     )
   }
@@ -135,7 +139,11 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
       requestButtonsEnabled={requestButtonsEnabled}
       guestOrderingEnabled={guestOrderingEnabled}
       customerAccountsEnabled={customerAccountsEnabled}
-      customerAuthProviders={customerAccountsEnabled ? customerAuthProviders : []}
+      customerAuthProviders={customerAccountsEnabled
+        ? (['google', 'apple'] as const).filter((provider) => customerAuthCapabilities.oauth[provider])
+        : []}
+      emailOtpEnabled={customerAccountsEnabled && customerAuthCapabilities.emailOtp}
+      phoneOtpEnabled={customerAccountsEnabled && customerAuthCapabilities.phoneOtp}
       initialOpenCart={sp['open'] === 'cart'}
       initialProductId={typeof sp['item'] === 'string' ? sp['item'] : null}
       initialPromotionSectionId={typeof sp['promotionSection'] === 'string' ? sp['promotionSection'] : null}

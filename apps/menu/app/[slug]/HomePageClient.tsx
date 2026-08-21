@@ -35,6 +35,8 @@ export function HomePageRenderer({
   initialMember = null,
   initialMemberBalances = null,
   customerAuthProviders = [],
+  emailOtpEnabled = true,
+  phoneOtpEnabled = false,
   guestOrderingEnabled = false,
   customerAccountsEnabled = false,
   isPreview = false,
@@ -50,6 +52,8 @@ export function HomePageRenderer({
   initialMember?: { name: string | null } | null
   initialMemberBalances?: MemberBalances | null
   customerAuthProviders?: readonly CustomerAuthOAuthProvider[]
+  emailOtpEnabled?: boolean
+  phoneOtpEnabled?: boolean
   guestOrderingEnabled?: boolean
   customerAccountsEnabled?: boolean
   isPreview?: boolean
@@ -59,7 +63,7 @@ export function HomePageRenderer({
   tableLabel?: string | null
 }) {
   return <ThemeProvider initialTheme={theme} isPreview={isPreview} initialRestaurantName={restaurant.name} initialLogoUrl={restaurant.logo_url ?? null}>
-    <LiveHomePage restaurant={restaurant} categories={categories} items={items} initialMember={initialMember} initialMemberBalances={initialMemberBalances} customerAuthProviders={customerAuthProviders} guestOrderingEnabled={guestOrderingEnabled} customerAccountsEnabled={customerAccountsEnabled} previewTemplateId={previewTemplateId} previewAccessToken={previewAccessToken} tableToken={tableToken} tableLabel={tableLabel} />
+    <LiveHomePage restaurant={restaurant} categories={categories} items={items} initialMember={initialMember} initialMemberBalances={initialMemberBalances} customerAuthProviders={customerAuthProviders} emailOtpEnabled={emailOtpEnabled} phoneOtpEnabled={phoneOtpEnabled} guestOrderingEnabled={guestOrderingEnabled} customerAccountsEnabled={customerAccountsEnabled} previewTemplateId={previewTemplateId} previewAccessToken={previewAccessToken} tableToken={tableToken} tableLabel={tableLabel} />
   </ThemeProvider>
 }
 
@@ -70,6 +74,8 @@ function LiveHomePage({
   initialMember,
   initialMemberBalances,
   customerAuthProviders,
+  emailOtpEnabled,
+  phoneOtpEnabled,
   guestOrderingEnabled,
   customerAccountsEnabled,
   previewTemplateId,
@@ -83,6 +89,8 @@ function LiveHomePage({
   initialMember: { name: string | null } | null
   initialMemberBalances: MemberBalances | null
   customerAuthProviders: readonly CustomerAuthOAuthProvider[]
+  emailOtpEnabled: boolean
+  phoneOtpEnabled: boolean
   guestOrderingEnabled: boolean
   customerAccountsEnabled: boolean
   previewTemplateId: string | null
@@ -92,7 +100,7 @@ function LiveHomePage({
 }) {
   const { theme, isPreview } = useTheme()
   return theme.surfaces?.home.compositionVersion === 2 && theme.surfaces.home.blocks
-    ? <HomeV2 restaurant={restaurant} categories={categories} items={items} theme={theme} initialMember={initialMember} initialMemberBalances={initialMemberBalances} customerAuthProviders={customerAuthProviders} guestOrderingEnabled={guestOrderingEnabled} customerAccountsEnabled={customerAccountsEnabled} isPreview={isPreview} previewTemplateId={previewTemplateId} previewAccessToken={previewAccessToken} tableToken={tableToken} tableLabel={tableLabel} />
+    ? <HomeV2 restaurant={restaurant} categories={categories} items={items} theme={theme} initialMember={initialMember} initialMemberBalances={initialMemberBalances} customerAuthProviders={customerAuthProviders} emailOtpEnabled={emailOtpEnabled} phoneOtpEnabled={phoneOtpEnabled} guestOrderingEnabled={guestOrderingEnabled} customerAccountsEnabled={customerAccountsEnabled} isPreview={isPreview} previewTemplateId={previewTemplateId} previewAccessToken={previewAccessToken} tableToken={tableToken} tableLabel={tableLabel} />
     : <LegacyHomePageRenderer restaurant={restaurant} categories={categories} items={items} theme={theme} isPreview={isPreview} previewTemplateId={previewTemplateId} previewAccessToken={previewAccessToken} tableToken={tableToken} />
 }
 
@@ -104,6 +112,8 @@ function HomeV2({
   initialMember,
   initialMemberBalances,
   customerAuthProviders,
+  emailOtpEnabled,
+  phoneOtpEnabled,
   guestOrderingEnabled,
   customerAccountsEnabled,
   isPreview,
@@ -119,6 +129,8 @@ function HomeV2({
   initialMember: { name: string | null } | null
   initialMemberBalances: MemberBalances | null
   customerAuthProviders: readonly CustomerAuthOAuthProvider[]
+  emailOtpEnabled: boolean
+  phoneOtpEnabled: boolean
   guestOrderingEnabled: boolean
   customerAccountsEnabled: boolean
   isPreview: boolean
@@ -299,6 +311,8 @@ function HomeV2({
       authSurface="menu"
       initialTarget={memberTarget}
       oauthProviders={customerAuthProviders}
+      emailOtpEnabled={emailOtpEnabled}
+      phoneOtpEnabled={phoneOtpEnabled}
       onVerified={(nextMember) => { setMember(nextMember); void refreshBalances() }}
       onRefresh={refreshBalances}
       accountActions={accountActions}

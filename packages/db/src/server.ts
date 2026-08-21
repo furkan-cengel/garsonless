@@ -13,6 +13,7 @@ export { recordSecurityEvent, TEAM_SECURITY_EVENT_TYPES } from './security'
 export {
   recordLegalDocumentAcceptance,
   recordSignupLegalEvidence,
+  recordCustomerMembershipLegalEvidence,
 } from './legal-acceptance-port'
 export type { TeamSecurityEventType } from './security'
 export {
@@ -65,6 +66,7 @@ export type {
 export { createCustomerApplicationPort } from './customer-application-port'
 export { createCampaignApplicationPort } from './campaign-application-port'
 export { getSmsDeliveryAvailability } from './sms'
+export { normalizeTurkishMobile } from './phone'
 export {
   createCustomerConsentApplicationPort,
   createCustomerIdentityApplicationPort,

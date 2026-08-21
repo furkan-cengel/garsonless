@@ -7,8 +7,10 @@ import {
   beginCustomerAuthIntent,
   clearCustomerAuthIntentCookie,
   enforceCustomerAuthRateLimit,
+  recordCustomerAuthMetric,
   requestClientAddress,
 } from '../../../../../lib/customer-auth-server'
+import { availableCustomerAuthCapabilities } from '../../../../../lib/customer-auth-provider'
 import { publicRestaurantHasFeature } from '../../../../../lib/restaurant-feature-access'
 
 const schema = customerAuthContextSchema.extend({
@@ -17,12 +19,16 @@ const schema = customerAuthContextSchema.extend({
 })
 
 export async function POST(request: Request) {
+  const startedAt = Date.now()
   const requestCheck = validateCustomerAuthMutation(request)
   if (!requestCheck.ok) return customerAuthErrorResponse(requestCheck.error.code)
   const parsed = schema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return customerAuthErrorResponse('CONFLICT')
   if (!await publicRestaurantHasFeature(parsed.data.restaurantId, 'customer_accounts')) {
     return customerAuthErrorResponse('PLAN_REQUIRED')
+  }
+  if (!(await availableCustomerAuthCapabilities()).emailOtp) {
+    return customerAuthErrorResponse('PROVIDER_DISABLED')
   }
 
   const email = parsed.data.email.toLowerCase()
@@ -31,7 +37,10 @@ export async function POST(request: Request) {
     { bucket: 'email-start-address', subject: email, limit: 5, windowSeconds: 900 },
   ]) {
     const result = await enforceCustomerAuthRateLimit({ request, ...limit })
-    if (!result.ok) return customerAuthErrorResponse(result.error.code, result.error.retryAfterSeconds)
+    if (!result.ok) {
+      recordCustomerAuthMetric({ method: 'email', stage: 'failed', result: 'error', startedAt, errorCode: result.error.code })
+      return customerAuthErrorResponse(result.error.code, result.error.retryAfterSeconds)
+    }
   }
 
   const intent = await beginCustomerAuthIntent({ ...parsed.data, email, flow: 'email' })
@@ -47,7 +56,10 @@ export async function POST(request: Request) {
   })
   if (error) {
     await clearCustomerAuthIntentCookie()
-    return customerAuthErrorResponse(error.status === 429 ? 'RATE_LIMITED' : 'SERVICE_UNAVAILABLE')
+    const errorCode = error.status === 429 ? 'RATE_LIMITED' : 'SERVICE_UNAVAILABLE'
+    recordCustomerAuthMetric({ method: 'email', stage: 'failed', result: 'error', startedAt, errorCode })
+    return customerAuthErrorResponse(errorCode)
   }
+  recordCustomerAuthMetric({ method: 'email', stage: 'sent', result: 'success', startedAt })
   return customerAuthSuccessResponse({ intent: intent.data.intent, resendAfterSeconds: 60 })
 }

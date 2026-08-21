@@ -1,10 +1,12 @@
 'use client'
 
 import Image from 'next/image'
+import Script from 'next/script'
 import { useEffect, useRef, useState } from 'react'
 import type { MemberBalances } from '@garsonless/db/types'
 import { useTheme } from '@garsonless/ui/menu'
 import { AppIcons } from '@garsonless/ui/icons'
+import { MASABU_LOGO_DATA_URI } from '@garsonless/ui/errors'
 import type { MemberOpenTarget } from '@garsonless/ui/themes'
 import {
   resolveAuthErrorState,
@@ -26,7 +28,7 @@ import type {
   CustomerAuthOAuthProvider,
   CustomerSessionView,
 } from '../../../lib/customer-auth-contract'
-import type { CustomerAccountLoyaltyView } from '../../../lib/customer-account-contract'
+import type { CustomerAccountLoyaltyView, CustomerAccountView } from '../../../lib/customer-account-contract'
 import type { CustomerAuthSurface } from '../../../lib/customer-auth-intent'
 import { broadcastCustomerSessionEvent } from '../../../lib/customer-auth-client'
 import { storePendingCustomerAuthContext } from '../../../lib/menu-continuity-client'
@@ -60,6 +62,10 @@ interface Props {
   authSurface?: CustomerAuthSurface
   authReturn?: 'success' | 'error' | null
   oauthProviders?: readonly CustomerAuthOAuthProvider[]
+  /** Server-owned passwordless fallback capability. */
+  emailOtpEnabled?: boolean
+  /** Server-verified Supabase + Netgsm rollout capability. */
+  phoneOtpEnabled?: boolean
   /** Welcome bonus points — drives the "& X puan kazan" join suffix. */
   welcomeBonus?: number
   /** Resolved reward catalog (name + cost) for the teaser/sheet. Empty hides it. */
@@ -105,18 +111,17 @@ const KEYFRAMES = `
 @keyframes ml-ring-expand {0%{transform:scale(.8);opacity:.5}100%{transform:scale(1.6);opacity:0}}
 @keyframes ml-confetti-drop {0%{transform:translateY(-10px) rotate(0);opacity:0}15%{opacity:1}100%{transform:translateY(60px) rotate(240deg);opacity:0}}
 @keyframes ml-spin {to{transform:rotate(360deg)}}
-.ml-auth-dialog{width:100%;height:100dvh;max-width:440px;background:var(--ml-auth-bg);color:var(--ml-auth-text);font-family:var(--ml-auth-body);display:flex;flex-direction:column;overflow:hidden;position:relative}
-.ml-auth-hero{height:var(--ml-auth-header-height);min-height:var(--ml-auth-header-height);position:relative;isolation:isolate;overflow:hidden;background:var(--ml-auth-header-bg)}
+.ml-auth-dialog{width:100%;height:100dvh;max-width:440px;background:var(--ml-auth-surface);color:var(--ml-auth-text);font-family:var(--ml-auth-body);display:flex;flex-direction:column;overflow:hidden;position:relative}
+.ml-auth-hero{height:auto;min-height:92px;position:relative;display:flex;align-items:center;border-bottom:1px solid var(--ml-auth-field-border);background:var(--ml-auth-surface);padding:max(14px,env(safe-area-inset-top)) 64px 14px 68px}
 .ml-auth-hero-fallback{position:absolute;inset:0;z-index:0;background:linear-gradient(157deg,var(--ml-auth-accent) 0%,var(--ml-auth-accent-strong) 55%,#12271c 100%)}
 .ml-auth-hero-media{position:absolute;inset:0;z-index:1;width:100%;height:100%;display:block;object-fit:var(--ml-auth-image-fit);object-position:var(--ml-auth-image-position);background:var(--ml-auth-header-bg)}
 .ml-auth-hero-overlay{position:absolute;inset:0;z-index:2;width:100%;height:100%;display:block;pointer-events:none;object-fit:var(--ml-auth-image-fit);object-position:var(--ml-auth-image-position);filter:var(--ml-auth-photo-overlay-filter);opacity:var(--ml-auth-photo-overlay-opacity)}
-.ml-auth-header-content{position:absolute;inset:64px 24px 24px;z-index:3;display:flex;min-width:0;flex-direction:column;align-items:center;justify-content:center;gap:9px;text-align:center;color:var(--ml-auth-header-text)}
+.ml-auth-header-content{position:relative;z-index:3;display:flex;min-width:0;flex-direction:column;align-items:flex-start;justify-content:center;gap:5px;text-align:left;color:var(--ml-auth-text)}
 .ml-auth-header-content[data-align="left"]{align-items:flex-start;text-align:left}
-.ml-auth-header-logo{display:block;width:auto;max-width:min(180px,72%);height:auto;max-height:74px;object-fit:contain;filter:drop-shadow(0 5px 18px rgba(0,0,0,.24))}
-.ml-auth-header-title{margin:0;max-width:340px;font-family:var(--p-display);font-size:29px;line-height:1.05;font-weight:700;letter-spacing:-.025em;text-wrap:balance;text-shadow:0 4px 22px rgba(0,0,0,.38)}
-.ml-auth-header-slogan{margin:0;max-width:330px;color:var(--ml-auth-header-muted);font-size:12.5px;line-height:1.45;font-weight:650;text-wrap:balance;text-shadow:0 3px 14px rgba(0,0,0,.32)}
-.ml-auth-back{position:absolute;top:max(16px,env(safe-area-inset-top));left:18px;z-index:4;width:44px;height:44px;border-radius:50%;border:1px solid var(--ml-auth-header-control-border);background:var(--ml-auth-header-control-bg);color:var(--ml-auth-header-text);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(7px);cursor:pointer}
-.ml-auth-panel{position:relative;z-index:3;flex:1;min-height:0;margin-top:-1px;padding:var(--ml-auth-state-padding-y) var(--ml-auth-state-padding-x) calc(var(--ml-auth-state-padding-y) + env(safe-area-inset-bottom));background:var(--ml-auth-surface);color:var(--ml-auth-text);border-top:1px solid var(--ml-auth-field-border);border-radius:30px 30px 0 0;box-shadow:0 -22px 50px -24px rgba(0,0,0,.72);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.ml-auth-header-logo{display:block;width:116px;height:auto;max-height:34px;object-fit:contain}
+.ml-auth-header-slogan{margin:0;max-width:270px;color:var(--ml-auth-muted);font-size:12px;line-height:1.35;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ml-auth-back{position:absolute;top:max(16px,env(safe-area-inset-top));left:14px;z-index:4;width:44px;height:44px;border-radius:50%;border:1px solid var(--ml-auth-field-border);background:var(--ml-auth-field-surface);color:var(--ml-auth-text);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ml-auth-panel{position:relative;z-index:3;flex:1;min-height:0;padding:var(--ml-auth-state-padding-y) var(--ml-auth-state-padding-x) calc(var(--ml-auth-state-padding-y) + env(safe-area-inset-bottom));background:var(--ml-auth-surface);color:var(--ml-auth-text);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .ml-auth-state-content{width:100%;max-width:var(--ml-auth-state-max-width);min-height:100%;margin-inline:auto;display:flex;flex-direction:column;gap:var(--ml-auth-state-gap);text-align:left;box-sizing:border-box}
 .ml-auth-state-content[data-align="center"]{text-align:center}
 .ml-auth-panel[data-auth-state="success"] .ml-auth-state-content,.ml-auth-panel[data-auth-state="error"] .ml-auth-state-content{justify-content:center}
@@ -124,6 +129,8 @@ const KEYFRAMES = `
 .ml-auth-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 .ml-auth-stack{display:flex;flex:1;flex-direction:column;gap:var(--ml-auth-state-gap);animation:ml-fade-slide .34s cubic-bezier(.2,.7,.2,1) both}
 .ml-auth-label{display:flex;flex-direction:column;gap:7px;color:var(--ml-auth-muted);font-size:12px;font-weight:700}
+.ml-auth-field-help{display:block;color:var(--ml-auth-muted);font-size:11.5px;line-height:1.4;font-weight:500}
+.ml-auth-field-help[data-error="true"]{color:#7d1d12}
 .ml-auth-input{width:100%;height:54px;border-radius:14px;background:var(--ml-auth-field-surface);border:1.5px solid var(--ml-auth-field-border);color:var(--ml-auth-text);font:500 15.5px/1 var(--p-body);padding:0 16px;outline:none;box-sizing:border-box}
 .ml-auth-input::placeholder{color:color-mix(in srgb,var(--ml-auth-muted) 72%,transparent)}
 .ml-auth-input:focus{border-color:var(--ml-auth-accent);background:var(--ml-auth-field-surface);box-shadow:0 0 0 3px color-mix(in srgb,var(--ml-auth-accent) 24%,transparent)}
@@ -143,9 +150,19 @@ const KEYFRAMES = `
 .ml-auth-check input:focus-visible{outline:2px solid var(--ml-auth-accent);outline-offset:3px}
 .ml-auth-check a{color:var(--ml-auth-accent);font-weight:700;text-underline-offset:2px}
 .ml-auth-error,.ml-auth-offline{display:flex;align-items:flex-start;gap:8px;border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.45}
-.ml-auth-error{color:#ffc0b7;background:rgba(255,104,82,.1);border:1px solid rgba(255,125,106,.18)}
-.ml-auth-offline{color:#ffe2a8;background:rgba(213,148,34,.12);border:1px solid rgba(255,203,107,.18)}
+.ml-auth-error{color:#7d1d12;background:#fff1ef;border:1px solid #e9a99f}
+.ml-auth-offline{color:#624000;background:#fff7df;border:1px solid #dec47d}
 .ml-auth-meta{margin:0;color:var(--ml-auth-muted);font-size:14.5px;line-height:1.55}
+.ml-auth-phone{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:center;height:54px;border-radius:var(--ml-auth-radius);background:var(--ml-auth-field-surface);border:1.5px solid var(--ml-auth-field-border);overflow:hidden}
+.ml-auth-phone:focus-within{border-color:var(--ml-auth-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--ml-auth-accent) 24%,transparent)}
+.ml-auth-phone-prefix{height:100%;display:grid;place-items:center;border-right:1px solid var(--ml-auth-field-border);color:var(--ml-auth-text);font-weight:750;font-size:14px}
+.ml-auth-phone input{min-width:0;width:100%;height:100%;border:0;outline:0;background:transparent;color:var(--ml-auth-text);font:650 16px/1 var(--p-body);padding:0 14px}
+.ml-auth-method-link{min-height:44px;border:0;background:transparent;color:var(--ml-auth-accent);font:750 14px/1.2 var(--p-body);cursor:pointer;padding:0 10px}
+.ml-auth-venue{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--ml-auth-accent) 8%,var(--ml-auth-field-surface));color:var(--ml-auth-muted);font-size:12.5px;line-height:1.4}
+.ml-auth-bonus{display:inline-flex;align-items:center;align-self:flex-start;min-height:32px;padding:0 11px;border-radius:999px;background:color-mix(in srgb,var(--ml-auth-accent) 12%,var(--ml-auth-field-surface));color:var(--ml-auth-accent);font-size:12px;font-weight:800}
+.ml-auth-legal{margin:0;color:var(--ml-auth-muted);font-size:11.5px;line-height:1.5;text-align:center}
+.ml-auth-legal a{color:var(--ml-auth-text);text-underline-offset:2px}
+.ml-auth-captcha{display:flex;flex-direction:column;gap:8px;align-items:center;padding:12px;border:1px solid var(--ml-auth-field-border);border-radius:12px;background:var(--ml-auth-field-surface)}
 .ml-auth-meta strong{color:var(--ml-auth-text);font-weight:700;word-break:break-word}
 .ml-auth-otp-email{margin:0;color:var(--ml-auth-text);font-size:14.5px;line-height:1.45;font-weight:750;word-break:break-word}
 .ml-auth-benefit{display:flex;align-items:center;gap:8px;color:var(--ml-auth-muted);font-size:12.5px;line-height:1.45;padding:2px 2px 0}
@@ -160,11 +177,11 @@ const KEYFRAMES = `
 .ml-auth-status-icon{width:var(--ml-auth-status-icon-size);height:var(--ml-auth-status-icon-size);flex:0 0 var(--ml-auth-status-icon-size);border-radius:50%;display:grid;place-items:center;background:var(--ml-auth-status-icon-background);border:1px solid color-mix(in srgb,var(--ml-auth-status-icon-color) 58%,var(--ml-auth-status-icon-background));color:var(--ml-auth-status-icon-color)}
 .ml-auth-status h2{margin:0;font-family:var(--p-display);font-size:27px;letter-spacing:-.02em}
 .ml-auth-status p{margin:0;max-width:100%;color:var(--ml-auth-muted);font-size:14px;line-height:1.55}
-.ml-auth-dialog button:focus-visible{outline:2px solid var(--ml-auth-accent);outline-offset:3px}
-.ml-auth-panel{border-radius:calc(var(--ml-auth-radius) * 2.2) calc(var(--ml-auth-radius) * 2.2) 0 0}
+.ml-auth-dialog button:focus-visible{outline:3px solid var(--ml-auth-accent);outline-offset:3px}
+.ml-auth-panel{border-radius:0}
 .ml-auth-input,.ml-auth-otp input{color:var(--ml-auth-text);border-radius:calc(var(--ml-auth-radius) * 1.05)}
 .ml-auth-primary,.ml-auth-provider,.ml-auth-guest{border-radius:var(--ml-auth-radius)}
-.ml-auth-dialog[data-auth-preset="immersive"] .ml-auth-panel{margin-top:-28px}
+.ml-auth-dialog[data-auth-preset="immersive"] .ml-auth-panel{margin-top:0}
 .ml-spin{animation:ml-spin .7s linear infinite}
 .ml-auth-overlay[data-account=true]{padding-top:max(12px,env(safe-area-inset-top))}
 .ml-account-dialog{width:100%;height:calc(100dvh - max(12px,env(safe-area-inset-top)));max-height:calc(100dvh - max(12px,env(safe-area-inset-top)));background:var(--ml-bg);color:var(--ml-text);font-family:var(--p-body);display:flex;flex-direction:column;overflow:hidden;border-radius:calc(var(--ml-account-radius) * 1.7) calc(var(--ml-account-radius) * 1.7) 0 0;box-shadow:0 -18px 54px rgba(20,16,12,.24)}
@@ -215,7 +232,7 @@ function authStateLayoutVars(layout: ResolvedAuthStateLayoutTheme): React.CSSPro
   } as React.CSSProperties
 }
 
-function AuthFrame({ screenTitle, state, layout, header, restaurantName, restaurantLogoUrl, backLabel, onBack, children }: {
+function AuthFrame({ screenTitle, state, layout, restaurantName, backLabel, onBack, children }: {
   screenTitle: string
   state: AuthPreviewState
   layout: ResolvedAuthStateLayoutTheme
@@ -226,36 +243,19 @@ function AuthFrame({ screenTitle, state, layout, header, restaurantName, restaur
   onBack: () => void
   children: React.ReactNode
 }) {
-  const headerLogoUrl = header.logoMode === 'custom'
-    ? header.logoUrl ?? null
-    : header.logoMode === 'restaurant' ? restaurantLogoUrl : null
-  const headerTitle = header.title?.trim() ?? ''
-  const headerSlogan = header.slogan?.trim() ?? ''
-  const headerBackgroundImageUrl = header.backgroundImageUrl
-  const hasHeaderContent = Boolean(headerLogoUrl || headerTitle || headerSlogan)
   const visibleScreenTitle = screenTitle.trim()
   return (
     <>
-      <header className="ml-auth-hero" aria-label="Giriş Header" data-has-media={headerBackgroundImageUrl ? 'true' : 'false'}>
-        {!headerBackgroundImageUrl && <div className="ml-auth-hero-fallback" aria-hidden="true" />}
-        {headerBackgroundImageUrl && <>
-          {/* Auth header media is decorative and may use arbitrary tenant-owned aspect ratios. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="ml-auth-hero-media" src={headerBackgroundImageUrl} alt="" aria-hidden="true" />
-          {/* A filtered image clone keeps the neutral overlay on photo pixels only, including contain mode. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="ml-auth-hero-overlay" src={headerBackgroundImageUrl} alt="" aria-hidden="true" />
-        </>}
+      <header className="ml-auth-hero" aria-label="Masabu giriş alanı">
         <button type="button" className="ml-auth-back" onClick={onBack} aria-label={backLabel}>
           <AppIcons.chevLeft size={22} />
         </button>
-        {hasHeaderContent && <div className="ml-auth-header-content" data-align={header.align}>
-          {/* Auth logo URLs are tenant-owned uploads with arbitrary aspect ratios; the native image keeps that ratio intact. */}
+        <div className="ml-auth-header-content">
+          {/* Official shared Masabu wordmark; restaurant branding stays contextual. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {headerLogoUrl && <img className="ml-auth-header-logo" src={headerLogoUrl} alt={`${restaurantName} logosu`} />}
-          {headerTitle && <p className="ml-auth-header-title">{headerTitle}</p>}
-          {headerSlogan && <p className="ml-auth-header-slogan">{headerSlogan}</p>}
-        </div>}
+          <img className="ml-auth-header-logo" src={MASABU_LOGO_DATA_URI} alt="Masabu" />
+          <p className="ml-auth-header-slogan">{restaurantName}&apos;da devam ediyorsun</p>
+        </div>
       </header>
       <section className="ml-auth-panel" data-auth-state={state} style={authStateLayoutVars(layout)}>
         <div className="ml-auth-state-content" data-align={layout.align}>
@@ -281,68 +281,142 @@ function ProviderIcon({ provider }: { provider: CustomerAuthOAuthProvider }) {
   return <Image className="ml-auth-provider-icon" src={source} alt="" width={20} height={20} />
 }
 
-function AuthScreen({ restaurantName, restaurantLogoUrl, header, title, subtitle, welcomeBonus, busy, error, offline, oauthProviders, onEmail, onOAuth, onSkip }: {
-  restaurantName: string; restaurantLogoUrl: string | null; header: AuthHeaderTheme; welcomeBonus: number; busy: boolean; error: string; offline: boolean
-  title?: string
-  subtitle?: string
-  oauthProviders: readonly CustomerAuthOAuthProvider[]
-  onEmail: (name: string, email: string, consent: boolean, marketingConsent: boolean) => void
-  onOAuth: (provider: CustomerAuthOAuthProvider, name: string, consent: boolean, marketingConsent: boolean) => void
-  onSkip: () => void
-}) {
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  // KVKK açık rıza must be an affirmative opt-in → default UNCHECKED (a
-  // pre-ticked consent box is not valid consent).
-  const [agree, setAgree] = useState(false)
-  const [marketingAgree, setMarketingAgree] = useState(false)
-  const valid = name.trim().length > 1 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && agree
-  const socialValid = agree
+type RecaptchaApi = {
+  render: (element: HTMLElement, options: { sitekey: string; size: 'compact'; callback: (token: string) => void; 'expired-callback': () => void }) => number
+  reset: (widgetId: number) => void
+}
+
+declare global {
+  interface Window { grecaptcha?: RecaptchaApi }
+}
+
+const RECAPTCHA_TEST_SITE_KEY = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'
+
+function CustomerAuthCaptcha({ onToken }: { onToken: (token: string) => void }) {
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  const widgetRef = useRef<number | null>(null)
+  const [ready, setReady] = useState(false)
+  const siteKey = process.env.NODE_ENV === 'development'
+    ? process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || RECAPTCHA_TEST_SITE_KEY
+    : process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || ''
+
+  useEffect(() => {
+    if (!ready || !siteKey || !hostRef.current || widgetRef.current !== null || !window.grecaptcha) return
+    widgetRef.current = window.grecaptcha.render(hostRef.current, {
+      sitekey: siteKey,
+      size: 'compact',
+      callback: onToken,
+      'expired-callback': () => onToken(''),
+    })
+  }, [onToken, ready, siteKey])
 
   return (
-    <AuthFrame screenTitle={title?.trim() || ''} state="join" layout={JOIN_AUTH_LAYOUT} header={header} restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} backLabel="Menüye dön" onBack={onSkip}>
-    <div className="ml-auth-stack" aria-busy={busy}>
-      {offline && <div className="ml-auth-offline" role="status"><AppIcons.warn size={17} />Çevrimdışısın. Giriş için bağlantını kontrol et.</div>}
-      {subtitle?.trim() && <p className="ml-auth-meta">{subtitle}</p>}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Field label="Ad Soyad" value={name} onChange={setName} placeholder="Adın Soyadın" />
-        <Field label="E-posta" value={email} onChange={setEmail} placeholder="ornek@eposta.com" type="email" />
-        <label className="ml-auth-check">
-          <input type="checkbox" checked={agree} onChange={(event) => setAgree(event.target.checked)} />
-          <span>
-            <a href="https://masabu.co/legal#kvkk" target="_blank" rel="noreferrer">KVKK aydınlatma metnini</a> okudum; hesabımın oluşturulması için gerekli verilerin işlenmesini onaylıyorum.
-          </span>
-        </label>
-        <label className="ml-auth-check">
-          <input type="checkbox" checked={marketingAgree} onChange={(event) => setMarketingAgree(event.target.checked)} />
-          <span>Kampanya, indirim ve duyurular için e-posta almak istiyorum. (İsteğe bağlı)</span>
-        </label>
+    <div className="ml-auth-captcha" role="group" aria-label="Güvenlik doğrulaması">
+      <Script
+        id="masabu-customer-auth-recaptcha"
+        src="https://www.google.com/recaptcha/api.js?render=explicit&hl=tr"
+        strategy="afterInteractive"
+        onReady={() => setReady(true)}
+      />
+      {siteKey ? <div ref={hostRef} /> : <p className="ml-auth-meta">Güvenlik doğrulaması şu anda kullanılamıyor.</p>}
+    </div>
+  )
+}
+
+function formatTurkishMobile(value: string): string {
+  let digits = value.replace(/\D/g, '')
+  if (digits.startsWith('90')) digits = digits.slice(2)
+  if (digits.startsWith('0')) digits = digits.slice(1)
+  digits = digits.slice(0, 10)
+  return [digits.slice(0, 3), digits.slice(3, 6), digits.slice(6, 8), digits.slice(8, 10)]
+    .filter(Boolean)
+    .join(' ')
+}
+
+function AuthScreen({ restaurantName, restaurantLogoUrl, header, welcomeBonus, busy, error, offline, oauthProviders, emailOtpEnabled, phoneOtpEnabled, challengeRequired, onPhone, onEmail, onOAuth, onSkip }: {
+  restaurantName: string; restaurantLogoUrl: string | null; header: AuthHeaderTheme; welcomeBonus: number; busy: boolean; error: string; offline: boolean
+  oauthProviders: readonly CustomerAuthOAuthProvider[]
+  emailOtpEnabled: boolean
+  phoneOtpEnabled: boolean
+  challengeRequired: boolean
+  onPhone: (phone: string, captchaToken?: string) => void
+  onEmail: (email: string) => void
+  onOAuth: (provider: CustomerAuthOAuthProvider) => void
+  onSkip: () => void
+}) {
+  const [method, setMethod] = useState<'phone' | 'email'>(phoneOtpEnabled ? 'phone' : 'email')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [captchaToken, setCaptchaToken] = useState('')
+  const phoneValid = /^5\d{2} \d{3} \d{2} \d{2}$/.test(phone)
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  const methodValid = method === 'phone' ? phoneValid && (!challengeRequired || Boolean(captchaToken)) : emailValid
+  const otpMethodEnabled = method === 'phone' ? phoneOtpEnabled : emailOtpEnabled
+
+  return (
+    <AuthFrame screenTitle="Masabu hesabına devam et" state="join" layout={JOIN_AUTH_LAYOUT} header={header} restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} backLabel="Menüye dön" onBack={onSkip}>
+      <div className="ml-auth-stack" aria-busy={busy}>
+        <p className="ml-auth-meta">Hesabın varsa giriş yaparsın, yoksa hesabını oluştururuz.</p>
+        <div className="ml-auth-venue"><AppIcons.shield size={17} aria-hidden="true" /><span><strong>{restaurantName}</strong> için sipariş, favori ve sadakat bilgilerin korunur.</span></div>
+        {welcomeBonus > 0 && <span className="ml-auth-bonus">İlk üyelikte {welcomeBonus.toLocaleString('tr-TR')} puana kadar kazan</span>}
+        {offline && <div className="ml-auth-offline" role="status"><AppIcons.warn size={17} />Çevrimdışısın. Giriş için bağlantını kontrol et.</div>}
+
+        {otpMethodEnabled && (method === 'phone' ? (
+          <label className="ml-auth-label">
+            <span>Telefon numarası</span>
+            <span className="ml-auth-phone">
+              <span className="ml-auth-phone-prefix" aria-hidden="true">+90</span>
+              <input
+                autoFocus
+                value={phone}
+                onChange={(event) => setPhone(formatTurkishMobile(event.target.value))}
+                placeholder="5xx xxx xx xx"
+                inputMode="tel"
+                autoComplete="tel"
+                aria-label="Türkiye mobil telefon numarası"
+                aria-describedby="customer-auth-phone-help"
+                aria-invalid={phone.length > 0 && !phoneValid}
+              />
+            </span>
+            <small id="customer-auth-phone-help" className="ml-auth-field-help" data-error={phone.length > 0 && !phoneValid}>
+              {phone.length > 0 && !phoneValid
+                ? '5 ile başlayan 10 haneli Türkiye mobil numarası gir.'
+                : 'Yalnız Türkiye mobil numaraları desteklenir.'}
+            </small>
+          </label>
+        ) : <Field label="E-posta" value={email} onChange={setEmail} placeholder="ornek@eposta.com" type="email" />)}
+
+        {otpMethodEnabled && challengeRequired && method === 'phone' && <CustomerAuthCaptcha onToken={setCaptchaToken} />}
         <div aria-live="polite" aria-atomic="true">
           {error && <div className="ml-auth-error" role="alert"><AppIcons.warn size={17} />{error}</div>}
         </div>
-      </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <button
-          type="button" className="ml-auth-primary" onClick={() => valid && !busy && !offline && onEmail(name, email, agree, marketingAgree)} disabled={!valid || busy || offline}
+        {otpMethodEnabled && <button
+          type="button"
+          className="ml-auth-primary"
+          onClick={() => methodValid && !busy && !offline && (method === 'phone'
+            ? onPhone(phone, captchaToken || undefined)
+            : onEmail(email.trim().toLowerCase()))}
+          disabled={!methodValid || busy || offline}
         >
-          {busy ? <><Spinner /> Gönderiliyor…</> : `E-posta ile devam et${welcomeBonus > 0 ? ` & ${welcomeBonus} puan kazan` : ''}`}
-        </button>
-        {oauthProviders.length > 0 && <div className="ml-auth-divider">veya</div>}
-        {oauthProviders.map((provider) => (
-          <button
-            key={provider}
-            type="button"
-            className="ml-auth-provider"
-            onClick={() => socialValid && !busy && !offline && onOAuth(provider, name, agree, marketingAgree)}
-            disabled={!socialValid || busy || offline}
-          >
-            <ProviderIcon provider={provider} /> {PROVIDER_LABELS[provider]} ile devam et
-          </button>
-        ))}
+          {busy ? <><Spinner /> Gönderiliyor…</> : 'Doğrulama kodu gönder'}
+        </button>}
+
+        {oauthProviders.length > 0 && <>
+          <div className="ml-auth-divider">veya</div>
+          {oauthProviders.map((provider) => (
+            <button key={provider} type="button" className="ml-auth-provider" onClick={() => !busy && !offline && onOAuth(provider)} disabled={busy || offline}>
+              <ProviderIcon provider={provider} /> {PROVIDER_LABELS[provider]} ile devam et
+            </button>
+          ))}
+        </>}
+
+        {phoneOtpEnabled && emailOtpEnabled && <button type="button" className="ml-auth-method-link" onClick={() => { setMethod(method === 'phone' ? 'email' : 'phone'); setCaptchaToken('') }}>
+          {method === 'phone' ? 'E-posta ile devam et' : 'Telefon numarasıyla devam et'}
+        </button>}
         <button type="button" className="ml-auth-guest" onClick={onSkip}>Misafir olarak devam et <AppIcons.arrow size={17} /></button>
+        <p className="ml-auth-legal">Devam ederek <a href="https://masabu.co/legal#uyelik" target="_blank" rel="noreferrer">Üyelik Koşulları</a>&apos;nı kabul eder ve <a href="https://masabu.co/legal#kvkk" target="_blank" rel="noreferrer">Aydınlatma Metni</a>&apos;ni okuduğunu beyan edersin. Pazarlama izni giriş için gerekli değildir.</p>
       </div>
-    </div>
     </AuthFrame>
   )
 }
@@ -350,8 +424,9 @@ function AuthScreen({ restaurantName, restaurantLogoUrl, header, title, subtitle
 // ── Screen 1.5: OTP ─────────────────────────────────────────────────────────
 type AuthAttemptResult = { ok: boolean; error?: string; resendAfterSeconds?: number }
 
-function OTPScreen({ email, restaurantName, restaurantLogoUrl, header, config, resendAfterSeconds, offline, onVerify, onResend, onBack }: {
-  email: string
+function OTPScreen({ destination, method, restaurantName, restaurantLogoUrl, header, config, resendAfterSeconds, offline, onVerify, onResend, onBack }: {
+  destination: string
+  method: 'email' | 'phone'
   restaurantName: string
   restaurantLogoUrl: string | null
   header: AuthHeaderTheme
@@ -394,15 +469,16 @@ function OTPScreen({ email, restaurantName, restaurantLogoUrl, header, config, r
   }
 
   function setAt(i: number, raw: string) {
-    const v = raw.replace(/\D/g, '').slice(-1)
+    const numeric = raw.replace(/\D/g, '')
     setError('')
-    if (v.length > 1) {
-      const arr = v.slice(0, LEN).split('')
+    if (numeric.length > 1) {
+      const arr = numeric.slice(0, LEN).split('')
       const next = Array(LEN).fill('').map((_, k) => arr[k] || '')
       setDigits(next)
       refs.current[Math.min(arr.length, LEN) - 1]?.focus()
       return
     }
+    const v = numeric.slice(-1)
     const next = [...digits]
     next[i] = v
     setDigits(next)
@@ -432,12 +508,12 @@ function OTPScreen({ email, restaurantName, restaurantLogoUrl, header, config, r
   }
 
   return (
-    <AuthFrame screenTitle={config.title} state="otp" layout={config.layout} header={header} restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} backLabel="E-posta adımına dön" onBack={onBack}>
+    <AuthFrame screenTitle={method === 'phone' ? 'Telefonunu doğrula' : config.title} state="otp" layout={config.layout} header={header} restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} backLabel="Giriş yöntemlerine dön" onBack={onBack}>
     <div className="ml-auth-stack" aria-busy={verifying}>
       {offline && <div className="ml-auth-offline" role="status"><AppIcons.warn size={17} />Çevrimdışısın. Kodu doğrulamak için bağlantını kontrol et.</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--ml-auth-state-gap)' }}>
-        <p className="ml-auth-otp-email">{email}</p>
-        {config.description && <p className="ml-auth-meta">{config.description}</p>}
+        <p className="ml-auth-otp-email">{destination}</p>
+        <p className="ml-auth-meta">{method === 'phone' ? '6 haneli kod birkaç dakika içinde gelebilir. Kodu kimseyle paylaşma.' : config.description}</p>
       </div>
 
       <div>
@@ -471,6 +547,41 @@ function OTPScreen({ email, restaurantName, restaurantLogoUrl, header, config, r
         </div>
       </div>
     </div>
+    </AuthFrame>
+  )
+}
+
+function ProfileCompletionScreen({ restaurantName, restaurantLogoUrl, header, onComplete, onSkip }: {
+  restaurantName: string
+  restaurantLogoUrl: string | null
+  header: AuthHeaderTheme
+  onComplete: (name: string) => Promise<AuthAttemptResult>
+  onSkip: () => void
+}) {
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submit() {
+    if (name.trim().length < 2 || busy) return
+    setBusy(true)
+    setError('')
+    const result = await onComplete(name.trim())
+    if (!result.ok) setError(result.error ?? 'İsim kaydedilemedi. Daha sonra tekrar deneyebilirsin.')
+    setBusy(false)
+  }
+
+  return (
+    <AuthFrame screenTitle="Sana nasıl hitap edelim?" state="profile" layout={JOIN_AUTH_LAYOUT} header={header} restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} backLabel="Şimdilik geç" onBack={onSkip}>
+      <div className="ml-auth-stack" aria-busy={busy}>
+        <p className="ml-auth-meta">Bu bilgi selamlamalarda kullanılır. İstersen şimdi geçip Profil alanından sonra ekleyebilirsin.</p>
+        <Field label="Ad Soyad" value={name} onChange={setName} placeholder="Adın Soyadın" />
+        <div aria-live="polite">{error && <div className="ml-auth-error" role="alert"><AppIcons.warn size={17} />{error}</div>}</div>
+        <button type="button" className="ml-auth-primary" disabled={name.trim().length < 2 || busy} onClick={() => void submit()}>
+          {busy ? <><Spinner /> Kaydediliyor…</> : 'Kaydet ve devam et'}
+        </button>
+        <button type="button" className="ml-auth-guest" onClick={onSkip}>Şimdilik geç</button>
+      </div>
     </AuthFrame>
   )
 }
@@ -571,6 +682,8 @@ export default function MemberSheet({
   authenticated = false, restaurantId, restaurantSlug, restaurantName = 'Sadakat',
   tableToken = null, guestSessionId, deviceId, authSurface = 'menu', authReturn = null,
   oauthProviders = [],
+  emailOtpEnabled = true,
+  phoneOtpEnabled = false,
   welcomeBonus = 0, rewardCatalog = [], onRedeemCatalog, onRefresh: _onRefresh,
   onAuthContextComplete, accountActions, previewState, accountPreviewState, initialTarget = 'overview',
 }: Props) {
@@ -633,15 +746,18 @@ export default function MemberSheet({
     '--ml-cta': checkoutOverride.cta ?? theme.cta ?? theme.accent,
     '--ml-account-radius': `${checkoutOverride.radius ?? theme.radius}px`,
   } as React.CSSProperties
-  const [phase, setPhase] = useState<'join' | 'otp' | 'return' | 'home'>(() => {
+  const [phase, setPhase] = useState<'join' | 'otp' | 'profile' | 'return' | 'home'>(() => {
     if (previewState === 'otp') return 'otp'
+    if (previewState === 'profile') return 'profile'
     if (previewState === 'success' || previewState === 'error') return 'return'
+    if (authReturn === 'success' && authenticated && !initialName) return 'profile'
     return authenticated ? 'home' : 'join'
   })
   const [email, setEmail] = useState('')
-  const [pendingName, setPendingName] = useState('')
-  const [pendingConsent, setPendingConsent] = useState(false)
-  const [pendingMarketingConsent, setPendingMarketingConsent] = useState(false)
+  const [phone, setPhone] = useState('')
+  const [maskedDestination, setMaskedDestination] = useState('')
+  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email')
+  const [challengeRequired, setChallengeRequired] = useState(previewState === 'challenge')
   const [pendingIntent, setPendingIntent] = useState('')
   const [localName, setLocalName] = useState<string | null>(initialName)
   const [busy, setBusy] = useState(false)
@@ -696,19 +812,25 @@ export default function MemberSheet({
     if (previewState) {
       setJoinError('')
       if (previewState === 'otp') {
-        setEmail('ornek@eposta.com')
+        setPhone('532 123 45 67')
+        setMaskedDestination('+90 5** *** 4567')
+        setAuthMethod('phone')
         setResendAfterSeconds(42)
         setPhase('otp')
+      } else if (previewState === 'profile') {
+        setPhase('profile')
       } else if (previewState === 'success' || previewState === 'error') {
         setPhase('return')
       } else {
         setEmail('')
+        setChallengeRequired(previewState === 'challenge')
         setPhase('join')
       }
       return
     }
-    if (authReturn) setPhase('return')
-  }, [authReturn, previewState])
+    if (authReturn === 'success' && authenticated && !initialName) setPhase('profile')
+    else if (authReturn) setPhase('return')
+  }, [authReturn, authenticated, initialName, previewState])
 
   useEffect(() => {
     if (!previewState) return
@@ -794,7 +916,7 @@ export default function MemberSheet({
     closeRef.current()
   }
 
-  function authContext(name: string, consent: boolean, marketingConsent: boolean) {
+  function authContext() {
     if (restaurantId && restaurantSlug) {
       storePendingCustomerAuthContext({
         restaurantId,
@@ -812,9 +934,6 @@ export default function MemberSheet({
       ...(tableToken ? { qrToken: tableToken } : {}),
       ...(guestSessionId ? { guestSessionId } : {}),
       ...(deviceId ? { deviceId } : {}),
-      name: name.trim(),
-      consent,
-      marketingConsent,
     }
   }
 
@@ -824,6 +943,8 @@ export default function MemberSheet({
       case 'RATE_LIMITED': return 'Çok fazla deneme yapıldı. Lütfen biraz bekleyin.'
       case 'PROVIDER_DISABLED': return 'Bu giriş yöntemi şu anda kullanılamıyor.'
       case 'PLAN_REQUIRED': return 'Bu işletmede müşteri hesabı özelliği açık değil.'
+      case 'PHONE_INVALID': return 'Türkiye mobil numaranı 5xx xxx xx xx biçiminde kontrol et.'
+      case 'CHALLENGE_REQUIRED': return 'Devam etmek için güvenlik doğrulamasını tamamla.'
       case 'STAFF_ACCOUNT_REJECTED': return 'Personel hesabıyla müşteri girişi yapılamaz.'
       case 'IDENTITY_CONFLICT': return 'Bu kimlik başka bir müşteri hesabına bağlı.'
       case 'CONTEXT_EXPIRED': return 'Giriş isteğinin süresi doldu. Lütfen yeniden başlayın.'
@@ -834,12 +955,7 @@ export default function MemberSheet({
     }
   }
 
-  async function sendOtp(
-    forEmail: string,
-    name = pendingName,
-    consent = pendingConsent,
-    marketingConsent = pendingMarketingConsent,
-  ): Promise<AuthAttemptResult> {
+  async function sendEmailOtp(forEmail: string): Promise<AuthAttemptResult> {
     if (previewState) {
       setPendingIntent('customer-auth-preview')
       setResendAfterSeconds(42)
@@ -851,7 +967,7 @@ export default function MemberSheet({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: forEmail.trim().toLowerCase(),
-          ...authContext(name, consent, marketingConsent),
+          ...authContext(),
         }),
       })
       const result = await response.json() as ApiResult<{ intent: string; resendAfterSeconds: number }>
@@ -864,21 +980,82 @@ export default function MemberSheet({
     }
   }
 
-  async function handleEmail(name: string, rawEmail: string, consent: boolean, marketingConsent: boolean) {
+  async function handleEmail(rawEmail: string) {
     setBusy(true)
     setJoinError('')
     const normalizedEmail = rawEmail.trim().toLowerCase()
     setEmail(normalizedEmail)
-    setPendingName(name)
-    setPendingConsent(consent)
-    setPendingMarketingConsent(marketingConsent)
-    const r = await sendOtp(normalizedEmail, name, consent, marketingConsent)
+    setAuthMethod('email')
+    setMaskedDestination(normalizedEmail)
+    const r = await sendEmailOtp(normalizedEmail)
     setBusy(false)
     if (!r.ok) { setJoinError(r.error ?? 'Bir hata oluştu.'); return }
     setPhase('otp')
   }
 
-  async function handleOAuth(provider: CustomerAuthOAuthProvider, name: string, consent: boolean, marketingConsent: boolean) {
+  async function handlePhone(rawPhone: string, captchaToken?: string) {
+    setBusy(true)
+    setJoinError('')
+    setPhone(rawPhone)
+    setAuthMethod('phone')
+    if (previewState) {
+      setPendingIntent('customer-auth-preview')
+      setMaskedDestination('+90 5** *** 4567')
+      setResendAfterSeconds(42)
+      setPhase('otp')
+      setBusy(false)
+      return
+    }
+    try {
+      const response = await fetch('/api/customer-auth/phone/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: rawPhone, ...(captchaToken ? { captchaToken } : {}), ...authContext() }),
+      })
+      const result = await response.json() as ApiResult<{ intent: string; resendAfterSeconds: number; maskedDestination: string }>
+      if (!response.ok || !result.ok) {
+        if (!result.ok && result.error.code === 'CHALLENGE_REQUIRED') setChallengeRequired(true)
+        setJoinError(authErrorMessage(result))
+        setBusy(false)
+        return
+      }
+      setPendingIntent(result.data.intent)
+      setMaskedDestination(result.data.maskedDestination)
+      setResendAfterSeconds(result.data.resendAfterSeconds)
+      setChallengeRequired(false)
+      setPhase('otp')
+    } catch {
+      setJoinError('Bağlantı hatası. Tekrar deneyin.')
+    }
+    setBusy(false)
+  }
+
+  async function resendPhoneOtp(): Promise<AuthAttemptResult> {
+    if (previewState) return { ok: true, resendAfterSeconds: 42 }
+    try {
+      const response = await fetch('/api/customer-auth/phone/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, ...authContext() }),
+      })
+      const result = await response.json() as ApiResult<{ intent: string; resendAfterSeconds: number; maskedDestination: string }>
+      if (!response.ok || !result.ok) {
+        if (!result.ok && result.error.code === 'CHALLENGE_REQUIRED') {
+          setChallengeRequired(true)
+          setJoinError(authErrorMessage(result))
+          setPhase('join')
+        }
+        return { ok: false, error: authErrorMessage(result) }
+      }
+      setPendingIntent(result.data.intent)
+      setMaskedDestination(result.data.maskedDestination)
+      return { ok: true, resendAfterSeconds: result.data.resendAfterSeconds }
+    } catch {
+      return { ok: false, error: 'Bağlantı hatası. Tekrar deneyin.' }
+    }
+  }
+
+  async function handleOAuth(provider: CustomerAuthOAuthProvider) {
     setBusy(true)
     setJoinError('')
     if (previewState) {
@@ -890,7 +1067,7 @@ export default function MemberSheet({
       const response = await fetch('/api/customer-auth/oauth/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, ...authContext(name, consent, marketingConsent) }),
+        body: JSON.stringify({ provider, ...authContext() }),
       })
       const result = await response.json() as ApiResult<{ redirectUrl: string }>
       if (!response.ok || !result.ok) {
@@ -912,17 +1089,41 @@ export default function MemberSheet({
     }
     try {
       if (!pendingIntent) return { ok: false, error: 'Doğrulama isteğinin süresi doldu. Lütfen yeniden başla.' }
-      const response = await fetch('/api/customer-auth/email/verify', {
+      const response = await fetch(authMethod === 'phone' ? '/api/customer-auth/phone/verify' : '/api/customer-auth/email/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intent: pendingIntent, code }),
       })
-      const result = await response.json() as ApiResult<CustomerSessionView>
+      const result = await response.json() as ApiResult<CustomerSessionView & { profileCompletionRequired?: boolean }>
       if (!response.ok || !result.ok) return { ok: false, error: authErrorMessage(result) }
       if (!result.data.authenticated || !result.data.profile) return { ok: false, error: 'Kod doğrulanamadı. Lütfen tekrar dene.' }
       setLocalName(result.data.profile.name)
       onVerified({ name: result.data.profile.name })
       broadcastCustomerSessionEvent('signed-in')
+      setPhase(result.data.profileCompletionRequired || !result.data.profile.name ? 'profile' : 'home')
+      if (result.data.profile.name) onAuthContextComplete?.(authSurface)
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Bağlantı hatası. Tekrar deneyin.' }
+    }
+  }
+
+  async function handleProfileComplete(nextName: string): Promise<AuthAttemptResult> {
+    if (previewState) {
+      setLocalName(nextName)
+      setPhase('home')
+      return { ok: true }
+    }
+    try {
+      const response = await fetch('/api/account', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nextName }),
+      })
+      const result = await response.json() as ApiResult<CustomerAccountView>
+      if (!response.ok || !result.ok) return { ok: false, error: authErrorMessage(result) }
+      setLocalName(result.data.profile.name)
+      onVerified({ name: result.data.profile.name })
       setPhase('home')
       onAuthContextComplete?.(authSurface)
       return { ok: true }
@@ -931,14 +1132,21 @@ export default function MemberSheet({
     }
   }
 
+  function skipProfileCompletion() {
+    setPhase('home')
+    onAuthContextComplete?.(authSurface)
+  }
+
   const name = localName ?? initialName
   const visiblePhase = accountPreviewState
     ? 'home'
     : previewState === 'otp'
     ? 'otp'
+    : previewState === 'profile'
+      ? 'profile'
     : previewState === 'success' || previewState === 'error'
       ? 'return'
-      : previewState === 'join'
+      : previewState === 'join' || previewState === 'challenge'
         ? 'join'
       : phase
   const visibleReturnStatus = previewState === 'error' ? 'error' : authReturn ?? 'success'
@@ -984,11 +1192,12 @@ export default function MemberSheet({
       >
         {visiblePhase === 'home' && <span className="ml-account-handle" aria-hidden="true" />}
         {visiblePhase === 'join' && (
-          <AuthScreen restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} header={renderedAuthHeader} title={authTheme?.title ?? 'Masabu hesabınla devam et'} subtitle={authTheme?.subtitle ?? 'Siparişlerini, favorilerini ve sadakat avantajlarını tek yerde tut.'} welcomeBonus={welcomeBonus} busy={busy} error={joinError} offline={offline} oauthProviders={oauthProviders} onEmail={handleEmail} onOAuth={handleOAuth} onSkip={requestClose} />
+          <AuthScreen restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} header={renderedAuthHeader} welcomeBonus={welcomeBonus} busy={busy} error={joinError} offline={offline} oauthProviders={oauthProviders} emailOtpEnabled={emailOtpEnabled || Boolean(previewState)} phoneOtpEnabled={phoneOtpEnabled || Boolean(previewState)} challengeRequired={challengeRequired} onPhone={handlePhone} onEmail={handleEmail} onOAuth={handleOAuth} onSkip={requestClose} />
         )}
         {visiblePhase === 'otp' && (
           <OTPScreen
-            email={email}
+            destination={authMethod === 'phone' ? maskedDestination : email}
+            method={authMethod}
             restaurantName={restaurantName}
             restaurantLogoUrl={restaurantLogoUrl}
             header={renderedAuthHeader}
@@ -996,10 +1205,11 @@ export default function MemberSheet({
             resendAfterSeconds={resendAfterSeconds}
             offline={offline}
             onVerify={handleVerify}
-            onResend={() => sendOtp(email)}
-            onBack={() => { setPhase('join'); setJoinError('') }}
+            onResend={() => authMethod === 'phone' ? resendPhoneOtp() : sendEmailOtp(email)}
+            onBack={() => { setPhase('join'); setJoinError(''); setChallengeRequired(false) }}
           />
         )}
+        {visiblePhase === 'profile' && <ProfileCompletionScreen restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} header={renderedAuthHeader} onComplete={handleProfileComplete} onSkip={skipProfileCompletion} />}
         {visiblePhase === 'return' && <AuthReturnScreen restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} header={renderedAuthHeader} status={visibleReturnStatus} config={visibleReturnTheme} onClose={requestClose} />}
         {visiblePhase === 'home' && (
           <AccountCenter

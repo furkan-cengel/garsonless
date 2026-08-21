@@ -29,7 +29,7 @@ export interface ThemeMenuCustomFilter {
 }
 
 export type ThemeEditorSurface = 'home' | 'menu' | 'auth' | 'account' | 'checkout'
-export type AuthPreviewState = 'join' | 'otp' | 'success' | 'error'
+export type AuthPreviewState = 'join' | 'otp' | 'profile' | 'challenge' | 'success' | 'error'
 export type AccountPreviewState = 'overview' | 'orders' | 'favorites' | 'profile' | 'detail' | 'reorder' | 'loading' | 'error' | 'empty'
 export type CheckoutPreviewState = 'cart' | 'payment' | 'success' | 'table-payment' | 'error'
 

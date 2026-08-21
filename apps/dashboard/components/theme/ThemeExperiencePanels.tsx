@@ -87,6 +87,8 @@ import { ThemeSectionCatalogIcon } from './ThemeSectionCatalogIcon'
 const AUTH_STATES: Array<{ id: AuthPreviewState; label: string }> = [
   { id: 'join', label: 'Üyelik' },
   { id: 'otp', label: 'OTP' },
+  { id: 'profile', label: 'Profil tamamlama' },
+  { id: 'challenge', label: 'Güvenlik doğrulaması' },
   { id: 'success', label: 'Başarılı dönüş' },
   { id: 'error', label: 'Hata' },
 ]
@@ -146,7 +148,7 @@ const CHECKOUT_ERROR_ICON_OPTIONS: Array<{ id: CheckoutErrorIcon; label: string;
 ]
 
 type AuthColorFieldKey = 'background' | 'surface' | 'text' | 'mutedText' | 'fieldSurface' | 'fieldBorder' | 'accent' | 'cta' | 'ctaText'
-type EditableAuthState = Exclude<AuthPreviewState, 'join'>
+type EditableAuthState = Exclude<AuthPreviewState, 'join' | 'profile' | 'challenge'>
 type EditableAuthStateTheme = AuthOtpStateTheme | AuthSuccessStateTheme | AuthErrorStateTheme
 type EditableCheckoutState = Exclude<CheckoutPreviewState, 'cart'>
 type EditableCheckoutStateTheme = CheckoutPaymentStateTheme | CheckoutSuccessStateTheme | CheckoutTablePaymentStateTheme | CheckoutErrorStateTheme
@@ -655,7 +657,7 @@ export function ThemeExperienceProperties({
         {surface === 'home' && !selectedSection && selectedSectionId !== '__home-style' && <EmptyProperties text="Düzenlemek için soldan bir ana sayfa bölümü veya Ana sayfa stili seç." />}
         {surface === 'auth' && (
           <>
-            {authState !== 'join' && <AuthStateSettings
+            {authState !== 'join' && authState !== 'profile' && authState !== 'challenge' && <AuthStateSettings
               state={authState}
               auth={surfaces.auth}
               onChange={(patch) => updateAuthState(authState, patch)}
@@ -699,7 +701,7 @@ export function ThemeExperienceProperties({
 
             <SettingsCard>
               <SettingsCardHeader icon={<I.type size={17} />} title={authState === 'join' ? 'Form içeriği' : 'Form renkleri'} />
-              {authState === 'join' && <>
+              {(authState === 'join' || authState === 'profile' || authState === 'challenge') && <>
                 <Field label="Form başlığı"><Input value={surfaces.auth.title ?? ''} maxLength={100} onChange={(event) => updateSurface({ ...surfaces.auth, title: event.target.value })} style={inputStyle} /></Field>
                 <Field label="Form açıklaması"><Textarea value={surfaces.auth.subtitle ?? ''} maxLength={240} rows={4} onChange={(event) => updateSurface({ ...surfaces.auth, subtitle: event.target.value })} style={{ ...inputStyle, paddingTop: 10 }} /></Field>
               </>}
@@ -934,7 +936,7 @@ function AuthStateSettings({
           onChange={(iconBackground) => onChange({ iconBackground } as Partial<EditableAuthStateTheme>)}
         />
       </div>}
-      <Alert role="note"><I.shield /><AlertDescription>E-posta, sayaç, sistem hata metinleri ve buton hedefi tema tarafından değiştirilemez.</AlertDescription></Alert>
+      <Alert role="note"><I.shield /><AlertDescription>Telefon/e-posta hedefi, sayaç, sistem hata metinleri ve buton hedefi tema tarafından değiştirilemez.</AlertDescription></Alert>
     </SettingsCard>
 
     <SettingsCard>
