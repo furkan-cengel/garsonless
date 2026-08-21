@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
 import type { SubscriptionBillingProfile } from '@garsonless/application/billing'
 import type { BillingInterval, SelfServePlan } from '@garsonless/domain/entitlements'
+import { getPlanPrice } from '@garsonless/domain/entitlements'
 import { z } from 'zod'
+import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
 import { readIyzicoSubscriptionBillingRuntimeConfig } from './iyzico-subscription-config'
 
 const paidPlanSchema = z.enum(['starter', 'plus', 'pro'])
@@ -20,6 +22,7 @@ const addressSchema = z.object({
 
 export const billingProfileSchema: z.ZodType<SubscriptionBillingProfile> = z.object({
   legalName: z.string().trim().min(1).max(200),
+  taxOffice: z.string().trim().min(1).max(100),
   name: z.string().trim().min(1).max(100),
   surname: z.string().trim().min(1).max(100),
   identityNumber: z.string().trim().regex(/^\d{10,11}$/),
@@ -35,6 +38,8 @@ export const checkoutRequestSchema = z.object({
   plan: paidPlanSchema,
   interval: billingIntervalSchema,
   profile: billingProfileSchema,
+  checkoutTermsAccepted: z.literal(true),
+  legalDocumentVersion: z.literal(LEGAL_DOCUMENT_VERSION),
 })
 
 export const retryRequestSchema = z.object({
@@ -56,16 +61,16 @@ export function readBillingPlanPrices(
     const { provider } = readIyzicoSubscriptionBillingRuntimeConfig(env)
     return {
       starter: {
-        monthly: provider.plans.starter.monthly.amountMinor,
-        annual: provider.plans.starter.annual.amountMinor,
+        monthly: getPlanPrice('starter', 'monthly').amountMinor,
+        annual: getPlanPrice('starter', 'annual').amountMinor,
       },
       plus: {
-        monthly: provider.plans.plus.monthly.amountMinor,
-        annual: provider.plans.plus.annual.amountMinor,
+        monthly: getPlanPrice('plus', 'monthly').amountMinor,
+        annual: getPlanPrice('plus', 'annual').amountMinor,
       },
       pro: {
-        monthly: provider.plans.pro.monthly.amountMinor,
-        annual: provider.plans.pro.annual.amountMinor,
+        monthly: getPlanPrice('pro', 'monthly').amountMinor,
+        annual: getPlanPrice('pro', 'annual').amountMinor,
       },
     }
   } catch {

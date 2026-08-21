@@ -8,23 +8,27 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  "aria-label": ariaLabel,
   ...props
 }: SliderPrimitive.Root.Props) {
-  const _values = Array.isArray(value)
-    ? value
-    : Array.isArray(defaultValue)
-      ? defaultValue
-      : [min, max]
+  const controlledValues = value === undefined
+    ? undefined
+    : Array.isArray(value) ? value : [value]
+  const defaultValues = defaultValue === undefined
+    ? undefined
+    : Array.isArray(defaultValue) ? defaultValue : [defaultValue]
+  const thumbValues = controlledValues ?? defaultValues ?? [min]
 
   return (
     <SliderPrimitive.Root
       className={cn("data-horizontal:w-full data-vertical:h-full", className)}
       data-slot="slider"
-      defaultValue={defaultValue}
-      value={value}
+      defaultValue={defaultValues}
+      value={controlledValues}
       min={min}
       max={max}
       thumbAlignment="edge"
+      aria-label={ariaLabel}
       {...props}
     >
       <SliderPrimitive.Control className="relative flex w-full touch-none items-center select-none data-disabled:opacity-50 data-vertical:h-full data-vertical:min-h-40 data-vertical:w-auto data-vertical:flex-col">
@@ -37,11 +41,12 @@ function Slider({
             className="bg-primary select-none data-horizontal:h-full data-vertical:w-full"
           />
         </SliderPrimitive.Track>
-        {Array.from({ length: _values.length }, (_, index) => (
+        {Array.from({ length: thumbValues.length }, (_, index) => (
           <SliderPrimitive.Thumb
             data-slot="slider-thumb"
             key={index}
-            className="relative block size-3 shrink-0 rounded-full border border-ring bg-white ring-ring/50 transition-[color,box-shadow] select-none after:absolute after:-inset-2 hover:ring-3 focus-visible:ring-3 focus-visible:outline-hidden active:ring-3 disabled:pointer-events-none disabled:opacity-50"
+            aria-label={ariaLabel}
+            className="relative block size-11 shrink-0 rounded-full bg-transparent ring-ring/70 transition-[color,box-shadow] select-none before:absolute before:left-1/2 before:top-1/2 before:size-3 before:-translate-x-1/2 before:-translate-y-1/2 before:rounded-full before:border before:border-ring before:bg-white hover:ring-3 focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-hidden active:ring-3 disabled:pointer-events-none disabled:opacity-50"
           />
         ))}
       </SliderPrimitive.Control>

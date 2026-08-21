@@ -6,7 +6,12 @@ import {
   saveSubscriptionBillingProfile,
   startSubscriptionCheckout,
 } from '@garsonless/application/billing'
-import { createSubscriptionBillingOperationsPort } from '@garsonless/db/server'
+import {
+  createSubscriptionBillingOperationsPort,
+  recordLegalDocumentAcceptance,
+} from '@garsonless/db/server'
+import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
+import { getPlanPrice } from '@garsonless/domain/entitlements'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { assertOwner } from '../auth/access'
@@ -109,6 +114,31 @@ export async function startBillingCheckoutAction(
   try {
     const config = readIyzicoSubscriptionProviderConfig()
     const providerPlan = config.plans[parsed.data.plan][parsed.data.interval]
+    const acceptance = await recordLegalDocumentAcceptance({
+      userId: gate.userId,
+      documentType: 'checkout_summary_accepted',
+      documentVersion: LEGAL_DOCUMENT_VERSION,
+      occurredAt: new Date().toISOString(),
+      ipHash: null,
+      userAgent: null,
+      evidenceKey: parsed.data.requestId,
+      documentContext: {
+        plan: parsed.data.plan, interval: parsed.data.interval,
+        netAmountMinor: getPlanPrice(parsed.data.plan, parsed.data.interval).amountMinor,
+        vatRate: config.vatRate,
+        vatAmountMinor: providerPlan.amountMinor - getPlanPrice(parsed.data.plan, parsed.data.interval).amountMinor,
+        totalAmountMinor: providerPlan.amountMinor,
+        currency: 'TRY', kdvIncluded: false,
+        customer: {
+          legalName: parsed.data.profile.legalName,
+          identityNumber: parsed.data.profile.identityNumber,
+          taxOffice: parsed.data.profile.taxOffice,
+          email: parsed.data.profile.email,
+          billingAddress: parsed.data.profile.billingAddress,
+        },
+      },
+    })
+    if (!acceptance.ok) return dashboardActionFailure('SERVICE_UNAVAILABLE', { operation: 'billing.checkout.legal-evidence' })
     const intent = {
       operation: 'checkout.initialize', restaurantId: gate.restaurantId,
       plan: parsed.data.plan, interval: parsed.data.interval, profile: parsed.data.profile,

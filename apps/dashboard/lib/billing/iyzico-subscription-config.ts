@@ -1,5 +1,6 @@
 import {
   BILLING_INTERVALS,
+  calculatePlanCharge,
   getPlanPrice,
   SELF_SERVE_PLANS,
   type BillingInterval,
@@ -16,6 +17,7 @@ export type IyzicoSubscriptionProviderConfig = {
   apiKey: string
   secretKey: string
   baseUrl: typeof IYZICO_SUBSCRIPTION_SANDBOX_URL | typeof IYZICO_SUBSCRIPTION_LIVE_URL
+  vatRate: number
   plans: Record<SelfServePlan, Record<BillingInterval, ProviderPlan>>
 }
 
@@ -50,11 +52,20 @@ function envPrefix(plan: SelfServePlan, interval: BillingInterval): string {
   return `IYZICO_BILLING_${plan.toUpperCase()}_${interval.toUpperCase()}`
 }
 
-function providerPlan(env: BillingEnv, plan: SelfServePlan, interval: BillingInterval): ProviderPlan {
+function vatRateEnv(env: BillingEnv): number {
+  const rate = Number(requiredEnv(env, 'INVOICE_VAT_RATE'))
+  if (!Number.isInteger(rate) || rate < 0 || rate > 100) {
+    throw new Error('INVOICE_VAT_RATE must be an integer between 0 and 100')
+  }
+  return rate
+}
+
+function providerPlan(env: BillingEnv, plan: SelfServePlan, interval: BillingInterval, vatRate: number): ProviderPlan {
   const prefix = envPrefix(plan, interval)
   const amountMinor = amountEnv(env, `${prefix}_AMOUNT_MINOR`)
-  if (amountMinor !== getPlanPrice(plan, interval).amountMinor) {
-    throw new Error(`${prefix}_AMOUNT_MINOR does not match the canonical KDV-included catalogue price`)
+  const expected = calculatePlanCharge(getPlanPrice(plan, interval), vatRate).totalAmountMinor
+  if (amountMinor !== expected) {
+    throw new Error(`${prefix}_AMOUNT_MINOR does not match the canonical net price plus configured KDV`)
   }
   return {
     referenceCode: referenceEnv(env, `${prefix}_PLAN_REF`),
@@ -77,11 +88,12 @@ export function readIyzicoSubscriptionProviderConfig(
     throw new Error('IYZICO_BILLING_BASE_URL must use the live origin in production')
   }
 
+  const vatRate = vatRateEnv(env)
   const plans = Object.fromEntries(SELF_SERVE_PLANS.map((plan) => [
     plan,
     Object.fromEntries(BILLING_INTERVALS.map((interval) => [
       interval,
-      providerPlan(env, plan, interval),
+      providerPlan(env, plan, interval, vatRate),
     ])) as Record<BillingInterval, ProviderPlan>,
   ])) as Record<SelfServePlan, Record<BillingInterval, ProviderPlan>>
 
@@ -95,6 +107,7 @@ export function readIyzicoSubscriptionProviderConfig(
     apiKey: requiredEnv(env, 'IYZICO_BILLING_API_KEY'),
     secretKey: requiredEnv(env, 'IYZICO_BILLING_SECRET_KEY'),
     baseUrl,
+    vatRate,
     plans,
   }
 }

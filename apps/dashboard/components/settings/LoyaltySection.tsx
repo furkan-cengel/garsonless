@@ -45,6 +45,8 @@ import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
+import { LoyaltyCardShell, LoyaltyStampGrid } from '@garsonless/ui/menu'
+import { CouponManager } from './CouponManager'
 
 const TIER_COLORS = ['#b87333', '#8a9099', '#c8922a', '#5b7a86', '#3b82f6', '#a855f7']
 
@@ -455,6 +457,8 @@ export default function LoyaltySection({
         <SummaryChip on={hasPriorityTier} icon={<AppI.crown size={14} />} label={hasPriorityTier ? 'Öncelikli servis' : `${cfg.tiers.length} seviye`} />
       </div>
 
+      <CouponManager restaurantId={restaurantId} />
+
       <Module
         icon={I.stamp}
         title="Damga Kartı"
@@ -464,7 +468,7 @@ export default function LoyaltySection({
       >
         <div className="grid gap-7 xl:grid-cols-[minmax(0,1fr)_300px]">
           <div className="flex flex-col gap-5">
-            <Field label="Hedef damga sayısı" hint="Ödül için gereken damga (örn. 10 = 10. sipariş bedava)">
+            <Field label="Hedef damga sayısı" hint="Ödül için gereken ücretli uygun ürün adedi (örn. 9 = 9 ürün al, sonraki ürün ödül)">
               <NumberField value={cfg.stamp_goal} min={2} max={50} onChange={(stamp_goal) => patch({ stamp_goal: Math.floor(stamp_goal) })} />
             </Field>
             <Field label="Ödül metni" hint="Müşteriye gösterilecek ödül açıklaması">
@@ -475,36 +479,24 @@ export default function LoyaltySection({
             </Field>
           </div>
 
-          <div style={{ background: 'linear-gradient(135deg, #1f5642, #2f6f4e)', borderRadius: 16, padding: 18, color: '#fff', alignSelf: 'flex-start', position: 'sticky', top: 0 }}>
+          <LoyaltyCardShell background="#1f5642" foreground="#fffdf7" accent="#d7b06a" style={{ padding: 18, alignSelf: 'flex-start', position: 'sticky', top: 0 }}>
             <div style={{ fontSize: 10.5, opacity: 0.75, letterSpacing: '.1em', fontWeight: 700 }}>ÖNİZLEME · DAMGA KARTI</div>
-            <div style={{ fontSize: 16, fontWeight: 750, marginTop: 6 }}>{cfg.stamp_reward_text || 'Ödülünü topla'}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 7, marginTop: 14 }}>
-              {Array.from({ length: Math.min(Math.max(cfg.stamp_goal || 1, 1), 12) }).map((_, i) => {
-                const isReward = i === Math.min(Math.max(cfg.stamp_goal, 1), 12) - 1
-                const filled = i < Math.min(6, cfg.stamp_goal) && !isReward
-                return (
-                  <div key={i} style={{
-                    aspectRatio: '1',
-                    borderRadius: 999,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 13,
-                    color: filled ? '#1f5642' : '#fff',
-                    background: filled ? '#fff' : isReward ? 'rgba(255,255,255,.16)' : 'transparent',
-                    border: filled ? '1px solid rgba(255,255,255,.9)' : '1.5px dashed rgba(255,255,255,.55)',
-                    boxShadow: filled ? '0 2px 6px rgba(0,0,0,.12)' : 'none',
-                  }}>
-                    {filled ? <AppI.stamp size={15} strokeWidth={2.25} /> : isReward ? <AppI.gift size={15} strokeWidth={2.25} /> : null}
-                  </div>
-                )
-              })}
+            <div style={{ fontSize: 16, fontWeight: 750, marginTop: 6 }}>{cfg.stamp_reward_text || `${cfg.stamp_goal} ürün al, 1 ödül kazan`}</div>
+            <div style={{ marginTop: 14 }}>
+              <LoyaltyStampGrid
+                earnedStamps={Math.min(6, cfg.stamp_goal)}
+                stampGoal={cfg.stamp_goal}
+                foreground="#fffdf7"
+                filledBackground="#fffdf7"
+                filledForeground="#1f5642"
+                rewardColor="#d7b06a"
+              />
             </div>
             <div style={{ fontSize: 11.5, opacity: 0.82, marginTop: 12 }}>
-              {Math.min(6, cfg.stamp_goal)} / {cfg.stamp_goal} damga · {Math.max(cfg.stamp_goal - 6, 0)} kaldı
+              {Math.min(6, cfg.stamp_goal)} / {cfg.stamp_goal} ücretli ürün · {Math.max(cfg.stamp_goal - 6, 0)} kaldı
             </div>
             <div style={{ fontSize: 11.5, opacity: 0.82, marginTop: 4 }}>{itemName(cfg.reward_item_id)}</div>
-          </div>
+          </LoyaltyCardShell>
         </div>
       </Module>
 

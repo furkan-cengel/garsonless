@@ -17,8 +17,9 @@ const address = {
 test('checkout input normalizes provider identity without accepting free or malformed identity', () => {
   const parsed = checkoutRequestSchema.parse({
     requestId: '11111111-1111-4111-8111-111111111111', plan: 'pro', interval: 'annual',
+    checkoutTermsAccepted: true, legalDocumentVersion: '2026-08-16',
     profile: {
-      legalName: ' Masabu Test AŞ ', name: 'Masabu', surname: 'Test',
+      legalName: ' Masabu Test AŞ ', taxOffice: 'Kartal', name: 'Masabu', surname: 'Test',
       identityNumber: '11111111111', email: 'OWNER@EXAMPLE.COM',
       gsmNumber: '+90 (555) 111 22 33', billingAddress: address, shippingAddress: address,
     },
@@ -57,15 +58,15 @@ test('monthly period clamps end-of-month and callback URL is origin constrained'
     dueAt: '2024-02-29T10:00:00.000Z',
   })
   assert.equal(
-    billingCheckoutCallbackUrl('https://dashboard.masabu.co'),
-    'https://dashboard.masabu.co/api/billing/iyzico/checkout/callback',
+    billingCheckoutCallbackUrl('https://app.masabu.co'),
+    'https://app.masabu.co/api/billing/iyzico/checkout/callback',
   )
   assert.throws(() => billingCheckoutCallbackUrl('http://dashboard.example.com'), /origin is invalid/)
   assert.throws(() => billingDashboardUrl('/dashboard', undefined, 'production'), /origin is required/)
   assert.throws(() => billingDashboardUrl(
     '/dashboard', 'http://localhost:3000', 'production',
   ), /origin is invalid/)
-  assert.throws(() => billingCheckoutCallbackUrl('https://dashboard.masabu.co/base'), /origin is invalid/)
+  assert.throws(() => billingCheckoutCallbackUrl('https://app.masabu.co/base'), /origin is invalid/)
 })
 
 test('public billing plan prices require the complete checkout and webhook contract', () => {
@@ -75,18 +76,19 @@ test('public billing plan prices require the complete checkout and webhook contr
     IYZICO_BILLING_API_KEY: 'platform-api-key',
     IYZICO_BILLING_SECRET_KEY: 'platform-secret-key',
     IYZICO_BILLING_BASE_URL: 'https://api.iyzipay.com',
+    INVOICE_VAT_RATE: '20',
     IYZICO_BILLING_STARTER_MONTHLY_PLAN_REF: 'starter-monthly-live',
-    IYZICO_BILLING_STARTER_MONTHLY_AMOUNT_MINOR: '34900',
+    IYZICO_BILLING_STARTER_MONTHLY_AMOUNT_MINOR: '41880',
     IYZICO_BILLING_STARTER_ANNUAL_PLAN_REF: 'starter-annual-live',
-    IYZICO_BILLING_STARTER_ANNUAL_AMOUNT_MINOR: '335040',
+    IYZICO_BILLING_STARTER_ANNUAL_AMOUNT_MINOR: '402048',
     IYZICO_BILLING_PLUS_MONTHLY_PLAN_REF: 'plus-monthly-live',
-    IYZICO_BILLING_PLUS_MONTHLY_AMOUNT_MINOR: '69900',
+    IYZICO_BILLING_PLUS_MONTHLY_AMOUNT_MINOR: '83880',
     IYZICO_BILLING_PLUS_ANNUAL_PLAN_REF: 'plus-annual-live',
-    IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR: '671040',
+    IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR: '805248',
     IYZICO_BILLING_PRO_MONTHLY_PLAN_REF: 'pro-monthly-live',
-    IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR: '119900',
+    IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR: '143880',
     IYZICO_BILLING_PRO_ANNUAL_PLAN_REF: 'pro-annual-live',
-    IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR: '1151040',
+    IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR: '1381248',
   }
   assert.deepEqual(readBillingPlanPrices(complete), {
     starter: { monthly: 34_900, annual: 335_040 },

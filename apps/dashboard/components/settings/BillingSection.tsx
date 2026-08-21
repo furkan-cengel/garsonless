@@ -9,6 +9,7 @@ import type {
   SubscriptionBillingSettingsInvoice,
 } from '@garsonless/application/billing'
 import { PLAN_DEFINITIONS, normalizeRestaurantPlan, type BillingInterval } from '@garsonless/domain/entitlements'
+import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
 import type { BillingPlanPrices, PaidBillingPlan } from '../../lib/billing/subscription-billing-request'
 import {
   cancelBillingSubscriptionAction,
@@ -26,7 +27,7 @@ const EMPTY_ADDRESS: SubscriptionBillingAddress = {
 }
 
 const EMPTY_PROFILE: SubscriptionBillingProfile = {
-  legalName: '', name: '', surname: '', identityNumber: '', email: '', gsmNumber: '',
+  legalName: '', taxOffice: '', name: '', surname: '', identityNumber: '', email: '', gsmNumber: '',
   billingAddress: { ...EMPTY_ADDRESS }, shippingAddress: { ...EMPTY_ADDRESS },
 }
 
@@ -205,6 +206,7 @@ export default function BillingSection({
   const [feedback, setFeedback] = useState(checkoutState === 'success' ? 'Abonelik bilgileri doğrulandı. Ödeme sonucu işlenirken durum otomatik güncellenecek.' : '')
   const [checkoutContent, setCheckoutContent] = useState<string | null>(null)
   const [showCancel, setShowCancel] = useState(false)
+  const [checkoutTermsAccepted, setCheckoutTermsAccepted] = useState(false)
   const [profilePending, startProfileTransition] = useTransition()
   const [checkoutPending, startCheckoutTransition] = useTransition()
   const [cancelPending, startCancelTransition] = useTransition()
@@ -232,7 +234,8 @@ export default function BillingSection({
     setFeedback('')
     startCheckoutTransition(async () => {
       const result = await startBillingCheckoutAction(restaurantId, {
-        plan: selectedPlan, interval: selectedInterval, profile: effectiveProfile, requestId: crypto.randomUUID(),
+        plan: selectedPlan, interval: selectedInterval, profile: effectiveProfile,
+        requestId: crypto.randomUUID(), checkoutTermsAccepted, legalDocumentVersion: LEGAL_DOCUMENT_VERSION,
       })
       if ('error' in result) return setFeedback(failureMessage(result))
       notifySettingsSaved()
@@ -321,6 +324,7 @@ export default function BillingSection({
             <Field label="Ad" value={profile.name} onChange={(value) => setProfileValue('name', value)} />
             <Field label="Soyad" value={profile.surname} onChange={(value) => setProfileValue('surname', value)} />
             <Field label="VKN / TCKN" value={profile.identityNumber} onChange={(value) => setProfileValue('identityNumber', value.replace(/\D/g, '').slice(0, 11))} />
+            <Field label="Vergi dairesi" value={profile.taxOffice} onChange={(value) => setProfileValue('taxOffice', value)} />
             <Field label="Telefon" value={profile.gsmNumber} onChange={(value) => setProfileValue('gsmNumber', value)} placeholder="+90 555 000 00 00" />
             <div style={{ gridColumn: '1 / -1' }}><Field label="Fatura e-postası" type="email" value={profile.email} onChange={(value) => setProfileValue('email', value)} /></div>
           </div>
@@ -329,9 +333,26 @@ export default function BillingSection({
             <input type="checkbox" checked={shippingSame} onChange={(event) => setShippingSame(event.target.checked)} /> Teslimat adresi fatura adresiyle aynı
           </label>
           {!shippingSame && <AddressFields title="Teslimat adresi" value={profile.shippingAddress} onChange={(shippingAddress) => setProfile((current) => ({ ...current, shippingAddress }))} />}
+          <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface-inset)', fontSize: 12, lineHeight: 1.55 }}>
+            <strong>Ön bilgilendirme ve sözleşme özeti</strong>
+            <div style={{ marginTop: 6 }}>
+              {PLAN_DEFINITIONS[selectedPlan].label} · {selectedInterval === 'annual' ? '12 aylık, peşin' : '1 aylık'} ·{' '}
+              {planPrices[selectedPlan][selectedInterval] ? `${money(planPrices[selectedPlan][selectedInterval]!)} + KDV` : 'Tutar yapılandırılmadı'}
+            </div>
+            <div>{effectiveProfile.legalName || 'Fatura alıcısı'} · {effectiveProfile.identityNumber || 'VKN/TCKN'} · {effectiveProfile.taxOffice || 'Vergi dairesi'}</div>
+            <div style={{ marginTop: 6 }}>
+              <a href={`${process.env.NEXT_PUBLIC_MARKETING_URL || 'http://localhost:3003'}/yasal/abonelik-hizmet-sozlesmesi`} target="_blank" rel="noreferrer">Abonelik Hizmet Sözleşmesi</a>
+              {' · '}
+              <a href={`${process.env.NEXT_PUBLIC_MARKETING_URL || 'http://localhost:3003'}/yasal/iptal-iade-ve-dijital-teslimat`} target="_blank" rel="noreferrer">İptal ve iade politikası</a>
+            </div>
+          </div>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, lineHeight: 1.5, cursor: 'pointer' }}>
+            <input type="checkbox" checked={checkoutTermsAccepted} onChange={(event) => setCheckoutTermsAccepted(event.target.checked)} />
+            Seçtiğim planı, dönemi, KDV hariç liste fiyatını ve ödeme adımında KDV’nin ayrıca ekleneceğini okudum; Abonelik Hizmet Sözleşmesi’ni ticari işletmem adına onaylıyorum.
+          </label>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <button type="button" aria-busy={profilePending} onClick={saveProfile} disabled={pending} style={btnGhost()}>{profilePending ? 'Kaydediliyor…' : 'Profili kaydet'}</button>
-            <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={pending || planPrices[selectedPlan][selectedInterval] === null} style={btnPrimary({ opacity: pending || planPrices[selectedPlan][selectedInterval] === null ? .55 : 1, cursor: pending || planPrices[selectedPlan][selectedInterval] === null ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : `${PLAN_DEFINITIONS[selectedPlan].label} ödeme adımını aç`}</button>
+            <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={pending || !checkoutTermsAccepted || planPrices[selectedPlan][selectedInterval] === null} style={btnPrimary({ opacity: pending || !checkoutTermsAccepted || planPrices[selectedPlan][selectedInterval] === null ? .55 : 1, cursor: pending || !checkoutTermsAccepted || planPrices[selectedPlan][selectedInterval] === null ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : `${PLAN_DEFINITIONS[selectedPlan].label} ödeme adımını aç`}</button>
           </div>
           {feedback && <div role="status" style={{ fontSize: 12, color: feedback.includes('MAS-') ? 'var(--critical)' : 'var(--positive)', lineHeight: 1.5 }}>{feedback}</div>}
         </div>
