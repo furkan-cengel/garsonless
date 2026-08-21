@@ -71,7 +71,7 @@ function InteractiveProcessPoster({
         {visible && !frameReady && !frameFailed && (
           <span className="process-poster__loading" role="status">Etkileşimli demo yükleniyor…</span>
         )}
-        {frameFailed && (
+        {visible && frameFailed && (
           <span className="process-poster__loading process-poster__loading--error" role="status">
             Etkileşimli demo şu anda yüklenemedi.
           </span>
@@ -113,13 +113,16 @@ function PaymentCartPoster() {
 export function ProcessFlowSection() {
   const sectionRef = useRef<HTMLElement>(null)
   const [visibleSteps, setVisibleSteps] = useState<Set<number>>(new Set())
+  const [visibleConnectors, setVisibleConnectors] = useState<Set<number>>(new Set())
   const [activePreview, setActivePreview] = useState<ProcessStep | null>(null)
 
   useEffect(() => {
     const section = sectionRef.current
     if (!section) return
+    const mobileViewport = window.matchMedia('(max-width: 700px)')
     const elements = Array.from(section.querySelectorAll<HTMLElement>('[data-process-step]'))
-    const observer = new IntersectionObserver(
+    const connectors = Array.from(section.querySelectorAll<HTMLElement>('[data-process-connector]'))
+    const stepObserver = new IntersectionObserver(
       (entries) => {
         setVisibleSteps((previous) => {
           const next = new Set(previous)
@@ -129,10 +132,61 @@ export function ProcessFlowSection() {
           return next
         })
       },
-      { threshold: 0.3, rootMargin: '0px 0px -12% 0px' },
+      {
+        threshold: mobileViewport.matches ? 0.08 : 0.3,
+        rootMargin: mobileViewport.matches ? '0px 0px -4% 0px' : '0px 0px -12% 0px',
+      },
     )
-    elements.forEach((element) => observer.observe(element))
-    return () => observer.disconnect()
+    const connectorObserver = new IntersectionObserver(
+      (entries) => {
+        setVisibleConnectors((previous) => {
+          const next = new Set(previous)
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              next.add(Number((entry.target as HTMLElement).dataset.processConnector))
+            }
+          }
+          return next
+        })
+      },
+      { threshold: 0.2, rootMargin: '0px 0px -8% 0px' },
+    )
+    elements.forEach((element) => stepObserver.observe(element))
+    connectors.forEach((connector) => connectorObserver.observe(connector))
+
+    let scrollFrame = 0
+    const updateConnectorProgress = () => {
+      scrollFrame = 0
+      const viewportHeight = window.innerHeight
+      const startLine = viewportHeight * 0.84
+      const endLine = viewportHeight * 0.28
+
+      connectors.forEach((connector) => {
+        const bounds = connector.getBoundingClientRect()
+        const travel = bounds.height + startLine - endLine
+        const progress = Math.min(1, Math.max(0, (startLine - bounds.top) / travel))
+        const labelProgress = Math.min(1, Math.max(0, (progress - 0.34) / 0.16))
+        const progressPath = connector.querySelector<SVGPathElement>('.process-connector__progress')
+
+        progressPath?.style.setProperty('stroke-dashoffset', String(100 - progress * 100))
+        connector.style.setProperty('--connector-label-progress', labelProgress.toFixed(3))
+      })
+    }
+    const requestConnectorUpdate = () => {
+      if (scrollFrame) return
+      scrollFrame = window.requestAnimationFrame(updateConnectorProgress)
+    }
+
+    updateConnectorProgress()
+    window.addEventListener('scroll', requestConnectorUpdate, { passive: true })
+    window.addEventListener('resize', requestConnectorUpdate)
+    return () => {
+      stepObserver.disconnect()
+      connectorObserver.disconnect()
+      window.removeEventListener('scroll', requestConnectorUpdate)
+      window.removeEventListener('resize', requestConnectorUpdate)
+      if (scrollFrame) window.cancelAnimationFrame(scrollFrame)
+    }
   }, [])
 
   return (
@@ -202,7 +256,29 @@ export function ProcessFlowSection() {
                   )}
                 </article>
                 {index < processSteps.length - 1 && step.transitionLabel && (
-                  <div className="process-connector" data-visible={visible} data-reverse={index % 2 === 1}>
+                  <div
+                    className="process-connector"
+                    data-process-connector={index}
+                    data-visible={visibleConnectors.has(index)}
+                    data-reverse={index % 2 === 1}
+                  >
+                    <svg
+                      className="process-connector__path"
+                      viewBox="0 0 100 220"
+                      preserveAspectRatio="none"
+                      aria-hidden="true"
+                    >
+                      <path
+                        className="process-connector__track"
+                        d="M 50 0 V 26 C 50 39 43 48 31 48 H 12 C 5 48 2 55 2 63 V 91 C 2 102 10 110 21 110 H 79 C 90 110 98 118 98 129 V 145 C 98 157 90 165 79 165 H 63 C 54 165 50 172 50 181 V 220"
+                        pathLength="100"
+                      />
+                      <path
+                        className="process-connector__progress"
+                        d="M 50 0 V 26 C 50 39 43 48 31 48 H 12 C 5 48 2 55 2 63 V 91 C 2 102 10 110 21 110 H 79 C 90 110 98 118 98 129 V 145 C 98 157 90 165 79 165 H 63 C 54 165 50 172 50 181 V 220"
+                        pathLength="100"
+                      />
+                    </svg>
                     <span>{step.transitionLabel}</span>
                   </div>
                 )}

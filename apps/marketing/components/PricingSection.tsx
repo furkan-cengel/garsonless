@@ -4,70 +4,20 @@ import { useState } from 'react'
 import {
   PLAN_PRICES,
   type BillingInterval,
-  type SelfServePlan,
 } from '@garsonless/domain/entitlements'
 import { MI } from '../lib/icons'
+import { MARKETING_PLANS, type MarketingPlan } from '../lib/pricing-catalog'
 
 const DASHBOARD_URL = process.env.NEXT_PUBLIC_DASHBOARD_URL ?? 'http://localhost:3000'
 const FEATURE_PREVIEW_COUNT = 4
 
-type PlanCard = {
-  id: SelfServePlan | 'business'
-  name: string
-  description: string
-  highlight?: boolean
-  features: string[]
-}
-
-const PLANS: PlanCard[] = [
-  {
-    id: 'starter',
-    name: 'Starter',
-    description: 'Dijital menüyle başlayın.',
-    features: ['Sınırsız ürün ve kategori', 'QR menü ve zengin ürün içeriği', 'Logo, renk, tipografi ve kart düzenleri'],
-  },
-  {
-    id: 'plus',
-    name: 'Plus',
-    description: 'Masa ve adisyon operasyonu.',
-    features: [
-      'Starter’daki her şey',
-      'Masa bazlı QR ve QR Studio',
-      'Personel siparişi, adisyon ve tahsilat',
-      'Temel satış, ürün, masa ve ödeme raporları',
-      'Ekip ve yetkilendirme',
-    ],
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    description: 'Siparişten sadakate tam operasyon.',
-    highlight: true,
-    features: [
-      'Plus’taki her şey',
-      'Müşteri sepeti ve QR siparişi',
-      'Servis çağrısı, KDS ve istasyonlar',
-      'Online ödeme ve hesap bölüşme',
-      'Müşteri hesabı, CRM, sadakat ve kampanyalar',
-      'Gelişmiş raporlar ve bildirimler',
-      'Gelişmiş tema bölümleri ve video',
-    ],
-  },
-  {
-    id: 'business',
-    name: 'Business',
-    description: 'Çok şubeli işletmeler için.',
-    features: ['Pro’daki her şey', 'Organizasyon ve ortak ekip erişimi', 'Güvenli şube geçişi', 'Satış destekli kurulum'],
-  },
-]
-
-function money(minor: number, digits = 0): string {
+export function pricingMoney(minor: number, digits = 0): string {
   return new Intl.NumberFormat('tr-TR', {
     style: 'currency', currency: 'TRY', minimumFractionDigits: digits, maximumFractionDigits: digits,
   }).format(minor / 100)
 }
 
-function PriceCard({ plan, interval }: { plan: PlanCard; interval: BillingInterval }) {
+function PriceCard({ plan, interval }: { plan: MarketingPlan; interval: BillingInterval }) {
   const [expanded, setExpanded] = useState(false)
   const isBusiness = plan.id === 'business'
   const price = plan.id === 'business' ? null : PLAN_PRICES[plan.id][interval]
@@ -78,10 +28,10 @@ function PriceCard({ plan, interval }: { plan: PlanCard; interval: BillingInterv
   const billingMeta = isBusiness
     ? 'Şube sayınıza göre özel fiyatlandırma'
     : interval === 'annual' && price
-      ? `Yıllık peşin ${money(price.amountMinor, 2)}`
+      ? `Yıllık peşin ${pricingMoney(price.amountMinor, 2)}`
       : null
   const href = isBusiness
-    ? '/company?subject=business#iletişim'
+    ? '/iletisim?subject=business#satis-formu'
     : `${DASHBOARD_URL}/auth/signup?plan=${plan.id}`
 
   return (
@@ -93,7 +43,7 @@ function PriceCard({ plan, interval }: { plan: PlanCard; interval: BillingInterv
         </div>
         <p className="pricing-description">{plan.description}</p>
         <div className="pricing-price">
-          {isBusiness ? 'Özel teklif' : <>{money(monthlyEquivalent ?? 0, interval === 'annual' ? 2 : 0)}<small>/ay</small></>}
+          {isBusiness ? 'Özel teklif' : <>{pricingMoney(monthlyEquivalent ?? 0, interval === 'annual' ? 2 : 0)}<small>/ay</small></>}
         </div>
         <div className="pricing-billing-meta">{billingMeta}</div>
         <a className="pricing-cta" href={href}>{isBusiness ? 'Bizimle konuş' : '14 gün ücretsiz dene'}</a>
@@ -126,6 +76,29 @@ function PriceCard({ plan, interval }: { plan: PlanCard; interval: BillingInterv
   )
 }
 
+export function PricingIntervalToggle({
+  interval,
+  onChange,
+}: {
+  interval: BillingInterval
+  onChange: (interval: BillingInterval) => void
+}) {
+  return (
+    <div className="pricing-toggle" role="group" aria-label="Faturalandırma dönemi">
+      <button type="button" aria-pressed={interval === 'monthly'} onClick={() => onChange('monthly')}>Aylık</button>
+      <button type="button" aria-pressed={interval === 'annual'} onClick={() => onChange('annual')}>Yıllık <span>%20 indirim</span></button>
+    </div>
+  )
+}
+
+export function PricingPlanCards({ interval }: { interval: BillingInterval }) {
+  return (
+    <div className="pricing-grid">
+      {MARKETING_PLANS.map((plan) => <PriceCard key={plan.id} plan={plan} interval={interval} />)}
+    </div>
+  )
+}
+
 export function PricingSection() {
   const [interval, setInterval] = useState<BillingInterval>('monthly')
 
@@ -135,17 +108,15 @@ export function PricingSection() {
         <div className="pricing-heading">
           <h2 className="font-display">Fiyatlandırma</h2>
           <div className="pricing-toolbar">
-            <div className="pricing-toggle" role="group" aria-label="Faturalandırma dönemi">
-              <button type="button" aria-pressed={interval === 'monthly'} onClick={() => setInterval('monthly')}>Aylık</button>
-              <button type="button" aria-pressed={interval === 'annual'} onClick={() => setInterval('annual')}>Yıllık <span>%20 indirim</span></button>
-            </div>
-            <p>KDV dâhil · Sipariş komisyonu yok · Starter, Plus ve Pro’da taahhüt yok</p>
+            <PricingIntervalToggle interval={interval} onChange={setInterval} />
+            <p>KDV hariç · Sipariş komisyonu yok · Starter, Plus ve Pro’da taahhüt yok</p>
           </div>
         </div>
 
-        <div className="pricing-grid">
-          {PLANS.map((plan) => <PriceCard key={plan.id} plan={plan} interval={interval} />)}
-        </div>
+        <PricingPlanCards interval={interval} />
+        <a className="pricing-detail-link" href="/fiyatlar">
+          Tüm paketleri ve özellikleri karşılaştır <MI.arrow size={16} />
+        </a>
       </div>
     </section>
   )

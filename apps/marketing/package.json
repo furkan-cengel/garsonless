@@ -4,16 +4,20 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack --port 3003",
-    "build": "next build",
+    "build": "node scripts/legal-readiness.mjs && next build",
+    "check:release": "MASABU_RELEASE_BUILD=true node scripts/legal-readiness.mjs",
     "start": "next start",
     "lint": "eslint .",
     "test": "node --import tsx --test components/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@base-ui/react": "^1.7.0",
     "@garsonless/domain": "workspace:*",
     "@garsonless/ui": "workspace:*",
+    "lucide-react": "^1.21.0",
     "next": "^15.5.21",
+    "next-mdx-remote": "^6.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

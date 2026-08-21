@@ -163,7 +163,7 @@ export function MarketingNav() {
         </div>
 
         <div className="marketing-nav__actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <a className="marketing-nav__login" href={`${DASHBOARD_URL}/login`}>Giriş yap</a>
+          <a className="marketing-nav__login" href={`${DASHBOARD_URL}/auth/login`}>Giriş yap</a>
           <a className="marketing-nav__trial-link" href={`${DASHBOARD_URL}/auth/signup`}>
             <PrimaryButton size="sm" className="marketing-nav__trial">
               <span className="marketing-nav__trial-full">14 gün ücretsiz dene</span>
@@ -207,7 +207,7 @@ export function MarketingNav() {
           <div className="marketing-nav__mobile-actions">
             <a
               className="marketing-nav__mobile-login"
-              href={`${DASHBOARD_URL}/login`}
+              href={`${DASHBOARD_URL}/auth/login`}
               onClick={closeMobileMenu}
             >
               Giriş yap
