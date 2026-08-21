@@ -15,7 +15,7 @@ export interface PublicOrderLine {
   }
   promotion?: {
     sectionInstanceId: string
-    kind: 'discount-badge' | 'daily-special'
+    kind: 'discount-badge' | 'daily-special' | 'promo-slider'
   }
 }
 
@@ -33,6 +33,7 @@ export interface PlacePublicOrderCommand {
   redeemPoints: number
   redeemStampClaim: boolean
   catalogItemId: string | null
+  couponCode?: string | null
   rateLimitKey: string
 }
 
@@ -93,6 +94,7 @@ export async function placePublicOrder(
     redeemPoints: command.redeemPoints,
     redeemStampClaim: command.redeemStampClaim,
     catalogItemId: command.catalogItemId,
+    couponCode: command.couponCode ?? null,
   })
 }
 

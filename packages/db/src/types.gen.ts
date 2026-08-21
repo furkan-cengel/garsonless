@@ -14,6 +14,132 @@ export type Database = {
   }
   public: {
     Tables: {
+      coupon_categories: {
+        Row: { category_id: string; coupon_id: string }
+        Insert: { category_id: string; coupon_id: string }
+        Update: { category_id?: string; coupon_id?: string }
+        Relationships: []
+      }
+      coupon_items: {
+        Row: { coupon_id: string; item_id: string }
+        Insert: { coupon_id: string; item_id: string }
+        Update: { coupon_id?: string; item_id?: string }
+        Relationships: []
+      }
+      coupon_redemptions: {
+        Row: {
+          code: string
+          consumed_at: string
+          coupon_id: string
+          customer_id: string | null
+          discount_amount: number
+          id: string
+          order_id: string
+          release_reason: string | null
+          released_at: string | null
+          restaurant_id: string
+          status: string
+        }
+        Insert: {
+          code: string
+          consumed_at?: string
+          coupon_id: string
+          customer_id?: string | null
+          discount_amount: number
+          id?: string
+          order_id: string
+          release_reason?: string | null
+          released_at?: string | null
+          restaurant_id: string
+          status?: string
+        }
+        Update: {
+          code?: string
+          consumed_at?: string
+          coupon_id?: string
+          customer_id?: string | null
+          discount_amount?: number
+          id?: string
+          order_id?: string
+          release_reason?: string | null
+          released_at?: string | null
+          restaurant_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      coupons: {
+        Row: {
+          archived_at: string | null
+          audience: string
+          code: string
+          created_at: string
+          discount_type: string
+          discount_value: number
+          enabled: boolean
+          ends_at: string | null
+          id: string
+          marketing_description: string | null
+          marketing_label: string | null
+          maximum_discount_amount: number | null
+          minimum_amount: number
+          name: string
+          per_customer_limit: number | null
+          restaurant_id: string
+          scope: string
+          stacking_policy: string
+          starts_at: string | null
+          total_usage_limit: number | null
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          audience?: string
+          code: string
+          created_at?: string
+          discount_type: string
+          discount_value: number
+          enabled?: boolean
+          ends_at?: string | null
+          id?: string
+          marketing_description?: string | null
+          marketing_label?: string | null
+          maximum_discount_amount?: number | null
+          minimum_amount?: number
+          name: string
+          per_customer_limit?: number | null
+          restaurant_id: string
+          scope?: string
+          stacking_policy?: string
+          starts_at?: string | null
+          total_usage_limit?: number | null
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          audience?: string
+          code?: string
+          created_at?: string
+          discount_type?: string
+          discount_value?: number
+          enabled?: boolean
+          ends_at?: string | null
+          id?: string
+          marketing_description?: string | null
+          marketing_label?: string | null
+          maximum_discount_amount?: number | null
+          minimum_amount?: number
+          name?: string
+          per_customer_limit?: number | null
+          restaurant_id?: string
+          scope?: string
+          stacking_policy?: string
+          starts_at?: string | null
+          total_usage_limit?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       billing_customers: {
         Row: {
           billing_address: Json | null

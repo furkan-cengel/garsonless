@@ -88,6 +88,12 @@ export interface OrderLineSnapshot {
   vatRate: number | null
   vatIncluded: true
   station: OrderLineStationSnapshot | null
+  promotion?: {
+    offer: 'freebie'
+    role?: 'qualifier' | 'reward'
+    instanceId?: string
+    sectionInstanceId: string
+  }
 }
 
 export interface ResolvableMenuItem {

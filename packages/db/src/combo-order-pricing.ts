@@ -1,4 +1,4 @@
-import { allocateBundlePrice, parseBundlePrice } from '@garsonless/domain/menu'
+import { allocateBundlePrice, parseBundlePrice, resolveComboRibbonSelection } from '@garsonless/domain/menu'
 
 export interface ComboOrderLine {
   itemId: string
@@ -23,6 +23,12 @@ export interface PublishedThemeTokens {
     id?: unknown
     sectionId?: unknown
   }>
+  surfaces?: {
+    home?: {
+      enabled?: unknown
+      blocks?: Array<{ id?: unknown; sectionId?: unknown; enabled?: unknown }>
+    }
+  }
   sectionSettings?: Record<string, unknown>
 }
 
@@ -37,9 +43,50 @@ function stringSetting(settings: Record<string, unknown>, key: string): string |
   return typeof value === 'string' ? value : undefined
 }
 
-function boundedInteger(value: string | undefined, fallback: number, min: number, max: number): number {
-  const parsed = Number(value)
-  return Number.isInteger(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback
+function publishedSectionBlocks(tokens: PublishedThemeTokens) {
+  const menuBlocks = Array.isArray(tokens.pageBlocks) ? tokens.pageBlocks : []
+  const surfaces = recordValue(tokens.surfaces)
+  const home = recordValue(surfaces?.['home'])
+  const homeBlocks = home?.['enabled'] === true && Array.isArray(home['blocks'])
+    ? home['blocks'].flatMap((value) => {
+        const block = recordValue(value)
+        return block?.['enabled'] === true
+          ? [{ type: 'section', id: block['id'], sectionId: block['sectionId'] }]
+          : []
+      })
+    : []
+  return [...menuBlocks, ...homeBlocks]
+}
+
+function promoSliderSourceMode(settings: Record<string, unknown>) {
+  const stored = stringSetting(settings, 'sourceMode')
+  if (stored === 'active' || stored === 'mixed' || stored === 'manual') return stored
+  return Object.keys(settings).some((key) => /^(coupon|flash|freebie|loyalty|combo)/.test(key)) ? 'manual' : 'active'
+}
+
+function normalizePromoSliderCombo(settings: Record<string, unknown>): Record<string, unknown> | null {
+  if (
+    promoSliderSourceMode(settings) === 'active'
+    || stringSetting(settings, 'comboEnabled') === 'false'
+    || stringSetting(settings, 'comboTargetType') !== 'cart'
+  ) return null
+  const ids = [1, 2, 3]
+    .map((index) => stringSetting(settings, `comboItem${index}Id`)?.trim())
+    .filter((id): id is string => Boolean(id))
+  if (ids.length < 2 || new Set(ids).size !== ids.length) return null
+  const configuredPrice = parseBundlePrice(stringSetting(settings, 'comboPrice'))
+  if (configuredPrice === null) return null
+  return {
+    ...settings,
+    selectionMode: 'manual',
+    comboCount: '1',
+    itemsPerCombo: String(ids.length),
+    combo1Item1Id: ids[0],
+    combo1Item2Id: ids[1],
+    ...(ids[2] ? { combo1Item3Id: ids[2] } : {}),
+    combo1Price: String(configuredPrice),
+    ...(stringSetting(settings, 'comboDiscountPolicy') ? { combo1DiscountPolicy: stringSetting(settings, 'comboDiscountPolicy') } : {}),
+  }
 }
 
 /**
@@ -55,12 +102,9 @@ export function resolveComboPriceOverrides(input: {
   const comboLineIndexes = input.lines.flatMap((line, index) => line.combo ? [index] : [])
   if (comboLineIndexes.length === 0) return { ok: true, pricesByLine: new Map(), loyaltyStackingAllowed: true }
 
-  const pageBlocks = Array.isArray(input.tokens.pageBlocks) ? input.tokens.pageBlocks : []
+  const pageBlocks = publishedSectionBlocks(input.tokens)
   const sectionSettings = recordValue(input.tokens.sectionSettings) ?? {}
-  const availableItems = input.catalogItems
-    .filter((item) => item.is_available)
-    .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))
-  const availableById = new Map(availableItems.map((item) => [item.id, item]))
+  const catalogById = new Map(input.catalogItems.map((item) => [item.id, item]))
   const groups = new Map<string, number[]>()
 
   for (const lineIndex of comboLineIndexes) {
@@ -90,38 +134,37 @@ export function resolveComboPriceOverrides(input: {
 
     const block = pageBlocks.find((candidate) => candidate.id === combo.sectionInstanceId)
     const sectionDefinitionId = block?.sectionId ?? block?.id
-    if (block?.type !== 'section' || sectionDefinitionId !== 'combo-ribbon') {
+    if (block?.type !== 'section' || (sectionDefinitionId !== 'combo-ribbon' && sectionDefinitionId !== 'promo-slider')) {
       return { ok: false, error: 'Kombo artık yayında değil. Menüyü yenileyin.' }
     }
 
-    const settings = recordValue(sectionSettings[combo.sectionInstanceId])
-      ?? recordValue(sectionSettings['combo-ribbon'])
-    if (!settings) return { ok: false, error: 'Kombo ayarları bulunamadı.' }
-
-    const comboCount = boundedInteger(stringSetting(settings, 'comboCount'), 2, 1, 3)
-    const itemsPerCombo = boundedInteger(stringSetting(settings, 'itemsPerCombo'), 2, 2, 3)
-    if (combo.comboIndex < 1 || combo.comboIndex > comboCount) {
+    const storedSettings = recordValue(sectionSettings[combo.sectionInstanceId])
+      ?? recordValue(sectionSettings[sectionDefinitionId])
+    if (!storedSettings) return { ok: false, error: 'Kombo ayarları bulunamadı.' }
+    const settings = sectionDefinitionId === 'promo-slider'
+      ? normalizePromoSliderCombo(storedSettings)
+      : storedSettings
+    if (!settings) return { ok: false, error: 'Kombo artık etkin değil. Menüyü yenileyin.' }
+    if (sectionDefinitionId === 'promo-slider' && combo.comboIndex !== 1) {
       return { ok: false, error: 'Kombo artık yayında değil. Menüyü yenileyin.' }
     }
 
-    const selectionMode = stringSetting(settings, 'selectionMode') === 'manual' ? 'manual' : 'automatic'
-    let expectedItems: ComboCatalogItem[] = []
-    if (selectionMode === 'manual') {
-      const seen = new Set<string>()
-      for (let itemIndex = 1; itemIndex <= 3; itemIndex += 1) {
-        const itemId = stringSetting(settings, `combo${combo.comboIndex}Item${itemIndex}Id`)?.trim()
-        const item = itemId ? availableById.get(itemId) : undefined
-        if (!item || seen.has(item.id)) continue
-        seen.add(item.id)
-        expectedItems.push(item)
-        if (expectedItems.length === itemsPerCombo) break
-      }
-    } else {
-      const start = (combo.comboIndex - 1) * itemsPerCombo
-      expectedItems = availableItems.slice(start, start + itemsPerCombo)
+    const resolution = resolveComboRibbonSelection(settings, input.catalogItems.map((item) => ({
+      id: item.id,
+      price: Number(item.price),
+      position: item.position,
+      isAvailable: item.is_available,
+    })))
+    const expectedGroup = resolution.groups.find((candidate) => candidate.index === combo.comboIndex)
+    if (!expectedGroup) {
+      const invalidPrice = resolution.issues.some((issue) => issue.comboIndex === combo.comboIndex && issue.code === 'invalid-campaign-price')
+      return { ok: false, error: invalidPrice ? 'Kombo kampanya fiyatı normal toplamdan düşük olmalıdır.' : 'Kombo içeriği değişmiş. Menüyü yenileyip tekrar deneyin.' }
     }
-
-    if (expectedItems.length < 2 || expectedItems.length !== lineIndexes.length) {
+    const expectedItems = expectedGroup.itemIds.flatMap((itemId) => {
+      const item = catalogById.get(itemId)
+      return item ? [item] : []
+    })
+    if (expectedItems.length !== expectedGroup.itemIds.length || expectedItems.length !== lineIndexes.length) {
       return { ok: false, error: 'Kombo içeriği değişmiş. Menüyü yenileyip tekrar deneyin.' }
     }
     const sentItemIds = lineIndexes.map((index) => input.lines[index]?.itemId ?? '')
@@ -130,14 +173,14 @@ export function resolveComboPriceOverrides(input: {
       return { ok: false, error: 'Kombo içeriği değişmiş. Menüyü yenileyip tekrar deneyin.' }
     }
 
-    const catalogTotal = expectedItems.reduce((sum, item) => sum + Number(item.price), 0)
-    const configuredPrice = parseBundlePrice(settings[`combo${combo.comboIndex}Price`])
+    if (sectionDefinitionId === 'promo-slider' && !expectedGroup.hasPromotionalPrice) {
+      return { ok: false, error: 'Kombo kampanya fiyatı geçersiz. Menüyü yenileyin.' }
+    }
     const discountPolicy = stringSetting(settings, `combo${combo.comboIndex}DiscountPolicy`)
-    const hasPromotionalPrice = configuredPrice !== null && configuredPrice < catalogTotal
-    if (hasPromotionalPrice && discountPolicy === 'combo-only') loyaltyStackingAllowed = false
+    if (expectedGroup.hasPromotionalPrice && discountPolicy === 'combo-only') loyaltyStackingAllowed = false
     const allocatedPrices = allocateBundlePrice(
       expectedItems.map((item) => Number(item.price)),
-      configuredPrice ?? catalogTotal,
+      expectedGroup.total,
     )
     const priceByItemId = new Map(expectedItems.map((item, index) => [item.id, allocatedPrices[index] ?? Number(item.price)]))
     for (const lineIndex of lineIndexes) {

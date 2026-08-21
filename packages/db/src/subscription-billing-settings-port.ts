@@ -61,17 +61,19 @@ function address(value: unknown): SubscriptionBillingAddress | null {
 function profile(value: unknown): SubscriptionBillingProfile | null | undefined {
   if (value === null) return null
   const row = object(value)
+  const billingAddressRow = object(row?.billingAddress)
   const billingAddress = address(row?.billingAddress)
   const shippingAddress = address(row?.shippingAddress)
   const legalName = text(row?.legalName)
+  const taxOffice = text(row?.taxOffice) ?? text(billingAddressRow?.taxOffice)
   const name = text(row?.name)
   const surname = text(row?.surname)
   const identityNumber = text(row?.identityNumber)
   const email = text(row?.email)
   const gsmNumber = text(row?.gsmNumber)
-  return row && billingAddress && shippingAddress && legalName && name && surname
+  return row && billingAddress && shippingAddress && legalName && taxOffice && name && surname
     && identityNumber && email && gsmNumber
-    ? { legalName, name, surname, identityNumber, email, gsmNumber, billingAddress, shippingAddress }
+    ? { legalName, taxOffice, name, surname, identityNumber, email, gsmNumber, billingAddress, shippingAddress }
     : undefined
 }
 

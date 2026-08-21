@@ -11,6 +11,7 @@ import {
   parseMenuNumericInput,
   resolveSectionPromotionPrice,
   resolveSectionCampaignTiming,
+  resolveComboRibbonSelection,
   separateAllergenDeclarations,
   toggleAllergenDeclaration,
 } from './menu'
@@ -21,11 +22,26 @@ test('normalizes only supported allergen codes', () => {
 
 test('parses and allocates merchant bundle prices without losing cents', () => {
   assert.equal(parseBundlePrice('₺ 200,50'), 200.5)
+  assert.equal(parseBundlePrice('₺1.999.999,99'), 1_999_999.99)
   assert.equal(parseBundlePrice(''), null)
   assert.equal(parseBundlePrice('-1'), null)
   const allocated = allocateBundlePrice([100, 200, 300], 199.99)
   assert.equal(Math.round(allocated.reduce((sum, price) => sum + price, 0) * 100), 19999)
   assert.deepEqual(allocateBundlePrice([0, 0, 0], 1), [0.34, 0.33, 0.33])
+})
+
+test('combo selection is the shared four-product and versioned price contract', () => {
+  const products = [1, 2, 3, 4].map((index) => ({ id: String(index), price: 100, position: index, isAvailable: true }))
+  const resolved = resolveComboRibbonSelection({
+    editorialVersion: '2', selectionMode: 'manual', comboCount: '1', itemsPerCombo: '4',
+    combo1Item1Id: '1', combo1Item2Id: '2', combo1Item3Id: '3', combo1Item4Id: '4', combo1Price: '300',
+  }, products)
+  assert.deepEqual(resolved.groups[0]?.itemIds, ['1', '2', '3', '4'])
+  assert.equal(resolved.groups[0]?.savings, 100)
+
+  const invalid = resolveComboRibbonSelection({ editorialVersion: '2', comboCount: '1', combo1Price: '400' }, products.slice(0, 2))
+  assert.deepEqual(invalid.groups, [])
+  assert.ok(invalid.issues.some(({ code }) => code === 'invalid-campaign-price'))
 })
 
 test('resolves percentage and localized fixed-price section promotions in exact cents', () => {

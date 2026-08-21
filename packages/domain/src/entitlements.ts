@@ -26,29 +26,45 @@ function isKnownPlanInput(value: unknown): boolean {
 export const PLAN_PRICE_CURRENCY = 'TRY' as const
 
 export type PlanPrice = {
-  /** KDV dahil, TRY minor units (kuruş). */
+  /** KDV hariç liste fiyatı, TRY minor units (kuruş). */
   amountMinor: number
   currency: typeof PLAN_PRICE_CURRENCY
-  vatIncluded: true
+  vatIncluded: false
 }
 
 export const PLAN_PRICES: Readonly<Record<SelfServePlan, Readonly<Record<BillingInterval, PlanPrice>>>> = {
   starter: {
-    monthly: { amountMinor: 34_900, currency: PLAN_PRICE_CURRENCY, vatIncluded: true },
-    annual: { amountMinor: 335_040, currency: PLAN_PRICE_CURRENCY, vatIncluded: true },
+    monthly: { amountMinor: 34_900, currency: PLAN_PRICE_CURRENCY, vatIncluded: false },
+    annual: { amountMinor: 335_040, currency: PLAN_PRICE_CURRENCY, vatIncluded: false },
   },
   plus: {
-    monthly: { amountMinor: 69_900, currency: PLAN_PRICE_CURRENCY, vatIncluded: true },
-    annual: { amountMinor: 671_040, currency: PLAN_PRICE_CURRENCY, vatIncluded: true },
+    monthly: { amountMinor: 69_900, currency: PLAN_PRICE_CURRENCY, vatIncluded: false },
+    annual: { amountMinor: 671_040, currency: PLAN_PRICE_CURRENCY, vatIncluded: false },
   },
   pro: {
-    monthly: { amountMinor: 119_900, currency: PLAN_PRICE_CURRENCY, vatIncluded: true },
-    annual: { amountMinor: 1_151_040, currency: PLAN_PRICE_CURRENCY, vatIncluded: true },
+    monthly: { amountMinor: 119_900, currency: PLAN_PRICE_CURRENCY, vatIncluded: false },
+    annual: { amountMinor: 1_151_040, currency: PLAN_PRICE_CURRENCY, vatIncluded: false },
   },
 }
 
 export function getPlanPrice(plan: SelfServePlan, interval: BillingInterval): PlanPrice {
   return PLAN_PRICES[plan][interval]
+}
+
+export function calculatePlanCharge(price: PlanPrice, vatRate: number): {
+  netAmountMinor: number
+  vatAmountMinor: number
+  totalAmountMinor: number
+} {
+  if (!Number.isInteger(vatRate) || vatRate < 0 || vatRate > 100) {
+    throw new Error('VAT rate must be an integer between 0 and 100')
+  }
+  const vatAmountMinor = Math.round(price.amountMinor * vatRate / 100)
+  return {
+    netAmountMinor: price.amountMinor,
+    vatAmountMinor,
+    totalAmountMinor: price.amountMinor + vatAmountMinor,
+  }
 }
 
 export const BILLABLE_FEATURES = [

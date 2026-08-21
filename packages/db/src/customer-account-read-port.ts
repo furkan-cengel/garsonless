@@ -18,6 +18,8 @@ interface CustomerAccountLoyaltyRecord {
   points: number
   stamps: number
   stampGoal: number
+  stampRewardText: string
+  stampUnlocked: boolean
   pointsEnabled: boolean
   stampsEnabled: boolean
   tier: { name: string; color: string }
@@ -211,6 +213,8 @@ export async function readCustomerAccountRecord(customerId: string): Promise<Cus
       points: Math.max(0, points),
       stamps: Math.max(0, stamps),
       stampGoal: config.stamp_goal,
+      stampRewardText: config.stamp_reward_text,
+      stampUnlocked: config.stamp_enabled && config.stamp_goal > 0 && stamps >= config.stamp_goal,
       pointsEnabled: config.points_enabled,
       stampsEnabled: config.stamp_enabled,
       tier: { name: tier.tier.name, color: tier.tier.color },

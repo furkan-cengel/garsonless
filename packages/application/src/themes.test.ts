@@ -350,7 +350,7 @@ test('public theme projection hides Pro blocks without deleting the persisted do
   assert.equal(persisted.surfaces.home.blocks.length, 2)
 })
 
-test('hero video ile zorunlu poster birlikte değilse taslağı reddeder', async () => {
+test('hero video eksik medyayla taslakta saklanır ancak doğrudan yayınlanamaz', async () => {
   const adapter = port()
   const home = DEFAULT_THEME.surfaces!.home
   const result = await saveRestaurantThemeDraft(context, {
@@ -366,5 +366,30 @@ test('hero video ile zorunlu poster birlikte değilse taslağı reddeder', async
     expectedRevision: 3,
     requestId: request.requestId,
   }, adapter)
-  assert.deepEqual(result, err('Invalid theme document'))
+  assert.equal(result.ok, true)
+
+  const publishResult = await publishRestaurantTheme(context, {
+    restaurantId: 'restaurant-a',
+    templateId: 'default',
+    theme: {
+      ...DEFAULT_THEME,
+      surfaces: {
+        ...DEFAULT_THEME.surfaces!,
+        home: { ...home, sections: [...home.sections, { id: 'home-video', type: 'hero-video', enabled: true, videoUrl: 'https://cdn.example.com/video.mp4' }] },
+      },
+    },
+    ...request,
+  }, adapter)
+  assert.deepEqual(publishResult, err('Invalid theme document'))
+
+  const v2PublishResult = await publishRestaurantTheme(context, {
+    restaurantId: 'restaurant-a', templateId: 'default',
+    theme: {
+      ...DEFAULT_THEME,
+      surfaces: { ...DEFAULT_THEME.surfaces!, home: { ...home, blocks: [{ id: 'video-v2', sectionId: 'storefront-video-hero', enabled: true }] } },
+      sectionSettings: { 'video-v2': { editorialVersion: '2', posterUrl: 'https://cdn.example.com/poster.webp' } },
+    },
+    ...request,
+  }, adapter)
+  assert.deepEqual(v2PublishResult, err('Invalid theme document'))
 })

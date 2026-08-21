@@ -13,7 +13,7 @@ const migration = readFileSync(
 )
 
 const profile: SubscriptionBillingProfile = {
-  legalName: 'Masabu Test AŞ', name: 'Masabu', surname: 'Test',
+  legalName: 'Masabu Test AŞ', taxOffice: 'Kartal', name: 'Masabu', surname: 'Test',
   identityNumber: '11111111111', email: 'OWNER@EXAMPLE.COM', gsmNumber: '+90 (555) 111 22 33',
   billingAddress: {
     contactName: 'Masabu Test', city: 'İstanbul', district: 'Kadıköy',

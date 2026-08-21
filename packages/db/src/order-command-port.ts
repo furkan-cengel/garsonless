@@ -71,6 +71,7 @@ export function createPublicOrderPort(): PublicOrderPort {
         redeemPoints: input.redeemPoints,
         redeemStampClaim: input.redeemStampClaim,
         catalogItemId: input.catalogItemId,
+        couponCode: input.couponCode ?? null,
       })
       return result.ok
         ? ok({ orderId: result.orderId, breakdown: result.breakdown })

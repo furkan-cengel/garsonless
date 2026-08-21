@@ -181,3 +181,75 @@ test('daily special rejects section-kind mismatch, removed pricing and an expire
     now: Date.parse('2026-07-25T12:00:01.000Z'),
   }).ok, false)
 })
+
+test('published promo slider flash verifies selected 2 al 1 öde products and exact pair quantities', () => {
+  const sliderTokens: DiscountBadgeThemeTokens = {
+    pageBlocks: [{ type: 'section', id: 'slider-home', sectionId: 'promo-slider' }],
+    sectionSettings: {
+      'slider-home': {
+        sourceMode: 'manual',
+        flashEnabled: 'true',
+        flashOfferType: 'buy-2-pay-1',
+        flashItem1Id: 'coffee',
+        flashItem2Id: 'cake',
+        flashDiscountPolicy: 'promotion-only',
+      },
+    },
+  }
+  const sliderLine = (itemId: string, quantity: number) => ({
+    itemId,
+    quantity,
+    promotion: { sectionInstanceId: 'slider-home', kind: 'promo-slider' as const },
+  })
+  const result = resolveDiscountBadgePriceOverrides({ lines: [sliderLine('cake', 2)], tokens: sliderTokens, catalogItems: catalog })
+  assert.equal(result.ok, true)
+  if (result.ok) {
+    assert.equal(result.pricesByLine.get(0), 150)
+    assert.equal(result.loyaltyStackingAllowed, false)
+  }
+  assert.equal(resolveDiscountBadgePriceOverrides({ lines: [sliderLine('cake', 1)], tokens: sliderTokens, catalogItems: catalog }).ok, false)
+  assert.equal(resolveDiscountBadgePriceOverrides({ lines: [sliderLine('cake', 3)], tokens: sliderTokens, catalogItems: catalog }).ok, false)
+  assert.equal(resolveDiscountBadgePriceOverrides({ lines: [sliderLine('cake', 5)], tokens: sliderTokens, catalogItems: catalog }).ok, false)
+  assert.equal(resolveDiscountBadgePriceOverrides({ lines: [sliderLine('cake', 4)], tokens: sliderTokens, catalogItems: catalog }).ok, true)
+  assert.equal(resolveDiscountBadgePriceOverrides({ lines: [sliderLine('missing', 2)], tokens: sliderTokens, catalogItems: catalog }).ok, false)
+})
+
+test('enabled Home promo slider campaigns are server-verifiable without a duplicate menu block', () => {
+  const homeTokens: DiscountBadgeThemeTokens = {
+    surfaces: { home: { enabled: true, blocks: [{ id: 'home-slider', sectionId: 'promo-slider', enabled: true }] } },
+    sectionSettings: {
+      'home-slider': {
+        sourceMode: 'manual',
+        flashOfferType: 'buy-2-pay-1',
+        flashItem1Id: 'coffee',
+      },
+    },
+  }
+  const result = resolveDiscountBadgePriceOverrides({
+    lines: [{ itemId: 'coffee', quantity: 2, promotion: { sectionInstanceId: 'home-slider', kind: 'promo-slider' } }],
+    tokens: homeTokens,
+    catalogItems: catalog,
+  })
+  assert.equal(result.ok, true)
+})
+
+test('Home promo slider pricing remains server-verifiable when the Home landing page is disabled', () => {
+  const homeTokens: DiscountBadgeThemeTokens = {
+    surfaces: { home: { enabled: false, blocks: [{ id: 'home-slider', sectionId: 'promo-slider', enabled: true }] } },
+    sectionSettings: {
+      'home-slider': {
+        sourceMode: 'mixed',
+        flashOfferType: 'buy-2-pay-1',
+        flashItem1Id: 'cake',
+      },
+    },
+  }
+  const result = resolveDiscountBadgePriceOverrides({
+    lines: [{ itemId: 'cake', quantity: 2, promotion: { sectionInstanceId: 'home-slider', kind: 'promo-slider' } }],
+    tokens: homeTokens,
+    catalogItems: catalog,
+  })
+
+  assert.equal(result.ok, true)
+  if (result.ok) assert.equal(result.pricesByLine.get(0), 150)
+})

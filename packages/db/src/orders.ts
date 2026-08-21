@@ -2,8 +2,11 @@ import { createServiceClient } from './client'
 import type { Json } from './types.gen'
 import type { OrderStatus } from './enums'
 import { computeOrderDiscount, type OrderLineInput } from './loyalty'
+import { applyCouponToDiscount, resolveCouponPricing, type ResolvedCouponPricing } from './coupons'
+import { COUPON_ERROR_CODES, couponErrorMessage, type CouponErrorCode, type CouponStackingPolicy } from '@garsonless/domain/coupons'
 import { resolveComboPriceOverrides, type ComboCatalogItem } from './combo-order-pricing'
 import { resolveDiscountBadgePriceOverrides } from './discount-badge-order-pricing'
+import { resolveFreebiePriceOverrides, type FreebieCatalogItem } from './freebie-order-pricing'
 import {
   buildOrderLineSnapshot,
   type OrderLineSnapshot,
@@ -31,7 +34,10 @@ export interface CreateOrderLine {
   }
   promotion?: {
     sectionInstanceId: string
-    kind: 'discount-badge' | 'daily-special'
+    kind: 'discount-badge' | 'daily-special' | 'promo-slider'
+    offer?: 'freebie'
+    instanceId?: string
+    role?: 'qualifier' | 'reward'
   }
 }
 
@@ -50,6 +56,8 @@ export interface CreateOrderInput {
   redeemStampClaim?: boolean
   /** Claim a catalog reward (15c): free unit of this item, paid in points. */
   catalogItemId?: string | null
+  /** One server-validated coupon code per order. */
+  couponCode?: string | null
 }
 
 export interface OrderDiscountBreakdown {
@@ -65,6 +73,11 @@ export interface OrderDiscountBreakdown {
   catalogDiscountAmount: number
   catalogPointsRedeemed: number
   catalogItemName: string | null
+  couponId: string | null
+  couponCode: string | null
+  couponName: string | null
+  couponDiscountAmount: number
+  couponStackingPolicy: CouponStackingPolicy | null
   finalTotal: number
   /** True if a concurrent redeem clamped the discount below the previewed value. */
   clamped: boolean
@@ -72,7 +85,56 @@ export interface OrderDiscountBreakdown {
 
 type OrderResult = { id: string }
 
-type MenuItemForOrder = ResolvableMenuItem
+function couponFailureFromDatabase(message: string | undefined): { code: CouponErrorCode; error: string } | null {
+  const code = COUPON_ERROR_CODES.find((candidate) => message?.includes(candidate))
+  return code ? { code, error: couponErrorMessage(code) } : null
+}
+
+export type CheckoutDiscountResolution =
+  | {
+      ok: true
+      discount: Awaited<ReturnType<typeof computeOrderDiscount>> & Partial<{
+        couponId: string
+        couponCode: string
+        couponName: string
+        couponDiscountAmount: number
+        couponStackingPolicy: CouponStackingPolicy
+      }>
+      coupon: ResolvedCouponPricing | null
+    }
+  | { ok: false; code: CouponErrorCode; error: string }
+
+export async function resolveCheckoutDiscount(input: {
+  customerId: string | null
+  restaurantId: string
+  lines: OrderLineInput[]
+  /** Product campaigns may suppress loyalty without erasing coupon identity checks. */
+  loyaltyStackingAllowed?: boolean
+  requestedPointsRedeem?: number
+  requestedStampClaim?: boolean
+  requestedCatalogReward?: { itemId: string } | null
+  couponCode?: string | null
+}): Promise<CheckoutDiscountResolution> {
+  const loyalty = await computeOrderDiscount({
+    ...input,
+    customerId: input.loyaltyStackingAllowed === false ? null : input.customerId,
+    requestedPointsRedeem: input.loyaltyStackingAllowed === false ? 0 : input.requestedPointsRedeem ?? 0,
+    requestedStampClaim: input.loyaltyStackingAllowed === false ? false : input.requestedStampClaim ?? false,
+    requestedCatalogReward: input.loyaltyStackingAllowed === false ? null : input.requestedCatalogReward ?? null,
+  })
+  if (!input.couponCode?.trim()) return { ok: true, discount: loyalty, coupon: null }
+  const coupon = await resolveCouponPricing({
+    restaurantId: input.restaurantId,
+    customerId: input.customerId,
+    code: input.couponCode,
+    lines: input.lines,
+    loyalty,
+  })
+  if (!coupon.ok) return coupon
+  return { ok: true, discount: applyCouponToDiscount(loyalty, coupon.value), coupon: coupon.value }
+}
+
+type MenuItemForOrder = ResolvableMenuItem & { category_id: string }
 type CategoryForOrder = { id: string; vat_rate: number | null; kitchen_station_id: string | null }
 type MenuItemRowForOrder = Omit<ResolvableMenuItem, 'vat_rate' | 'kitchenStation'> & {
   category_id: string
@@ -187,7 +249,7 @@ export async function resolveOrderLines(
     }
   }
 
-  let promotionalPricesByLine = new Map<number, number>()
+  const promotionalPricesByLine = new Map<number, number>()
   let loyaltyStackingAllowed = true
   if (inputLines.some((line) => line.combo && line.promotion)) {
     return { ok: false, error: 'Bir ürün aynı anda birden fazla kampanyaya bağlanamaz.' }
@@ -201,13 +263,16 @@ export async function resolveOrderLines(
         .maybeSingle(),
       supabase
         .from('menu_items')
-        .select('id, price, position, is_available')
+        .select('id, category_id, price, position, is_available')
         .in('category_id', categoryIds)
         .is('deleted_at', null),
     ])
     if (themeError || comboCatalogError) return { ok: false, error: 'Kampanya doğrulanamadı.' }
     const tokens = recordValue((themeConfig as { tokens?: unknown } | null)?.tokens) ?? {}
-    const catalogItems = (comboCatalog ?? []) as ComboCatalogItem[]
+    const catalogItems = (comboCatalog ?? []) as Array<ComboCatalogItem & FreebieCatalogItem>
+    const freebieResolution = resolveFreebiePriceOverrides({ lines: inputLines, tokens, catalogItems })
+    if (!freebieResolution.ok) return freebieResolution
+    for (const [lineIndex, price] of freebieResolution.pricesByLine) promotionalPricesByLine.set(lineIndex, price)
     if (inputLines.some((line) => line.combo)) {
       const comboResolution = resolveComboPriceOverrides({
         lines: inputLines,
@@ -215,7 +280,7 @@ export async function resolveOrderLines(
         catalogItems,
       })
       if (!comboResolution.ok) return comboResolution
-      promotionalPricesByLine = comboResolution.pricesByLine
+      for (const [lineIndex, price] of comboResolution.pricesByLine) promotionalPricesByLine.set(lineIndex, price)
       loyaltyStackingAllowed = comboResolution.loyaltyStackingAllowed
     }
     if (inputLines.some((line) => line.promotion)) {
@@ -248,18 +313,23 @@ export async function resolveOrderLines(
     })
     if (!built.ok) return built
     const promotionalPrice = promotionalPricesByLine.get(lineIndex)
-    snapshots.push(promotionalPrice === undefined
+    const snapshot = promotionalPrice === undefined
       ? built.snapshot
       : {
           ...built.snapshot,
           price: promotionalPrice,
           ...(promotionalPrice !== item.price ? { originalPrice: item.price } : {}),
-        })
+        }
+    snapshots.push(line.promotion?.offer === 'freebie' && line.promotion.role && line.promotion.instanceId
+      ? { ...snapshot, promotion: { offer: 'freebie', role: line.promotion.role, instanceId: line.promotion.instanceId, sectionInstanceId: line.promotion.sectionInstanceId } }
+      : snapshot)
     discountLines.push({
       itemId: item.id,
+      categoryId: item.category_id,
       quantity: line.quantity,
       modifiersPriceDelta: built.snapshot.modifiersPriceDelta,
       ...(promotionalPrice !== undefined ? { basePriceOverride: promotionalPrice } : {}),
+      ...(line.promotion?.offer === 'freebie' && line.promotion.role === 'reward' ? { loyaltyEligible: false } : {}),
     })
   }
 
@@ -309,14 +379,19 @@ export async function createOrder(
 
   // SERVER-AUTHORITATIVE discount: subtotal recomputed from DB prices, points
   // validated against the real balance. Client totals are never trusted.
-  const discount = await computeOrderDiscount({
-    customerId: resolved.loyaltyStackingAllowed ? customerId : null,
+  const discountResolution = await resolveCheckoutDiscount({
+    customerId,
     restaurantId: input.restaurantId,
     lines: resolved.discountLines,
+    loyaltyStackingAllowed: resolved.loyaltyStackingAllowed,
     requestedPointsRedeem: input.redeemPoints ?? 0,
     requestedStampClaim: input.redeemStampClaim ?? false,
     requestedCatalogReward: input.catalogItemId ? { itemId: input.catalogItemId } : null,
+    couponCode: input.couponCode ?? null,
   })
+  if (!discountResolution.ok) return { ok: false, error: `${discountResolution.code}:${discountResolution.error}` }
+  const discount = discountResolution.discount
+  const resolvedCoupon = discountResolution.coupon
 
   // Table orders attach to the table's open session (adisyon); this is delayed
   // until immediately before insertion so invalid carts cannot leave an empty
@@ -397,6 +472,11 @@ export async function createOrder(
     p_catalog_points_cost: discount.catalogPointsCost,
     p_catalog_discount: discount.catalogDiscountAmount,
     p_catalog_item_name: discount.catalogItemName,
+    p_coupon: resolvedCoupon?.coupon.id ?? null,
+    p_coupon_updated_at: resolvedCoupon?.coupon.updatedAt ?? null,
+    p_coupon_eligible_subtotal: resolvedCoupon?.eligibleSubtotal ?? 0,
+    p_coupon_stamp_eligible_discount: resolvedCoupon?.stampEligibleDiscount ?? 0,
+    p_coupon_catalog_eligible_discount: resolvedCoupon?.catalogEligibleDiscount ?? 0,
     p_preview_total: discount.finalTotal,
   })
   const finalRow = finalized?.[0]
@@ -404,6 +484,8 @@ export async function createOrder(
     // No ledger debit can survive an RPC failure, but remove the unfinished
     // shell so a retry with the same request id can safely start over.
     await supabase.from('orders').delete().eq('id', orderId)
+    const couponFailure = couponFailureFromDatabase(finalizeError?.message)
+    if (couponFailure) return { ok: false, error: `${couponFailure.code}:${couponFailure.error}` }
     return { ok: false, error: 'Failed to finalize order total' }
   }
 

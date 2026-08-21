@@ -225,6 +225,7 @@ test('failed aggregate transition marks the durable inbox for retry/reconciliati
 
 const billingProfile: SubscriptionBillingProfile = {
   legalName: 'Masabu Test AŞ',
+  taxOffice: 'Kartal',
   name: 'Masabu',
   surname: 'Test',
   identityNumber: '11111111111',

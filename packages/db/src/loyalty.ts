@@ -28,7 +28,7 @@ import {
 
 // Pure loyalty economics live in @garsonless/domain/loyalty. This module owns
 // only service-role persistence and orchestration helpers.
-type OrderItemLine = { itemId?: unknown; quantity?: unknown }
+type OrderItemLine = { itemId?: unknown; quantity?: unknown; price?: unknown; modifiersPriceDelta?: unknown; promotion?: { offer?: unknown; role?: unknown } }
 type RestaurantLoyaltyRecord = { settings: RawLoyaltySettings; plan: unknown }
 
 /**
@@ -145,7 +145,7 @@ export async function earnForOrderStrict(orderId: string, firedTrigger: 'paid' |
         .limit(1)
       if (redeemError) throw new Error(redeemError.message)
       const freeClaimed = ((redeemRows as unknown[] | null) ?? []).length > 0
-      stampDelta = computeStampEarn(order.items, flagged, cfg.reward_item_id, freeClaimed)
+      stampDelta = computeStampEarn(lines.filter((line) => !(line.promotion?.offer === 'freebie' && line.promotion.role === 'reward')), flagged, cfg.reward_item_id, freeClaimed)
     }
   }
   // 17b: tier bonus stamps — only when the order already earns ≥1 stamp (never
@@ -153,8 +153,13 @@ export async function earnForOrderStrict(orderId: string, firedTrigger: 'paid' |
   stampDelta = applyBonusStamps(stampDelta, tier.bonusStamps)
 
   // POINTS: floor(order_total * points_per_lira * tier multiplier) — DB total.
+  const freebieRewardTotal = ((Array.isArray(order.items) ? order.items : []) as OrderItemLine[]).reduce((sum, line) => (
+    line.promotion?.offer === 'freebie' && line.promotion.role === 'reward'
+      ? sum + ((Number(line.price) || 0) + (Number(line.modifiersPriceDelta) || 0)) * (Number(line.quantity) || 0)
+      : sum
+  ), 0)
   const pointsDelta = cfg.points_enabled
-    ? computePointsDelta(order.total, cfg.points_per_lira, tier.pointsMultiplier)
+    ? computePointsDelta(Math.max(0, order.total - freebieRewardTotal), cfg.points_per_lira, tier.pointsMultiplier)
     : 0
 
   const rows: Array<Record<string, unknown>> = []
@@ -414,9 +419,11 @@ export async function creditWelcomeBonus(customerId: string, restaurantId: strin
 
 export interface OrderLineInput {
   itemId: string
+  categoryId?: string
   quantity: number
   modifiersPriceDelta: number
   basePriceOverride?: number
+  loyaltyEligible?: boolean
 }
 
 export interface DiscountResult {
@@ -429,6 +436,7 @@ export interface DiscountResult {
   stampDiscountAmount: number
   stampsConsumed: number // stamps to debit when a free item is claimed (= stamp_goal)
   rewardItemName: string | null // stamp-free reward item name, for the breakdown label
+  rewardItemId: string | null
   // catalog reward (15c) — free item bought with points from the configured catalog:
   catalogDiscountAmount: number // ₺ off = the catalog item's DB price (one free unit)
   catalogPointsCost: number // EXACT points to debit (all-or-nothing); 0 = no catalog reward
@@ -474,9 +482,12 @@ export async function computeOrderDiscount(input: {
     }
   }
   let subtotal = 0
+  let loyaltyExcludedSubtotal = 0
   for (const l of input.lines) {
     const base = l.basePriceOverride ?? priceById.get(l.itemId) ?? 0
-    subtotal += (base + (Number(l.modifiersPriceDelta) || 0)) * (Number(l.quantity) || 0)
+    const lineTotal = (base + (Number(l.modifiersPriceDelta) || 0)) * (Number(l.quantity) || 0)
+    subtotal += lineTotal
+    if (l.loyaltyEligible === false) loyaltyExcludedSubtotal += lineTotal
   }
   subtotal = Math.max(0, Math.round(subtotal * 100) / 100)
 
@@ -490,6 +501,7 @@ export async function computeOrderDiscount(input: {
     stampDiscountAmount: 0,
     stampsConsumed: 0,
     rewardItemName: null,
+    rewardItemId: null,
     catalogDiscountAmount: 0,
     catalogPointsCost: 0,
     catalogItemName: null,
@@ -569,7 +581,7 @@ export async function computeOrderDiscount(input: {
 
   // Locked order: stamp-free (3c) → catalog-free (15c) → member/tier % (3b/17b) → points (3a).
   const stack = computeDiscountStack({
-    subtotal,
+    subtotal: Math.max(0, subtotal - loyaltyExcludedSubtotal),
     stampDiscountAmount,
     catalogDiscountAmount,
     memberPct, // tier perk discountPct, else legacy member_discount_pct
@@ -588,11 +600,12 @@ export async function computeOrderDiscount(input: {
     stampDiscountAmount: stack.stampDiscountAmount,
     stampsConsumed,
     rewardItemName,
+    rewardItemId: stampsConsumed > 0 ? cfg.reward_item_id : null,
     catalogDiscountAmount: stack.catalogDiscountAmount,
     catalogPointsCost,
     catalogItemName,
     catalogItemId,
-    finalTotal: stack.finalTotal,
+    finalTotal: Math.round((stack.finalTotal + loyaltyExcludedSubtotal) * 100) / 100,
     pointsRate: cfg.points_redeem_rate,
     scopeKey,
     customerTierSnapshot: snapshotOrderCustomerTier({

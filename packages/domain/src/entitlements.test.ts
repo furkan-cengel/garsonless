@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   BILLABLE_FEATURES,
+  calculatePlanCharge,
   canUseEffectiveFeature,
   canUseFeature,
   getEffectiveFeatureEntitlement,
@@ -47,18 +48,24 @@ test('unknown plans fail closed while legacy values map to the new catalogue', (
   })
 })
 
-test('annual prices are KDV included and exactly twenty percent below twelve monthly payments', () => {
+test('annual catalogue prices exclude KDV and are exactly twenty percent below twelve monthly payments', () => {
   for (const plan of SELF_SERVE_PLANS) {
     const monthly = PLAN_PRICES[plan].monthly
     const annual = PLAN_PRICES[plan].annual
     assert.equal(monthly.currency, 'TRY')
-    assert.equal(monthly.vatIncluded, true)
-    assert.equal(annual.vatIncluded, true)
+    assert.equal(monthly.vatIncluded, false)
+    assert.equal(annual.vatIncluded, false)
     assert.equal(annual.amountMinor * 5, monthly.amountMinor * 12 * 4)
   }
   assert.equal(PLAN_PRICES.starter.annual.amountMinor, 335_040)
   assert.equal(PLAN_PRICES.plus.annual.amountMinor, 671_040)
   assert.equal(PLAN_PRICES.pro.annual.amountMinor, 1_151_040)
+  assert.deepEqual(calculatePlanCharge(PLAN_PRICES.pro.monthly, 20), {
+    netAmountMinor: 119_900,
+    vatAmountMinor: 23_980,
+    totalAmountMinor: 143_880,
+  })
+  assert.throws(() => calculatePlanCharge(PLAN_PRICES.pro.monthly, 20.5), /VAT rate/)
 })
 
 test('an active allow override grants a plan-locked feature without mutating the plan', () => {

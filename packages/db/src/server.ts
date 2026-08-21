@@ -1,6 +1,19 @@
 /** Server-only database boundary for app adapters and application ports. */
-export { resolveOrderLines } from './orders'
+export { resolveCheckoutDiscount, resolveOrderLines } from './orders'
+export {
+  applyCouponToDiscount,
+  archiveRestaurantCoupon,
+  listActivePublicCoupons,
+  listRestaurantCoupons,
+  resolveCouponPricing,
+  saveRestaurantCoupon,
+} from './coupons'
+export type { CouponWriteInput, ResolvedCouponPricing } from './coupons'
 export { recordSecurityEvent, TEAM_SECURITY_EVENT_TYPES } from './security'
+export {
+  recordLegalDocumentAcceptance,
+  recordSignupLegalEvidence,
+} from './legal-acceptance-port'
 export type { TeamSecurityEventType } from './security'
 export {
   TEAM_SECTIONS,
@@ -69,6 +82,12 @@ export { createTeamCommandPort } from './team-command-port'
 export { createLoyaltyQueryPort } from './loyalty-query-port'
 export { createFeaturedProductsReadPort } from './featured-products-read-port'
 export { createThemeApplicationPort } from './theme-application-port'
+export {
+  createThemePreviewAccessToken,
+  resolveThemePreviewSigningSecret,
+  THEME_PREVIEW_ACCESS_TTL_SECONDS,
+  verifyThemePreviewAccessToken,
+} from './theme-preview-access'
 export { createRestaurantAssetStoragePort } from './restaurant-asset-storage-port'
 export {
   createRestaurantSettingsPort,
@@ -156,6 +175,11 @@ export { createSubscriptionBillingPersistencePort } from './subscription-billing
 export { createSubscriptionBillingWebhookInboxPort } from './subscription-billing-webhook-port'
 export { createSubscriptionBillingOperationsPort } from './subscription-billing-operations-port'
 export { createSubscriptionBillingSettingsReadPort } from './subscription-billing-settings-port'
+export {
+  createAccountingInvoicePort,
+  type AccountingInvoiceJob,
+  type AccountingProfileSnapshot,
+} from './accounting-invoice-port'
 export { createBillingMaintenancePort } from './billing-maintenance-port'
 export { createPlatformAdminIdentityPort } from './platform-admin-identity-port'
 export {

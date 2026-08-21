@@ -129,7 +129,7 @@ yalnız kendi tenant'ının fatura/durum projection'ını owner-gated okur.
   referansı vardır. Business bu checkout'a giremez.
 - Checkout girdisi `plan + interval` taşır. Aylık dönem bir ay, yıllık dönem on
   iki aydır; yıllık ücret peşin tahsil edilir.
-- Domain kataloğundaki KDV dâhil kuruş tutarı ile yapılandırılan provider
+- Domain kataloğundaki KDV hariç kuruş tutarı, muhasebeci onaylı KDV oranı ve yapılandırılan provider genel toplamı
   tutarı birebir uyuşmazsa checkout provider'a çağrı yapmadan fail-closed olur.
 - Dönem ortası pro-rata v1'de yoktur; mevcut iptal/retention politikası korunur.
 

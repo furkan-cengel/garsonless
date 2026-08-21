@@ -89,3 +89,87 @@ test('all combo lines must share quantity and one click instance', () => {
   })
   assert.equal(result.ok, false)
 })
+
+test('manual promo slider combo is verified from published products and fixed price', () => {
+  const sliderTokens = {
+    pageBlocks: [{ type: 'section', id: 'slider-home', sectionId: 'promo-slider' }],
+    sectionSettings: {
+      'slider-home': {
+        sourceMode: 'manual',
+        comboEnabled: 'true',
+        comboTargetType: 'cart',
+        comboItem1Id: 'coffee',
+        comboItem2Id: 'cake',
+        comboPrice: '210',
+        comboDiscountPolicy: 'combo-only',
+      },
+    },
+  }
+  const sliderLine = (itemId: string) => ({
+    itemId,
+    quantity: 1,
+    combo: { instanceId: 'slider-click', sectionInstanceId: 'slider-home', comboIndex: 1 },
+  })
+  const result = resolveComboPriceOverrides({ lines: [sliderLine('coffee'), sliderLine('cake')], tokens: sliderTokens, catalogItems: catalog })
+  assert.equal(result.ok, true)
+  if (!result.ok) return
+  assert.equal([...result.pricesByLine.values()].reduce((sum, price) => sum + price, 0), 210)
+  assert.equal(result.loyaltyStackingAllowed, false)
+})
+
+test('promo slider combo rejects display-only and client-altered bundles', () => {
+  const sliderTokens = {
+    pageBlocks: [{ type: 'section', id: 'slider-home', sectionId: 'promo-slider' }],
+    sectionSettings: {
+      'slider-home': {
+        sourceMode: 'manual',
+        comboTargetType: 'product',
+        comboItem1Id: 'coffee',
+        comboItem2Id: 'cake',
+        comboPrice: '210',
+      },
+    },
+  }
+  const lines = ['coffee', 'cake'].map((itemId) => ({ itemId, quantity: 1, combo: { instanceId: 'slider-click', sectionInstanceId: 'slider-home', comboIndex: 1 } }))
+  assert.equal(resolveComboPriceOverrides({ lines, tokens: sliderTokens, catalogItems: catalog }).ok, false)
+  ;(sliderTokens.sectionSettings['slider-home'] as Record<string, string>).comboTargetType = 'cart'
+  lines[1] = { ...lines[1]!, itemId: 'tea' }
+  assert.equal(resolveComboPriceOverrides({ lines, tokens: sliderTokens, catalogItems: catalog }).ok, false)
+})
+
+test('modern combo verifies all four products and rejects incomplete client membership', () => {
+  const fourCatalog = [...catalog, { id: 'cookie', price: 100, position: 4, is_available: true }]
+  const fourTokens = structuredClone(tokens)
+  ;(fourTokens.sectionSettings as Record<string, Record<string, unknown>>)['combo-home'] = {
+    editorialVersion: '2', selectionMode: 'manual', comboCount: '1', itemsPerCombo: '4',
+    combo1Item1Id: 'coffee', combo1Item2Id: 'cake', combo1Item3Id: 'tea', combo1Item4Id: 'cookie', combo1Price: '400',
+  }
+  const result = resolveComboPriceOverrides({
+    lines: ['coffee', 'cake', 'tea', 'cookie'].map((itemId) => comboLine(itemId)),
+    tokens: fourTokens,
+    catalogItems: fourCatalog,
+  })
+  assert.equal(result.ok, true)
+  if (result.ok) assert.equal([...result.pricesByLine.values()].reduce((sum, price) => sum + price, 0), 400)
+
+  const incomplete = resolveComboPriceOverrides({
+    lines: ['coffee', 'cake', 'tea'].map((itemId) => comboLine(itemId)),
+    tokens: fourTokens,
+    catalogItems: fourCatalog,
+  })
+  assert.equal(incomplete.ok, false)
+})
+
+test('modern combo rejects campaign prices at or above catalog total while legacy remains compatible', () => {
+  const modernTokens = structuredClone(tokens)
+  const modernSettings = modernTokens.sectionSettings['combo-home'] as Record<string, unknown>
+  modernSettings.editorialVersion = '2'
+  modernSettings.combo1Price = '300'
+  assert.equal(resolveComboPriceOverrides({ lines: [comboLine('coffee'), comboLine('cake')], tokens: modernTokens, catalogItems: catalog }).ok, false)
+
+  const legacyTokens = structuredClone(tokens)
+  ;(legacyTokens.sectionSettings['combo-home'] as Record<string, unknown>).combo1Price = '350'
+  const legacy = resolveComboPriceOverrides({ lines: [comboLine('coffee'), comboLine('cake')], tokens: legacyTokens, catalogItems: catalog })
+  assert.equal(legacy.ok, true)
+  if (legacy.ok) assert.equal([...legacy.pricesByLine.values()].reduce((sum, price) => sum + price, 0), 350)
+})

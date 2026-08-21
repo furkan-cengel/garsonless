@@ -19,7 +19,7 @@ Canonical sıra `starter → plus → pro → business` şeklindedir. Kalıcı �
 paket yoktur. Eski geliştirme verisi `free → starter`, `enterprise → business`
 olarak taşınır; bilinmeyen plan yetki kontrolünde fail-closed davranır.
 
-| Plan | Aylık, KDV dâhil | Yıllık peşin | Yıllık aylık karşılığı |
+| Plan | Aylık, KDV hariç | Yıllık peşin, KDV hariç | Yıllık aylık karşılığı, KDV hariç |
 |---|---:|---:|---:|
 | Starter | ₺349 | ₺3.350,40 | ₺279,20 |
 | Plus | ₺699 | ₺6.710,40 | ₺559,20 |

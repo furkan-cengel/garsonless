@@ -170,8 +170,15 @@ export function withoutAdvancedThemeSections(theme: GarsonlessTheme): Garsonless
 }
 
 function hasIncompleteHomeVideo(theme: GarsonlessTheme): boolean {
-  return (theme.surfaces?.home.sections ?? []).some((section) =>
-    section.type === 'hero-video' && Boolean(section.videoUrl) !== Boolean(section.posterUrl))
+  const legacyIncomplete = (theme.surfaces?.home.sections ?? []).some((section) =>
+    section.enabled && section.type === 'hero-video' && (!section.videoUrl || !section.posterUrl))
+  if (legacyIncomplete) return true
+  return (theme.surfaces?.home.blocks ?? []).some((block) => {
+    if (block.enabled === false) return false
+    const settings = theme.sectionSettings?.[block.id] ?? {}
+    const videoHero = block.sectionId === 'storefront-video-hero'
+    return videoHero && (!settings.videoUrl || !settings.posterUrl)
+  })
 }
 
 export interface ThemeApplicationPort {
@@ -320,7 +327,7 @@ function validateThemeCommand(input: {
     return err('Invalid theme draft request')
   }
   const theme = sanitizeThemeTokens(input.theme, CANONICAL_THEME_ID)
-  if (!theme || hasIncompleteHomeVideo(theme)) return err('Invalid theme document')
+  if (!theme) return err('Invalid theme document')
   return ok(theme)
 }
 

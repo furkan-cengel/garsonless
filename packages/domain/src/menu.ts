@@ -109,10 +109,149 @@ export function normalizeMenuNumericText(value: string): string {
  * "use the catalogue total"; malformed or negative values fail closed. */
 export function parseBundlePrice(value: unknown): number | null {
   if (typeof value !== 'string' && typeof value !== 'number') return null
-  const normalized = String(value).trim().replace(/\s/g, '').replace(',', '.').replace(/[^\d.-]/g, '')
+  const raw = String(value).trim().replace(/\s/g, '').replace(/[^\d,.-]/g, '')
+  if (!raw || raw.startsWith('-')) return null
+  const commaIndex = raw.lastIndexOf(',')
+  const dotIndex = raw.lastIndexOf('.')
+  let normalized = raw
+  if (commaIndex >= 0 && dotIndex >= 0) {
+    const decimalSeparator = commaIndex > dotIndex ? ',' : '.'
+    const thousandsSeparator = decimalSeparator === ',' ? /\./g : /,/g
+    normalized = raw.replace(thousandsSeparator, '').replace(decimalSeparator, '.')
+  } else if (commaIndex >= 0) {
+    const parts = raw.split(',')
+    normalized = parts.length === 2
+      ? `${parts[0]}.${parts[1]}`
+      : `${parts.slice(0, -1).join('')}.${parts.at(-1)}`
+  } else if ((raw.match(/\./g) ?? []).length > 1) {
+    const parts = raw.split('.')
+    const last = parts.at(-1) ?? ''
+    normalized = last.length <= 2
+      ? `${parts.slice(0, -1).join('')}.${last}`
+      : parts.join('')
+  }
   if (!normalized) return null
   const parsed = Number(normalized)
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) / 100 : null
+}
+
+export const COMBO_RIBBON_MIN_ITEMS = 2
+export const COMBO_RIBBON_MAX_ITEMS = 4
+export const COMBO_RIBBON_MAX_GROUPS = 3
+
+export type ComboRibbonSelectionIssueCode =
+  | 'duplicate-item'
+  | 'insufficient-items'
+  | 'invalid-campaign-price'
+  | 'missing-item'
+  | 'missing-selection'
+  | 'unavailable-item'
+
+export interface ComboRibbonCatalogProduct {
+  id: string
+  price: number
+  position: number
+  isAvailable: boolean
+}
+
+export interface ComboRibbonSelectionIssue {
+  code: ComboRibbonSelectionIssueCode
+  comboIndex: number
+  itemIndex?: number
+  itemId?: string
+  expectedCount?: number
+  resolvedCount?: number
+}
+
+export interface ComboRibbonSelectionGroup {
+  index: number
+  itemIds: string[]
+  catalogTotal: number
+  total: number
+  savings: number
+  savingsPercent: number
+  hasPromotionalPrice: boolean
+  hasLegacyNonPromotionalPrice: boolean
+}
+
+function boundedComboInteger(value: unknown, fallback: number, min: number, max: number) {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback
+}
+
+/**
+ * Canonical combo membership and price rule shared by editor diagnostics,
+ * storefront rendering and server-side order verification.
+ */
+export function resolveComboRibbonSelection(
+  config: Record<string, unknown>,
+  products: ComboRibbonCatalogProduct[],
+): { groups: ComboRibbonSelectionGroup[]; issues: ComboRibbonSelectionIssue[] } {
+  const comboCount = boundedComboInteger(config.comboCount, 2, 1, COMBO_RIBBON_MAX_GROUPS)
+  const itemsPerCombo = boundedComboInteger(config.itemsPerCombo, 2, COMBO_RIBBON_MIN_ITEMS, COMBO_RIBBON_MAX_ITEMS)
+  const ordered = [...products].sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))
+  const available = ordered.filter((product) => product.isAvailable)
+  const catalogById = new Map(ordered.map((product) => [product.id, product]))
+  const availableById = new Map(available.map((product) => [product.id, product]))
+  const manual = (config.selectionMode || 'automatic') === 'manual'
+  const modern = config.editorialVersion === '2'
+  const groups: ComboRibbonSelectionGroup[] = []
+  const issues: ComboRibbonSelectionIssue[] = []
+
+  for (let comboIndex = 1; comboIndex <= comboCount; comboIndex += 1) {
+    let selected: ComboRibbonCatalogProduct[] = []
+    if (manual) {
+      const seen = new Set<string>()
+      for (let itemIndex = 1; itemIndex <= itemsPerCombo; itemIndex += 1) {
+        const rawItemId = config[`combo${comboIndex}Item${itemIndex}Id`]
+        const itemId = typeof rawItemId === 'string' ? rawItemId.trim() : ''
+        if (!itemId) {
+          issues.push({ code: 'missing-selection', comboIndex, itemIndex })
+          continue
+        }
+        if (seen.has(itemId)) {
+          issues.push({ code: 'duplicate-item', comboIndex, itemIndex, itemId })
+          continue
+        }
+        seen.add(itemId)
+        const item = availableById.get(itemId)
+        if (!item) {
+          issues.push({ code: catalogById.has(itemId) ? 'unavailable-item' : 'missing-item', comboIndex, itemIndex, itemId })
+          continue
+        }
+        selected.push(item)
+      }
+    } else {
+      const start = (comboIndex - 1) * itemsPerCombo
+      selected = available.slice(start, start + itemsPerCombo)
+    }
+
+    if (selected.length < itemsPerCombo) {
+      issues.push({ code: 'insufficient-items', comboIndex, expectedCount: itemsPerCombo, resolvedCount: selected.length })
+    }
+    if (selected.length < COMBO_RIBBON_MIN_ITEMS || (modern && selected.length !== itemsPerCombo)) continue
+
+    const catalogTotal = Math.round(selected.reduce((sum, product) => sum + product.price, 0) * 100) / 100
+    const configuredPrice = parseBundlePrice(config[`combo${comboIndex}Price`])
+    if (modern && configuredPrice !== null && configuredPrice >= catalogTotal) {
+      issues.push({ code: 'invalid-campaign-price', comboIndex })
+      continue
+    }
+    const total = configuredPrice ?? catalogTotal
+    const savings = Math.max(0, Math.round((catalogTotal - total) * 100) / 100)
+    groups.push({
+      index: comboIndex,
+      itemIds: selected.map((product) => product.id),
+      catalogTotal,
+      total,
+      savings,
+      savingsPercent: catalogTotal > 0 ? Math.round((savings / catalogTotal) * 100) : 0,
+      hasPromotionalPrice: configuredPrice !== null && configuredPrice < catalogTotal,
+      hasLegacyNonPromotionalPrice: !modern && configuredPrice !== null && configuredPrice >= catalogTotal,
+    })
+  }
+
+  return { groups, issues }
 }
 
 export type SectionPromotionPricing =

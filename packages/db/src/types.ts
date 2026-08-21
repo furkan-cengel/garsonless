@@ -15,7 +15,9 @@ export type {
   TablesUpdate,
 } from './types.gen'
 export type { OrderStatus, RestaurantPlan, PaymentMethod } from './enums'
-export type { CreateOrderInput, CreateOrderLine, OrderDiscountBreakdown } from './orders'
+export type { CheckoutDiscountResolution, CreateOrderInput, CreateOrderLine, OrderDiscountBreakdown } from './orders'
+export type { CouponWriteInput, ResolvedCouponPricing } from './coupons'
+export type { CouponDefinition, CouponErrorCode, PublicCouponChoice } from '@garsonless/domain/coupons'
 export type { VatBreakdown, VatBreakdownRate, VatLineInput } from './order-tax'
 export type { CreateShareInput } from './split'
 export type { ServiceRequestType } from '@garsonless/domain/tables'

@@ -117,6 +117,7 @@ export interface SubscriptionBillingProvider {
 
 export type SubscriptionBillingProfile = SubscriptionBillingCustomer & {
   legalName: string
+  taxOffice: string
 }
 
 export type SubscriptionBillingSettingsSubscription = {
@@ -552,6 +553,7 @@ function validBillingAddress(address: SubscriptionBillingAddress): boolean {
 
 function validBillingProfile(profile: SubscriptionBillingProfile): boolean {
   return profile.legalName.trim().length > 0 && profile.legalName.trim().length <= 200
+    && profile.taxOffice.trim().length > 0 && profile.taxOffice.trim().length <= 100
     && profile.name.trim().length > 0 && profile.name.trim().length <= 100
     && profile.surname.trim().length > 0 && profile.surname.trim().length <= 100
     && /^\d{10,11}$/.test(profile.identityNumber.trim())
