@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import StepRestaurantInfo from '../../../components/onboarding/StepRestaurantInfo'
@@ -108,7 +108,11 @@ export default function OnboardingPage() {
           padding: '28px 28px',
           boxShadow: 'var(--shadow-2)',
         }}>
-          {step === 0 && <StepRestaurantInfo onCreated={handleCreated} />}
+          {step === 0 && (
+            <Suspense fallback={<div role="status" style={{ minHeight: 180, display: 'grid', placeItems: 'center', color: 'var(--text-3)', fontSize: 13 }}>Kurulum hazırlanıyor…</div>}>
+              <StepRestaurantInfo onCreated={handleCreated} />
+            </Suspense>
+          )}
           {step === 1 && (
             <StepTemplateSelect
               restaurantId={restaurantId}

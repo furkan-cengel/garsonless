@@ -1,0 +1,73 @@
+import assert from 'node:assert/strict'
+import { existsSync, readFileSync } from 'node:fs'
+import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+
+const loginPage = readFileSync(new URL('../../app/auth/login/page.tsx', import.meta.url), 'utf8')
+const showcase = readFileSync(new URL('../../components/auth/LoginShowcase.tsx', import.meta.url), 'utf8')
+const showcaseCss = readFileSync(new URL('../../components/auth/LoginShowcase.module.css', import.meta.url), 'utf8')
+
+test('login keeps the real auth methods and removes misleading helper copy', () => {
+  assert.match(loginPage, /useActionState\(signIn/)
+  assert.match(loginPage, /useActionState\(sendMagicLink/)
+  assert.match(loginPage, /useActionState\(requestPasswordReset/)
+  assert.match(loginPage, /İşletmenize erişmek için giriş yapın\./)
+  assert.doesNotMatch(loginPage, /Beni hatırla/)
+  assert.doesNotMatch(loginPage, /Sunucu taraflı yetkilendirme/)
+  assert.doesNotMatch(loginPage, /VisualPanel/)
+  assert.doesNotMatch(loginPage, /autoFocus/)
+})
+
+test('showcase only references available real menu captures', () => {
+  assert.match(showcase, /01-menu-overview-transparent\.png/)
+  assert.match(showcase, /02-cart-drawer-transparent\.png/)
+  assert.match(showcase, /03-service-request-transparent\.png/)
+  assert.match(showcase, /04-order-confirmation-transparent\.png/)
+  assert.match(showcase, /05-product-customization-transparent\.png/)
+  assert.match(showcase, /06-allergen-upsell-transparent\.png/)
+  assert.match(showcase, /07-featured-business-info-transparent\.png/)
+  assert.match(showcase, /08-campaign-offers-transparent\.png/)
+  assert.match(showcase, /09-guest-signup-transparent\.png/)
+  assert.match(showcase, /10-bundle-offers-transparent\.png/)
+  assert.match(showcaseCss, /\.card\s*\{[\s\S]*background: transparent/)
+  const assetNames = [...showcase.matchAll(/src: '(\/auth\/showcase\/[^']+\.(?:png|webp))'/g)].map((match) => match[1])
+  assert.equal(assetNames.length, 10)
+  assert.equal(new Set(assetNames).size, assetNames.length)
+  for (const assetName of assetNames) {
+    const assetPath = fileURLToPath(new URL(`../../public${assetName}`, import.meta.url))
+    assert.equal(existsSync(assetPath), true, `missing showcase asset: ${assetName}`)
+  }
+})
+
+test('showcase is decorative, mobile-safe and keeps moving on hover', () => {
+  assert.match(showcase, /aria-hidden="true"/)
+  assert.match(showcase, /media="\(min-width: 900px\)"/)
+  assert.match(showcase, /TRANSPARENT_PIXEL/)
+  assert.match(showcase, /Array\.from\(\{ length: 6 \}/)
+  assert.match(showcase, /Array\.from\(\{ length: 12 \}/)
+  assert.match(showcase, /LANE_CARD_ORDERS = \[/)
+  assert.match(showcase, /\[3, 8\]/)
+  assert.match(showcase, /\[0, 7, 5\]/)
+  assert.match(showcase, /\[1, 3, 8, 9\]/)
+  assert.match(showcase, /\[0, 4, 6, 7\]/)
+  assert.match(showcase, /\[2, 8, 9\]/)
+  assert.match(showcase, /\[1, 5\]/)
+  assert.match(showcase, /index % laneOrder\.length/)
+  assert.doesNotMatch(showcase, /SHUFFLED_CARD_ORDER/)
+  assert.doesNotMatch(showcase, /LANE_CARD_OFFSETS/)
+  assert.doesNotMatch(showcase, /cards\.filter/)
+  assert.match(showcase, /motion: index % 2 === 0 \? 'forward' : 'backward'/)
+  assert.match(showcaseCss, /rotate\(45deg\)/)
+  assert.match(showcaseCss, /@keyframes showcase-rail-drift[\s\S]*translateY/)
+  assert.match(showcaseCss, /--showcase-card-width: clamp\(126px, 11\.5vw, 300px\)/)
+  assert.match(showcaseCss, /--showcase-rail-duration: 250s/)
+  assert.match(showcaseCss, /contain: strict/)
+  assert.match(showcaseCss, /overflow: clip/)
+  assert.match(showcaseCss, /animation: showcase-rail-drift var\(--showcase-rail-duration\) linear infinite alternate/)
+  assert.match(showcaseCss, /animation-direction: alternate-reverse/)
+  assert.doesNotMatch(showcaseCss, /\.lane:nth-child\([^)]*\) \.track[\s\S]{0,100}animation-duration/)
+  assert.doesNotMatch(showcaseCss, /@keyframes showcase-rail-drift[\s\S]{0,240}translateX/)
+  assert.match(showcaseCss, /@media \(max-width: 899px\)[\s\S]*display: none/)
+  assert.match(showcaseCss, /@media \(prefers-reduced-motion: reduce\)/)
+  assert.doesNotMatch(showcaseCss, /:hover[\s\S]{0,120}animation-play-state\s*:\s*paused/)
+})

@@ -2,7 +2,11 @@
 
 import { createHash } from 'node:crypto'
 import { redirect } from 'next/navigation'
-import { deleteDashboardPushEndpoint } from '@garsonless/db/server'
+import {
+  deleteDashboardPushEndpoint,
+  recordSignupLegalEvidence,
+} from '@garsonless/db/server'
+import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { recordSecurityEvent } from '@garsonless/db/server'
@@ -36,11 +40,53 @@ const signInSchema = z.object({
 const signUpSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
+  name: z.string().trim().max(100).optional(),
+  businessName: z.string().trim().max(200).optional(),
+  termsAccepted: z.literal('on'),
+  termsVersion: z.literal(LEGAL_DOCUMENT_VERSION),
 })
 
 const magicLinkSchema = z.object({
   email: z.string().email(),
 })
+
+const passwordResetRequestSchema = z.object({ email: z.string().email() })
+
+function legalIpHash(ip: string | null): string | null {
+  const salt = process.env['LEGAL_ACCEPTANCE_IP_SALT']?.trim()
+  return ip && salt ? createHash('sha256').update(`${salt}:${ip}`).digest('hex') : null
+}
+
+async function persistSignupLegalEvidence(input: {
+  userId: string
+  version: string
+  occurredAt: string
+}): Promise<void> {
+  const { ip, userAgent } = await readRequestMeta()
+  const result = await recordSignupLegalEvidence({
+    userId: input.userId,
+    documentVersion: input.version,
+    occurredAt: input.occurredAt,
+    ipHash: legalIpHash(ip),
+    userAgent: userAgent?.slice(0, 500) ?? null,
+  })
+  if (!result.ok) {
+    // Auth metadata carries the same immutable version/time so a later login can
+    // repair this service-role evidence without deleting a valid account.
+    console.error('[signup-legal-evidence-pending]', { userId: input.userId })
+  }
+}
+
+async function repairSignupLegalEvidenceFromMetadata(user: {
+  id: string
+  user_metadata?: Record<string, unknown>
+}): Promise<void> {
+  const version = user.user_metadata?.['b2b_terms_version']
+  const occurredAt = user.user_metadata?.['b2b_terms_accepted_at']
+  if (version !== LEGAL_DOCUMENT_VERSION || typeof occurredAt !== 'string'
+    || !Number.isFinite(Date.parse(occurredAt))) return
+  await persistSignupLegalEvidence({ userId: user.id, version, occurredAt })
+}
 
 export async function signIn(
   _prev: unknown,
@@ -62,6 +108,7 @@ export async function signIn(
   if (data.user) {
     const { ip, userAgent } = await readRequestMeta()
     await recordSecurityEvent({ userId: data.user.id, eventType: 'login', ip, userAgent })
+    await repairSignupLegalEvidenceFromMetadata(data.user)
   }
 
   redirect(safeNext(formData.get('next')))
@@ -79,6 +126,10 @@ export async function signUp(
   const parsed = signUpSchema.safeParse({
     email: formData.get('email'),
     password: formData.get('password'),
+    name: formData.get('name') || undefined,
+    businessName: formData.get('biz') || undefined,
+    termsAccepted: formData.get('termsAccepted'),
+    termsVersion: formData.get('termsVersion'),
   })
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
@@ -88,13 +139,32 @@ export async function signUp(
   // keep /dashboard as their default so existing accounts never start here.
   const next = safeNext(formData.get('next'), '/dashboard/onboarding')
   const callbackUrl = `${process.env['NEXT_PUBLIC_APP_URL']}/auth/callback?next=${encodeURIComponent(next)}`
+  const acceptedAt = new Date().toISOString()
 
   const supabase = await createDashboardServerClient()
   const { data, error } = await supabase.auth.signUp({
-    ...parsed.data,
-    options: { emailRedirectTo: callbackUrl },
+    email: parsed.data.email,
+    password: parsed.data.password,
+    options: {
+      emailRedirectTo: callbackUrl,
+      data: {
+        full_name: parsed.data.name || undefined,
+        business_name: parsed.data.businessName || undefined,
+        b2b_terms_version: parsed.data.termsVersion,
+        b2b_terms_accepted_at: acceptedAt,
+        privacy_notice_version: parsed.data.termsVersion,
+      },
+    },
   })
   if (error) return { error: publicAuthError(error, 'auth.sign-up', 'Hesap oluşturulamadı. Lütfen tekrar deneyin.') }
+
+  if (data.user) {
+    await persistSignupLegalEvidence({
+      userId: data.user.id,
+      version: parsed.data.termsVersion,
+      occurredAt: acceptedAt,
+    })
+  }
 
   // If the project doesn't require email confirmation, signUp returns a live
   // session → go straight to `next` (e.g. accept-invite). Otherwise the
@@ -145,6 +215,23 @@ export async function sendMagicLink(
   })
   if (error) return { error: publicAuthError(error, 'auth.magic-link', 'Giriş bağlantısı gönderilemedi. Lütfen tekrar deneyin.') }
 
+  return { success: true }
+}
+
+export async function requestPasswordReset(
+  _prev: unknown,
+  formData: FormData,
+): Promise<{ error: string } | { success: true }> {
+  const parsed = passwordResetRequestSchema.safeParse({ email: formData.get('email') })
+  if (!parsed.success) return { error: 'Geçerli bir e-posta adresi girin.' }
+
+  const supabase = await createDashboardServerClient()
+  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+    redirectTo: passwordRecoveryRedirect(),
+  })
+  if (error) return { error: publicAuthError(error, 'auth.password-reset-request', 'Şifre yenileme bağlantısı gönderilemedi.') }
+  // Account enumeration is intentionally avoided; the same success response is
+  // returned whether or not the address exists.
   return { success: true }
 }
 

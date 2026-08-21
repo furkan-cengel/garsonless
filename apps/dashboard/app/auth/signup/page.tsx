@@ -2,9 +2,12 @@
 
 import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
 import { signUp } from '../../../lib/actions/auth'
 import VisualPanel from '../../../components/auth/VisualPanel'
 import { I } from '../../../lib/ui'
+
+const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? 'http://localhost:3003'
 
 /* ─── Primitives ─── */
 
@@ -165,6 +168,7 @@ function SignupForm() {
   return (
     <form action={action} style={{ width: '100%', maxWidth: 460 }}>
       {next && <input type="hidden" name="next" value={next} />}
+      <input type="hidden" name="termsVersion" value={LEGAL_DOCUMENT_VERSION} />
       {/* Trial badge */}
       <div style={{
         display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -185,38 +189,6 @@ function SignupForm() {
       <p style={{ fontSize: 15, color: 'var(--ink-2)', marginTop: 8, marginBottom: 24 }}>
         Mağazanı oluştur, ilk QR&apos;ını yazdır, siparişler düşmeye başlasın.
       </p>
-
-      {/* Google social */}
-      <div style={{ marginBottom: 18 }}>
-        <button
-          type="button"
-          style={{
-            width: '100%', height: 46, padding: '0 16px',
-            background: 'var(--surface)', color: 'var(--ink)',
-            border: '1.5px solid var(--line)', borderRadius: 12,
-            fontSize: 14, fontWeight: 600, cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-            <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3a12 12 0 1 1-3.4-12.9l5.7-5.7A20 20 0 1 0 44 24c0-1.3-.1-2.6-.4-3.9z"/>
-            <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8A12 12 0 0 1 24 12c3 0 5.8 1.1 7.9 3l5.7-5.7A20 20 0 0 0 6.3 14.7z"/>
-            <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2A12 12 0 0 1 12.7 28l-6.5 5A20 20 0 0 0 24 44z"/>
-            <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3a12 12 0 0 1-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.3-.1-2.6-.4-3.9z"/>
-          </svg>
-          Google ile devam et
-        </button>
-      </div>
-
-      {/* Divider */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        color: 'var(--ink-3)', fontSize: 12, marginBottom: 22,
-      }}>
-        <div style={{ flex: 1, height: 1, background: 'var(--line)' }} />
-        <span>veya e-posta ile</span>
-        <div style={{ flex: 1, height: 1, background: 'var(--line)' }} />
-      </div>
 
       <Field label="Ad Soyad" optional>
         <AuthInput
@@ -308,17 +280,26 @@ function SignupForm() {
         </span>
         <input
           type="checkbox"
+          name="termsAccepted"
+          value="on"
+          required
           checked={accept}
           onChange={e => setAccept(e.target.checked)}
           style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
         />
         <span style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.5 }}>
-          <a href="#" style={{ color: 'var(--ink)', fontWeight: 600 }}>Hizmet şartlarını</a>
-          {' '}ve{' '}
-          <a href="#" style={{ color: 'var(--ink)', fontWeight: 600 }}>gizlilik politikasını</a>
-          {' '}okudum, kabul ediyorum.
+          <a href={`${MARKETING_URL}/yasal/abonelik-hizmet-sozlesmesi`} target="_blank" rel="noreferrer" style={{ color: 'var(--ink)', fontWeight: 600 }}>B2B Abonelik Hizmet Sözleşmesi&apos;ni</a>
+          {' '}okudum ve kabul ediyorum.
         </span>
       </label>
+
+      <p style={{ margin: '-8px 0 20px 28px', color: 'var(--ink-3)', fontSize: 12, lineHeight: 1.5 }}>
+        Kişisel verilerinizin işlenmesi hakkında{' '}
+        <a href={`${MARKETING_URL}/yasal/kvkk-aydinlatma-metni`} target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', fontWeight: 600 }}>
+          KVKK Aydınlatma Metni&apos;ni
+        </a>{' '}
+        inceleyebilirsiniz. Bu bilgilendirme sözleşme kabulünden ayrıdır.
+      </p>
 
       {/* Submit */}
       <button
@@ -353,7 +334,7 @@ function SignupForm() {
           {[
             { label: 'Kart gerekmez', icon: <I.check size={14} /> },
             { label: '2 dk kurulum', icon: <I.clock size={14} /> },
-            { label: 'KVKK uyumlu', icon: <I.shield size={14} /> },
+            { label: 'Güvenli oturum', icon: <I.shield size={14} /> },
           ].map((t, i) => (
             <div key={i} style={{
               display: 'flex', alignItems: 'center', gap: 6,
