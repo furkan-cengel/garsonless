@@ -1,7 +1,7 @@
 'use client'
 import { useMemo } from 'react'
 import { THEME_REGISTRY, type SettingsGroup } from '@garsonless/ui/themes'
-import { CANONICAL_THEME_ID, type GarsonlessTheme } from '@garsonless/design-engine'
+import { buildMenuCartContrastRepairPatch, buildMenuFooterContrastRepairPatch, buildMenuThemeContrastRepairPatch, CANONICAL_THEME_ID, createRevealMenuPageBlockCommand, resolveMenuHeaderTheme, type GarsonlessTheme } from '@garsonless/design-engine'
 import { useShell } from '../../lib/shell-context'
 import { ThemeEditorTopbar } from './ThemeEditorTopbar'; import { ThemeEditorCanvas } from './ThemeEditorCanvas'
 import { ThemeExperienceProperties, ThemeExperienceSidebar } from './ThemeExperiencePanels'
@@ -10,60 +10,41 @@ import { ThemeEditorShell } from './ThemeEditorShell'; import { ThemeEditorSideb
 import { ChefPickIconUploadPanels, GalleryUploadPanel, PromoSliderImageUploadPanel, SectionImageUploadPanel, ServiceRequestIconUploadPanels } from './ThemeSectionSettings'
 import { ThemeLogoUploadCard } from './ThemeLogoUploadCard'
 import { useThemeEditorLifecycle } from './use-theme-editor-lifecycle'; import { useThemeEditorLogo } from './use-theme-editor-logo'
-import { useThemeEditorNavigation } from './use-theme-editor-navigation'
-import { useThemeEditorPropertyCommands } from './use-theme-editor-property-commands'
-import { useThemeEditorWorkspace } from './use-theme-editor-workspace'
-import { useThemeEditorDrawerPreview } from './use-theme-editor-drawer-preview'
-import { useThemeExperienceSurface } from './use-theme-experience-surface'
-import { buildEditorNavigation, buildThemeSettingsGroup } from './theme-editor-navigation-catalog'
-import { getThemeEditorSaveStatus } from './theme-editor-shell-model'
-import { createThemeEditorPreviewDeriver } from './theme-editor-preview-theme-model'
-import { HOME_SECTION_LIBRARY, SECTION_GROUPS, SECTION_LIBRARY } from './theme-editor-section-registry'
-import { createHomeThemeEditorController } from './home-theme-editor-controller'
-import { projectHomeV2ForEditor } from './home-theme-editor-model'
-import type { ThemeEditorClientProps } from './theme-editor-client-contract'
+import { useThemeEditorNavigation } from './use-theme-editor-navigation'; import { useThemeEditorCoupons } from './use-theme-editor-coupons'
+import { useThemeEditorPropertyCommands } from './use-theme-editor-property-commands'; import { useThemeEditorWorkspace } from './use-theme-editor-workspace'; import { useThemeEditorCartPreview } from './use-theme-editor-cart-preview'
+import { useThemeEditorChromeScope } from './use-theme-editor-chrome-scope'; import { buildMenuHeaderContrastRepairPatch } from './menu-header-editor-scope'
+import { useThemeEditorDrawerPreview } from './use-theme-editor-drawer-preview'; import { useThemePublishGuidance } from './use-theme-publish-guidance'; import { useThemeExperienceSurface } from './use-theme-experience-surface'; import { buildEditorNavigation, buildThemeSettingsGroup } from './theme-editor-navigation-catalog'
+import { getThemeEditorSaveStatus } from './theme-editor-shell-model'; import { createThemeEditorPreviewDeriver } from './theme-editor-preview-theme-model'
+import { HOME_SECTION_LIBRARY, SECTION_GROUPS, SECTION_LIBRARY } from './theme-editor-section-registry'; import { createHomeThemeEditorController } from './home-theme-editor-controller'; import { resolveFooterStoreDataAvailability } from './footer-store-data'
+import { projectHomeV2ForEditor } from './home-theme-editor-model'; import { buildThemePreviewUrl } from './theme-preview-url'; import type { ThemeEditorClientProps } from './theme-editor-client-contract'
 export default function ThemeEditorClient({ restaurantId, restaurantSlug, restaurantName, restaurantLogoUrl,
-  canAddAdvancedSections, experienceV2Enabled, templateId, initialPersistence, restaurantSettings, menuCategories, menuItems }: ThemeEditorClientProps) {
+  canAddAdvancedSections, experienceV2Enabled, previewAccessToken, templateId, initialPersistence, restaurantSettings, initialCouponOptions, menuCategories, menuItems }: ThemeEditorClientProps) {
   const entry = THEME_REGISTRY[CANONICAL_THEME_ID]!
   const schema: SettingsGroup[] = entry.SETTINGS_SCHEMA
   const { setNavigationGuard } = useShell()
   const menuBaseUrl = process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'
   const initialHomeEnabled = initialPersistence.initialTheme.surfaces?.home.enabled === true
-  const {
-    surface: experienceSurface,
-    setSurface: setExperienceSurface,
-    authState,
-    setAuthState,
-    checkoutState,
-    setCheckoutState,
-    selectedHomeSectionId,
-    setSelectedHomeSectionId,
+  const { surface: experienceSurface, setSurface: setExperienceSurface, authState, setAuthState,
+    accountState, setAccountState, checkoutState, setCheckoutState, selectedHomeSectionId, setSelectedHomeSectionId,
   } = useThemeExperienceSurface(initialHomeEnabled, experienceV2Enabled,
     initialPersistence.initialTheme.surfaces?.home.blocks?.[0]?.id ?? initialPersistence.initialTheme.surfaces?.home.sections[0]?.id ?? null)
   const previewContext = useMemo(() => ({
     surface: experienceSurface,
     ...(experienceSurface === 'auth' ? { state: authState } : {}),
+    ...(experienceSurface === 'account' ? { state: accountState } : {}),
     ...(experienceSurface === 'checkout' ? { state: checkoutState } : {}),
-  }) as const, [authState, checkoutState, experienceSurface])
-  const previewUrl = useMemo(() => {
-    const params = new URLSearchParams({ preview: '1', surface: experienceSurface })
-    if (experienceSurface === 'auth') params.set('state', authState)
-    if (experienceSurface === 'checkout') params.set('state', checkoutState)
-    const path = experienceSurface === 'menu'
-      ? `/${encodeURIComponent(restaurantSlug)}/menu`
-      : `/theme-preview/${encodeURIComponent(restaurantSlug)}`
-    return `${menuBaseUrl.replace(/\/$/, '')}${path}?${params.toString()}`
-  }, [authState, checkoutState, experienceSurface, menuBaseUrl, restaurantSlug])
+  }) as const, [accountState, authState, checkoutState, experienceSurface])
+  const previewUrl = useMemo(() => buildThemePreviewUrl({ menuBaseUrl, restaurantSlug, templateId, previewAccessToken, surface: experienceSurface, authState, accountState, checkoutState }), [accountState, authState, checkoutState, experienceSurface, menuBaseUrl, previewAccessToken, restaurantSlug, templateId])
   const derivePreviewTheme = useMemo(() => {
     const deriveBaseTheme = createThemeEditorPreviewDeriver(entry.THEME_DEFAULTS, menuCategories)
     return (overrides: Partial<GarsonlessTheme>) => projectHomeV2ForEditor(deriveBaseTheme(overrides))
   }, [entry.THEME_DEFAULTS, menuCategories])
   const {
-    overrides, previewTheme, iframeRef,
+    overrides, previewTheme, iframeRef, previewFrameUrl,
     previewStatus, reloadPreviewFrame, handlePreviewFrameLoad, handlePreviewFrameError,
     savingDraft, publishing, toast, hasUnsavedChanges, lastSavedAt, lastPublishedAt,
-    hasUnpublishedChanges, authContrastIssues, checkoutContrastIssues, unsavedFieldLabels, canUndo, canRedo, flashToast,
-    handleUndo, handleRedo, handleFieldChange, updateThemePatch, handleSave, handlePublish,
+    hasUnpublishedChanges, authContrastIssues, checkoutContrastIssues, menuHeaderContrastIssues, menuNavigationContrastIssues, menuCardContrastIssues, menuCartContrastIssues, menuFooterContrastIssues, menuThemeContrastIssues, unsavedFieldLabels, canUndo, canRedo, flashToast, postPreviewMessage,
+    handleUndo, handleRedo, handleFieldChange, updateThemePatch, retireThemeMediaUrl, handleSave, handlePublish,
   } = useThemeEditorLifecycle({
     restaurantId,
     templateId,
@@ -73,7 +54,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
     schema,
     derivePreviewTheme,
     setNavigationGuard,
-    previewContext,
+    previewContext, onPreviewSurfaceNavigation: setExperienceSurface, menuItems,
   })
   const {
     previewMode, setPreviewMode, previewScale, layout: workspaceLayout,
@@ -88,39 +69,45 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
     flashToast,
     reloadPreview: reloadPreviewFrame,
   })
-  const mergedTheme = useMemo(
-    () => ({ ...entry.THEME_DEFAULTS, ...overrides }) as GarsonlessTheme,
-    [entry.THEME_DEFAULTS, overrides],
-  )
+  const mergedTheme = useMemo(() => ({ ...entry.THEME_DEFAULTS, ...overrides }) as GarsonlessTheme,
+    [entry.THEME_DEFAULTS, overrides])
+  const resolvedMenuPreviewTheme = useMemo(() => resolveMenuHeaderTheme(previewTheme), [previewTheme])
+  const editorMergedTheme = experienceSurface === 'menu' ? resolvedMenuPreviewTheme : mergedTheme
+  const couponOptions = useThemeEditorCoupons(restaurantId, initialCouponOptions)
+  const footerStoreDataAvailability = useMemo(() => resolveFooterStoreDataAvailability(restaurantSettings), [restaurantSettings])
   const themeGroupData = buildThemeSettingsGroup(schema)
   const navGroups = buildEditorNavigation(schema, entry.name)
   const {
     activeGroup, sectionPickerOpen, sectionSearch, editorSearch, editorQuery, sectionGroup,
-    selectedSectionId, selectedSectionDefinitionId, selectedSectionBlock, dragBlockKey,
+    selectedSectionId, selectedPageBlockKey, pageFlowStatus, selectedSectionDefinitionId, selectedSectionBlock, dragBlockKey,
     sectionTriggerRef, sectionCloseRef, pageBlocks, activeSectionDefinitionIds, activeGroupData,
     filteredNavGroups, selectedSection, selectedSectionSettings, visibleEditorTabs, effectiveEditorTab,
     visibleFields, visibleSectionFields, filteredSections, filteredPageBlocks,
     setSectionSearch, setEditorSearch, setSectionGroup, setDragBlockKey, setActiveEditorTab,
     openSectionPicker, closeSectionPicker, addSection: handleAddSection, removeSection: handleRemoveSection,
-    changeSectionSetting: handleSectionSettingChange, changeSectionVisibility: handleSectionVisibilityChange,
+    changeSectionSetting: handleSectionSettingChange, changeSectionSettings: handleSectionSettingsChange, changeSectionVisibility: handleSectionVisibilityChange,
     changeSectionPlacement: handleSectionPlacementChange, dropPageBlock: handlePageBlockDrop,
     movePageBlock: handlePageBlockKeyboardMove, selectGroup, selectPageBlock,
   } = useThemeEditorNavigation({
     schema,
     themeGroupData,
     navGroups,
-    mergedTheme,
+    mergedTheme: editorMergedTheme,
     previewTheme,
     menuCategories,
+    menuItems,
     updateThemePatch,
     flashToast,
+    onRevealPageBlock: (block) => postPreviewMessage(createRevealMenuPageBlockCommand({ kind: block.type, id: block.id })),
   })
-  useThemeEditorDrawerPreview({ activeGroup, iframeRef, previewStatus, previewUrl, selectedSectionDefinitionId, selectedSectionPlacement: selectedSectionBlock?.placement })
+  const { cartPreviewState, setCartPreviewState } = useThemeEditorCartPreview({ activeGroup, previewStatus, postPreviewMessage })
+  useThemeEditorDrawerPreview({ activeGroup, iframeRef, previewStatus, previewUrl, selectedSectionDefinitionId,
+    selectedSectionPlacement: selectedSectionBlock?.placement, selectedServicePlacement: resolvedMenuPreviewTheme.servicePlacement })
   const { copyCurrentSettings: handleCopyCurrentSettings, resetCurrentSettings: handleResetCurrentSettings } = useThemeEditorPropertyCommands({
     activeGroup,
     activeGroupData,
     selectedSectionId,
-    mergedTheme,
+    mergedTheme: editorMergedTheme,
     previewTheme,
     defaults: entry.THEME_DEFAULTS,
     updateThemePatch,
@@ -135,6 +122,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
     lastSavedAt,
     lastPublishedAt,
   })
+  const { publishBlockedReason, handlePublishRequest } = useThemePublishGuidance({ authContrastIssues, checkoutContrastIssues, menuHeaderContrastIssues, menuNavigationContrastIssues, menuCardContrastIssues, menuCartContrastIssues, menuFooterContrastIssues, menuThemeContrastIssues, taskBased, setExperienceSurface, setAuthState, setCheckoutState, setActiveSurface, flashToast, handlePublish })
   const homeEnabled = previewTheme.surfaces?.home.enabled === true
   const menuSectionGroups = SECTION_GROUPS.filter((group) => group === 'Tümü' || SECTION_LIBRARY.some((section) => section.group === group))
   const homeEditor = createHomeThemeEditorController({
@@ -155,6 +143,8 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
       menuCategories={menuCategories}
       sectionLibrary={SECTION_LIBRARY}
       selectedSectionId={selectedSectionId}
+      selectedPageBlockKey={selectedPageBlockKey}
+      pageFlowStatus={pageFlowStatus}
       dragBlockKey={dragBlockKey}
       sectionTriggerRef={sectionTriggerRef}
       onEditorSearchChange={setEditorSearch}
@@ -174,6 +164,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
       theme={previewTheme}
       selectedSectionId={selectedHomeSectionId}
       authState={authState}
+      accountState={accountState}
       checkoutState={checkoutState}
       sectionTriggerRef={sectionTriggerRef}
       onSelectSection={(id) => { setSelectedHomeSectionId(id); if (taskBased) setActiveSurface('design') }}
@@ -184,41 +175,54 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
       }}
       onOpenSectionPicker={homeEditor.open}
       onAuthStateChange={setAuthState}
+      onAccountStateChange={setAccountState}
       onCheckoutStateChange={setCheckoutState}
-      onPatch={updateThemePatch}
+      onPatch={updateThemePatch} onRetireMedia={retireThemeMediaUrl}
     />
   )
-  const sharedChromeActive = experienceSurface === 'home' && (selectedHomeSectionId === '__shared-header' || selectedHomeSectionId === '__shared-footer')
+  const chromeScope = useThemeEditorChromeScope({ activeGroup, activeGroupData, experienceSurface, selectedHomeSectionId, previewTheme, resolvedMenuPreviewTheme, overrides, defaults: entry.THEME_DEFAULTS, updateThemePatch, flashToast }); const { sharedChromeActive, menuHeaderActive } = chromeScope
   const menuOrSharedProperties = (
     <ThemeEditorPropertiesWorkspace
-      width={rightPanelWidth}
-      activeGroup={activeGroup}
-      activeGroupData={activeGroupData}
-      selectedSection={sharedChromeActive ? null : selectedSection}
-      selectedSectionId={sharedChromeActive ? null : selectedSectionId}
-      selectedSectionBlock={sharedChromeActive ? null : selectedSectionBlock}
-      selectedSectionSettings={sharedChromeActive ? {} : selectedSectionSettings}
-      visibleEditorTabs={visibleEditorTabs}
-      effectiveEditorTab={effectiveEditorTab}
-      visibleFields={visibleFields}
-      visibleSectionFields={visibleSectionFields}
-      mergedTheme={previewTheme}
-      overrides={overrides}
-      defaults={entry.THEME_DEFAULTS}
-      schema={schema}
-      menuCategories={menuCategories}
-      menuItems={menuItems}
+      couponOptions={couponOptions} width={rightPanelWidth}
+      activeGroup={activeGroup} activeGroupData={activeGroupData}
+      selectedSection={sharedChromeActive ? null : selectedSection} selectedSectionId={sharedChromeActive ? null : selectedSectionId}
+      selectedSectionBlock={sharedChromeActive ? null : selectedSectionBlock} selectedSectionSettings={sharedChromeActive ? {} : selectedSectionSettings}
+      visibleEditorTabs={visibleEditorTabs} effectiveEditorTab={effectiveEditorTab}
+      visibleFields={visibleFields} visibleSectionFields={visibleSectionFields}
+      mergedTheme={chromeScope.theme} overrides={chromeScope.overrides} defaults={chromeScope.defaults}
+      schema={schema} menuCategories={menuCategories} menuItems={menuItems}
       menuHref={`/dashboard/${restaurantId}/menu`}
-      logoCard={activeGroup === 'header' && mergedTheme.headerLogoStyle === 'image' && effectiveEditorTab === 'design' ? (
-        <ThemeLogoUploadCard
-          logoUrl={localLogoUrl}
-          uploading={logoUploading}
-          onUpload={handleLogoUpload}
-          onRemove={handleLogoRemove}
-        />
+      footerStoreDataAvailability={footerStoreDataAvailability} storeSettingsHref={`/dashboard/${restaurantId}/settings?section=store`}
+      scopeNotice={menuHeaderActive ? 'Bu panel yalnız Menü Header görünümünü değiştirir. Ana Sayfa Header ortak temel ayarlarını ve kendi özel ayarlarını korur.' : undefined}
+      themeContrastIssues={menuThemeContrastIssues}
+      contrastIssues={menuHeaderActive ? menuHeaderContrastIssues : activeGroup === 'nav' ? menuNavigationContrastIssues : activeGroup === 'cards' ? menuCardContrastIssues : activeGroup === 'cart' ? menuCartContrastIssues : activeGroup === 'footer' && effectiveEditorTab === 'design' ? menuFooterContrastIssues : undefined}
+      contrastRepairLabel={menuHeaderActive && menuHeaderContrastIssues.length > 0 ? 'Header renklerini güvenli hale getir' : activeGroup === 'nav' && menuNavigationContrastIssues.length > 0 ? 'Navigasyon paletini güvenli hale getir' : activeGroup === 'cards' && menuCardContrastIssues.length > 0 ? 'Kart paletini güvenli değerlere getir' : activeGroup === 'cart' && menuCartContrastIssues.length > 0 ? 'Sepet paletini güvenli hale getir' : activeGroup === 'footer' && menuFooterContrastIssues.length > 0 ? 'Footer tonunu güvenli hale getir' : undefined}
+      onContrastRepair={menuHeaderActive && menuHeaderContrastIssues.length > 0 ? () => updateThemePatch(buildMenuHeaderContrastRepairPatch(previewTheme)) : activeGroup === 'nav' && menuNavigationContrastIssues.length > 0 ? () => updateThemePatch({
+        bg: '#f8f9f8',
+        cardColor: '#ffffff',
+        mutedTextColor: '#4b5563',
+        accent: '#166534',
+        accentSoft: '#dcfce7',
+        ctaTextColor: '#ffffff',
+        catnavOverlayColor: '#111827',
+        catnavOverlayTextColor: '#ffffff',
+      }) : activeGroup === 'cards' && menuCardContrastIssues.length > 0 ? () => updateThemePatch({
+        bg: '#f8f9f8',
+        cardColor: '#ffffff',
+        textColor: '#1c1d20',
+        mutedTextColor: '#4b5563',
+        accent: '#166534',
+        cta: '#166534',
+        ctaTextColor: '#ffffff',
+      }) : activeGroup === 'cart' && menuCartContrastIssues.length > 0 ? () => updateThemePatch(buildMenuCartContrastRepairPatch(previewTheme)) : activeGroup === 'footer' && menuFooterContrastIssues.length > 0 ? () => updateThemePatch(buildMenuFooterContrastRepairPatch(previewTheme)) : undefined}
+      onThemeContrastRepair={() => updateThemePatch(buildMenuThemeContrastRepairPatch(previewTheme))}
+      cartPreviewState={cartPreviewState} onCartPreviewStateChange={setCartPreviewState}
+      inheritanceNotice={chromeScope.inheritanceTarget ? { target: chromeScope.inheritanceTarget === 'header' ? 'Header' : 'Footer', customized: chromeScope.customized } : undefined}
+      logoCard={activeGroup === 'header' && chromeScope.theme.headerLogoStyle === 'image' && effectiveEditorTab === 'design' ? (
+        <ThemeLogoUploadCard logoUrl={localLogoUrl} uploading={logoUploading} onUpload={handleLogoUpload} onRemove={handleLogoRemove} />
       ) : undefined}
-      sectionMediaPanel={effectiveEditorTab === 'design' && selectedSectionId && selectedSectionDefinitionId === 'gallery' ? (
-        <GalleryUploadPanel restaurantId={restaurantId} values={selectedSectionSettings} onChange={(key, value) => handleSectionSettingChange(selectedSectionId, key, value)} />
+      sectionMediaPanel={effectiveEditorTab === 'content' && selectedSectionId && selectedSectionDefinitionId === 'gallery' ? (
+        <GalleryUploadPanel restaurantId={restaurantId} values={selectedSectionSettings} onPatch={(patch) => handleSectionSettingsChange(selectedSectionId, patch)} onRetireMedia={retireThemeMediaUrl} />
       ) : effectiveEditorTab === 'design' && selectedSectionId && selectedSectionDefinitionId === 'hero-banner' ? (
         <SectionImageUploadPanel restaurantId={restaurantId} label="Hero Banner" value={selectedSectionSettings.imageUrl ?? ''} onChange={(value) => handleSectionSettingChange(selectedSectionId, 'imageUrl', value)} />
       ) : effectiveEditorTab === 'design' && selectedSectionId && selectedSectionDefinitionId === 'promo-slider' ? (
@@ -229,10 +233,12 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
         <ServiceRequestIconUploadPanels restaurantId={restaurantId} values={selectedSectionSettings} onChange={(key, value) => handleSectionSettingChange(selectedSectionId, key, value)} />
       ) : undefined}
       onTabChange={setActiveEditorTab}
-      onReset={handleResetCurrentSettings}
-      onCopy={handleCopyCurrentSettings}
-      onFieldChange={handleFieldChange}
+      onReset={chromeScope.active ? chromeScope.reset : handleResetCurrentSettings}
+      onCopy={chromeScope.active ? () => { void chromeScope.copy() } : handleCopyCurrentSettings}
+      onFieldChange={chromeScope.active ? chromeScope.changeField : handleFieldChange}
+      onThemePatch={updateThemePatch}
       onSectionSettingChange={(key, value) => { if (selectedSectionId) handleSectionSettingChange(selectedSectionId, key, value) }}
+      onSectionSettingsChange={(patch) => { if (selectedSectionId) handleSectionSettingsChange(selectedSectionId, patch) }}
       onSectionVisibilityChange={handleSectionVisibilityChange}
       onSectionPlacementChange={handleSectionPlacementChange}
     />
@@ -244,12 +250,14 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
       canAddAdvancedSections={canAddAdvancedSections}
       surface={experienceSurface}
       authState={authState}
+      accountState={accountState}
       checkoutState={checkoutState}
       theme={previewTheme}
       selectedSectionId={selectedHomeSectionId}
-      menuCategories={menuCategories}
-      menuItems={menuItems}
+      couponOptions={couponOptions}
+      menuCategories={menuCategories} menuItems={menuItems}
       onPatch={updateThemePatch}
+      onRetireMedia={retireThemeMediaUrl}
     />
   )
   return (
@@ -271,20 +279,19 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
         savingDraft={savingDraft}
         publishing={publishing}
         hasUnpublishedChanges={hasUnpublishedChanges}
-        publishBlockedReason={authContrastIssues.length > 0 ? 'Giriş yüzeyindeki kritik kontrast sorunlarını düzelt' : checkoutContrastIssues.length > 0 ? 'Checkout yüzeyindeki kritik kontrast sorunlarını düzelt' : undefined}
+        publishBlockedReason={publishBlockedReason}
         onPreviewModeChange={setPreviewMode}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onOpenPreview={openPreview}
         onSave={handleSave}
-        onPublish={handlePublish}
+        onPublish={handlePublishRequest}
       />}
       sidebar={experienceSidebar}
       canvas={<ThemeEditorCanvas
         iframeRef={iframeRef}
-        previewUrl={previewUrl}
+        previewUrl={previewUrl} previewFrameUrl={previewFrameUrl}
         previewStatus={previewStatus}
-        previewTheme={previewTheme}
         previewMode={previewMode}
         previewScale={previewScale}
         isTaskBased={taskBased}
@@ -317,12 +324,9 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
           ? homeEditor.state.home.blocks.map((block) => block.sectionId)
           : activeSectionDefinitionIds}
         canAddAdvancedSections={canAddAdvancedSections}
-        setSectionSearch={setSectionSearch}
-        setSectionGroup={setSectionGroup}
+        setSectionSearch={setSectionSearch} setSectionGroup={setSectionGroup}
         onSectionAdd={experienceSurface === 'home' ? homeEditor.add : handleAddSection}
         onLockedSection={() => flashToast('Bu bölüm Pro pakette kullanılabilir.')}
         onSectionClose={closeSectionPicker}
-      /> : null}
-    />
-  )
-}
+      /> : null} />
+  )}

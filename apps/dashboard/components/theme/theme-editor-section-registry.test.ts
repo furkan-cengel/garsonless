@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  createInitialSectionSettings,
   FOOD_ICON_OPTIONS,
   HOME_SECTION_LIBRARY,
   SECTION_GROUPS,
@@ -40,6 +41,11 @@ test('section registry keeps unique ids and valid group references', () => {
     assert.ok(section.label.trim().length > 0, `${section.id} has no label`)
     assert.ok(section.sub.trim().length > 0, `${section.id} has no description`)
   }
+})
+
+test("Şef'in Seçimi uses the chef hat in catalog and page flow", () => {
+  assert.equal(SECTION_LIBRARY.find((section) => section.id === 'chef-pick')?.icon, 'chef-hat')
+  assert.equal(HOME_SECTION_LIBRARY.find((section) => section.id === 'chef-pick')?.icon, 'chef-hat')
 })
 
 test('section catalog places request buttons before hours and omits retired placeholders', () => {
@@ -92,7 +98,15 @@ test('Video Hero metin katmanlarını ayrı ayrı gizler ve güvenli yüzde konu
   assert.equal(fields.get('showEyebrow')?.type, 'toggle')
   assert.equal(fields.get('showTitle')?.type, 'toggle')
   assert.equal(fields.get('showBody')?.type, 'toggle')
-  assert.equal(fields.get('showCta')?.type, 'toggle')
+  assert.equal(fields.get('showExplore')?.type, 'toggle')
+  assert.equal(fields.get('showExplore')?.editorTab, 'content')
+  assert.equal(fields.get('exploreLabel')?.type, 'text')
+  assert.equal(fields.get('exploreLabel')?.maxLength, 40)
+  assert.equal(fields.get('animateExplore')?.type, 'toggle')
+  assert.equal(fields.get('animateExplore')?.editorTab, 'design')
+  assert.equal(fields.get('animateExplore')?.default, true)
+  assert.equal(fields.has('showCta'), false)
+  assert.equal(fields.has('cta'), false)
   assert.deepEqual(fields.get('align')?.options?.map((option) => option.value), ['left', 'center', 'right'])
   assert.deepEqual(
     [fields.get('contentPositionX'), fields.get('contentPositionY')].map((field) => [field?.type, field?.min, field?.max, field?.unit]),
@@ -152,17 +166,49 @@ test('hero image is managed only by the upload panel', () => {
 test('promo strip defaults describe the canonical motion contract', () => {
   const fields = new Map(SECTION_SETTING_SCHEMA['promo-strip']!.map((field) => [field.key, field]))
   assert.equal(fields.get('showTitle')?.default, true)
-  assert.equal(fields.get('showRepeatText')?.default, true)
-  assert.equal(fields.get('targetType')?.default, 'none')
+  assert.equal(fields.has('showRepeatText'), false)
+  assert.equal(fields.has('repeatText'), false)
+  assert.equal(fields.has('targetType'), false)
+  assert.equal(fields.has('targetId'), false)
+  assert.equal(fields.has('targetUrl'), false)
+  assert.equal(fields.has('textColor'), false)
+  assert.equal(fields.get('accentColor')?.label, 'Yazı')
   assert.equal(fields.get('height')?.default, 40)
   assert.equal(fields.get('animation')?.default, 'marquee')
   assert.equal(fields.get('speed')?.default, 18)
   assert.equal(fields.get('pauseOnHover')?.default, true)
 })
 
+test('promo slider loyalty editor configures the promotional front without fake balances', () => {
+  const fields = new Map(SECTION_SETTING_SCHEMA['promo-slider']!.map((field) => [field.key, field]))
+
+  assert.equal(fields.get('loyaltyEyebrow')?.type, 'text')
+  assert.equal(fields.get('loyaltyTitle')?.label, 'Ödül Vaadi')
+  assert.equal(fields.get('loyaltyAccentColor')?.label, 'Altın Vurgu')
+  assert.equal(fields.has('loyaltyFilled'), false)
+  assert.equal(fields.has('loyaltyTotal'), false)
+  assert.equal(fields.has('loyaltyTargetType'), false)
+})
+
+test('promo slider uses one automatic campaign flow with independently enabled special cards', () => {
+  const fields = new Map(SECTION_SETTING_SCHEMA['promo-slider']!.map((field) => [field.key, field]))
+
+  assert.equal(fields.has('sourceMode'), false)
+  assert.equal(fields.has('activeCampaignIds'), true)
+  assert.equal(fields.get('sourceHeading')?.label, 'Kampanya akışı')
+  assert.match(fields.get('sourceHeading')?.description ?? '', /otomatik eklenir/i)
+  assert.equal(fields.get('flashHeading')?.label, '2 · Flash Teklif')
+})
+
 test('featured products are always derived from daily order performance', () => {
   const fields = new Map(SECTION_SETTING_SCHEMA['featured-scroll']!.map((field) => [field.key, field]))
 
+  assert.equal(fields.get('contentHeading')?.label, 'Başlık ve metin')
+  assert.equal(fields.has('showViewAll'), false)
+  assert.equal(fields.has('viewAllText'), false)
+  assert.equal(fields.has('targetType'), false)
+  assert.equal(fields.has('targetId'), false)
+  assert.equal(fields.has('targetUrl'), false)
   assert.equal(fields.has('selectionMode'), false)
   assert.equal(fields.has('item1Id'), false)
   assert.equal(fields.has('item8Id'), false)
@@ -185,8 +231,32 @@ test('chef pick editor is backed by real menu products and backward-compatible d
   assert.equal(fields.get('buttonSize')?.default, 'medium')
   assert.equal(fields.get('item1Id')?.type, 'product-select')
   assert.equal(fields.get('item4Id')?.type, 'product-select')
+  assert.equal(fields.get('imageFit')?.default, 'cover')
+  assert.equal(fields.get('imagePosition')?.default, 'center')
+  assert.equal(fields.get('imageSize')?.default, 88)
+  assert.equal(fields.get('bgColor')?.inheritToken, 'surface')
+  assert.equal(fields.get('buttonBgColor')?.inheritToken, 'cta')
+  assert.equal(fields.has('layout'), false)
+  assert.equal(fields.has('ctaText'), false)
+  assert.equal(fields.has('productCopyHeading'), false)
+  assert.equal(fields.has('showProductDescription'), false)
   assert.equal(fields.has('dish1Name'), false)
   assert.equal(fields.has('dish1Price'), false)
+})
+
+test('new chef pick instances start as manual editorial curation without changing legacy defaults', () => {
+  assert.deepEqual(createInitialSectionSettings('chef-pick'), {
+    editorialVersion: '2',
+    selectionMode: 'manual',
+    itemCount: '3',
+    chefIcon: 'sef-sapkasi',
+    showQuote: 'false',
+  })
+  assert.deepEqual(createInitialSectionSettings('gallery'), {
+    editorialVersion: '2', layout: 'mosaic', mosaicPattern: 'editorial', columns: '2', maxItems: '6', enableLightbox: 'true',
+    rowHeight: '104', gap: '8', padding: '14', radius: '16', imageFit: 'cover', imagePosition: 'center',
+  })
+  assert.equal(SECTION_SETTING_SCHEMA['chef-pick']?.find((field) => field.key === 'selectionMode')?.default, 'automatic')
 })
 
 test('combo ribbon editor uses real products and exposes server-verified bundle prices', () => {
@@ -197,6 +267,10 @@ test('combo ribbon editor uses real products and exposes server-verified bundle 
   assert.equal(fields.get('itemsPerCombo')?.default, '2')
   assert.equal(fields.get('combo1Item1Id')?.type, 'product-select')
   assert.equal(fields.get('combo3Item3Id')?.type, 'product-select')
+  assert.equal(fields.get('combo3Item4Id')?.type, 'product-select')
+  assert.deepEqual(fields.get('itemsPerCombo')?.options?.map((option) => option.value), ['2', '3', '4'])
+  assert.equal(fields.get('imageFit')?.default, 'cover')
+  assert.equal(fields.get('imagePosition')?.default, 'center')
   assert.equal(fields.get('ctaMode')?.default, 'inherit')
   assert.equal(fields.get('combo1Price')?.type, 'text')
   assert.equal(fields.get('combo1DiscountPolicy')?.label, 'İndirim Birleşimi')
@@ -205,6 +279,15 @@ test('combo ribbon editor uses real products and exposes server-verified bundle 
   assert.equal(fields.get('combo3DiscountPolicy')?.type, 'select')
   assert.equal(fields.has('combo1OldPrice'), false)
   assert.equal(fields.has('combo1ImageUrl'), false)
+  assert.deepEqual(createInitialSectionSettings('combo-ribbon'), {
+    editorialVersion: '2',
+    selectionMode: 'manual',
+    comboCount: '1',
+    itemsPerCombo: '2',
+    showSavings: 'true',
+    imageFit: 'cover',
+    imagePosition: 'center',
+  })
 })
 
 test('discount badge editor uses a real product and an explicit stacking policy', () => {
@@ -243,6 +326,7 @@ test('daily special uses a real product, optional server-verified price and abso
   assert.equal(fields.get('countdownEnabled')?.default, false)
   assert.equal(fields.get('campaignEndsAt')?.type, 'datetime')
   assert.equal(fields.get('ctaMode')?.default, 'inherit')
+  assert.equal(fields.get('imageSize')?.default, 112)
   assert.equal(fields.has('timer'), false)
   assert.equal(fields.has('price'), false)
   assert.equal(fields.has('oldPrice'), false)

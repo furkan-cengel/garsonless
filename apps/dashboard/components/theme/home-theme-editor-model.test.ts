@@ -68,3 +68,47 @@ test('eski V2 video hero ayrı Pro Video Hero bölümüne yükseltilir ve izin v
   assert.equal(upgraded.upgraded, true)
   assert.deepEqual(upgraded.home.blocks.map((block) => block.sectionId), ['storefront-video-hero'])
 })
+
+test('eski V2 standart bölümlerin görünümünü snapshot ile koruyup renk mirasını açar', () => {
+  const theme = structuredClone(DEFAULT_THEME)
+  if (!theme.surfaces) throw new Error('home surface is required')
+  theme.surfaces.home.colorInheritanceVersion = undefined
+  theme.surfaces.home.blocks = [
+    { id: 'featured', sectionId: 'featured-scroll', enabled: true },
+    { id: 'gallery', sectionId: 'gallery', enabled: true },
+    { id: 'campaign', sectionId: 'promo-slider', enabled: true },
+  ]
+  theme.sectionSettings = { featured: { title: 'Mevcut vitrin' } }
+
+  const upgraded = ensureHomeV2(theme)
+
+  assert.equal(upgraded.home.colorInheritanceVersion, 2)
+  assert.equal(upgraded.sectionSettings.featured?.title, 'Mevcut vitrin')
+  assert.equal(upgraded.sectionSettings.featured?.sectionBgColor, 'transparent')
+  assert.equal(upgraded.sectionSettings.gallery?.labelBgColor, '#ffffff')
+  assert.equal(upgraded.sectionSettings.campaign, undefined)
+})
+
+test('yeni renk mirası belgesi tekrar normalize edildiğinde değişmez', () => {
+  const state = ensureHomeV2(DEFAULT_THEME)
+  assert.equal(state.home.colorInheritanceVersion, 2)
+  assert.equal(state.upgraded, false)
+})
+
+test('existing chef pick keeps its legacy palette while joining the editorial renderer', () => {
+  const theme = structuredClone(DEFAULT_THEME)
+  if (!theme.surfaces) throw new Error('home surface is required')
+  theme.surfaces.home.colorInheritanceVersion = 2
+  theme.surfaces.home.blocks = [{ id: 'existing-chef', sectionId: 'chef-pick', enabled: true }]
+  theme.sectionSettings = { 'existing-chef': { selectionMode: 'automatic', title: 'İmza tabaklar' } }
+
+  const upgraded = ensureHomeV2(theme)
+  const settings = upgraded.sectionSettings['existing-chef']
+
+  assert.equal(upgraded.upgraded, true)
+  assert.equal(settings?.editorialVersion, '2')
+  assert.equal(settings?.selectionMode, 'automatic')
+  assert.equal(settings?.bgColor, '#1a1612')
+  assert.equal(settings?.itemBgColor, '#241f1a')
+  assert.equal(ensureHomeV2({ ...theme, sectionSettings: upgraded.sectionSettings }).upgraded, false)
+})

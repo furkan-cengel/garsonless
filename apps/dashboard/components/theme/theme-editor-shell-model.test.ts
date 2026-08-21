@@ -36,7 +36,7 @@ test('save status distinguishes local, saved draft and published states', () => 
     hasUnpublishedChanges: true,
     lastSavedAt: new Date(2026, 6, 17, 9, 5),
   })
-  assert.match(saved.text, /^Taslak \d{2}:\d{2}$/)
+  assert.match(saved.text, /^Yayın bekliyor · \d{2}:\d{2}$/)
   assert.equal(saved.color, '#b86408')
 
   assert.equal(getThemeEditorSaveStatus(clean).text, 'Yayında')

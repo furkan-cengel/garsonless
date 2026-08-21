@@ -7,6 +7,8 @@ import {
   areThemeOverridesEqual,
   createThemeOverrides,
   getUnsavedFieldLabels,
+  isContinuousThemeHistoryControl,
+  shouldAppendHistoryForGroup,
 } from './theme-editor-lifecycle-model'
 
 const schema = [{
@@ -45,6 +47,24 @@ test('history snapshots stay bounded and preserve chronological order', () => {
   const history = Array.from({ length: 25 }, (_, index) => index)
   assert.deepEqual(appendHistorySnapshot(history, 25), Array.from({ length: 25 }, (_, index) => index + 1))
   assert.deepEqual(appendHistorySnapshot(history, 25, 0), [])
+})
+
+test('one continuous control edit creates one undo checkpoint', () => {
+  assert.equal(shouldAppendHistoryForGroup(null, 'home-background:1'), true)
+  assert.equal(shouldAppendHistoryForGroup('home-background:1', 'home-background:1'), false)
+  assert.equal(shouldAppendHistoryForGroup('home-background:1', 'home-background:2'), true)
+  assert.equal(shouldAppendHistoryForGroup('home-background:2', null), true)
+})
+
+test('text, color, range and slider controls group changes while discrete selectors do not', () => {
+  assert.equal(isContinuousThemeHistoryControl({ tagName: 'input', inputType: 'text' }), true)
+  assert.equal(isContinuousThemeHistoryControl({ tagName: 'input', inputType: 'color' }), true)
+  assert.equal(isContinuousThemeHistoryControl({ tagName: 'input', inputType: 'range' }), true)
+  assert.equal(isContinuousThemeHistoryControl({ tagName: 'textarea' }), true)
+  assert.equal(isContinuousThemeHistoryControl({ tagName: 'div', role: 'slider' }), true)
+  assert.equal(isContinuousThemeHistoryControl({ tagName: 'select' }), false)
+  assert.equal(isContinuousThemeHistoryControl({ tagName: 'input', inputType: 'checkbox' }), false)
+  assert.equal(isContinuousThemeHistoryControl({ tagName: 'button' }), false)
 })
 
 test('undo can distinguish the exact saved override snapshot from a dirty one', () => {

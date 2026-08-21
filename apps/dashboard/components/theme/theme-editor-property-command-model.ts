@@ -1,5 +1,6 @@
-import type { GarsonlessTheme } from '@garsonless/design-engine'
+import { getSectionDefinitionId, type GarsonlessTheme } from '@garsonless/design-engine'
 import type { SettingsGroup } from '@garsonless/ui/themes'
+import { buildVideoHeroResetSettings, createInitialSectionSettings, GALLERY_CONTENT_KEYS } from './theme-section-initial-settings'
 
 interface ThemeSettingsClipboardOptions {
   selectedSectionId: string | null
@@ -43,7 +44,22 @@ export function buildSectionSettingsResetPatch(
   sectionId: string,
 ): Partial<GarsonlessTheme> {
   const sectionSettings = { ...(theme.sectionSettings ?? {}) }
-  delete sectionSettings[sectionId]
+  const homeDefinition = theme.surfaces?.home.blocks?.find((block) => block.id === sectionId)?.sectionId
+  const menuBlock = theme.pageBlocks?.find((block) => block.type === 'section' && block.id === sectionId)
+  const definitionId = homeDefinition ?? (menuBlock ? getSectionDefinitionId(menuBlock) : null) ?? sectionId
+  const initialSettings = createInitialSectionSettings(definitionId)
+  if (definitionId === 'gallery') {
+    const current = sectionSettings[sectionId] ?? {}
+    const content = Object.fromEntries(GALLERY_CONTENT_KEYS.flatMap((key) => current[key] === undefined ? [] : [[key, current[key]!]]))
+    sectionSettings[sectionId] = { ...initialSettings, ...content }
+    return { sectionSettings }
+  }
+  if (definitionId === 'storefront-video-hero') {
+    sectionSettings[sectionId] = buildVideoHeroResetSettings(sectionSettings[sectionId] ?? {})
+    return { sectionSettings }
+  }
+  if (Object.keys(initialSettings).length > 0) sectionSettings[sectionId] = initialSettings
+  else delete sectionSettings[sectionId]
   return { sectionSettings }
 }
 

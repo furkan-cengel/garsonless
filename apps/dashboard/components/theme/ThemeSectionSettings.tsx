@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, DragEvent } from 'react'
 
 import { I } from '../../lib/ui'
 import { removeUnusedThemeMedia, uploadThemeMedia } from '../../lib/actions/theme'
@@ -10,29 +10,46 @@ import {
   validateThemeMediaMetadata,
 } from '../../lib/theme-media-policy'
 import { ChefSectionIcon, isChefSectionIconName } from '@garsonless/ui/themes/default'
+import type { HomeSurfacePalette } from '@garsonless/design-engine'
 import type { SectionSettingField } from './theme-editor-properties-model'
+import type { PublicCouponChoice } from '@garsonless/domain/coupons'
 import {
+  getChefPickSettingIssues,
+  getComboRibbonSettingIssues,
   getSectionSettingLabel,
+  getSectionSettingLayout,
+  getPromoSliderSettingIssues,
   getVisibleSectionSettingFields,
+  groupSectionSettingFields,
+  isChefPickFields,
+  isComboRibbonFields,
   isPromoSliderFields,
-  resolvePromoSliderSourceMode,
   resolveSectionSettingValue,
   sectionSettingControlId,
 } from './theme-section-settings-model'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Attachment,
   AttachmentAction,
-  AttachmentActions,
   AttachmentContent,
   AttachmentDescription,
   AttachmentMedia,
   AttachmentTitle,
-  AttachmentTrigger,
 } from '@/components/ui/attachment'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 import {
   Combobox,
   ComboboxContent,
@@ -47,7 +64,8 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldSeparator,
+  FieldLegend,
+  FieldSet,
   FieldTitle,
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -59,6 +77,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { buildGalleryClearPatch, GALLERY_EDITORIAL_VERSION } from './theme-section-initial-settings'
 
 type MenuCategoryRef = { id: string; name: string }
 type CampaignRef = {
@@ -78,18 +97,26 @@ type MenuItemRef = {
   isAvailable?: boolean
 }
 
-export function SectionSettingsEditor({ fields, values, menuCategories, menuItems, campaignOptions = [], menuHref, onChange }: {
+export function SectionSettingsEditor({ fields, values, inheritedColors, menuCategories, menuItems, campaignOptions = [], couponOptions = [], menuHref, onChange }: {
   fields: SectionSettingField[]
   values: Record<string, string>
+  inheritedColors?: HomeSurfacePalette
   menuCategories: MenuCategoryRef[]
   menuItems: MenuItemRef[]
   campaignOptions?: CampaignRef[]
+  couponOptions?: PublicCouponChoice[]
   menuHref?: string
   onChange: (key: string, value: string) => void
 }) {
   const targetType = values.targetType || 'none'
   const promoSlider = isPromoSliderFields(fields)
+  const chefPick = isChefPickFields(fields)
+  const comboRibbon = isComboRibbonFields(fields)
   const visibleFields = getVisibleSectionSettingFields(fields, values)
+  const fieldGroups = groupSectionSettingFields(visibleFields)
+  const promoSliderIssues = promoSlider ? getPromoSliderSettingIssues(values, Date.now(), menuItems) : []
+  const chefPickIssues = chefPick ? getChefPickSettingIssues(values, menuItems) : []
+  const comboRibbonIssues = comboRibbon ? getComboRibbonSettingIssues(values, menuItems) : []
 
   return (
     <FieldGroup data-section-settings-editor className="min-w-0 gap-2.5">
@@ -105,8 +132,9 @@ export function SectionSettingsEditor({ fields, values, menuCategories, menuItem
           background: var(--surface-3) !important;
         }
         [data-section-settings-editor] .garsonless-section-option-tile:focus-visible {
-          outline: 2px solid var(--accent);
-          outline-offset: 2px;
+          outline: none;
+          border-color: var(--text-2) !important;
+          box-shadow: inset 0 0 0 1px var(--text-2);
         }
         [data-section-settings-editor] .garsonless-section-option-tile:active {
           transform: translateY(0) scale(.985);
@@ -116,48 +144,191 @@ export function SectionSettingsEditor({ fields, values, menuCategories, menuItem
           max-inline-size: 100%;
         }
       `}</style>
-      {visibleFields.map((field) => {
-        if (field.type === 'heading') {
-          return <FieldSeparator key={field.key} className="mt-2 uppercase tracking-[.06em] text-[11.5px] font-bold">{field.label}</FieldSeparator>
-        }
-        const controlId = sectionSettingControlId(field.key)
-        const isIconGrid = field.type === 'icon-grid'
-        const resolvedValue = resolveSectionSettingValue(field, values, promoSlider)
-        return (
-          <Field key={field.key} orientation={isIconGrid ? 'vertical' : 'horizontal'} className="min-h-8 items-start">
-            <FieldLabel htmlFor={controlId} className={isIconGrid ? undefined : 'w-[82px] shrink-0 pt-1.5'}>
-              <span>{getSectionSettingLabel(field, targetType)}</span>
-              {field.type === 'range' && field.key !== 'cols' ? <small className="mt-0.5 block text-[10.5px] font-semibold text-muted-foreground">{resolvedValue}{field.unit ?? ''}</small> : null}
-            </FieldLabel>
-            <SectionSettingControl
-              field={field}
-              value={resolvedValue}
-              controlId={controlId}
-              targetType={targetType}
-              menuCategories={menuCategories}
-              menuItems={menuItems}
-              campaignOptions={campaignOptions}
-              {...(menuHref ? { menuHref } : {})}
-              onChange={(value) => onChange(field.key, value)}
-            />
-          </Field>
-        )
-      })}
+      {promoSliderIssues.length > 0 && (
+        <Alert style={{ color: 'var(--warning)' }}>
+          <I.warn size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          <AlertDescription>{promoSliderIssues.join(' ')}</AlertDescription>
+        </Alert>
+      )}
+      {chefPick && (values.selectionMode || 'automatic') !== 'manual' && (
+        <Alert>
+          <I.question size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          <AlertDescription className="grid gap-2">
+            <span>Otomatik mod menü sırasındaki ilk aktif ürünleri gösterir; gerçek bir şef kürasyonu değildir.</span>
+            <Button type="button" variant="outline" size="xs" className="w-fit" onClick={() => onChange('selectionMode', 'manual')}>
+              Manuel seçime geç
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      {chefPickIssues.length > 0 && (
+        <Alert style={{ color: 'var(--warning)' }}>
+          <I.warn size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          <AlertDescription>{chefPickIssues.join(' ')}</AlertDescription>
+        </Alert>
+      )}
+      {comboRibbonIssues.length > 0 && (
+        <Alert style={{ color: 'var(--warning)' }}>
+          <I.warn size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          <AlertDescription className="grid gap-1">
+            <strong>Kombo henüz yayına hazır değil.</strong>
+            {comboRibbonIssues.slice(0, 4).map((issue) => <span key={issue}>{issue}</span>)}
+            {comboRibbonIssues.length > 4 ? <span>+{comboRibbonIssues.length - 4} sorun daha</span> : null}
+          </AlertDescription>
+        </Alert>
+      )}
+      {fieldGroups.map((group, groupIndex) => (
+        <FieldSet
+          key={group.id}
+          data-section-setting-group={group.id}
+          className={groupIndex === 0 ? 'min-w-0 gap-2.5' : 'min-w-0 gap-2.5 border-t pt-2.5'}
+        >
+          {group.title ? (
+            <div className="grid gap-1">
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <FieldLegend variant="label" className="mb-0 text-[10px] font-bold uppercase tracking-[.08em] text-muted-foreground">
+                  {group.title}
+                </FieldLegend>
+                {group.fields.some((field) => field.type === 'color') && !group.fields.some((field) => field.inheritToken) ? (
+                  <Badge variant="outline" className="text-[9px]">Bölüme özel palet</Badge>
+                ) : null}
+              </div>
+              {group.description ? (
+                <FieldDescription className="text-[10.5px] leading-snug">
+                  {group.description}
+                </FieldDescription>
+              ) : null}
+            </div>
+          ) : null}
+          <FieldGroup className="min-w-0 gap-2.5">
+            {group.fields.map((field) => (
+              <SectionSettingFieldRow
+                key={field.key}
+                field={field}
+                value={resolveSectionSettingValue(field, values, promoSlider)}
+                explicitValue={Object.prototype.hasOwnProperty.call(values, field.key)}
+                inheritedColor={field.inheritToken ? inheritedColors?.[field.inheritToken] : undefined}
+                targetType={targetType}
+                menuCategories={menuCategories}
+                menuItems={menuItems}
+                campaignOptions={campaignOptions}
+                couponOptions={couponOptions}
+                {...(menuHref ? { menuHref } : {})}
+                onChange={(value) => onChange(field.key, value)}
+              />
+            ))}
+          </FieldGroup>
+        </FieldSet>
+      ))}
     </FieldGroup>
   )
 }
 
-function SectionSettingControl({ field, value, controlId, targetType, menuCategories = [], menuItems = [], campaignOptions = [], menuHref, onChange }: {
+function SectionSettingFieldRow({ field, value, explicitValue, inheritedColor, targetType, menuCategories, menuItems, campaignOptions, couponOptions, menuHref, onChange }: {
   field: SectionSettingField
   value: string
+  explicitValue: boolean
+  inheritedColor?: string
+  targetType: string
+  menuCategories: MenuCategoryRef[]
+  menuItems: MenuItemRef[]
+  campaignOptions: CampaignRef[]
+  couponOptions: PublicCouponChoice[]
+  menuHref?: string
+  onChange: (value: string) => void
+}) {
+  const controlId = sectionSettingControlId(field.key)
+  const layout = getSectionSettingLayout(field)
+  const label = getSectionSettingLabel(field, targetType)
+  const control = (
+    <SectionSettingControl
+      field={field}
+      value={value}
+      explicitValue={explicitValue}
+      inheritedColor={inheritedColor}
+      controlId={controlId}
+      targetType={targetType}
+      menuCategories={menuCategories}
+      menuItems={menuItems}
+      campaignOptions={campaignOptions}
+      couponOptions={couponOptions}
+      {...(menuHref ? { menuHref } : {})}
+      onChange={onChange}
+    />
+  )
+
+  if (layout === 'range') {
+    return (
+      <Field className="gap-2">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <FieldLabel htmlFor={controlId} className="text-xs leading-4">{label}</FieldLabel>
+          <output htmlFor={controlId} aria-live="polite" className="min-w-10 rounded-md border bg-muted/40 px-1.5 py-0.5 text-center font-mono text-[10px] font-semibold text-muted-foreground">
+            {value}{field.unit ?? ''}
+          </output>
+        </div>
+        {control}
+      </Field>
+    )
+  }
+
+  if (layout === 'toggle') {
+    return (
+      <Field orientation="horizontal" className="min-h-9 items-center justify-between gap-3">
+        <FieldLabel htmlFor={controlId} className="min-w-0 flex-1 text-xs leading-4">{label}</FieldLabel>
+        {control}
+      </Field>
+    )
+  }
+
+  if (layout === 'stacked') {
+    return (
+      <Field className="min-w-0 gap-1.5">
+        <FieldLabel htmlFor={controlId} className="text-xs leading-4">{label}</FieldLabel>
+        {control}
+      </Field>
+    )
+  }
+
+  return (
+    <Field className="grid min-h-9 min-w-0 grid-cols-[104px_minmax(0,1fr)] items-start gap-3">
+      <FieldLabel htmlFor={controlId} className="min-w-0 pt-1.5 text-xs leading-4">{label}</FieldLabel>
+      {control}
+    </Field>
+  )
+}
+
+function SectionSettingControl({ field, value, explicitValue = false, inheritedColor, controlId, targetType, menuCategories = [], menuItems = [], campaignOptions = [], couponOptions = [], menuHref, onChange }: {
+  field: SectionSettingField
+  value: string
+  explicitValue?: boolean
+  inheritedColor?: string
   controlId: string
   targetType?: string
   menuCategories?: MenuCategoryRef[]
   menuItems?: MenuItemRef[]
   campaignOptions?: CampaignRef[]
+  couponOptions?: PublicCouponChoice[]
   menuHref?: string
   onChange: (value: string) => void
 }) {
+  if (field.type === 'coupon-select') {
+    const selected = couponOptions.find((coupon) => coupon.id === value) ?? null
+    const options = couponOptions.map((coupon) => ({ value: coupon.id, label: `${coupon.code} · ${coupon.title}`, coupon }))
+    return (
+      <div className="flex min-w-0 flex-col gap-1">
+        <Combobox items={options} value={options.find((option) => option.value === value) ?? null} onValueChange={(next) => onChange(next?.value ?? '')} autoHighlight>
+          <ComboboxInput id={controlId} placeholder="Aktif kupon seç…" showClear={Boolean(value)} className="w-full" />
+          <ComboboxContent className="min-w-(--anchor-width)">
+            <ComboboxEmpty>Sadakat ayarlarında aktif kupon bulunamadı.</ComboboxEmpty>
+            <ComboboxList>{(option) => <ComboboxItem key={option.value} value={option}><span className="min-w-0"><span className="block truncate font-mono text-xs font-semibold">{option.coupon.code}</span><span className="block truncate text-[10.5px] text-muted-foreground">{option.coupon.title} · {option.coupon.subtitle}</span></span></ComboboxItem>}</ComboboxList>
+          </ComboboxContent>
+        </Combobox>
+        {selected ? <div className="rounded-lg border bg-muted/30 p-2"><strong className="block text-xs">{selected.title}</strong><span className="mt-0.5 block text-[10.5px] text-muted-foreground">{selected.subtitle}</span></div> : value ? (
+          <Alert variant="destructive"><AlertDescription>Seçili kupon artık aktif değil, süresi doldu veya kullanım limiti tükendi. Seçim editörde korunur ancak kart menüde gösterilmez.</AlertDescription></Alert>
+        ) : <FieldDescription className="text-[10.5px]">Kuponları Ayarlar → Sadakat → Kuponlar bölümünden yönetin.</FieldDescription>}
+      </div>
+    )
+  }
   if (field.type === 'campaign-multi-select') {
     const selectedIds = new Set(value.split(',').map((id) => id.trim()).filter(Boolean))
     const allSelected = selectedIds.size === 0
@@ -186,7 +357,7 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
             >
               <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground"><I.sparkles data-icon="inline-start" /></span>
               <span className="min-w-0 flex-1">
-                <strong className="block text-[11.5px] text-foreground">Tüm aktif kampanyalar ({campaignOptions.length})</strong>
+                <strong className="block text-xs text-foreground">Tüm aktif kampanyalar ({campaignOptions.length})</strong>
                 <span className="mt-0.5 block text-[10.5px] leading-snug text-muted-foreground">{sourceSummary}</span>
               </span>
               {allSelected && <I.check data-icon="inline-end" aria-hidden="true" />}
@@ -206,7 +377,7 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
                     {campaign.imageUrl ? <img src={campaign.imageUrl} alt="" className="size-full object-cover" /> : campaign.sourceLabel.slice(0, 2).toUpperCase()}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <strong className="block truncate text-[11.5px] text-foreground">{campaign.title}</strong>
+                    <strong className="block truncate text-xs text-foreground">{campaign.title}</strong>
                     <span className="mt-0.5 block truncate text-[10.5px] text-muted-foreground">{campaign.sourceLabel} · {campaign.badge}</span>
                   </span>
                   <I.check data-icon="inline-end" aria-hidden="true" className="opacity-0 group-data-pressed/toggle:opacity-100" />
@@ -259,7 +430,7 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
             <ComboboxEmpty>Ürün bulunamadı.</ComboboxEmpty>
             <ComboboxList>
               {(option) => (
-                <ComboboxItem key={option.value} value={option} disabled={option.item.isAvailable === false}>
+                <ComboboxItem key={option.value} value={option} disabled={option.item.isAvailable === false} className="text-xs">
                   <span className="min-w-0">
                     <span className="block truncate">{option.item.name}</span>
                     <span className="block truncate text-[11px] text-muted-foreground">{option.item.categoryName}{typeof option.item.price === 'number' ? ` · ${formatProductPrice(option.item.price)}` : ''}{option.item.isAvailable === false ? ' · Pasif' : ''}</span>
@@ -270,28 +441,30 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
           </ComboboxContent>
         </Combobox>
         {selectedItem && (
-          <Item variant="muted" size="xs">
+          <Item data-selected-product-summary variant="default" size="xs" className="rounded-none border-x-0 border-b-0 border-t bg-transparent px-1 py-1.5">
             <ItemMedia><ProductThumbnail item={selectedItem} /></ItemMedia>
             <ItemContent className="min-w-0">
-              <ItemTitle className="text-xs">{selectedItem.name}</ItemTitle>
-              <ItemDescription className={selectedItem.isAvailable === false ? 'text-destructive' : undefined}>
+              <ItemTitle className="text-[11.5px]">{selectedItem.name}</ItemTitle>
+              <ItemDescription className={selectedItem.isAvailable === false ? 'text-[10.5px] text-destructive' : 'text-[10.5px]'}>
                 {selectedItem.categoryName}{selectedItem.isAvailable === false ? ' · Pasif' : ''}
               </ItemDescription>
             </ItemContent>
-            {typeof selectedItem.price === 'number' && Number.isFinite(selectedItem.price) && (
-              <ItemActions className="text-[11.5px] font-bold">
-                {formatProductPrice(selectedItem.price)}
+            {((typeof selectedItem.price === 'number' && Number.isFinite(selectedItem.price)) || Boolean(menuHref)) && (
+              <ItemActions className="ml-auto flex-col items-end gap-0.5">
+                {typeof selectedItem.price === 'number' && Number.isFinite(selectedItem.price) ? (
+                  <span className="text-[11.5px] font-bold">{formatProductPrice(selectedItem.price)}</span>
+                ) : null}
+                {menuHref ? (
+                  <Button type="button" variant="link" size="xs" className="h-auto px-0" onClick={() => window.open(menuHref, '_blank', 'noopener')}>
+                    Menüde düzenle <I.arrow size={11} />
+                  </Button>
+                ) : null}
               </ItemActions>
             )}
           </Item>
         )}
         {value && !selectedItem && (
           <Alert variant="destructive"><AlertDescription>Bu ürün artık menüde bulunmuyor. Yeni bir ürün seçin.</AlertDescription></Alert>
-        )}
-        {value && menuHref && (
-          <Button type="button" variant="link" size="xs" className="self-start" onClick={() => window.open(menuHref, '_blank', 'noopener')}>
-            Menüde düzenle <I.arrow size={11} />
-          </Button>
         )}
       </div>
     )
@@ -302,7 +475,7 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
     return (
       <Select items={items} value={value || null} onValueChange={(next) => onChange(next ?? '')}>
         <SelectTrigger id={controlId} className="w-full"><SelectValue placeholder="— Kategori seç —" /></SelectTrigger>
-        <SelectContent><SelectGroup>{menuCategories.map((category) => <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>)}</SelectGroup></SelectContent>
+        <SelectContent><SelectGroup>{menuCategories.map((category) => <SelectItem key={category.id} value={category.id} className="text-xs">{category.name}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>
     )
   }
@@ -335,7 +508,7 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
               }}
             >
               <SectionOptionIcon value={option.value} />
-              <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 9.5, lineHeight: 1.15, fontWeight: 700 }}>
+              <span className="max-w-full truncate text-xs font-bold leading-tight">
                 {option.label}
               </span>
             </ToggleGroupItem>
@@ -352,20 +525,31 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
     return (
       <Select items={options} value={value || null} onValueChange={(next) => onChange(next ?? '')}>
         <SelectTrigger id={controlId} className="w-full"><SelectValue placeholder={targetType === 'category' ? 'Kategori seç' : 'Ürün seç'} /></SelectTrigger>
-        <SelectContent><SelectGroup>{options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label} · {option.meta}</SelectItem>)}</SelectGroup></SelectContent>
+        <SelectContent><SelectGroup>{options.map((option) => <SelectItem key={option.value} value={option.value} className="text-xs">{option.label} · {option.meta}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>
     )
   }
 
   if (field.type === 'color') {
-    const colorValue = /^#[0-9a-f]{6}$/i.test(value) ? value : field.placeholder || '#000000'
+    const fallbackColor = inheritedColor ?? field.placeholder ?? '#000000'
+    const colorValue = /^#[0-9a-f]{6}$/i.test(value)
+      ? value
+      : /^#[0-9a-f]{6}$/i.test(fallbackColor) ? fallbackColor : '#000000'
     return (
-      <InputGroup>
-        <InputGroupAddon className="p-1">
-          <input aria-label={`${field.label} renk seçici`} type="color" value={colorValue} onChange={(event) => onChange(event.target.value)} className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" />
-        </InputGroupAddon>
-        <InputGroupInput id={controlId} type="text" value={value} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} className="font-mono" />
-      </InputGroup>
+      <div className="flex min-w-0 flex-col gap-1">
+        <InputGroup>
+          <InputGroupAddon className="p-1">
+            <input aria-label={`${field.label} renk seçici`} type="color" value={colorValue} onChange={(event) => onChange(event.target.value)} className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" />
+          </InputGroupAddon>
+          <InputGroupInput id={controlId} type="text" value={value} placeholder={inheritedColor ?? field.placeholder} onChange={(event) => onChange(event.target.value)} className="font-mono" />
+        </InputGroup>
+        {field.inheritToken ? (
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <FieldDescription className="text-[10px]">{explicitValue ? 'Bu bölüme özel' : inheritedColor ? 'Ana sayfa stilinden' : 'Genel temadan'}</FieldDescription>
+            {explicitValue ? <Button type="button" variant="link" size="xs" onClick={() => onChange('')} className="h-auto px-0 text-[10px]">{inheritedColor ? 'Ana sayfa stiline dön' : 'Genel temaya dön'}</Button> : null}
+          </div>
+        ) : null}
+      </div>
     )
   }
 
@@ -391,7 +575,7 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
     return (
       <Select items={items} value={value || String(field.default ?? field.options?.[0]?.value ?? '')} onValueChange={(next) => { if (next) onChange(next) }}>
         <SelectTrigger id={controlId} className="w-full"><SelectValue /></SelectTrigger>
-        <SelectContent><SelectGroup>{(field.options ?? []).map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent>
+        <SelectContent><SelectGroup>{(field.options ?? []).map((option) => <SelectItem key={option.value} value={option.value} className="text-xs">{option.label}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>
     )
   }
@@ -404,37 +588,20 @@ function SectionSettingControl({ field, value, controlId, targetType, menuCatego
   }
 
   if (field.type === 'textarea') {
-    return <Textarea id={controlId} value={value} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} rows={3} />
+    return <Textarea id={controlId} value={value} placeholder={field.placeholder} maxLength={field.maxLength} onChange={(event) => onChange(event.target.value)} rows={3} />
   }
 
   if (field.type === 'datetime') {
     return (
-      <Input
+      <DateTimePicker
         id={controlId}
-        type="datetime-local"
-        step={60}
-        value={toLocalDateTimeValue(value)}
-        onChange={(event) => {
-          if (!event.target.value) {
-            onChange('')
-            return
-          }
-          const date = new Date(event.target.value)
-          onChange(Number.isFinite(date.getTime()) ? date.toISOString() : '')
-        }}
+        value={value}
+        onChange={onChange}
       />
     )
   }
 
-  return <Input id={controlId} type={field.type === 'url' ? 'url' : 'text'} value={value} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} />
-}
-
-function toLocalDateTimeValue(value: string) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (!Number.isFinite(date.getTime())) return ''
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
-  return localDate.toISOString().slice(0, 16)
+  return <Input id={controlId} type={field.type === 'url' ? 'url' : 'text'} value={value} placeholder={field.placeholder} maxLength={field.maxLength} onChange={(event) => onChange(event.target.value)} />
 }
 
 function ProductThumbnail({ item }: { item: MenuItemRef }) {
@@ -499,6 +666,7 @@ function ShapeIcon({ shape }: { shape: string }) {
 }
 
 function SectionOptionIcon({ value }: { value: string }) {
+  if (/^(top|center|bottom)-(left|center|right)$/.test(value) || value === 'center') return <HeroPlacementIcon value={value} />
   if (isChefSectionIconName(value)) return <ChefSectionIcon name={value} width={20} height={20} />
   if (value === 'active') return <I.clock size={20} />
   if (value === 'mixed') return <I.sparkles size={20} />
@@ -513,6 +681,7 @@ function SectionOptionIcon({ value }: { value: string }) {
   if (value === 'mosaic') return <GalleryLayoutIcon mode="mosaic" />
   if (value === 'grid') return <GalleryLayoutIcon mode="grid" />
   if (value === 'strip') return <GalleryLayoutIcon mode="strip" />
+  if (value === 'editorial' || value === 'spotlight' || value === 'collage') return <MosaicPatternIcon pattern={value} />
   if (value === '2' || value === '3') return <ColumnIcon columns={Number(value)} />
   if (value === 'cart') return <I.cart size={20} />
   if (value === 'bag') {
@@ -520,6 +689,14 @@ function SectionOptionIcon({ value }: { value: string }) {
   }
   if (value === 'custom') return <I.image size={20} />
   return <I.plus size={20} />
+}
+
+function HeroPlacementIcon({ value }: { value: string }) {
+  const normalized = value === 'center' ? 'center-center' : value
+  const [vertical, horizontal] = normalized.split('-')
+  const cx = horizontal === 'left' ? 6 : horizontal === 'right' ? 18 : 12
+  const cy = vertical === 'top' ? 6 : vertical === 'bottom' ? 18 : 12
+  return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden><rect x="2" y="2" width="20" height="20" rx="4" stroke="currentColor" opacity=".35"/><circle cx={cx} cy={cy} r="3" fill="currentColor"/></svg>
 }
 
 function GalleryLayoutIcon({ mode }: { mode: 'mosaic' | 'grid' | 'strip' }) {
@@ -530,6 +707,16 @@ function GalleryLayoutIcon({ mode }: { mode: 'mosaic' | 'grid' | 'strip' }) {
     return <svg width="22" height="20" viewBox="0 0 22 20" fill="currentColor" aria-hidden><rect x="1" y="2" width="12" height="16" rx="2"/><rect x="15" y="2" width="6" height="7" rx="1.5"/><rect x="15" y="11" width="6" height="7" rx="1.5"/></svg>
   }
   return <svg width="22" height="20" viewBox="0 0 22 20" fill="currentColor" aria-hidden><rect x="1" y="2" width="9" height="7" rx="1.5"/><rect x="12" y="2" width="9" height="7" rx="1.5"/><rect x="1" y="11" width="9" height="7" rx="1.5"/><rect x="12" y="11" width="9" height="7" rx="1.5"/></svg>
+}
+
+function MosaicPatternIcon({ pattern }: { pattern: 'editorial' | 'spotlight' | 'collage' }) {
+  if (pattern === 'spotlight') {
+    return <svg width="24" height="20" viewBox="0 0 24 20" fill="currentColor" aria-hidden><rect x="1" y="1" width="22" height="10" rx="2"/><rect x="1" y="13" width="10" height="6" rx="1.5" opacity=".7"/><rect x="13" y="13" width="10" height="6" rx="1.5" opacity=".7"/></svg>
+  }
+  if (pattern === 'collage') {
+    return <svg width="24" height="20" viewBox="0 0 24 20" fill="currentColor" aria-hidden><rect x="1" y="1" width="14" height="8" rx="2"/><rect x="17" y="1" width="6" height="8" rx="1.5" opacity=".7"/><rect x="1" y="11" width="6" height="8" rx="1.5" opacity=".7"/><rect x="9" y="11" width="14" height="8" rx="2"/></svg>
+  }
+  return <svg width="24" height="20" viewBox="0 0 24 20" fill="currentColor" aria-hidden><rect x="1" y="1" width="15" height="18" rx="2"/><rect x="18" y="1" width="5" height="8" rx="1.5" opacity=".7"/><rect x="18" y="11" width="5" height="8" rx="1.5" opacity=".7"/></svg>
 }
 
 function VerticalPositionIcon({ direction }: { direction: 'up' | 'down' }) {
@@ -611,9 +798,14 @@ export function SectionImageUploadPanel({ restaurantId, label, value, onChange, 
   }
 
   return (
-    <div aria-busy={uploading} className="mb-2.5">
+    <div aria-busy={uploading} className="mb-2.5 w-full min-w-0 self-stretch" style={{ width: '100%' }}>
       <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label={`${label} dosyası`} onChange={handleUpload} />
-      <Attachment state={error ? 'error' : uploading ? 'uploading' : value ? 'done' : 'idle'} orientation="vertical" className="w-full">
+      <Attachment
+        state={error ? 'error' : uploading ? 'uploading' : value ? 'done' : 'idle'}
+        orientation="vertical"
+        className="self-stretch"
+        style={{ width: '100%', maxWidth: 'none' }}
+      >
         <AttachmentMedia variant={value ? 'image' : 'icon'} className="h-28 w-full">
           {value
             ? <img src={value} alt={`${label} önizlemesi`} className={mode === 'icon' ? 'object-contain p-5' : 'object-cover'} />
@@ -623,10 +815,10 @@ export function SectionImageUploadPanel({ restaurantId, label, value, onChange, 
           <AttachmentTitle>{value ? label : `Henüz ${mode === 'icon' ? 'ikon' : 'görsel'} yüklenmedi`}</AttachmentTitle>
           <AttachmentDescription>{error ?? (mode === 'icon' ? 'JPEG, PNG veya WebP · en fazla 2 MB · SVG desteklenmez' : 'JPEG, PNG veya WebP · en fazla 8 MB')}</AttachmentDescription>
         </AttachmentContent>
-        <AttachmentActions>
+        <div data-section-image-upload-actions className="flex w-full items-center justify-end gap-1.5 border-t px-2.5 py-2">
           <AttachmentAction type="button" variant="outline" size="xs" disabled={uploading} onClick={() => inputRef.current?.click()}>{value ? 'Değiştir' : 'Yükle'}</AttachmentAction>
           {value && <AttachmentAction type="button" variant="destructive" size="xs" disabled={uploading} onClick={handleRemove}>Kaldır</AttachmentAction>}
-        </AttachmentActions>
+        </div>
       </Attachment>
     </div>
   )
@@ -709,33 +901,32 @@ export function PromoSliderImageUploadPanel({ restaurantId, values, onChange }: 
   values: Record<string, string>
   onChange: (key: string, value: string) => void
 }) {
-  const sourceMode = resolvePromoSliderSourceMode(values)
-  const comboEnabled = values.comboEnabled !== 'false'
-  if (sourceMode === 'active' || !comboEnabled) return null
+  const freebieEnabled = values.freebieEnabled === 'true'
+  const freebieCustomImage = freebieEnabled && values.freebieImageSource === 'custom'
+  if (!freebieCustomImage) return null
 
   return (
-    <Field className="mb-3">
-      <FieldTitle className="text-[11.5px] font-bold">Combo kartı görseli</FieldTitle>
-      <SectionImageUploadPanel
-        restaurantId={restaurantId}
-        label="Combo kartı"
-        value={values.comboImageUrl ?? ''}
-        onChange={(value) => onChange('comboImageUrl', value)}
-      />
-      <FieldDescription className="-mt-0.5 text-[10.5px] leading-snug">
-        Görsel eklemezsen kartta emoji kullanılır. Yerleşim ve odak ayarlarını aşağıdan değiştirebilirsin.
-      </FieldDescription>
-    </Field>
+    <FieldGroup className="mb-3 gap-3">
+      {freebieCustomImage && <Field>
+        <FieldTitle className="text-[11.5px] font-bold">Bedava ürün kartı görseli</FieldTitle>
+        <SectionImageUploadPanel restaurantId={restaurantId} label="Bedava ürün kartı" value={values.freebieImageUrl ?? ''} onChange={(value) => onChange('freebieImageUrl', value)} />
+        <FieldDescription className="-mt-0.5 text-[10.5px] leading-snug">JPEG, PNG veya WebP yükleyebilir; yerleşim, sığdırma ve odağı tasarım ayarlarından değiştirebilirsin.</FieldDescription>
+      </Field>}
+    </FieldGroup>
   )
 }
 
-export function GalleryUploadPanel({ restaurantId, values, onChange }: {
+export function GalleryUploadPanel({ restaurantId, values, onPatch, onRetireMedia }: {
   restaurantId: string
   values: Record<string, string>
-  onChange: (key: string, value: string) => void
+  onPatch: (patch: Record<string, string>) => void
+  onRetireMedia?: (url: string) => void
 }) {
   const [uploading, setUploading] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<string[]>([])
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [clearOpen, setClearOpen] = useState(false)
+  const addInputRef = useRef<HTMLInputElement | null>(null)
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const requestedOrder = (values.tileOrder ?? '').split(',').map((id) => id.trim()).filter(Boolean)
   const orderedIds = Array.from(new Set([
@@ -745,115 +936,154 @@ export function GalleryUploadPanel({ restaurantId, values, onChange }: {
   const orderedTiles = orderedIds
     .map((id) => GALLERY_TILES.find((tile) => tile.id === id))
     .filter((tile): tile is typeof GALLERY_TILES[number] => Boolean(tile))
-  const photoCount = GALLERY_TILES.filter((tile) => Boolean(values[tile.key]?.trim())).length
+  const loadedTiles = orderedTiles.filter((tile) => Boolean(values[tile.key]?.trim()))
+  const photoCount = loadedTiles.length
+  const visibleCount = Math.min(photoCount, Math.max(1, Math.min(6, Number(values.maxItems) || 6)))
+  const isModern = values.editorialVersion === GALLERY_EDITORIAL_VERSION
+  const targetUrl = values.targetUrl?.trim() ?? ''
+  const invalidTarget = values.targetType === 'link' && Boolean(targetUrl) && !/^https?:\/\/[^\s]+$/i.test(targetUrl)
 
-  async function handleUpload(tileKey: string, event: ChangeEvent<HTMLInputElement>) {
+  async function uploadFile(file: File) {
+    const formData = new FormData()
+    formData.append('restaurantId', restaurantId)
+    formData.append('purpose', 'gallery-image')
+    formData.append('file', file)
+    return uploadThemeMedia(formData)
+  }
+
+  async function handleAdd(event: ChangeEvent<HTMLInputElement>) {
+    const selected = [...(event.target.files ?? [])]
+    event.target.value = ''
+    if (selected.length === 0) return
+    const emptyTiles = orderedTiles.filter((tile) => !values[tile.key]?.trim())
+    const accepted = selected.slice(0, emptyTiles.length)
+    const nextErrors = selected.length > emptyTiles.length ? [`En fazla 6 fotoğraf eklenebilir; ${selected.length - emptyTiles.length} dosya yüklenmedi.`] : []
+    setUploading('batch')
+    setErrors([])
+    const patch: Record<string, string> = {}
+    let destinationIndex = 0
+    try {
+      for (const file of accepted) {
+        const metadata = validateThemeMediaMetadata({ size: file.size, type: file.type, purpose: 'gallery-image' })
+        if (!metadata.ok) {
+          nextErrors.push(`${file.name}: ${metadata.error}`)
+          continue
+        }
+        try {
+          const result = await uploadFile(file)
+          if ('error' in result) nextErrors.push(`${file.name}: ${result.error}`)
+          else {
+            const tile = emptyTiles[destinationIndex]
+            if (tile) patch[tile.key] = result.url
+            destinationIndex += 1
+          }
+        } catch {
+          nextErrors.push(`${file.name}: yükleme tamamlanamadı.`)
+        }
+      }
+      if (Object.keys(patch).length > 0) onPatch(patch)
+    } catch {
+      nextErrors.push('Fotoğraflar yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.')
+    } finally {
+      setErrors(nextErrors)
+      setUploading(null)
+    }
+  }
+
+  async function replaceTile(tileId: string, tileKey: string, event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
-    const metadata = validateThemeMediaMetadata({
-      size: file.size,
-      type: file.type,
-      purpose: 'gallery-image',
-    })
-    if (!metadata.ok) return setError(metadata.error)
+    const metadata = validateThemeMediaMetadata({ size: file.size, type: file.type, purpose: 'gallery-image' })
+    if (!metadata.ok) return setErrors([metadata.error])
     setUploading(tileKey)
-    setError(null)
+    setErrors([])
     try {
-      const formData = new FormData()
-      formData.append('restaurantId', restaurantId)
-      formData.append('purpose', 'gallery-image')
-      formData.append('file', file)
-      const result = await uploadThemeMedia(formData)
-      if ('error' in result) return setError(result.error)
+      const result = await uploadFile(file)
+      if ('error' in result) return setErrors([result.error])
       const previousUrl = values[tileKey] ?? ''
-      onChange(tileKey, result.url)
-      if (previousUrl) {
-        try {
-          const cleanup = await removeUnusedThemeMedia(restaurantId, previousUrl)
-          if ('error' in cleanup) setError('Yeni görsel yüklendi; önceki taslak dosya daha sonra temizlenecek.')
-        } catch {
-          setError('Yeni görsel yüklendi; önceki taslak dosya daha sonra temizlenecek.')
-        }
-      }
+      onPatch({ [tileKey]: result.url })
+      if (previousUrl) onRetireMedia?.(previousUrl)
     } catch {
-      setError('Görsel yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.')
+      setErrors([`${tileId} fotoğrafı değiştirilemedi. Bağlantınızı kontrol edip tekrar deneyin.`])
     } finally {
       setUploading(null)
     }
   }
 
-  async function removeTile(tileKey: string, imageUrl: string) {
-    setUploading(tileKey)
-    setError(null)
-    try {
-      const cleanup = await removeUnusedThemeMedia(restaurantId, imageUrl)
-      onChange(tileKey, '')
-      if ('error' in cleanup) setError('Görsel taslaktan kaldırıldı; kullanılmayan dosya daha sonra temizlenecek.')
-    } catch {
-      setError('Görsel kaldırılamadı. Bağlantınızı kontrol edip tekrar deneyin.')
-    } finally {
-      setUploading(null)
-    }
+  function reorder(from: number, to: number) {
+    if (from === to || from < 0 || to < 0 || from >= loadedTiles.length || to >= loadedTiles.length) return
+    const loaded = loadedTiles.map((tile) => tile.id)
+    const [moved] = loaded.splice(from, 1)
+    if (!moved) return
+    loaded.splice(to, 0, moved)
+    const unloaded = orderedTiles.map((tile) => tile.id).filter((id) => !loaded.includes(id))
+    onPatch({ tileOrder: [...loaded, ...unloaded].join(',') })
   }
 
   function moveTile(index: number, direction: -1 | 1) {
     const target = index + direction
-    if (target < 0 || target >= orderedTiles.length) return
-    const next = orderedTiles.map((tile) => tile.id)
-    ;[next[index], next[target]] = [next[target]!, next[index]!]
-    onChange('tileOrder', next.join(','))
+    reorder(index, target)
+  }
+
+  function dropTile(event: DragEvent, targetId: string) {
+    event.preventDefault()
+    if (!dragId) return
+    reorder(loadedTiles.findIndex((tile) => tile.id === dragId), loadedTiles.findIndex((tile) => tile.id === targetId))
+    setDragId(null)
+  }
+
+  function removeTile(tile: typeof GALLERY_TILES[number]) {
+    const imageUrl = values[tile.key] ?? ''
+    const remaining = loadedTiles.filter((entry) => entry.id !== tile.id).map((entry) => entry.id)
+    const unloaded = orderedTiles.map((entry) => entry.id).filter((id) => !remaining.includes(id) && id !== tile.id)
+    onPatch({ [tile.key]: '', [`${tile.id}Label`]: '', tileOrder: [...remaining, ...unloaded, tile.id].join(',') })
+    if (imageUrl) onRetireMedia?.(imageUrl)
+  }
+
+  function clearGallery() {
+    const urls = loadedTiles.map((tile) => values[tile.key]).filter(Boolean)
+    onPatch(buildGalleryClearPatch())
+    urls.forEach((url) => onRetireMedia?.(url!))
+    setClearOpen(false)
   }
 
   return (
-    <div data-gallery-upload-panel aria-busy={uploading !== null} className="mb-2">
+    <div data-gallery-upload-panel aria-busy={uploading !== null} className="mb-3 grid gap-3">
+      {!isModern && <Alert><AlertDescription className="grid gap-2"><span>Bu galeri mevcut görünümünü koruyan eski sürümü kullanıyor.</span><Button type="button" size="sm" variant="outline" className="w-fit" onClick={() => onPatch({ editorialVersion: GALLERY_EDITORIAL_VERSION })}>Modern galeriye geçir</Button></AlertDescription></Alert>}
       <Field orientation="horizontal" className="mb-2 items-center">
         <FieldContent>
           <FieldTitle className="text-xs">Galeri fotoğrafları</FieldTitle>
-          <FieldDescription className="text-[10.5px]">{photoCount} / 6 fotoğraf yüklendi</FieldDescription>
+          <FieldDescription className="text-[10.5px]">6 fotoğrafın {photoCount}’ü yüklendi · {visibleCount}’ü gösteriliyor</FieldDescription>
         </FieldContent>
-        <Badge variant={photoCount > 0 ? 'positive' : 'secondary'}>
-          {photoCount > 0 ? 'Menüde görünür' : 'Galeri boş'}
-        </Badge>
+        <Button type="button" size="sm" onClick={() => addInputRef.current?.click()} disabled={uploading !== null || photoCount >= 6}>{uploading === 'batch' ? <Spinner data-icon="inline-start" /> : <I.plus />}Fotoğraf ekle</Button>
       </Field>
-      <div className="mb-2 grid grid-cols-2 gap-2">
-        {orderedTiles.map((tile, index) => {
+      <input ref={addInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Galeri fotoğrafları ekle" onChange={handleAdd} />
+      {photoCount === 0 && <Alert><AlertDescription>Galeri boş. Fotoğraf eklenene kadar editörde bu çağrı görünür; public sayfada bölüm güvenli biçimde gizlenir.</AlertDescription></Alert>}
+      {invalidTarget && <Alert variant="destructive"><AlertDescription>Dış bağlantı http:// veya https:// ile başlayan geçerli bir adres olmalı. Geçersiz bağlantı public sayfada gösterilmez.</AlertDescription></Alert>}
+      <div className="grid gap-2">
+        {loadedTiles.map((tile, index) => {
           const imageUrl = values[tile.key] ?? ''
           const loading = uploading === tile.key
           return (
-            <Attachment key={tile.key} state={loading ? 'uploading' : imageUrl ? 'done' : 'idle'} orientation="vertical" className="min-h-[104px] w-full flex-nowrap overflow-hidden p-0">
-              <input ref={(element) => { fileRefs.current[tile.key] = element }} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label={`Galeri karesi ${tile.label} dosyası`} onChange={(event) => handleUpload(tile.key, event)} />
-              <AttachmentMedia variant={imageUrl ? 'image' : 'icon'} className="h-[104px] w-full rounded-none p-0">
-                {imageUrl ? (
-                  <img src={imageUrl} alt="" className="size-full min-h-[104px] bg-muted" style={{ objectFit: values.imageFit === 'contain' ? 'contain' : 'cover', objectPosition: values.imagePosition || 'center' }} />
-                ) : (
-                  <span className="grid justify-items-center gap-1.5 text-muted-foreground">
-                    {loading ? <Spinner /> : <I.image />}
-                    <span role={loading ? 'status' : undefined} aria-live={loading ? 'polite' : undefined} className="text-[10.5px] font-bold">{loading ? 'Fotoğraf yükleniyor…' : 'Fotoğraf yükle'}</span>
-                  </span>
-                )}
-              </AttachmentMedia>
-              <AttachmentTrigger aria-label={`Galeri karesi ${tile.label} ${imageUrl ? 'görselini değiştir' : 'görseli yükle'}`} disabled={loading} onClick={() => fileRefs.current[tile.key]?.click()} />
-              <Badge aria-hidden className="absolute top-1.5 left-1.5 z-20 min-w-6 justify-center" variant={imageUrl ? 'default' : 'secondary'}>{index + 1}</Badge>
-              <AttachmentActions className="top-auto right-1.5 bottom-1.5">
-                <ButtonGroup>
-                  <AttachmentAction type="button" variant="secondary" size="icon-xs" aria-label={`Galeri karesi ${index + 1} önceye taşı`} disabled={index === 0} onClick={() => moveTile(index, -1)}><I.chevRight className="rotate-180" /></AttachmentAction>
-                  <AttachmentAction type="button" variant="secondary" size="icon-xs" aria-label={`Galeri karesi ${index + 1} sonraya taşı`} disabled={index === orderedTiles.length - 1} onClick={() => moveTile(index, 1)}><I.chevRight /></AttachmentAction>
-                  {imageUrl && <AttachmentAction type="button" variant="destructive" size="icon-xs" aria-label={`Galeri karesi ${tile.label} görselini kaldır`} disabled={loading} onClick={() => removeTile(tile.key, imageUrl)}><I.close /></AttachmentAction>}
-                </ButtonGroup>
-              </AttachmentActions>
-            </Attachment>
+            <div key={tile.key} draggable={!loading} onDragStart={() => setDragId(tile.id)} onDragEnd={() => setDragId(null)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropTile(event, tile.id)} className="grid grid-cols-[72px_minmax(0,1fr)] gap-2 rounded-xl border bg-background p-2 shadow-xs">
+              <div className="relative h-[72px] overflow-hidden rounded-lg bg-muted"><img src={imageUrl} alt="" className="size-full" style={{ objectFit: values.imageFit === 'contain' ? 'contain' : 'cover', objectPosition: values.imagePosition || 'center' }} /><Badge aria-hidden className="absolute top-1 left-1 min-w-6 justify-center">{index + 1}</Badge></div>
+              <div className="grid min-w-0 gap-2">
+                <div className="flex items-center gap-1"><span className="mr-auto inline-flex cursor-grab items-center gap-1 text-[10.5px] font-bold text-muted-foreground"><I.drag />Sırala</span><ButtonGroup>
+                  <Button type="button" variant="outline" size="icon-xs" aria-label={`${index + 1}. fotoğrafı önceye taşı`} disabled={index === 0 || loading} onClick={() => moveTile(index, -1)}><I.chevRight className="rotate-180" /></Button>
+                  <Button type="button" variant="outline" size="icon-xs" aria-label={`${index + 1}. fotoğrafı sonraya taşı`} disabled={index === loadedTiles.length - 1 || loading} onClick={() => moveTile(index, 1)}><I.chevRight /></Button>
+                </ButtonGroup></div>
+                {values.showLabels !== 'false' && <Input aria-label={`${index + 1}. fotoğraf etiketi`} value={values[`${tile.id}Label`] ?? ''} placeholder="Fotoğraf etiketi" onChange={(event) => onPatch({ [`${tile.id}Label`]: event.target.value })} />}
+                <div className="flex flex-wrap gap-1.5"><input ref={(element) => { fileRefs.current[tile.key] = element }} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label={`${index + 1}. fotoğrafı değiştir`} onChange={(event) => replaceTile(tile.id, tile.key, event)} /><Button type="button" size="sm" variant="outline" disabled={loading} onClick={() => fileRefs.current[tile.key]?.click()}>{loading ? <Spinner data-icon="inline-start" /> : <I.image />}Değiştir</Button><Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={loading} onClick={() => removeTile(tile)}><I.close />Kaldır</Button></div>
+              </div>
+            </div>
           )
         })}
       </div>
-      {error ? (
-        <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
-      ) : (
-        <FieldDescription className="grid gap-0.5 text-[10.5px] leading-snug">
-          <span>Önerilen: 1600 × 1200 px (4:3) · minimum 1200 × 900 px</span>
-          <span>JPG, PNG veya WEBP · en fazla 8 MB · oklarla sıralayabilirsin</span>
-        </FieldDescription>
-      )}
+      {errors.length > 0 && <Alert variant="destructive"><AlertDescription><ul className="list-disc pl-4">{errors.map((message) => <li key={message}>{message}</li>)}</ul></AlertDescription></Alert>}
+      <FieldDescription className="grid gap-0.5 text-[10.5px] leading-snug"><span>Önerilen: 1600 × 1200 px (4:3) · minimum 1200 × 900 px</span><span>JPG, PNG veya WEBP · en fazla 8 MB · sürükleyerek ya da oklarla sıralayabilirsin</span></FieldDescription>
+      {photoCount > 0 && <Button type="button" variant="outline" className="w-fit text-destructive" onClick={() => setClearOpen(true)}>Galeriyi temizle</Button>}
+      <AlertDialog open={clearOpen} onOpenChange={setClearOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Galeriyi temizle</AlertDialogTitle><AlertDialogDescription>Tüm fotoğraflar, etiketler ve fotoğraf sırası tek işlemde temizlenecek. Başlık, açıklama ve bağlantı korunacak.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Vazgeç</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={clearGallery}>Galeriyi temizle</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </div>
   )
 }

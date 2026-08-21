@@ -2,19 +2,20 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
-import { inspectAuthSurfaceContrast, inspectCheckoutSurfaceContrast, sanitizeThemeTokens } from '@garsonless/design-engine'
+import { inspectAuthSurfaceContrast, inspectCheckoutSurfaceContrast, inspectMenuCardSurfaceContrast, inspectMenuCartContrast, inspectMenuFooterContrast, inspectMenuNavigationContrast, inspectMenuThemeContrast, sanitizeThemeTokens } from '@garsonless/design-engine'
 import {
   publishSavedRestaurantTheme,
+  readThemeMenuReferences,
   saveRestaurantThemeDraft,
   type SavedThemePublishResult,
   type ThemeDraftSaveResult,
 } from '@garsonless/application/themes'
 import {
   createRestaurantAssetStoragePort,
+  createThemeMenuReferenceReadModelPort,
   createThemeApplicationPort,
 } from '@garsonless/db/server'
 import { assertAccess } from '../auth/access'
-import { createDashboardServerClient } from '../supabase-server'
 import { sanitizeServerDiagnostic } from '../server-log-redaction'
 import {
   isThemeMediaPurpose,
@@ -25,6 +26,8 @@ import {
 } from '../theme-media-policy'
 import { processThemeMedia } from '../theme-media-processor'
 import { validateThemeVideo } from '../theme-video-policy'
+import { getThemePromoSliderIssues } from '../promo-slider-validation'
+import { getThemeComboRibbonIssues } from '../combo-ribbon-validation'
 import {
   dashboardAccessFailure,
   dashboardActionFailure,
@@ -103,7 +106,7 @@ async function canUseAdvancedThemeMedia(restaurantId: string): Promise<boolean> 
   return access.ok && access.value
 }
 
-function validateOwnedHomeVideoPairs(theme: unknown, restaurantId: string): boolean {
+function validateOwnedHomeVideoPairs(theme: unknown, restaurantId: string, requireComplete: boolean): boolean {
   if (!theme || typeof theme !== 'object' || Array.isArray(theme)) return true
   const surfaces = (theme as Record<string, unknown>)['surfaces']
   if (!surfaces || typeof surfaces !== 'object' || Array.isArray(surfaces)) return true
@@ -113,13 +116,14 @@ function validateOwnedHomeVideoPairs(theme: unknown, restaurantId: string): bool
   const blocks = (home as Record<string, unknown>)['blocks']
   const sectionSettings = (theme as Record<string, unknown>)['sectionSettings']
   const legacyVideoSections = Array.isArray(sections)
-    ? sections.filter((section) => section && typeof section === 'object' && !Array.isArray(section) && (section as Record<string, unknown>)['type'] === 'hero-video')
+    ? sections.filter((section) => section && typeof section === 'object' && !Array.isArray(section) && (section as Record<string, unknown>)['type'] === 'hero-video' && (!requireComplete || (section as Record<string, unknown>)['enabled'] !== false))
     : []
   const v2VideoSettings = Array.isArray(blocks) && sectionSettings && typeof sectionSettings === 'object' && !Array.isArray(sectionSettings)
     ? blocks.flatMap((block) => {
         if (!block || typeof block !== 'object' || Array.isArray(block)) return []
         const record = block as Record<string, unknown>
         if (typeof record['id'] !== 'string') return []
+        if (requireComplete && record['enabled'] === false) return []
         const isDedicatedVideoHero = record['sectionId'] === 'storefront-video-hero'
         const isLegacyVideoHero = record['sectionId'] === 'storefront-hero'
         const settings = (sectionSettings as Record<string, unknown>)[record['id']]
@@ -130,16 +134,21 @@ function validateOwnedHomeVideoPairs(theme: unknown, restaurantId: string): bool
     : []
   const videoEntries = [...legacyVideoSections, ...v2VideoSettings]
   const storageOrigin = process.env['NEXT_PUBLIC_SUPABASE_URL']
-  if (!storageOrigin) return videoEntries.length === 0
+  if (!storageOrigin) return videoEntries.every((section) => {
+    const record = section as Record<string, unknown>
+    const hasMedia = Boolean(record['videoUrl'] || record['posterUrl'])
+    return !hasMedia && !requireComplete
+  })
   return videoEntries.every((section) => {
     const record = section as Record<string, unknown>
     const videoUrl = typeof record['videoUrl'] === 'string' ? record['videoUrl'] : ''
     const posterUrl = typeof record['posterUrl'] === 'string' ? record['posterUrl'] : ''
-    if (!videoUrl && !posterUrl) return false
-    if (!videoUrl || !posterUrl) return false
-    const videoPath = parseOwnedThemeMediaPath({ publicUrl: videoUrl, restaurantId, storageOrigin })
-    const posterPath = parseOwnedThemeMediaPath({ publicUrl: posterUrl, restaurantId, storageOrigin })
-    return videoPath?.includes('/home-hero-video/') === true && posterPath?.includes('/home-hero-poster/') === true
+    if (!videoUrl && !posterUrl) return !requireComplete
+    if (requireComplete && (!videoUrl || !posterUrl)) return false
+    const videoPath = videoUrl ? parseOwnedThemeMediaPath({ publicUrl: videoUrl, restaurantId, storageOrigin }) : null
+    const posterPath = posterUrl ? parseOwnedThemeMediaPath({ publicUrl: posterUrl, restaurantId, storageOrigin }) : null
+    return (!videoUrl || videoPath?.includes('/home-hero-video/') === true)
+      && (!posterUrl || posterPath?.includes('/home-hero-poster/') === true)
   })
 }
 
@@ -273,20 +282,20 @@ export async function removeUnusedThemeMedia(
   // still stop referencing them, but storage ownership cannot be proven here.
   if (!path) return { success: true, removed: false }
 
-  const supabase = await createDashboardServerClient()
+  const themePort = createThemeApplicationPort()
   const [liveResult, draftResult] = await Promise.all([
-    supabase.from('theme_configs').select('tokens').eq('restaurant_id', restaurantId).maybeSingle(),
-    supabase.from('theme_drafts').select('tokens').eq('restaurant_id', restaurantId).maybeSingle(),
+    themePort.readConfig({ restaurantId }),
+    themePort.readDraft({ restaurantId }),
   ])
-  if (liveResult.error || draftResult.error) {
+  if (!liveResult.ok || !draftResult.ok) {
     console.error(
       '[theme-media-reference-read-failure]',
-      sanitizeServerDiagnostic(liveResult.error ?? draftResult.error),
+      sanitizeServerDiagnostic(!liveResult.ok ? liveResult.error : !draftResult.ok ? draftResult.error : 'Unknown theme read failure'),
     )
     return { error: 'Görselin kullanım durumu doğrulanamadı.' }
   }
-  const liveTokens = (liveResult.data as { tokens?: unknown } | null)?.tokens
-  const draftTokens = (draftResult.data as { tokens?: unknown } | null)?.tokens
+  const liveTokens = liveResult.value?.tokens
+  const draftTokens = draftResult.value?.tokens
   if (
     themeDocumentContainsMediaUrl(liveTokens, publicUrl)
     || themeDocumentContainsMediaUrl(draftTokens, publicUrl)
@@ -313,15 +322,24 @@ export async function publishTheme(
   const parsed = publishThemeSchema.safeParse(input)
   if (!parsed.success) return dashboardThemeFailure('Invalid theme publish request')
 
-  const dashboardClient = await createDashboardServerClient()
+  const themePort = createThemeApplicationPort()
   const [draftRead, liveRead] = await Promise.all([
-    dashboardClient.from('theme_drafts').select('tokens').eq('restaurant_id', restaurantId).maybeSingle(),
-    dashboardClient.from('theme_configs').select('tokens').eq('restaurant_id', restaurantId).maybeSingle(),
+    themePort.readDraft({ restaurantId }),
+    themePort.readConfig({ restaurantId }),
   ])
-  const draftTokens = (draftRead.data as { tokens?: unknown } | null)?.tokens
+  if (!draftRead.ok || !liveRead.ok) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', {
+      operation: 'theme.publish',
+      cause: !draftRead.ok ? draftRead.error : !liveRead.ok ? liveRead.error : 'Unknown theme read failure',
+    })
+  }
+  const draftTokens = draftRead.value?.tokens
   const sanitizedDraft = sanitizeThemeTokens(draftTokens, 'default')
-  if (draftRead.error || !validateOwnedHomeVideoPairs(draftTokens, restaurantId)) {
-    return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.publish' })
+  if (!draftRead.value) {
+    return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.publish', message: 'Yayınlanacak kayıtlı tema taslağı bulunamadı.' })
+  }
+  if (!validateOwnedHomeVideoPairs(draftTokens, restaurantId, true)) {
+    return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.publish', message: 'Tema videosu için video ve poster dosyalarını birlikte yükleyin.' })
   }
   if (usesAdvancedHomeSections(draftTokens) && !await canUseAdvancedThemeMedia(restaurantId)) {
     return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.publish', message: 'Bu ana sayfa bölümleri Pro paket gerektirir.' })
@@ -338,6 +356,65 @@ export async function publishTheme(
       message: 'Checkout yüzeyindeki kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz.',
     })
   }
+  if (inspectMenuThemeContrast(sanitizedDraft).length > 0) {
+    return dashboardActionFailure('VALIDATION_FAILED', {
+      operation: 'theme.publish',
+      message: 'Tema paletindeki kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz.',
+    })
+  }
+  if (inspectMenuCardSurfaceContrast(sanitizedDraft).length > 0) {
+    return dashboardActionFailure('VALIDATION_FAILED', {
+      operation: 'theme.publish',
+      message: 'Ürün kartlarındaki kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz.',
+    })
+  }
+  if (inspectMenuCartContrast(sanitizedDraft).length > 0) {
+    return dashboardActionFailure('VALIDATION_FAILED', {
+      operation: 'theme.publish',
+      message: 'Sepet yüzeyindeki kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz.',
+    })
+  }
+  if (inspectMenuFooterContrast(sanitizedDraft).length > 0) {
+    return dashboardActionFailure('VALIDATION_FAILED', {
+      operation: 'theme.publish',
+      message: 'Footer yüzeyindeki kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz.',
+    })
+  }
+  if (inspectMenuNavigationContrast(sanitizedDraft).length > 0) {
+    return dashboardActionFailure('VALIDATION_FAILED', {
+      operation: 'theme.publish',
+      message: 'Menü navigasyonundaki kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz.',
+    })
+  }
+  const promoSliderIssues = getThemePromoSliderIssues(sanitizedDraft)
+  if (promoSliderIssues.length > 0) {
+    return dashboardActionFailure('VALIDATION_FAILED', {
+      operation: 'theme.publish',
+      message: `Kampanya Slider: ${promoSliderIssues[0]}`,
+    })
+  }
+  const menuReferences = await readThemeMenuReferences({
+    actor: 'dashboard-member',
+    userId: gate.userId,
+    restaurantId,
+    permissions: ['theme'],
+  }, restaurantId, createThemeMenuReferenceReadModelPort())
+  if (!menuReferences.ok) {
+    return dashboardActionFailure('SERVICE_UNAVAILABLE', { operation: 'theme.publish', cause: menuReferences.error })
+  }
+  const comboRibbonIssues = getThemeComboRibbonIssues(sanitizedDraft, menuReferences.value.items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    price: Number(item.price),
+    position: item.position,
+    isAvailable: item.is_available,
+  })))
+  if (comboRibbonIssues.length > 0) {
+    return dashboardActionFailure('VALIDATION_FAILED', {
+      operation: 'theme.publish',
+      message: `Kombo Şerit: ${comboRibbonIssues[0]}`,
+    })
+  }
 
   try {
     const result = await publishSavedRestaurantTheme({
@@ -350,7 +427,7 @@ export async function publishTheme(
       expectedDraftRevision: parsed.data.expectedDraftRevision,
       expectedPublishedRevision: parsed.data.expectedPublishedRevision,
       requestId: parsed.data.requestId,
-    }, createThemeApplicationPort())
+    }, themePort)
     if (!result.ok) return dashboardThemeFailure(result.error)
 
     if (result.value.status === 'published' || result.value.status === 'replayed') {
@@ -360,9 +437,14 @@ export async function publishTheme(
       revalidatePath(`/dashboard/${restaurantId}/theme/default/edit`)
       revalidatePath(`/${result.value.slug}`)
       revalidatePath(`/${result.value.slug}/menu`)
-      const nextUrls = collectThemeMediaUrls((draftRead.data as { tokens?: unknown } | null)?.tokens)
-      const previousUrls = collectThemeMediaUrls((liveRead.data as { tokens?: unknown } | null)?.tokens)
-      await Promise.all([...previousUrls].filter((url) => !nextUrls.has(url)).map((url) => removeUnusedThemeMedia(restaurantId, url)))
+      const nextUrls = collectThemeMediaUrls(draftRead.value?.tokens)
+      const previousUrls = collectThemeMediaUrls(liveRead.value?.tokens)
+      // Gallery media is retired by the editor lifecycle only after the URL is
+      // absent from the current theme and every undo/redo snapshot. Publishing
+      // must not invalidate an otherwise valid local undo operation.
+      await Promise.all([...previousUrls]
+        .filter((url) => !nextUrls.has(url) && !url.includes('/gallery-image/') && !url.includes('/home-hero-video/') && !url.includes('/home-hero-poster/'))
+        .map((url) => removeUnusedThemeMedia(restaurantId, url)))
     }
     return result.value
   } catch (error) {
@@ -381,7 +463,7 @@ export async function saveThemeDraft(
   if ('error' in gate) return dashboardAccessFailure(gate.error, 'theme.save-draft')
   const parsed = saveThemeDraftSchema.safeParse(input)
   if (!parsed.success) return dashboardThemeFailure('Invalid theme draft request')
-  if (!validateOwnedHomeVideoPairs(parsed.data.theme, restaurantId)) {
+  if (!validateOwnedHomeVideoPairs(parsed.data.theme, restaurantId, false)) {
     return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.save-draft' })
   }
   if (usesAdvancedHomeSections(parsed.data.theme) && !await canUseAdvancedThemeMedia(restaurantId)) {

@@ -38,3 +38,18 @@ test('ilk handshake kaçarsa yalnız bir otomatik iframe recovery uygulanır', (
   assert.match(source, /!hasSuccessfulPreviewRef\.current && !automaticRecoveryUsedRef\.current/)
   assert.match(source, /iframe\.src = currentSrc/)
 })
+
+test('iframe home veya menüye geçtiğinde parent seçici ve handshake contexti birlikte güncellenir', () => {
+  const source = readFileSync(new URL('./use-theme-preview-bridge.ts', import.meta.url), 'utf8')
+  assert.match(source, /data\.type === 'PREVIEW_NAVIGATION'/)
+  assert.match(source, /contextRef\.current = \{ surface: data\.surface \}/)
+  assert.match(source, /onSurfaceNavigation\?\.\(data\.surface\)/)
+})
+
+test('çocuk CTA navigasyonu ürün ve kombo intent URL’sini iframe src güncellemesiyle ezmez', () => {
+  const source = readFileSync(new URL('./use-theme-preview-bridge.ts', import.meta.url), 'utf8')
+  assert.match(source, /childNavigationSurfaceRef\.current = data\.surface/)
+  assert.match(source, /if \(childSurface === context\.surface\) return/)
+  assert.match(source, /setFrameUrl\(previewUrl\)/)
+  assert.match(source, /targetOrigin = getThemePreviewTargetOrigin\(frameUrl\)/)
+})

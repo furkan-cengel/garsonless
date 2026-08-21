@@ -1,9 +1,10 @@
 'use client'
 
-import { Children, cloneElement, isValidElement, useEffect, useId, useMemo, useState, type CSSProperties, type ChangeEvent, type PointerEvent as ReactPointerEvent, type ReactElement, type RefObject } from 'react'
+import { Children, cloneElement, isValidElement, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ChangeEvent, type PointerEvent as ReactPointerEvent, type ReactElement, type RefObject } from 'react'
 import {
   inspectAuthSurfaceContrast,
   inspectCheckoutSurfaceContrast,
+  inspectHomeSurfaceContrast,
   resolveAuthErrorState,
   resolveAuthOtpState,
   resolveAuthSuccessState,
@@ -13,6 +14,7 @@ import {
   resolveCheckoutSuccessState,
   resolveCheckoutSurfacePalette,
   resolveCheckoutTablePaymentState,
+  resolveHomeSurfacePalette,
   DEFAULT_THEME,
   type AuthContrastIssue,
   type AuthErrorIcon,
@@ -20,6 +22,7 @@ import {
   type AuthHeaderTheme,
   type AuthOtpStateTheme,
   type AuthPreviewState,
+  type AccountPreviewState,
   type AuthStateLayoutTheme,
   type AuthSuccessIcon,
   type AuthSuccessStateTheme,
@@ -37,13 +40,18 @@ import {
   type CheckoutTablePaymentIcon,
   type CheckoutTablePaymentStateTheme,
   type GarsonlessTheme,
+  type HomeColorToken,
+  type HomeContrastIssue,
+  type HomeSurfacePalette,
   type HomeSurfaceBlock,
   type ThemeEditorSurface,
   type ThemeSurfaces,
 } from '@garsonless/design-engine'
+import type { PublicCouponChoice } from '@garsonless/domain/coupons'
 import { I, type Icon } from '../../lib/ui'
 import { uploadThemeMedia, uploadThemeVideo } from '../../lib/actions/theme'
 import { HOME_SECTION_LIBRARY, SECTION_SETTING_SCHEMA } from './theme-editor-section-registry'
+import { buildVideoHeroModernSettings, buildVideoHeroResetSettings, createInitialSectionSettings } from './theme-section-initial-settings'
 import { ensureHomeV2, homeV2Patch } from './home-theme-editor-model'
 import {
   ChefPickIconUploadPanels,
@@ -60,24 +68,38 @@ import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty'
-import { Field as ShadcnField, FieldContent, FieldDescription, FieldLabel, FieldTitle } from '@/components/ui/field'
+import { Field as ShadcnField, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet, FieldTitle } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { cn } from '@/lib/utils'
+import styles from './ThemeExperiencePanels.module.css'
+import { ThemeSectionCatalogIcon } from './ThemeSectionCatalogIcon'
 
 const AUTH_STATES: Array<{ id: AuthPreviewState; label: string }> = [
   { id: 'join', label: 'Üyelik' },
   { id: 'otp', label: 'OTP' },
   { id: 'success', label: 'Başarılı dönüş' },
   { id: 'error', label: 'Hata' },
+]
+const ACCOUNT_STATES: Array<{ id: AccountPreviewState; label: string }> = [
+  { id: 'overview', label: 'Özet' },
+  { id: 'orders', label: 'Siparişler' },
+  { id: 'favorites', label: 'Favoriler' },
+  { id: 'profile', label: 'Profil ve güvenlik' },
+  { id: 'detail', label: 'Sipariş detayı' },
+  { id: 'reorder', label: 'Yeniden sipariş' },
+  { id: 'loading', label: 'Yükleniyor' },
+  { id: 'error', label: 'Hata' },
+  { id: 'empty', label: 'Boş durum' },
 ]
 
 const CHECKOUT_STATES: Array<{ id: CheckoutPreviewState; label: string }> = [
@@ -129,6 +151,8 @@ type EditableAuthStateTheme = AuthOtpStateTheme | AuthSuccessStateTheme | AuthEr
 type EditableCheckoutState = Exclude<CheckoutPreviewState, 'cart'>
 type EditableCheckoutStateTheme = CheckoutPaymentStateTheme | CheckoutSuccessStateTheme | CheckoutTablePaymentStateTheme | CheckoutErrorStateTheme
 type CheckoutStatusIcon = CheckoutSuccessIcon | CheckoutTablePaymentIcon | CheckoutErrorIcon
+type ThemePatchOptions = { historyGroup?: string }
+type ThemePatchHandler = (patch: Partial<GarsonlessTheme>, options?: ThemePatchOptions) => void
 
 function resolvedSurfaces(theme: GarsonlessTheme): ThemeSurfaces {
   return theme.surfaces ?? DEFAULT_THEME.surfaces!
@@ -140,36 +164,43 @@ export function ThemeExperienceSidebar({
   theme,
   selectedSectionId,
   authState,
+  accountState,
   checkoutState,
   sectionTriggerRef,
   onSelectSection,
   onSelectShared,
   onOpenSectionPicker,
   onAuthStateChange,
+  onAccountStateChange,
   onCheckoutStateChange,
   onPatch,
+  onRetireMedia,
 }: {
   width: number
   surface: ThemeEditorSurface
   theme: GarsonlessTheme
   selectedSectionId: string | null
   authState: AuthPreviewState
+  accountState: AccountPreviewState
   checkoutState: CheckoutPreviewState
   sectionTriggerRef: RefObject<HTMLButtonElement | null>
   onSelectSection: (id: string | null) => void
   onSelectShared: (target: 'header' | 'footer') => void
   onOpenSectionPicker: () => void
   onAuthStateChange: (state: AuthPreviewState) => void
+  onAccountStateChange: (state: AccountPreviewState) => void
   onCheckoutStateChange: (state: CheckoutPreviewState) => void
-  onPatch: (patch: Partial<GarsonlessTheme>) => void
+  onPatch: ThemePatchHandler
+  onRetireMedia?: (url: string) => void
 }) {
   const [dragId, setDragId] = useState<string | null>(null)
 
   if (surface !== 'home') {
-    const states = surface === 'auth' ? AUTH_STATES : CHECKOUT_STATES
-    const current = surface === 'auth' ? authState : checkoutState
+    const states = surface === 'auth' ? AUTH_STATES : surface === 'account' ? ACCOUNT_STATES : CHECKOUT_STATES
+    const current = surface === 'auth' ? authState : surface === 'account' ? accountState : checkoutState
+    const title = surface === 'auth' ? 'Giriş' : surface === 'account' ? 'Masabu Hesabım' : 'Checkout'
     return (
-      <SurfaceAside width={width} title={surface === 'auth' ? 'Giriş' : 'Checkout'} subtitle="Önizleme durumu">
+      <SurfaceAside width={width} title={title} subtitle="Önizleme durumu">
         <div style={{ padding: 8 }}>
           <ToggleGroup
             value={[current]}
@@ -177,11 +208,12 @@ export function ThemeExperienceSidebar({
               const next = values[0]
               if (!next) return
               if (surface === 'auth') onAuthStateChange(next as AuthPreviewState)
+              else if (surface === 'account') onAccountStateChange(next as AccountPreviewState)
               else onCheckoutStateChange(next as CheckoutPreviewState)
             }}
             orientation="vertical"
             className="w-full flex-col items-stretch"
-            aria-label={surface === 'auth' ? 'Giriş önizleme durumu' : 'Checkout önizleme durumu'}
+            aria-label={`${title} önizleme durumu`}
           >
           {states.map((state) => (
             <ToggleGroupItem
@@ -191,20 +223,22 @@ export function ThemeExperienceSidebar({
               className="h-auto min-h-10 w-full justify-start gap-2.5 px-2.5 py-1.5"
             >
               <span style={{ width: 32, height: 32, display: 'grid', placeItems: 'center', borderRadius: 8, background: current === state.id ? 'var(--surface)' : 'var(--surface-3)' }}>
-                {state.id === 'error' ? <I.warn size={17} /> : state.id === 'success' ? <I.check size={17} /> : surface === 'auth' ? <I.userCircle size={17} /> : <I.receipt size={17} />}
+                {state.id === 'error' ? <I.warn size={17} /> : state.id === 'success' ? <I.check size={17} /> : surface === 'auth' || surface === 'account' ? <I.userCircle size={17} /> : <I.receipt size={17} />}
               </span>
               <span>{state.label}</span>
               {current === state.id && <I.chevRight size={17} style={{ marginLeft: 'auto' }} />}
             </ToggleGroupItem>
           ))}
           </ToggleGroup>
-          <Alert className="my-4"><I.shield /><AlertDescription>{surface === 'auth' ? 'Önizleme OTP veya OAuth isteği oluşturmaz.' : 'Önizleme sipariş veya ödeme isteği oluşturmaz.'}</AlertDescription></Alert>
+          <Alert className="my-4"><I.shield /><AlertDescription>{surface === 'auth' ? 'Önizleme OTP veya OAuth isteği oluşturmaz.' : surface === 'account' ? 'Hesap önizlemesi gerçek müşteri verisi kullanmaz ve değişiklik kaydetmez.' : 'Önizleme sipariş veya ödeme isteği oluşturmaz.'}</AlertDescription></Alert>
         </div>
       </SurfaceAside>
     )
   }
 
   const homeState = ensureHomeV2(theme)
+  const homeHeaderCustomized = Object.keys(homeState.home.chrome?.header ?? {}).length > 0
+  const homeFooterCustomized = Object.keys(homeState.home.chrome?.footer ?? {}).length > 0
   const sections = homeState.home.blocks
   const moveSection = (sourceId: string, targetId: string) => {
     if (sourceId === targetId) return
@@ -226,7 +260,7 @@ export function ThemeExperienceSidebar({
   return (
     <SurfaceAside width={width} title="Ana sayfa" subtitle="Menü bileşenleri + Video Hero">
       <div style={{ padding: '12px 12px 8px', borderBottom: '1px solid var(--divider)' }}>
-        <ShadcnField orientation="horizontal" className="min-h-13 rounded-lg bg-muted px-2.5">
+        <ShadcnField orientation="horizontal" className="min-h-16 gap-3 rounded-lg bg-muted px-3.5 py-3">
           <FieldContent>
           <FieldLabel htmlFor="theme-home-enabled">Ana sayfayı etkinleştir</FieldLabel>
           <FieldDescription>Yayınlanınca /{'{slug}'} ana sayfa olur</FieldDescription>
@@ -240,26 +274,39 @@ export function ThemeExperienceSidebar({
       </div>
 
       <ScrollArea className="min-h-0 flex-1"><div className="px-2 pt-2.5 pb-5">
+        <Item
+          render={<Button type="button" variant="ghost" aria-pressed={selectedSectionId === '__home-style'} onClick={() => onSelectSection('__home-style')} className="focus-visible:border-ring focus-visible:ring-0" />}
+          variant={selectedSectionId === '__home-style' ? 'muted' : 'default'}
+          size="sm"
+          className="mb-2 min-h-[54px] text-left"
+        >
+          <ItemMedia variant="icon" className="size-8 rounded-lg border bg-background"><I.palette /></ItemMedia>
+          <ItemContent className="min-w-0">
+            <ItemTitle className="text-[12.5px]">Ana sayfa stili</ItemTitle>
+            <ItemDescription className="text-[10.5px]">Zemin, metin ve ortak renkler</ItemDescription>
+          </ItemContent>
+          <ItemActions><Badge variant="secondary">Genel</Badge><I.chevRight /></ItemActions>
+        </Item>
+
         <FieldTitle className="mx-2.5 mt-1.5 mb-2 text-[10.5px] font-bold uppercase tracking-[.06em] text-muted-foreground">Ortak alanlar</FieldTitle>
         <Item
-          render={<Button type="button" variant="ghost" aria-pressed={selectedSectionId === '__shared-header'} onClick={() => onSelectShared('header')} />}
+          render={<Button type="button" variant="ghost" aria-pressed={selectedSectionId === '__shared-header'} onClick={() => onSelectShared('header')} className="focus-visible:border-ring focus-visible:ring-0" />}
           variant={selectedSectionId === '__shared-header' ? 'muted' : 'default'}
           size="sm"
           className="min-h-[54px] text-left"
         >
           <ItemMedia variant="icon" className="size-8 rounded-lg border bg-background"><I.header /></ItemMedia>
           <ItemContent className="min-w-0">
-            <ItemTitle className="text-[12.5px]">Ortak Header</ItemTitle>
-            <ItemDescription className="text-[10.5px]">Menü ile aynı bileşen ve ayarlar</ItemDescription>
+            <ItemTitle className="text-[12.5px]">Header</ItemTitle>
+            <ItemDescription className="text-[10.5px]">{homeHeaderCustomized ? 'Ana sayfaya özel ayarlar' : 'Ortak temel görünüm · 0px alt boşluk'}</ItemDescription>
           </ItemContent>
-          <ItemActions><Badge variant="secondary">Ortak</Badge><I.chevRight /></ItemActions>
+          <ItemActions><Badge variant="secondary">{homeHeaderCustomized ? 'Özel' : 'Ortak'}</Badge><I.chevRight /></ItemActions>
         </Item>
 
         <FieldTitle className="mx-2.5 mt-1.5 mb-2 text-[10.5px] font-bold uppercase tracking-[.06em] text-muted-foreground">Sayfa akışı</FieldTitle>
         {sections.map((section, index) => {
           const catalog = HOME_SECTION_LIBRARY.find((item) => item.id === section.sectionId)
           if (!catalog) return null
-          const Icon = I[catalog.icon]
           const selected = selectedSectionId === section.id
           const settings = homeState.sectionSettings[section.id] ?? {}
           const displayTitle = settings.title?.trim() || catalog.label
@@ -273,17 +320,22 @@ export function ThemeExperienceSidebar({
               onDragEnd={() => setDragId(null)}
               onDragOver={(event) => event.preventDefault()}
               onDrop={() => { if (dragId) moveSection(dragId, section.id) }}
-              className="min-h-[58px] gap-1.5 px-2 py-1.5 text-muted-foreground"
+              className="min-h-[58px] gap-1.5 px-2 py-1.5 text-muted-foreground hover:bg-muted hover:text-foreground has-[[data-section-select]:focus-visible]:border-ring has-[[data-section-select]:focus-visible]:bg-muted"
               style={{ opacity: section.enabled ? 1 : .55 }}
             >
               <ItemMedia variant="icon" className="cursor-grab text-muted-foreground"><I.drag /></ItemMedia>
-              <Button type="button" variant="ghost" aria-label={`${displayTitle} bölümünü düzenle`} title={displayTitle} onClick={() => onSelectSection(section.id)} className="h-auto min-w-0 flex-1 justify-start gap-2 p-0 text-left hover:bg-transparent">
-                <Icon />
-                <ItemContent className="min-w-0">
-                  <ItemTitle className="line-clamp-2 text-[12.5px]">{displayTitle}</ItemTitle>
-                  <ItemDescription className="text-[10.5px]">{catalog.plan === 'pro' ? 'Pro · ' : ''}{catalog.sub}</ItemDescription>
-                </ItemContent>
-              </Button>
+              <Tooltip>
+                <TooltipTrigger render={<Button data-section-select type="button" variant="ghost" aria-label={`${displayTitle} bölümünü düzenle`} onClick={() => onSelectSection(section.id)} className="h-auto min-w-0 flex-1 justify-start gap-2 border-transparent p-0 text-left hover:bg-transparent focus-visible:border-transparent focus-visible:ring-0" />}>
+                  <ThemeSectionCatalogIcon icon={catalog.icon} />
+                  <ItemContent className="min-w-0">
+                    <ItemTitle className="line-clamp-2 text-[12.5px]">{displayTitle}</ItemTitle>
+                    <ItemDescription className="w-full truncate text-[10.5px]">{catalog.plan === 'pro' ? 'Pro · ' : ''}{catalog.sub}</ItemDescription>
+                  </ItemContent>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={8} align="center" className="max-w-64 whitespace-normal text-[11px] leading-snug">
+                  {catalog.plan === 'pro' ? 'Pro · ' : ''}{catalog.sub}
+                </TooltipContent>
+              </Tooltip>
               <Button type="button" variant="ghost" size="icon-sm" aria-label={section.enabled ? 'Bölümü gizle' : 'Bölümü göster'} onClick={() => patchSection(section.id, { enabled: !section.enabled })}>
                 {section.enabled ? <I.eye /> : <I.eyeOff />}
               </Button>
@@ -291,16 +343,21 @@ export function ThemeExperienceSidebar({
                 <DropdownMenuTrigger aria-label="Bölüm işlemleri" render={<Button type="button" variant="ghost" size="icon-sm" />}><I.more /></DropdownMenuTrigger>
                 <DropdownMenuContent align="end" aria-label={`${displayTitle} işlemleri`}>
                   <DropdownMenuGroup>
-                  <DropdownMenuItem onClick={() => {
+                  {section.sectionId !== 'storefront-video-hero' ? <DropdownMenuItem onClick={() => {
                     const clone = { ...section, id: `${section.id}-copy-${Date.now().toString(36)}` }
                     const next = [...sections]
                     next.splice(index + 1, 0, clone)
                     const nextSettings = { ...homeState.sectionSettings, [clone.id]: { ...(homeState.sectionSettings[section.id] ?? {}) } }
                     onPatch(homeV2Patch(theme, { ...homeState.home, blocks: next }, nextSettings))
                     onSelectSection(clone.id)
-                  }}><I.copy />Bölümü çoğalt</DropdownMenuItem>
+                  }}><I.copy />Bölümü çoğalt</DropdownMenuItem> : null}
                   <DropdownMenuItem variant="destructive" onClick={() => {
                     const nextSettings = { ...homeState.sectionSettings }
+                    if (section.sectionId === 'storefront-video-hero') {
+                      const media = nextSettings[section.id] ?? {}
+                      if (media.videoUrl) onRetireMedia?.(media.videoUrl)
+                      if (media.posterUrl) onRetireMedia?.(media.posterUrl)
+                    }
                     delete nextSettings[section.id]
                     onPatch(homeV2Patch(theme, { ...homeState.home, blocks: sections.filter((candidate) => candidate.id !== section.id) }, nextSettings))
                     if (selected) onSelectSection(null)
@@ -312,7 +369,7 @@ export function ThemeExperienceSidebar({
           )
         })}
 
-        <Item render={<Button ref={sectionTriggerRef} type="button" variant="outline" aria-label="Bölüm ekle" onClick={onOpenSectionPicker} />} variant="outline" size="sm" className="mt-3.5 min-h-14 justify-start border-dashed text-left whitespace-normal">
+        <Item render={<Button ref={sectionTriggerRef} type="button" variant="outline" aria-label="Bölüm ekle" onClick={onOpenSectionPicker} className="focus-visible:border-ring focus-visible:ring-0" />} variant="outline" size="sm" className="mt-3.5 min-h-14 justify-start border-dashed text-left whitespace-normal">
           <ItemMedia variant="icon" className="size-9 rounded-lg bg-primary/10 text-primary"><I.plus /></ItemMedia>
           <ItemContent className="min-w-0">
             <ItemTitle className="text-[12.5px]">Bölüm ekle</ItemTitle>
@@ -323,17 +380,17 @@ export function ThemeExperienceSidebar({
 
         <FieldTitle className="mx-2.5 mt-4.5 mb-2 text-[10.5px] font-bold uppercase tracking-[.06em] text-muted-foreground">Ortak alanlar</FieldTitle>
         <Item
-          render={<Button type="button" variant="ghost" aria-pressed={selectedSectionId === '__shared-footer'} onClick={() => onSelectShared('footer')} />}
+          render={<Button type="button" variant="ghost" aria-pressed={selectedSectionId === '__shared-footer'} onClick={() => onSelectShared('footer')} className="focus-visible:border-ring focus-visible:ring-0" />}
           variant={selectedSectionId === '__shared-footer' ? 'muted' : 'default'}
           size="sm"
           className="min-h-[54px] text-left"
         >
           <ItemMedia variant="icon" className="size-8 rounded-lg border bg-background"><I.layout /></ItemMedia>
           <ItemContent className="min-w-0">
-            <ItemTitle className="text-[12.5px]">Ortak Footer</ItemTitle>
-            <ItemDescription className="text-[10.5px]">İletişim ve sosyal bağlantılar Menü ile ortak</ItemDescription>
+            <ItemTitle className="text-[12.5px]">Footer</ItemTitle>
+            <ItemDescription className="text-[10.5px]">{homeFooterCustomized ? 'Ana sayfaya özel ayarlar' : 'Menü ayarlarını kullanır'}</ItemDescription>
           </ItemContent>
-          <ItemActions><Badge variant="secondary">Ortak</Badge><I.chevRight /></ItemActions>
+          <ItemActions><Badge variant="secondary">{homeFooterCustomized ? 'Özel' : 'Ortak'}</Badge><I.chevRight /></ItemActions>
         </Item>
       </div></ScrollArea>
     </SurfaceAside>
@@ -346,24 +403,30 @@ export function ThemeExperienceProperties({
   canAddAdvancedSections,
   surface,
   authState,
+  accountState,
   checkoutState,
   theme,
   selectedSectionId,
+  couponOptions,
   menuCategories,
   menuItems,
   onPatch,
+  onRetireMedia,
 }: {
   width: number
   restaurantId: string
   canAddAdvancedSections: boolean
   surface: ThemeEditorSurface
   authState: AuthPreviewState
+  accountState: AccountPreviewState
   checkoutState: CheckoutPreviewState
   theme: GarsonlessTheme
   selectedSectionId: string | null
+  couponOptions: PublicCouponChoice[]
   menuCategories: Array<{ id: string; name: string; parentId?: string | null }>
   menuItems: Array<{ id: string; name: string; categoryId: string; categoryName: string; price?: number; images?: unknown; isAvailable?: boolean }>
-  onPatch: (patch: Partial<GarsonlessTheme>) => void
+  onPatch: ThemePatchHandler
+  onRetireMedia?: (url: string) => void
 }) {
   const surfaces = resolvedSurfaces(theme)
   const homeState = ensureHomeV2(theme)
@@ -380,8 +443,10 @@ export function ThemeExperienceProperties({
   const effectiveHomeTab = resolveEffectiveEditorTab(homeTabs, homeEditorTab)
   const visibleHomeFields = homeSectionFields.filter((field) => field.editorTab === effectiveHomeTab)
   const selectedHomeSettings = selectedSection ? homeState.sectionSettings[selectedSection.id] ?? {} : {}
+  const videoHeroBlocks = homeState.home.blocks.filter((block) => block.sectionId === 'storefront-video-hero')
   const updateSurface = (nextSurface: ThemeSurfaces['auth'] | ThemeSurfaces['checkout']) => {
-    onPatch({ experienceVersion: 2, surfaces: { ...surfaces, [surface]: nextSurface } })
+    const target = surface === 'auth' ? 'auth' : 'checkout'
+    onPatch({ experienceVersion: 2, surfaces: { ...surfaces, [target]: nextSurface } })
   }
   const updateSelected = (patch: Record<string, string | undefined>) => {
     if (!selectedSection) return
@@ -485,55 +550,109 @@ export function ThemeExperienceProperties({
   const authContrastIssues = inspectAuthSurfaceContrast(theme)
   const checkoutPalette = resolveCheckoutSurfacePalette(theme)
   const checkoutContrastIssues = inspectCheckoutSurfaceContrast(theme)
+  const homePalette = resolveHomeSurfacePalette(theme)
+  const homeContrastIssues = inspectHomeSurfaceContrast(theme)
+  const updateHomeOverride = (key: HomeColorToken, value: string | undefined, historyGroup?: string) => {
+    const nextOverride = { ...(homeState.home.override ?? {}) }
+    if (value === undefined) delete nextOverride[key]
+    else nextOverride[key] = value
+    onPatch(homeV2Patch(theme, {
+      ...homeState.home,
+      ...(Object.keys(nextOverride).length > 0 ? { override: nextOverride } : { override: undefined }),
+    }, homeState.sectionSettings), historyGroup ? { historyGroup } : undefined)
+  }
+  const repairAuthCtaContrast = () => updateSurface({
+    ...surfaces.auth,
+    override: {
+      ...(surfaces.auth.override ?? {}),
+      cta: '#2f855a',
+      ctaText: '#ffffff',
+    },
+  })
 
   return (
-    <aside style={{ width, minWidth: 0, minHeight: 0, boxSizing: 'border-box', flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '16px', borderBottom: '1px solid var(--divider)' }}>
+    <aside data-theme-experience-properties data-settings-density="compact" className={styles.properties} style={{ width, minWidth: 0, minHeight: 0, boxSizing: 'border-box', flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '14px 16px 13px', borderBottom: '1px solid var(--divider)' }}>
         <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 14, fontWeight: 750 }}>Yüzey ayarları</h2>
-        <p style={{ margin: '4px 0 0', color: 'var(--text-3)', fontSize: 11.5 }}>Güvenli içerik ve görünüm alanları</p>
+        <p style={{ margin: '4px 0 0', color: 'var(--text-3)', fontSize: 11 }}>Güvenli içerik ve görünüm alanları</p>
       </div>
-      <ScrollArea className="min-h-0 flex-1"><div style={{ minWidth: 0, boxSizing: 'border-box', padding: 16 }}>
+      <ScrollArea className="min-h-0 flex-1" style={{ background: 'var(--surface-inset)' }}><div data-theme-experience-settings-stack className="flex min-w-0 flex-col gap-2.5 p-3">
         {surface === 'home' && selectedSection && (
           <>
-            <SettingsCard className="mb-3.5">
-              <SettingsCardHeader icon={selectedHomeDefinition ? (() => { const Icon = I[selectedHomeDefinition.icon]; return <Icon size={17} /> })() : <I.layout size={17} />} title={selectedHomeDefinition?.label ?? 'Ana sayfa bölümü'} meta={selectedHomeDefinition?.id === 'storefront-video-hero' ? 'Pro · Ana sayfa' : selectedHomeDefinition?.plan === 'pro' ? 'Pro · Menü bileşeni' : 'Menü bileşeni'} />
-              <Tabs value={effectiveHomeTab} onValueChange={(value) => setHomeEditorTab(value as EditorTab)}>
-                <TabsList aria-label="Ana sayfa bölüm ayarları" style={{ width: '100%', display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, homeTabs.length)},minmax(0,1fr))`, marginBottom: 14 }}>
+            <SettingsCard toolbar={(
+              <Tabs value={effectiveHomeTab} onValueChange={(value) => setHomeEditorTab(value as EditorTab)} className="gap-0">
+                <TabsList variant="line" aria-label="Ana sayfa bölüm ayarları" className="h-8 w-full justify-stretch px-1">
                   {homeTabs.map((tab) => <TabsTrigger key={tab.id} value={tab.id}>{tab.label}</TabsTrigger>)}
                 </TabsList>
               </Tabs>
+            )}>
+              <SettingsCardHeader icon={selectedHomeDefinition ? <ThemeSectionCatalogIcon icon={selectedHomeDefinition.icon} size={17} /> : <I.layout size={17} />} title={selectedHomeDefinition?.label ?? 'Ana sayfa bölümü'} meta={selectedHomeDefinition?.id === 'storefront-video-hero' ? 'Pro · Ana sayfa' : selectedHomeDefinition?.plan === 'pro' ? 'Pro · Menü bileşeni' : 'Menü bileşeni'} />
+
+              {selectedSection.sectionId === 'storefront-video-hero' && videoHeroBlocks.length > 1 ? <Alert variant="destructive"><I.warn /><AlertTitle>Birden fazla Video Hero var</AlertTitle><AlertDescription>{videoHeroBlocks[0]?.id === selectedSection.id ? 'Bu ilk ve birincil hero. Diğer eski örnekleri kaldırmanız önerilir.' : 'Bu ek hero sayfada ikinci H1 ve gereksiz video yükü oluşturabilir.'}</AlertDescription></Alert> : null}
+              {selectedSection.sectionId === 'storefront-video-hero' && selectedHomeSettings.editorialVersion !== '2' ? <Alert><I.sparkles /><AlertTitle>Modern yerleşim hazır</AlertTitle><AlertDescription>Medya ve metinler korunarak güvenli 3×3 konum sistemine geçebilirsiniz.</AlertDescription><Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => updateSelected(buildVideoHeroModernSettings(selectedHomeSettings))}>Modern Video Hero’ya geçir</Button></Alert> : null}
 
               {effectiveHomeTab === 'design' && selectedSection.sectionId === 'hero-banner' && <SectionImageUploadPanel restaurantId={restaurantId} label="Hero Banner" value={selectedHomeSettings.imageUrl ?? ''} onChange={(value) => updateSelected({ imageUrl: value })} />}
-              {effectiveHomeTab === 'design' && selectedSection.sectionId === 'gallery' && <GalleryUploadPanel restaurantId={restaurantId} values={selectedHomeSettings} onChange={(key, value) => updateSelected({ [key]: value })} />}
+              {effectiveHomeTab === 'content' && selectedSection.sectionId === 'gallery' && <GalleryUploadPanel restaurantId={restaurantId} values={selectedHomeSettings} onPatch={updateSelected} onRetireMedia={onRetireMedia} />}
               {effectiveHomeTab === 'design' && selectedSection.sectionId === 'promo-slider' && <PromoSliderImageUploadPanel restaurantId={restaurantId} values={selectedHomeSettings} onChange={(key, value) => updateSelected({ [key]: value })} />}
               {effectiveHomeTab === 'design' && selectedSection.sectionId === 'chef-pick' && <ChefPickIconUploadPanels restaurantId={restaurantId} values={selectedHomeSettings} onChange={(key, value) => updateSelected({ [key]: value })} />}
-              {effectiveHomeTab === 'design' && selectedSection.sectionId === 'storefront-video-hero' && (
+              {effectiveHomeTab === 'content' && selectedSection.sectionId === 'storefront-video-hero' && (
               <HeroVideoUploader
                 restaurantId={restaurantId}
                 enabled={canAddAdvancedSections}
                 videoUrl={selectedHomeSettings.videoUrl ?? ''}
                 posterUrl={selectedHomeSettings.posterUrl ?? ''}
                 onChange={(patch) => updateSelected(patch)}
+                onRetireMedia={onRetireMedia}
               />
               )}
 
               <SectionSettingsEditor
                 fields={visibleHomeFields}
                 values={selectedHomeSettings}
+                inheritedColors={homePalette}
                 menuCategories={menuCategories}
                 menuItems={menuItems}
+                couponOptions={couponOptions}
                 menuHref={`/dashboard/${restaurantId}/menu`}
-                onChange={(key, value) => updateSelected({ [key]: value })}
+                onChange={(key, value) => {
+                  if (key !== 'couponId') {
+                    updateSelected({ [key]: value })
+                    return
+                  }
+                  const coupon = couponOptions.find((option) => option.id === value)
+                  updateSelected({
+                    couponId: value,
+                    couponEnabled: coupon ? 'true' : 'false',
+                    ...(coupon ? {
+                      couponEyebrow: coupon.eyebrow,
+                      couponTitle: coupon.title,
+                      couponSubtitle: coupon.subtitle,
+                      couponCode: coupon.code,
+                    } : {}),
+                  })
+                }}
               />
               <Button type="button" onClick={() => {
                 const next = { ...homeState.sectionSettings }
-                delete next[selectedSection.id]
+                const initialSettings = selectedSection.sectionId === 'storefront-video-hero'
+                  ? buildVideoHeroResetSettings(selectedHomeSettings)
+                  : createInitialSectionSettings(selectedSection.sectionId)
+                if (Object.keys(initialSettings).length > 0) next[selectedSection.id] = initialSettings
+                else delete next[selectedSection.id]
                 onPatch(homeV2Patch(theme, homeState.home, next))
-              }} variant="link" className="mt-3 w-full border-t">Bu bölümün ayarlarını varsayılana döndür</Button>
+              }} variant="link" className="w-full border-t pt-3">Bu bölümün ayarlarını varsayılana döndür</Button>
             </SettingsCard>
           </>
         )}
-        {surface === 'home' && !selectedSection && <EmptyProperties text="Düzenlemek için soldan bir ana sayfa bölümü seç." />}
+        {surface === 'home' && selectedSectionId === '__home-style' && (
+          <HomeStyleSettings
+            values={homeState.home.override ?? {}}
+            palette={homePalette}
+            issues={homeContrastIssues}
+            onChange={updateHomeOverride}
+          />
+        )}
+        {surface === 'home' && !selectedSection && selectedSectionId !== '__home-style' && <EmptyProperties text="Düzenlemek için soldan bir ana sayfa bölümü veya Ana sayfa stili seç." />}
         {surface === 'auth' && (
           <>
             {authState !== 'join' && <AuthStateSettings
@@ -554,11 +673,11 @@ export function ThemeExperienceProperties({
               <Field label="Görsel yerleşimi"><NativeSelect value={surfaces.auth.header.imageFit ?? 'cover'} onChange={(event) => updateAuthHeader({ imageFit: event.target.value as AuthHeaderTheme['imageFit'] })} style={inputStyle}><NativeSelectOption value="cover">Alanı doldur (cover)</NativeSelectOption><NativeSelectOption value="contain">Görselin tamamı (contain)</NativeSelectOption></NativeSelect></Field>
               {surfaces.auth.header.backgroundImageUrl && <AuthImageFocusControl header={surfaces.auth.header} onChange={updateAuthHeader} />}
               <Field label="Header yüksekliği"><NativeSelect value={surfaces.auth.header.height ?? 'standard'} onChange={(event) => updateAuthHeader({ height: event.target.value as AuthHeaderTheme['height'] })} style={inputStyle}><NativeSelectOption value="compact">Kompakt</NativeSelectOption><NativeSelectOption value="standard">Standart</NativeSelectOption><NativeSelectOption value="wide">Geniş</NativeSelectOption></NativeSelect></Field>
-              <Field label={`Fotoğraf karartması · %${surfaces.auth.header.overlay}`}><RangeControl label="Fotoğraf karartması" min={0} max={85} value={surfaces.auth.header.overlay} onChange={(value) => updateAuthHeader({ overlay: value })} /></Field>
+              <RangeField label="Fotoğraf karartması" unit="%" min={0} max={85} value={surfaces.auth.header.overlay} onChange={(value) => updateAuthHeader({ overlay: value })} />
               <Field label="Header zemin rengi"><InputGroup><InputGroupAddon className="border-r px-1.5"><input aria-label="Header zemin rengini seç" type="color" value={surfaces.auth.header.backgroundColor ?? '#12271c'} onChange={(event) => updateAuthHeader({ backgroundColor: event.target.value })} className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" /></InputGroupAddon><InputGroupInput aria-label="Header zemin rengi" value={surfaces.auth.header.backgroundColor ?? '#12271c'} onChange={(event) => { if (/^#[0-9a-f]{6}$/i.test(event.target.value)) updateAuthHeader({ backgroundColor: event.target.value }) }} /></InputGroup></Field>
             </SettingsCard>
 
-            <SettingsCard className="mt-3.5">
+            <SettingsCard>
               <SettingsCardHeader icon={<I.header size={17} />} title="Header içeriği" />
               {surfaces.auth.header.backgroundImageUrl && surfaces.auth.header.logoMode === 'restaurant' && <Alert variant="destructive"><I.warn /><AlertDescription>Fotoğraf ve varsayılan işletme logosu aynı alanda çakışabilir.</AlertDescription><Button type="button" variant="outline" size="xs" onClick={() => updateAuthHeader({ logoMode: 'none' })} className="mt-2">Logoyu gizle</Button></Alert>}
               <Field label="Logo"><NativeSelect value={surfaces.auth.header.logoMode} onChange={(event) => updateAuthHeader({ logoMode: event.target.value as AuthHeaderTheme['logoMode'] })} style={inputStyle}><NativeSelectOption value="none">Gösterme</NativeSelectOption><NativeSelectOption value="restaurant">İşletme logosu</NativeSelectOption><NativeSelectOption value="custom">Özel logo</NativeSelectOption></NativeSelect></Field>
@@ -569,7 +688,7 @@ export function ThemeExperienceProperties({
               <Field label="İçerik tonu"><NativeSelect value={surfaces.auth.header.contentTone ?? 'light'} onChange={(event) => updateAuthHeader({ contentTone: event.target.value as AuthHeaderTheme['contentTone'] })} style={inputStyle}><NativeSelectOption value="light">Açık metin</NativeSelectOption><NativeSelectOption value="dark">Koyu metin</NativeSelectOption></NativeSelect></Field>
             </SettingsCard>
 
-            <SettingsCard className="mt-3.5">
+            <SettingsCard>
               <SettingsCardHeader icon={<I.layout size={17} />} title="Form yüzeyi" />
               <Field label="Görünüm"><NativeSelect value={surfaces.auth.preset} onChange={(event) => updateSurface({ ...surfaces.auth, preset: event.target.value as ThemeSurfaces['auth']['preset'] })} style={inputStyle}><NativeSelectOption value="brand-panel">Marka paneli</NativeSelectOption><NativeSelectOption value="minimal">Minimal</NativeSelectOption><NativeSelectOption value="immersive">Görsel odaklı</NativeSelectOption></NativeSelect></Field>
               <AuthColorField label="Dış zemin" field="background" value={surfaces.auth.override?.background} effectiveValue={authPalette.background} onChange={updateAuthOverride} />
@@ -578,7 +697,7 @@ export function ThemeExperienceProperties({
               <AuthColorField label="Alan kenarlığı" field="fieldBorder" value={surfaces.auth.override?.fieldBorder} effectiveValue={authPalette.fieldBorder} onChange={updateAuthOverride} />
             </SettingsCard>
 
-            <SettingsCard className="mt-3.5">
+            <SettingsCard>
               <SettingsCardHeader icon={<I.type size={17} />} title={authState === 'join' ? 'Form içeriği' : 'Form renkleri'} />
               {authState === 'join' && <>
                 <Field label="Form başlığı"><Input value={surfaces.auth.title ?? ''} maxLength={100} onChange={(event) => updateSurface({ ...surfaces.auth, title: event.target.value })} style={inputStyle} /></Field>
@@ -589,7 +708,24 @@ export function ThemeExperienceProperties({
               <AuthColorField label="Vurgu, link ve focus" field="accent" value={surfaces.auth.override?.accent} effectiveValue={authPalette.accent} onChange={updateAuthOverride} />
               <AuthColorField label="Ana CTA" field="cta" value={surfaces.auth.override?.cta} effectiveValue={authPalette.cta} onChange={updateAuthOverride} />
               <AuthColorField label="CTA metni" field="ctaText" value={surfaces.auth.override?.ctaText} effectiveValue={authPalette.ctaText} onChange={updateAuthOverride} />
-              <ContrastStatus issues={authContrastIssues} />
+              <ContrastStatus
+                issues={authContrastIssues}
+                repairLabel={authContrastIssues.some((issue) => issue.id === 'cta') ? 'CTA kontrastını otomatik düzelt' : undefined}
+                onRepair={authContrastIssues.some((issue) => issue.id === 'cta') ? repairAuthCtaContrast : undefined}
+              />
+            </SettingsCard>
+          </>
+        )}
+        {surface === 'account' && (
+          <>
+            <SettingsCard>
+              <SettingsCardHeader icon={<I.userCircle size={17} />} title="Masabu Hesabım" meta="Production hesap bileşeni" />
+              <Alert><I.shield /><AlertDescription>Bu yüzey Sepet/Checkout ile aynı semantik surface, radius, spacing ve kontrast tokenlarını kullanır. Ayrı bir yayınlanmış tema sözleşmesi oluşturmaz.</AlertDescription></Alert>
+              <Field label="Önizlenen durum"><div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">{ACCOUNT_STATES.find((item) => item.id === accountState)?.label ?? 'Özet'}</div></Field>
+            </SettingsCard>
+            <SettingsCard>
+              <SettingsCardHeader icon={<I.palette size={17} />} title="Paylaşılan yüzey tokenları" />
+              <Alert><I.shield /><AlertDescription>Renk, köşe ve tipografi ayarları Checkout yüzeyinden; profil kimliği vurguları global accent tokenlarından gelir.</AlertDescription></Alert>
             </SettingsCard>
           </>
         )}
@@ -604,14 +740,14 @@ export function ThemeExperienceProperties({
               onReset={() => resetCheckoutState(checkoutState)}
             />}
 
-            <SettingsCard className={checkoutState === 'cart' ? undefined : 'mt-3.5'}>
+            <SettingsCard>
               <SettingsCardHeader icon={<I.receipt size={17} />} title="Checkout görünümü" meta="Tüm durumlarda ortak" />
               <Field label="Görünüm"><NativeSelect value={surfaces.checkout.preset} onChange={(event) => updateSurface({ ...surfaces.checkout, preset: event.target.value as ThemeSurfaces['checkout']['preset'] })} style={inputStyle}><NativeSelectOption value="clean">Temiz</NativeSelectOption><NativeSelectOption value="brand-header">Marka başlığı</NativeSelectOption><NativeSelectOption value="soft">Yumuşak yüzey</NativeSelectOption></NativeSelect></Field>
               <Field label="Panel boyutu"><NativeSelect value={surfaces.checkout.sheetSize ?? 'standard'} onChange={(event) => updateSurface({ ...surfaces.checkout, sheetSize: event.target.value as NonNullable<ThemeSurfaces['checkout']['sheetSize']> })} style={inputStyle}><NativeSelectOption value="compact">Kompakt</NativeSelectOption><NativeSelectOption value="standard">Standart</NativeSelectOption><NativeSelectOption value="large">Geniş</NativeSelectOption></NativeSelect></Field>
-              <Field label={`Köşe yuvarlaklığı · ${surfaces.checkout.override?.radius ?? theme.radius}px`}><RangeControl label="Köşe yuvarlaklığı" min={4} max={28} value={surfaces.checkout.override?.radius ?? theme.radius} onChange={updateCheckoutRadius} /></Field>
+              <RangeField label="Köşe yuvarlaklığı" unit="px" min={4} max={28} value={surfaces.checkout.override?.radius ?? theme.radius} onChange={updateCheckoutRadius} />
             </SettingsCard>
 
-            <SettingsCard className="mt-3.5">
+            <SettingsCard>
               <SettingsCardHeader icon={<I.palette size={17} />} title="Checkout renkleri" meta="Semantik alanlar" />
               <AuthColorField label="Dış zemin" field="background" value={surfaces.checkout.override?.background} effectiveValue={checkoutPalette.background} onChange={updateCheckoutOverride} />
               <AuthColorField label="Panel ve kart" field="surface" value={surfaces.checkout.override?.surface} effectiveValue={checkoutPalette.surface} onChange={updateCheckoutOverride} />
@@ -626,7 +762,6 @@ export function ThemeExperienceProperties({
             </SettingsCard>
           </>
         )}
-        {surface === 'home' && <SurfaceOverrideFields surface={surface} theme={theme} onPatch={onPatch} />}
       </div></ScrollArea>
     </aside>
   )
@@ -702,20 +837,20 @@ function CheckoutStateSettings({
       <Alert role="note"><I.shield /><AlertDescription>Gerçek tutar, sağlayıcı, alan adları, sistem hata metni ve buton hedefleri tema tarafından değiştirilemez.</AlertDescription></Alert>
     </SettingsCard>
 
-    <SettingsCard className="mt-3.5">
+    <SettingsCard>
       <SettingsCardHeader icon={<I.spacing size={17} />} title={`${stateLabel} yerleşimi`} meta="Güvenli aralık" />
       {payment ? <>
-        <Field label={`Yatay panel padding · ${payment.layout.paddingX}px`}><RangeControl label="Yatay panel padding" min={12} max={28} value={payment.layout.paddingX} onChange={(value) => onPaymentLayoutChange({ paddingX: value })} /></Field>
-        <Field label={`Bölüm aralığı · ${payment.layout.sectionGap}px`}><RangeControl label="Bölüm aralığı" min={12} max={28} value={payment.layout.sectionGap} onChange={(value) => onPaymentLayoutChange({ sectionGap: value })} /></Field>
+        <RangeField label="Yatay panel padding" unit="px" min={12} max={28} value={payment.layout.paddingX} onChange={(value) => onPaymentLayoutChange({ paddingX: value })} />
+        <RangeField label="Bölüm aralığı" unit="px" min={12} max={28} value={payment.layout.sectionGap} onChange={(value) => onPaymentLayoutChange({ sectionGap: value })} />
         <Field label="Kontrol yoğunluğu"><NativeSelect value={payment.layout.density} onChange={(event) => onPaymentLayoutChange({ density: event.target.value as CheckoutPaymentLayoutTheme['density'] })} style={inputStyle}><NativeSelectOption value="compact">Kompakt</NativeSelectOption><NativeSelectOption value="standard">Standart</NativeSelectOption></NativeSelect></Field>
         <Field label="İçerik genişliği"><NativeSelect value={payment.layout.contentWidth} onChange={(event) => onPaymentLayoutChange({ contentWidth: event.target.value as CheckoutPaymentLayoutTheme['contentWidth'] })} style={inputStyle}><NativeSelectOption value="standard">Standart · 520px</NativeSelectOption><NativeSelectOption value="wide">Geniş · 620px</NativeSelectOption></NativeSelect></Field>
       </> : status ? <>
-        <Field label={`Yatay panel padding · ${status.layout.paddingX}px`}><RangeControl label="Yatay panel padding" min={12} max={40} value={status.layout.paddingX} onChange={(value) => onResultLayoutChange({ paddingX: value })} /></Field>
-        <Field label={`Dikey panel padding · ${status.layout.paddingY}px`}><RangeControl label="Dikey panel padding" min={12} max={56} value={status.layout.paddingY} onChange={(value) => onResultLayoutChange({ paddingY: value })} /></Field>
-        <Field label={`İçerik aralığı · ${status.layout.contentGap}px`}><RangeControl label="İçerik aralığı" min={8} max={32} value={status.layout.contentGap} onChange={(value) => onResultLayoutChange({ contentGap: value })} /></Field>
+        <RangeField label="Yatay panel padding" unit="px" min={12} max={40} value={status.layout.paddingX} onChange={(value) => onResultLayoutChange({ paddingX: value })} />
+        <RangeField label="Dikey panel padding" unit="px" min={12} max={56} value={status.layout.paddingY} onChange={(value) => onResultLayoutChange({ paddingY: value })} />
+        <RangeField label="İçerik aralığı" unit="px" min={8} max={32} value={status.layout.contentGap} onChange={(value) => onResultLayoutChange({ contentGap: value })} />
         <Field label="İçerik hizalama"><NativeSelect value={status.layout.align} onChange={(event) => onResultLayoutChange({ align: event.target.value as CheckoutResultLayoutTheme['align'] })} style={inputStyle}><NativeSelectOption value="left">Sola</NativeSelectOption><NativeSelectOption value="center">Ortala</NativeSelectOption></NativeSelect></Field>
         <Field label="İçerik genişliği"><NativeSelect value={status.layout.contentWidth} onChange={(event) => onResultLayoutChange({ contentWidth: event.target.value as CheckoutResultLayoutTheme['contentWidth'] })} style={inputStyle}><NativeSelectOption value="compact">Kompakt · 320px</NativeSelectOption><NativeSelectOption value="standard">Standart · 380px</NativeSelectOption><NativeSelectOption value="full">Tam genişlik</NativeSelectOption></NativeSelect></Field>
-        <Field label={`İkon boyutu · ${status.layout.iconSize}px`}><RangeControl label="İkon boyutu" min={56} max={96} value={status.layout.iconSize} onChange={(value) => onResultLayoutChange({ iconSize: value })} /></Field>
+        <RangeField label="İkon boyutu" unit="px" min={56} max={96} value={status.layout.iconSize} onChange={(value) => onResultLayoutChange({ iconSize: value })} />
       </> : null}
     </SettingsCard>
   </>
@@ -802,14 +937,14 @@ function AuthStateSettings({
       <Alert role="note"><I.shield /><AlertDescription>E-posta, sayaç, sistem hata metinleri ve buton hedefi tema tarafından değiştirilemez.</AlertDescription></Alert>
     </SettingsCard>
 
-    <SettingsCard className="mt-3.5">
+    <SettingsCard>
       <SettingsCardHeader icon={<I.spacing size={17} />} title={`${stateLabel} yerleşimi`} meta="Güvenli aralık" />
-      <Field label={`Yatay panel padding · ${resolved.layout.paddingX}px`}><RangeControl label="Yatay panel padding" min={12} max={40} value={resolved.layout.paddingX} onChange={(value) => onLayoutChange({ paddingX: value })} /></Field>
-      <Field label={`Dikey panel padding · ${resolved.layout.paddingY}px`}><RangeControl label="Dikey panel padding" min={12} max={56} value={resolved.layout.paddingY} onChange={(value) => onLayoutChange({ paddingY: value })} /></Field>
-      <Field label={`İçerik aralığı · ${resolved.layout.contentGap}px`}><RangeControl label="İçerik aralığı" min={8} max={32} value={resolved.layout.contentGap} onChange={(value) => onLayoutChange({ contentGap: value })} /></Field>
+      <RangeField label="Yatay panel padding" unit="px" min={12} max={40} value={resolved.layout.paddingX} onChange={(value) => onLayoutChange({ paddingX: value })} />
+      <RangeField label="Dikey panel padding" unit="px" min={12} max={56} value={resolved.layout.paddingY} onChange={(value) => onLayoutChange({ paddingY: value })} />
+      <RangeField label="İçerik aralığı" unit="px" min={8} max={32} value={resolved.layout.contentGap} onChange={(value) => onLayoutChange({ contentGap: value })} />
       <Field label="İçerik hizalama"><NativeSelect value={resolved.layout.align} onChange={(event) => onLayoutChange({ align: event.target.value as AuthStateLayoutTheme['align'] })} style={inputStyle}><NativeSelectOption value="left">Sola</NativeSelectOption><NativeSelectOption value="center">Ortala</NativeSelectOption></NativeSelect></Field>
       <Field label="İçerik genişliği"><NativeSelect value={resolved.layout.contentWidth} onChange={(event) => onLayoutChange({ contentWidth: event.target.value as AuthStateLayoutTheme['contentWidth'] })} style={inputStyle}><NativeSelectOption value="compact">Kompakt · 320px</NativeSelectOption><NativeSelectOption value="standard">Standart · 380px</NativeSelectOption><NativeSelectOption value="full">Tam genişlik</NativeSelectOption></NativeSelect></Field>
-      {state !== 'otp' && <Field label={`İkon boyutu · ${resolved.layout.iconSize}px`}><RangeControl label="İkon boyutu" min={56} max={96} value={resolved.layout.iconSize} onChange={(value) => onLayoutChange({ iconSize: value })} /></Field>}
+      {state !== 'otp' && <RangeField label="İkon boyutu" unit="px" min={56} max={96} value={resolved.layout.iconSize} onChange={(value) => onLayoutChange({ iconSize: value })} />}
     </SettingsCard>
   </>
 }
@@ -980,8 +1115,8 @@ function AuthImageFocusControl({ header, onChange }: {
         <span aria-hidden="true" style={{ position: 'absolute', left: `calc(${x}% - 9px)`, top: `calc(${y}% - 9px)`, width: 18, height: 18, border: '2px solid #ffffff', borderRadius: 999, boxShadow: '0 0 0 2px rgba(0,0,0,.5)' }} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-        <Field label={`X · %${x}`}><RangeControl label="Yatay odak" min={0} max={100} value={x} onChange={(value) => onChange({ imagePositionX: value })} /></Field>
-        <Field label={`Y · %${y}`}><RangeControl label="Dikey odak" min={0} max={100} value={y} onChange={(value) => onChange({ imagePositionY: value })} /></Field>
+        <RangeField label="Yatay odak" unit="%" min={0} max={100} value={x} onChange={(value) => onChange({ imagePositionX: value })} />
+        <RangeField label="Dikey odak" unit="%" min={0} max={100} value={y} onChange={(value) => onChange({ imagePositionY: value })} />
       </div>
     </div>
   )
@@ -1021,31 +1156,51 @@ function AuthColorField({ label, field, value, effectiveValue, onChange }: {
   )
 }
 
-function ContrastStatus({ issues }: { issues: Array<AuthContrastIssue | CheckoutContrastIssue> }) {
+function ContrastStatus({
+  issues,
+  repairLabel,
+  onRepair,
+  blocking = true,
+  successMessage = 'Metin, alan ve CTA kontrastları yayın için uygun.',
+}: {
+  issues: Array<AuthContrastIssue | CheckoutContrastIssue | HomeContrastIssue>
+  repairLabel?: string
+  onRepair?: () => void
+  blocking?: boolean
+  successMessage?: string
+}) {
   if (issues.length === 0) {
-    return <Alert role="status"><I.check /><AlertDescription>Metin, alan ve CTA kontrastları yayın için uygun.</AlertDescription></Alert>
+    return <Alert role="status"><I.check /><AlertDescription>{successMessage}</AlertDescription></Alert>
   }
   return (
     <Alert variant="destructive">
       <I.warn />
-      <div><AlertTitle>Yayınlama için kontrastı düzelt</AlertTitle><AlertDescription>{issues.map((issue) => <div key={issue.id}>{issue.label}: {issue.ratio}:1 · gereken {issue.minimum}:1</div>)}</AlertDescription></div>
+      <div>
+        <AlertTitle>{blocking ? 'Yayınlama için kontrastı düzelt' : 'Kontrastı iyileştirin'}</AlertTitle>
+        <AlertDescription>{issues.map((issue) => <div key={issue.id}>{issue.label}: {issue.ratio}:1 · gereken {issue.minimum}:1</div>)}</AlertDescription>
+        {onRepair && repairLabel && <Button type="button" variant="outline" size="xs" onClick={onRepair} className="mt-2">{repairLabel}</Button>}
+      </div>
     </Alert>
   )
 }
 
-function SettingsCard({ children, className }: { children: React.ReactNode; className?: string }) {
+function SettingsCard({ children, className, toolbar, density = 'compact' }: { children: React.ReactNode; className?: string; toolbar?: React.ReactNode; density?: 'compact' }) {
   const nodes = Children.toArray(children)
   const [header, ...content] = nodes
-  return <Card size="sm" className={className}>
+  return <Card size="sm" data-settings-card-density={density} className={cn('gap-0 py-0', className)}>
     {header}
-    <CardContent className="flex flex-col">{content}</CardContent>
+    {toolbar ? <div className="border-y bg-muted/20 px-2">{toolbar}</div> : null}
+    <CardContent className="flex flex-col gap-2.5 px-3 py-2.5">{content}</CardContent>
   </Card>
 }
 
 function SettingsCardHeader({ icon, title, meta, action }: { icon: React.ReactNode; title: string; meta?: string; action?: React.ReactNode }) {
-  return <CardHeader>
-    <div className="flex items-center gap-2">{icon}<CardTitle>{title}</CardTitle></div>
-    {(meta || action) && <CardAction>{action ?? <Badge variant="secondary">{meta}</Badge>}</CardAction>}
+  return <CardHeader className="min-h-11 items-center px-3 py-2">
+    <div className="flex min-w-0 items-center gap-2.5">
+      <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">{icon}</span>
+      <CardTitle className="min-w-0 truncate text-[13px] font-semibold">{title}</CardTitle>
+    </div>
+    {(meta || action) && <CardAction className="self-center">{action ?? <Badge variant="secondary" className="max-w-36 truncate text-[10px]">{meta}</Badge>}</CardAction>}
   </CardHeader>
 }
 
@@ -1055,12 +1210,14 @@ function HeroVideoUploader({
   videoUrl,
   posterUrl,
   onChange,
+  onRetireMedia,
 }: {
   restaurantId: string
   enabled: boolean
   videoUrl: string
   posterUrl: string
   onChange: (patch: { videoUrl?: string; posterUrl?: string }) => void
+  onRetireMedia?: (url: string) => void
 }) {
   const [busy, setBusy] = useState<'video' | 'poster' | null>(null)
   const [feedback, setFeedback] = useState<{ tone: 'error' | 'success' | 'info'; text: string } | null>(null)
@@ -1078,6 +1235,7 @@ function HeroVideoUploader({
         return
       }
       onChange({ videoUrl: result.url })
+      if (videoUrl && videoUrl !== result.url) onRetireMedia?.(videoUrl)
       setFeedback({
         tone: posterUrl ? 'success' : 'info',
         text: posterUrl
@@ -1103,6 +1261,7 @@ function HeroVideoUploader({
         return
       }
       onChange({ posterUrl: result.url })
+      if (posterUrl && posterUrl !== result.url) onRetireMedia?.(posterUrl)
       setFeedback({
         tone: videoUrl ? 'success' : 'info',
         text: videoUrl
@@ -1122,40 +1281,122 @@ function HeroVideoUploader({
       : posterUrl
         ? { tone: 'info' as const, text: 'Poster hazır. Önizleme için videoyu yükleyin.' }
         : null)
-  return <Card size="sm" className="mb-4">
+  return <Card size="sm" className="mb-0">
     <CardHeader><div className="flex items-center gap-2"><I.play /><CardTitle>Pro hero video</CardTitle></div><CardAction><Badge variant={enabled ? 'secondary' : 'outline'}>{enabled ? 'Açık' : 'Kilitli'}</Badge></CardAction></CardHeader>
     <CardContent>
+    {posterUrl ? <div className="relative mb-2 overflow-hidden rounded-lg border bg-muted" style={{ aspectRatio: '16 / 9' }}>
+      <img src={posterUrl} alt="Video Hero poster önizlemesi" className="size-full object-cover" />
+      <Badge className="absolute bottom-2 left-2 bg-black/70 text-white">Poster önizlemesi</Badge>
+    </div> : null}
     <UploadAttachment title={videoUrl ? 'Video hazır · değiştir' : 'MP4 / WebM yükle'} description="H.264 MP4 veya VP8/VP9 WebM" icon={<I.upload size={16} />} state={busy === 'video' ? 'processing' : videoUrl ? 'done' : 'idle'} accept="video/mp4,video/webm" disabled={!enabled || busy !== null} onChange={(event) => void uploadVideo(event)} />
     <UploadAttachment title={posterUrl ? 'Poster hazır · değiştir' : 'Zorunlu poster yükle'} description="JPEG, PNG veya WebP" icon={<I.image size={16} />} state={busy === 'poster' ? 'processing' : posterUrl ? 'done' : 'idle'} accept="image/jpeg,image/png,image/webp" disabled={!enabled || busy !== null} onChange={(event) => void uploadPoster(event)} style={{ marginTop: 8 }} />
     {effectiveFeedback ? <Alert
       variant={effectiveFeedback.tone === 'error' ? 'destructive' : 'default'}
       className="mt-2"
     ><AlertDescription>{effectiveFeedback.text}</AlertDescription></Alert> : null}
-    <FieldDescription className="mt-2">En fazla 8 MB ve 15 sn. H.264 MP4 veya VP8/VP9 WebM. Önizleme için video ve poster gereklidir.</FieldDescription>
+    {(videoUrl || posterUrl) ? <Button type="button" variant="outline" size="sm" className="mt-2 w-full" disabled={busy !== null} onClick={() => {
+      if (!window.confirm('Video ve posteri kaldırmak istediğinizden emin misiniz?')) return
+      onChange({ videoUrl: '', posterUrl: '' })
+      if (videoUrl) onRetireMedia?.(videoUrl)
+      if (posterUrl) onRetireMedia?.(posterUrl)
+      setFeedback({ tone: 'info', text: 'Video ve poster kaldırıldı. Bu işlem geri alınabilir.' })
+    }}>Medyayı kaldır</Button> : null}
+    <FieldDescription className="mt-2">Poster; video yüklenirken, video duraklatıldığında, hareket/veri tasarrufu tercihinde veya video oynatılamadığında gösterilir. Video en fazla 8 MB ve 15 sn olabilir.</FieldDescription>
     </CardContent>
   </Card>
 }
 
-function SurfaceOverrideFields({ surface, theme, onPatch }: { surface: ThemeEditorSurface; theme: GarsonlessTheme; onPatch: (patch: Partial<GarsonlessTheme>) => void }) {
-  if (surface === 'menu') return null
-  const surfaces = resolvedSurfaces(theme)
-  const current = surfaces[surface].override ?? {}
-  const update = (key: 'background' | 'surface' | 'accent' | 'text' | 'cta', value: string) => {
-    onPatch({ experienceVersion: 2, surfaces: { ...surfaces, [surface]: { ...surfaces[surface], override: { ...current, [key]: value } } } })
+const HOME_COLOR_GROUPS: Array<{
+  id: string
+  label: string
+  fields: Array<{ key: HomeColorToken; label: string }>
+}> = [
+  { id: 'home-surfaces', label: 'Zeminler', fields: [{ key: 'background', label: 'Sayfa arka planı' }, { key: 'surface', label: 'Kart yüzeyi' }] },
+  { id: 'home-text', label: 'Metinler', fields: [{ key: 'text', label: 'Ana metin' }, { key: 'mutedText', label: 'Yardımcı metin' }] },
+  { id: 'home-accent', label: 'Vurgular', fields: [{ key: 'accent', label: 'Vurgu rengi' }] },
+  { id: 'home-actions', label: 'Aksiyonlar', fields: [{ key: 'cta', label: 'Ana buton' }, { key: 'ctaText', label: 'Buton metni' }] },
+]
+
+function HomeStyleSettings({ values, palette, issues, onChange }: {
+  values: Partial<Record<HomeColorToken, string>>
+  palette: HomeSurfacePalette
+  issues: HomeContrastIssue[]
+  onChange: (field: HomeColorToken, value: string | undefined, historyGroup?: string) => void
+}) {
+  return (
+    <SettingsCard>
+      <SettingsCardHeader icon={<I.palette size={17} />} title="Ana sayfa stili" meta="Ana sayfa geneli" />
+      <Alert><I.palette /><AlertDescription>Standart içerik bölümleri boş bırakılan renkleri bu paletten; bu palet de Ortak Tema’dan alır. Kampanya paletleri bölüm içinde kalır.</AlertDescription></Alert>
+      {HOME_COLOR_GROUPS.map((group, index) => (
+        <FieldSet key={group.id} className={cn('min-w-0 gap-2.5', index > 0 && 'border-t pt-2.5')}>
+          <FieldLegend variant="label" className="mb-0 text-[10px] font-bold uppercase tracking-[.08em] text-muted-foreground">{group.label}</FieldLegend>
+          {group.fields.map((field) => (
+            <HomeColorField
+              key={field.key}
+              field={field.key}
+              label={field.label}
+              value={values[field.key]}
+              effectiveValue={palette[field.key]}
+              onChange={onChange}
+            />
+          ))}
+        </FieldSet>
+      ))}
+      <ContrastStatus issues={issues} blocking={false} successMessage="Ana sayfa metin, vurgu ve buton kontrastları uygun." />
+    </SettingsCard>
+  )
+}
+
+function HomeColorField({ label, field, value, effectiveValue, onChange }: {
+  label: string
+  field: HomeColorToken
+  value: string | undefined
+  effectiveValue: string
+  onChange: (field: HomeColorToken, value: string | undefined, historyGroup?: string) => void
+}) {
+  const historyGroupId = useId()
+  const historySessionRef = useRef(0)
+  const activeHistoryGroupRef = useRef<string | null>(null)
+  const [draft, setDraft] = useState(value ?? effectiveValue)
+  useEffect(() => setDraft(value ?? effectiveValue), [effectiveValue, value])
+  const inherited = value === undefined
+  const beginHistoryGroup = () => {
+    historySessionRef.current += 1
+    activeHistoryGroupRef.current = `${historyGroupId}:${historySessionRef.current}`
+  }
+  const currentHistoryGroup = () => {
+    if (!activeHistoryGroupRef.current) beginHistoryGroup()
+    return activeHistoryGroupRef.current ?? undefined
+  }
+  const endHistoryGroup = () => { activeHistoryGroupRef.current = null }
+  const commit = (candidate: string) => {
+    const normalized = candidate.trim()
+    if (!normalized) { onChange(field, undefined, currentHistoryGroup()); return }
+    if (/^#[0-9a-f]{6}$/i.test(normalized)) onChange(field, normalized, currentHistoryGroup())
   }
   return (
-    <div className="mt-5.5 flex min-w-0 w-full flex-col gap-3">
-      <Separator />
-      <h3 style={{ margin: '0 0 12px', color: 'var(--text)', fontSize: 12.5, fontWeight: 750 }}>Yüzey renkleri</h3>
-      {([['background', 'Arka plan'], ['surface', 'Kart yüzeyi'], ['accent', 'Vurgu'], ['text', 'Metin'], ['cta', 'Ana buton']] as const).map(([key, label]) => (
-        <Field key={key} label={label}>
-          <InputGroup>
-            <InputGroupAddon className="border-r px-1.5"><input aria-label={`${label} rengini seç`} type="color" value={current[key] ?? (key === 'background' ? theme.bg : key === 'surface' ? theme.cardColor ?? '#ffffff' : key === 'text' ? theme.textColor ?? '#1c1d20' : key === 'cta' ? theme.cta : theme.accent)} onChange={(event) => update(key, event.target.value)} className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" /></InputGroupAddon>
-            <InputGroupInput value={current[key] ?? ''} onChange={(event) => update(key, event.target.value)} placeholder="Ortak temadan" />
-          </InputGroup>
-        </Field>
-      ))}
-    </div>
+    <ShadcnField className="min-w-0 gap-1.5">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <FieldLabel htmlFor={`home-color-${field}`} className="text-xs leading-4">{label}</FieldLabel>
+        <Badge variant={inherited ? 'outline' : 'secondary'} className="text-[9.5px]">{inherited ? 'Ortak temadan' : 'Ana sayfaya özel'}</Badge>
+      </div>
+      <InputGroup>
+        <InputGroupAddon className="border-r px-1.5"><input aria-label={`${label} rengini seç`} type="color" value={value ?? effectiveValue} onFocus={beginHistoryGroup} onBlur={endHistoryGroup} onChange={(event) => { setDraft(event.target.value); onChange(field, event.target.value, currentHistoryGroup()) }} className="size-6 cursor-pointer rounded border-0 bg-transparent p-0" /></InputGroupAddon>
+        <InputGroupInput
+          id={`home-color-${field}`}
+          aria-label={`${label} hex değeri`}
+          value={draft}
+          onFocus={beginHistoryGroup}
+          onChange={(event) => { setDraft(event.target.value); commit(event.target.value) }}
+          onBlur={() => { endHistoryGroup(); if (!/^#[0-9a-f]{6}$/i.test(draft)) setDraft(value ?? effectiveValue) }}
+          placeholder="#000000"
+          className="font-mono"
+        />
+      </InputGroup>
+      <Button type="button" variant="link" size="xs" disabled={inherited} onClick={() => onChange(field, undefined)} className="self-start px-0">
+        {inherited ? 'Ortak tema kullanılıyor' : 'Ortak temaya dön'}
+      </Button>
+    </ShadcnField>
   )
 }
 
@@ -1173,8 +1414,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   const labelledControl = directControl
     ? cloneElement(children as ReactElement<{ id?: string }>, { id: labelledControlId })
     : children
-  return <ShadcnField className="mb-4">
-    {directControl ? <FieldLabel htmlFor={labelledControlId}>{label}</FieldLabel> : <FieldTitle>{label}</FieldTitle>}
+  return <ShadcnField className="gap-1.5">
+    {directControl ? <FieldLabel htmlFor={labelledControlId} className="text-xs leading-4">{label}</FieldLabel> : <FieldTitle className="text-xs leading-4">{label}</FieldTitle>}
     {labelledControl}
   </ShadcnField>
 }
@@ -1192,6 +1433,26 @@ function UploadAttachment({ title, description, icon, accept, disabled, state, s
     </Attachment>
     <Input id={inputId} type="file" accept={accept} disabled={disabled} onChange={onChange} className="sr-only" />
   </label>
+}
+
+function RangeField({ label, unit, value, min, max, step = 1, onChange }: {
+  label: string
+  unit?: string
+  value: number
+  min: number
+  max: number
+  step?: number
+  onChange: (value: number) => void
+}) {
+  return <ShadcnField className="gap-2">
+    <div className="flex min-w-0 items-center justify-between gap-3">
+      <FieldTitle className="text-xs leading-4">{label}</FieldTitle>
+      <output aria-live="polite" className="min-w-10 rounded-md border bg-muted/40 px-1.5 py-0.5 text-center font-mono text-[10px] font-semibold text-muted-foreground">
+        {value}{unit ?? ''}
+      </output>
+    </div>
+    <RangeControl label={label} value={value} min={min} max={max} step={step} onChange={onChange} />
+  </ShadcnField>
 }
 
 function RangeControl({ label, value, min, max, step = 1, onChange }: { label: string; value: number; min: number; max: number; step?: number; onChange: (value: number) => void }) {

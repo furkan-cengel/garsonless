@@ -34,11 +34,11 @@ const EDITOR_INTERACTION_CSS = `
     transform: translateY(0) scale(.985);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 20%, transparent);
   }
-  [data-theme-editor-root] button:focus-visible,
-  [data-theme-editor-root] summary:focus-visible,
-  [data-theme-editor-root] [role="button"]:focus-visible,
-  [data-theme-editor-root] input:focus-visible,
-  [data-theme-editor-root] select:focus-visible {
+  html[data-focus-modality="keyboard"] [data-theme-editor-root] button:focus-visible,
+  html[data-focus-modality="keyboard"] [data-theme-editor-root] summary:focus-visible,
+  html[data-focus-modality="keyboard"] [data-theme-editor-root] [role="button"]:focus-visible,
+  html[data-focus-modality="keyboard"] [data-theme-editor-root] input:focus-visible,
+  html[data-focus-modality="keyboard"] [data-theme-editor-root] select:focus-visible {
     outline: 2px solid var(--text) !important;
     outline-offset: 2px;
   }
@@ -52,16 +52,23 @@ const EDITOR_INTERACTION_CSS = `
   [data-theme-editor-root] [data-page-flow-row] {
     transition: background-color 140ms ease, box-shadow 140ms ease;
   }
-  [data-theme-editor-root] [data-page-flow-row]:hover {
-    background: var(--surface-3) !important;
-    box-shadow: inset 3px 0 0 var(--text-3);
-  }
   [data-theme-editor-root] [data-page-flow-select]:not(:disabled):hover,
-  [data-theme-editor-root] [data-page-flow-select]:not(:disabled):active {
+  [data-theme-editor-root] [data-page-flow-select]:not(:disabled):active,
+  [data-theme-editor-root] [data-section-select]:not(:disabled):hover,
+  [data-theme-editor-root] [data-section-select]:not(:disabled):active {
     background: transparent !important;
     box-shadow: none !important;
     filter: none !important;
     transform: none !important;
+  }
+  [data-theme-editor-root] [data-section-select]:focus-visible {
+    outline: none !important;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    [data-theme-editor-root] [data-page-flow-row]:hover {
+      background: var(--surface-3) !important;
+      box-shadow: inset 3px 0 0 var(--text-3);
+    }
   }
   [data-theme-editor-task-nav] {
     display: none;
@@ -69,6 +76,24 @@ const EDITOR_INTERACTION_CSS = `
   [data-theme-editor-pane] {
     min-width: 0;
     min-height: 0;
+  }
+  [data-theme-editor-root] [data-slot="scroll-area-viewport"] {
+    overscroll-behavior: contain;
+  }
+  [data-theme-editor-root] [data-slot="scroll-area"] > [data-slot="scroll-area-scrollbar"] {
+    opacity: 0;
+    pointer-events: none;
+  }
+  [data-theme-editor-root] [data-slot="scroll-area"][data-scrolling] > [data-slot="scroll-area-scrollbar"],
+  [data-theme-editor-root] [data-slot="scroll-area"]:focus-within > [data-slot="scroll-area-scrollbar"] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    [data-theme-editor-root] [data-slot="scroll-area"]:hover > [data-slot="scroll-area-scrollbar"] {
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
   @media (max-width: 900px) {
     [data-theme-editor-topbar] {
@@ -208,7 +233,8 @@ const EDITOR_INTERACTION_CSS = `
   }
   @media (prefers-reduced-motion: reduce) {
     [data-theme-editor-root] button,
-    [data-theme-editor-root] [data-page-flow-row] { transition: none !important; }
+    [data-theme-editor-root] [data-page-flow-row],
+    [data-theme-editor-root] [data-slot="scroll-area-scrollbar"] { transition: none !important; }
     [data-theme-editor-root] button:hover,
     [data-theme-editor-root] button:active { transform: none !important; }
   }
@@ -229,7 +255,10 @@ export function ThemeEditorShell({
     <div
       data-theme-editor-root
       style={{
-        height: '100vh',
+        width: '100%',
+        height: '100%',
+        minWidth: 0,
+        minHeight: 0,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',

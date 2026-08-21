@@ -4,6 +4,7 @@ import { useEffect, type RefObject } from 'react'
 import {
   createOpenThemeNavDrawerCommand,
   createScrollToThemeComponentCommand,
+  type GarsonlessTheme,
 } from '@garsonless/design-engine'
 
 interface DrawerPreviewOptions {
@@ -13,6 +14,20 @@ interface DrawerPreviewOptions {
   previewUrl: string
   selectedSectionDefinitionId: string | null
   selectedSectionPlacement?: 'page' | 'drawer'
+  selectedServicePlacement?: GarsonlessTheme['servicePlacement']
+}
+
+export function getSelectedDrawerPreviewSectionId({
+  selectedSectionDefinitionId,
+  selectedSectionPlacement,
+  selectedServicePlacement,
+}: Pick<DrawerPreviewOptions, 'selectedSectionDefinitionId' | 'selectedSectionPlacement' | 'selectedServicePlacement'>) {
+  if (!selectedSectionDefinitionId) return null
+  if (selectedSectionPlacement === 'drawer') return selectedSectionDefinitionId
+  if (selectedSectionDefinitionId === 'request-buttons' && selectedServicePlacement === 'drawer') {
+    return selectedSectionDefinitionId
+  }
+  return null
 }
 
 export function useThemeEditorDrawerPreview({
@@ -22,9 +37,14 @@ export function useThemeEditorDrawerPreview({
   previewUrl,
   selectedSectionDefinitionId,
   selectedSectionPlacement,
+  selectedServicePlacement,
 }: DrawerPreviewOptions) {
   useEffect(() => {
-    const sectionId = selectedSectionPlacement === 'drawer' ? selectedSectionDefinitionId : null
+    const sectionId = getSelectedDrawerPreviewSectionId({
+      selectedSectionDefinitionId,
+      selectedSectionPlacement,
+      selectedServicePlacement,
+    })
     if (activeGroup !== 'drawer' && activeGroup !== 'footer' && !sectionId) return
     let targetOrigin: string
     try {
@@ -36,5 +56,5 @@ export function useThemeEditorDrawerPreview({
       ? createScrollToThemeComponentCommand()
       : createOpenThemeNavDrawerCommand(sectionId)
     if (message) iframeRef.current?.contentWindow?.postMessage(message, targetOrigin)
-  }, [activeGroup, iframeRef, previewStatus, previewUrl, selectedSectionDefinitionId, selectedSectionPlacement])
+  }, [activeGroup, iframeRef, previewStatus, previewUrl, selectedSectionDefinitionId, selectedSectionPlacement, selectedServicePlacement])
 }

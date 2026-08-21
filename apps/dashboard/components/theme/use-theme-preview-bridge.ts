@@ -18,6 +18,7 @@ interface ThemePreviewBridgeOptions {
   previewUrl: string
   theme: GarsonlessTheme
   context: ThemePreviewContext
+  onSurfaceNavigation?: (surface: 'home' | 'menu') => void
 }
 
 export function getThemePreviewTargetOrigin(url: string) {
@@ -32,8 +33,9 @@ export function getThemePreviewFailureStatus(hasSuccessfulPreview: boolean): The
   return hasSuccessfulPreview ? 'stale' : 'error'
 }
 
-export function useThemePreviewBridge({ previewUrl, theme, context }: ThemePreviewBridgeOptions) {
+export function useThemePreviewBridge({ previewUrl, theme, context, onSurfaceNavigation }: ThemePreviewBridgeOptions) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const childNavigationSurfaceRef = useRef<'home' | 'menu' | null>(null)
   const requestSequenceRef = useRef(0)
   const pendingRequestRef = useRef<string | null>(null)
   const previewReadyRef = useRef(false)
@@ -43,8 +45,9 @@ export function useThemePreviewBridge({ previewUrl, theme, context }: ThemePrevi
   const contextRef = useRef(context)
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([])
+  const [frameUrl, setFrameUrl] = useState(previewUrl)
   const [status, setStatus] = useState<ThemePreviewStatus>('preparing')
-  const targetOrigin = getThemePreviewTargetOrigin(previewUrl)
+  const targetOrigin = getThemePreviewTargetOrigin(frameUrl)
   themeRef.current = theme
   contextRef.current = context
 
@@ -139,6 +142,12 @@ export function useThemePreviewBridge({ previewUrl, theme, context }: ThemePrevi
 
       const data = parseThemePreviewEvent(event.data)
       if (!data) return
+      if (data.type === 'PREVIEW_NAVIGATION') {
+        childNavigationSurfaceRef.current = data.surface
+        contextRef.current = { surface: data.surface }
+        onSurfaceNavigation?.(data.surface)
+        return
+      }
       if (data.type === 'PREVIEW_READY') {
         previewReadyRef.current = true
         beginHandshake()
@@ -157,7 +166,16 @@ export function useThemePreviewBridge({ previewUrl, theme, context }: ThemePrevi
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [beginHandshake, clearFallback, clearRetries, targetOrigin])
+  }, [beginHandshake, clearFallback, clearRetries, onSurfaceNavigation, targetOrigin])
+
+  useEffect(() => {
+    const childSurface = childNavigationSurfaceRef.current
+    if (childSurface) {
+      childNavigationSurfaceRef.current = null
+      if (childSurface === context.surface) return
+    }
+    setFrameUrl(previewUrl)
+  }, [context.surface, previewUrl])
 
   useEffect(() => {
     previewReadyRef.current = false
@@ -171,7 +189,7 @@ export function useThemePreviewBridge({ previewUrl, theme, context }: ThemePrevi
       clearFallback()
       clearRetries()
     }
-  }, [armFallback, clearFallback, clearRetries, previewUrl, targetOrigin])
+  }, [armFallback, clearFallback, clearRetries, frameUrl, targetOrigin])
 
   // Keep the iframe aligned with React state as well as the imperative editor
   // commands. A command can race with an iframe reload/HMR cycle; the next
@@ -183,6 +201,7 @@ export function useThemePreviewBridge({ previewUrl, theme, context }: ThemePrevi
 
   return {
     iframeRef,
+    frameUrl,
     status,
     postMessage,
     reload,

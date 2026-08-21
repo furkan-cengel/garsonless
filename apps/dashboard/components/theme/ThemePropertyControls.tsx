@@ -33,47 +33,55 @@ export const THEME_PROPERTY_CONTROL_CSS = ``;
 export function ThemeColorField({
   field,
   value,
+  issueLabels = [],
   onChange,
 }: {
   field: SettingField;
   value: string;
+  issueLabels?: string[];
   onChange: (value: string) => void;
 }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   const valid = /^#[0-9a-fA-F]{6}$/.test(draft);
   const controlId = `theme-field-${sanitizePropertyControlId(field.id)}`;
+  const issueId = `${controlId}-issues`;
   return (
-    <Field data-invalid={!valid} className="gap-1.5">
+    <Field data-invalid={!valid || issueLabels.length > 0} className="gap-1.5">
       <FieldLabel htmlFor={controlId}>
         {field.label}
       </FieldLabel>
-      <InputGroup>
-        <InputGroupAddon className="border-r px-1.5">
+      <InputGroup className={cn("min-h-11", issueLabels.length > 0 && "border-destructive ring-1 ring-destructive/30")}>
+        <InputGroupAddon className="border-r p-0">
           <input
             aria-label={`${field.label} renk seçici`}
+            aria-describedby={issueLabels.length > 0 ? issueId : undefined}
             type="color"
             value={valid ? draft : "#000000"}
             onChange={(event) => {
               setDraft(event.target.value);
               onChange(event.target.value);
             }}
-            className="size-6 cursor-pointer rounded border-0 bg-transparent p-0"
+            className="size-11 cursor-pointer rounded border-0 bg-transparent p-2.5"
           />
         </InputGroupAddon>
         <InputGroupInput
           id={controlId}
-          aria-invalid={!valid}
+          aria-invalid={!valid || issueLabels.length > 0}
+          aria-describedby={issueLabels.length > 0 ? issueId : undefined}
           value={draft}
           onChange={(event) => {
             const next = event.target.value;
             setDraft(next);
             if (/^#[0-9a-fA-F]{6}$/.test(next)) onChange(next);
           }}
-          className="font-mono"
+          className="min-h-11 font-mono"
         />
       </InputGroup>
       {!valid && <FieldError>Geçerli format: #RRGGBB</FieldError>}
+      {valid && issueLabels.length > 0 ? (
+        <FieldError id={issueId}>{issueLabels.join(" · ")}</FieldError>
+      ) : null}
     </Field>
   );
 }
@@ -296,26 +304,32 @@ function HeaderRangeControl({
       <ButtonGroup aria-label={`${field.label} hassas ayarı`}>
         <Button
           type="button"
-          variant="outline"
-          size="icon-sm"
+          variant="ghost"
+          size="icon"
+          className="size-11 border-0 bg-transparent p-0 hover:bg-transparent focus-visible:ring-ring"
           aria-label={`${field.label} azalt`}
           onClick={() => onChange(clamp(value - step))}
           disabled={value <= min}
         >
-          <ThemeEditorControlIcon name="minus" />
+          <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-lg border bg-background">
+            <ThemeEditorControlIcon name="minus" />
+          </span>
         </Button>
-        <ButtonGroupText render={<output htmlFor={controlId} className="min-w-12 justify-center tabular-nums" />}>
+        <ButtonGroupText render={<output htmlFor={controlId} className="h-7 min-w-12 self-center justify-center tabular-nums" />}>
           {value}{field.unit ?? ""}
         </ButtonGroupText>
         <Button
           type="button"
-          variant="outline"
-          size="icon-sm"
+          variant="ghost"
+          size="icon"
+          className="size-11 border-0 bg-transparent p-0 hover:bg-transparent focus-visible:ring-ring"
           aria-label={`${field.label} artır`}
           onClick={() => onChange(clamp(value + step))}
           disabled={value >= max}
         >
-          <ThemeEditorControlIcon name="plus" />
+          <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-lg border bg-background">
+            <ThemeEditorControlIcon name="plus" />
+          </span>
         </Button>
       </ButtonGroup>
     </div>
@@ -622,7 +636,7 @@ function PropertyControl({
     const items = (field.options ?? []).map((option) => ({ label: option.label, value: String(option.value) }));
     return (
       <Select items={items} value={String(value ?? "")} onValueChange={(next) => { if (next != null) onChange(next) }}>
-        <SelectTrigger id={controlId} className="w-full"><SelectValue /></SelectTrigger>
+        <SelectTrigger id={controlId} className="min-h-11 w-full"><SelectValue /></SelectTrigger>
         <SelectContent><SelectGroup>{(field.options ?? []).map((opt) => (
           <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
         ))}</SelectGroup></SelectContent>
@@ -634,6 +648,7 @@ function PropertyControl({
       <Input
         id={controlId}
         type="text"
+        maxLength={field.maxLength}
         value={(value as string | undefined) ?? ""}
         onChange={(e) => onChange(e.target.value)}
       />

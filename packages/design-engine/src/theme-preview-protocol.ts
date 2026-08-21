@@ -1,4 +1,5 @@
 import type {
+  AccountPreviewState,
   AuthPreviewState,
   CheckoutPreviewState,
   GarsonlessTheme,
@@ -8,6 +9,12 @@ import { CANONICAL_THEME_ID, sanitizeThemeTokens } from './theme-policy'
 
 export const THEME_PREVIEW_CHANNEL = 'garsonless-theme-preview' as const
 export const THEME_PREVIEW_VERSION = 2 as const
+export const MENU_CART_PREVIEW_EVENT = 'garsonless:menu-cart-preview' as const
+export type MenuCartPreviewState = 'trigger' | 'filled' | 'empty'
+export type MenuPageBlockRevealTarget = {
+  kind: 'nav' | 'category' | 'section'
+  id: string
+}
 
 const MAX_MESSAGE_BYTES = 160 * 1024
 const MAX_REQUEST_ID_LENGTH = 120
@@ -20,7 +27,7 @@ interface ThemePreviewEnvelope {
 
 export interface ThemePreviewContext {
   surface: ThemeEditorSurface
-  state?: AuthPreviewState | CheckoutPreviewState
+  state?: AccountPreviewState | AuthPreviewState | CheckoutPreviewState
 }
 
 export type ThemePreviewCommand = ThemePreviewEnvelope & (
@@ -28,11 +35,14 @@ export type ThemePreviewCommand = ThemePreviewEnvelope & (
   | { type: 'SET_PREVIEW_CONTEXT'; context: ThemePreviewContext }
   | { type: 'SCROLL_TO_COMPONENT'; component: 'footer' }
   | { type: 'OPEN_NAV_DRAWER'; sectionId: string | null }
+  | { type: 'SET_MENU_CART_PREVIEW_STATE'; state: MenuCartPreviewState | null }
+  | { type: 'REVEAL_MENU_PAGE_BLOCK'; target: MenuPageBlockRevealTarget }
 )
 
 export type ThemePreviewEvent = ThemePreviewEnvelope & (
   | { type: 'PREVIEW_READY' }
   | { type: 'THEME_APPLIED'; requestId: string }
+  | { type: 'PREVIEW_NAVIGATION'; surface: 'home' | 'menu' }
   | {
       type: 'COMPONENT_CLICK'
       component: string
@@ -77,10 +87,16 @@ function envelope() {
 function sanitizePreviewContext(value: unknown): ThemePreviewContext | null {
   if (!isRecord(value)) return null
   const surface = value.surface
-  if (surface !== 'home' && surface !== 'menu' && surface !== 'auth' && surface !== 'checkout') return null
+  if (surface !== 'home' && surface !== 'menu' && surface !== 'auth' && surface !== 'account' && surface !== 'checkout') return null
   const state = value.state
   if (state === undefined) return { surface }
   if (surface === 'auth' && (state === 'join' || state === 'otp' || state === 'success' || state === 'error')) {
+    return { surface, state }
+  }
+  if (surface === 'account' && (
+    state === 'overview' || state === 'orders' || state === 'favorites' || state === 'profile'
+    || state === 'detail' || state === 'reorder' || state === 'loading' || state === 'error' || state === 'empty'
+  )) {
     return { surface, state }
   }
   if (surface === 'checkout' && (state === 'cart' || state === 'payment' || state === 'success' || state === 'table-payment' || state === 'error')) {
@@ -122,6 +138,18 @@ export function createOpenThemeNavDrawerCommand(sectionId: string | null): Theme
   return { ...envelope(), type: 'OPEN_NAV_DRAWER', sectionId }
 }
 
+export function createSetMenuCartPreviewStateCommand(state: MenuCartPreviewState | null): ThemePreviewCommand {
+  return { ...envelope(), type: 'SET_MENU_CART_PREVIEW_STATE', state }
+}
+
+export function createRevealMenuPageBlockCommand(
+  target: MenuPageBlockRevealTarget,
+): ThemePreviewCommand | null {
+  if (!['nav', 'category', 'section'].includes(target.kind)) return null
+  if (!isBoundedString(target.id, MAX_COMPONENT_ID_LENGTH)) return null
+  return { ...envelope(), type: 'REVEAL_MENU_PAGE_BLOCK', target }
+}
+
 export function createThemePreviewReadyEvent(): ThemePreviewEvent {
   return { ...envelope(), type: 'PREVIEW_READY' }
 }
@@ -129,6 +157,11 @@ export function createThemePreviewReadyEvent(): ThemePreviewEvent {
 export function createThemeAppliedEvent(requestId: string): ThemePreviewEvent | null {
   if (!isBoundedString(requestId, MAX_REQUEST_ID_LENGTH)) return null
   return { ...envelope(), type: 'THEME_APPLIED', requestId }
+}
+
+export function createThemePreviewNavigationEvent(surface: unknown): ThemePreviewEvent | null {
+  if (surface !== 'home' && surface !== 'menu') return null
+  return { ...envelope(), type: 'PREVIEW_NAVIGATION', surface }
 }
 
 export function createThemeComponentClickEvent(input: {
@@ -175,6 +208,20 @@ export function parseThemePreviewCommand(value: unknown): ThemePreviewCommand | 
     return createOpenThemeNavDrawerCommand(value.sectionId === null ? null : value.sectionId as string)
   }
 
+  if (value.type === 'SET_MENU_CART_PREVIEW_STATE') {
+    const state = value.state
+    if (state === null || state === 'trigger' || state === 'filled' || state === 'empty') {
+      return createSetMenuCartPreviewStateCommand(state)
+    }
+  }
+
+  if (value.type === 'REVEAL_MENU_PAGE_BLOCK' && isRecord(value.target)) {
+    return createRevealMenuPageBlockCommand({
+      kind: value.target.kind as MenuPageBlockRevealTarget['kind'],
+      id: value.target.id as string,
+    })
+  }
+
   return null
 }
 
@@ -183,6 +230,7 @@ export function parseThemePreviewEvent(value: unknown): ThemePreviewEvent | null
 
   if (value.type === 'PREVIEW_READY') return createThemePreviewReadyEvent()
   if (value.type === 'THEME_APPLIED') return createThemeAppliedEvent(value.requestId as string)
+  if (value.type === 'PREVIEW_NAVIGATION') return createThemePreviewNavigationEvent(value.surface)
   if (value.type === 'COMPONENT_CLICK') {
     return createThemeComponentClickEvent({
       component: value.component as string,

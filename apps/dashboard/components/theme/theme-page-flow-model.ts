@@ -1,5 +1,8 @@
 import {
   getSectionDefinitionId,
+  groupMenuPageBlocksByPlacement,
+  normalizeMenuPageBlockCategoryScope,
+  resolveMenuPageFlow,
   type GarsonlessTheme,
   type ThemePageBlock,
 } from '@garsonless/design-engine'
@@ -16,7 +19,7 @@ const SINGLETON_SECTION_IDS = new Set(['request-buttons'])
 
 export type PageFlowReorderResult =
   | { ok: true; blocks: PageBlock[]; moved: PageBlock }
-  | { ok: false; reason: 'missing-block' | 'child-scope' | 'nested-target' }
+  | { ok: false; reason: 'missing-block' | 'child-scope' | 'nested-target' | 'placement-scope' }
 
 export function pageBlockKey(block: PageBlock) {
   return `${block.type}:${block.id}`
@@ -27,45 +30,12 @@ export function buildPageBlocks(
   menuCategories: MenuCategory[],
   validSectionIds: Iterable<string>,
 ): PageBlock[] {
-  const categoryIds = new Set(menuCategories.map((category) => category.id))
-  const sectionIds = new Set(validSectionIds)
-  const stored = ((theme.pageBlocks ?? []) as PageBlock[]).filter((block) =>
-    block.type === 'category'
-      ? categoryIds.has(block.id)
-      : block.type === 'nav'
-        ? block.id === 'category-nav'
-        : block.type === 'section' && sectionIds.has(getSectionDefinitionId(block) ?? ''),
-  )
-  const legacySections = (theme.sections ?? []).filter((id) => sectionIds.has(id))
-  const base: PageBlock[] = stored.length > 0
-    ? stored
-    : [
-        { type: 'nav', id: 'category-nav' },
-        ...legacySections.map((id) => ({ type: 'section' as const, id })),
-        ...menuCategories.map((category) => ({ type: 'category' as const, id: category.id })),
-      ]
-  const seen = new Set<string>()
-  const unique = base.filter((block) => {
-    const key = pageBlockKey(block)
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
+  return resolveMenuPageFlow({
+    ...(theme.pageBlocks ? { pageBlocks: theme.pageBlocks } : {}),
+    ...(theme.sections ? { legacySections: theme.sections } : {}),
+    categories: menuCategories,
+    validSectionIds: new Set(validSectionIds),
   })
-
-  if (!seen.has('nav:category-nav')) {
-    unique.unshift({ type: 'nav', id: 'category-nav' })
-    seen.add('nav:category-nav')
-  }
-
-  for (const category of menuCategories) {
-    const key = `category:${category.id}`
-    if (!seen.has(key)) {
-      unique.push({ type: 'category', id: category.id })
-      seen.add(key)
-    }
-  }
-
-  return unique
 }
 
 export function getCategoryParentId(menuCategories: MenuCategory[], categoryId: string) {
@@ -76,40 +46,57 @@ export function normalizePageBlocksForCategoryScope(
   blocks: PageBlock[],
   menuCategories: MenuCategory[],
 ) {
-  const childIds = new Set(menuCategories.filter((category) => category.parentId).map((category) => category.id))
-  const childrenByParent = new Map<string, PageBlock[]>()
-  const childBlockById = new Map(
-    blocks
-      .filter((block) => block.type === 'category' && childIds.has(block.id))
-      .map((block) => [block.id, block]),
-  )
+  return normalizeMenuPageBlockCategoryScope(blocks, menuCategories)
+}
 
-  for (const block of blocks) {
-    if (block.type !== 'category' || !childIds.has(block.id)) continue
+export function getPageBlockReorderScope(
+  block: PageBlock,
+  menuCategories: MenuCategory[],
+) {
+  if (block.placement === 'drawer') return 'drawer'
+  if (block.type === 'category') {
     const parentId = getCategoryParentId(menuCategories, block.id)
-    if (!parentId) continue
-    const bucket = childrenByParent.get(parentId) ?? []
-    bucket.push(block)
-    childrenByParent.set(parentId, bucket)
+    if (parentId) return `children:${parentId}`
   }
+  return 'main'
+}
 
-  const next: PageBlock[] = []
-  const appended = new Set<string>()
+export function getPageBlockReorderScopeBlocks(
+  blocks: PageBlock[],
+  menuCategories: MenuCategory[],
+  sourceKey: string,
+) {
+  const source = blocks.find((block) => pageBlockKey(block) === sourceKey)
+  if (!source) return []
+  const scope = getPageBlockReorderScope(source, menuCategories)
+  return blocks.filter((block) => getPageBlockReorderScope(block, menuCategories) === scope)
+}
+
+export function filterPageBlocksForQuery(
+  blocks: PageBlock[],
+  menuCategories: MenuCategory[],
+  query: string,
+  getSearchText: (block: PageBlock) => string,
+) {
+  if (!query) return blocks
+  const matchingKeys = new Set(blocks.flatMap((block) =>
+    getSearchText(block).toLocaleLowerCase('tr').includes(query)
+      ? [pageBlockKey(block)]
+      : [],
+  ))
+  const includedKeys = new Set(matchingKeys)
   for (const block of blocks) {
-    if (block.type === 'category' && childIds.has(block.id)) continue
-    next.push(block)
-    if (block.type === 'category') {
-      for (const child of childrenByParent.get(block.id) ?? []) {
-        next.push(child)
-        appended.add(child.id)
-      }
+    if (block.type !== 'category' || !matchingKeys.has(pageBlockKey(block))) continue
+    const parentId = getCategoryParentId(menuCategories, block.id)
+    if (parentId) {
+      includedKeys.add(`category:${parentId}`)
+      continue
+    }
+    for (const child of menuCategories.filter((category) => category.parentId === block.id)) {
+      includedKeys.add(`category:${child.id}`)
     }
   }
-
-  for (const [id, child] of childBlockById.entries()) {
-    if (!appended.has(id)) next.push(child)
-  }
-  return next
+  return blocks.filter((block) => includedKeys.has(pageBlockKey(block)))
 }
 
 function createSectionInstanceId(blocks: PageBlock[], sectionId: string) {
@@ -168,6 +155,14 @@ export function reorderPageBlocks(
     ? getCategoryParentId(menuCategories, targetBlock.id)
     : null
 
+  const sourceScope = getPageBlockReorderScope(movedBlock, menuCategories)
+  const targetScope = getPageBlockReorderScope(targetBlock, menuCategories)
+  if (sourceScope !== targetScope) {
+    if (movedBlock.type === 'category' && movedParentId) return { ok: false, reason: 'child-scope' }
+    if (targetBlock.type === 'category' && targetParentId) return { ok: false, reason: 'nested-target' }
+    return { ok: false, reason: 'placement-scope' }
+  }
+
   if (movedBlock.type === 'category' && movedParentId) {
     if (targetBlock.type !== 'category' || targetParentId !== movedParentId) {
       return { ok: false, reason: 'child-scope' }
@@ -202,7 +197,13 @@ export function reorderPageBlocks(
       if (nextIndex < 0) return { ok: false, reason: 'missing-block' }
       const insertIndex = nextIndex + (fromIndex < toIndex ? 1 : 0)
       withoutGroup.splice(insertIndex, 0, ...movingGroup)
-      return { ok: true, blocks: withoutGroup, moved: movedBlock }
+      return {
+        ok: true,
+        blocks: groupMenuPageBlocksByPlacement(
+          normalizePageBlocksForCategoryScope(withoutGroup, menuCategories),
+        ),
+        moved: movedBlock,
+      }
     }
   }
 
@@ -210,7 +211,13 @@ export function reorderPageBlocks(
   const [moved] = next.splice(fromIndex, 1)
   if (!moved) return { ok: false, reason: 'missing-block' }
   next.splice(toIndex, 0, moved)
-  return { ok: true, blocks: next, moved }
+  return {
+    ok: true,
+    blocks: groupMenuPageBlocksByPlacement(
+      normalizePageBlocksForCategoryScope(next, menuCategories),
+    ),
+    moved,
+  }
 }
 
 export function getKeyboardMoveTarget(
@@ -221,17 +228,7 @@ export function getKeyboardMoveTarget(
 ) {
   const source = blocks.find((block) => pageBlockKey(block) === sourceKey)
   if (!source) return null
-  const sourceParentId = source.type === 'category'
-    ? getCategoryParentId(menuCategories, source.id)
-    : null
-  const scope = sourceParentId
-    ? blocks.filter(
-        (block) => block.type === 'category' &&
-          getCategoryParentId(menuCategories, block.id) === sourceParentId,
-      )
-    : blocks.filter(
-        (block) => block.type !== 'category' || !getCategoryParentId(menuCategories, block.id),
-      )
+  const scope = getPageBlockReorderScopeBlocks(blocks, menuCategories, sourceKey)
   const currentIndex = scope.findIndex((block) => pageBlockKey(block) === sourceKey)
   const target = scope[currentIndex + direction]
   return currentIndex < 0 || !target ? null : pageBlockKey(target)

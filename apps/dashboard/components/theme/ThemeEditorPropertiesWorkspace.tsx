@@ -1,10 +1,18 @@
 "use client";
 
 import { useId, useMemo, type ReactNode } from "react";
+import type { PublicCouponChoice } from "@garsonless/domain/coupons";
 import {
   getSectionDefinitionId,
   getSectionVisibility,
   type GarsonlessTheme,
+  type MenuCardContrastIssue,
+  type MenuCartContrastIssue,
+  type MenuFooterContrastIssue,
+  type MenuCartPreviewState,
+  type MenuHeaderContrastIssue,
+  type MenuNavigationContrastIssue,
+  type MenuThemeContrastIssue,
   type ThemePageBlock,
   type ThemeSectionVisibility,
   type ThemeSectionVisibilityMode,
@@ -41,6 +49,7 @@ import {
 } from "./ThemePropertyPanels";
 import { THEME_PROPERTY_CONTROL_CSS } from "./ThemePropertyControls";
 import { SectionSettingsEditor } from "./ThemeSectionSettings";
+import type { FooterStoreDataAvailability } from "./footer-store-data";
 import {
   EDITOR_TABS,
   THEME_EDITOR_THEME_GROUP_ID,
@@ -49,6 +58,7 @@ import {
 } from "./theme-editor-properties-model";
 
 interface ThemeEditorPropertiesWorkspaceProps {
+  couponOptions: PublicCouponChoice[];
   width: number;
   activeGroup: string;
   activeGroupData?: SettingsGroup;
@@ -75,18 +85,32 @@ interface ThemeEditorPropertiesWorkspaceProps {
     isAvailable?: boolean;
   }>;
   menuHref: string;
+  footerStoreDataAvailability: FooterStoreDataAvailability;
+  storeSettingsHref: string;
   logoCard?: ReactNode;
   sectionMediaPanel?: ReactNode;
+  inheritanceNotice?: { target: 'Header' | 'Footer'; customized: boolean };
+  scopeNotice?: string;
+  contrastIssues?: Array<MenuHeaderContrastIssue | MenuCardContrastIssue | MenuCartContrastIssue | MenuNavigationContrastIssue | MenuFooterContrastIssue>;
+  themeContrastIssues: MenuThemeContrastIssue[];
+  contrastRepairLabel?: string;
+  onContrastRepair?: () => void;
+  onThemeContrastRepair: () => void;
+  cartPreviewState: MenuCartPreviewState;
+  onCartPreviewStateChange: (state: MenuCartPreviewState) => void;
   onTabChange: (tab: EditorTab) => void;
   onReset: () => void;
   onCopy: () => void;
   onFieldChange: (field: SettingField, value: unknown) => void;
+  onThemePatch: (patch: Partial<GarsonlessTheme>) => void;
   onSectionSettingChange: (key: string, value: string) => void;
+  onSectionSettingsChange: (patch: Record<string, string>) => void;
   onSectionVisibilityChange: (visibility: ThemeSectionVisibility) => void;
   onSectionPlacementChange: (placement: 'page' | 'drawer') => void;
 }
 
 export function ThemeEditorPropertiesWorkspace({
+  couponOptions,
   width,
   activeGroup,
   activeGroupData,
@@ -105,13 +129,26 @@ export function ThemeEditorPropertiesWorkspace({
   menuCategories,
   menuItems,
   menuHref,
+  footerStoreDataAvailability,
+  storeSettingsHref,
   logoCard,
   sectionMediaPanel,
+  inheritanceNotice,
+  scopeNotice,
+  contrastIssues,
+  themeContrastIssues,
+  contrastRepairLabel,
+  onContrastRepair,
+  onThemeContrastRepair,
+  cartPreviewState,
+  onCartPreviewStateChange,
   onTabChange,
   onReset,
   onCopy,
   onFieldChange,
+  onThemePatch,
   onSectionSettingChange,
+  onSectionSettingsChange,
   onSectionVisibilityChange,
   onSectionPlacementChange,
 }: ThemeEditorPropertiesWorkspaceProps) {
@@ -119,8 +156,14 @@ export function ThemeEditorPropertiesWorkspace({
     ? getSectionDefinitionId(selectedSectionBlock)
     : null;
   const selectedSectionIsGlobal = selectedSectionDefinitionId === "request-buttons";
-  const getValue = (field: SettingField) =>
-    overrides[field.themeField] ?? defaults[field.themeField];
+  const getValue = (field: SettingField) => {
+    const direct = overrides[field.themeField] ?? defaults[field.themeField];
+    if (direct !== undefined) return direct;
+    if (field.themeField === 'cardRadius') return mergedTheme.radius;
+    if (field.themeField === 'cardShadow') return mergedTheme.shadow;
+    if (field.themeField === 'cardBorder') return mergedTheme.border;
+    return field.default;
+  };
   const campaignOptions = useMemo(() => {
     const campaignItems: MenuItem[] = menuItems.map((item, index) => ({
       id: item.id,
@@ -193,8 +236,25 @@ export function ThemeEditorPropertiesWorkspace({
                   menuCategories={menuCategories}
                   menuItems={menuItems}
                   campaignOptions={campaignOptions}
+                  couponOptions={couponOptions}
                   menuHref={menuHref}
-                  onChange={onSectionSettingChange}
+                  onChange={(key, value) => {
+                    if (key !== 'couponId') {
+                      onSectionSettingChange(key, value);
+                      return;
+                    }
+                    const coupon = couponOptions.find((option) => option.id === value);
+                    onSectionSettingsChange({
+                      couponId: value,
+                      couponEnabled: coupon ? 'true' : 'false',
+                      ...(coupon ? {
+                        couponEyebrow: coupon.eyebrow,
+                        couponTitle: coupon.title,
+                        couponSubtitle: coupon.subtitle,
+                        couponCode: coupon.code,
+                      } : {}),
+                    });
+                  }}
                 />
               ) : (
                 <EmptySettingsMessage
@@ -238,6 +298,41 @@ export function ThemeEditorPropertiesWorkspace({
         ) : (
           <>
             <div data-theme-properties-body className="flex min-w-0 flex-col gap-2.5 px-3 py-3">
+              {scopeNotice ? (
+                <Alert role="note">
+                  <AlertDescription>{scopeNotice}</AlertDescription>
+                </Alert>
+              ) : null}
+              {contrastIssues && contrastIssues.length > 0 ? (
+                <Alert variant="destructive" role="alert">
+                  <div>
+                    <AlertDescription>{`Kontrast sorunu: ${contrastIssues[0]!.label} ${contrastIssues[0]!.ratio}:1 · gereken ${contrastIssues[0]!.minimum}:1${contrastIssues.length > 1 ? ` · ${contrastIssues.length - 1} ek sorun` : ''}`}</AlertDescription>
+                    {contrastIssues.length > 1 ? (
+                      <ul aria-label="Tüm kontrast sorunları" className="mt-1.5 list-disc space-y-0.5 pl-4 text-xs">
+                        {contrastIssues.map((issue) => (
+                          <li key={issue.id}>{`${issue.label}: ${issue.ratio}:1 / en az ${issue.minimum}:1`}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {contrastRepairLabel && onContrastRepair ? (
+                      <Button type="button" variant="outline" size="xs" className="mt-2" onClick={onContrastRepair}>
+                        {contrastRepairLabel}
+                      </Button>
+                    ) : null}
+                  </div>
+                </Alert>
+              ) : null}
+              {inheritanceNotice ? (
+                <Alert role="note">
+                  <AlertDescription>{inheritanceNotice.customized
+                    ? inheritanceNotice.target === 'Header'
+                      ? 'Header için yalnız Ana sayfada geçerli özel ayarlar kullanılıyor. Paneli sıfırlarsan ortak temel görünüme ve Ana sayfanın 0px alt boşluk varsayılanına dönülür.'
+                      : `${inheritanceNotice.target} için yalnız Ana sayfada geçerli özel ayarlar kullanılıyor. Paneli sıfırlarsan ortak temel ayarlara dönülür.`
+                    : inheritanceNotice.target === 'Header'
+                      ? 'Header görünümü ortak temel ayarları kullanır; alt dış boşluk Ana sayfada varsayılan olarak 0px’tir. Burada değiştirdiğin alanlar yalnız Ana sayfa için özelleştirilir.'
+                      : `${inheritanceNotice.target} şu an ortak temel ayarları kullanıyor. Burada değiştirdiğin alanlar yalnız Ana sayfa için özelleştirilir.`}</AlertDescription>
+                </Alert>
+              ) : null}
               {logoCard}
               {activeGroup.startsWith("header") && visibleFields.length > 0 ? (
                 <HeaderPropertyPanel
@@ -272,25 +367,34 @@ export function ThemeEditorPropertiesWorkspace({
                   texture={mergedTheme.texture}
                   getValue={getValue}
                   onChange={onFieldChange}
+                  onPatch={onThemePatch}
                 />
               ) : activeGroup === THEME_EDITOR_THEME_GROUP_ID &&
                 visibleFields.length > 0 ? (
                 <ThemePropertyPanel
                   fields={visibleFields}
+                  theme={mergedTheme}
+                  contrastIssues={themeContrastIssues}
                   getValue={getValue}
                   onChange={onFieldChange}
+                  onPatch={onThemePatch}
+                  onContrastRepair={onThemeContrastRepair}
                 />
               ) : activeGroup === "cart" && visibleFields.length > 0 ? (
                 <CartPropertyPanel
                   fields={visibleFields}
                   getValue={getValue}
                   onChange={onFieldChange}
+                  previewState={cartPreviewState}
+                  onPreviewStateChange={onCartPreviewStateChange}
                 />
               ) : activeGroup === "footer" && visibleFields.length > 0 ? (
                 <FooterPropertyPanel
                   fields={visibleFields}
                   getValue={getValue}
                   onChange={onFieldChange}
+                  storeDataAvailability={footerStoreDataAvailability}
+                  storeSettingsHref={storeSettingsHref}
                 />
               ) : visibleFields.length > 0 ? (
                 <FieldGroup className="gap-2.5">
@@ -312,7 +416,8 @@ export function ThemeEditorPropertiesWorkspace({
             </div>
             {effectiveEditorTab === "design" &&
               activeGroup !== THEME_EDITOR_THEME_GROUP_ID &&
-              activeGroup !== "footer" && (
+              activeGroup !== "footer" &&
+              !activeGroup.startsWith("header") && (
                 <PropertySection title="Marka rengi" defaultOpen={false}>
                   <FieldGroup className="gap-2.5">
                     {["accent", "cta"].map((key) => {
@@ -564,7 +669,7 @@ function IconButton({
 }) {
   return (
     <Tooltip>
-      <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-xs" aria-label={title} onClick={onClick} />}>
+      <TooltipTrigger render={<Button type="button" variant="ghost" size="icon" className="size-11 focus-visible:ring-ring" aria-label={title} onClick={onClick} />}>
         {children}
       </TooltipTrigger>
       <TooltipContent>{title}</TooltipContent>

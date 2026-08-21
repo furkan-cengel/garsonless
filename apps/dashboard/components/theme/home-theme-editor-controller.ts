@@ -1,5 +1,5 @@
 import type { GarsonlessTheme, HomeSectionDefinitionId } from '@garsonless/design-engine'
-import { HOME_SECTION_LIBRARY, SECTION_GROUPS } from './theme-editor-section-registry'
+import { createInitialSectionSettings, HOME_SECTION_LIBRARY, SECTION_GROUPS } from './theme-editor-section-registry'
 import { createHomeBlock, ensureHomeV2, homeV2Patch } from './home-theme-editor-model'
 
 export function createHomeThemeEditorController({
@@ -39,9 +39,24 @@ export function createHomeThemeEditorController({
     add: (sectionId: string) => {
       const definition = HOME_SECTION_LIBRARY.find((section) => section.id === sectionId)
       if (!definition) return
+      if (definition.singleton) {
+        const existing = state.home.blocks.find((block) => block.sectionId === sectionId)
+        if (existing) {
+          selectBlock(existing.id)
+          closePicker()
+          showDesignSurface()
+          return
+        }
+      }
       const block = createHomeBlock(definition.id as HomeSectionDefinitionId, state.home.blocks)
-      const blocks = [...state.home.blocks, block]
-      updateTheme(homeV2Patch(theme, { ...state.home, blocks }, state.sectionSettings))
+      const blocks = sectionId === 'storefront-video-hero'
+        ? [block, ...state.home.blocks]
+        : [...state.home.blocks, block]
+      const initialSettings = createInitialSectionSettings(sectionId)
+      const sectionSettings = Object.keys(initialSettings).length > 0
+        ? { ...state.sectionSettings, [block.id]: initialSettings }
+        : state.sectionSettings
+      updateTheme(homeV2Patch(theme, { ...state.home, blocks }, sectionSettings))
       selectBlock(block.id)
       closePicker()
       showDesignSurface()

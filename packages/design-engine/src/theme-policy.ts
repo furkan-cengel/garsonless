@@ -16,12 +16,17 @@ import {
   type CheckoutSurfaceTheme,
   type CheckoutTablePaymentStateTheme,
   type GarsonlessTheme,
+  type HomeChromeOverrides,
+  type HomeChromeThemeOverride,
   type HomeSectionDefinitionId,
   type HomeSectionType,
   type HomeSurfaceBlock,
   type HomeSurfaceSection,
   type HomeSurfaceTheme,
+  type MenuChromeOverrides,
   type MenuFilterPresetId,
+  type MenuHeaderThemeOverride,
+  type MenuSurfaceTheme,
   type ThemeMenuCustomFilter,
   type ThemePageBlock,
   type ThemeSurfaceOverride,
@@ -51,7 +56,8 @@ const HOME_BLOCK_SETTING_KEYS: Record<HomeSectionDefinitionId, ReadonlySet<strin
   'storefront-video-hero': new Set([
     'showStatus', 'showEyebrow', 'eyebrow', 'showTitle', 'title', 'showBody', 'body',
     'showCta', 'cta', 'videoUrl', 'posterUrl', 'imageFit', 'imagePosition', 'overlay',
-    'textColor', 'align', 'contentPositionX', 'contentPositionY', 'height', 'contentWidth',
+    'textColor', 'showExplore', 'exploreLabel', 'animateExplore', 'align', 'contentPositionX', 'contentPositionY', 'height', 'contentWidth',
+    'editorialVersion', 'contentPlacement',
   ]),
   'promo-strip': new Set(),
   'featured-scroll': new Set(),
@@ -63,6 +69,17 @@ const HOME_BLOCK_SETTING_KEYS: Record<HomeSectionDefinitionId, ReadonlySet<strin
   gallery: new Set(),
 }
 const HOME_ONLY_SECTION_IDS = new Set<HomeSectionDefinitionId>(['storefront-video-hero'])
+const HOME_HEADER_THEME_FIELDS = new Set<keyof GarsonlessTheme>([
+  'headerBg', 'headerTextColor', 'headerIconColor', 'headerLogoStyle', 'headerLogoFit', 'headerLogoMaxWidth', 'headerNameSize', 'headerLogoSize', 'logoShape', 'logoBg',
+  'logoShadow', 'logoBorder', 'headerTagline', 'headerPreset', 'headerStyle', 'stickyHeader',
+  'headerBorder', 'headerRadius', 'headerShadow', 'headerShowMenu', 'headerHeight', 'headerPadY', 'headerPadX', 'headerBottomGap',
+  'headerShowContextBar', 'memberPlacement', 'billPlacement', 'cartPlacement', 'servicePlacement',
+])
+const MENU_HEADER_THEME_FIELDS = HOME_HEADER_THEME_FIELDS
+const HOME_FOOTER_THEME_FIELDS = new Set<keyof GarsonlessTheme>([
+  'footerEnabled', 'footerShowLogo', 'footerShowAddress', 'footerShowContact',
+  'footerShowSocial', 'footerShowCopyright', 'footerTone',
+])
 const HOME_SECTION_TEXT_LIMITS = {
   eyebrow: 80,
   title: 140,
@@ -76,7 +93,7 @@ const HOME_SECTION_TEXT_LIMITS = {
 const COLOR_KEYS = new Set([
   'bg', 'accent', 'accentSoft', 'cta', 'cardColor', 'textColor',
   'mutedTextColor', 'ctaTextColor', 'borderColor', 'catnavOverlayTextColor',
-  'catnavOverlayColor', 'headerBg',
+  'catnavOverlayColor', 'headerBg', 'headerTextColor', 'headerIconColor',
 ])
 
 const FONT_KEYS = new Set(['bodyFont', 'displayFont'])
@@ -94,7 +111,9 @@ const STRING_OPTIONS: Partial<Record<keyof GarsonlessTheme, readonly string[]>> 
   cartPlacement: ['header', 'drawer', 'footer', 'hidden'],
   servicePlacement: ['header', 'drawer', 'floating', 'hidden'],
   headerLogoStyle: ['display', 'wordmark', 'image'],
+  headerLogoFit: ['contain', 'cover'],
   headerStyle: ['solid', 'blur'],
+  headerShadow: ['none', 'soft', 'strong'],
   catnavStyle: ['pills', 'visual', 'underline', 'segmented', 'dots', 'outlined'],
   catnavVisualStyle: ['compact', 'overlay', 'poster'],
   catnavOverlayTextPosition: ['center', 'bottom-left', 'bottom-center', 'bottom-right', 'top-left', 'top-center', 'top-right'],
@@ -112,6 +131,8 @@ const STRING_OPTIONS: Partial<Record<keyof GarsonlessTheme, readonly string[]>> 
   cardHover: ['none', 'lift', 'glow'],
   cardCtaIcon: ['plus', 'cart', 'bag'],
   cardPlaceholderStyle: ['neutral', 'accent', 'outline'],
+  cardShadow: ['none', 'soft', 'hard'],
+  cardBorder: ['none', 'hair', 'solid'],
   cartStyle: ['pill', 'banner', 'fab'],
   cartHeaderTriggerStyle: ['none', 'icon', 'pill'],
   cartFooterTriggerStyle: ['none', 'bar', 'tabbar', 'fab', 'thumbs', 'pill'],
@@ -137,17 +158,18 @@ const STRING_OPTIONS: Partial<Record<keyof GarsonlessTheme, readonly string[]>> 
 }
 
 const NUMBER_RANGES: Partial<Record<keyof GarsonlessTheme, readonly [number, number]>> = {
-  fs: [10, 32], lh: [100, 220], radius: [0, 80], textureStrength: [0, 100],
-  cols: [1, 4], gap: [0, 80], pad: [0, 96], sectionGap: [0, 120],
+  fs: [12, 20], lh: [125, 170], radius: [0, 28], textureStrength: [1, 10],
+  cols: [1, 4], gap: [4, 24], pad: [8, 32], sectionGap: [8, 48],
   catnavVisualCardWidth: [72, 420], catnavVisualCardHeight: [48, 420],
-  catnavVisualRadius: [0, 80], catnavOverlayOpacity: [0, 100],
-  catnavOverlayBlur: [0, 32], catnavItemGap: [0, 48], catnavFontSize: [10, 28],
+  catnavVisualRadius: [0, 40], catnavOverlayOpacity: [0, 90],
+  catnavOverlayBlur: [0, 14], catnavItemGap: [0, 48], catnavFontSize: [10, 28],
   cardTitleLines: [1, 3], cardDescriptionLines: [1, 3],
   cardHorizontalImageWidth: [48, 240],
-  headerHeight: [40, 180], headerPadY: [0, 64], headerBottomGap: [0, 96],
-  headerNameSize: [12, 80], headerLogoSize: [16, 120], navTopGap: [0, 96],
-  navBottomGap: [0, 96], categoryGridTopGap: [0, 120],
-  sectionHeadingTopGap: [0, 120], sectionHeadingBottomGap: [0, 120],
+  cardRadius: [0, 28],
+  headerHeight: [40, 180], headerPadY: [0, 64], headerPadX: [0, 96], headerBottomGap: [0, 96],
+  headerNameSize: [12, 80], headerLogoSize: [16, 120], headerLogoMaxWidth: [48, 320], headerRadius: [0, 40], navTopGap: [0, 40],
+  navBottomGap: [0, 48], categoryGridTopGap: [0, 120],
+  sectionHeadingTopGap: [8, 48], sectionHeadingBottomGap: [4, 32],
   drawerWidth: [260, 440], drawerRadius: [0, 36], drawerOverlayOpacity: [0, 80],
   drawerOverlayBlur: [0, 12], drawerTopFontSize: [12, 20], drawerSubFontSize: [11, 18],
 }
@@ -158,6 +180,51 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function safeString(value: unknown, max = 500): string | null {
   return typeof value === 'string' && value.length <= max ? value : null
+}
+
+function sanitizeScopedThemeField(key: keyof GarsonlessTheme, value: unknown): unknown {
+  const fallback = DEFAULT_THEME[key]
+  if (COLOR_KEYS.has(key)) return typeof value === 'string' && HEX_COLOR.test(value) ? value : undefined
+  const options = STRING_OPTIONS[key]
+  if (options) return typeof value === 'string' && options.includes(value) ? value : undefined
+  if (typeof fallback === 'boolean') return typeof value === 'boolean' ? value : undefined
+  if (typeof fallback === 'number') {
+    if (!Number.isFinite(value)) return undefined
+    const range = NUMBER_RANGES[key] ?? [0, 2_000]
+    return Math.min(range[1], Math.max(range[0], value as number))
+  }
+  if (typeof fallback === 'string') return safeString(value)
+  return undefined
+}
+
+function sanitizeHomeChromeTarget(value: unknown, allowed: ReadonlySet<keyof GarsonlessTheme>): HomeChromeThemeOverride | undefined {
+  if (!isRecord(value)) return undefined
+  const result: Record<string, unknown> = {}
+  for (const key of allowed) {
+    if (!Object.hasOwn(value, key)) continue
+    const next = sanitizeScopedThemeField(key, value[key])
+    if (next !== undefined) result[key] = next
+  }
+  return Object.keys(result).length > 0 ? result as HomeChromeThemeOverride : undefined
+}
+
+function sanitizeHomeChrome(value: unknown): HomeChromeOverrides | undefined {
+  if (!isRecord(value)) return undefined
+  const header = sanitizeHomeChromeTarget(value['header'], HOME_HEADER_THEME_FIELDS)
+  const footer = sanitizeHomeChromeTarget(value['footer'], HOME_FOOTER_THEME_FIELDS)
+  return header || footer ? { ...(header ? { header } : {}), ...(footer ? { footer } : {}) } : undefined
+}
+
+function sanitizeMenuChrome(value: unknown): MenuChromeOverrides | undefined {
+  if (!isRecord(value)) return undefined
+  const header = sanitizeHomeChromeTarget(value['header'], MENU_HEADER_THEME_FIELDS) as MenuHeaderThemeOverride | undefined
+  return header ? { header } : undefined
+}
+
+function sanitizeMenuSurface(value: unknown): MenuSurfaceTheme | undefined {
+  if (!isRecord(value)) return undefined
+  const chrome = sanitizeMenuChrome(value['chrome'])
+  return chrome ? { chrome } : undefined
 }
 
 const UNSAFE_AUTH_COPY = /[<>{}]|\b(?:https?:\/\/|www\.|javascript:|data:|url\s*\(|var\s*\(|@import\b)|\b(?:background|color|display|position|font|margin|padding|width|height)\s*:/i
@@ -305,7 +372,9 @@ function sanitizeHomeSurface(value: unknown, fallback: HomeSurfaceTheme): HomeSu
     ...(safeString(rawSeo['description'], 180) !== null ? { description: safeString(rawSeo['description'], 180)! } : {}),
   } : undefined
   const override = sanitizeSurfaceOverride(value['override'])
+  const chrome = sanitizeHomeChrome(value['chrome'])
   const compositionVersion = value['compositionVersion'] === 2 ? 2 : undefined
+  const colorInheritanceVersion = value['colorInheritanceVersion'] === 2 ? 2 : undefined
   const rawBlocks = compositionVersion === 2
     ? (Array.isArray(value['blocks']) ? value['blocks'] : fallback.blocks ?? [])
         .slice(0, 40)
@@ -319,8 +388,10 @@ function sanitizeHomeSurface(value: unknown, fallback: HomeSurfaceTheme): HomeSu
   return {
     enabled: value['enabled'] === true,
     ...(compositionVersion === 2 ? { compositionVersion: 2 as const, blocks: uniqueBlocks ?? [] } : {}),
+    ...(colorInheritanceVersion === 2 ? { colorInheritanceVersion: 2 as const } : {}),
     sections: uniqueSections,
     ...(override ? { override } : {}),
+    ...(chrome ? { chrome } : {}),
     ...(seo && Object.keys(seo).length > 0 ? { seo } : {}),
   }
 }
@@ -686,7 +757,9 @@ function sanitizeCheckoutSurface(value: unknown, fallback: CheckoutSurfaceTheme)
 
 function sanitizeThemeSurfaces(value: unknown, fallback: ThemeSurfaces): ThemeSurfaces {
   if (!isRecord(value)) return fallback
+  const menu = sanitizeMenuSurface(value['menu'])
   return {
+    ...(menu ? { menu } : {}),
     home: sanitizeHomeSurface(value['home'], fallback.home),
     auth: sanitizeAuthSurface(value['auth'], fallback.auth),
     checkout: sanitizeCheckoutSurface(value['checkout'], fallback.checkout),
@@ -754,7 +827,10 @@ function sanitizeSectionSettings(
     if (sectionId.length > 100 || !isRecord(rawSettings)) continue
     const settings: Record<string, string> = {}
     const homeDefinition = homeBlockDefinitions.get(sectionId)
-    for (const [key, rawValue] of Object.entries(rawSettings).slice(0, 50)) {
+    // Rich section schemas (notably Combo Şerit V2) legitimately exceed the
+    // historical 50-key cap. Keep a bounded document without making persisted
+    // behavior depend on object insertion order.
+    for (const [key, rawValue] of Object.entries(rawSettings).slice(0, 100)) {
       if (homeDefinition && HOME_ONLY_SECTION_IDS.has(homeDefinition) && !HOME_BLOCK_SETTING_KEYS[homeDefinition].has(key)) continue
       const next = homeDefinition && HOME_ONLY_SECTION_IDS.has(homeDefinition)
         ? sanitizeHomeBlockSetting(homeDefinition, key, rawValue)
@@ -767,11 +843,13 @@ function sanitizeSectionSettings(
 }
 
 function sanitizeHomeBlockSetting(sectionId: HomeSectionDefinitionId, key: string, value: unknown): string | null {
-  const text = safeString(value, key === 'body' || key.endsWith('Body') ? 1_200 : 240)
+  const textLimit = key === 'body' || key.endsWith('Body') ? 1_200 : key === 'title' ? 140 : key === 'eyebrow' ? 80 : key === 'cta' ? 40 : 240
+  const text = safeString(value, textLimit)
   if (text === null) return null
   if (/^(?:image|video|poster).*Url$/i.test(key)) return text ? safeUrl(text) : ''
   if (UNSAFE_AUTH_COPY.test(text)) return null
   if (key === 'textColor') return HEX_COLOR.test(text) ? text : null
+  if (key === 'editorialVersion') return text === '2' ? text : null
   if (['showStatus', 'showEyebrow', 'showTitle', 'showBody', 'showCta'].includes(key)) {
     return text === 'true' || text === 'false' ? text : null
   }
@@ -779,6 +857,7 @@ function sanitizeHomeBlockSetting(sectionId: HomeSectionDefinitionId, key: strin
   const options: Partial<Record<string, readonly string[]>> = {
     mediaType: ['image', 'video', 'none'], imageFit: ['cover', 'contain'], imagePosition: ['center', 'top', 'bottom', 'left', 'right'],
     align: ['left', 'center', 'right'], layout: ['media-right', 'media-left', 'text-only'], tone: ['brand', 'dark', 'surface'], columns: ['2', '3', '4'],
+    contentPlacement: ['top-left', 'top-center', 'top-right', 'center-left', 'center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right'],
   }
   if (options[key]) return options[key]!.includes(text) ? text : null
   const numberRange: Partial<Record<string, readonly [number, number]>> = {
@@ -820,7 +899,7 @@ export function sanitizeThemeTokens(input: unknown, templateId: string): Garsonl
 
   const base = { ...DEFAULT_THEME, ...TEMPLATES[CANONICAL_THEME_ID] } as GarsonlessTheme
   const result = { ...base } as Record<string, unknown>
-  const allowed = new Set(Object.keys(DEFAULT_THEME))
+  const allowed = new Set([...Object.keys(DEFAULT_THEME), 'cardRadius', 'cardShadow', 'cardBorder'])
   const removedSectionInstanceIds = new Set<string>()
   const homeBlockDefinitions = new Map<string, HomeSectionDefinitionId>()
   const rawSurfaces = input['surfaces']
@@ -894,18 +973,26 @@ export function sanitizeThemeTokens(input: unknown, templateId: string): Garsonl
       if (typeof value === 'string' && options.includes(value)) result[key] = value
       continue
     }
+    const numberRange = NUMBER_RANGES[typedKey]
+    if (numberRange) {
+      if (!Number.isFinite(value)) continue
+      result[key] = Math.min(numberRange[1], Math.max(numberRange[0], value as number))
+      continue
+    }
     if (typeof fallback === 'boolean') {
       if (typeof value === 'boolean') result[key] = value
       continue
     }
     if (typeof fallback === 'number') {
       if (!Number.isFinite(value)) continue
-      const range = NUMBER_RANGES[typedKey] ?? [0, 2_000]
-      result[key] = Math.min(range[1], Math.max(range[0], value as number))
+      result[key] = Math.min(2_000, Math.max(0, value as number))
       continue
     }
     if (typeof fallback === 'string') {
-      const text = safeString(value)
+      const cartTextLimit = key === 'cartButtonText' ? 32 : key === 'cartEmptyText' ? 80 : key === 'cartPrimaryActionText' ? 40 : 500
+      const text = typeof value === 'string' && cartTextLimit < 500
+        ? value.slice(0, cartTextLimit)
+        : safeString(value, cartTextLimit)
       if (text !== null) result[key] = text
     }
   }
@@ -940,6 +1027,17 @@ export function sanitizeThemeTokens(input: unknown, templateId: string): Garsonl
   if (!Object.hasOwn(input, 'servicePlacement') && Array.isArray(input['pageBlocks'])) {
     const requestBlock = input['pageBlocks'].find((block) => isRecord(block) && block['type'] === 'section' && (block['sectionId'] ?? block['id']) === 'request-buttons')
     if (isRecord(requestBlock)) result['servicePlacement'] = requestBlock['placement'] === 'drawer' ? 'drawer' : 'floating'
+  }
+
+  const hasExplicitCheckoutPreset = isRecord(rawSurfaces)
+    && isRecord(rawSurfaces['checkout'])
+    && Object.hasOwn(rawSurfaces['checkout'], 'preset')
+  if (!hasExplicitCheckoutPreset && input['cartDrawerTone'] === 'accentHeader') {
+    const surfaces = result['surfaces'] as ThemeSurfaces
+    result['surfaces'] = {
+      ...surfaces,
+      checkout: { ...surfaces.checkout, preset: 'brand-header' },
+    }
   }
 
   return result as unknown as GarsonlessTheme

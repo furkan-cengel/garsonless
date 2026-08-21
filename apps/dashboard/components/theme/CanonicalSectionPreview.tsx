@@ -69,6 +69,60 @@ const FALLBACK_CATEGORIES: MenuCategory[] = [
   { id: 'preview-dessert', restaurant_id: 'preview', name: 'Tatlılar', position: 2, is_visible: true, parent_id: null },
 ]
 
+export function buildCatalogSectionPreviewConfig(
+  sectionId: string,
+  config: Record<string, string>,
+): Record<string, string> {
+  if (sectionId === 'hero-banner') {
+    return {
+      ...config,
+      imageUrl: '',
+      imageMode: 'background',
+      bgStart: '#245f48',
+      bgEnd: '#d97757',
+      textColor: '#ffffff',
+      showEyebrow: 'true',
+      eyebrow: 'ÖNE ÇIKAN',
+      showTitle: 'true',
+      title: 'Lezzetleri keşfedin',
+      showBody: 'true',
+      body: 'Menünüzü, kampanyanızı veya özel duyurunuzu burada öne çıkarın.',
+      cta: 'İncele',
+      targetType: 'link',
+      targetUrl: 'https://example.invalid',
+      buttonBg: '#ffffff',
+      buttonText: '#245f48',
+      align: 'left',
+      height: '168',
+      padding: '18',
+      radius: '16',
+    }
+  }
+  if (sectionId === 'storefront-video-hero') {
+    return {
+      ...config,
+      editorialVersion: '2',
+      videoUrl: '',
+      posterUrl: '',
+      showStatus: 'false',
+      showEyebrow: 'true',
+      eyebrow: 'HİKÂYEMİZ',
+      showTitle: 'true',
+      title: 'Mekânın hikâyesi',
+      showBody: 'true',
+      body: 'Atmosferinizi ve deneyiminizi kısa bir video ile anlatın.',
+      showExplore: 'true',
+      exploreLabel: 'Keşfet',
+      textColor: '#ffffff',
+      overlay: '42',
+      contentPlacement: 'bottom-left',
+      height: '640',
+      contentWidth: '620',
+    }
+  }
+  return config
+}
+
 function previewPrice(item: MenuItem | undefined, fallback: number) {
   const price = Number(item?.price)
   return Number.isFinite(price) && price > 0 ? price : fallback
@@ -198,7 +252,10 @@ export function CanonicalSectionPreview({
     }))
     : []
   const themeVars = computeThemeVars(theme) as CSSProperties
-  const config = theme.sectionSettings?.[sectionId] ?? {}
+  const storedConfig = theme.sectionSettings?.[sectionId] ?? {}
+  const config = sectionId === 'combo-ribbon' && Object.keys(storedConfig).length === 0
+    ? { editorialVersion: '2', selectionMode: 'automatic', comboCount: '2', itemsPerCombo: '2', showSavings: 'true' }
+    : storedConfig
   const pageBlocks = theme.pageBlocks?.length
     ? theme.pageBlocks
     : (theme.sections ?? []).map((id) => ({ type: 'section' as const, id }))
@@ -213,10 +270,11 @@ export function CanonicalSectionPreview({
   const usesGalleryCatalogMock = sectionId === 'gallery' && !Object.entries(config).some(([key, value]) =>
     /^tile[1-6]Image$/.test(key) && Boolean(value.trim()),
   )
+  const usesGenericHeroCatalog = sectionId === 'hero-banner' || sectionId === 'storefront-video-hero'
   const activeCampaigns = usesPromoSliderCatalogMock
     ? buildPromoSliderCatalogMock(items)
     : derivedActiveCampaigns
-  const previewConfig = usesPromoSliderCatalogMock
+  const campaignPreviewConfig = usesPromoSliderCatalogMock
     ? {
         ...config,
         sourceMode: 'active',
@@ -224,15 +282,8 @@ export function CanonicalSectionPreview({
         autoplay: 'false',
         indicator: 'dots',
       }
-    : usesGalleryCatalogMock
-      ? {
-          ...config,
-          catalogMock: 'true',
-          showTitle: 'true',
-          showBody: 'true',
-          showLabels: 'true',
-        }
-      : config
+    : config
+  const previewConfig = buildCatalogSectionPreviewConfig(sectionId, campaignPreviewConfig)
   const usesStoreInfo = sectionId === 'hours'
   const storeInfo = usesStoreInfo ? readStoreInfo(restaurantSettings) : null
   const frameRef = useRef<HTMLDivElement>(null)
@@ -277,6 +328,11 @@ export function CanonicalSectionPreview({
         position: 'relative',
       }}
     >
+      {(usesPromoSliderCatalogMock || usesGalleryCatalogMock || usesGenericHeroCatalog) && (
+        <span style={{ position: 'absolute', zIndex: 2, top: 6, ...(usesGalleryCatalogMock && compact ? { left: 6 } : { right: 6 }), padding: '3px 7px', borderRadius: 999, background: 'rgba(18,20,24,.78)', color: '#fff', fontSize: 9, fontWeight: 800, letterSpacing: '.03em' }}>
+          {usesGalleryCatalogMock ? 'Örnek galeri' : 'Örnek içerik'}
+        </span>
+      )}
       <div
         ref={contentRef}
         style={{
@@ -289,6 +345,8 @@ export function CanonicalSectionPreview({
         }}
       >
         <CustomSectionRenderer
+          editorPreview
+          catalogPreview
           renderContext={surface === 'home' ? 'home' : 'catalog'}
           menuHref="/preview/menu"
           sectionId={sectionId}

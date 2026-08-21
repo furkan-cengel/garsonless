@@ -41,6 +41,26 @@ export function appendHistorySnapshot<T>(
   return [...history.slice(-(limit - 1)), snapshot]
 }
 
+export function shouldAppendHistoryForGroup(
+  activeGroup: string | null,
+  requestedGroup: string | null,
+): boolean {
+  return requestedGroup === null || activeGroup !== requestedGroup
+}
+
+export function isContinuousThemeHistoryControl(control: {
+  tagName: string
+  inputType?: string
+  role?: string | null
+}): boolean {
+  if (control.role === 'slider') return true
+  if (control.tagName.toLowerCase() === 'textarea') return true
+  if (control.tagName.toLowerCase() !== 'input') return false
+  return !new Set(['button', 'checkbox', 'file', 'hidden', 'radio', 'reset', 'submit']).has(
+    control.inputType?.toLowerCase() ?? 'text',
+  )
+}
+
 export function areThemeOverridesEqual(
   left: Partial<GarsonlessTheme>,
   right: Partial<GarsonlessTheme>,

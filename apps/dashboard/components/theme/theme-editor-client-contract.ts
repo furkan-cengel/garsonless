@@ -1,4 +1,5 @@
 import type { GarsonlessTheme } from '@garsonless/design-engine'
+import type { PublicCouponChoice } from '@garsonless/domain/coupons'
 import type { ThemeEditorPreviewCategory, ThemeEditorPreviewItem } from './CanonicalSectionPreview'
 
 interface ThemeEditorInitialPersistence {
@@ -17,9 +18,11 @@ export interface ThemeEditorClientProps {
   restaurantLogoUrl: string | null
   canAddAdvancedSections: boolean
   experienceV2Enabled: boolean
+  previewAccessToken: string
   templateId: string
   initialPersistence: ThemeEditorInitialPersistence
   restaurantSettings: Record<string, unknown> | null
+  initialCouponOptions: PublicCouponChoice[]
   menuCategories: ThemeEditorPreviewCategory[]
   menuItems: ThemeEditorPreviewItem[]
 }

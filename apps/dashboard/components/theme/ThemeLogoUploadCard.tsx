@@ -40,9 +40,18 @@ export function ThemeLogoUploadCard({
         onChange={onUpload}
       />
       <Attachment state={uploading ? 'uploading' : logoUrl ? 'done' : 'idle'} size="xs" className="w-full flex-nowrap">
-        <AttachmentMedia variant={logoUrl ? 'image' : 'icon'}>
+        <AttachmentMedia
+          variant={logoUrl ? 'image' : 'icon'}
+          data-logo-upload-preview
+          className="bg-background"
+          style={{ width: 56, height: 36, aspectRatio: 'auto' }}
+        >
           {logoUrl
-            ? <img src={logoUrl} alt="Yüklü restoran logosu" />
+            ? <img
+                src={logoUrl}
+                alt="Yüklü restoran logosu"
+                style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 2 }}
+              />
             : uploading ? <Spinner /> : <I.tag />}
         </AttachmentMedia>
         <AttachmentContent>

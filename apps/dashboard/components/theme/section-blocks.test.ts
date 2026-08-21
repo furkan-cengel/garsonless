@@ -163,3 +163,13 @@ test('theme policy sanitizes global footer controls', () => {
   assert.equal(sanitized?.footerShowSocial, false)
   assert.equal(sanitized?.footerShowCopyright, false)
 })
+
+test('theme policy preserves a fully customized combo ribbon beyond the legacy 50-key cap', () => {
+  const settings = Object.fromEntries(Array.from({ length: 72 }, (_, index) => [`comboSetting${index + 1}`, `value-${index + 1}`]))
+  const sanitized = sanitizeThemeTokens({
+    pageBlocks: [{ type: 'section', id: 'combo-instance', sectionId: 'combo-ribbon' }],
+    sectionSettings: { 'combo-instance': settings },
+  }, 'default')
+  assert.equal(Object.keys(sanitized?.sectionSettings?.['combo-instance'] ?? {}).length, 72)
+  assert.equal(sanitized?.sectionSettings?.['combo-instance']?.comboSetting72, 'value-72')
+})

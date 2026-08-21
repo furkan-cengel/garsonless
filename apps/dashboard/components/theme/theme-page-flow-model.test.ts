@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   addSectionToPageFlow,
   buildPageBlocks,
+  filterPageBlocksForQuery,
   getKeyboardMoveTarget,
   normalizePageBlocksForCategoryScope,
   pageBlockKey,
@@ -33,9 +34,9 @@ test('stored flow is sanitized, deduplicated and completed', () => {
   assert.deepEqual(blocks.map(pageBlockKey), [
     'nav:category-nav',
     'category:coffee',
-    'section:hero-banner',
     'category:matcha',
     'category:filter',
+    'section:hero-banner',
     'category:dessert',
   ])
 })
@@ -172,4 +173,45 @@ test('keyboard movement stays inside the correct category scope', () => {
   assert.equal(getKeyboardMoveTarget(blocks, categories, 'category:matcha', 1), 'category:filter')
   assert.equal(getKeyboardMoveTarget(blocks, categories, 'category:matcha', -1), null)
   assert.equal(getKeyboardMoveTarget(blocks, categories, 'category:coffee', 1), 'category:dessert')
+})
+
+test('single child category exposes no ineffective movement target', () => {
+  const oneChildCategories: MenuCategory[] = [
+    { id: 'coffee', name: 'Kahve' },
+    { id: 'matcha', name: 'Matcha', parentId: 'coffee' },
+    { id: 'dessert', name: 'Tatlı' },
+  ]
+  const blocks = normalizePageBlocksForCategoryScope(buildPageBlocks({}, oneChildCategories, []), oneChildCategories)
+  assert.equal(getKeyboardMoveTarget(blocks, oneChildCategories, 'category:matcha', -1), null)
+  assert.equal(getKeyboardMoveTarget(blocks, oneChildCategories, 'category:matcha', 1), null)
+})
+
+test('drawer sections stay in their own reorder scope', () => {
+  const blocks: PageBlock[] = [
+    { type: 'nav', id: 'category-nav' },
+    { type: 'section', id: 'hero-banner' },
+    { type: 'category', id: 'coffee' },
+    { type: 'section', id: 'hours', placement: 'drawer' },
+    { type: 'section', id: 'wifi-info', placement: 'drawer' },
+  ]
+  assert.equal(getKeyboardMoveTarget(blocks, categories, 'section:hours', -1), null)
+  assert.equal(getKeyboardMoveTarget(blocks, categories, 'section:hours', 1), 'section:wifi-info')
+  assert.deepEqual(
+    reorderPageBlocks(blocks, categories, 'section:hours', 'section:hero-banner'),
+    { ok: false, reason: 'placement-scope' },
+  )
+})
+
+test('page-flow search preserves category hierarchy context', () => {
+  const blocks = normalizePageBlocksForCategoryScope(buildPageBlocks({}, categories, []), categories)
+  const byName = (block: PageBlock) => categories.find((category) => category.id === block.id)?.name ?? block.id
+  assert.deepEqual(
+    filterPageBlocksForQuery(blocks, categories, 'matcha', byName).map(pageBlockKey),
+    ['category:coffee', 'category:matcha'],
+  )
+  assert.deepEqual(
+    filterPageBlocksForQuery(blocks, categories, 'kahve', byName).map(pageBlockKey),
+    ['category:coffee', 'category:matcha', 'category:filter'],
+  )
+  assert.deepEqual(filterPageBlocksForQuery(blocks, categories, 'yok', byName), [])
 })

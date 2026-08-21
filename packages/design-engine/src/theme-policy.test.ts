@@ -35,6 +35,56 @@ test('theme sanitizer rejects CSS-shaped values and keeps canonical fallbacks', 
   assert.equal(sanitized.cols, 4)
 })
 
+test('theme sanitizer persists only boolean tag shimmer values', () => {
+  assert.equal(sanitizeThemeTokens({ tagShimmer: true }, 'default')?.tagShimmer, true)
+  assert.equal(sanitizeThemeTokens({ tagShimmer: 'true' }, 'default')?.tagShimmer, false)
+})
+
+test('layout tokens normalize to the same safe ranges exposed by the editor', () => {
+  const sanitized = sanitizeThemeTokens({
+    radius: 80,
+    cardRadius: 80,
+    textureStrength: 100,
+    gap: 80,
+    pad: 96,
+    sectionGap: 120,
+    sectionHeadingTopGap: 120,
+    sectionHeadingBottomGap: 120,
+    fs: 99,
+    lh: 999,
+  }, 'default')
+
+  assert.equal(sanitized?.radius, 28)
+  assert.equal(sanitized?.cardRadius, 28)
+  assert.equal(sanitized?.textureStrength, 10)
+  assert.equal(sanitized?.gap, 24)
+  assert.equal(sanitized?.pad, 32)
+  assert.equal(sanitized?.sectionGap, 48)
+  assert.equal(sanitized?.sectionHeadingTopGap, 48)
+  assert.equal(sanitized?.sectionHeadingBottomGap, 32)
+  assert.equal(sanitized?.fs, 20)
+  assert.equal(sanitized?.lh, 170)
+
+  const minimums = sanitizeThemeTokens({
+    textureStrength: 0,
+    gap: 0,
+    pad: 0,
+    sectionGap: 0,
+    sectionHeadingTopGap: 0,
+    sectionHeadingBottomGap: 0,
+    fs: 1,
+    lh: 1,
+  }, 'default')
+  assert.equal(minimums?.textureStrength, 1)
+  assert.equal(minimums?.gap, 4)
+  assert.equal(minimums?.pad, 8)
+  assert.equal(minimums?.sectionGap, 8)
+  assert.equal(minimums?.sectionHeadingTopGap, 8)
+  assert.equal(minimums?.sectionHeadingBottomGap, 4)
+  assert.equal(minimums?.fs, 12)
+  assert.equal(minimums?.lh, 125)
+})
+
 test('menu filters keep supported presets and bounded product-backed manual filters', () => {
   const sanitized = sanitizeThemeTokens({
     menuFilterPresetIds: ['halal', 'vegan', 'unknown', 'halal'],
@@ -181,6 +231,7 @@ test('V2 ana sayfa aynı Menü bileşenlerini korur, üç bağlam bileşenini re
       home: {
         enabled: true,
         compositionVersion: 2,
+        colorInheritanceVersion: 2,
         blocks: [
           { id: 'hero-one', sectionId: 'hero-banner', enabled: true },
           { id: 'hero-one', sectionId: 'hero-banner', enabled: true },
@@ -203,6 +254,7 @@ test('V2 ana sayfa aynı Menü bileşenlerini korur, üç bağlam bileşenini re
   }, 'default')
 
   assert.equal(sanitized?.surfaces?.home.compositionVersion, 2)
+  assert.equal(sanitized?.surfaces?.home.colorInheritanceVersion, 2)
   assert.deepEqual(sanitized?.surfaces?.home.blocks?.map((block) => block.sectionId), ['hero-banner', 'gallery'])
   assert.deepEqual(sanitized?.sectionSettings?.['hero-one'], { title: 'Günün kampanyası', imageUrl: 'https://assets.example/hero.webp' })
 })
@@ -223,6 +275,7 @@ test('V2 vitrin sayısal ayarlarını güvenli aralıklara sıkıştırır', () 
       'hero-one': {
         height: '9999', contentWidth: '20', overlay: '-5', mediaType: 'video',
         contentPositionX: '140', contentPositionY: '-20', align: 'right',
+        editorialVersion: '2', contentPlacement: 'top-right',
         showEyebrow: 'false', showTitle: 'false', showBody: 'false', showCta: 'false',
         videoUrl: 'https://assets.example/hero.webm', posterUrl: 'https://assets.example/poster.webp',
       },
@@ -231,8 +284,30 @@ test('V2 vitrin sayısal ayarlarını güvenli aralıklara sıkıştırır', () 
 
   assert.deepEqual(sanitized?.sectionSettings?.['hero-one'], {
     height: '820', contentWidth: '320', overlay: '0', contentPositionX: '100', contentPositionY: '0', align: 'right',
+    editorialVersion: '2', contentPlacement: 'top-right',
     showEyebrow: 'false', showTitle: 'false', showBody: 'false', showCta: 'false',
     videoUrl: 'https://assets.example/hero.webm', posterUrl: 'https://assets.example/poster.webp',
+  })
+})
+
+test('ana sayfa chrome yalnız güvenli Header ve Footer alanlarını saklar', () => {
+  const sanitized = sanitizeThemeTokens({
+    surfaces: {
+      home: {
+        ...DEFAULT_THEME.surfaces!.home,
+        chrome: {
+          header: { headerLogoSize: 999, headerPadX: 999, headerLogoStyle: 'image', footerTone: 'dark', bg: '#000000' },
+          footer: { footerTone: 'dark', footerShowLogo: false, headerPreset: 'compact' },
+        },
+      },
+      auth: DEFAULT_THEME.surfaces!.auth,
+      checkout: DEFAULT_THEME.surfaces!.checkout,
+    },
+  }, 'default')
+
+  assert.deepEqual(sanitized?.surfaces?.home.chrome, {
+    header: { headerLogoStyle: 'image', headerLogoSize: 120, headerPadX: 96 },
+    footer: { footerShowLogo: false, footerTone: 'dark' },
   })
 })
 
@@ -308,4 +383,26 @@ test('auth durum içeriklerini kapalı sözlük ve güvenli yerleşim sınırlar
   assert.equal(states?.error?.iconBackground, undefined)
   assert.equal(states?.error?.layout?.iconSize, 56)
   assert.equal(Object.hasOwn(states ?? {}, 'unknown'), false)
+})
+
+test('legacy cart drawer tone projects to Checkout only when Checkout has no explicit preset', () => {
+  const legacy = sanitizeThemeTokens({ cartDrawerTone: 'accentHeader' }, 'default')
+  assert.equal(legacy?.surfaces?.checkout.preset, 'brand-header')
+
+  const explicit = sanitizeThemeTokens({
+    cartDrawerTone: 'accentHeader',
+    surfaces: { ...DEFAULT_THEME.surfaces, checkout: { ...DEFAULT_THEME.surfaces!.checkout, preset: 'clean' } },
+  }, 'default')
+  assert.equal(explicit?.surfaces?.checkout.preset, 'clean')
+})
+
+test('cart copy is normalized to editor character limits without migration', () => {
+  const sanitized = sanitizeThemeTokens({
+    cartButtonText: 'a'.repeat(80),
+    cartEmptyText: 'b'.repeat(120),
+    cartPrimaryActionText: 'c'.repeat(90),
+  }, 'default')
+  assert.equal(sanitized?.cartButtonText?.length, 32)
+  assert.equal(sanitized?.cartEmptyText?.length, 80)
+  assert.equal(sanitized?.cartPrimaryActionText?.length, 40)
 })

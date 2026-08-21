@@ -23,8 +23,8 @@ export function getThemeEditorSaveStatus({
       ? 'Kaydedilmedi'
       : hasUnpublishedChanges
         ? lastSavedAt
-          ? `Taslak ${formatThemeEditorTime(lastSavedAt)}`
-          : 'Taslak kaydedildi'
+          ? `Yayın bekliyor · ${formatThemeEditorTime(lastSavedAt)}`
+          : 'Yayın bekliyor'
         : lastPublishedAt
           ? `Yayında ${formatThemeEditorTime(lastPublishedAt)}`
           : 'Yayında'

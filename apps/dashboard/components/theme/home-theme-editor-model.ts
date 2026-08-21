@@ -1,5 +1,7 @@
 import {
   DEFAULT_THEME,
+  resolveHomeSurfacePalette,
+  snapshotLegacyHomeSectionColors,
   type GarsonlessTheme,
   type HomeSectionDefinitionId,
   type HomeSurfaceBlock,
@@ -40,6 +42,8 @@ export function ensureHomeV2(theme: GarsonlessTheme): {
   if (source.compositionVersion === 2 && source.blocks) {
     const sourceBlocks = source.blocks
     const sectionSettings = { ...(theme.sectionSettings ?? {}) }
+    const homePalette = resolveHomeSurfacePalette(theme)
+    let colorSettingsUpgraded = false
     const blocks = sourceBlocks.flatMap((block) => {
       const rawSectionId = String(block.sectionId)
       const oldVideoHero = rawSectionId === 'storefront-hero' && sectionSettings[block.id]?.mediaType === 'video'
@@ -53,11 +57,30 @@ export function ensureHomeV2(theme: GarsonlessTheme): {
         delete nextSettings.mediaType
         sectionSettings[block.id] = nextSettings
       }
+      if (nextSectionId === 'chef-pick' && sectionSettings[block.id]?.editorialVersion !== '2') {
+        sectionSettings[block.id] = {
+          ...snapshotLegacyHomeSectionColors('chef-pick', sectionSettings[block.id] ?? {}, homePalette),
+          editorialVersion: '2',
+        }
+        colorSettingsUpgraded = true
+      }
+      if (source.colorInheritanceVersion !== 2) {
+        const currentSettings = sectionSettings[block.id] ?? {}
+        const nextSettings = snapshotLegacyHomeSectionColors(
+          nextSectionId as HomeSectionDefinitionId,
+          currentSettings,
+          homePalette,
+        )
+        if (nextSettings !== currentSettings) {
+          sectionSettings[block.id] = nextSettings
+          colorSettingsUpgraded = true
+        }
+      }
       return [{ ...block, sectionId: nextSectionId as HomeSectionDefinitionId }]
     })
-    const upgraded = blocks.length !== sourceBlocks.length || blocks.some((block, index) => block.sectionId !== sourceBlocks[index]?.sectionId)
+    const upgraded = source.colorInheritanceVersion !== 2 || colorSettingsUpgraded || blocks.length !== sourceBlocks.length || blocks.some((block, index) => block.sectionId !== sourceBlocks[index]?.sectionId)
     return {
-      home: { ...source, compositionVersion: 2, blocks },
+      home: { ...source, compositionVersion: 2, colorInheritanceVersion: 2, blocks },
       sectionSettings,
       upgraded,
     }
@@ -68,7 +91,7 @@ export function ensureHomeV2(theme: GarsonlessTheme): {
   // başlatır ve işletme Menü kataloğundaki gerçek bileşenleri seçer.
   const blocks: HomeSurfaceBlock[] = []
   return {
-    home: { ...source, compositionVersion: 2, blocks },
+    home: { ...source, compositionVersion: 2, colorInheritanceVersion: 2, blocks },
     sectionSettings,
     upgraded: true,
   }

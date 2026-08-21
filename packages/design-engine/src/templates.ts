@@ -26,7 +26,7 @@ export const TEMPLATES: Record<string, GarsonlessTheme> = {
   default: {
     bg: '#f8f9f8', bodyFont: 'DM Sans', displayFont: 'Fraunces',
     fs: 15, lh: 148, radius: 12, shadow: 'soft', border: 'hair',
-    accent: '#2e7d52', accentSoft: '#e8f5ee', cta: '#38a169',
+    accent: '#2e7d52', accentSoft: '#e9f6ef', cta: '#166534',
     texture: 'solid', motion: 'full', showSelection: false,
     cols: 2, gap: 12, pad: 16, sectionGap: 24,
     stickyHeader: true, stickyNav: true,

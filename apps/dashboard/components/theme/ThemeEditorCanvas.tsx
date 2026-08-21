@@ -1,11 +1,11 @@
 'use client'
 
 import type { RefObject } from 'react'
-import type { GarsonlessTheme, ThemeEditorSurface } from '@garsonless/design-engine'
+import type { ThemeEditorSurface } from '@garsonless/design-engine'
 import { I } from '../../lib/ui'
 import type { ThemePreviewMode } from './ThemeEditorTopbar'
 import { ThemeExperienceSurfaceSelector } from './ThemeExperienceSurfaceSelector'
-import { ThemePreviewSurface } from './ThemePreviewSurface'
+import { ThemePreviewStatusOverlay, ThemePreviewSurface } from './ThemePreviewSurface'
 import type { ThemePreviewStatus } from './use-theme-preview-bridge'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -17,8 +17,8 @@ import { ZoomInIcon, ZoomOutIcon } from 'lucide-react'
 interface ThemeEditorCanvasProps {
   iframeRef: RefObject<HTMLIFrameElement | null>
   previewUrl: string
+  previewFrameUrl: string
   previewStatus: ThemePreviewStatus
-  previewTheme: GarsonlessTheme
   previewMode: ThemePreviewMode
   previewScale: number
   isTaskBased: boolean
@@ -37,8 +37,8 @@ interface ThemeEditorCanvasProps {
 export function ThemeEditorCanvas({
   iframeRef,
   previewUrl,
+  previewFrameUrl,
   previewStatus,
-  previewTheme,
   previewMode,
   previewScale,
   isTaskBased,
@@ -132,7 +132,7 @@ export function ThemeEditorCanvas({
           )}
           <ButtonGroup aria-label="Önizleme yakınlaştırma" data-theme-preview-zoom className="h-8">
             <Button type="button" variant="outline" size="icon" aria-label="Önizlemeyi küçült" onClick={() => onZoom(-0.1)}><ZoomOutIcon data-icon="inline-start" /></Button>
-            <ButtonGroupText render={<output data-theme-preview-zoom-value aria-live="polite" className="size-8 justify-center px-0 text-xs tabular-nums" />}>
+            <ButtonGroupText render={<output data-theme-preview-zoom-value aria-live="polite" className="h-8 min-w-10 justify-center px-1.5 text-xs tabular-nums whitespace-nowrap" />}>
               %{Math.round(previewScale * 100)}
             </ButtonGroupText>
             <Button type="button" variant="outline" size="icon" aria-label="Önizlemeyi büyüt" onClick={() => onZoom(0.1)}><ZoomInIcon data-icon="inline-start" /></Button>
@@ -151,13 +151,17 @@ export function ThemeEditorCanvas({
         overflow: 'auto',
         minWidth: 0,
       }}>
-        <PreviewFrame mode={previewMode} scale={previewScale}>
+        <PreviewFrame
+          mode={previewMode}
+          scale={previewScale}
+          overlay={previewStatus === 'ready' || previewStatus === 'stale'
+            ? null
+            : <ThemePreviewStatusOverlay status={previewStatus} onRetry={onPreviewRetry} />}
+        >
           <ThemePreviewSurface
             iframeRef={iframeRef}
-            previewUrl={previewUrl}
+            previewUrl={previewFrameUrl}
             status={previewStatus}
-            theme={previewTheme}
-            onRetry={onPreviewRetry}
             onLoad={onPreviewLoad}
             onError={onPreviewError}
           />
@@ -167,16 +171,17 @@ export function ThemeEditorCanvas({
   )
 }
 
-function PreviewFrame({ children, mode, scale }: {
+function PreviewFrame({ children, mode, scale, overlay }: {
   children: React.ReactNode
   mode: ThemePreviewMode
   scale: number
+  overlay: React.ReactNode
 }) {
   const width = mode === 'desktop' ? 1_040 : 390
   const height = mode === 'desktop' ? 720 : 760
 
   return (
-    <div style={{
+    <div data-theme-preview-frame-host style={{
       width: width * scale,
       height: height * scale,
       flexShrink: 0,
@@ -205,6 +210,20 @@ function PreviewFrame({ children, mode, scale }: {
           {children}
         </div>
       </div>
+      {overlay && (
+        <div
+          data-theme-preview-unscaled-overlay
+          style={{
+            position: 'absolute',
+            inset: mode === 'desktop' ? 0 : 10 * scale,
+            overflow: 'hidden',
+            borderRadius: (mode === 'desktop' ? 20 : 34) * scale,
+            pointerEvents: 'auto',
+          }}
+        >
+          {overlay}
+        </div>
+      )}
     </div>
   )
 }

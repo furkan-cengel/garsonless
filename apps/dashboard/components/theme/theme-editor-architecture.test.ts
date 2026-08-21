@@ -9,6 +9,10 @@ const sidebarSource = readFileSync(
   `${directory}/ThemeEditorSidebar.tsx`,
   "utf8",
 );
+const experiencePanelsSource = readFileSync(
+  `${directory}/ThemeExperiencePanels.tsx`,
+  "utf8",
+);
 const dialogsSource = readFileSync(
   `${directory}/ThemeEditorDialogs.tsx`,
   "utf8",
@@ -72,12 +76,21 @@ const propertyPanelsSource = readFileSync(
   `${directory}/ThemePropertyPanels.tsx`,
   "utf8",
 );
+const footerPropertyPanelSource = readFileSync(
+  `${directory}/FooterPropertyPanel.tsx`,
+  "utf8",
+);
 const menuFilterPropertyEditorSource = readFileSync(
   `${directory}/MenuFilterPropertyEditor.tsx`,
   "utf8",
 );
 const propertyControlsSource = readFileSync(
   `${directory}/ThemePropertyControls.tsx`,
+  "utf8",
+);
+const sliderSource = readFileSync(`${directory}/../ui/slider.tsx`, "utf8");
+const layoutDensityModelSource = readFileSync(
+  `${directory}/layout-density-model.ts`,
   "utf8",
 );
 const cardPropertyOptionIconSource = readFileSync(
@@ -177,17 +190,34 @@ test("page-flow hover belongs to the outer row instead of the inner label button
   assert.match(shellSource, /transform: none !important/);
 });
 
+test("home section hover does not draw a second frame around the label button", () => {
+  assert.match(experiencePanelsSource, /data-section-select/);
+  assert.match(experiencePanelsSource, /hover:bg-muted hover:text-foreground/);
+  assert.match(shellSource, /\[data-section-select\]:not\(:disabled\):hover/);
+});
+
 test("page-flow rows reserve compact columns for text and ordering actions", () => {
   assert.match(sidebarSource, /ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle/);
   assert.match(sidebarSource, /data-page-flow-drag-handle/);
   assert.match(sidebarSource, /data-page-flow-content/);
   assert.match(sidebarSource, /data-page-flow-actions/);
-  assert.match(sidebarSource, /min-h-10 flex-nowrap gap-1\.5/);
+  assert.match(sidebarSource, /min-h-12 flex-nowrap gap-1/);
   assert.match(sidebarSource, /className="w-full truncate"/);
-  assert.match(sidebarSource, /<ArrowUpIcon data-icon="inline-start"/);
-  assert.match(sidebarSource, /<ArrowDownIcon data-icon="inline-start"/);
+  assert.match(sidebarSource, /getKeyboardMoveTarget\(pageBlocks, menuCategories, key, -1\)/);
+  assert.match(sidebarSource, /<DropdownMenuTrigger/);
+  assert.match(sidebarSource, /className="size-11"/);
+  assert.match(sidebarSource, /Bölümü kaldır/);
   assert.match(sidebarSource, /data-page-flow-add className="relative px-1 pb-1 pt-3"/);
-  assert.match(sidebarSource, /variant="outline"[\s\S]*?size="sm"[\s\S]*?Bölüm ekle/);
+  assert.match(sidebarSource, /variant="outline"[\s\S]*?min-h-11 w-full border-dashed[\s\S]*?Bölüm ekle/);
+});
+
+test("page-flow search, selection and hierarchy expose explicit editor semantics", () => {
+  assert.match(sidebarSource, /aria-current=\{selected \? 'location' : undefined\}/);
+  assert.match(sidebarSource, /<ol aria-label=\{label\}/);
+  assert.match(sidebarSource, /Sayfa akışında eşleşme bulunamadı/);
+  assert.match(sidebarSource, /role="status" aria-live="polite"/);
+  assert.match(navigationSource, /selectedPageBlockKey/);
+  assert.match(navigationSource, /filterPageBlocksForQuery/);
 });
 
 test("section picker selection and hover states preserve the card preview", () => {
@@ -198,6 +228,9 @@ test("section picker selection and hover states preserve the card preview", () =
   );
   assert.match(dialogsSource, /\.section-picker-card-select:hover \{[\s\S]*?background: transparent !important/);
   assert.doesNotMatch(dialogsSource, /\.section-picker-card-select:focus-visible,/);
+  assert.match(dialogsSource, /\.section-picker-close,[\s\S]*?min-height: 44px !important/);
+  assert.match(dialogsSource, /section-picker-search h-11 w-52/);
+  assert.match(dialogsSource, /\.section-picker-chip \{[\s\S]*?min-height: 44px !important/);
 });
 
 test("card property tiles use the dedicated twelve-icon SVG set", () => {
@@ -226,6 +259,11 @@ test("card property tiles use the dedicated twelve-icon SVG set", () => {
   ]) {
     assert.match(cardPropertyOptionIconSource, new RegExp(`value === "${value}"`));
   }
+});
+
+test("card design panel exposes the global tag shimmer switch in a visible section", () => {
+  assert.match(propertyPanelsSource, /title: "Etiketler", ids: \["tagShimmer"\]/);
+  assert.match(propertyPanelsSource, /Kampanya, fırsat ve ürün rozetlerinde parlak ışık geçişini birlikte açar/);
 });
 
 test("card layout and property chrome use the dedicated nineteen-icon SVG set", () => {
@@ -358,6 +396,17 @@ test("layout panel tiles use the dedicated option SVG set", () => {
   }
 });
 
+test("layout panel projects stable density presets without adding a theme token", () => {
+  assert.match(propertyPanelsSource, /Sayfa yoğunluğu/);
+  assert.match(propertyPanelsSource, /Gelişmiş boşluklar/);
+  assert.match(propertyPanelsSource, /Varsayılan yüzey/);
+  assert.match(propertyPanelsSource, /onPatch\(patch\)/);
+  for (const field of ["pad", "gap", "sectionGap", "sectionHeadingTopGap", "sectionHeadingBottomGap"]) {
+    assert.match(layoutDensityModelSource, new RegExp(`'${field}'`));
+  }
+  assert.doesNotMatch(layoutDensityModelSource, /layoutDensity:/);
+});
+
 test("cart design and layout tiles use the dedicated option SVG set", () => {
   assert.match(propertyControlsSource, /CartOptionIcon/);
   for (const fieldId of [
@@ -431,10 +480,9 @@ test("theme editor orchestrator delegates picker dialogs to views and navigation
   assert.match(dialogsSource, /\.section-picker-card \{[\s\S]*?min-height: 236px !important/);
   assert.match(dialogsSource, /\.section-picker-card-meta \{[\s\S]*?flex: 0 0 auto !important/);
   assert.doesNotMatch(dialogsSource, /\.section-picker-card \{[\s\S]{0,120}min-height: 0 !important/);
-  assert.match(
-    dialogsSource,
-    /const primaryDisabled = !selected \|\| selectedPlanned \|\| Boolean\(selected\.singleton && selectedExists\)/,
-  );
+  assert.match(dialogsSource, /const primaryDisabled = !selected \|\| selectedPlanned/);
+  assert.match(dialogsSource, /selected\?\.singleton && selectedExists[\s\S]*?'Önizlemede göster'/);
+  assert.match(navigationSource, /sectionId === 'request-buttons'[\s\S]*?servicePlacement: 'floating'/);
   assert.match(dialogsSource, /disabled=\{primaryDisabled\}/);
   assert.match(dialogsSource, /Geliştiriliyor/);
 });
@@ -545,6 +593,7 @@ test("theme editor delegates responsive preview workspace state to its controlle
   assert.match(workspaceSource, /getThemeEditorWorkspaceLayout/);
   assert.match(workspaceSource, /changeThemePreviewScale/);
   assert.match(workspaceSource, /getFittedThemePreviewScale/);
+  assert.doesNotMatch(workspaceSource, /if \(!layout\.taskBased\) return/);
   assert.match(workspaceSource, /useState<ThemeEditorSurface>\('preview'\)/);
   assert.match(clientSource, /taskBased=\{taskBased\}/);
   assert.match(shellSource, /aria-label="Tema düzenleme çalışma alanı"/);
@@ -552,6 +601,9 @@ test("theme editor delegates responsive preview workspace state to its controlle
   assert.match(shellSource, /<Tabs value=\{activeSurface\}/);
   assert.match(shellSource, /<TabsList data-theme-editor-task-nav/);
   assert.match(shellSource, /<TabsTrigger/);
+  assert.match(shellSource, /\[data-slot="scroll-area"\]\[data-scrolling\]/);
+  assert.match(shellSource, /overscroll-behavior: contain/);
+  assert.match(sidebarSource, /data-theme-editor-scroll="page"/);
   assert.doesNotMatch(shellSource, /overflowX: allowHorizontalOverflow/);
   assert.doesNotMatch(
     workspaceSource,
@@ -599,8 +651,10 @@ test("theme editor delegates preview canvas and device frame markup to a present
 test("theme editor exposes one page heading and ordered panel headings", () => {
   assert.match(topbarSource, /<h1[\s\S]*?id="theme-editor-title"/);
   assert.match(topbarSource, /aria-label=\{`\$\{restaurantName\} Tema Düzenleyici`\}/);
-  assert.match(topbarSource, /gridTemplateColumns: 'minmax\(0, 1fr\) auto minmax\(0, 1fr\)'/);
+  assert.match(topbarSource, /gridTemplateColumns: 'minmax\(0, 0\.8fr\) auto minmax\(0, 1\.2fr\)'/);
+  assert.match(topbarSource, /data-theme-editor-device-switch[\s\S]*?className="justify-self-center whitespace-nowrap bg-muted p-1"/);
   assert.match(topbarSource, /data-theme-editor-change-count/);
+  assert.match(topbarSource, /data-theme-editor-save-status[\s\S]*?className="shrink-0"/);
   assert.match(topbarSource, /className=\{hasUnsavedChanges \? 'w-\[104px\]' : 'invisible w-\[104px\]'\}/);
   assert.equal((topbarSource.match(/<h1\b/g) ?? []).length, 1);
   assert.match(sidebarSource, /<aside aria-labelledby="theme-editor-page-heading"/);
@@ -668,10 +722,12 @@ test("page structure and general style panels share one compact density contract
     "NAV_FIELD_SECTIONS",
     "LAYOUT_FIELD_SECTIONS",
     "CART_FIELD_SECTIONS",
-    "FOOTER_FIELD_SECTIONS",
   ]) {
     assert.match(propertyPanelsSource, new RegExp(`sections=\\{${section}\\}`));
   }
+  assert.match(propertyPanelsSource, /from ["']\.\/FooterPropertyPanel["']/);
+  assert.match(footerPropertyPanelSource, /FOOTER_FIELD_SECTIONS/);
+  assert.match(footerPropertyPanelSource, /data-theme-property-card/);
   assert.match(propertyControlsSource, /min-h-11 min-w-0 flex-col/);
   assert.match(logoCardSource, /size="xs"/);
 });
@@ -683,8 +739,17 @@ test("action placements and preview zoom stay compact without control collisions
   assert.match(propertyControlsSource, /aria-labelledby=\{`\$\{controlId\}-label`\}/);
   assert.match(canvasSource, /data-theme-preview-zoom/);
   assert.match(canvasSource, /data-theme-preview-zoom-value/);
-  assert.match(canvasSource, /className="size-8 justify-center px-0 text-xs tabular-nums"/);
+  assert.match(canvasSource, /className="h-8 min-w-10 justify-center px-1\.5 text-xs tabular-nums whitespace-nowrap"/);
   assert.equal((canvasSource.match(/size="icon" aria-label="Önizlemeyi/g) ?? []).length, 2);
+});
+
+test("single-value sliders expose one named 44px target", () => {
+  assert.match(sliderSource, /\[value\]/);
+  assert.match(sliderSource, /thumbValues = controlledValues \?\? defaultValues \?\? \[min\]/);
+  assert.doesNotMatch(sliderSource, /\[min, max\]/);
+  assert.match(sliderSource, /aria-label=\{ariaLabel\}/);
+  assert.match(sliderSource, /className="relative block size-11/);
+  assert.match(propertyControlsSource, /className="size-11 border-0 bg-transparent/);
 });
 
 test("theme editor delegates logo persistence and upload state to its feature controller", () => {

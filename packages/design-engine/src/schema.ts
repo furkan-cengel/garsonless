@@ -28,8 +28,9 @@ export interface ThemeMenuCustomFilter {
   itemIds: string[]
 }
 
-export type ThemeEditorSurface = 'home' | 'menu' | 'auth' | 'checkout'
+export type ThemeEditorSurface = 'home' | 'menu' | 'auth' | 'account' | 'checkout'
 export type AuthPreviewState = 'join' | 'otp' | 'success' | 'error'
+export type AccountPreviewState = 'overview' | 'orders' | 'favorites' | 'profile' | 'detail' | 'reorder' | 'loading' | 'error' | 'empty'
 export type CheckoutPreviewState = 'cart' | 'payment' | 'success' | 'table-payment' | 'error'
 
 export type AuthStateContentAlign = 'left' | 'center'
@@ -228,14 +229,37 @@ export interface HomeSurfaceBlock {
   enabled: boolean
 }
 
+export type HomeChromeTarget = 'header' | 'footer'
+export type HomeChromeThemeOverride = Partial<Omit<GarsonlessTheme, 'experienceVersion' | 'surfaces' | 'sections' | 'pageBlocks' | 'sectionSettings'>>
+
+export type MenuHeaderThemeOverride = HomeChromeThemeOverride
+
+export interface MenuChromeOverrides {
+  header?: MenuHeaderThemeOverride
+}
+
+export interface MenuSurfaceTheme {
+  /** Menu-only chrome overrides. Legacy flat Header fields remain the fallback. */
+  chrome?: MenuChromeOverrides
+}
+
+export interface HomeChromeOverrides {
+  header?: HomeChromeThemeOverride
+  footer?: HomeChromeThemeOverride
+}
+
 export interface HomeSurfaceTheme {
   enabled: boolean
   /** Missing means the published document still uses the legacy sections renderer. */
   compositionVersion?: 2
+  /** V2 enables semantic home colors to flow into standard content sections. */
+  colorInheritanceVersion?: 2
   /** V2 main-content flow. Header and Footer deliberately stay outside this list. */
   blocks?: HomeSurfaceBlock[]
   sections: HomeSurfaceSection[]
   override?: ThemeSurfaceOverride
+  /** Header/Footer inherit legacy flat chrome fields until a homepage-only override is stored here. */
+  chrome?: HomeChromeOverrides
   seo?: {
     title?: string
     description?: string
@@ -404,6 +428,7 @@ export const DEFAULT_CHECKOUT_STATES = {
 }
 
 export interface ThemeSurfaces {
+  menu?: MenuSurfaceTheme
   home: HomeSurfaceTheme
   auth: AuthSurfaceTheme
   checkout: CheckoutSurfaceTheme
@@ -431,6 +456,7 @@ export interface GarsonlessTheme {
   texture: 'solid' | 'noise' | 'grid'
   textureStrength?: number
   motion: 'full' | 'reduced' | 'none'
+  tagShimmer?: boolean
   showSelection: boolean
   cols: number
   gap: number
@@ -447,6 +473,8 @@ export interface GarsonlessTheme {
   cartPlacement?: 'header' | 'drawer' | 'footer' | 'hidden'
   servicePlacement?: 'header' | 'drawer' | 'floating' | 'hidden'
   headerLogoStyle: 'display' | 'wordmark' | 'image'
+  headerLogoFit?: 'contain' | 'cover'
+  headerLogoMaxWidth?: number
   headerShowSearch: boolean
   headerShowLang: boolean
   headerTableBadge: boolean
@@ -490,6 +518,10 @@ export interface GarsonlessTheme {
   cardHover?: 'none' | 'lift' | 'glow'
   cardCtaIcon?: 'plus' | 'cart' | 'bag'
   cardPlaceholderStyle?: 'neutral' | 'accent' | 'outline'
+  /** Card-only surface overrides. Missing values inherit the legacy global token. */
+  cardRadius?: number
+  cardShadow?: 'none' | 'soft' | 'hard'
+  cardBorder?: 'none' | 'hair' | 'solid'
   cartStyle: 'pill' | 'banner' | 'fab'
   cartHeaderTriggerStyle?: 'none' | 'icon' | 'pill'
   cartFooterTriggerStyle?: 'none' | 'bar' | 'tabbar' | 'fab' | 'thumbs' | 'pill'
@@ -517,9 +549,14 @@ export interface GarsonlessTheme {
   footerShowCopyright: boolean
   headerHeight: number
   headerPadY?: number
+  headerPadX?: number
   headerBottomGap?: number
   headerBg: string
+  headerTextColor?: string
+  headerIconColor?: string
   headerBorder: boolean
+  headerRadius?: number
+  headerShadow?: 'none' | 'soft' | 'strong'
   headerShowMenu: boolean
   headerNameSize: number
   headerLogoSize?: number
@@ -569,6 +606,7 @@ export const DEFAULT_THEME: GarsonlessTheme = {
     home: {
       enabled: false,
       compositionVersion: 2,
+      colorInheritanceVersion: 2,
       blocks: [],
       sections: [
         { id: 'home-announcement', type: 'announcement', enabled: true, body: 'Bugün açığız', align: 'center', tone: 'brand' },
@@ -617,7 +655,7 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   border: 'hair',
   accent: '#a13b7a',
   accentSoft: '#f5e8f0',
-  cta: '#7eb928',
+  cta: '#166534',
   cardColor: '#ffffff',
   textColor: '#1c1d20',
   mutedTextColor: '#6c6f76',
@@ -626,6 +664,7 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   texture: 'solid',
   textureStrength: 4,
   motion: 'full',
+  tagShimmer: false,
   showSelection: false,
   cols: 2,
   gap: 12,
@@ -642,6 +681,8 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   cartPlacement: 'footer',
   servicePlacement: 'drawer',
   headerLogoStyle: 'display',
+  headerLogoFit: 'contain',
+  headerLogoMaxWidth: 180,
   headerShowSearch: true,
   headerShowLang: false,
   headerTableBadge: true,
@@ -712,9 +753,12 @@ export const DEFAULT_THEME: GarsonlessTheme = {
   footerShowCopyright: true,
   headerHeight: 64,
   headerPadY: 8,
+  headerPadX: 16,
   headerBottomGap: 0,
   headerBg: '#ffffff',
   headerBorder: false,
+  headerRadius: 0,
+  headerShadow: 'none',
   headerShowMenu: true,
   headerNameSize: 28,
   headerLogoSize: 40,

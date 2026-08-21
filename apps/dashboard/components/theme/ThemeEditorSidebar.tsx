@@ -1,18 +1,30 @@
 'use client'
 
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { getSectionDefinitionId, getSectionVisibility } from '@garsonless/design-engine'
 import { I } from '../../lib/ui'
-import { getCategoryParentId, pageBlockKey, type MenuCategory, type PageBlock } from './theme-page-flow-model'
+import { getCategoryParentId, getKeyboardMoveTarget, pageBlockKey, type MenuCategory, type PageBlock } from './theme-page-flow-model'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { ButtonGroup } from '@/components/ui/button-group'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { ArrowDownIcon, ArrowUpIcon, GripVerticalIcon, XIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, EllipsisVerticalIcon, GripVerticalIcon, Trash2Icon } from 'lucide-react'
 
 type EditorNavGroup = {
   title: string
@@ -44,6 +56,8 @@ interface ThemeEditorSidebarProps {
   menuCategories: MenuCategory[]
   sectionLibrary: readonly SectionLibraryItem[]
   selectedSectionId: string | null
+  selectedPageBlockKey: string | null
+  pageFlowStatus: string
   dragBlockKey: string | null
   sectionTriggerRef: RefObject<HTMLButtonElement | null>
   onEditorSearchChange: (value: string) => void
@@ -69,6 +83,8 @@ export function ThemeEditorSidebar({
   menuCategories,
   sectionLibrary,
   selectedSectionId,
+  selectedPageBlockKey,
+  pageFlowStatus,
   dragBlockKey,
   sectionTriggerRef,
   onEditorSearchChange,
@@ -81,6 +97,197 @@ export function ThemeEditorSidebar({
   onRemoveSection,
   onOpenSectionPicker,
 }: ThemeEditorSidebarProps) {
+  const [pendingRemoval, setPendingRemoval] = useState<{ block: PageBlock; label: string; fallbackKey: string | null } | null>(null)
+  const [canPointerDrag, setCanPointerDrag] = useState(false)
+  const actionTriggerRefs = useRef(new Map<string, HTMLButtonElement>())
+  const orderedBlocks = useMemo(() => [
+    ...visiblePageBlocks.filter((block) => block.placement !== 'drawer'),
+    ...visiblePageBlocks.filter((block) => block.placement === 'drawer'),
+  ], [visiblePageBlocks])
+  const mainBlocks = orderedBlocks.filter((block) => block.placement !== 'drawer')
+  const drawerBlocks = orderedBlocks.filter((block) => block.placement === 'drawer')
+
+  useEffect(() => {
+    const media = window.matchMedia('(hover: hover) and (pointer: fine)')
+    const update = () => setCanPointerDrag(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  const sectionLabel = (block: PageBlock, fallback: string) => {
+    if (block.type !== 'section') return fallback
+    const definitionId = getSectionDefinitionId(block)
+    const siblings = pageBlocks.filter((candidate) =>
+      candidate.type === 'section' && getSectionDefinitionId(candidate) === definitionId,
+    )
+    if (siblings.length < 2) return fallback
+    const ordinal = siblings.findIndex((candidate) => candidate.id === block.id) + 1
+    return ordinal > 1 ? `${fallback} ${ordinal}` : fallback
+  }
+
+  const getBlockCopy = (block: PageBlock) => {
+    const definitionId = getSectionDefinitionId(block)
+    const preset = block.type === 'section'
+      ? sectionLibrary.find((item) => item.id === definitionId)
+      : null
+    const category = block.type === 'category'
+      ? menuCategories.find((item) => item.id === block.id)
+      : null
+    const parentId = block.type === 'category'
+      ? getCategoryParentId(menuCategories, block.id)
+      : null
+    const drawer = block.type === 'section' && block.placement === 'drawer'
+    const baseLabel = block.type === 'section'
+      ? preset?.label ?? definitionId ?? block.id
+      : block.type === 'nav'
+        ? 'Kategori Menüsü'
+        : category?.name ?? block.id
+    return {
+      label: sectionLabel(block, baseLabel),
+      description: block.type === 'section'
+        ? `${drawer ? 'Menü Drawer' : getSectionScopeLabel(block)} · ${preset?.sub ?? 'Özel bölüm'}`
+        : block.type === 'nav'
+          ? 'Kaydırılabilir kategori navigasyonu'
+          : parentId
+            ? `${menuCategories.find((item) => item.id === parentId)?.name ?? 'Üst kategori'} alt kategorisi`
+            : 'Menü kategorisi',
+    }
+  }
+
+  const askToRemove = (block: PageBlock, label: string) => {
+    const index = orderedBlocks.findIndex((candidate) => pageBlockKey(candidate) === pageBlockKey(block))
+    const fallback = orderedBlocks[index + 1] ?? orderedBlocks[index - 1]
+    setPendingRemoval({ block, label, fallbackKey: fallback ? pageBlockKey(fallback) : null })
+  }
+
+  const removePendingSection = () => {
+    if (!pendingRemoval || pendingRemoval.block.type !== 'section') return
+    const { block, fallbackKey } = pendingRemoval
+    setPendingRemoval(null)
+    onRemoveSection(block.id)
+    requestAnimationFrame(() => {
+      if (fallbackKey) actionTriggerRefs.current.get(fallbackKey)?.focus()
+      else sectionTriggerRef.current?.focus()
+    })
+  }
+
+  const renderRow = (block: PageBlock, child = false) => {
+    const key = pageBlockKey(block)
+    const { label, description } = getBlockCopy(block)
+    const selected = selectedPageBlockKey === key || (block.type === 'section' && selectedSectionId === block.id)
+    const upTarget = getKeyboardMoveTarget(pageBlocks, menuCategories, key, -1)
+    const downTarget = getKeyboardMoveTarget(pageBlocks, menuCategories, key, 1)
+    return (
+      <Item
+        data-page-flow-row
+        data-drawer-flow-row={block.placement === 'drawer' || undefined}
+        role="group"
+        aria-label={`${label} akış öğesi`}
+        onDragOver={(event) => { if (!editorQuery && canPointerDrag) event.preventDefault() }}
+        onDrop={() => onDrop(key)}
+        variant={selected ? 'muted' : 'default'}
+        size="xs"
+        className={cn('relative min-h-12 flex-nowrap gap-1 has-[[data-page-flow-select]:focus-visible]:border-ring has-[[data-page-flow-select]:focus-visible]:bg-muted', selected ? 'text-foreground' : 'text-muted-foreground')}
+        style={{
+          padding: child ? '2px 2px 2px 8px' : block.placement === 'drawer' ? '2px 2px 2px 10px' : '2px',
+          opacity: dragBlockKey === key ? 0.55 : 1,
+        }}
+      >
+        <span
+          data-page-flow-drag-handle
+          aria-label={`${label} öğesini sürükleyerek taşı`}
+          role="img"
+          draggable={!editorQuery && canPointerDrag}
+          onDragStart={() => onDragStart(key)}
+          onDragEnd={onDragEnd}
+          className={cn('flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground', canPointerDrag && !editorQuery ? 'cursor-grab active:cursor-grabbing' : 'cursor-default')}
+        >
+          <GripVerticalIcon size={17} aria-hidden />
+        </span>
+        <Tooltip>
+          <TooltipTrigger render={<Button
+            data-page-flow-select
+            type="button"
+            variant="ghost"
+            aria-current={selected ? 'location' : undefined}
+            onClick={() => onSelectPageBlock(block)}
+            className="min-h-11 min-w-0 flex-1 justify-start gap-1.5 overflow-hidden p-0 text-left hover:bg-transparent focus-visible:border-transparent focus-visible:ring-0"
+            style={{ color: 'inherit' }}
+          />}>
+            <ItemMedia variant="icon" style={{ color: selected ? 'var(--text)' : 'var(--text-3)' }}>
+              {block.type === 'section'
+                ? <I.page size={17} />
+                : block.type === 'nav'
+                  ? <I.header size={17} />
+                  : <I.section size={17} />}
+            </ItemMedia>
+            <ItemContent data-page-flow-content className="min-w-0 items-start gap-0">
+              <ItemTitle className="w-full truncate">{label}</ItemTitle>
+              <ItemDescription className="w-full truncate">{description}</ItemDescription>
+            </ItemContent>
+          </TooltipTrigger>
+          <TooltipContent side="right" sideOffset={8} align="center" className="max-w-64 whitespace-normal text-[11px] leading-snug">
+            <strong className="block text-foreground">{label}</strong>
+            <span>{description}</span>
+          </TooltipContent>
+        </Tooltip>
+        <ItemActions data-page-flow-actions className="shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={`${label} öğe işlemleri`}
+              render={<Button
+                ref={(node) => {
+                  if (node) actionTriggerRefs.current.set(key, node)
+                  else actionTriggerRefs.current.delete(key)
+                }}
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-11"
+              />}
+            >
+              <EllipsisVerticalIcon size={18} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" aria-label={`${label} işlemleri`}>
+              <DropdownMenuGroup>
+                <DropdownMenuItem className="min-h-11" disabled={!upTarget || Boolean(editorQuery)} onClick={() => onMove(key, -1)}>
+                  <ArrowUpIcon />Yukarı taşı
+                </DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11" disabled={!downTarget || Boolean(editorQuery)} onClick={() => onMove(key, 1)}>
+                  <ArrowDownIcon />Aşağı taşı
+                </DropdownMenuItem>
+                {block.type === 'section' && <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="min-h-11" variant="destructive" onClick={() => askToRemove(block, label)}>
+                    <Trash2Icon />Bölümü kaldır
+                  </DropdownMenuItem>
+                </>}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </ItemActions>
+      </Item>
+    )
+  }
+
+  const renderFlowList = (blocks: PageBlock[], label: string) => {
+    const topLevel = blocks.filter((block) => block.type !== 'category' || !getCategoryParentId(menuCategories, block.id))
+    return <ol aria-label={label} className="m-0 list-none p-0">
+      {topLevel.map((block) => {
+        const children = block.type === 'category'
+          ? blocks.filter((candidate) => candidate.type === 'category' && getCategoryParentId(menuCategories, candidate.id) === block.id)
+          : []
+        return <li key={pageBlockKey(block)}>
+          {renderRow(block)}
+          {children.length > 0 && <ol aria-label={`${getBlockCopy(block).label} alt kategorileri`} className="ml-5 list-none border-l border-border pl-1">
+            {children.map((child) => <li key={pageBlockKey(child)}>{renderRow(child, true)}</li>)}
+          </ol>}
+        </li>
+      })}
+    </ol>
+  }
+
   return (
     <aside aria-labelledby="theme-editor-page-heading" style={{
       width,
@@ -116,7 +323,7 @@ export function ThemeEditorSidebar({
         </InputGroup>
       </div>
 
-      <ScrollArea className="min-h-0 flex-1">
+      <ScrollArea data-theme-editor-scroll="page" className="min-h-0 flex-1">
       <div style={{ padding: '4px 8px 12px' }}>
         {navGroups.map((group, groupIndex) => (
           <div key={group.title} style={{ marginTop: groupIndex === 0 ? 8 : 18 }}>
@@ -150,162 +357,34 @@ export function ThemeEditorSidebar({
           </div>
         ))}
 
-        {visiblePageBlocks.length > 0 && (
-          <div style={{ marginTop: 18 }}>
-            <h3 style={navGroupLabelStyle}>Sayfa Akışı</h3>
-            {editorQuery && (
-              <Alert role="note" className="mx-2 mb-2"><AlertDescription>
-                Arama sırasında sıralama kapalıdır. Taşımak için aramayı temizleyin.
-              </AlertDescription></Alert>
-            )}
-            {[...visiblePageBlocks.filter((block) => block.placement !== 'drawer'), ...visiblePageBlocks.filter((block) => block.placement === 'drawer')].map((block, blockIndex, orderedBlocks) => {
-              const key = pageBlockKey(block)
-              const sectionDefinitionId = getSectionDefinitionId(block)
-              const preset = block.type === 'section'
-                ? sectionLibrary.find((item) => item.id === sectionDefinitionId)
-                : null
-              const category = block.type === 'category'
-                ? menuCategories.find((item) => item.id === block.id)
-                : null
-              const categoryParentId = block.type === 'category'
-                ? getCategoryParentId(menuCategories, block.id)
-                : null
-              const isChildCategory = Boolean(categoryParentId)
-              const isDrawerSection = block.type === 'section' && block.placement === 'drawer'
-              const startsDrawerGroup = isDrawerSection && orderedBlocks[blockIndex - 1]?.placement !== 'drawer'
-              const selected = block.type === 'section' && selectedSectionId === block.id
-              const label = block.type === 'section'
-                ? preset?.label ?? sectionDefinitionId ?? block.id
-                : block.type === 'nav'
-                  ? 'Kategori Menüsü'
-                  : category?.name ?? block.id
-              const description = block.type === 'section'
-                ? `${isDrawerSection ? 'Menü Drawer' : getSectionScopeLabel(block)} · ${preset?.sub ?? 'Özel bölüm'}`
-                : block.type === 'nav'
-                  ? 'Kaydırılabilir kategori navigasyonu'
-                  : isChildCategory
-                    ? `${menuCategories.find((item) => item.id === categoryParentId)?.name ?? 'Üst kategori'} alt kategorisi`
-                    : 'Menü kategorisi'
+        <div style={{ marginTop: 18 }}>
+          <h3 style={navGroupLabelStyle}>Sayfa Akışı</h3>
+          {editorQuery && (
+            <Alert role="note" className="mx-2 mb-2"><AlertDescription>
+              Arama sırasında sıralama kapalıdır. Taşımak için aramayı temizleyin.
+            </AlertDescription></Alert>
+          )}
+          {mainBlocks.length > 0
+            ? renderFlowList(mainBlocks, 'Ana sayfa akışı')
+            : <p role="status" className="mx-2 rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                {editorQuery ? 'Sayfa akışında eşleşme bulunamadı.' : 'Sayfa akışı henüz boş.'}
+              </p>}
+          {drawerBlocks.length > 0 && <>
+            <h3 style={{ ...navGroupLabelStyle, marginTop: 16 }}>Menü Çekmecesi İçeriği</h3>
+            {renderFlowList(drawerBlocks, 'Menü Drawer akışı')}
+          </>}
+        </div>
 
-              return (
-                <div key={key}>
-                {startsDrawerGroup && <h3 style={{ ...navGroupLabelStyle, marginTop: 16 }}>Menü Çekmecesi İçeriği</h3>}
-                <Item
-                  data-page-flow-row
-                  data-drawer-flow-row={isDrawerSection || undefined}
-                  role="group"
-                  aria-label={`${label} akış öğesi`}
-                  draggable={!editorQuery}
-                  onDragStart={() => onDragStart(key)}
-                  onDragEnd={onDragEnd}
-                  onDragOver={(event) => { if (!editorQuery) event.preventDefault() }}
-                  onDrop={() => onDrop(key)}
-                  variant={selected ? 'muted' : 'default'}
-                  size="xs"
-                  className={cn('relative min-h-10 flex-nowrap gap-1.5', selected ? 'text-foreground' : 'text-muted-foreground')}
-                  style={{
-                    padding: isChildCategory ? '5px 6px 5px 28px' : isDrawerSection ? '5px 6px 5px 18px' : '5px 6px',
-                    cursor: editorQuery ? 'default' : dragBlockKey === key ? 'grabbing' : 'grab',
-                    opacity: dragBlockKey === key ? 0.55 : 1,
-                  }}
-                >
-                  {isChildCategory && (
-                    <span
-                      aria-hidden
-                      style={{
-                        position: 'absolute',
-                        left: 13,
-                        top: -8,
-                        bottom: 14,
-                        width: 10,
-                        borderLeft: '1px solid var(--border-strong)',
-                        borderBottom: '1px solid var(--border-strong)',
-                        borderBottomLeftRadius: 6,
-                      }}
-                    />
-                  )}
-                  <ItemMedia data-page-flow-drag-handle variant="icon" aria-hidden className="shrink-0">
-                    <GripVerticalIcon />
-                  </ItemMedia>
-                  <Button
-                    data-page-flow-select
-                    type="button"
-                    variant="ghost"
-                    onClick={() => onSelectPageBlock(block)}
-                    className="h-auto min-w-0 flex-1 justify-start gap-1.5 overflow-hidden p-0 text-left hover:bg-transparent"
-                    style={{
-                      color: 'inherit',
-                    }}
-                  >
-                    <ItemMedia variant="icon" style={{ color: selected ? 'var(--text)' : 'var(--text-3)' }}>
-                      {block.type === 'section'
-                        ? <I.page size={17} />
-                        : block.type === 'nav'
-                          ? <I.header size={17} />
-                          : <I.section size={17} />}
-                    </ItemMedia>
-                    <ItemContent data-page-flow-content className="min-w-0 items-start gap-0">
-                      <ItemTitle className="w-full truncate" title={label}>{label}</ItemTitle>
-                      <ItemDescription className="w-full truncate" title={description}>
-                        {description}
-                      </ItemDescription>
-                    </ItemContent>
-                  </Button>
-                  <ItemActions data-page-flow-actions className="shrink-0 gap-0.5">
-                    {!editorQuery && (
-                      <ButtonGroup aria-label={`${label} sıralaması`} className="shrink-0">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label={`${label} öğesini yukarı taşı`}
-                          disabled={pageBlocks[0] === block}
-                          onClick={() => onMove(key, -1)}
-                        >
-                          <ArrowUpIcon data-icon="inline-start" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label={`${label} öğesini aşağı taşı`}
-                          disabled={pageBlocks[pageBlocks.length - 1] === block}
-                          onClick={() => onMove(key, 1)}
-                        >
-                          <ArrowDownIcon data-icon="inline-start" />
-                        </Button>
-                      </ButtonGroup>
-                    )}
-                    {block.type === 'section' && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`${label} bölümünü kaldır`}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onRemoveSection(block.id)
-                        }}
-                      >
-                        <XIcon data-icon="inline-start" />
-                      </Button>
-                    )}
-                  </ItemActions>
-                </Item>
-                </div>
-              )
-            })}
-          </div>
-        )}
+        <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">{pageFlowStatus}</div>
 
         <div data-page-flow-add className="relative px-1 pb-1 pt-3">
           <Button
             ref={sectionTriggerRef}
             type="button"
             variant="outline"
-            size="sm"
+            size="default"
             onClick={onOpenSectionPicker}
-            className="w-full border-dashed"
+            className="min-h-11 w-full border-dashed"
           >
             <I.plus data-icon="inline-start" />
             Bölüm ekle
@@ -313,6 +392,20 @@ export function ThemeEditorSidebar({
         </div>
       </div>
       </ScrollArea>
+      <AlertDialog open={Boolean(pendingRemoval)} onOpenChange={(open) => { if (!open) setPendingRemoval(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{pendingRemoval?.label ?? 'Bölüm'} kaldırılsın mı?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bölüm ve bu örneğe ait ayarlar sayfa akışından kaldırılacak. Gerekirse üst çubuktaki Geri Al ile işlemi geri alabilirsiniz.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="min-h-11">Vazgeç</AlertDialogCancel>
+            <AlertDialogAction className="min-h-11" variant="destructive" onClick={removePendingSection}>Bölümü kaldır</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   )
 }

@@ -1,0 +1,43 @@
+.properties :global([data-slot="field-label"]) {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.properties :global([data-slot="input"]),
+.properties :global([data-slot="input-group-control"]),
+.properties :global([data-slot="native-select"]),
+.properties :global([data-slot="select-trigger"]),
+.properties :global([data-slot="textarea"]) {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.properties :global([data-slot="textarea"]) {
+  line-height: 1.35;
+}
+
+.properties :global([data-slot="tabs-trigger"]),
+.properties :global([data-slot="button"]) {
+  font-size: 12px;
+}
+
+.properties :global([data-slot="field-description"]),
+.properties :global([data-slot="alert-description"]),
+.properties :global([data-slot="attachment-description"]),
+.properties :global([data-slot="item-description"]),
+.properties :global([data-slot="empty-description"]) {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.properties :global([data-slot="alert-title"]),
+.properties :global([data-slot="attachment-title"]),
+.properties :global([data-slot="item-title"]) {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.properties :global(input::placeholder),
+.properties :global(textarea::placeholder) {
+  color: color-mix(in srgb, var(--muted-foreground) 90%, var(--foreground));
+}

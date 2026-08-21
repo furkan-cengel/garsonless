@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type {
+  AccountPreviewState,
   AuthPreviewState,
   CheckoutPreviewState,
   ThemeEditorSurface,
 } from '@garsonless/design-engine'
 
-const SURFACES = new Set<ThemeEditorSurface>(['home', 'menu', 'auth', 'checkout'])
+const SURFACES = new Set<ThemeEditorSurface>(['home', 'menu', 'auth', 'account', 'checkout'])
 
 export function useThemeExperienceSurface(homeEnabled: boolean, experienceV2Enabled: boolean, initialHomeSectionId: string | null) {
   const router = useRouter()
@@ -20,6 +21,7 @@ export function useThemeExperienceSurface(homeEnabled: boolean, experienceV2Enab
     : homeEnabled ? 'home' : 'menu'
   const [surface, setSurfaceState] = useState<ThemeEditorSurface>(initialSurface)
   const [authState, setAuthState] = useState<AuthPreviewState>('join')
+  const [accountState, setAccountState] = useState<AccountPreviewState>('overview')
   const [checkoutState, setCheckoutState] = useState<CheckoutPreviewState>('cart')
   const [selectedHomeSectionId, setSelectedHomeSectionId] = useState<string | null>(initialHomeSectionId)
 
@@ -35,17 +37,20 @@ export function useThemeExperienceSurface(homeEnabled: boolean, experienceV2Enab
 
   const setSurface = useCallback((next: ThemeEditorSurface) => {
     if (!experienceV2Enabled) return
+    if (next === surface) return
     setSurfaceState(next)
     const params = new URLSearchParams(searchParams.toString())
     params.set('surface', next)
     router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-  }, [experienceV2Enabled, pathname, router, searchParams])
+  }, [experienceV2Enabled, pathname, router, searchParams, surface])
 
   return {
     surface,
     setSurface,
     authState,
     setAuthState,
+    accountState,
+    setAccountState,
     checkoutState,
     setCheckoutState,
     selectedHomeSectionId,

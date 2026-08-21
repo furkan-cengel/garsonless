@@ -1,11 +1,14 @@
 import type { SectionSettingField } from './theme-editor-properties-model'
+import { resolvePromoSliderSourceMode } from '../../lib/promo-slider-validation'
+
+export { getPromoSliderSettingIssues, resolvePromoSliderSourceMode } from '../../lib/promo-slider-validation'
+export { getComboRibbonSettingIssues, getThemeComboRibbonIssues } from '../../lib/combo-ribbon-validation'
 
 const PROMO_SLIDES = [
   { prefix: 'coupon', defaultOn: true },
   { prefix: 'flash', defaultOn: true },
   { prefix: 'freebie', defaultOn: false },
   { prefix: 'loyalty', defaultOn: false },
-  { prefix: 'combo', defaultOn: true },
 ] as const
 
 type MenuItemRef = {
@@ -16,6 +19,53 @@ type MenuItemRef = {
   price?: number
   images?: unknown
   isAvailable?: boolean
+  position?: number
+}
+
+export type SectionSettingLayout = 'inline' | 'toggle' | 'range' | 'stacked'
+
+export interface SectionSettingGroup {
+  id: string
+  title: string | null
+  description: string | null
+  fields: SectionSettingField[]
+}
+
+const STACKED_SETTING_TYPES = new Set<SectionSettingField['type']>([
+  'textarea',
+  'color',
+  'product-select',
+  'campaign-multi-select',
+  'coupon-select',
+  'icon-grid',
+])
+
+export function getSectionSettingLayout(field: SectionSettingField): SectionSettingLayout {
+  if (field.type === 'toggle') return 'toggle'
+  if (field.type === 'range') return 'range'
+  if (STACKED_SETTING_TYPES.has(field.type)) return 'stacked'
+  return 'inline'
+}
+
+export function groupSectionSettingFields(fields: SectionSettingField[]): SectionSettingGroup[] {
+  const groups: SectionSettingGroup[] = []
+  let current: SectionSettingGroup = { id: 'general', title: null, description: null, fields: [] }
+
+  const commit = () => {
+    if (current.fields.length > 0) groups.push(current)
+  }
+
+  for (const field of fields) {
+    if (field.type === 'heading') {
+      commit()
+      current = { id: field.key, title: field.label, description: field.description ?? null, fields: [] }
+      continue
+    }
+    current.fields.push(field)
+  }
+  commit()
+
+  return groups
 }
 
 function boundedCount(value: string | undefined, fallback: number) {
@@ -35,15 +85,49 @@ export function isPromoSliderFields(fields: SectionSettingField[]) {
   return fields.some((field) => field.key === 'sourceMode' || field.key === 'couponHeading')
 }
 
-const LEGACY_PROMO_MANUAL_PREFIXES = ['coupon', 'flash', 'freebie', 'loyalty', 'combo'] as const
+export function isChefPickFields(fields: SectionSettingField[]) {
+  return fields.some((field) => field.key === 'item1Id')
+    && fields.some((field) => field.key === 'selectionMode')
+}
 
-export function resolvePromoSliderSourceMode(values: Record<string, string>) {
-  const stored = values.sourceMode
-  if (stored === 'active' || stored === 'mixed' || stored === 'manual') return stored
-  const hasLegacyManualSettings = Object.keys(values).some((key) =>
-    LEGACY_PROMO_MANUAL_PREFIXES.some((prefix) => key.startsWith(prefix)),
-  )
-  return hasLegacyManualSettings ? 'manual' : 'active'
+export function isComboRibbonFields(fields: SectionSettingField[]) {
+  return fields.some((field) => field.key === 'combo1Item1Id')
+    && fields.some((field) => field.key === 'itemsPerCombo')
+}
+
+export function getChefPickSettingIssues(
+  values: Record<string, string>,
+  menuItems: MenuItemRef[],
+) {
+  if ((values.selectionMode || 'automatic') !== 'manual') return []
+  const count = Math.min(4, Math.max(1, Number(values.itemCount) || 3))
+  const byId = new Map(menuItems.map((item) => [item.id, item]))
+  const seen = new Set<string>()
+  const issues: string[] = []
+  let validCount = 0
+
+  for (let slot = 1; slot <= count; slot += 1) {
+    const id = values[`item${slot}Id`]?.trim()
+    if (!id) continue
+    if (seen.has(id)) {
+      issues.push(`Ürün ${slot}, daha önce seçilen bir ürünü tekrarlıyor.`)
+      continue
+    }
+    seen.add(id)
+    const item = byId.get(id)
+    if (!item) {
+      issues.push(`Ürün ${slot} artık menüde bulunmuyor.`)
+      continue
+    }
+    if (item.isAvailable === false) {
+      issues.push(`${item.name} pasif olduğu için yayınlanmayacak.`)
+      continue
+    }
+    validCount += 1
+  }
+
+  if (validCount < count) issues.push(`${count} ürünlük alan için ${validCount} geçerli ürün seçildi.`)
+  return issues
 }
 
 /**
@@ -84,24 +168,32 @@ export function getVisibleSectionSettingFields(
 ) {
   const targetType = values.targetType || 'none'
   const comboCount = boundedCount(values.comboCount, 2)
-  const comboItemCount = Math.min(3, Math.max(2, Number(values.itemsPerCombo) || 2))
+  const comboItemCount = Math.min(4, Math.max(2, Number(values.itemsPerCombo) || 2))
   const promoSlider = isPromoSliderFields(fields)
-  const promoSourceMode = promoSlider ? resolvePromoSliderSourceMode(values) : 'active'
+  const legacyPromoSpecialCardsDefaultOn = promoSlider && resolvePromoSliderSourceMode(values) !== 'active'
   const featuredScroll = fields.some((field) => field.key === 'cardWidth' && field.label === 'Kart Genişliği')
   const sectionPromotion = fields.some((field) =>
     ['discountMode', 'countdownEnabled', 'campaignEndsAt', 'countdownLabel', 'timerBgColor', 'timerTextColor']
       .includes(field.key),
   )
+  const videoHero = fields.some((field) => field.key === 'contentPlacement')
+  const modernVideoHero = videoHero && values.editorialVersion === '2'
+  const videoHeroHasContent = !['showStatus', 'showEyebrow', 'showTitle', 'showBody']
+    .every((key) => values[key] === 'false')
 
   return fields.filter((field) => {
+    if (videoHero && modernVideoHero && ['align', 'contentPositionX', 'contentPositionY'].includes(field.key)) return false
+    if (videoHero && !modernVideoHero && field.key === 'contentPlacement') return false
+    if (videoHero && !videoHeroHasContent && ['contentPlacement', 'align', 'contentPositionX', 'contentPositionY', 'contentWidth'].includes(field.key)) return false
     if (field.key === 'targetId' && targetType !== 'category' && targetType !== 'product') return false
     if (field.key === 'targetUrl' && targetType !== 'link') return false
     if (field.key === 'linkText' && targetType !== 'link') return false
     if (field.key === 'eyebrow' && values.showEyebrow === 'false') return false
     if (field.key === 'title' && values.showTitle === 'false') return false
     if (field.key === 'body' && values.showBody === 'false') return false
+    if ((field.key === 'exploreLabel' || field.key === 'animateExplore') && values.showExplore === 'false') return false
+    if (field.key === 'quote' && values.showQuote === 'false') return false
     if (field.key === 'cta' && values.showCta === 'false') return false
-    if (field.key === 'repeatText' && values.showRepeatText === 'false') return false
     if ((field.key === 'imageFit' || field.key === 'imagePosition') && values.imageMode === 'none') return false
     if (field.key === 'overlay' && values.imageMode !== undefined && values.imageMode !== 'background') return false
     if (field.key === 'speed' && values.animation === 'static') return false
@@ -122,6 +214,7 @@ export function getVisibleSectionSettingFields(
     if (/^tile\d+Label$/.test(field.key) && values.showLabels === 'false') return false
     if (field.key === 'labelsHeading' && values.showLabels === 'false') return false
     if (field.key === 'columns' && fields.some(({ key }) => key === 'maxItems') && (values.layout || 'mosaic') !== 'grid') return false
+    if (field.key === 'mosaicPattern' && (values.layout || 'mosaic') !== 'mosaic') return false
     if (featuredScroll && field.key === 'targetType' && values.showViewAll === 'false') return false
     const comboProductMatch = field.key.match(/^combo(\d+)Item(\d+)Id$/)
     if (comboProductMatch) {
@@ -144,22 +237,41 @@ export function getVisibleSectionSettingFields(
     if (field.key === 'ctaText' && values.ctaMode === 'custom' && (values.buttonStyle || 'icon') === 'icon') return false
 
     if (promoSlider) {
-      if (field.key === 'activeCampaignIds' && promoSourceMode === 'manual') return false
-      if (field.key === 'manualHeading' && promoSourceMode === 'active') return false
       if (
         ['flashCampaignEndsAt', 'flashCountdownLabel'].includes(field.key) &&
         values.flashCountdownEnabled !== 'true'
       ) return false
-      if (
-        promoSourceMode === 'active' &&
-        (field.key === 'couponHeading' || LEGACY_PROMO_MANUAL_PREFIXES.some((prefix) => field.key.startsWith(prefix)))
-      ) return false
+      const flashOfferType = values.flashOfferType || 'none'
+      const freebieOfferType = values.freebieOfferType || 'promo-only'
+      const freebieQualifierMode = values.freebieQualifierMode || 'category'
+      if (/^flashItem[1-4]Id$/.test(field.key) && flashOfferType !== 'buy-2-pay-1') return false
+      if (field.key === 'flashDiscountPolicy' && flashOfferType !== 'buy-2-pay-1') return false
+      if (/^freebie(?:Qualifier|Reward)/.test(field.key) && freebieOfferType !== 'gift-with-purchase') return false
+      if (['freebieTimingEnabled', 'freebieStartsAt', 'freebieEndsAt'].includes(field.key) && freebieOfferType !== 'gift-with-purchase') return false
+      if (field.key === 'freebieQualifierCategoryId' && freebieQualifierMode !== 'category') return false
+      if (/^freebieQualifierItem[1-4]Id$/.test(field.key) && freebieQualifierMode !== 'products') return false
+      if (['freebieStartsAt', 'freebieEndsAt'].includes(field.key) && values.freebieTimingEnabled !== 'true') return false
+      if (field.key === 'freebieEmoji' && values.freebieImageSource && values.freebieImageSource !== 'emoji') return false
+      if (['freebieImageFit', 'freebieImagePosition'].includes(field.key) && ['emoji', 'none'].includes(values.freebieImageSource || 'emoji')) return false
+      for (const prefix of ['flash', 'freebie', 'loyalty'] as const) {
+        if (
+          prefix === 'flash'
+          && flashOfferType !== 'none'
+          && [`${prefix}TargetType`, `${prefix}CategoryId`, `${prefix}ProductId`, `${prefix}CtaText`].includes(field.key)
+        ) return false
+        const targetType = values[`${prefix}TargetType`]
+          || (prefix === 'loyalty' ? 'member' : prefix === 'freebie' && values.freebieCategoryId ? 'category' : 'none')
+        if (field.key === `${prefix}CategoryId` && targetType !== 'category') return false
+        if (field.key === `${prefix}ProductId` && targetType !== 'product') return false
+        if (field.key === `${prefix}CtaText` && targetType === 'none') return false
+        if (prefix === 'freebie' && freebieOfferType === 'gift-with-purchase' && [`${prefix}TargetType`, `${prefix}CategoryId`, `${prefix}ProductId`].includes(field.key)) return false
+      }
       const slide = PROMO_SLIDES.find(({ prefix }) =>
         field.key.startsWith(prefix) &&
         field.key !== `${prefix}Heading` &&
         field.key !== `${prefix}Enabled`,
       )
-      if (slide && !promoSlideOn(values, slide.prefix, slide.defaultOn)) return false
+      if (slide && !promoSlideOn(values, slide.prefix, slide.defaultOn && legacyPromoSpecialCardsDefaultOn)) return false
     }
 
     if (field.key.startsWith('combo2') && comboCount < 2) return false
@@ -184,7 +296,8 @@ export function resolveSectionSettingValue(
   if (field.default !== undefined) return String(field.default)
   if (!promoSlider || !field.key.endsWith('Enabled')) return ''
   const slide = PROMO_SLIDES.find(({ prefix }) => field.key === `${prefix}Enabled`)
-  return slide?.defaultOn ? 'true' : 'false'
+  const legacySpecialCardsDefaultOn = resolvePromoSliderSourceMode(values) !== 'active'
+  return slide?.defaultOn && legacySpecialCardsDefaultOn ? 'true' : 'false'
 }
 
 export function getSectionSettingLabel(field: SectionSettingField, targetType: string) {

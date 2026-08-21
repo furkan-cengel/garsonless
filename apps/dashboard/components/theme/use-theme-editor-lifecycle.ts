@@ -5,17 +5,26 @@ import {
   createFullThemePreviewCommand,
   inspectAuthSurfaceContrast,
   inspectCheckoutSurfaceContrast,
+  inspectMenuCardSurfaceContrast,
+  inspectMenuCartContrast,
+  inspectMenuFooterContrast,
+  inspectMenuHeaderContrast,
+  inspectMenuNavigationContrast,
+  inspectMenuThemeContrast,
   resolveMenuActionPlacements,
   type GarsonlessTheme,
   type ThemePreviewContext,
 } from '@garsonless/design-engine'
 import type { SettingField, SettingsGroup } from '@garsonless/ui/themes'
-import { publishTheme, saveThemeDraft } from '../../lib/actions/theme'
+import { publishTheme, removeUnusedThemeMedia, saveThemeDraft } from '../../lib/actions/theme'
+import { themeDocumentContainsMediaUrl } from '../../lib/theme-media-policy'
 import {
   appendHistorySnapshot,
   areThemeOverridesEqual,
   createThemeOverrides,
   getUnsavedFieldLabels,
+  isContinuousThemeHistoryControl,
+  shouldAppendHistoryForGroup,
 } from './theme-editor-lifecycle-model'
 import {
   prepareThemePublishAttempt,
@@ -23,6 +32,8 @@ import {
   type ThemePublishAttempt,
 } from './theme-publish-contract'
 import { useThemePreviewBridge } from './use-theme-preview-bridge'
+import { getThemePromoSliderIssues } from '../../lib/promo-slider-validation'
+import { getThemeComboRibbonIssues } from '../../lib/combo-ribbon-validation'
 
 const NAVIGATION_GUARD_MESSAGE = 'Kaydedilmemiş değişiklikler var. Çıkmak istediğine emin misin?'
 
@@ -41,6 +52,20 @@ interface ThemeEditorLifecycleOptions {
   derivePreviewTheme: (overrides: Partial<GarsonlessTheme>) => GarsonlessTheme
   setNavigationGuard: (message: string | null) => void
   previewContext: ThemePreviewContext
+  onPreviewSurfaceNavigation?: (surface: 'home' | 'menu') => void
+  menuItems: Array<{
+    id: string
+    name: string
+    categoryId: string
+    categoryName: string
+    price?: number
+    isAvailable?: boolean
+    position?: number
+  }>
+}
+
+export interface ThemePatchOptions {
+  historyGroup?: string
 }
 
 export function useThemeEditorLifecycle({
@@ -58,6 +83,8 @@ export function useThemeEditorLifecycle({
   derivePreviewTheme,
   setNavigationGuard,
   previewContext,
+  onPreviewSurfaceNavigation,
+  menuItems,
 }: ThemeEditorLifecycleOptions) {
   const [overrides, setOverrides] = useState<Partial<GarsonlessTheme>>(() =>
     createThemeOverrides(initialTheme, defaults, schema),
@@ -79,6 +106,11 @@ export function useThemeEditorLifecycle({
   const savedThemeRef = useRef(initialTheme)
   const savedOverridesRef = useRef(createThemeOverrides(initialTheme, defaults, schema))
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeHistoryGroupRef = useRef<string | null>(null)
+  const focusedHistoryGroupRef = useRef<string | null>(null)
+  const focusSessionRef = useRef(0)
+  const retiredMediaUrlsRef = useRef(new Set<string>())
+  const [retirementRevision, setRetirementRevision] = useState(0)
 
   const previewTheme = useMemo(
     () => derivePreviewTheme(overrides),
@@ -92,14 +124,39 @@ export function useThemeEditorLifecycle({
     () => inspectCheckoutSurfaceContrast(previewTheme),
     [previewTheme],
   )
+  const menuHeaderContrastIssues = useMemo(
+    () => inspectMenuHeaderContrast(previewTheme),
+    [previewTheme],
+  )
+  const menuCardContrastIssues = useMemo(
+    () => inspectMenuCardSurfaceContrast(previewTheme),
+    [previewTheme],
+  )
+  const menuCartContrastIssues = useMemo(
+    () => inspectMenuCartContrast(previewTheme),
+    [previewTheme],
+  )
+  const menuFooterContrastIssues = useMemo(
+    () => inspectMenuFooterContrast(previewTheme),
+    [previewTheme],
+  )
+  const menuNavigationContrastIssues = useMemo(
+    () => inspectMenuNavigationContrast(previewTheme),
+    [previewTheme],
+  )
+  const menuThemeContrastIssues = useMemo(
+    () => inspectMenuThemeContrast(previewTheme),
+    [previewTheme],
+  )
   const {
     iframeRef,
+    frameUrl: previewFrameUrl,
     status: previewStatus,
     postMessage: postPreviewMessage,
     reload: reloadPreviewFrame,
     handleFrameLoad: handlePreviewFrameLoad,
     handleFrameError: handlePreviewFrameError,
-  } = useThemePreviewBridge({ previewUrl, theme: previewTheme, context: previewContext })
+  } = useThemePreviewBridge({ previewUrl, theme: previewTheme, context: previewContext, onSurfaceNavigation: onPreviewSurfaceNavigation })
 
   const flashToast = useCallback((message: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
@@ -112,6 +169,42 @@ export function useThemeEditorLifecycle({
 
   useEffect(() => () => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+  }, [])
+
+  useEffect(() => {
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target
+      if (!(target instanceof HTMLElement)) {
+        focusedHistoryGroupRef.current = null
+        return
+      }
+      const continuous = isContinuousThemeHistoryControl({
+        tagName: target.tagName,
+        ...(target instanceof HTMLInputElement ? { inputType: target.type } : {}),
+        role: target.getAttribute('role'),
+      })
+      if (!continuous) {
+        focusedHistoryGroupRef.current = null
+        return
+      }
+      focusSessionRef.current += 1
+      focusedHistoryGroupRef.current = `editor-control:${focusSessionRef.current}`
+    }
+    const handleFocusOut = (event: FocusEvent) => {
+      const target = event.target
+      if (!(target instanceof HTMLElement)) return
+      if (isContinuousThemeHistoryControl({
+        tagName: target.tagName,
+        ...(target instanceof HTMLInputElement ? { inputType: target.type } : {}),
+        role: target.getAttribute('role'),
+      })) focusedHistoryGroupRef.current = null
+    }
+    document.addEventListener('focusin', handleFocusIn)
+    document.addEventListener('focusout', handleFocusOut)
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn)
+      document.removeEventListener('focusout', handleFocusOut)
+    }
   }, [])
 
   useEffect(() => {
@@ -131,12 +224,42 @@ export function useThemeEditorLifecycle({
     setHasUnsavedChanges(true)
   }, [])
 
+  const retireThemeMediaUrl = useCallback((url: string) => {
+    if (!url || retiredMediaUrlsRef.current.has(url)) return
+    retiredMediaUrlsRef.current.add(url)
+    setRetirementRevision((revision) => revision + 1)
+  }, [])
+
+  useEffect(() => {
+    if (retiredMediaUrlsRef.current.size === 0) return
+    const history = [overrides, ...undoStack, ...redoStack]
+    const eligible = [...retiredMediaUrlsRef.current].filter((url) =>
+      !history.some((snapshot) => themeDocumentContainsMediaUrl(snapshot, url)),
+    )
+    if (eligible.length === 0) return
+    let cancelled = false
+    void Promise.all(eligible.map(async (url) => {
+      const result = await removeUnusedThemeMedia(restaurantId, url)
+      if (!cancelled && !('error' in result) && result.removed) retiredMediaUrlsRef.current.delete(url)
+    }))
+    return () => { cancelled = true }
+  }, [lastPublishedAt, lastSavedAt, overrides, redoStack, restaurantId, retirementRevision, undoStack])
+
   const rememberOverrides = useCallback((snapshot: Partial<GarsonlessTheme>) => {
     setUndoStack((history) => appendHistorySnapshot(history, snapshot))
     setRedoStack([])
   }, [])
 
+  const rememberInteractionStart = useCallback((snapshot: Partial<GarsonlessTheme>, explicitGroup?: string) => {
+    const requestedHistoryGroup = explicitGroup ?? focusedHistoryGroupRef.current
+    if (shouldAppendHistoryForGroup(activeHistoryGroupRef.current, requestedHistoryGroup)) {
+      rememberOverrides(snapshot)
+    }
+    activeHistoryGroupRef.current = requestedHistoryGroup
+  }, [rememberOverrides])
+
   const applyOverridesSnapshot = useCallback((snapshot: Partial<GarsonlessTheme>) => {
+    activeHistoryGroupRef.current = null
     setOverrides(snapshot)
     revisionRef.current += 1
     setHasUnsavedChanges(!areThemeOverridesEqual(snapshot, savedOverridesRef.current))
@@ -179,20 +302,20 @@ export function useThemeEditorLifecycle({
         flashToast('Header en fazla iki hızlı aksiyon taşır; düşük öncelikli aksiyon Drawer’a alındı')
       }
     }
-    rememberOverrides(overrides)
+    rememberInteractionStart(overrides)
     markDirty()
     setOverrides(nextOverrides)
 
     postPreviewMessage(createFullThemePreviewCommand(derivePreviewTheme(nextOverrides), undefined, previewContext))
-  }, [derivePreviewTheme, flashToast, markDirty, overrides, postPreviewMessage, previewContext, rememberOverrides])
+  }, [derivePreviewTheme, flashToast, markDirty, overrides, postPreviewMessage, previewContext, rememberInteractionStart])
 
-  const updateThemePatch = useCallback((patch: Partial<GarsonlessTheme>) => {
+  const updateThemePatch = useCallback((patch: Partial<GarsonlessTheme>, options?: ThemePatchOptions) => {
     const nextOverrides = { ...overrides, ...patch }
-    rememberOverrides(overrides)
+    rememberInteractionStart(overrides, options?.historyGroup)
     markDirty()
     setOverrides(nextOverrides)
     postPreviewMessage(createFullThemePreviewCommand(derivePreviewTheme(nextOverrides), undefined, previewContext))
-  }, [derivePreviewTheme, markDirty, overrides, postPreviewMessage, previewContext, rememberOverrides])
+  }, [derivePreviewTheme, markDirty, overrides, postPreviewMessage, previewContext, rememberInteractionStart])
 
   const handleSave = useCallback(async () => {
     const savingRevision = revisionRef.current
@@ -246,16 +369,52 @@ export function useThemeEditorLifecycle({
     }
 
     setHasUnsavedChanges(false)
-    flashToast(result.status === 'replayed' ? 'Taslak kaydı doğrulandı' : 'Taslak kaydedildi')
+    flashToast(result.status === 'replayed'
+      ? 'Taslak kaydı doğrulandı; QR menü için yayınla'
+      : 'Taslak kaydedildi; QR menüde görünmesi için yayınla')
   }, [flashToast, overrides, previewTheme, restaurantId, templateId])
 
   const handlePublish = useCallback(async () => {
+    const comboRibbonIssues = getThemeComboRibbonIssues(previewTheme, menuItems)
+    if (comboRibbonIssues.length > 0) {
+      flashToast(`Kombo Şerit: ${comboRibbonIssues[0]}`)
+      return
+    }
+    const promoSliderIssues = getThemePromoSliderIssues(previewTheme)
+    if (promoSliderIssues.length > 0) {
+      flashToast(`Kampanya Slider: ${promoSliderIssues[0]}`)
+      return
+    }
     if (authContrastIssues.length > 0) {
       flashToast('Giriş yüzeyindeki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
       return
     }
     if (checkoutContrastIssues.length > 0) {
       flashToast('Checkout yüzeyindeki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
+      return
+    }
+    if (menuHeaderContrastIssues.length > 0) {
+      flashToast('Menü Header kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
+      return
+    }
+    if (menuThemeContrastIssues.length > 0) {
+      flashToast('Tema paletindeki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
+      return
+    }
+    if (menuNavigationContrastIssues.length > 0) {
+      flashToast('Menü navigasyonundaki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
+      return
+    }
+    if (menuCardContrastIssues.length > 0) {
+      flashToast('Ürün kartlarındaki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
+      return
+    }
+    if (menuCartContrastIssues.length > 0) {
+      flashToast('Sepet yüzeyindeki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
+      return
+    }
+    if (menuFooterContrastIssues.length > 0) {
+      flashToast('Footer yüzeyindeki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
       return
     }
     if (hasUnsavedChanges) {
@@ -298,8 +457,8 @@ export function useThemeEditorLifecycle({
     publishAttemptRef.current = null
     setLastPublishedAt(new Date(result.publishedAt))
     setHasUnpublishedChanges(false)
-    flashToast(result.status === 'replayed' ? 'Yayın doğrulandı' : 'Tema yayınlandı')
-  }, [authContrastIssues.length, checkoutContrastIssues.length, flashToast, hasUnpublishedChanges, hasUnsavedChanges, restaurantId])
+    flashToast(result.status === 'replayed' ? 'QR menü yayını doğrulandı' : 'Tema masa QR menüsünde yayınlandı')
+  }, [authContrastIssues.length, checkoutContrastIssues.length, flashToast, hasUnpublishedChanges, hasUnsavedChanges, menuCardContrastIssues.length, menuCartContrastIssues.length, menuFooterContrastIssues.length, menuHeaderContrastIssues.length, menuItems, menuNavigationContrastIssues.length, menuThemeContrastIssues.length, previewTheme, restaurantId])
 
   const unsavedFieldLabels = useMemo(
     () => getUnsavedFieldLabels(hasUnsavedChanges, schema, previewTheme, savedThemeRef.current),
@@ -310,10 +469,12 @@ export function useThemeEditorLifecycle({
     overrides,
     previewTheme,
     iframeRef,
+    previewFrameUrl,
     previewStatus,
     reloadPreviewFrame,
     handlePreviewFrameLoad,
     handlePreviewFrameError,
+    postPreviewMessage,
     savingDraft,
     publishing,
     toast,
@@ -323,6 +484,12 @@ export function useThemeEditorLifecycle({
     hasUnpublishedChanges,
     authContrastIssues,
     checkoutContrastIssues,
+    menuCardContrastIssues,
+    menuCartContrastIssues,
+    menuFooterContrastIssues,
+    menuHeaderContrastIssues,
+    menuNavigationContrastIssues,
+    menuThemeContrastIssues,
     unsavedFieldLabels,
     canUndo: undoStack.length > 0,
     canRedo: redoStack.length > 0,
@@ -331,6 +498,7 @@ export function useThemeEditorLifecycle({
     handleRedo,
     handleFieldChange,
     updateThemePatch,
+    retireThemeMediaUrl,
     handleSave,
     handlePublish,
   }

@@ -1,7 +1,13 @@
 import { notFound, redirect } from 'next/navigation'
 import { CANONICAL_THEME_ID } from '@garsonless/design-engine'
 import { readThemeForEditor } from '@garsonless/application/themes'
-import { canRestaurantUseFeature, createThemeApplicationPort } from '@garsonless/db/server'
+import {
+  canRestaurantUseFeature,
+  createThemeApplicationPort,
+  createThemePreviewAccessToken,
+  listActivePublicCoupons,
+  resolveThemePreviewSigningSecret,
+} from '@garsonless/db/server'
 import { getThemeEditorMenuRefs } from '../../../../../../lib/queries/theme-editor'
 import ThemeEditorClientLoader from '../../../../../../components/theme/ThemeEditorClientLoader'
 import { requireSection } from '../../../../../../lib/auth/access'
@@ -16,7 +22,7 @@ export default async function ThemeEditPage({ params }: Props) {
   if (templateId !== CANONICAL_THEME_ID) {
     redirect(`/dashboard/${restaurantId}/theme/${CANONICAL_THEME_ID}/edit`)
   }
-  const [themeResult, menuRefs] = await Promise.all([
+  const [themeResult, menuRefs, initialCouponOptions] = await Promise.all([
     readThemeForEditor({
       actor: 'dashboard-member',
       userId: access.userId,
@@ -24,6 +30,7 @@ export default async function ThemeEditPage({ params }: Props) {
       permissions: ['theme'],
     }, { restaurantId, templateId }, createThemeApplicationPort()),
     getThemeEditorMenuRefs(restaurantId),
+    listActivePublicCoupons(restaurantId),
   ])
   if (!themeResult.ok) {
     if (themeResult.error === 'Unknown theme template' || themeResult.error === 'Restaurant not found') notFound()
@@ -46,6 +53,12 @@ export default async function ThemeEditPage({ params }: Props) {
     feature: 'theme_advanced_sections',
   })
   const experienceV2Enabled = process.env['THEME_EXPERIENCE_V2_ENABLED'] === 'true' || process.env.NODE_ENV === 'development'
+  const previewSigningSecret = resolveThemePreviewSigningSecret()
+  if (!previewSigningSecret) throw new Error('Theme preview signing secret is missing')
+  const previewAccessToken = createThemePreviewAccessToken({
+    restaurantId,
+    slug: restaurant.slug,
+  }, previewSigningSecret)
 
   return (
     <ThemeEditorClientLoader
@@ -55,6 +68,7 @@ export default async function ThemeEditPage({ params }: Props) {
       restaurantLogoUrl={restaurant.logoUrl}
       canAddAdvancedSections={canAddAdvancedSections}
       experienceV2Enabled={experienceV2Enabled}
+      previewAccessToken={previewAccessToken}
       templateId={templateId}
       initialPersistence={{
         initialTheme,
@@ -65,6 +79,7 @@ export default async function ThemeEditPage({ params }: Props) {
         initialHasUnpublishedChanges,
       }}
       restaurantSettings={restaurant.settings}
+      initialCouponOptions={initialCouponOptions}
       menuCategories={menuCategories.map((category) => ({
         id: category.id,
         name: category.name,

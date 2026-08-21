@@ -15,13 +15,14 @@ import { Separator } from '@/components/ui/separator'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 import { XIcon } from 'lucide-react'
+import { ThemeSectionCatalogIcon, type ThemeSectionCatalogIconName } from './ThemeSectionCatalogIcon'
 
 export type ThemeSectionOption = {
   id: string
   group: string
   label: string
   sub: string
-  icon: keyof typeof I
+  icon: ThemeSectionCatalogIconName
   plan: 'starter' | 'pro'
   status: 'ready' | 'planned'
   singleton?: boolean
@@ -93,17 +94,17 @@ export function SectionPickerDialog({
       onLockedSection()
       return
     }
-    if (selectedPlanned || (selected.singleton && selectedExists)) return
+    if (selectedPlanned) return
     onAddSection(selected.id)
   }
 
-  const primaryDisabled = !selected || selectedPlanned || Boolean(selected.singleton && selectedExists)
+  const primaryDisabled = !selected || selectedPlanned
   const primaryLabel = selectedPlanned
     ? 'Geliştiriliyor'
     : selectedLocked
       ? 'Pro ile aç'
       : selected?.singleton && selectedExists
-        ? surface === 'home' ? 'Ana sayfada etkin' : 'Menüde etkin'
+        ? selected.global ? 'Önizlemede göster' : 'Ayarları aç'
         : selectedExists
         ? 'Bir tane daha ekle'
         : 'Bölümü ekle'
@@ -115,24 +116,34 @@ export function SectionPickerDialog({
         className="section-picker-dialog max-w-none gap-0 p-0 sm:max-w-none"
         style={dialogStyle}
       >
-        <style jsx>{`
-          .section-picker-close:hover {
-            background: var(--surface-3) !important;
-            color: var(--text) !important;
+        <style jsx global>{`
+          .section-picker-close,
+          .section-picker-search,
+          .section-picker-chip,
+          .section-picker-secondary,
+          .section-picker-primary {
+            min-height: 44px !important;
           }
-          .section-picker-chip:not([aria-pressed='true']):hover,
-          .section-picker-secondary:hover {
-            border-color: var(--text-3) !important;
-            background: var(--surface-2) !important;
-            color: var(--text) !important;
-          }
-          .section-picker-card-select:hover {
-            background: transparent !important;
-            color: inherit !important;
-          }
-          .section-picker-primary:not(:disabled):hover {
-            filter: brightness(.92);
-            transform: translateY(-1px);
+          .section-picker-close { min-width: 44px !important; }
+          @media (hover: hover) and (pointer: fine) {
+            .section-picker-close:hover {
+              background: var(--surface-3) !important;
+              color: var(--text) !important;
+            }
+            .section-picker-chip:not([aria-pressed='true']):hover,
+            .section-picker-secondary:hover {
+              border-color: var(--text-3) !important;
+              background: var(--surface-2) !important;
+              color: var(--text) !important;
+            }
+            .section-picker-card-select:hover {
+              background: transparent !important;
+              color: inherit !important;
+            }
+            .section-picker-primary:not(:disabled):hover {
+              filter: brightness(.92);
+              transform: translateY(-1px);
+            }
           }
           .section-picker-close:focus-visible,
           .section-picker-chip:focus-visible,
@@ -153,7 +164,7 @@ export function SectionPickerDialog({
             }
             .section-picker-search {
               width: 100% !important;
-              flex: 0 0 38px !important;
+              flex: 0 0 44px !important;
             }
             .section-picker-body {
               grid-template-columns: minmax(0, 1fr) !important;
@@ -176,8 +187,8 @@ export function SectionPickerDialog({
               padding: 0 14px 10px !important;
             }
             .section-picker-search {
-              height: 38px !important;
-              flex-basis: 38px !important;
+              height: 44px !important;
+              flex-basis: 44px !important;
             }
             .section-picker-chip-row {
               box-sizing: border-box;
@@ -194,7 +205,7 @@ export function SectionPickerDialog({
               display: none;
             }
             .section-picker-chip {
-              height: 34px !important;
+              min-height: 44px !important;
             }
             .section-picker-body {
               padding: 10px !important;
@@ -221,7 +232,7 @@ export function SectionPickerDialog({
               padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
             }
             .section-picker-footer button {
-              min-height: 36px !important;
+              min-height: 44px !important;
             }
             .section-picker-footer > .section-picker-status {
               display: none;
@@ -244,9 +255,10 @@ export function SectionPickerDialog({
         </DialogHeader>
 
         <div className="section-picker-toolbar" style={toolbarStyle}>
-          <InputGroup className="section-picker-search h-9 w-52 shrink-0">
+          <InputGroup className="section-picker-search h-11 w-52 shrink-0">
             <InputGroupAddon><InputGroupText><I.search /></InputGroupText></InputGroupAddon>
             <InputGroupInput
+              className="min-h-11"
               data-modal-initial-focus
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
@@ -291,8 +303,6 @@ export function SectionPickerDialog({
               const locked = section.plan === 'pro' && !canAddAdvancedSections
               const planned = section.status === 'planned'
               const isSelected = selected?.id === section.id
-              const SectionIcon = I[section.icon]
-
               return (
                 <Card
                   key={section.id}
@@ -317,7 +327,7 @@ export function SectionPickerDialog({
                   </div>
                   <CardHeader className="section-picker-card-meta relative z-[1] flex flex-1 flex-col gap-1.5 px-3 pb-2 pt-2.5" aria-hidden="true">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={sectionIconStyle}><SectionIcon size={15} /></span>
+                      <span style={sectionIconStyle}><ThemeSectionCatalogIcon icon={section.icon} size={15} /></span>
                       <CardTitle className="min-w-0 flex-1 truncate">{section.label}</CardTitle>
                     </div>
                     <CardDescription className="line-clamp-2 min-h-8 text-xs">{section.sub}</CardDescription>
@@ -372,8 +382,8 @@ export function SectionPickerDialog({
                       ? 'Bu bölüm hazır; Pro pakete geçtiğinizde menünüze ekleyebilirsiniz.'
                       : selected.global
                         ? selectedExists
-                          ? 'Bu araç menü genelinde etkindir. Zil bütün kategori görünümlerinde sabit kalır; sağ panelden istekleri ve konumunu özelleştirebilirsiniz.'
-                          : 'Bu araç kategori bağımsızdır. Eklendiğinde zil bütün QR menü görünümlerinde sabit kalır ve sağ panelden özelleştirilebilir.'
+                          ? 'Bu araç menü genelinde etkindir. İstek türlerini sağ panelden, görünür konumunu Header → Aksiyon Konumları bölümünden yönetebilirsiniz.'
+                          : 'Bu araç kategori bağımsızdır. Eklendiğinde seçili servis konumunda bütün QR menü görünümlerinde kullanılabilir.'
                       : selectedExists
                         ? 'Bu türden yeni bir bölüm daha ekleyebilir; her örneğin kategori kapsamını ve görünümünü sağ panelden bağımsız ayarlayabilirsiniz.'
                         : 'QR menüde kullanılan gerçek bileşenin önizlemesidir. Ekledikten sonra sağ panelden düzenleyebilirsiniz.'}

@@ -12,7 +12,9 @@ import {
 export function useThemeEditorWorkspace(previewUrl: string) {
   const [previewMode, setPreviewMode] = useState<ThemePreviewMode>('mobile')
   const [previewScale, setPreviewScale] = useState(1)
-  const [viewportWidth, setViewportWidth] = useState(0)
+  const [viewportWidth, setViewportWidth] = useState(() => (
+    typeof window === 'undefined' ? 0 : window.innerWidth
+  ))
   const [activeSurface, setActiveSurface] = useState<ThemeEditorSurface>('preview')
 
   useEffect(() => {
@@ -32,9 +34,8 @@ export function useThemeEditorWorkspace(previewUrl: string) {
   }, [])
 
   useEffect(() => {
-    if (!layout.taskBased) return
     setPreviewScale(getFittedThemePreviewScale(previewMode, layout.viewport))
-  }, [layout.taskBased, layout.viewport, previewMode])
+  }, [layout.viewport, previewMode])
 
   const fitPreview = useCallback(() => {
     setPreviewScale(getFittedThemePreviewScale(previewMode, layout.viewport))

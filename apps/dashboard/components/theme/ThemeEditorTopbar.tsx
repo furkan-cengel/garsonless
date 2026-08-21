@@ -61,7 +61,7 @@ export function ThemeEditorTopbar({
       minHeight: 52,
       flexShrink: 0,
       display: 'grid',
-      gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+      gridTemplateColumns: 'minmax(0, 0.8fr) auto minmax(0, 1.2fr)',
       alignItems: 'center',
       gap: 16,
       padding: '6px 16px',
@@ -103,7 +103,7 @@ export function ThemeEditorTopbar({
         onValueChange={(values) => { const next = values[0] as ThemePreviewMode | undefined; if (next) onPreviewModeChange(next) }}
         size="sm"
         spacing={1}
-        className="justify-self-center bg-muted p-1"
+        className="justify-self-center whitespace-nowrap bg-muted p-1"
         aria-label="Önizleme cihazı"
       >
         <ToggleGroupItem value="mobile"><I.phone data-icon="inline-start" />Mobil</ToggleGroupItem>
@@ -111,7 +111,7 @@ export function ThemeEditorTopbar({
       </ToggleGroup>
 
       <div data-theme-editor-actions style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexWrap: 'nowrap', minWidth: 0 }}>
-        <Badge data-theme-editor-save-status variant="outline" role="status" aria-live="polite" aria-atomic="true">
+        <Badge data-theme-editor-save-status variant="outline" role="status" aria-live="polite" aria-atomic="true" className="shrink-0">
           <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: saveStatusColor }} />
           {saveStatusText}
         </Badge>
@@ -157,7 +157,7 @@ export function ThemeEditorTopbar({
           variant="outline"
           onClick={onSave}
           disabled={!hasUnsavedChanges || savingDraft || publishing}
-          title={!hasUnsavedChanges ? 'Kaydedilecek yeni değişiklik yok' : 'Değişiklikleri özel taslak olarak kaydet'}
+          title={!hasUnsavedChanges ? 'Kaydedilecek yeni değişiklik yok' : 'Özel taslağa kaydet; masa QR menüsü henüz değişmez'}
         >
           {savingDraft && <Spinner data-icon="inline-start" />}
           {savingDraft ? 'Kaydediliyor…' : 'Kaydet'}
@@ -166,17 +166,22 @@ export function ThemeEditorTopbar({
           data-theme-editor-publish
           type="button"
           onClick={onPublish}
-          disabled={hasUnsavedChanges || !hasUnpublishedChanges || savingDraft || publishing || Boolean(publishBlockedReason)}
+          disabled={hasUnsavedChanges || !hasUnpublishedChanges || savingDraft || publishing}
           title={hasUnsavedChanges
             ? 'Önce değişiklikleri kaydet'
             : publishBlockedReason
-              ? publishBlockedReason
+              ? `${publishBlockedReason}; ayrıntıyı aç`
             : !hasUnpublishedChanges
               ? 'Yayınlanacak kayıtlı taslak yok'
-              : 'Kaydedilmiş taslağı canlı menüde yayınla'}
+              : 'Kaydedilmiş taslağı masa QR menüsünde yayınla'}
         >
           {publishing && <Spinner data-icon="inline-start" />}
-          {publishing ? 'Yayınlanıyor…' : 'Yayınla'}
+          {!publishing && publishBlockedReason && <I.warn data-icon="inline-start" />}
+          {publishing
+            ? 'Yayınlanıyor…'
+            : publishBlockedReason
+              ? showFullCopy ? 'Yayın engelini düzelt' : 'Düzelt'
+              : showFullCopy ? 'QR menüde yayınla' : 'Yayınla'}
         </Button>
       </div>
     </div>

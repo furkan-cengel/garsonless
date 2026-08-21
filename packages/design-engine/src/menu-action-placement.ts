@@ -15,6 +15,13 @@ export interface MenuActionCapabilities {
   service: boolean
 }
 
+export type FooterCartTriggerStyle = 'none' | 'bar' | 'fab' | 'thumbs' | 'pill'
+
+export interface FooterCartClearance {
+  style: FooterCartTriggerStyle
+  pixels: number
+}
+
 const HEADER_ACTION_PRIORITY = ['cart', 'service', 'member'] as const
 
 export function resolveMenuActionPlacements(
@@ -45,4 +52,20 @@ export function resolveMenuActionPlacements(
   )
   for (const key of headerActions.slice(2)) result[key] = 'drawer'
   return result
+}
+
+/**
+ * Keep footer clearance and the fixed cart trigger on one deterministic metric
+ * contract. Safe-area is applied separately by CSS.
+ */
+export function resolveFooterCartClearance(theme: GarsonlessTheme): FooterCartClearance {
+  if (resolveMenuActionPlacements(theme).cart !== 'footer') return { style: 'none', pixels: 0 }
+  const configured = theme.cartFooterTriggerStyle
+    ?? (theme.cartStyle === 'banner' ? 'bar' : theme.cartStyle === 'fab' ? 'fab' : 'pill')
+  const style: FooterCartTriggerStyle = configured === 'tabbar' ? 'pill' : configured
+  if (style === 'none') return { style, pixels: 0 }
+  if (style === 'fab') return { style, pixels: 60 + 24 + 12 }
+  if (style === 'thumbs') return { style, pixels: 58 + 18 + 12 }
+  if (style === 'bar') return { style, pixels: 58 + 12 + 14 + 12 }
+  return { style, pixels: (theme.cartPillPosition === 'edge' ? 72 : 66 + 20) + 12 }
 }

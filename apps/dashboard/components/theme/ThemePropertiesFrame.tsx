@@ -46,7 +46,7 @@ export function ThemePropertiesFrame({
       <div style={{ padding: '10px 12px 9px', borderBottom: '1px solid var(--divider)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
           <div>
-            <h2 id="theme-editor-properties-heading" style={{ margin: 0, fontWeight: 700, fontSize: 14, lineHeight: 1.25, color: 'var(--text)' }}>{title}</h2>
+            <h2 id="theme-editor-properties-heading" data-theme-properties-heading tabIndex={-1} style={{ margin: 0, fontWeight: 700, fontSize: 14, lineHeight: 1.25, color: 'var(--text)' }}>{title}</h2>
             <div style={{ marginTop: 2, fontSize: 12, color: 'var(--text-3)' }}>{subtitle}</div>
           </div>
           <div style={{ display: 'flex', gap: 2, color: 'var(--text-3)' }}>{headerActions}</div>
@@ -78,6 +78,7 @@ export function ThemePropertiesFrame({
           type="button"
           variant="link"
           size="xs"
+          className="h-11 focus-visible:ring-ring"
           onClick={onReset}
         >
           Varsayılana sıfırla

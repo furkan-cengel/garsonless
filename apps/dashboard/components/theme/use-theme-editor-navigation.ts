@@ -5,6 +5,7 @@ import type { Dispatch, ReactNode, RefObject, SetStateAction } from 'react'
 import {
   getSectionDefinitionId,
   getUniqueSectionDefinitionIds,
+  groupMenuPageBlocksByPlacement,
   type GarsonlessTheme,
   type ThemeSectionVisibility,
 } from '@garsonless/design-engine'
@@ -19,13 +20,16 @@ import {
   type SectionSettingField,
 } from './theme-editor-properties-model'
 import {
+  createInitialSectionSettings,
   SECTION_GROUPS,
   SECTION_LIBRARY,
   SECTION_SETTING_SCHEMA,
 } from './theme-editor-section-registry'
 import {
   addSectionToPageFlow,
+  filterPageBlocksForQuery,
   getKeyboardMoveTarget,
+  pageBlockKey,
   removeSectionFromPageFlow,
   reorderPageBlocks,
   type MenuCategory,
@@ -48,8 +52,10 @@ interface ThemeEditorNavigationOptions {
   mergedTheme: GarsonlessTheme
   previewTheme: GarsonlessTheme
   menuCategories: MenuCategory[]
+  menuItems: Array<{ id: string; categoryId: string }>
   updateThemePatch: (patch: Partial<GarsonlessTheme>) => void
   flashToast: (message: string) => void
+  onRevealPageBlock?: (block: PageBlock) => void
 }
 
 interface ThemeEditorNavigationResult {
@@ -61,6 +67,8 @@ interface ThemeEditorNavigationResult {
   editorQuery: string
   sectionGroup: (typeof SECTION_GROUPS)[number]
   selectedSectionId: string | null
+  selectedPageBlockKey: string | null
+  pageFlowStatus: string
   selectedSectionDefinitionId: string | null
   selectedSectionBlock: PageBlock | null
   dragBlockKey: string | null
@@ -89,6 +97,7 @@ interface ThemeEditorNavigationResult {
   addSection: (sectionId: string) => void
   removeSection: (sectionId: string) => void
   changeSectionSetting: (sectionId: string, key: string, value: string) => void
+  changeSectionSettings: (sectionId: string, patch: Record<string, string>) => void
   changeSectionVisibility: (visibility: ThemeSectionVisibility) => void
   changeSectionPlacement: (placement: 'page' | 'drawer') => void
   dropPageBlock: (targetKey: string) => void
@@ -104,8 +113,10 @@ export function useThemeEditorNavigation({
   mergedTheme,
   previewTheme,
   menuCategories,
+  menuItems,
   updateThemePatch,
   flashToast,
+  onRevealPageBlock,
 }: ThemeEditorNavigationOptions): ThemeEditorNavigationResult {
   const [activeGroup, setActiveGroup] = useState(() =>
     schema.some((group) => ['colors', 'typography'].includes(group.id))
@@ -118,6 +129,8 @@ export function useThemeEditorNavigation({
   const [editorSearch, setEditorSearch] = useState('')
   const [sectionGroup, setSectionGroup] = useState<(typeof SECTION_GROUPS)[number]>('Tümü')
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
+  const [selectedPageBlockKey, setSelectedPageBlockKey] = useState<string | null>(null)
+  const [pageFlowStatus, setPageFlowStatus] = useState('')
   const [dragBlockKey, setDragBlockKey] = useState<string | null>(null)
   const sectionTriggerRef = useRef<HTMLButtonElement>(null)
   const sectionCloseRef = useRef<HTMLButtonElement>(null)
@@ -178,22 +191,21 @@ export function useThemeEditorNavigation({
     const matchesSearch = !query || `${section.label} ${section.sub} ${section.group}`.toLocaleLowerCase('tr').includes(query)
     return matchesGroup && matchesSearch
   })
-  const filteredPageBlocks = editorQuery
-    ? pageBlocks.filter((block) => {
+  const filteredPageBlocks = useMemo(() => {
+    return filterPageBlocksForQuery(pageBlocks, menuCategories, editorQuery, (block) => {
         const preset = block.type === 'section'
           ? SECTION_LIBRARY.find((item) => item.id === getSectionDefinitionId(block))
           : null
         const category = block.type === 'category'
           ? menuCategories.find((item) => item.id === block.id)
           : null
-        const label = block.type === 'nav'
+        return block.type === 'nav'
           ? 'Kategori Menüsü Kaydırılabilir kategori navigasyonu'
           : block.type === 'section'
             ? `${preset?.label ?? block.id} ${preset?.sub ?? ''}`
             : `${category?.name ?? block.id} Menü kategorisi`
-        return label.toLocaleLowerCase('tr').includes(editorQuery)
       })
-    : pageBlocks
+  }, [editorQuery, menuCategories, pageBlocks])
 
   const openSectionPicker = useCallback(() => {
     lastFocusedBeforeDialogRef.current = document.activeElement instanceof HTMLElement
@@ -209,30 +221,59 @@ export function useThemeEditorNavigation({
     })
   }, [])
 
+  const focusPropertiesHeading = useCallback(() => {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>('[data-theme-properties-heading]')?.focus()
+    }))
+  }, [])
+
   const addSection = useCallback((sectionId: string) => {
+    const existingBlock = pageBlocks.find(
+      (block) => block.type === 'section' && getSectionDefinitionId(block) === sectionId,
+    )
     const nextBlocks = addSectionToPageFlow(pageBlocks, sectionId)
     const addedBlock = nextBlocks.find(
       (block) => block.type === 'section' && !activeSections.includes(block.id),
     )
-    if (!addedBlock) return
+    if (!addedBlock) {
+      if (!existingBlock) return
+      if (sectionId === 'request-buttons') {
+        updateThemePatch({ servicePlacement: 'floating' })
+      }
+      setSectionPickerOpen(false)
+      setActiveEditorTab('content')
+      setSelectedSectionId(existingBlock.id)
+      setSelectedPageBlockKey(pageBlockKey(existingBlock))
+      focusPropertiesHeading()
+      flashToast(sectionId === 'request-buttons'
+        ? 'İstek Butonları önizlemede gösteriliyor'
+        : `${SECTION_LIBRARY.find((section) => section.id === sectionId)?.label ?? 'Bölüm'} zaten etkin; ayarları açıldı`)
+      return
+    }
     const isAdditionalInstance = addedBlock.id !== sectionId
-    const nextSectionSettings = isAdditionalInstance
-      ? {
-          ...(mergedTheme.sectionSettings ?? {}),
-          [addedBlock.id]: {
-            ...(mergedTheme.sectionSettings?.[sectionId] ?? {}),
-          },
-        }
+    const initialSettings = createInitialSectionSettings(sectionId)
+    const addedSettings = {
+      ...(isAdditionalInstance ? mergedTheme.sectionSettings?.[sectionId] ?? {} : {}),
+      ...initialSettings,
+    }
+    const shouldWriteSettings = isAdditionalInstance || Object.keys(initialSettings).length > 0
+    const nextSectionSettings = shouldWriteSettings
+      ? { ...(mergedTheme.sectionSettings ?? {}), [addedBlock.id]: addedSettings }
       : mergedTheme.sectionSettings
     updateThemePatch({
       sections: getUniqueSectionDefinitionIds(nextBlocks),
       pageBlocks: nextBlocks,
-      ...(isAdditionalInstance ? { sectionSettings: nextSectionSettings } : {}),
+      ...(sectionId === 'request-buttons' ? { servicePlacement: 'floating' as const } : {}),
+      ...(shouldWriteSettings ? { sectionSettings: nextSectionSettings } : {}),
     })
     setSectionPickerOpen(false)
     setActiveEditorTab('content')
     setSelectedSectionId(addedBlock.id)
-  }, [activeSections, mergedTheme.sectionSettings, pageBlocks, updateThemePatch])
+    setSelectedPageBlockKey(pageBlockKey(addedBlock))
+    focusPropertiesHeading()
+    setPageFlowStatus(`${SECTION_LIBRARY.find((section) => section.id === sectionId)?.label ?? 'Bölüm'} eklendi ve düzenlemeye açıldı`)
+    flashToast(`${SECTION_LIBRARY.find((section) => section.id === sectionId)?.label ?? 'Bölüm'} eklendi`)
+  }, [activeSections, flashToast, focusPropertiesHeading, mergedTheme.sectionSettings, pageBlocks, updateThemePatch])
 
   const removeSection = useCallback((sectionId: string) => {
     const nextSettings = { ...(mergedTheme.sectionSettings ?? {}) }
@@ -243,7 +284,13 @@ export function useThemeEditorNavigation({
       sectionSettings: nextSettings,
     })
     if (selectedSectionId === sectionId) setSelectedSectionId(null)
-  }, [mergedTheme.sectionSettings, pageBlocks, selectedSectionId, updateThemePatch])
+    if (selectedPageBlockKey === `section:${sectionId}`) setSelectedPageBlockKey(null)
+    const removedLabel = SECTION_LIBRARY.find((section) => section.id === getSectionDefinitionId(
+      pageBlocks.find((block) => block.type === 'section' && block.id === sectionId) ?? { type: 'section', id: sectionId },
+    ))?.label ?? 'Bölüm'
+    setPageFlowStatus(`${removedLabel} sayfa akışından kaldırıldı`)
+    flashToast(`${removedLabel} kaldırıldı`)
+  }, [flashToast, mergedTheme.sectionSettings, pageBlocks, selectedPageBlockKey, selectedSectionId, updateThemePatch])
 
   const timedSectionInstances = useMemo(
     () => getTimedSectionInstances(pageBlocks, mergedTheme.sectionSettings),
@@ -286,12 +333,17 @@ export function useThemeEditorNavigation({
     updateThemePatch,
   ])
 
-  const changeSectionSetting = useCallback((sectionId: string, key: string, value: string) => {
+  const changeSectionSettings = useCallback((sectionId: string, patch: Record<string, string>) => {
     const currentSettings = mergedTheme.sectionSettings?.[sectionId] ?? {}
-    const nextSettings = { ...currentSettings, [key]: value }
-    if (key === 'targetType') {
-      nextSettings.targetId = ''
-      nextSettings.targetUrl = ''
+    const nextSettings = { ...currentSettings, ...patch }
+    for (const [key, value] of Object.entries(patch)) {
+      if (/^freebieRewardItem[1-4]Id$/.test(key)) {
+        nextSettings[`${key}CategoryId`] = menuItems.find((item) => item.id === value)?.categoryId ?? ''
+      }
+      if (key === 'targetType') {
+        nextSettings.targetId = ''
+        nextSettings.targetUrl = ''
+      }
     }
     updateThemePatch({
       sectionSettings: {
@@ -299,7 +351,11 @@ export function useThemeEditorNavigation({
         [sectionId]: nextSettings,
       },
     })
-  }, [mergedTheme.sectionSettings, updateThemePatch])
+  }, [menuItems, mergedTheme.sectionSettings, updateThemePatch])
+
+  const changeSectionSetting = useCallback((sectionId: string, key: string, value: string) => {
+    changeSectionSettings(sectionId, { [key]: value })
+  }, [changeSectionSettings])
 
   const changeSectionVisibility = useCallback((visibility: ThemeSectionVisibility) => {
     if (!selectedSectionId) return
@@ -314,13 +370,20 @@ export function useThemeEditorNavigation({
 
   const changeSectionPlacement = useCallback((placement: 'page' | 'drawer') => {
     if (!selectedSectionId) return
+    const selectedBlock = pageBlocks.find((block) => block.type === 'section' && block.id === selectedSectionId)
+    if (!selectedBlock) return
+    const remaining = pageBlocks.filter((block) => block !== selectedBlock)
+    const movedBlock: PageBlock = { ...selectedBlock, placement }
+    const mainBlocks = remaining.filter((block) => block.placement !== 'drawer')
+    const drawerBlocks = remaining.filter((block) => block.placement === 'drawer')
     updateThemePatch({
-      pageBlocks: pageBlocks.map((block) =>
-        block.type === 'section' && block.id === selectedSectionId
-          ? { ...block, placement }
-          : block,
+      pageBlocks: groupMenuPageBlocksByPlacement(
+        placement === 'drawer'
+          ? [...mainBlocks, ...drawerBlocks, movedBlock]
+          : [...mainBlocks, movedBlock, ...drawerBlocks],
       ),
     })
+    setPageFlowStatus(`Bölüm ${placement === 'drawer' ? 'Menü Drawer' : 'ana sayfa'} kapsamının sonuna taşındı`)
   }, [pageBlocks, selectedSectionId, updateThemePatch])
 
   const reorderPageBlock = useCallback((sourceKey: string, targetKey: string) => {
@@ -329,8 +392,13 @@ export function useThemeEditorNavigation({
     if (!result.ok) {
       if (result.reason === 'child-scope') {
         flashToast('Alt kategoriler yalnızca kendi üst kategorisi altında sıralanabilir')
+        setPageFlowStatus('Alt kategori kendi üst kategori kapsamının dışına taşınamadı')
       } else if (result.reason === 'nested-target') {
         flashToast('Bu alan alt kategori kapsamı; üst öğeleri buraya taşıyamazsınız')
+        setPageFlowStatus('Üst öğe alt kategori kapsamına taşınamadı')
+      } else if (result.reason === 'placement-scope') {
+        flashToast('Sayfa ve Menü Drawer öğeleri kendi alanlarında sıralanabilir')
+        setPageFlowStatus('Sayfa ve Menü Drawer öğeleri farklı sıralama kapsamlarında')
       }
       setDragBlockKey(null)
       return
@@ -347,6 +415,7 @@ export function useThemeEditorNavigation({
         ? 'Kategori Menüsü'
         : SECTION_LIBRARY.find((item) => item.id === getSectionDefinitionId(moved))?.label ?? 'Bölüm'
     flashToast(`${movedLabel} taşındı`)
+    setPageFlowStatus(`${movedLabel} yeni konumuna taşındı`)
   }, [flashToast, menuCategories, pageBlocks, updateThemePatch])
 
   const dropPageBlock = useCallback((targetKey: string) => {
@@ -363,6 +432,7 @@ export function useThemeEditorNavigation({
   const selectGroup = useCallback((groupId: string) => {
     setActiveGroup(groupId)
     setSelectedSectionId(null)
+    setSelectedPageBlockKey(null)
     const group = groupId === THEME_EDITOR_THEME_GROUP_ID
       ? themeGroupData
       : schema.find((candidate) => candidate.id === groupId)
@@ -371,6 +441,7 @@ export function useThemeEditorNavigation({
   }, [schema, themeGroupData])
 
   const selectPageBlock = useCallback((block: PageBlock) => {
+    setSelectedPageBlockKey(pageBlockKey(block))
     if (block.type === 'section') {
       setSelectedSectionId(block.id)
       setActiveEditorTab('content')
@@ -381,7 +452,8 @@ export function useThemeEditorNavigation({
     } else {
       setSelectedSectionId(null)
     }
-  }, [])
+    onRevealPageBlock?.(block)
+  }, [onRevealPageBlock])
 
   return {
     activeGroup,
@@ -392,6 +464,8 @@ export function useThemeEditorNavigation({
     editorQuery,
     sectionGroup,
     selectedSectionId,
+    selectedPageBlockKey,
+    pageFlowStatus,
     selectedSectionDefinitionId,
     selectedSectionBlock,
     dragBlockKey,
@@ -420,6 +494,7 @@ export function useThemeEditorNavigation({
     addSection,
     removeSection,
     changeSectionSetting,
+    changeSectionSettings,
     changeSectionVisibility,
     changeSectionPlacement,
     dropPageBlock,
