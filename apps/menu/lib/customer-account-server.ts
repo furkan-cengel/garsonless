@@ -55,6 +55,8 @@ export async function readCustomerAccountView(session: CustomerSession): Promise
       points: item.points,
       stamps: item.stamps,
       stampGoal: item.stampGoal,
+      stampRewardText: item.stampRewardText,
+      stampUnlocked: item.stampUnlocked,
       pointsEnabled: item.pointsEnabled,
       stampsEnabled: item.stampsEnabled,
       tier: item.tier,

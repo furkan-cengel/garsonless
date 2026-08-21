@@ -12,8 +12,9 @@ import { formatTRY } from '../../../menu/formatCurrency'
 import type { MenuItem, SectionPromotionContext } from '../../../menu/types'
 import { ProductAllergenSummary } from '../../../menu/FoodInfoBadges'
 import { customSectionShell, makeReaders } from '../lib/sectionHelpers'
+import { TAG_SHIMMER_TARGET_CLASS, tagShimmerScopeClass } from '../../../menu/tagShimmer'
 
-type DiscountBadgeTheme = Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor'>
+type DiscountBadgeTheme = Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor' | 'motion' | 'tagShimmer'>
 
 const BUTTON_SIZE = { small: 34, medium: 40, large: 46 } as const
 
@@ -52,7 +53,9 @@ export function DiscountBadgeSection({
   const showPolicyNote = bool('showPolicyNote', true)
   const imageShape = text('imageShape', 'rounded')
   const imageFit = text('imageFit', 'cover') === 'contain' ? 'contain' : 'cover'
-  const imagePosition = text('imagePosition', 'center')
+  const imageFocusValue = text('imagePosition', 'center')
+  const imageFocus = imageFocusValue === 'top' || imageFocusValue === 'bottom' ? imageFocusValue : 'center'
+  const imagePosition = `center ${imageFocus}`
   const surface = text('bgColor', '#f5f7dc')
   const cardSurface = text('cardColor', '#ffffff')
   const textColor = text('textColor', '#1c2618')
@@ -98,6 +101,7 @@ export function DiscountBadgeSection({
 
   return (
     <section
+      className={tagShimmerScopeClass(theme)}
       id={`custom-section-${sectionInstanceId}`}
       data-component="custom-section"
       data-section-kind="discount-badge"
@@ -120,6 +124,13 @@ export function DiscountBadgeSection({
         .garsonless-discount-media {
           align-self: start;
           isolation: isolate;
+        }
+        .garsonless-discount-visual-column {
+          align-self: start;
+          display: flex;
+          min-width: 0;
+          flex-direction: column;
+          gap: 8px;
         }
         .garsonless-discount-offer-chip {
           max-width: 100%;
@@ -154,21 +165,47 @@ export function DiscountBadgeSection({
         } as CSSProperties}
       >
         {showImage && (
-          <div className="garsonless-discount-media" style={{
-            position: 'relative',
-            width: '100%',
-            height: imageSize,
-            aspectRatio: layout === 'split' ? '1 / 1' : 'auto',
-            borderRadius: imageRadius,
-            overflow: 'hidden',
-            background: cardSurface,
-            display: 'grid',
-            placeItems: 'center',
-          }}>
-            {item?.images[0] ? (
-              <img src={item.images[0]} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: imageFit, objectPosition: imagePosition, display: 'block' }} />
-            ) : (
-              <AppIcons.image size={28} aria-hidden="true" style={{ color: accent, opacity: .62 }} />
+          <div className="garsonless-discount-visual-column">
+            <div className="garsonless-discount-media" style={{
+              position: 'relative',
+              width: '100%',
+              height: imageSize,
+              aspectRatio: layout === 'split' ? '1 / 1' : 'auto',
+              borderRadius: imageRadius,
+              overflow: 'hidden',
+              background: cardSurface,
+              display: 'grid',
+              placeItems: 'center',
+            }}>
+              {item?.images[0] ? (
+                <img
+                  src={item.images[0]}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  data-image-focus={imageFocus}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: imageFit,
+                    objectPosition: imagePosition,
+                    display: 'block',
+                    transform: imageFit === 'cover' ? 'scale(1.06)' : undefined,
+                    transformOrigin: imagePosition,
+                  }}
+                />
+              ) : (
+                <AppIcons.image size={28} aria-hidden="true" style={{ color: accent, opacity: .62 }} />
+              )}
+            </div>
+            {layout === 'split' && timing.enabled && timing.valid && (
+              <CampaignCountdown
+                compact
+                endsAtMs={timing.endsAtMs}
+                label={config.countdownLabel?.trim() || 'Fırsatın bitmesine'}
+                background={text('timerBgColor', cardSurface)}
+                color={text('timerTextColor', accent)}
+              />
             )}
           </div>
         )}
@@ -179,7 +216,7 @@ export function DiscountBadgeSection({
               {config.eyebrow?.trim() || 'MENÜYE ÖZEL'}
             </span>
             <span
-              className="garsonless-discount-offer-chip"
+              className={`garsonless-discount-offer-chip ${TAG_SHIMMER_TARGET_CLASS}`}
               style={{
                 padding: '3px 7px',
                 borderRadius: 999,
@@ -203,7 +240,7 @@ export function DiscountBadgeSection({
           </p>
           {item && <ProductAllergenSummary item={item} style={{marginTop:8}} />}
 
-          {timing.enabled && timing.valid && (
+          {(!showImage || layout === 'stack') && timing.enabled && timing.valid && (
             <CampaignCountdown
               endsAtMs={timing.endsAtMs}
               label={config.countdownLabel?.trim() || 'Fırsatın bitmesine'}
@@ -213,8 +250,22 @@ export function DiscountBadgeSection({
           )}
 
           {item && pricing && timing.active ? (
-            <div style={{ marginTop: 13, padding: '10px 11px', borderRadius: cardRadius, background: cardSurface, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minWidth: 0 }}>
-              <div style={{ minWidth: 0 }}>
+            <div
+              className="garsonless-discount-price-card"
+              data-action-layout={buttonStyle === 'icon' ? 'inline' : buttonStyle === 'full' ? 'stack-full' : 'stack-compact'}
+              style={{
+                marginTop: 13,
+                padding: '10px 11px',
+                borderRadius: cardRadius,
+                background: cardSurface,
+                display: 'grid',
+                gridTemplateColumns: buttonStyle === 'icon' ? 'minmax(0, 1fr) auto' : 'minmax(0, 1fr)',
+                alignItems: 'center',
+                gap: buttonStyle === 'icon' ? 10 : 9,
+                minWidth: 0,
+              }}
+            >
+              <div style={{ minWidth: 0, width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 7 }}>
                   <strong style={{ color: textColor, fontSize: 17, lineHeight: 1 }}>
                     {pricing.kind === 'buy-2-pay-1'
@@ -236,13 +287,16 @@ export function DiscountBadgeSection({
                 className="garsonless-discount-add"
                 data-cta-source={ctaMode}
                 data-cta-icon={buttonIcon}
+                data-button-style={buttonStyle}
                 disabled={!onQuickAdd || !timing.active}
                 aria-label={pricing.kind === 'buy-2-pay-1'
                   ? `${item.name} ürününden iki adedi 2 al 1 öde kampanyasıyla sepete ekle`
                   : `${item.name} kampanyalı olarak sepete ekle`}
                 onClick={addPromotion}
                 style={{
-                  minWidth: buttonStyle === 'icon' ? buttonSize : Math.max(74, buttonSize * 1.9),
+                  width: buttonStyle === 'full' ? '100%' : undefined,
+                  maxWidth: '100%',
+                  minWidth: buttonStyle === 'icon' ? buttonSize : buttonStyle === 'full' ? 0 : Math.max(74, buttonSize * 1.9),
                   height: buttonSize,
                   padding: buttonStyle === 'icon' ? 0 : '0 13px',
                   border: 0,
@@ -258,10 +312,11 @@ export function DiscountBadgeSection({
                   fontWeight: 850,
                   cursor: onQuickAdd ? 'pointer' : 'default',
                   flexShrink: 0,
+                  justifySelf: buttonStyle === 'icon' ? 'auto' : buttonStyle === 'full' ? 'stretch' : 'end',
                 }}
               >
                 <DiscountCtaIcon kind={buttonIcon} size={Math.max(15, Math.round(buttonSize * .43))} />
-                {buttonStyle !== 'icon' && <span>{config.cta?.trim() || 'Fırsatı ekle'}</span>}
+                {buttonStyle !== 'icon' && <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{config.cta?.trim() || 'Fırsatı ekle'}</span>}
               </button>
             </div>
           ) : (
@@ -285,11 +340,12 @@ export function DiscountBadgeSection({
   )
 }
 
-function CampaignCountdown({ endsAtMs, label, background, color }: {
+function CampaignCountdown({ endsAtMs, label, background, color, compact = false }: {
   endsAtMs: number
   label: string
   background: string
   color: string
+  compact?: boolean
 }) {
   const timerRef = useRef<HTMLDivElement>(null)
   const [remainingMs, setRemainingMs] = useState(() => Math.max(0, endsAtMs - Date.now()))
@@ -318,18 +374,21 @@ function CampaignCountdown({ endsAtMs, label, background, color }: {
       role="timer"
       aria-live="off"
       className="garsonless-discount-timer"
+      data-layout={compact ? 'compact' : 'inline'}
       style={{
-        marginTop: 10,
-        minHeight: 54,
-        padding: '8px 10px',
-        borderRadius: 12,
+        marginTop: compact ? 0 : 10,
+        minHeight: compact ? 52 : 54,
+        padding: compact ? '7px 9px' : '8px 10px',
+        borderRadius: compact ? 10 : 12,
         background,
         color,
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) auto',
-        alignItems: 'center',
-        gap: 10,
-        fontSize: 10.5,
+        display: compact ? 'flex' : 'grid',
+        flexDirection: compact ? 'column' : undefined,
+        gridTemplateColumns: compact ? undefined : 'minmax(0, 1fr) auto',
+        alignItems: compact ? 'flex-start' : 'center',
+        justifyContent: compact ? 'center' : undefined,
+        gap: compact ? 3 : 10,
+        fontSize: compact ? 9.5 : 10.5,
         fontWeight: 750,
       }}
     >
@@ -337,14 +396,14 @@ function CampaignCountdown({ endsAtMs, label, background, color }: {
       <strong
         className="garsonless-discount-clock"
         style={{
-          width: remainingMs >= 86_400_000 ? '14ch' : '8.5ch',
-          textAlign: 'right',
-          fontSize: 12,
+          width: compact ? 'auto' : remainingMs >= 86_400_000 ? '14ch' : '8.5ch',
+          textAlign: compact ? 'left' : 'right',
+          fontSize: compact ? 11.5 : 12,
           lineHeight: 1,
           letterSpacing: '.04em',
         }}
       >
-        {formatCountdown(remainingMs)}
+        {compact ? formatCompactCountdown(remainingMs) : formatCountdown(remainingMs)}
       </strong>
     </div>
   )
@@ -358,6 +417,17 @@ function formatCountdown(remainingMs: number) {
   const seconds = totalSeconds % 60
   const clock = [hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':')
   return days > 0 ? `${days} gün · ${clock}` : clock
+}
+
+function formatCompactCountdown(remainingMs: number) {
+  const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000))
+  const days = Math.floor(totalSeconds / 86_400)
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600)
+  const minutes = Math.floor((totalSeconds % 3_600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (days > 0) return `${days}g ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
 function DiscountCtaIcon({ kind, size }: { kind: string; size: number }) {

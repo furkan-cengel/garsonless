@@ -1,6 +1,9 @@
 'use client'
 
-import type { GarsonlessTheme } from '@garsonless/design-engine'
+import {
+  resolveFooterCartClearance,
+  resolveMenuFooterPalette,
+} from '@garsonless/design-engine'
 import type { CSSProperties } from 'react'
 import { AppIcons as I, type AppIcon, type AppIconProps } from '../icons'
 import type { StoreInfo } from '../themes/types'
@@ -140,36 +143,6 @@ export function readableFooterForeground(background: string) {
   return darkContrast >= whiteContrast ? '#111318' : '#ffffff'
 }
 
-function footerPalette(theme: GarsonlessTheme) {
-  const tone = theme.footerTone ?? 'surface'
-  if (tone === 'brand') {
-    const foreground = readableFooterForeground(theme.accent)
-    return {
-      background: 'var(--p-accent)',
-      foreground,
-      muted: `color-mix(in srgb, ${foreground} 72%, transparent)`,
-      line: `color-mix(in srgb, ${foreground} 20%, transparent)`,
-      chip: `color-mix(in srgb, ${foreground} 12%, transparent)`,
-    }
-  }
-  if (tone === 'dark') {
-    return {
-      background: '#17191d',
-      foreground: '#ffffff',
-      muted: 'rgba(255,255,255,.7)',
-      line: 'rgba(255,255,255,.14)',
-      chip: 'rgba(255,255,255,.1)',
-    }
-  }
-  return {
-    background: 'var(--p-card)',
-    foreground: 'var(--p-text)',
-    muted: 'var(--p-text-2)',
-    line: 'var(--p-border)',
-    chip: 'color-mix(in srgb,var(--p-text) 6%,transparent)',
-  }
-}
-
 export function MenuFooter({ storeInfo, cartCount = 0 }: { storeInfo?: StoreInfo | null; cartCount?: number }) {
   const { theme, restaurantName, logoUrl } = useTheme()
   const businessFooterEnabled = theme.footerEnabled ?? true
@@ -182,10 +155,8 @@ export function MenuFooter({ storeInfo, cartCount = 0 }: { storeInfo?: StoreInfo
   const phoneLink = showContact ? normalizedContactLinks.find((link) => link.key === 'phone') : undefined
   const socialLinks = businessFooterEnabled && (theme.footerShowSocial ?? true) ? normalizeFooterSocialLinks(contact) : []
   const iconLinks = phoneLink ? [phoneLink, ...socialLinks] : socialLinks
-  const palette = footerPalette(theme)
-  const needsActionClearance = (
-    theme.cartPlacement === 'footer' && cartCount > 0
-  ) || theme.servicePlacement === 'floating'
+  const palette = resolveMenuFooterPalette(theme)
+  const cartClearance = cartCount > 0 ? resolveFooterCartClearance(theme).pixels : 0
 
   return (
     <footer
@@ -199,11 +170,14 @@ export function MenuFooter({ storeInfo, cartCount = 0 }: { storeInfo?: StoreInfo
         '--footer-muted': palette.muted,
         '--footer-line': palette.line,
         '--footer-chip': palette.chip,
+        '--footer-focus': palette.focus,
         background: palette.background,
         color: palette.foreground,
+        fontFamily: 'var(--p-body)',
+        lineHeight: 'var(--p-line-body)',
         borderTop: `1px solid ${palette.line}`,
-        paddingBottom: needsActionClearance
-          ? 'calc(96px + env(safe-area-inset-bottom, 0px))'
+        paddingBottom: cartClearance > 0
+          ? `calc(${cartClearance}px + env(safe-area-inset-bottom, 0px))`
           : 'env(safe-area-inset-bottom, 0px)',
       } as CSSProperties}
     >
@@ -211,7 +185,7 @@ export function MenuFooter({ storeInfo, cartCount = 0 }: { storeInfo?: StoreInfo
         <div data-menu-footer-inner>
           <div data-menu-footer-brand>
             {(theme.footerShowLogo ?? true) && (
-              <span data-menu-footer-logo aria-hidden="true">
+              <span data-menu-footer-logo data-logo-image={logoUrl ? 'true' : 'false'} aria-hidden="true">
                 {logoUrl ? <img src={logoUrl} alt="" /> : restaurantName.trim().charAt(0).toLocaleUpperCase('tr-TR') || 'M'}
               </span>
             )}
@@ -227,7 +201,9 @@ export function MenuFooter({ storeInfo, cartCount = 0 }: { storeInfo?: StoreInfo
             <div data-menu-footer-contact aria-label="İletişim bağlantıları">
               {contactLinks.map(({ key, label, href, external, Icon }) => (
                 <a key={key} href={href} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
-                  <Icon size={15} /><span>{label}</span>{external && <I.externalLink size={12} />}
+                  <span data-menu-footer-contact-surface>
+                    <Icon size={15} /><span data-menu-footer-contact-label>{label}</span>{external && <I.externalLink size={12} />}
+                  </span>
                 </a>
               ))}
             </div>
@@ -243,7 +219,7 @@ export function MenuFooter({ storeInfo, cartCount = 0 }: { storeInfo?: StoreInfo
                   aria-label={key === 'phone' ? `Telefonla ara: ${label}` : `${label} sayfasını aç`}
                   title={key === 'phone' ? 'Telefonla ara' : label}
                 >
-                  <Icon size={18} />
+                  <span data-menu-footer-social-surface><Icon size={18} /></span>
                 </a>
               ))}
             </div>
@@ -256,8 +232,10 @@ export function MenuFooter({ storeInfo, cartCount = 0 }: { storeInfo?: StoreInfo
       )}
       <div data-menu-footer-attribution>
         <a href={MASABU_URL} target="_blank" rel="noopener noreferrer" aria-label="Powered by Masabu">
-          <span>Powered by</span>
-          <strong data-menu-footer-wordmark aria-hidden="true"><b>masa</b><b data-wordmark-accent>bu.</b></strong>
+          <span data-menu-footer-attribution-surface>
+            <span>Powered by</span>
+            <strong data-menu-footer-wordmark aria-hidden="true"><b>masa</b><b data-wordmark-accent>bu.</b></strong>
+          </span>
         </a>
       </div>
       <style>{MENU_FOOTER_CSS}</style>
@@ -268,33 +246,38 @@ export function MenuFooter({ storeInfo, cartCount = 0 }: { storeInfo?: StoreInfo
 const MENU_FOOTER_CSS = `
 [data-menu-footer-inner]{max-width:1200px;margin:0 auto;padding:24px max(var(--p-pad),18px);display:grid;gap:18px;box-sizing:border-box}
 [data-menu-footer-brand]{display:flex;align-items:flex-start;gap:12px;min-width:0}
-[data-menu-footer-logo]{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex:0 0 auto;overflow:hidden;background:var(--footer-chip);color:var(--footer-fg);font:800 18px var(--p-body)}
-[data-menu-footer-logo] img{width:100%;height:100%;object-fit:cover}
+[data-menu-footer-logo]{min-width:42px;max-width:82px;height:42px;padding:5px;border-radius:12px;display:grid;place-items:center;flex:0 0 auto;box-sizing:border-box;overflow:hidden;background:var(--footer-chip);color:var(--footer-fg);font:800 18px var(--p-body)}
+[data-menu-footer-logo][data-logo-image="true"]{background:rgba(255,255,255,.94);border:1px solid var(--footer-line)}
+[data-menu-footer-logo] img{display:block;width:auto;height:auto;max-width:72px;max-height:32px;object-fit:contain}
 [data-menu-footer-brand]>div{min-width:0;display:grid;gap:7px}
-[data-menu-footer-brand] strong{font:750 17px/1.2 var(--p-body);letter-spacing:-.01em}
-[data-menu-footer-address]{display:flex;align-items:flex-start;gap:7px;color:var(--footer-muted);font-size:12px;line-height:1.45}
+[data-menu-footer-brand] strong{font:750 var(--p-text-lg)/var(--p-line-tight) var(--p-body);letter-spacing:-.01em;overflow-wrap:anywhere}
+[data-menu-footer-address]{display:flex;align-items:flex-start;gap:7px;color:var(--footer-muted);font-size:var(--p-text-sm);line-height:var(--p-line-body)}
+[data-menu-footer-address]{overflow-wrap:anywhere;word-break:break-word}
 [data-menu-footer-address] svg{margin-top:1px;flex:0 0 auto}
 [data-menu-footer-contact]{display:flex;flex-wrap:wrap;gap:8px}
-[data-menu-footer-contact] a{min-height:36px;max-width:100%;padding:0 11px;border:1px solid var(--footer-line);border-radius:999px;background:var(--footer-chip);color:var(--footer-fg);display:inline-flex;align-items:center;gap:7px;text-decoration:none;font:650 11.5px var(--p-body)}
-[data-menu-footer-contact] a span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+[data-menu-footer-contact] a{min-height:44px;max-width:100%;padding:0;color:var(--footer-fg);display:inline-flex;align-items:center;text-decoration:none;font:650 11.5px var(--p-body)}
+[data-menu-footer-contact-surface]{min-height:36px;max-width:100%;padding:0 11px;border:1px solid var(--footer-line);border-radius:999px;background:var(--footer-chip);display:inline-flex;align-items:center;gap:7px;box-sizing:border-box}
+[data-menu-footer-contact-label]{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 [data-menu-footer-social]{display:flex;flex-wrap:wrap;gap:8px}
-[data-menu-footer-social] a{width:38px;height:38px;padding:0;border:1px solid var(--footer-line);border-radius:999px;background:var(--footer-chip);color:var(--footer-fg);display:inline-flex;align-items:center;justify-content:center;text-decoration:none;transition:transform 150ms ease,background 150ms ease}
-[data-menu-footer-social] a:hover{transform:translateY(-1px);background:color-mix(in srgb,var(--footer-fg) 10%,transparent)}
+[data-menu-footer-social] a{width:44px;height:44px;padding:0;color:var(--footer-fg);display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+[data-menu-footer-social-surface]{width:38px;height:38px;border:1px solid var(--footer-line);border-radius:999px;background:var(--footer-chip);display:inline-flex;align-items:center;justify-content:center;transition:transform 150ms ease,background 150ms ease}
 [data-menu-footer-copyright]{padding-top:14px;border-top:1px solid var(--footer-line);color:var(--footer-muted);font:550 10.5px var(--p-body)}
 [data-menu-footer-attribution]{max-width:1200px;margin:0 auto;padding:0 max(var(--p-pad),18px) 18px;display:flex;justify-content:center;box-sizing:border-box}
-[data-menu-footer-attribution] a{min-height:34px;padding:0 10px;border:1px solid rgba(17,19,24,.1);border-radius:999px;background:rgba(255,255,255,.94);color:#17191d;display:inline-flex;align-items:center;gap:6px;text-decoration:none;box-shadow:0 1px 3px rgba(15,17,21,.06)}
-[data-menu-footer-attribution] a>span{color:#747982;font:650 9.5px/1 var(--p-body);letter-spacing:.01em}
+[data-menu-footer-attribution] a{min-height:44px;padding:0;color:#17191d;display:inline-flex;align-items:center;text-decoration:none}
+[data-menu-footer-attribution-surface]{min-height:34px;padding:0 10px;border:1px solid rgba(17,19,24,.24);border-radius:999px;background:#fff;color:#17191d;display:inline-flex;align-items:center;gap:6px;box-shadow:0 1px 3px rgba(15,17,21,.06)}
+[data-menu-footer-attribution-surface]>span{color:#5d626b;font:650 9.5px/1 var(--p-body);letter-spacing:.01em}
 [data-menu-footer-wordmark]{display:inline-flex;align-items:baseline;font:900 14px/1 var(--p-body);letter-spacing:-.055em}
 [data-menu-footer-wordmark] b{font:inherit}
 [data-menu-footer-wordmark] [data-wordmark-accent]{color:#2e7d52}
 [data-menu-footer][data-business-footer-enabled="false"] [data-menu-footer-attribution]{padding-top:16px}
-[data-menu-footer] a:focus-visible{outline:2px solid var(--footer-fg);outline-offset:3px}
-@media(prefers-reduced-motion:reduce){[data-menu-footer-social] a{transition:none}[data-menu-footer-social] a:hover{transform:none}}
+[data-menu-footer] a:focus-visible{outline:2px solid var(--footer-focus);outline-offset:2px;border-radius:999px}
+@media(hover:hover) and (pointer:fine){[data-menu-footer-social] a:hover [data-menu-footer-social-surface]{transform:translateY(-1px);background:color-mix(in srgb,var(--footer-fg) 10%,var(--footer-chip))}}
+@media(prefers-reduced-motion:reduce){[data-menu-footer-social-surface]{transition:none!important;transform:none!important}}
 @media(min-width:700px){
   [data-menu-footer-inner]{grid-template-columns:minmax(180px,1.15fr) minmax(260px,1.7fr) auto;align-items:start;padding-block:28px}
   [data-menu-footer-contact]{align-self:center}
   [data-menu-footer-social]{justify-content:flex-end;align-self:center}
   [data-menu-footer-copyright]{grid-column:1/-1}
 }
-@media(max-width:360px){[data-menu-footer-contact] a{width:100%;box-sizing:border-box}}
+@media(max-width:360px){[data-menu-footer-contact] a,[data-menu-footer-contact-surface]{width:100%;box-sizing:border-box}}
 `

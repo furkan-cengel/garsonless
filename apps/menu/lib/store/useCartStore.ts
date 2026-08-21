@@ -4,7 +4,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { areModifierSelectionsValid } from '@garsonless/ui/menu'
 import type { CartItem, MenuItem, ModifierGroup, SelectedModifier } from '@garsonless/ui/menu'
-import { canonicalModifierSignature, canonicalRemovalSignature, clampCartQuantity } from './cartIdentity'
+import { canonicalModifierSignature, canonicalRemovalSignature, normalizeCartQuantityForStep, restoreCartItemAfterPromotion } from './cartIdentity'
 import { menuTenantScopeKey } from '../menu-scope-key'
 
 function generateId(): string {
@@ -46,6 +46,14 @@ interface CartState {
   ) => void
   removeItem: (cartId: string) => void
   updateQuantity: (cartId: string, quantity: number) => void
+  attachPromotion: (
+    cartId: string,
+    price: number,
+    originalPrice: number,
+    promotion: NonNullable<CartItem['promotion']>,
+    quantity?: number,
+  ) => void
+  detachPromotion: (cartId: string, catalogPrice: number) => void
   clearCart: () => void
   totalItems: () => number
   subtotal: () => number
@@ -101,7 +109,7 @@ export const useCartStore = create<CartState>()(
 
       addItem: (item, modifiers, modifierGroups, quantity, originalPrice, removedIngredientIds = [], combo, promotion, productNote, recommendationSourceItemId) => {
         if (!areModifierSelectionsValid(modifierGroups, modifiers)) return
-        const normalizedQuantity = Math.max(1, clampCartQuantity(quantity))
+        const normalizedQuantity = normalizeCartQuantityForStep(Math.max(1, quantity), promotion?.quantityStep ?? 1)
         const modifiersPriceDelta = modifiers.reduce((total, sel) => {
           for (const group of modifierGroups) {
             const option = group.options.find((o) => o.id === sel.option_id)
@@ -137,6 +145,9 @@ export const useCartStore = create<CartState>()(
             canonicalRemovalSignature(ci.removedIngredientIds ?? []) === serializedRemovals &&
             (ci.combo?.instanceId ?? null) === (combo?.instanceId ?? null) &&
             (ci.promotion?.sectionInstanceId ?? null) === (promotion?.sectionInstanceId ?? null) &&
+            (ci.promotion?.offer ?? null) === (promotion?.offer ?? null) &&
+            (ci.promotion?.instanceId ?? null) === (promotion?.instanceId ?? null) &&
+            (ci.promotion?.role ?? null) === (promotion?.role ?? null) &&
             (ci.productNote ?? '') === normalizedNote &&
             (ci.recommendationSourceItemId ?? null) === (recommendationSourceItemId ?? null),
         )
@@ -144,7 +155,9 @@ export const useCartStore = create<CartState>()(
         if (existingIndex >= 0) {
           set((state) => withActiveCartScope(state, {
             items: state.items.map((ci, i) =>
-              i === existingIndex ? { ...ci, quantity: clampCartQuantity(ci.quantity + normalizedQuantity) } : ci,
+              i === existingIndex
+                ? { ...ci, quantity: normalizeCartQuantityForStep(ci.quantity + normalizedQuantity, ci.promotion?.quantityStep ?? promotion?.quantityStep ?? 1) }
+                : ci,
             ),
           }))
           return
@@ -179,14 +192,32 @@ export const useCartStore = create<CartState>()(
         set((state) => withActiveCartScope(state, { items: state.items.filter((i) => i.cartId !== cartId) })),
 
       updateQuantity: (cartId, quantity) => {
-        const normalizedQuantity = clampCartQuantity(quantity)
         set((state) => withActiveCartScope(state, {
-          items:
-            normalizedQuantity <= 0
-              ? state.items.filter((i) => i.cartId !== cartId)
-              : state.items.map((i) => (i.cartId === cartId ? { ...i, quantity: normalizedQuantity } : i)),
+          items: quantity <= 0
+            ? state.items.filter((i) => i.cartId !== cartId)
+            : state.items.map((i) => (i.cartId === cartId
+                ? { ...i, quantity: normalizeCartQuantityForStep(quantity, i.promotion?.quantityStep ?? 1) }
+                : i)),
         }))
       },
+
+      attachPromotion: (cartId, price, originalPrice, promotion, quantity) => set((state) => withActiveCartScope(state, {
+        items: state.items.map((item) => item.cartId === cartId
+          ? {
+              ...item,
+              price,
+              originalPrice,
+              promotion,
+              quantity: normalizeCartQuantityForStep(quantity ?? item.quantity, promotion.quantityStep ?? 1),
+            }
+          : item),
+      })),
+
+      detachPromotion: (cartId, catalogPrice) => set((state) => withActiveCartScope(state, {
+        items: state.items.map((item) => item.cartId === cartId
+          ? restoreCartItemAfterPromotion(item, catalogPrice)
+          : item),
+      })),
 
       clearCart: () => set((state) => withActiveCartScope(state, { items: [] })),
 
@@ -200,11 +231,12 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: 'garsonless-cart',
-      version: 6,
+      version: 7,
       migrate: (persisted, version) => {
         const state = persisted as Partial<CartState> & { items?: Partial<CartItem>[] }
         const items = (state.items ?? []).map((item) => ({
           ...item,
+          quantity: normalizeCartQuantityForStep(item.quantity ?? 1, item.promotion?.quantityStep ?? 1),
           modifierNames: item.modifierNames ?? [],
           removedIngredientIds: item.removedIngredientIds ?? [],
           removedIngredientNames: item.removedIngredientNames ?? [],

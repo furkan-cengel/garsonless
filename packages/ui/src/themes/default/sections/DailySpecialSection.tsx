@@ -12,8 +12,9 @@ import { formatTRY } from '../../../menu/formatCurrency'
 import type { MenuItem, SectionPromotionContext } from '../../../menu/types'
 import { ProductAllergenSummary } from '../../../menu/FoodInfoBadges'
 import { customSectionShell, makeReaders } from '../lib/sectionHelpers'
+import { TAG_SHIMMER_TARGET_CLASS, tagShimmerScopeClass } from '../../../menu/tagShimmer'
 
-type DailySpecialTheme = Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor'>
+type DailySpecialTheme = Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor' | 'motion' | 'tagShimmer'>
 
 const BUTTON_SIZE = { small: 34, medium: 40, large: 46 } as const
 
@@ -64,10 +65,16 @@ export function DailySpecialBlock({
   const radius = number('radius', 20)
   const cardRadius = number('cardRadius', 16)
   const padding = number('padding', 16)
-  const imageSize = Math.min(180, Math.max(76, number('imageSize', layout === 'stack' ? 150 : 122)))
+  const configuredImageSize = number('imageSize', layout === 'stack' ? 132 : 112)
+  const normalizedImageSize = configuredImageSize === 122 ? (layout === 'stack' ? 132 : 112) : configuredImageSize
+  const imageSize = Math.min(180, Math.max(76, normalizedImageSize))
   const ctaMode = text('ctaMode', 'inherit') === 'custom' ? 'custom' : 'inherit'
-  const buttonStyle = actionMode === 'discover' ? 'pill' : ctaMode === 'inherit' ? (theme?.cardCtaStyle ?? 'pill') : text('buttonStyle', 'pill')
-  const buttonIcon = actionMode === 'discover' ? 'arrow' : ctaMode === 'inherit' ? (theme?.cardCtaIcon ?? 'plus') : text('buttonIcon', 'plus')
+  const buttonStyle = ctaMode === 'custom'
+    ? text('buttonStyle', 'pill')
+    : actionMode === 'discover' ? 'pill' : (theme?.cardCtaStyle ?? 'pill')
+  const buttonIcon = ctaMode === 'custom'
+    ? text('buttonIcon', 'plus')
+    : actionMode === 'discover' ? 'arrow' : (theme?.cardCtaIcon ?? 'plus')
   const buttonSizeName = text('buttonSize', 'medium') as keyof typeof BUTTON_SIZE
   const buttonSize = BUTTON_SIZE[buttonSizeName] ?? BUTTON_SIZE.medium
   const buttonBackground = ctaMode === 'inherit' ? 'var(--p-cta)' : text('buttonBgColor', accent)
@@ -93,6 +100,7 @@ export function DailySpecialBlock({
 
   return (
     <section
+      className={tagShimmerScopeClass(theme)}
       id={`custom-section-${sectionInstanceId}`}
       data-component="custom-section"
       data-section-kind="daily-special"
@@ -120,16 +128,12 @@ export function DailySpecialBlock({
         .garsonless-daily-layout[data-layout="split"] .garsonless-daily-media {
           aspect-ratio: 1 / 1;
         }
-        @container (max-width: 330px) {
-          .garsonless-daily-layout[data-layout="split"] {
-            --daily-grid-columns: minmax(0, 1fr) !important;
-            --daily-grid-gap: 12px !important;
-          }
-          .garsonless-daily-layout[data-layout="split"] .garsonless-daily-media {
-            aspect-ratio: 16 / 9;
-            height: auto;
-            max-height: 156px;
-          }
+        .garsonless-daily-visual-column {
+          align-self: start;
+          display: flex;
+          min-width: 0;
+          flex-direction: column;
+          gap: 8px;
         }
         .garsonless-daily-add { transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease; }
         .garsonless-daily-add:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 8px 18px -12px var(--daily-accent); }
@@ -159,26 +163,37 @@ export function DailySpecialBlock({
         } as CSSProperties}
       >
         {showImage && (
-          <div
-            className="garsonless-daily-media"
-            data-daily-media="true"
-            style={{
-              borderRadius: Math.min(cardRadius, 14),
-              background: `color-mix(in srgb, ${accent} 9%, ${contentSurface})`,
-            }}
-          >
-            {item?.images[0] ? (
-              <img
-                src={item.images[0]}
-                alt=""
-                loading="lazy"
-                decoding="async"
-                style={{ width: '100%', height: '100%', objectFit: imageFit, objectPosition: imagePosition, display: 'block' }}
+          <div className="garsonless-daily-visual-column">
+            <div
+              className="garsonless-daily-media"
+              data-daily-media="true"
+              style={{
+                borderRadius: Math.min(cardRadius, 14),
+                background: `color-mix(in srgb, ${accent} 9%, ${contentSurface})`,
+              }}
+            >
+              {item?.images[0] ? (
+                <img
+                  src={item.images[0]}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  style={{ width: '100%', height: '100%', objectFit: imageFit, objectPosition: imagePosition, display: 'block' }}
+                />
+              ) : (
+                <div aria-hidden style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: accent, opacity: .6 }}>
+                  <AppIcons.image size={26} />
+                </div>
+              )}
+            </div>
+            {layout === 'split' && timing.enabled && timing.valid && timing.endsAtMs !== null && (
+              <DailyCountdown
+                compact
+                endsAtMs={timing.endsAtMs}
+                label={config.countdownLabel?.trim() || 'Bugün sona eriyor'}
+                background={text('timerBgColor', contentSurface)}
+                color={text('timerTextColor', accent)}
               />
-            ) : (
-              <div aria-hidden style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: accent, opacity: .6 }}>
-                <AppIcons.image size={26} />
-              </div>
             )}
           </div>
         )}
@@ -189,7 +204,7 @@ export function DailySpecialBlock({
               {config.eyebrow?.trim() || 'GÜNÜN ÖZELİ'}
             </span>
             {pricing && (
-              <span style={{ padding: '2px 6px', borderRadius: 999, background: `color-mix(in srgb, ${accent} 10%, ${contentSurface})`, color: accent, fontSize: 9, fontWeight: 850, lineHeight: 1.35 }}>
+              <span className={TAG_SHIMMER_TARGET_CLASS} style={{ padding: '2px 6px', borderRadius: 999, background: `color-mix(in srgb, ${accent} 10%, ${contentSurface})`, color: accent, fontSize: 9, fontWeight: 850, lineHeight: 1.35 }}>
                 %{pricing.percentage} avantaj
               </span>
             )}
@@ -209,7 +224,7 @@ export function DailySpecialBlock({
             </p>
           )}
 
-          {timing.enabled && timing.valid && timing.endsAtMs !== null && (
+          {(!showImage || layout === 'stack') && timing.enabled && timing.valid && timing.endsAtMs !== null && (
             <DailyCountdown
               endsAtMs={timing.endsAtMs}
               label={config.countdownLabel?.trim() || 'Bugün sona eriyor'}
@@ -219,7 +234,7 @@ export function DailySpecialBlock({
           )}
 
           {item && priceReady && timing.active ? (
-            <div style={{ marginTop: 12, padding: '10px 11px', borderRadius: cardRadius, background: contentSurface, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minWidth: 0 }}>
+            <div style={{ marginTop: 12, padding: '10px 11px', borderRadius: cardRadius, background: contentSurface, display: 'flex', flexDirection: buttonStyle === 'full' ? 'column' : 'row', alignItems: buttonStyle === 'full' ? 'stretch' : 'center', justifyContent: 'space-between', gap: 10, minWidth: 0 }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 7 }}>
                   <strong style={{ color: textColor, fontSize: 17, lineHeight: 1 }}>
@@ -234,11 +249,13 @@ export function DailySpecialBlock({
                 className="garsonless-daily-add"
                 data-cta-source={ctaMode}
                 data-cta-icon={buttonIcon}
+                data-button-style={buttonStyle}
                 disabled={!onQuickAdd}
                 aria-label={`${item.name} ürününü ${actionMode === 'discover' ? 'incele' : `${pricing ? 'günün özeli fiyatıyla ' : ''}sepete ekle`}`}
                 onClick={addToCart}
                 style={{
-                  minWidth: buttonStyle === 'icon' ? buttonSize : Math.max(74, buttonSize * 1.9),
+                  width: buttonStyle === 'full' ? '100%' : undefined,
+                  minWidth: buttonStyle === 'icon' ? buttonSize : buttonStyle === 'full' ? 0 : Math.max(74, buttonSize * 1.9),
                   height: buttonSize,
                   padding: buttonStyle === 'icon' ? 0 : '0 13px',
                   border: 0,
@@ -281,7 +298,7 @@ export function DailySpecialBlock({
   )
 }
 
-function DailyCountdown({ endsAtMs, label, background, color }: { endsAtMs: number; label: string; background: string; color: string }) {
+function DailyCountdown({ endsAtMs, label, background, color, compact = false }: { endsAtMs: number; label: string; background: string; color: string; compact?: boolean }) {
   const timerRef = useRef<HTMLDivElement>(null)
   const [remainingMs, setRemainingMs] = useState(() => Math.max(0, endsAtMs - Date.now()))
 
@@ -302,9 +319,9 @@ function DailyCountdown({ endsAtMs, label, background, color }: { endsAtMs: numb
   }, [endsAtMs])
 
   return (
-    <div ref={timerRef} role="timer" aria-live="off" className="garsonless-daily-timer" style={{ marginTop: 10, minHeight: 52, padding: '8px 10px', borderRadius: 12, background, color, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 10, fontSize: 10.5, fontWeight: 750 }}>
+    <div ref={timerRef} role="timer" aria-live="off" className="garsonless-daily-timer" data-layout={compact ? 'compact' : 'default'} style={{ marginTop: compact ? 0 : 10, minHeight: compact ? 46 : 52, padding: compact ? '7px 8px' : '8px 10px', borderRadius: 12, background, color, display: 'grid', gridTemplateColumns: compact ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) auto', alignItems: 'center', gap: compact ? 3 : 10, fontSize: compact ? 9 : 10.5, fontWeight: 750 }}>
       <span style={{ minWidth: 0, opacity: .76, lineHeight: 1.4 }}>{label}</span>
-      <strong style={{ width: '14ch', whiteSpace: 'nowrap', textAlign: 'right', fontSize: 12, lineHeight: 1, letterSpacing: '.04em' }}>
+      <strong style={{ width: compact ? '100%' : '14ch', whiteSpace: 'nowrap', textAlign: compact ? 'left' : 'right', fontSize: compact ? 10 : 12, lineHeight: 1, letterSpacing: compact ? '.01em' : '.04em' }}>
         {formatCountdown(remainingMs)}
       </strong>
     </div>

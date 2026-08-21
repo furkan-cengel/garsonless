@@ -33,7 +33,7 @@ const item = (overrides: Partial<MenuItem> & Pick<MenuItem, 'id' | 'name' | 'pri
 test('chef pick renders live menu copy, images and prices instead of catalogue placeholders', () => {
   const html = renderToStaticMarkup(
     <ChefPickSection
-      config={{ showProductDescription: 'true', ctaMode: 'custom', buttonStyle: 'pill', ctaText: 'Sepete ekle' }}
+      config={{ showProductDescription: 'true', ctaMode: 'custom', buttonStyle: 'pill', ctaText: 'Eski metin' }}
       items={[
         item({ id: 'latte', name: 'Buzlu Latte', price: 145, description: 'Çift shot espresso', images: ['https://images.example/latte.webp'] }),
         item({ id: 'brownie', name: 'Belçika Brownie', price: 175, position: 1 }),
@@ -47,7 +47,8 @@ test('chef pick renders live menu copy, images and prices instead of catalogue p
   assert.match(html, /Çift shot espresso/)
   assert.match(html, /https:\/\/images\.example\/latte\.webp/)
   assert.match(html, /₺145,00/)
-  assert.match(html, /Sepete ekle/)
+  assert.match(html, />Ekle</)
+  assert.doesNotMatch(html, /Eski metin/)
   assert.doesNotMatch(html, /Hünkar Beğendi|Kuzu Tandır|Levrek Buğulama|👨‍🍳/)
 })
 
@@ -101,7 +102,7 @@ test('chef pick hides unavailable products and does not leak an empty public sec
 test('chef pick inherits the global card CTA unless a section override is selected', () => {
   const html = renderToStaticMarkup(
     <ChefPickSection
-      config={{ ctaText: 'Sepete ekle' }}
+      config={{ ctaText: 'Eski metin' }}
       theme={{ cardCtaStyle: 'pill', cardCtaIcon: 'cart', cta: '#2e7d52', ctaTextColor: '#ffffff' }}
       items={[item({ id: 'latte', name: 'Latte', price: 120 })]}
       onQuickAdd={() => undefined}
@@ -110,7 +111,7 @@ test('chef pick inherits the global card CTA unless a section override is select
 
   assert.match(html, /data-cta-source="inherit"/)
   assert.match(html, /data-cta-icon="cart"/)
-  assert.match(html, /Sepete ekle/)
+  assert.match(html, />Ekle</)
   assert.match(html, /var\(--p-cta\)/)
   assert.match(html, /var\(--p-cta-text\)/)
 })
@@ -132,7 +133,7 @@ test('chef pick supports the kitchen icon set, stepped sizing and custom CTA art
   )
 
   assert.match(html, /data-chef-icon="sef-sapkasi"/)
-  assert.match(html, /width="30"/)
+  assert.match(html, /width:23px/)
   assert.match(html, /data-cta-source="custom"/)
   assert.match(html, /data-cta-icon="custom"/)
   assert.match(html, /https:\/\/images\.example\/custom-cta\.webp/)
@@ -164,6 +165,84 @@ test('chef pick keeps product card surfaces independent from the section backgro
   assert.match(html, /color:#6b6258/)
   assert.match(html, /color:#8a4b1f/)
   assert.match(html, /background:#efe5d8/)
+})
+
+test('chef pick always renders a one-column editorial list with semantic headings', () => {
+  const html = renderToStaticMarkup(
+    <ChefPickSection
+      sectionInstanceId="home-chef-pick"
+      config={{ layout: 'grid', itemCount: '3' }}
+      items={[
+        item({ id: 'one', name: 'Birinci ürün', price: 100 }),
+        item({ id: 'two', name: 'İkinci ürün', price: 200, position: 1 }),
+        item({ id: 'three', name: 'Üçüncü ürün', price: 300, position: 2 }),
+      ]}
+      onQuickAdd={() => undefined}
+    />,
+  )
+
+  assert.match(html, /aria-labelledby="home-chef-pick-title"/)
+  assert.match(html, /<h2 id="home-chef-pick-title"/)
+  assert.match(html, /data-chef-pick-list="true"/)
+  assert.match(html, /grid-template-columns:minmax\(0, 1fr\)/)
+  assert.doesNotMatch(html, /repeat\(2/)
+})
+
+test('chef pick image fit, focus and real circle shape affect the rendered media', () => {
+  const html = renderToStaticMarkup(
+    <ChefPickSection
+      config={{ imageShape: 'circle', imageFit: 'contain', imagePosition: 'bottom' }}
+      items={[item({ id: 'latte', name: 'Latte', price: 120, images: ['https://images.example/latte.webp'] })]}
+      onQuickAdd={() => undefined}
+    />,
+  )
+
+  assert.match(html, /border-radius:50%/)
+  assert.match(html, /aspect-ratio:1 \/ 1/)
+  assert.match(html, /data-image-fit="contain"/)
+  assert.match(html, /data-image-position="bottom"/)
+  assert.match(html, /object-position:center bottom/)
+  assert.match(html, /transform-origin:center bottom/)
+  assert.doesNotMatch(html, /data-image-position="bottom" style="[^"]*transform:scale/)
+})
+
+test('chef pick cover focus creates visible top and bottom crops even for square source images', () => {
+  const renderFocus = (imagePosition: 'top' | 'center' | 'bottom') => renderToStaticMarkup(
+    <ChefPickSection
+      config={{ imageFit: 'cover', imagePosition }}
+      items={[item({ id: 'latte', name: 'Latte', price: 120, images: ['https://images.example/latte.webp'] })]}
+      onQuickAdd={() => undefined}
+    />,
+  )
+
+  assert.match(renderFocus('top'), /data-image-position="top"/)
+  assert.match(renderFocus('top'), /transform:scale\(1\.06\)/)
+  assert.match(renderFocus('top'), /transform-origin:center top/)
+  assert.match(renderFocus('center'), /transform-origin:center center/)
+  assert.match(renderFocus('bottom'), /transform-origin:center bottom/)
+})
+
+test('home chef pick respects configured CTA form and icon instead of forcing a pill arrow', () => {
+  const html = renderToStaticMarkup(
+    <ChefPickSection
+      actionMode="discover"
+      config={{ ctaMode: 'custom', buttonStyle: 'icon', buttonIcon: 'bag', buttonSize: 'small' }}
+      items={[item({ id: 'latte', name: 'Latte', price: 120 })]}
+      onQuickAdd={() => undefined}
+    />,
+  )
+
+  assert.match(html, /data-button-style="icon"/)
+  assert.match(html, /data-cta-icon="bag"/)
+  assert.match(html, /height:40px/)
+  assert.match(html, /aria-label="Latte ürününü incele"/)
+  assert.doesNotMatch(html, />İncele</)
+})
+
+test('chef pick keeps an editor-only empty state but omits empty public output', () => {
+  assert.equal(renderToStaticMarkup(<ChefPickSection config={{ selectionMode: 'manual' }} items={[]} onQuickAdd={() => undefined} />), '')
+  const editor = renderToStaticMarkup(<ChefPickSection config={{ selectionMode: 'manual' }} items={[]} editorPreview onQuickAdd={() => undefined} />)
+  assert.match(editor, /Şef’in Seçimi için 1–4 aktif ürün seçin/)
 })
 
 function findElementByClassName(node: React.ReactNode, className: string): React.ReactElement | null {

@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { applyGarsonlessTheme, buildFontsUrlFromTheme } from '@garsonless/design-engine'
 import { getRestaurantBySlug } from '../../lib/queries'
 import { getPublishedTheme } from '../../lib/published-theme'
+import { resolveHomeOpenGraphImage } from '../../lib/home-metadata'
 
 interface Props {
   children: React.ReactNode
@@ -13,13 +14,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) return { title: 'Menu' }
-  const themeResult = await getPublishedTheme(restaurant.id, restaurant.slug)
+  const themeResult = await getPublishedTheme(restaurant.id)
   const theme = themeResult.ok ? themeResult.value.theme : null
   const home = theme?.surfaces?.home
   const origin = (process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011').replace(/\/$/, '')
   const title = home?.seo?.title?.trim() || restaurant.name
   const description = home?.seo?.description?.trim() || theme?.pageDescription?.trim() || `${restaurant.name} menüsünü ve işletme deneyimini keşfedin.`
-  const poster = home?.sections.find((section) => section.enabled && (section.posterUrl || section.imageUrl))
+  const posterUrl = resolveHomeOpenGraphImage(theme)
   return {
     title,
     description,
@@ -29,7 +30,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       description,
       type: 'website',
       url: `${origin}/${encodeURIComponent(slug)}`,
-      ...(poster?.posterUrl || poster?.imageUrl ? { images: [poster.posterUrl || poster.imageUrl!] } : {}),
+      ...(posterUrl ? { images: [posterUrl] } : {}),
     },
   }
 }
@@ -39,7 +40,7 @@ export default async function SlugLayout({ children, params }: Props) {
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) notFound()
 
-  const themeResult = await getPublishedTheme(restaurant.id, restaurant.slug)
+  const themeResult = await getPublishedTheme(restaurant.id)
   if (!themeResult.ok) notFound()
   // Resolve identically to page.tsx so the SSR <style> matches the client's
   // initialTheme (no first-load color flash). Masabu exposes one canonical menu

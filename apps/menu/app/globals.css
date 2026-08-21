@@ -83,3 +83,20 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Pointer focus stays functional without drawing keyboard-only indicators. */
+html[data-focus-modality="pointer"] :focus,
+html[data-focus-modality="pointer"] :focus-visible,
+html[data-focus-modality="pointer"] :focus-within {
+  outline: none !important;
+  outline-offset: 0 !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-inset-ring-shadow: 0 0 #0000 !important;
+}
+
+html[data-focus-modality="pointer"] :where(input, textarea, select, [role="combobox"], [data-slot="input-group"], [data-slot="combobox-anchor"]):focus,
+html[data-focus-modality="pointer"] :where(input, textarea, select, [role="combobox"], [data-slot="input-group"], [data-slot="combobox-anchor"]):focus-visible,
+html[data-focus-modality="pointer"] :where([data-slot="input-group"], [data-slot="combobox-anchor"]):focus-within {
+  box-shadow: none !important;
+}

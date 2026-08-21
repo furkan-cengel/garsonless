@@ -1,17 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { MenuItem } from './types'
 import { useTheme } from './ThemeContext'
 import { formatTRY } from './formatCurrency'
 import { DietaryBadges, ProductAllergenSummary, hasAllergenInformation } from './FoodInfoBadges'
 import { isProductConfigurable } from './productConfiguration'
 import { AppIcons } from '../icons'
+import { TAG_SHIMMER_TARGET_CLASS, tagShimmerScopeClass } from './tagShimmer'
 
 interface ProductCardProps {
   item: MenuItem
   onOpen: (item: MenuItem) => void
   onQuickAdd: (item: MenuItem) => void
+  promotionLabel?: string
   orderingEnabled?: boolean
   cols?: number
   cartQuantity?: number
@@ -22,49 +24,49 @@ interface ProductCardProps {
   onToggleFavorite?: () => void
 }
 
-const ASPECT_MAP: Record<string, string> = {
-  '1:1': '1/1',
-  '4:3': '4/3',
-  '16:9': '16/9',
-}
-
 const SHADOW_MAP: Record<string, string> = {
   none: 'none',
   soft: '0 1px 2px rgba(15,17,21,.04), 0 6px 14px -8px rgba(15,17,21,.10)',
   hard: '0 4px 0 0 rgba(15,17,21,.12), 0 1px 0 0 rgba(15,17,21,.06)',
 }
 
-function FoodMeta({ item }: { item: MenuItem }) {
+function FoodMeta({ item, inline = false }: { item: MenuItem; inline?: boolean }) {
   const hasDietaryBadge = item.is_vegan || item.is_vegetarian || item.is_halal
   const hasAllergenNotice = hasAllergenInformation(item)
   if (item.energy_kcal === null && !hasDietaryBadge && !hasAllergenNotice) return null
 
   return (
-    <div data-component="food-meta" style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+    <div data-component="food-meta" data-layout={inline ? 'inline' : 'stacked'} style={{
+      display: 'flex', flexDirection: inline ? 'row' : 'column', alignItems: inline ? 'center' : undefined,
+      gap: 5, marginTop: inline ? 5 : 6, minWidth: 0, flexWrap: inline ? 'wrap' : undefined,
+    }}>
+      <div data-component={inline ? 'food-meta-primary' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: inline ? 'nowrap' : 'wrap', minWidth: 0 }}>
         {item.energy_kcal !== null && (
-          <span style={{ fontSize: 10, fontWeight: 750, color: 'var(--p-text-2)' }}>{item.energy_kcal} kcal</span>
+          <span style={{ fontSize: 10, fontWeight: 750, color: 'var(--p-text-2)', flexShrink: 0 }}>{item.energy_kcal} kcal</span>
         )}
-        <DietaryBadges item={item} compact />
+        <DietaryBadges item={item} compact {...(inline ? { singleLine: true } : {})} />
       </div>
-      {hasAllergenNotice && <ProductAllergenSummary item={item} />}
+      {hasAllergenNotice && <ProductAllergenSummary item={item} maxVisible={inline ? 2 : 3} {...(inline ? { style: { flexShrink: 0 } } : {})} />}
     </div>
   )
 }
 
-export function ProductCard({ item, onOpen, onQuickAdd, orderingEnabled = true, cols, cartQuantity = 0, onIncrement, onDecrement, imagePriority = false, isFavorite = false, onToggleFavorite }: ProductCardProps) {
+export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, orderingEnabled = true, cartQuantity = 0, onIncrement, onDecrement, imagePriority = false, isFavorite = false, onToggleFavorite }: ProductCardProps) {
   const { theme } = useTheme()
-  const [hovered, setHovered] = useState(false)
-  const effectiveCols = cols ?? theme.cols
-  const narrow = effectiveCols >= 3
-  const horizontal = !narrow && theme.cardLayout === 'horizontal'
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [cardWidth, setCardWidth] = useState<number | null>(null)
+  const narrow = cardWidth !== null && cardWidth < 180
+  const horizontal = theme.cardLayout === 'horizontal'
   const minimal = theme.cardLayout === 'minimal'
-  const aspect = narrow ? '1/1' : (ASPECT_MAP[theme.cardImageAspect] ?? '4/3')
-  const shadow = SHADOW_MAP[theme.shadow] ?? SHADOW_MAP.soft
+  const aspect = narrow ? '1/1' : '4/3'
+  const cardRadius = theme.cardRadius ?? theme.radius
+  const cardShadow = theme.cardShadow ?? theme.shadow
+  const cardBorder = theme.cardBorder ?? theme.border
+  const shadow = SHADOW_MAP[cardShadow] ?? SHADOW_MAP.soft
   const hasModifiers = isProductConfigurable(item)
   const inCart = cartQuantity > 0
   const nameColor = 'var(--p-accent)'
-  const nameFontSize = 13.5
+  const nameFontSize = 'clamp(13px, calc(var(--p-fs) * .9), 16px)'
   const showImage = theme.cardShowImage ?? true
   const imageUrl = item.images[0] ?? null
   const hasProductImage = imageUrl !== null
@@ -73,61 +75,156 @@ export function ProductCard({ item, onOpen, onQuickAdd, orderingEnabled = true, 
   const descriptionLines = Number(theme.cardDescriptionLines ?? 2)
   const density = theme.cardDensity ?? 'normal'
   const contentPadding = density === 'compact' ? (narrow ? '6px 7px 8px' : '8px 10px 10px') : density === 'spacious' ? (narrow ? '10px 10px 12px' : '14px 16px 16px') : (narrow ? '8px 8px 10px' : '10px 12px 12px')
-  const hoverStyle = hovered && theme.motion !== 'none'
-    ? theme.cardHover === 'lift'
-      ? { transform: 'translateY(-3px)', boxShadow: `${shadow}, 0 10px 24px rgba(15,17,21,.12)` }
-      : theme.cardHover === 'glow'
-        ? { boxShadow: `${shadow}, 0 0 0 3px color-mix(in srgb, var(--p-cta) 24%, transparent)` }
-        : {}
-    : {}
+  const horizontalMinHeight = density === 'compact' ? 104 : density === 'spacious' ? 128 : 116
+  const horizontalImageWidth = Math.max(92, Math.min(160, theme.cardHorizontalImageWidth ?? 92))
+  const minimalMinHeight = density === 'compact' ? 52 : density === 'spacious' ? 68 : 60
+  const restingShadow = inCart ? `${shadow}, 0 0 0 2px var(--p-cta)` : shadow
 
-  const cardBase: React.CSSProperties = {
+  useEffect(() => {
+    const card = cardRef.current
+    if (!card) return
+    const updateWidth = (width: number) => {
+      const rounded = Math.round(width)
+      setCardWidth((current) => current === rounded ? current : rounded)
+    }
+    updateWidth(card.getBoundingClientRect().width)
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width
+      if (typeof width === 'number') updateWidth(width)
+    })
+    observer.observe(card)
+    return () => observer.disconnect()
+  }, [])
+
+  const cardBase = {
     background: 'var(--p-card)',
-    borderRadius: `${theme.radius}px`,
+    borderRadius: `${cardRadius}px`,
     overflow: 'hidden',
     position: 'relative',
     cursor: 'pointer',
     transition: 'box-shadow 150ms ease, transform 150ms ease',
-    boxShadow: inCart ? `${shadow}, 0 0 0 2px var(--p-cta)` : shadow,
-    border: theme.border === 'none' ? 'none' : `var(--p-border-w) solid var(--p-border)`,
-    ...hoverStyle,
-  }
-
-  const hoverProps = {
-    onMouseEnter: () => setHovered(true),
-    onMouseLeave: () => setHovered(false),
-  }
+    boxShadow: restingShadow,
+    border: cardBorder === 'none' ? 'none' : `${cardBorder === 'solid' ? 2 : 1}px solid var(--p-border)`,
+    '--product-card-shadow': restingShadow,
+  } as React.CSSProperties
 
   if (minimal) {
     return (
       <div
+        ref={cardRef}
         id={`product-${item.id}`}
         data-component="card"
-        style={{ ...cardBase, display: 'flex', alignItems: 'center', gap: 12, padding: density === 'compact' ? '9px 11px' : density === 'spacious' ? '15px 17px' : '12px 14px' }}
-        {...hoverProps}
+        data-product-card
+        data-card-width={narrow ? 'narrow' : 'regular'}
+        data-card-layout="minimal"
+        data-card-hover={theme.cardHover}
+        data-card-motion={theme.motion === 'none' ? 'none' : 'enabled'}
+        className={tagShimmerScopeClass(theme)}
+        style={{
+          ...cardBase, display: 'flex', alignItems: 'center', gap: 4,
+          minHeight: minimalMinHeight,
+          padding: density === 'compact' ? '4px 6px' : density === 'spacious' ? '12px 10px' : '8px 8px',
+        }}
       >
-        <CardOpenButton itemName={item.name} onOpen={() => onOpen(item)} radius={theme.radius} />
-        {onToggleFavorite && <FavoriteButton itemName={item.name} favorite={isFavorite} onToggle={onToggleFavorite} />}
-        <div style={{ flex: 1, minWidth: 0, paddingRight: onToggleFavorite ? 44 : 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{
-              fontWeight: 700, color: nameColor, fontSize: nameFontSize,
-              flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>{item.name}</span>
-            <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--p-text)', flexShrink: 0 }}>{formatTRY(item.price)}</span>
-            {inCart && (
-              <span style={{
-                width: 20, height: 20, borderRadius: 999, flexShrink: 0,
-                background: 'var(--p-cta)', color: 'var(--p-cta-text)',
-                fontSize: 11, fontWeight: 700,
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              }}>{cartQuantity}</span>
-            )}
+        <CardOpenButton itemName={item.name} onOpen={() => onOpen(item)} radius={cardRadius} />
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{
+            fontWeight: 700, color: nameColor, fontSize: nameFontSize,
+            flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>{item.name}</span>
+          {promotionLabel && <PromotionBadge label={promotionLabel} compact inline />}
+          {!promotionLabel && theme.cardShowTag && hasModifiers && <OptionBadge compact />}
+        </div>
+        <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--p-text)', flexShrink: 0 }}>{formatTRY(item.price)}</span>
+        {onToggleFavorite && <FavoriteButton placement="inline" itemName={item.name} favorite={isFavorite} onToggle={onToggleFavorite} />}
+        <ProductCTA
+          item={item}
+          ctaStyle="icon"
+          narrow
+          cartQuantity={cartQuantity}
+          onQuickAdd={orderingEnabled ? () => onQuickAdd(item) : undefined}
+          onIncrement={orderingEnabled ? onIncrement : undefined}
+          onDecrement={orderingEnabled ? onDecrement : undefined}
+          hidePrice
+          compactRow
+          iconKind={theme.cardCtaIcon ?? 'plus'}
+        />
+      </div>
+    )
+  }
+
+  if (horizontal) {
+    return (
+      <div
+        ref={cardRef}
+        id={`product-${item.id}`}
+        data-component="card"
+        data-product-card
+        data-card-layout="horizontal"
+        data-card-width={narrow ? 'narrow' : 'regular'}
+        data-card-hover={theme.cardHover}
+        data-card-motion={theme.motion === 'none' ? 'none' : 'enabled'}
+        data-image-state={hasProductImage ? 'available' : 'missing'}
+        className={tagShimmerScopeClass(theme)}
+        style={{ ...cardBase, display: 'flex', minHeight: horizontalMinHeight }}
+      >
+        <CardOpenButton itemName={item.name} onOpen={() => onOpen(item)} radius={cardRadius} />
+        {mediaVisible && <div data-component="product-card-media" style={{
+          width: `clamp(92px, ${horizontalImageWidth}px, 42%)`, flexShrink: 0,
+          background: theme.cardPlaceholderStyle === 'accent'
+            ? 'var(--p-accent-soft)'
+            : theme.cardPlaceholderStyle === 'outline'
+              ? 'transparent'
+              : 'linear-gradient(135deg, #f3f4f6 0%, #e6e7eb 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#bfc1c6', position: 'relative', overflow: 'hidden',
+        }}>
+          {hasProductImage ? (
+            <img
+              src={imageUrl} alt={item.name}
+              loading={imagePriority ? 'eager' : 'lazy'}
+              fetchPriority={imagePriority ? 'high' : 'auto'}
+              decoding="async"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: theme.cardImagePosition ?? 'center' }}
+            />
+          ) : <ImagePlaceholderIcon />}
+        </div>}
+        <div style={{ padding: contentPadding, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, minWidth: 0 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {(promotionLabel || (theme.cardShowTag && hasModifiers)) && (
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+                  {promotionLabel && <PromotionBadge label={promotionLabel} compact inline />}
+                  {theme.cardShowTag && hasModifiers && <OptionBadge compact />}
+                </div>
+              )}
+              <div style={{
+                fontWeight: 700, color: nameColor, fontSize: nameFontSize, lineHeight: 'var(--p-line-tight)',
+                overflow: 'hidden', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2,
+              }}>{item.name}</div>
+            </div>
+            {onToggleFavorite && <FavoriteButton placement="inline" itemName={item.name} favorite={isFavorite} onToggle={onToggleFavorite} />}
           </div>
           {theme.cardShowDesc && item.description && (
-            <div style={{ fontSize: 11.5, color: 'var(--p-text-2)', marginTop: 2 }}>{item.description}</div>
+            <div style={{
+              fontSize: 'clamp(11px, calc(var(--p-fs) * .77), 14px)', color: 'var(--p-text-2)',
+              marginTop: 3, lineHeight: 'var(--p-line-body)', overflow: 'hidden', display: '-webkit-box',
+              WebkitBoxOrient: 'vertical', WebkitLineClamp: 1,
+            }}>{item.description}</div>
           )}
-          <FoodMeta item={item} />
+          <FoodMeta item={item} inline />
+          <ProductCTA
+            item={item}
+            ctaStyle={theme.cardCtaStyle}
+            narrow={false}
+            cartQuantity={cartQuantity}
+            onQuickAdd={orderingEnabled ? () => onQuickAdd(item) : undefined}
+            onIncrement={orderingEnabled ? onIncrement : undefined}
+            onDecrement={orderingEnabled ? onDecrement : undefined}
+            priceAlign={theme.cardPriceAlign ?? 'left'}
+            iconKind={theme.cardCtaIcon ?? 'plus'}
+          />
         </div>
       </div>
     )
@@ -135,22 +232,28 @@ export function ProductCard({ item, onOpen, onQuickAdd, orderingEnabled = true, 
 
   return (
     <div
+      ref={cardRef}
       id={`product-${item.id}`}
       data-component="card"
+      data-product-card
+      data-card-layout="vertical"
+      data-card-width={narrow ? 'narrow' : 'regular'}
+      data-card-hover={theme.cardHover}
+      data-card-motion={theme.motion === 'none' ? 'none' : 'enabled'}
+      className={tagShimmerScopeClass(theme)}
       data-image-state={hasProductImage ? 'available' : 'missing'}
-      style={{ ...cardBase, display: 'flex', flexDirection: horizontal ? 'row' : 'column' }}
-      {...hoverProps}
+      style={{ ...cardBase, display: 'flex', flexDirection: 'column' }}
     >
-      <CardOpenButton itemName={item.name} onOpen={() => onOpen(item)} radius={theme.radius} />
+      <CardOpenButton itemName={item.name} onOpen={() => onOpen(item)} radius={cardRadius} />
       {onToggleFavorite && <FavoriteButton itemName={item.name} favorite={isFavorite} onToggle={onToggleFavorite} />}
-      {mediaVisible && <div style={{
-        ...(horizontal ? { width: theme.cardHorizontalImageWidth ?? 92, flexShrink: 0 } : { aspectRatio: aspect, width: '100%' }),
+      {mediaVisible && <div data-component="product-card-media" style={{
+        aspectRatio: aspect, width: '100%',
         background: theme.cardPlaceholderStyle === 'accent'
           ? 'var(--p-accent-soft)'
           : theme.cardPlaceholderStyle === 'outline'
             ? 'transparent'
             : 'linear-gradient(135deg, #f3f4f6 0%, #e6e7eb 100%)',
-        borderBottom: theme.cardPlaceholderStyle === 'outline' && !horizontal ? '1px dashed var(--p-border)' : undefined,
+        borderBottom: theme.cardPlaceholderStyle === 'outline' ? '1px dashed var(--p-border)' : undefined,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: '#bfc1c6', position: 'relative', overflow: 'hidden',
       }}>
@@ -160,19 +263,18 @@ export function ProductCard({ item, onOpen, onQuickAdd, orderingEnabled = true, 
             loading={imagePriority ? 'eager' : 'lazy'}
             fetchPriority={imagePriority ? 'high' : 'auto'}
             decoding="async"
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: theme.cardImageFit ?? 'cover', objectPosition: theme.cardImagePosition ?? 'center' }}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: theme.cardImagePosition ?? 'center' }}
           />
         ) : (
           <ImagePlaceholderIcon />
         )}
-        {theme.cardShowTag && hasModifiers && (
-          <span style={{
-            position: 'absolute', top: 8, left: 8,
-            background: 'var(--p-card)', color: 'var(--p-accent)',
-            fontSize: narrow ? 9 : 10, fontWeight: 700, letterSpacing: '.02em',
-            padding: narrow ? '2px 5px' : '3px 7px', borderRadius: 999,
-            boxShadow: '0 1px 3px rgba(0,0,0,.08)',
-          }}>Seçenekler</span>
+        {(promotionLabel || (theme.cardShowTag && hasModifiers)) && (
+          <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4, pointerEvents: 'none' }}>
+            {promotionLabel && <PromotionBadge label={promotionLabel} compact={narrow} />}
+            {theme.cardShowTag && hasModifiers && (
+              <OptionBadge compact={narrow} overlay />
+            )}
+          </div>
         )}
         {inCart && (
           <div style={{
@@ -185,23 +287,23 @@ export function ProductCard({ item, onOpen, onQuickAdd, orderingEnabled = true, 
         )}
       </div>}
       <div style={{ padding: contentPadding, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-        {!mediaVisible && theme.cardShowTag && hasModifiers && (
-          <span style={{
-            alignSelf: 'flex-start', marginBottom: 7,
-            background: 'var(--p-accent-soft)', color: 'var(--p-accent)',
-            fontSize: narrow ? 9 : 10, fontWeight: 700, letterSpacing: '.02em',
-            padding: narrow ? '2px 5px' : '3px 7px', borderRadius: 999,
-          }}>Seçenekler</span>
+        {!mediaVisible && (promotionLabel || (theme.cardShowTag && hasModifiers)) && (
+          <div style={{ alignSelf: 'flex-start', marginBottom: 7, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {promotionLabel && <PromotionBadge label={promotionLabel} compact={narrow} />}
+            {theme.cardShowTag && hasModifiers && (
+              <OptionBadge compact={narrow} />
+            )}
+          </div>
         )}
         <div style={{
-          fontWeight: 700, color: nameColor, fontSize: nameFontSize, lineHeight: 1.2,
+          fontWeight: 700, color: nameColor, fontSize: nameFontSize, lineHeight: 'var(--p-line-tight)',
           overflow: 'hidden',
           display: '-webkit-box' as React.CSSProperties['display'],
           WebkitLineClamp: narrow ? 1 : titleLines,
           WebkitBoxOrient: 'vertical',
         } as React.CSSProperties}>{item.name}</div>
         {!narrow && theme.cardShowDesc && item.description && (
-          <div style={{ fontSize: 11.5, color: 'var(--p-text-2)', marginTop: 3, flex: 1, lineHeight: 1.35, overflow: 'hidden', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: descriptionLines }}>
+          <div style={{ fontSize: 'var(--p-text-sm)', color: 'var(--p-text-2)', marginTop: 3, flex: 1, lineHeight: 'var(--p-line-body)', overflow: 'hidden', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: descriptionLines }}>
             {item.description}
           </div>
         )}
@@ -223,15 +325,49 @@ export function ProductCard({ item, onOpen, onQuickAdd, orderingEnabled = true, 
   )
 }
 
-function FavoriteButton({ itemName, favorite, onToggle }: { itemName: string; favorite: boolean; onToggle: () => void }) {
+function PromotionBadge({ label, compact = false, inline = false }: { label: string; compact?: boolean; inline?: boolean }) {
+  return (
+    <span
+      data-component="product-promotion-badge"
+      className={TAG_SHIMMER_TARGET_CLASS}
+      style={{
+        display: 'inline-flex', alignItems: 'center', width: 'fit-content',
+        marginBottom: inline ? 0 : compact ? 5 : 0,
+        background: 'var(--p-cta)', color: 'var(--p-cta-text)',
+        fontSize: compact ? 9 : 10, fontWeight: 850, letterSpacing: '.02em', lineHeight: 1.2,
+        padding: compact ? '3px 6px' : '4px 8px', borderRadius: 999,
+        boxShadow: '0 2px 6px rgba(15,17,21,.14)',
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
+function OptionBadge({ compact = false, overlay = false }: { compact?: boolean; overlay?: boolean }) {
+  return (
+    <span className={TAG_SHIMMER_TARGET_CLASS} style={{
+      background: overlay ? 'var(--p-card)' : 'var(--p-accent-soft)', color: 'var(--p-accent)',
+      fontSize: compact ? 9 : 10, fontWeight: 700, letterSpacing: '.02em', lineHeight: 1.2,
+      padding: compact ? '2px 5px' : '3px 7px', borderRadius: 999, flexShrink: 0,
+      boxShadow: overlay ? '0 1px 3px rgba(0,0,0,.08)' : undefined,
+    }}>Seçenekler</span>
+  )
+}
+
+function FavoriteButton({ itemName, favorite, onToggle, placement = 'overlay' }: { itemName: string; favorite: boolean; onToggle: () => void; placement?: 'overlay' | 'inline' }) {
   return (
     <button
       type="button"
+      data-card-favorite-action="true"
       aria-label={favorite ? `${itemName} favorilerden çıkar` : `${itemName} favorilere ekle`}
       aria-pressed={favorite}
       onClick={(event) => { event.stopPropagation(); onToggle() }}
       style={{
-        position: 'absolute', top: 6, right: 6, zIndex: 3,
+        position: placement === 'overlay' ? 'absolute' : 'relative',
+        top: placement === 'overlay' ? 6 : undefined,
+        right: placement === 'overlay' ? 6 : undefined,
+        zIndex: 3, flexShrink: 0,
         width: 44, height: 44, borderRadius: '50%',
         padding: 0, border: 'none', background: 'transparent',
         display: 'grid', placeItems: 'center', cursor: 'pointer',
@@ -257,7 +393,7 @@ function FavoriteButton({ itemName, favorite, onToggle }: { itemName: string; fa
   )
 }
 
-function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIncrement, onDecrement, hidePrice = false, priceAlign = 'left', iconKind = 'plus' }: {
+function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIncrement, onDecrement, hidePrice = false, priceAlign = 'left', iconKind = 'plus', compactRow = false }: {
   item: MenuItem
   ctaStyle: string
   narrow: boolean
@@ -268,10 +404,14 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
   hidePrice?: boolean
   priceAlign?: 'left' | 'right'
   iconKind?: 'plus' | 'cart' | 'bag'
+  compactRow?: boolean
 }) {
   const inCart = cartQuantity > 0
-  const btnSz = narrow ? 24 : 28
-  const stepperIconSize = narrow ? 11 : 13
+  const btnSz = 44
+  const actionVisualSize = narrow ? 30 : 32
+  const stepperVisualSize = narrow ? 24 : 28
+  const stepperTrackInset = narrow ? 8 : 6
+  const stepperIconSize = narrow ? 13 : 14
 
   if (!onQuickAdd) {
     return hidePrice ? null : (
@@ -283,50 +423,86 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
 
   const stepper = (
     <div
+      data-card-stepper="true"
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 2,
-        background: 'var(--p-cta)', borderRadius: 999,
-        padding: 2,
+        display: 'inline-flex', alignItems: 'center', gap: 0,
+        width: btnSz * 2, height: btnSz, background: 'transparent', borderRadius: 999,
+        padding: 0,
         flexShrink: 0, position: 'relative', zIndex: 2,
+        alignSelf: narrow ? (priceAlign === 'right' ? 'flex-end' : 'flex-start') : undefined,
       }}
       onClick={(e) => e.stopPropagation()}
     >
+      <span
+        aria-hidden="true"
+        data-card-stepper-track="true"
+        style={{
+          position: 'absolute', inset: `${stepperTrackInset}px 0`, borderRadius: 999,
+          background: 'var(--p-cta)',
+          boxShadow: '0 2px 6px rgba(15,17,21,.16)',
+          pointerEvents: 'none',
+        }}
+      />
       <button
         type="button"
+        data-card-quantity-action="decrement"
         aria-label={`${item.name} adedini azalt`}
         onClick={(e) => { e.stopPropagation(); onDecrement?.() }}
         style={{
           width: btnSz, height: btnSz, border: 'none',
-          background: 'rgba(0,0,0,0.15)', borderRadius: '50%',
+          background: 'transparent', borderRadius: '50%',
           color: 'var(--p-cta-text)', cursor: 'pointer', display: 'grid',
-          placeItems: 'center', padding: 0, lineHeight: 0,
+          placeItems: 'center', padding: 0, lineHeight: 0, position: 'relative', zIndex: 1,
         }}
-      ><AppIcons.minus size={stepperIconSize} /></button>
+      >
+        <span
+          aria-hidden="true"
+          data-card-stepper-visual="true"
+          style={{
+            width: stepperVisualSize, height: stepperVisualSize, borderRadius: '50%',
+            background: 'rgba(0,0,0,0.15)', display: 'grid', placeItems: 'center',
+            pointerEvents: 'none',
+          }}
+        ><AppIcons.minus size={stepperIconSize} /></span>
+      </button>
       <span style={{
         color: 'var(--p-cta-text)', fontSize: narrow ? 10 : 11.5, fontWeight: 750,
         minWidth: narrow ? 10 : 14, textAlign: 'center', fontVariantNumeric: 'tabular-nums',
+        position: 'absolute', left: '50%', transform: 'translateX(-50%)', zIndex: 1,
+        pointerEvents: 'none',
       }}>{cartQuantity}</span>
       <button
         type="button"
+        data-card-quantity-action="increment"
         disabled={cartQuantity >= 99}
         aria-label={`${item.name} adedini artır`}
         onClick={(e) => { e.stopPropagation(); onIncrement?.() }}
         style={{
           width: btnSz, height: btnSz, border: 'none',
-          background: 'rgba(0,0,0,0.15)', borderRadius: '50%',
+          background: 'transparent', borderRadius: '50%',
           color: 'var(--p-cta-text)', cursor: cartQuantity >= 99 ? 'not-allowed' : 'pointer', display: 'grid',
-          placeItems: 'center', padding: 0, lineHeight: 0,
+          placeItems: 'center', padding: 0, lineHeight: 0, position: 'relative', zIndex: 1,
           opacity: cartQuantity >= 99 ? 0.5 : 1,
         }}
-      ><AppIcons.plus size={stepperIconSize} /></button>
+      >
+        <span
+          aria-hidden="true"
+          data-card-stepper-visual="true"
+          style={{
+            width: stepperVisualSize, height: stepperVisualSize, borderRadius: '50%',
+            background: 'rgba(0,0,0,0.15)', display: 'grid', placeItems: 'center',
+            pointerEvents: 'none',
+          }}
+        ><AppIcons.plus size={stepperIconSize} /></span>
+      </button>
     </div>
   )
 
   if (ctaStyle === 'full') {
     return (
-      <div style={{ marginTop: 'auto', paddingTop: 10, position: 'relative', zIndex: 2 }}>
+      <div style={{ marginTop: 'auto', paddingTop: compactRow ? 0 : 10, position: 'relative', zIndex: 2 }}>
         {inCart ? (
-          <div style={{ display: 'flex', flexDirection: priceAlign === 'right' ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+          <div style={{ display: 'flex', flexDirection: narrow ? 'column' : priceAlign === 'right' ? 'row-reverse' : 'row', alignItems: narrow ? (priceAlign === 'right' ? 'flex-end' : 'flex-start') : 'center', justifyContent: 'space-between', gap: narrow ? 8 : 4 }}>
             {!hidePrice && (
               <span style={{
                 fontWeight: 700, fontSize: 13, color: 'var(--p-text)',
@@ -346,7 +522,7 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{formatTRY(item.price)}</span>
             )}
-            <button type="button" style={{
+            <button type="button" data-card-cta-action="true" style={{
               background: 'var(--p-cta)', color: 'var(--p-cta-text)', border: 'none',
               minHeight: 44, padding: '7px 0', borderRadius: 8, cursor: 'pointer',
               fontSize: 12, fontWeight: 600, width: '100%',
@@ -359,7 +535,7 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
 
   if (ctaStyle === 'pill') {
     return (
-      <div style={{ display: 'flex', flexDirection: priceAlign === 'right' ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: 10, gap: 4, position: 'relative', zIndex: 2 }}>
+      <div style={{ display: 'flex', flexDirection: inCart && narrow ? 'column' : priceAlign === 'right' ? 'row-reverse' : 'row', alignItems: inCart && narrow ? (priceAlign === 'right' ? 'flex-end' : 'flex-start') : 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: compactRow ? 0 : 10, gap: inCart && narrow ? 8 : 4, position: 'relative', zIndex: 2 }}>
         {!hidePrice && (
           <span style={{
             fontWeight: 700, fontSize: 13, color: 'var(--p-text)',
@@ -368,13 +544,24 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
           }}>{formatTRY(item.price)}</span>
         )}
         {inCart ? stepper : (
-          <button type="button" style={{
-            background: 'var(--p-cta)', color: 'var(--p-cta-text)', border: 'none',
-            minWidth: 44, minHeight: 44, padding: narrow ? '3px 8px' : '4px 11px',
-            borderRadius: 999, cursor: 'pointer',
-            fontSize: narrow ? 11 : 11.5, fontWeight: 600,
+          <button type="button" data-card-cta-action="true" style={{
+            width: 44, height: 44, padding: 0,
+            background: 'transparent', color: 'var(--p-cta-text)', border: 'none',
+            borderRadius: 999, cursor: 'pointer', display: 'grid', placeItems: 'center',
             flexShrink: 0,
-          }} aria-label={`${item.name} sepete ekle`} onClick={(e) => { e.stopPropagation(); onQuickAdd?.() }}>{narrow ? '+' : 'Ekle'}</button>
+          }} aria-label={`${item.name} sepete ekle`} onClick={(e) => { e.stopPropagation(); onQuickAdd?.() }}>
+            <span
+              aria-hidden="true"
+              data-card-cta-visual="true"
+              style={{
+                minWidth: actionVisualSize, height: actionVisualSize,
+                padding: narrow ? '0 7px' : '0 10px', borderRadius: 999,
+                background: 'var(--p-cta)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(15,17,21,.16)',
+                fontSize: narrow ? 11 : 11.5, fontWeight: 600, pointerEvents: 'none',
+              }}
+            >{narrow ? '+' : 'Ekle'}</span>
+          </button>
         )}
       </div>
     )
@@ -382,7 +569,7 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
 
   // icon (default)
   return (
-    <div style={{ display: 'flex', flexDirection: priceAlign === 'right' ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: hidePrice ? 'flex-end' : 'space-between', marginTop: 'auto', paddingTop: 10, gap: 4, position: 'relative', zIndex: 2 }}>
+    <div style={{ display: 'flex', flexDirection: inCart && narrow ? 'column' : priceAlign === 'right' ? 'row-reverse' : 'row', alignItems: inCart && narrow ? (priceAlign === 'right' ? 'flex-end' : 'flex-start') : 'center', justifyContent: hidePrice ? 'flex-end' : 'space-between', marginTop: 'auto', paddingTop: compactRow ? 0 : 10, gap: inCart && narrow ? 8 : 4, position: 'relative', zIndex: 2 }}>
       {!hidePrice && (
         <span style={{
           fontWeight: 700, fontSize: 13, color: 'var(--p-text)',
@@ -391,14 +578,23 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
         }}>{formatTRY(item.price)}</span>
       )}
       {inCart ? stepper : (
-        <button type="button" style={{
+        <button type="button" data-card-cta-action="true" style={{
           width: 44, height: 44, borderRadius: 999, border: 'none',
-          background: 'var(--p-cta)', color: 'var(--p-cta-text)', cursor: 'pointer',
+          padding: 0, background: 'transparent', color: 'var(--p-cta-text)', cursor: 'pointer',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 2px 6px rgba(15,17,21,.16)',
           flexShrink: 0,
         }} aria-label={`${item.name} sepete ekle`} onClick={(e) => { e.stopPropagation(); onQuickAdd?.() }}>
-          <CardCtaIcon kind={iconKind} />
+          <span
+            aria-hidden="true"
+            data-card-cta-visual="true"
+            style={{
+              width: actionVisualSize, height: actionVisualSize, borderRadius: 999,
+              background: 'var(--p-cta)', display: 'grid', placeItems: 'center',
+              boxShadow: '0 2px 6px rgba(15,17,21,.16)', pointerEvents: 'none',
+            }}
+          >
+            <CardCtaIcon kind={iconKind} />
+          </span>
         </button>
       )}
     </div>
@@ -409,6 +605,7 @@ function CardOpenButton({ itemName, onOpen, radius }: { itemName: string; onOpen
   return (
     <button
       type="button"
+      className="product-card-open"
       aria-label={`${itemName} detayını aç`}
       onClick={onOpen}
       style={{

@@ -10,11 +10,29 @@ const menuSlug = process.env["SMOKE_MENU_SLUG"] ?? "maf-lounge";
 test.describe("public visual smoke", () => {
   test("dashboard login is visually healthy", async ({ page }, testInfo) => {
     const failures = await collectPageFailures(page);
+    const showcaseRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/auth/showcase/")) showcaseRequests.push(request.url());
+    });
     const response = await page.goto(`${dashboardURL}/auth/login`, {
       waitUntil: "domcontentloaded",
     });
     expect(response?.status()).toBe(200);
     await expect(page.getByRole("heading", { name: /Tekrar/i }).first()).toBeVisible();
+    const showcase = page.locator("[data-login-showcase]");
+    if (testInfo.project.name === "public-desktop") {
+      await expect(showcase).toBeVisible();
+      await expect.poll(() => showcaseRequests.length).toBeGreaterThan(0);
+      const movingTrack = showcase.locator("[data-motion='forward']").first();
+      await expect.poll(() => movingTrack.evaluate((element) => getComputedStyle(element).animationPlayState)).toBe("running");
+      await showcase.hover();
+      expect(await movingTrack.evaluate((element) => getComputedStyle(element).animationPlayState)).toBe("running");
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      expect(await movingTrack.evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
+    } else {
+      await expect(showcase).toBeHidden();
+      expect(showcaseRequests).toEqual([]);
+    }
     await assertVisualHealth(page, testInfo, "dashboard-login");
     expect(failures).toEqual([]);
   });

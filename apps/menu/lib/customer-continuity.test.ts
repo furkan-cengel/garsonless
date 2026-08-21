@@ -31,7 +31,7 @@ test('cart and active-order keys separate restaurants and table sessions', () =>
 
   const cartStore = readFileSync(new URL('./store/useCartStore.ts', import.meta.url), 'utf8')
   const orderStore = readFileSync(new URL('./store/useOrderStore.ts', import.meta.url), 'utf8')
-  assert.match(cartStore, /version: 6/)
+  assert.match(cartStore, /version: 7/)
   assert.match(cartStore, /legacyUnbound: version < 6/)
   assert.match(cartStore, /lastTableByRestaurant/)
   assert.match(orderStore, /version: 2/)
@@ -61,6 +61,7 @@ test('auth return preserves a closed surface context without putting PII in the 
   const continuity = readFileSync(new URL('./menu-continuity-client.ts', import.meta.url), 'utf8')
 
   assert.match(memberSheet, /storePendingCustomerAuthContext/)
+  assert.match(memberSheet, /memberTarget: initialTarget/)
   assert.match(memberSheet, /guestSessionId/)
   assert.match(memberSheet, /deviceId/)
   assert.match(menuPage, /consumePendingCustomerAuthContext/)

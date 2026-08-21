@@ -4,6 +4,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { MenuItem } from '../../../menu/types'
 import { ComboRibbonSection } from './ComboRibbonSection'
+import { CustomSectionRenderer } from './CustomSectionRenderer'
 
 const item = (id: string, name: string, price: number, position: number, overrides: Partial<MenuItem> = {}): MenuItem => ({
   id,
@@ -118,6 +119,63 @@ test('combo ribbon hides an invalid public bundle instead of leaking placeholder
   )
 
   assert.equal(html, '')
+})
+
+test('modern combo shows every included product together, image focus and savings hierarchy', () => {
+  const html = renderToStaticMarkup(
+    <ComboRibbonSection
+      sectionInstanceId="modern-combo"
+      config={{ editorialVersion: '2', comboCount: '1', itemsPerCombo: '2', combo1Price: '250', imageFit: 'contain', imagePosition: 'top-right' }}
+      items={[
+        item('coffee', 'Közlenmiş Patlıcanlı ve İsli Çerkez Peynirli Tam Buğday Sandviç', 180, 1, { images: ['https://images.example/coffee.webp'] }),
+        item('cake', 'Belçika Çikolatalı Cheesecake', 170, 2),
+      ]}
+      onAddCombo={() => undefined}
+    />,
+  )
+
+  assert.match(html, /Kombo içeriği/)
+  assert.match(html, /2 ürün dahil/)
+  assert.match(html, /2 ürün birlikte sepete eklenir/)
+  assert.equal((html.match(/role="listitem"/g) ?? []).length, 2)
+  assert.doesNotMatch(html, /role="radiogroup"|type="radio"|data-product-choice/)
+  assert.match(html, /object-fit:contain/)
+  assert.match(html, /object-position:right top/)
+  assert.match(html, /₺100,00 kazanç/)
+  assert.match(html, /min-height:46px/)
+  assert.match(html, /font-family:var\(--p-body\)[^>]*>Birlikte daha güzel/)
+  assert.doesNotMatch(html, /garsonless-combo-v2-card:hover/)
+})
+
+test('modern combo never turns a missing ordering handler into an enabled CTA', () => {
+  const html = renderToStaticMarkup(
+    <ComboRibbonSection
+      sectionInstanceId="disabled-combo"
+      config={{ editorialVersion: '2', comboCount: '1' }}
+      items={[item('one', 'Bir', 100, 1), item('two', 'İki', 100, 2)]}
+      interactionState="ordering-disabled"
+    />,
+  )
+  assert.match(html, /disabled=""/)
+  assert.match(html, /Sipariş şu anda kapalı/)
+})
+
+test('editor preview keeps the combo CTA enabled when it has a real add handler', () => {
+  const html = renderToStaticMarkup(
+    <CustomSectionRenderer
+      sectionId="combo-ribbon"
+      sectionInstanceId="preview-combo"
+      renderContext="home"
+      editorPreview
+      restaurantName="Test Cafe"
+      config={{ editorialVersion: '2', comboCount: '1', itemsPerCombo: '2' }}
+      items={[item('one', 'Bir', 100, 1), item('two', 'İki', 100, 2)]}
+      onAddCombo={() => undefined}
+    />,
+  )
+
+  assert.match(html, /garsonless-combo-v2-add/)
+  assert.doesNotMatch(html, /disabled=""/)
 })
 
 function findElementByClassName(node: React.ReactNode, className: string): React.ReactElement | null {

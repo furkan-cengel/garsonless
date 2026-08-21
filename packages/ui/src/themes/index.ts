@@ -2,7 +2,7 @@ import { DefaultMenuPage } from './default/MenuPage'
 import { SETTINGS_SCHEMA as DEFAULT_SCHEMA, THEME_DEFAULTS } from './default/settings'
 import type { ThemeRegistryEntry } from './types'
 
-export type { ComboAddRequest, StoreInfo, SettingField, SettingsGroup, ThemeRegistryEntry } from './types'
+export type { ComboAddRequest, ComboInteractionState, FreebieAddRequest, MemberOpenTarget, StoreInfo, SettingField, SettingsGroup, ThemeRegistryEntry } from './types'
 export { computeThemeVars } from './utils'
 export { readStoreInfo } from './storeInfo'
 

@@ -11,6 +11,8 @@ import { formatTRY } from './formatCurrency'
 import type { ServiceRequestType } from '@garsonless/domain/tables'
 import { useTheme } from './ThemeContext'
 import { MenuMorphIcon } from './MenuMorphIcon'
+import { MenuCategoryIcon } from './MenuCategoryIcon'
+import { getMenuCategoryIconKey } from './menuCategoryIconModel'
 
 const DRAWER_SECTION_IDS = new Set(['hours', 'wifi-info', 'request-buttons'])
 
@@ -24,6 +26,7 @@ interface NavDrawerProps {
   categoryMeta?: CategoryMeta | undefined
   tableId?: string | null | undefined
   tableName?: string | null | undefined
+  homeHref?: string | null | undefined
   billSummary?: { total: number; count: number } | null | undefined
   onOpenBill?: (() => void) | undefined
   storeInfo?: StoreInfo | null | undefined
@@ -53,6 +56,7 @@ export function NavDrawer({
   categoryMeta = {},
   tableId,
   tableName,
+  homeHref,
   billSummary,
   onOpenBill,
   storeInfo,
@@ -249,7 +253,7 @@ export function NavDrawer({
                 <MenuMorphIcon open={open} size={21} />
               </button>
             )}
-            <span data-drawer-mark aria-hidden="true">{logoUrl ? <img src={logoUrl} alt="" /> : restaurantName.trim().charAt(0).toLocaleUpperCase('tr-TR') || 'M'}</span>
+            <span data-drawer-mark data-logo-image={logoUrl ? 'true' : 'false'} aria-hidden="true">{logoUrl ? <img src={logoUrl} alt="" /> : restaurantName.trim().charAt(0).toLocaleUpperCase('tr-TR') || 'M'}</span>
             <div>
               <h2>{restaurantName}</h2>
               {(theme.drawerShowStatus ?? true) && <span><i /> {todayHours(storeInfo)}</span>}
@@ -272,28 +276,47 @@ export function NavDrawer({
           {query && <button type="button" aria-label="Aramayı temizle" onClick={() => setQuery('')}><I.close size={14} /></button>}
         </div>}
 
-        <nav data-drawer-nav aria-label="Menü kategorileri">
+        <nav data-drawer-nav aria-label="Menü navigasyonu">
+          {homeHref && (
+            <>
+              <p data-drawer-group>Gezinme</p>
+              <a href={homeHref} data-drawer-row data-drawer-home-link>
+                {(theme.drawerShowIcons ?? true) && <span data-row-icon><I.home size={18} /></span>}
+                <span data-row-copy><b>Ana Sayfa</b><small>Karşılama sayfasına dön</small></span>
+                <I.chevRight data-row-chevron size={16} />
+              </a>
+            </>
+          )}
           <p data-drawer-group>Menü</p>
           {visibleRoots.map((category) => {
             const children = (childrenByParent.get(category.id) ?? []).filter((child) => !normalizedQuery || child.name.toLocaleLowerCase('tr-TR').includes(normalizedQuery))
             const isActive = activeCategoryId === category.id || children.some((child) => child.id === activeCategoryId)
             const itemCount = categoryMeta[category.id]?.itemCount
+            const categoryIcon = getMenuCategoryIconKey(category.name)
             return (
               <div key={category.id} data-category-group>
                 <button type="button" data-drawer-row data-active={isActive} onClick={() => navigateToCategory(category.id)}>
-                  {(theme.drawerShowIcons ?? true) && <span data-row-icon><I.cutlery size={18} /></span>}
+                  {(theme.drawerShowIcons ?? true) && (
+                    <span data-row-icon>
+                      {categoryIcon ? <MenuCategoryIcon icon={categoryIcon} /> : <I.menuDish size={18} />}
+                    </span>
+                  )}
                   <span data-row-copy><b>{category.name}</b>{(theme.drawerShowDescriptions ?? true) && <small>{children.length > 0 ? `${children.length} alt kategori` : 'Ürünleri görüntüle'}</small>}</span>
                   {(theme.drawerShowCounts ?? true) && typeof itemCount === 'number' && <span data-row-count>{itemCount}</span>}
                   <I.chevRight data-row-chevron size={16} />
                 </button>
                 {children.length > 0 && (
                   <div data-drawer-children>
-                    {children.map((child) => (
-                      <button type="button" key={child.id} data-active={activeCategoryId === child.id} onClick={() => navigateToCategory(child.id)}>
-                        <i /><b>{child.name}</b>
-                        {(theme.drawerShowCounts ?? true) && typeof categoryMeta[child.id]?.itemCount === 'number' && <span>{categoryMeta[child.id]?.itemCount}</span>}
-                      </button>
-                    ))}
+                    {children.map((child) => {
+                      const childIcon = getMenuCategoryIconKey(child.name)
+                      return (
+                        <button type="button" key={child.id} data-active={activeCategoryId === child.id} onClick={() => navigateToCategory(child.id)}>
+                          {childIcon ? <MenuCategoryIcon data-child-category-icon icon={childIcon} /> : <i />}
+                          <b>{child.name}</b>
+                          {(theme.drawerShowCounts ?? true) && typeof categoryMeta[child.id]?.itemCount === 'number' && <span>{categoryMeta[child.id]?.itemCount}</span>}
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -324,12 +347,12 @@ export function NavDrawer({
         </nav>
         {(
           (placements.cart === 'drawer' && onOpenCart) ||
-          onOpenMember ||
+          (placements.member === 'drawer' && onOpenMember) ||
           (placements.service === 'drawer' && requestBlock && (onOpenServiceRequests || onServiceRequest))
         ) && (
           <footer data-drawer-footer>
             <div data-customer-links>
-              {onOpenMember && (
+              {placements.member === 'drawer' && onOpenMember && (
                 <button type="button" onClick={() => { onClose(); onOpenMember() }}>
                   {memberIsMember
                     ? <I.userCircle size={18} strokeWidth={1.9} />
@@ -395,10 +418,10 @@ function WifiPanel({ config, copied, onCopy }: { config: Record<string, string>;
 }
 
 const NAV_DRAWER_CSS = `
-[data-nav-drawer-scrim]{position:fixed;inset:0;z-index:1198;background:rgba(15,17,20,var(--drawer-overlay-opacity));backdrop-filter:blur(var(--drawer-overlay-blur));opacity:0;pointer-events:none;transition:opacity .28s ease}
+[data-nav-drawer-scrim]{position:fixed;inset:0;z-index:var(--p-layer-drawer-scrim,1198);background:rgba(15,17,20,var(--drawer-overlay-opacity));backdrop-filter:blur(var(--drawer-overlay-blur));opacity:0;pointer-events:none;transition:opacity .28s ease}
 [data-nav-drawer-scrim][data-position="below-header"]{top:var(--p-header-sticky-height,64px)}
 [data-nav-drawer-scrim][data-open="true"]{opacity:1;pointer-events:auto}
-[data-nav-drawer]{position:fixed;z-index:1199;inset:0 auto 0 0;width:min(88vw,var(--drawer-width));background:var(--p-card,#fff);border-radius:0 var(--drawer-radius) var(--drawer-radius) 0;box-shadow:24px 0 64px -24px rgba(15,17,20,.56);display:flex;flex-direction:column;overflow:hidden;transform:translateX(-104%);transition:transform .38s cubic-bezier(.5,.1,.2,1);outline:none;font-family:var(--p-body)}
+[data-nav-drawer]{position:fixed;z-index:var(--p-layer-drawer,1199);inset:0 auto 0 0;width:min(88vw,var(--drawer-width));background:var(--p-card,#fff);border-radius:0 var(--drawer-radius) var(--drawer-radius) 0;box-shadow:24px 0 64px -24px rgba(15,17,20,.56);display:flex;flex-direction:column;overflow:hidden;transform:translateX(-104%);transition:transform .38s cubic-bezier(.5,.1,.2,1);outline:none;font-family:var(--p-body)}
 [data-nav-drawer][data-position="below-header"]{top:var(--p-header-sticky-height,64px)}
 [data-nav-drawer][data-side="right"]{inset:0 0 0 auto;border-radius:var(--drawer-radius) 0 0 var(--drawer-radius);transform:translateX(104%)}
 [data-nav-drawer][data-side="right"][data-position="below-header"]{top:var(--p-header-sticky-height,64px)}
@@ -415,8 +438,8 @@ const NAV_DRAWER_CSS = `
 [data-nav-drawer][data-tone="surface"] [data-drawer-table]{color:var(--p-text);border-color:var(--p-border);background:var(--p-bg)}
 [data-nav-drawer][data-tone="dark"] [data-drawer-header]{background:#17191d;color:#fff}
 [data-drawer-brand]{display:flex;align-items:center;gap:12px}
-[data-drawer-mark]{width:46px;height:46px;border-radius:14px;background:#fff;color:var(--p-accent);display:grid;place-items:center;font:700 21px var(--p-body);flex:0 0 auto}
-[data-drawer-mark] img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
+[data-drawer-mark]{min-width:46px;max-width:92px;height:46px;padding:6px;border-radius:12px;background:#fff;color:var(--p-accent);display:grid;place-items:center;box-sizing:border-box;font:700 21px var(--p-body);flex:0 0 auto;overflow:hidden}
+[data-drawer-mark] img{display:block;width:auto;height:auto;max-width:80px;max-height:34px;object-fit:contain}
 [data-drawer-brand]>div{flex:1;min-width:0}
 [data-drawer-brand] h2{margin:0;font:700 19px/1.15 var(--p-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 [data-drawer-brand] div span{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:11.5px;color:rgba(255,255,255,.74)}
@@ -434,7 +457,7 @@ const NAV_DRAWER_CSS = `
 [data-drawer-search] input::placeholder{color:var(--p-text-2)}[data-drawer-search] button{border:0;background:transparent;color:var(--p-text-2);display:grid;place-items:center;cursor:pointer;padding:4px}
 [data-drawer-nav]{flex:1;min-height:0;overflow-y:auto;padding:4px 12px 18px;scrollbar-width:thin}
 [data-drawer-group]{margin:0;padding:12px 10px 6px;font:700 10px/1 var(--p-body);letter-spacing:.12em;text-transform:uppercase;color:var(--p-text-2)}
-[data-drawer-row]{position:relative;width:100%;padding:10px 11px;border:0;border-radius:12px;background:transparent;color:var(--p-text);display:flex;align-items:center;gap:12px;text-align:left;font-family:inherit;cursor:pointer;transition:background .15s}
+[data-drawer-row]{position:relative;width:100%;padding:10px 11px;border:0;border-radius:12px;background:transparent;color:var(--p-text);display:flex;align-items:center;gap:12px;text-align:left;text-decoration:none;font-family:inherit;cursor:pointer;transition:background .15s}
 [data-nav-drawer][data-density="compact"] [data-drawer-row]{padding-block:7px}[data-nav-drawer][data-density="compact"] [data-row-icon]{width:32px;height:32px}
 [data-drawer-row]:hover{background:color-mix(in srgb,var(--p-accent-soft) 48%,transparent)}
 [data-drawer-row][data-active="true"]{background:var(--p-accent-soft)}
@@ -442,6 +465,7 @@ const NAV_DRAWER_CSS = `
 [data-nav-drawer][data-active-style="soft"] [data-drawer-row][data-active="true"]:before,[data-nav-drawer][data-active-style="filled"] [data-drawer-row][data-active="true"]:before{display:none}
 [data-nav-drawer][data-active-style="filled"] [data-drawer-row][data-active="true"]{background:var(--p-accent);color:#fff}
 [data-row-icon]{width:38px;height:38px;border-radius:11px;background:color-mix(in srgb,var(--p-text) 7%,transparent);color:var(--p-text-2);display:grid;place-items:center;flex:0 0 auto}
+[data-row-icon]>svg{width:21px;height:21px}
 [data-nav-drawer][data-icon-style="filled"] [data-row-icon]{background:var(--p-accent);color:#fff}[data-nav-drawer][data-icon-style="outline"] [data-row-icon]{background:transparent;border:1px solid var(--p-border)}
 [data-drawer-row][data-active="true"] [data-row-icon]{background:var(--p-accent);color:#fff}
 [data-row-copy]{flex:1;min-width:0}[data-row-copy] b{display:block;font-size:var(--drawer-top-font);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}[data-row-copy] small{display:block;margin-top:2px;color:var(--p-text-2);font-size:calc(var(--drawer-sub-font) - 2px)}
@@ -451,6 +475,8 @@ const NAV_DRAWER_CSS = `
 [data-drawer-children] button{width:100%;padding:8px 10px;border:0;border-radius:9px;background:transparent;color:var(--p-text-2);display:flex;align-items:center;gap:9px;text-align:left;font-family:inherit;cursor:pointer}
 [data-drawer-children] button:hover,[data-drawer-children] button[data-active="true"]{background:color-mix(in srgb,var(--p-accent-soft) 60%,transparent);color:var(--p-text)}
 [data-drawer-children] i{width:7px;height:7px;border:2px solid var(--p-border);border-radius:50%;flex:0 0 auto}[data-drawer-children] b{flex:1;font-size:var(--drawer-sub-font)}[data-drawer-children] span{font-size:10.5px}
+[data-child-category-icon]{width:16px;height:16px;flex:0 0 auto;color:var(--p-text-2)}
+[data-drawer-children] button:hover [data-child-category-icon],[data-drawer-children] button[data-active="true"] [data-child-category-icon]{color:var(--p-accent)}
 [data-info-panel]{margin:2px 4px 8px 50px;padding:10px 12px;border:1px solid var(--p-border);border-radius:11px;background:color-mix(in srgb,var(--p-bg) 72%,var(--p-card));font-size:11.5px;color:var(--p-text-2)}
 [data-info-panel]>div{display:flex;justify-content:space-between;gap:12px;padding:5px 0}[data-info-panel]>div b{color:var(--p-text);font-weight:650}
 [data-info-panel]>div[data-today="true"]{margin-inline:-6px;padding-inline:6px;border-radius:6px;background:var(--p-accent-soft);color:var(--p-accent)}
@@ -461,7 +487,7 @@ const NAV_DRAWER_CSS = `
 [data-drawer-footer]{flex:0 0 auto;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--p-border);background:color-mix(in srgb,var(--p-bg) 72%,var(--p-card));display:grid;gap:9px}
 [data-customer-links],[data-primary-actions]{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 [data-customer-links]>button:only-child,[data-primary-actions]>button:only-child{grid-column:1/-1}
-[data-drawer-footer] button{min-height:42px;border:1px solid var(--p-border);border-radius:11px;background:var(--p-card);color:var(--p-text);display:flex;align-items:center;justify-content:center;gap:7px;font:700 12.5px var(--p-body);cursor:pointer}
+[data-drawer-footer] button{min-height:44px;border:1px solid var(--p-border);border-radius:11px;background:var(--p-card);color:var(--p-text);display:flex;align-items:center;justify-content:center;gap:7px;font:700 12.5px var(--p-body);cursor:pointer}
 [data-drawer-footer] button[data-primary]{background:var(--p-accent);border-color:var(--p-accent);color:#fff}
 [data-request-feedback]{padding:7px 9px;border-radius:8px;background:var(--p-accent-soft);color:var(--p-accent);font-size:11px;font-weight:700;text-align:center}
 [data-nav-drawer][data-preset="minimal"] [data-row-icon]{display:none}[data-nav-drawer][data-preset="minimal"] [data-drawer-header]{padding-bottom:13px}[data-nav-drawer][data-preset="minimal"] [data-drawer-row]{border-radius:6px}

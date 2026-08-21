@@ -38,6 +38,8 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
   const prefersReducedMotion = usePrefersReducedMotion()
   const [internalActiveId, setInternalActiveId] = useState(categories[0]?.id ?? '')
   const [scrollEdges, setScrollEdges] = useState({ left: false, right: false })
+  const [contentFits, setContentFits] = useState(false)
+  const [navigationStatus, setNavigationStatus] = useState('')
   const navRef = useRef<HTMLDivElement>(null)
   const shellRef = useRef<HTMLElement>(null)
   const manualActiveIdRef = useRef<string | null>(null)
@@ -58,6 +60,10 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
     setScrollEdges((current) => current.left === nextEdges.left && current.right === nextEdges.right
       ? current
       : nextEdges)
+    setContentFits((current) => {
+      const next = nav.scrollWidth <= nav.clientWidth + 2
+      return current === next ? current : next
+    })
     document.documentElement.style.setProperty('--p-catnav-sticky-height', `${shellRef.current?.getBoundingClientRect().height ?? nav.getBoundingClientRect().height}px`)
   }, [])
 
@@ -85,7 +91,11 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
     const observer = new ResizeObserver(updateMeasurements)
     if (navRef.current) observer.observe(navRef.current)
     if (shellRef.current) observer.observe(shellRef.current)
-    return () => { cancelAnimationFrame(frame); observer.disconnect() }
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      document.documentElement.style.removeProperty('--p-catnav-sticky-height')
+    }
   }, [categories, style, updateMeasurements])
 
   useEffect(() => {
@@ -128,14 +138,15 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
   useEffect(() => {
     if (activeCategoryId == null && !categories.some((category) => category.id === internalActiveId)) {
       setInternalActiveId(categories[0]?.id ?? '')
+      if (internalActiveId) setNavigationStatus('Aktif kategori artık görünür olmadığı için ilk görünür kategori seçildi.')
     }
   }, [activeCategoryId, categories, internalActiveId])
 
   useEffect(() => {
-    if (!activeId || !(theme.catnavAutoCenter ?? true)) return
+    if (!activeId) return
     const frame = requestAnimationFrame(() => centerCategory(activeId, theme.motion === 'none' || prefersReducedMotion ? 'auto' : 'smooth'))
     return () => cancelAnimationFrame(frame)
-  }, [activeId, centerCategory, prefersReducedMotion, theme.catnavAutoCenter, theme.motion])
+  }, [activeId, centerCategory, prefersReducedMotion, theme.motion])
 
   const scrollToCategory = (id: string) => {
     manualActiveIdRef.current = id
@@ -146,6 +157,10 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
     }, 1_200)
     setInternalActiveId(id)
     onCategorySelect?.(id)
+    const nextHash = `#category-${encodeURIComponent(id)}`
+    if (window.location.hash !== nextHash) {
+      window.history.pushState({ ...window.history.state, garsonlessCategoryId: id }, '', nextHash)
+    }
     requestAnimationFrame(() => {
       document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: theme.motion === 'none' || prefersReducedMotion ? 'auto' : 'smooth', block: 'start' })
     })
@@ -170,8 +185,8 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
   }
 
   const acc = 'var(--p-accent)'
-  const gap = theme.catnavItemGap ?? (style === 'visual' ? 12 : style === 'underline' ? 16 : style === 'dots' ? 12 : 8)
-  const align = theme.catnavAlign ?? 'left'
+  const density = theme.catnavDensity ?? 'normal'
+  const gap = density === 'compact' ? 6 : density === 'comfortable' ? 10 : 8
 
   return (
     <nav
@@ -183,12 +198,26 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
       style={{
         background: 'var(--p-bg)',
         position: theme.stickyNav ? 'sticky' : 'relative',
-        top: theme.stickyNav ? (theme.stickyHeader ? `var(--p-header-sticky-height, ${theme.headerHeight}px)` : 0) : undefined,
-        zIndex: theme.stickyNav ? 10 : undefined,
+        top: theme.stickyNav ? (theme.stickyHeader ? `calc(var(--p-header-sticky-height, ${theme.headerHeight}px) + var(--p-header-sticky-gap, 0px))` : 0) : undefined,
+        zIndex: theme.stickyNav ? 'var(--p-layer-catnav, 10)' : undefined,
         borderBottom: style === 'underline' ? '1px solid var(--p-border)' : 'none',
       }}
     >
-      <style>{`[data-catnav-scroll]::-webkit-scrollbar{display:none}[data-component="catnav"] button:focus-visible{outline:2px solid var(--p-accent);outline-offset:2px}`}</style>
+      <style>{`
+        [data-catnav-scroll]::-webkit-scrollbar{display:none}
+        [data-component="catnav"] button:focus-visible{outline:2px solid var(--p-accent);outline-offset:2px}
+        @media (hover:hover) and (pointer:fine){
+          [data-component="catnav"] button:hover [data-catnav-chip],
+          [data-component="menu-filters"] [data-filter-trigger]:hover [data-filter-trigger-surface]{filter:brightness(.97)}
+        }
+        @media (prefers-reduced-motion:reduce){
+          [data-component="catnav"] [data-catnav-chip]{transition:none!important}
+        }
+        @media (max-width:767px){
+          [data-component="catnav"] [data-catnav-chip]{max-width:220px!important}
+        }
+      `}</style>
+      {navigationStatus && <span role="status" style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>{navigationStatus}</span>}
       <div style={{
         padding: style === 'visual'
           ? `${theme.navTopGap ?? 4}px var(--p-pad) ${theme.navBottomGap ?? 16}px`
@@ -210,7 +239,7 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
             WebkitOverflowScrolling: 'touch',
             scrollPaddingInline: 2,
             scrollbarWidth: 'none',
-            maskImage: theme.catnavEdgeFade && (scrollEdges.left || scrollEdges.right)
+            maskImage: (scrollEdges.left || scrollEdges.right)
               ? `linear-gradient(90deg, ${scrollEdges.left ? 'transparent 0, #000 18px' : '#000 0'}, #000 calc(100% - 18px), ${scrollEdges.right ? 'transparent 100%' : '#000 100%'})`
               : undefined,
           }}
@@ -219,7 +248,7 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
             display: 'flex',
             width: 'max-content',
             minWidth: '100%',
-            justifyContent: align === 'spread' ? 'space-between' : align === 'center' ? 'center' : undefined,
+            justifyContent: contentFits ? 'center' : 'flex-start',
             gap,
             background: style === 'segmented' ? 'color-mix(in srgb, var(--p-border) 68%, transparent)' : 'transparent',
             padding: style === 'segmented' ? 3 : 0,
@@ -229,7 +258,6 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
               <NavItem
                 key={cat.id}
                 cat={cat}
-                index={index}
                 isActive={activeId === cat.id}
                 navStyle={style}
                 meta={categoryMeta[cat.id] ?? null}
@@ -247,7 +275,6 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
 
 function NavItem({
   cat,
-  index,
   isActive,
   navStyle,
   meta,
@@ -256,7 +283,6 @@ function NavItem({
   onKeyDown,
 }: {
   cat: MenuCategory
-  index: number
   isActive: boolean
   navStyle: string
   meta: { imageUrl?: string | null; itemCount?: number } | null
@@ -265,16 +291,25 @@ function NavItem({
   onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void
 }) {
   const { theme } = useTheme()
-  const countSuffix = theme.catnavShowCount ? ` · ${meta?.itemCount ?? 0}` : ''
   const density = theme.catnavDensity ?? 'normal'
-  const minHeight = density === 'compact' ? 34 : density === 'comfortable' ? 44 : 38
-  const fontSize = theme.catnavFontSize ?? 12
+  const visibleHeight = density === 'compact' ? 32 : density === 'comfortable' ? 40 : 36
+  const fontSize = 'clamp(12px, calc(var(--p-fs) - 2px), 17px)'
   const activeStyle = theme.catnavActiveStyle ?? 'filled'
+  const supportsActiveStyle = ['pills', 'segmented', 'outlined'].includes(navStyle)
   const activeTreatment = getCategoryNavActiveTreatment(activeStyle, acc)
   const base: React.CSSProperties = {
-    flexShrink: 0, cursor: 'pointer', border: 'none',
-    fontFamily: 'inherit', transition: 'all 150ms ease',
-    background: 'transparent', minHeight,
+    flexShrink: 0,
+    minWidth: 44,
+    minHeight: 44,
+    padding: 0,
+    cursor: 'pointer',
+    border: 'none',
+    fontFamily: 'inherit',
+    background: 'transparent',
+    color: 'inherit',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   }
   const selectedSurface: React.CSSProperties = isActive ? {
     background: activeTreatment.background,
@@ -282,138 +317,69 @@ function NavItem({
     borderColor: activeTreatment.borderColor,
     boxShadow: activeTreatment.boxShadow,
   } : {}
-  const a11y = { type: 'button' as const, 'aria-current': isActive ? 'location' as const : undefined, onKeyDown }
+  const count = meta?.itemCount ?? 0
+  const a11y = {
+    type: 'button' as const,
+    'aria-current': isActive ? 'location' as const : undefined,
+    'aria-label': theme.catnavShowCount ? `${cat.name}, ${count} ürün` : cat.name,
+    title: cat.name,
+    onKeyDown,
+  }
+  const surfaceBase: React.CSSProperties = {
+    minHeight: visibleHeight,
+    maxWidth: 280,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    fontSize,
+    lineHeight: 'var(--p-line-tight)',
+    transition: 'background 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease',
+    pointerEvents: 'none',
+  }
+  const label = (
+    <>
+      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.name}</span>
+      {theme.catnavShowCount && (
+        <span aria-hidden="true" style={{ minWidth: 18, height: 18, paddingInline: 5, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, lineHeight: 1, fontWeight: 800, background: isActive && supportsActiveStyle && activeStyle === 'filled' ? 'color-mix(in srgb, var(--p-cta-text) 18%, transparent)' : 'color-mix(in srgb, currentColor 10%, transparent)' }}>{count}</span>
+      )}
+    </>
+  )
 
   if (navStyle === 'underline') {
     return (
-      <button {...a11y} data-cat={cat.id} onClick={onClick} style={{
-        ...base, padding: '6px 8px', borderRadius: 6, fontSize: fontSize + 1,
-        fontWeight: isActive ? 600 : 500,
-        color: 'var(--p-text-2)',
-        border: '1px solid transparent',
-        borderBottomWidth: 2,
-        ...selectedSurface,
-        borderBottomColor: isActive ? acc : 'transparent',
-      }}>{cat.name}{countSuffix}</button>
+      <button {...a11y} data-cat={cat.id} onClick={onClick} style={base}>
+        <span data-catnav-chip style={{ ...surfaceBase, padding: '5px 8px', borderRadius: 6, fontWeight: isActive ? 700 : 550, color: isActive ? acc : 'var(--p-text-2)', border: '1px solid transparent', borderBottomWidth: 2, borderBottomColor: isActive ? acc : 'transparent' }}>{label}</span>
+      </button>
     )
   }
   if (navStyle === 'segmented') {
     return (
-      <button {...a11y} data-cat={cat.id} onClick={onClick} style={{
-        ...base, padding: '5px 11px', borderRadius: 7, border: '1px solid transparent',
-        fontSize, fontWeight: isActive ? 600 : 500,
-        color: 'var(--p-text-2)',
-        ...selectedSurface,
-      }}>{cat.name}{countSuffix}</button>
-    )
-  }
-  if (navStyle === 'visual') {
-    return (
-      <button {...a11y} data-cat={cat.id} onClick={onClick} style={{
-        ...base,
-        width: 118,
-        minHeight: 134,
-        borderRadius: 14,
-        padding: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'stretch',
-        background: isActive ? acc : 'var(--p-card)',
-        color: isActive ? 'var(--p-cta-text)' : 'var(--p-text-2)',
-        border: isActive ? 'none' : '1px solid var(--p-border)',
-        overflow: 'hidden',
-        boxShadow: isActive ? '0 10px 22px -14px color-mix(in srgb, var(--p-accent) 80%, #000), var(--p-shadow)' : 'var(--p-shadow)',
-      }}>
-        <span
-          aria-hidden
-          style={{
-            height: 82,
-            width: '100%',
-            display: 'grid',
-            placeItems: 'center',
-            background: meta?.imageUrl
-              ? `url("${meta.imageUrl}") center/cover`
-              : 'linear-gradient(135deg, var(--p-card) 0%, var(--p-accent-soft) 100%)',
-            color: 'var(--p-text-2)',
-            position: 'relative',
-          }}
-        >
-          {!meta?.imageUrl && <span style={{ fontSize: 24 }}>▧</span>}
-          {isActive && (
-            <span style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'color-mix(in srgb, var(--p-accent) 28%, transparent)',
-            }} />
-          )}
-        </span>
-        <span style={{
-          minHeight: 52,
-          padding: '9px 10px 10px',
-          display: 'grid',
-          alignContent: 'center',
-          gap: 2,
-          background: isActive ? acc : 'var(--p-card)',
-        }}>
-          <span style={{
-            maxWidth: '100%',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            fontSize: 12.5,
-            lineHeight: 1.2,
-            fontWeight: isActive ? 850 : 750,
-            color: isActive ? 'var(--p-cta-text)' : 'var(--p-accent)',
-          }}>
-            {cat.name}
-          </span>
-          {theme.catnavShowCount && (
-            <span style={{
-              fontSize: 10.5,
-              lineHeight: 1.2,
-              fontWeight: 650,
-              color: isActive ? 'color-mix(in srgb, var(--p-cta-text) 72%, transparent)' : 'var(--p-text-2)',
-            }}>
-              {meta?.itemCount ?? index + 1} ürün
-            </span>
-          )}
-        </span>
+      <button {...a11y} data-cat={cat.id} onClick={onClick} style={base}>
+        <span data-catnav-chip style={{ ...surfaceBase, padding: '5px 11px', borderRadius: 7, border: '1px solid transparent', fontWeight: isActive ? 700 : 550, color: 'var(--p-text-2)', ...selectedSurface }}>{label}</span>
       </button>
     )
   }
   if (navStyle === 'outlined') {
     return (
-      <button {...a11y} data-cat={cat.id} onClick={onClick} style={{
-        ...base, padding: '5px 11px', borderRadius: 6,
-        fontSize, fontWeight: isActive ? 600 : 500,
-        background: 'var(--p-card)',
-        color: 'var(--p-text-2)',
-        border: '1px solid var(--p-border)',
-        ...selectedSurface,
-      }}>{cat.name}{countSuffix}</button>
+      <button {...a11y} data-cat={cat.id} onClick={onClick} style={base}>
+        <span data-catnav-chip style={{ ...surfaceBase, padding: '5px 11px', borderRadius: 6, fontWeight: isActive ? 700 : 550, background: 'var(--p-card)', color: 'var(--p-text-2)', border: '1px solid var(--p-border)', ...selectedSurface }}>{label}</span>
+      </button>
     )
   }
   if (navStyle === 'dots') {
     return (
-      <button {...a11y} data-cat={cat.id} onClick={onClick} style={{
-        ...base, padding: '4px 8px', borderRadius: 7, border: '1px solid transparent',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-        fontSize, fontWeight: isActive ? 600 : 500,
-        color: 'var(--p-text-2)',
-        ...selectedSurface,
-      }}>
-        {cat.name}{countSuffix}
-        <span style={{ width: 4, height: 4, borderRadius: 999, background: isActive ? (activeStyle === 'filled' ? 'var(--p-cta-text)' : acc) : 'transparent' }} />
+      <button {...a11y} data-cat={cat.id} onClick={onClick} style={base}>
+        <span data-catnav-chip style={{ ...surfaceBase, padding: '3px 8px', borderRadius: 7, border: '1px solid transparent', flexDirection: 'column', gap: 2, fontWeight: isActive ? 700 : 550, color: isActive ? acc : 'var(--p-text-2)' }}>
+        {label}
+        <span style={{ width: 4, height: 4, borderRadius: 999, background: isActive ? acc : 'transparent' }} />
+        </span>
       </button>
     )
   }
   return (
-    <button {...a11y} data-cat={cat.id} onClick={onClick} style={{
-      ...base, padding: '6px 12px', borderRadius: 999,
-      fontSize, fontWeight: isActive ? 600 : 500,
-      color: 'var(--p-text-2)',
-      border: '1px solid var(--p-border)',
-      ...selectedSurface,
-    }}>{cat.name}{countSuffix}</button>
+    <button {...a11y} data-cat={cat.id} onClick={onClick} style={base}>
+      <span data-catnav-chip style={{ ...surfaceBase, padding: '5px 12px', borderRadius: 999, fontWeight: isActive ? 700 : 550, color: 'var(--p-text-2)', border: '1px solid var(--p-border)', ...selectedSurface }}>{label}</span>
+    </button>
   )
 }

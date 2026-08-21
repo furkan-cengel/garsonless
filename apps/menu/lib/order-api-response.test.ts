@@ -15,6 +15,19 @@ test('valid order JSON is preserved', async () => {
   assert.equal(parsed.data?.breakdown.finalTotal, 10)
 })
 
+test('coupon failures preserve their machine-readable code for checkout state', async () => {
+  const response = new Response(JSON.stringify({
+    success: false,
+    code: 'COUPON_EXHAUSTED',
+    error: 'Bu kuponun toplam kullanım hakkı doldu.',
+  }), { status: 409, headers: { 'content-type': 'application/json' } })
+  assert.deepEqual(await readOrderApiResponse(response), {
+    success: false,
+    code: 'COUPON_EXHAUSTED',
+    error: 'Bu kuponun toplam kullanım hakkı doldu.',
+  })
+})
+
 test('non-JSON gateway failures become retryable UI errors', async () => {
   const response = new Response('<html>Bad gateway</html>', { status: 502 })
   assert.deepEqual(await readOrderApiResponse(response), {

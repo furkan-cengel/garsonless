@@ -56,13 +56,15 @@ export function hasAllergenInformation(item: MenuItem): boolean {
 export function DietaryBadges({
   item,
   compact = false,
+  singleLine = false,
 }: {
   item: MenuItem
   compact?: boolean
+  singleLine?: boolean
 }) {
   const badges = [
     item.is_vegan ? 'Vegan' : null,
-    item.is_vegetarian ? 'Vejetaryen' : null,
+    item.is_vegetarian && !(singleLine && item.is_vegan) ? 'Vejetaryen' : null,
     item.is_halal ? 'Helal' : null,
   ].filter((label): label is string => label !== null)
 
@@ -71,7 +73,8 @@ export function DietaryBadges({
   return (
     <div
       data-component="dietary-badges"
-      style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}
+      data-layout={singleLine ? 'single-line' : 'wrap'}
+      style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: singleLine ? 'nowrap' : 'wrap', minWidth: 0 }}
     >
       {badges.map((label) => (
         <span
@@ -87,6 +90,7 @@ export function DietaryBadges({
             fontSize: compact ? 9.5 : 11,
             fontWeight: 800,
             lineHeight: 1,
+            flexShrink: 0,
           }}
         >
           {label}

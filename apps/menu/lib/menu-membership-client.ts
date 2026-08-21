@@ -12,8 +12,49 @@ export interface MembershipDiscountPreview {
   catalogDiscountAmount: number
   catalogItemName: string | null
   catalogPointsCost: number
+  couponId: string | null
+  couponCode: string | null
+  couponName: string | null
+  couponDiscountAmount: number
+  couponStackingPolicy: 'exclusive' | 'combine_loyalty' | null
   finalTotal: number
   loyaltySuppressedByPromotion?: boolean
+}
+
+export type CheckoutDiscountPreviewResult =
+  | { ok: true; preview: MembershipDiscountPreview }
+  | { ok: false; code: string | null; error: string }
+
+export async function fetchCheckoutDiscountPreview(input: {
+  restaurantId: string
+  items: CartItem[]
+  redeemPoints: number
+  redeemStampClaim: boolean
+  catalogItemId: string | null
+  couponCode: string | null
+  signal: AbortSignal
+}): Promise<CheckoutDiscountPreviewResult> {
+  const response = await fetch('/api/checkout/preview', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: input.signal,
+    body: JSON.stringify({
+      restaurantId: input.restaurantId,
+      items: input.items.map((item) => ({
+        itemId: item.itemId, quantity: item.quantity, selectedModifiers: item.modifiers,
+        removedIngredientIds: item.removedIngredientIds,
+        ...(item.productNote ? { productNote: item.productNote } : {}),
+        ...(item.recommendationSourceItemId ? { recommendationSourceItemId: item.recommendationSourceItemId } : {}),
+        ...(item.combo ? { combo: item.combo } : {}),
+        ...(item.promotion ? { promotion: item.promotion } : {}),
+      })),
+      redeemPoints: input.redeemPoints,
+      redeemStampClaim: input.redeemStampClaim,
+      catalogItemId: input.catalogItemId,
+      couponCode: input.couponCode,
+    }),
+  })
+  const payload = await response.json().catch(() => null) as { ok?: boolean; preview?: MembershipDiscountPreview; code?: string; error?: string } | null
+  if (response.ok && payload?.ok && payload.preview) return { ok: true, preview: payload.preview }
+  return { ok: false, code: payload?.code ?? null, error: payload?.error ?? 'İndirim doğrulanamadı.' }
 }
 
 export async function fetchMembershipDiscountPreview(input: {
@@ -24,30 +65,8 @@ export async function fetchMembershipDiscountPreview(input: {
   catalogItemId: string | null
   signal: AbortSignal
 }): Promise<MembershipDiscountPreview | null> {
-  const response = await fetch('/api/loyalty/preview-discount', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal: input.signal,
-    body: JSON.stringify({
-      restaurantId: input.restaurantId,
-      items: input.items.map((item) => ({
-        itemId: item.itemId,
-        quantity: item.quantity,
-        selectedModifiers: item.modifiers,
-        removedIngredientIds: item.removedIngredientIds,
-        ...(item.productNote ? { productNote: item.productNote } : {}),
-        ...(item.recommendationSourceItemId ? { recommendationSourceItemId: item.recommendationSourceItemId } : {}),
-        ...(item.combo ? { combo: item.combo } : {}),
-        ...(item.promotion ? { promotion: item.promotion } : {}),
-      })),
-      redeemPoints: input.redeemPoints,
-      redeemStampClaim: input.redeemStampClaim,
-      catalogItemId: input.catalogItemId,
-    }),
-  })
-  if (!response.ok) return null
-  const payload = await response.json() as { ok: boolean; preview?: MembershipDiscountPreview }
-  return payload.ok && payload.preview ? payload.preview : null
+  const result = await fetchCheckoutDiscountPreview({ ...input, couponCode: null })
+  return result.ok ? result.preview : null
 }
 
 export async function logoutCustomerDevice(scope: 'device' | 'all' = 'device'): Promise<boolean> {

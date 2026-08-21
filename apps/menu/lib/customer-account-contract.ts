@@ -16,7 +16,7 @@ export interface CustomerAccountView {
   }
 }
 
-interface CustomerAccountLoyaltyView {
+export interface CustomerAccountLoyaltyView {
   restaurant: {
     id: string
     slug: string
@@ -26,12 +26,32 @@ interface CustomerAccountLoyaltyView {
   points: number
   stamps: number
   stampGoal: number
+  stampRewardText: string
+  stampUnlocked: boolean
   pointsEnabled: boolean
   stampsEnabled: boolean
   tier: { name: string; color: string }
   nextTier: { name: string; minimumPoints: number } | null
   tierProgress: number
   lifetimePoints: number
+}
+
+/**
+ * The restaurant-scoped loyalty endpoint is the freshest source while a guest
+ * is inside a menu. The global account projection can briefly lag behind that
+ * endpoint (for example immediately after joining a restaurant). Keep the
+ * global list, but upsert the current restaurant snapshot and place it first.
+ */
+export function mergeCurrentRestaurantLoyalty(
+  account: CustomerAccountView,
+  current: CustomerAccountLoyaltyView | null | undefined,
+): CustomerAccountView {
+  if (!current) return account
+  const otherRestaurants = account.loyalty.filter((loyalty) => (
+    loyalty.restaurant.id !== current.restaurant.id
+    && loyalty.restaurant.slug !== current.restaurant.slug
+  ))
+  return { ...account, loyalty: [current, ...otherRestaurants] }
 }
 
 interface CustomerAccountConsentView {
@@ -161,6 +181,7 @@ export interface CustomerOrderLineView {
   modifiers: string[]
   removedIngredients: string[]
   note: string | null
+  campaignGift?: true
 }
 
 export interface CustomerOrderStatusView {
@@ -308,6 +329,10 @@ export function projectCustomerOrderLines(value: unknown): CustomerOrderLineView
     const price = safeMoney(row['price'])
     const modifierDelta = safeMoney(row['modifiersPriceDelta'])
     const originalPrice = typeof row['originalPrice'] === 'number' ? safeMoney(row['originalPrice']) : null
+    const promotion = row['promotion'] && typeof row['promotion'] === 'object' && !Array.isArray(row['promotion'])
+      ? row['promotion'] as Record<string, unknown>
+      : null
+    const campaignGift = promotion?.['offer'] === 'freebie' && promotion['role'] === 'reward'
     return [{
       name,
       quantity: Math.max(1, Math.min(99, Math.floor(safeNumber(row['quantity'], 1)))),
@@ -316,6 +341,7 @@ export function projectCustomerOrderLines(value: unknown): CustomerOrderLineView
       modifiers: safeNameList(row['modifiers'], 'name'),
       removedIngredients: safeNameList(row['removedIngredients'], 'name'),
       note: safeString(row['productNote'], 500) || null,
+      ...(campaignGift ? { campaignGift: true as const } : {}),
     }]
   })
 }

@@ -4,16 +4,87 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import { GallerySection, resolveGalleryTiles } from './GallerySection'
+import { CustomSectionRenderer } from './CustomSectionRenderer'
 
 test('public gallery stays honest when the restaurant has no photos', () => {
   assert.deepEqual(resolveGalleryTiles({}), [])
   assert.equal(renderToStaticMarkup(<GallerySection config={{}} />), '')
 })
 
-test('catalog preview uses safe mock tiles without leaking them into stored content', () => {
-  const tiles = resolveGalleryTiles({ catalogMock: 'true', maxItems: '3' })
+test('catalog preview uses explicit preview mode without leaking mocks into stored content', () => {
+  const tiles = resolveGalleryTiles({ maxItems: '3' }, 'catalog')
   assert.equal(tiles.length, 3)
   assert.ok(tiles.every((tile) => tile.imageUrl === '' && tile.mockGradient))
+})
+
+test('home section catalog explicitly renders the gallery mock instead of an empty preview', () => {
+  const html = renderToStaticMarkup(<CustomSectionRenderer
+    sectionId="gallery"
+    restaurantName="Örnek Mekân"
+    renderContext="home"
+    editorPreview
+    catalogPreview
+  />)
+  assert.match(html, /data-gallery-version="2"/)
+  assert.match(html, /data-count="5"/)
+  assert.match(html, /Mekândan Kareler/)
+})
+
+test('modern gallery exposes semantic heading and balanced count hooks', () => {
+  const html = renderToStaticMarkup(<GallerySection previewMode="public" config={{
+    editorialVersion: '2',
+    tile1Image: 'https://images.example/one.webp',
+    tile2Image: 'https://images.example/two.webp',
+    title: 'Çok Uzun Türkçe Galeri Başlığı',
+  }} />)
+  assert.match(html, /<h2/)
+  assert.match(html, /data-gallery-version="2"/)
+  assert.match(html, /data-count="2"/)
+  assert.match(html, /min-height:44px/)
+  assert.match(html, /grid-template-columns:minmax\(0,1fr\) auto/)
+  assert.match(html, /justify-self:end/)
+  assert.doesNotMatch(html, /flex-direction:column/)
+})
+
+test('mobile mosaic keeps the selected pattern while grid stays uniform', () => {
+  const html = renderToStaticMarkup(<GallerySection previewMode="catalog" config={{
+    editorialVersion: '2',
+    layout: 'mosaic',
+    mosaicPattern: 'editorial',
+    maxItems: '3',
+  }} />)
+  assert.match(html, /data-gallery-layout="mosaic"/)
+  assert.match(html, /data-mosaic-pattern="editorial"/)
+  assert.match(html, /data-count="3"/)
+  assert.match(html, /data-mosaic-pattern="editorial"\]:is\(\[data-count="3"\],[^}]*grid-column:1\/-1!important;grid-row:span 2!important/)
+})
+
+test('mosaic exposes editorial, spotlight and collage shape contracts', () => {
+  for (const mosaicPattern of ['editorial', 'spotlight', 'collage']) {
+    const html = renderToStaticMarkup(<GallerySection previewMode="catalog" config={{
+      editorialVersion: '2',
+      layout: 'mosaic',
+      mosaicPattern,
+      maxItems: '5',
+    }} />)
+    assert.match(html, new RegExp(`data-mosaic-pattern="${mosaicPattern}"`))
+  }
+})
+
+test('grid layout keeps its selected column count and uniform row contract', () => {
+  const html = renderToStaticMarkup(<GallerySection previewMode="catalog" config={{
+    editorialVersion: '2',
+    layout: 'grid',
+    columns: '3',
+    maxItems: '3',
+  }} />)
+  assert.match(html, /data-gallery-layout="grid"/)
+  assert.match(html, /data-layout="grid"/)
+  assert.match(html, /data-columns="3"/)
+  assert.match(html, /--gallery-columns:3/)
+  assert.doesNotMatch(html, /@container \(max-width:520px\)\{[^]*data-layout="grid"\]\{grid-template-columns:repeat\(2/)
+  assert.match(html, /@container \(max-width:280px\)\{[^]*data-layout="grid"\]\[data-columns="3"\]\{grid-template-columns:repeat\(2/)
+  assert.doesNotMatch(html, /data-gallery-layout="mosaic"/)
 })
 
 test('gallery respects persisted order and the visible photo limit', () => {

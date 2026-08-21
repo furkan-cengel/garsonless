@@ -5,12 +5,30 @@ import test from 'node:test'
 const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8')
 const legacyInjector = new URL('../components/PreviewInjector.tsx', import.meta.url)
 const experiencePreview = readFileSync(new URL('../app/[slug]/ExperienceStatePreview.tsx', import.meta.url), 'utf8')
+const experienceRoute = readFileSync(new URL('../app/[slug]/_menu-experience.tsx', import.meta.url), 'utf8')
+const themePreviewRoute = readFileSync(new URL('../app/theme-preview/[slug]/page.tsx', import.meta.url), 'utf8')
+const publicQueries = readFileSync(new URL('./queries.ts', import.meta.url), 'utf8')
 const memberSheet = readFileSync(new URL('../app/[slug]/components/MemberSheet.tsx', import.meta.url), 'utf8')
 const paymentModal = readFileSync(new URL('../app/[slug]/components/PaymentModal.tsx', import.meta.url), 'utf8')
 
 test('menu root no longer mounts the legacy global CSS preview receiver', () => {
   assert.doesNotMatch(layout, /PreviewInjector|GARSONLESS_THEME/)
   assert.equal(existsSync(legacyInjector), false)
+})
+
+test('theme previews bypass the public restaurant cache without weakening live menu caching', () => {
+  assert.match(publicQueries, /export function getPreviewRestaurantBySlug[\s\S]*return readRestaurantBySlug\(slug\)/)
+  assert.match(publicQueries, /export const getRestaurantBySlug = cache[\s\S]*revalidate: 60/)
+  assert.match(experienceRoute, /isPreview\s*\? await getPreviewRestaurantBySlug\(slug\)\s*:\s*await getRestaurantBySlug\(slug\)/)
+  assert.match(themePreviewRoute, /await getPreviewRestaurantBySlug\(slug\)/)
+  assert.doesNotMatch(themePreviewRoute, /getRestaurantBySlug/)
+})
+
+test('preview-only routes require a short-lived restaurant-scoped access token', () => {
+  assert.match(experienceRoute, /hasThemePreviewAccess\(\{[\s\S]*token: sp\['previewAccess'\]/)
+  assert.match(experienceRoute, /if \(isPreview && !previewAccessGranted\) notFound\(\)/)
+  assert.match(themePreviewRoute, /sp\['preview'\] !== '1' \|\| !hasThemePreviewAccess\(\{/)
+  assert.match(themePreviewRoute, /previewAccessToken=\{typeof sp\['previewAccess'\] === 'string'/)
 })
 
 test('auth theme preview renders the production member auth UI instead of a duplicate fixture', () => {
@@ -29,8 +47,17 @@ test('auth preview interactions are local and cannot start OTP or OAuth requests
   assert.ok(oauth.indexOf('if (previewState)') < oauth.indexOf("fetch('/api/customer-auth/oauth/start'"))
   assert.ok(verify.indexOf('if (previewState)') < verify.indexOf("fetch('/api/customer-auth/email/verify'"))
   assert.match(memberSheet, /if \(previewState\) \{\s*setOffline\(false\)\s*return/)
-  assert.match(memberSheet, /const visiblePhase = previewState === 'otp'/)
+  assert.match(memberSheet, /const visiblePhase = accountPreviewState[\s\S]*\? 'home'/)
   assert.match(memberSheet, /\{visiblePhase === 'join' &&/)
+})
+
+test('account preview renders the production account center with closed non-mutating fixtures', () => {
+  assert.match(experiencePreview, /data-experience-preview="account"/)
+  assert.match(experiencePreview, /<MemberSheet[\s\S]*accountPreviewState=\{state as AccountPreviewState\}/)
+  assert.match(experiencePreview, /PREVIEW_ACCOUNT_ACTIONS/)
+  assert.match(memberSheet, /accountPreviewState\?: AccountPreviewState/)
+  assert.match(themePreviewRoute, /new Set<AccountPreviewState>/)
+  assert.doesNotMatch(experiencePreview, /function AccountFixture/)
 })
 
 test('checkout theme preview renders the production cart and payment components', () => {

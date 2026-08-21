@@ -1,9 +1,19 @@
 import type { MenuItem } from '../../../menu/types'
-import { parseBundlePrice } from '@garsonless/domain/menu'
+import {
+  COMBO_RIBBON_MAX_GROUPS,
+  COMBO_RIBBON_MAX_ITEMS,
+  COMBO_RIBBON_MIN_ITEMS,
+  resolveComboRibbonSelection,
+  type ComboRibbonSelectionIssue,
+  type ComboRibbonSelectionIssueCode,
+} from '@garsonless/domain/menu'
 
-const MIN_COMBO_ITEMS = 2
-const MAX_COMBO_ITEMS = 3
-const MAX_COMBOS = 3
+export const MIN_COMBO_ITEMS = COMBO_RIBBON_MIN_ITEMS
+export const MAX_COMBO_ITEMS = COMBO_RIBBON_MAX_ITEMS
+export const MAX_COMBOS = COMBO_RIBBON_MAX_GROUPS
+
+export type ComboRibbonIssueCode = ComboRibbonSelectionIssueCode
+export type ComboRibbonResolutionIssue = ComboRibbonSelectionIssue
 
 export interface ResolvedComboRibbonGroup {
   id: string
@@ -11,22 +21,16 @@ export interface ResolvedComboRibbonGroup {
   items: MenuItem[]
   catalogTotal: number
   total: number
+  savings: number
+  savingsPercent: number
   requiresConfiguration: boolean
   hasSpecialPrice: boolean
+  hasLegacyNonPromotionalPrice: boolean
 }
 
-function boundedInteger(value: string | undefined, fallback: number, min: number, max: number) {
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed)) return fallback
-  return Math.min(max, Math.max(min, parsed))
-}
-
-function resolveComboCount(value: string | undefined) {
-  return boundedInteger(value, 2, 1, MAX_COMBOS)
-}
-
-function resolveComboItemCount(value: string | undefined) {
-  return boundedInteger(value, 2, MIN_COMBO_ITEMS, MAX_COMBO_ITEMS)
+export interface ResolvedComboRibbonState {
+  groups: ResolvedComboRibbonGroup[]
+  issues: ComboRibbonResolutionIssue[]
 }
 
 function itemNeedsConfiguration(item: MenuItem) {
@@ -42,51 +46,45 @@ export function resolveComboRibbonGroups(
   config: Record<string, string>,
   items: MenuItem[] = [],
 ): ResolvedComboRibbonGroup[] {
-  const comboCount = resolveComboCount(config.comboCount)
-  const itemsPerCombo = resolveComboItemCount(config.itemsPerCombo)
-  const available = items
-    .filter((item) => item.is_available)
-    .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))
-  const manual = (config.selectionMode || 'automatic') === 'manual'
-  const groups: ResolvedComboRibbonGroup[] = []
+  return resolveComboRibbonState(config, items).groups
+}
 
-  for (let comboIndex = 1; comboIndex <= comboCount; comboIndex += 1) {
-    let selected: MenuItem[]
-
-    if (manual) {
-      const byId = new Map(available.map((item) => [item.id, item]))
-      const seen = new Set<string>()
-      selected = []
-      for (let itemIndex = 1; itemIndex <= MAX_COMBO_ITEMS; itemIndex += 1) {
-        const itemId = config[`combo${comboIndex}Item${itemIndex}Id`]?.trim()
-        if (!itemId || seen.has(itemId)) continue
-        const item = byId.get(itemId)
-        if (!item) continue
-        seen.add(itemId)
-        selected.push(item)
-        if (selected.length === itemsPerCombo) break
-      }
-    } else {
-      const start = (comboIndex - 1) * itemsPerCombo
-      selected = available.slice(start, start + itemsPerCombo)
-    }
-
-    // A single item is a featured product, not a combo. Fail closed instead of
-    // showing a misleading bundle card.
-    if (selected.length < MIN_COMBO_ITEMS) continue
-
-    const catalogTotal = selected.reduce((sum, item) => sum + item.price, 0)
-    const specialPrice = parseBundlePrice(config[`combo${comboIndex}Price`])
-    groups.push({
-      id: `combo-${comboIndex}`,
-      index: comboIndex,
-      items: selected,
-      catalogTotal,
-      total: specialPrice ?? catalogTotal,
-      requiresConfiguration: selected.some(itemNeedsConfiguration),
-      hasSpecialPrice: specialPrice !== null && specialPrice !== catalogTotal,
+/**
+ * Resolve both public-ready combo cards and editor diagnostics from the same
+ * catalog snapshot. Version 2 fails closed for incomplete bundles and for a
+ * configured "campaign" price that is not lower than the live catalog total.
+ * Unversioned themes keep their historical totals without presenting them as
+ * a discount.
+ */
+export function resolveComboRibbonState(
+  config: Record<string, string>,
+  items: MenuItem[] = [],
+): ResolvedComboRibbonState {
+  const itemsById = new Map(items.map((item) => [item.id, item]))
+  const resolved = resolveComboRibbonSelection(config, items.map((item) => ({
+    id: item.id,
+    price: item.price,
+    position: item.position,
+    isAvailable: item.is_available,
+  })))
+  const groups = resolved.groups.flatMap((group): ResolvedComboRibbonGroup[] => {
+    const selected = group.itemIds.flatMap((id) => {
+      const item = itemsById.get(id)
+      return item ? [item] : []
     })
-  }
-
-  return groups
+    if (selected.length !== group.itemIds.length) return []
+    return [{
+      id: `combo-${group.index}`,
+      index: group.index,
+      items: selected,
+      catalogTotal: group.catalogTotal,
+      total: group.total,
+      savings: group.savings,
+      savingsPercent: group.savingsPercent,
+      requiresConfiguration: selected.some(itemNeedsConfiguration),
+      hasSpecialPrice: group.hasPromotionalPrice,
+      hasLegacyNonPromotionalPrice: group.hasLegacyNonPromotionalPrice,
+    }]
+  })
+  return { groups, issues: resolved.issues }
 }

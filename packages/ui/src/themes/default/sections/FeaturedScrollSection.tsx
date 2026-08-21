@@ -7,10 +7,11 @@ import { AppIcons } from '../../../icons'
 import { formatTRY } from '../../../menu/formatCurrency'
 import type { MenuItem } from '../../../menu/types'
 import { ProductAllergenSummary } from '../../../menu/FoodInfoBadges'
-import { customSectionShell, makeReaders, resolveSectionTarget } from '../lib/sectionHelpers'
+import { customSectionShell, makeReaders } from '../lib/sectionHelpers'
 import { resolveFeaturedScrollItems } from './featuredScrollModel'
+import { TAG_SHIMMER_TARGET_CLASS, tagShimmerScopeClass } from '../../../menu/tagShimmer'
 
-type FeaturedTheme = Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor'>
+type FeaturedTheme = Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor' | 'motion' | 'tagShimmer'>
 
 const BUTTON_SIZE = { small: 30, medium: 34, large: 40 } as const
 
@@ -38,7 +39,6 @@ export function FeaturedScrollSection({
   const showImages = bool('showImages', true)
   const showBadge = bool('showBadge', true)
   const showDots = bool('showDots', true)
-  const showViewAll = bool('showViewAll', false)
   const salesSource = selectedItems.find((item) => item.featuredSalesSource)?.featuredSalesSource
   const defaultSubtitle = salesSource === 'previous-day'
     ? 'Dünün en çok tercih edilenleri'
@@ -49,7 +49,6 @@ export function FeaturedScrollSection({
   const subtitle = !configuredSubtitle || configuredSubtitle === 'Bugün en çok tercih edilenler'
     ? defaultSubtitle
     : configuredSubtitle
-  const target = resolveSectionTarget(config)
   const cardWidth = number('cardWidth', 172)
   const imageHeight = number('imageHeight', 116)
   const cardRadius = number('cardRadius', 16)
@@ -69,8 +68,12 @@ export function FeaturedScrollSection({
   const badgeBg = text('badgeBgColor', 'color-mix(in srgb, var(--p-text) 76%, transparent)')
   const badgeText = text('badgeTextColor', '#ffffff')
   const ctaMode = text('ctaMode', 'inherit') === 'custom' ? 'custom' : 'inherit'
-  const buttonStyle = actionMode === 'discover' ? 'pill' : ctaMode === 'inherit' ? (theme?.cardCtaStyle ?? 'icon') : text('buttonStyle', 'icon')
-  const buttonIcon = actionMode === 'discover' ? 'arrow' : ctaMode === 'inherit' ? (theme?.cardCtaIcon ?? 'plus') : text('buttonIcon', 'plus')
+  const buttonStyle = ctaMode === 'custom'
+    ? text('buttonStyle', 'icon')
+    : actionMode === 'discover' ? 'pill' : (theme?.cardCtaStyle ?? 'icon')
+  const buttonIcon = ctaMode === 'custom'
+    ? text('buttonIcon', 'plus')
+    : actionMode === 'discover' ? 'arrow' : (theme?.cardCtaIcon ?? 'plus')
   const buttonSizeName = text('buttonSize', 'medium') as keyof typeof BUTTON_SIZE
   const buttonSize = BUTTON_SIZE[buttonSizeName] ?? BUTTON_SIZE.medium
   const buttonBackground = ctaMode === 'inherit' ? 'var(--p-cta)' : text('buttonBgColor', 'var(--p-cta)')
@@ -88,14 +91,9 @@ export function FeaturedScrollSection({
     setActiveIndex(index)
   }
 
-  const viewAllProps = target.kind === 'external'
-    ? { href: target.href, target: '_blank', rel: 'noreferrer' }
-    : target.kind === 'anchor'
-      ? { href: target.href }
-      : null
-
   return (
     <section
+      className={tagShimmerScopeClass(theme)}
       data-component="custom-section"
       data-section-kind="featured-scroll"
       data-featured-source={salesSource ?? 'catalog'}
@@ -117,8 +115,7 @@ export function FeaturedScrollSection({
         .garsonless-featured-add:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.05); }
         .garsonless-featured-add:not(:disabled):active { transform: scale(.94); }
         .garsonless-featured-add:focus-visible,
-        .garsonless-featured-dot:focus-visible,
-        .garsonless-featured-all:focus-visible { outline: 2px solid var(--featured-accent); outline-offset: 3px; }
+        .garsonless-featured-dot:focus-visible { outline: 2px solid var(--featured-accent); outline-offset: 3px; }
         .garsonless-featured-rail { scrollbar-width: none; }
         .garsonless-featured-rail::-webkit-scrollbar { display: none; }
         @media (prefers-reduced-motion: reduce) {
@@ -134,17 +131,12 @@ export function FeaturedScrollSection({
         paddingBottom: sectionBottom,
         overflow: 'hidden',
       } as CSSProperties}>
-        {(showTitle || showSubtitle || (showViewAll && viewAllProps)) && (
-          <header style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, padding: '0 var(--p-pad) 13px' }}>
+        {(showTitle || showSubtitle) && (
+          <header style={{ padding: '0 var(--p-pad) 13px' }}>
             <div style={{ minWidth: 0 }}>
-              {showTitle && <h2 style={{ margin: 0, color: titleColor, fontFamily: 'var(--p-display)', fontSize: 21, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.1 }}>{text('title', 'Öne Çıkanlar')}</h2>}
+              {showTitle && <h2 style={{ margin: 0, color: titleColor, fontFamily: 'var(--p-body)', fontSize: 21, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.1 }}>{text('title', 'Öne Çıkanlar')}</h2>}
               {showSubtitle && <p style={{ margin: '5px 0 0', color: subtitleColor, fontSize: 12.5, lineHeight: 1.35 }}>{subtitle}</p>}
             </div>
-            {showViewAll && viewAllProps && (
-              <a className="garsonless-featured-all" {...viewAllProps} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--p-accent)', fontSize: 12.5, fontWeight: 800, textDecoration: 'none' }}>
-                {text('viewAllText', 'Tümü')} <AppIcons.arrow size={13} aria-hidden="true" />
-              </a>
-            )}
           </header>
         )}
 
@@ -160,16 +152,16 @@ export function FeaturedScrollSection({
                 {showImages && (
                   <div style={{ position: 'relative', height: imageHeight, flexShrink: 0, background: imageBg, overflow: 'hidden' }}>
                     {item.images[0] ? <img src={item.images[0]} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: imageFit, objectPosition: imagePosition, display: 'block' }} /> : <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: cardMuted }}><AppIcons.image size={24} aria-hidden="true" /></span>}
-                    {showBadge && <span style={{ position: 'absolute', top: 8, left: 8, zIndex: 1, maxWidth: 'calc(100% - 16px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '4px 9px', borderRadius: 999, background: badgeBg, color: badgeText, fontSize: 10, fontWeight: 800, letterSpacing: '.02em', backdropFilter: 'blur(3px)' }}>{text('badgeText', 'Öne çıkan')}</span>}
+                    {showBadge && <span className={TAG_SHIMMER_TARGET_CLASS} style={{ position: 'absolute', top: 8, left: 8, zIndex: 1, maxWidth: 'calc(100% - 16px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '4px 9px', borderRadius: 999, background: badgeBg, color: badgeText, fontSize: 10, fontWeight: 800, letterSpacing: '.02em', backdropFilter: 'blur(3px)' }}>{text('badgeText', 'Öne çıkan')}</span>}
                   </div>
                 )}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5, padding: '11px 12px 12px' }}>
                   <h3 style={{ margin: 0, color: cardText, fontSize: 14, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-.01em' }}>{item.name}</h3>
                   {showDescription && <p style={{ margin: 0, minHeight: 31, color: cardMuted, fontSize: 11.5, lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.description || 'Detayları görmek için ürünü inceleyin.'}</p>}
                   <ProductAllergenSummary item={item} />
-                  <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingTop: 4 }}>
+                  <div style={{ marginTop: 'auto', display: 'flex', flexDirection: buttonStyle === 'full' ? 'column' : 'row', alignItems: buttonStyle === 'full' ? 'stretch' : 'center', justifyContent: 'space-between', gap: 8, paddingTop: 4 }}>
                     <span style={{ color: cardText, fontSize: 15, fontWeight: 850, letterSpacing: '-.01em' }}>{formatTRY(item.price)}</span>
-                    <button type="button" className="garsonless-featured-add" data-cta-source={ctaMode} data-cta-icon={buttonIcon} disabled={!onQuickAdd} aria-label={`${item.name} ${actionMode === 'discover' ? 'ürününü incele' : 'sepete ekle'}`} onClick={() => onQuickAdd?.(item)} style={{ minWidth: buttonStyle === 'icon' ? buttonSize : Math.max(64, buttonSize * 1.8), height: buttonSize, padding: buttonStyle === 'icon' ? 0 : '0 12px', border: 0, borderRadius: buttonStyle === 'full' ? 10 : 999, background: buttonBackground, color: buttonColor, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontFamily: 'var(--p-body)', fontSize: 11.5, fontWeight: 800, cursor: onQuickAdd ? 'pointer' : 'default', opacity: onQuickAdd ? 1 : .62, flexShrink: 0 }}>
+                    <button type="button" className="garsonless-featured-add" data-cta-source={ctaMode} data-cta-icon={buttonIcon} data-button-style={buttonStyle} disabled={!onQuickAdd} aria-label={`${item.name} ${actionMode === 'discover' ? 'ürününü incele' : 'sepete ekle'}`} onClick={() => onQuickAdd?.(item)} style={{ width: buttonStyle === 'full' ? '100%' : undefined, minWidth: buttonStyle === 'icon' ? buttonSize : buttonStyle === 'full' ? 0 : Math.max(64, buttonSize * 1.8), height: buttonSize, padding: buttonStyle === 'icon' ? 0 : '0 12px', border: 0, borderRadius: buttonStyle === 'full' ? 10 : 999, background: buttonBackground, color: buttonColor, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontFamily: 'var(--p-body)', fontSize: 11.5, fontWeight: 800, cursor: onQuickAdd ? 'pointer' : 'default', opacity: onQuickAdd ? 1 : .62, flexShrink: 0 }}>
                       <FeaturedCtaIcon kind={buttonIcon} size={Math.max(15, Math.round(buttonSize * .45))} />
                       {buttonStyle !== 'icon' && <span>{actionMode === 'discover' ? 'İncele' : text('ctaText', 'Ekle')}</span>}
                     </button>

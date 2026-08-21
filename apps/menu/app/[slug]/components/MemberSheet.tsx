@@ -2,14 +2,16 @@
 
 import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
-import type { MemberBalances, LoyaltyActivity } from '@garsonless/db/types'
-import { ML_STAMP_POP_KEYFRAME, useTheme } from '@garsonless/ui/menu'
+import type { MemberBalances } from '@garsonless/db/types'
+import { useTheme } from '@garsonless/ui/menu'
 import { AppIcons } from '@garsonless/ui/icons'
+import type { MemberOpenTarget } from '@garsonless/ui/themes'
 import {
   resolveAuthErrorState,
   resolveAuthOtpState,
   resolveAuthSuccessState,
   resolveAuthSurfacePalette,
+  type AccountPreviewState,
   type AuthErrorIcon,
   type AuthHeaderTheme,
   type AuthPreviewState,
@@ -24,11 +26,11 @@ import type {
   CustomerAuthOAuthProvider,
   CustomerSessionView,
 } from '../../../lib/customer-auth-contract'
-import type { CustomerFavoriteView, CustomerReorderPreviewView } from '../../../lib/customer-account-contract'
+import type { CustomerAccountLoyaltyView } from '../../../lib/customer-account-contract'
 import type { CustomerAuthSurface } from '../../../lib/customer-auth-intent'
 import { broadcastCustomerSessionEvent } from '../../../lib/customer-auth-client'
 import { storePendingCustomerAuthContext } from '../../../lib/menu-continuity-client'
-import AccountCenter from './AccountCenter'
+import AccountCenter, { type AccountActions } from './AccountCenter'
 
 // ── Rich member home (Sprint 15b). Three screens — Join → OTP → MemberHome —
 // rebuilt from ref/Membership_Loyalty.html, but every value is bound to the
@@ -66,13 +68,15 @@ interface Props {
   onRedeemCatalog?: (itemId: string) => void
   /** Re-fetch balances (e.g. after a consent toggle changes consentGiven). */
   onRefresh?: () => void | Promise<void>
-  /** Logs the member out (parent clears cookie + state, then closes). */
-  onLogout?: (scope?: 'device' | 'all') => void | Promise<void>
   onAuthContextComplete?: (surface: CustomerAuthSurface) => void
-  onOpenFavorite?: (favorite: CustomerFavoriteView) => void
-  onApplyReorder?: (preview: CustomerReorderPreviewView) => void
+  /** Every authenticated renderer must implement the same account actions. */
+  accountActions: AccountActions
   /** Editor-only fixture state. It renders the production auth UI without issuing auth requests. */
   previewState?: AuthPreviewState
+  /** Editor-only authenticated account fixture. It never issues mutations. */
+  accountPreviewState?: AccountPreviewState
+  /** Destination requested by the surface that opened the account sheet. */
+  initialTarget?: MemberOpenTarget
 }
 
 // reference tokens → live theme tokens + the 15a gold constant.
@@ -96,9 +100,7 @@ const ROOT_VARS = {
 const KEYFRAMES = `
 @keyframes ml-pulse-dot {0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--ml-accent) 40%, transparent)}50%{box-shadow:0 0 0 6px color-mix(in srgb, var(--ml-accent) 0%, transparent)}}
 @keyframes ml-fade-slide {from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-${ML_STAMP_POP_KEYFRAME}
 @keyframes ml-shimmer {from{background-position:-160% 0}to{background-position:260% 0}}
-@keyframes ml-count-up {from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 @keyframes ml-sheet-up {from{transform:translateY(100%)}to{transform:translateY(0)}}
 @keyframes ml-ring-expand {0%{transform:scale(.8);opacity:.5}100%{transform:scale(1.6);opacity:0}}
 @keyframes ml-confetti-drop {0%{transform:translateY(-10px) rotate(0);opacity:0}15%{opacity:1}100%{transform:translateY(60px) rotate(240deg);opacity:0}}
@@ -164,58 +166,15 @@ ${ML_STAMP_POP_KEYFRAME}
 .ml-auth-primary,.ml-auth-provider,.ml-auth-guest{border-radius:var(--ml-auth-radius)}
 .ml-auth-dialog[data-auth-preset="immersive"] .ml-auth-panel{margin-top:-28px}
 .ml-spin{animation:ml-spin .7s linear infinite}
-.ml-account-dialog{width:100%;height:100dvh;max-height:100dvh;background:var(--ml-bg);color:var(--ml-text);font-family:var(--p-body);display:flex;flex-direction:column;overflow:hidden}
+.ml-auth-overlay[data-account=true]{padding-top:max(12px,env(safe-area-inset-top))}
+.ml-account-dialog{width:100%;height:calc(100dvh - max(12px,env(safe-area-inset-top)));max-height:calc(100dvh - max(12px,env(safe-area-inset-top)));background:var(--ml-bg);color:var(--ml-text);font-family:var(--p-body);display:flex;flex-direction:column;overflow:hidden;border-radius:calc(var(--ml-account-radius) * 1.7) calc(var(--ml-account-radius) * 1.7) 0 0;box-shadow:0 -18px 54px rgba(20,16,12,.24)}
+.ml-account-handle{width:38px;height:4px;margin:9px auto 3px;border-radius:99px;background:color-mix(in srgb,var(--ml-text2) 38%,transparent);flex:0 0 auto}.ml-account-dialog>.ac-root{height:auto;flex:1}
 html[data-customer-auth-preview="true"] nextjs-portal{display:none!important}
-@media (min-width:640px){.ml-auth-overlay{align-items:center!important;padding:20px}.ml-auth-dialog{height:min(844px,calc(100dvh - 40px));border-radius:30px;box-shadow:0 34px 90px rgba(0,0,0,.38)}.ml-account-dialog{max-width:720px;height:min(850px,calc(100dvh - 40px));max-height:calc(100dvh - 40px);border-radius:26px;box-shadow:0 34px 90px rgba(0,0,0,.38)}.ml-auth-panel{border-radius:30px 30px 0 0}}
-@media (prefers-reduced-motion:reduce){.ml-auth-dialog *,.ml-auth-dialog:before,.ml-auth-dialog:after,.ml-account-dialog *{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
+@media (min-width:640px){.ml-auth-overlay{align-items:center!important;padding:20px}.ml-auth-dialog{height:min(844px,calc(100dvh - 40px));border-radius:30px;box-shadow:0 34px 90px rgba(0,0,0,.38)}.ml-account-dialog{max-width:720px;height:min(850px,calc(100dvh - 40px));max-height:calc(100dvh - 40px);border-radius:calc(var(--ml-account-radius) * 1.7);box-shadow:0 34px 90px rgba(0,0,0,.38)}.ml-auth-panel{border-radius:30px 30px 0 0}}
+@media (prefers-reduced-motion:reduce){.ml-auth-dialog *,.ml-auth-dialog:before,.ml-auth-dialog:after,.ml-account-dialog *{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
 `
 
-const MONTHS_TR = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
 const fmt = (n: number) => n.toLocaleString('tr-TR')
-
-function firstNameOf(name: string | null): string {
-  if (!name) return 'Üye'
-  return name.trim().split(/\s+/)[0] || 'Üye'
-}
-function initialsOf(name: string | null): string {
-  if (!name) return '★'
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '★'
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
-  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase()
-}
-function relativeTime(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  const now = new Date()
-  const hhmm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  if (d.toDateString() === now.toDateString()) return `Bugün, ${hhmm}`
-  const yest = new Date(now)
-  yest.setDate(now.getDate() - 1)
-  if (d.toDateString() === yest.toDateString()) return `Dün, ${hhmm}`
-  return `${d.getDate()} ${MONTHS_TR[d.getMonth()]}`
-}
-function activityMeta(a: LoyaltyActivity): { emoji: string; label: string } {
-  if (a.reason === 'welcome') return { emoji: '⭐', label: 'Hoş geldin bonusu' }
-  if (a.type === 'visit') return { emoji: '🏆', label: 'Ziyaret' }
-  if (a.direction === 'refund') return { emoji: '↩', label: a.type === 'stamp' ? 'Damga iadesi' : 'Puan iadesi' }
-  if (a.type === 'stamp') return a.direction === 'redeem' ? { emoji: '🎁', label: 'Bedava ürün' } : { emoji: '☕', label: 'Damga kazandın' }
-  return a.direction === 'redeem' ? { emoji: '🎁', label: 'Puan kullandın' } : { emoji: '⭐', label: 'Puan kazandın' }
-}
-function deltaText(a: LoyaltyActivity): { text: string; positive: boolean } {
-  const positive = a.delta >= 0
-  const unit = a.type === 'stamp' ? ' damga' : ''
-  return { text: `${positive ? '+' : '−'}${Math.abs(a.delta)}${unit}`, positive }
-}
-/** Non-default tier perks → short Turkish chips (Sprint 17, display-only). */
-function tierPerks(tier: MemberBalances['tier']): string[] {
-  const out: string[] = []
-  if (tier.discountPct > 0) out.push(`%${tier.discountPct} indirim`)
-  if (tier.pointsMultiplier > 1) out.push(`${tier.pointsMultiplier}× puan`)
-  if (tier.bonusStamps > 0) out.push(`+${tier.bonusStamps} damga`)
-  if (tier.priorityService) out.push('öncelikli servis')
-  return out
-}
 
 // ── small shared bits ──────────────────────────────────────────────────────
 function Spinner() {
@@ -551,246 +510,6 @@ function AuthReturnScreen({ restaurantName, restaurantLogoUrl, header, status, c
 }
 
 // ── Screen 2: Member home ────────────────────────────────────────────────────
-function Stat({ icon, label, value, accent }: { icon: string; label: string; value: number; accent: string }) {
-  return (
-    <div style={{ background: 'var(--ml-surface)', borderRadius: 16, border: '1px solid var(--ml-line)', padding: '14px 16px' }}>
-      <div style={{ fontSize: 12.5, color: 'var(--ml-text2)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>{icon} {label}</div>
-      <div style={{ fontSize: 26, fontWeight: 800, color: accent, marginTop: 4, animation: 'ml-count-up .4s ease both' }}>{fmt(value)}</div>
-    </div>
-  )
-}
-
-// Retained during the account-center rollout so restaurant reward behavior can
-// be re-exposed without changing loyalty economics in this slice.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function MemberHomeLegacy({ balances, name, restaurantName, rewardCatalog, restaurantId, onOpenRewards, onRefresh, onLogout, onClose }: {
-  balances: MemberBalances | null
-  name: string | null
-  restaurantName: string
-  rewardCatalog: CatalogChoice[]
-  restaurantId?: string
-  onOpenRewards: () => void
-  onRefresh?: () => void | Promise<void>
-  onLogout?: () => void | Promise<void>
-  onClose: () => void
-}) {
-  const [loggingOut, setLoggingOut] = useState(false)
-  const [consentBusy, setConsentBusy] = useState(false)
-
-  async function toggleConsent(grant: boolean, consentType: 'contact_data' | 'marketing' = 'contact_data') {
-    if (!restaurantId || consentBusy) return
-    setConsentBusy(true)
-    try {
-      await fetch('/api/loyalty/consent', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ restaurantId, grant, consentType }),
-      })
-      await onRefresh?.()
-    } catch {
-      /* best-effort */
-    } finally {
-      setConsentBusy(false)
-    }
-  }
-
-  if (!balances) {
-    return (
-      <div style={{ height: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-        <div style={{ animation: 'ml-spin .8s linear infinite' }}>
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="var(--ml-line)" strokeWidth="3" /><path d="M21 12a9 9 0 0 0-9-9" stroke="var(--ml-accent)" strokeWidth="3" strokeLinecap="round" /></svg>
-        </div>
-        <span style={{ fontSize: 13.5, color: 'var(--ml-text2)' }}>Üyeliğin yükleniyor…</span>
-      </div>
-    )
-  }
-
-  const { tier, nextTier, tierProgress, stamps, stampGoal, stampEnabled, stampUnlocked, points, pointsEnabled, visits, lifetimePoints, memberCode, recentActivity, consentGiven, marketingConsentGiven } = balances
-  const affordable = rewardCatalog.filter((r) => r.pointCost <= points).length
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, animation: 'ml-fade-slide .35s ease both' }}>
-      {/* header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 20px 12px', flexShrink: 0 }}>
-        <div>
-          <div style={{ fontSize: 12.5, color: 'var(--ml-text2)' }}>Sadakat kartın</div>
-          <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--ml-text)', fontFamily: 'var(--p-display)' }}>Merhaba, {firstNameOf(name)} 👋</div>
-        </div>
-        <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg, var(--ml-accent), var(--ml-accent2))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 15, fontWeight: 800, boxShadow: '0 6px 16px -6px color-mix(in srgb, var(--ml-accent) 50%, transparent)' }}>{initialsOf(name)}</div>
-      </div>
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 20px', minHeight: 0 }}>
-        {/* membership card */}
-        <div style={{ position: 'relative', borderRadius: 20, overflow: 'hidden', padding: 18, color: '#fff', background: 'linear-gradient(135deg, var(--ml-accent) 0%, var(--ml-accent2) 100%)', boxShadow: '0 18px 40px -16px color-mix(in srgb, var(--ml-accent) 55%, transparent)' }}>
-          <div style={{ position: 'absolute', top: -40, right: -30, width: 150, height: 150, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,.14), transparent 70%)' }} />
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,.12) 45%, transparent 60%)', backgroundSize: '220% 100%', animation: 'ml-shimmer 5s linear infinite' }} />
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', position: 'relative' }}>
-            <div>
-              <div style={{ fontSize: 11, opacity: .8, letterSpacing: '.1em', fontWeight: 600, textTransform: 'uppercase' }}>{restaurantName} Club</div>
-              <div style={{ fontSize: 18, fontWeight: 800, marginTop: 4 }}>{name || 'Üye'}</div>
-              <div style={{ fontSize: 11.5, opacity: .7, marginTop: 2, fontFamily: 'monospace', letterSpacing: '.05em' }}>{memberCode}</div>
-            </div>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, background: 'rgba(255,255,255,.18)', backdropFilter: 'blur(4px)', padding: '5px 11px', borderRadius: 99 }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: tier.color }} />{tier.name}
-            </span>
-          </div>
-          {/* tier progress */}
-          <div style={{ marginTop: 18, position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, opacity: .85, marginBottom: 6 }}>
-              <span>{nextTier ? `${nextTier.name} seviyesine` : 'En üst seviye'}</span>
-              <span>{nextTier ? `${fmt(Math.max(0, nextTier.min - lifetimePoints))} puan kaldı` : '★'}</span>
-            </div>
-            <div style={{ height: 7, background: 'rgba(255,255,255,.2)', borderRadius: 99, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${tierProgress}%`, background: 'linear-gradient(90deg, #fff, rgba(255,255,255,.7))', borderRadius: 99, transition: 'width 700ms ease' }} />
-            </div>
-          </div>
-          {/* tier perks (Sprint 17) — non-default only */}
-          {tierPerks(tier).length > 0 && (
-            <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {tierPerks(tier).map((p, k) => (
-                <span key={k} style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: 'rgba(255,255,255,.16)', backdropFilter: 'blur(4px)' }}>{p}</span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: pointsEnabled ? '1fr 1fr' : '1fr', gap: 10, marginTop: 12 }}>
-          {pointsEnabled && <Stat icon="⭐" label="Puan" value={points} accent="var(--ml-gold)" />}
-          <Stat icon="🏆" label="Ziyaret" value={visits} accent="var(--ml-accent)" />
-        </div>
-
-        {/* stamp card */}
-        {stampEnabled && stampGoal > 0 && (
-          <div style={{ marginTop: 12, background: 'var(--ml-surface)', borderRadius: 16, border: '1px solid var(--ml-line)', padding: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ml-text)' }}>Kahve Damgaların ☕</div>
-                <div style={{ fontSize: 12.5, color: stampUnlocked ? 'var(--ml-accent)' : 'var(--ml-text2)', marginTop: 1, fontWeight: stampUnlocked ? 700 : 400 }}>
-                  {stampUnlocked ? '🎉 Ödülün hazır!' : `${stampGoal - stamps} damga daha, ödülün hazır olsun`}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--ml-accent)' }}>{stamps}</span>
-                <span style={{ fontSize: 14, color: 'var(--ml-text3)', fontWeight: 700 }}>/{stampGoal}</span>
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 9 }}>
-              {Array.from({ length: stampGoal }).map((_, i) => {
-                const filled = i < stamps
-                const isReward = i === stampGoal - 1
-                const isNewest = filled && i === stamps - 1
-                return (
-                  <div key={i} style={{
-                    aspectRatio: '1', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17,
-                    background: filled ? 'var(--ml-accent-soft)' : 'transparent',
-                    border: filled ? '2px solid var(--ml-accent)' : '2px dashed ' + (isReward ? 'var(--ml-gold)' : 'var(--ml-line)'),
-                    animation: isNewest ? 'ml-stamp-pop .5s cubic-bezier(.2,.9,.3,1.3) both' : 'none',
-                  }}>{filled ? '☕' : isReward ? <span style={{ fontSize: 15 }}>🎁</span> : ''}</div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* rewards teaser (display-only; redemption ships in 15c) */}
-        {rewardCatalog.length > 0 && (
-          <button type="button" onClick={onOpenRewards} style={{ width: '100%', marginTop: 12, background: 'var(--ml-surface)', borderRadius: 16, border: '1px solid var(--ml-line)', padding: 16, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
-            <div style={{ width: 46, height: 46, borderRadius: 12, background: 'var(--ml-gold-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🎁</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ml-text)' }}>Ödül kataloğu</div>
-              <div style={{ fontSize: 12.5, color: 'var(--ml-text2)', marginTop: 1 }}>{pointsEnabled ? `${affordable} ödül kullanmaya hazır` : `${rewardCatalog.length} ödül`}</div>
-            </div>
-            <span style={{ fontSize: 18, color: 'var(--ml-text3)' }}>→</span>
-          </button>
-        )}
-
-        {/* activity */}
-        <div style={{ marginTop: 16, marginBottom: 4, fontSize: 13, fontWeight: 700, color: 'var(--ml-text2)', letterSpacing: '.03em', paddingLeft: 4 }}>SON HAREKETLER</div>
-        <div style={{ background: 'var(--ml-surface)', borderRadius: 16, border: '1px solid var(--ml-line)', overflow: 'hidden' }}>
-          {recentActivity.length === 0 ? (
-            <div style={{ padding: '22px 16px', textAlign: 'center', fontSize: 13, color: 'var(--ml-text3)' }}>Henüz hareket yok — ilk siparişinle başlar.</div>
-          ) : recentActivity.map((a, i) => {
-            const meta = activityMeta(a)
-            const d = deltaText(a)
-            return (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderBottom: i < recentActivity.length - 1 ? '1px solid var(--ml-line)' : 'none' }}>
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--ml-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{meta.emoji}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ml-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta.label}</div>
-                  <div style={{ fontSize: 12, color: 'var(--ml-text3)', marginTop: 1 }}>{relativeTime(a.createdAt)}</div>
-                </div>
-                <span style={{ fontSize: 13.5, fontWeight: 800, color: d.positive ? 'var(--ml-accent)' : 'var(--ml-cta)' }}>{d.text}</span>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* KVKK consent — current state + revoke/re-grant (flips owner phone view) */}
-        {restaurantId && (
-          <div style={{ marginTop: 16, background: 'var(--ml-surface)', borderRadius: 16, border: '1px solid var(--ml-line)', overflow: 'hidden' }}>
-            <ConsentRow
-              title="İletişim & veri izni"
-              copy={consentGiven
-                ? `${restaurantName} bilgilerinizi görebilir ve sizinle iletişim kurabilir.`
-                : 'İzin kapalı — işletme telefon numaranızı göremez.'}
-              active={consentGiven}
-              busy={consentBusy}
-              onToggle={() => void toggleConsent(!consentGiven)}
-            />
-            <div style={{ height: 1, background: 'var(--ml-line)', marginLeft: 14 }} />
-            <ConsentRow
-              title="Kampanya SMS izni"
-              copy={marketingConsentGiven
-                ? 'İndirim ve kampanya SMS’lerini alabilirsiniz.'
-                : 'Kampanya SMS’leri gönderilmez.'}
-              active={marketingConsentGiven}
-              busy={consentBusy}
-              onToggle={() => void toggleConsent(!marketingConsentGiven, 'marketing')}
-            />
-          </div>
-        )}
-
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 18, marginTop: 18 }}>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--ml-text2)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Kapat</button>
-          {onLogout && (
-            <button type="button" disabled={loggingOut} onClick={async () => { setLoggingOut(true); try { await onLogout() } finally { setLoggingOut(false) } }} style={{ background: 'none', border: 'none', color: 'var(--ml-text3)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline', opacity: loggingOut ? 0.5 : 1 }}>Üyelikten çık</button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ConsentRow({ title, copy, active, busy, onToggle }: {
-  title: string
-  copy: string
-  active: boolean
-  busy: boolean
-  onToggle: () => void
-}) {
-  return (
-    <div style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ml-text)' }}>{title}</div>
-        <div style={{ fontSize: 11.5, color: 'var(--ml-text2)', marginTop: 2, lineHeight: 1.45 }}>
-          {copy}
-        </div>
-      </div>
-      <button
-        type="button" disabled={busy} onClick={onToggle}
-        style={{
-          flexShrink: 0, height: 32, padding: '0 13px', borderRadius: 99, fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
-          cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
-          border: active ? '1px solid var(--ml-line)' : 'none',
-          background: active ? 'transparent' : 'var(--ml-accent)',
-          color: active ? 'var(--ml-text2)' : '#fff',
-        }}
-      >{active ? 'Geri çek' : 'İzin ver'}</button>
-    </div>
-  )
-}
-
-// ── nested sheet primitive (rewards) ─────────────────────────────────────────
 function NestedSheet({ title, subtitle, onClose, children }: { title: string; subtitle?: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(20,16,12,.45)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
@@ -801,7 +520,7 @@ function NestedSheet({ title, subtitle, onClose, children }: { title: string; su
             <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--ml-text)', fontFamily: 'var(--p-display)' }}>{title}</div>
             {subtitle && <div style={{ fontSize: 13, color: 'var(--ml-text2)', marginTop: 2 }}>{subtitle}</div>}
           </div>
-          <button type="button" onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--ml-line)', background: 'var(--ml-surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button type="button" onClick={onClose} aria-label="Ödül kataloğunu kapat" style={{ width: 44, height: 44, borderRadius: '50%', border: '1px solid var(--ml-line)', background: 'var(--ml-surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="var(--ml-text2)" strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
         </div>
@@ -831,7 +550,7 @@ function RewardsSheet({ points, catalog, pointsEnabled, onRedeem, onClose }: { p
               <button
                 type="button" disabled={!usable} onClick={() => usable && onRedeem!(r.itemId)}
                 style={{
-                  height: 34, padding: '0 15px', borderRadius: 99, border: 'none', flexShrink: 0,
+                  minHeight: 44, padding: '0 15px', borderRadius: 99, border: 'none', flexShrink: 0,
                   fontSize: 12.5, fontWeight: 800, fontFamily: 'inherit',
                   cursor: usable ? 'pointer' : 'not-allowed',
                   background: usable ? 'var(--ml-accent)' : 'var(--ml-line)',
@@ -852,8 +571,8 @@ export default function MemberSheet({
   authenticated = false, restaurantId, restaurantSlug, restaurantName = 'Sadakat',
   tableToken = null, guestSessionId, deviceId, authSurface = 'menu', authReturn = null,
   oauthProviders = [],
-  welcomeBonus = 0, rewardCatalog = [], onRedeemCatalog, onRefresh: _onRefresh, onLogout,
-  onAuthContextComplete, onOpenFavorite, onApplyReorder, previewState,
+  welcomeBonus = 0, rewardCatalog = [], onRedeemCatalog, onRefresh: _onRefresh,
+  onAuthContextComplete, accountActions, previewState, accountPreviewState, initialTarget = 'overview',
 }: Props) {
   const { theme, logoUrl: restaurantLogoUrl } = useTheme()
   const authTheme = theme.surfaces?.auth
@@ -901,6 +620,19 @@ export default function MemberSheet({
     '--ml-auth-header-control-bg': headerTone === 'dark' ? 'rgba(255,255,255,.68)' : 'rgba(0,0,0,.28)',
     '--ml-auth-header-control-border': headerTone === 'dark' ? 'rgba(20,23,25,.22)' : 'rgba(255,255,255,.28)',
   } as React.CSSProperties
+  const checkoutOverride = theme.surfaces?.checkout.override ?? {}
+  const accountVars = {
+    ...rootVars,
+    '--ml-bg': checkoutOverride.background ?? theme.bg,
+    '--ml-surface': checkoutOverride.surface ?? theme.cardColor ?? '#ffffff',
+    '--ml-text': checkoutOverride.text ?? theme.textColor ?? '#1c1d20',
+    '--ml-text2': checkoutOverride.mutedText ?? theme.mutedTextColor ?? '#6c6f76',
+    '--ml-line': checkoutOverride.fieldBorder ?? theme.borderColor ?? '#e3e4e7',
+    '--ml-accent': checkoutOverride.accent ?? theme.accent,
+    '--ml-accent-soft': checkoutOverride.accentSoft ?? theme.accentSoft,
+    '--ml-cta': checkoutOverride.cta ?? theme.cta ?? theme.accent,
+    '--ml-account-radius': `${checkoutOverride.radius ?? theme.radius}px`,
+  } as React.CSSProperties
   const [phase, setPhase] = useState<'join' | 'otp' | 'return' | 'home'>(() => {
     if (previewState === 'otp') return 'otp'
     if (previewState === 'success' || previewState === 'error') return 'return'
@@ -918,6 +650,47 @@ export default function MemberSheet({
   const [offline, setOffline] = useState(() => previewState ? false : typeof navigator !== 'undefined' && !navigator.onLine)
   const [subSheet, setSubSheet] = useState<null | 'rewards'>(null)
   const dialogRef = useRef<HTMLDivElement | null>(null)
+  const closeRef = useRef(onClose)
+  const accountHistoryTokenRef = useRef<string | null>(null)
+  closeRef.current = onClose
+
+  useEffect(() => {
+    const body = document.body
+    const root = document.documentElement
+    const previousBodyOverflow = body.style.overflow
+    const previousBodyPaddingRight = body.style.paddingRight
+    const previousRootOverflow = root.style.overflow
+    const previousOverscroll = root.style.overscrollBehavior
+    const scrollbarGap = Math.max(0, window.innerWidth - root.clientWidth)
+    body.style.overflow = 'hidden'
+    root.style.overflow = 'hidden'
+    root.style.overscrollBehavior = 'none'
+    if (scrollbarGap > 0) body.style.paddingRight = `${scrollbarGap}px`
+    return () => {
+      body.style.overflow = previousBodyOverflow
+      body.style.paddingRight = previousBodyPaddingRight
+      root.style.overflow = previousRootOverflow
+      root.style.overscrollBehavior = previousOverscroll
+    }
+  }, [])
+
+  useEffect(() => {
+    if (phase !== 'home' || previewState || accountPreviewState) return
+    const token = crypto.randomUUID()
+    accountHistoryTokenRef.current = token
+    const currentState = window.history.state && typeof window.history.state === 'object' ? window.history.state : {}
+    window.history.pushState({ ...currentState, __masabuAccount: { token, view: 'root' } }, '')
+    const handlePopState = () => {
+      const marker = window.history.state?.__masabuAccount as { token?: string } | undefined
+      if (marker?.token === token) return
+      closeRef.current()
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+      accountHistoryTokenRef.current = null
+    }
+  }, [accountPreviewState, phase, previewState])
 
   useEffect(() => {
     if (previewState) {
@@ -992,7 +765,7 @@ export default function MemberSheet({
   function handleDialogKeyDown(event: React.KeyboardEvent) {
     if (event.key === 'Escape') {
       event.preventDefault()
-      onClose()
+      requestClose()
       return
     }
     if (event.key !== 'Tab') return
@@ -1011,6 +784,16 @@ export default function MemberSheet({
     }
   }
 
+  function requestClose() {
+    const token = accountHistoryTokenRef.current
+    const marker = window.history.state?.__masabuAccount as { token?: string; view?: string } | undefined
+    if (token && marker?.token === token) {
+      window.history.go(marker.view === 'detail' ? -2 : -1)
+      return
+    }
+    closeRef.current()
+  }
+
   function authContext(name: string, consent: boolean, marketingConsent: boolean) {
     if (restaurantId && restaurantSlug) {
       storePendingCustomerAuthContext({
@@ -1018,6 +801,7 @@ export default function MemberSheet({
         restaurantSlug,
         tableToken,
         surface: authSurface,
+        memberTarget: initialTarget,
       })
     }
     return {
@@ -1148,7 +932,9 @@ export default function MemberSheet({
   }
 
   const name = localName ?? initialName
-  const visiblePhase = previewState === 'otp'
+  const visiblePhase = accountPreviewState
+    ? 'home'
+    : previewState === 'otp'
     ? 'otp'
     : previewState === 'success' || previewState === 'error'
       ? 'return'
@@ -1157,9 +943,32 @@ export default function MemberSheet({
       : phase
   const visibleReturnStatus = previewState === 'error' ? 'error' : authReturn ?? 'success'
   const visibleReturnTheme = visibleReturnStatus === 'error' ? errorStateTheme : successStateTheme
+  const currentRestaurantLoyalty: CustomerAccountLoyaltyView | null = balances && restaurantId && restaurantSlug
+    ? {
+        restaurant: {
+          id: restaurantId,
+          slug: restaurantSlug,
+          name: restaurantName,
+          logoUrl: restaurantLogoUrl,
+        },
+        points: balances.points,
+        stamps: balances.stamps,
+        stampGoal: balances.stampGoal,
+        stampRewardText: balances.stampRewardText,
+        stampUnlocked: balances.stampUnlocked,
+        pointsEnabled: balances.pointsEnabled,
+        stampsEnabled: balances.stampEnabled,
+        tier: { name: balances.tier.name, color: balances.tier.color },
+        nextTier: balances.nextTier
+          ? { name: balances.nextTier.name, minimumPoints: balances.nextTier.min }
+          : null,
+        tierProgress: balances.tierProgress,
+        lifetimePoints: balances.lifetimePoints,
+      }
+    : null
 
   return (
-    <div className="ml-auth-overlay" data-account={visiblePhase === 'home'} data-auth-preview={previewState ? 'true' : undefined} onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(20,16,12,.62)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', ...rootVars }}>
+    <div className="ml-auth-overlay" data-account={visiblePhase === 'home'} data-auth-preview={previewState || accountPreviewState ? 'true' : undefined} onClick={requestClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(20,16,12,.62)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', ...(visiblePhase === 'home' ? accountVars : rootVars) }}>
       <style dangerouslySetInnerHTML={{ __html: KEYFRAMES }} />
       <div
         ref={dialogRef}
@@ -1173,8 +982,9 @@ export default function MemberSheet({
         className={visiblePhase === 'home' ? 'ml-account-dialog' : 'ml-auth-dialog'}
         data-auth-preset={visiblePhase === 'home' ? undefined : authTheme?.preset ?? 'brand-panel'}
       >
+        {visiblePhase === 'home' && <span className="ml-account-handle" aria-hidden="true" />}
         {visiblePhase === 'join' && (
-          <AuthScreen restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} header={renderedAuthHeader} title={authTheme?.title ?? 'Masabu hesabınla devam et'} subtitle={authTheme?.subtitle ?? 'Siparişlerini, favorilerini ve sadakat avantajlarını tek yerde tut.'} welcomeBonus={welcomeBonus} busy={busy} error={joinError} offline={offline} oauthProviders={oauthProviders} onEmail={handleEmail} onOAuth={handleOAuth} onSkip={onClose} />
+          <AuthScreen restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} header={renderedAuthHeader} title={authTheme?.title ?? 'Masabu hesabınla devam et'} subtitle={authTheme?.subtitle ?? 'Siparişlerini, favorilerini ve sadakat avantajlarını tek yerde tut.'} welcomeBonus={welcomeBonus} busy={busy} error={joinError} offline={offline} oauthProviders={oauthProviders} onEmail={handleEmail} onOAuth={handleOAuth} onSkip={requestClose} />
         )}
         {visiblePhase === 'otp' && (
           <OTPScreen
@@ -1190,18 +1000,22 @@ export default function MemberSheet({
             onBack={() => { setPhase('join'); setJoinError('') }}
           />
         )}
-        {visiblePhase === 'return' && <AuthReturnScreen restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} header={renderedAuthHeader} status={visibleReturnStatus} config={visibleReturnTheme} onClose={onClose} />}
+        {visiblePhase === 'return' && <AuthReturnScreen restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} header={renderedAuthHeader} status={visibleReturnStatus} config={visibleReturnTheme} onClose={requestClose} />}
         {visiblePhase === 'home' && (
           <AccountCenter
             fallbackName={name}
-            onClose={onClose}
+            onClose={requestClose}
             onNameChange={(updatedName) => { setLocalName(updatedName); onVerified({ name: updatedName }) }}
-            {...(onLogout ? { onLogout } : {})}
+            actions={accountActions}
             rewardCount={rewardCatalog.length}
             onOpenRewards={() => setSubSheet('rewards')}
+            currentRestaurantId={restaurantId}
             currentRestaurantSlug={restaurantSlug}
-            {...(onOpenFavorite ? { onOpenFavorite } : {})}
-            {...(onApplyReorder ? { onApplyReorder } : {})}
+            currentRestaurantName={restaurantName}
+            currentRestaurantLoyalty={currentRestaurantLoyalty}
+            previewState={accountPreviewState}
+            previewRestaurant={{ id: restaurantId ?? 'preview-restaurant', slug: restaurantSlug ?? 'preview', name: restaurantName, logoUrl: restaurantLogoUrl }}
+            initialTab={initialTarget === 'loyalty' ? 'profile' : 'overview'}
           />
         )}
       </div>

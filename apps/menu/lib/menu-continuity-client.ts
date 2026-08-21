@@ -1,5 +1,6 @@
 import type { CustomerAuthSurface } from './customer-auth-intent'
 import type { CustomerReorderPreviewView } from './customer-account-contract'
+import type { MemberOpenTarget } from '@garsonless/ui/themes'
 
 const AUTH_CONTEXT_KEY = 'masabu-customer-auth-context-v1'
 const REORDER_DRAFT_PREFIX = 'masabu-reorder-draft-v1:'
@@ -12,6 +13,7 @@ export interface PendingCustomerAuthContext {
   restaurantSlug: string
   tableToken: string | null
   surface: CustomerAuthSurface
+  memberTarget?: MemberOpenTarget
   expiresAt: number
 }
 
@@ -37,6 +39,7 @@ export function consumePendingCustomerAuthContext(input: {
       && (value['tableToken'] ?? null) === input.tableToken
       && typeof value['surface'] === 'string'
       && SURFACES.has(value['surface'])
+      && (value['memberTarget'] === undefined || value['memberTarget'] === 'overview' || value['memberTarget'] === 'loyalty')
       && typeof value['expiresAt'] === 'number'
       && value['expiresAt'] > (input.now ?? Date.now())
     return valid ? value as unknown as PendingCustomerAuthContext : null

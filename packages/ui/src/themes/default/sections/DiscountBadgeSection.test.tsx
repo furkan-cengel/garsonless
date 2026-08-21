@@ -122,6 +122,45 @@ test('2 al 1 öde adds a pair and renders the pair total', () => {
   })
 })
 
+test('discount badge gives every button form a layout that protects price content', () => {
+  const renderStyle = (buttonStyle: 'icon' | 'pill' | 'full') => renderToStaticMarkup(
+    <DiscountBadgeSection
+      sectionInstanceId={`discount-${buttonStyle}`}
+      config={{
+        productId: 'latte',
+        discountMode: 'percentage',
+        discountPercent: '20',
+        ctaMode: 'custom',
+        buttonStyle,
+        buttonSize: 'large',
+      }}
+      items={[product]}
+      onQuickAdd={() => undefined}
+    />,
+  )
+
+  assert.match(renderStyle('icon'), /data-action-layout="inline"/)
+  assert.match(renderStyle('pill'), /data-action-layout="stack-compact"/)
+  assert.match(renderStyle('full'), /data-action-layout="stack-full"/)
+  assert.match(renderStyle('pill'), /data-button-style="pill"/)
+  assert.match(renderStyle('full'), /data-button-style="full"/)
+})
+
+test('discount badge focus visibly changes covered square product images', () => {
+  const renderFocus = (imagePosition: 'top' | 'center' | 'bottom', imageFit: 'cover' | 'contain' = 'cover') => renderToStaticMarkup(
+    <DiscountBadgeSection
+      sectionInstanceId={`discount-focus-${imagePosition}`}
+      config={{ productId: 'latte', imageFit, imagePosition }}
+      items={[product]}
+    />,
+  )
+
+  assert.match(renderFocus('top'), /data-image-focus="top"[^>]*object-position:center top[^>]*transform:scale\(1\.06\)[^>]*transform-origin:center top/)
+  assert.match(renderFocus('center'), /data-image-focus="center"[^>]*object-position:center center[^>]*transform-origin:center center/)
+  assert.match(renderFocus('bottom'), /data-image-focus="bottom"[^>]*object-position:center bottom[^>]*transform-origin:center bottom/)
+  assert.doesNotMatch(renderFocus('top', 'contain'), /transform:scale/)
+})
+
 test('timed discount renders a live timer and expired section is removed', () => {
   const futureHtml = renderToStaticMarkup(
     <DiscountBadgeSection
@@ -139,6 +178,7 @@ test('timed discount renders a live timer and expired section is removed', () =>
   assert.match(futureHtml, /role="timer"/)
   assert.match(futureHtml, /Fırsatın bitmesine/)
   assert.match(futureHtml, /garsonless-discount-media/)
+  assert.match(futureHtml, /garsonless-discount-visual-column[\s\S]*garsonless-discount-media[\s\S]*data-layout="compact"/)
   assert.match(futureHtml, /garsonless-discount-offer-chip/)
   assert.match(futureHtml, /garsonless-discount-clock/)
 

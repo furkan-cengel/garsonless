@@ -24,3 +24,23 @@ test('home account and cart controls disappear when their Pro entitlements are a
   assert.match(homeClient, /customerAccountsEnabled \? \{ memberSummary, onOpenMember/)
   assert.match(homeClient, /customerAccountsEnabled && memberOpen \? <MemberSheet/)
 })
+
+test('only a signed dashboard preview can bypass the public QR-menu entitlement gate', () => {
+  assert.match(menuExperience, /hasThemePreviewAccess\(\{/)
+  assert.match(menuExperience, /if \(isPreview && !previewAccessGranted\) notFound\(\)/)
+  assert.match(menuExperience, /if \(!previewAccessGranted && \(!menuAccess\.ok \|\| !menuAccess\.value\)\) notFound\(\)/)
+})
+
+test('table QR entry opens the enabled home surface and preserves table scope when entering the menu', () => {
+  assert.match(tablePage, /const homeEnabled = experienceV2Enabled && servedTheme\.surfaces\?\.home\.enabled === true/)
+  assert.match(tablePage, /if \(homeEnabled && sp\['surface'\] !== 'menu'\) \{[\s\S]*?<HomePageRenderer/)
+  assert.match(tablePage, /<HomePageRenderer[\s\S]*?tableToken=\{tableId\}[\s\S]*?tableLabel=\{tableState\.token\.tableLabel\}/)
+  assert.match(homeClient, /const menuNavigation = \{ preview: isPreview, previewTemplateId, previewAccessToken, tableToken \}/)
+  assert.match(homeClient, /tableToken=\{tableToken\}/)
+  assert.match(homeClient, /<HomeMenuEntryCta href=\{menuHref\} \/>/)
+  assert.match(homeClient, /data-home-menu-entry-cta[\s\S]*?Menüyü Gör/)
+  assert.match(homeClient, /querySelector<HTMLElement>\('\[data-home-menu-entry-cta\]'\)/)
+  assert.match(homeClient, /querySelector<HTMLElement>\('\[data-home-hero\]'\)/)
+  assert.match(homeClient, /setHeroPassed\(!entry\.isIntersecting && entry\.boundingClientRect\.bottom <= 0\)/)
+  assert.match(homeClient, /const hidden = entryCtaVisible \|\| !heroPassed/)
+})

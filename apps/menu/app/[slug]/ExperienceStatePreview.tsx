@@ -5,12 +5,19 @@ import Image from 'next/image'
 import { CartDrawer, ThemeProvider, useTheme, type CartItem, type MenuItem } from '@garsonless/ui/menu'
 import { AppIcons as I } from '@garsonless/ui/icons'
 import {
+  type AccountPreviewState,
   type AuthPreviewState,
   type CheckoutPreviewState,
   type GarsonlessTheme,
 } from '@garsonless/design-engine'
 import MemberSheet from './components/MemberSheet'
 import PaymentModal from './components/PaymentModal'
+
+const PREVIEW_ACCOUNT_ACTIONS = {
+  openFavorite: () => ({ ok: false as const, error: 'Önizlemede ürün sayfasına yönlendirme yapılmaz.' }),
+  applyReorder: () => ({ ok: false as const, error: 'Önizlemede sepete ürün eklenmez.' }),
+  logout: () => ({ ok: false as const, error: 'Önizleme oturumu kapatmaz.' }),
+}
 
 export function ExperienceStatePreview({
   restaurantName,
@@ -23,8 +30,8 @@ export function ExperienceStatePreview({
   restaurantName: string
   logoUrl: string | null
   theme: GarsonlessTheme
-  surface: 'auth' | 'checkout'
-  state: AuthPreviewState | CheckoutPreviewState
+  surface: 'auth' | 'account' | 'checkout'
+  state: AccountPreviewState | AuthPreviewState | CheckoutPreviewState
   menuItems?: MenuItem[]
 }) {
   return <ThemeProvider initialTheme={theme} isPreview initialRestaurantName={restaurantName} initialLogoUrl={logoUrl}><PreviewCanvas surface={surface} state={state} restaurantName={restaurantName} logoUrl={logoUrl} menuItems={menuItems} /></ThemeProvider>
@@ -37,8 +44,8 @@ function PreviewCanvas({
   logoUrl,
   menuItems,
 }: {
-  surface: 'auth' | 'checkout'
-  state: AuthPreviewState | CheckoutPreviewState
+  surface: 'auth' | 'account' | 'checkout'
+  state: AccountPreviewState | AuthPreviewState | CheckoutPreviewState
   restaurantName: string
   logoUrl: string | null
   menuItems: MenuItem[]
@@ -55,6 +62,25 @@ function PreviewCanvas({
           oauthProviders={['google']}
           welcomeBonus={200}
           previewState={state as AuthPreviewState}
+          accountActions={PREVIEW_ACCOUNT_ACTIONS}
+        />
+      </main>
+    )
+  }
+
+  if (surface === 'account') {
+    return (
+      <main data-experience-preview="account" data-component="account-surface" style={{ minHeight: '100dvh', background: theme.bg }}>
+        <MemberSheet
+          onClose={() => undefined}
+          onVerified={() => undefined}
+          authenticated
+          memberName="Deniz Yılmaz"
+          restaurantId="preview-restaurant"
+          restaurantSlug="preview"
+          restaurantName={restaurantName}
+          accountPreviewState={state as AccountPreviewState}
+          accountActions={PREVIEW_ACCOUNT_ACTIONS}
         />
       </main>
     )

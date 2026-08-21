@@ -56,10 +56,15 @@ export interface MenuCategory {
  */
 export interface SectionPromotionContext {
   sectionInstanceId: string
-  kind: 'discount-badge' | 'daily-special'
+  kind: 'discount-badge' | 'daily-special' | 'promo-slider'
   /** Client-side cart controls advance in this many units. The server derives
    * and validates the authoritative step from the published section. */
   quantityStep?: number
+  /** Functional promo-slider offer identity. Omitted by legacy campaigns. */
+  offer?: 'freebie'
+  /** Pairs the paid qualifier and the free reward inside one cart operation. */
+  instanceId?: string
+  role?: 'qualifier' | 'reward'
 }
 
 export interface CartItem {

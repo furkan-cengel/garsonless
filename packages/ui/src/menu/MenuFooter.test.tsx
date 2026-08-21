@@ -11,6 +11,7 @@ import {
   normalizeFooterSocialLinks,
   readableFooterForeground,
 } from './MenuFooter'
+import { NavDrawer } from './NavDrawer'
 
 // The direct Node/tsx test runner compiles the existing context with the
 // classic JSX runtime, while the package build uses the automatic runtime.
@@ -86,4 +87,63 @@ test('brand footer foreground chooses the higher contrast neutral', () => {
   assert.equal(readableFooterForeground('#ffffff'), '#111318')
   assert.equal(readableFooterForeground('#111111'), '#ffffff')
   assert.equal(readableFooterForeground('#fff'), '#111318')
+})
+
+test('floating service action does not reserve an empty block below the footer', () => {
+  const markup = renderToStaticMarkup(
+    <ThemeProvider
+      initialTheme={{ ...DEFAULT_THEME, cartPlacement: 'hidden', servicePlacement: 'floating' }}
+      initialRestaurantName="Çok Uzun Restoran Adı"
+      initialLogoUrl={null}
+    >
+      <MenuFooter storeInfo={storeInfo} cartCount={0} />
+    </ThemeProvider>,
+  )
+
+  assert.match(markup, /padding-bottom:env\(safe-area-inset-bottom, 0px\)/)
+  assert.doesNotMatch(markup, /padding-bottom:calc\(96px/)
+})
+
+test('footer clearance follows the selected cart trigger and disappears for an empty cart', () => {
+  const pill = renderFooter({ ...DEFAULT_THEME, cartFooterTriggerStyle: 'pill', cartPillPosition: 'floating' })
+  const thumbs = renderFooter({ ...DEFAULT_THEME, cartFooterTriggerStyle: 'thumbs' })
+  const empty = renderToStaticMarkup(
+    <ThemeProvider initialTheme={DEFAULT_THEME} initialRestaurantName="Masabu" initialLogoUrl={null}>
+      <MenuFooter storeInfo={storeInfo} cartCount={0} />
+    </ThemeProvider>,
+  )
+
+  assert.match(pill, /padding-bottom:calc\(98px \+ env\(safe-area-inset-bottom, 0px\)\)/)
+  assert.match(thumbs, /padding-bottom:calc\(88px \+ env\(safe-area-inset-bottom, 0px\)\)/)
+  assert.match(empty, /padding-bottom:env\(safe-area-inset-bottom, 0px\)/)
+})
+
+test('compact footer surfaces keep 44px hit areas and pointer-safe motion', () => {
+  const markup = renderFooter()
+
+  assert.match(markup, /\[data-menu-footer-contact\] a\{min-height:44px/)
+  assert.match(markup, /\[data-menu-footer-social\] a\{width:44px;height:44px/)
+  assert.match(markup, /\[data-menu-footer-attribution\] a\{min-height:44px/)
+  assert.match(markup, /\[data-menu-footer-social-surface\]\{width:38px;height:38px/)
+  assert.match(markup, /@media\(hover:hover\) and \(pointer:fine\)/)
+  assert.match(markup, /@media\(prefers-reduced-motion:reduce\)/)
+})
+
+test('footer and drawer preserve the complete aspect ratio of uploaded logos', () => {
+  const markup = renderToStaticMarkup(
+    <ThemeProvider
+      initialTheme={DEFAULT_THEME}
+      initialRestaurantName="Çok Uzun Restoran Adı"
+      initialLogoUrl="https://example.com/wide-logo.png"
+    >
+      <MenuFooter storeInfo={storeInfo} cartCount={0} />
+      <NavDrawer open onClose={() => undefined} restaurantName="Çok Uzun Restoran Adı" />
+    </ThemeProvider>,
+  )
+
+  assert.match(markup, /data-menu-footer-logo="true" data-logo-image="true"/)
+  assert.match(markup, /data-drawer-mark="true" data-logo-image="true"/)
+  assert.match(markup, /\[data-menu-footer-logo\] img\{[^}]*object-fit:contain/)
+  assert.match(markup, /\[data-drawer-mark\] img\{[^}]*object-fit:contain/)
+  assert.doesNotMatch(markup, /\[data-(?:menu-footer-logo|drawer-mark)\] img\{[^}]*object-fit:cover/)
 })

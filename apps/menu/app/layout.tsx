@@ -1,4 +1,5 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
+import { FocusModalityScript } from '@garsonless/ui/focus-modality'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -14,9 +15,18 @@ export const metadata: Metadata = {
   manifest: '/site.webmanifest',
 }
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="tr">
+      <head>
+        <FocusModalityScript />
+      </head>
       {/* suppressHydrationWarning: browser extensions (antivirus etc.) inject
           attributes into <body> before React hydrates — not our markup. */}
       <body className="bg-background text-text antialiased" suppressHydrationWarning>

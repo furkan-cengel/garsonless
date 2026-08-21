@@ -10,39 +10,47 @@ import {
   orderStatusPhase,
   ServiceRequestFab,
   useTheme,
-  formatTRY,
-  CartIconSvg,
   DietaryFilterBar,
   isProductConfigurable,
 } from '@garsonless/ui/menu'
 import type {
   MenuCategory,
+  CartItem,
   MenuFilterDefinition,
   MenuItem,
   ProductModalSubmitOptions,
   SectionPromotionContext,
   SelectedModifier,
 } from '@garsonless/ui/menu'
-import type { ComboAddRequest } from '@garsonless/ui/themes'
+import type { ComboAddRequest, FreebieAddRequest, MemberOpenTarget } from '@garsonless/ui/themes'
 import { readStoreInfo } from '@garsonless/ui/themes/storeInfo'
 import { allocateBundlePrice } from '@garsonless/domain/menu'
 import type { ServiceRequestType } from '@garsonless/domain/tables'
 import type { PublicRestaurant, TableSessionInfo, SessionOrderRow } from '../../lib/queries'
-import type { GarsonlessTheme } from '@garsonless/design-engine'
+import { MENU_CART_PREVIEW_EVENT, resolveMenuHeaderTheme, type GarsonlessTheme, type MenuCartPreviewState } from '@garsonless/design-engine'
 import { getSectionDefinitionId } from '@garsonless/design-engine/section-blocks'
 import { resolveMenuActionPlacements } from '@garsonless/design-engine/menu-action-placement'
 import type { MemberBalances } from '@garsonless/db/types'
 import { useCartStore } from '../../lib/store/useCartStore'
 import { useWaiterCall } from '../../lib/hooks/useWaiterCall'
 import { useMenuCatalog } from '../../lib/hooks/useMenuCatalog'
+import { participatesInAutomaticProductCampaign } from '../../lib/cart-quantity-projection'
 import { useMenuMembership } from '../../lib/hooks/useMenuMembership'
 import { useMenuCheckout } from '../../lib/hooks/useMenuCheckout'
 import { useOrderTracking } from '../../lib/hooks/useOrderTracking'
 import { useTableBill } from '../../lib/hooks/useTableBill'
 import type { CustomerFavoriteView, CustomerReorderPreviewView } from '../../lib/customer-account-contract'
+import type { AccountActions } from './components/AccountCenter'
 import type { CustomerAuthSurface } from '../../lib/customer-auth-intent'
 import type { CustomerAuthOAuthProvider } from '../../lib/customer-auth-contract'
 import { DefaultMenuPage } from '@garsonless/ui/themes/default/MenuPage'
+import { readComboIntent, removeComboIntentFromUrl, resolveComboIntent } from '../../lib/combo-intent'
+import { consumeComboIntentHandoff, readPreviewComboConfig } from '../../lib/combo-intent-params'
+import { resolveAutomaticPromotionForItem, resolvePromotionIntent } from '../../lib/promotion-intent'
+import { normalizeCartQuantityForStep } from '../../lib/store/cartIdentity'
+import { getNextFreebieCampaignTransition, resolveFreebieCampaign, resolveFreebieCampaigns } from '../../lib/freebie-campaign'
+import { consumeFreebieIntentHandoff } from '../../lib/freebie-intent-params'
+import { FreebieCampaignPicker } from './components/FreebieCampaignPicker'
 
 const ProductModal = dynamic(() => import('@garsonless/ui/menu/ProductModal').then((module) => module.ProductModal))
 const CartDrawer = dynamic(() => import('@garsonless/ui/menu/CartDrawer').then((module) => module.CartDrawer))
@@ -67,298 +75,6 @@ const LazyFloatingCartTrigger = dynamic(
   { ssr: false },
 )
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function LegacyFloatingCartTrigger({ onClick }: { onClick: () => void }) {
-  const { theme } = useTheme()
-  const cartItems = useCartStore((s) => s.items)
-  const count = cartItems.reduce((sum, i) => sum + i.quantity, 0)
-  const subtotal = cartItems.reduce(
-    (sum, i) => sum + (i.price + i.modifiersPriceDelta) * i.quantity,
-    0,
-  )
-  const style = theme.cartStyle
-  const configuredFooterStyle = theme.cartFooterTriggerStyle ?? (style === 'banner' ? 'bar' : style === 'fab' ? 'fab' : 'pill')
-  const footerStyle = configuredFooterStyle === 'tabbar' ? 'pill' : configuredFooterStyle
-  const iconKind = theme.cartIcon
-  const showBadge = theme.cartShowBadge
-  const radius = theme.radius
-  const showSubtotal = theme.cartShowSubtotal ?? true
-  const showItemCount = theme.cartShowItemCount ?? true
-  const pillPosition = theme.cartPillPosition ?? 'floating'
-  const pillTone = theme.cartPillTone ?? 'dark'
-  if (resolveMenuActionPlacements(theme).cart !== 'footer') return null
-
-  if (count === 0 || footerStyle === 'none') return null
-
-  const toneStyles = {
-    dark: {
-      background: 'var(--p-text)',
-      foreground: '#fff',
-      muted: 'rgba(255,255,255,.72)',
-      chipBg: 'rgba(255,255,255,.12)',
-      chipFg: '#fff',
-      border: 'rgba(255,255,255,.08)',
-      shadow: '0 18px 42px rgba(15,23,42,.24)',
-    },
-    accent: {
-      background: 'linear-gradient(135deg, var(--p-accent), var(--p-cta))',
-      foreground: '#fff',
-      muted: 'rgba(255,255,255,.78)',
-      chipBg: 'rgba(255,255,255,.16)',
-      chipFg: '#fff',
-      border: 'rgba(255,255,255,.14)',
-      shadow: '0 18px 42px rgba(46,125,82,.28)',
-    },
-    light: {
-      background: '#ffffff',
-      foreground: 'var(--p-text)',
-      muted: 'var(--p-text-2)',
-      chipBg: 'var(--p-accent-soft)',
-      chipFg: 'var(--p-accent)',
-      border: 'var(--p-border, rgba(0,0,0,.08))',
-      shadow: '0 18px 42px rgba(15,23,42,.14)',
-    },
-  }[pillTone]
-  const edge = pillPosition === 'edge'
-  const badge = showBadge && count > 0 ? (
-    <span style={{
-      position: 'absolute',
-      top: -6,
-      right: -6,
-      minWidth: 18,
-      height: 18,
-      padding: '0 4px',
-      borderRadius: 999,
-      fontSize: 10,
-      fontWeight: 900,
-      backgroundColor: 'var(--p-cta)',
-      color: 'var(--p-cta-text)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      border: '2px solid #fff',
-    }}>{count > 99 ? '99+' : count}</span>
-  ) : null
-
-  if (footerStyle === 'fab') {
-    return (
-      <button
-        type="button"
-        aria-label={`Sepeti aç, ${count} ürün`}
-        onClick={onClick}
-        style={{
-          position: 'fixed', bottom: 'calc(24px + env(safe-area-inset-bottom))', right: 20,
-          width: 60, height: 60, borderRadius: '50%',
-          backgroundColor: 'var(--p-accent)', color: '#fff',
-          border: 'none', cursor: 'pointer', zIndex: 30,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 14px 30px -10px rgba(46,125,82,.55)',
-        }}
-      >
-        <CartIconSvg kind={iconKind} color="#fff" size={24} />
-        {badge}
-      </button>
-    )
-  }
-
-  if (footerStyle === 'thumbs') {
-    const thumbs = cartItems.slice(0, 3).map((item) => item.name.slice(0, 1).toLocaleUpperCase('tr'))
-    return (
-      <div style={{ position: 'fixed', left: 14, right: 14, bottom: 18, zIndex: 30, maxWidth: 430, margin: '0 auto' }}>
-        <button
-          type="button"
-          aria-label={`Sepeti aç, ${count} ürün`}
-          onClick={onClick}
-          style={{
-            width: '100%',
-            minHeight: 58,
-            borderRadius: 999,
-            border: 'none',
-            background: 'var(--p-text)',
-            color: 'var(--p-cta-text)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 14,
-            padding: '0 8px 0 10px',
-            fontFamily: 'var(--p-body)',
-            boxShadow: '0 16px 34px -12px rgba(15,23,42,.48)',
-            cursor: 'pointer',
-          }}
-        >
-          <span style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
-            {thumbs.map((label, index) => (
-              <span key={`${label}-${index}`} style={{
-                width: 34,
-                height: 34,
-                borderRadius: 999,
-                background: '#fff',
-                color: 'var(--p-accent)',
-                border: '2px solid var(--p-text)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 13,
-                fontWeight: 900,
-                marginLeft: index ? -12 : 0,
-                zIndex: 4 - index,
-              }}>
-                {label}
-              </span>
-            ))}
-            <span style={{ marginLeft: 10, color: '#fff', fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
-              {count} ürün
-            </span>
-          </span>
-          <span style={{
-            height: 40,
-            padding: '0 15px',
-            borderRadius: 999,
-            background: 'var(--p-cta)',
-            color: '#fff',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: 14,
-            fontWeight: 900,
-            whiteSpace: 'nowrap',
-          }}>
-            {showSubtotal ? formatTRY(subtotal) : theme.cartButtonText || 'Aç'} →
-          </span>
-        </button>
-      </div>
-    )
-  }
-
-  if (footerStyle === 'bar') {
-    return (
-      <div style={{
-        position: 'fixed',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 30,
-        maxWidth: 430,
-        margin: '0 auto',
-        padding: '12px 12px 14px',
-        background: 'linear-gradient(to top, var(--p-bg) 68%, rgba(255,255,255,0))',
-      }}>
-        <button
-          type="button"
-          aria-label={`Sepeti aç, ${count} ürün`}
-          onClick={onClick}
-          style={{
-            width: '100%',
-            minHeight: 58,
-            borderRadius: 16,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 14,
-            padding: '0 8px 0 16px',
-            background: 'var(--p-accent)',
-            color: '#fff',
-            fontWeight: 700,
-            fontSize: 14,
-            border: 'none',
-            boxShadow: '0 14px 28px -10px rgba(46,125,82,.48)',
-            cursor: 'pointer',
-            fontFamily: 'var(--p-body)',
-          }}
-        >
-          <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-              <CartIconSvg kind={iconKind} color="#fff" size={22} />
-              {badge}
-            </span>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{theme.cartButtonText || 'Sepeti gör'}</span>
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
-            {showSubtotal && <span style={{ fontSize: 16, fontWeight: 900 }}>{formatTRY(subtotal)}</span>}
-            <span style={{ width: 38, height: 42, borderRadius: 12, background: 'rgba(255,255,255,.18)', display: 'grid', placeItems: 'center', fontSize: 18 }}>→</span>
-          </span>
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <button
-      type="button"
-      aria-label={`Sepeti aç, ${count} ürün`}
-      onClick={onClick}
-      style={{
-        position: 'fixed',
-        bottom: edge ? 0 : 20,
-        left: edge ? 0 : 16,
-        right: edge ? 0 : 16,
-        maxWidth: edge ? 'none' : 430,
-        margin: edge ? 0 : '0 auto',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        minHeight: edge ? 72 : 66,
-        padding: edge ? '14px 18px 18px' : '12px 14px',
-        background: toneStyles.background,
-        color: toneStyles.foreground,
-        fontWeight: 650,
-        fontSize: 15,
-        border: `1px solid ${toneStyles.border}`,
-        borderRadius: edge ? `${Math.max(radius + 6, 18)}px ${Math.max(radius + 6, 18)}px 0 0` : Math.max(radius + 8, 18),
-        boxShadow: toneStyles.shadow,
-        cursor: 'pointer', zIndex: 30,
-        fontFamily: 'var(--p-body)',
-        overflow: 'hidden',
-      }}
-    >
-      <span style={{
-        position: 'relative',
-        flexShrink: 0,
-        width: 42,
-        height: 42,
-        borderRadius: 999,
-        background: toneStyles.chipBg,
-        color: toneStyles.chipFg,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-        <CartIconSvg kind={iconKind} color="currentColor" size={22} />
-        {showBadge && count > 0 && (
-          <span style={{
-            position: 'absolute', top: -5, right: -5,
-            minWidth: 20, height: 20, padding: '0 5px',
-            borderRadius: 999, fontSize: 10, fontWeight: 800,
-            backgroundColor: 'var(--p-cta)', color: 'var(--p-cta-text)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '2px solid currentColor',
-          }}>{count > 99 ? '99+' : count}</span>
-        )}
-      </span>
-      <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'left' }}>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{theme.cartButtonText || 'Sepeti gör'}</span>
-        {showItemCount && (
-          <span style={{ fontSize: 11.5, fontWeight: 500, color: toneStyles.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {count} ürün sepette
-          </span>
-        )}
-      </span>
-      {showSubtotal && (
-        <span style={{
-          flexShrink: 0,
-          fontWeight: 800,
-          fontSize: 16,
-          letterSpacing: '-0.01em',
-          maxWidth: 116,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}>{formatTRY(subtotal)}</span>
-      )}
-    </button>
-  )
-}
-
 interface RequestButtonsOverlayProps {
   enabled: boolean
   tableToken: string | null
@@ -369,11 +85,6 @@ interface RequestButtonsOverlayProps {
   onOpenChange: (open: boolean) => void
 }
 
-/**
- * Resolve the global request tool from the live ThemeContext instead of the
- * server-rendered theme prop. Theme Editor updates that context over postMessage,
- * so newly-added request buttons become visible without publishing or reloading.
- */
 function RequestButtonsOverlay({
   enabled,
   tableToken,
@@ -384,23 +95,24 @@ function RequestButtonsOverlay({
   onOpenChange,
 }: RequestButtonsOverlayProps) {
   const { theme: liveTheme, isPreview } = useTheme()
+  const liveMenuTheme = useMemo(() => resolveMenuHeaderTheme(liveTheme), [liveTheme])
   const config = useMemo(() => {
-    const block = (liveTheme.pageBlocks ?? []).find(
+    const block = (liveMenuTheme.pageBlocks ?? []).find(
       (candidate) => candidate.type === 'section' && getSectionDefinitionId(candidate) === 'request-buttons',
     )
     if (block) {
-      return liveTheme.sectionSettings?.[block.id]
-        ?? liveTheme.sectionSettings?.['request-buttons']
+      return liveMenuTheme.sectionSettings?.[block.id]
+        ?? liveMenuTheme.sectionSettings?.['request-buttons']
         ?? {}
     }
-    return liveTheme.sections?.includes('request-buttons')
-      ? (liveTheme.sectionSettings?.['request-buttons'] ?? {})
+    return liveMenuTheme.sections?.includes('request-buttons')
+      ? (liveMenuTheme.sectionSettings?.['request-buttons'] ?? {})
       : null
-  }, [liveTheme.pageBlocks, liveTheme.sectionSettings, liveTheme.sections])
+  }, [liveMenuTheme.pageBlocks, liveMenuTheme.sectionSettings, liveMenuTheme.sections])
 
   if (!enabled || config === null || (!tableToken && !isPreview) || (hidden && !open)) return null
 
-  const placements = resolveMenuActionPlacements(liveTheme)
+  const placements = resolveMenuActionPlacements(liveMenuTheme)
 
   return (
     <ServiceRequestFab
@@ -439,6 +151,9 @@ interface Props {
   customerAuthProviders?: readonly CustomerAuthOAuthProvider[]
   initialOpenCart?: boolean
   initialProductId?: string | null
+  initialPromotionSectionId?: string | null
+  initialPromotionKind?: string | null
+  homeEnabled?: boolean
 }
 
 interface PendingComboSelection {
@@ -461,6 +176,102 @@ interface PendingPromotion {
   promotion: SectionPromotionContext
 }
 
+interface FreebieLineSelection {
+  modifiers: SelectedModifier[]
+  removedIngredientIds: string[]
+  productNote?: string
+}
+
+interface PendingFreebie {
+  request: FreebieAddRequest
+  instanceId: string
+  qualifier: MenuItem | null
+  reward: MenuItem | null
+  quantity: number
+  stage: 'picker' | 'qualifier' | 'reward'
+  qualifierSelection?: FreebieLineSelection
+  rewardSelection?: FreebieLineSelection
+  replaceCartIds?: string[]
+}
+
+function createClientId(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID()
+  return `combo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+}
+
+function getComboModifierTotal(item: MenuItem, modifiers: SelectedModifier[]): number {
+  return modifiers.reduce((total, selection) => {
+    for (const group of item.modifier_groups) {
+      const option = group.options.find((candidate) => candidate.id === selection.option_id)
+      if (option) return total + option.price_delta * (selection.quantity ?? 1)
+    }
+    return total
+  }, 0)
+}
+
+function ComboIntentConsumer({
+  enabled,
+  cartScopeReady,
+  restaurantSlug,
+  items,
+  onAddCombo,
+  onInvalid,
+}: {
+  enabled: boolean
+  cartScopeReady: boolean
+  restaurantSlug: string
+  items: MenuItem[]
+  onAddCombo: (request: ComboAddRequest) => void
+  onInvalid: () => void
+}) {
+  const { theme, isPreview } = useTheme()
+  const consumedRef = useRef(false)
+
+  useEffect(() => {
+    if (!enabled || !cartScopeReady || consumedRef.current) return
+    const params = new URLSearchParams(window.location.search)
+    if (!params.has('comboSection') && !params.has('comboIndex')) return
+    consumedRef.current = true
+    const intent = readComboIntent(window.location.search)
+    if (!intent) {
+      window.history.replaceState(window.history.state, '', removeComboIntentFromUrl(window.location))
+      onInvalid()
+      return
+    }
+
+    const storedConfig = consumeComboIntentHandoff(window.sessionStorage, intent, restaurantSlug)
+    const fallbackConfig = isPreview
+      ? storedConfig ?? readPreviewComboConfig(window.location.search, intent)
+      : null
+    window.history.replaceState(window.history.state, '', removeComboIntentFromUrl(window.location))
+    const request = resolveComboIntent(intent, theme, items, fallbackConfig)
+    if (request) onAddCombo(request)
+    else onInvalid()
+  }, [cartScopeReady, enabled, isPreview, items, onAddCombo, onInvalid, restaurantSlug, theme])
+
+  return null
+}
+
+function FreebieIntentConsumer({ enabled, cartScopeReady, theme, items, restaurantSlug, isPreview, onAddFreebie }: { enabled: boolean; cartScopeReady: boolean; theme: GarsonlessTheme; items: MenuItem[]; restaurantSlug: string; isPreview: boolean; onAddFreebie: (request: FreebieAddRequest) => void }) {
+  const consumedRef = useRef(false)
+  useEffect(() => {
+    if (!enabled || !cartScopeReady || consumedRef.current) return
+    const params = new URLSearchParams(window.location.search)
+    const sectionInstanceId = params.get('freebieSection')?.trim()
+    if (!sectionInstanceId) return
+    consumedRef.current = true
+    params.delete('freebieSection')
+    const query = params.size ? `?${params.toString()}` : ''
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${query}${window.location.hash}`)
+    const fallbackSettings = isPreview
+      ? consumeFreebieIntentHandoff(window.sessionStorage, sectionInstanceId, restaurantSlug)
+      : null
+    const request = resolveFreebieCampaign({ theme, items, sectionInstanceId, fallbackSettings })
+    if (request) onAddFreebie(request)
+  }, [cartScopeReady, enabled, isPreview, items, onAddFreebie, restaurantSlug, theme])
+  return null
+}
+
 export function MenuPageClient({
   restaurant,
   categories,
@@ -480,8 +291,12 @@ export function MenuPageClient({
   customerAuthProviders = [],
   initialOpenCart = false,
   initialProductId = null,
+  initialPromotionSectionId = null,
+  initialPromotionKind = null,
+  homeEnabled = false,
 }: Props) {
   const orderingEnabled = guestOrderingEnabled || isPreview
+  const [runtimeTheme, setRuntimeTheme] = useState(theme)
   useEffect(() => {
     const root = document.documentElement
     root.dataset['menuHydrated'] = 'true'
@@ -490,12 +305,26 @@ export function MenuPageClient({
     }
   }, [])
 
-  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(() => initialProductId ? items.find((item) => item.id === initialProductId) ?? null : null)
+  const initialPromotion = resolvePromotionIntent({
+    theme,
+    items,
+    itemId: initialProductId,
+    sectionInstanceId: initialPromotionSectionId,
+    kind: initialPromotionKind,
+  })
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(() => initialPromotion?.item ?? (initialProductId ? items.find((item) => item.id === initialProductId) ?? null : null))
   const [pendingCombo, setPendingCombo] = useState<PendingCombo | null>(null)
-  const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null)
+  const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(() => initialPromotion
+    ? { originalPrice: initialPromotion.originalPrice, promotion: initialPromotion.promotion }
+    : null)
+  const [pendingFreebie, setPendingFreebie] = useState<PendingFreebie | null>(null)
+  const [campaignNotice, setCampaignNotice] = useState<string | null>(null)
+  const [freebieClock, setFreebieClock] = useState(() => Date.now())
   const [menuFilters, setMenuFilters] = useState<MenuFilterDefinition[]>([])
   const [isCartOpen, setIsCartOpen] = useState(orderingEnabled && initialOpenCart)
   const [hasOpenedCart, setHasOpenedCart] = useState(false)
+  const [cartPreviewState, setCartPreviewState] = useState<MenuCartPreviewState | null>(null)
+  const [previewCartQuantity, setPreviewCartQuantity] = useState(1)
   const [hasOpenedProduct, setHasOpenedProduct] = useState(false)
   const [paymentOrderId, setPaymentOrderId] = useState<string | null>(null)
   const [paymentTotal, setPaymentTotal] = useState(0)
@@ -503,6 +332,7 @@ export function MenuPageClient({
   const [isServiceRequestsOpen, setIsServiceRequestsOpen] = useState(false)
   const [customerAuthReturn, setCustomerAuthReturn] = useState<'success' | 'error' | null>(initialCustomerAuthReturn)
   const [customerAuthSurface, setCustomerAuthSurface] = useState<CustomerAuthSurface>('menu')
+  const [memberTarget, setMemberTarget] = useState<MemberOpenTarget>('overview')
   const [pendingAuthSurface, setPendingAuthSurface] = useState<CustomerAuthSurface | null>(null)
   const [cartScopeReady, setCartScopeReady] = useState(false)
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
@@ -514,29 +344,201 @@ export function MenuPageClient({
   }, [isCartOpen])
 
   useEffect(() => {
+    if (!isPreview) return
+    const handleCartPreview = (event: Event) => {
+      const state = (event as CustomEvent<{ state: MenuCartPreviewState | null }>).detail?.state ?? null
+      setCartPreviewState(state)
+      setPreviewCartQuantity(1)
+      const shouldOpen = state === 'filled' || state === 'empty'
+      setIsCartOpen(shouldOpen)
+      if (shouldOpen) setHasOpenedCart(true)
+    }
+    window.addEventListener(MENU_CART_PREVIEW_EVENT, handleCartPreview)
+    return () => window.removeEventListener(MENU_CART_PREVIEW_EVENT, handleCartPreview)
+  }, [isPreview])
+
+  useEffect(() => {
     if (selectedItem) setHasOpenedProduct(true)
   }, [selectedItem])
   const storeInfo = useMemo(() => readStoreInfo(restaurant.settings), [restaurant.settings])
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
+  const automaticPromotionsByItemId = useMemo(() => new Map(items.flatMap((item) => {
+    const promotion = resolveAutomaticPromotionForItem({ theme: runtimeTheme, item })
+    return promotion ? [[item.id, promotion] as const] : []
+  })), [items, runtimeTheme])
+  const freebieCampaigns = useMemo(() => resolveFreebieCampaigns(runtimeTheme, items, freebieClock), [freebieClock, items, runtimeTheme])
+  const freebieCampaignsBySection = useMemo(() => new Map(freebieCampaigns.map((campaign) => [campaign.sectionInstanceId, campaign])), [freebieCampaigns])
+  const automaticFreebiesByItemId = useMemo(() => new Map(freebieCampaigns.flatMap((campaign) => campaign.qualifierItems.map((item) => [item.id, campaign] as const))), [freebieCampaigns])
+
+  useEffect(() => {
+    const nextTransition = getNextFreebieCampaignTransition(runtimeTheme, freebieClock)
+    if (nextTransition === null) return
+    const timeout = window.setTimeout(
+      () => setFreebieClock(Date.now()),
+      Math.max(50, Math.min(nextTransition - freebieClock + 50, 2_147_000_000)),
+    )
+    return () => window.clearTimeout(timeout)
+  }, [freebieClock, runtimeTheme])
 
   const sessionId = useCartStore((s) => s.sessionId)
   const deviceId = useCartStore((s) => s.deviceId)
 
   const cartItems = useCartStore((s) => s.items)
+  const previewCartItems = useMemo<CartItem[]>(() => {
+    if (!cartPreviewState || cartPreviewState === 'empty' || previewCartQuantity <= 0) return []
+    const source = items.find((item) => item.is_available) ?? items[0]
+    return [{
+      cartId: 'theme-editor-preview-cart-item',
+      itemId: source?.id ?? 'preview-item',
+      name: source?.name ?? 'Örnek ürün',
+      price: source?.price ?? 180,
+      quantity: previewCartQuantity,
+      modifiers: [],
+      modifiersPriceDelta: 0,
+      modifierNames: ['Örnek seçenek'],
+      removedIngredientIds: [],
+      removedIngredientNames: [],
+      productNote: 'Editör önizlemesi',
+      energyKcal: source?.energy_kcal ?? 250,
+      imageUrl: source?.images?.[0] ?? null,
+    }]
+  }, [cartPreviewState, items, previewCartQuantity])
+  const effectiveCartItems = isPreview && cartPreviewState !== null ? previewCartItems : cartItems
+  const previewCartSummary = useMemo(() => ({
+    count: effectiveCartItems.reduce((sum, item) => sum + item.quantity, 0),
+    subtotal: effectiveCartItems.reduce((sum, item) => sum + (item.price + item.modifiersPriceDelta) * item.quantity, 0),
+  }), [effectiveCartItems])
   const storedTableToken = useCartStore((s) => s.tableId)
   const subtotal = useCartStore((s) => s.subtotal)
   const addItem = useCartStore((s) => s.addItem)
   const removeItem = useCartStore((s) => s.removeItem)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
+  const attachPromotion = useCartStore((s) => s.attachPromotion)
+  const detachPromotion = useCartStore((s) => s.detachPromotion)
   const clearCart = useCartStore((s) => s.clearCart)
   const bindCartScope = useCartStore((s) => s.bindScope)
   const clearTableScope = useCartStore((s) => s.clearTableScope)
+
+  useEffect(() => {
+    const processedFreebieInstances = new Set<string>()
+    for (const cartItem of cartItems) {
+      // "Yanında iyi gider" lines are deliberately standard-price additions.
+      // Never upgrade them into an automatic product-card campaign merely
+      // because the recommended item is also campaign-eligible.
+      if (!participatesInAutomaticProductCampaign(cartItem)) continue
+      if (cartItem.promotion) {
+        if (cartItem.promotion.offer === 'freebie') {
+          const instanceId = cartItem.promotion.instanceId
+          if (instanceId && processedFreebieInstances.has(instanceId)) continue
+          if (instanceId) processedFreebieInstances.add(instanceId)
+          const campaign = freebieCampaignsBySection.get(cartItem.promotion.sectionInstanceId)
+          const group = instanceId
+            ? cartItems.filter((item) => item.promotion?.offer === 'freebie' && item.promotion.instanceId === instanceId)
+            : []
+          const qualifier = group.find((item) => item.promotion?.role === 'qualifier')
+          const reward = group.find((item) => item.promotion?.role === 'reward')
+          const valid = Boolean(
+            campaign
+            && instanceId
+            && group.length === 2
+            && qualifier
+            && reward
+            && qualifier.quantity === reward.quantity
+            && qualifier.promotion?.sectionInstanceId === campaign.sectionInstanceId
+            && reward.promotion?.sectionInstanceId === campaign.sectionInstanceId
+            && campaign.qualifierItems.some((item) => item.id === qualifier.itemId)
+            && campaign.rewardItems.some((item) => item.id === reward.itemId),
+          )
+          if (!valid) {
+            for (const paired of group.length > 0 ? group : [cartItem]) removeItem(paired.cartId)
+            setCampaignNotice('Hediye kampanyası artık geçerli olmadığı için bağlı ürünler sepetten kaldırıldı.')
+            setIsCartOpen(true)
+          } else if (reward && (reward.price !== 0 || reward.originalPrice !== itemById.get(reward.itemId)?.price)) {
+            attachPromotion(
+              reward.cartId,
+              0,
+              itemById.get(reward.itemId)?.price ?? reward.originalPrice ?? reward.price,
+              reward.promotion!,
+              reward.quantity,
+            )
+          }
+          continue
+        }
+        const automaticPromotion = automaticPromotionsByItemId.get(cartItem.itemId)
+        if (cartItem.promotion.kind === 'promo-slider' && !automaticPromotion) {
+          const catalogPrice = itemById.get(cartItem.itemId)?.price ?? cartItem.originalPrice ?? cartItem.price
+          detachPromotion(cartItem.cartId, catalogPrice)
+          continue
+        }
+        const normalizedQuantity = normalizeCartQuantityForStep(
+          cartItem.quantity,
+          automaticPromotion?.promotion.quantityStep ?? cartItem.promotion.quantityStep ?? 1,
+        )
+        if (automaticPromotion && (
+          cartItem.price !== automaticPromotion.item.price
+          || cartItem.originalPrice !== automaticPromotion.originalPrice
+          || cartItem.promotion.sectionInstanceId !== automaticPromotion.promotion.sectionInstanceId
+          || cartItem.promotion.kind !== automaticPromotion.promotion.kind
+          || cartItem.promotion.quantityStep !== automaticPromotion.promotion.quantityStep
+          || normalizedQuantity !== cartItem.quantity
+        )) {
+          attachPromotion(
+            cartItem.cartId,
+            automaticPromotion.item.price,
+            automaticPromotion.originalPrice,
+            automaticPromotion.promotion,
+            normalizedQuantity,
+          )
+        } else if (normalizedQuantity !== cartItem.quantity) {
+          updateQuantity(cartItem.cartId, normalizedQuantity)
+        }
+        continue
+      }
+      const automaticPromotion = automaticPromotionsByItemId.get(cartItem.itemId)
+      const step = automaticPromotion?.promotion.quantityStep ?? 1
+      if (!automaticPromotion || step < 2) continue
+      attachPromotion(
+        cartItem.cartId,
+        automaticPromotion.item.price,
+        automaticPromotion.originalPrice,
+        automaticPromotion.promotion,
+        normalizeCartQuantityForStep(cartItem.quantity, step),
+      )
+    }
+  }, [attachPromotion, automaticPromotionsByItemId, cartItems, detachPromotion, freebieCampaignsBySection, itemById, removeItem, updateQuantity])
+
+  useEffect(() => {
+    if (!pendingPromotion || pendingPromotion.promotion.kind !== 'promo-slider' || !selectedItem) return
+    const automaticPromotion = automaticPromotionsByItemId.get(selectedItem.id)
+    if (!automaticPromotion) {
+      setPendingPromotion(null)
+      setSelectedItem(itemById.get(selectedItem.id) ?? null)
+      return
+    }
+    if (
+      selectedItem.price !== automaticPromotion.item.price
+      || pendingPromotion.originalPrice !== automaticPromotion.originalPrice
+      || pendingPromotion.promotion.sectionInstanceId !== automaticPromotion.promotion.sectionInstanceId
+      || pendingPromotion.promotion.quantityStep !== automaticPromotion.promotion.quantityStep
+    ) {
+      setSelectedItem(automaticPromotion.item)
+      setPendingPromotion({
+        originalPrice: automaticPromotion.originalPrice,
+        promotion: automaticPromotion.promotion,
+      })
+    }
+  }, [automaticPromotionsByItemId, itemById, pendingPromotion, selectedItem])
 
   // Effective table identity: the route param wins (fresh scan), else the
   // device's stored table. The adisyon (table bill) is keyed on the table
   // SESSION existing — not on the route param — so the "Hesap" chip shows on
   // /maf-lounge too when the device already has an open table.
   const effectiveTableToken = tableToken ?? storedTableToken
+  const homeHref = homeEnabled
+    ? tableToken
+      ? `/${encodeURIComponent(restaurant.slug)}/table/${encodeURIComponent(tableToken)}`
+      : `/${encodeURIComponent(restaurant.slug)}`
+    : null
 
   const {
     member,
@@ -556,6 +558,14 @@ export function MenuPageClient({
     catalogItemId,
     setCatalogItemId,
     discountPreview,
+    couponDraft,
+    setCouponDraft,
+    couponCode,
+    couponError,
+    couponPending,
+    applyCoupon,
+    removeCoupon,
+    rejectCoupon,
     canRedeem,
     stampClaimable,
     refetchBalances,
@@ -666,6 +676,7 @@ export function MenuPageClient({
       })
       if (!context) return
       setCustomerAuthSurface(context.surface)
+      setMemberTarget(context.memberTarget ?? 'overview')
       setPendingAuthSurface(context.surface)
     })
     return () => { cancelled = true }
@@ -706,6 +717,8 @@ export function MenuPageClient({
     redeemPoints,
     claimStamp,
     catalogItemId,
+    couponCode,
+    onCouponError: rejectCoupon,
     previewTotal: discountPreview?.finalTotal ?? null,
     memberActive: Boolean(member),
     setIsPlacing,
@@ -780,20 +793,36 @@ export function MenuPageClient({
   )
 
   const handleOpenProduct = useCallback((item: MenuItem) => {
-    setPendingPromotion(null)
-    setSelectedItem(item)
-  }, [])
+    const automaticPromotion = automaticPromotionsByItemId.get(item.id)
+    const freebie = automaticPromotion ? null : automaticFreebiesByItemId.get(item.id)
+    setPendingFreebie(freebie ? { request: freebie, instanceId: createClientId(), qualifier: item, reward: null, quantity: 1, stage: 'qualifier' } : null)
+    setPendingPromotion(automaticPromotion
+      ? { originalPrice: automaticPromotion.originalPrice, promotion: automaticPromotion.promotion }
+      : null)
+    setSelectedItem(automaticPromotion?.item ?? item)
+  }, [automaticFreebiesByItemId, automaticPromotionsByItemId])
 
   const handleQuickAdd = useCallback((item: MenuItem, originalPrice?: number, promotion?: SectionPromotionContext) => {
-    const quantityStep = promotion?.quantityStep ?? 1
-    if (isProductConfigurable(item)) {
-      setPendingPromotion(promotion ? { originalPrice: originalPrice ?? item.price, promotion } : null)
-      setSelectedItem(item)
+    const automaticPromotion = promotion ? null : automaticPromotionsByItemId.get(item.id)
+    const freebie = promotion || automaticPromotion ? null : automaticFreebiesByItemId.get(item.id)
+    if (freebie) {
+      setPendingPromotion(null)
+      setPendingFreebie({ request: freebie, instanceId: createClientId(), qualifier: item, reward: null, quantity: 1, stage: isProductConfigurable(item) ? 'qualifier' : 'picker' })
+      setSelectedItem(isProductConfigurable(item) ? item : null)
+      return
+    }
+    const effectiveItem = automaticPromotion?.item ?? item
+    const effectivePromotion = automaticPromotion?.promotion ?? promotion
+    const effectiveOriginalPrice = automaticPromotion?.originalPrice ?? originalPrice
+    const quantityStep = effectivePromotion?.quantityStep ?? 1
+    if (isProductConfigurable(effectiveItem)) {
+      setPendingPromotion(effectivePromotion ? { originalPrice: effectiveOriginalPrice ?? effectiveItem.price, promotion: effectivePromotion } : null)
+      setSelectedItem(effectiveItem)
     } else {
-      addItem(item, [], [], quantityStep, originalPrice, [], undefined, promotion)
+      addItem(effectiveItem, [], [], quantityStep, effectiveOriginalPrice, [], undefined, effectivePromotion)
       setIsCartOpen(true)
     }
-  }, [addItem])
+  }, [addItem, automaticFreebiesByItemId, automaticPromotionsByItemId])
 
   useEffect(() => {
     const prefix = '#product-'
@@ -837,27 +866,35 @@ export function MenuPageClient({
     return () => { cancelled = true }
   }, [addReorderLinesToCart, cartScopeReady, restaurant.slug])
 
-  const handleOpenFavorite = useCallback((favorite: CustomerFavoriteView) => {
-    setIsMemberOpen(false)
+  const handleOpenFavorite = useCallback<AccountActions['openFavorite']>((favorite: CustomerFavoriteView) => {
     if (favorite.restaurant.slug !== restaurant.slug) {
       window.location.assign(`/${encodeURIComponent(favorite.restaurant.slug)}#product-${encodeURIComponent(favorite.item.id)}`)
-      return
+      return { ok: true }
     }
     const item = itemById.get(favorite.item.id)
-    if (item?.is_available) handleOpenProduct(item)
-  }, [handleOpenProduct, itemById, restaurant.slug, setIsMemberOpen])
+    if (!item?.is_available) return { ok: false, error: 'Bu favori ürün şu anda menüde bulunmuyor.' }
+    handleOpenProduct(item)
+    return { ok: true }
+  }, [handleOpenProduct, itemById, restaurant.slug])
 
-  const handleApplyReorder = useCallback((preview: CustomerReorderPreviewView) => {
-    setIsMemberOpen(false)
+  const handleApplyReorder = useCallback<AccountActions['applyReorder']>(async (preview: CustomerReorderPreviewView) => {
     if (preview.restaurant.slug !== restaurant.slug) {
-      void import('../../lib/menu-continuity-client').then(({ storeReorderDraft }) => {
-        storeReorderDraft(preview)
-        window.location.assign(`/${encodeURIComponent(preview.restaurant.slug)}`)
-      })
-      return
+      const { storeReorderDraft } = await import('../../lib/menu-continuity-client')
+      storeReorderDraft(preview)
+      window.location.assign(`/${encodeURIComponent(preview.restaurant.slug)}`)
+      return { ok: true }
     }
-    addReorderLinesToCart(preview.lines.flatMap((line) => line.cartLine ? [line.cartLine] : []))
-  }, [addReorderLinesToCart, restaurant.slug, setIsMemberOpen])
+    const added = addReorderLinesToCart(preview.lines.flatMap((line) => line.cartLine ? [line.cartLine] : []))
+    return added > 0 ? { ok: true } : { ok: false, error: 'Siparişteki ürünler güncel menüye eklenemedi.' }
+  }, [addReorderLinesToCart, restaurant.slug])
+
+  const accountActions = useMemo<AccountActions>(() => ({
+    openFavorite: handleOpenFavorite,
+    applyReorder: handleApplyReorder,
+    logout: async (scope) => await handleLogout(scope)
+      ? { ok: true }
+      : { ok: false, error: 'Çıkış tamamlanamadı. Bağlantını kontrol edip tekrar dene.' },
+  }), [handleApplyReorder, handleLogout, handleOpenFavorite])
 
   const addResolvedComboToCart = useCallback((combo: PendingCombo) => {
     combo.pricedItems.forEach((pricedItem, index) => {
@@ -886,7 +923,9 @@ export function MenuPageClient({
   }, [addItem])
 
   const handleAddCombo = useCallback((request: ComboAddRequest) => {
+    setCampaignNotice(null)
     setPendingPromotion(null)
+    setPendingFreebie(null)
     const allocatedPrices = allocateBundlePrice(
       request.items.map((item) => item.price),
       request.total,
@@ -902,7 +941,7 @@ export function MenuPageClient({
     )
     const combo: PendingCombo = {
       request,
-      instanceId: crypto.randomUUID(),
+      instanceId: createClientId(),
       pricedItems,
       configurationIndices,
       cursor: 0,
@@ -916,6 +955,63 @@ export function MenuPageClient({
     setSelectedItem(pricedItems[configurationIndices[0]!] ?? null)
   }, [addResolvedComboToCart])
 
+  const addResolvedFreebieToCart = useCallback((freebie: PendingFreebie) => {
+    if (!freebie.qualifier || !freebie.reward) return
+    const qualifierSelection = freebie.qualifierSelection ?? { modifiers: [], removedIngredientIds: [] }
+    const rewardSelection = freebie.rewardSelection ?? { modifiers: [], removedIngredientIds: [] }
+    const identity = { sectionInstanceId: freebie.request.sectionInstanceId, kind: 'promo-slider' as const, offer: 'freebie' as const, instanceId: freebie.instanceId }
+    for (const cartId of freebie.replaceCartIds ?? []) removeItem(cartId)
+    addItem(
+      freebie.qualifier,
+      qualifierSelection.modifiers,
+      freebie.qualifier.modifier_groups,
+      freebie.quantity,
+      undefined,
+      qualifierSelection.removedIngredientIds,
+      undefined,
+      { ...identity, role: 'qualifier' },
+      qualifierSelection.productNote,
+    )
+    addItem(
+      { ...freebie.reward, price: 0 },
+      rewardSelection.modifiers,
+      freebie.reward.modifier_groups,
+      freebie.quantity,
+      freebie.reward.price,
+      rewardSelection.removedIngredientIds,
+      undefined,
+      { ...identity, role: 'reward' },
+      rewardSelection.productNote,
+    )
+    setPendingFreebie(null)
+    setCampaignNotice(null)
+    setSelectedItem(null)
+    setIsCartOpen(true)
+  }, [addItem, removeItem])
+
+  const handleAddFreebie = useCallback((request: FreebieAddRequest) => {
+    setPendingCombo(null)
+    setPendingPromotion(null)
+    setSelectedItem(null)
+    setPendingFreebie({ request, instanceId: createClientId(), qualifier: null, reward: null, quantity: 1, stage: 'picker' })
+  }, [])
+
+  const handleFreebieChoose = useCallback((qualifier: MenuItem, reward: MenuItem) => {
+    if (!pendingFreebie) return
+    const next: PendingFreebie = { ...pendingFreebie, qualifier, reward }
+    if (!next.qualifierSelection && isProductConfigurable(qualifier)) {
+      setPendingFreebie({ ...next, stage: 'qualifier' })
+      setSelectedItem(qualifier)
+      return
+    }
+    if (isProductConfigurable(reward)) {
+      setPendingFreebie({ ...next, stage: 'reward' })
+      setSelectedItem({ ...reward, price: 0 })
+      return
+    }
+    addResolvedFreebieToCart(next)
+  }, [addResolvedFreebieToCart, pendingFreebie])
+
   const handleModalAdd = useCallback((
     item: MenuItem,
     modifiers: SelectedModifier[],
@@ -923,13 +1019,31 @@ export function MenuPageClient({
     removedIngredientIds: string[],
     options?: ProductModalSubmitOptions,
   ) => {
+    if (pendingFreebie) {
+      const selection = { modifiers, removedIngredientIds, ...(options?.productNote ? { productNote: options.productNote } : {}) }
+      if (pendingFreebie.stage === 'qualifier') {
+        const next = { ...pendingFreebie, qualifier: item, quantity, qualifierSelection: selection }
+        if (!next.reward) {
+          setPendingFreebie({ ...next, stage: 'picker' })
+          setSelectedItem(null)
+        } else if (isProductConfigurable(next.reward)) {
+          setPendingFreebie({ ...next, stage: 'reward' })
+          setSelectedItem({ ...next.reward, price: 0 })
+        } else addResolvedFreebieToCart(next)
+        return
+      }
+      if (pendingFreebie.stage === 'reward') {
+        addResolvedFreebieToCart({ ...pendingFreebie, reward: { ...item, price: pendingFreebie.reward?.price ?? item.price }, rewardSelection: selection })
+        return
+      }
+    }
     if (!pendingCombo) {
       if (pendingPromotion) {
         addItem(
           item,
           modifiers,
           item.modifier_groups,
-          quantity * (pendingPromotion.promotion.quantityStep ?? 1),
+          quantity,
           pendingPromotion.originalPrice,
           removedIngredientIds,
           undefined,
@@ -959,17 +1073,25 @@ export function MenuPageClient({
     setPendingCombo(nextCombo)
     const nextItemIndex = nextCombo.configurationIndices[nextCursor]
     setSelectedItem(nextItemIndex === undefined ? null : nextCombo.pricedItems[nextItemIndex] ?? null)
-  }, [addItem, addResolvedComboToCart, handleAddToCart, pendingCombo, pendingPromotion])
+  }, [addItem, addResolvedComboToCart, addResolvedFreebieToCart, handleAddToCart, pendingCombo, pendingFreebie, pendingPromotion])
 
   const handleCartQuantity = useCallback((cartId: string, quantity: number) => {
     const target = cartItems.find((item) => item.cartId === cartId)
+    if (target?.promotion?.offer === 'freebie' && target.promotion.instanceId) {
+      const normalizedQuantity = Math.max(0, Math.min(99, Math.round(quantity)))
+      for (const item of cartItems) {
+        if (item.promotion?.offer === 'freebie' && item.promotion.instanceId === target.promotion.instanceId) updateQuantity(item.cartId, normalizedQuantity)
+      }
+      return
+    }
     if (!target?.combo) {
+      if (target?.promotion?.kind === 'promo-slider' && !automaticPromotionsByItemId.has(target.itemId)) {
+        detachPromotion(target.cartId, itemById.get(target.itemId)?.price ?? target.originalPrice ?? target.price)
+        updateQuantity(cartId, normalizeCartQuantityForStep(quantity, 1))
+        return
+      }
       const step = target?.promotion?.quantityStep ?? 1
-      const maximum = Math.max(step, Math.floor(99 / step) * step)
-      const normalizedQuantity = quantity <= 0
-        ? 0
-        : Math.min(maximum, Math.max(step, Math.round(quantity / step) * step))
-      updateQuantity(cartId, normalizedQuantity)
+      updateQuantity(cartId, normalizeCartQuantityForStep(quantity, step))
       return
     }
     const normalizedQuantity = Math.max(0, Math.min(99, Math.round(quantity)))
@@ -978,10 +1100,16 @@ export function MenuPageClient({
         updateQuantity(item.cartId, normalizedQuantity)
       }
     }
-  }, [cartItems, updateQuantity])
+  }, [automaticPromotionsByItemId, cartItems, detachPromotion, itemById, updateQuantity])
 
   const handleCartRemove = useCallback((cartId: string) => {
     const target = cartItems.find((item) => item.cartId === cartId)
+    if (target?.promotion?.offer === 'freebie' && target.promotion.instanceId) {
+      for (const item of cartItems) {
+        if (item.promotion?.offer === 'freebie' && item.promotion.instanceId === target.promotion.instanceId) removeItem(item.cartId)
+      }
+      return
+    }
     if (!target?.combo) {
       removeItem(cartId)
       return
@@ -992,6 +1120,59 @@ export function MenuPageClient({
       }
     }
   }, [cartItems, removeItem])
+
+  const handleChangeFreebieReward = useCallback((cartId: string) => {
+    const target = cartItems.find((item) => item.cartId === cartId)
+    const instanceId = target?.promotion?.offer === 'freebie' ? target.promotion.instanceId : null
+    if (!instanceId) return
+    const group = cartItems.filter((item) => item.promotion?.offer === 'freebie' && item.promotion.instanceId === instanceId)
+    const qualifierLine = group.find((item) => item.promotion?.role === 'qualifier')
+    const qualifier = qualifierLine ? itemById.get(qualifierLine.itemId) : null
+    const campaign = target ? freebieCampaignsBySection.get(target.promotion?.sectionInstanceId ?? '') : null
+    if (!qualifierLine || !qualifier || !campaign) return
+    setIsCartOpen(false)
+    setPendingFreebie({
+      request: campaign,
+      instanceId,
+      qualifier,
+      reward: null,
+      quantity: qualifierLine.quantity,
+      stage: 'picker',
+      qualifierSelection: { modifiers: qualifierLine.modifiers, removedIngredientIds: qualifierLine.removedIngredientIds, ...(qualifierLine.productNote ? { productNote: qualifierLine.productNote } : {}) },
+      replaceCartIds: group.map((item) => item.cartId),
+    })
+  }, [cartItems, freebieCampaignsBySection, itemById])
+
+  const closePendingFreebie = useCallback(() => {
+    const shouldReturnToCart = Boolean(pendingFreebie?.replaceCartIds?.length)
+    setPendingFreebie(null)
+    setSelectedItem(null)
+    if (shouldReturnToCart) setIsCartOpen(true)
+  }, [pendingFreebie?.replaceCartIds])
+
+  const comboModalContext = useMemo(() => {
+    if (!pendingCombo) return undefined
+    const currentItemIndex = pendingCombo.configurationIndices[pendingCombo.cursor]
+    const configuredModifierTotal = Object.entries(pendingCombo.selections).reduce((total, [rawIndex, selection]) => {
+      const comboItem = pendingCombo.request.items[Number(rawIndex)]
+      return comboItem ? total + getComboModifierTotal(comboItem, selection.modifiers) : total
+    }, 0)
+    return {
+      baseTotal: pendingCombo.request.total + configuredModifierTotal,
+      items: pendingCombo.request.items.map((comboItem, index) => ({
+        id: comboItem.id,
+        name: comboItem.name,
+        imageUrl: comboItem.images[0] ?? null,
+        state: index === currentItemIndex
+          ? 'current' as const
+          : pendingCombo.selections[index]
+            ? 'ready' as const
+            : pendingCombo.configurationIndices.includes(index)
+              ? 'upcoming' as const
+              : 'included' as const,
+      })),
+    }
+  }, [pendingCombo])
 
   // 15c: claim a catalog reward → ensure the reward item is in the cart (add one
   // if missing), set the catalog intent (server validates + debits), drop any
@@ -1028,12 +1209,15 @@ export function MenuPageClient({
       <>
         {catItems.map((item) => {
           const cartQuantity = cartQuantityByItemId.get(item.id) ?? 0
+          const automaticPromotion = automaticPromotionsByItemId.get(item.id)
+          const automaticFreebie = automaticPromotion ? null : automaticFreebiesByItemId.get(item.id)
           return (
             <ProductCard
               key={item.id}
               item={item}
               onOpen={handleOpenProduct}
               onQuickAdd={handleQuickAdd}
+              promotionLabel={automaticPromotion?.promotion.quantityStep === 2 ? '2 al 1 öde' : automaticFreebie ? 'Hediye fırsatı' : undefined}
               orderingEnabled={orderingEnabled}
               cartQuantity={orderingEnabled ? cartQuantity : 0}
               {...(customerAccountsEnabled && member ? {
@@ -1042,14 +1226,44 @@ export function MenuPageClient({
               } : {})}
               imagePriority={item.id === firstCardItemId}
               onIncrement={() => {
-                const existing = cartItems.find((ci) => ci.itemId === item.id && !ci.combo && !ci.promotion)
-                if (existing) updateQuantity(existing.cartId, existing.quantity + 1)
-                else addItem(item, [], [], 1)
+                if (automaticFreebie) {
+                  const paired = cartItems.find((ci) => ci.itemId === item.id && ci.promotion?.offer === 'freebie' && ci.promotion.role === 'qualifier')
+                  if (paired) handleCartQuantity(paired.cartId, paired.quantity + 1)
+                  else handleQuickAdd(item)
+                  return
+                }
+                const existing = cartItems.find((ci) => ci.itemId === item.id && !ci.combo && (
+                  automaticPromotion
+                    ? ci.promotion?.sectionInstanceId === automaticPromotion.promotion.sectionInstanceId
+                    : !ci.promotion || ci.promotion.kind === 'promo-slider'
+                ))
+                if (existing) {
+                  if (!automaticPromotion && existing.promotion?.kind === 'promo-slider') {
+                    detachPromotion(existing.cartId, item.price)
+                  }
+                  updateQuantity(existing.cartId, existing.quantity + (automaticPromotion?.promotion.quantityStep ?? 1))
+                }
+                else handleQuickAdd(item)
               }}
               onDecrement={() => {
-                const existing = cartItems.find((ci) => ci.itemId === item.id && !ci.combo && !ci.promotion)
+                if (automaticFreebie) {
+                  const paired = cartItems.find((ci) => ci.itemId === item.id && ci.promotion?.offer === 'freebie' && ci.promotion.role === 'qualifier')
+                  if (!paired) return
+                  if (paired.quantity > 1) handleCartQuantity(paired.cartId, paired.quantity - 1)
+                  else handleCartRemove(paired.cartId)
+                  return
+                }
+                const existing = cartItems.find((ci) => ci.itemId === item.id && !ci.combo && (
+                  automaticPromotion
+                    ? ci.promotion?.sectionInstanceId === automaticPromotion.promotion.sectionInstanceId
+                    : !ci.promotion || ci.promotion.kind === 'promo-slider'
+                ))
                 if (!existing) return
-                if (existing.quantity > 1) updateQuantity(existing.cartId, existing.quantity - 1)
+                const step = automaticPromotion?.promotion.quantityStep ?? 1
+                if (!automaticPromotion && existing.promotion?.kind === 'promo-slider') {
+                  detachPromotion(existing.cartId, item.price)
+                }
+                if (existing.quantity > step) updateQuantity(existing.cartId, existing.quantity - step)
                 else removeItem(existing.cartId)
               }}
             />
@@ -1061,7 +1275,7 @@ export function MenuPageClient({
 
   if (orderId && orderStatus && orderView === 'sheet') {
     return (
-      <ThemeProvider initialTheme={theme} isPreview={isPreview} initialRestaurantName={restaurant.name} initialLogoUrl={restaurant.logo_url ?? null}>
+      <ThemeProvider initialTheme={theme} isPreview={isPreview} initialRestaurantName={restaurant.name} initialLogoUrl={restaurant.logo_url ?? null} onThemeChange={setRuntimeTheme}>
         <OrderConfirmation
           orderId={orderId}
           initialStatus={orderStatus}
@@ -1085,7 +1299,20 @@ export function MenuPageClient({
       isPreview={isPreview}
       initialRestaurantName={restaurant.name}
       initialLogoUrl={restaurant.logo_url ?? null}
+      onThemeChange={setRuntimeTheme}
     >
+      <ComboIntentConsumer
+        enabled={orderingEnabled}
+        cartScopeReady={cartScopeReady}
+        restaurantSlug={restaurant.slug}
+        items={items}
+        onAddCombo={handleAddCombo}
+        onInvalid={() => {
+          setCampaignNotice('Bu kombo güncellendi veya artık yayında değil. Menüdeki güncel kampanyaları inceleyin.')
+          setIsCartOpen(true)
+        }}
+      />
+      <FreebieIntentConsumer enabled={orderingEnabled} cartScopeReady={cartScopeReady} theme={runtimeTheme} items={items} restaurantSlug={restaurant.slug} isPreview={isPreview} onAddFreebie={handleAddFreebie} />
       <CustomerSessionSynchronizer authenticated={customerAccountsEnabled && Boolean(member)} />
       {customerAccountsEnabled && <MenuFavoritesController
         restaurantId={restaurant.id}
@@ -1136,11 +1363,16 @@ export function MenuPageClient({
         ) : null}
         tableId={effectiveTableToken}
         {...(tableLabel ? { tableLabel } : {})}
-        cartSummary={orderingEnabled ? cartSummary : undefined}
-        onOpenCart={() => { if (orderingEnabled) setIsCartOpen(true) }}
+        homeHref={homeHref}
+        {...(orderingEnabled ? {
+          cartSummary: isPreview && cartPreviewState !== null ? previewCartSummary : cartSummary,
+          onOpenCart: () => setIsCartOpen(true),
+        } : {})}
         items={filteredItems}
         onQuickAdd={orderingEnabled ? handleQuickAdd : () => {}}
-        onAddCombo={orderingEnabled ? handleAddCombo : () => {}}
+        {...(orderingEnabled ? { onAddCombo: handleAddCombo } : {})}
+        comboInteractionState={orderingEnabled ? 'enabled' : 'ordering-disabled'}
+        onAddFreebie={orderingEnabled ? handleAddFreebie : () => {}}
         billSummary={billSummary}
         onOpenBill={() => { void openBill() }}
         memberSummary={{
@@ -1156,13 +1388,30 @@ export function MenuPageClient({
             tierColor: memberBalances.tier.color,
           } : {}),
         }}
-        onOpenMember={() => { if (customerAccountsEnabled) { setCustomerAuthSurface('menu'); setIsMemberOpen(true) } }}
-        onServiceRequest={isPreview ? async () => true : sendServiceRequest}
-        onOpenServiceRequests={() => setIsServiceRequestsOpen(true)}
-        memberLoyalty={member && memberBalances && memberBalances.stampEnabled
-          ? { filled: memberBalances.stamps, total: memberBalances.stampGoal }
+        onOpenMember={(target: MemberOpenTarget = 'overview') => { setCustomerAuthSurface('menu'); setMemberTarget(target); setIsMemberOpen(true) }}
+        {...(requestButtonsEnabled ? {
+          onServiceRequest: isPreview ? async () => true : sendServiceRequest,
+          onOpenServiceRequests: () => setIsServiceRequestsOpen(true),
+        } : {})}
+        memberLoyalty={member && memberBalances && (memberBalances.stampEnabled || memberBalances.pointsEnabled)
+          ? {
+              filled: memberBalances.stamps,
+              total: memberBalances.stampGoal,
+              points: memberBalances.points,
+              pointsEnabled: memberBalances.pointsEnabled,
+              stampsEnabled: memberBalances.stampEnabled,
+              tierName: memberBalances.tier.name,
+            }
           : null}
+        editorPreview={isPreview}
         storeInfo={storeInfo}
+      />
+
+      <FreebieCampaignPicker
+        campaign={pendingFreebie?.stage === 'picker' ? pendingFreebie.request : null}
+        qualifier={pendingFreebie?.stage === 'picker' ? pendingFreebie.qualifier : null}
+        onClose={closePendingFreebie}
+        onChoose={handleFreebieChoose}
       />
 
       {hasOpenedProduct && <ProductModal
@@ -1171,61 +1420,87 @@ export function MenuPageClient({
           setSelectedItem(null)
           setPendingCombo(null)
           setPendingPromotion(null)
+          closePendingFreebie()
         }}
         onAddToCart={handleModalAdd}
         orderingEnabled={orderingEnabled}
-        recommendationItems={!pendingCombo && !pendingPromotion
+        recommendationItems={!pendingCombo && !pendingPromotion && !pendingFreebie
           ? (selectedItem?.recommended_item_ids ?? []).flatMap((id) => {
               const candidate = itemById.get(id)
               const recommendation = candidate?.is_available ? candidate : undefined
               return recommendation ? [recommendation] : []
             })
           : []}
-        contextLabel={pendingCombo ? `Kombo ${pendingCombo.cursor + 1}/${pendingCombo.configurationIndices.length}` : pendingPromotion ? 'Kampanyalı ürün' : undefined}
-        contextTitle={pendingCombo?.request.title ?? (pendingPromotion ? 'Seçeneklerinizi tamamlayın' : undefined)}
-        lockQuantity={Boolean(pendingCombo)}
-        submitLabel={pendingCombo
+        contextLabel={pendingFreebie ? pendingFreebie.stage === 'reward' ? 'Hediye ürün' : 'Kampanyalı ana ürün' : pendingCombo ? `Kombo ürünü ${(pendingCombo.configurationIndices[pendingCombo.cursor] ?? 0) + 1}/${pendingCombo.request.items.length}` : pendingPromotion ? 'Kampanyalı ürün' : undefined}
+        contextTitle={pendingFreebie ? pendingFreebie.request.title : pendingCombo ? `${pendingCombo.request.title} · ${pendingCombo.request.items.length} ürün birlikte sepete eklenecek` : pendingPromotion?.promotion.quantityStep === 2 ? '2’li paketler halinde eklenir' : pendingPromotion ? 'Seçeneklerinizi tamamlayın' : undefined}
+        comboContext={comboModalContext}
+        promotionLabel={pendingFreebie?.stage === 'reward' ? 'Hediye · taban fiyat ₺0' : pendingPromotion?.promotion.quantityStep === 2 ? '2 al 1 öde' : undefined}
+        quantityStep={pendingPromotion?.promotion.quantityStep ?? 1}
+        lockQuantity={Boolean(pendingCombo) || pendingFreebie?.stage === 'reward'}
+        submitLabel={pendingFreebie
+          ? pendingFreebie.stage === 'reward' ? 'Hediyeyi ekle' : 'Kaydet ve hediyeni seç'
+          : pendingCombo
           ? pendingCombo.cursor + 1 < pendingCombo.configurationIndices.length
             ? 'Seçimi kaydet ve devam et'
             : 'Komboyu sepete ekle'
-          : undefined}
-        closeAfterAdd={!pendingCombo}
+          : pendingPromotion?.promotion.quantityStep === 2
+            ? '2’li paketi sepete ekle'
+            : undefined}
+        closeAfterAdd={!pendingCombo && !pendingFreebie}
       />}
 
       {orderingEnabled && hasOpenedCart && <CartDrawer
         isOpen={isCartOpen}
-        items={cartItems}
+        items={effectiveCartItems}
         isPlacing={isPlacing}
-        orderError={orderError}
+        orderError={campaignNotice ?? orderError}
         onClose={() => setIsCartOpen(false)}
-        onUpdateQuantity={handleCartQuantity}
-        onRemoveItem={handleCartRemove}
-        onPlaceOrder={handlePlaceOrder}
-        canCheckout={Boolean(effectiveTableToken)}
-        checkoutUnavailableReason={!effectiveTableToken ? checkoutUnavailableMessage : undefined}
+        onUpdateQuantity={isPreview && cartPreviewState !== null
+          ? (_cartId, quantity) => { setPreviewCartQuantity(Math.max(0, quantity)); if (quantity <= 0) setCartPreviewState('empty') }
+          : handleCartQuantity}
+        onRemoveItem={isPreview && cartPreviewState !== null
+          ? () => { setPreviewCartQuantity(0); setCartPreviewState('empty') }
+          : handleCartRemove}
+        onChangeFreebieReward={handleChangeFreebieReward}
+        onPlaceOrder={isPreview && cartPreviewState !== null ? () => {} : handlePlaceOrder}
+        canCheckout={Boolean(effectiveTableToken) || Boolean(isPreview && cartPreviewState)}
+        checkoutUnavailableReason={!effectiveTableToken && !(isPreview && cartPreviewState) ? checkoutUnavailableMessage : undefined}
+        returnFocusSelector={resolveMenuActionPlacements(runtimeTheme).cart === 'drawer' ? '[aria-controls="menu-nav-drawer"]' : '[aria-label^="Sepeti aç"]'}
         onPay={effectiveTableToken ? handlePayClick : undefined}
         onSplitBill={effectiveTableToken ? () => { setIsCartOpen(false); setIsSplitOpen(true) } : undefined}
         billSummary={billSummary}
         onOpenBill={() => { setIsCartOpen(false); void openBill() }}
-        pointsRedeem={canRedeem && !catalogItemId ? {
+        pointsRedeem={!cartPreviewState && canRedeem && !catalogItemId ? {
           balance: memberBalances?.points ?? 0,
           rate: pointsRate,
           redeemTl: Math.floor(redeemPoints / pointsRate),
           onChange: (redeemTl: number) => setRedeemPoints(Math.max(0, redeemTl) * pointsRate),
         } : null}
-        stampReward={stampClaimable ? {
+        stampReward={!cartPreviewState && stampClaimable ? {
           cardFull: true,
           rewardName: (rewardItemId ? itemById.get(rewardItemId) : undefined)?.name ?? null,
           rewardInCart: cartItems.some((ci) => ci.itemId === rewardItemId),
           claimed: claimStamp,
           onToggle: (v: boolean) => setClaimStamp(v),
         } : null}
-        catalogReward={catalogItemId ? {
+        catalogReward={!cartPreviewState && catalogItemId ? {
           itemName: rewardCatalog.find((r) => r.itemId === catalogItemId)?.name ?? 'ürün',
           pointCost: rewardCatalog.find((r) => r.itemId === catalogItemId)?.pointCost ?? 0,
           onClear: () => setCatalogItemId(null),
         } : null}
-        discountPreview={discountPreview}
+        discountPreview={cartPreviewState ? null : discountPreview}
+        coupon={cartPreviewState ? null : {
+          draft: couponDraft,
+          appliedCode: couponCode,
+          appliedName: discountPreview?.couponName ?? null,
+          discountAmount: discountPreview?.couponDiscountAmount ?? 0,
+          error: couponError,
+          pending: couponPending,
+          blocksCheckout: Boolean(couponCode && couponError),
+          onDraftChange: setCouponDraft,
+          onApply: applyCoupon,
+          onRemove: removeCoupon,
+        }}
       />}
 
       {isBillOpen && (
@@ -1239,8 +1514,8 @@ export function MenuPageClient({
         />
       )}
 
-      {orderingEnabled && !isCartOpen && cartItems.length > 0 && (
-        <LazyFloatingCartTrigger onClick={() => setIsCartOpen(true)} />
+      {orderingEnabled && !isCartOpen && effectiveCartItems.length > 0 && (
+        <LazyFloatingCartTrigger items={effectiveCartItems} onClick={() => setIsCartOpen(true)} />
       )}
 
       <RequestButtonsOverlay
@@ -1293,6 +1568,7 @@ export function MenuPageClient({
           guestSessionId={sessionId}
           deviceId={deviceId}
           authSurface={customerAuthSurface}
+          initialTarget={memberTarget}
           authReturn={customerAuthReturn}
           oauthProviders={customerAuthProviders}
           welcomeBonus={welcomeBonus}
@@ -1301,9 +1577,7 @@ export function MenuPageClient({
           onRefresh={refetchBalances}
           onVerified={(m) => { setMember(m); void refetchBalances() }}
           onAuthContextComplete={handleAuthContextComplete}
-          onOpenFavorite={handleOpenFavorite}
-          onApplyReorder={handleApplyReorder}
-          {...(member ? { onLogout: handleLogout } : {})}
+          accountActions={accountActions}
         />
       )}
 

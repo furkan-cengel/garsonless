@@ -1,7 +1,7 @@
 'use client'
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CartItem } from './types'
 import { useTheme } from './ThemeContext'
 import { formatTRY } from './formatCurrency'
@@ -24,6 +24,10 @@ export interface CartDiscountPreview {
   rewardItemName: string | null
   catalogDiscountAmount: number
   catalogItemName: string | null
+  couponCode?: string | null
+  couponName?: string | null
+  couponDiscountAmount?: number
+  couponStackingPolicy?: 'exclusive' | 'combine_loyalty' | null
   finalTotal: number
   loyaltySuppressedByPromotion?: boolean
 }
@@ -42,6 +46,19 @@ export interface CartCatalogReward {
   onClear: () => void      // cancel the catalog claim
 }
 
+export interface CartCouponControl {
+  draft: string
+  appliedCode: string | null
+  appliedName: string | null
+  discountAmount: number
+  error: string | null
+  pending: boolean
+  blocksCheckout: boolean
+  onDraftChange: (value: string) => void
+  onApply: () => void
+  onRemove: () => void
+}
+
 interface CartDrawerProps {
   isOpen: boolean
   items: CartItem[]
@@ -50,6 +67,7 @@ interface CartDrawerProps {
   onClose: () => void
   onUpdateQuantity: (cartId: string, quantity: number) => void
   onRemoveItem: (cartId: string) => void
+  onChangeFreebieReward?: (cartId: string) => void
   onPlaceOrder: () => void
   canCheckout?: boolean
   checkoutUnavailableReason?: string
@@ -64,6 +82,9 @@ interface CartDrawerProps {
   /** Active catalog reward claim (15c); null when none. Hides the points slider. */
   catalogReward?: CartCatalogReward | null
   discountPreview?: CartDiscountPreview | null
+  coupon?: CartCouponControl | null
+  /** Fallback used when the opening control unmounts while the dialog is open. */
+  returnFocusSelector?: string
 }
 
 export function CartDrawer({
@@ -74,6 +95,7 @@ export function CartDrawer({
   onClose,
   onUpdateQuantity,
   onRemoveItem,
+  onChangeFreebieReward,
   onPlaceOrder,
   canCheckout = true,
   checkoutUnavailableReason,
@@ -85,6 +107,8 @@ export function CartDrawer({
   stampReward = null,
   catalogReward = null,
   discountPreview = null,
+  coupon = null,
+  returnFocusSelector,
 }: CartDrawerProps) {
   const visibleItems = items.filter((i) => i.quantity > 0)
   const total = visibleItems.reduce((sum, i) => sum + (i.price + i.modifiersPriceDelta) * i.quantity, 0)
@@ -98,24 +122,30 @@ export function CartDrawer({
   const pointsDiscount = discountPreview?.pointsDiscountAmount ?? 0
   const stampDiscount = discountPreview?.stampDiscountAmount ?? 0
   const catalogDiscount = discountPreview?.catalogDiscountAmount ?? 0
+  const couponDiscount = discountPreview?.couponDiscountAmount ?? coupon?.discountAmount ?? 0
+  const exclusiveCouponApplied = Boolean(
+    coupon?.appliedCode
+    && !coupon.error
+    && couponDiscount > 0
+    && discountPreview?.couponStackingPolicy === 'exclusive',
+  )
   const catalogName = discountPreview?.catalogItemName ?? catalogReward?.itemName ?? 'ürün'
   const rewardName = discountPreview?.rewardItemName ?? stampReward?.rewardName ?? 'ürün'
-  const hasDiscount = stampDiscount > 0 || catalogDiscount > 0 || memberDiscount > 0 || pointsDiscount > 0
+  const hasDiscount = stampDiscount > 0 || catalogDiscount > 0 || couponDiscount > 0 || memberDiscount > 0 || pointsDiscount > 0
   const displayTotal = discountPreview ? discountPreview.finalTotal : total
   const loyaltySuppressedByPromotion = discountPreview?.loyaltySuppressedByPromotion ?? false
   const { theme } = useTheme()
   const checkoutTheme = theme.surfaces?.checkout
   const checkoutOverride = checkoutTheme?.override ?? {}
   const radius = checkoutOverride.radius ?? theme.radius
-  const drawerTone = theme.cartDrawerTone ?? 'clean'
   const showSubtotal = theme.cartShowSubtotal ?? true
   const showItemCount = theme.cartShowItemCount ?? true
   const primaryActionText = theme.cartPrimaryActionText || 'Sipariş ver'
-  const checkoutPreset = checkoutTheme?.preset ?? 'clean'
+  const checkoutPreset = checkoutTheme?.preset ?? (theme.cartDrawerTone === 'accentHeader' ? 'brand-header' : 'clean')
   const checkoutSheetSize = checkoutTheme?.sheetSize ?? 'standard'
   const checkoutSheetMaxWidth = checkoutSheetSize === 'compact' ? 400 : checkoutSheetSize === 'large' ? 680 : 520
   const checkoutSheetMaxHeight = checkoutSheetSize === 'compact' ? '76dvh' : checkoutSheetSize === 'large' ? '94dvh' : '88dvh'
-  const headerIsAccent = checkoutPreset === 'brand-header' || drawerTone === 'accentHeader'
+  const headerIsAccent = checkoutPreset === 'brand-header'
   const checkoutVars = {
     '--p-bg': checkoutOverride.background ?? theme.bg,
     '--p-card': checkoutOverride.surface ?? theme.cardColor ?? '#ffffff',
@@ -132,7 +162,18 @@ export function CartDrawer({
   const drawerRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  const [quantityAnnouncement, setQuantityAnnouncement] = useState('')
   const prefersReducedMotion = useReducedMotion()
+
+  const updateQuantity = (item: CartItem, quantity: number) => {
+    onUpdateQuantity(item.cartId, quantity)
+    setQuantityAnnouncement(quantity > 0
+      ? `${item.name} adedi ${quantity} oldu.`
+      : `${item.name} sepetten çıkarıldı.`)
+  }
+
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
 
   useEffect(() => {
     if (!isOpen) return
@@ -142,7 +183,7 @@ export function CartDrawer({
     const drawer = drawerRef.current
     const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus())
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); onClose(); return }
+      if (event.key === 'Escape') { event.preventDefault(); onCloseRef.current(); return }
       if (event.key !== 'Tab' || !drawer) return
       const focusable = [...drawer.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
       if (focusable.length === 0) { event.preventDefault(); drawer.focus(); return }
@@ -159,9 +200,16 @@ export function CartDrawer({
       const target = returnFocusRef.current
       const targetBelongsToClosingDialog = Boolean(target?.closest('[role="dialog"]'))
       if (target?.isConnected && !targetBelongsToClosingDialog) target.focus()
-      else document.querySelector<HTMLElement>('[aria-label^="Sepeti aç"]')?.focus()
+      else {
+        const fallback = returnFocusSelector
+          ? document.querySelector<HTMLElement>(returnFocusSelector)
+          : null
+        ;(fallback
+          ?? document.querySelector<HTMLElement>('[aria-label^="Sepeti aç"]')
+          ?? document.querySelector<HTMLElement>('[aria-controls="menu-nav-drawer"]'))?.focus()
+      }
     }
-  }, [isOpen, onClose])
+  }, [isOpen, returnFocusSelector])
 
   return (
     <AnimatePresence>
@@ -174,6 +222,7 @@ export function CartDrawer({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.16 }}
             onClick={onClose}
           />
 
@@ -204,6 +253,8 @@ export function CartDrawer({
               flexDirection: 'column',
               border: '1px solid var(--p-border)',
               overflow: 'hidden',
+              fontFamily: 'var(--p-body)',
+              lineHeight: 'var(--p-line-body)',
             }}
             variants={{ hidden: { y: '100%' }, visible: { y: 0 } }}
             initial="hidden"
@@ -211,20 +262,21 @@ export function CartDrawer({
             exit="hidden"
             transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', damping: 30, stiffness: 300 }}
           >
+            <div role="status" aria-live="polite" aria-atomic="true" style={VISUALLY_HIDDEN_STYLE}>{quantityAnnouncement}</div>
             <div style={{
-              background: headerIsAccent ? 'linear-gradient(135deg, var(--p-accent), var(--p-cta))' : 'var(--p-card)',
-              color: headerIsAccent ? '#fff' : 'var(--p-text)',
+              background: headerIsAccent ? 'var(--p-cta)' : 'var(--p-card)',
+              color: headerIsAccent ? 'var(--p-cta-text)' : 'var(--p-text)',
               padding: '12px 18px 14px',
               borderBottom: headerIsAccent ? 'none' : '1px solid rgba(15,23,42,.08)',
             }}>
               <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 10 }}>
-                <div style={{ height: 4, width: 42, borderRadius: 9999, backgroundColor: headerIsAccent ? 'rgba(255,255,255,.48)' : 'rgba(15,23,42,.16)' }} />
+                <div style={{ height: 4, width: 42, borderRadius: 9999, backgroundColor: headerIsAccent ? 'color-mix(in srgb, currentColor 48%, transparent)' : 'rgba(15,23,42,.16)' }} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div style={{ minWidth: 0 }}>
                   <h2 id="cart-drawer-title" style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'inherit', letterSpacing: '-0.01em' }}>Sepetiniz</h2>
                   {showItemCount && (
-                    <p aria-live="polite" style={{ fontSize: 12, margin: '3px 0 0', color: headerIsAccent ? 'rgba(255,255,255,.78)' : 'var(--p-text-2)' }}>
+                    <p aria-live="polite" style={{ fontSize: 12, margin: '3px 0 0', color: headerIsAccent ? 'color-mix(in srgb, currentColor 78%, transparent)' : 'var(--p-text-2)' }}>
                       {itemCount > 0 ? `${itemCount} ürün siparişe hazır` : theme.cartEmptyText || 'Sepetiniz boş'}
                     </p>
                   )}
@@ -239,7 +291,7 @@ export function CartDrawer({
                     height: 44,
                     borderRadius: 999,
                     color: 'inherit',
-                    background: headerIsAccent ? 'rgba(255,255,255,.16)' : 'var(--p-accent-soft)',
+                    background: headerIsAccent ? 'color-mix(in srgb, currentColor 16%, transparent)' : 'var(--p-accent-soft)',
                     border: 'none',
                     cursor: 'pointer',
                     padding: 0,
@@ -256,12 +308,25 @@ export function CartDrawer({
               </div>
             </div>
 
+            <div
+              data-component="cart-scroll-region"
+              role="region"
+              aria-label="Sepet içeriği"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                overscrollBehavior: 'contain',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarGutter: 'stable',
+              }}
+            >
             {billSummary && billSummary.count > 0 && onOpenBill && (
               <button
                 type="button"
                 onClick={onOpenBill}
                 style={{
-                  margin: '10px 14px 0', padding: '10px 14px',
+                  margin: '10px 14px 0', minHeight: 44, padding: '10px 14px',
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   background: 'var(--p-accent-soft)', border: 'none', borderRadius: 12,
                   cursor: 'pointer', fontFamily: 'inherit',
@@ -276,7 +341,7 @@ export function CartDrawer({
               </button>
             )}
 
-            <div style={{ flex: 1, overflowY: 'auto', padding: visibleItems.length === 0 ? 0 : '12px 14px' }}>
+            <div data-component="cart-items-region" style={{ padding: visibleItems.length === 0 ? 0 : '12px 14px' }}>
               {visibleItems.length === 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 220, gap: 12, padding: 24 }}>
                   <span style={{
@@ -290,7 +355,7 @@ export function CartDrawer({
                     justifyContent: 'center',
                     fontSize: 30,
                     boxShadow: '0 14px 34px rgba(15,23,42,.08)',
-                  }}>🛒</span>
+                  }}><I.cart size={29} strokeWidth={1.8} /></span>
                   <div style={{ textAlign: 'center' }}>
                     <p style={{ fontSize: 15, fontWeight: 750, margin: 0, color: 'var(--p-text)' }}>{theme.cartEmptyText || 'Sepetiniz boş'}</p>
                     <p style={{ fontSize: 12, margin: '5px 0 0', color: 'var(--p-text-2)' }}>Beğendiğiniz ürünleri ekleyince burada görünecek.</p>
@@ -369,31 +434,39 @@ export function CartDrawer({
                               background: 'var(--p-accent-soft)', color: 'var(--p-accent)', fontSize: 10.5, fontWeight: 850,
                             }}
                           >
-                            2 al 1 öde · ikili paket
+                            2 al 1 öde · 2 adet {formatTRY((item.price + item.modifiersPriceDelta) * 2)}
                           </div>
                         )}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                        {item.promotion?.offer === 'freebie' && (
+                          <div data-component="cart-freebie-badge" style={{ width: 'fit-content', margin: '-2px 0 9px', padding: '4px 8px', borderRadius: 999, background: 'var(--p-accent-soft)', color: 'var(--p-accent)', fontSize: 10.5, fontWeight: 850 }}>
+                            {item.promotion.role === 'reward' ? 'Hediye · taban fiyat ₺0' : 'Hediye kampanyası'}
+                          </div>
+                        )}
+                        {item.promotion?.offer === 'freebie' && item.promotion.role === 'reward' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 11.5, color: 'var(--p-text-2)', fontWeight: 750 }}>Adet: {item.quantity}</span>
+                            {onChangeFreebieReward && <button type="button" onClick={() => onChangeFreebieReward(item.cartId)} style={{ marginLeft: 'auto', minHeight: 44, padding: '0 10px', border: 0, background: 'transparent', color: 'var(--p-accent)', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>Değiştir</button>}
+                          </div>
+                        ) : <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                           <button
                             type="button"
-                            onClick={() => onUpdateQuantity(item.cartId, item.quantity - (item.promotion?.quantityStep ?? 1))}
+                            onClick={() => updateQuantity(item, item.quantity - (item.promotion?.quantityStep ?? 1))}
                             style={{
-                              height: 36, width: 36, display: 'grid', placeItems: 'center', padding: 0, lineHeight: 0,
-                              border: 'none', borderRadius: 999,
-                              background: 'var(--p-accent-soft)', color: 'var(--p-accent)', cursor: 'pointer',
+                              height: 44, width: 44, display: 'grid', placeItems: 'center', padding: 0, lineHeight: 0,
+                              border: 'none', borderRadius: 999, background: 'transparent', color: 'var(--p-accent)', cursor: 'pointer',
                             }}
-                          aria-label={`${item.name} adedini azalt`}><I.minus size={15} /></button>
+                          aria-label={`${item.name} adedini azalt`}><span style={{ width: 32, height: 32, borderRadius: 999, display: 'grid', placeItems: 'center', background: 'var(--p-accent-soft)' }}><I.minus size={15} /></span></button>
                           <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--p-text)', minWidth: 18, textAlign: 'center' }}>
                             {item.quantity}
                           </span>
                           <button
                             type="button"
-                            onClick={() => onUpdateQuantity(item.cartId, item.quantity + (item.promotion?.quantityStep ?? 1))}
+                            onClick={() => updateQuantity(item, item.quantity + (item.promotion?.quantityStep ?? 1))}
                             style={{
-                              height: 36, width: 36, display: 'grid', placeItems: 'center', padding: 0, lineHeight: 0,
-                              border: 'none', borderRadius: 999,
-                              backgroundColor: 'var(--p-cta)', color: 'var(--p-cta-text)', cursor: 'pointer',
+                              height: 44, width: 44, display: 'grid', placeItems: 'center', padding: 0, lineHeight: 0,
+                              border: 'none', borderRadius: 999, background: 'transparent', color: 'var(--p-cta-text)', cursor: 'pointer',
                             }}
-                          aria-label={`${item.name} adedini artır`}><I.plus size={15} /></button>
+                          aria-label={`${item.name} adedini artır`}><span style={{ width: 32, height: 32, borderRadius: 999, display: 'grid', placeItems: 'center', background: 'var(--p-cta)' }}><I.plus size={15} /></span></button>
                           <button
                             type="button"
                             onClick={() => onRemoveItem(item.cartId)}
@@ -401,6 +474,7 @@ export function CartDrawer({
                             style={{ marginLeft: 'auto', minHeight: 44, background: 'none', border: 'none', fontSize: 11.5, color: 'var(--p-text-2)', cursor: 'pointer', padding: '4px 8px' }}
                           >Kaldır</button>
                         </div>
+                        }
                       </div>
                       <p style={{ fontSize: 13.5, fontWeight: 850, color: 'var(--p-text)', flexShrink: 0, margin: 0, whiteSpace: 'nowrap' }}>
                         {formatTRY((item.price + item.modifiersPriceDelta) * item.quantity)}
@@ -412,13 +486,44 @@ export function CartDrawer({
             </div>
 
             {visibleItems.length > 0 && (
-              <div style={{
-                padding: '14px 16px calc(18px + env(safe-area-inset-bottom))',
-                borderTop: '1px solid rgba(15,23,42,.08)',
-                background: 'color-mix(in srgb, var(--p-card) 94%, transparent)',
-                boxShadow: '0 -12px 28px rgba(15,23,42,.06)',
+              <div data-component="cart-details-region" style={{
+                padding: '2px 16px 16px',
               }}>
-                {!loyaltySuppressedByPromotion && stampReward && stampReward.cardFull && (
+                {coupon && (
+                  <div data-component="cart-coupon" style={{ marginBottom: 12, padding: 12, borderRadius: 14, border: '1px solid var(--p-border)', background: 'var(--p-card)' }}>
+                    {coupon.appliedCode && !coupon.error && couponDiscount > 0 ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 850, color: 'var(--p-text)' }}>{coupon.appliedName ?? 'Kupon uygulandı'}</div>
+                          <div style={{ marginTop: 2, fontSize: 11, color: 'var(--p-accent)', fontWeight: 750 }}>{coupon.appliedCode} · −{formatTRY(couponDiscount)}</div>
+                        </div>
+                        <button type="button" onClick={coupon.onRemove} style={{ minHeight: 44, padding: '0 12px', borderRadius: 9, border: '1px solid var(--p-border)', background: 'transparent', color: 'var(--p-text-2)', fontSize: 11.5, fontWeight: 750, cursor: 'pointer' }}>Kaldır</button>
+                      </div>
+                    ) : (
+                      <form onSubmit={(event) => { event.preventDefault(); coupon.onApply() }}>
+                        <label htmlFor="cart-coupon-code" style={{ display: 'block', marginBottom: 7, fontSize: 12.5, fontWeight: 800, color: 'var(--p-text)' }}>Kupon kodun var mı?</label>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: 8 }}>
+                          <input
+                            id="cart-coupon-code"
+                            value={coupon.draft}
+                            onChange={(event) => coupon.onDraftChange(event.target.value)}
+                            disabled={coupon.pending}
+                            autoCapitalize="characters"
+                            autoComplete="off"
+                            maxLength={32}
+                            placeholder="KUPON KODU"
+                            aria-invalid={Boolean(coupon.error)}
+                            aria-describedby={coupon.error ? 'cart-coupon-error' : undefined}
+                            style={{ minWidth: 0, height: 44, borderRadius: 10, border: `1px solid ${coupon.error ? '#dc2626' : 'var(--p-border)'}`, background: 'var(--p-bg)', color: 'var(--p-text)', padding: '0 11px', font: 'inherit', fontSize: 12.5, fontWeight: 750, textTransform: 'uppercase', outline: 'none' }}
+                          />
+                          <button type="submit" disabled={coupon.pending || !coupon.draft.trim()} style={{ minWidth: 76, height: 44, border: 0, borderRadius: 10, padding: '0 13px', background: 'var(--p-cta)', color: 'var(--p-cta-text)', fontSize: 12, fontWeight: 800, cursor: coupon.pending ? 'wait' : 'pointer', opacity: coupon.pending || !coupon.draft.trim() ? .6 : 1 }}>{coupon.pending ? 'Kontrol…' : 'Uygula'}</button>
+                        </div>
+                        {coupon.error && <div id="cart-coupon-error" role="alert" aria-live="polite" style={{ marginTop: 7, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, color: '#b42318', fontSize: 11, lineHeight: 1.4 }}><span>{coupon.error}</span>{coupon.appliedCode && <button type="button" onClick={coupon.onRemove} style={{ minHeight: 44, padding: '0 8px', border: 0, background: 'none', color: 'inherit', fontWeight: 800, cursor: 'pointer' }}>Temizle</button>}</div>}
+                      </form>
+                    )}
+                  </div>
+                )}
+                {!loyaltySuppressedByPromotion && !exclusiveCouponApplied && stampReward && stampReward.cardFull && (
                   stampReward.rewardInCart ? (
                     <button
                       type="button"
@@ -427,33 +532,34 @@ export function CartDrawer({
                       style={{
                         width: '100%', marginBottom: 12, padding: '10px 12px', borderRadius: 12,
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                        background: stampReward.claimed ? 'var(--p-accent)' : 'var(--p-accent-soft)',
-                        color: stampReward.claimed ? '#fff' : 'var(--p-accent)',
+                        minHeight: 44,
+                        background: stampReward.claimed ? 'var(--p-cta)' : 'var(--p-accent-soft)',
+                        color: stampReward.claimed ? 'var(--p-cta-text)' : 'var(--p-accent)',
                         border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
                       }}
                     >
-                      <span style={{ fontSize: 12.5, fontWeight: 800 }}>
-                        🎁 Bedava {stampReward.rewardName ?? 'ürün'} {stampReward.claimed ? 'eklendi' : 'ekle'}
+                      <span style={{ fontSize: 12.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                        <I.gift size={16} /> Bedava {stampReward.rewardName ?? 'ürün'} {stampReward.claimed ? 'eklendi' : 'ekle'}
                       </span>
                       <span style={{ fontSize: 12.5, fontWeight: 800 }}>{stampReward.claimed ? '✓' : '+'}</span>
                     </button>
                   ) : (
                     <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 12, background: 'var(--p-accent-soft)' }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--p-accent)' }}>
-                        🎁 Kartın doldu! {stampReward.rewardName ?? 'Ödül ürününü'} ekle, bedava olsun.
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--p-accent)', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                        <I.gift size={16} /> Kartın doldu! {stampReward.rewardName ?? 'Ödül ürününü'} ekle, bedava olsun.
                       </span>
                     </div>
                   )
                 )}
 
-                {!loyaltySuppressedByPromotion && catalogReward && (
+                {!loyaltySuppressedByPromotion && !exclusiveCouponApplied && catalogReward && (
                   <div data-component="cart-catalog-reward" style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 12, background: 'var(--p-accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--p-accent)' }}>🎁 Bedava {catalogReward.itemName}</div>
+                      <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--p-accent)', display: 'flex', alignItems: 'center', gap: 7 }}><I.gift size={16} /> Bedava {catalogReward.itemName}</div>
                       <div style={{ fontSize: 11, color: 'var(--p-text-2)', marginTop: 1 }}>{catalogReward.pointCost} puan ile</div>
                     </div>
                     <button type="button" onClick={catalogReward.onClear}
-                      style={{ height: 28, padding: '0 12px', borderRadius: 8, border: 'none', background: 'var(--p-card)', color: 'var(--p-text-2)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                      style={{ minHeight: 44, padding: '0 12px', borderRadius: 8, border: 'none', background: 'var(--p-card)', color: 'var(--p-text-2)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
                       Vazgeç
                     </button>
                   </div>
@@ -481,11 +587,40 @@ export function CartDrawer({
                   </div>
                 )}
 
-                {!loyaltySuppressedByPromotion && !catalogReward && pointsRedeem && maxRedeemTl > 0 && (
+                {exclusiveCouponApplied && coupon && (
+                  <div
+                    role="status"
+                    data-component="cart-exclusive-coupon-notice"
+                    style={{
+                      marginBottom: 12,
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      border: '1px solid color-mix(in srgb, var(--p-accent) 24%, transparent)',
+                      background: 'var(--p-accent-soft)',
+                      color: 'var(--p-text-2)',
+                      fontSize: 11.5,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    <strong style={{ display: 'block', color: 'var(--p-text)', fontSize: 12.5, marginBottom: 2 }}>
+                      Kupon veya üyelik avantajı
+                    </strong>
+                    Bu kupon puan, damga ve üye indirimiyle birleşmez. Puan kullanmak için önce kuponu kaldırın.
+                    <button
+                      type="button"
+                      onClick={coupon.onRemove}
+                      style={{ display: 'block', marginTop: 7, minHeight: 44, borderRadius: 8, border: '1px solid var(--p-accent)', background: 'transparent', color: 'var(--p-accent)', padding: '0 10px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}
+                    >
+                      Kuponu kaldır ve puan kullan
+                    </button>
+                  </div>
+                )}
+
+                {!loyaltySuppressedByPromotion && !exclusiveCouponApplied && !catalogReward && pointsRedeem && maxRedeemTl > 0 && (
                   <div data-component="cart-points-redeem" style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 12, background: 'var(--p-accent-soft)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--p-accent)' }}>⭐ Puan kullan</div>
+                        <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--p-accent)', display: 'flex', alignItems: 'center', gap: 7 }}><I.star size={15} /> Puan kullan</div>
                         <div style={{ fontSize: 11, color: 'var(--p-text-2)', marginTop: 1 }}>
                           {pointsRedeem.balance} puan · {pointsRedeem.rate} puan = ₺1
                         </div>
@@ -493,21 +628,21 @@ export function CartDrawer({
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                         <button type="button" aria-label="Azalt"
                           onClick={() => pointsRedeem.onChange(Math.max(0, pointsRedeem.redeemTl - 1))}
-                        style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', padding: 0, lineHeight: 0, borderRadius: 999, border: 'none', background: 'var(--p-card)', color: 'var(--p-accent)', cursor: 'pointer' }}><I.minus size={13} /></button>
-                        <span style={{ minWidth: 56, textAlign: 'center', fontSize: 14, fontWeight: 800, color: 'var(--p-text)' }}>−{formatTRY(pointsRedeem.redeemTl)}</span>
+                        style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', padding: 0, lineHeight: 0, borderRadius: 999, border: 'none', background: 'transparent', color: 'var(--p-accent)', cursor: 'pointer' }}><span style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 999, background: 'var(--p-card)' }}><I.minus size={13} /></span></button>
+                        <span style={{ minWidth: 56, textAlign: 'center', fontSize: 14, fontWeight: 800, color: 'var(--p-text)' }}>{formatTRY(pointsRedeem.redeemTl)}</span>
                         <button type="button" aria-label="Artır"
                           onClick={() => pointsRedeem.onChange(Math.min(maxRedeemTl, pointsRedeem.redeemTl + 1))}
-                          style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', padding: 0, lineHeight: 0, borderRadius: 999, border: 'none', background: 'var(--p-accent)', color: '#fff', cursor: 'pointer' }}><I.plus size={13} /></button>
+                          style={{ width: 44, height: 44, display: 'grid', placeItems: 'center', padding: 0, lineHeight: 0, borderRadius: 999, border: 'none', background: 'transparent', color: 'var(--p-cta-text)', cursor: 'pointer' }}><span style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 999, background: 'var(--p-cta)' }}><I.plus size={13} /></span></button>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                       <button type="button" onClick={() => pointsRedeem.onChange(maxRedeemTl)}
-                        style={{ flex: 1, height: 28, borderRadius: 8, border: '1px solid var(--p-accent)', background: 'transparent', color: 'var(--p-accent)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
-                        Tümünü kullan (−{formatTRY(maxRedeemTl)})
+                        style={{ flex: 1, minHeight: 44, borderRadius: 8, border: '1px solid var(--p-accent)', background: 'transparent', color: 'var(--p-accent)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                        Tümünü kullan ({formatTRY(maxRedeemTl)})
                       </button>
                       {pointsRedeem.redeemTl > 0 && (
                         <button type="button" onClick={() => pointsRedeem.onChange(0)}
-                          style={{ height: 28, padding: '0 12px', borderRadius: 8, border: 'none', background: 'var(--p-card)', color: 'var(--p-text-2)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                          style={{ minHeight: 44, padding: '0 12px', borderRadius: 8, border: 'none', background: 'var(--p-card)', color: 'var(--p-text-2)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
                           Vazgeç
                         </button>
                       )}
@@ -525,14 +660,20 @@ export function CartDrawer({
                         </div>
                         {stampDiscount > 0 && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: (catalogDiscount > 0 || memberDiscount > 0 || pointsDiscount > 0) ? 4 : 8 }}>
-                            <span style={{ fontSize: 12.5, color: 'var(--p-accent)', fontWeight: 700 }}>🎁 Bedava {rewardName}</span>
+                            <span style={{ fontSize: 12.5, color: 'var(--p-accent)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}><I.gift size={15} /> Bedava {rewardName}</span>
                             <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>−{formatTRY(stampDiscount)}</span>
                           </div>
                         )}
                         {catalogDiscount > 0 && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: (memberDiscount > 0 || pointsDiscount > 0) ? 4 : 8 }}>
-                            <span style={{ fontSize: 12.5, color: 'var(--p-accent)', fontWeight: 700 }}>🎁 Ödül: {catalogName}</span>
+                            <span style={{ fontSize: 12.5, color: 'var(--p-accent)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}><I.gift size={15} /> Ödül: {catalogName}</span>
                             <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>−{formatTRY(catalogDiscount)}</span>
+                          </div>
+                        )}
+                        {couponDiscount > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: (memberDiscount > 0 || pointsDiscount > 0) ? 4 : 8 }}>
+                            <span style={{ fontSize: 12.5, color: 'var(--p-accent)', fontWeight: 700 }}>Kupon{discountPreview?.couponCode ? ` · ${discountPreview.couponCode}` : ''}</span>
+                            <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>−{formatTRY(couponDiscount)}</span>
                           </div>
                         )}
                         {memberDiscount > 0 && (
@@ -543,16 +684,12 @@ export function CartDrawer({
                         )}
                         {pointsDiscount > 0 && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <span style={{ fontSize: 12.5, color: 'var(--p-accent)', fontWeight: 700 }}>⭐ Puan indirimi</span>
+                            <span style={{ fontSize: 12.5, color: 'var(--p-accent)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}><I.star size={15} /> Puan indirimi</span>
                             <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>−{formatTRY(pointsDiscount)}</span>
                           </div>
                         )}
                       </>
                     )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                      <span style={{ fontSize: 13, color: 'var(--p-text-2)' }}>Toplam</span>
-                      <span style={{ fontSize: 20, fontWeight: 850, color: 'var(--p-text)', letterSpacing: '-0.02em' }}>{formatTRY(displayTotal)}</span>
-                    </div>
                   </>
                 )}
                 {!canCheckout && checkoutUnavailableReason && (
@@ -593,51 +730,82 @@ export function CartDrawer({
                     {orderError}
                   </div>
                 )}
-                <button
-                  type="button"
-                  aria-busy={isPlacing}
-                  onClick={onPlaceOrder}
-                  disabled={isPlacing || !canCheckout}
-                  style={{
-                    width: '100%', padding: '14px 0',
-                    fontSize: 15, fontWeight: 800,
-                    background: 'var(--p-cta)', color: 'var(--p-cta-text)',
-                    border: 'none', borderRadius: `${Math.max(radius + 4, 16)}px`,
-                    cursor: isPlacing || !canCheckout ? 'not-allowed' : 'pointer',
-                    opacity: isPlacing || !canCheckout ? 0.6 : 1,
-                    transition: 'opacity 150ms ease',
-                    boxShadow: '0 12px 24px rgba(15,23,42,.18)',
-                  }}
-                >
-                  {isPlacing ? 'Sipariş veriliyor…' : canCheckout ? primaryActionText : 'Masadaki QR kodu okutun'}
-                </button>
-
                 {canCheckout && (onPay ?? onSplitBill) && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                     {onPay && (
                       <button
                         type="button"
                         onClick={onPay}
+                        disabled={isPlacing || Boolean(coupon?.blocksCheckout) || Boolean(coupon?.pending)}
                         style={{
-                          flex: 1, padding: '11px 0', fontSize: 13, fontWeight: 750,
+                          flex: 1, minHeight: 48, padding: '11px 14px', fontSize: 13, fontWeight: 750,
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                           border: '1px solid rgba(15,23,42,.1)', color: 'var(--p-text)',
-                          backgroundColor: 'var(--p-card)', borderRadius: `${Math.max(radius, 12)}px`, cursor: 'pointer',
+                          backgroundColor: 'var(--p-card)', borderRadius: `${Math.max(radius, 12)}px`, cursor: coupon?.blocksCheckout || coupon?.pending ? 'not-allowed' : 'pointer', opacity: coupon?.blocksCheckout || coupon?.pending ? .55 : 1,
                         }}
-                      >💳 Ödeme Yap</button>
+                      >
+                        <I.card size={18} strokeWidth={1.9} style={{ color: 'var(--p-accent)' }} />
+                        <span>Ödeme Yap</span>
+                      </button>
                     )}
                     {onSplitBill && (
                       <button
                         type="button"
                         onClick={onSplitBill}
                         style={{
-                          flex: 1, padding: '11px 0', fontSize: 13, fontWeight: 750,
+                          flex: 1, minHeight: 48, padding: '11px 14px', fontSize: 13, fontWeight: 750,
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                           border: '1px solid rgba(15,23,42,.1)', color: 'var(--p-text)',
                           backgroundColor: 'var(--p-card)', borderRadius: `${Math.max(radius, 12)}px`, cursor: 'pointer',
                         }}
-                      >÷ Kişi Başı Hesapla</button>
+                      >
+                        <I.users size={18} strokeWidth={1.9} style={{ color: 'var(--p-accent)' }} />
+                        <span>Kişi Başı Hesapla</span>
+                      </button>
                     )}
                   </div>
                 )}
+              </div>
+            )}
+            </div>
+
+            {visibleItems.length > 0 && (
+              <div
+                data-component="cart-action-tray"
+                style={{
+                  flexShrink: 0,
+                  padding: '10px 16px calc(12px + env(safe-area-inset-bottom))',
+                  borderTop: '1px solid var(--p-border)',
+                  background: 'color-mix(in srgb, var(--p-card) 96%, transparent)',
+                  boxShadow: '0 -14px 30px rgba(15,23,42,.08)',
+                  backdropFilter: 'blur(14px)',
+                }}
+              >
+                {showSubtotal && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 8 }}>
+                    <span style={{ fontSize: 12.5, color: 'var(--p-text-2)', fontWeight: 650 }}>Toplam</span>
+                    <span style={{ fontSize: 19, fontWeight: 850, color: 'var(--p-text)', letterSpacing: '-0.02em' }}>{formatTRY(displayTotal)}</span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  data-component="cart-primary-action"
+                  aria-busy={isPlacing}
+                  onClick={onPlaceOrder}
+                  disabled={isPlacing || !canCheckout || Boolean(coupon?.blocksCheckout) || Boolean(coupon?.pending)}
+                  style={{
+                    width: '100%', minHeight: 52, padding: '12px 16px',
+                    fontSize: 15, fontWeight: 800,
+                    background: 'var(--p-cta)', color: 'var(--p-cta-text)',
+                    border: 'none', borderRadius: `${Math.max(radius + 4, 16)}px`,
+                    cursor: isPlacing || !canCheckout || coupon?.blocksCheckout || coupon?.pending ? 'not-allowed' : 'pointer',
+                    opacity: isPlacing || !canCheckout || coupon?.blocksCheckout || coupon?.pending ? 0.6 : 1,
+                    transition: prefersReducedMotion ? 'none' : 'opacity 150ms ease',
+                    boxShadow: '0 10px 22px rgba(15,23,42,.16)',
+                  }}
+                >
+                  {isPlacing ? 'Sipariş veriliyor…' : coupon?.pending ? 'Kupon kontrol ediliyor…' : coupon?.blocksCheckout ? 'Kuponu düzeltin' : canCheckout ? primaryActionText : 'Masadaki QR kodu okutun'}
+                </button>
               </div>
             )}
           </motion.div>
@@ -645,4 +813,16 @@ export function CartDrawer({
       )}
     </AnimatePresence>
   )
+}
+
+const VISUALLY_HIDDEN_STYLE: React.CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
 }

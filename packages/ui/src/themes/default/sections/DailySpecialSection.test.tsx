@@ -44,17 +44,18 @@ test('daily special renders the selected product at its catalog price by default
   assert.match(html, /Domates, biber, yumurta/)
   assert.match(html, /https:\/\/images\.example\/menemen\.webp/)
   assert.match(html, /₺180,00/)
+  assert.match(html, /--daily-image-size:112px/)
   assert.match(html, /data-promotion-state="ready"/)
   assert.doesNotMatch(html, /<del|href="#"/)
 })
 
-test('split media keeps its own square frame when the content column grows', () => {
+test('split media keeps the same square footprint as the menu special card', () => {
   const html = renderToStaticMarkup(
     <DailySpecialBlock
       sectionInstanceId="daily-home"
       config={{
         productId: 'menemen',
-        imageSize: '136',
+        imageSize: '112',
         chefNote: 'Uzun içerik görseli dikey olarak esnetmemeli.',
         countdownEnabled: 'true',
         campaignEndsAt: '2999-01-01T00:00:00.000Z',
@@ -64,15 +65,23 @@ test('split media keeps its own square frame when the content column grows', () 
   )
 
   assert.match(html, /data-daily-media="true"/)
-  assert.match(html, /--daily-image-size:136px/)
+  assert.match(html, /--daily-image-size:112px/)
   assert.match(html, /aspect-ratio:\s*1 \/ 1/)
   assert.match(html, /align-self:\s*start/)
-  assert.match(html, /@container \(max-width: 330px\)/)
-  assert.match(html, /aspect-ratio:\s*16 \/ 9/)
+  assert.match(html, /garsonless-daily-visual-column[\s\S]*data-daily-media="true"[\s\S]*role="timer"[\s\S]*data-layout="compact"/)
+  assert.doesNotMatch(html, /@container \(max-width: 330px\)/)
+  assert.doesNotMatch(html, /aspect-ratio:\s*16 \/ 9/)
   assert.doesNotMatch(html, /data-daily-media="true" style="[^"]*(?:min-height:100%|align-self:stretch)/)
 })
 
 test('daily special clamps legacy image sizes so media cannot dominate the card', () => {
+  const legacyDefault = renderToStaticMarkup(
+    <DailySpecialBlock
+      sectionInstanceId="daily-home"
+      config={{ productId: 'menemen', imageSize: '122' }}
+      items={[product]}
+    />,
+  )
   const oversized = renderToStaticMarkup(
     <DailySpecialBlock
       sectionInstanceId="daily-home"
@@ -88,6 +97,7 @@ test('daily special clamps legacy image sizes so media cannot dominate the card'
     />,
   )
 
+  assert.match(legacyDefault, /--daily-image-size:112px/)
   assert.match(oversized, /--daily-image-size:180px/)
   assert.match(undersized, /--daily-image-size:76px/)
 })
@@ -126,6 +136,44 @@ test('daily special forwards a server-verifiable fixed promotion', () => {
   }])
 })
 
+test('daily special honors custom button form and icon on the home surface', () => {
+  const renderButton = (buttonStyle: 'icon' | 'pill' | 'full', buttonIcon: 'plus' | 'cart' | 'bag') => renderToStaticMarkup(
+    <DailySpecialBlock
+      sectionInstanceId={`daily-${buttonStyle}`}
+      actionMode="discover"
+      config={{ productId: 'menemen', ctaMode: 'custom', buttonStyle, buttonIcon }}
+      items={[product]}
+      onQuickAdd={() => undefined}
+    />,
+  )
+
+  const iconOnly = renderButton('icon', 'cart')
+  assert.match(iconOnly, /data-cta-icon="cart" data-button-style="icon"/)
+  assert.doesNotMatch(iconOnly, />İncele</)
+
+  const pill = renderButton('pill', 'plus')
+  assert.match(pill, /data-cta-icon="plus" data-button-style="pill"/)
+  assert.match(pill, />İncele</)
+
+  const full = renderButton('full', 'bag')
+  assert.match(full, /data-cta-icon="bag" data-button-style="full"/)
+  assert.match(full, /width:100%/)
+})
+
+test('daily special preserves the default discover CTA when it inherits global settings', () => {
+  const html = renderToStaticMarkup(
+    <DailySpecialBlock
+      sectionInstanceId="daily-home"
+      actionMode="discover"
+      config={{ productId: 'menemen', ctaMode: 'inherit', buttonStyle: 'icon', buttonIcon: 'cart' }}
+      items={[product]}
+      onQuickAdd={() => undefined}
+    />,
+  )
+
+  assert.match(html, /data-cta-source="inherit" data-cta-icon="arrow" data-button-style="pill"/)
+})
+
 test('timed daily special renders a stable timer and expired content is absent', () => {
   const future = renderToStaticMarkup(
     <DailySpecialBlock
@@ -139,7 +187,8 @@ test('timed daily special renders a stable timer and expired content is absent',
     />,
   )
   assert.match(future, /role="timer"/)
-  assert.match(future, /width:14ch/)
+  assert.match(future, /data-layout="compact"/)
+  assert.match(future, /width:100%/)
 
   const expired = renderToStaticMarkup(
     <DailySpecialBlock

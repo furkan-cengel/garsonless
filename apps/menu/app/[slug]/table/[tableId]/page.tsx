@@ -11,6 +11,7 @@ import { getCustomerSession } from '../../../../lib/customer-session'
 import { availableCustomerAuthProviders } from '../../../../lib/customer-auth-provider'
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../../../lib/featured-products'
 import { MenuPageClient } from '../../MenuPageClient'
+import { HomePageRenderer } from '../../HomePageClient'
 import { createLoyaltyQueryPort, createPublicTableQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
 import { getPublishedTheme } from '../../../../lib/published-theme'
 
@@ -39,7 +40,7 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
 
   const themePort = createThemeApplicationPort()
   const [themeResult, categories, featuredRanking, session, customerAuthProviders] = await Promise.all([
-    getPublishedTheme(restaurant.id, restaurant.slug),
+    getPublishedTheme(restaurant.id),
     getMenuCategories(restaurant.id),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
     getCustomerSession(),
@@ -96,6 +97,26 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
   const servedTheme = advancedThemeAccess.ok && advancedThemeAccess.value
     ? theme
     : withoutAdvancedThemeSections(theme)
+  const experienceV2Enabled = process.env['THEME_EXPERIENCE_V2_ENABLED'] === 'true' || process.env.NODE_ENV === 'development'
+  const homeEnabled = experienceV2Enabled && servedTheme.surfaces?.home.enabled === true
+
+  if (homeEnabled && sp['surface'] !== 'menu') {
+    return (
+      <HomePageRenderer
+        restaurant={restaurant}
+        categories={categories}
+        items={items}
+        theme={servedTheme}
+        tableToken={tableId}
+        tableLabel={tableState.token.tableLabel}
+        initialMember={initialMember}
+        initialMemberBalances={initialMemberBalances}
+        guestOrderingEnabled={guestOrderingEnabled}
+        customerAccountsEnabled={customerAccountsEnabled}
+        customerAuthProviders={customerAccountsEnabled ? customerAuthProviders : []}
+      />
+    )
+  }
 
   return (
     <MenuPageClient
@@ -115,6 +136,11 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
       guestOrderingEnabled={guestOrderingEnabled}
       customerAccountsEnabled={customerAccountsEnabled}
       customerAuthProviders={customerAccountsEnabled ? customerAuthProviders : []}
+      initialOpenCart={sp['open'] === 'cart'}
+      initialProductId={typeof sp['item'] === 'string' ? sp['item'] : null}
+      initialPromotionSectionId={typeof sp['promotionSection'] === 'string' ? sp['promotionSection'] : null}
+      initialPromotionKind={typeof sp['promotionKind'] === 'string' ? sp['promotionKind'] : null}
+      homeEnabled={homeEnabled}
     />
   )
 }

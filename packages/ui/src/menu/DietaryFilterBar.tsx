@@ -73,8 +73,13 @@ export function DietaryFilterBar({
     >
       <style>{`
         [data-component="menu-filters"] button:focus-visible{outline:2px solid var(--p-accent);outline-offset:2px}
-        [data-component="menu-filters"] [data-filter-trigger]:hover{background:var(--p-accent-soft);border-color:var(--p-accent)}
-        [data-component="menu-filters"] [data-filter-option]:hover{background:var(--p-accent-soft)}
+        @media (hover:hover) and (pointer:fine){
+          [data-component="menu-filters"] [data-filter-trigger]:hover [data-filter-trigger-surface]{background:var(--p-accent-soft);border-color:var(--p-accent)}
+          [data-component="menu-filters"] [data-filter-option]:hover{background:var(--p-accent-soft)}
+        }
+        @media (prefers-reduced-motion:reduce){
+          [data-component="menu-filters"] [data-filter-trigger-surface]{transition:none!important}
+        }
       `}</style>
       <button
         ref={triggerRef}
@@ -86,23 +91,24 @@ export function DietaryFilterBar({
         aria-controls={panelId}
         onClick={() => setOpen((current) => !current)}
         style={{
-          width: 42,
-          height: 38,
+          width: 44,
+          height: 44,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
           gap: 4,
           padding: 0,
           borderRadius: 999,
-          border: 'var(--p-border-w) solid var(--p-border)',
-          background: activeCount > 0 ? 'var(--p-accent-soft)' : 'var(--p-card)',
+          border: 0,
+          background: 'transparent',
           color: activeCount > 0 ? 'var(--p-accent)' : 'var(--p-text-2)',
           cursor: 'pointer',
           position: 'relative',
-          transition: 'background 140ms ease, border-color 140ms ease, color 140ms ease',
         }}
       >
-        <SlidersHorizontal size={17} strokeWidth={2} aria-hidden="true" />
+        <span data-filter-trigger-surface style={{ width: 42, height: 38, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, border: 'var(--p-border-w) solid var(--p-border)', background: activeCount > 0 ? 'var(--p-accent-soft)' : 'var(--p-card)', transition: 'background 140ms ease, border-color 140ms ease, color 140ms ease', pointerEvents: 'none' }}>
+          <SlidersHorizontal size={17} strokeWidth={2} aria-hidden="true" />
+        </span>
         {activeCount > 0 && (
           <span aria-hidden="true" style={{
             position: 'absolute',
@@ -142,16 +148,17 @@ export function DietaryFilterBar({
             border: 'var(--p-border-w) solid var(--p-border)',
             background: 'var(--p-card)',
             color: 'var(--p-text)',
+            lineHeight: 'var(--p-line-body)',
             boxShadow: '0 18px 44px -20px rgba(10,15,20,.34)',
             zIndex: 40,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '1px 2px 8px' }}>
-            <strong style={{ flex: 1, fontSize: 13, lineHeight: 1.2 }}>Filtreler</strong>
+            <strong style={{ flex: 1, fontSize: 'var(--p-text-md)', lineHeight: 'var(--p-line-tight)' }}>Filtreler</strong>
             {activeCount > 0 && (
               <button type="button" onClick={onClear} style={{ border: 0, background: 'transparent', color: 'var(--p-accent)', font: 'inherit', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: '4px 6px' }}>Temizle</button>
             )}
-            <button type="button" aria-label="Filtreleri kapat" onClick={() => { setOpen(false); triggerRef.current?.focus() }} style={{ width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: 0, borderRadius: 8, background: 'transparent', color: 'var(--p-text-2)', cursor: 'pointer', padding: 0 }}><X size={16} aria-hidden="true" /></button>
+            <button type="button" aria-label="Filtreleri kapat" onClick={() => { setOpen(false); triggerRef.current?.focus() }} style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: 0, borderRadius: 10, background: 'transparent', color: 'var(--p-text-2)', cursor: 'pointer', padding: 0 }}><span aria-hidden="true" style={{ width: 28, height: 28, display: 'grid', placeItems: 'center' }}><X size={16} /></span></button>
           </div>
           <div role="group" aria-label="Ürün filtreleri" style={{ display: 'grid', gap: 4 }}>
             {filters.map((filter) => {
@@ -165,7 +172,7 @@ export function DietaryFilterBar({
                   onClick={() => onToggle(filter)}
                   style={{
                     width: '100%',
-                    minHeight: 38,
+                    minHeight: 44,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 9,
@@ -175,7 +182,8 @@ export function DietaryFilterBar({
                     background: active ? 'var(--p-accent-soft)' : 'transparent',
                     color: active ? 'var(--p-accent)' : 'var(--p-text-2)',
                     fontFamily: 'var(--p-body)',
-                    fontSize: 12.5,
+                    fontSize: 'var(--p-text-sm)',
+                    lineHeight: 'var(--p-line-body)',
                     fontWeight: active ? 750 : 650,
                     textAlign: 'left',
                     cursor: 'pointer',

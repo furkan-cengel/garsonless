@@ -7,7 +7,7 @@ import { createPublicOrderPort, createPublicTableQueryPort, resolveTransferredGu
 import { getCustomerSession } from '../../../lib/customer-session'
 import { parseOrderRequestBody, validateOrderRequestHeaders } from './order-request'
 
-type ApiResponse<T> = { success: true; data: T } | { success: false; error: string }
+type ApiResponse<T> = { success: true; data: T } | { success: false; error: string; code?: string }
 
 export async function POST(
   req: Request,
@@ -69,12 +69,15 @@ export async function POST(
       redeemPoints: session ? (parsed.data.redeemPoints ?? 0) : 0, // guests can't redeem
       redeemStampClaim: session ? (parsed.data.redeemStampClaim ?? false) : false,
       catalogItemId: session ? (parsed.data.catalogItemId ?? null) : null,
+      couponCode: parsed.data.couponCode ?? null,
       rateLimitKey: keyHash,
     },
     createPublicOrderPort(),
   )
 
   if (!result.ok) {
+    const couponCode = result.error.match(/^(COUPON_[A-Z_]+):/)?.[1] ?? null
+    const publicError = couponCode ? result.error.slice(couponCode.length + 1) : result.error
     const status = result.error === 'Sipariş güvenlik kontrolü kullanılamıyor'
       ? 503
       : result.error === 'İşletme şu anda yeni sipariş almıyor.'
@@ -86,7 +89,7 @@ export async function POST(
         : result.error.startsWith('Failed to')
           ? 500
           : 400
-    return NextResponse.json({ success: false, error: result.error }, { status })
+    return NextResponse.json({ success: false, error: publicError, ...(couponCode ? { code: couponCode } : {}) }, { status: couponCode ? 409 : status })
   }
 
   return NextResponse.json({ success: true, data: { orderId: result.value.orderId, breakdown: result.value.breakdown as OrderDiscountBreakdown } })

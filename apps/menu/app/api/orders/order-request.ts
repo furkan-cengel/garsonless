@@ -23,7 +23,10 @@ const orderItemSchema = z.object({
   }).optional(),
   promotion: z.object({
     sectionInstanceId: z.string().min(1).max(128),
-    kind: z.enum(['discount-badge', 'daily-special']),
+    kind: z.enum(['discount-badge', 'daily-special', 'promo-slider']),
+    offer: z.enum(['freebie']).optional(),
+    instanceId: z.string().uuid().optional(),
+    role: z.enum(['qualifier', 'reward']).optional(),
   }).optional(),
   // Persisted pre-migration carts may still send these; the DB resolver ignores them.
   modifiers: z.array(z.record(z.unknown())).max(MAX_LINE_MODIFIERS).optional(),
@@ -43,6 +46,7 @@ const createOrderSchema = z.object({
   redeemPoints: z.number().int().nonnegative().optional(),
   redeemStampClaim: z.boolean().optional(),
   catalogItemId: z.string().uuid().nullable().optional(),
+  couponCode: z.string().trim().max(32).nullable().optional(),
 })
 
 type ValidationFailure = { ok: false; status: 400 | 413 | 415; error: string }

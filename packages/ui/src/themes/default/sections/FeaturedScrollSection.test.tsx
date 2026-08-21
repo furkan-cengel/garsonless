@@ -47,7 +47,29 @@ test('featured section renders real products, images, prices and no fabricated r
   assert.match(html, /Dana köfte ve trüf mayo/)
   assert.match(html, /https:\/\/images\.example\/burger\.webp/)
   assert.match(html, /₺240,00/)
+  assert.match(html, /font-family:var\(--p-body\)[^>]*>Öne Çıkanlar/)
   assert.doesNotMatch(html, /4\.9|214|Favori/)
+})
+
+test('featured tags join the shared shimmer scope only when the global theme switch is enabled', () => {
+  const html = renderToStaticMarkup(
+    <FeaturedScrollSection
+      config={{ showBadge: 'true' }}
+      items={[item({ id: 'one', name: 'Birinci', price: 100 })]}
+      theme={{
+        cardCtaStyle: 'pill',
+        cardCtaIcon: 'plus',
+        cta: '#2e7d52',
+        ctaTextColor: '#ffffff',
+        motion: 'full',
+        tagShimmer: true,
+      }}
+    />,
+  )
+
+  assert.match(html, /garsonless-tag-shimmer-enabled/)
+  assert.match(html, /garsonless-tag-shimmer-target/)
+  assert.match(html, /Öne çıkan/)
 })
 
 test('featured section exposes one accessible cart action per rendered product', () => {
@@ -67,6 +89,42 @@ test('featured section exposes one accessible cart action per rendered product',
   assert.doesNotMatch(html, /disabled=""/)
 })
 
+test('featured section honors custom button form and icon on the home surface', () => {
+  const renderButton = (buttonStyle: 'icon' | 'pill' | 'full', buttonIcon: 'plus' | 'cart' | 'bag') => renderToStaticMarkup(
+    <FeaturedScrollSection
+      actionMode="discover"
+      config={{ ctaMode: 'custom', buttonStyle, buttonIcon }}
+      items={[item({ id: 'one', name: 'Birinci', price: 100 })]}
+      onQuickAdd={() => undefined}
+    />,
+  )
+
+  const iconOnly = renderButton('icon', 'cart')
+  assert.match(iconOnly, /data-cta-icon="cart" data-button-style="icon"/)
+  assert.doesNotMatch(iconOnly, />İncele</)
+
+  const pill = renderButton('pill', 'plus')
+  assert.match(pill, /data-cta-icon="plus" data-button-style="pill"/)
+  assert.match(pill, />İncele</)
+
+  const full = renderButton('full', 'bag')
+  assert.match(full, /data-cta-icon="bag" data-button-style="full"/)
+  assert.match(full, /width:100%/)
+})
+
+test('featured section preserves the default discover CTA when it inherits global settings', () => {
+  const html = renderToStaticMarkup(
+    <FeaturedScrollSection
+      actionMode="discover"
+      config={{ ctaMode: 'inherit', buttonStyle: 'icon', buttonIcon: 'cart' }}
+      items={[item({ id: 'one', name: 'Birinci', price: 100 })]}
+      onQuickAdd={() => undefined}
+    />,
+  )
+
+  assert.match(html, /data-cta-source="inherit" data-cta-icon="arrow" data-button-style="pill"/)
+})
+
 test('featured section hides unavailable public selections instead of leaking an empty shell', () => {
   const html = renderToStaticMarkup(
     <FeaturedScrollSection
@@ -79,14 +137,12 @@ test('featured section hides unavailable public selections instead of leaking an
   assert.equal(html, '')
 })
 
-test('featured section only renders an actionable view-all link when a valid target exists', () => {
+test('featured section ignores legacy view-all settings', () => {
   const products = [item({ id: 'one', name: 'Birinci', price: 100 }), item({ id: 'two', name: 'İkinci', price: 200, position: 1 })]
-  const inactive = renderToStaticMarkup(<FeaturedScrollSection config={{ showViewAll: 'true' }} items={products} />)
-  const active = renderToStaticMarkup(<FeaturedScrollSection config={{ showViewAll: 'true', targetType: 'category', targetId: 'coffee' }} items={products} />)
+  const html = renderToStaticMarkup(<FeaturedScrollSection config={{ showViewAll: 'true', viewAllText: 'Tümü', targetType: 'category', targetId: 'coffee' }} items={products} />)
 
-  assert.doesNotMatch(inactive, />Tümü</)
-  assert.match(active, /href="#section-coffee"/)
-  assert.match(active, />Tümü/)
+  assert.doesNotMatch(html, /href="#section-coffee"/)
+  assert.doesNotMatch(html, />Tümü</)
 })
 
 test('featured section explains when automatic ranking fell back to the previous day', () => {

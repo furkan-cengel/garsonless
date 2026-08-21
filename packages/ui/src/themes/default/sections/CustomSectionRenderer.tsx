@@ -5,7 +5,7 @@ import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { AppIcons as I } from '../../../icons'
 import { resolveServiceRequestFabConfig } from '../../../menu/serviceRequestFabConfig'
 import type { MenuCategory, MenuItem, SectionPromotionContext } from '../../../menu/types'
-import type { ComboAddRequest, StoreInfo } from '../../types'
+import type { ComboAddRequest, ComboInteractionState, FreebieAddRequest, MemberOpenTarget, StoreInfo } from '../../types'
 import { HeroSection } from './HeroSection'
 import { PromoStripSection } from './PromoStripSection'
 import { ChefPickSection } from './ChefPickSection'
@@ -32,6 +32,7 @@ import {
   StorefrontMenuCtaSection,
   StorefrontStorySection,
   type StorefrontMemberSummary,
+  type StoreStatusPresentation,
 } from './StorefrontSections'
 
 interface CustomSectionRendererProps {
@@ -40,20 +41,33 @@ interface CustomSectionRendererProps {
   config?: Record<string, string>
   categories?: MenuCategory[]
   restaurantName: string
+  restaurantLogoUrl?: string | null
   pageDescription?: string
-  memberLoyalty?: { filled: number; total: number } | null
+  memberLoyalty?: {
+    filled: number
+    total: number
+    points?: number
+    pointsEnabled?: boolean
+    stampsEnabled?: boolean
+    tierName?: string
+  } | null
   activeCampaigns?: PromoSliderCampaign[]
   items?: MenuItem[]
   onQuickAdd?: (item: MenuItem, originalPrice?: number, promotion?: SectionPromotionContext) => void
   onAddCombo?: (combo: ComboAddRequest) => void
+  comboInteractionState?: ComboInteractionState
+  onAddFreebie?: (campaign: FreebieAddRequest) => void
   onOpenCart?: () => void
   storeInfo?: StoreInfo | null
-  theme?: Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor'>
+  theme?: Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor' | 'motion' | 'tagShimmer'>
   renderContext?: 'menu' | 'catalog' | 'home'
   menuHref?: string
-  onOpenMember?: () => void
+  onOpenMember?: (target?: MemberOpenTarget) => void
+  onSelectCategory?: (categoryId: string) => void
   memberSummary?: StorefrontMemberSummary | null
-  storeStatus?: string
+  storeStatus?: StoreStatusPresentation
+  editorPreview?: boolean
+  catalogPreview?: boolean
 }
 
 /**
@@ -67,20 +81,26 @@ export function CustomSectionRenderer({
   config = {},
   categories = [],
   restaurantName,
+  restaurantLogoUrl,
   pageDescription,
   memberLoyalty,
   activeCampaigns,
   items,
   onQuickAdd,
   onAddCombo,
+  comboInteractionState,
+  onAddFreebie,
   onOpenCart,
   storeInfo,
   theme,
   renderContext = 'menu',
   menuHref = '/menu',
   onOpenMember,
+  onSelectCategory,
   memberSummary,
   storeStatus,
+  editorPreview = false,
+  catalogPreview = false,
 }: CustomSectionRendererProps) {
   const storefrontProps = {
     config,
@@ -92,7 +112,7 @@ export function CustomSectionRenderer({
     ...(onOpenMember ? { onOpenMember } : {}),
   }
   if (sectionId === 'storefront-hero') return <StorefrontHeroSection {...storefrontProps} config={{ ...config, mediaType: 'image' }} />
-  if (sectionId === 'storefront-video-hero') return <StorefrontHeroSection {...storefrontProps} config={{ ...config, mediaType: 'video' }} />
+  if (sectionId === 'storefront-video-hero') return <StorefrontHeroSection {...storefrontProps} config={{ ...config, mediaType: 'video' }} previewMode={catalogPreview ? 'catalog' : editorPreview ? 'editor' : 'public'} />
   if (sectionId === 'story') return <StorefrontStorySection {...storefrontProps} />
   if (sectionId === 'featured-categories') return <StorefrontCategoriesSection {...storefrontProps} />
   if (sectionId === 'loyalty-teaser') return <StorefrontLoyaltySection {...storefrontProps} />
@@ -154,16 +174,21 @@ export function CustomSectionRenderer({
     return <AddressBarSection sectionId={sectionId} config={config} />
   }
   if (sectionId === 'promo-strip') {
-    const resolvedConfig = renderContext === 'home' && !Object.prototype.hasOwnProperty.call(config, 'repeatText')
-      ? { ...config, repeatText: '' }
-      : config
-    return <PromoStripSection config={resolvedConfig} {...(renderContext === 'home' ? { forcedHref: menuHref } : {})} />
+    return <PromoStripSection config={config} {...(renderContext === 'home' ? { forcedHref: menuHref } : {})} />
   }
   if (sectionId === 'quick-links' || sectionId === 'cat-pills' || sectionId === 'cat-underline' || sectionId === 'cat-images') {
     return <QuickLinksSection categories={categories} />
   }
   if (sectionId === 'chef-pick') {
-    return <ChefPickSection config={config} actionMode={renderContext === 'home' ? 'discover' : 'order'} {...(items ? { items } : {})} {...(onQuickAdd ? { onQuickAdd } : {})} {...(theme ? { theme } : {})} />
+    return <ChefPickSection
+      config={config}
+      sectionInstanceId={sectionInstanceId ?? sectionId}
+      actionMode={renderContext === 'home' ? 'discover' : 'order'}
+      editorPreview={editorPreview}
+      {...(items ? { items } : {})}
+      {...(onQuickAdd ? { onQuickAdd } : {})}
+      {...(theme ? { theme } : {})}
+    />
   }
   if (sectionId === 'featured-scroll') {
     return <FeaturedScrollSection config={config} actionMode={renderContext === 'home' ? 'discover' : 'order'} {...(items ? { items } : {})} {...(onQuickAdd ? { onQuickAdd } : {})} {...(theme ? { theme } : {})} />
@@ -172,7 +197,9 @@ export function CustomSectionRenderer({
     return <InfoCardSection sectionId={sectionId} />
   }
   if (sectionId === 'combo-ribbon') {
-    return <ComboRibbonSection sectionInstanceId={sectionInstanceId ?? sectionId} config={config} {...(items ? { items } : {})} {...(onAddCombo ? { onAddCombo } : {})} {...(theme ? { theme } : {})} />
+    const interactionState = comboInteractionState
+      ?? (onAddCombo ? 'enabled' : editorPreview || renderContext === 'catalog' ? 'preview' : 'ordering-disabled')
+    return <ComboRibbonSection sectionInstanceId={sectionInstanceId ?? sectionId} config={config} interactionState={interactionState} {...(items ? { items } : {})} {...(onAddCombo ? { onAddCombo } : {})} {...(theme ? { theme } : {})} />
   }
   if (sectionId === 'discount-badge') {
     return (
@@ -192,6 +219,17 @@ export function CustomSectionRenderer({
         memberLoyalty={memberLoyalty ?? null}
         sectionInstanceId={sectionInstanceId ?? sectionId}
         activeCampaigns={activeCampaigns ?? []}
+        items={items ?? []}
+        renderContext={renderContext}
+        editorPreview={editorPreview}
+        restaurantName={restaurantName}
+        {...(theme ? { theme } : {})}
+        {...(restaurantLogoUrl !== undefined ? { restaurantLogoUrl } : {})}
+        {...(onQuickAdd ? { onQuickAdd } : {})}
+        {...(onAddFreebie ? { onAddFreebie } : {})}
+        {...(onOpenCart ? { onOpenCart } : {})}
+        {...(onOpenMember ? { onOpenMember } : {})}
+        {...(onSelectCategory ? { onSelectCategory } : {})}
       />
     )
   }
@@ -207,7 +245,9 @@ export function CustomSectionRenderer({
       />
     )
   }
-  if (sectionId === 'gallery') return <GallerySection config={config} />
+  if (sectionId === 'gallery') {
+    return <GallerySection config={config} previewMode={catalogPreview || renderContext === 'catalog' ? 'catalog' : editorPreview ? 'editor' : 'public'} />
+  }
   if (sectionId === 'hours') return <HoursInfoSection storeInfo={storeInfo ?? null} />
   if (sectionId === 'wifi-info') return <WifiInfoSection config={config} catalogMock={renderContext === 'catalog'} />
   if (

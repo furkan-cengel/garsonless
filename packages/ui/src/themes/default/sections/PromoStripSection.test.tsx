@@ -13,25 +13,20 @@ test('a promo strip without an action is honest non-link content', () => {
   assert.match(markup, /İLK SİPARİŞE %20 İNDİRİM/)
 })
 
-test('external targets open safely while invalid URLs remain non-actionable', () => {
-  const external = renderToStaticMarkup(<PromoStripSection config={{
+test('legacy manual targets are ignored while the contextual home target remains actionable', () => {
+  const legacyTarget = renderToStaticMarkup(<PromoStripSection config={{
     targetType: 'link',
     targetUrl: 'https://masabu.co/demo',
   }} />)
-  const invalid = renderToStaticMarkup(<PromoStripSection config={{
-    targetType: 'link',
-    targetUrl: 'javascript:alert(1)',
-  }} />)
+  const contextualTarget = renderToStaticMarkup(<PromoStripSection config={{}} forcedHref="/menu" />)
 
-  assert.match(external, /href="https:\/\/masabu.co\/demo"/)
-  assert.match(external, /target="_blank"/)
-  assert.match(external, /rel="noopener noreferrer"/)
-  assert.doesNotMatch(invalid, /<a\b/)
+  assert.doesNotMatch(legacyTarget, /<a\b/)
+  assert.match(contextualTarget, /href="\/menu"/)
 })
 
 test('static and fade modes render a single readable message instead of marquee copies', () => {
-  const staticMarkup = renderToStaticMarkup(<PromoStripSection config={{ title: 'Kahvede %20', repeatText: '', animation: 'static' }} />)
-  const fadeMarkup = renderToStaticMarkup(<PromoStripSection config={{ title: 'Kahvede %20', repeatText: '', animation: 'fade' }} />)
+  const staticMarkup = renderToStaticMarkup(<PromoStripSection config={{ title: 'Kahvede %20', animation: 'static' }} />)
+  const fadeMarkup = renderToStaticMarkup(<PromoStripSection config={{ title: 'Kahvede %20', animation: 'fade' }} />)
 
   assert.equal((staticMarkup.match(/Kahvede %20/g) ?? []).length, 2)
   assert.equal((fadeMarkup.match(/Kahvede %20/g) ?? []).length, 2)
@@ -40,7 +35,7 @@ test('static and fade modes render a single readable message instead of marquee 
 })
 
 test('marquee output is duplicated for a seamless loop and respects reduced motion', () => {
-  const markup = renderToStaticMarkup(<PromoStripSection config={{ title: 'Duyuru', repeatText: 'Bugüne özel', animation: 'marquee' }} />)
+  const markup = renderToStaticMarkup(<PromoStripSection config={{ title: 'Duyuru', animation: 'marquee' }} />)
 
   assert.equal((markup.match(/class="garsonless-promo-sequence"/g) ?? []).length, 2)
   assert.match(markup, /prefers-reduced-motion: reduce/)
@@ -48,8 +43,12 @@ test('marquee output is duplicated for a seamless loop and respects reduced moti
 })
 
 test('explicitly cleared or hidden copy does not revive placeholder content', () => {
-  assert.equal(renderToStaticMarkup(<PromoStripSection config={{ title: '', repeatText: '' }} />), '')
-  assert.equal(renderToStaticMarkup(<PromoStripSection config={{ showTitle: 'false', showRepeatText: 'false' }} />), '')
+  assert.equal(renderToStaticMarkup(<PromoStripSection config={{ title: '' }} />), '')
+  assert.equal(renderToStaticMarkup(<PromoStripSection config={{ showTitle: 'false' }} />), '')
+})
+
+test('legacy secondary copy is ignored and cannot revive an empty strip', () => {
+  assert.equal(renderToStaticMarkup(<PromoStripSection config={{ title: '', repeatText: 'Eski ikincil metin', showRepeatText: 'true' }} />), '')
 })
 
 test('stored layout values are clamped to the supported editor contract', () => {

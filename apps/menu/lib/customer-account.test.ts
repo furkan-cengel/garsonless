@@ -6,9 +6,54 @@ import {
   customerOrderStatus,
   decodeCustomerOrderCursor,
   encodeCustomerOrderCursor,
+  mergeCurrentRestaurantLoyalty,
   parseCustomerAccountPatch,
   projectCustomerOrderLines,
 } from './customer-account-contract.ts'
+
+test('current restaurant loyalty is visible immediately and replaces a stale global snapshot', () => {
+  const base = {
+    profile: { name: 'Deniz', email: null, phone: null, memberSince: '2026-01-01T00:00:00.000Z' },
+    loyalty: [{
+      restaurant: { id: 'old-id', slug: 'other-cafe', name: 'Other Cafe', logoUrl: null },
+      points: 10,
+      stamps: 1,
+      stampGoal: 8,
+      stampRewardText: '8 kahve al, 1 kahve bizden',
+      stampUnlocked: false,
+      pointsEnabled: true,
+      stampsEnabled: true,
+      tier: { name: 'Başlangıç', color: '#777777' },
+      nextTier: null,
+      tierProgress: 10,
+      lifetimePoints: 10,
+    }],
+    consents: [],
+    privacy: { deletionRequest: null },
+  }
+  const current = {
+    restaurant: { id: 'current-id', slug: 'maf-lounge', name: 'MAF Lounge', logoUrl: null },
+    points: 240,
+    stamps: 6,
+    stampGoal: 10,
+    stampRewardText: '10 kahve al, 1 kahve bizden',
+    stampUnlocked: false,
+    pointsEnabled: true,
+    stampsEnabled: true,
+    tier: { name: 'Gümüş', color: '#667085' },
+    nextTier: { name: 'Altın', minimumPoints: 500 },
+    tierProgress: 48,
+    lifetimePoints: 380,
+  }
+
+  const merged = mergeCurrentRestaurantLoyalty(base, current)
+  assert.deepEqual(merged.loyalty.map((entry) => entry.restaurant.slug), ['maf-lounge', 'other-cafe'])
+  assert.equal(merged.loyalty[0]?.points, 240)
+
+  const refreshed = mergeCurrentRestaurantLoyalty({ ...base, loyalty: [{ ...current, points: 100 }] }, current)
+  assert.equal(refreshed.loyalty.length, 1)
+  assert.equal(refreshed.loyalty[0]?.points, 240)
+})
 
 test('account profile patch accepts only a normalized bounded name', () => {
   assert.deepEqual(parseCustomerAccountPatch({ name: '  Deniz   Yılmaz  ' }), { name: 'Deniz Yılmaz' })
@@ -83,12 +128,37 @@ test('account UI keeps the Pro-gated global entry accessible', () => {
   const header = readFileSync(new URL('../../../packages/ui/src/menu/Header.tsx', import.meta.url), 'utf8')
   const drawer = readFileSync(new URL('../../../packages/ui/src/menu/NavDrawer.tsx', import.meta.url), 'utf8')
   const center = readFileSync(new URL('../app/[slug]/components/AccountCenter.tsx', import.meta.url), 'utf8')
+  const memberSheet = readFileSync(new URL('../app/[slug]/components/MemberSheet.tsx', import.meta.url), 'utf8')
+  const homePage = readFileSync(new URL('../app/[slug]/HomePageClient.tsx', import.meta.url), 'utf8')
 
-  assert.match(menuPage, /onOpenMember=\{\(\) => \{ if \(customerAccountsEnabled\) \{ setCustomerAuthSurface\('menu'\); setIsMemberOpen\(true\) \} \}\}/)
+  assert.match(menuPage, /onOpenMember=\{\(target: MemberOpenTarget = 'overview'\) =>/)
+  assert.match(menuPage, /setMemberTarget\(target\)/)
+  assert.match(menuPage, /initialTarget=\{memberTarget\}/)
   assert.match(header, /aria-label=\{memberIsMember \? 'Hesabımı aç' : 'Müşteri hesabını aç'\}/)
   assert.match(header, /height: 44, minWidth: 44/)
   assert.match(drawer, /'Hesap ve üyelik'/)
   assert.match(center, /role="tablist"/)
-  assert.match(center, /aria-live="polite"/)
+  assert.match(center, /role="tabpanel"/)
+  assert.match(center, /aria-controls=\{`account-panel-/)
+  assert.match(center, /event\.key === 'ArrowRight'/)
+  assert.match(center, /event\.key === 'Home'/)
+  assert.match(center, /window\.history\.pushState\([\s\S]*view: 'detail'/)
+  assert.match(center, /if \(!embeddedPreview\) pushDetailHistory\(\)/)
+  assert.match(center, /else onClose\(\)/)
+  assert.match(center, /reorderHeadingRef\.current\?\.focus\(\)/)
+  assert.match(center, /role="progressbar"/)
+  assert.match(center, /stampGoal <= 10/)
+  assert.match(center, /src="\/android-chrome-192x192\.png"/)
+  assert.match(center, /restaurantId=\$\{encodeURIComponent\(currentRestaurantId\)\}/)
+  assert.match(center, /favorite\.restaurant\.slug === currentRestaurantSlug/)
+  assert.match(center, /Bu işletmede henüz favorin yok/)
+  assert.doesNotMatch(center, /restoranlarına göre gruplanıyor/)
+  assert.match(memberSheet, /body\.style\.overflow = 'hidden'/)
+  assert.match(memberSheet, /currentRestaurantId=\{restaurantId\}/)
+  assert.match(memberSheet, /__masabuAccount: \{ token, view: 'root' \}/)
+  assert.doesNotMatch(memberSheet, /MemberHomeLegacy/)
+  assert.match(homePage, /const accountActions: AccountActions/)
+  assert.match(homePage, /if \(!response\.ok\) return \{ ok: false/)
+  assert.doesNotMatch(homePage, /setMemberOpen\(false\)[\s\S]{0,120}return \{ ok: true as const \}/)
   assert.match(center, /prefers-reduced-motion:reduce/)
 })

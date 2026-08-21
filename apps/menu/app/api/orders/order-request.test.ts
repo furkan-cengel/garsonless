@@ -38,6 +38,43 @@ test('order body accepts a bounded valid request and rejects malformed JSON', ()
   if (!malformed.ok) assert.equal(malformed.status, 400)
 })
 
+test('order body carries one optional coupon code to the server pricing boundary', () => {
+  const parsed = parseOrderRequestBody(JSON.stringify({ ...validBody, couponCode: '  HOSGELDIN25  ' }))
+  assert.equal(parsed.ok, true)
+  if (parsed.ok) assert.equal(parsed.data.couponCode, 'HOSGELDIN25')
+})
+
+test('order body accepts the closed promo-slider promotion identity', () => {
+  const parsed = parseOrderRequestBody(JSON.stringify({
+    ...validBody,
+    items: [{
+      ...orderItem,
+      quantity: 2,
+      promotion: { sectionInstanceId: 'slider-home', kind: 'promo-slider' },
+    }],
+  }))
+  assert.equal(parsed.ok, true)
+})
+
+test('order body accepts a complete freebie campaign pair identity', () => {
+  const instanceId = '55555555-5555-4555-8555-555555555555'
+  const parsed = parseOrderRequestBody(JSON.stringify({
+    ...validBody,
+    items: [
+      {
+        ...orderItem,
+        promotion: { sectionInstanceId: 'slider-home', kind: 'promo-slider', offer: 'freebie', instanceId, role: 'qualifier' },
+      },
+      {
+        ...orderItem,
+        itemId: '66666666-6666-4666-8666-666666666666',
+        promotion: { sectionInstanceId: 'slider-home', kind: 'promo-slider', offer: 'freebie', instanceId, role: 'reward' },
+      },
+    ],
+  }))
+  assert.equal(parsed.ok, true)
+})
+
 test('order body caps line count, quantity, notes and actual bytes', () => {
   assert.equal(parseOrderRequestBody(JSON.stringify({ ...validBody, items: Array.from({ length: 51 }, () => orderItem) })).ok, false)
   assert.equal(parseOrderRequestBody(JSON.stringify({ ...validBody, items: [{ ...orderItem, quantity: 100 }] })).ok, false)

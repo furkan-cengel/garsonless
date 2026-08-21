@@ -1,7 +1,8 @@
 'use client'
 
-import { createContext, lazy, Suspense, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, lazy, Suspense, useCallback, useContext, useState, useEffect, type ReactNode } from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
+import { TAG_SHIMMER_CSS } from './tagShimmer'
 
 const ThemePreviewBridge = lazy(() => import('./ThemePreviewBridge').then((module) => ({ default: module.ThemePreviewBridge })))
 
@@ -56,6 +57,13 @@ function applyNonFontVars(t: GarsonlessTheme) {
   root.style.setProperty('--p-radius', `${t.radius}px`)
   root.style.setProperty('--p-fs', `${t.fs}px`)
   root.style.setProperty('--p-lh', `${t.lh / 100}`)
+  root.style.setProperty('--p-text-xs', 'clamp(10px, calc(var(--p-fs) - 4px), 13px)')
+  root.style.setProperty('--p-text-sm', 'clamp(11px, calc(var(--p-fs) - 2px), 15px)')
+  root.style.setProperty('--p-text-md', 'clamp(13px, var(--p-fs), 18px)')
+  root.style.setProperty('--p-text-lg', 'clamp(16px, calc(var(--p-fs) + 4px), 24px)')
+  root.style.setProperty('--p-text-xl', 'clamp(20px, calc(var(--p-fs) + 8px), 32px)')
+  root.style.setProperty('--p-line-body', 'var(--p-lh)')
+  root.style.setProperty('--p-line-tight', 'clamp(1.1, calc(var(--p-lh) - .18), 1.35)')
   root.style.setProperty('--p-accent', t.accent)
   root.style.setProperty('--p-accent-soft', t.accentSoft)
   root.style.setProperty('--p-cta', t.cta)
@@ -71,6 +79,7 @@ function applyNonFontVars(t: GarsonlessTheme) {
   root.style.setProperty('--p-section-gap', `${t.sectionGap}px`)
   document.body.style.backgroundColor = t.bg
   document.body.style.color = t.textColor ?? '#1c1d20'
+  document.body.style.lineHeight = String(t.lh / 100)
 }
 
 function applyFontVars(bodyFont: string, displayFont: string) {
@@ -108,10 +117,20 @@ interface ThemeProviderProps {
   isPreview?: boolean
   initialRestaurantName?: string
   initialLogoUrl?: string | null
+  onThemeChange?: (theme: GarsonlessTheme) => void
 }
 
-export function ThemeProvider({ children, initialTheme, isPreview = false, initialRestaurantName = '', initialLogoUrl = null }: ThemeProviderProps) {
+export function ThemeScope({ children, theme }: { children: ReactNode; theme: GarsonlessTheme }) {
+  const parent = useTheme()
+  return <ThemeContext.Provider value={{ ...parent, theme }}>{children}</ThemeContext.Provider>
+}
+
+export function ThemeProvider({ children, initialTheme, isPreview = false, initialRestaurantName = '', initialLogoUrl = null, onThemeChange }: ThemeProviderProps) {
   const [theme, setTheme] = useState<GarsonlessTheme>(initialTheme)
+  const handlePreviewThemeChange = useCallback((nextTheme: GarsonlessTheme) => {
+    setTheme(nextTheme)
+    onThemeChange?.(nextTheme)
+  }, [onThemeChange])
 
   useEffect(() => {
     injectGoogleFonts(theme)
@@ -121,7 +140,8 @@ export function ThemeProvider({ children, initialTheme, isPreview = false, initi
 
   return (
     <ThemeContext.Provider value={{ theme, isPreview, restaurantName: initialRestaurantName, logoUrl: initialLogoUrl }}>
-      {isPreview ? <Suspense fallback={null}><ThemePreviewBridge theme={theme} onThemeChange={setTheme} /></Suspense> : null}
+      <style>{TAG_SHIMMER_CSS}</style>
+      {isPreview ? <Suspense fallback={null}><ThemePreviewBridge theme={theme} onThemeChange={handlePreviewThemeChange} /></Suspense> : null}
       {children}
     </ThemeContext.Provider>
   )

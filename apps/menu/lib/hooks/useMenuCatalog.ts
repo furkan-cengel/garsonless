@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { itemMatchesMenuFilters } from '@garsonless/ui/menu'
 import type { CartItem, MenuCategory, MenuFilterDefinition, MenuItem } from '@garsonless/ui/menu'
+import { buildCatalogCartQuantityByItemId } from '../cart-quantity-projection'
 
 export function useMenuCatalog({
   items,
@@ -58,14 +59,7 @@ export function useMenuCatalog({
     const firstCardItemId = visibleCategories
       .flatMap((category) => itemsByCategory[category.id] ?? [])
       .find((item) => item.images.length > 0)?.id ?? null
-    const cartQuantityByItemId = new Map<string, number>()
-    for (const cartItem of cartItems) {
-      if (cartItem.combo || cartItem.promotion) continue
-      cartQuantityByItemId.set(
-        cartItem.itemId,
-        (cartQuantityByItemId.get(cartItem.itemId) ?? 0) + cartItem.quantity,
-      )
-    }
+    const cartQuantityByItemId = buildCatalogCartQuantityByItemId(cartItems)
     const cartSummary = cartItems.reduce((summary, item) => ({
       count: summary.count + item.quantity,
       subtotal: summary.subtotal + (item.price + item.modifiersPriceDelta) * item.quantity,

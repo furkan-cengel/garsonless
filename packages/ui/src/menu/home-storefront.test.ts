@@ -18,7 +18,7 @@ test('home promo strip never invents secondary campaign copy', () => {
   assert.doesNotMatch(markup, /BUGÜNE ÖZEL|MASADAN HIZLI SİPARİŞ/)
 })
 
-test('ayrı Video Hero poster-first render edilir ve güvenli Menü CTA hedefini korur', () => {
+test('ayrı Video Hero poster-first render edilir ve tekrar eden Menü CTA üretmez', () => {
   const markup = renderToStaticMarkup(createElement(CustomSectionRenderer, {
     sectionId: 'storefront-video-hero',
     sectionInstanceId: 'home-video',
@@ -34,7 +34,7 @@ test('ayrı Video Hero poster-first render edilir ve güvenli Menü CTA hedefini
 
   assert.match(markup, /hero\.webp/)
   assert.doesNotMatch(markup, /<video/)
-  assert.match(markup, /href="\/test-cafe\/menu"/)
+  assert.doesNotMatch(markup, /href="\/test-cafe\/menu"|Menüyü Gör/)
 })
 
 test('Video Hero içerik katmanları bağımsız gizlenir ve taşmayan yüzde konumu uygulanır', () => {
@@ -54,7 +54,7 @@ test('Video Hero içerik katmanları bağımsız gizlenir ve taşmayan yüzde ko
     renderContext: 'home',
     menuHref: '/test-cafe/menu',
     restaurantName: 'Gizli başlık',
-    storeStatus: 'Şu an açık',
+    storeStatus: { label: 'Şu an açık', tone: 'open' },
   }))
 
   assert.match(markup, /data-position-x="75"/)
@@ -63,4 +63,60 @@ test('Video Hero içerik katmanları bağımsız gizlenir ve taşmayan yüzde ko
   assert.match(markup, /transform:translate\(-75%,-20%\)/)
   assert.match(markup, /text-align:right/)
   assert.doesNotMatch(markup, /Gizli başlık|Şu an açık|HOŞ GELDİNİZ|Menüyü Gör/)
+})
+
+test('modern Video Hero publicte eksik medyayla render edilmez, editörde kurulum durumu gösterir', () => {
+  const publicMarkup = renderToStaticMarkup(createElement(CustomSectionRenderer, {
+    sectionId: 'storefront-video-hero',
+    config: { editorialVersion: '2', posterUrl: 'https://assets.example/poster.webp' },
+    renderContext: 'home',
+    restaurantName: 'Test Cafe',
+  }))
+  const editorMarkup = renderToStaticMarkup(createElement(CustomSectionRenderer, {
+    sectionId: 'storefront-video-hero',
+    config: { editorialVersion: '2', posterUrl: 'https://assets.example/poster.webp' },
+    renderContext: 'home',
+    restaurantName: 'Test Cafe',
+    editorPreview: true,
+  }))
+
+  assert.equal(publicMarkup, '')
+  assert.match(editorMarkup, /Video eksik/)
+  assert.match(editorMarkup, /data-video-hero-state="video-missing"/)
+})
+
+test('modern Video Hero poster-first SSR ve 3x3 yerleşim kullanır', () => {
+  const markup = renderToStaticMarkup(createElement(CustomSectionRenderer, {
+    sectionId: 'storefront-video-hero',
+    config: {
+      editorialVersion: '2',
+      videoUrl: 'https://assets.example/hero.webm',
+      posterUrl: 'https://assets.example/hero.webp',
+      contentPlacement: 'bottom-right',
+      title: 'Uzun Türkçe Video Hero Başlığı',
+    },
+    renderContext: 'home',
+    menuHref: '/test-cafe/menu',
+    restaurantName: 'Test Cafe',
+  }))
+
+  assert.match(markup, /data-video-hero-version="2"/)
+  assert.match(markup, /data-placement="bottom-right"/)
+  assert.match(markup, /hero\.webp/)
+  assert.match(markup, /Sonraki bölümü keşfet|Keşfet/)
+  assert.doesNotMatch(markup, /<video/)
+  assert.doesNotMatch(markup, /Menüyü Gör/)
+})
+
+test('Video Hero katalog kartı tema verisine sahte URL yazmadan örnek önizleme üretir', () => {
+  const markup = renderToStaticMarkup(createElement(CustomSectionRenderer, {
+    sectionId: 'storefront-video-hero',
+    config: {},
+    renderContext: 'catalog',
+    restaurantName: 'Örnek Mekan',
+    catalogPreview: true,
+  }))
+  assert.match(markup, /Örnek video/)
+  assert.match(markup, /data-video-hero-state="catalog"/)
+  assert.doesNotMatch(markup, /(?:src|poster)="https?:\/\//)
 })

@@ -45,7 +45,7 @@ export type { BillOrder } from './menu/TableBillSheet'
 // Theme system
 export { THEME_REGISTRY, computeThemeVars, readStoreInfo } from './themes/index'
 export { CANONICAL_THEME_ID } from '@garsonless/design-engine/theme-policy'
-export type { ComboAddRequest, StoreInfo, SettingField, SettingsGroup } from './themes/index'
+export type { ComboAddRequest, ComboInteractionState, StoreInfo, SettingField, SettingsGroup } from './themes/index'
 export { CustomSectionRenderer, THEME_DEFAULTS } from './themes/default'
 export { deriveActivePromoSliderCampaigns } from './themes/default'
 export type { PromoSliderCampaign } from './themes/default'

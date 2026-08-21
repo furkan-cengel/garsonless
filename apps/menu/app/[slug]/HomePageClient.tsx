@@ -8,14 +8,20 @@ import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
 import type { StoreInfo } from '@garsonless/ui/themes'
 import { Header } from '@garsonless/ui/menu/Header'
 import { MenuFooter } from '@garsonless/ui/menu/MenuFooter'
-import { ThemeProvider, useTheme } from '@garsonless/ui/menu/ThemeContext'
+import { ThemeProvider, ThemeScope, useTheme } from '@garsonless/ui/menu/ThemeContext'
 import { readStoreInfo } from '@garsonless/ui/themes/storeInfo'
 import { AppIcons as I } from '@garsonless/ui/icons'
-import type { GarsonlessTheme, HomeSurfaceSection } from '@garsonless/design-engine'
+import { resolveHomeChromeTheme, resolveHomeSurfacePalette, type GarsonlessTheme, type HomeSurfaceSection } from '@garsonless/design-engine'
 import type { MemberBalances } from '@garsonless/db/types'
 import type { PublicRestaurant } from '../../lib/queries'
 import type { CustomerAuthOAuthProvider } from '../../lib/customer-auth-contract'
+import type { CustomerFavoriteView, CustomerReorderPreviewView } from '../../lib/customer-account-contract'
+import type { AccountActions } from './components/AccountCenter'
+import type { MemberOpenTarget } from '@garsonless/ui/themes'
 import { buildHomeMenuHref } from '../../lib/home-menu-href'
+import { storeComboIntentHandoff } from '../../lib/combo-intent-params'
+import { storeFreebieIntentHandoff } from '../../lib/freebie-intent-params'
+import { deriveHomePromoSliderCampaigns } from '../../lib/home-promo-slider'
 import { HomeV2Block } from './HomeV2Block'
 
 const HomeHeroVideo = dynamic(() => import('./HomeHeroVideo').then((module) => module.HomeHeroVideo))
@@ -32,6 +38,10 @@ export function HomePageRenderer({
   guestOrderingEnabled = false,
   customerAccountsEnabled = false,
   isPreview = false,
+  previewTemplateId = null,
+  previewAccessToken = null,
+  tableToken = null,
+  tableLabel = null,
 }: {
   restaurant: PublicRestaurant
   categories: MenuCategory[]
@@ -43,9 +53,13 @@ export function HomePageRenderer({
   guestOrderingEnabled?: boolean
   customerAccountsEnabled?: boolean
   isPreview?: boolean
+  previewTemplateId?: string | null
+  previewAccessToken?: string | null
+  tableToken?: string | null
+  tableLabel?: string | null
 }) {
   return <ThemeProvider initialTheme={theme} isPreview={isPreview} initialRestaurantName={restaurant.name} initialLogoUrl={restaurant.logo_url ?? null}>
-    <LiveHomePage restaurant={restaurant} categories={categories} items={items} initialMember={initialMember} initialMemberBalances={initialMemberBalances} customerAuthProviders={customerAuthProviders} guestOrderingEnabled={guestOrderingEnabled} customerAccountsEnabled={customerAccountsEnabled} />
+    <LiveHomePage restaurant={restaurant} categories={categories} items={items} initialMember={initialMember} initialMemberBalances={initialMemberBalances} customerAuthProviders={customerAuthProviders} guestOrderingEnabled={guestOrderingEnabled} customerAccountsEnabled={customerAccountsEnabled} previewTemplateId={previewTemplateId} previewAccessToken={previewAccessToken} tableToken={tableToken} tableLabel={tableLabel} />
   </ThemeProvider>
 }
 
@@ -58,6 +72,10 @@ function LiveHomePage({
   customerAuthProviders,
   guestOrderingEnabled,
   customerAccountsEnabled,
+  previewTemplateId,
+  previewAccessToken,
+  tableToken,
+  tableLabel,
 }: {
   restaurant: PublicRestaurant
   categories: MenuCategory[]
@@ -67,11 +85,15 @@ function LiveHomePage({
   customerAuthProviders: readonly CustomerAuthOAuthProvider[]
   guestOrderingEnabled: boolean
   customerAccountsEnabled: boolean
+  previewTemplateId: string | null
+  previewAccessToken: string | null
+  tableToken: string | null
+  tableLabel: string | null
 }) {
   const { theme, isPreview } = useTheme()
   return theme.surfaces?.home.compositionVersion === 2 && theme.surfaces.home.blocks
-    ? <HomeV2 restaurant={restaurant} categories={categories} items={items} theme={theme} initialMember={initialMember} initialMemberBalances={initialMemberBalances} customerAuthProviders={customerAuthProviders} guestOrderingEnabled={guestOrderingEnabled} customerAccountsEnabled={customerAccountsEnabled} isPreview={isPreview} />
-    : <LegacyHomePageRenderer restaurant={restaurant} categories={categories} items={items} theme={theme} isPreview={isPreview} />
+    ? <HomeV2 restaurant={restaurant} categories={categories} items={items} theme={theme} initialMember={initialMember} initialMemberBalances={initialMemberBalances} customerAuthProviders={customerAuthProviders} guestOrderingEnabled={guestOrderingEnabled} customerAccountsEnabled={customerAccountsEnabled} isPreview={isPreview} previewTemplateId={previewTemplateId} previewAccessToken={previewAccessToken} tableToken={tableToken} tableLabel={tableLabel} />
+    : <LegacyHomePageRenderer restaurant={restaurant} categories={categories} items={items} theme={theme} isPreview={isPreview} previewTemplateId={previewTemplateId} previewAccessToken={previewAccessToken} tableToken={tableToken} />
 }
 
 function HomeV2({
@@ -85,6 +107,10 @@ function HomeV2({
   guestOrderingEnabled,
   customerAccountsEnabled,
   isPreview,
+  previewTemplateId,
+  previewAccessToken,
+  tableToken,
+  tableLabel,
 }: {
   restaurant: PublicRestaurant
   categories: MenuCategory[]
@@ -96,53 +122,94 @@ function HomeV2({
   guestOrderingEnabled: boolean
   customerAccountsEnabled: boolean
   isPreview: boolean
+  previewTemplateId: string | null
+  previewAccessToken: string | null
+  tableToken: string | null
+  tableLabel: string | null
 }) {
   const home = theme.surfaces!.home
-  const menuHref = buildHomeMenuHref(restaurant.slug, { preview: isPreview })
+  const menuNavigation = { preview: isPreview, previewTemplateId, previewAccessToken, tableToken }
+  const menuHref = buildHomeMenuHref(restaurant.slug, menuNavigation)
   const [member, setMember] = useState(initialMember)
+  const [memberBalances, setMemberBalances] = useState(initialMemberBalances)
   const [memberOpen, setMemberOpen] = useState(false)
+  const [memberTarget, setMemberTarget] = useState<MemberOpenTarget>('overview')
   const storeInfo = useMemo(() => readStoreInfo(restaurant.settings), [restaurant.settings])
   const storeStatus = useMemo(() => resolveStoreStatus(storeInfo?.hours, restaurant.timezone), [restaurant.timezone, storeInfo?.hours])
   const categoryMeta = useMemo(() => Object.fromEntries(categories.map((category) => [category.id, { imageUrl: category.image_url ?? null, itemCount: items.filter((item) => item.category_id === category.id).length }])), [categories, items])
   const visibleBlocks = useMemo(() => home.blocks?.filter((block) => block.enabled) ?? [], [home.blocks])
-  const homeOverride = home.override ?? {}
+  const activeCampaigns = useMemo(() => deriveHomePromoSliderCampaigns({
+    blocks: visibleBlocks,
+    sectionSettings: theme.sectionSettings ?? {},
+    items,
+  }), [items, theme.sectionSettings, visibleBlocks])
+  const homePalette = resolveHomeSurfacePalette(theme)
+  const homeHeaderTheme = resolveHomeChromeTheme(theme, 'header')
+  const homeFooterTheme = resolveHomeChromeTheme(theme, 'footer')
   const homeBlockStyle = {
-    '--p-bg': homeOverride.background ?? theme.bg,
-    '--p-card': homeOverride.surface ?? theme.cardColor ?? '#ffffff',
-    '--p-text': homeOverride.text ?? theme.textColor ?? '#1c1d20',
-    '--p-text-2': homeOverride.mutedText ?? theme.mutedTextColor ?? '#6c6f76',
-    '--p-accent': homeOverride.accent ?? theme.accent,
-    '--p-accent-soft': homeOverride.accentSoft ?? theme.accentSoft,
-    '--p-cta': homeOverride.cta ?? theme.cta,
-    '--p-cta-text': homeOverride.ctaText ?? theme.ctaTextColor ?? '#ffffff',
+    '--p-bg': homePalette.background,
+    '--p-card': homePalette.surface,
+    '--p-text': homePalette.text,
+    '--p-text-2': homePalette.mutedText,
+    '--p-accent': homePalette.accent,
+    '--p-accent-soft': homePalette.accentSoft,
+    '--p-cta': homePalette.cta,
+    '--p-cta-text': homePalette.ctaText,
   } as React.CSSProperties
   const memberSummary = member ? {
     authenticated: true,
     name: member.name,
-    points: initialMemberBalances?.points ?? 0,
-    stamps: initialMemberBalances?.stamps ?? 0,
-    pointsEnabled: initialMemberBalances?.pointsEnabled ?? false,
-    stampEnabled: initialMemberBalances?.stampEnabled ?? false,
+    points: memberBalances?.points ?? 0,
+    stamps: memberBalances?.stamps ?? 0,
+    pointsEnabled: memberBalances?.pointsEnabled ?? false,
+    stampEnabled: memberBalances?.stampEnabled ?? false,
   } : { authenticated: false, name: null }
   const navigate = (href: string) => { window.location.assign(href) }
-  const logout = async (scope: 'device' | 'all' = 'device') => {
-    await fetch('/api/account/logout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scope }) })
-    setMember(null)
-    setMemberOpen(false)
+  const refreshBalances = async () => {
+    try {
+      const response = await fetch(`/api/loyalty/balances?restaurantId=${encodeURIComponent(restaurant.id)}`, { cache: 'no-store' })
+      const result = await response.json() as { ok: boolean; balances?: MemberBalances | null }
+      if (response.ok && result.ok) setMemberBalances(result.balances ?? null)
+    } catch {
+      // AccountCenter still has its authenticated global account fallback.
+    }
   }
-  return <main data-home-experience-v2 style={{ minHeight: '100dvh', background: 'var(--p-bg)', color: 'var(--p-text)', fontFamily: 'var(--p-body)' }}>
-    <Header
+  const logout = async (scope: 'device' | 'all' = 'device') => {
+    const response = await fetch('/api/account/logout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scope }) })
+    if (!response.ok) return { ok: false as const, error: 'Çıkış tamamlanamadı. Bağlantını kontrol edip tekrar dene.' }
+    setMember(null)
+    setMemberBalances(null)
+    return { ok: true as const }
+  }
+  const openFavorite = (favorite: CustomerFavoriteView) => {
+    navigate(buildHomeMenuHref(favorite.restaurant.slug, {
+      ...(favorite.restaurant.slug === restaurant.slug ? menuNavigation : {}),
+      itemId: favorite.item.id,
+    }))
+    return { ok: true as const }
+  }
+  const applyReorder = async (preview: CustomerReorderPreviewView) => {
+    const { storeReorderDraft } = await import('../../lib/menu-continuity-client')
+    storeReorderDraft(preview)
+    navigate(buildHomeMenuHref(preview.restaurant.slug, preview.restaurant.slug === restaurant.slug ? menuNavigation : {}))
+    return { ok: true as const }
+  }
+  const accountActions: AccountActions = { openFavorite, applyReorder, logout }
+  return <main data-home-experience-v2 style={{ ...homeBlockStyle, minHeight: '100dvh', background: 'var(--p-bg)', color: 'var(--p-text)', fontFamily: 'var(--p-body)' }}>
+    <ThemeScope theme={homeHeaderTheme}><Header
+      tableId={tableToken}
+      tableName={tableLabel}
       categories={categories}
       categoryMeta={categoryMeta}
-      onCategorySelect={(categoryId) => navigate(buildHomeMenuHref(restaurant.slug, { preview: isPreview, categoryId }))}
+      onCategorySelect={(categoryId) => navigate(buildHomeMenuHref(restaurant.slug, { ...menuNavigation, categoryId }))}
       {...(guestOrderingEnabled ? {
         cartSummary: { count: 0, subtotal: 0 },
-        onOpenCart: () => navigate(buildHomeMenuHref(restaurant.slug, { preview: isPreview, openCart: true })),
+        onOpenCart: () => navigate(buildHomeMenuHref(restaurant.slug, { ...menuNavigation, openCart: true })),
       } : {})}
-      {...(customerAccountsEnabled ? { memberSummary, onOpenMember: () => setMemberOpen(true) } : {})}
+      {...(customerAccountsEnabled ? { memberSummary, onOpenMember: () => { setMemberTarget('overview'); setMemberOpen(true) } } : {})}
       storeInfo={storeInfo}
-    />
-    <div data-home-blocks style={homeBlockStyle}>
+    /></ThemeScope>
+    <div data-home-blocks>
       {visibleBlocks.map((block) => {
         const config = theme.sectionSettings?.[block.id] ?? {}
         return <HomeV2Block
@@ -151,46 +218,130 @@ function HomeV2({
           config={config}
           theme={theme}
           restaurantName={restaurant.name}
+          restaurantLogoUrl={restaurant.logo_url ?? null}
           pageDescription={theme.pageDescription}
           categories={categories}
           items={items}
           menuHref={menuHref}
           memberSummary={memberSummary}
+          memberLoyalty={member && memberBalances ? {
+            filled: memberBalances.stamps,
+            total: memberBalances.stampGoal,
+            points: memberBalances.points,
+            pointsEnabled: memberBalances.pointsEnabled,
+            stampsEnabled: memberBalances.stampEnabled,
+            tierName: memberBalances.tier.name,
+          } : null}
+          activeCampaigns={activeCampaigns}
+          editorPreview={isPreview}
           {...(storeStatus ? { storeStatus } : {})}
-          {...(customerAccountsEnabled ? { onOpenMember: () => setMemberOpen(true) } : {})}
-          onOpenProduct={(item) => navigate(buildHomeMenuHref(restaurant.slug, { preview: isPreview, itemId: item.id }))}
+          {...(customerAccountsEnabled ? { onOpenMember: (target: MemberOpenTarget = 'overview') => { setMemberTarget(target); setMemberOpen(true) } } : {})}
+          onOpenProduct={(item, _originalPrice, promotion) => navigate(buildHomeMenuHref(restaurant.slug, {
+            ...menuNavigation,
+            itemId: item.id,
+            ...(promotion ? { promotionSectionId: promotion.sectionInstanceId, promotionKind: promotion.kind } : {}),
+          }))}
+          onSelectCategory={(categoryId) => navigate(buildHomeMenuHref(restaurant.slug, { ...menuNavigation, categoryId }))}
+          {...(guestOrderingEnabled || isPreview ? {
+            onAddFreebie: (campaign) => {
+              if (isPreview) {
+                storeFreebieIntentHandoff(window.sessionStorage, {
+                  restaurantSlug: restaurant.slug,
+                  sectionInstanceId: campaign.sectionInstanceId,
+                  config,
+                })
+              }
+              navigate(buildHomeMenuHref(restaurant.slug, {
+                ...menuNavigation,
+                freebieSectionId: campaign.sectionInstanceId,
+                ...(campaign.qualifierCategoryId ? { categoryId: campaign.qualifierCategoryId } : {}),
+              }))
+            },
+            onAddCombo: (combo, comboConfig) => {
+              if (isPreview) {
+                storeComboIntentHandoff(window.sessionStorage, {
+                  restaurantSlug: restaurant.slug,
+                  sectionInstanceId: combo.sectionInstanceId,
+                  comboIndex: combo.comboIndex,
+                  config: comboConfig,
+                })
+              }
+              navigate(buildHomeMenuHref(restaurant.slug, {
+                ...menuNavigation,
+                openCart: true,
+                comboSectionId: combo.sectionInstanceId,
+                comboIndex: combo.comboIndex,
+                ...(isPreview ? {
+                  comboItemIds: combo.items.map((item) => item.id),
+                  comboTotal: combo.total,
+                  comboTitle: combo.title,
+                } : {}),
+              }))
+            },
+          } : {})}
           storeInfo={storeInfo}
         />
       })}
     </div>
-    <div id="home-shared-footer"><MenuFooter storeInfo={storeInfo} /></div>
+    <HomeMenuEntryCta href={menuHref} />
+    <div id="home-shared-footer"><ThemeScope theme={homeFooterTheme}><MenuFooter storeInfo={storeInfo} /></ThemeScope></div>
     <StickyMenuCta href={menuHref} />
     {customerAccountsEnabled && memberOpen ? <MemberSheet
       onClose={() => setMemberOpen(false)}
       authenticated={Boolean(member)}
       memberName={member?.name ?? null}
-      balances={member ? initialMemberBalances : null}
+      balances={member ? memberBalances : null}
       restaurantId={restaurant.id}
       restaurantSlug={restaurant.slug}
       restaurantName={restaurant.name}
+      tableLabel={tableLabel}
+      tableToken={tableToken}
       authSurface="menu"
+      initialTarget={memberTarget}
       oauthProviders={customerAuthProviders}
-      onVerified={(nextMember) => setMember(nextMember)}
-      {...(member ? { onLogout: logout } : {})}
+      onVerified={(nextMember) => { setMember(nextMember); void refreshBalances() }}
+      onRefresh={refreshBalances}
+      accountActions={accountActions}
     /> : null}
   </main>
 }
 
+function HomeMenuEntryCta({ href }: { href: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '28px 16px 36px', background: 'var(--p-bg)' }}>
+      <a
+        href={href}
+        data-home-menu-entry-cta
+        style={{ width: 'min(100%, 420px)', minHeight: 52, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 'var(--p-radius)', background: 'var(--p-cta)', color: 'var(--p-cta-text)', textDecoration: 'none', fontSize: 14, fontWeight: 850, boxShadow: '0 12px 30px color-mix(in srgb,var(--p-cta) 24%,transparent)' }}
+      >
+        Menüyü Gör<I.arrow size={17} />
+      </a>
+    </div>
+  )
+}
+
 function StickyMenuCta({ href }: { href: string }) {
-  const [footerVisible, setFooterVisible] = useState(false)
+  const [entryCtaVisible, setEntryCtaVisible] = useState(false)
+  const [heroPassed, setHeroPassed] = useState(false)
   useEffect(() => {
-    const footer = document.getElementById('home-shared-footer')
-    if (!footer) return
-    const observer = new IntersectionObserver(([entry]) => setFooterVisible(Boolean(entry?.isIntersecting)), { threshold: .05 })
-    observer.observe(footer)
-    return () => observer.disconnect()
+    const entryCta = document.querySelector<HTMLElement>('[data-home-menu-entry-cta]')
+    if (!entryCta) return
+    const hero = document.querySelector<HTMLElement>('[data-home-hero]')
+    setHeroPassed(!hero)
+    const entryObserver = new IntersectionObserver(([entry]) => setEntryCtaVisible(Boolean(entry?.isIntersecting)), { threshold: .3 })
+    entryObserver.observe(entryCta)
+    const heroObserver = hero ? new IntersectionObserver(([entry]) => {
+      if (!entry) return
+      setHeroPassed(!entry.isIntersecting && entry.boundingClientRect.bottom <= 0)
+    }, { threshold: 0 }) : null
+    if (hero && heroObserver) heroObserver.observe(hero)
+    return () => {
+      entryObserver.disconnect()
+      heroObserver?.disconnect()
+    }
   }, [])
-  return <a href={href} data-home-sticky-menu-cta data-hidden={footerVisible ? 'true' : 'false'} aria-hidden={footerVisible} tabIndex={footerVisible ? -1 : undefined} style={{ position: 'fixed', left: 16, right: 16, bottom: 'calc(14px + env(safe-area-inset-bottom,0px))', zIndex: 18, minHeight: 52, display: 'none', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 'var(--p-radius)', background: 'var(--p-cta)', color: 'var(--p-cta-text)', textDecoration: 'none', fontSize: 14, fontWeight: 850, boxShadow: '0 18px 42px rgba(12,18,24,.25)', opacity: footerVisible ? 0 : 1, pointerEvents: footerVisible ? 'none' : 'auto', transition: 'opacity 160ms ease' }}>Menüyü Gör<I.arrow size={17} /><style>{'@media(max-width:720px){[data-home-sticky-menu-cta]{display:flex!important}[data-home-sticky-menu-cta][data-hidden="true"]{display:none!important}}@media(prefers-reduced-motion:reduce){[data-home-sticky-menu-cta]{transition:none!important}}'}</style></a>
+  const hidden = entryCtaVisible || !heroPassed
+  return <a href={href} data-home-sticky-menu-cta data-hidden={hidden ? 'true' : 'false'} aria-hidden={hidden} tabIndex={hidden ? -1 : undefined} style={{ position: 'fixed', left: 16, right: 16, bottom: 'calc(14px + env(safe-area-inset-bottom,0px))', zIndex: 18, minHeight: 52, display: 'none', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 'var(--p-radius)', background: 'var(--p-cta)', color: 'var(--p-cta-text)', textDecoration: 'none', fontSize: 14, fontWeight: 850, boxShadow: '0 18px 42px rgba(12,18,24,.25)', opacity: hidden ? 0 : 1, pointerEvents: hidden ? 'none' : 'auto', transition: 'opacity 160ms ease' }}>Menüyü Gör<I.arrow size={17} /><style>{'@media(max-width:720px){[data-home-sticky-menu-cta]{display:flex!important}[data-home-sticky-menu-cta][data-hidden="true"]{display:none!important}}@media(prefers-reduced-motion:reduce){[data-home-sticky-menu-cta]{transition:none!important}}'}</style></a>
 }
 
 function resolveStoreStatus(hours: StoreInfo['hours'] | undefined, timeZone: string) {
@@ -202,13 +353,15 @@ function resolveStoreStatus(hours: StoreInfo['hours'] | undefined, timeZone: str
     const minute = Number(parts.find((part) => part.type === 'minute')?.value)
     if (!weekday || !Number.isFinite(hour) || !Number.isFinite(minute)) return null
     const schedule = hours[weekday]
-    if (!schedule || schedule.active !== true || !schedule.open || !schedule.close) return 'Şu an kapalı'
+    if (!schedule || schedule.active !== true || !schedule.open || !schedule.close) return { label: 'Şu an kapalı', tone: 'closed' as const }
     const toMinutes = (value: string) => { const match = /^(\d{1,2}):(\d{2})$/.exec(value); return match ? Number(match[1]) * 60 + Number(match[2]) : null }
     const open = toMinutes(schedule.open); const close = toMinutes(schedule.close)
     if (open === null || close === null) return null
     const now = hour * 60 + minute
     const isOpen = close > open ? now >= open && now < close : now >= open || now < close
-    return isOpen ? 'Şu an açık' : 'Şu an kapalı'
+    return isOpen
+      ? { label: 'Şu an açık', tone: 'open' as const }
+      : { label: 'Şu an kapalı', tone: 'closed' as const }
   } catch {
     return null
   }
@@ -220,26 +373,24 @@ function LegacyHomePageRenderer({
   items,
   theme,
   isPreview,
+  previewTemplateId,
+  previewAccessToken,
+  tableToken,
 }: {
   restaurant: PublicRestaurant
   categories: MenuCategory[]
   items: MenuItem[]
   theme: GarsonlessTheme
   isPreview: boolean
+  previewTemplateId: string | null
+  previewAccessToken: string | null
+  tableToken: string | null
 }) {
   const home = theme.surfaces?.home
   if (!home) return null
   const override = home.override ?? {}
-  const colors = {
-    background: override.background ?? theme.bg,
-    surface: override.surface ?? theme.cardColor ?? '#ffffff',
-    text: override.text ?? theme.textColor ?? '#1c1d20',
-    muted: override.mutedText ?? theme.mutedTextColor ?? '#6c6f76',
-    accent: override.accent ?? theme.accent,
-    accentSoft: override.accentSoft ?? theme.accentSoft,
-    cta: override.cta ?? theme.cta,
-    ctaText: override.ctaText ?? theme.ctaTextColor ?? '#ffffff',
-  }
+  const palette = resolveHomeSurfacePalette(theme)
+  const colors = { ...palette, muted: palette.mutedText }
   const style = {
     '--home-bg': colors.background,
     '--home-surface': colors.surface,
@@ -265,6 +416,9 @@ function LegacyHomePageRenderer({
           categories={categories}
           items={items}
           isPreview={isPreview}
+          previewTemplateId={previewTemplateId}
+          previewAccessToken={previewAccessToken}
+          tableToken={tableToken}
         />
       ))}
     </main>
@@ -277,14 +431,21 @@ function HomeSection({
   categories,
   items,
   isPreview,
+  previewTemplateId,
+  previewAccessToken,
+  tableToken,
 }: {
   section: HomeSurfaceSection
   restaurant: PublicRestaurant
   categories: MenuCategory[]
   items: MenuItem[]
   isPreview: boolean
+  previewTemplateId: string | null
+  previewAccessToken: string | null
+  tableToken: string | null
 }) {
-  const menuHref = buildHomeMenuHref(restaurant.slug, { preview: isPreview })
+  const menuNavigation = { preview: isPreview, previewTemplateId, previewAccessToken, tableToken }
+  const menuHref = buildHomeMenuHref(restaurant.slug, menuNavigation)
   const align = section.align ?? 'left'
   const toneClass = `home-tone-${section.tone ?? 'surface'}`
 
@@ -294,7 +455,7 @@ function HomeSection({
   if (section.type === 'header') {
     return (
       <header data-component={`home:${section.id}`} className="home-header">
-        <Link href={`/${encodeURIComponent(restaurant.slug)}`} className="home-brand" aria-label={`${restaurant.name} ana sayfa`}>
+        <Link href={tableToken ? `/${encodeURIComponent(restaurant.slug)}/table/${encodeURIComponent(tableToken)}` : `/${encodeURIComponent(restaurant.slug)}`} className="home-brand" aria-label={`${restaurant.name} ana sayfa`}>
           {restaurant.logo_url && <Image src={restaurant.logo_url} alt="" width={42} height={42} unoptimized />}
           <span>{restaurant.name}</span>
         </Link>
@@ -344,7 +505,7 @@ function HomeSection({
         <SectionHeading section={section} />
         <div className="home-category-grid">
           {chosen.map((category) => (
-            <Link key={category.id} href={buildHomeMenuHref(restaurant.slug, { preview: isPreview, categoryId: category.id })} className="home-category-card">
+            <Link key={category.id} href={buildHomeMenuHref(restaurant.slug, { ...menuNavigation, categoryId: category.id })} className="home-category-card">
               {category.image_url && <Image src={category.image_url} alt="" fill sizes="(max-width: 760px) 50vw, 25vw" loading="lazy" unoptimized />}
               <span>{category.name}</span><I.arrow size={18} />
             </Link>
@@ -362,7 +523,7 @@ function HomeSection({
         <SectionHeading section={section} />
         <div className="home-product-grid">
           {chosen.map((item) => (
-            <Link key={item.id} href={buildHomeMenuHref(restaurant.slug, { preview: isPreview, itemId: item.id })} className="home-product-card">
+            <Link key={item.id} href={buildHomeMenuHref(restaurant.slug, { ...menuNavigation, itemId: item.id })} className="home-product-card">
               {item.images[0] && <Image src={item.images[0]} alt="" width={800} height={600} loading="lazy" unoptimized />}
               <span><strong>{item.name}</strong><small>{new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(item.price)}</small></span>
             </Link>

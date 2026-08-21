@@ -12,6 +12,18 @@ export interface ComboAddRequest {
   total: number
 }
 
+export type ComboInteractionState = 'enabled' | 'ordering-disabled' | 'preview'
+
+export interface FreebieAddRequest {
+  sectionInstanceId: string
+  title: string
+  qualifierCategoryId?: string
+  qualifierItems: MenuItem[]
+  rewardItems: MenuItem[]
+}
+
+export type MemberOpenTarget = 'overview' | 'loyalty'
+
 export interface ThemeMenuPageProps {
   categories: MenuCategory[]
   categoryMeta?: Record<string, { imageUrl?: string | null; itemCount?: number }>
@@ -21,19 +33,31 @@ export interface ThemeMenuPageProps {
   filterEmptyState?: ReactNode
   tableId?: string | null
   tableLabel?: string | null
+  homeHref?: string | null
   cartSummary?: { count: number; subtotal: number }
   onOpenCart?: () => void
   items?: MenuItem[]
   onQuickAdd?: (item: MenuItem, originalPrice?: number, promotion?: SectionPromotionContext) => void
   onAddCombo?: (combo: ComboAddRequest) => void
+  comboInteractionState?: ComboInteractionState
+  onAddFreebie?: (campaign: FreebieAddRequest) => void
   billSummary?: { total: number; count: number } | null
   onOpenBill?: (() => void) | undefined
   memberSummary?: MemberChipSummary | null
-  onOpenMember?: (() => void) | undefined
+  onOpenMember?: ((target?: MemberOpenTarget) => void) | undefined
+  /** True only for the authenticated theme editor preview surface. */
+  editorPreview?: boolean
   onServiceRequest?: ((type: ServiceRequestType) => Promise<boolean>) | undefined
   onOpenServiceRequests?: (() => void) | undefined
   /** Real member loyalty for the promo-slider loyalty slide (null → demo values). */
-  memberLoyalty?: { filled: number; total: number } | null
+  memberLoyalty?: {
+    filled: number
+    total: number
+    points?: number
+    pointsEnabled?: boolean
+    stampsEnabled?: boolean
+    tierName?: string
+  } | null
   storeInfo?: StoreInfo | null
 }
 
@@ -82,6 +106,7 @@ export interface SettingField {
   options?: SettingOption[]
   min?: number
   max?: number
+  maxLength?: number
   step?: number
   unit?: string
 }

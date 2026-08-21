@@ -22,6 +22,15 @@ export interface PromoCouponConfig {
   buttonTextColor: string
 }
 
+export type PromoSliderActionType = 'none' | 'category' | 'product' | 'cart' | 'member'
+
+export interface PromoSliderActionConfig {
+  type: PromoSliderActionType
+  ctaText: string
+  categoryId: string
+  productId: string
+}
+
 export interface PromoFlashConfig {
   enabled: boolean
   chip: string
@@ -34,6 +43,10 @@ export interface PromoFlashConfig {
   bgEnd: string
   textColor: string
   accentColor: string
+  offerType: 'none' | 'buy-2-pay-1'
+  itemIds: string[]
+  discountPolicy: 'combine-loyalty' | 'promotion-only'
+  action: PromoSliderActionConfig
 }
 
 export interface PromoFreebieConfig {
@@ -44,39 +57,46 @@ export interface PromoFreebieConfig {
   emoji: string
   ctaText: string
   categoryId: string
+  offerType: 'promo-only' | 'gift-with-purchase'
+  qualifierMode: 'category' | 'products'
+  qualifierCategoryId: string
+  qualifierItemIds: string[]
+  rewardItemIds: string[]
+  timingEnabled: boolean
+  startsAtMs?: number
+  endsAtMs?: number
+  imageSource: 'custom' | 'qualifier' | 'reward' | 'emoji' | 'none'
+  imageUrl: string
+  layout: 'media-right' | 'split' | 'cover'
+  imageFit: 'cover' | 'contain'
+  imagePosition: 'top' | 'center' | 'bottom'
   bgStart: string
   bgEnd: string
   textColor: string
   accentColor: string
   buttonBgColor: string
   buttonTextColor: string
+  action: PromoSliderActionConfig
 }
 
 export interface PromoLoyaltyConfig {
   enabled: boolean
+  eyebrow: string
   title: string
   filled: number
   total: number
+  points: number
+  pointsEnabled: boolean
+  stampsEnabled: boolean
+  tierName: string
+  restaurantName: string
+  logoUrl: string
+  authenticated: boolean
   bgStart: string
   bgEnd: string
   textColor: string
   accentColor: string
-}
-
-export interface PromoComboConfig {
-  enabled: boolean
-  title: string
-  subtitle: string
-  emoji: string
-  imageUrl: string
-  price: string
-  oldPrice: string
-  bgStart: string
-  bgEnd: string
-  textColor: string
-  accentColor: string
-  imageFit: 'cover' | 'contain'
-  imagePosition: 'top' | 'center' | 'bottom'
+  action: PromoSliderActionConfig
 }
 
 export interface PromoSliderConfig {
@@ -89,5 +109,4 @@ export interface PromoSliderConfig {
   flash: PromoFlashConfig
   freebie: PromoFreebieConfig
   loyalty: PromoLoyaltyConfig
-  combo: PromoComboConfig
 }

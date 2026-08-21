@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import type { MenuItem } from '../../../menu/types'
-import { resolveChefPickItemCount, resolveChefPickItems } from './chefPickModel'
+import { inspectChefPickSelection, resolveChefPickItemCount, resolveChefPickItems } from './chefPickModel'
 
 const item = (id: string, position: number, isAvailable = true): MenuItem => ({
   id,
@@ -54,4 +54,19 @@ test('manual chef picks preserve configured order and reject unavailable or dupl
     }, items).map(({ id }) => id),
     ['two', 'one'],
   )
+})
+
+test('manual chef pick inspection distinguishes duplicate, unavailable and missing selections', () => {
+  const inspection = inspectChefPickSelection({
+    selectionMode: 'manual',
+    itemCount: '4',
+    item1Id: 'one',
+    item2Id: 'one',
+    item3Id: 'hidden',
+    item4Id: 'removed',
+  }, [item('one', 1), item('hidden', 2, false)])
+
+  assert.deepEqual(inspection.items.map(({ id }) => id), ['one'])
+  assert.deepEqual(inspection.issues.map(({ type }) => type), ['duplicate', 'unavailable', 'missing'])
+  assert.equal(inspection.requestedCount, 4)
 })

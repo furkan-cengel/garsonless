@@ -1,6 +1,6 @@
 import React from 'react'
 
-import { makeReaders, resolveSectionTarget } from '../lib/sectionHelpers'
+import { makeReaders } from '../lib/sectionHelpers'
 
 const PROMO_STRIP_CSS = `
   @keyframes garsonless-promo-marquee {
@@ -35,18 +35,14 @@ export function PromoStripSection({ config, forcedHref }: { config: Record<strin
     ? (config[key] ?? '').trim()
     : fallback
   const title = optionalText('title', 'İLK SİPARİŞE %20 İNDİRİM')
-  const repeatText = optionalText('repeatText', 'BUGÜNE ÖZEL · MASADAN HIZLI SİPARİŞ')
   const message = bool('showTitle', true) ? title : ''
-  const secondary = bool('showRepeatText', true) ? repeatText : ''
-  const accessibleText = [message, secondary].filter(Boolean).join(' · ')
-  if (!accessibleText) return null
+  if (!message) return null
 
   const animation = resolveAnimation(text('animation', 'marquee'))
   const direction = text('direction', 'right')
   const duration = clamp(number('speed', 18), 6, 40)
   const height = clamp(number('height', 40), 32, 64)
-  const target = resolveSectionTarget(config)
-  const actionable = Boolean(forcedHref) || target.kind === 'anchor' || target.kind === 'external'
+  const actionable = Boolean(forcedHref)
   const pausable = animation === 'marquee' && bool('pauseOnHover', true)
   const surfaceStyle: React.CSSProperties = {
     minHeight: height,
@@ -75,9 +71,7 @@ export function PromoStripSection({ config, forcedHref }: { config: Record<strin
       direction={direction}
       duration={duration}
       message={message}
-      secondary={secondary}
       accentColor={text('accentColor', 'var(--p-cta)')}
-      textColor={text('textColor', 'var(--p-card)')}
     />
   )
 
@@ -85,17 +79,9 @@ export function PromoStripSection({ config, forcedHref }: { config: Record<strin
     <section data-component="custom-section" aria-label="Promosyon duyurusu" style={{ padding: '14px 0 2px' }}>
       <style>{PROMO_STRIP_CSS}</style>
       {forcedHref ? (
-        <a className={className} href={forcedHref} aria-label={accessibleText} style={surfaceStyle}>{content}</a>
-      ) : target.kind === 'external' ? (
-        <a className={className} href={target.href} target="_blank" rel="noopener noreferrer" aria-label={accessibleText} style={surfaceStyle}>
-          {content}
-        </a>
-      ) : target.kind === 'anchor' ? (
-        <a className={className} href={target.href} aria-label={accessibleText} style={surfaceStyle}>
-          {content}
-        </a>
+        <a className={className} href={forcedHref} aria-label={message} style={surfaceStyle}>{content}</a>
       ) : (
-        <div className={className} aria-label={accessibleText} style={surfaceStyle}>
+        <div className={className} aria-label={message} style={surfaceStyle}>
           {content}
         </div>
       )}
@@ -108,17 +94,13 @@ function PromoStripContent({
   direction,
   duration,
   message,
-  secondary,
   accentColor,
-  textColor,
 }: {
   animation: 'marquee' | 'static' | 'fade'
   direction: string
   duration: number
   message: string
-  secondary: string
   accentColor: string
-  textColor: string
 }) {
   if (animation !== 'marquee') {
     return (
@@ -136,7 +118,7 @@ function PromoStripContent({
           animation: animation === 'fade' ? `garsonless-promo-fade ${duration}s ease-in-out infinite` : undefined,
         }}
       >
-        <PromoMessage message={message} secondary={secondary} accentColor={accentColor} textColor={textColor} />
+        <PromoMessage message={message} accentColor={accentColor} />
       </span>
     )
   }
@@ -154,17 +136,15 @@ function PromoStripContent({
         animationDirection: direction === 'left' ? 'reverse' : 'normal',
       }}
     >
-      <PromoSequence message={message} secondary={secondary} accentColor={accentColor} textColor={textColor} />
-      <PromoSequence message={message} secondary={secondary} accentColor={accentColor} textColor={textColor} duplicate />
+      <PromoSequence message={message} accentColor={accentColor} />
+      <PromoSequence message={message} accentColor={accentColor} duplicate />
     </span>
   )
 }
 
-function PromoSequence({ message, secondary, accentColor, textColor, duplicate = false }: {
+function PromoSequence({ message, accentColor, duplicate = false }: {
   message: string
-  secondary: string
   accentColor: string
-  textColor: string
   duplicate?: boolean
 }) {
   return (
@@ -174,23 +154,19 @@ function PromoSequence({ message, secondary, accentColor, textColor, duplicate =
       style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0, gap: 28, paddingRight: 28 }}
     >
       {[0, 1].map((item) => (
-        <PromoMessage key={item} message={message} secondary={secondary} accentColor={accentColor} textColor={textColor} />
+        <PromoMessage key={item} message={message} accentColor={accentColor} />
       ))}
     </span>
   )
 }
 
-function PromoMessage({ message, secondary, accentColor, textColor }: {
+function PromoMessage({ message, accentColor }: {
   message: string
-  secondary: string
   accentColor: string
-  textColor: string
 }) {
   return (
     <span className="garsonless-promo-item" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-      {message && <span style={{ color: accentColor }}>{message}</span>}
-      {message && secondary && <span aria-hidden style={{ color: textColor, opacity: 0.48 }}>•</span>}
-      {secondary && <span style={{ color: textColor }}>{secondary}</span>}
+      <span style={{ color: accentColor }}>{message}</span>
     </span>
   )
 }

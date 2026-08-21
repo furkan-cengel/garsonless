@@ -29,6 +29,16 @@ export interface ProductModalSubmitOptions {
   recommendations: ProductRecommendationSelection[];
 }
 
+export interface ProductModalComboContext {
+  baseTotal: number;
+  items: Array<{
+    id: string;
+    name: string;
+    imageUrl: string | null;
+    state: "current" | "ready" | "included" | "upcoming";
+  }>;
+}
+
 interface ProductModalProps {
   item: MenuItem | null;
   onClose: () => void;
@@ -36,6 +46,9 @@ interface ProductModalProps {
   recommendationItems?: MenuItem[];
   contextLabel?: string;
   contextTitle?: string;
+  comboContext?: ProductModalComboContext;
+  promotionLabel?: string;
+  quantityStep?: number;
   lockQuantity?: boolean;
   submitLabel?: string;
   closeAfterAdd?: boolean;
@@ -123,7 +136,72 @@ function CompactSelectionControl({
   );
 }
 
-export function ProductModal({ item, onClose, onAddToCart, recommendationItems = [], contextLabel, contextTitle, lockQuantity = false, submitLabel, closeAfterAdd = true, stackLevel = 0, orderingEnabled = true }: ProductModalProps) {
+function ComboContextSummary({ context }: { context: ProductModalComboContext }) {
+  const stateLabel = {
+    current: "Şimdi seçiliyor",
+    ready: "Hazır",
+    included: "Komboya dahil",
+    upcoming: "Sırada",
+  } as const;
+
+  return (
+    <section
+      aria-label={`Kombo içeriği: ${context.items.length} ürün birlikte eklenecek`}
+      style={{
+        display: "grid",
+        gap: 7,
+        margin: "0 0 14px",
+        padding: 10,
+        border: "1px solid var(--p-border)",
+        borderRadius: 12,
+        background: "color-mix(in srgb, var(--p-card) 82%, var(--p-accent-soft))",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <strong style={{ color: "var(--p-text)", fontSize: 11.5, fontWeight: 850 }}>Kombo içeriği</strong>
+        <span style={{ color: "var(--p-text-2)", fontSize: 10.5, fontWeight: 700 }}>{context.items.length} ürün birlikte</span>
+      </div>
+      <div role="list" style={{ display: "grid", gap: 6 }}>
+        {context.items.map((comboItem) => {
+          const current = comboItem.state === "current";
+          return (
+            <div
+              key={comboItem.id}
+              role="listitem"
+              aria-current={current ? "step" : undefined}
+              style={{
+                minWidth: 0,
+                minHeight: 42,
+                display: "grid",
+                gridTemplateColumns: "34px minmax(0,1fr) max-content",
+                alignItems: "center",
+                gap: 8,
+                padding: 5,
+                border: current ? "1px solid var(--p-accent)" : "1px solid var(--p-border)",
+                borderRadius: 9,
+                background: current ? "var(--p-accent-soft)" : "var(--p-card)",
+              }}
+            >
+              <span style={{ width: 34, height: 34, display: "grid", placeItems: "center", overflow: "hidden", borderRadius: 8, background: "var(--p-accent-soft)", color: "var(--p-accent)" }}>
+                {comboItem.imageUrl
+                  ? <img src={comboItem.imageUrl} alt="" style={{ width: "100%", height: "100%", display: "block", objectFit: "cover" }} />
+                  : comboItem.state === "ready" || comboItem.state === "included" ? <I.check size={16} /> : <I.image size={16} />}
+              </span>
+              <strong style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--p-text)", fontSize: 11.5, fontWeight: 800 }}>
+                {comboItem.name}
+              </strong>
+              <span style={{ color: current ? "var(--p-accent)" : "var(--p-text-2)", fontSize: 9.5, lineHeight: 1.2, fontWeight: 800, textAlign: "right" }}>
+                {stateLabel[comboItem.state]}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+export function ProductModal({ item, onClose, onAddToCart, recommendationItems = [], contextLabel, contextTitle, comboContext, promotionLabel, quantityStep = 1, lockQuantity = false, submitLabel, closeAfterAdd = true, stackLevel = 0, orderingEnabled = true }: ProductModalProps) {
   const { theme } = useTheme();
   const titleId = useId();
   const noteLabelId = useId();
@@ -138,7 +216,9 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
   const prefersReducedMotion = useReducedMotion();
   const [selections, setSelections] = useState<Record<string, SelectedModifier[]>>({});
   const [removedIngredientIds, setRemovedIngredientIds] = useState<string[]>([]);
-  const [quantity, setQuantity] = useState(1);
+  const normalizedQuantityStep = Math.max(1, Math.min(99, Math.round(quantityStep) || 1));
+  const maximumQuantity = Math.max(normalizedQuantityStep, Math.floor(99 / normalizedQuantityStep) * normalizedQuantityStep);
+  const [quantity, setQuantity] = useState(normalizedQuantityStep);
   const [productNote, setProductNote] = useState("");
   const [validationAttempted, setValidationAttempted] = useState(false);
   const [selectedRecommendations, setSelectedRecommendations] = useState<Record<string, ProductRecommendationSelection>>({});
@@ -156,7 +236,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
 
   useEffect(() => {
     if (!item) return;
-    setQuantity(1);
+    setQuantity(normalizedQuantityStep);
     setRemovedIngredientIds([]);
     setProductNote("");
     setValidationAttempted(false);
@@ -170,7 +250,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
       if (defaultOpts.length > 0) defaults[group.id] = defaultOpts;
     }
     setSelections(defaults);
-  }, [item]);
+  }, [item, normalizedQuantityStep]);
 
   useEffect(() => {
     if (!item) return;
@@ -256,6 +336,9 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
   const totalPrice = (item.price + modifierTotal + recommendationUnitTotal) * quantity;
 
   const priceFormatted = formatTRY(totalPrice);
+  const footerPriceFormatted = comboContext
+    ? formatTRY(comboContext.baseTotal + modifierTotal)
+    : priceFormatted;
 
   const handleRadioChange = (group: ModifierGroup, optionId: string) => {
     setSelections((prev) => ({
@@ -373,6 +456,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
           overflow: "hidden",
           border: "1px solid rgba(15,23,42,.08)",
           fontFamily: "var(--p-body)",
+          lineHeight: "var(--p-line-body)",
         }}
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
@@ -450,7 +534,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 850, color: "var(--p-text)" }}>{contextLabel === "Yanında iyi gider" ? "Ek ürün seçenekleri" : "Ürün detayları"}</div>
+            <div style={{ fontSize: 15, fontWeight: 850, color: "var(--p-text)" }}>{comboContext ? "Kombo seçenekleri" : contextLabel === "Yanında iyi gider" ? "Ek ürün seçenekleri" : "Ürün detayları"}</div>
             {contextLabel === "Yanında iyi gider" && (
               <div
                 style={{
@@ -552,6 +636,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                     {contextTitle}
                   </div>
                 )}
+                {comboContext ? <ComboContextSummary context={comboContext} /> : null}
                 <h2
                   id={titleId}
                   style={{
@@ -582,16 +667,36 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                     {item.description}
                   </p>
                 )}
-                <p
-                  style={{
-                    margin: "10px 0 0",
-                    fontSize: 20,
-                    fontWeight: 850,
-                    color: "var(--p-accent)",
-                  }}
-                >
-                  {formatTRY(item.price)}
-                </p>
+                {promotionLabel && normalizedQuantityStep > 1 ? (
+                  <div
+                    data-component="product-modal-promotion"
+                    style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 7, marginTop: 10 }}
+                  >
+                    <span
+                      style={{
+                        display: "inline-flex", padding: "4px 8px", borderRadius: 999,
+                        background: "var(--p-cta)", color: "var(--p-cta-text)",
+                        fontSize: 11, fontWeight: 850, letterSpacing: ".02em",
+                      }}
+                    >
+                      {promotionLabel}
+                    </span>
+                    <strong style={{ fontSize: 18, fontWeight: 850, color: "var(--p-accent)" }}>
+                      {normalizedQuantityStep} adet {formatTRY(item.price * normalizedQuantityStep)}
+                    </strong>
+                  </div>
+                ) : (
+                  <p
+                    style={{
+                      margin: "10px 0 0",
+                      fontSize: 20,
+                      fontWeight: 850,
+                      color: "var(--p-accent)",
+                    }}
+                  >
+                    {formatTRY(item.price)}
+                  </p>
+                )}
                 {energyKcal !== null && (
                   <span
                     style={{
@@ -1367,7 +1472,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <button
                   type="button"
-                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  onClick={() => setQuantity((q) => Math.max(normalizedQuantityStep, q - normalizedQuantityStep))}
                   aria-label="Adedi azalt"
                   style={{
                     width: 44,
@@ -1386,6 +1491,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                   <I.minus size={17} />
                 </button>
                 <span
+                  data-component="product-modal-quantity"
                   style={{
                     minWidth: 24,
                     textAlign: "center",
@@ -1398,8 +1504,8 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                 </span>
                 <button
                   type="button"
-                  disabled={quantity >= 99}
-                  onClick={() => setQuantity((q) => Math.min(99, q + 1))}
+                  disabled={quantity >= maximumQuantity}
+                  onClick={() => setQuantity((q) => Math.min(maximumQuantity, q + normalizedQuantityStep))}
                   aria-label="Adedi artır"
                   style={{
                     width: 44,
@@ -1408,12 +1514,12 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                     border: "none",
                     background: "var(--p-cta)",
                     color: "var(--p-cta-text)",
-                    cursor: quantity >= 99 ? "not-allowed" : "pointer",
+                    cursor: quantity >= maximumQuantity ? "not-allowed" : "pointer",
                     display: "grid",
                     placeItems: "center",
                     padding: 0,
                     lineHeight: 0,
-                    opacity: quantity >= 99 ? 0.5 : 1,
+                    opacity: quantity >= maximumQuantity ? 0.5 : 1,
                   }}
                 >
                   <I.plus size={17} />
@@ -1427,10 +1533,13 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                   fontWeight: 700,
                 }}
               >
-                {contextLabel === "Yanında iyi gider" ? "Ek ürün" : "Kombo ürünü"} · 1 adet
+                {comboContext ? `${comboContext.items.length} ürün birlikte` : `${contextLabel === "Yanında iyi gider" ? "Ek ürün" : "Kombo ürünü"} · 1 adet`}
               </span>
             )}
-            <span style={{ fontSize: 18, fontWeight: 850, color: "var(--p-text)" }}>{priceFormatted}</span>
+            <span style={{ display: "grid", justifyItems: "end", gap: 1 }}>
+              {comboContext ? <small style={{ color: "var(--p-text-2)", fontSize: 10.5, fontWeight: 700 }}>Kombo toplamı</small> : null}
+              <strong style={{ fontSize: 18, fontWeight: 850, color: "var(--p-text)" }}>{footerPriceFormatted}</strong>
+            </span>
           </div>
           {validationAttempted && !isValid && (
             <p

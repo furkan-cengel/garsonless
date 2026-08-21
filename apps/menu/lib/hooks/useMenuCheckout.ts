@@ -21,6 +21,8 @@ interface UseMenuCheckoutOptions {
   redeemPoints: number
   claimStamp: boolean
   catalogItemId: string | null
+  couponCode: string | null
+  onCouponError: (message: string) => void
   previewTotal: number | null
   memberActive: boolean
   setIsPlacing: (isPlacing: boolean) => void
@@ -36,7 +38,9 @@ interface UseMenuCheckoutOptions {
 
 const CHECKOUT_UNAVAILABLE_MESSAGE = 'Sipariş vermek için masadaki QR kodunu okutun.'
 
-class OrderResponseError extends Error {}
+class OrderResponseError extends Error {
+  constructor(message: string, readonly code?: string) { super(message) }
+}
 
 function snapshotOrderItems(cartItems: CartItem[]): OrderSummaryItem[] {
   return cartItems.map((item) => ({
@@ -62,6 +66,8 @@ export function useMenuCheckout({
   redeemPoints,
   claimStamp,
   catalogItemId,
+  couponCode,
+  onCouponError,
   previewTotal,
   memberActive,
   setIsPlacing,
@@ -102,16 +108,17 @@ export function useMenuCheckout({
         redeemPoints,
         redeemStampClaim: claimStamp,
         catalogItemId,
+        couponCode,
       }),
     })
     const payload = await readOrderApiResponse(response)
     if (!payload.success || !payload.data) {
       if (response.status < 500) orderRequestRef.current = null
-      throw new OrderResponseError(payload.error ?? 'Sipariş oluşturulamadı.')
+      throw new OrderResponseError(payload.error ?? 'Sipariş oluşturulamadı.', payload.code)
     }
     orderRequestRef.current = null
     return payload.data
-  }, [restaurantSlug, tableToken, sessionId, cartItems, redeemPoints, claimStamp, catalogItemId])
+  }, [restaurantSlug, tableToken, sessionId, cartItems, redeemPoints, claimStamp, catalogItemId, couponCode])
 
   const finishCart = useCallback(() => {
     if (memberActive) void refetchBalances()
@@ -140,13 +147,14 @@ export function useMenuCheckout({
       void refreshBill()
       finishCart()
     } catch (error) {
+      if (error instanceof OrderResponseError && error.code?.startsWith('COUPON_')) onCouponError(error.message)
       setError(error instanceof OrderResponseError
         ? error.message
         : 'Sipariş sunucuya ulaştırılamadı. Tekrar deneyebilirsiniz.')
     } finally {
       setIsPlacing(false)
     }
-  }, [cartItems, tableToken, setError, setIsPlacing, createOrder, startTracking, refreshBill, finishCart])
+  }, [cartItems, tableToken, setError, setIsPlacing, createOrder, startTracking, refreshBill, finishCart, onCouponError])
 
   const handlePayClick = useCallback(async () => {
     if (cartItems.length === 0) return
@@ -177,6 +185,7 @@ export function useMenuCheckout({
       finishCart()
       onPaymentReady(order.orderId, finalTotal)
     } catch (error) {
+      if (error instanceof OrderResponseError && error.code?.startsWith('COUPON_')) onCouponError(error.message)
       setError(error instanceof OrderResponseError
         ? error.message
         : 'Sipariş sunucuya ulaştırılamadı. Tekrar deneyebilirsiniz.')
@@ -195,6 +204,7 @@ export function useMenuCheckout({
     refreshBill,
     finishCart,
     onPaymentReady,
+    onCouponError,
   ])
 
   return {

@@ -23,7 +23,7 @@ export default async function MenuPage({ params, searchParams }: Props) {
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) notFound()
 
-  const themeResult = await getPublishedTheme(restaurant.id, restaurant.slug)
+  const themeResult = await getPublishedTheme(restaurant.id)
   if (!themeResult.ok) notFound()
   const themePort = createThemeApplicationPort()
   const [menuAccess, guestOrderingAccess, customerAccountsAccess, advancedThemeAccess] = await Promise.all([

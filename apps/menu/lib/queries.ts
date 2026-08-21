@@ -118,6 +118,14 @@ export const getRestaurantBySlug = cache((slug: string) => unstable_cache(
   { revalidate: 60, tags: [`public-menu:${slug}`] },
 )())
 
+// Theme previews must reflect branding writes immediately. The dashboard and
+// menu are separate Next.js applications, so a dashboard-side cache
+// invalidation cannot reliably evict this app's data cache. Keep the cached
+// reader for public traffic, but deliberately bypass it for preview requests.
+export function getPreviewRestaurantBySlug(slug: string): Promise<PublicRestaurant | null> {
+  return readRestaurantBySlug(slug)
+}
+
 export interface TableSessionInfo {
   id: string
   openedAt: string
