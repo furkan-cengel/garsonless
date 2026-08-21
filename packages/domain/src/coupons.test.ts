@@ -18,4 +18,3 @@ test('coupon lifecycle derives scheduled, expired and exhausted states', () => {
   assert.equal(couponStatus({ ...base, totalUsageLimit: 3, redemptionCount: 3 }, now), 'exhausted')
   assert.match(couponErrorMessage('COUPON_AUTH_REQUIRED'), /üyeliğinizi doğrulayın/)
 })
-

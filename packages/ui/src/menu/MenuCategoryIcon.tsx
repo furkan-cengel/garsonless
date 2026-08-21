@@ -64,4 +64,3 @@ export function MenuCategoryIcon({ icon, ...props }: MenuCategoryIconProps) {
     </svg>
   )
 }
-

@@ -40,4 +40,3 @@ Eski `active`, `mixed` ve `manual` değerleri okunmaya devam eder; ancak artık 
 - UI ve Dashboard typecheck geçti.
 - Hedefli ESLint geçti.
 - Yerel menü doğrulamasında bir aktif kampanya ile üç açık özel kart aynı sliderda toplam dört slayt olarak projekte edildi.
-
