@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { FocusModalityScript } from '@garsonless/ui/focus-modality'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -10,6 +11,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="tr">
       <head>
+        <FocusModalityScript />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

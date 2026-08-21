@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { FocusModalityScript } from '@garsonless/ui/focus-modality'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -18,6 +19,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="tr">
+      <head>
+        <FocusModalityScript />
+      </head>
       <body className="bg-background text-text antialiased">{children}</body>
     </html>
   )
