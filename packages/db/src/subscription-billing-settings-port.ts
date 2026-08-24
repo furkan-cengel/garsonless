@@ -7,12 +7,16 @@ import type {
   SubscriptionBillingSettingsSubscription,
 } from '@garsonless/application/billing'
 import { SUBSCRIPTION_INVOICE_STATUSES, SUBSCRIPTION_STATUSES } from '@garsonless/domain/billing'
-import { BILLING_INTERVALS, RESTAURANT_PLANS } from '@garsonless/domain/entitlements'
+import {
+  BILLING_INTERVALS,
+  RESTAURANT_ADD_ONS,
+  RESTAURANT_PLANS,
+} from '@garsonless/domain/entitlements'
 import { err, ok, type Result } from '@garsonless/domain/result'
 import { createServiceClient } from './client'
 
 export type SubscriptionBillingSettingsRpc = (
-  name: 'read_subscription_billing_settings',
+  name: 'read_subscription_billing_settings' | 'read_restaurant_subscription_add_ons',
   args: { p_restaurant_id: string },
 ) => Promise<{ data: unknown; error: { message: string } | null }>
 
@@ -90,10 +94,13 @@ function subscription(value: unknown): SubscriptionBillingSettingsSubscription |
   const trialEndsAt = nullableTimestamp(row?.trialEndsAt ?? null)
   const graceEndsAt = nullableTimestamp(row?.graceEndsAt ?? null)
   const cancelledAt = nullableTimestamp(row?.cancelledAt ?? null)
+  const activeAddOns = row?.activeAddOns ?? []
   if (!row || !id || !RESTAURANT_PLANS.includes(plan as never)
     || !BILLING_INTERVALS.includes(billingInterval as never)
     || !(scheduledPlan === null || RESTAURANT_PLANS.includes(scheduledPlan as never))
     || !SUBSCRIPTION_STATUSES.includes(status as never)
+    || !Array.isArray(activeAddOns)
+    || activeAddOns.some((addOn) => !RESTAURANT_ADD_ONS.includes(addOn as never))
     || currentPeriodStart === undefined || currentPeriodEnd === undefined
     || trialEndsAt === undefined || graceEndsAt === undefined || cancelledAt === undefined) return undefined
   return {
@@ -103,6 +110,7 @@ function subscription(value: unknown): SubscriptionBillingSettingsSubscription |
     scheduledPlan: scheduledPlan as SubscriptionBillingSettingsSubscription['scheduledPlan'],
     status: status as SubscriptionBillingSettingsSubscription['status'],
     currentPeriodStart, currentPeriodEnd, trialEndsAt, graceEndsAt, cancelledAt,
+    activeAddOns: activeAddOns as SubscriptionBillingSettingsSubscription['activeAddOns'],
   }
 }
 
@@ -117,9 +125,12 @@ function invoice(value: unknown): SubscriptionBillingSettingsInvoice | null {
   const dueAt = timestamp(row?.dueAt)
   const paidAt = nullableTimestamp(row?.paidAt ?? null)
   const failedAt = nullableTimestamp(row?.failedAt ?? null)
+  const addOns = row?.addOns ?? []
   if (!row || !id || !['starter', 'plus', 'pro'].includes(plan as string)
     || !BILLING_INTERVALS.includes(billingInterval as never)
     || !SUBSCRIPTION_INVOICE_STATUSES.includes(status as never)
+    || !Array.isArray(addOns)
+    || addOns.some((addOn) => !RESTAURANT_ADD_ONS.includes(addOn as never))
     || !Number.isSafeInteger(row.amountDueMinor) || (row.amountDueMinor as number) < 0
     || !Number.isSafeInteger(row.amountPaidMinor) || (row.amountPaidMinor as number) < 0
     || row.currency !== 'TRY' || !periodStart || !periodEnd || !dueAt
@@ -127,6 +138,7 @@ function invoice(value: unknown): SubscriptionBillingSettingsInvoice | null {
   return {
     id,
     plan: plan as SubscriptionBillingSettingsInvoice['plan'],
+    addOns: addOns as SubscriptionBillingSettingsInvoice['addOns'],
     billingInterval: billingInterval as SubscriptionBillingSettingsInvoice['billingInterval'],
     amountDueMinor: row.amountDueMinor as number,
     amountPaidMinor: row.amountPaidMinor as number,
@@ -166,7 +178,27 @@ export function createSubscriptionBillingSettingsReadPort(
   return {
     async readSettings({ restaurantId }) {
       const { data, error } = await rpc('read_subscription_billing_settings', { p_restaurant_id: restaurantId })
-      return error ? err('Billing settings could not be loaded') : parse(data)
+      if (error) return err('Billing settings could not be loaded')
+      const parsed = parse(data)
+      if (!parsed.ok || !parsed.value.subscription) return parsed
+      try {
+        const addOnResult = await rpc('read_restaurant_subscription_add_ons', { p_restaurant_id: restaurantId })
+        if (addOnResult.error || !Array.isArray(addOnResult.data)
+          || addOnResult.data.some((addOn) => !RESTAURANT_ADD_ONS.includes(addOn as never))) {
+          return parsed
+        }
+        return ok({
+          ...parsed.value,
+          subscription: {
+            ...parsed.value.subscription,
+            activeAddOns: addOnResult.data as SubscriptionBillingSettingsSubscription['activeAddOns'],
+          },
+        })
+      } catch {
+        // Additive projection: old deployments and isolated tests keep the
+        // safe base billing response until the migration is available.
+        return parsed
+      }
     },
   }
 }

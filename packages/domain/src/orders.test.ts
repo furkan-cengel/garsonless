@@ -45,15 +45,15 @@ test('generic lifecycle targets exclude entry, payment and cancellation states',
   assert.equal(isOrderLifecycleTarget('cancelled'), false)
 })
 
-test('collected revenue excludes comp, cancelled and unpaid orders', () => {
+test('collected revenue keeps paid cancellations but excludes comp and unpaid orders', () => {
   assert.equal(isCollectedOrder({ status: 'served', paidAt: '2026-07-14T10:00:00Z', paymentMethod: 'cash' }), true)
   assert.equal(isCollectedOrder({ status: 'served', paidAt: '2026-07-14T10:00:00Z', paymentMethod: 'comp' }), false)
-  assert.equal(isCollectedOrder({ status: 'cancelled', paidAt: '2026-07-14T10:00:00Z', paymentMethod: 'cash' }), false)
+  assert.equal(isCollectedOrder({ status: 'cancelled', paidAt: '2026-07-14T10:00:00Z', paymentMethod: 'cash' }), true)
   assert.equal(isCollectedOrder({ status: 'served', paidAt: null, paymentMethod: 'cash' }), false)
 })
 
 test('collected revenue specification preserves legacy null payment methods', () => {
-  assert.deepEqual(COLLECTED_ORDER_SPEC.excludedStatuses, ['cancelled'])
+  assert.deepEqual(COLLECTED_ORDER_SPEC.excludedStatuses, [])
   assert.deepEqual(COLLECTED_ORDER_SPEC.excludedPaymentMethods, ['comp'])
   assert.equal(COLLECTED_ORDER_SPEC.includeNullPaymentMethod, true)
   assert.equal(isCollectedOrder({ status: 'served', paidAt: '2026-07-14T10:00:00Z', paymentMethod: null }), true)

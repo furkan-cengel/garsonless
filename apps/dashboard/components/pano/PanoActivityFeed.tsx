@@ -165,7 +165,7 @@ function PanoActivityFeedRow({
                 onClick={onApprove}
                 aria-label={`${event.tableLabel ?? 'Sipariş'} siparişini onayla`}
               >
-                {isPending ? <Spinner data-icon="inline-start" aria-label="Onaylanıyor" /> : <I.check data-icon="inline-start" />}
+                {isPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <I.check data-icon="inline-start" />}
                 {isPending ? 'Onaylanıyor…' : 'Onayla'}
               </Button>
             </div>

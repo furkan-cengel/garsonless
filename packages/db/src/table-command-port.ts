@@ -12,7 +12,6 @@ import type {
 import { err, ok, serviceRequestLabel, type Result, type TableSessionCloseOutcome } from '@garsonless/domain'
 import { createServiceClient } from './client'
 import type { Json } from './types.gen'
-import { dispatchAggregateDomainEvents } from './outbox-consumer-port'
 import {
   listActiveTableQrTokens,
   rotateActiveTableQrToken,
@@ -298,19 +297,10 @@ export function createTableSessionPort(): TableSessionPort {
         return err('Adisyon kapatılamadı.')
       }
 
-      const outcome = data as TableSessionCloseOutcome
-      if (outcome === 'closed_normal') {
-        await dispatchAggregateDomainEvents({
-          aggregateId: input.sessionId,
-          eventTypes: ['table_session.closed'],
-        })
-      } else if (outcome === 'closed_abnormal') {
-        await dispatchAggregateDomainEvents({
-          aggregateId: input.sessionId,
-          eventTypes: ['table_session.closed'],
-        })
-      }
-      return ok(outcome)
+      // The close transaction already persists table_session.closed in the
+      // durable domain_outbox trigger. Loyalty/campaign consumers are handled
+      // by the leased worker; staff should not wait for those downstream jobs.
+      return ok(data as TableSessionCloseOutcome)
     },
 
     async listOpenSessions(restaurantId) {

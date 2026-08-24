@@ -3,6 +3,7 @@ import test from 'node:test'
 import type { Order } from './useOrdersRealtime'
 import {
   ORDERS_REALTIME_COPY,
+  ORDERS_REALTIME_DEBOUNCE_MS,
   ORDERS_REALTIME_SAFETY_INTERVAL_MS,
   canonicalOrderSnapshot,
   normalizeRealtimeOrder,
@@ -51,6 +52,8 @@ test('rollback only touches the still-optimistic status', () => {
 })
 
 test('connection copy distinguishes reconciliation and safety cadence is bounded', () => {
+  assert.equal(ORDERS_REALTIME_DEBOUNCE_MS, 180)
   assert.equal(ORDERS_REALTIME_SAFETY_INTERVAL_MS, 45_000)
   assert.equal(ORDERS_REALTIME_COPY.reconnecting, 'Siparişler yeniden uzlaştırılıyor…')
+  assert.match(ORDERS_REALTIME_COPY.stale, /Veriler güncel olmayabilir/)
 })

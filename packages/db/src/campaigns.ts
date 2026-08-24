@@ -7,14 +7,34 @@ import {
 } from './sms'
 import { normalizePhone } from './phone'
 import {
+  CampaignEmailDeliveryUnavailableError,
+  getCampaignEmailDeliveryAvailability,
+  normalizeCampaignEmail,
+  readCampaignEmailIdentity,
+  renderCampaignEmail,
+  sanitizeCampaignHtml,
+  sendCampaignEmail,
+} from './campaign-email'
+import {
   BUILTIN_CUSTOMER_SEGMENTS,
   normalizeCampaignAudience,
+  normalizeCampaignEmailDesign,
+  normalizeCampaignEmailContent,
   sanitizeCampaignMessage,
   sanitizeCampaignName,
+  sanitizeCampaignSubject,
   type CampaignAudienceInput,
+  type CampaignAudienceContactPage,
   type CampaignAudiencePreview,
+  type CampaignChannel,
+  type CampaignEmailContentMode,
+  type CampaignEmailDesign,
+  type CampaignEmailTemplateId,
+  type CampaignDeliveryLog,
+  type CampaignEmailDeliveryStatus,
   type CampaignStatus,
   type CampaignSummary,
+  type SavedCampaignEmailTemplate,
   type SendCampaignResult,
 } from '@garsonless/domain/campaigns'
 import {
@@ -44,14 +64,14 @@ type CandidateCustomer = {
 }
 
 type MarketingContact = CandidateCustomer & {
-  phone: string
+  recipient: string
 }
 
 type MarketingContactResolution = {
   contacts: MarketingContact[]
   skippedNoMarketingConsent: number
-  skippedInvalidPhone: number
-  skippedDuplicatePhone: number
+  skippedInvalidContact: number
+  skippedDuplicateContact: number
 }
 
 type ResolvedAudience = {
@@ -64,15 +84,21 @@ type ResolvedAudience = {
   candidates: CandidateCustomer[]
   contacts: MarketingContact[]
   skippedNoMarketingConsent: number
-  skippedInvalidPhone: number
-  skippedDuplicatePhone: number
+  skippedInvalidContact: number
+  skippedDuplicateContact: number
+  channel: CampaignChannel
 }
 
 type CampaignRow = {
   id: string
   restaurant_id: string
   name: string
+  channel: string
+  subject: string | null
   message_body: string
+  content_mode: string
+  template_id: string | null
+  email_design: unknown
   segment_kind: string
   builtin_segment: string | null
   custom_segment_id: string | null
@@ -100,7 +126,14 @@ function campaignFromRow(row: CampaignRow): CampaignSummary {
     id: row.id,
     restaurantId: row.restaurant_id,
     name: row.name,
+    channel: row.channel === 'email' ? 'email' : 'sms',
+    subject: row.subject,
     messageBody: row.message_body,
+    contentMode: row.content_mode === 'html' || row.content_mode === 'template' || row.content_mode === 'builder' ? row.content_mode : 'plain',
+    templateId: row.template_id === 'minimal' || row.template_id === 'announcement' || row.template_id === 'offer'
+      ? row.template_id
+      : null,
+    emailDesign: row.content_mode === 'builder' ? normalizeCampaignEmailDesign(row.email_design) : null,
     segmentKind: (row.segment_kind === 'builtin' || row.segment_kind === 'custom') ? row.segment_kind : 'all',
     builtinSegment: BUILTIN_CUSTOMER_SEGMENTS.includes(row.builtin_segment as CustomerSegment) ? row.builtin_segment as CustomerSegment : null,
     customSegmentId: row.custom_segment_id,
@@ -171,12 +204,13 @@ async function resolveCandidateCustomers(
 async function fetchMarketingContacts(
   restaurantId: string,
   candidates: CandidateCustomer[],
+  channel: CampaignChannel,
 ): Promise<MarketingContactResolution> {
   if (candidates.length === 0) return {
     contacts: [],
     skippedNoMarketingConsent: 0,
-    skippedInvalidPhone: 0,
-    skippedDuplicatePhone: 0,
+    skippedInvalidContact: 0,
+    skippedDuplicateContact: 0,
   }
   const db = serviceDb()
   const ids = candidates.map((c) => c.customerId)
@@ -198,22 +232,24 @@ async function fetchMarketingContacts(
   if (consented.size === 0) return {
     contacts: [],
     skippedNoMarketingConsent: candidates.length,
-    skippedInvalidPhone: 0,
-    skippedDuplicatePhone: 0,
+    skippedInvalidContact: 0,
+    skippedDuplicateContact: 0,
   }
-  const rawById = new Map<string, { phone: string; name: string | null }>()
+  const rawById = new Map<string, { phone: string | null; email: string | null; name: string | null }>()
   for (const part of chunk(Array.from(consented), 500)) {
     const { data, error } = await db
       .from('customers')
-      .select('id, name, phone')
+      .select('id, name, phone, email')
       .in('id', part)
-    if (error) throw new Error(`customer phone lookup failed: ${error.message}`)
-    for (const row of (data ?? []) as Array<{ id: string; name: string | null; phone: string }>) {
-      rawById.set(row.id, { name: row.name, phone: row.phone })
+    if (error) throw new Error(`customer contact lookup failed: ${error.message}`)
+    for (const row of (data ?? []) as Array<{ id: string; name: string | null; phone: string | null; email: string | null }>) {
+      rawById.set(row.id, { name: row.name, phone: row.phone, email: row.email })
     }
   }
 
-  return classifyCampaignMarketingContacts(candidates, consented, rawById)
+  return channel === 'email'
+    ? classifyCampaignMarketingEmails(candidates, consented, rawById)
+    : classifyCampaignMarketingContacts(candidates, consented, rawById)
 }
 
 export function classifyCampaignMarketingContacts(
@@ -224,8 +260,8 @@ export function classifyCampaignMarketingContacts(
   const contacts: MarketingContact[] = []
   const phones = new Set<string>()
   let skippedNoMarketingConsent = 0
-  let skippedInvalidPhone = 0
-  let skippedDuplicatePhone = 0
+  let skippedInvalidContact = 0
+  let skippedDuplicateContact = 0
   for (const candidate of candidates) {
     if (!consented.has(candidate.customerId)) {
       skippedNoMarketingConsent += 1
@@ -234,55 +270,267 @@ export function classifyCampaignMarketingContacts(
     const raw = rawById.get(candidate.customerId)
     const phone = normalizePhone(raw?.phone)
     if (!raw || !phone) {
-      skippedInvalidPhone += 1
+      skippedInvalidContact += 1
       continue
     }
     if (phones.has(phone)) {
-      skippedDuplicatePhone += 1
+      skippedDuplicateContact += 1
       continue
     }
     phones.add(phone)
-    contacts.push({ customerId: candidate.customerId, name: raw.name ?? candidate.name, phone })
+    contacts.push({ customerId: candidate.customerId, name: raw.name ?? candidate.name, recipient: phone })
   }
-  return { contacts, skippedNoMarketingConsent, skippedInvalidPhone, skippedDuplicatePhone }
+  return { contacts, skippedNoMarketingConsent, skippedInvalidContact, skippedDuplicateContact }
+}
+
+export function classifyCampaignMarketingEmails(
+  candidates: CandidateCustomer[],
+  consented: ReadonlySet<string>,
+  rawById: ReadonlyMap<string, { email: string | null; name: string | null }>,
+): MarketingContactResolution {
+  const contacts: MarketingContact[] = []
+  const emails = new Set<string>()
+  let skippedNoMarketingConsent = 0
+  let skippedInvalidContact = 0
+  let skippedDuplicateContact = 0
+  for (const candidate of candidates) {
+    if (!consented.has(candidate.customerId)) {
+      skippedNoMarketingConsent += 1
+      continue
+    }
+    const raw = rawById.get(candidate.customerId)
+    const email = normalizeCampaignEmail(raw?.email)
+    if (!raw || !email) {
+      skippedInvalidContact += 1
+      continue
+    }
+    if (emails.has(email)) {
+      skippedDuplicateContact += 1
+      continue
+    }
+    emails.add(email)
+    contacts.push({ customerId: candidate.customerId, name: raw.name ?? candidate.name, recipient: email })
+  }
+  return { contacts, skippedNoMarketingConsent, skippedInvalidContact, skippedDuplicateContact }
 }
 
 async function resolveCampaignAudience(
   restaurantId: string,
   input: CampaignAudienceInput,
+  channel: CampaignChannel,
 ): Promise<ResolvedAudience> {
   const candidateResult = await resolveCandidateCustomers(restaurantId, input)
-  const contactResult = await fetchMarketingContacts(restaurantId, candidateResult.candidates)
-  return { ...candidateResult, ...contactResult }
+  const contactResult = await fetchMarketingContacts(restaurantId, candidateResult.candidates, channel)
+  return { ...candidateResult, ...contactResult, channel }
 }
 
 function previewFromAudience(audience: ResolvedAudience): CampaignAudiencePreview {
   return {
+    channel: audience.channel,
     totalCandidates: audience.candidates.length,
     eligibleRecipients: audience.contacts.length,
     skippedNoMarketingConsent: audience.skippedNoMarketingConsent,
-    skippedInvalidPhone: audience.skippedInvalidPhone,
-    skippedDuplicatePhone: audience.skippedDuplicatePhone,
+    skippedInvalidContact: audience.skippedInvalidContact,
+    skippedDuplicateContact: audience.skippedDuplicateContact,
     segmentLabel: audience.segmentLabel,
   }
 }
 
 export async function previewCampaignAudience(
   restaurantId: string,
+  channel: CampaignChannel,
   input: CampaignAudienceInput,
 ): Promise<CampaignAudiencePreview> {
-  return previewFromAudience(await resolveCampaignAudience(restaurantId, input))
+  return previewFromAudience(await resolveCampaignAudience(restaurantId, input, channel))
+}
+
+export async function listCampaignAudienceContacts(
+  restaurantId: string,
+  input: CampaignAudienceInput,
+  limit = 200,
+): Promise<CampaignAudienceContactPage> {
+  const audience = await resolveCampaignAudience(restaurantId, input, 'email')
+  const boundedLimit = Math.min(500, Math.max(1, Math.floor(limit)))
+  return {
+    contacts: audience.contacts.slice(0, boundedLimit).map((contact) => ({
+      customerId: contact.customerId,
+      name: contact.name,
+      email: contact.recipient,
+    })),
+    totalEligible: audience.contacts.length,
+    truncated: audience.contacts.length > boundedLimit,
+  }
+}
+
+const DELIVERY_STATUSES: CampaignEmailDeliveryStatus[] = [
+  'pending', 'processing', 'accepted', 'delivered', 'delayed', 'opened', 'clicked',
+  'bounced', 'complained', 'suppressed', 'failed',
+]
+
+export async function getCampaignDeliveryLog(
+  restaurantId: string,
+  campaignId: string,
+  limit = 500,
+): Promise<CampaignDeliveryLog | null> {
+  const campaign = await getCampaignById(restaurantId, campaignId)
+  if (!campaign || campaign.channel !== 'email') return null
+  const db = serviceDb()
+  const boundedLimit = Math.min(1_000, Math.max(1, Math.floor(limit)))
+  const { data, error, count } = await db
+    .from('campaign_recipients')
+    .select('id, customer_id, email, status, delivery_status, provider_message_id, sent_at, last_event_at, opened_at, clicked_at, error', { count: 'exact' })
+    .eq('restaurant_id', restaurantId)
+    .eq('campaign_id', campaignId)
+    .order('created_at', { ascending: true })
+    .limit(boundedLimit)
+  if (error) throw new Error(`campaign delivery log failed: ${error.message}`)
+  const rows = (data ?? []) as Array<{
+    id: string
+    customer_id: string
+    email: string | null
+    status: string
+    delivery_status: string | null
+    provider_message_id: string | null
+    sent_at: string | null
+    last_event_at: string | null
+    opened_at: string | null
+    clicked_at: string | null
+    error: string | null
+  }>
+  const names = new Map<string, string | null>()
+  const customerIds = Array.from(new Set(rows.map((row) => row.customer_id)))
+  for (const part of chunk(customerIds, 500)) {
+    const result = await db.from('customers').select('id, name').in('id', part)
+    if (result.error) throw new Error(`campaign delivery customer lookup failed: ${result.error.message}`)
+    for (const customer of (result.data ?? []) as Array<{ id: string; name: string | null }>) names.set(customer.id, customer.name)
+  }
+  const total = Number(count ?? rows.length)
+  return {
+    campaignId,
+    campaignName: campaign.name,
+    subject: campaign.subject,
+    recipients: rows.map((row) => {
+      const projected = row.delivery_status ?? (row.status === 'sent' ? 'accepted' : row.status)
+      const status = DELIVERY_STATUSES.includes(projected as CampaignEmailDeliveryStatus)
+        ? projected as CampaignEmailDeliveryStatus
+        : 'failed'
+      return {
+        id: row.id,
+        customerId: row.customer_id,
+        name: names.get(row.customer_id) ?? null,
+        email: row.email ?? '',
+        status,
+        providerMessageId: row.provider_message_id,
+        sentAt: row.sent_at,
+        lastEventAt: row.last_event_at,
+        openedAt: row.opened_at,
+        clickedAt: row.clicked_at,
+        error: row.error,
+      }
+    }),
+    total,
+    truncated: total > rows.length,
+  }
+}
+
+type SavedCampaignEmailTemplateRow = {
+  id: string
+  restaurant_id: string
+  name: string
+  subject: string
+  design: unknown
+  created_at: string
+  updated_at: string
+}
+
+function savedEmailTemplateFromRow(row: SavedCampaignEmailTemplateRow): SavedCampaignEmailTemplate {
+  return {
+    id: row.id,
+    restaurantId: row.restaurant_id,
+    name: row.name,
+    subject: row.subject,
+    design: normalizeCampaignEmailDesign(row.design),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+export async function listCampaignEmailTemplates(restaurantId: string): Promise<SavedCampaignEmailTemplate[]> {
+  const { data, error } = await serviceDb()
+    .from('campaign_email_templates')
+    .select('id, restaurant_id, name, subject, design, created_at, updated_at')
+    .eq('restaurant_id', restaurantId)
+    .is('deleted_at', null)
+    .order('updated_at', { ascending: false })
+    .limit(50)
+  if (error) throw new Error(`email template list failed: ${error.message}`)
+  return ((data ?? []) as SavedCampaignEmailTemplateRow[]).map(savedEmailTemplateFromRow)
+}
+
+export async function saveCampaignEmailTemplate(input: {
+  id?: string | null
+  restaurantId: string
+  name: string
+  subject: string
+  design: CampaignEmailDesign
+  createdBy: string
+}): Promise<SavedCampaignEmailTemplate> {
+  const name = input.name.replace(/\s+/g, ' ').trim().slice(0, 80)
+  const subject = sanitizeCampaignSubject(input.subject)
+  if (!name) throw new Error('invalid_template_name')
+  const payload = {
+    restaurant_id: input.restaurantId,
+    name,
+    subject,
+    design: normalizeCampaignEmailDesign(input.design) as unknown as Json,
+    created_by: input.createdBy,
+    deleted_at: null,
+  }
+  const query = input.id
+    ? serviceDb().from('campaign_email_templates').update(payload).eq('id', input.id).eq('restaurant_id', input.restaurantId).is('deleted_at', null)
+    : serviceDb().from('campaign_email_templates').insert(payload)
+  const { data, error } = await query
+    .select('id, restaurant_id, name, subject, design, created_at, updated_at')
+    .maybeSingle()
+  if (error || !data) throw new Error(`email template save failed: ${error?.message ?? 'not found'}`)
+  return savedEmailTemplateFromRow(data as SavedCampaignEmailTemplateRow)
+}
+
+export async function deleteCampaignEmailTemplate(restaurantId: string, templateId: string): Promise<boolean> {
+  const { data, error } = await serviceDb()
+    .from('campaign_email_templates')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', templateId)
+    .eq('restaurant_id', restaurantId)
+    .is('deleted_at', null)
+    .select('id')
+    .maybeSingle()
+  if (error) throw new Error(`email template delete failed: ${error.message}`)
+  return Boolean(data)
 }
 
 export async function listCampaigns(restaurantId: string, limit = 12): Promise<CampaignSummary[]> {
   const db = serviceDb()
+  const queryLimit = Math.min(50, Math.max(1, Math.floor(limit)))
   const { data, error } = await db
     .from('campaigns')
-    .select('id, restaurant_id, name, message_body, segment_kind, builtin_segment, custom_segment_id, status, recipient_count, sent_count, failed_count, skipped_count, sent_at, created_at')
+    .select('id, restaurant_id, name, channel, subject, message_body, content_mode, template_id, email_design, segment_kind, builtin_segment, custom_segment_id, status, recipient_count, sent_count, failed_count, skipped_count, sent_at, created_at')
     .eq('restaurant_id', restaurantId)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
-    .limit(Math.min(50, Math.max(1, Math.floor(limit))))
+    .limit(queryLimit)
+  if (error?.code === '42703') {
+    const legacy = await db
+      .from('campaigns')
+      .select('id, restaurant_id, name, message_body, segment_kind, builtin_segment, custom_segment_id, status, recipient_count, sent_count, failed_count, skipped_count, sent_at, created_at')
+      .eq('restaurant_id', restaurantId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(queryLimit)
+    if (legacy.error) throw new Error(`listCampaigns: ${legacy.error.message}`)
+    return ((legacy.data ?? []) as Array<Omit<CampaignRow, 'channel' | 'subject' | 'content_mode' | 'template_id' | 'email_design'>>)
+      .map((row) => campaignFromRow({ ...row, channel: 'sms', subject: null, content_mode: 'plain', template_id: null, email_design: null }))
+  }
   if (error) throw new Error(`listCampaigns: ${error.message}`)
   return ((data ?? []) as CampaignRow[]).map(campaignFromRow)
 }
@@ -291,7 +539,7 @@ export async function getCampaignById(restaurantId: string, campaignId: string):
   const db = serviceDb()
   const { data, error } = await db
     .from('campaigns')
-    .select('id, restaurant_id, name, message_body, segment_kind, builtin_segment, custom_segment_id, status, recipient_count, sent_count, failed_count, skipped_count, sent_at, created_at')
+    .select('id, restaurant_id, name, channel, subject, message_body, content_mode, template_id, email_design, segment_kind, builtin_segment, custom_segment_id, status, recipient_count, sent_count, failed_count, skipped_count, sent_at, created_at')
     .eq('id', campaignId)
     .eq('restaurant_id', restaurantId)
     .is('deleted_at', null)
@@ -348,16 +596,32 @@ function smsFailureCode(error: unknown): string {
   return 'provider_failure'
 }
 
+function campaignFailureCode(error: unknown): string {
+  if (error instanceof SmsDeliveryUnavailableError || error instanceof CampaignEmailDeliveryUnavailableError) return 'configuration_unavailable'
+  if (error instanceof Error && error.message === 'provider_rejected') return 'provider_rejected'
+  return 'provider_failure'
+}
+
 function campaignRequestFingerprint(input: {
   restaurantId: string
+  channel: CampaignChannel
   name: string
+  subject: string | null
   message: string
+  contentMode: CampaignEmailContentMode
+  templateId: CampaignEmailTemplateId | null
+  emailDesign: CampaignEmailDesign | null
   audience: ResolvedAudience['normalized']
 }): string {
   return createHash('sha256').update(JSON.stringify({
     restaurantId: input.restaurantId,
+    channel: input.channel,
     name: input.name,
+    subject: input.subject,
     message: input.message,
+    contentMode: input.contentMode,
+    templateId: input.templateId,
+    emailDesign: input.emailDesign,
     segmentKind: input.audience.segmentKind,
     builtinSegment: input.audience.builtinSegment,
     customSegmentId: input.audience.customSegmentId,
@@ -374,33 +638,60 @@ function safeQueueError(error: { code?: string; message?: string } | null): stri
 export async function sendCampaign(params: {
   restaurantId: string
   requestId: string
+  channel: CampaignChannel
   name: string
+  subject: string | null
   message: string
+  contentMode: CampaignEmailContentMode
+  templateId: CampaignEmailTemplateId | null
+  emailDesign: CampaignEmailDesign | null
   audience: CampaignAudienceInput
   createdBy: string
 }): Promise<SendCampaignResult> {
-  const name = sanitizeCampaignName(params.name)
-  const message = sanitizeCampaignMessage(params.message)
+  const name = sanitizeCampaignName(params.name, new Date(), params.channel)
+  const subject = params.channel === 'email' ? sanitizeCampaignSubject(params.subject ?? '') : null
+  const emailContent = normalizeCampaignEmailContent({
+    contentMode: params.contentMode,
+    templateId: params.templateId,
+  })
+  const emailDesign = params.channel === 'email' && emailContent.contentMode === 'builder'
+    ? normalizeCampaignEmailDesign(params.emailDesign)
+    : null
+  const message = params.channel === 'email' && emailContent.contentMode === 'html'
+    ? sanitizeCampaignHtml(params.message)
+    : sanitizeCampaignMessage(params.message, params.channel)
   if (message.length < 5) return { ok: false, error: 'Mesaj çok kısa' }
-  if (!getSmsDeliveryAvailability().enabled) return { ok: false, error: 'SMS gönderimi henüz etkin değil' }
+  if (params.channel === 'email' && !subject) return { ok: false, error: 'E-posta konusu gerekli' }
+  if (params.channel === 'email' && !getCampaignEmailDeliveryAvailability().enabled) return { ok: false, error: 'E-posta gönderimi yapılandırılmadı' }
+  if (params.channel === 'sms' && !getSmsDeliveryAvailability().enabled) return { ok: false, error: 'SMS gönderimi henüz etkin değil' }
 
-  const audience = await resolveCampaignAudience(params.restaurantId, params.audience)
+  const audience = await resolveCampaignAudience(params.restaurantId, params.audience, params.channel)
   const preview = previewFromAudience(audience)
   if (preview.eligibleRecipients === 0) {
     return { ok: false, error: 'Marketing izni açık alıcı yok', preview }
   }
 
   const db = serviceDb()
-  const { data: queueRows, error: queueError } = await db.rpc('queue_campaign_delivery_atomic', {
+  const queueFunction = params.channel === 'email'
+    ? 'queue_email_campaign_delivery_v2_atomic'
+    : 'queue_marketing_campaign_delivery_atomic'
+  const queueArgs = {
     p_request_id: params.requestId,
     p_request_fingerprint: campaignRequestFingerprint({
       restaurantId: params.restaurantId,
+      channel: params.channel,
       name,
+      subject,
       message,
+      contentMode: params.channel === 'email' ? emailContent.contentMode : 'plain',
+      templateId: params.channel === 'email' ? emailContent.templateId : null,
+      emailDesign,
       audience: audience.normalized,
     }),
     p_restaurant_id: params.restaurantId,
+    p_channel: params.channel,
     p_name: name,
+    p_subject: subject,
     p_message_body: message,
     p_segment_kind: audience.normalized.segmentKind,
     p_builtin_segment: audience.normalized.builtinSegment,
@@ -409,13 +700,19 @@ export async function sendCampaign(params: {
     p_created_by: params.createdBy,
     p_contacts: audience.candidates.map((candidate) => ({ customerId: candidate.customerId })) as unknown as Json,
     p_segment_label: audience.segmentLabel,
-  })
+    ...(params.channel === 'email' ? {
+      p_content_mode: emailContent.contentMode,
+      p_template_id: emailContent.templateId,
+      p_email_design: emailDesign as unknown as Json,
+    } : {}),
+  }
+  const { data: queueRows, error: queueError } = await db.rpc(queueFunction, queueArgs)
   const queue = ((queueRows ?? []) as Array<{
     campaign_id: string
     replayed: boolean
     recipient_count: number
     skipped_consent_count: number
-    skipped_phone_count: number
+    skipped_contact_count: number
     skipped_duplicate_count: number
   }>)[0]
   if (queueError || !queue?.campaign_id) {
@@ -425,11 +722,12 @@ export async function sendCampaign(params: {
   const campaign = await getCampaignById(params.restaurantId, queue.campaign_id)
   if (!campaign) return { ok: false, error: 'Kampanya oluşturulamadı', preview }
   const authoritativePreview: CampaignAudiencePreview = {
-    totalCandidates: queue.recipient_count + queue.skipped_consent_count + queue.skipped_phone_count + queue.skipped_duplicate_count,
+    channel: params.channel,
+    totalCandidates: queue.recipient_count + queue.skipped_consent_count + queue.skipped_contact_count + queue.skipped_duplicate_count,
     eligibleRecipients: queue.recipient_count,
     skippedNoMarketingConsent: queue.skipped_consent_count,
-    skippedInvalidPhone: queue.skipped_phone_count,
-    skippedDuplicatePhone: queue.skipped_duplicate_count,
+    skippedInvalidContact: queue.skipped_contact_count,
+    skippedDuplicateContact: queue.skipped_duplicate_count,
     segmentLabel: preview.segmentLabel,
   }
   return { ok: true, campaign, preview: authoritativePreview, replayed: queue.replayed }
@@ -450,31 +748,57 @@ export async function deliverCampaign(input: {
   if (!campaign) throw new Error('Campaign not found for restaurant')
   if (campaign.status === 'sent' || campaign.status === 'failed' || campaign.status === 'cancelled') return
 
-  const provider = getSmsProvider()
+  const smsProvider = campaign.channel === 'sms' ? getSmsProvider() : null
+  let emailIdentity: ReturnType<typeof readCampaignEmailIdentity> | null = null
+  if (campaign.channel === 'email') {
+    const { data: restaurant, error: restaurantError } = await db
+      .from('restaurants')
+      .select('name, settings')
+      .eq('id', input.restaurantId)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (restaurantError || !restaurant) throw new Error('Campaign restaurant identity unavailable')
+    emailIdentity = readCampaignEmailIdentity(restaurant.name, restaurant.settings)
+  }
   for (;;) {
     const { data, error } = await db.rpc('claim_campaign_recipient', {
       p_campaign_id: input.campaignId,
       p_restaurant_id: input.restaurantId,
     })
     if (error) throw new Error(`campaign recipient claim failed: ${error.message}`)
-    const recipient = ((data ?? []) as Array<{ id: string; phone: string }>)[0]
+    const recipient = ((data ?? []) as Array<{ id: string; phone: string | null; email: string | null }>)[0]
     if (!recipient) break
 
     let success = false
-    let providerName = provider.name
+    let providerName = campaign.channel === 'email' ? 'resend' : (smsProvider?.name ?? 'unavailable')
     let providerMessageId: string | null = null
     let deliveryError: string | null = null
     try {
-      const sent = await provider.send(recipient.phone, campaign.messageBody, {
-        purpose: 'campaign',
-        restaurantId: input.restaurantId,
-        campaignId: input.campaignId,
-      })
+      const sent = campaign.channel === 'email'
+        ? await sendCampaignEmail({
+            to: recipient.email ?? '',
+            subject: campaign.subject ?? '',
+            message: campaign.messageBody,
+            html: renderCampaignEmail({
+              contentMode: campaign.contentMode,
+              templateId: campaign.templateId,
+              content: campaign.messageBody,
+              restaurantName: emailIdentity!.senderName,
+              emailDesign: campaign.emailDesign,
+            }),
+            senderName: emailIdentity!.senderName,
+            replyTo: emailIdentity!.replyTo,
+          })
+        : await smsProvider!.send(recipient.phone ?? '', campaign.messageBody, {
+            purpose: 'campaign',
+            restaurantId: input.restaurantId,
+            campaignId: input.campaignId,
+          })
       success = true
       providerName = sent.provider
       providerMessageId = sent.messageId ?? null
     } catch (cause) {
-      deliveryError = smsFailureCode(cause)
+      deliveryError = campaignFailureCode(cause)
     }
 
     const { data: completed, error: completeError } = await db.rpc('complete_campaign_recipient', {
@@ -500,4 +824,22 @@ export async function deliverCampaign(input: {
   if (finalStatus === 'processing' || finalStatus === 'pending') {
     throw new Error(`Campaign delivery is still ${String(finalStatus)}`)
   }
+}
+
+export async function recordResendCampaignEvent(input: {
+  webhookId: string
+  providerMessageId: string
+  eventType: 'sent' | 'delivered' | 'delivery_delayed' | 'opened' | 'clicked' | 'bounced' | 'complained' | 'suppressed' | 'failed'
+  occurredAt: string
+}): Promise<boolean> {
+  const occurredAt = new Date(input.occurredAt)
+  if (Number.isNaN(occurredAt.getTime())) throw new Error('invalid_resend_event_time')
+  const { data, error } = await serviceDb().rpc('record_resend_campaign_event', {
+    p_webhook_id: input.webhookId,
+    p_provider_message_id: input.providerMessageId,
+    p_event_type: input.eventType,
+    p_occurred_at: occurredAt.toISOString(),
+  })
+  if (error) throw new Error(`record Resend campaign event failed: ${error.message}`)
+  return data === true
 }

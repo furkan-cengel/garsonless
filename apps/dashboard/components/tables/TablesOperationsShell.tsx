@@ -7,18 +7,14 @@ import { AccessibleDialog } from './AccessibleDialog'
 import { mapDBTables } from './tables-builder-model'
 import type { TableItem } from './tables-builder-types'
 import { TablesNavigation } from './TablesNavigation'
-import {
-  TABLES_SHELL_CSS,
-  TablesIconRail,
-  TablesOperationsTopBar,
-  TablesSectionTabs,
-} from './TablesShellFrame'
+import { TABLES_SHELL_CSS, TablesIconRail, TablesOperationsTopBar, TablesSectionTabs } from './TablesShellFrame'
 import { TableTransferFeedback } from './TableTransferFeedback'
 import { useTableTransferFeedback } from './use-table-transfer-feedback'
 import { useTablesLiveState } from './use-tables-live-state'
 import { tableOperationalState } from './tables-operation-model'
 import { useOperationalNow } from './use-tables-navigation-model'
 import type { TablesOperationsShellProps } from './tables-operations-ui-types'
+import { useTableOperationPrefetch } from './use-transfer-orders-prefetch'
 function DeferredDialogLoading() {
   return (
     <AccessibleDialog labelledBy="operations-dialog-loading-title" onClose={() => undefined} closeDisabled style={{ position: 'fixed', inset: 0, zIndex: 179, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,.28)' }}>
@@ -42,7 +38,7 @@ const NewOrderModal = dynamic(() => import('../overlays/NewOrderModal'), {
 export default function TablesOperationsShell({
   restaurantId,
   restaurantName,
-  initialTables,
+  initialTables, initialDirectoryError = null,
   initialOpenSessions,
   initialSessionError = null,
   initialLayoutSnapshot,
@@ -68,6 +64,7 @@ export default function TablesOperationsShell({
     openSessions,
     sessionError,
     refreshSessions,
+    markSessionClosed,
     settlementTarget,
     dismissSettlement,
     requestSessionClose,
@@ -88,12 +85,14 @@ export default function TablesOperationsShell({
     restaurantId,
     initialOpenSessions,
     initialSessionError,
+    initialDirectoryError,
     setTables,
   })
   const transferFeedback = useTableTransferFeedback({
     restaurantId,
     onChanged: refreshSessions,
   })
+  const { openTableDetail, prefetchOperations } = useTableOperationPrefetch({ restaurantId, openSessions, setDetailTableId })
   const detailTable = detailTableId ? tables.find((table) => table.id === detailTableId) ?? null : null
   const tableStatuses = useMemo<TableStatusData[]>(() => tables.map((table) => {
     const session = openSessions[table.id]
@@ -143,7 +142,8 @@ export default function TablesOperationsShell({
               onCloseSession={requestSessionClose}
               onSettle={startSettlement}
               onTransfer={(mode, tableId, options) => setTransfer({ mode, tableId: tableId ?? null, selectAllInitially: options?.selectAll })}
-              onOpenDetail={setDetailTableId}
+              onPrefetchTransfer={prefetchOperations}
+              onOpenDetail={openTableDetail}
               onNewOrder={(tableId) => setNewOrderTableId(tableId)}
               pendingRequests={pendingRequests}
               onResolveRequest={resolveRequest}
@@ -201,7 +201,7 @@ export default function TablesOperationsShell({
             session={settlementTarget.session}
             tableLabel={settlementTarget.label}
             onClose={dismissSettlement}
-            onSettled={() => void refreshSessions()}
+            onSettled={() => { markSessionClosed(settlementTarget.session.sessionId); void refreshSessions() }}
             onSessionClosed={() => { dismissSettlement(); void refreshSessions() }}
           />
         )}

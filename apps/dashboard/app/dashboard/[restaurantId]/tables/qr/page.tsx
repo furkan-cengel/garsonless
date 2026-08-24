@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { listDashboardTableQrTokens } from '@garsonless/application/tables'
 import { createDashboardTablePort } from '@garsonless/db/server'
-import TablesBuilderShell from '../../../../../components/tables/TablesBuilderShell'
+import TablesBuilderClientLoader from '../../../../../components/tables/TablesBuilderClientLoader'
 import { requireSection } from '../../../../../lib/auth/access'
 import { getRestaurantById } from '../../../../../lib/queries/restaurants'
 import { getTablesForRestaurant } from '../../../../../lib/queries/tables'
@@ -19,7 +19,7 @@ export default async function TablesQRStudioPage({ params }: Props) {
     restaurantId,
     createDashboardTablePort(),
   )
-  const [restaurant, tables, qrTokens] = await Promise.all([
+  const [restaurant, tablesResult, qrTokens] = await Promise.all([
     getRestaurantById(restaurantId),
     getTablesForRestaurant(restaurantId),
     qrTokensResult,
@@ -27,11 +27,12 @@ export default async function TablesQRStudioPage({ params }: Props) {
   if (!restaurant) notFound()
 
   return (
-    <TablesBuilderShell
+    <TablesBuilderClientLoader
       restaurantId={restaurantId}
       restaurantName={restaurant.name}
       restaurantSlug={restaurant.slug}
-      initialTables={tables}
+      initialTables={tablesResult.tables}
+      initialDirectoryError={tablesResult.ok ? null : tablesResult.error}
       initialQrTokens={qrTokens.ok ? qrTokens.value : {}}
       initialQRStyle={(restaurant.settings as Record<string, unknown> | null)?.qr_style ?? null}
       initialQRStyleRevision={restaurant.qr_style_revision}

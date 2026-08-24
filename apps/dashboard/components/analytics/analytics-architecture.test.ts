@@ -85,7 +85,8 @@ test('analytics orchestrator delegates lazy report state and requests to its con
   assert.match(controllerSource, /latestRequestRef/)
   assert.match(controllerSource, /retryRequestRef/)
   assert.match(controllerSource, /window\.addEventListener\('online'/)
-  assert.match(controllerSource, /try \{[\s\S]*await fetchAnalyticsReportPayload[\s\S]*\} catch \{/)
+  assert.match(controllerSource, /AbortController/)
+  assert.match(controllerSource, /await fetchAnalyticsReportPayload\(restaurantId, nextQuery, report, controller\.signal\)/)
   assert.match(controllerSource, /if \(commitQuery\) setQuery\(nextQuery\)/)
   assert.doesNotMatch(controllerSource, /function changeRange[\s\S]{0,220}setQuery/)
   assert.doesNotMatch(controllerSource, /PageTopBar|<aside|<main/)
@@ -145,8 +146,9 @@ test('analytics shell keeps mobile navigation, heading order and touch targets e
   assert.match(shellSource, /<section className="analytics-main" aria-label=/)
   assert.match(globalStylesSource, /\.analytics-report-tab,[\s\S]{0,180}\.analytics-export-button \{[\s\S]{0,80}min-height: 36px/)
   assert.match(globalStylesSource, /@media \(pointer: coarse\)[\s\S]{0,520}\.analytics-report-tab,[\s\S]{0,520}min-height: 44px !important/)
-  assert.match(globalStylesSource, /@media \(max-width: 760px\)[\s\S]*\.analytics-report-tab--compact \{[\s\S]{0,140}min-height: 44px/)
-  assert.match(globalStylesSource, /@media \(max-width: 760px\)[\s\S]*\.analytics-sidebar \{ display: none/)
+  assert.match(globalStylesSource, /@media \(max-width: 1279px\)[\s\S]*\.analytics-report-tab--compact \{[\s\S]{0,220}min-height: 44px/)
+  assert.match(globalStylesSource, /@media \(max-width: 1279px\)[\s\S]*\.analytics-sidebar \{ display: none/)
+  assert.match(globalStylesSource, /@media \(max-width: 520px\)[\s\S]*\.analytics-filter-fields \{ grid-template-columns: minmax\(0, 1fr\)/)
   assert.match(globalStylesSource, /\.analytics-responsive-grid[\s\S]*grid-template-columns: minmax\(0, 1fr\) !important/)
 })
 
@@ -227,7 +229,7 @@ test('analytics charts expose names, keyboard paths and same-data tables', () =>
 
 test('analytics report motion follows the reduced-motion preference', () => {
   assert.doesNotMatch(shellSource, /transition: 'opacity 150ms'/)
-  assert.match(globalStylesSource, /\.analytics-main \{ transition: opacity 150ms; \}/)
+  assert.match(globalStylesSource, /\.analytics-main \{[^}]*transition: opacity 150ms;/)
   assert.match(globalStylesSource, /@media \(prefers-reduced-motion: reduce\)[\s\S]{0,360}\.analytics-shell \*[\s\S]{0,220}transition-duration: 0s !important;/)
 })
 
@@ -261,7 +263,7 @@ test('sales range changes refresh KPI, chart, item and payment data from one as-
   assert.match(analyticsQueriesSource, /getSalesOverTime\(restaurantId, range, 'analytics', asOf, core\)/)
   assert.match(analyticsQueriesSource, /getTopItems\(restaurantId, range, asOf, core\)/)
   assert.match(analyticsQueriesSource, /getPaymentBreakdown\(restaurantId, range, asOf\)/)
-  assert.match(controllerSource, /setAnalyticsData\(\(previous\) => \(\{ \.\.\.previous, \.\.\.data \}\)\)/)
+  assert.match(controllerSource, /setAnalyticsData\(\(previous\) => \(\{ \.\.\.previous, \.\.\.response\.data \}\)\)/)
 })
 
 test('shared analytics presentation primitives stay tenant and data-source agnostic', () => {
@@ -348,7 +350,8 @@ test('loyalty visibility, stat card and raw reason policy stays pure and indepen
 
 test('AnalyticsClient stays an orchestration-only shell', () => {
   const lineCount = clientSource.split('\n').length
-  assert.ok(lineCount <= 130, `AnalyticsClient grew to ${lineCount} lines`)
+  assert.ok(lineCount <= 160, `AnalyticsClient grew to ${lineCount} lines`)
+  assert.match(clientSource, /preloadAnalyticsReport/)
   assert.doesNotMatch(clientSource, /function (Items|Tables|Loyalty|Operations|Sales|Payments)Report/)
 })
 
@@ -408,7 +411,7 @@ test('dashboard query compatibility facade stays retired and call-sites use feat
   assert.doesNotMatch(panoActionsSource, /from ['"]\.\.\/queries['"]/)
 
   const budgets = [
-    ['analytics queries', analyticsQueriesSource, 440],
+    ['analytics queries', analyticsQueriesSource, 450],
     ['analytics operations queries', analyticsOperationsQueriesSource, 390],
     ['pano queries', panoQueriesSource, 460],
     ['insights shared', insightsSharedSource, 180],

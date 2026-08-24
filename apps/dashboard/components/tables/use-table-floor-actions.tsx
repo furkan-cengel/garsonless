@@ -18,6 +18,7 @@ type Input = {
   onOpenDetail: (tableId: string) => void
   onNewOrder: (tableId: string) => void
   onTransfer: (mode: 'table_move' | 'account_transfer', tableId: string, options?: { selectAll?: boolean }) => void
+  onPrefetchTransfer: (tableId: string) => void
   onSettle: (session: OpenTableSessionView, label: string) => void
   onCloseSession: (session: OpenTableSessionView, label: string) => void
   onResolveRequest: (requestId: string) => void
@@ -29,7 +30,7 @@ export function useTableFloorActions(input: Input) {
   const [quickMenu, setQuickMenu] = useState<{ tableId: string; position: TableQuickMenuPosition; restoreFocus: HTMLElement | null } | null>(null)
   const [properties, setProperties] = useState<{ tableId: string; initialDelete: boolean } | null>(null)
   const closeQuickMenu = useCallback(() => setQuickMenu(null), [])
-  const { setActiveId } = input
+  const { onPrefetchTransfer, openSessions, setActiveId } = input
 
   const run = (table: TableItem, action: TableQuickActionId) => {
     const session = input.openSessions[table.id]
@@ -53,8 +54,9 @@ export function useTableFloorActions(input: Input) {
 
   const openQuickMenu = useCallback((tableId: string, anchor: HTMLElement, x: number, y: number) => {
     setActiveId(tableId)
+    if (openSessions[tableId]) onPrefetchTransfer(tableId)
     setQuickMenu({ tableId, position: { x, y }, restoreFocus: anchor })
-  }, [setActiveId])
+  }, [onPrefetchTransfer, openSessions, setActiveId])
 
   const menuTable = quickMenu ? input.tables.find((table) => table.id === quickMenu.tableId) : null
   const propertyTable = properties ? input.tables.find((table) => table.id === properties.tableId) : null

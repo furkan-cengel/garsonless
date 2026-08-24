@@ -30,7 +30,10 @@ export function SettlementSplitStatus({
   splitRemaining,
   busy,
   confirmingShareId,
+  resolvingShareId,
   onConfirmShare,
+  onReleaseCardShare,
+  onReconcileCardShare,
 }: {
   shares: SettlementShare[]
   settledShareTotal: number
@@ -39,7 +42,10 @@ export function SettlementSplitStatus({
   splitRemaining: number
   busy: boolean
   confirmingShareId: string | null
+  resolvingShareId: string | null
   onConfirmShare: (shareId: string) => void
+  onReleaseCardShare: (shareId: string) => void
+  onReconcileCardShare: (shareId: string) => void
 }) {
   return (
     <div style={{ marginTop: 14, border: '1px solid var(--divider)', borderRadius: 14, overflow: 'hidden', background: 'var(--surface)' }}>
@@ -48,7 +54,7 @@ export function SettlementSplitStatus({
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)' }}>
           Ödenen {formatSettlementAmount(settledShareTotal)}
           {declaredCashTotal > 0 ? ` · ${formatSettlementAmount(declaredCashTotal)} nakit onayı bekliyor` : ''}
-          {pendingCardTotal > 0 ? ` · ${formatSettlementAmount(pendingCardTotal)} kart bekliyor` : ''}
+          {pendingCardTotal > 0 ? ` · ${formatSettlementAmount(pendingCardTotal)} kart işlemi açık` : ''}
         </span>
       </div>
       <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -59,7 +65,13 @@ export function SettlementSplitStatus({
           const isCash = share.method === 'cash'
           const tone = settled ? 'paid' : isCash ? 'cash' : 'card'
           const label = share.label?.trim() || (isCash ? 'Nakit beyanı' : 'Kart payı')
-          const waitingText = isCash ? 'Garson onayı bekliyor' : 'Kart ödemesi bekliyor'
+          const waitingText = isCash
+            ? 'Garson onayı bekliyor'
+            : share.providerState === 'not_started'
+              ? 'Ödeme başlatılmamış; bu pay güvenle kaldırılabilir'
+              : share.providerState === 'checkout_active'
+                ? 'Kart ekranında işlem sürüyor'
+                : 'İyzico sonucu doğrulanmalı'
           return (
             <div key={share.id} style={splitLineStyle(tone)}>
               <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,.55)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
@@ -86,8 +98,34 @@ export function SettlementSplitStatus({
                   disabled={busy || confirmingShareId === share.id}
                   onClick={() => onConfirmShare(share.id)}
                 >
-                  {confirmingShareId === share.id && <Spinner data-icon="inline-start" />}
+                  {confirmingShareId === share.id && <Spinner aria-hidden="true" data-icon="inline-start" />}
                   {confirmingShareId === share.id ? 'Onaylanıyor…' : 'Onayla'}
+                </Button>
+              )}
+              {!settled && !isCash && share.providerState === 'not_started' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-busy={resolvingShareId === share.id}
+                  disabled={busy || resolvingShareId === share.id}
+                  onClick={() => onReleaseCardShare(share.id)}
+                >
+                  {resolvingShareId === share.id && <Spinner aria-hidden="true" data-icon="inline-start" />}
+                  {resolvingShareId === share.id ? 'Kaldırılıyor…' : 'Payı kaldır'}
+                </Button>
+              )}
+              {!settled && !isCash && share.providerState === 'verification_required' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-busy={resolvingShareId === share.id}
+                  disabled={busy || resolvingShareId === share.id}
+                  onClick={() => onReconcileCardShare(share.id)}
+                >
+                  {resolvingShareId === share.id && <Spinner aria-hidden="true" data-icon="inline-start" />}
+                  {resolvingShareId === share.id ? 'Kontrol ediliyor…' : 'İyzico’da kontrol et'}
                 </Button>
               )}
             </div>

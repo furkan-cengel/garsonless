@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 
 import { I } from '../../lib/ui'
 
@@ -20,9 +20,27 @@ interface Props {
 }
 
 export function MenuItemEditorFrame({ itemId, itemName, position, createdAt, updatedAt, tint, onClose, children, footer, overlay }: Props) {
+  const headingRef = useRef<HTMLDivElement>(null)
+  const headingId = `menu-item-editor-${itemId}`
+
+  useEffect(() => {
+    headingRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || document.querySelector('[role="dialog"][aria-modal="true"]')) return
+      event.preventDefault()
+      onClose()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
   return (
     <aside
       className="menu-item-editor"
+      aria-labelledby={headingId}
       style={{
         width: 'var(--props)',
         minWidth: 0,
@@ -64,8 +82,10 @@ export function MenuItemEditorFrame({ itemId, itemName, position, createdAt, upd
           <I.menuDish size={15} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.2 }}>{itemName}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-3)' }}>#{itemId.slice(0, 8)}</div>
+          <div ref={headingRef} tabIndex={-1} id={headingId} style={{ fontWeight: 600, fontSize: 13.5, lineHeight: 1.2, outline: 'none' }}>
+            {itemName} ürününü düzenle
+          </div>
+          <div className="menu-secondary-text" style={{ fontSize: 11, color: 'var(--text-2)' }}>#{itemId.slice(0, 8)}</div>
         </div>
         <Button type="button" variant="ghost" size="icon-sm" aria-label="Kapat" onClick={onClose}>
           <I.close size={15} />

@@ -1,0 +1,55 @@
+name: Settings Visual Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: settings-visual-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  settings-visual:
+    name: Authenticated Settings matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.DEV_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
+      DASHBOARD_VISUAL_EMAIL: ${{ secrets.DASHBOARD_VISUAL_EMAIL }}
+      DASHBOARD_VISUAL_PASSWORD: ${{ secrets.DASHBOARD_VISUAL_PASSWORD }}
+      DASHBOARD_VISUAL_MAGICLINK_EMAIL: ${{ secrets.DASHBOARD_VISUAL_MAGICLINK_EMAIL }}
+      NEXT_PUBLIC_APP_URL: http://localhost:3005
+      SMOKE_DASHBOARD_URL: http://localhost:3005
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run authenticated Settings matrix
+        run: pnpm visual:settings

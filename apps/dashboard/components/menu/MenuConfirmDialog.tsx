@@ -50,7 +50,7 @@ export function MenuConfirmDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction variant="destructive" aria-busy={loading} disabled={loading} onClick={onConfirm}>
-            {loading ? <Spinner data-icon="inline-start" /> : <I.trash data-icon="inline-start" size={13} />}
+            {loading ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <I.trash data-icon="inline-start" size={13} />}
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

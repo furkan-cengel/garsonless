@@ -88,6 +88,17 @@ export function createSplitPaymentPort(): SplitPaymentPort {
       if (error) return err(error.message)
       return data === true ? ok(true) : err('Checkout rezervasyonu bırakılamadı')
     },
+    async voidUnstartedOnlineShare(input) {
+      const { data, error } = await rpc(createServiceClient())('void_unstarted_split_share_atomic', {
+        p_share_id: input.shareId,
+        p_restaurant_id: input.restaurantId,
+      })
+      if (error) return err('Kart payı güvenli biçimde bırakılamadı')
+      const outcomes = ['voided', 'provider_pending', 'already_resolved', 'not_found'] as const
+      return outcomes.includes(data as typeof outcomes[number])
+        ? ok(data as typeof outcomes[number])
+        : err('Kart payı güvenli biçimde bırakılamadı')
+    },
     async settleShare(input) {
       const { data, error } = await rpc(createServiceClient())('settle_payment_share_atomic', {
         p_share_id: input.shareId,

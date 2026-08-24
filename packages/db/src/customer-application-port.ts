@@ -11,24 +11,28 @@ import {
   grantStoreCredit,
   listCustomerSegments,
   updateCustomerSegment,
+  type CustomerLoyaltyScope,
 } from './customers'
 
 function failure(prefix: string, error: unknown): string {
   return error instanceof Error && error.message ? `${prefix}: ${error.message}` : prefix
 }
 
-export function createCustomerApplicationPort(): CustomerApplicationPort {
+export function createCustomerApplicationPort(configuration: { loyaltyScope?: CustomerLoyaltyScope } = {}): CustomerApplicationPort {
   return {
-    async listCustomers({ restaurantId, includeContactData, ...options }) {
+    async listCustomers({ restaurantId, includeContactData, ...listOptions }) {
       try {
-        return ok(await getRestaurantCustomers(restaurantId, options, { includeContactData }))
+        return ok(await getRestaurantCustomers(restaurantId, listOptions, {
+          includeContactData,
+          ...(Object.hasOwn(configuration, 'loyaltyScope') ? { loyaltyScope: configuration.loyaltyScope } : {}),
+        }))
       } catch (error) {
         return err(failure('Müşteriler yüklenemedi', error))
       }
     },
     async countSegments({ restaurantId }) {
       try {
-        return ok(await getRestaurantCustomerSegmentCounts(restaurantId))
+        return ok(await getRestaurantCustomerSegmentCounts(restaurantId, configuration))
       } catch (error) {
         return err(failure('Segment sayıları yüklenemedi', error))
       }

@@ -23,8 +23,8 @@ export default function MenuLoadError({ message }: { message: string }) {
           <CardDescription className="leading-6">{message} Mevcut menünüzde değişiklik yapılmadı.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button type="button" size="lg" disabled={isPending} onClick={() => startTransition(() => router.refresh())}>
-            {isPending ? <Spinner data-icon="inline-start" /> : <I.refresh data-icon="inline-start" aria-hidden="true" size={17} />}
+          <Button type="button" size="lg" aria-busy={isPending} disabled={isPending} onClick={() => startTransition(() => router.refresh())}>
+            {isPending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <I.refresh data-icon="inline-start" aria-hidden="true" size={17} />}
             {isPending ? 'Yeniden deneniyor' : 'Yeniden dene'}
           </Button>
         </CardContent>

@@ -61,7 +61,7 @@ export function AnalyticsTablesReport({ tables, query }: { tables: TableReportRo
                   }} />
                 </div>
                 <span style={{ ...s.mono, fontSize: 11.5, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
-                  {t.revenue > 0 ? `₺${(t.revenue / 1000).toFixed(1)}K` : '—'}
+                  {t.revenue > 0 ? formatCurrency(t.revenue) : '—'}
                 </span>
                 <span style={{ ...s.mono, fontSize: 11, color: 'var(--text-3)', minWidth: 54, textAlign: 'right' }}>
                   {t.orders} ödeme

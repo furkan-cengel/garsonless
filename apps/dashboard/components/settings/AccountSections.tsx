@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import type { TeamMember } from '@garsonless/db/types'
 import { I, Tag, btnGhost, btnPrimary } from '../../lib/ui'
 import { SCard, FormRow, inputStyle } from './primitives'
-import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
+import { notifySettingsDirty, notifySettingsSaved, useSettingsDirtyState } from './settings-dirty-state'
 import { updateUserProfile } from '../../lib/actions/auth'
 import {
   inviteMember, updateMemberPermissionsAction, setMemberStatusAction,
@@ -17,6 +17,16 @@ import { Avatar, AvatarFallback } from '../ui/avatar'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Spinner } from '../ui/spinner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog'
 
 const TEAM_SECTION_OPTIONS: { key: string; label: string }[] = [
   { key: 'pano', label: 'Pano' },
@@ -41,6 +51,11 @@ export function ProfileSection({ user }: { user: User | null }) {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const profileSnapshotRef = useRef({ fullName, displayName, phone })
+  const profileDirty = fullName !== profileSnapshotRef.current.fullName
+    || displayName !== profileSnapshotRef.current.displayName
+    || phone !== profileSnapshotRef.current.phone
+  useSettingsDirtyState('profile:details', profileDirty)
 
   const email = user?.email ?? ''
   const initials = fullName
@@ -57,8 +72,9 @@ export function ProfileSection({ user }: { user: User | null }) {
       fd.append('phone', phone)
       const result = await updateUserProfile(fd)
       if ('error' in result) { setError(result.error); return }
+      profileSnapshotRef.current = { fullName, displayName, phone }
       setSaved(true)
-      notifySettingsSaved()
+      notifySettingsSaved('profile:details')
     })
   }
 
@@ -72,7 +88,7 @@ export function ProfileSection({ user }: { user: User | null }) {
             <span role="status" aria-live="polite" className="text-xs text-muted-foreground">
               {isPending ? 'Profil kaydediliyor…' : saved ? '✓ Profil bilgileri güncellendi' : 'Değişiklikler bu hesaba kaydedilir'}
             </span>
-            <Button onClick={handleSave} disabled={isPending}>
+            <Button onClick={handleSave} disabled={isPending || !profileDirty}>
               {isPending ? <Spinner data-icon="inline-start" /> : <I.check data-icon="inline-start" />}
               {isPending ? 'Kaydediliyor…' : 'Kaydet'}
             </Button>
@@ -145,9 +161,10 @@ function SectionCheckboxes({ value, onChange }: { value: string[]; onChange: (v:
   )
 }
 
-function StatusTag({ status }: { status: TeamMember['status'] }) {
+function StatusTag({ status, inviteExpiresAt }: { status: TeamMember['status']; inviteExpiresAt?: string | null }) {
   if (status === 'active') return <Tag tone="positive">Aktif</Tag>
   if (status === 'disabled') return <Tag tone="neutral">Devre dışı</Tag>
+  if (inviteExpiresAt && new Date(inviteExpiresAt).getTime() <= Date.now()) return <Tag tone="neutral">Süresi doldu</Tag>
   return <Tag tone="warning">Davet bekliyor</Tag>
 }
 
@@ -157,6 +174,8 @@ function MemberRow({ restaurantId, member }: { restaurantId: string; member: Tea
   const [perms, setPerms] = useState<string[]>(member.permissions)
   const [msg, setMsg] = useState('')
   const [devUrl, setDevUrl] = useState('')
+  const [removeOpen, setRemoveOpen] = useState(false)
+  const [removePassword, setRemovePassword] = useState('')
   const [isPending, startTransition] = useTransition()
 
   function run(fn: () => Promise<{ error: string } | { success: true; devInviteUrl?: string }>, after?: () => void) {
@@ -190,7 +209,7 @@ function MemberRow({ restaurantId, member }: { restaurantId: string; member: Tea
               ))}
           </div>
         </div>
-        <StatusTag status={member.status} />
+        <StatusTag status={member.status} inviteExpiresAt={member.inviteExpiresAt} />
         <div style={{ display: 'flex', gap: 4 }}>
           <button type="button" onClick={() => setEditing(e => !e)} style={btnGhost({ height: 28, padding: '0 10px', fontSize: 12 })}>İzinler</button>
           {member.status === 'invited' && (
@@ -201,7 +220,7 @@ function MemberRow({ restaurantId, member }: { restaurantId: string; member: Tea
               {member.status === 'active' ? 'Devre dışı' : 'Etkinleştir'}
             </button>
           )}
-          <button type="button" disabled={isPending} onClick={() => { if (window.confirm(`${member.email} ekipten çıkarılsın mı?`)) run(() => removeMemberAction(restaurantId, member.id)) }} style={{ ...btnGhost({ height: 28, padding: '0 10px', fontSize: 12 }), color: 'var(--critical)' }}>Çıkar</button>
+          <button type="button" disabled={isPending} onClick={() => { setRemovePassword(''); setMsg(''); setRemoveOpen(true) }} style={{ ...btnGhost({ height: 28, padding: '0 10px', fontSize: 12 }), color: 'var(--critical)' }}>Çıkar</button>
         </div>
       </div>
 
@@ -219,6 +238,42 @@ function MemberRow({ restaurantId, member }: { restaurantId: string; member: Tea
 
       {devUrl && <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-3)', wordBreak: 'break-all' }}>Dev davet linki: {devUrl}</div>}
       {msg && <div role="alert" style={{ marginTop: 8, fontSize: 12, color: 'var(--critical)' }}>{msg}</div>}
+      <AlertDialog open={removeOpen} onOpenChange={(open) => { if (!isPending) setRemoveOpen(open) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{member.email} ekipten çıkarılsın mı?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bu kullanıcı Dashboard erişimini hemen kaybeder. İşlemi doğrulamak için owner hesap şifrenizi girin.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-2">
+            <label htmlFor={`remove-password-${member.id}`} className="text-sm font-medium">Hesap şifresi</label>
+            <Input
+              id={`remove-password-${member.id}`}
+              type="password"
+              value={removePassword}
+              onChange={(event) => setRemovePassword(event.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Vazgeç</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isPending || removePassword.length === 0}
+              onClick={(event) => {
+                event.preventDefault()
+                run(
+                  () => removeMemberAction(restaurantId, member.id, removePassword),
+                  () => { setRemoveOpen(false); setRemovePassword('') },
+                )
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isPending ? 'Çıkarılıyor…' : 'Üyeyi ekipten çıkar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -320,7 +375,7 @@ export function TeamSection({ restaurantId, ownerEmail, members, auditEvents }: 
         )}
       </SCard>
 
-      <SCard title="Ekip etkinliği" subtitle="Son 20 ekip ve izin değişikliği" style={{ marginTop: 16 }}>
+      <SCard title="Ekip etkinliği" subtitle="Son 20 kayıt · ekip audit geçmişi 365 gün saklanır" style={{ marginTop: 16 }}>
         {auditEvents.length === 0 ? (
           <div style={{ padding: '20px 16px', fontSize: 12.5, color: 'var(--text-3)', textAlign: 'center' }}>
             Henüz ekip yönetimi etkinliği yok.

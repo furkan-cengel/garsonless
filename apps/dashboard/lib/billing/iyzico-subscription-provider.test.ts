@@ -29,6 +29,12 @@ const config: IyzicoSubscriptionProviderConfig = {
       annual: { referenceCode: 'plan-pro-annual', amountMinor: 1_381_248 },
     },
   },
+  addOns: {
+    iyzico_online_payments: {
+      monthly: { referenceCode: 'plan-pro-addon-monthly', amountMinor: 167_880, addOnNetAmountMinor: 20_000 },
+      annual: { referenceCode: 'plan-pro-addon-annual', amountMinor: 1_611_648, addOnNetAmountMinor: 192_000 },
+    },
+  },
 }
 
 const address = {
@@ -164,6 +170,30 @@ test('checkout enforces local/provider plan amount parity and returns hosted con
   assert.equal(requests[0]?.['pricingPlanReferenceCode'], 'plan-starter-monthly')
   assert.equal(requests[0]?.['subscriptionInitialStatus'], 'ACTIVE')
   assert.equal(calls, 1)
+})
+
+test('Pro add-on checkout uses the dedicated combined provider plan', async () => {
+  const requests: Record<string, unknown>[] = []
+  const provider = createIyzicoSubscriptionBillingProvider(config, {
+    client: clientWith({
+      checkout(input, callback) {
+        requests.push(input)
+        callback(null, { status: 'success', token: 'addon-token', checkoutFormContent: '<form />' })
+      },
+    }),
+  })
+  const result = await provider.createCheckout({
+    customer, invoiceId: 'invoice-addon', plan: 'pro', interval: 'monthly',
+    addOns: ['iyzico_online_payments'], amount: { minor: 167_880, currency: 'TRY' },
+    callbackUrl: 'http://localhost:3000/api/billing/iyzico/callback', idempotencyKey: 'addon-op',
+  })
+  assert.equal(result.ok && result.value.providerPlanRef, 'plan-pro-addon-monthly')
+  assert.equal(requests[0]?.['pricingPlanReferenceCode'], 'plan-pro-addon-monthly')
+  assert.deepEqual(await provider.createCheckout({
+    customer, invoiceId: 'invoice-addon', plan: 'plus', interval: 'monthly',
+    addOns: ['iyzico_online_payments'], amount: { minor: 167_880, currency: 'TRY' },
+    callbackUrl: 'http://localhost:3000/api/billing/iyzico/callback', idempotencyKey: 'addon-op-2',
+  }), { ok: false, error: 'Iyzico subscription checkout input is invalid' })
 })
 
 test('checkout retrieval maps only complete provider aggregate references', async () => {

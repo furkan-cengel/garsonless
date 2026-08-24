@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getRestaurantById } from '../../../../lib/queries/restaurants'
 import { getTablesForRestaurant } from '../../../../lib/queries/tables'
-import TablesOperationsShell from '../../../../components/tables/TablesOperationsShell'
+import TablesOperationsClientLoader from '../../../../components/tables/TablesOperationsClientLoader'
 import { requireSection } from '../../../../lib/auth/access'
 import { getOpenTableSessions, getTableLayout } from '../../../../lib/actions/tables'
 import { resolveTableDeepLink } from '../../../../components/tables/tables-operation-model'
@@ -21,11 +21,12 @@ export default async function TablesPage({ params, searchParams }: Props) {
   if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'table_management' })) {
     return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="table_management" isOwner={access.isOwner} />
   }
-  const [tables, openSessionsResult, layoutResult] = await Promise.all([
+  const [tablesResult, openSessionsResult, layoutResult] = await Promise.all([
     getTablesForRestaurant(restaurantId),
     getOpenTableSessions(restaurantId),
     getTableLayout(restaurantId),
   ])
+  const tables = tablesResult.tables
   const layoutFallback = {
     revision: restaurant.table_layout_revision,
     initializedAt: restaurant.table_layout_initialized_at,
@@ -47,10 +48,11 @@ export default async function TablesPage({ params, searchParams }: Props) {
   const initialTableId = resolveTableDeepLink(query.tableId, tables)
 
   return (
-    <TablesOperationsShell
+    <TablesOperationsClientLoader
       restaurantId={restaurantId}
       restaurantName={restaurant.name}
       initialTables={tables}
+      initialDirectoryError={tablesResult.ok ? null : tablesResult.error}
       initialOpenSessions={Array.isArray(openSessionsResult) ? openSessionsResult : []}
       initialSessionError={Array.isArray(openSessionsResult) ? null : openSessionsResult.error}
       initialLayoutSnapshot={layoutSnapshot ?? layoutFallback}

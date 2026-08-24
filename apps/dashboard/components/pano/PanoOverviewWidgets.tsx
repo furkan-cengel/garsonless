@@ -17,6 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 import type { HeatmapCell, PanoAttentionItem, TopItem } from '../../lib/queries/pano'
 import type { PanoHealthCheck, PanoHealthStatus, PanoKpiCardModel } from './pano-view-model'
+import { selectVisiblePanoAttentionItems } from '../../lib/pano-attention-model'
 
 export function PanoCard({ title, subtitle, action, children }: { title: string; subtitle?: string; action?: ReactNode; children: ReactNode }) {
   return (
@@ -33,15 +34,18 @@ export function PanoCard({ title, subtitle, action, children }: { title: string;
 
 export function PanoCardSkeleton({ label }: { label: string }) {
   return (
-    <Card size="sm" aria-label={label} className="h-full gap-0 py-0">
-      <CardHeader className="min-h-14 border-b py-3">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-3 w-40" />
-      </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-3 p-4">
-        <Skeleton className="h-6 w-32" />
-        <Skeleton className="min-h-56 w-full flex-1" />
-      </CardContent>
+    <Card size="sm" role="status" aria-live="polite" aria-busy="true" className="h-full gap-0 py-0">
+      <span className="sr-only">{label}</span>
+      <div aria-hidden="true" className="contents">
+        <CardHeader className="min-h-14 border-b py-3">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-3 w-40" />
+        </CardHeader>
+        <CardContent className="flex flex-1 flex-col gap-3 p-4">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="min-h-56 w-full flex-1" />
+        </CardContent>
+      </div>
     </Card>
   )
 }
@@ -58,7 +62,7 @@ export function PanoEmptyState({ title, sub }: { title: string; sub?: string }) 
 }
 
 export function PanoKpiCard({ model }: { model: PanoKpiCardModel }) {
-  const indicatorTone = model.indicatorTone ?? (model.trend === 'down' ? 'critical' : 'positive')
+  const indicatorTone = model.indicatorTone ?? (model.trend === 'down' ? 'critical' : model.trend === 'flat' ? 'neutral' : 'positive')
   const indicatorVariant = {
     positive: 'positive',
     warning: 'warning',
@@ -113,7 +117,7 @@ const ATTENTION_DOTS: Record<PanoAttentionItem['severity'], string> = {
 }
 
 export function PanoAttentionQueue({ items }: { items: PanoAttentionItem[] }) {
-  const visibleItems = items.slice(0, 6)
+  const visibleItems = selectVisiblePanoAttentionItems(items)
   return (
     <section id="pano-attention" aria-labelledby="pano-attention-title">
       <PanoCard
@@ -297,7 +301,11 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
             · {maximum} sipariş
           </p>
           {view === 'heatmap' ? (
-            <div className="pano-peak-view" aria-label="Isı haritası görünümü">
+            <div
+              className="pano-peak-view"
+              role="group"
+              aria-label={`Isı haritası. En yoğun zaman ${days[peakDay]} ${String(peakHour).padStart(2, '0')}:00, ${maximum} sipariş. Ayrıntılı değerler için Tablo görünümünü seçin.`}
+            >
               <div className="pano-heatmap-scroll">
                 <div
                   style={{
@@ -312,10 +320,8 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
                   {HEATMAP_HOURS.map((hour) => (
                     <span
                       key={hour}
-                      className="pano-number"
+                      className="pano-number pano-heatmap-axis"
                       style={{
-                        fontSize: 8,
-                        color: 'var(--text-4)',
                         textAlign: 'center',
                       }}
                     >
@@ -324,14 +330,7 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
                   ))}
                   {days.map((day, dayIndex) => (
                     <Fragment key={day}>
-                      <span
-                        style={{
-                          fontSize: 9.5,
-                          color: 'var(--text-3)',
-                          paddingRight: 5,
-                          fontWeight: 500,
-                        }}
-                      >
+                      <span className="pano-heatmap-axis" style={{ paddingRight: 5, fontWeight: 600 }}>
                         {day}
                       </span>
                       {HEATMAP_HOURS.map((hour) => {
@@ -343,9 +342,10 @@ export function PanoPeakHours({ heatmap }: { heatmap: HeatmapCell[] }) {
                           <span
                             key={key}
                             className="pano-heatmap-cell"
-                            role="img"
+                            role={count > 0 ? 'img' : undefined}
                             tabIndex={count > 0 ? 0 : -1}
-                            aria-label={label}
+                            aria-label={count > 0 ? label : undefined}
+                            aria-hidden={count === 0 ? 'true' : undefined}
                             onMouseEnter={(event) => showMouseTooltip(event, key, day, hour, count)}
                             onMouseLeave={() => setTooltip((current) => (current?.key === key ? null : current))}
                             onFocus={(event) => showFocusTooltip(event, key, day, hour, count)}
@@ -458,8 +458,8 @@ export function PanoSystemHealth({ checks, onRetry, retrying }: { checks: PanoHe
       title="Canlı bağlantı"
       subtitle="Senkronizasyon ve sistem sinyalleri"
       action={
-        <Button variant="ghost" size="sm" onClick={onRetry} disabled={retrying} aria-label="Pano canlı verilerini yeniden dene">
-          {retrying ? <Spinner data-icon="inline-start" aria-label="Yenileniyor" /> : <I.refresh data-icon="inline-start" />}
+        <Button variant="ghost" size="sm" onClick={onRetry} disabled={retrying} aria-busy={retrying} aria-label="Pano canlı verilerini yeniden dene">
+          {retrying ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <I.refresh data-icon="inline-start" />}
           {retrying ? 'Yenileniyor' : 'Yenile'}
         </Button>
       }

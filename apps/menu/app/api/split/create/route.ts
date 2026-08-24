@@ -39,6 +39,9 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ sha
   if (!await publicRestaurantHasFeature(table.restaurantId, 'split_payments')) {
     return NextResponse.json({ success: false, error: 'Bu özellik Pro paketi gerektirir.' }, { status: 403 })
   }
+  if (method === 'iyzico' && !await publicRestaurantHasFeature(table.restaurantId, 'online_payments')) {
+    return NextResponse.json({ success: false, error: 'Kartla ödeme bu işletmede aktif değil.' }, { status: 403 })
+  }
   const session = await getCustomerSession()
   const result = await declareSplitShare(
     { actor: 'table-guest', restaurantId: table.restaurantId, tableId: table.tableId, tableToken },

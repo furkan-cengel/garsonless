@@ -43,7 +43,9 @@ test('billing mutations resolve owner authority before provider configuration or
 })
 
 test('checkout price and callback origin are server-derived instead of client supplied', () => {
-  assert.match(actions, /const providerPlan = config\.plans\[parsed\.data\.plan\]\[parsed\.data\.interval\]/)
+  assert.match(actions, /config\.plans\[parsed\.data\.plan\]\[parsed\.data\.interval\]/)
+  assert.match(actions, /config\.addOns\?\.iyzico_online_payments\?\.\[parsed\.data\.interval\]/)
+  assert.match(actions, /addOns: parsed\.data\.addOns/)
   assert.match(actions, /amount: \{ minor: providerPlan\.amountMinor, currency: 'TRY' \}/)
   assert.match(actions, /expectedProviderPlanRef: providerPlan\.referenceCode/)
   assert.match(actions, /providerPlanRef: providerPlan\.referenceCode/)
@@ -70,7 +72,7 @@ test('billing webhook rejects the wrong media type and marks every response no-s
 })
 
 test('billing settings are read only for a verified owner and degrade without breaking other settings', () => {
-  assert.match(settingsPage, /actor\.isOwner\s*\?\s*readSubscriptionBillingSettings/)
+  assert.match(settingsPage, /actor\.isOwner && initialSection === 'billing'/)
   assert.match(settingsPage, /readSubscriptionBillingSettings\(actor, restaurantId, createSubscriptionBillingSettingsReadPort\(\)\)/)
   assert.match(settingsPage, /billing=\{billing\?\.ok \? billing\.value : null\}/)
   assert.match(settingsPage, /billingLoadError=\{billing && !billing\.ok \? billing\.error : null\}/)
@@ -91,7 +93,8 @@ test('owner checkout UI keeps provider HTML isolated and omits provider diagnost
 })
 
 test('successful provider return opens the owner billing section instead of losing context', () => {
-  assert.match(settingsPage, /const initialSection = resolveSettingsSection\(query\.section, actor\.isOwner === true\)/)
+  assert.match(settingsPage, /const requestedSection = resolveSettingsSection\(query\.section, actor\.isOwner === true\)/)
+  assert.match(settingsPage, /const initialSection = !productAccess && !continuitySections\.has\(requestedSection\)/)
   assert.match(settingsPage, /query\.checkout === 'success' \? 'success' : null/)
   assert.match(settingsForm, /useState<SectionId>\(initialSection\)/)
 })

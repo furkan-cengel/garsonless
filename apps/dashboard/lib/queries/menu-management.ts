@@ -9,12 +9,14 @@ import {
   type MenuItemRecommendationRow,
 } from '@garsonless/db/server'
 import { getDashboardFeatureContext } from './context'
+import { sanitizeServerDiagnostic } from '../server-log-redaction'
 
 interface MenuManagementData {
   categories: Tables<'menu_categories'>[]
   items: Tables<'menu_items'>[]
   kitchenStations: Tables<'kitchen_stations'>[]
   recommendations: MenuItemRecommendationRow[]
+  recommendationsAvailable: boolean
 }
 
 export type MenuManagementResult =
@@ -29,13 +31,20 @@ export const getMenuManagementData = cache(async function getMenuManagementData(
   restaurantId: string,
 ): Promise<MenuManagementResult> {
   const context = await getDashboardFeatureContext(restaurantId)
-  if (!context) return { ok: false, error: 'Not authorized' }
+  if (!context) return { ok: false, error: 'Bu menüyü görüntüleme yetkiniz yok.' }
   const result = await readMenuManagement(context, restaurantId, menuReadModel)
-  if (!result.ok) return { ok: false, error: result.error }
+  if (!result.ok) {
+    console.error('[menu-management-read-failure]', sanitizeServerDiagnostic(result.error))
+    return { ok: false, error: 'Menü verileri yüklenemedi.' }
+  }
   try {
     const recommendations = await listMenuItemRecommendations(restaurantId)
-    return { ok: true, data: { ...result.value, recommendations } }
+    return { ok: true, data: { ...result.value, recommendations, recommendationsAvailable: true } }
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'Ürün önerileri yüklenemedi.' }
+    console.error('[menu-recommendations-read-failure]', sanitizeServerDiagnostic(error))
+    return {
+      ok: true,
+      data: { ...result.value, recommendations: [], recommendationsAvailable: false },
+    }
   }
 })

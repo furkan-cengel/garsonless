@@ -27,6 +27,7 @@ test('conflicts preserve the draft while success reconciles the canonical projec
     assert.match(component, /result\.code === 'CONFLICT'/)
     assert.match(component, /mergeCanonicalSettings/)
     assert.match(component, /Bağlantı kesildi\. Taslağın korundu/)
+    assert.match(component, /notifySettingsConflict/)
   }
   assert.match(loyalty, /setCfg\(canonicalLoyalty as unknown as LoyaltyConfig\)/)
 })

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Tables } from '@garsonless/db/types'
+import type { MenuWorkspaceStage } from './menu-manager-view-model'
 
 type MenuCategory = Tables<'menu_categories'>
 type MenuItem = Tables<'menu_items'>
@@ -27,11 +28,34 @@ export function useMenuManagerShellState({
   const [categoryAddRequest, setCategoryAddRequest] = useState(0)
   const [search, setSearch] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
+  const [workspaceStage, setWorkspaceStage] = useState<MenuWorkspaceStage>('categories')
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [toastTone, setToastTone] = useState<'error' | 'success'>('error')
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const editorReturnFocusRef = useRef<HTMLElement | null>(null)
+  const itemEditDirtyRef = useRef(itemEditDirty)
 
   useEffect(() => setMounted(true), [])
+  useEffect(() => { itemEditDirtyRef.current = itemEditDirty }, [itemEditDirty])
+
+  useEffect(() => {
+    if (itemEditDirtyRef.current) return
+    setCategories(initialCategories)
+    setItems(initialItems)
+    setSelectedItem((current) => current
+      ? (initialItems.find((item) => item.id === current.id) ?? null)
+      : null)
+    setActiveCategory((current) => (
+      current && initialCategories.some((category) => category.id === current)
+        ? current
+        : initialCategories.find((category) => !category.parent_id)?.id ?? null
+    ))
+    setActiveSubCategory((current) => (
+      current && initialCategories.some((category) => category.id === current)
+        ? current
+        : null
+    ))
+  }, [initialCategories, initialItems])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -39,10 +63,20 @@ export function useMenuManagerShellState({
         event.preventDefault()
         searchInputRef.current?.focus()
       }
+      if (
+        event.key === 'Escape'
+        && search
+        && workspaceStage !== 'editor'
+        && !document.querySelector('[role="dialog"][aria-modal="true"]')
+      ) {
+        event.preventDefault()
+        setSearch('')
+        setWorkspaceStage('categories')
+      }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [search, workspaceStage])
 
   const showError = useCallback((message: string) => {
     setToastMessage(message)
@@ -61,7 +95,12 @@ export function useMenuManagerShellState({
 
   function selectItem(item: MenuItem) {
     if (selectedItem?.id === item.id) return
-    requestEditorExit(() => setSelectedItem(item))
+    const source = document.activeElement
+    if (source instanceof HTMLElement) editorReturnFocusRef.current = source
+    requestEditorExit(() => {
+      setSelectedItem(item)
+      setWorkspaceStage('editor')
+    })
   }
 
   function selectCategory(id: string) {
@@ -75,6 +114,7 @@ export function useMenuManagerShellState({
         setActiveSubCategory(null)
       }
       setSelectedItem(null)
+      setWorkspaceStage('items')
     })
   }
 
@@ -117,6 +157,7 @@ export function useMenuManagerShellState({
   }
 
   function requestAddCategory() {
+    setWorkspaceStage('categories')
     setCategoryAddRequest((current) => current + 1)
   }
 
@@ -139,11 +180,29 @@ export function useMenuManagerShellState({
       setActiveCategory(targetCategoryId)
       setActiveSubCategory(null)
     }
+    setWorkspaceStage('items')
     setShowAddItem(true)
   }
 
   function closeItemEditor() {
-    requestEditorExit(() => setSelectedItem(null))
+    requestEditorExit(() => {
+      setSelectedItem(null)
+      setWorkspaceStage('items')
+      requestAnimationFrame(() => editorReturnFocusRef.current?.focus())
+    })
+  }
+
+  function updateSearch(value: string) {
+    setSearch(value)
+    if (value) setWorkspaceStage('items')
+  }
+
+  function goBack() {
+    if (workspaceStage === 'editor') {
+      closeItemEditor()
+      return
+    }
+    setWorkspaceStage('categories')
   }
 
   function keepEditing() {
@@ -174,13 +233,14 @@ export function useMenuManagerShellState({
     setActiveSubCategory,
     selectedItem,
     setSelectedItem,
+    itemEditDirty,
     setItemEditDirty,
     pendingEditorExit,
     showAddItem,
     setShowAddItem,
     categoryAddRequest,
     search,
-    setSearch,
+    setSearch: updateSearch,
     searchFocused,
     setSearchFocused,
     searchInputRef,
@@ -204,5 +264,8 @@ export function useMenuManagerShellState({
     closeItemEditor,
     keepEditing,
     discardPendingChanges,
+    workspaceStage,
+    setWorkspaceStage,
+    goBack,
   }
 }

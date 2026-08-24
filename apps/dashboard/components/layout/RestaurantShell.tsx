@@ -2,12 +2,11 @@
 
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { serviceRequestLabel } from '@garsonless/domain/tables'
 import { OPEN_ORDER_STATUSES } from '@garsonless/domain/orders'
 import { ShellContext, type ShellOverlay } from '../../lib/shell-context'
-import { createDashboardBrowserClient } from '../../lib/supabase'
 import type { NotificationPrefs } from '../../lib/notification-prefs'
 import { useGlobalOrderAlerts } from '../notifications/useGlobalOrderAlerts'
 import type { Order } from '../orders/useOrdersRealtime'
@@ -53,23 +52,24 @@ export function RestaurantShellSkeleton() {
 const MOBILE_RAIL_SHELL_CSS = `
 @media (max-width: 760px) {
   .restaurant-shell--mobile-rail {
+    --mobile-rail-safe-area: env(safe-area-inset-bottom, 0px);
     height: 100dvh !important;
     flex-direction: column !important;
   }
   .restaurant-shell--mobile-rail .restaurant-main {
     order: 1;
     width: 100%;
-    height: calc(100dvh - 58px);
+    height: calc(100dvh - 58px - var(--mobile-rail-safe-area));
     flex: none !important;
   }
   .restaurant-shell--mobile-rail .restaurant-rail {
     order: 2;
     width: 100% !important;
-    height: 58px;
+    height: calc(58px + var(--mobile-rail-safe-area));
     flex-direction: row !important;
     align-items: center !important;
     gap: 2px !important;
-    padding: 6px 8px !important;
+    padding: 6px 8px calc(6px + var(--mobile-rail-safe-area)) !important;
     overflow-x: hidden;
     overflow-y: hidden;
     border-right: 0 !important;
@@ -84,9 +84,11 @@ const MOBILE_RAIL_SHELL_CSS = `
     align-items: center;
     overflow-x: auto;
     overflow-y: hidden;
-    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
+    mask-image: linear-gradient(to right, transparent, #000 10px, #000 calc(100% - 10px), transparent);
   }
-  .restaurant-shell--mobile-rail .restaurant-rail .rail-primary::-webkit-scrollbar { display: none; }
+  .restaurant-shell--mobile-rail .restaurant-rail .rail-primary .rail-item { scroll-snap-align: center; }
   .restaurant-shell--mobile-rail .restaurant-rail .rail-secondary {
     margin-top: 0 !important;
     margin-left: auto;
@@ -137,6 +139,7 @@ export default function RestaurantShell({
   children,
 }: Props) {
   const pathname = usePathname()
+  const router = useRouter()
   const isCustomersRoute = pathname.includes('/customers')
   const [overlay, setOverlay] = useState<ShellOverlay>(null)
   const [ordersBadge, setOrdersBadge] = useState(0)
@@ -158,6 +161,40 @@ export default function RestaurantShell({
   const getNavigationGuard = useCallback(() => navigationGuardRef.current, [])
 
   useEffect(() => closeOverlay(), [closeOverlay, pathname])
+
+  useEffect(() => {
+    if (isOwner) return
+    let cancelled = false
+    const clientPromise = import('../../lib/supabase').then(({ createDashboardBrowserClient }) => createDashboardBrowserClient())
+    const channelPromise = clientPromise.then(async (supabase) => {
+      const { data } = await supabase.auth.getSession()
+      if (cancelled || !data.session) return null
+      await supabase.realtime.setAuth(data.session.access_token)
+      const userId = data.session.user.id
+      return supabase
+        .channel(`membership-revision:${restaurantId}:${userId}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'restaurant_members', filter: `restaurant_id=eq.${restaurantId}` },
+          (payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
+            const row = payload.eventType === 'DELETE' ? payload.old : payload.new
+            if (row['user_id'] !== userId) return
+            if (payload.eventType === 'DELETE' || row['status'] !== 'active') {
+              window.location.assign('/dashboard')
+              return
+            }
+            router.refresh()
+          },
+        )
+        .subscribe()
+    })
+    return () => {
+      cancelled = true
+      void Promise.all([clientPromise, channelPromise]).then(([supabase, channel]) => {
+        if (channel) void supabase.removeChannel(channel)
+      })
+    }
+  }, [isOwner, restaurantId, router])
 
   // Read via a ref so the realtime effect always sees server-resolved prefs
   // without serializing the restaurant settings blob into the client shell.
@@ -189,12 +226,14 @@ export default function RestaurantShell({
   }, [restaurantId])
 
   useEffect(() => {
-    const supabase = createDashboardBrowserClient()
     let cancelled = false
     let reconcileTimeout: ReturnType<typeof setTimeout> | null = null
+    const clientPromise = import('../../lib/supabase').then(({ createDashboardBrowserClient }) => createDashboardBrowserClient())
 
     const refreshCount = async () => {
       if (document.visibilityState !== 'visible') return
+      const supabase = await clientPromise
+      if (cancelled) return
       // Same operational scope as the Orders board: every order that still
       // needs action, including work carried across restaurant-day rollover.
       const { count } = await supabase
@@ -226,6 +265,7 @@ export default function RestaurantShell({
     // Global anon order reads were retired. Realtime also honours RLS, so the
     // socket must carry the dashboard session JWT before this channel starts.
     const subscribe = async () => {
+      const supabase = await clientPromise
       const { data } = await supabase.auth.getSession()
       if (cancelled) return null
       if (data.session) await supabase.realtime.setAuth(data.session.access_token)
@@ -265,7 +305,9 @@ export default function RestaurantShell({
       clearInterval(interval)
       if (reconcileTimeout) clearTimeout(reconcileTimeout)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      void channelPromise.then((channel) => { if (channel) void supabase.removeChannel(channel) })
+      void Promise.all([clientPromise, channelPromise]).then(([supabase, channel]) => {
+        if (channel) void supabase.removeChannel(channel)
+      })
     }
   }, [restaurantId, onOrderInsert, onOrderUpdate])
 
@@ -281,14 +323,15 @@ export default function RestaurantShell({
   }, [refreshInboxUnread, overlay])
 
   useEffect(() => {
-    const supabase = createDashboardBrowserClient()
     let cancelled = false
+    const clientPromise = import('../../lib/supabase').then(({ createDashboardBrowserClient }) => createDashboardBrowserClient())
 
     // notification_inbox is fully closed to anon, so the realtime socket MUST
     // carry the authenticated JWT or RLS silently drops every event. Set it
     // explicitly before subscribing (the anon-readable tables never needed
     // this, which is why the other badges worked without it).
     const subscribe = async () => {
+      const supabase = await clientPromise
       const { data } = await supabase.auth.getSession()
       if (cancelled) return null
       if (data.session) await supabase.realtime.setAuth(data.session.access_token)
@@ -316,19 +359,22 @@ export default function RestaurantShell({
       cancelled = true
       clearInterval(interval)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      void channelPromise.then((channel) => { if (channel) void supabase.removeChannel(channel) })
+      void Promise.all([clientPromise, channelPromise]).then(([supabase, channel]) => {
+        if (channel) void supabase.removeChannel(channel)
+      })
     }
   }, [restaurantId, refreshInboxUnread])
 
   // Waiter-call notifications: resolve a table label only after the first
   // request for that table, then retain it in a restaurant-scoped client cache.
   useEffect(() => {
-    const supabase = createDashboardBrowserClient()
     let cancelled = false
+    const clientPromise = import('../../lib/supabase').then(({ createDashboardBrowserClient }) => createDashboardBrowserClient())
 
     const resolveTableLabel = async (tableId: string): Promise<string> => {
       const cached = tableLabelsRef.current[tableId]
       if (cached) return cached
+      const supabase = await clientPromise
       const { data } = await supabase
         .from('tables')
         .select('label')
@@ -342,6 +388,7 @@ export default function RestaurantShell({
     }
 
     const subscribe = async () => {
+      const supabase = await clientPromise
       const { data } = await supabase.auth.getSession()
       if (cancelled) return null
       if (data.session) await supabase.realtime.setAuth(data.session.access_token)
@@ -366,7 +413,9 @@ export default function RestaurantShell({
     return () => {
       cancelled = true
       tableLabelsRef.current = {}
-      void channelPromise.then((channel) => { if (channel) void supabase.removeChannel(channel) })
+      void Promise.all([clientPromise, channelPromise]).then(([supabase, channel]) => {
+        if (channel) void supabase.removeChannel(channel)
+      })
     }
   }, [restaurantId])
 

@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useState, type KeyboardEvent } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Tables } from '@garsonless/db/types'
 import { AccessibleDialog } from './AccessibleDialog'
 import { mapDBTables, MENU_ORIGIN } from './tables-builder-model'
@@ -31,11 +32,12 @@ const TablesQRProperties = dynamic(() => import('./TablesQRProperties').then((mo
   loading: () => <aside className="tb-tables__props" aria-label="QR tasarım araçları" aria-busy="true" style={{ width: 'var(--props)', flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', display: 'grid', placeItems: 'center' }}><span role="status">Tasarım araçları hazırlanıyor…</span></aside>,
 })
 
-interface Props {
+export interface TablesBuilderShellProps {
   restaurantId: string
   restaurantName: string
   restaurantSlug: string
   initialTables: Tables<'tables'>[]
+  initialDirectoryError?: string | null
   initialQrTokens: Record<string, string>
   initialQRStyle?: unknown
   initialQRStyleRevision: number
@@ -46,10 +48,12 @@ export default function TablesBuilderShell({
   restaurantName,
   restaurantSlug,
   initialTables,
+  initialDirectoryError = null,
   initialQrTokens,
   initialQRStyle,
   initialQRStyleRevision,
-}: Props) {
+}: TablesBuilderShellProps) {
+  const router = useRouter()
   const baseQRUrl = `${MENU_ORIGIN}/${restaurantSlug}`
   const [tables, setTables] = useState<TableItem[]>(() => mapDBTables(initialTables, [], initialQrTokens))
   const [activeId, setActiveId] = useState(() => tables[0]?.id ?? '')
@@ -117,6 +121,12 @@ export default function TablesBuilderShell({
               <div role="alert" style={{ padding: '8px 14px', background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ flex: 1 }}>{operationError}</span>
                 <button type="button" aria-label="QR hatasını kapat" onClick={() => setOperationError(null)} style={{ width: 32, height: 32, border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer' }}>×</button>
+              </div>
+            )}
+            {initialDirectoryError && (
+              <div role="alert" className="tb-tables__directory-error">
+                <span>{initialDirectoryError}</span>
+                <button type="button" onClick={() => router.refresh()}>Tekrar dene</button>
               </div>
             )}
             <div className="tb-tables__workspace" style={{ flex: 1, display: 'flex', minHeight: 0 }}>

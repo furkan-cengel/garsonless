@@ -75,7 +75,7 @@ export interface StoreInfo {
     tiktok?: string
     whatsapp?: string
   } | null
-  hours?: Record<string, { open?: string; close?: string; active?: boolean }> | null
+  hours?: Record<string, { open?: string; close?: string; active?: boolean; intervals?: Array<{ open: string; close: string }> }> | null
 }
 
 interface MemberChipSummary {

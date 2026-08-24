@@ -6,11 +6,10 @@ import type { OperationalOrderStatus } from '@garsonless/db/browser'
 import { OPEN_ORDER_STATUSES } from '@garsonless/domain/orders'
 import {
   ORDERS_REALTIME_SAFETY_INTERVAL_MS,
+  ORDERS_REALTIME_DEBOUNCE_MS,
   canonicalOrderSnapshot,
   normalizeRealtimeOrder,
-  removeCanonicalOrder,
   rollbackOrderStatus,
-  upsertCanonicalOrder,
   type OrdersRealtimeStatus,
 } from './order-realtime-model'
 
@@ -55,6 +54,7 @@ export function useOrdersRealtime(
   const reconciliationRevisionRef = useRef(0)
   const optimisticTokensRef = useRef(new Map<string, number>())
   const nextOptimisticTokenRef = useRef(0)
+  const failedReconcilesRef = useRef(0)
 
   useEffect(() => {
     mountedRef.current = true
@@ -112,6 +112,7 @@ export function useOrdersRealtime(
 
   const retryRealtime = useCallback(() => {
     if (!mountedRef.current) return
+    failedReconcilesRef.current = 0
     setConnectionStatus('reconnecting')
     setSubscriptionGeneration((generation) => generation + 1)
   }, [])
@@ -120,15 +121,30 @@ export function useOrdersRealtime(
     let cancelled = false
     let socketSubscribed = false
     let channel: ReturnType<typeof supabase.channel> | null = null
+    let debounceTimer: number | null = null
 
-    const applyCanonical = (raw: Record<string, unknown>) => {
-      const incoming = normalizeRealtimeOrder(raw)
-      if (!incoming) {
-        setConnectionStatus('offline')
+    const reconcileLive = async (announce = false) => {
+      if (cancelled) return
+      // Routine invalidations are normal operation, not a connection problem.
+      // Keep the board visibly live while the fresh snapshot is reconciled.
+      if (announce) setConnectionStatus('reconnecting')
+      const ok = await reconcileOrders()
+      if (cancelled) return
+      if (ok && socketSubscribed) {
+        failedReconcilesRef.current = 0
+        setConnectionStatus('live')
         return
       }
-      optimisticTokensRef.current.delete(incoming.id)
-      setOrders((current) => upsertCanonicalOrder(current, incoming))
+      failedReconcilesRef.current += 1
+      setConnectionStatus(socketSubscribed && failedReconcilesRef.current >= 2 ? 'stale' : socketSubscribed ? 'reconnecting' : 'offline')
+    }
+
+    const scheduleReconcile = () => {
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer)
+      debounceTimer = window.setTimeout(() => {
+        debounceTimer = null
+        void reconcileLive(false)
+      }, ORDERS_REALTIME_DEBOUNCE_MS)
     }
 
     const subscribe = async () => {
@@ -143,29 +159,18 @@ export function useOrdersRealtime(
         if (cancelled) return
 
         channel = supabase
-          .channel(`orders:${restaurantId}:${subscriptionGeneration}`)
+          .channel(`orders-invalidations:${restaurantId}:${subscriptionGeneration}`)
           .on('postgres_changes', {
-            event: 'INSERT', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}`,
-          }, (payload: { new: Record<string, unknown> }) => applyCanonical(payload.new))
-          .on('postgres_changes', {
-            event: 'UPDATE', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}`,
-          }, (payload: { new: Record<string, unknown> }) => applyCanonical(payload.new))
-          .on('postgres_changes', {
-            event: 'DELETE', schema: 'public', table: 'orders',
-          }, (payload: { old: Record<string, unknown> }) => {
-            const deletedId = typeof payload.old['id'] === 'string' ? payload.old['id'] : null
-            if (!deletedId) return
-            optimisticTokensRef.current.delete(deletedId)
-            setOrders((current) => removeCanonicalOrder(current, deletedId))
+            event: '*', schema: 'public', table: 'pano_invalidations', filter: `restaurant_id=eq.${restaurantId}`,
+          }, (payload: { new: Record<string, unknown> }) => {
+            if (payload.new['source'] === 'orders') scheduleReconcile()
           })
           .subscribe((status) => {
             if (cancelled) return
             if (status === 'SUBSCRIBED') {
               socketSubscribed = true
               setConnectionStatus(subscriptionGeneration > 0 ? 'reconnecting' : 'connecting')
-              void reconcileOrders().then((ok) => {
-                if (!cancelled) setConnectionStatus(ok && socketSubscribed ? 'live' : 'offline')
-              })
+              void reconcileLive(false)
             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
               socketSubscribed = false
               setConnectionStatus('reconnecting')
@@ -197,10 +202,7 @@ export function useOrdersRealtime(
         retryRealtime()
         return
       }
-      setConnectionStatus('reconnecting')
-      void reconcileOrders().then((ok) => {
-        if (!cancelled) setConnectionStatus(ok && socketSubscribed ? 'live' : 'offline')
-      })
+      void reconcileLive(false)
     }
     const handleOnline = () => retryRealtime()
     const handleOffline = () => {
@@ -219,6 +221,7 @@ export function useOrdersRealtime(
       socketSubscribed = false
       reconciliationRevisionRef.current += 1
       window.clearInterval(safetyTimer)
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer)
       document.removeEventListener('visibilitychange', reconcileVisible)
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)

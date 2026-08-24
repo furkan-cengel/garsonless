@@ -8,7 +8,7 @@ import {
   type AllergenCode,
   type MenuIngredient,
 } from '@garsonless/db/browser'
-import { createCategory, createItem } from '../../lib/actions/menu'
+import { importMenuRows } from '../../lib/actions/menu'
 
 export interface CsvPreviewRow {
   sourceRow: number
@@ -37,6 +37,7 @@ interface UseMenuCsvImportOptions {
   categories: Tables<'menu_categories'>[]
   items: Tables<'menu_items'>[]
   onCategoriesCreated: (categories: Tables<'menu_categories'>[]) => void
+  onItemsCreated: (items: Tables<'menu_items'>[]) => void
   onComplete: (message: string, tone: 'error' | 'success') => void
   onRefresh: () => void
 }
@@ -70,6 +71,7 @@ export function useMenuCsvImport({
   categories,
   items,
   onCategoriesCreated,
+  onItemsCreated,
   onComplete,
   onRefresh,
 }: UseMenuCsvImportOptions) {
@@ -168,7 +170,7 @@ export function useMenuCsvImport({
           const errors: string[] = []
           if (!name) errors.push('Ad boş')
           if (!category) errors.push('Kategori boş')
-          if (isNaN(price) || price < 0) errors.push('Geçersiz fiyat')
+          if (isNaN(price) || price <= 0) errors.push('Geçersiz fiyat')
           if (energyKcal !== null && (!Number.isInteger(energyKcal) || energyKcal < 0)) errors.push('Geçersiz kalori')
           if (unmatchedRemovables.length > 0) errors.push(`İçerikte yok: ${unmatchedRemovables.join(', ')}`)
           if (allergens.unknown.length > 0) errors.push(`Bilinmeyen alerjen: ${allergens.unknown.join(', ')}`)
@@ -221,88 +223,37 @@ export function useMenuCsvImport({
       importProgress: { done: 0, total: validRows.length },
     } : null)
 
-    const grouped = new Map<string, CsvPreviewRow[]>()
-    for (const row of validRows) {
-      grouped.set(row.category, [...(grouped.get(row.category) ?? []), row])
+    const result = await importMenuRows(restaurantId, validRows.map((row) => ({
+      sourceRow: row.sourceRow,
+      category: row.category,
+      name: row.name,
+      description: row.description,
+      price: row.price,
+      ingredients: row.ingredients,
+      energyKcal: row.energyKcal,
+      mayContainAllergens: row.mayContainAllergens,
+      containsAlcohol: row.containsAlcohol,
+      containsPork: row.containsPork,
+    })))
+    if ('error' in result) {
+      setPreview((current) => current ? { ...current, importing: false, importProgress: null } : null)
+      onComplete(result.error, 'error')
+      return
     }
 
-    let done = 0
-    let failed = 0
-    let firstFailure: string | null = null
-    const failures: Array<{ row: number; category: string; name: string; error: string }> = []
-    const createdCategories: Tables<'menu_categories'>[] = []
-
-    for (const [categoryName, rows] of grouped) {
-      let categoryId = [...categories, ...createdCategories]
-        .find((category) => category.name.toLowerCase() === categoryName.toLowerCase() && !category.parent_id)?.id
-      if (!categoryId) {
-        const formData = new FormData()
-        formData.append('restaurantId', restaurantId)
-        formData.append('name', categoryName)
-        const result = await createCategory(null, formData)
-        if ('error' in result) {
-          failed += rows.length
-          firstFailure ??= result.error
-          failures.push(...rows.map((row) => ({ row: row.sourceRow, category: row.category, name: row.name, error: result.error })))
-          setPreview((current) => current ? {
-            ...current,
-            importProgress: { done: done + failed, total: validRows.length },
-          } : null)
-          continue
-        }
-        categoryId = result.id
-        createdCategories.push({
-          id: categoryId,
-          restaurant_id: restaurantId,
-          name: categoryName,
-          description: null,
-          image_url: null,
-          position: 0,
-          is_visible: true,
-          vat_rate: 10,
-          kitchen_station_id: null,
-          parent_id: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          deleted_at: null,
-        })
-      }
-
-      for (const row of rows) {
-        const formData = new FormData()
-        formData.append('categoryId', categoryId)
-        formData.append('restaurantId', restaurantId)
-        formData.append('name', row.name)
-        formData.append('description', row.description)
-        formData.append('price', String(row.price))
-        formData.append('is_available', 'true')
-        formData.append('ingredients', JSON.stringify(row.ingredients))
-        formData.append('energy_kcal', row.energyKcal === null ? '' : String(row.energyKcal))
-        formData.append('may_contain_allergens', JSON.stringify(row.mayContainAllergens))
-        formData.append('contains_alcohol', String(row.containsAlcohol))
-        formData.append('contains_pork', String(row.containsPork))
-        formData.append('food_info_reviewed', 'false')
-        const result = await createItem(null, formData)
-        if ('error' in result) {
-          failed++
-          firstFailure ??= result.error
-          failures.push({ row: row.sourceRow, category: row.category, name: row.name, error: result.error })
-          continue
-        }
-        done++
-        setPreview((current) => current ? {
-          ...current,
-          importProgress: { done: done + failed, total: validRows.length },
-        } : null)
-      }
-    }
-
-    if (createdCategories.length > 0) onCategoriesCreated(createdCategories)
-    if (failures.length > 0) downloadCsvImportFailures(failures)
+    const done = result.items.length
+    const failed = result.failures.length
+    if (result.categories.length > 0) onCategoriesCreated(result.categories)
+    if (result.items.length > 0) onItemsCreated(result.items)
+    if (result.failures.length > 0) downloadCsvImportFailures(result.failures)
+    setPreview((current) => current ? {
+      ...current,
+      importProgress: { done: validRows.length, total: validRows.length },
+    } : null)
     setPreview(null)
     onComplete(
       failed > 0
-        ? `${done} ürün aktarıldı, ${failed} ürün aktarılamadı; hata raporu indirildi${firstFailure ? `: ${firstFailure}` : ''}`
+        ? `${done} ürün aktarıldı, ${failed} ürün aktarılamadı; hata raporu indirildi.`
         : `${done} ürün başarıyla içe aktarıldı`,
       failed > 0 ? 'error' : 'success',
     )

@@ -5,8 +5,8 @@ import type { Tables } from '@garsonless/db/types'
 import { I, S, Tag, btnPrimary } from '../../lib/ui'
 import { InlineSpinner } from '@garsonless/ui/spinners'
 import { SCard, FormRow, Toggle, inputStyle } from './primitives'
-import { saveBusinessHours, updateSettings } from '../../lib/actions/restaurant'
-import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
+import { saveBusinessHours, updateRestaurantTimezone, updateSettings } from '../../lib/actions/restaurant'
+import { notifySettingsSaved, useSettingsDirtyState } from './settings-dirty-state'
 import {
   mergeCanonicalSettings,
   prepareSettingsMutationAttempt,
@@ -15,6 +15,7 @@ import {
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Spinner } from '../ui/spinner'
+import { notifySettingsConflict } from './settings-conflict-state'
 
 /* ── STORE ────────────────────────────────────────── */
 function StoreField({
@@ -79,7 +80,7 @@ const gridStyle = (columns: string): CSSProperties => ({
   padding: 18,
 })
 
-export function StoreSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
+export function StoreSection({ restaurant, isOwner }: { restaurant: Tables<'restaurants'>; isOwner: boolean }) {
   const existing = (restaurant.settings as Record<string, unknown> | null) ?? {}
   const settingsSnapshotRef = useRef(existing)
   const mutationAttemptRef = useRef<SettingsMutationAttempt | null>(null)
@@ -101,13 +102,47 @@ export function StoreSection({ restaurant }: { restaurant: Tables<'restaurants'>
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
+  const [timezone, setTimezone] = useState(restaurant.timezone || 'Europe/Istanbul')
+  const initialTimezoneRef = useRef(restaurant.timezone || 'Europe/Istanbul')
+  const timezoneRequestRef = useRef<string | null>(null)
+  const [timezoneMessage, setTimezoneMessage] = useState('')
+  const [timezonePending, startTimezoneTransition] = useTransition()
+  const initialContactRef = useRef({ phone, email, website, address, district, city, zip, instagram, facebook, tiktok, whatsapp })
+  const contactDraft = { phone, email, website, address, district, city, zip, instagram, facebook, tiktok, whatsapp }
+  const storeDirty = JSON.stringify(contactDraft) !== JSON.stringify(initialContactRef.current)
+  useSettingsDirtyState('store:contact', storeDirty)
+  const timezoneDirty = timezone !== initialTimezoneRef.current
+  useSettingsDirtyState('store:timezone', isOwner && timezoneDirty)
+
+  function saveTimezone() {
+    setTimezoneMessage('')
+    const requestId = timezoneRequestRef.current ?? crypto.randomUUID()
+    timezoneRequestRef.current = requestId
+    startTimezoneTransition(async () => {
+      try {
+        const result = await updateRestaurantTimezone(restaurant.id, {
+          timezone,
+          expectedTimezone: initialTimezoneRef.current,
+          requestId,
+        })
+        if ('error' in result) { setTimezoneMessage(result.error); return }
+        initialTimezoneRef.current = result.timezone
+        timezoneRequestRef.current = null
+        setTimezone(result.timezone)
+        setTimezoneMessage('Zaman dilimi kaydedildi.')
+        notifySettingsSaved('store:timezone')
+      } catch {
+        setTimezoneMessage('Bağlantı kesildi. Seçiminiz korundu; tekrar deneyebilirsiniz.')
+      }
+    })
+  }
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setSaved(false)
     const settingsPatch = {
-      contact: { phone, email, website, address, district, city, zip, instagram, facebook, tiktok, whatsapp },
+      contact: contactDraft,
     }
     const attempt = prepareSettingsMutationAttempt(mutationAttemptRef.current, {
       patch: settingsPatch,
@@ -126,14 +161,22 @@ export function StoreSection({ restaurant }: { restaurant: Tables<'restaurants'>
         return
       }
       if ('error' in result) {
-        if (result.code === 'CONFLICT') mutationAttemptRef.current = null
+        if (result.code === 'CONFLICT') {
+          mutationAttemptRef.current = null
+          const canonicalSettings = result.canonicalSettings ?? {}
+          notifySettingsConflict({
+            source: 'store:contact', canonicalSettings, draft: settingsPatch,
+            prepareReapply: () => { settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, canonicalSettings) },
+          })
+        }
         setError(result.error)
         return
       }
       settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, result.canonicalSettings)
+      initialContactRef.current = contactDraft
       mutationAttemptRef.current = null
       setSaved(true)
-      notifySettingsSaved()
+      notifySettingsSaved('store:contact')
     })
   }
 
@@ -160,7 +203,7 @@ export function StoreSection({ restaurant }: { restaurant: Tables<'restaurants'>
               menu.masabu.co/{restaurant.slug}
             </div>
           </div>
-          <Tag tone="positive">Canlı bilgi</Tag>
+          <Tag tone="neutral">Kayıtlı bilgi</Tag>
         </div>
         <div style={{
           padding: '11px 18px',
@@ -193,48 +236,8 @@ export function StoreSection({ restaurant }: { restaurant: Tables<'restaurants'>
       </SCard>
 
       <SCard title="Adres" subtitle="Yol tarifi, checkout ve fiş adres alanlarında kullanılır" style={{ marginTop: 16 }}>
-        <div style={{ padding: 18, paddingBottom: 0 }}>
-          <div style={{
-            minHeight: 132,
-            borderRadius: 12,
-            border: '1px solid var(--border)',
-            background: 'linear-gradient(135deg, #eef2ee 0%, #e2ebe4 100%)',
-            position: 'relative',
-            overflow: 'hidden',
-          }}>
-            <svg width="100%" height="132" viewBox="0 0 640 132" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M0 42 L190 56 L306 28 L446 49 L560 28 L640 42" stroke="#fff" strokeWidth="7" fill="none" />
-              <path d="M0 98 L146 106 L284 84 L422 101 L540 92 L640 101" stroke="#fff" strokeWidth="5" fill="none" opacity=".75" />
-              <path d="M306 0 L324 132" stroke="#fff" strokeWidth="4" opacity=".8" />
-              <path d="M478 0 L494 132" stroke="#fff" strokeWidth="3" opacity=".6" />
-              <rect x="30" y="20" width="90" height="48" fill="rgba(47,111,78,.09)" rx="4" />
-              <rect x="360" y="84" width="150" height="42" fill="rgba(47,111,78,.09)" rx="4" />
-              <rect x="150" y="102" width="90" height="26" fill="rgba(47,111,78,.09)" rx="4" />
-            </svg>
-            <div style={{ position: 'absolute', left: '50%', top: '52%', transform: 'translate(-50%, -100%)', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,.22))' }}>
-              <svg width="31" height="40" viewBox="0 0 34 44" aria-hidden="true">
-                <path d="M17 0a14 14 0 0 1 14 14c0 10-14 30-14 30S3 24 3 14A14 14 0 0 1 17 0Z" fill="var(--accent)" />
-                <circle cx="17" cy="14" r="5" fill="#fff" />
-              </svg>
-            </div>
-            <div style={{
-              position: 'absolute',
-              left: 12,
-              bottom: 12,
-              maxWidth: 'calc(100% - 24px)',
-              background: 'var(--surface)',
-              borderRadius: 8,
-              padding: '7px 11px',
-              boxShadow: 'var(--shadow-2)',
-              fontSize: 11.5,
-              color: 'var(--text-2)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}>
-              {[address, district, city, zip].filter(Boolean).join(', ') || 'Adres bilgisi girilmedi'}
-            </div>
-          </div>
+        <div style={{ padding: '14px 18px 0', fontSize: 12, color: 'var(--text-2)', lineHeight: 1.45 }}>
+          Bu alan yalnızca kayıtlı adres metnidir; harita veya konum doğrulaması yapılmaz.
         </div>
         <div style={gridStyle('2fr 1fr')}>
           <StoreField label="Adres">
@@ -251,6 +254,27 @@ export function StoreSection({ restaurant }: { restaurant: Tables<'restaurants'>
           </StoreField>
         </div>
       </SCard>
+
+      {isOwner && <SCard title="Bölgesel ayarlar" subtitle="Rapor ve operasyon gün sınırlarını belirler" style={{ marginTop: 16 }}>
+        <FormRow label="Zaman dilimi" hint="IANA zaman dilimi; yalnız işletme sahibi değiştirebilir">
+          <select value={timezone} onChange={(event) => { setTimezone(event.target.value); setTimezoneMessage(''); timezoneRequestRef.current = null }} style={storeInputStyle({ width: 230 })}>
+            <option value="Europe/Istanbul">Europe/Istanbul</option>
+            <option value="Europe/London">Europe/London</option>
+            <option value="Europe/Berlin">Europe/Berlin</option>
+            <option value="Asia/Dubai">Asia/Dubai</option>
+            <option value="America/New_York">America/New_York</option>
+          </select>
+        </FormRow>
+        <FormRow label="Ürün politikası" hint="Çoklu para birimi ve locale bu iterasyonda kapalıdır">
+          <Tag tone="neutral">Türkçe · TRY · tr-TR</Tag>
+        </FormRow>
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t p-4">
+          {timezoneMessage && <span role={timezoneMessage.includes('kaydedildi') ? 'status' : 'alert'} className="mr-auto text-xs">{timezoneMessage}</span>}
+          <Button type="button" variant="outline" disabled={timezonePending || !timezoneDirty} onClick={saveTimezone}>
+            {timezonePending && <Spinner data-icon="inline-start" />}Zaman dilimini kaydet
+          </Button>
+        </div>
+      </SCard>}
 
       <SCard title="Sosyal medya" subtitle="Müşteri menüsündeki sosyal medya bölümünde görünür" style={{ marginTop: 16 }}>
         <div style={gridStyle('1fr 1fr')}>
@@ -278,7 +302,7 @@ export function StoreSection({ restaurant }: { restaurant: Tables<'restaurants'>
         <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
           {error || (saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydedin')}
         </span>
-        <button type="submit" disabled={isPending} style={btnPrimary()}>
+        <button type="submit" disabled={isPending || !storeDirty} style={btnPrimary()}>
           {isPending ? <InlineSpinner size={13} color="var(--on-action)" /> : <I.check size={13} />}{isPending ? 'Kaydediliyor…' : 'Kaydet'}
         </button>
       </div>
@@ -297,7 +321,7 @@ const HOUR_DAYS = [
   { key: 'sun', label: 'Pazar' },
 ]
 
-interface DaySchedule { open: string; close: string; active: boolean }
+interface DaySchedule { open: string; close: string; active: boolean; intervals: Array<{ open: string; close: string }> }
 
 export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
   const existing = (restaurant.settings as Record<string, unknown> | null) ?? {}
@@ -307,10 +331,23 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
 
   const getDay = (key: string): DaySchedule => {
     const d = hoursRaw[key] as Record<string, unknown> | undefined
-    return {
+    const legacy = {
       open: typeof d?.['open'] === 'string' ? d['open'] : '08:00',
       close: typeof d?.['close'] === 'string' ? d['close'] : '22:00',
+    }
+    const intervals = Array.isArray(d?.['intervals'])
+      ? d['intervals'].flatMap((value) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+        const interval = value as Record<string, unknown>
+        return typeof interval['open'] === 'string' && typeof interval['close'] === 'string'
+          ? [{ open: interval['open'], close: interval['close'] }]
+          : []
+      }).slice(0, 3)
+      : []
+    return {
+      ...legacy,
       active: d?.['active'] !== false,
+      intervals: intervals.length > 0 ? intervals : [legacy],
     }
   }
 
@@ -320,11 +357,39 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
+  const initialScheduleRef = useRef(schedule)
+  const hoursDirty = JSON.stringify(schedule) !== JSON.stringify(initialScheduleRef.current)
+  useSettingsDirtyState('hours:schedule', hoursDirty)
 
   function update(key: string, patch: Partial<DaySchedule>) {
     setSaved(false)
-    notifySettingsDirty()
     setSchedule(prev => ({ ...prev, [key]: { ...prev[key]!, ...patch } }))
+  }
+
+  function updateInterval(key: string, index: number, patch: Partial<{ open: string; close: string }>) {
+    setSaved(false)
+    setSchedule((previous) => {
+      const day = previous[key]!
+      const intervals = day.intervals.map((interval, intervalIndex) => intervalIndex === index ? { ...interval, ...patch } : interval)
+      return { ...previous, [key]: { ...day, intervals, open: intervals[0]!.open, close: intervals[0]!.close } }
+    })
+  }
+
+  function addInterval(key: string) {
+    setSchedule((previous) => {
+      const day = previous[key]!
+      if (day.intervals.length >= 3) return previous
+      return { ...previous, [key]: { ...day, intervals: [...day.intervals, { open: '12:00', close: '14:00' }] } }
+    })
+  }
+
+  function removeInterval(key: string, index: number) {
+    setSchedule((previous) => {
+      const day = previous[key]!
+      const intervals = day.intervals.filter((_, intervalIndex) => intervalIndex !== index)
+      const safe = intervals.length > 0 ? intervals : [{ open: '08:00', close: '22:00' }]
+      return { ...previous, [key]: { ...day, intervals: safe, open: safe[0]!.open, close: safe[0]!.close } }
+    })
   }
 
   function handleSave(e: React.FormEvent) {
@@ -349,14 +414,22 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
         return
       }
       if ('error' in result) {
-        if (result.code === 'CONFLICT') mutationAttemptRef.current = null
+        if (result.code === 'CONFLICT') {
+          mutationAttemptRef.current = null
+          const canonicalSettings = result.canonicalSettings ?? {}
+          notifySettingsConflict({
+            source: 'hours:schedule', canonicalSettings, draft: settingsPatch,
+            prepareReapply: () => { settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, canonicalSettings) },
+          })
+        }
         setError(result.error)
         return
       }
       settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, result.canonicalSettings)
+      initialScheduleRef.current = schedule
       mutationAttemptRef.current = null
       setSaved(true)
-      notifySettingsSaved()
+      notifySettingsSaved('hours:schedule')
     })
   }
 
@@ -364,7 +437,7 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
 
   return (
     <form onSubmit={handleSave} aria-busy={isPending}>
-      <SCard title="Haftalık program" subtitle="Müşteriler menüde bu saatleri görür. Gece yarısını aşan saatler için ayrı vardiya desteği yakında.">
+      <SCard title="Haftalık program" subtitle="Her gün için üç servis aralığı eklenebilir; kapanış açılıştan erkense aralık gece yarısını aşar.">
         {HOUR_DAYS.map((day, i) => {
           const s = schedule[day.key]!
           const isToday = i === todayIdx
@@ -382,22 +455,26 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
                 {isToday && <span style={{ color: 'var(--text-3)', fontWeight: 400, fontSize: 11, marginLeft: 6 }}>Bugün</span>}
               </div>
               {s.active ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {s.intervals.map((interval, intervalIndex) => <div key={intervalIndex} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <input
-                    aria-label={`${day.label} açılış saati`}
+                    aria-label={`${day.label} ${intervalIndex + 1}. açılış saati`}
                     type="time"
-                    value={s.open}
-                    onChange={e => update(day.key, { open: e.target.value })}
+                    value={interval.open}
+                    onChange={e => updateInterval(day.key, intervalIndex, { open: e.target.value })}
                     style={inputStyle({ width: 90, fontFamily: "'Geist Mono'" })}
                   />
                   <span style={{ color: 'var(--text-3)' }}>—</span>
                   <input
-                    aria-label={`${day.label} kapanış saati`}
+                    aria-label={`${day.label} ${intervalIndex + 1}. kapanış saati`}
                     type="time"
-                    value={s.close}
-                    onChange={e => update(day.key, { close: e.target.value })}
+                    value={interval.close}
+                    onChange={e => updateInterval(day.key, intervalIndex, { close: e.target.value })}
                     style={inputStyle({ width: 90, fontFamily: "'Geist Mono'" })}
                   />
+                  {s.intervals.length > 1 && <Button type="button" size="sm" variant="ghost" onClick={() => removeInterval(day.key, intervalIndex)} aria-label={`${day.label} ${intervalIndex + 1}. aralığı kaldır`}>Kaldır</Button>}
+                  </div>)}
+                  {s.intervals.length < 3 && <Button type="button" size="sm" variant="outline" className="w-fit" onClick={() => addInterval(day.key)}>Servis aralığı ekle</Button>}
                 </div>
               ) : (
                 <span style={{ fontSize: 12, color: 'var(--text-3)' }}>Kapalı</span>
@@ -415,7 +492,7 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
         <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
           {error || (saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydedin')}
         </span>
-        <button type="submit" disabled={isPending} style={btnPrimary()}>
+        <button type="submit" disabled={isPending || !hoursDirty} style={btnPrimary()}>
           {isPending ? <InlineSpinner size={13} color="var(--on-action)" /> : <I.check size={13} />}{isPending ? 'Kaydediliyor…' : 'Kaydet'}
         </button>
       </div>
@@ -440,13 +517,17 @@ export function TaxSection({ restaurant }: { restaurant: Tables<'restaurants'> }
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
+  const initialTaxRef = useRef({ company, taxNumber, office, tcVkn, address })
+  const taxDraft = { company, taxNumber, office, tcVkn, address }
+  const taxDirty = JSON.stringify(taxDraft) !== JSON.stringify(initialTaxRef.current)
+  useSettingsDirtyState('tax:company', taxDirty)
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setSaved(false)
     const settingsPatch = {
-      tax: { company, taxNumber, office, tcVkn, address },
+      tax: taxDraft,
     }
     const attempt = prepareSettingsMutationAttempt(mutationAttemptRef.current, {
       patch: settingsPatch,
@@ -465,14 +546,22 @@ export function TaxSection({ restaurant }: { restaurant: Tables<'restaurants'> }
         return
       }
       if ('error' in result) {
-        if (result.code === 'CONFLICT') mutationAttemptRef.current = null
+        if (result.code === 'CONFLICT') {
+          mutationAttemptRef.current = null
+          const canonicalSettings = result.canonicalSettings ?? {}
+          notifySettingsConflict({
+            source: 'tax:company', canonicalSettings, draft: settingsPatch,
+            prepareReapply: () => { settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, canonicalSettings) },
+          })
+        }
         setError(result.error)
         return
       }
       settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, result.canonicalSettings)
+      initialTaxRef.current = taxDraft
       mutationAttemptRef.current = null
       setSaved(true)
-      notifySettingsSaved()
+      notifySettingsSaved('tax:company')
     })
   }
 
@@ -513,7 +602,7 @@ export function TaxSection({ restaurant }: { restaurant: Tables<'restaurants'> }
         <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
           {error || (saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydedin')}
         </span>
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending || !taxDirty}>
           {isPending ? <Spinner data-icon="inline-start" /> : <I.check data-icon="inline-start" />}
           {isPending ? 'Kaydediliyor…' : 'Kaydet'}
         </Button>

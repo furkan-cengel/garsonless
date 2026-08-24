@@ -5,6 +5,7 @@ import {
   DndContext,
   DragOverlay,
   closestCenter,
+  KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
@@ -12,6 +13,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { canTransitionOrderStatus, type OperationalOrderStatus, type OrderLifecycleTarget } from '@garsonless/db/browser'
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import type { Order } from './useOrdersRealtime'
 import OrderColumn from './OrderColumn'
 import OrderCard, { type OrderDensity } from './OrderCard'
@@ -39,6 +41,8 @@ interface Props {
   pendingOrderIds: ReadonlySet<string>
   lateThresholdMin?: number
   density?: OrderDensity
+  now: number
+  activeMobileStage?: string | null
 }
 
 export default function OrderBoardDnd({
@@ -54,11 +58,14 @@ export default function OrderBoardDnd({
   pendingOrderIds,
   lateThresholdMin,
   density = 'comfortable',
+  now,
+  activeMobileStage = null,
 }: Props) {
   const [activeOrder, setActiveOrder] = useState<Order | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
   const ordersByColumn = useMemo(() => Object.fromEntries(
     columns.map((column) => [
@@ -96,11 +103,22 @@ export default function OrderBoardDnd({
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      accessibility={{
+        screenReaderInstructions: {
+          draggable: 'Siparişi taşımak için boşluk tuşuna basın. Ok tuşlarıyla hedef duruma ilerleyin ve bırakmak için tekrar boşluk tuşuna basın.',
+        },
+        announcements: {
+          onDragStart: ({ active }) => `${active.id} siparişi taşınıyor.`,
+          onDragOver: ({ active, over }) => over ? `${active.id} siparişi ${String(over.id)} hedefinin üzerinde.` : `${active.id} siparişi geçerli bir hedefin üzerinde değil.`,
+          onDragEnd: ({ active, over }) => over ? `${active.id} siparişi ${String(over.id)} hedefine bırakıldı.` : `${active.id} siparişi taşınmadı.`,
+          onDragCancel: ({ active }) => `${active.id} siparişinin taşınması iptal edildi.`,
+        },
+      }}
     >
       <div className="orders-kanban" style={{ display: 'flex', gap: 12, minWidth: 'max-content', height: '100%' }}>
         {columns.map(col => (
+          <div key={col.id} className="orders-column-slot" data-orders-stage={col.id} data-mobile-active={activeMobileStage === null || activeMobileStage === col.id ? 'true' : 'false'}>
           <OrderColumn
-            key={col.id}
             column={col}
             orders={ordersByColumn[col.id] ?? []}
             tableLabels={tableLabels}
@@ -110,7 +128,9 @@ export default function OrderBoardDnd({
             pendingOrderIds={pendingOrderIds}
             lateThresholdMin={lateThresholdMin}
             density={density}
+            now={now}
           />
+          </div>
         ))}
       </div>
       <DragOverlay>
@@ -119,6 +139,7 @@ export default function OrderBoardDnd({
             order={activeOrder}
             tableLabel={tableLabels[activeOrder.table_id ?? ''] ?? 'Walk-in'}
             density={density}
+            now={now}
           />
         )}
       </DragOverlay>

@@ -6,11 +6,64 @@ import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from '@/components/ui/toast'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 import { useEffect, useRef, type ChangeEvent, type CSSProperties, type RefObject } from 'react'
 import PageTopBar from '../layout/PageTopBar'
 import { I } from '../../lib/ui'
 import { deriveMenuManagerEmptyState } from './menu-manager-view-model'
+import type { MenuWorkspaceStage } from './menu-manager-view-model'
+import type { MenuLiveStatus } from './use-menu-live-state'
+
+export function MenuLiveNotice({
+  status,
+  updatePending,
+  onRetry,
+}: {
+  status: MenuLiveStatus
+  updatePending: boolean
+  onRetry: () => void
+}) {
+  if (status === 'live' && !updatePending) return null
+  return (
+    <div
+      className="menu-live-notice"
+      role="status"
+      aria-live="polite"
+      style={{
+        minHeight: 34,
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+        padding: '5px 14px',
+        borderBottom: '1px solid var(--divider)',
+        background: updatePending ? 'var(--warning-bg)' : 'var(--surface-2)',
+        color: 'var(--text-2)',
+        fontSize: 12,
+      }}
+    >
+      <span>
+        {updatePending
+          ? 'Başka bir oturumda güncelleme var. Açık taslağın korunuyor.'
+          : status === 'offline'
+            ? 'Canlı bağlantı kesildi. Son yüklenen menü gösteriliyor.'
+            : 'Canlı bağlantı kuruluyor…'}
+      </span>
+      {status === 'offline' && (
+        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+          Yeniden bağlan
+        </Button>
+      )}
+    </div>
+  )
+}
 
 export function MenuManagerTopBar({
   restaurantName,
@@ -26,6 +79,10 @@ export function MenuManagerTopBar({
   onOpenImport,
   onOpenAddCategory,
   onOpenAddItem,
+  workspaceStage,
+  mobileContext,
+  onMobileBack,
+  onClearSearch,
 }: {
   restaurantName: string
   publicMenuPath: string
@@ -40,6 +97,10 @@ export function MenuManagerTopBar({
   onOpenImport: () => void
   onOpenAddCategory: () => void
   onOpenAddItem: () => void
+  workspaceStage: MenuWorkspaceStage
+  mobileContext: string
+  onMobileBack: () => void
+  onClearSearch: () => void
 }) {
   const creationState = deriveMenuManagerEmptyState({
     categoryCount,
@@ -49,8 +110,12 @@ export function MenuManagerTopBar({
 
   return (
     <PageTopBar
+      className="menu-manager-topbar"
       restaurantName={restaurantName}
       title="Menü"
+      tag={<span className="menu-mobile-context">{mobileContext}</span>}
+      onBack={workspaceStage === 'categories' ? undefined : onMobileBack}
+      backLabel={workspaceStage === 'editor' ? 'Ürünlere dön' : 'Kategorilere dön'}
       center={
         <InputGroup className="menu-search-control min-w-[300px] border-transparent bg-[var(--surface-3)] shadow-none" style={{ width: 'min(420px, 34vw)' }}>
           <InputGroupAddon>
@@ -64,6 +129,7 @@ export function MenuManagerTopBar({
             onFocus={() => onSearchFocusChange(true)}
             onBlur={() => onSearchFocusChange(false)}
             placeholder="Ürün veya kategori ara"
+            aria-label="Ürün veya kategori ara"
             style={{ fontSize: 12.5, color: 'var(--text)' }}
           />
           {!search && !searchFocused && (
@@ -83,23 +149,49 @@ export function MenuManagerTopBar({
       right={
         <>
           <Input ref={importFileInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={onImportFileChange} />
-          <Button className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick={onOpenImport}>
+          <Button aria-label="İçe aktar" className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick={onOpenImport}>
             <I.upload data-icon="inline-start" size={13} />
-            İçe aktar
+            <span className="menu-top-action-label">İçe aktar</span>
           </Button>
           <Button
             className="menu-top-action menu-top-action-secondary"
+            aria-label="Menüyü önizle"
             variant="outline"
             size="sm"
             onClick={() => window.open(`${process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'}${publicMenuPath}`, '_blank')}
           >
             <I.eye data-icon="inline-start" size={13} />
-            Önizle
+            <span className="menu-top-action-label">Önizle</span>
           </Button>
-          <Button className="menu-top-action menu-top-action-primary" size="sm" onClick={requiresCategory ? onOpenAddCategory : onOpenAddItem}>
-            <I.plus data-icon="inline-start" size={13} />
-            {requiresCategory ? 'Kategori ekle' : 'Yeni ürün'}
+          <Button className="menu-top-action menu-top-action-primary" size="sm" onClick={search ? onClearSearch : requiresCategory ? onOpenAddCategory : onOpenAddItem}>
+            {search ? <I.close data-icon="inline-start" size={13} /> : <I.plus data-icon="inline-start" size={13} />}
+            {search ? 'Aramayı temizle' : requiresCategory ? 'Kategori ekle' : 'Yeni ürün'}
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label="Menü işlemleri"
+              className="menu-mobile-overflow"
+              render={<Button type="button" variant="outline" size="icon" />}
+            >
+              <I.more />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-44">
+              {search ? (
+                <DropdownMenuItem onClick={onClearSearch}>
+                  <I.close />
+                  Aramayı temizle
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuItem onClick={onOpenImport}>
+                <I.upload />
+                İçe aktar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.open(`${process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'}${publicMenuPath}`, '_blank')}>
+                <I.eye />
+                Önizle
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </>
       }
     />
@@ -175,6 +267,7 @@ export function MenuManagerSkeleton() {
     >
       <div aria-hidden="true" style={{ display: 'contents' }}>
         <div
+          className="menu-manager-skeleton-topbar"
           style={{
             height: 52,
             borderBottom: '1px solid var(--border)',
@@ -202,8 +295,9 @@ export function MenuManagerSkeleton() {
             {skel({ width: 30, height: 30 })}
           </div>
         </div>
-        <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <div className="menu-manager-skeleton-workspace" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           <div
+            className="menu-manager-skeleton-categories"
             style={{
               width: 'var(--nav)',
               flexShrink: 0,
@@ -257,6 +351,7 @@ export function MenuManagerSkeleton() {
             </div>
           </div>
           <div
+            className="menu-manager-skeleton-items"
             style={{
               flex: 1,
               minWidth: 0,
@@ -329,6 +424,7 @@ export function MenuManagerSkeleton() {
             </div>
           </div>
           <div
+            className="menu-manager-skeleton-props"
             style={{
               width: 'var(--props)',
               flexShrink: 0,

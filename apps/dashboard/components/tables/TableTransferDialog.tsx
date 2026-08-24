@@ -13,13 +13,13 @@ import { Field, FieldLabel } from '@/components/ui/field'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { getSessionSettlement } from '../../lib/actions/settlement'
 import type { SettlementLineItem } from '../../lib/settlement-items'
 import { getTransferHistory, moveTable, transferOrderItemsToTable, transferOrdersToTable, undoTransfer, type TransferHistoryItem } from '../../lib/actions/tables'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
-import { SETTLEMENT_LOAD_ERROR, withSettlementLoadTimeout } from './settlement-load'
+import { clearRecentSettlementLoads, SETTLEMENT_LOAD_ERROR } from './settlement-load'
 import { TableTransferOrderSelector } from './TableTransferOrderSelector'
 import { TableTransferHistory, type TransferHistoryLoadState } from './TableTransferHistory'
+import { loadTransferableOrders, transferOrdersLoadKey } from './transfer-orders-load'
 import {
   buildInitialTransferItemSelection,
   fullySelectedOrderIds,
@@ -30,7 +30,7 @@ import {
 } from './table-transfer-selection-model'
 type Mode = 'table_move' | 'account_transfer' | 'history'
 type OrdersLoadState = 'idle' | 'loading' | 'ready' | 'error'
-type TransferOrder = { id: string; total: number; items: SettlementLineItem[]; paid_at: string | null }
+type TransferOrder = { id: string; total: number; items: SettlementLineItem[]; paidAt: string | null }
 const EMPTY_ORDER_IDS: string[] = []
 
 export default function TableTransferDialog({ open, mode: initialMode, sourceTableId, restaurantId, tables, sessions, initialOrderIds = EMPTY_ORDER_IDS, selectAllInitially = false, onClose, onChanged }: {
@@ -54,6 +54,10 @@ export default function TableTransferDialog({ open, mode: initialMode, sourceTab
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const sourceSession = sourceTableId ? sessions[sourceTableId] : undefined
+  const sourceSessionId = sourceSession?.sessionId
+  const sourceSessionRevisionKey = sourceSession
+    ? transferOrdersLoadKey(restaurantId, sourceSession)
+    : null
   const wholeAccountOnlyReason = sourceSession && (sourceSession.splitSettledTotal > 0 || sourceSession.splitDeclaredCashTotal > 0)
     ? 'Bu adisyonda bölünmüş ödeme var; yalnız hesabın tamamı taşınabilir.'
     : null
@@ -86,11 +90,11 @@ export default function TableTransferDialog({ open, mode: initialMode, sourceTab
         })
       return () => { active = false }
     }
-    if (initialMode === 'account_transfer' && sourceSession) {
+    if (initialMode === 'account_transfer' && sourceSessionId) {
       setOrders([])
       setOrdersLoadError('')
       setOrdersLoadState('loading')
-      void withSettlementLoadTimeout(() => getSessionSettlement(sourceSession.sessionId, restaurantId))
+      void loadTransferableOrders(restaurantId, sourceSessionId, sourceSessionRevisionKey ?? '')
         .then((result) => {
           if (!active) return
           if ('error' in result) {
@@ -98,9 +102,8 @@ export default function TableTransferDialog({ open, mode: initialMode, sourceTab
             setOrdersLoadState('error')
             return
           }
-          const nextOrders = result.orders.map(({ id, total, items, paidAt }) => ({ id, total, items, paid_at: paidAt }))
-          setOrders(nextOrders)
-          setSelected(buildInitialTransferItemSelection(nextOrders, initialOrderIds, selectAllInitially || Boolean(wholeAccountOnlyReason)))
+          setOrders(result)
+          setSelected(buildInitialTransferItemSelection(result, initialOrderIds, selectAllInitially || Boolean(wholeAccountOnlyReason)))
           setOrdersLoadState('ready')
         })
         .catch(() => {
@@ -110,7 +113,7 @@ export default function TableTransferDialog({ open, mode: initialMode, sourceTab
         })
     }
     return () => { active = false }
-  }, [historyReloadKey, initialMode, initialOrderIds, open, restaurantId, sourceSession, ordersReloadKey, selectAllInitially, wholeAccountOnlyReason])
+  }, [historyReloadKey, initialMode, initialOrderIds, open, restaurantId, sourceSessionId, sourceSessionRevisionKey, ordersReloadKey, selectAllInitially, wholeAccountOnlyReason])
 
   if (!open) return null
   const targets = tables.filter((table) => table.id !== sourceTableId && (mode !== 'table_move' || !sessions[table.id]))
@@ -128,6 +131,8 @@ export default function TableTransferDialog({ open, mode: initialMode, sourceTab
           ? await transferOrderItemsToTable({ restaurantId, sourceTableId, targetTableId: targetId, selections: itemSelections, requestId })
           : await transferOrdersToTable({ restaurantId, sourceTableId, targetTableId: targetId, orderIds: fullySelectedOrderIds(orders, selected), requestId })
       if ('error' in result) { setError(result.error); return }
+      clearRecentSettlementLoads(`transfer:${restaurantId}:`)
+      clearRecentSettlementLoads(`settlement:${restaurantId}:`)
       onChanged(result.operationId); onClose()
     } catch {
       setError('Taşıma tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.')
@@ -186,16 +191,18 @@ export default function TableTransferDialog({ open, mode: initialMode, sourceTab
         /> : <>
           <p className="text-sm text-muted-foreground"><strong className="text-foreground">{sourceTableId?tableLabel(sourceTableId):'Masa'}</strong> üzerindeki {mode==='table_move'?'açık adisyon bütünüyle boş hedef masaya taşınacak.':'taşınacak ürünleri ve adetleri seçin. Tam seçilen siparişler bütün olarak korunur.'}</p>
           {mode==='account_transfer'&&<div className="flex flex-col gap-2">
-            {ordersLoadState==='loading'&&<div role="status" className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground"><Spinner />Siparişler yükleniyor…</div>}
+            {ordersLoadState==='loading'&&<div role="status" aria-live="polite" aria-busy="true" className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground"><Spinner aria-hidden="true" />Siparişler yükleniyor…</div>}
             {ordersLoadState==='error'&&<Alert variant="destructive"><AlertDescription className="flex flex-col gap-2">{ordersLoadError||SETTLEMENT_LOAD_ERROR}<Button type="button" variant="outline" size="sm" className="w-fit" onClick={()=>setOrdersReloadKey((value)=>value+1)}>Tekrar dene</Button></AlertDescription></Alert>}
             {ordersLoadState==='ready'&&orders.length===0&&<Empty className="border"><EmptyHeader><EmptyTitle>Taşınabilecek sipariş yok</EmptyTitle><EmptyDescription>Bu masada aktarılabilecek açık ürün bulunmuyor.</EmptyDescription></EmptyHeader></Empty>}
             {wholeAccountOnlyReason&&<Alert><AlertDescription>{wholeAccountOnlyReason}</AlertDescription></Alert>}
             {ordersLoadState==='ready'&&orders.length>0&&<TableTransferOrderSelector orders={orders} selected={selected} wholeAccountOnlyReason={wholeAccountOnlyReason} onChange={setSelected} />}
           </div>}
           <Field>
-            <FieldLabel>Hedef masa</FieldLabel>
+            <FieldLabel htmlFor="table-transfer-target">Hedef masa</FieldLabel>
             <Select value={targetId || null} onValueChange={(value) => setTargetId(value ?? '')}>
-              <SelectTrigger className="h-10 w-full"><SelectValue placeholder="Masa seçin" /></SelectTrigger>
+              <SelectTrigger id="table-transfer-target" className="h-10 w-full">
+                <SelectValue placeholder="Masa seçin">{targetId ? tableLabel(targetId) : undefined}</SelectValue>
+              </SelectTrigger>
               <SelectContent><SelectGroup>{targets.map((table)=><SelectItem key={table.id} value={table.id}>{table.label}{sessions[table.id]?' · Dolu, adisyon birleşir':' · Boş'}</SelectItem>)}</SelectGroup></SelectContent>
             </Select>
           </Field>
@@ -205,8 +212,8 @@ export default function TableTransferDialog({ open, mode: initialMode, sourceTab
         </div>
       </ScrollArea>
       {mode !== 'history' && <DialogFooter className="mx-0 mb-0 p-4">
-        <Button className="tb-transfer-dialog-submit w-full" size="lg" disabled={submitDisabled} type="button" onClick={()=>void submit()}>
-          {busy && <Spinner data-icon="inline-start" />}{mode==='account_transfer'?`Taşımayı onayla · ${selectedTransferUnitCount(selected)} adet`:'Taşımayı onayla'}
+        <Button className="tb-transfer-dialog-submit w-full" size="lg" aria-busy={busy} disabled={submitDisabled} type="button" onClick={()=>void submit()}>
+          {busy && <Spinner aria-hidden="true" data-icon="inline-start" />}{busy ? 'Taşınıyor…' : mode==='account_transfer'?`Taşımayı onayla · ${selectedTransferUnitCount(selected)} adet`:'Taşımayı onayla'}
         </Button>
       </DialogFooter>}
     </DialogContent>

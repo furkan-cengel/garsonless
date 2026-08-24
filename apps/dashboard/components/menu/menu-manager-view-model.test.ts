@@ -59,6 +59,56 @@ test('search spans categories and exposes matched category ids', () => {
   assert.equal(view.activeCategoryForPanel?.id, 'dessert')
 })
 
+test('searching a parent category exposes its products and child products', () => {
+  const view = deriveMenuManagerView({
+    categories,
+    items,
+    activeCategoryId: 'dessert',
+    activeSubCategoryId: null,
+    selectedItem: null,
+    search: 'KAHVE',
+  })
+
+  assert.deepEqual(view.visibleItems.map((item) => item.id), ['filter', 'latte'])
+  assert.deepEqual([...view.searchMatchedCategoryIds!].sort(), ['coffee', 'matcha'])
+})
+
+test('search uses Turkish case and diacritic folding', () => {
+  const localCategories = [
+    ...categories,
+    { id: 'drinks', name: 'İçecekler', parent_id: null },
+  ] as Tables<'menu_categories'>[]
+  const localItems = [
+    ...items,
+    { id: 'tea', name: 'ÇİÇEK Çayı', description: null, category_id: 'drinks' },
+  ] as Tables<'menu_items'>[]
+
+  assert.deepEqual(deriveMenuManagerView({
+    categories: localCategories,
+    items: localItems,
+    activeCategoryId: 'coffee',
+    activeSubCategoryId: null,
+    selectedItem: null,
+    search: 'icecek',
+  }).visibleItems.map((item) => item.id), ['tea'])
+  assert.deepEqual(deriveMenuManagerView({
+    categories: localCategories,
+    items: localItems,
+    activeCategoryId: 'coffee',
+    activeSubCategoryId: null,
+    selectedItem: null,
+    search: 'cicek',
+  }).visibleItems.map((item) => item.id), ['tea'])
+  assert.deepEqual(deriveMenuManagerView({
+    categories: localCategories,
+    items: localItems,
+    activeCategoryId: 'coffee',
+    activeSubCategoryId: null,
+    selectedItem: null,
+    search: 'ICECEKLER',
+  }).visibleItems.map((item) => item.id), ['tea'])
+})
+
 test('empty menu routes the primary action to category creation', () => {
   assert.deepEqual(deriveMenuManagerEmptyState({ categoryCount: 0, itemCount: 0 }), {
     title: 'Menünü oluşturmaya başla',

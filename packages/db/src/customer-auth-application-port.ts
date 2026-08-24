@@ -20,12 +20,23 @@ async function upsertCustomerIdentity(input: {
 }): Promise<EnsureCustomerResult> {
   const supabase = createServiceClient()
   const verifiedPhone = normalizePhone(input.verifiedPhone)
-  const { data, error } = await supabase.rpc('claim_customer_identity_atomic_v2', {
+  const identityArgs = {
     p_auth_user_id: input.authUserId,
+    // The SQL RPC accepts null for absent verified identities; generated
+    // function types cannot infer nullable PostgreSQL parameters.
     p_email: input.verifiedEmail,
     p_name: input.name ?? '',
     p_verified_phone: verifiedPhone,
-  })
+  } as unknown as {
+    p_auth_user_id: string
+    p_email?: string
+    p_name?: string
+    p_verified_phone?: string
+  }
+  const { data, error } = await supabase.rpc(
+    'claim_customer_identity_atomic_v2',
+    identityArgs,
+  )
   const customer = data?.[0] as Pick<CustomerRow, 'id' | 'email' | 'name'> | undefined
   if (error || !customer) {
     if (error?.code === 'GL002') {

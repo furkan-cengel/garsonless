@@ -76,12 +76,12 @@ export function TablesNavigationFeedback({
     <>
       {requestError && (
         <Alert variant="destructive" className="mx-3 mt-2 w-auto text-xs">
-          <AlertDescription className="grid gap-1.5 text-xs">İstek tamamlanamadı: {requestError}<Button type="button" variant="outline" size="xs" disabled={requestRetrying} onClick={onRetryPendingRequests} className="w-fit">{requestRetrying && <Spinner data-icon="inline-start" />}İstek listesini yenile</Button></AlertDescription>
+          <AlertDescription className="grid gap-1.5 text-xs">İstek tamamlanamadı: {requestError}<Button type="button" variant="outline" size="xs" aria-busy={requestRetrying} disabled={requestRetrying} onClick={onRetryPendingRequests} className="w-fit">{requestRetrying && <Spinner aria-hidden="true" data-icon="inline-start" />}{requestRetrying ? 'Yenileniyor…' : 'İstek listesini yenile'}</Button></AlertDescription>
         </Alert>
       )}
       {sessionError && (
         <Alert variant="destructive" className="mx-3 mt-2 w-auto text-xs">
-          <AlertDescription className="grid gap-1.5 text-xs">Masa durumu yenilenemedi: {sessionError}<Button type="button" variant="outline" size="xs" disabled={sessionRetrying} onClick={onRetrySessions} className="w-fit">{sessionRetrying && <Spinner data-icon="inline-start" />}Masa durumunu yeniden dene</Button></AlertDescription>
+          <AlertDescription className="grid gap-1.5 text-xs">Masa durumu yenilenemedi: {sessionError}<Button type="button" variant="outline" size="xs" aria-busy={sessionRetrying} disabled={sessionRetrying} onClick={onRetrySessions} className="w-fit">{sessionRetrying && <Spinner aria-hidden="true" data-icon="inline-start" />}{sessionRetrying ? 'Yenileniyor…' : 'Masa durumunu yeniden dene'}</Button></AlertDescription>
         </Alert>
       )}
       {feedbackNotice && (

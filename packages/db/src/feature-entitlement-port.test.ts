@@ -50,3 +50,29 @@ test('expired or cancelled subscription status wins over plan and override acces
   })
   assert.equal(await canRestaurantUseFeature({ restaurantId, plan: 'pro', feature: 'loyalty' }, locked), false)
 })
+
+test('online payments keep rolling-deploy compatibility until add-on projection v1 is live', async () => {
+  const legacy: FeatureEntitlementRpc = async () => ({
+    data: { accessAllowed: true, override: null }, error: null,
+  })
+  assert.equal(await canRestaurantUseFeature({
+    restaurantId, plan: 'pro', feature: 'online_payments',
+  }, legacy), true)
+
+  const addOnMissing: FeatureEntitlementRpc = async () => ({
+    data: { accessAllowed: true, override: null, addOnEntitlementsVersion: 1, activeAddOns: [] }, error: null,
+  })
+  assert.equal(await canRestaurantUseFeature({
+    restaurantId, plan: 'pro', feature: 'online_payments',
+  }, addOnMissing), false)
+
+  const addOnActive: FeatureEntitlementRpc = async () => ({
+    data: {
+      accessAllowed: true, override: null, addOnEntitlementsVersion: 1,
+      activeAddOns: ['iyzico_online_payments'],
+    }, error: null,
+  })
+  assert.equal(await canRestaurantUseFeature({
+    restaurantId, plan: 'pro', feature: 'online_payments',
+  }, addOnActive), true)
+})

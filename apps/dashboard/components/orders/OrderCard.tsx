@@ -1,14 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { memo } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, type OperationalOrderStatus, type OrderLifecycleTarget, type PaymentMethod } from '@garsonless/db/browser'
 import type { Order } from './useOrdersRealtime'
 import { I, S } from '../../lib/ui'
 import { paymentMethodBadge } from '../../lib/payment-method'
-import { formatOrderElapsedMinutes, isLateOrder, isReadyWaitingOrder, orderStageStartedAt, orderStatusGroup } from './order-status'
+import { formatOrderElapsedMinutes, projectOrderUrgency, orderStatusGroup } from './order-status'
 import { ORDER_SOURCE_LABELS } from './order-filters'
+import { formatCurrency } from '../../lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -36,63 +37,23 @@ const ACTION_LABEL: Partial<Record<OperationalOrderStatus, string>> = {
   ready:             'Servis et',
 }
 
-// Elapsed-time urgency. No per-order SLA exists in the data model, so we use
-// sensible per-stage thresholds (minutes) — ok → warn → late — to flag aging
-// orders at a glance, the way a KDS does.
-type Urgency = 'ok' | 'warn' | 'late' | 'done'
-const URG: Record<Urgency, { bg: string; fg: string }> = {
+const URG = {
   ok:   { bg: 'var(--positive-bg)', fg: 'var(--positive)' },
-  warn: { bg: 'var(--warning-bg)',  fg: 'var(--warning)' },
+  attention: { bg: 'var(--warning-bg)',  fg: 'var(--warning)' },
   late: { bg: 'var(--critical-bg)', fg: 'var(--critical)' },
   done: { bg: 'var(--surface-3)',   fg: 'var(--text-3)' },
-}
-// prep's late line is the per-restaurant setting (settings.orders.late_threshold_min,
-// default 20); warn kicks in at 60% of it. new/ready keep fixed hand-off targets.
-function urgencyFor(
-  group: 'new' | 'prep' | 'ready' | 'done',
-  mins: number,
-  lateThresholdMin: number,
-): Urgency {
-  if (group === 'done') return 'done'
-  const t = group === 'prep'
-    ? { warn: Math.max(1, Math.ceil(lateThresholdMin * 0.6)), late: lateThresholdMin }
-    : { warn: 5, late: 10 }
-  if (mins >= t.late) return 'late'
-  if (mins >= t.warn) return 'warn'
-  return 'ok'
-}
+} as const
 
-/**
- * Per-STAGE aging (P2): the clock starts when the order ENTERED its current
- * stage — prep from sent_to_kitchen_at, serve-wait from ready_at. Pre-migration
- * orders have NULL stamps → graceful fallback to created_at (today's behavior,
- * an approximation — never a fabricated stage time).
- */
-function stageStartFor(order: Order, group: 'new' | 'prep' | 'ready' | 'done'): string {
-  void group
-  return orderStageStartedAt(order)
-}
-
-function ElapsedLabel({ startAt, group, lateThresholdMin }: {
-  startAt: string
+function ElapsedLabel({ minutes, level, group }: {
+  minutes: number
+  level: keyof typeof URG
   group: 'new' | 'prep' | 'ready' | 'done'
-  lateThresholdMin: number
 }) {
-  const [mins, setMins] = useState<number | null>(null)
-
-  useEffect(() => {
-    const calc = () => Math.floor((Date.now() - new Date(startAt).getTime()) / 60_000)
-    setMins(calc())
-    const id = setInterval(() => setMins(calc()), 30_000)
-    return () => clearInterval(id)
-  }, [startAt])
-
-  if (mins === null) return null
-  const c = URG[urgencyFor(group, mins, lateThresholdMin)]
+  const c = URG[level]
   return (
     <Badge variant="secondary" style={{ background: c.bg, color: c.fg }} className="h-5 rounded-md px-1.5 text-[10px] uppercase tracking-[.03em]">
       <span style={{ width: 4, height: 4, borderRadius: 999, background: c.fg, display: 'inline-block', animation: group !== 'done' ? 'pulse-dot 2s infinite' : 'none' }} />
-      {formatOrderElapsedMinutes(mins)}
+      {formatOrderElapsedMinutes(minutes)}
     </Badge>
   )
 }
@@ -107,18 +68,17 @@ interface Props {
   /** settings.orders.late_threshold_min (clamped, default 20). */
   lateThresholdMin?: number
   density?: OrderDensity
+  now?: number
 }
 
 export type OrderDensity = 'comfortable' | 'compact' | 'dense'
 
-export default function OrderCard({ order, tableLabel, active, onClick, onAdvance, actionPending = false, lateThresholdMin = 20, density = 'comfortable' }: Props) {
+function OrderCard({ order, tableLabel, active, onClick, onAdvance, actionPending = false, lateThresholdMin = 20, density = 'comfortable', now = Date.now() }: Props) {
   // Terminal orders (served/cancelled) are NOT draggable — no way out of a
   // terminal state (the server matrix rejects it anyway; this removes the affordance).
   const terminal = orderStatusGroup(order.status) === 'done'
   const { listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: order.id, disabled: terminal || actionPending })
-
-  const [hov, setHov] = useState(false)
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -131,10 +91,9 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
   const items = readOrderLineSnapshots(order.items)
   const actionLabel = ACTION_LABEL[order.status]
   const tier = readOrderCustomerTierSnapshot(order.customer_tier)
-  // Stage-based (P2): prep age counts from sent_to_kitchen_at (fallback
-  // created_at on pre-migration orders), against the per-restaurant threshold.
-  const isLate = isLateOrder(order, lateThresholdMin)
-  const isReadyWaiting = isReadyWaitingOrder(order)
+  const urgency = projectOrderUrgency(order, lateThresholdMin, now)
+  const isLate = urgency.late
+  const isReadyWaiting = urgency.readyWaiting
   const contentPadding = density === 'dense' ? '7px 9px' : density === 'compact' ? '8px 10px' : '10px 12px'
   const visibleItemCount = density === 'comfortable' ? 2 : density === 'compact' ? 1 : 0
 
@@ -157,13 +116,11 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
       {...listeners}
       aria-busy={actionPending}
       suppressHydrationWarning
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
     >
       <Card size="sm" className="order-card-shell gap-0 py-0" style={{
         background: 'var(--surface)', borderRadius: 10,
         border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
-        boxShadow: active ? '0 0 0 3px rgba(17,17,19,.06)' : hov ? 'var(--shadow-2)' : 'var(--shadow-1)',
+        boxShadow: active ? '0 0 0 3px rgba(17,17,19,.06)' : 'var(--shadow-1)',
         cursor: 'pointer', overflow: 'hidden', position: 'relative',
         opacity: group === 'done' ? 0.75 : 1,
         transition: 'all 120ms',
@@ -177,7 +134,7 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
           data-order-card-open
           className="order-card-open"
           aria-pressed={active}
-          aria-label={`${tableLabel ?? 'Kasa'}, ${items.reduce((sum, item) => sum + Math.max(0, item.quantity), 0)} adet, ₺${order.total}. Sipariş detayını aç.`}
+          aria-label={`${tableLabel ?? 'Kasa'}, ${items.reduce((sum, item) => sum + Math.max(0, item.quantity), 0)} adet, ${formatCurrency(order.total)}. Sipariş detayını aç.`}
           onClick={onClick}
           style={{
             width: '100%', display: 'block', padding: contentPadding,
@@ -219,7 +176,7 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
                 <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 600 }}>{ORDER_SOURCE_LABELS[order.source]}</span>
               </div>
             </div>
-            <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, flexShrink: 0 }}>₺{order.total}</div>
+            <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, flexShrink: 0 }}>{formatCurrency(order.total)}</div>
           </div>
 
           {/* Mini items */}
@@ -248,7 +205,7 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
           padding: footerPadding,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
         }}>
-          <ElapsedLabel startAt={stageStartFor(order, group)} group={group} lateThresholdMin={lateThresholdMin} />
+          <ElapsedLabel minutes={urgency.minutes} level={urgency.level} group={group} />
           {actionLabel && onAdvance && (
             <Button
               type="button"
@@ -258,9 +215,10 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
               data-order-action-tone={group}
               className="order-card-action orders-touch-target"
               disabled={actionPending}
+              aria-label={`${tableLabel ?? 'Kasa'} siparişini ${group === 'new' ? 'onayla ve mutfağa gönder' : group === 'prep' ? 'hazır olarak işaretle' : 'servis edildi olarak işaretle'}`}
               onClick={(e) => { e.stopPropagation(); onAdvance(order) }}
             >
-              {actionPending && <Spinner data-icon="inline-start" />}
+              {actionPending && <Spinner data-icon="inline-start" aria-hidden="true" />}
               {actionPending ? 'İşleniyor…' : actionLabel}
             </Button>
           )}
@@ -269,3 +227,5 @@ export default function OrderCard({ order, tableLabel, active, onClick, onAdvanc
     </article>
   )
 }
+
+export default memo(OrderCard)

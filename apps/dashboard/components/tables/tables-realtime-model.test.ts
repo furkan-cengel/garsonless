@@ -11,6 +11,7 @@ test('tables realtime copy distinguishes every connection state in Turkish', () 
     connecting: 'Canlı güncelleme bağlanıyor',
     live: 'Canlı güncelleme bağlı',
     reconnecting: 'Canlı güncelleme yeniden bağlanıyor',
+    stale: 'Veriler güncel olmayabilir',
     offline: 'Canlı güncelleme kesildi',
   })
 })
@@ -23,5 +24,6 @@ test('tables realtime tones fail visibly when synchronization is unavailable', (
   assert.equal(realtimeStatusTone('live'), 'positive')
   assert.equal(realtimeStatusTone('connecting'), 'warning')
   assert.equal(realtimeStatusTone('reconnecting'), 'warning')
+  assert.equal(realtimeStatusTone('stale'), 'critical')
   assert.equal(realtimeStatusTone('offline'), 'critical')
 })

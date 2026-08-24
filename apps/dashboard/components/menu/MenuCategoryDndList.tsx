@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button'
 
 import { useState } from 'react'
-import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
+import { DndContext, DragOverlay, type Announcements, type DragEndEvent, type DragStartEvent, type ScreenReaderInstructions } from '@dnd-kit/core'
 import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Tables } from '@garsonless/db/types'
@@ -67,9 +67,23 @@ export default function MenuCategoryDndList({
   }
 
   const dragActiveCat = dragActiveId ? topLevel.find((c) => c.id === dragActiveId) : null
+  const categoryName = (id: string | number) => topLevel.find((category) => category.id === String(id))?.name ?? 'Kategori'
+  const screenReaderInstructions: ScreenReaderInstructions = {
+    draggable: 'Bir kategoriyi taşımak için Boşluk tuşuna bas. Ok tuşlarıyla yeni konumu seç, bırakmak için yeniden Boşluk tuşuna, iptal etmek için Escape tuşuna bas.',
+  }
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => `${categoryName(active.id)} kategorisi tutuldu.`,
+    onDragOver: ({ active, over }) => over
+      ? `${categoryName(active.id)} kategorisi ${categoryName(over.id)} kategorisinin konumunda.`
+      : `${categoryName(active.id)} kategorisi sıralama alanının dışında.`,
+    onDragEnd: ({ active, over }) => over
+      ? `${categoryName(active.id)} kategorisi ${categoryName(over.id)} kategorisinin konumuna taşındı.`
+      : `${categoryName(active.id)} kategorisi taşınmadı.`,
+    onDragCancel: ({ active }) => `${categoryName(active.id)} kategorisini taşıma iptal edildi.`,
+  }
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext accessibility={{ announcements, screenReaderInstructions }} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <SortableContext items={topLevel.map((c) => c.id)} strategy={verticalListSortingStrategy}>
         {topLevel.map((c) => {
           const directCount = items.filter((i) => i.category_id === c.id).length
@@ -259,8 +273,9 @@ function CategoryRow({
         borderRadius: 7,
       }}
     >
-      <Button
+      <button
         type="button"
+        className="menu-category-select"
         onClick={onClick}
         aria-current={active ? 'true' : undefined}
         style={{
@@ -272,6 +287,10 @@ function CategoryRow({
           padding: 0,
           border: 0,
           background: 'transparent',
+          borderRadius: 0,
+          boxShadow: 'none',
+          filter: 'none',
+          transform: 'none',
           color: 'inherit',
           cursor: 'pointer',
           textAlign: 'left',
@@ -304,7 +323,7 @@ function CategoryRow({
         >
           {name}
         </span>
-      </Button>
+      </button>
       <span
         style={{
           ...S.mono,
@@ -332,7 +351,7 @@ function CategoryRow({
           <>
             <Button
               type="button"
-              aria-label="Düzenle"
+              aria-label={`${name} kategorisini düzenle`}
               onClick={onEdit}
               style={{
                 color: 'var(--text-2)',
@@ -348,7 +367,7 @@ function CategoryRow({
             </Button>
             <Button
               type="button"
-              aria-label="Sil"
+              aria-label={`${name} kategorisini sil`}
               onClick={onDelete}
               style={{
                 color: 'var(--critical)',
@@ -396,7 +415,7 @@ function SortableCategoryRow(props: { id: string; name: string; count: number; a
               padding: 2,
               touchAction: 'none',
             }}
-            aria-label="Sırala"
+            aria-label={`${props.name} kategorisini sırala`}
           >
             <I.drag size={13} />
           </span>

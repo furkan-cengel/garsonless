@@ -37,15 +37,18 @@ export interface TeamCommandPort {
     restaurantId: string
     memberId: string
     permissions: TeamSection[]
+    actorUserId: string
   }): Promise<Result<TeamCommandTarget>>
   setStatus(input: {
     restaurantId: string
     memberId: string
     status: 'active' | 'disabled'
+    actorUserId: string
   }): Promise<Result<TeamCommandTarget>>
   remove(input: {
     restaurantId: string
     memberId: string
+    actorUserId: string
   }): Promise<Result<{ email: string }>>
   resendInvite(input: {
     restaurantId: string
@@ -97,7 +100,7 @@ export async function updateTeamMemberPermissions(
   if (!access.ok) return access
   const permissions = validPermissions(input.permissions)
   if (!permissions.ok) return permissions
-  return port.updatePermissions({ ...input, permissions: permissions.value })
+  return port.updatePermissions({ ...input, permissions: permissions.value, actorUserId: context.userId })
 }
 
 export async function setTeamMemberStatus(
@@ -106,7 +109,7 @@ export async function setTeamMemberStatus(
   port: TeamCommandPort,
 ): Promise<Result<TeamCommandTarget>> {
   const access = requireTeamOwner(context, input.restaurantId)
-  return access.ok ? port.setStatus(input) : access
+  return access.ok ? port.setStatus({ ...input, actorUserId: context.userId }) : access
 }
 
 export async function removeTeamMember(
@@ -115,7 +118,7 @@ export async function removeTeamMember(
   port: TeamCommandPort,
 ): Promise<Result<{ email: string }>> {
   const access = requireTeamOwner(context, input.restaurantId)
-  return access.ok ? port.remove(input) : access
+  return access.ok ? port.remove({ ...input, actorUserId: context.userId }) : access
 }
 
 export async function resendTeamInvite(

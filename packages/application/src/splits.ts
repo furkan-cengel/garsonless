@@ -44,6 +44,10 @@ export interface SplitPaymentPort {
     restaurantId: string
     shareId: string
   }): Promise<Result<true>>
+  voidUnstartedOnlineShare(input: {
+    restaurantId: string
+    shareId: string
+  }): Promise<Result<'voided' | 'provider_pending' | 'already_resolved' | 'not_found'>>
   settleShare(input: {
     restaurantId: string
     shareId: string
@@ -154,6 +158,21 @@ export async function releaseSplitCheckout(
 ): Promise<Result<true>> {
   if (!hasSameRestaurant(context, input.restaurantId)) return err('Invalid table context')
   return port.releaseOnlineCheckout(input)
+}
+
+/** Cancels only a card share that never received a provider token. The DB
+ * repeats the token absence check under the share lock, so a real checkout can
+ * never be cleared by this recovery path. */
+export async function cancelUnstartedSplitShare(
+  context: Extract<CommandContext, { actor: 'table-guest' | 'dashboard-member' }>,
+  input: { restaurantId: string; shareId: string },
+  port: SplitPaymentPort,
+): Promise<Result<'voided' | 'provider_pending' | 'already_resolved' | 'not_found'>> {
+  if (!hasSameRestaurant(context, input.restaurantId)) return err('Not authorized')
+  if (context.actor === 'dashboard-member' && !context.permissions.includes('tables')) {
+    return err('Not authorized')
+  }
+  return port.voidUnstartedOnlineShare(input)
 }
 
 export async function confirmDashboardCashShare(

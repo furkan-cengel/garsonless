@@ -133,7 +133,7 @@ export function HoursInfoSection({
   const status = today
     ? today.active === false
       ? 'Bugün kapalı'
-      : today.open && today.close && isTimeWithinRange(now, today.open, today.close)
+      : dayIntervals(today).some((interval) => isTimeWithinRange(now, interval.open, interval.close))
         ? 'Şimdi açık'
         : 'Şu an kapalı'
     : 'Saat bilgisi yok'
@@ -229,15 +229,21 @@ function buildHoursRows(storeInfo: StoreInfo | null | undefined, todayKey: (type
   const realRows = rotatedDays.flatMap((key) => {
     const day = storeInfo?.hours?.[key]
     if (!day) return []
-    const active = day.active !== false && Boolean(day.open && day.close)
+    const intervals = dayIntervals(day)
+    const active = day.active !== false && intervals.length > 0
     return [{
       key,
       label: key === todayKey ? 'Bugün' : DAY_LABELS[key],
-      value: active ? `${day.open}–${day.close}` : 'Kapalı',
+      value: active ? intervals.map((interval) => `${interval.open}–${interval.close}`).join(' · ') : 'Kapalı',
       active,
     }]
   })
   return realRows.slice(0, 3)
+}
+
+function dayIntervals(day: NonNullable<NonNullable<StoreInfo['hours']>[string]>): Array<{ open: string; close: string }> {
+  if (day.intervals?.length) return day.intervals
+  return day.open && day.close ? [{ open: day.open, close: day.close }] : []
 }
 
 function isTimeWithinRange(now: Date, open: string, close: string) {
@@ -328,8 +334,9 @@ function readRealInfoBody(sectionId: string, storeInfo?: StoreInfo | null): stri
         const day = hours[key]
         if (!day) return null
         if (day.active === false) return `${label}: Kapalı`
-        if (!day.open || !day.close) return null
-        return `${label}: ${day.open}-${day.close}`
+        const intervals = dayIntervals(day)
+        if (!intervals.length) return null
+        return `${label}: ${intervals.map((interval) => `${interval.open}-${interval.close}`).join(', ')}`
       })
       .filter((line): line is string => Boolean(line))
     return lines.length ? lines.join('\n') : 'Çalışma saatleri henüz eklenmedi.'

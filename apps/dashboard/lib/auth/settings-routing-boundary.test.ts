@@ -21,5 +21,6 @@ test('settings role redirects finish at the HTTP middleware boundary before RSC 
 test('settings page keeps its server-side authorization defense behind middleware', () => {
   assert.match(settingsPage, /if \(!actor\.isOwner && !actor\.permissions\.includes\('settings'\)\)/)
   assert.match(settingsPage, /redirect\(firstPermittedPath/)
-  assert.match(settingsPage, /const initialSection = resolveSettingsSection\(query\.section, actor\.isOwner === true\)/)
+  assert.match(settingsPage, /const requestedSection = resolveSettingsSection\(query\.section, actor\.isOwner === true\)/)
+  assert.match(settingsPage, /const continuitySections = new Set\(\['workspace', 'profile', 'billing', 'security', 'privacy'\]\)/)
 })

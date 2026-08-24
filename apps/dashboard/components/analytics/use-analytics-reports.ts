@@ -12,6 +12,7 @@ import {
   type AnalyticsInitialData,
   type AnalyticsQuery,
   type AnalyticsRange,
+  type AnalyticsFreshness,
 } from './analytics-report-model'
 import { analyticsQueryEquals, analyticsQueryToSearchParams, parseAnalyticsQuery } from '../../lib/analytics-filter-contract'
 
@@ -22,6 +23,8 @@ export function useAnalyticsReports({
   hasAdvancedAnalytics,
   initialQuery,
   initialReport,
+  initialGeneratedAt,
+  initialSnapshotVersion,
 }: {
   restaurantId: string
   initialData: AnalyticsInitialData
@@ -29,6 +32,8 @@ export function useAnalyticsReports({
   hasAdvancedAnalytics: boolean
   initialQuery: AnalyticsQuery
   initialReport: AnalyticsReportId
+  initialGeneratedAt: string
+  initialSnapshotVersion: number
 }) {
   const [activeReport, setActiveReport] = useState<AnalyticsReportId>(initialReport)
   const [query, setQuery] = useState<AnalyticsQuery>(initialQuery)
@@ -36,7 +41,11 @@ export function useAnalyticsReports({
   const [loadedReports, setLoadedReports] = useState(() => createInitialLoadedReports(initialData))
   const [isPending, startTransition] = useTransition()
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [generatedAt, setGeneratedAt] = useState(initialGeneratedAt)
+  const [freshness, setFreshness] = useState<AnalyticsFreshness>('fresh')
   const latestRequestRef = useRef(0)
+  const requestControllerRef = useRef<AbortController | null>(null)
+  const snapshotVersionRef = useRef(initialSnapshotVersion)
   const initialReportLoadRef = useRef(false)
   const initialUrlSyncRef = useRef(false)
   const retryRequestRef = useRef<{
@@ -58,27 +67,38 @@ export function useAnalyticsReports({
     updateHistory = true,
   ) => {
     const requestId = ++latestRequestRef.current
+    requestControllerRef.current?.abort()
+    const controller = new AbortController()
+    requestControllerRef.current = controller
     retryRequestRef.current = { report, query: nextQuery, commitQuery }
+    setFreshness(typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'refreshing')
     startTransition(async () => {
       setLoadError(null)
       try {
-        const data = await fetchAnalyticsReportPayload(restaurantId, nextQuery, report)
+        const response = await fetchAnalyticsReportPayload(restaurantId, nextQuery, report, controller.signal)
         if (requestId !== latestRequestRef.current) return
-        if (data.error) {
-          setLoadError(data.error)
+        if (response.error || !response.data) {
+          setLoadError(response.error ?? 'Rapor verileri yüklenemedi.')
+          setFreshness(typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'stale')
           return
         }
-        setAnalyticsData((previous) => ({ ...previous, ...data }))
+        setAnalyticsData((previous) => ({ ...previous, ...response.data }))
         setLoadedReports((previous) => markAnalyticsReportLoaded(
           commitQuery ? createUnloadedReports() : previous,
           report,
         ))
         if (commitQuery) setQuery(nextQuery)
         if (updateHistory) syncUrl(report, nextQuery)
+        const nextGeneratedAt = response.generatedAt ?? new Date().toISOString()
+        setGeneratedAt(nextGeneratedAt)
+        snapshotVersionRef.current = response.snapshotVersion ?? new Date(nextGeneratedAt).getTime()
+        setFreshness('fresh')
         retryRequestRef.current = null
-      } catch {
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
         if (requestId !== latestRequestRef.current) return
         const offline = typeof navigator !== 'undefined' && !navigator.onLine
+        setFreshness(offline ? 'offline' : 'stale')
         setLoadError(offline
           ? 'Çevrimdışısınız. Mevcut rapor korunuyor; bağlantı gelince yeniden denenecek.'
           : 'Rapor sunucusuna ulaşılamadı. Mevcut rapor korundu; tekrar deneyin.')
@@ -88,12 +108,59 @@ export function useAnalyticsReports({
 
   useEffect(() => {
     const retryOnReconnect = () => {
+      setFreshness('stale')
       const request = retryRequestRef.current
       if (request) loadReport(request.report, request.query, request.commitQuery)
     }
+    const markOffline = () => setFreshness('offline')
     window.addEventListener('online', retryOnReconnect)
-    return () => window.removeEventListener('online', retryOnReconnect)
+    window.addEventListener('offline', markOffline)
+    return () => {
+      window.removeEventListener('online', retryOnReconnect)
+      window.removeEventListener('offline', markOffline)
+    }
   }, [loadReport])
+
+  useEffect(() => {
+    let disposed = false
+    let removeChannel: (() => void) | null = null
+    const subscribe = async () => {
+      const { createDashboardBrowserClient } = await import('../../lib/supabase')
+      if (disposed) return
+      const supabase = createDashboardBrowserClient()
+      const channel = supabase
+        .channel(`analytics:${restaurantId}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'pano_invalidations',
+          filter: `restaurant_id=eq.${restaurantId}`,
+        }, (payload) => {
+          const row = payload.new as { version?: unknown } | null
+          if (typeof row?.version === 'number') snapshotVersionRef.current = row.version
+          setFreshness((current) => (current === 'offline' ? current : 'stale'))
+        })
+        .subscribe()
+      removeChannel = () => { void supabase.removeChannel(channel) }
+    }
+    void subscribe()
+    return () => {
+      disposed = true
+      removeChannel?.()
+    }
+  }, [restaurantId])
+
+  useEffect(() => {
+    const reconcileVisibleSnapshot = () => {
+      if (document.visibilityState !== 'visible') return
+      const age = Date.now() - new Date(generatedAt).getTime()
+      if (age >= 5 * 60_000) loadReport(activeReport, query, false, false)
+    }
+    document.addEventListener('visibilitychange', reconcileVisibleSnapshot)
+    return () => document.removeEventListener('visibilitychange', reconcileVisibleSnapshot)
+  }, [activeReport, generatedAt, loadReport, query])
+
+  useEffect(() => () => requestControllerRef.current?.abort(), [])
 
   useEffect(() => {
     if (initialReportLoadRef.current) return
@@ -159,6 +226,8 @@ export function useAnalyticsReports({
     analyticsData,
     isPending,
     loadError,
+    generatedAt,
+    freshness,
     activeReportLoaded,
     canExport,
     changeReport,
@@ -169,5 +238,6 @@ export function useAnalyticsReports({
       if (request) loadReport(request.report, request.query, request.commitQuery)
       else loadReport(activeReport)
     },
+    refresh: () => loadReport(activeReport, query, false, false),
   }
 }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { SplitPaymentPort } from './splits'
 import {
+  cancelUnstartedSplitShare,
   confirmDashboardCashShare,
   declareSplitShare,
   prepareSplitCheckout,
@@ -17,6 +18,7 @@ function port(overrides: Partial<SplitPaymentPort> = {}): SplitPaymentPort {
       return { ok: true, value: { amount: 50, restaurantSettings: null } }
     },
     async releaseOnlineCheckout() { return { ok: true, value: true } },
+    async voidUnstartedOnlineShare() { return { ok: true, value: 'voided' } },
     async settleShare() { return { ok: true, value: { finalized: false, amount: 50, idempotent: false } } },
     ...overrides,
   }
@@ -109,4 +111,28 @@ test('checkout release is tenant-scoped before touching the port', async () => {
   )
   assert.deepEqual(denied, { ok: false, error: 'Invalid table context' })
   assert.equal(released, false)
+})
+
+test('unstarted card recovery is tenant-scoped and delegates the locked token check', async () => {
+  const calls: unknown[] = []
+  const adapter = port({
+    async voidUnstartedOnlineShare(input) {
+      calls.push(input)
+      return { ok: true, value: 'voided' }
+    },
+  })
+  const result = await cancelUnstartedSplitShare(
+    { actor: 'dashboard-member', restaurantId: 'r', userId: 'staff', permissions: ['tables'] },
+    { restaurantId: 'r', shareId: 'share' },
+    adapter,
+  )
+  assert.deepEqual(result, { ok: true, value: 'voided' })
+  assert.deepEqual(calls, [{ restaurantId: 'r', shareId: 'share' }])
+
+  const denied = await cancelUnstartedSplitShare(
+    { actor: 'dashboard-member', restaurantId: 'r', userId: 'staff', permissions: ['orders'] },
+    { restaurantId: 'r', shareId: 'share' },
+    adapter,
+  )
+  assert.deepEqual(denied, { ok: false, error: 'Not authorized' })
 })

@@ -14,12 +14,21 @@ import { AnalyticsReportShell } from './AnalyticsReportShell'
 import { useAnalyticsReports } from './use-analytics-reports'
 import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
 import type { AnalyticsReportId } from '../../lib/actions/analytics'
-const AnalyticsSalesReport = dynamic(() => import('./AnalyticsSalesPaymentReports').then((module) => module.AnalyticsSalesReport))
-const AnalyticsPaymentsReport = dynamic(() => import('./AnalyticsSalesPaymentReports').then((module) => module.AnalyticsPaymentsReport))
-const AnalyticsItemsReport = dynamic(() => import('./AnalyticsItemsReport').then((module) => module.AnalyticsItemsReport))
-const AnalyticsTablesReport = dynamic(() => import('./AnalyticsTablesReport').then((module) => module.AnalyticsTablesReport))
-const AnalyticsOperationsReport = dynamic(() => import('./AnalyticsOperationsReport').then((module) => module.AnalyticsOperationsReport))
-const AnalyticsLoyaltyReport = dynamic(() => import('./AnalyticsLoyaltyReport').then((module) => module.AnalyticsLoyaltyReport))
+import {
+  loadAnalyticsItemsReport,
+  loadAnalyticsLoyaltyReport,
+  loadAnalyticsOperationsReport,
+  loadAnalyticsPaymentsReport,
+  loadAnalyticsSalesReport,
+  loadAnalyticsTablesReport,
+  preloadAnalyticsReport,
+} from './analytics-report-loaders'
+const AnalyticsSalesReport = dynamic(loadAnalyticsSalesReport)
+const AnalyticsPaymentsReport = dynamic(loadAnalyticsPaymentsReport)
+const AnalyticsItemsReport = dynamic(loadAnalyticsItemsReport)
+const AnalyticsTablesReport = dynamic(loadAnalyticsTablesReport)
+const AnalyticsOperationsReport = dynamic(loadAnalyticsOperationsReport)
+const AnalyticsLoyaltyReport = dynamic(loadAnalyticsLoyaltyReport)
 interface Props {
   restaurantId: string
   restaurantName: string
@@ -38,6 +47,8 @@ interface Props {
   hasAdvancedAnalytics: boolean
   initialQuery: AnalyticsQuery
   initialReport: AnalyticsReportId
+  initialGeneratedAt: string
+  initialSnapshotVersion: number
 }
 
 export default function AnalyticsClient({
@@ -55,6 +66,8 @@ export default function AnalyticsClient({
   hasAdvancedAnalytics,
   initialQuery,
   initialReport,
+  initialGeneratedAt,
+  initialSnapshotVersion,
 }: Props) {
   const reports = useAnalyticsReports({
     restaurantId,
@@ -62,6 +75,8 @@ export default function AnalyticsClient({
     hasAdvancedAnalytics,
     initialQuery,
     initialReport,
+    initialGeneratedAt,
+    initialSnapshotVersion,
     initialData: {
       salesOverTime,
       rangeKpis,
@@ -93,10 +108,17 @@ export default function AnalyticsClient({
       activeReportLoaded={reports.activeReportLoaded}
       canExport={reports.canExport}
       loadError={reports.loadError}
-      onReportChange={reports.changeReport}
+      generatedAt={reports.generatedAt}
+      freshness={reports.freshness}
+      onReportChange={(report) => {
+        preloadAnalyticsReport(report)
+        reports.changeReport(report)
+      }}
+      onReportIntent={preloadAnalyticsReport}
       onRangeChange={reports.changeRange}
       onQueryChange={reports.changeQuery}
       onRetry={reports.retry}
+      onRefresh={reports.refresh}
       onExport={() => { void handleExport() }}
     >
       {reports.activeReport === 'sales' && reports.activeReportLoaded && (

@@ -4,7 +4,7 @@ import { Fragment } from 'react'
 import Link from 'next/link'
 import { serviceRequestLabel } from '@garsonless/domain/tables'
 import { I } from '../../lib/ui'
-import { formatPanoCurrency, formatPanoInteger } from '../../lib/pano-format'
+import { formatPanoCurrency, formatPanoDuration } from '../../lib/pano-format'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from '@/components/ui/item'
@@ -13,6 +13,7 @@ import { PanoCard, PanoEmptyState } from './PanoOverviewWidgets'
 
 const STATUS = {
   late: { label: 'Geciken', variant: 'destructive' },
+  stale: { label: 'Eski oturum', variant: 'warning' },
   active: { label: 'Aktif', variant: 'info' },
   new: { label: 'Yeni', variant: 'warning' },
   paid: { label: 'Tahsil edildi', variant: 'positive' },
@@ -38,12 +39,13 @@ function attentionTables(tables: TableStatusData[], requests: PanoServiceRequest
   }
 
   return tables
-    .filter((table) => table.status === 'late' || requestsByTable.has(table.id))
+    .filter((table) => table.status === 'late' || table.status === 'stale' || requestsByTable.has(table.id))
     .map((table) => ({ table, requests: requestsByTable.get(table.id) ?? [] }))
     .sort((left, right) => {
       const late = Number(right.table.status === 'late') - Number(left.table.status === 'late')
       const requestCount = right.requests.length - left.requests.length
-      return late || requestCount || right.table.time - left.table.time || left.table.label.localeCompare(right.table.label, 'tr')
+      const stale = Number(left.table.status === 'stale') - Number(right.table.status === 'stale')
+      return requestCount || late || stale || right.table.time - left.table.time || left.table.label.localeCompare(right.table.label, 'tr')
     })
 }
 
@@ -74,7 +76,7 @@ function TableAttentionRow({
         <ItemDescription className="pano-number line-clamp-1">
           {requests.length > 0
             ? requests.map((request) => serviceRequestLabel(request.requestType)).join(' · ')
-            : `${formatPanoInteger(table.time)} dk açık · ${formatPanoCurrency(remainingTotal(table))} kalan`}
+            : `${formatPanoDuration(table.time)} açık · ${formatPanoCurrency(remainingTotal(table))} kalan`}
         </ItemDescription>
       </ItemContent>
       <ItemActions>

@@ -46,4 +46,15 @@ test('QR styling adapter geçersiz persist edilmiş enumları güvenli varsayıl
   assert.equal(options.cornersSquareOptions?.type, 'extra-rounded')
   assert.equal(options.cornersDotOptions?.type, 'dot')
   assert.equal(options.qrOptions?.errorCorrectionLevel, 'M')
+  assert.equal(options.type, 'svg')
+
+  const interactiveOptions = buildQRCodeStylingOptions(qr, {
+    width: 280,
+    height: 280,
+    data: qr.baseUrl,
+    margin: 8,
+    logoMargin: 4,
+    type: 'canvas',
+  })
+  assert.equal(interactiveOptions.type, 'canvas')
 })

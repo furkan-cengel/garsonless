@@ -46,6 +46,7 @@ export type PanoServiceRequest = PanoOperationalSource['pendingServiceRequests']
 type PanoAttentionKind =
   | 'pending_order'
   | 'late_table'
+  | 'stale_table'
   | 'service_request'
   | 'payment_configuration'
   | 'connection'
@@ -76,6 +77,12 @@ export interface PanoSnapshot {
   heatmap: HeatmapCell[]
   pendingServiceRequests: PanoServiceRequest[]
   paymentStatus: PaymentStatus | null
+  health: PanoSnapshotHealth
+}
+
+export interface PanoSnapshotHealth {
+  metrics: 'fresh' | 'failed'
+  operational: 'fresh' | 'degraded'
 }
 
 export interface PaymentStatus {
@@ -172,7 +179,7 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
       ? { configured: true, mode: operational.paymentMode }
       : { configured: false, mode: null }
     : null
-  const tableStatuses = projectPanoTableStatuses(operational, generatedAtDate.getTime())
+  const tableStatuses = projectPanoTableStatuses(operational, generatedAtDate.getTime(), today.getTime())
   const attentionItems = buildPanoAttentionItems({
     restaurantId,
     generatedAt,
@@ -197,5 +204,9 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
     heatmap: metrics.heatmap,
     pendingServiceRequests: operational.pendingServiceRequests,
     paymentStatus,
+    health: {
+      metrics: metricsResult.ok ? 'fresh' : 'failed',
+      operational: operational.errors.length === 0 ? 'fresh' : 'degraded',
+    },
   }
 }

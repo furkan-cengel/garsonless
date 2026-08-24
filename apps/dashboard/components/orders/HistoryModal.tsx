@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { readOrderLineSnapshots, type PaymentMethod } from '@garsonless/db/browser'
 import { getOrderHistory, type HistoryOrder } from '../../lib/actions/orders'
+import { historyTerminalAt } from './order-history-model'
 import { I } from '../../lib/ui'
 import { formatCurrency } from '../../lib/utils'
 import { paymentMethodBadge } from '../../lib/payment-method'
@@ -41,17 +42,28 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
   const [tab, setTab] = useState<Tab>('all')
   const [q, setQ] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
+  const requestRef = useRef(0)
 
-  useEffect(() => {
-    let cancelled = false
-    void getOrderHistory(restaurantId).then((res) => {
-      if (cancelled) return
+  const loadHistory = useCallback(async () => {
+    const request = ++requestRef.current
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await getOrderHistory(restaurantId)
+      if (request !== requestRef.current) return
       if ('error' in res) setError(res.error)
       else { setOrders(res.orders); setTruncated(res.truncated) }
-      setLoading(false)
-    })
-    return () => { cancelled = true }
+    } catch {
+      if (request === requestRef.current) setError('Geçmiş siparişler yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.')
+    } finally {
+      if (request === requestRef.current) setLoading(false)
+    }
   }, [restaurantId])
+
+  useEffect(() => {
+    void loadHistory()
+    return () => { requestRef.current += 1 }
+  }, [loadHistory])
 
   const counts = useMemo(() => ({
     all: orders.length,
@@ -70,7 +82,7 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
     return true
   })
   const groups = rows.reduce<Record<string, HistoryOrder[]>>((acc, o) => {
-    const k = dayLabel(o.created_at);(acc[k] ||= []).push(o); return acc
+    const k = dayLabel(historyTerminalAt(o));(acc[k] ||= []).push(o); return acc
   }, {})
 
   const tabs: { id: Tab; label: string; n: number }[] = [
@@ -108,8 +120,8 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
           {truncated && !loading && !error && (
             <Alert className="my-2 border-[var(--warning)]/20 bg-[var(--warning-bg)]"><AlertDescription className="text-[var(--warning)]">Son 200 kayıt gösteriliyor. Daha eski kayıtlar için rapor dışa aktarımını kullanın.</AlertDescription></Alert>
           )}
-          {loading && <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground"><Spinner />Geçmiş siparişler yükleniyor…</div>}
-          {error && <Alert className="my-3" variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+          {loading && <div role="status" aria-live="polite" className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />Geçmiş siparişler yükleniyor…</div>}
+          {error && <Alert className="my-3 items-center" variant="destructive"><AlertDescription className="flex flex-1 flex-wrap items-center justify-between gap-3"><span>{error}</span><Button type="button" size="sm" variant="outline" onClick={() => void loadHistory()}>Tekrar dene</Button></AlertDescription></Alert>}
           {!loading && !error && rows.length === 0 && (
             <Empty className="min-h-52">
               <EmptyHeader>
@@ -142,7 +154,7 @@ function HistoryRow({ order, tableLabel, onReceipt }: {
   const cancelled = order.status === 'cancelled'
   const items = readOrderLineSnapshots(order.items)
   const names = items.map(i => `${i.quantity}× ${i.name}${i.promotion?.offer === 'freebie' && i.promotion.role === 'reward' ? ' (hediye)' : ''}`).join(' · ')
-  const time = new Date(order.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+  const time = new Date(historyTerminalAt(order)).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
   const isPaid = order.paid_at !== null
   const methodBadge = isPaid ? paymentMethodBadge((order.payment_method as PaymentMethod | null | undefined) ?? null) : null
 

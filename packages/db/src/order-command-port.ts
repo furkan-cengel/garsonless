@@ -214,9 +214,10 @@ export async function readPaymentSharesForSettlement(input: {
   restaurantId: string
   sessionId: string
 }, signal?: AbortSignal) {
-  let query = createServiceClient()
+  const service = createServiceClient()
+  let query = service
     .from('payment_shares')
-    .select('id, amount, method, status, label, settled_at, settled_by, created_at')
+    .select('id, amount, method, status, label, settled_at, settled_by, created_at, checkout_reserved_until')
     .eq('restaurant_id', input.restaurantId)
     .eq('table_session_id', input.sessionId)
     .neq('status', 'void')
@@ -224,7 +225,223 @@ export async function readPaymentSharesForSettlement(input: {
   if (signal) query = query.abortSignal(signal)
   const { data, error } = await query
   if (error) throw new Error(error.message)
+  const rows = data ?? []
+  const shareIds = rows.map((row) => row.id)
+  if (shareIds.length === 0) return []
+  const { data: tokens, error: tokenError } = await service
+    .from('payment_share_tokens')
+    .select('share_id')
+    .in('share_id', shareIds)
+  if (tokenError) throw new Error(tokenError.message)
+  const tokenShares = new Set((tokens ?? []).map((row) => row.share_id))
+  return rows.map((row) => ({ ...row, provider_token_attached: tokenShares.has(row.id) }))
+}
+
+/** Service-only order projection used after the dashboard settlement gate. */
+export async function readOrdersForSettlement(input: {
+  restaurantId: string
+  sessionId: string
+}, signal?: AbortSignal) {
+  let query = createServiceClient()
+    .from('orders')
+    .select('id, total, status, paid_at, payment_method, settled_by, created_at, items')
+    .eq('restaurant_id', input.restaurantId)
+    .eq('table_session_id', input.sessionId)
+    .is('deleted_at', null)
+    .neq('status', 'cancelled')
+    .order('created_at', { ascending: true })
+  if (signal) query = query.abortSignal(signal)
+  const { data, error } = await query
+  if (error) throw new Error(error.message)
   return data ?? []
+}
+
+/** Service-only, tenant-scoped read model for the account-transfer picker. */
+export async function readTransferableOrdersForSession(input: {
+  restaurantId: string
+  sessionId: string
+}, signal?: AbortSignal) {
+  let query = createServiceClient()
+    .from('orders')
+    .select('id, total, paid_at, items')
+    .eq('restaurant_id', input.restaurantId)
+    .eq('table_session_id', input.sessionId)
+    .is('deleted_at', null)
+    .neq('status', 'cancelled')
+    .order('created_at', { ascending: true })
+  if (signal) query = query.abortSignal(signal)
+  const { data, error } = await query
+  if (error) throw new Error(error.message)
+  return data ?? []
+}
+
+export type TransferableOrdersAccessBundle = {
+  authorized: boolean
+  plan: unknown
+  entitlementContext: unknown
+  orders: Array<{ id: string; total: number | null; paid_at: string | null; items: unknown }>
+}
+
+export type TablesCommandAccessBundle = {
+  authorized: boolean
+  auditLabelsAllowed: boolean
+  plan: unknown
+  entitlementContext: unknown
+}
+
+export type SessionSettlementAccessBundle = TablesCommandAccessBundle & {
+  orders: Array<Record<string, unknown>>
+  shares: Array<Record<string, unknown>>
+  staffLabels: Array<{ userId: string; email: string }>
+}
+
+export type SettleSessionAndCloseOutcome =
+  | 'not_found'
+  | 'unpaid'
+  | 'payment_pending'
+  | 'already_closed'
+  | 'closed_normal'
+  | 'closed_abnormal'
+
+type ServiceBundleRpcResult = { data: unknown; error: { code?: string; message: string } | null }
+
+function bundleRpcUnavailable(error: { code?: string; message: string }): boolean {
+  return error.code === 'PGRST202' || /schema cache|could not find the function/i.test(error.message)
+}
+
+function parseTablesCommandAccessBundle(data: unknown): TablesCommandAccessBundle {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid tables access bundle')
+  const row = data as Record<string, unknown>
+  if (row.authorized !== true) return { authorized: false, auditLabelsAllowed: false, plan: null, entitlementContext: null }
+  return {
+    authorized: true,
+    auditLabelsAllowed: row.auditLabelsAllowed === true,
+    plan: row.plan,
+    entitlementContext: row.entitlementContext,
+  }
+}
+
+export async function readTablesCommandAccessBundle(input: {
+  restaurantId: string
+  actorUserId: string
+}, signal?: AbortSignal): Promise<TablesCommandAccessBundle | null> {
+  const service = createServiceClient()
+  let query = service.rpc('read_tables_command_access_bundle' as never, {
+    p_restaurant_id: input.restaurantId,
+    p_actor_user_id: input.actorUserId,
+  } as never) as unknown as { abortSignal: (value: AbortSignal) => PromiseLike<ServiceBundleRpcResult>; then: PromiseLike<ServiceBundleRpcResult>['then'] }
+  if (signal) query = query.abortSignal(signal) as typeof query
+  const { data, error } = await query
+  if (error) {
+    if (bundleRpcUnavailable(error)) return null
+    throw new Error(error.message)
+  }
+  return parseTablesCommandAccessBundle(data)
+}
+
+export async function readSessionSettlementAccessBundle(input: {
+  restaurantId: string
+  sessionId: string
+  actorUserId: string
+}, signal?: AbortSignal): Promise<SessionSettlementAccessBundle | null> {
+  const service = createServiceClient()
+  let query = service.rpc('read_session_settlement_bundle' as never, {
+    p_restaurant_id: input.restaurantId,
+    p_session_id: input.sessionId,
+    p_actor_user_id: input.actorUserId,
+  } as never) as unknown as { abortSignal: (value: AbortSignal) => PromiseLike<ServiceBundleRpcResult>; then: PromiseLike<ServiceBundleRpcResult>['then'] }
+  if (signal) query = query.abortSignal(signal) as typeof query
+  const { data, error } = await query
+  if (error) {
+    if (bundleRpcUnavailable(error)) return null
+    throw new Error(error.message)
+  }
+  const access = parseTablesCommandAccessBundle(data)
+  if (!access.authorized) return { ...access, orders: [], shares: [], staffLabels: [] }
+  const row = data as Record<string, unknown>
+  if (!Array.isArray(row.orders) || !Array.isArray(row.shares) || !Array.isArray(row.staffLabels)) {
+    throw new Error('Invalid settlement read bundle')
+  }
+  const staffLabels = row.staffLabels.map((value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid settlement staff label')
+    const label = value as Record<string, unknown>
+    if (typeof label.userId !== 'string' || typeof label.email !== 'string') throw new Error('Invalid settlement staff label')
+    return { userId: label.userId, email: label.email }
+  })
+  return {
+    ...access,
+    orders: row.orders as Array<Record<string, unknown>>,
+    shares: row.shares as Array<Record<string, unknown>>,
+    staffLabels,
+  }
+}
+
+/** One database transaction for the staff-critical "collect and close" path.
+ * Returns null during rolling deploys where the migration is not installed. */
+export async function settleSessionAndCloseAtomic(input: {
+  restaurantId: string
+  sessionId: string
+  actorUserId: string
+  settlements: Array<{ orderId: string; method: 'cash' | 'pos' | 'comp' }>
+}): Promise<{ outcome: SettleSessionAndCloseOutcome; settledOrderIds: string[] } | null> {
+  const service = createServiceClient()
+  const { data, error } = await service.rpc('settle_session_and_close_atomic' as never, {
+    p_restaurant_id: input.restaurantId,
+    p_session_id: input.sessionId,
+    p_actor_user_id: input.actorUserId,
+    p_settlements: input.settlements.map((entry) => ({ order_id: entry.orderId, method: entry.method })),
+  } as never) as unknown as ServiceBundleRpcResult
+  if (error) {
+    if (bundleRpcUnavailable(error)) return null
+    throw new Error(error.message)
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid settlement command result')
+  const row = data as Record<string, unknown>
+  const outcomes: SettleSessionAndCloseOutcome[] = ['not_found', 'unpaid', 'payment_pending', 'already_closed', 'closed_normal', 'closed_abnormal']
+  if (!outcomes.includes(row.outcome as SettleSessionAndCloseOutcome) || !Array.isArray(row.settledOrderIds)) {
+    throw new Error('Invalid settlement command result')
+  }
+  if (!row.settledOrderIds.every((value) => typeof value === 'string')) throw new Error('Invalid settlement command result')
+  return { outcome: row.outcome as SettleSessionAndCloseOutcome, settledOrderIds: row.settledOrderIds }
+}
+
+/** Service-only fast path that collapses actor access, entitlement context and
+ * the tenant/session-scoped order projection into one database round trip.
+ * Returns null while a rolling deployment has not installed the RPC yet. */
+export async function readTransferableOrdersAccessBundle(input: {
+  restaurantId: string
+  sessionId: string
+  actorUserId: string
+}, signal?: AbortSignal): Promise<TransferableOrdersAccessBundle | null> {
+  const service = createServiceClient()
+  const rpc = service.rpc.bind(service) as unknown as (
+    name: 'read_transferable_session_orders_bundle',
+    args: { p_restaurant_id: string; p_session_id: string; p_actor_user_id: string },
+  ) => {
+    abortSignal: (nextSignal: AbortSignal) => PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }>
+    then: PromiseLike<{ data: unknown; error: { code?: string; message: string } | null }>['then']
+  }
+  let query = rpc('read_transferable_session_orders_bundle', {
+    p_restaurant_id: input.restaurantId,
+    p_session_id: input.sessionId,
+    p_actor_user_id: input.actorUserId,
+  })
+  if (signal) query = query.abortSignal(signal) as typeof query
+  const { data, error } = await query
+  if (error) {
+    if (error.code === 'PGRST202' || /schema cache|could not find the function/i.test(error.message)) return null
+    throw new Error(error.message)
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid transfer read bundle')
+  const row = data as Record<string, unknown>
+  if (row.authorized !== true) return { authorized: false, plan: null, entitlementContext: null, orders: [] }
+  if (!Array.isArray(row.orders)) throw new Error('Invalid transfer order projection')
+  return {
+    authorized: true,
+    plan: row.plan,
+    entitlementContext: row.entitlementContext,
+    orders: row.orders as TransferableOrdersAccessBundle['orders'],
+  }
 }
 
 /** Supabase adapter for KDS commands; application code receives a compact snapshot only. */

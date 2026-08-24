@@ -38,6 +38,8 @@ export function MenuItemEditPanel({
   kitchenStations,
   allItems,
   recommendationIds,
+  recommendationsAvailable,
+  onRetryRecommendations,
   restaurantId,
   onClose,
   onSaved,
@@ -53,6 +55,8 @@ export function MenuItemEditPanel({
   kitchenStations: Tables<'kitchen_stations'>[]
   allItems: Tables<'menu_items'>[]
   recommendationIds: string[]
+  recommendationsAvailable: boolean
+  onRetryRecommendations: () => void
   restaurantId: string
   onClose: () => void
   onSaved: (updated: Tables<'menu_items'>) => void
@@ -278,7 +282,7 @@ export function MenuItemEditPanel({
               <span aria-live="polite">
                 {itemSaveState === 'saving' ? (
                   <Badge variant="secondary">
-                    <Spinner className="size-3" />
+                    <Spinner aria-hidden="true" className="size-3" />
                     Kaydediliyor…
                   </Badge>
                 ) : itemIsDirty ? (
@@ -316,13 +320,14 @@ export function MenuItemEditPanel({
               type="button"
               onClick={handleSave}
               disabled={deleting || itemSaveState !== 'dirty'}
+              aria-busy={itemSaveState === 'saving'}
               data-save-state={itemSaveState}
               variant={itemSaveState === 'saved' ? 'positive' : itemSaveState === 'clean' ? 'secondary' : 'default'}
               style={{ flex: 2 }}
             >
               {itemSaveState === 'saving' ? (
                 <>
-                  <Spinner data-icon="inline-start" />
+                  <Spinner aria-hidden="true" data-icon="inline-start" />
                   Kaydediliyor…
                 </>
               ) : itemSaveState === 'saved' ? (
@@ -695,15 +700,24 @@ export function MenuItemEditPanel({
       </PanelSection>
 
       <PanelSection title="Yanında iyi gider">
-        <MenuItemRecommendationEditor
-          restaurantId={restaurantId}
-          sourceItem={item}
-          allItems={allItems}
-          initialIds={recommendationIds}
-          onSaved={onRecommendationsSaved}
-          onError={onError}
-          onDirtyChange={setRecommendationsDirty}
-        />
+        {recommendationsAvailable ? (
+          <MenuItemRecommendationEditor
+            restaurantId={restaurantId}
+            sourceItem={item}
+            allItems={allItems}
+            initialIds={recommendationIds}
+            onSaved={onRecommendationsSaved}
+            onError={onError}
+            onDirtyChange={setRecommendationsDirty}
+          />
+        ) : (
+          <div role="status" style={{ display: 'grid', gap: 8, color: 'var(--text-2)', fontSize: 11.5, lineHeight: 1.45 }}>
+            <span>Ürün önerileri şu anda yüklenemiyor. Menünün diğer alanlarını düzenlemeye devam edebilirsin.</span>
+            <Button type="button" variant="outline" size="sm" onClick={onRetryRecommendations}>
+              Önerileri yeniden yükle
+            </Button>
+          </div>
+        )}
       </PanelSection>
 
       {/* Görünürlük */}

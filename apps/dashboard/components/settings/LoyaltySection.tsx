@@ -10,13 +10,14 @@ import {
   type LoyaltyTier,
 } from './loyalty-config'
 import { I as AppI } from '../../lib/ui'
-import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
+import { notifySettingsSaved, useSettingsDirtyState } from './settings-dirty-state'
 import {
   mergeCanonicalSettings,
   prepareSettingsMutationAttempt,
   type SettingsMutationAttempt,
 } from './settings-save-contract'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { notifySettingsConflict } from './settings-conflict-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -316,12 +317,14 @@ export default function LoyaltySection({
   const hasLoyaltyAccess = featureAllowed
   const settingsSnapshotRef = useRef(initialSettings)
   const mutationAttemptRef = useRef<SettingsMutationAttempt | null>(null)
+  const initialConfigRef = useRef(initial)
   const [cfg, setCfg] = useState<LoyaltyConfig>(initial)
   const [rewardChoices, setRewardChoices] = useState<Array<{ id: string; name: string }>>([])
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
-  const [dirty, setDirty] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const dirty = JSON.stringify(cfg) !== JSON.stringify(initialConfigRef.current)
+  useSettingsDirtyState('loyalty:config', dirty)
 
   const itemOptions = useMemo(
     () => [
@@ -335,8 +338,6 @@ export default function LoyaltySection({
 
   const patch = (p: Partial<LoyaltyConfig>) => {
     setCfg((c) => ({ ...c, ...p }))
-    setDirty(true)
-    notifySettingsDirty()
     setSuccess(false)
     setError('')
   }
@@ -406,7 +407,14 @@ export default function LoyaltySection({
         return
       }
       if ('error' in result) {
-        if (result.code === 'CONFLICT') mutationAttemptRef.current = null
+        if (result.code === 'CONFLICT') {
+          mutationAttemptRef.current = null
+          const canonicalSettings = result.canonicalSettings ?? {}
+          notifySettingsConflict({
+            source: 'loyalty:config', canonicalSettings, draft: settingsPatch,
+            prepareReapply: () => { settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, canonicalSettings) },
+          })
+        }
         setError(result.error)
         return
       }
@@ -414,11 +422,14 @@ export default function LoyaltySection({
       mutationAttemptRef.current = null
       const canonicalLoyalty = result.canonicalSettings['loyalty']
       if (canonicalLoyalty && typeof canonicalLoyalty === 'object' && !Array.isArray(canonicalLoyalty)) {
+        const canonicalConfig = canonicalLoyalty as unknown as LoyaltyConfig
+        initialConfigRef.current = canonicalConfig
         setCfg(canonicalLoyalty as unknown as LoyaltyConfig)
+      } else {
+        initialConfigRef.current = cfg
       }
-      setDirty(false)
       setSuccess(true)
-      notifySettingsSaved()
+      notifySettingsSaved('loyalty:config')
     })
   }
 
@@ -709,10 +720,10 @@ export default function LoyaltySection({
             {isPending ? 'Sadakat ayarları kaydediliyor…' : dirty ? 'Kaydedilmemiş değişiklikler var' : success ? 'Tüm değişiklikler kaydedildi' : 'Değişiklik yok'}
           </span>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => { setCfg(initial); setDirty(false); setError(''); setSuccess(false) }} disabled={isPending}>
+            <Button type="button" variant="outline" onClick={() => { setCfg(initialConfigRef.current); setError(''); setSuccess(false) }} disabled={isPending || !dirty}>
               Geri al
             </Button>
-            <Button type="submit" disabled={isPending || !tiersValid}>
+            <Button type="submit" disabled={isPending || !tiersValid || !dirty}>
               {isPending ? <Spinner data-icon="inline-start" /> : <AppI.check data-icon="inline-start" />}
               {isPending ? 'Kaydediliyor...' : 'Kaydet'}
             </Button>

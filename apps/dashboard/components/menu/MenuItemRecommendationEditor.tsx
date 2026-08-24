@@ -256,6 +256,7 @@ export function MenuItemRecommendationEditor({
         className="menu-save-action"
         type="button"
         disabled={saveState !== 'dirty'}
+        aria-busy={saveState === 'saving'}
         data-save-state={saveState}
         onClick={save}
         variant={saveState === 'saved' ? 'positive' : saveState === 'clean' ? 'secondary' : 'default'}
@@ -263,7 +264,7 @@ export function MenuItemRecommendationEditor({
         <span aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           {saveState === 'saving' ? (
             <>
-              <Spinner />
+              <Spinner aria-hidden="true" />
               Kaydediliyor…
             </>
           ) : saveState === 'saved' ? (

@@ -4,6 +4,7 @@ const isCI = Boolean(process.env['CI'])
 const hasDashboardVisualCredentials = Boolean(
   process.env['DASHBOARD_VISUAL_EMAIL'] && process.env['DASHBOARD_VISUAL_PASSWORD'],
 )
+  || Boolean(process.env['DASHBOARD_VISUAL_MAGICLINK_EMAIL'] && process.env['SUPABASE_SERVICE_ROLE_KEY'])
 
 const dashboardURL = process.env['SMOKE_DASHBOARD_URL'] ?? 'http://localhost:3005'
 const menuURL = process.env['SMOKE_MENU_URL'] ?? 'http://localhost:3011'
@@ -57,7 +58,25 @@ export default defineConfig({
       name: 'dashboard-mobile',
       testMatch: /dashboard-authenticated\.spec\.ts/,
       dependencies: hasDashboardVisualCredentials ? [authSetupProject] : [],
-      use: { ...devices['iPhone 15'], colorScheme: 'light' },
+      use: { viewport: { width: 390, height: 844 }, colorScheme: 'light' },
+    },
+    {
+      name: 'dashboard-narrow',
+      testMatch: /dashboard-authenticated\.spec\.ts/,
+      dependencies: hasDashboardVisualCredentials ? [authSetupProject] : [],
+      use: { viewport: { width: 320, height: 568 }, colorScheme: 'light' },
+    },
+    {
+      name: 'dashboard-tablet',
+      testMatch: /dashboard-authenticated\.spec\.ts/,
+      dependencies: hasDashboardVisualCredentials ? [authSetupProject] : [],
+      use: { viewport: { width: 768, height: 1024 }, colorScheme: 'light' },
+    },
+    {
+      name: 'dashboard-zoom-200',
+      testMatch: /dashboard-authenticated\.spec\.ts/,
+      dependencies: hasDashboardVisualCredentials ? [authSetupProject] : [],
+      use: { viewport: { width: 1440, height: 900 }, colorScheme: 'light' },
     },
   ],
   webServer: [

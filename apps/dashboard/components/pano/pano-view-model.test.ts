@@ -65,6 +65,13 @@ test('Pano zero-baseline trends avoid misleading percentages', () => {
   assert.equal(cards[0]?.delta, 'Yeni')
 })
 
+test('Pano equal revenue uses a neutral flat trend', () => {
+  const cards = getPanoKpiCards({ ...kpis, revenue: 0, revenueYesterday: 0 }, 'restaurant-1', operational)
+  assert.equal(cards[0]?.trend, 'flat')
+  assert.equal(cards[0]?.indicatorTone, 'neutral')
+  assert.equal(cards[0]?.delta, 'Değişmedi')
+})
+
 test('Pano declining trend keeps direction in the arrow without a duplicate minus sign', () => {
   const cards = getPanoKpiCards({ ...kpis, revenue: 0, revenueYesterday: 320 }, 'restaurant-1', operational)
   assert.equal(cards[0]?.trend, 'down')

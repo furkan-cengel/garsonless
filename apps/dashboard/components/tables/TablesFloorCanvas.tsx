@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { AppIcons } from '@garsonless/ui/icons'
 import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -30,6 +30,7 @@ export function TablesFloorCanvas({
   onOpenDetail,
   onNewOrder,
   onTransfer,
+  onPrefetchTransfer,
   onSettle,
   onCloseSession,
   onResolveRequest,
@@ -50,11 +51,20 @@ export function TablesFloorCanvas({
   const editDisabledReason = initialLayoutError ?? (!floorFilter ? 'Düzeni düzenlemek için bir kat seçin.' : null)
   const floorActions = useTableFloorActions({
     tables, openSessions, pendingRequests, floorFilter, initialLayoutError, canCreateOrders,
-    setActiveId, startEditing: layout.startEditing, onOpenDetail, onNewOrder, onTransfer,
+    setActiveId, startEditing: layout.startEditing, onOpenDetail, onNewOrder, onTransfer, onPrefetchTransfer,
     onSettle, onCloseSession, onResolveRequest, onRename, onDelete,
   })
   const { editing, patchEntry } = layout
   const { openQuickMenu } = floorActions
+  useEffect(() => {
+    if (!activeId || editing || !window.matchMedia('(min-width: 1181px)').matches) return
+    const frame = window.requestAnimationFrame(() => {
+      canvasRef.current
+        ?.querySelector<HTMLElement>(`[data-table-id="${CSS.escape(activeId)}"]`)
+        ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [activeId, editing])
   const selectCard = useCallback((tableId: string) => {
     setActiveId(tableId)
     if (!editing) onOpenDetail(tableId)
@@ -84,15 +94,16 @@ export function TablesFloorCanvas({
           {layout.editing ? (
             <>
               <Button type="button" variant="outline" className="tb-floor__button" disabled={layout.saving} onClick={layout.cancelEditing}>İptal</Button>
-              <Button type="button" className="tb-floor__button tb-floor__button--primary" disabled={layout.saving || layout.collisions.size > 0} onClick={() => { void layout.save() }}>
-                {layout.saving ? <Spinner data-icon="inline-start" /> : <AppIcons.check data-icon="inline-start" />}Düzeni kaydet
+              <Button type="button" className="tb-floor__button tb-floor__button--primary" aria-busy={layout.saving} disabled={layout.saving || layout.collisions.size > 0} onClick={() => { void layout.save() }}>
+                {layout.saving ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <AppIcons.check data-icon="inline-start" />}{layout.saving ? 'Kaydediliyor…' : 'Düzeni kaydet'}
               </Button>
             </>
           ) : (
-            <Button type="button" variant="outline" className="tb-floor__button tb-floor__edit-button" disabled={Boolean(editDisabledReason)} onClick={layout.startEditing} title={editDisabledReason ?? 'Masa yerleşimini düzenle'}>
+            <Button type="button" variant="outline" className="tb-floor__button tb-floor__edit-button" aria-disabled={Boolean(editDisabledReason)} aria-describedby={editDisabledReason ? 'table-layout-edit-disabled-reason' : undefined} onClick={() => { if (!editDisabledReason) layout.startEditing() }} title={editDisabledReason ?? 'Masa yerleşimini düzenle'}>
               <AppIcons.grid data-icon="inline-start" />Düzeni düzenle
             </Button>
           )}
+          {editDisabledReason && <span id="table-layout-edit-disabled-reason" className="tb-floor__edit-disabled-copy">{editDisabledReason}</span>}
         </div>
       </header>
 

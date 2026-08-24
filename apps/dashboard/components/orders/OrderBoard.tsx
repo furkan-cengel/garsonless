@@ -14,7 +14,7 @@ import PageTopBar from '../layout/PageTopBar'
 import { I, S } from '../../lib/ui'
 import type { ReceiptOrder } from './ReceiptModal'
 import type { OrderDensity } from './OrderCard'
-import { isActiveOrder, isCancelledOrder, isCompletedOrder, isLateOrder, isReadyWaitingOrder } from './order-status'
+import { isActiveOrder, isCancelledOrder, isCompletedOrder, orderStatusGroup, projectOrderUrgency } from './order-status'
 import { FILTER_LABELS, ORDER_SOURCE_LABELS, orderMatchesSearch, orderMatchesSource, orderMatchesView, orderStationNames, type FilterId, type OrderSourceFilter } from './order-filters'
 import { ORDER_BOARD_COLUMNS } from './order-board-contract'
 import { ORDERS_REALTIME_COPY } from './order-realtime-model'
@@ -115,6 +115,7 @@ function OrderDetailPanel({
   actionPending,
   isOwner,
   onRefund,
+  headingRef,
 }: {
   order: Order | null
   tableLabel: string
@@ -127,6 +128,7 @@ function OrderDetailPanel({
   actionPending: boolean
   isOwner: boolean
   onRefund: (order: Order) => void
+  headingRef?: RefObject<HTMLDivElement | null>
 }) {
   if (!order) {
     return (
@@ -166,7 +168,7 @@ function OrderDetailPanel({
       <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--divider)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div>
-            <div id="order-detail-title" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-.01em' }}>{tableLabel}</div>
+            <div ref={headingRef} id="order-detail-title" tabIndex={-1} style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-.01em', outline: 'none' }}>{tableLabel}</div>
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', ...S.mono }}>#{order.id.slice(0, 8).toUpperCase()}</div>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
@@ -336,10 +338,11 @@ function OrderDetailPanel({
             variant="positive"
             size="lg"
             disabled={settleLoading || actionPending}
+            aria-busy={settleLoading}
             onClick={() => onSettle(order)}
             className="w-full"
           >
-            {settleLoading && <Spinner data-icon="inline-start" />}
+            {settleLoading && <Spinner data-icon="inline-start" aria-hidden="true" />}
             {settleLoading ? 'Adisyon yükleniyor…' : 'Masayı tahsil et (adisyon)'}
           </Button>
         )}
@@ -370,6 +373,7 @@ function OrderDetailPanel({
                   size="lg"
                   data-order-detail-cancel
                   disabled={actionPending}
+                  aria-busy={actionPending}
                   onClick={() => onCancel(order)}
                   className="flex-1"
                 >
@@ -382,10 +386,11 @@ function OrderDetailPanel({
                   size="lg"
                   data-order-detail-advance
                   disabled={actionPending}
+                  aria-busy={actionPending}
                   onClick={() => onAdvance(order)}
                   className="flex-[2]"
                 >
-                  {actionPending ? <Spinner data-icon="inline-start" /> : <I.check size={13} />}
+                  {actionPending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <I.check size={13} />}
                   {actionPending ? 'İşleniyor…' : advanceLabel}
                 </Button>
               )}
@@ -444,14 +449,15 @@ function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, s
   selectedStation: string | null
   setSelectedStation: (station: string | null) => void
 }) {
-  const late = orders.filter(order => isLateOrder(order, lateThresholdMin, now)).length
+  const projections = orders.map(order => ({ order, urgency: projectOrderUrgency(order, lateThresholdMin, now) }))
+  const late = projections.filter(({ urgency }) => urgency.late).length
   const priority = orders.filter(order => isActiveOrder(order) && orderHasPriorityService(order)).length
   const counts = {
     all:       orders.length,
     active:    orders.filter(isActiveOrder).length,
-    attention: orders.filter(order => isLateOrder(order, lateThresholdMin, now) || isReadyWaitingOrder(order, 5, now) || (isActiveOrder(order) && orderHasPriorityService(order))).length,
+    attention: projections.filter(({ order, urgency }) => urgency.attention || (isActiveOrder(order) && orderHasPriorityService(order))).length,
     late,
-    ready_wait: orders.filter(order => isReadyWaitingOrder(order, 5, now)).length,
+    ready_wait: projections.filter(({ urgency }) => urgency.readyWaiting).length,
     unpaid:    orders.filter(order => isActiveOrder(order) && order.paid_at === null).length,
     priority,
     done:      orders.filter(isCompletedOrder).length,
@@ -654,6 +660,7 @@ function useOrdersPresentation(): OrdersPresentation {
 
 const ORDERS_RESPONSIVE_CSS = `
 .orders-shell, .orders-shell * { box-sizing: border-box; }
+.orders-shell { --text-3: var(--text-2); --text-4: var(--text-2); }
 .orders-shell button:focus-visible,
 .orders-shell input:focus-visible,
 .orders-shell [tabindex]:focus-visible {
@@ -661,8 +668,27 @@ const ORDERS_RESPONSIVE_CSS = `
   outline-offset: 2px;
 }
 .orders-kanban { width: 100%; min-width: 0 !important; }
+.orders-column-slot { display: flex; flex: 1; min-width: 0; }
+.orders-column-slot > .orders-column { width: 100%; }
 .orders-column { min-width: 0 !important; }
 .orders-mobile-toolbar { display: none; }
+.orders-mobile-stage-tabs { display: none; }
+.orders-connection-notice {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  z-index: 185;
+  width: min(420px, calc(100vw - 32px));
+  min-height: 44px;
+  padding: 9px 10px 9px 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(17,17,19,.16);
+}
+.order-card-shell:hover { box-shadow: var(--shadow-2) !important; }
 .orders-detail-overlay,
 .orders-filter-overlay {
   position: fixed;
@@ -751,6 +777,11 @@ const ORDERS_RESPONSIVE_CSS = `
 }
 
 @media (max-width: 1180px) {
+  .orders-connection-notice {
+    top: 116px;
+    right: 12px;
+    width: min(420px, calc(100vw - 24px));
+  }
   .orders-topbar {
     height: 104px !important;
     grid-template-columns: minmax(0, 1fr) auto !important;
@@ -799,11 +830,11 @@ const ORDERS_RESPONSIVE_CSS = `
     padding-bottom: 8px;
   }
   .orders-column {
-    flex: 0 0 min(340px, calc(100vw - 112px)) !important;
-    min-width: min(340px, calc(100vw - 112px)) !important;
+    flex: 1 !important;
+    min-width: 0 !important;
     max-height: 100%;
-    scroll-snap-align: start;
   }
+  .orders-column-slot { flex: 0 0 min(340px, calc(100vw - 112px)); min-width: min(340px, calc(100vw - 112px)); scroll-snap-align: start; }
   .orders-column-header { position: sticky; top: 0; z-index: 2; background: var(--surface-2); }
   .orders-detail-panel {
     width: min(430px, calc(100vw - 24px)) !important;
@@ -815,6 +846,11 @@ const ORDERS_RESPONSIVE_CSS = `
 }
 
 @media (max-width: 760px) {
+  .orders-connection-notice {
+    right: 10px;
+    left: 10px;
+    width: auto;
+  }
   .orders-topbar .page-topbar-brand,
   .orders-topbar .page-topbar-restaurant,
   .orders-topbar .page-topbar-separator { display: none !important; }
@@ -827,9 +863,15 @@ const ORDERS_RESPONSIVE_CSS = `
   .orders-mobile-toolbar { padding-inline: 10px; }
   .orders-mobile-toolbar-copy { display: none; }
   .orders-column {
-    flex-basis: calc(100vw - 20px) !important;
-    min-width: calc(100vw - 20px) !important;
+    min-width: 0 !important;
   }
+  .orders-kanban { overflow-x: hidden; min-width: 0 !important; }
+  .orders-column-slot { flex: 0 0 100%; min-width: 100%; }
+  .orders-column-slot[data-mobile-active="false"] { display: none; }
+  .orders-mobile-stage-tabs { display: block; position: sticky; top: -10px; z-index: 4; margin: 0 -10px 10px; padding: 8px 10px; border-bottom: 1px solid var(--divider); background: var(--bg); }
+  .orders-mobile-stage-tabs [role="tablist"] { width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .orders-mobile-stage-tabs [role="tablist"]::-webkit-scrollbar { display: none; }
+  .orders-mobile-stage-tabs [role="tab"] { min-height: 44px; min-width: max-content; flex: 1; }
   .orders-detail-overlay { align-items: stretch; }
   .orders-detail-panel {
     width: 100% !important;
@@ -901,6 +943,8 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
   const [now, setNow] = useState(() => Date.now())
   const [density, setDensity] = useState<OrderDensity>('comfortable')
   const [closedCollapsed, setClosedCollapsed] = useState(true)
+  const [mobileStage, setMobileStage] = useState<'new' | 'prep' | 'ready' | 'done'>('new')
+  const mobileDetailTitleRef = useRef<HTMLDivElement>(null)
 
   const tableLabels = useMemo(() => Object.fromEntries(tables.map(t => [t.id, t.label])), [tables])
   const labelFor = useCallback(
@@ -920,8 +964,16 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
   }), [filter, lateThresholdMin, now, orders, search, selectedStation, sourceFilter, tableLabels])
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
-    return () => window.clearInterval(timer)
+    let interval: number | null = null
+    const delay = 60_000 - (Date.now() % 60_000) + 25
+    const timeout = window.setTimeout(() => {
+      setNow(Date.now())
+      interval = window.setInterval(() => setNow(Date.now()), 60_000)
+    }, delay)
+    return () => {
+      window.clearTimeout(timeout)
+      if (interval !== null) window.clearInterval(interval)
+    }
   }, [])
 
   useEffect(() => {
@@ -1010,8 +1062,8 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
     setPendingOrderIds(new Set(pendingOrdersRef.current))
   }
 
-  async function moveOrder(order: Order, next: OrderLifecycleTarget) {
-    if (!beginOrderAction(order.id)) return
+  async function moveOrder(order: Order, next: OrderLifecycleTarget): Promise<boolean> {
+    if (!beginOrderAction(order.id)) return false
     const prev = order.status
     const optimisticToken = startOptimisticOrderStatus(order.id, next)
     // Both a typed {error} result AND a thrown exception (network/500) roll the
@@ -1032,12 +1084,18 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
       showActionSuccess(orderActionSuccessMessage(labelFor(order.table_id), next))
     }
     finishOrderAction(order.id)
+    return error === null
   }
 
   async function handleAdvance(order: Order) {
     const next = nextStatus(order.status)
     if (!next) return
-    await moveOrder(order, next)
+    const sourceStage = orderStatusGroup(order.status)
+    const lastInStage = filteredOrders.filter(candidate => candidate.id !== order.id && orderStatusGroup(candidate.status) === sourceStage).length === 0
+    const moved = await moveOrder(order, next)
+    if (moved && presentation === 'sheet' && mobileStage === sourceStage && lastInStage) {
+      setMobileStage(orderStatusGroup(next))
+    }
   }
 
   // Cancel modal target — the modal enforces the payment rules client-side
@@ -1111,8 +1169,8 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
       activeCount: orders.filter(isActiveOrder).length,
       revenue: orders.filter(isCollectedOrderRow).reduce((sum, order) => sum + order.total, 0),
       compAmount,
-      lateCount: orders.filter(order => isLateOrder(order, lateThresholdMin, now)).length,
-      readyWaitCount: orders.filter(order => isReadyWaitingOrder(order, 5, now)).length,
+      lateCount: orders.filter(order => projectOrderUrgency(order, lateThresholdMin, now).late).length,
+      readyWaitCount: orders.filter(order => projectOrderUrgency(order, lateThresholdMin, now).readyWaiting).length,
       closedCount: orders.filter(order => isCompletedOrder(order) || isCancelledOrder(order)).length,
       avgPrepLabel: prepSamples.length > 0
         ? `${Math.round(prepSamples.reduce((sum, minutes) => sum + minutes, 0) / prepSamples.length)} dk`
@@ -1120,7 +1178,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
     }
   }, [lateThresholdMin, now, orders])
   const { activeCount, revenue, compAmount, lateCount, readyWaitCount, closedCount, avgPrepLabel } = boardMetrics
-  const showClosedColumn = !closedCollapsed || filter === 'done' || filter === 'cancelled'
+  const showClosedColumn = !closedCollapsed || filter === 'done' || filter === 'cancelled' || (presentation === 'sheet' && mobileStage === 'done')
   const visibleColumns = useMemo(
     () => showClosedColumn ? COLUMNS : COLUMNS.filter(column => column.id !== 'done'),
     [showClosedColumn],
@@ -1138,6 +1196,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
       actionPending={selectedOrder ? pendingOrderIds.has(selectedOrder.id) : false}
       isOwner={isOwner}
       onRefund={setRefundTarget}
+      headingRef={mobileDetailTitleRef}
     />
   )
   const detailModalBlocked = Boolean(cancelTarget || refundTarget || settleSheet || receipt)
@@ -1164,14 +1223,14 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         tag={
           <Badge variant={connectionStatus === 'live' ? 'positive' : connectionStatus === 'offline' ? 'destructive' : 'warning'}>
             <span style={{ width: 5, height: 5, borderRadius: 999, background: 'currentColor', display: 'inline-block', animation: connectionStatus === 'connecting' ? 'pulse-dot 2s infinite' : 'none' }} />
-            {connectionStatus === 'live' ? 'Canlı' : connectionStatus === 'connecting' ? 'Bağlanıyor' : connectionStatus === 'reconnecting' ? 'Uzlaştırılıyor' : 'Çevrimdışı'}
+            {connectionStatus === 'live' ? 'Canlı' : connectionStatus === 'connecting' ? 'Bağlanıyor' : connectionStatus === 'reconnecting' ? 'Uzlaştırılıyor' : connectionStatus === 'stale' ? 'Güncel olmayabilir' : 'Çevrimdışı'}
           </Badge>
         }
         center={
           <div className="orders-kpi-strip" style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
             <KpiChip label="Aktif" value={String(activeCount)} tone="warning" pulse />
             <KpiChip label="Ort. hazırlık" value={avgPrepLabel} />
-            <KpiChip label="Tahsilat" value={formatCurrency(revenue)} tone="positive" />
+            <KpiChip label="Panodaki tahsilat" value={formatCurrency(revenue)} tone="positive" />
             {compAmount > 0 && <KpiChip label="İkram (tahsilat dışı)" value={formatCurrency(compAmount)} />}
             {lateCount > 0 && <KpiChip label="Geciken" value={String(lateCount)} tone="critical" />}
             {readyWaitCount > 0 && <KpiChip label="Servis bekliyor" value={String(readyWaitCount)} tone="warning" pulse />}
@@ -1195,13 +1254,13 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         </div>}
       />
 
-      {connectionStatus !== 'live' && (
+      {(connectionStatus === 'offline' || connectionStatus === 'stale') && (
         <div
+          className="orders-connection-notice"
           role="status"
           aria-live="polite"
+          aria-atomic="true"
           style={{
-            minHeight: 34, padding: '7px 14px', borderBottom: '1px solid var(--border)',
-            display: 'flex', alignItems: 'center', gap: 8,
             background: connectionStatus === 'offline' ? 'var(--critical-bg)' : 'var(--warning-bg)',
             color: connectionStatus === 'offline' ? 'var(--critical)' : 'var(--warning)',
             fontSize: 12, fontWeight: 600,
@@ -1209,11 +1268,9 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         >
           {connectionStatus === 'offline' ? <I.warn size={14} /> : <I.refresh size={14} />}
           <span style={{ flex: 1 }}>{ORDERS_REALTIME_COPY[connectionStatus]}</span>
-          {(connectionStatus === 'offline' || connectionStatus === 'reconnecting') && (
-            <Button type="button" size="xs" variant="outline" onClick={retryRealtime}>
-              Yeniden bağlan
-            </Button>
-          )}
+          <Button type="button" size="xs" variant="outline" onClick={retryRealtime}>
+            Yeniden bağlan
+          </Button>
         </div>
       )}
 
@@ -1256,6 +1313,14 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             )}
             <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-4)' }}>Hazır bekleme alarmı: 5 dk</span>
           </div>
+          <Tabs className="orders-mobile-stage-tabs" value={mobileStage} onValueChange={(value) => setMobileStage(value as typeof mobileStage)} aria-label="Sipariş durumları">
+            <TabsList>
+              {COLUMNS.map((column) => {
+                const count = filteredOrders.filter(order => column.statuses.includes(order.status)).length
+                return <TabsTrigger key={column.id} value={column.id} aria-controls={`orders-stage-${column.id}`}>{column.label} <span className="font-mono text-[10px] opacity-70">{count}</span></TabsTrigger>
+              })}
+            </TabsList>
+          </Tabs>
           {/* New-café hero: ONLY when today has zero orders at all (not when a
               search/filter merely matches nothing — that keeps the column view). */}
           {orders.length === 0 && (
@@ -1308,6 +1373,8 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             pendingOrderIds={pendingOrderIds}
             lateThresholdMin={lateThresholdMin}
             density={density}
+            now={now}
+            activeMobileStage={presentation === 'sheet' ? mobileStage : null}
           />
         </div>
 
@@ -1316,7 +1383,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 
       {presentation !== 'desktop' && selectedOrder && !detailModalBlocked && (
         <Sheet open onOpenChange={(open) => { if (!open) setSelectedOrderId(null) }}>
-          <SheetContent side="right" showCloseButton={false} className="w-[min(430px,100vw)] gap-0 p-0 sm:max-w-[430px]">
+          <SheetContent side="right" showCloseButton={false} initialFocus={mobileDetailTitleRef} className="w-[min(430px,100vw)] gap-0 p-0 sm:max-w-[430px]">
             <SheetHeader className="sr-only"><SheetTitle>Sipariş detayları</SheetTitle><SheetDescription>{labelFor(selectedOrder.table_id)} siparişinin operasyon ve ödeme detayları</SheetDescription></SheetHeader>
           {detailPanel}
           </SheetContent>
@@ -1325,7 +1392,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 
       {presentation !== 'desktop' && filtersOpen && (
         <Sheet open onOpenChange={(open) => { if (!open) setFiltersOpen(false) }}>
-          <SheetContent side="left" showCloseButton={false} className="w-[min(340px,calc(100vw-18px))] gap-0 p-0 sm:max-w-[340px]">
+          <SheetContent side="left" showCloseButton={false} initialFocus={searchInputRef} className="w-[min(340px,calc(100vw-18px))] gap-0 p-0 sm:max-w-[340px]">
             <SheetHeader className="sr-only"><SheetTitle>Sipariş filtreleri</SheetTitle><SheetDescription>Sipariş görünümünü kaynak, durum ve istasyona göre filtreleyin.</SheetDescription></SheetHeader>
             <div className="orders-filter-drawer">
             <OrdersNav filter={filter} setFilter={setFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} orders={orders} search={search} setSearch={setSearch} onHistory={() => { setFiltersOpen(false); setHistoryOpen(true) }} onClose={() => setFiltersOpen(false)} lateThresholdMin={lateThresholdMin} searchInputRef={searchInputRef} now={now} stations={stations} selectedStation={selectedStation} setSelectedStation={setSelectedStation} />
@@ -1454,9 +1521,10 @@ function CancelOrderModal({ order, tableLabel, onClose, onConfirm, pending }: {
             type="button"
             variant="destructive"
             disabled={!reasonOk || pending}
+            aria-busy={pending}
             onClick={() => reasonOk && onConfirm(reason.trim())}
           >
-            {pending && <Spinner data-icon="inline-start" />}
+            {pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
             {pending ? 'İptal ediliyor…' : 'İptal et'}
           </Button>
         </DialogFooter>
@@ -1524,9 +1592,10 @@ function RefundOrderModal({ order, tableLabel, onClose, onConfirm, pending }: {
           <Button
             type="button"
             disabled={!valid || pending}
+            aria-busy={pending}
             onClick={() => valid && onConfirm({ amount, reason: reason.trim(), requestId })}
           >
-            {pending && <Spinner data-icon="inline-start" />}
+            {pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
             {pending ? 'İade işleniyor…' : isProvider ? 'İyzico’ya iade et' : 'İadeyi kaydet'}
           </Button>
         </DialogFooter>

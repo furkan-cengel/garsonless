@@ -16,7 +16,7 @@ test('customer list exposes bounded offline recovery instead of an unhandled act
 })
 
 test('customer controls use compact shadcn variants while narrow layouts keep safe targets', () => {
-  assert.match(topbar, /aria-label="Geri"[\s\S]*width: 44, height: 44/)
+  assert.match(topbar, /backLabel = 'Geri'[\s\S]*aria-label=\{backLabel\}[\s\S]*width: 44, height: 44/)
   assert.match(topbar, /page-topbar-notification[\s\S]*width: 44, height: 44/)
   assert.match(topbar, /minHeight: 44/)
   assert.match(list, /<Button type="button" variant="outline" size="sm"/)
@@ -43,8 +43,45 @@ test('customer list and detail reflow at 320px without topbar breadcrumb collisi
   assert.match(globalCss, /\.page-topbar-title[\s\S]*text-overflow: ellipsis !important/)
   assert.match(list, /customer-page-content\s*\{\s*padding:\s*20px 12px 44px !important/)
   assert.match(list, /customer-list-header\s*\{\s*align-items:\s*stretch !important;\s*flex-direction:\s*column !important/)
-  assert.match(list, /customer-table-scroll-hint/)
+  assert.match(list, /className="customer-mobile-list" role="list"/)
+  assert.match(list, /function CustomerMobileCard/)
+  assert.match(list, /\.customer-table \{ display: none !important; \}/)
+  assert.match(list, /customer-stats \{ grid-template-columns: repeat\(2,minmax\(0,1fr\)\) !important/)
   assert.match(detail, /customer-page-content\s*\{\s*padding:\s*20px 12px 44px !important/)
+})
+
+test('customer list exposes human labels, email search and one Turkish loading status', () => {
+  assert.match(list, /placeholder="Ad, e-posta veya telefon"/)
+  assert.match(list, /<SelectValue>\{SORTS\.find/)
+  assert.match(list, /role="status"[\s\S]*<Spinner aria-hidden="true"[\s\S]*Güncelleniyor/)
+})
+
+test('email campaigns disclose the restaurant sender identity and reply address', () => {
+  assert.match(list, /<strong>Gönderen: \{restaurantName\}<\/strong>/)
+  assert.match(list, /Müşteri yanıtları <strong>\{campaignReplyToEmail\}<\/strong> adresine gelir/)
+  assert.match(list, /Ayarlar → Mağaza bölümüne işletme e-postası ekleyin/)
+})
+
+test('email campaigns provide ready templates and a sandboxed custom HTML preview', () => {
+  assert.match(list, /EMAIL_CAMPAIGN_TEMPLATES\.map/)
+  assert.match(list, />Hazır şablon<\/ToggleGroupItem>/)
+  assert.match(list, />Tasarımcı<\/ToggleGroupItem>/)
+  assert.match(list, />Özel HTML<\/ToggleGroupItem>/)
+  assert.match(list, /Kullanılabilir değişken: \{'\{\{restaurant_name\}\}'\}/)
+  assert.match(list, /<iframe title="E-posta önizlemesi" sandbox="" referrerPolicy="no-referrer" srcDoc=\{previewHtml\}/)
+  assert.match(list, /previewCampaignEmailAction/)
+  assert.match(list, /<CampaignEmailBuilder design=\{emailDesign\}/)
+  assert.match(list, /Şablonu kaydet/)
+  assert.match(list, /Kayıtlı işletme e-posta şablonları/)
+  assert.match(list, /Alıcı e-postalarını göster/)
+  assert.match(list, /getCampaignDeliveryLogAction/)
+})
+
+test('customer route skeleton follows the mobile two-column KPI and card layout', () => {
+  const skeleton = readFileSync(new URL('../layout/DashboardRouteSkeleton.tsx', import.meta.url), 'utf8')
+  assert.match(skeleton, /dashboard-route-skeleton-customers-kpis[\s\S]*repeat\(2, minmax\(0, 1fr\)\)/)
+  assert.match(skeleton, /dashboard-route-skeleton-customers-table \{ display: none !important; \}/)
+  assert.match(skeleton, /dashboard-route-skeleton-customers-mobile \{ display: grid !important; \}/)
 })
 
 test('customer routes use one natural vertical scroll container with reachable pagination', () => {

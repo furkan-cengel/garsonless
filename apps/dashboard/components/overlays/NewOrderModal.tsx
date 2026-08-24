@@ -288,6 +288,7 @@ const TABLE_STATUS = {
   active: { label: 'Açık adisyon', variant: 'info' },
   new: { label: 'Yeni sipariş', variant: 'warning' },
   late: { label: 'Gecikmeli', variant: 'destructive' },
+  stale: { label: 'Eski oturum', variant: 'warning' },
   paid: { label: 'Ödendi', variant: 'positive' },
 } as const
 

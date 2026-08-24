@@ -27,6 +27,7 @@ interface UseTablesLiveStateOptions {
   restaurantId: string
   initialOpenSessions: OpenSessionInfo[]
   initialSessionError: string | null
+  initialDirectoryError: string | null
   setTables: Dispatch<SetStateAction<TableItem[]>>
 }
 
@@ -39,13 +40,14 @@ export function useTablesLiveState({
   restaurantId,
   initialOpenSessions,
   initialSessionError,
+  initialDirectoryError,
   setTables,
 }: UseTablesLiveStateOptions) {
   const [openSessions, setOpenSessions] = useState<Record<string, OpenSessionInfo>>(
     () => sessionsByTable(initialOpenSessions),
   )
   const [sessionError, setSessionError] = useState<string | null>(initialSessionError)
-  const [directoryError, setDirectoryError] = useState<string | null>(null)
+  const [directoryError, setDirectoryError] = useState<string | null>(initialDirectoryError)
   const [settlementTarget, setSettlementTarget] = useState<SettlementTarget | null>(null)
   const [pendingRequests, setPendingRequests] = useState<Record<string, PendingTableRequestView[]>>({})
   const [requestError, setRequestError] = useState<string | null>(null)
@@ -79,6 +81,17 @@ export function useTablesLiveState({
       return false
     }
   }, [restaurantId, setTables])
+
+  const markSessionClosed = useCallback((sessionId: string) => {
+    setOpenSessions((current) => {
+      const next = Object.fromEntries(
+        Object.entries(current).filter(([, session]) => session.sessionId !== sessionId),
+      )
+      openSessionsRef.current = next
+      setTables((tables) => applySessionsToTables(tables, next))
+      return next
+    })
+  }, [setTables])
 
   const refreshTableDirectory = useCallback(async () => {
     try {
@@ -195,12 +208,13 @@ export function useTablesLiveState({
         setSessionError(result.error)
         return
       }
+      markSessionClosed(session.sessionId)
       setFeedbackNotice(`${label} adisyonu kapatıldı.`)
       void refreshSessions()
     } catch {
       setSessionError('Adisyon kapatılamadı. Bağlantınızı kontrol edip masa durumunu yenileyin.')
     }
-  }, [restaurantId, refreshSessions])
+  }, [restaurantId, refreshSessions, markSessionClosed])
 
   const startSettlement = useCallback((session: OpenSessionInfo, label: string) => {
     setSettlementTarget({ session, label })
@@ -211,6 +225,7 @@ export function useTablesLiveState({
     sessionError: sessionError ?? directoryError,
     reportSessionError: setSessionError,
     refreshSessions,
+    markSessionClosed,
     settlementTarget,
     dismissSettlement: () => setSettlementTarget(null),
     requestSessionClose,

@@ -34,8 +34,16 @@ export function readStoreInfo(settings: unknown): StoreInfo | null {
       if (!isPlainRecord(value)) continue
       const open = cleanString(value['open'])
       const close = cleanString(value['close'])
+      const intervals = Array.isArray(value['intervals'])
+        ? value['intervals'].flatMap((entry) => {
+          if (!isPlainRecord(entry)) return []
+          const intervalOpen = cleanString(entry['open'])
+          const intervalClose = cleanString(entry['close'])
+          return intervalOpen && intervalClose ? [{ open: intervalOpen, close: intervalClose }] : []
+        }).slice(0, 3)
+        : []
       const active = typeof value['active'] === 'boolean' ? value['active'] : Boolean(open && close)
-      hours[day] = { ...(open ? { open } : {}), ...(close ? { close } : {}), active }
+      hours[day] = { ...(open ? { open } : {}), ...(close ? { close } : {}), ...(intervals.length ? { intervals } : {}), active }
     }
   }
 

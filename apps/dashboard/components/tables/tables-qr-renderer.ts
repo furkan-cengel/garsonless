@@ -46,12 +46,19 @@ function enumValue<T extends string>(values: ReadonlySet<T>, value: string, fall
 
 export function buildQRCodeStylingOptions(
   qr: QRConfig,
-  input: { width: number; height: number; data: string; margin: number; logoMargin: number },
+  input: {
+    width: number
+    height: number
+    data: string
+    margin: number
+    logoMargin: number
+    type?: 'canvas' | 'svg'
+  },
 ): QRCodeStylingOptions {
   return {
     width: input.width,
     height: input.height,
-    type: 'svg',
+    type: input.type ?? 'svg',
     data: input.data,
     margin: input.margin,
     qrOptions: { errorCorrectionLevel: enumValue(ERROR_CORRECTION_LEVELS, qr.ecl, 'M') },
@@ -133,7 +140,7 @@ export async function validateRenderedQR(qr: QRConfig, table?: TableItem): Promi
     // Decode on a camera-like raster size. Very large export dimensions (for
     // example 1100px) are useful for print, but feeding that full bitmap to
     // jsQR can produce a false negative that looks like a save failure.
-    const validationSize = Math.min(qr.size, 720)
+    const validationSize = Math.min(qr.size, 420)
     canvas.width = validationSize
     canvas.height = validationSize
     const context = canvas.getContext('2d', { willReadFrequently: true })

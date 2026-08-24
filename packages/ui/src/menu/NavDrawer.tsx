@@ -388,7 +388,8 @@ function todayHours(storeInfo?: StoreInfo | null) {
   const day = storeInfo?.hours?.[dayKey]
   if (!day) return 'Saat bilgisi yok'
   if (day.active === false) return 'Bugün kapalı'
-  return day.open && day.close ? `Bugün ${day.open}–${day.close}` : 'Saatleri görüntüle'
+  const intervals = day.intervals?.length ? day.intervals : day.open && day.close ? [{ open: day.open, close: day.close }] : []
+  return intervals.length ? `Bugün ${intervals.map((interval) => `${interval.open}–${interval.close}`).join(' · ')}` : 'Saatleri görüntüle'
 }
 
 function HoursPanel({ storeInfo }: { storeInfo?: StoreInfo | null | undefined }) {
@@ -398,7 +399,8 @@ function HoursPanel({ storeInfo }: { storeInfo?: StoreInfo | null | undefined })
     <div data-info-panel>
       {DAY_ENTRIES.map(([key, label]) => {
         const day = hours[key]
-        return <div key={key} data-today={key === todayKey || undefined}><span>{label}</span><b>{!day || day.active === false ? 'Kapalı' : day.open && day.close ? `${day.open}–${day.close}` : 'Belirtilmedi'}</b></div>
+        const intervals = day?.intervals?.length ? day.intervals : day?.open && day?.close ? [{ open: day.open, close: day.close }] : []
+        return <div key={key} data-today={key === todayKey || undefined}><span>{label}</span><b>{!day || day.active === false ? 'Kapalı' : intervals.length ? intervals.map((interval) => `${interval.open}–${interval.close}`).join(' · ') : 'Belirtilmedi'}</b></div>
       })}
     </div>
   )

@@ -27,7 +27,7 @@ export default async function MenuPage({ params }: Props) {
   ])
   if (!menuResult.ok) return <MenuLoadError message={menuResult.error} />
 
-  const { categories, items, kitchenStations, recommendations } = menuResult.data
+  const { categories, items, kitchenStations, recommendations, recommendationsAvailable } = menuResult.data
   const experienceV2Enabled = process.env['THEME_EXPERIENCE_V2_ENABLED'] === 'true' || process.env.NODE_ENV === 'development'
   const homeEnabled = experienceV2Enabled && themeResult.ok && themeResult.value.theme.surfaces?.home.enabled === true
 
@@ -40,6 +40,7 @@ export default async function MenuPage({ params }: Props) {
       initialItems={items}
       kitchenStations={kitchenStations}
       initialRecommendations={recommendations}
+      recommendationsAvailable={recommendationsAvailable}
     />
   )
 }

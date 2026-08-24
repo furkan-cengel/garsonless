@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { Resend } from 'resend'
 import {
-  createTeamCommandPort, recordSecurityEvent,
+  consumeDashboardAuthRateLimit, createTeamCommandPort, recordSecurityEvent,
 } from '@garsonless/db/server'
 import {
   acceptTeamInvite,
@@ -17,11 +17,22 @@ import {
 import { TEAM_SECTIONS, type TeamSection } from '@garsonless/domain/team'
 import { assertOwner, assertRestaurantFeature, firstPermittedPath } from '../auth/access'
 import { createDashboardServerClient } from '../supabase-server'
+import { requireFreshOwnerPassword } from '../auth/fresh-owner-auth'
+import { readRequestMeta } from '../request-meta'
 
 const sectionEnum = z.enum([...TEAM_SECTIONS] as [TeamSection, ...TeamSection[]])
 const permsSchema = z.array(sectionEnum).min(1).max(TEAM_SECTIONS.length)
 const inviteSchema = z.object({ email: z.string().email().max(255), permissions: permsSchema })
 const idSchema = z.string().uuid()
+
+async function allowTeamEmailAction(action: 'team-invite' | 'team-invite-resend', subject: string): Promise<boolean> {
+  const { ip } = await readRequestMeta()
+  const checks = await Promise.all([
+    consumeDashboardAuthRateLimit({ action, subject: `subject:${subject}`, limit: 5, windowSeconds: 3600 }),
+    ...(ip ? [consumeDashboardAuthRateLimit({ action, subject: `ip:${ip}`, limit: 12, windowSeconds: 3600 })] : []),
+  ])
+  return checks.every((check) => check.ok && check.allowed)
+}
 
 function buildInviteUrl(token: string): string {
   const base = process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000'
@@ -119,6 +130,9 @@ export async function inviteMember(
   if ('error' in planGate) return planGate
   const parsed = inviteSchema.safeParse(input)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Geçersiz davet' }
+  if (!await allowTeamEmailAction('team-invite', `${restaurantId}:${parsed.data.email}`)) {
+    return { error: 'Çok fazla davet isteği gönderildi. Lütfen daha sonra tekrar deneyin.' }
+  }
 
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -177,13 +191,6 @@ export async function updateMemberPermissionsAction(
     createTeamCommandPort(),
   )
   if (!res.ok) return { error: res.error }
-  await recordTeamAudit({
-    userId: gate.userId,
-    restaurantId,
-    eventType: 'team_member_permissions_updated',
-    targetEmail: res.value.email,
-    permissions: res.value.permissions,
-  })
   revalidatePath(`/dashboard/${restaurantId}/settings`)
   return { success: true }
 }
@@ -207,13 +214,6 @@ export async function setMemberStatusAction(
   if (!res.ok) {
     return { error: res.error === 'not_found_or_pending_invite' ? 'Bekleyen davet yalnız davet bağlantısıyla etkinleşir' : res.error }
   }
-  await recordTeamAudit({
-    userId: gate.userId,
-    restaurantId,
-    eventType: status === 'active' ? 'team_member_activated' : 'team_member_disabled',
-    targetEmail: res.value.email,
-    permissions: res.value.permissions,
-  })
   revalidatePath(`/dashboard/${restaurantId}/settings`)
   return { success: true }
 }
@@ -221,9 +221,10 @@ export async function setMemberStatusAction(
 export async function removeMemberAction(
   restaurantId: string,
   memberId: string,
+  currentPassword: string,
 ): Promise<{ error: string } | { success: true }> {
-  const gate = await assertOwner(restaurantId)
-  if ('error' in gate) return gate
+  const gate = await requireFreshOwnerPassword(restaurantId, currentPassword)
+  if (!gate.ok) return { error: gate.error }
   const planGate = await assertRestaurantFeature(restaurantId, 'team_management')
   if ('error' in planGate) return planGate
   if (!idSchema.safeParse(memberId).success) return { error: 'Geçersiz üye' }
@@ -233,12 +234,6 @@ export async function removeMemberAction(
     createTeamCommandPort(),
   )
   if (!res.ok) return { error: res.error }
-  await recordTeamAudit({
-    userId: gate.userId,
-    restaurantId,
-    eventType: 'team_member_removed',
-    targetEmail: res.value.email,
-  })
   revalidatePath(`/dashboard/${restaurantId}/settings`)
   return { success: true }
 }
@@ -276,6 +271,9 @@ export async function resendInviteAction(
   const planGate = await assertRestaurantFeature(restaurantId, 'team_management')
   if ('error' in planGate) return planGate
   if (!idSchema.safeParse(memberId).success) return { error: 'Geçersiz üye' }
+  if (!await allowTeamEmailAction('team-invite-resend', `${restaurantId}:${memberId}:${gate.userId}`)) {
+    return { error: 'Çok fazla yeniden gönderme isteği yapıldı. Lütfen daha sonra tekrar deneyin.' }
+  }
   const res = await resendTeamInvite(
     ownerContext(restaurantId, gate.userId),
     { restaurantId, memberId },

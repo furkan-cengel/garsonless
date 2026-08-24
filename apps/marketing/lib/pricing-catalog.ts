@@ -38,7 +38,7 @@ export const MARKETING_PLANS: readonly MarketingPlan[] = [
       'Plus’taki her şey',
       'Müşteri sepeti ve QR siparişi',
       'Servis çağrısı, KDS ve istasyonlar',
-      'Online ödeme ve hesap bölüşme',
+      'Hesap bölüşme; İyzico online ödeme opsiyonel add-on',
       'Müşteri hesabı, CRM, sadakat ve kampanyalar',
       'Gelişmiş raporlar ve bildirimler',
       'Gelişmiş tema bölümleri ve video',
@@ -98,7 +98,7 @@ export const PRICING_COMPARISON_GROUPS: readonly ComparisonGroup[] = [
       { feature: 'Müşteri sepeti ve QR siparişi', values: { starter: false, plus: false, pro: true, business: true } },
       { feature: 'Servis çağrıları', values: { starter: false, plus: false, pro: true, business: true } },
       { feature: 'Mutfak ekranı ve istasyonlar', values: { starter: false, plus: false, pro: true, business: true } },
-      { feature: 'Online ödeme', note: 'Ödeme kuruluşu kurulumu ve koşulları ayrıca uygulanır.', values: { starter: false, plus: false, pro: true, business: true } },
+      { feature: 'İyzico online ödeme', note: 'Pro’ya ayrıca satılan add-on’dır; İyzico işlem koşulları ayrıca uygulanır.', values: { starter: false, plus: false, pro: 'Ücretli add-on', business: 'Özel kapsam' } },
       { feature: 'Hesap bölüşme', values: { starter: false, plus: false, pro: true, business: true } },
     ],
   },
@@ -145,6 +145,7 @@ export const PRICING_COMPARISON_GROUPS: readonly ComparisonGroup[] = [
       { feature: 'Faturalandırma', values: { starter: 'Aylık / yıllık', plus: 'Aylık / yıllık', pro: 'Aylık / yıllık', business: 'Teklife göre' } },
       { feature: 'Taahhüt', values: { starter: 'Yok', plus: 'Yok', pro: 'Yok', business: 'Teklife göre' } },
       { feature: 'Sipariş komisyonu', values: all('Yok') },
+      { feature: 'İyzico online ödeme add-on', values: { starter: false, plus: false, pro: 'Ayrıca fiyatlanır', business: 'Özel kapsam' } },
       { feature: 'POS / ÖKC ve özel entegrasyonlar', values: { starter: 'Ek hizmet', plus: 'Ek hizmet', pro: 'Ek hizmet', business: 'Özel kapsam' } },
       { feature: 'Profesyonel kurulum ve menü aktarımı', values: { starter: 'Ek hizmet', plus: 'Ek hizmet', pro: 'Ek hizmet', business: 'Özel kapsam' } },
       { feature: 'Fiziksel QR standları', values: { starter: 'Ek hizmet', plus: 'Ek hizmet', pro: 'Ek hizmet', business: 'Özel kapsam' } },
@@ -163,7 +164,7 @@ export const PRICING_FAQS = [
   },
   {
     question: 'Siparişlerden komisyon alıyor musunuz?',
-    answer: 'Masabu sipariş başına komisyon almaz. Online ödeme kullanıldığında ödeme kuruluşunun kendi sözleşmesindeki işlem ücretleri ayrıca uygulanabilir.',
+    answer: 'Masabu sipariş başına komisyon almaz. İyzico online ödeme Pro’ya ayrıca satılan bir add-on’dır; İyzico’nun kendi sözleşmesindeki işlem ücretleri de ayrıca uygulanabilir.',
   },
   {
     question: 'Aboneliği istediğim zaman iptal edebilir miyim?',
@@ -175,6 +176,6 @@ export const PRICING_FAQS = [
   },
   {
     question: 'KDS, sadakat veya QR siparişi Plus’a eklenebilir mi?',
-    answer: 'Hayır. Bu temel ürün yetenekleri ayrı Plus eklentileri olarak satılmaz; Pro ve Business kapsamındadır. Ek hizmetler POS/ÖKC entegrasyonları, profesyonel kurulum ve fiziksel QR standlarıyla sınırlıdır.',
+    answer: 'Hayır. Bu temel ürün yetenekleri ayrı Plus eklentileri olarak satılmaz; Pro ve Business kapsamındadır. İyzico online ödeme yalnız Pro’ya eklenebilen ayrı bir add-on’dır.',
   },
 ] as const

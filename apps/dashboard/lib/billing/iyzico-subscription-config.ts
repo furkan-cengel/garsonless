@@ -12,6 +12,7 @@ const IYZICO_SUBSCRIPTION_LIVE_URL = 'https://api.iyzipay.com'
 
 type BillingEnv = Readonly<Record<string, string | undefined>>
 type ProviderPlan = { referenceCode: string; amountMinor: number }
+export type ProviderAddOnPlan = ProviderPlan & { addOnNetAmountMinor: number }
 
 export type IyzicoSubscriptionProviderConfig = {
   apiKey: string
@@ -19,6 +20,9 @@ export type IyzicoSubscriptionProviderConfig = {
   baseUrl: typeof IYZICO_SUBSCRIPTION_SANDBOX_URL | typeof IYZICO_SUBSCRIPTION_LIVE_URL
   vatRate: number
   plans: Record<SelfServePlan, Record<BillingInterval, ProviderPlan>>
+  addOns?: {
+    iyzico_online_payments: Record<BillingInterval, ProviderAddOnPlan> | null
+  }
 }
 
 export type IyzicoSubscriptionWebhookConfig = {
@@ -73,6 +77,44 @@ function providerPlan(env: BillingEnv, plan: SelfServePlan, interval: BillingInt
   }
 }
 
+function optionalIyzicoAddOnPlans(
+  env: BillingEnv,
+  vatRate: number,
+): Record<BillingInterval, ProviderAddOnPlan> | null {
+  const prefixes = {
+    monthly: 'IYZICO_BILLING_PRO_IYZICO_ADDON_MONTHLY',
+    annual: 'IYZICO_BILLING_PRO_IYZICO_ADDON_ANNUAL',
+  } as const
+  const names = BILLING_INTERVALS.flatMap((interval) => {
+    const prefix = prefixes[interval]
+    return [`${prefix}_PLAN_REF`, `${prefix}_ADDON_NET_AMOUNT_MINOR`, `${prefix}_AMOUNT_MINOR`]
+  })
+  const configured = names.filter((name) => Boolean(env[name]?.trim()))
+  if (configured.length === 0) return null
+  if (configured.length !== names.length) {
+    throw new Error('IYZICO_BILLING_PRO_IYZICO_ADDON_* must be configured as one complete contract')
+  }
+  return Object.fromEntries(BILLING_INTERVALS.map((interval) => {
+    const prefix = prefixes[interval]
+    const addOnNetAmountMinor = amountEnv(env, `${prefix}_ADDON_NET_AMOUNT_MINOR`)
+    const totalNetMinor = getPlanPrice('pro', interval).amountMinor + addOnNetAmountMinor
+    const expectedGrossMinor = calculatePlanCharge({
+      amountMinor: totalNetMinor,
+      currency: 'TRY',
+      vatIncluded: false,
+    }, vatRate).totalAmountMinor
+    const amountMinor = amountEnv(env, `${prefix}_AMOUNT_MINOR`)
+    if (amountMinor !== expectedGrossMinor) {
+      throw new Error(`${prefix}_AMOUNT_MINOR does not match Pro plus add-on net price and configured KDV`)
+    }
+    return [interval, {
+      referenceCode: referenceEnv(env, `${prefix}_PLAN_REF`),
+      addOnNetAmountMinor,
+      amountMinor,
+    }]
+  })) as Record<BillingInterval, ProviderAddOnPlan>
+}
+
 /** Six immutable provider variants: Starter/Plus/Pro × monthly/annual. */
 export function readIyzicoSubscriptionProviderConfig(
   env: BillingEnv = process.env,
@@ -96,10 +138,13 @@ export function readIyzicoSubscriptionProviderConfig(
       providerPlan(env, plan, interval, vatRate),
     ])) as Record<BillingInterval, ProviderPlan>,
   ])) as Record<SelfServePlan, Record<BillingInterval, ProviderPlan>>
+  const iyzicoAddOnPlans = optionalIyzicoAddOnPlans(env, vatRate)
 
   const references = SELF_SERVE_PLANS.flatMap((plan) => (
     BILLING_INTERVALS.map((interval) => plans[plan][interval].referenceCode)
-  ))
+  )).concat(iyzicoAddOnPlans
+    ? BILLING_INTERVALS.map((interval) => iyzicoAddOnPlans[interval].referenceCode)
+    : [])
   if (new Set(references).size !== references.length) {
     throw new Error('IYZICO_BILLING_*_PLAN_REF values must be unique')
   }
@@ -109,6 +154,7 @@ export function readIyzicoSubscriptionProviderConfig(
     baseUrl,
     vatRate,
     plans,
+    addOns: { iyzico_online_payments: iyzicoAddOnPlans },
   }
 }
 

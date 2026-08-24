@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type {
   SubscriptionBillingAddress,
@@ -19,8 +19,19 @@ import {
 } from '../../lib/actions/billing'
 import { I, Tag, btnGhost, btnPrimary } from '../../lib/ui'
 import { useModalDialogFocus } from '../overlays/use-modal-dialog-focus'
-import { notifySettingsSaved } from './settings-dirty-state'
+import { notifySettingsSaved, useSettingsDirtyState } from './settings-dirty-state'
 import { SCard, inputStyle } from './primitives'
+import { Input } from '../ui/input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog'
 
 const EMPTY_ADDRESS: SubscriptionBillingAddress = {
   contactName: '', city: '', district: null, country: 'Türkiye', address: '', zipCode: null,
@@ -165,7 +176,7 @@ function InvoiceRow({ restaurantId, invoice }: { restaurantId: string; invoice: 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr .9fr .8fr auto', gap: 12, alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid var(--divider)' }}>
       <div>
-        <div style={{ fontSize: 12.5, fontWeight: 600 }}>{PLAN_DEFINITIONS[invoice.plan].label} · {invoice.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'} · {date(invoice.periodStart)}–{date(invoice.periodEnd)}</div>
+        <div style={{ fontSize: 12.5, fontWeight: 600 }}>{PLAN_DEFINITIONS[invoice.plan].label}{invoice.addOns.includes('iyzico_online_payments') ? ' + İyzico Online Ödeme' : ''} · {invoice.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'} · {date(invoice.periodStart)}–{date(invoice.periodEnd)}</div>
         <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>Vade {date(invoice.dueAt)}</div>
         {message && <div role="status" style={{ fontSize: 11, color: message.includes('MAS-') ? 'var(--critical)' : 'var(--positive)', marginTop: 4 }}>{message}</div>}
       </div>
@@ -203,9 +214,11 @@ export default function BillingSection({
     currentPlan === 'business' ? 'pro' : currentPlan,
   )
   const [selectedInterval, setSelectedInterval] = useState<BillingInterval>('monthly')
+  const [iyzicoAddOnSelected, setIyzicoAddOnSelected] = useState(false)
   const [feedback, setFeedback] = useState(checkoutState === 'success' ? 'Abonelik bilgileri doğrulandı. Ödeme sonucu işlenirken durum otomatik güncellenecek.' : '')
   const [checkoutContent, setCheckoutContent] = useState<string | null>(null)
   const [showCancel, setShowCancel] = useState(false)
+  const [cancelPassword, setCancelPassword] = useState('')
   const [checkoutTermsAccepted, setCheckoutTermsAccepted] = useState(false)
   const [profilePending, startProfileTransition] = useTransition()
   const [checkoutPending, startCheckoutTransition] = useTransition()
@@ -214,6 +227,12 @@ export default function BillingSection({
   const effectiveProfile = useMemo(() => shippingSame
     ? { ...profile, shippingAddress: { ...profile.billingAddress } }
     : profile, [profile, shippingSame])
+  const profileSnapshotRef = useRef(effectiveProfile)
+  const profileDirty = JSON.stringify(effectiveProfile) !== JSON.stringify(profileSnapshotRef.current)
+  const subscription = billing?.subscription ?? null
+  const addOnPrice = planPrices.iyzicoOnlinePaymentsAddOn[selectedInterval]
+  const canStartNewCheckout = !subscription || ['trial', 'trial_expired', 'cancelled'].includes(subscription.status)
+  useSettingsDirtyState('billing:profile', profileDirty)
 
   const setProfileValue = (key: keyof Omit<SubscriptionBillingProfile, 'billingAddress' | 'shippingAddress'>, value: string) => {
     setProfile((current) => ({ ...current, [key]: value }))
@@ -224,17 +243,23 @@ export default function BillingSection({
     startProfileTransition(async () => {
       const result = await saveBillingProfileAction(restaurantId, effectiveProfile)
       if ('error' in result) return setFeedback(failureMessage(result))
+      profileSnapshotRef.current = effectiveProfile
       setFeedback('Fatura profili kaydedildi.')
-      notifySettingsSaved()
+      notifySettingsSaved('billing:profile')
       router.refresh()
     })
   }
 
   function startCheckout() {
+    if (!canStartNewCheckout) {
+      setFeedback('Mevcut abonelikte plan değişikliği yeni ödeme adımıyla yapılamaz. Destek ekibiyle iletişime geçin.')
+      return
+    }
     setFeedback('')
     startCheckoutTransition(async () => {
       const result = await startBillingCheckoutAction(restaurantId, {
         plan: selectedPlan, interval: selectedInterval, profile: effectiveProfile,
+        addOns: iyzicoAddOnSelected ? ['iyzico_online_payments'] : [],
         requestId: crypto.randomUUID(), checkoutTermsAccepted, legalDocumentVersion: LEGAL_DOCUMENT_VERSION,
       })
       if ('error' in result) return setFeedback(failureMessage(result))
@@ -247,9 +272,13 @@ export default function BillingSection({
   function cancelSubscription() {
     setFeedback('')
     startCancelTransition(async () => {
-      const result = await cancelBillingSubscriptionAction(restaurantId, { requestId: crypto.randomUUID() })
+      const result = await cancelBillingSubscriptionAction(restaurantId, {
+        requestId: crypto.randomUUID(),
+        currentPassword: cancelPassword,
+      })
       if ('error' in result) return setFeedback(failureMessage(result))
       setShowCancel(false)
+      setCancelPassword('')
       setFeedback('Abonelik iptal edildi. Verileriniz korunurken ücretli yüzeyler kilitlendi.')
       router.refresh()
     })
@@ -265,7 +294,6 @@ export default function BillingSection({
     )
   }
 
-  const subscription = billing?.subscription ?? null
   return (
     <>
       {checkoutContent && <HostedCheckoutDialog content={checkoutContent} onClose={() => setCheckoutContent(null)} />}
@@ -276,15 +304,27 @@ export default function BillingSection({
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <strong style={{ fontSize: 16 }}>{PLAN_DEFINITIONS[currentPlan].label} planı</strong>
             <Tag tone={subscription ? statusTone(subscription.status) : 'neutral'}>{subscription ? STATUS_LABELS[subscription.status] : 'Abonelik yok'}</Tag>
+            {subscription?.activeAddOns.includes('iyzico_online_payments') && <Tag tone="positive">İyzico add-on aktif</Tag>}
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 5 }}>
             {subscription?.currentPeriodEnd ? `${subscription.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'} dönem ${date(subscription.currentPeriodEnd)} tarihinde sona erer.` : 'Ücretli bir plan başlattığınızda dönem ve ödeme durumu burada görünür.'}
           </div>
         </div>
         {subscription && subscription.status !== 'cancelled' && (
-          <button type="button" onClick={() => setShowCancel(true)} disabled={pending} style={btnGhost({ color: 'var(--critical)', borderColor: 'var(--critical-bg)', opacity: pending ? .55 : 1 })}>Aboneliği iptal et</button>
+          <button type="button" onClick={() => { setCancelPassword(''); setShowCancel(true) }} disabled={pending} style={btnGhost({ color: 'var(--critical)', borderColor: 'var(--critical-bg)', opacity: pending ? .55 : 1 })}>Aboneliği iptal et</button>
         )}
       </div>
+
+      {(subscription?.status === 'past_due' || subscription?.status === 'grace_period') && (
+        <div role="status" style={{ padding: 13, marginBottom: 16, borderRadius: 10, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 12.5, lineHeight: 1.55 }}>
+          <strong>Ödeme erişimi uyarılı durumda.</strong> Profil, güvenlik, gizlilik ve faturalama erişiminiz sürer. Yeni checkout başlatmak yerine geciken faturadaki “Tekrar dene” aksiyonunu kullanın{subscription.graceEndsAt ? `; ek süre ${date(subscription.graceEndsAt)} tarihinde biter` : ''}.
+        </div>
+      )}
+      {(subscription?.status === 'trial_expired' || subscription?.status === 'suspended' || subscription?.status === 'cancelled' || subscription?.status === 'manual_hold') && (
+        <div role="alert" style={{ padding: 13, marginBottom: 16, borderRadius: 10, background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 12.5, lineHeight: 1.55 }}>
+          <strong>Operasyonel değişiklikler ve yayın kilitli.</strong> Verileriniz korunur; profil, çalışma alanı, güvenlik, gizlilik/dışa aktarma ve faturalama araçlarını kullanmaya devam edebilirsiniz.
+        </div>
+      )}
 
       {(billing?.attention.reconciliationCount ?? 0) > 0 && (
         <div role="status" style={{ padding: 13, marginBottom: 16, borderRadius: 10, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 12.5, display: 'flex', gap: 9 }}>
@@ -307,13 +347,29 @@ export default function BillingSection({
           {PAID_PLANS.map((plan) => {
             const selected = selectedPlan === plan
             return (
-              <button key={plan} type="button" aria-pressed={selected} onClick={() => setSelectedPlan(plan)} style={{ minWidth: 0, padding: 14, borderRadius: 10, border: selected ? '1.5px solid var(--text)' : '1px solid var(--border)', background: selected ? 'var(--surface-inset)' : 'var(--surface)', textAlign: 'left', cursor: 'pointer' }}>
+              <button key={plan} type="button" aria-pressed={selected} disabled={!canStartNewCheckout} onClick={() => { setSelectedPlan(plan); if (plan !== 'pro') setIyzicoAddOnSelected(false) }} style={{ minWidth: 0, padding: 14, borderRadius: 10, border: selected ? '1.5px solid var(--text)' : '1px solid var(--border)', background: selected ? 'var(--surface-inset)' : 'var(--surface)', textAlign: 'left', cursor: canStartNewCheckout ? 'pointer' : 'not-allowed', opacity: canStartNewCheckout ? 1 : .62 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{PLAN_DEFINITIONS[plan].label}</div>
                 <div style={{ fontSize: 16, fontWeight: 750, marginTop: 8, overflowWrap: 'anywhere' }}>{planPrices[plan][selectedInterval] ? `${money(planPrices[plan][selectedInterval]!)}${selectedInterval === 'monthly' ? '/ay' : '/yıl'}` : 'Fiyat yapılandırılmadı'}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 5 }}>{PLAN_DEFINITIONS[plan].description}</div>
               </button>
             )
           })}
+        </div>
+        <div style={{ padding: '0 16px 16px' }}>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: selectedPlan === 'pro' ? 'var(--surface)' : 'var(--surface-inset)', cursor: selectedPlan === 'pro' && canStartNewCheckout ? 'pointer' : 'not-allowed', opacity: selectedPlan === 'pro' ? 1 : .58 }}>
+            <input
+              type="checkbox"
+              checked={iyzicoAddOnSelected}
+              disabled={selectedPlan !== 'pro' || !canStartNewCheckout || addOnPrice === null}
+              onChange={(event) => setIyzicoAddOnSelected(event.target.checked)}
+              style={{ marginTop: 3 }}
+            />
+            <span style={{ flex: 1 }}>
+              <strong style={{ display: 'block', fontSize: 13.5 }}>İyzico Online Ödeme add-on</strong>
+              <span style={{ display: 'block', marginTop: 4, fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5 }}>Yalnız Pro ile satın alınır. QR menüde kartla ödeme ve İyzico tahsilat akışını açar; İyzico’nun işlem ücretleri ayrıca uygulanabilir.</span>
+            </span>
+            <strong style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{addOnPrice === null ? 'Fiyat yapılandırılmadı' : `+${money(addOnPrice)}${selectedInterval === 'monthly' ? '/ay' : '/yıl'}`}</strong>
+          </label>
         </div>
       </SCard>
 
@@ -337,8 +393,9 @@ export default function BillingSection({
             <strong>Ön bilgilendirme ve sözleşme özeti</strong>
             <div style={{ marginTop: 6 }}>
               {PLAN_DEFINITIONS[selectedPlan].label} · {selectedInterval === 'annual' ? '12 aylık, peşin' : '1 aylık'} ·{' '}
-              {planPrices[selectedPlan][selectedInterval] ? `${money(planPrices[selectedPlan][selectedInterval]!)} + KDV` : 'Tutar yapılandırılmadı'}
+              {planPrices[selectedPlan][selectedInterval] ? `${money(planPrices[selectedPlan][selectedInterval]! + (iyzicoAddOnSelected ? addOnPrice ?? 0 : 0))} + KDV` : 'Tutar yapılandırılmadı'}
             </div>
+            {iyzicoAddOnSelected && <div>Ek kalem: İyzico Online Ödeme add-on · {addOnPrice === null ? 'Fiyat yapılandırılmadı' : money(addOnPrice)}</div>}
             <div>{effectiveProfile.legalName || 'Fatura alıcısı'} · {effectiveProfile.identityNumber || 'VKN/TCKN'} · {effectiveProfile.taxOffice || 'Vergi dairesi'}</div>
             <div style={{ marginTop: 6 }}>
               <a href={`${process.env.NEXT_PUBLIC_MARKETING_URL || 'http://localhost:3003'}/yasal/abonelik-hizmet-sozlesmesi`} target="_blank" rel="noreferrer">Abonelik Hizmet Sözleşmesi</a>
@@ -351,8 +408,8 @@ export default function BillingSection({
             Seçtiğim planı, dönemi, KDV hariç liste fiyatını ve ödeme adımında KDV’nin ayrıca ekleneceğini okudum; Abonelik Hizmet Sözleşmesi’ni ticari işletmem adına onaylıyorum.
           </label>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <button type="button" aria-busy={profilePending} onClick={saveProfile} disabled={pending} style={btnGhost()}>{profilePending ? 'Kaydediliyor…' : 'Profili kaydet'}</button>
-            <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={pending || !checkoutTermsAccepted || planPrices[selectedPlan][selectedInterval] === null} style={btnPrimary({ opacity: pending || !checkoutTermsAccepted || planPrices[selectedPlan][selectedInterval] === null ? .55 : 1, cursor: pending || !checkoutTermsAccepted || planPrices[selectedPlan][selectedInterval] === null ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : `${PLAN_DEFINITIONS[selectedPlan].label} ödeme adımını aç`}</button>
+            <button type="button" aria-busy={profilePending} onClick={saveProfile} disabled={pending || !profileDirty} style={btnGhost()}>{profilePending ? 'Kaydediliyor…' : 'Profili kaydet'}</button>
+            <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={!canStartNewCheckout || pending || !checkoutTermsAccepted || planPrices[selectedPlan][selectedInterval] === null || (iyzicoAddOnSelected && addOnPrice === null)} style={btnPrimary({ opacity: !canStartNewCheckout || pending || !checkoutTermsAccepted || planPrices[selectedPlan][selectedInterval] === null || (iyzicoAddOnSelected && addOnPrice === null) ? .55 : 1, cursor: !canStartNewCheckout || pending || !checkoutTermsAccepted || planPrices[selectedPlan][selectedInterval] === null || (iyzicoAddOnSelected && addOnPrice === null) ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : canStartNewCheckout ? `${PLAN_DEFINITIONS[selectedPlan].label}${iyzicoAddOnSelected ? ' + add-on' : ''} ödeme adımını aç` : 'Plan değişikliği için desteğe ulaş'}</button>
           </div>
           {feedback && <div role="status" style={{ fontSize: 12, color: feedback.includes('MAS-') ? 'var(--critical)' : 'var(--positive)', lineHeight: 1.5 }}>{feedback}</div>}
         </div>
@@ -364,16 +421,30 @@ export default function BillingSection({
           : billing?.invoices.map((invoice) => <InvoiceRow key={invoice.id} restaurantId={restaurantId} invoice={invoice} />)}
       </SCard>
 
-      {showCancel && (
-        <div role="alertdialog" aria-modal="false" aria-labelledby="billing-cancel-title" style={{ marginTop: 16, padding: 16, borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--critical-bg)', borderLeft: '3px solid var(--critical)' }}>
-          <div id="billing-cancel-title" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--critical)' }}>Aboneliği hemen iptal et?</div>
-          <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-2)', margin: '5px 0 12px' }}>İyzico aboneliği anında iptal edilir. Veriler korunur; menü yayını ve ücretli özellikler kilitlenir.</p>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={() => setShowCancel(false)} disabled={cancelPending} style={btnGhost()}>Vazgeç</button>
-            <button type="button" aria-busy={cancelPending} onClick={cancelSubscription} disabled={pending} style={btnPrimary({ background: 'var(--critical)', borderColor: 'var(--critical)' })}>{cancelPending ? 'Abonelik iptal ediliyor…' : 'Evet, aboneliği iptal et'}</button>
+      <AlertDialog open={showCancel} onOpenChange={(open) => { if (!cancelPending) setShowCancel(open) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Aboneliği hemen iptal et?</AlertDialogTitle>
+            <AlertDialogDescription>
+              İyzico aboneliği anında iptal edilir. Menü yayını ve ücretli operasyon araçları kilitlenir; verileriniz korunur.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-2">
+            <label htmlFor="billing-cancel-password" className="text-sm font-medium">Owner hesap şifresi</label>
+            <Input id="billing-cancel-password" type="password" value={cancelPassword} onChange={(event) => setCancelPassword(event.target.value)} autoComplete="current-password" />
           </div>
-        </div>
-      )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelPending}>Vazgeç</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={pending || cancelPassword.length === 0}
+              onClick={(event) => { event.preventDefault(); cancelSubscription() }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancelPending ? 'Abonelik iptal ediliyor…' : 'Aboneliği hemen iptal et'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

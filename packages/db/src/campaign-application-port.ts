@@ -20,7 +20,7 @@ export function createCampaignApplicationPort(): CampaignApplicationPort {
     },
     async preview(input) {
       try {
-        return ok(await previewCampaignAudience(input.restaurantId, input.audience))
+        return ok(await previewCampaignAudience(input.restaurantId, input.channel, input.audience))
       } catch {
         return err('Alıcı sayısı hesaplanamadı')
       }

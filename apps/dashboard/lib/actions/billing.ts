@@ -33,6 +33,7 @@ import {
   dashboardActionFailure,
   type DashboardActionFailure,
 } from '../server-action-error'
+import { requireFreshOwnerPassword } from '../auth/fresh-owner-auth'
 
 const restaurantIdSchema = z.string().uuid()
 
@@ -113,7 +114,19 @@ export async function startBillingCheckoutAction(
   if (!parsed.success) return dashboardActionFailure('VALIDATION_FAILED', { operation: 'billing.checkout.start' })
   try {
     const config = readIyzicoSubscriptionProviderConfig()
-    const providerPlan = config.plans[parsed.data.plan][parsed.data.interval]
+    const addOnSelected = parsed.data.addOns.includes('iyzico_online_payments')
+    const addOnProviderPlan = addOnSelected
+      ? config.addOns?.iyzico_online_payments?.[parsed.data.interval]
+      : null
+    const providerPlan = addOnSelected
+      ? addOnProviderPlan
+      : config.plans[parsed.data.plan][parsed.data.interval]
+    if (!providerPlan) {
+      return dashboardActionFailure('VALIDATION_FAILED', { operation: 'billing.checkout.add-on-unavailable' })
+    }
+    const planNetAmountMinor = getPlanPrice(parsed.data.plan, parsed.data.interval).amountMinor
+    const addOnNetAmountMinor = addOnProviderPlan?.addOnNetAmountMinor ?? 0
+    const netAmountMinor = planNetAmountMinor + addOnNetAmountMinor
     const acceptance = await recordLegalDocumentAcceptance({
       userId: gate.userId,
       documentType: 'checkout_summary_accepted',
@@ -124,9 +137,15 @@ export async function startBillingCheckoutAction(
       evidenceKey: parsed.data.requestId,
       documentContext: {
         plan: parsed.data.plan, interval: parsed.data.interval,
-        netAmountMinor: getPlanPrice(parsed.data.plan, parsed.data.interval).amountMinor,
+        netAmountMinor,
+        lineItems: [
+          { type: 'plan', code: parsed.data.plan, amountMinor: planNetAmountMinor },
+          ...(addOnSelected ? [{
+            type: 'add_on', code: 'iyzico_online_payments', amountMinor: addOnNetAmountMinor,
+          }] : []),
+        ],
         vatRate: config.vatRate,
-        vatAmountMinor: providerPlan.amountMinor - getPlanPrice(parsed.data.plan, parsed.data.interval).amountMinor,
+        vatAmountMinor: providerPlan.amountMinor - netAmountMinor,
         totalAmountMinor: providerPlan.amountMinor,
         currency: 'TRY', kdvIncluded: false,
         customer: {
@@ -142,6 +161,7 @@ export async function startBillingCheckoutAction(
     const intent = {
       operation: 'checkout.initialize', restaurantId: gate.restaurantId,
       plan: parsed.data.plan, interval: parsed.data.interval, profile: parsed.data.profile,
+      addOns: parsed.data.addOns,
       providerPlanRef: providerPlan.referenceCode,
     }
     const result = await startSubscriptionCheckout(
@@ -150,6 +170,7 @@ export async function startBillingCheckoutAction(
         restaurantId: gate.restaurantId,
         profile: parsed.data.profile,
         plan: parsed.data.plan,
+        addOns: parsed.data.addOns,
         interval: parsed.data.interval,
         amount: { minor: providerPlan.amountMinor, currency: 'TRY' },
         expectedProviderPlanRef: providerPlan.referenceCode,
@@ -204,6 +225,13 @@ export async function cancelBillingSubscriptionAction(
   if (!gate.ok) return gate.failure
   const parsed = cancellationRequestSchema.safeParse(input)
   if (!parsed.success) return dashboardActionFailure('VALIDATION_FAILED', { operation: 'billing.subscription.cancel' })
+  const freshAuth = await requireFreshOwnerPassword(gate.restaurantId, parsed.data.currentPassword)
+  if (!freshAuth.ok) {
+    return dashboardActionFailure('AUTH_REQUIRED', {
+      operation: 'billing.subscription.cancel',
+      message: freshAuth.error,
+    })
+  }
   try {
     const config = readIyzicoSubscriptionProviderConfig()
     const result = await cancelTenantSubscription(

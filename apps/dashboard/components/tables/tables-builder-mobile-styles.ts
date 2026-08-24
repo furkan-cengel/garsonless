@@ -191,7 +191,7 @@ export const TABLES_MOBILE_STYLES = `
     border-top: 1px solid var(--border);
     min-height: calc(100dvh - 216px);
   }
-  .tb-tables__props-tabs { position: sticky; top: 0; z-index: 10; background: var(--surface); }
+  .tb-tables__props-tabs { position: sticky; top: 0; z-index: 10; background: var(--surface); scroll-padding-inline: 12px; }
   .tb-tables__statusbar {
     display: none !important;
   }
@@ -248,6 +248,60 @@ export const TABLES_MOBILE_STYLES = `
   .tb-tables__canvas-toolbar-actions .tb-qr-export-actions > div > button { width: 44px; min-width: 44px; padding: 0 !important; }
   .tb-qr-field { grid-template-columns: 1fr !important; gap: 5px !important; align-items: start !important; }
   .tb-qr-mobile-picker-panel { width: 100%; }
+}
+@media (max-width: 760px) {
+  .tb-tables {
+    padding-bottom: calc(58px + env(safe-area-inset-bottom));
+  }
+  .tb-tables__rail {
+    position: fixed !important;
+    z-index: 170;
+    inset: auto 0 0 0;
+    width: 100% !important;
+    height: calc(58px + env(safe-area-inset-bottom));
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 2px !important;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom)) !important;
+    overflow: hidden;
+    border-right: 0 !important;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .tb-tables__rail .rail-primary {
+    min-width: 0;
+    flex: 1;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    mask-image: linear-gradient(to right, transparent, #000 10px, #000 calc(100% - 10px), transparent);
+  }
+  .tb-tables__rail .rail-primary::-webkit-scrollbar { display: none; }
+  .tb-tables__rail .rail-item { scroll-snap-align: center; }
+  .tb-tables__rail .rail-secondary {
+    margin-top: 0 !important;
+    margin-left: auto;
+    flex-direction: row !important;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+  .tb-tables__rail .rail-tooltip { display: none; }
+  .tb-tables__rail .rail-active-indicator {
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: -1px;
+    width: auto;
+    height: 2.5px;
+  }
+  .tb-transfer-feedback {
+    bottom: calc(70px + env(safe-area-inset-bottom)) !important;
+  }
 }
 @media (min-width: 650px) and (max-width: 900px) {
   .tb-qr-mobile-picker-overlay { align-items: stretch !important; justify-content: flex-end; }

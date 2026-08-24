@@ -1,6 +1,11 @@
 import type { BillingAmount, SubscriptionInvoiceStatus, SubscriptionStatus } from '@garsonless/domain/billing'
 import type { DashboardActorContext, PaymentProviderContext, PlatformBillingContext } from '@garsonless/domain/context'
-import type { BillingInterval, RestaurantPlan, SelfServePlan } from '@garsonless/domain/entitlements'
+import type {
+  BillingInterval,
+  RestaurantAddOn,
+  RestaurantPlan,
+  SelfServePlan,
+} from '@garsonless/domain/entitlements'
 import { err, ok, type Result } from '@garsonless/domain/result'
 
 export const BILLING_PROVIDER_EVENT_TYPES = [
@@ -65,6 +70,7 @@ export interface SubscriptionBillingProvider {
     customer: SubscriptionBillingCustomer
     invoiceId: string
     plan: SelfServePlan
+    addOns?: readonly RestaurantAddOn[]
     interval: BillingInterval
     amount: BillingAmount
     callbackUrl: string
@@ -131,11 +137,13 @@ export type SubscriptionBillingSettingsSubscription = {
   trialEndsAt: string | null
   graceEndsAt: string | null
   cancelledAt: string | null
+  activeAddOns: RestaurantAddOn[]
 }
 
 export type SubscriptionBillingSettingsInvoice = {
   id: string
   plan: SelfServePlan
+  addOns: RestaurantAddOn[]
   billingInterval: BillingInterval
   amountDueMinor: number
   amountPaidMinor: number
@@ -190,6 +198,7 @@ export type BillingCheckoutPreparation = {
   invoiceId: string
   profile: SubscriptionBillingProfile
   plan: SelfServePlan
+  addOns?: RestaurantAddOn[]
   interval: BillingInterval
   amount: BillingAmount
   dispatchable: boolean
@@ -225,11 +234,13 @@ export interface SubscriptionBillingOperationsPort {
     restaurantId: string
     profile: SubscriptionBillingProfile
     plan: SelfServePlan
+    addOns?: RestaurantAddOn[]
     interval: BillingInterval
     amount: BillingAmount
     periodStart: string
     periodEnd: string
     dueAt: string
+    expectedProviderPlanRef?: string
     idempotencyKey: string
     requestFingerprint: string
   }): Promise<Result<BillingCheckoutPreparation>>
@@ -584,6 +595,7 @@ export async function startSubscriptionCheckout(
     restaurantId: string
     profile: SubscriptionBillingProfile
     plan: SelfServePlan
+    addOns?: readonly RestaurantAddOn[]
     interval: BillingInterval
     amount: BillingAmount
     periodStart: string
@@ -604,7 +616,11 @@ export async function startSubscriptionCheckout(
 }>> {
   if (!dashboardOwnerMatches(context, input.restaurantId)) return err('Billing owner context required')
   if (!validBillingProfile(input.profile) || !validOperationInput(input)) return err('Billing checkout input is invalid')
+  const addOns = [...(input.addOns ?? [])]
   if (!['starter', 'plus', 'pro'].includes(input.plan)
+    || addOns.some((addOn) => addOn !== 'iyzico_online_payments')
+    || new Set(addOns).size !== addOns.length
+    || (addOns.length > 0 && input.plan !== 'pro')
     || !['monthly', 'annual'].includes(input.interval)
     || !Number.isSafeInteger(input.amount.minor) || input.amount.minor <= 0
     || input.amount.currency !== 'TRY'
@@ -614,7 +630,7 @@ export async function startSubscriptionCheckout(
     return err('Billing checkout input is invalid')
   }
 
-  const prepared = await port.prepareCheckout(input)
+  const prepared = await port.prepareCheckout({ ...input, addOns })
   if (!prepared.ok) return prepared
   if (!prepared.value.dispatchable) {
     return prepared.value.providerCheckoutRef
@@ -645,6 +661,7 @@ export async function startSubscriptionCheckout(
     customer: prepared.value.profile,
     invoiceId: prepared.value.invoiceId,
     plan: prepared.value.plan,
+    addOns: prepared.value.addOns ?? [],
     interval: prepared.value.interval,
     amount: prepared.value.amount,
     callbackUrl: input.callbackUrl,

@@ -5,6 +5,7 @@ import type { TableStatusData } from './queries/insights-shared'
 export function projectPanoTableStatuses(
   source: Pick<PanoOperationalSource, 'tables' | 'openTableSessions'>,
   now: number,
+  restaurantDayStart = now - 24 * 60 * 60_000,
 ): TableStatusData[] {
   const sessionByTable = new Map(source.openTableSessions.map((session) => [session.tableId, session]))
 
@@ -27,10 +28,15 @@ export function projectPanoTableStatuses(
           splitDeclaredCashTotal: 0,
           orderCount: 0,
           hasUnfinished: false,
+          isStaleSession: false,
         }
       }
 
-      const status: TableStatusData['status'] = operation.isSettled
+      const openedAt = new Date(session.openedAt).getTime()
+      const isStaleSession = Number.isFinite(openedAt) && openedAt < restaurantDayStart
+      const status: TableStatusData['status'] = isStaleSession
+        ? 'stale'
+        : operation.isSettled
         ? 'paid'
         : operation.state === 'open'
           ? 'active'
@@ -49,6 +55,7 @@ export function projectPanoTableStatuses(
         splitDeclaredCashTotal: session.splitDeclaredCashTotal,
         orderCount: session.orderCount,
         hasUnfinished: session.hasUnfinished,
+        isStaleSession,
       }
     })
 }

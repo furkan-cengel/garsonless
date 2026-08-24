@@ -36,9 +36,10 @@ interface Props {
   pendingOrderIds: ReadonlySet<string>
   lateThresholdMin?: number
   density?: OrderDensity
+  now: number
 }
 
-export default function OrderColumn({ column, orders, tableLabels, selectedOrderId, onSelectOrder, onAdvance, pendingOrderIds, lateThresholdMin, density = 'comfortable' }: Props) {
+export default function OrderColumn({ column, orders, tableLabels, selectedOrderId, onSelectOrder, onAdvance, pendingOrderIds, lateThresholdMin, density = 'comfortable', now }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
   const tone = TONE_COLORS[column.tone]
   const sortedOrders = useMemo(() => sortOrdersByPriorityThenCreatedAt(orders), [orders])
@@ -55,7 +56,7 @@ export default function OrderColumn({ column, orders, tableLabels, selectedOrder
   const headingId = `orders-column-${column.id}`
 
   return (
-    <section className="orders-column" aria-labelledby={headingId} style={{
+    <section id={`orders-stage-${column.id}`} className="orders-column" aria-labelledby={headingId} style={{
       flex: 1, minWidth: 220,
       background: 'var(--surface-2)', borderRadius: 12,
       display: 'flex', flexDirection: 'column',
@@ -98,6 +99,7 @@ export default function OrderColumn({ column, orders, tableLabels, selectedOrder
               actionPending={pendingOrderIds.has(order.id)}
               lateThresholdMin={lateThresholdMin}
               density={density}
+              now={now}
             />
           ))}
         </SortableContext>

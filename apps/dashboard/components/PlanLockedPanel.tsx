@@ -32,7 +32,7 @@ export default function PlanLockedPanel({ restaurantId, currentPlan, feature, is
     : `Bu bölüm ${requiredLabel} veya üzeri paketlerde kullanılabilir. Mevcut verileriniz ve diğer bölümleriniz etkilenmez.`
 
   return (
-    <main style={{ minHeight: 'calc(100vh - 80px)', display: 'grid', placeItems: 'center', padding: 32, background: 'var(--bg)' }}>
+    <div style={{ minHeight: 'calc(100vh - 80px)', display: 'grid', placeItems: 'center', padding: 32, background: 'var(--bg)' }}>
       <section aria-labelledby="plan-lock-title" style={{ width: 'min(620px, 100%)', padding: '36px 34px', border: '1px solid var(--border)', borderRadius: 18, background: 'var(--surface)', boxShadow: 'var(--shadow-2)', textAlign: 'center' }}>
         <span aria-hidden="true" style={{ width: 48, height: 48, margin: '0 auto 18px', borderRadius: 14, display: 'grid', placeItems: 'center', background: 'var(--surface-3)', fontSize: 22 }}>🔒</span>
         <div style={{ color: 'var(--text-3)', fontSize: 11, fontWeight: 750, letterSpacing: '.08em', textTransform: 'uppercase' }}>Paket özelliği</div>
@@ -51,6 +51,6 @@ export default function PlanLockedPanel({ restaurantId, currentPlan, feature, is
           <p style={{ margin: '24px 0 0', color: 'var(--text-3)', fontSize: 12.5 }}>Yükseltme için işletme sahibiyle iletişime geçin.</p>
         )}
       </section>
-    </main>
+    </div>
   )
 }

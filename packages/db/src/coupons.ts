@@ -257,11 +257,22 @@ export async function saveRestaurantCoupon(restaurantId: string, input: CouponWr
   return saved
 }
 
-export async function archiveRestaurantCoupon(restaurantId: string, couponId: string, expectedUpdatedAt: string): Promise<void> {
-  const { data, error } = await createServiceClient().from('coupons').update({ archived_at: new Date().toISOString(), enabled: false, updated_at: new Date().toISOString() })
-    .eq('id', couponId).eq('restaurant_id', restaurantId).eq('updated_at', expectedUpdatedAt).is('archived_at', null).select('id').maybeSingle()
+export async function archiveRestaurantCoupon(restaurantId: string, couponId: string, expectedUpdatedAt: string): Promise<string> {
+  const updatedAt = new Date().toISOString()
+  const { data, error } = await createServiceClient().from('coupons').update({ archived_at: updatedAt, enabled: false, updated_at: updatedAt })
+    .eq('id', couponId).eq('restaurant_id', restaurantId).eq('updated_at', expectedUpdatedAt).is('archived_at', null).select('updated_at').maybeSingle()
   if (error) throw new Error(error.message)
   if (!data) throw new Error('Kupon başka bir oturumda değiştirildi. Listeyi yenileyip tekrar deneyin.')
+  return data.updated_at
+}
+
+export async function restoreRestaurantCoupon(restaurantId: string, couponId: string, expectedUpdatedAt: string): Promise<void> {
+  const { data, error } = await createServiceClient().from('coupons')
+    .update({ archived_at: null, enabled: false, updated_at: new Date().toISOString() })
+    .eq('id', couponId).eq('restaurant_id', restaurantId).eq('updated_at', expectedUpdatedAt).not('archived_at', 'is', null)
+    .select('id').maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('Arşiv kaydı başka bir oturumda değiştirildi. Listeyi yenileyin.')
 }
 
 function failure(code: CouponErrorCode): CouponFailure {

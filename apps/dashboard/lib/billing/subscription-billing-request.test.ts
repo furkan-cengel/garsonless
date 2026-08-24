@@ -27,6 +27,13 @@ test('checkout input normalizes provider identity without accepting free or malf
   assert.equal(parsed.profile.legalName, 'Masabu Test AŞ')
   assert.equal(parsed.profile.email, 'owner@example.com')
   assert.equal(parsed.profile.gsmNumber, '+905551112233')
+  assert.deepEqual(parsed.addOns, [])
+  assert.equal(checkoutRequestSchema.safeParse({
+    ...parsed, plan: 'pro', addOns: ['iyzico_online_payments'],
+  }).success, true)
+  assert.equal(checkoutRequestSchema.safeParse({
+    ...parsed, plan: 'plus', addOns: ['iyzico_online_payments'],
+  }).success, false)
   assert.equal(checkoutRequestSchema.safeParse({ ...parsed, plan: 'free' }).success, false)
   assert.equal(checkoutRequestSchema.safeParse({ ...parsed, plan: 'business' }).success, false)
   assert.equal(checkoutRequestSchema.safeParse({ ...parsed, interval: 'weekly' }).success, false)
@@ -94,17 +101,46 @@ test('public billing plan prices require the complete checkout and webhook contr
     starter: { monthly: 34_900, annual: 335_040 },
     plus: { monthly: 69_900, annual: 671_040 },
     pro: { monthly: 119_900, annual: 1_151_040 },
+    iyzicoOnlinePaymentsAddOn: { monthly: null, annual: null },
   })
   assert.deepEqual(readBillingPlanPrices({
     ...complete,
     IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR: '29.99',
   }), {
     starter: { monthly: null, annual: null }, plus: { monthly: null, annual: null }, pro: { monthly: null, annual: null },
+    iyzicoOnlinePaymentsAddOn: { monthly: null, annual: null },
   })
   assert.deepEqual(readBillingPlanPrices({
     ...complete,
     IYZICO_BILLING_MERCHANT_ID: undefined,
   }), {
     starter: { monthly: null, annual: null }, plus: { monthly: null, annual: null }, pro: { monthly: null, annual: null },
+    iyzicoOnlinePaymentsAddOn: { monthly: null, annual: null },
   })
+})
+
+test('public add-on price is exposed only for one complete Pro provider contract', () => {
+  const base = {
+    SAAS_BILLING_ENABLED: 'true', IYZICO_BILLING_MERCHANT_ID: 'merchant',
+    IYZICO_BILLING_API_KEY: 'api', IYZICO_BILLING_SECRET_KEY: 'secret',
+    IYZICO_BILLING_BASE_URL: 'https://sandbox-api.iyzipay.com', INVOICE_VAT_RATE: '20',
+    IYZICO_BILLING_STARTER_MONTHLY_PLAN_REF: 'starter-m', IYZICO_BILLING_STARTER_MONTHLY_AMOUNT_MINOR: '41880',
+    IYZICO_BILLING_STARTER_ANNUAL_PLAN_REF: 'starter-a', IYZICO_BILLING_STARTER_ANNUAL_AMOUNT_MINOR: '402048',
+    IYZICO_BILLING_PLUS_MONTHLY_PLAN_REF: 'plus-m', IYZICO_BILLING_PLUS_MONTHLY_AMOUNT_MINOR: '83880',
+    IYZICO_BILLING_PLUS_ANNUAL_PLAN_REF: 'plus-a', IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR: '805248',
+    IYZICO_BILLING_PRO_MONTHLY_PLAN_REF: 'pro-m', IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR: '143880',
+    IYZICO_BILLING_PRO_ANNUAL_PLAN_REF: 'pro-a', IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR: '1381248',
+    IYZICO_BILLING_PRO_IYZICO_ADDON_MONTHLY_PLAN_REF: 'pro-addon-m',
+    IYZICO_BILLING_PRO_IYZICO_ADDON_MONTHLY_ADDON_NET_AMOUNT_MINOR: '20000',
+    IYZICO_BILLING_PRO_IYZICO_ADDON_MONTHLY_AMOUNT_MINOR: '167880',
+    IYZICO_BILLING_PRO_IYZICO_ADDON_ANNUAL_PLAN_REF: 'pro-addon-a',
+    IYZICO_BILLING_PRO_IYZICO_ADDON_ANNUAL_ADDON_NET_AMOUNT_MINOR: '192000',
+    IYZICO_BILLING_PRO_IYZICO_ADDON_ANNUAL_AMOUNT_MINOR: '1611648',
+  }
+  assert.deepEqual(readBillingPlanPrices(base).iyzicoOnlinePaymentsAddOn, {
+    monthly: 20_000, annual: 192_000,
+  })
+  assert.deepEqual(readBillingPlanPrices({
+    ...base, IYZICO_BILLING_PRO_IYZICO_ADDON_ANNUAL_PLAN_REF: undefined,
+  }).iyzicoOnlinePaymentsAddOn, { monthly: null, annual: null })
 })

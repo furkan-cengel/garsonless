@@ -2,17 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchPanoSnapshot } from '../../lib/actions/pano'
-import { createDashboardBrowserClient } from '../../lib/supabase'
-import type { ActivityEvent, PanoSnapshot, TableStatusData } from '../../lib/queries/pano'
+import type { ActivityEvent, TableStatusData } from '../../lib/queries/pano'
+import { mergePanoRefresh, type PanoLiveSnapshot } from './pano-snapshot-model'
 import {
   PANO_EVENT_DEBOUNCE_MS,
+  PANO_EVENT_MAX_WAIT_MS,
   PANO_RECONCILE_INTERVAL_MS,
+  panoReconnectDelay,
   projectPanoLiveStatus,
   type PanoChannelStatus,
   type PanoLiveStatus,
 } from './pano-live-model'
-
-type PanoLiveSnapshot = Omit<PanoSnapshot, 'timezone' | 'initialFeed' | 'tableStatuses'>
 
 export type PanoLiveState = {
   snapshot: PanoLiveSnapshot
@@ -21,6 +21,8 @@ export type PanoLiveState = {
   realtime: PanoLiveStatus
   updatedAt: Date
   refreshing: boolean
+  retainedData: boolean
+  now: Date
   refreshSnapshot: () => Promise<boolean>
   retryLive: () => Promise<void>
   updateFeedStatus: (orderId: string, status: string) => void
@@ -48,21 +50,34 @@ export function usePanoLiveState({
   const [tableStatuses, setTableStatuses] = useState<TableStatusData[]>(initialTableStatuses)
   const [channelStatus, setChannelStatus] = useState<PanoChannelStatus>('connecting')
   const [updatedAt, setUpdatedAt] = useState(() => new Date(initialSnapshot.generatedAt))
-  const [statusNow, setStatusNow] = useState(() => new Date(initialSnapshot.generatedAt).getTime())
+  const [lastSuccessfulAt, setLastSuccessfulAt] = useState(() => Date.now())
+  const [statusNow, setStatusNow] = useState(() => Date.now())
   const [refreshError, setRefreshError] = useState<string | null>(initialSnapshot.errors[0] ?? null)
   const [refreshing, setRefreshing] = useState(false)
+  const [retainedData, setRetainedData] = useState(false)
   const [channelAttempt, setChannelAttempt] = useState(0)
   const refreshTimer = useRef<number | null>(null)
+  const refreshBurstStartedAt = useRef<number | null>(null)
+  const reconnectTimer = useRef<number | null>(null)
+  const reconnectFailures = useRef(0)
   const refreshInFlight = useRef<Promise<boolean> | null>(null)
   const hasSubscribed = useRef(false)
-  const labelByTableId = useRef<Map<string, string>>(new Map())
+  const snapshotRef = useRef(snapshot)
+  const feedRef = useRef(feed)
+  const tableStatusesRef = useRef(tableStatuses)
+
+  useEffect(() => { snapshotRef.current = snapshot }, [snapshot])
+  useEffect(() => { feedRef.current = feed }, [feed])
+  useEffect(() => { tableStatusesRef.current = tableStatuses }, [tableStatuses])
 
   useEffect(() => {
-    labelByTableId.current = new Map(tableStatuses.map((table) => [table.id, table.label]))
-  }, [tableStatuses])
+    const observedAt = Date.now()
+    setLastSuccessfulAt(observedAt)
+    setStatusNow(observedAt)
+  }, [])
 
   useEffect(() => {
-    const timer = window.setInterval(() => setStatusNow(Date.now()), 15_000)
+    const timer = window.setInterval(() => setStatusNow(Date.now()), 30_000)
     return () => window.clearInterval(timer)
   }, [])
 
@@ -74,18 +89,32 @@ export function usePanoLiveState({
       if ('error' in result) {
         setRefreshError(result.error)
         setSnapshot((current) => ({ ...current, errors: [result.error] }))
+        setRetainedData(true)
         return false
       }
 
-      const { timezone: _timezone, initialFeed: nextFeed, tableStatuses: nextTables, ...nextSnapshot } = result.snapshot
-      setSnapshot(nextSnapshot)
-      setFeed(nextFeed)
-      setTableStatuses(nextTables)
-      const successfulAt = new Date(result.snapshot.generatedAt)
-      setUpdatedAt(successfulAt)
-      setStatusNow(successfulAt.getTime())
-      setRefreshError(nextSnapshot.errors[0] ?? null)
-      return true
+      const merged = mergePanoRefresh(
+        snapshotRef.current,
+        feedRef.current,
+        tableStatusesRef.current,
+        result.snapshot,
+      )
+      snapshotRef.current = merged.snapshot
+      feedRef.current = merged.feed
+      tableStatusesRef.current = merged.tableStatuses
+      setSnapshot(merged.snapshot)
+      setFeed(merged.feed)
+      setTableStatuses(merged.tableStatuses)
+      setRetainedData(merged.retainedData)
+      if (merged.fullyFresh) {
+        const successfulAt = new Date(result.snapshot.generatedAt)
+        const observedAt = Date.now()
+        setUpdatedAt(successfulAt)
+        setLastSuccessfulAt(observedAt)
+        setStatusNow(observedAt)
+      }
+      setRefreshError(result.snapshot.errors[0] ?? null)
+      return merged.fullyFresh
     })()
     refreshInFlight.current = request
     try {
@@ -97,8 +126,15 @@ export function usePanoLiveState({
   }, [restaurantId])
 
   const scheduleSnapshotRefresh = useCallback(() => {
+    const now = Date.now()
+    refreshBurstStartedAt.current ??= now
     if (refreshTimer.current) window.clearTimeout(refreshTimer.current)
-    refreshTimer.current = window.setTimeout(() => void refreshSnapshot(), PANO_EVENT_DEBOUNCE_MS)
+    const remaining = Math.max(0, PANO_EVENT_MAX_WAIT_MS - (now - refreshBurstStartedAt.current))
+    refreshTimer.current = window.setTimeout(() => {
+      refreshTimer.current = null
+      refreshBurstStartedAt.current = null
+      void refreshSnapshot()
+    }, Math.min(PANO_EVENT_DEBOUNCE_MS, remaining))
   }, [refreshSnapshot])
 
   const updateFeedStatus = useCallback((orderId: string, status: string) => {
@@ -108,68 +144,76 @@ export function usePanoLiveState({
   }, [])
 
   useEffect(() => {
-    const supabase = createDashboardBrowserClient()
+    let disposed = false
+    let removeChannel: (() => void) | null = null
     setChannelStatus('connecting')
-    const invalidate = () => scheduleSnapshotRefresh()
-    const channel = supabase
-      .channel(`pano:${restaurantId}:${channelAttempt}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}`,
-      }, (payload) => {
-        invalidate()
-        const row = payload.new as Partial<{
-          id: string; status: string; total: number; table_id: string | null; created_at: string
-        }>
-        if (!row.id || !row.status) return
-        if (payload.eventType === 'UPDATE') {
-          updateFeedStatus(row.id, row.status)
-          return
-        }
-        if (payload.eventType !== 'INSERT' || typeof row.total !== 'number' || !row.created_at) return
-        setFeed((current) => [{
-          id: row.id!, status: row.status!, total: row.total!, tableId: row.table_id ?? null,
-          tableLabel: row.table_id ? labelByTableId.current.get(row.table_id) ?? null : null,
-          createdAt: row.created_at!,
-        }, ...current.filter((event) => event.id !== row.id)].slice(0, 7))
-      })
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'table_sessions', filter: `restaurant_id=eq.${restaurantId}`,
-      }, invalidate)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'payment_shares', filter: `restaurant_id=eq.${restaurantId}`,
-      }, invalidate)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'service_requests', filter: `restaurant_id=eq.${restaurantId}`,
-      }, invalidate)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'tables', filter: `restaurant_id=eq.${restaurantId}`,
-      }, invalidate)
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          const reconnect = hasSubscribed.current
-          hasSubscribed.current = true
-          setChannelStatus('live')
-          if (reconnect) void refreshSnapshot()
-          return
-        }
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          setChannelStatus('offline')
-        } else {
-          setChannelStatus('connecting')
-        }
-      })
+    const scheduleReconnect = () => {
+      if (disposed || reconnectTimer.current !== null || !navigator.onLine) return
+      const delay = panoReconnectDelay(reconnectFailures.current)
+      reconnectFailures.current += 1
+      reconnectTimer.current = window.setTimeout(() => {
+        reconnectTimer.current = null
+        if (!disposed) setChannelAttempt((current) => current + 1)
+      }, delay)
+    }
+    const connect = async () => {
+      const { createDashboardBrowserClient } = await import('../../lib/supabase')
+      if (disposed) return
+      const supabase = createDashboardBrowserClient()
+      const channel = supabase
+        .channel(`pano:${restaurantId}:${channelAttempt}`)
+        .on('postgres_changes', {
+          event: '*', schema: 'public', table: 'pano_invalidations', filter: `restaurant_id=eq.${restaurantId}`,
+        }, scheduleSnapshotRefresh)
+        .subscribe((status) => {
+          if (disposed) return
+          if (status === 'SUBSCRIBED') {
+            const reconnect = hasSubscribed.current
+            hasSubscribed.current = true
+            reconnectFailures.current = 0
+            if (reconnectTimer.current !== null) window.clearTimeout(reconnectTimer.current)
+            reconnectTimer.current = null
+            setChannelStatus('live')
+            if (reconnect) void refreshSnapshot()
+            return
+          }
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            setChannelStatus('offline')
+            scheduleReconnect()
+          } else {
+            setChannelStatus('connecting')
+          }
+        })
+      removeChannel = () => { void supabase.removeChannel(channel) }
+    }
+    void connect().catch(() => {
+      if (!disposed) {
+        setChannelStatus('offline')
+        scheduleReconnect()
+      }
+    })
 
     const handleOffline = () => setChannelStatus('offline')
-    const handleOnline = () => setChannelAttempt((current) => current + 1)
+    const handleOnline = () => {
+      reconnectFailures.current = 0
+      if (reconnectTimer.current !== null) window.clearTimeout(reconnectTimer.current)
+      reconnectTimer.current = null
+      setChannelAttempt((current) => current + 1)
+    }
     window.addEventListener('offline', handleOffline)
     window.addEventListener('online', handleOnline)
     return () => {
+      disposed = true
       if (refreshTimer.current) window.clearTimeout(refreshTimer.current)
+      refreshTimer.current = null
+      refreshBurstStartedAt.current = null
+      if (reconnectTimer.current !== null) window.clearTimeout(reconnectTimer.current)
+      reconnectTimer.current = null
       window.removeEventListener('offline', handleOffline)
       window.removeEventListener('online', handleOnline)
-      void supabase.removeChannel(channel)
+      removeChannel?.()
     }
-  }, [channelAttempt, refreshSnapshot, restaurantId, scheduleSnapshotRefresh, updateFeedStatus])
+  }, [channelAttempt, refreshSnapshot, restaurantId, scheduleSnapshotRefresh])
 
   useEffect(() => {
     const reconcile = () => {
@@ -191,10 +235,11 @@ export function usePanoLiveState({
 
   const realtime = useMemo(() => projectPanoLiveStatus({
     channel: channelStatus,
-    lastSuccessfulAt: updatedAt.getTime(),
+    lastSuccessfulAt,
     now: statusNow,
     refreshFailed: refreshError !== null,
-  }), [channelStatus, refreshError, statusNow, updatedAt])
+  }), [channelStatus, lastSuccessfulAt, refreshError, statusNow])
+  const now = useMemo(() => new Date(statusNow), [statusNow])
 
   return {
     snapshot,
@@ -203,6 +248,8 @@ export function usePanoLiveState({
     realtime,
     updatedAt,
     refreshing,
+    retainedData,
+    now,
     refreshSnapshot,
     retryLive,
     updateFeedStatus,

@@ -40,6 +40,7 @@ const share = (
   settledBy: null,
   settledByLabel: null,
   createdAt: '2026-07-28T09:00:00.000Z',
+  providerState: status === 'declared' && method === 'iyzico' ? 'verification_required' : 'none',
 })
 
 test('non-split settlement derives staged remaining, tally and collected amount once', () => {

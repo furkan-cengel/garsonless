@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import dynamic from 'next/dynamic'
 import PageTopBar from '../layout/PageTopBar'
 import { I } from '../../lib/ui'
@@ -22,6 +22,7 @@ import type {
   PanoAttentionItem,
   PanoOrderSummary,
   PanoServiceRequest,
+  PanoSnapshotHealth,
 } from '../../lib/queries/pano'
 import type { Section } from '../../lib/auth/access'
 import { PanoKpiCard, PanoAttentionQueue, PanoPeakHours, PanoCardSkeleton, PanoSystemHealth, PanoTopItemsWidget } from './PanoOverviewWidgets'
@@ -40,13 +41,13 @@ const PanoSalesChart = dynamic(() => import('./PanoSalesChart').then((module) =>
 const PanoActivityFeed = dynamic(() => import('./PanoActivityFeed').then((module) => module.PanoActivityFeed), {
   loading: () => <PanoCardSkeleton label="Canlı akış yükleniyor" />,
 })
-
 interface Props {
   restaurantId: string
   restaurantName: string
   generatedAt: string
   timezone: string
   initialErrors: string[]
+  initialHealth: PanoSnapshotHealth
   permissions: Section[]
   kpis: DashboardKPIs
   orderSummary: PanoOrderSummary
@@ -72,6 +73,8 @@ export default function PanoClient(props: Props) {
     realtime,
     updatedAt,
     refreshing,
+    retainedData,
+    now: clockNow,
     refreshSnapshot,
     retryLive,
     updateFeedStatus,
@@ -88,16 +91,12 @@ export default function PanoClient(props: Props) {
       generatedAt: props.generatedAt,
       pendingServiceRequests: props.pendingServiceRequests,
       errors: props.initialErrors,
+      health: props.initialHealth,
     },
     initialFeed: props.initialFeed,
     initialTableStatuses: props.tableStatuses,
   })
   const { kpis, orderSummary, attentionItems, hourlySales, topItems, heatmap, paymentStatus, pendingServiceRequests } = snapshot
-  const [clockNow, setClockNow] = useState(() => new Date(props.generatedAt))
-  useEffect(() => {
-    const interval = window.setInterval(() => setClockNow(new Date()), 30_000)
-    return () => window.clearInterval(interval)
-  }, [])
   const greeting = getPanoGreeting(timezone, clockNow)
   const [showNewOrder, setShowNewOrder] = useState(false)
   const [newOrderTableId, setNewOrderTableId] = useState<string | null>(null)
@@ -143,7 +142,6 @@ export default function PanoClient(props: Props) {
     restaurantId,
     onApproved: updateFeedStatus,
   })
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PanoStyles />
@@ -195,7 +193,6 @@ export default function PanoClient(props: Props) {
           </>
         }
       />
-
       {showNewOrder && (
         <NewOrderModal
           restaurantId={restaurantId}
@@ -255,10 +252,10 @@ export default function PanoClient(props: Props) {
             <Alert variant="destructive" className="mb-4">
               <I.warn />
               <AlertTitle>Bazı Pano verileri alınamadı</AlertTitle>
-              <AlertDescription>Son başarılı değerler gösteriliyor.</AlertDescription>
+              <AlertDescription>{retainedData ? 'Güncellenemeyen bölümlerde son başarılı değerler korunuyor.' : 'Bazı değerler kullanılamıyor. Yeniden deneyin.'}</AlertDescription>
               <AlertAction>
-                <Button variant="ghost" size="sm" disabled={refreshing} onClick={() => void retryLive()}>
-                  {refreshing && <Spinner data-icon="inline-start" aria-label="Yenileniyor" />}
+                <Button variant="ghost" size="sm" disabled={refreshing} aria-busy={refreshing} onClick={() => void retryLive()}>
+                  {refreshing && <Spinner data-icon="inline-start" aria-hidden="true" />}
                   {refreshing ? 'Yenileniyor…' : 'Yeniden dene'}
                 </Button>
               </AlertAction>

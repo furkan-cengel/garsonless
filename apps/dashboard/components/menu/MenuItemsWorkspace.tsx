@@ -29,6 +29,9 @@ export function MenuItemsWorkspace({
   onQuickUpdate,
   onBulkAvailability,
   highlight,
+  categories,
+  searching,
+  onClearSearch,
 }: {
   items: Tables<'menu_items'>[]
   activeCategory: Tables<'menu_categories'> | null
@@ -43,14 +46,30 @@ export function MenuItemsWorkspace({
   onQuickUpdate: (id: string, patch: { price?: number; is_available?: boolean }) => void
   onBulkAvailability: (ids: string[], isAvailable: boolean) => Promise<boolean>
   highlight?: string
+  categories: Tables<'menu_categories'>[]
+  searching: boolean
+  onClearSearch: () => void
 }) {
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [visibleCount, setVisibleCount] = useState(60)
 
   useEffect(() => {
     setSelectedIds((current) => new Set([...current].filter((id) => items.some((item) => item.id === id))))
   }, [items])
+
+  useEffect(() => setVisibleCount(60), [filter, highlight, items])
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 760px)')
+    const keepMobileGrid = () => {
+      if (media.matches) setView('grid')
+    }
+    keepMobileGrid()
+    media.addEventListener('change', keepMobileGrid)
+    return () => media.removeEventListener('change', keepMobileGrid)
+  }, [])
 
   function toggleSelected(id: string) {
     setSelectedIds((current) => {
@@ -75,9 +94,18 @@ export function MenuItemsWorkspace({
   const activeCount = items.filter((i) => i.is_available).length
   const inactiveCount = items.length - activeCount
   const hasSubCats = subCategories.length > 0
+  const renderedItems = filtered.slice(0, visibleCount)
+  const categoryById = new Map(categories.map((category) => [category.id, category]))
+  const categoryPath = (categoryId: string) => {
+    const category = categoryById.get(categoryId)
+    const parent = category?.parent_id ? categoryById.get(category.parent_id) : null
+    return [parent?.name, category?.name].filter(Boolean).join(' / ')
+  }
 
   return (
-    <div
+    <section
+      className="menu-items-workspace"
+      aria-labelledby="menu-products-heading"
       style={{
         flex: 1,
         minWidth: 0,
@@ -90,6 +118,7 @@ export function MenuItemsWorkspace({
     >
       {/* Toolbar */}
       <div
+        className="menu-items-toolbar"
         style={{
           height: 56,
           flexShrink: 0,
@@ -101,10 +130,12 @@ export function MenuItemsWorkspace({
           background: 'var(--surface)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="menu-items-toolbar-heading" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-.01em' }}>{activeCategory?.name ?? 'Tüm ürünler'}</div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+            <div id="menu-products-heading" style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-.01em' }}>
+              {searching ? 'Arama sonuçları' : activeCategory?.name ?? 'Tüm ürünler'}
+            </div>
+            <div className="menu-secondary-text" aria-live="polite" style={{ fontSize: 11.5, color: 'var(--text-2)' }}>
               {items.length} ürün · {activeCount} yayında
             </div>
           </div>
@@ -122,7 +153,7 @@ export function MenuItemsWorkspace({
           </Badge>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="menu-items-toolbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {selectedIds.size > 0 && (
             <div
               style={{
@@ -207,9 +238,17 @@ export function MenuItemsWorkspace({
         </div>
       </div>
 
+      <div className="menu-mobile-primary-row">
+        <Button type="button" size="sm" onClick={searching ? onClearSearch : canAddProduct ? onAddItem : onAddCategory}>
+          {searching ? <I.close data-icon="inline-start" /> : <I.plus data-icon="inline-start" />}
+          {searching ? 'Aramayı temizle' : canAddProduct ? 'Yeni ürün' : 'Kategori ekle'}
+        </Button>
+      </div>
+
       {/* Sub-category tabs */}
       {hasSubCats && (
         <div
+          className="menu-subcategory-tabs"
           style={{
             display: 'flex',
             gap: 4,
@@ -259,7 +298,7 @@ export function MenuItemsWorkspace({
       )}
 
       {/* Items */}
-      <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
+      <div className="menu-items-scroll" style={{ flex: 1, overflow: 'auto', padding: 24 }}>
         {filtered.length === 0 ? (
           <EmptyProducts
             filtered={items.length > 0}
@@ -271,13 +310,15 @@ export function MenuItemsWorkspace({
           />
         ) : view === 'grid' ? (
           <div
+            role="list"
+            aria-label={searching ? 'Arama sonuçları' : 'Ürünler'}
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
               gap: 12,
             }}
           >
-            {filtered.map((item) => (
+            {renderedItems.map((item) => (
               <ItemCard
                 key={item.id}
                 item={item}
@@ -288,15 +329,23 @@ export function MenuItemsWorkspace({
                 selectedForBulk={selectedIds.has(item.id)}
                 onToggleSelected={() => toggleSelected(item.id)}
                 highlight={highlight}
+                categoryPath={searching ? categoryPath(item.category_id) : undefined}
               />
             ))}
-            <AddCard onClick={onAddItem} />
+            {!searching && <AddCard onClick={onAddItem} />}
           </div>
         ) : (
-          <ItemsList items={filtered} selected={selectedItem} selectedIds={selectedIds} onToggleSelected={toggleSelected} onSelect={onSelectItem} highlight={highlight} />
+          <ItemsList items={renderedItems} selected={selectedItem} selectedIds={selectedIds} onToggleSelected={toggleSelected} onSelect={onSelectItem} highlight={highlight} categoryPath={searching ? categoryPath : undefined} />
+        )}
+        {visibleCount < filtered.length && (
+          <div className="flex justify-center py-5">
+            <Button type="button" variant="outline" onClick={() => setVisibleCount((current) => current + 60)}>
+              Daha fazla ürün göster ({Math.min(visibleCount, filtered.length)}/{filtered.length})
+            </Button>
+          </div>
         )}
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -309,6 +358,7 @@ function ItemCard({
   selectedForBulk,
   onToggleSelected,
   highlight,
+  categoryPath,
 }: {
   item: Tables<'menu_items'>
   active: boolean
@@ -318,6 +368,7 @@ function ItemCard({
   selectedForBulk: boolean
   onToggleSelected: () => void
   highlight?: string
+  categoryPath?: string
 }) {
   const [hov, setHov] = useState(false)
   const [editingPrice, setEditingPrice] = useState(false)
@@ -332,6 +383,7 @@ function ItemCard({
   }
   return (
     <div
+      role="listitem"
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -473,6 +525,11 @@ function ItemCard({
         </div>
       </div>
       <div style={{ padding: '10px 12px 12px' }}>
+        {categoryPath ? (
+          <div className="menu-product-breadcrumb" style={{ color: 'var(--text-2)', fontSize: 10.5, marginBottom: 4 }}>
+            {categoryPath}
+          </div>
+        ) : null}
         <Button
           type="button"
           onClick={(event) => {
@@ -686,6 +743,7 @@ function ItemsList({
   onToggleSelected,
   onSelect,
   highlight,
+  categoryPath,
 }: {
   items: Tables<'menu_items'>[]
   selected: Tables<'menu_items'> | null
@@ -693,9 +751,12 @@ function ItemsList({
   onToggleSelected: (id: string) => void
   onSelect: (item: Tables<'menu_items'>) => void
   highlight?: string
+  categoryPath?: (categoryId: string) => string
 }) {
   return (
     <div
+      role="list"
+      aria-label="Ürünler"
       style={{
         background: 'var(--surface)',
         borderRadius: 10,
@@ -729,6 +790,7 @@ function ItemsList({
         return (
           <div
             key={item.id}
+            role="listitem"
             style={{
               display: 'grid',
               gridTemplateColumns: '24px 1fr',
@@ -793,6 +855,11 @@ function ItemsList({
                 )}
               </div>
               <div>
+                {categoryPath ? (
+                  <div className="menu-product-breadcrumb" style={{ color: 'var(--text-2)', fontSize: 10.5, marginBottom: 2 }}>
+                    {categoryPath(item.category_id)}
+                  </div>
+                ) : null}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{highlight ? highlightText(item.name, highlight) : item.name}</span>
                   {missingInfo.length > 0 && (

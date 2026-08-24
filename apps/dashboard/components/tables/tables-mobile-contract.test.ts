@@ -24,6 +24,9 @@ test('mobile tables operations enforce reachable 44px controls without a nested 
   assert.match(frame, /\.tb-mobile-navigation__panel \.tb-tables__search \{ height: 44px !important;/)
   assert.match(mobileStyles, /\.tb-tables__filters select,[\s\S]*min-height: 44px !important/)
   assert.match(mobileStyles, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/)
+  assert.match(mobileStyles, /@media \(max-width: 760px\)[\s\S]*\.tb-tables__rail \{[\s\S]*position: fixed !important/)
+  assert.match(mobileStyles, /padding-bottom: calc\(58px \+ env\(safe-area-inset-bottom\)\)/)
+  assert.match(frame, /@media \(max-width: 360px\)[\s\S]*grid-template-columns: minmax\(0, 1fr\)/)
   assert.match(navigationList, /className="tb-tables__session-action"/)
   assert.match(navigationList, /className="tb-tables__session-summary"/)
   assert.match(responsiveNavigation, /labelledBy="tables-mobile-navigation-title"/)
@@ -39,6 +42,8 @@ test('mobile QR uses task surfaces, compact table selection and reachable action
   assert.match(mobileStyles, /data-qr-task='preview'[\s\S]*data-qr-task='design'/)
   assert.match(mobileStyles, /\.tb-tables__canvas-toolbar-actions \{[\s\S]*flex-wrap: nowrap;[\s\S]*overflow-x: auto/)
   assert.match(mobileStyles, /\.tb-tables__canvas-toolbar button \{[\s\S]*min-height: 44px !important/)
+  assert.match(mobileStyles, /scroll-padding-inline: 12px/)
+  assert.match(readFileSync(`${directory}/TablesQRPropertiesChrome.tsx`, 'utf8'), /scrollIntoView\(\{ block: 'nearest', inline: 'nearest' \}\)/)
 })
 
 test('transfer keeps one shadcn scroll owner with a fixed dialog footer', () => {

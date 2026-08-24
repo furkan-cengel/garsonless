@@ -50,6 +50,8 @@ type RawRow = {
   total_count: number | string
 }
 
+export type CustomerLoyaltyScope = Awaited<ReturnType<typeof getLoyaltyScope>>
+
 function segmentDefinitionToJson(definition: CustomerSegmentDefinition): Json {
   return definition as unknown as Json
 }
@@ -77,7 +79,7 @@ function mapSavedSegment(row: {
 export async function getRestaurantCustomers(
   restaurantId: string,
   opts: CustomerListOptions = {},
-  visibility: { includeContactData?: boolean } = {},
+  visibility: { includeContactData?: boolean; loyaltyScope?: CustomerLoyaltyScope } = {},
 ): Promise<RestaurantCustomersPage> {
   // Callers outside dashboard CRM (e.g. campaign delivery) retain the
   // historical consent-gated projection. Dashboard member queries explicitly
@@ -85,7 +87,9 @@ export async function getRestaurantCustomers(
   const includeContactData = visibility.includeContactData ?? true
   const page = Math.max(1, Math.floor(opts.page ?? 1))
   const pageSize = Math.min(100, Math.max(1, Math.floor(opts.pageSize ?? 25)))
-  const scope = await getLoyaltyScope(restaurantId)
+  const scope = visibility.loyaltyScope === undefined
+    ? await getLoyaltyScope(restaurantId)
+    : visibility.loyaltyScope
   const tiers = scope?.tiers ?? []
   const scopeKey = scope?.scopeKey ?? restaurantId
 
@@ -150,8 +154,11 @@ export async function getRestaurantCustomers(
  * page/search/filter. Uses the same canonical RPC predicates as the list. */
 export async function getRestaurantCustomerSegmentCounts(
   restaurantId: string,
+  options: { loyaltyScope?: CustomerLoyaltyScope } = {},
 ): Promise<CustomerSegmentCounts> {
-  const scope = await getLoyaltyScope(restaurantId)
+  const scope = options.loyaltyScope === undefined
+    ? await getLoyaltyScope(restaurantId)
+    : options.loyaltyScope
   const scopeKey = scope?.scopeKey ?? restaurantId
   const supabase = createServiceClient()
   const segments: CustomerSegment[] = ['new', 'frequent', 'lapsed', 'consented']

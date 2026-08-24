@@ -81,11 +81,15 @@ function checkoutPreparation(value: unknown): Result<BillingCheckoutPreparation>
   const status = operationStatus(row?.status)
   const providerCheckoutRef = nullableText(row?.providerCheckoutRef)
   const plan = row?.plan
+  const addOns = row?.addOns ?? []
   const interval = row?.interval
   const amountMinor = row?.amountMinor
   if (!row || !operationId || !customerId || !invoiceId || !parsedProfile || !status
     || providerCheckoutRef === undefined
     || !['starter', 'plus', 'pro'].includes(plan as string)
+    || !Array.isArray(addOns)
+    || addOns.some((addOn) => addOn !== 'iyzico_online_payments')
+    || (addOns.length > 0 && plan !== 'pro')
     || !['monthly', 'annual'].includes(interval as string)
     || typeof amountMinor !== 'number' || !Number.isSafeInteger(amountMinor) || amountMinor <= 0
     || row.currency !== 'TRY' || typeof row.dispatchable !== 'boolean'
@@ -95,6 +99,7 @@ function checkoutPreparation(value: unknown): Result<BillingCheckoutPreparation>
   return ok({
     operationId, customerId, invoiceId, profile: parsedProfile,
     plan: plan as BillingCheckoutPreparation['plan'],
+    addOns: addOns as NonNullable<BillingCheckoutPreparation['addOns']>,
     interval: interval as BillingCheckoutPreparation['interval'],
     amount: { minor: amountMinor, currency: 'TRY' },
     status, providerCheckoutRef,
@@ -154,7 +159,8 @@ export function createSubscriptionBillingOperationsPort(
       return customerId ? ok({ customerId }) : err('Billing profile result is invalid')
     },
     async prepareCheckout(input) {
-      const result = await call('prepare_subscription_checkout_operation', {
+      const addOns = input.addOns ?? []
+      const baseArgs = {
         ...profileArgs(input.restaurantId, input.profile),
         p_plan: input.plan,
         p_billing_interval: input.interval,
@@ -164,7 +170,14 @@ export function createSubscriptionBillingOperationsPort(
         p_due_at: input.dueAt,
         p_idempotency_key: input.idempotencyKey,
         p_request_fingerprint: input.requestFingerprint,
-      })
+      }
+      const result = addOns.length === 0
+        ? await call('prepare_subscription_checkout_operation', baseArgs)
+        : await call('prepare_subscription_checkout_with_add_ons_operation', {
+          ...baseArgs,
+          p_add_ons: addOns,
+          p_expected_provider_plan_ref: input.expectedProviderPlanRef,
+        })
       return result.ok ? checkoutPreparation(result.value) : result
     },
     async markCheckoutInitialized(input) {

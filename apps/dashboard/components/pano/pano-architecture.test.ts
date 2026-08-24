@@ -95,6 +95,8 @@ test('Pano responsive shell exposes a two-row mobile header, 44px targets and re
   assert.match(widgetSource, /aria-label="Yoğun saat görünümü"/)
   assert.match(widgetSource, /<Table>/)
   assert.match(stylesSource, /grid-template-rows: 52px 52px/)
+  assert.match(stylesSource, /@media \(max-width: 900px\)/)
+  assert.match(stylesSource, /\.page-topbar--pano \.page-topbar-tag \{ display: flex !important;/)
   assert.match(stylesSource, /min-height: 44px/)
   assert.match(stylesSource, /prefers-reduced-motion: reduce/)
   assert.match(iconRailSource, /width:44px;height:44px/)
@@ -107,16 +109,19 @@ test('Pano live state and order approval commands stay behind dedicated infrastr
   assert.doesNotMatch(clientSource, /createDashboardBrowserClient|fetchPanoSnapshot|fetchPanoTableStatuses|updateOrderStatus|function ActivityFeed/)
 
   assert.match(liveStateSource, /createDashboardBrowserClient/)
+  assert.match(liveStateSource, /await import\('\.\.\/\.\.\/lib\/supabase'\)/)
+  assert.doesNotMatch(liveStateSource, /import \{ createDashboardBrowserClient \} from/)
+  assert.match(shellSource, /import\('\.\.\/\.\.\/lib\/supabase'\)/)
+  assert.doesNotMatch(shellSource, /import \{ createDashboardBrowserClient \} from/)
   assert.match(liveStateSource, /fetchPanoSnapshot/)
   assert.doesNotMatch(liveStateSource, /fetchPanoTableStatuses/)
   assert.equal(liveStateSource.match(/\.channel\(/g)?.length, 1)
   assert.match(liveStateSource, /channel\(`pano:\$\{restaurantId\}:/)
-  assert.match(liveStateSource, /table: 'orders'/)
-  assert.match(liveStateSource, /table: 'table_sessions'/)
-  assert.match(liveStateSource, /table: 'payment_shares'/)
-  assert.match(liveStateSource, /table: 'service_requests'/)
-  assert.match(liveStateSource, /table: 'tables'/)
+  assert.match(liveStateSource, /table: 'pano_invalidations'/)
+  assert.doesNotMatch(liveStateSource, /table: '(?:orders|table_sessions|payment_shares|service_requests|tables)'/)
   assert.match(liveStateSource, /scheduleSnapshotRefresh/)
+  assert.match(liveStateSource, /panoReconnectDelay/)
+  assert.match(liveStateSource, /PANO_EVENT_MAX_WAIT_MS/)
   assert.match(liveStateSource, /PANO_RECONCILE_INTERVAL_MS/)
   assert.match(liveStateSource, /visibilitychange/)
   assert.match(liveStateSource, /refreshInFlight/)
@@ -136,8 +141,8 @@ test('PanoClient stays below the dashboard orchestration budget', () => {
 })
 
 test('Pano hydration starts from the server-generated clock', () => {
-  assert.match(clientSource, /new Date\(props\.generatedAt\)/)
   assert.match(liveStateSource, /new Date\(initialSnapshot\.generatedAt\)/)
+  assert.match(liveStateSource, /lastSuccessfulAt/)
   assert.doesNotMatch(clientSource, /new Date\(\)\.toLocaleDateString/)
   assert.doesNotMatch(activityFeedSource, /Date\.now\(\)/)
   assert.match(activityFeedSource, /now\.getTime\(\)/)
@@ -147,7 +152,7 @@ test('Pano hydration starts from the server-generated clock', () => {
 
 test('Pano topbar keeps its primary action compact and restaurant switching visibly interactive', () => {
   assert.match(stylesSource, /\.page-topbar--pano \.pano-action-primary \{ position: relative; min-height: 30px; \}/)
-  assert.match(stylesSource, /\.page-topbar--pano \.pano-action-primary::after,[\s\S]*inset: -7px 0;/)
+  assert.match(stylesSource, /\.page-topbar--pano \.pano-action-primary::after \{ content: ''; position: absolute; inset: -7px 0; \}/)
   assert.match(pageTopBarSource, /className="page-topbar-restaurant-chevron"/)
   assert.match(globalStylesSource, /\.page-topbar-restaurant:not\(:disabled\):hover \{/)
   assert.match(globalStylesSource, /\.page-topbar-restaurant:not\(:disabled\):hover \.page-topbar-restaurant-chevron \{/)
@@ -159,15 +164,15 @@ test('Pano topbar keeps its primary action compact and restaurant switching visi
 test('Pano table navigation uses shadcn link composition and chart ranges stay visually compact', () => {
   assert.match(attentionTablesSource, /render=\{<Link href=/)
   assert.match(attentionTablesSource, /buttonVariants\(\{ variant: 'ghost', size: 'sm' \}\)/)
-  assert.match(stylesSource, /\.pano-chart-ranges \{ min-height: 30px; \}/)
-  assert.match(stylesSource, /\.pano-chart-ranges button \{ position: relative; min-height: 26px; \}/)
-  assert.match(stylesSource, /\.pano-chart-ranges button::after[\s\S]*inset: -7px 0;/)
+  assert.match(stylesSource, /\.pano-chart-ranges \{ min-height: 44px; \}/)
+  assert.match(stylesSource, /\.pano-chart-ranges button \{ position: relative; min-height: 44px; \}/)
 })
 
 test('Pano peak-hour cells expose hover and keyboard tooltips', () => {
   assert.doesNotMatch(widgetSource, /className="pano-heatmap-scroll" aria-hidden/)
   assert.match(widgetSource, /className="pano-heatmap-cell"/)
   assert.match(widgetSource, /tabIndex=\{count > 0 \? 0 : -1\}/)
+  assert.match(widgetSource, /aria-hidden=\{count === 0 \? 'true' : undefined\}/)
   assert.match(widgetSource, /onMouseEnter=/)
   assert.match(widgetSource, /onFocus=/)
   assert.match(widgetSource, /role="tooltip"/)
@@ -199,6 +204,18 @@ test('Pano composes shadcn primitives for cards, feedback, lists, loading and da
   assert.match(clientSource, /from '@\/components\/ui\/badge'/)
   assert.match(activityFeedSource, /from '@\/components\/ui\/scroll-area'/)
   assert.match(salesChartSource, /from '@\/components\/ui\/table'/)
+})
+
+test('Pano loading and pending states announce once while keeping spinners decorative', () => {
+  assert.match(widgetSource, /<Card size="sm" role="status" aria-live="polite" aria-busy="true"/)
+  assert.match(widgetSource, /<span className="sr-only">\{label\}<\/span>/)
+  assert.match(widgetSource, /<div aria-hidden="true" className="contents">/)
+  assert.match(widgetSource, /disabled=\{retrying\} aria-busy=\{retrying\}/)
+  assert.match(clientSource, /disabled=\{refreshing\} aria-busy=\{refreshing\}/)
+  for (const source of [widgetSource, clientSource, activityFeedSource, salesChartSource]) {
+    assert.doesNotMatch(source, /<Spinner[^>]+aria-label=/)
+  }
+  assert.match(`${widgetSource}\n${clientSource}\n${activityFeedSource}\n${salesChartSource}`, /<Spinner[^>]+aria-hidden="true"/)
 })
 
 test('Pano uses one sans-serif numeric hierarchy and one TRY formatter', () => {

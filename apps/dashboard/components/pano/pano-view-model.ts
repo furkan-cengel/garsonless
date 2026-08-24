@@ -8,7 +8,7 @@ import type {
 import type { PanoLiveStatus } from './pano-live-model'
 import { formatPanoCurrency } from '../../lib/pano-format'
 
-type PanoTrend = 'up' | 'down'
+type PanoTrend = 'up' | 'down' | 'flat'
 type PanoIndicatorTone = 'positive' | 'warning' | 'critical' | 'neutral'
 
 export type PanoKpiCardModel = {
@@ -92,7 +92,9 @@ export function getPanoKpiCards(
       label: 'Tahsil edilen ciro',
       value: formatPanoCurrency(kpis.revenue),
       delta: percentageChange(kpis.revenue, kpis.revenueYesterday),
-      trend: kpis.revenue >= kpis.revenueYesterday ? 'up' : 'down',
+      ...(kpis.revenue === kpis.revenueYesterday
+        ? { trend: 'flat' as const, indicatorTone: 'neutral' as const }
+        : { trend: kpis.revenue > kpis.revenueYesterday ? 'up' as const : 'down' as const }),
       sub: `vs. dün ${formatPanoCurrency(kpis.revenueYesterday)}`,
       featured: true,
       href: operational.canAnalytics ? `/dashboard/${restaurantId}/analytics` : undefined,
@@ -118,7 +120,7 @@ export function getPanoKpiCards(
       value: String(attentionTableCount),
       delta: `${lateTableIds.length} geciken`,
       indicatorTone: attentionTableCount > 0 ? 'critical' : 'positive',
-      sub: `${operational.serviceRequests.length} açık servis isteği`,
+      sub: `${operational.serviceRequests.length} açık servis isteği · ${operational.tables.filter((table) => table.status === 'stale').length} eski oturum`,
       href: '#pano-attention',
     },
   ]

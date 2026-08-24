@@ -23,6 +23,11 @@ const nutritionSource = readFileSync(`${directory}/NutritionFields.tsx`, 'utf8')
 const imageAttachmentSource = readFileSync(`${directory}/MenuImageAttachment.tsx`, 'utf8')
 const globalStylesSource = readFileSync(`${directory}/../../app/globals.css`, 'utf8')
 const saveFeedbackSource = readFileSync(`${directory}/use-menu-save-feedback.ts`, 'utf8')
+const liveStateSource = readFileSync(`${directory}/use-menu-live-state.ts`, 'utf8')
+const csvImportSource = readFileSync(`${directory}/use-menu-csv-import.ts`, 'utf8')
+const overlaysSource = readFileSync(`${directory}/MenuManagerOverlays.tsx`, 'utf8')
+const menuActionsSource = readFileSync(`${directory}/../../lib/actions/menu.ts`, 'utf8')
+const routeSkeletonSource = readFileSync(`${directory}/../layout/DashboardRouteSkeleton.tsx`, 'utf8')
 
 test('MenuManager delegates category and quick-item commands to its controller', () => {
   assert.match(managerSource, /useMenuManagerCommands/)
@@ -231,6 +236,15 @@ test('live menu manager keeps desktop controls compact and touch targets accessi
   assert.match(newProductDrawerSource, /className="new-product-action[^"\n]*"[\s\S]*size="lg"/)
 })
 
+test('category row owns hover feedback without a nested text-button surface', () => {
+  assert.match(categoryWorkspaceSource, /className="menu-category-select"/)
+  assert.match(categoryDndSource, /className="menu-category-select"/)
+  assert.match(globalStylesSource, /\.menu-manager \.menu-category-select:not\(:disabled\):hover/)
+  assert.match(globalStylesSource, /box-shadow:\s*none\s*!important/)
+  assert.doesNotMatch(categoryWorkspaceSource, /<Button[\s\S]{0,120}className="menu-category-select"/)
+  assert.doesNotMatch(categoryDndSource, /<Button[\s\S]{0,120}className="menu-category-select"/)
+})
+
 test('product card selection stays visible over photos and color swatches', () => {
   assert.match(itemsWorkspaceSource, /className="menu-product-select-hit-area"/)
   assert.match(itemsWorkspaceSource, /className="menu-product-select-surface[^"\n]*bg-card[^"\n]*shadow-sm"/)
@@ -282,4 +296,52 @@ test('menu image uploads compose the shadcn Attachment lifecycle and accessible 
 test('MenuManager stays below its shell-state and chrome strangler decomposition budget', () => {
   const lineCount = managerSource.split('\n').length
   assert.ok(lineCount <= 240, `MenuManager grew to ${lineCount} lines`)
+})
+
+test('menu workspaces have explicit tablet and single-stage mobile contracts', () => {
+  assert.match(globalStylesSource, /@media \(max-width: 1024px\) and \(min-width: 761px\)/)
+  assert.match(globalStylesSource, /\.menu-manager \{[\s\S]{0,100}--nav: 220px;[\s\S]{0,100}--props: 420px;/)
+  assert.match(globalStylesSource, /@media \(max-width: 760px\)[\s\S]*data-workspace-stage="categories"/)
+  assert.match(globalStylesSource, /data-workspace-stage="items"/)
+  assert.match(globalStylesSource, /data-workspace-stage="editor"/)
+  assert.match(globalStylesSource, /\.menu-manager-topbar \{[\s\S]{0,180}height: 104px !important;/)
+  assert.match(routeSkeletonSource, /dashboard-route-skeleton-topbar--menu[\s\S]*height: 104px/)
+  assert.match(routeSkeletonSource, /dashboard-route-skeleton-menu-items,[\s\S]*dashboard-route-skeleton-menu-props[\s\S]*display: none/)
+})
+
+test('search mode preserves context and renders large result sets in accessible batches', () => {
+  assert.match(itemsWorkspaceSource, /Arama sonuçları/)
+  assert.match(itemsWorkspaceSource, /menu-product-breadcrumb/)
+  assert.match(itemsWorkspaceSource, /const \[visibleCount, setVisibleCount\] = useState\(60\)/)
+  assert.match(itemsWorkspaceSource, /setVisibleCount\(\(current\) => current \+ 60\)/)
+  assert.match(itemsWorkspaceSource, /role="list"/)
+  assert.match(itemsWorkspaceSource, /role="listitem"/)
+})
+
+test('CSV import crosses one tenant-authorized server boundary and reconciles created rows', () => {
+  assert.match(csvImportSource, /importMenuRows\(restaurantId/)
+  assert.doesNotMatch(csvImportSource, /createCategory\(null|createItem\(null/)
+  assert.match(menuActionsSource, /z\.array\(bulkImportRowSchema\)\.min\(1\)\.max\(1000\)/)
+  assert.match(menuActionsSource, /const actor = await getMenuActor/)
+  assert.match(menuActionsSource, /revalidatePath\(`\/dashboard\/\$\{restaurantInput\.data\}\/menu`\)/)
+  assert.match(managerSource, /onItemsCreated/)
+})
+
+test('menu realtime consumes tenant invalidations without polling and protects dirty drafts', () => {
+  assert.match(liveStateSource, /table: 'menu_invalidations'/)
+  assert.match(liveStateSource, /filter: `restaurant_id=eq\.\$\{restaurantId\}`/)
+  assert.match(liveStateSource, /if \(dirtyRef\.current\)[\s\S]*setUpdatePending\(true\)/)
+  assert.match(liveStateSource, /MENU_INVALIDATION_DEBOUNCE_MS/)
+  assert.doesNotMatch(liveStateSource, /setInterval|poll/i)
+  assert.match(chromeSource, /Başka bir oturumda güncelleme var/)
+})
+
+test('editor and overlay loading semantics avoid duplicate spinner announcements', () => {
+  assert.match(itemEditorFrameSource, /aria-labelledby=\{headingId\}/)
+  assert.match(itemEditorFrameSource, /headingRef\.current\?\.focus/)
+  assert.match(newProductDrawerSource, /nameInputRef\.current\?\.focus/)
+  assert.match(itemEditorSource, /<Spinner aria-hidden="true"/)
+  assert.match(recommendationEditorSource, /aria-busy=\{saveState === 'saving'\}/)
+  assert.match(overlaysSource, /dynamic\(\(\) => import\('\.\/NewProductDrawer'\)\)/)
+  assert.match(overlaysSource, /dynamic\(\(\) => import\('\.\/MenuCsvImportOverlays'\)/)
 })

@@ -7,6 +7,7 @@ import {
   listActivePublicCoupons,
   listRestaurantCoupons,
   saveRestaurantCoupon,
+  restoreRestaurantCoupon,
 } from '@garsonless/db/server'
 import { assertOwner, assertRestaurantFeature } from '../auth/access'
 import { createDashboardServerClient } from '../supabase-server'
@@ -90,11 +91,27 @@ export async function archiveCoupon(restaurantId: string, couponId: string, expe
   if ('error' in access) return access
   if (!z.string().uuid().safeParse(couponId).success) return { error: 'Geçersiz kupon.' }
   try {
-    await archiveRestaurantCoupon(restaurantId, couponId, expectedUpdatedAt)
+    const archiveVersion = await archiveRestaurantCoupon(restaurantId, couponId, expectedUpdatedAt)
+    revalidatePath(`/dashboard/${restaurantId}/settings`)
+    revalidatePath(`/dashboard/${restaurantId}/theme`)
+    return { success: true as const, archiveVersion }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Kupon arşivlenemedi.' }
+  }
+}
+
+export async function restoreCoupon(restaurantId: string, couponId: string, expectedUpdatedAt: string) {
+  const access = await gate(restaurantId)
+  if ('error' in access) return access
+  if (!z.string().uuid().safeParse(couponId).success || !z.string().datetime().safeParse(expectedUpdatedAt).success) {
+    return { error: 'Geçersiz geri alma isteği.' }
+  }
+  try {
+    await restoreRestaurantCoupon(restaurantId, couponId, expectedUpdatedAt)
     revalidatePath(`/dashboard/${restaurantId}/settings`)
     revalidatePath(`/dashboard/${restaurantId}/theme`)
     return { success: true as const }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Kupon arşivlenemedi.' }
+    return { error: error instanceof Error ? error.message : 'Kupon geri alınamadı.' }
   }
 }

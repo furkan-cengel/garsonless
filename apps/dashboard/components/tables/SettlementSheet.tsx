@@ -60,6 +60,7 @@ export default function SettlementSheet({
     error,
     committing,
     confirmingShareId,
+    resolvingShareId,
     done,
     abnormal,
     abnormalReason,
@@ -69,6 +70,8 @@ export default function SettlementSheet({
     setMethod,
     fillAll,
     confirmShare,
+    releaseCardShare,
+    reconcileCardShare,
     commit,
     confirmAbnormal,
     setAbnormal,
@@ -101,7 +104,7 @@ export default function SettlementSheet({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose() }}>
-      <DialogContent showCloseButton={false} className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+      <DialogContent showCloseButton={false} className="max-h-[92dvh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-lg">
         <style dangerouslySetInnerHTML={{ __html: SETTLEMENT_KEYFRAMES }} />
 
         <DialogHeader className="flex-row items-start gap-3 border-b px-5 py-4">
@@ -116,14 +119,14 @@ export default function SettlementSheet({
           <DialogClose disabled={busy} render={<Button type="button" variant="outline" size="icon" aria-label="Pencereyi kapat" />}><X /><span className="sr-only">Pencereyi kapat</span></DialogClose>
         </DialogHeader>
 
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea className="min-h-0 overflow-hidden">
           <div className="p-5">
           {error && (
             <Alert variant="destructive" className="mb-4"><AlertDescription>{error}</AlertDescription></Alert>
           )}
 
           {loadState === 'loading' ? (
-            <div role="status" aria-live="polite" aria-busy="true" className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Spinner />Adisyon yükleniyor…</div>
+            <div role="status" aria-live="polite" aria-busy="true" className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Spinner aria-hidden="true" />Adisyon yükleniyor…</div>
           ) : loadState === 'error' ? (
             <Alert variant="destructive"><AlertDescription className="flex flex-col gap-3 text-center">{loadError ?? SETTLEMENT_LOAD_ERROR}<Button type="button" variant="outline" onClick={reload}>Tekrar dene</Button></AlertDescription></Alert>
           ) : (
@@ -159,7 +162,10 @@ export default function SettlementSheet({
                   splitRemaining={splitRemaining}
                   busy={busy}
                   confirmingShareId={confirmingShareId}
+                  resolvingShareId={resolvingShareId}
                   onConfirmShare={(shareId) => void confirmShare(shareId)}
+                  onReleaseCardShare={(shareId) => void releaseCardShare(shareId)}
+                  onReconcileCardShare={(shareId) => void reconcileCardShare(shareId)}
                 />
               )}
 
@@ -234,7 +240,7 @@ export default function SettlementSheet({
               <Button type="button" variant="outline" size="lg" disabled={busy} onClick={onClose} className="flex-1">Vazgeç</Button>
               <Button type="button" variant={allStaged ? 'positive' : 'default'} size="lg" aria-busy={committing} disabled={!allStaged || busy} onClick={() => void commit()} className="flex-[1.6]">
                 {committing
-                  ? <><Spinner data-icon="inline-start" />Kapatılıyor…</>
+                  ? <><Spinner aria-hidden="true" data-icon="inline-start" />Kapatılıyor…</>
                   : allStaged
                     ? <><Check data-icon="inline-start" />Masayı kapat · {formatSettlementAmount(collected)} tahsil</>
                     : isSplitMode
@@ -262,7 +268,7 @@ export default function SettlementSheet({
                   </Field>
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" size="sm" disabled={busy} onClick={cancelAbnormal} className="flex-1">Vazgeç</Button>
-                    <Button type="button" variant="destructive" size="sm" aria-busy={committing} disabled={busy || !abnormalReason.trim()} onClick={() => void confirmAbnormal()} className="flex-1">{committing && <Spinner data-icon="inline-start" />}Yine de kapat</Button>
+                    <Button type="button" variant="destructive" size="sm" aria-busy={committing} disabled={busy || !abnormalReason.trim()} onClick={() => void confirmAbnormal()} className="flex-1">{committing && <Spinner aria-hidden="true" data-icon="inline-start" />}{committing ? 'Kapatılıyor…' : 'Yine de kapat'}</Button>
                   </div>
                 </FieldGroup>
                 </AlertDescription>

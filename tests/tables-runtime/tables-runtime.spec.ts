@@ -98,9 +98,13 @@ async function waitForLive(page: Page) {
 }
 
 async function waitForActiveTable(page: Page, label: string) {
-  await expect(
-    page.getByRole("button", { name: `${label} masasını taşı`, exact: true }),
-  ).toBeVisible({ timeout: 25_000 });
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const floorCard = page.locator(".tb-floor-card__main").filter({ hasText: label });
+  await expect(floorCard).toHaveAccessibleName(
+    new RegExp(`^${escapedLabel}, Açık,`),
+    { timeout: 25_000 },
+  );
+  await expect(floorCard).toBeVisible();
 }
 
 async function captureRouteLoading({
@@ -226,13 +230,35 @@ test.describe("tables production runtime gate", () => {
           name: "Isolated Tables Browser Runtime Gate",
           slug: `tables-browser-runtime-${Date.now()}-${randomUUID().slice(0, 6)}`,
           owner_id: ownerRestaurant!.owner_id,
-          plan: "enterprise",
+          plan: "business",
         })
         .select("id")
         .single();
       expect(restaurantError).toBeNull();
       expect(restaurant).toBeTruthy();
       restaurantId = restaurant!.id;
+      const { data: billingCustomer, error: billingCustomerError } = await service
+        .from("billing_customers")
+        .insert({
+          restaurant_id: restaurantId,
+          legal_name: "Isolated Tables Browser Runtime Gate",
+          contact_email: "tables-runtime@example.invalid",
+        })
+        .select("id")
+        .single();
+      expect(billingCustomerError).toBeNull();
+      expect(billingCustomer).toBeTruthy();
+      const { error: subscriptionError } = await service
+        .from("billing_subscriptions")
+        .insert({
+          restaurant_id: restaurantId,
+          billing_customer_id: billingCustomer!.id,
+          plan: "business",
+          status: "active",
+          current_period_start: new Date(Date.now() - 60_000).toISOString(),
+          current_period_end: new Date(Date.now() + 86_400_000).toISOString(),
+        });
+      expect(subscriptionError).toBeNull();
 
       const sourceLabel = "Runtime Canlı Kaynak";
       const targetLabel = "Runtime Canlı Hedef";
@@ -371,8 +397,8 @@ test.describe("tables production runtime gate", () => {
       });
       await desktop.keyboard.press("Escape");
       await expect(settlement).toHaveCount(0);
-      expect(
-        await desktop.evaluate(() => document.body.style.overflow),
+      await expect.poll(
+        () => desktop.evaluate(() => document.body.style.overflow),
       ).not.toBe("hidden");
       await expect(
         desktop.getByRole("button", { name: "Kapat", exact: true }),
@@ -415,9 +441,18 @@ test.describe("tables production runtime gate", () => {
           exact: true,
         }),
       ).toBeDisabled();
-      await transfer
-        .getByRole("combobox", { name: "Hedef masa", exact: true })
-        .selectOption(targetTableId);
+      const targetSelect = transfer.getByRole("combobox", {
+        name: "Hedef masa",
+        exact: true,
+      });
+      await targetSelect.evaluate((element) => {
+        element.scrollIntoView({ block: "center", inline: "nearest" });
+      });
+      await expect(targetSelect).toBeVisible();
+      await targetSelect.click();
+      await desktop
+        .getByRole("option", { name: `${targetLabel} · Boş`, exact: true })
+        .click();
       await expect(
         transfer.getByRole("button", {
           name: "Taşımayı onayla · 2 adet",
@@ -431,9 +466,13 @@ test.describe("tables production runtime gate", () => {
 
       await mobile
         .getByRole("button", {
-          name: `${sourceLabel} ürün veya hesabını taşı`,
+          name: `${sourceLabel} hızlı işlemleri`,
           exact: true,
         })
+        .click();
+      await mobile
+        .getByRole("menu", { name: `${sourceLabel} hızlı işlemleri` })
+        .getByRole("menuitem", { name: "Ürün / hesap taşı", exact: true })
         .click();
       const mobileTransfer = mobile.getByRole("dialog", {
         name: "Ürün veya sipariş taşı",
@@ -533,7 +572,7 @@ test.describe("tables production runtime gate", () => {
       });
       await expect(historyDialog).toBeVisible();
       await expect(historyDialog.getByText("Masa taşıma · 1 sipariş")).toBeVisible();
-      await expect(historyDialog.getByText(/İşlemi yapan:/)).toContainText("Siz");
+      await expect(historyDialog.getByText(/İşlemi yapan: Siz/).first()).toBeVisible();
       await historyDialog
         .getByRole("combobox", { name: "Taşıma türü filtresi" })
         .selectOption("table_move");
@@ -543,7 +582,7 @@ test.describe("tables production runtime gate", () => {
       await historyDialog
         .getByRole("searchbox", { name: "Taşıma geçmişinde ara" })
         .fill(sourceLabel);
-      await expect(historyDialog.getByText("1 / 1 işlem", { exact: true })).toBeVisible();
+      await expect(historyDialog.getByText("1 / 2 işlem", { exact: true })).toBeVisible();
       await historyDialog.getByText("Audit ayrıntıları", { exact: true }).click();
       await expect(historyDialog.getByText(moveRequestId, { exact: true })).toBeVisible();
       await expect(historyDialog.getByText(/Açık adisyon hedef masaya taşındı/)).toBeVisible();
@@ -563,7 +602,7 @@ test.describe("tables production runtime gate", () => {
         .getByRole("button", { name: "Pencereyi kapat", exact: true })
         .click();
 
-      await mobile.getByRole("button", { name: "Geçmiş", exact: true }).click();
+      await mobile.getByRole("button", { name: "Geçmiş Taşımalar", exact: true }).click();
       const mobileHistoryDialog = mobile.getByRole("dialog", {
         name: "Taşıma Geçmişi",
       });
@@ -668,6 +707,7 @@ test.describe("tables production runtime gate", () => {
         path: resolve(evidenceDir, "54-release-qr-studio-mobile.png"),
         animations: "disabled",
       });
+      await mobile.getByRole("tab", { name: "Tasarım", exact: true }).click();
       const mobileLogoTab = mobile.getByRole("tab", {
         name: "Logo",
         exact: true,
@@ -812,6 +852,16 @@ test.describe("tables production runtime gate", () => {
           "table_sessions",
           "table_qr_tokens",
           "tables",
+        ] as const) {
+          const { error } = await service
+            .from(relation)
+            .delete()
+            .eq("restaurant_id", restaurantId);
+          if (error) cleanupErrors.push(`${relation}:${error.code}`);
+        }
+        for (const relation of [
+          "billing_subscriptions",
+          "billing_customers",
         ] as const) {
           const { error } = await service
             .from(relation)

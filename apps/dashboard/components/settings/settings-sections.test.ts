@@ -6,9 +6,10 @@ import {
   resolveSettingsSection,
 } from './settings-sections'
 
-test('the settings URL contract contains fourteen unique sections', () => {
-  assert.equal(SETTINGS_SECTION_IDS.length, 14)
+test('the settings URL contract contains fifteen unique sections including owner privacy tools', () => {
+  assert.equal(SETTINGS_SECTION_IDS.length, 15)
   assert.equal(new Set(SETTINGS_SECTION_IDS).size, SETTINGS_SECTION_IDS.length)
+  assert.equal(canAccessSettingsSection('privacy', false), false)
 })
 
 test('an owner can deep-link to every settings section', () => {

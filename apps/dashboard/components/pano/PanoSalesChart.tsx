@@ -96,7 +96,7 @@ export function PanoSalesChart({
           </span>
           {isPending && (
             <span role="status" aria-live="polite" className="flex items-center gap-1 text-muted-foreground">
-              <Spinner data-icon="inline-start" aria-label="Tahsilat grafiği yükleniyor" /> Tahsilat grafiği yükleniyor…
+              <Spinner data-icon="inline-start" aria-hidden="true" /> Tahsilat grafiği yükleniyor…
             </span>
           )}
           <ToggleGroup

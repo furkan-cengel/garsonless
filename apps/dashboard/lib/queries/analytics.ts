@@ -17,6 +17,7 @@ import {
   aggregateCollectedFinancials,
 } from '../analytics-financial-model'
 import { aggregateRefundSummary, type PaymentReport } from '../analytics-payment-model'
+import { projectPaymentAggregate } from '../analytics-payment-aggregate'
 export type { PaymentBreakdown, PaymentReport } from '../analytics-payment-model'
 import {
   analyticsReadModel,
@@ -114,6 +115,17 @@ export async function getDashboardKPIs(
   return { revenue, revenueYesterday, orders, ordersYesterday, paidOrders, paidOrdersYesterday, activeOrders, avgBasket, sessions, sessionsYesterday }
 }
 
+/** The analytics header needs one number, not the full Pano KPI snapshot. */
+export async function getAnalyticsActiveOrderCount(restaurantId: string): Promise<number> {
+  const gate = await assertAccess(restaurantId, 'analytics')
+  if ('error' in gate) return 0
+  const read = analyticsReadModel.readActiveOrderCount
+  if (!read) return (await getDashboardKPIs(restaurantId)).activeOrders
+  const result = await read({ restaurantId })
+  if (!result.ok) throw new Error(`getAnalyticsActiveOrderCount: ${result.error}`)
+  return result.value
+}
+
 async function getTopItems(
   restaurantId: string,
   range: string | AnalyticsQuery = 'day',
@@ -128,8 +140,6 @@ async function getTopItems(
     .slice(0, 5)
 }
 
-// P3 collected-bucket labels. 'unknown' = legacy paid orders with a null method
-// (collected money, channel unknown) — kept in the tahsilat base, NOT a comp.
 const COLLECTED_METHOD_LABELS: Record<string, string> = {
   iyzico: 'İyzico',
   cash: 'Nakit',
@@ -164,6 +174,13 @@ export async function getPaymentBreakdown(restaurantId: string, range: string | 
 
   const { currentStart, currentEnd } = await rangeWindowFor(restaurantId, range, asOf)
   const filters = analyticsOrderReadFilters(range)
+  if (analyticsReadModel.readPaymentAggregate) {
+    const aggregateResult = await analyticsReadModel.readPaymentAggregate({
+      restaurantId, since: currentStart.toISOString(), before: currentEnd.toISOString(), filters,
+    })
+    if (!aggregateResult.ok) throw new Error(`getPaymentBreakdown: ${aggregateResult.error}`)
+    return projectPaymentAggregate(aggregateResult.value)
+  }
   const [result, refundResult] = await Promise.all([
     analyticsReadModel.readPaymentOrders({
       restaurantId, since: currentStart.toISOString(), before: currentEnd.toISOString(), filters,
@@ -173,9 +190,6 @@ export async function getPaymentBreakdown(restaurantId: string, range: string | 
     }),
   ])
   if (!result.ok) throw new Error(`getPaymentBreakdown: ${result.error}`)
-  // Refund reporting is an independently deployable ledger. Keep collection
-  // analytics available when that read is temporarily unavailable, but expose
-  // the missing coverage explicitly so no consumer can mistake it for ₺0.
   const monetaryRefundsAvailable = refundResult.ok
 
   const collectedGroups: Record<string, { key: string; label: string; amount: number; count: number }> = {
@@ -402,13 +416,18 @@ export async function getTablesReportData(restaurantId: string, range: string | 
   for (const order of orders) {
     const a = agg(order.tableId)
     a.revenue += order.total
-    a.orders += 1
+    a.orders += order.count ?? 1
   }
   for (const s of closedSessions) {
-    const mins = (new Date(s.closedAt).getTime() - new Date(s.openedAt).getTime()) / 60_000
-    if (!Number.isFinite(mins) || mins < 0) continue
+    const mins = s.dwellSumMinutes ?? (
+      s.closedAt && s.openedAt
+        ? (new Date(s.closedAt).getTime() - new Date(s.openedAt).getTime()) / 60_000
+        : Number.NaN
+    )
+    const turnover = s.turnover ?? 1
+    if (!Number.isFinite(mins) || mins < 0 || !Number.isFinite(turnover) || turnover < 0) continue
     const a = agg(s.tableId)
-    a.turnover += 1
+    a.turnover += turnover
     a.dwellSum += mins
   }
 

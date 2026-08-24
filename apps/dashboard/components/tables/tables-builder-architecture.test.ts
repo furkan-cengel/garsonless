@@ -33,12 +33,14 @@ const chromeSource = readFileSync(`${directory}/TablesBuilderChrome.tsx`, 'utf8'
 const rotationSource = readFileSync(`${directory}/use-table-qr-token-rotation.ts`, 'utf8')
 const rotationDialogSource = readFileSync(`${directory}/TablesQRRotationDialog.tsx`, 'utf8')
 const transferDialogSource = readFileSync(`${directory}/TableTransferDialog.tsx`, 'utf8')
+const transferOrdersLoadSource = readFileSync(`${directory}/transfer-orders-load.ts`, 'utf8')
 const transferOrderSelectorSource = readFileSync(`${directory}/TableTransferOrderSelector.tsx`, 'utf8')
 const transferSelectionModelSource = readFileSync(`${directory}/table-transfer-selection-model.ts`, 'utf8')
 const transferHistorySource = readFileSync(`${directory}/TableTransferHistory.tsx`, 'utf8')
 const transferHistoryModelSource = readFileSync(`${directory}/table-transfer-history-model.ts`, 'utf8')
 const transferFeedbackSource = readFileSync(`${directory}/use-table-transfer-feedback.ts`, 'utf8')
 const tableActionsSource = readFileSync(`${directory}/../../lib/actions/tables.ts`, 'utf8')
+const tableQuerySource = readFileSync(`${directory}/../../lib/queries/tables.ts`, 'utf8')
 const liveStateSource = readFileSync(`${directory}/use-tables-live-state.ts`, 'utf8')
 const realtimeChannelHookSource = readFileSync(`${directory}/use-tables-realtime-channel.ts`, 'utf8')
 const realtimeChannelRuntimeSource = readFileSync(`${directory}/tables-realtime-channel-runtime.ts`, 'utf8')
@@ -51,6 +53,7 @@ const floorLayoutExternalSyncSource = readFileSync(`${directory}/use-table-layou
 const floorLayoutModelSource = readFileSync(`${directory}/table-floor-layout-model.ts`, 'utf8')
 const legacyLayoutModelSource = readFileSync(`${directory}/legacy-table-layout-model.ts`, 'utf8')
 const floorActionsSource = readFileSync(`${directory}/use-table-floor-actions.tsx`, 'utf8')
+const transferPrefetchSource = readFileSync(`${directory}/use-transfer-orders-prefetch.ts`, 'utf8')
 const quickActionMenuSource = readFileSync(`${directory}/TableQuickActionMenu.tsx`, 'utf8')
 const detailPanelSource = readFileSync(`${directory}/TableDetailPanel.tsx`, 'utf8')
 const detailSurfaceSource = readFileSync(`${directory}/TableDetailSurface.tsx`, 'utf8')
@@ -198,6 +201,9 @@ test('quick table operations expose equivalent pointer, keyboard and mobile entr
 })
 
 test('product transfer selection stays quantity-aware and delegates money writes to the server', () => {
+  assert.match(transferDialogSource, /FieldLabel htmlFor="table-transfer-target"/)
+  assert.match(transferDialogSource, /SelectTrigger id="table-transfer-target"/)
+  assert.match(transferDialogSource, /SelectValue placeholder="Masa seçin">\{targetId \? tableLabel\(targetId\) : undefined\}/)
   assert.match(transferDialogSource, /<TableTransferOrderSelector/)
   assert.match(transferDialogSource, /transferOrderItemsToTable/)
   assert.match(transferDialogSource, /selectionNeedsOrderSplit/)
@@ -206,7 +212,24 @@ test('product transfer selection stays quantity-aware and delegates money writes
   assert.match(transferOrderSelectorSource, /data-transfer-product-row/)
   assert.match(transferOrderSelectorSource, /<Checkbox/)
   assert.match(transferOrderSelectorSource, /data-transfer-product-value/)
-  assert.match(transferOrderSelectorSource, /<NativeSelect/)
+  assert.match(transferOrderSelectorSource, /item\.quantity === 1/)
+  assert.match(transferOrderSelectorSource, /taşınacak adet: 1 \/ 1/)
+  assert.match(transferOrderSelectorSource, /<SelectContent align="end" alignItemWithTrigger=\{false\}/)
+  assert.doesNotMatch(transferOrderSelectorSource, /NativeSelect/)
+  assert.match(transferDialogSource, /loadTransferableOrders/)
+  assert.match(transferOrdersLoadSource, /getTransferableSessionOrders/)
+  assert.match(transferOrdersLoadSource, /resultTtlMs: TRANSFER_ORDERS_CACHE_TTL_MS/)
+  assert.match(transferOrdersLoadSource, /shouldCache: .*Array\.isArray/)
+  assert.match(transferPrefetchSource, /import\('\.\/TableTransferDialog'\)/)
+  assert.match(transferPrefetchSource, /prefetchTransferableOrders\(restaurantId, session\)/)
+  assert.match(transferPrefetchSource, /import\('\.\/SettlementSheet'\)/)
+  assert.match(transferPrefetchSource, /prefetchSessionSettlement\(restaurantId, session\)/)
+  assert.match(quickActionMenuSource, /role="menu"/)
+  assert.match(floorActionsSource, /onPrefetchTransfer\(tableId\)/)
+  assert.doesNotMatch(transferDialogSource, /getSessionSettlement/)
+  assert.match(transferDialogSource, /const sourceSessionId = sourceSession\?\.sessionId/)
+  assert.match(transferDialogSource, /\[[^\]]*sourceSessionId[^\]]*wholeAccountOnlyReason\]\)/)
+  assert.doesNotMatch(transferDialogSource, /\[[^\]]*, sourceSession, [^\]]*\]\)/)
   assert.match(transferSelectionModelSource, /selectedTransferItems/)
   assert.match(tableActionsSource, /transferTableOrderItems/)
   assert.doesNotMatch(`${transferOrderSelectorSource}\n${transferSelectionModelSource}`, /lib\/actions|createClient|supabase/i)
@@ -258,6 +281,14 @@ test('QR optimistic persistence uses server revisions and validates before save'
   assert.doesNotMatch(qrStyleSaveModelSource, /lib\/actions|createClient|supabase/i)
 })
 
+test('QR Studio renders the active preview immediately and defers only the multi-table grid', () => {
+  assert.match(canvasSource, /const deferredGridQR = React\.useDeferredValue\(qr\)/)
+  assert.match(canvasSource, /const url = buildUrl\(qr, table\)/)
+  assert.match(canvasSource, /buildQRCodeStylingOptions\(qr, \{[\s\S]*?type: 'canvas'/)
+  assert.match(canvasSource, /<GridCard key=\{t\.id\} qr=\{deferredGridQR\}/)
+  assert.doesNotMatch(canvasSource, /buildUrl\(deferredGridQR, table\)/)
+})
+
 test('modal-only table operations stay behind their route-specific interaction chunks', () => {
   assert.match(operationsShellSource, /import dynamic from 'next\/dynamic'/)
   assert.match(shellSource, /import dynamic from 'next\/dynamic'/)
@@ -281,11 +312,11 @@ test('modal-only table operations stay behind their route-specific interaction c
 })
 
 test('live operations and QR Studio are separate addressable route boundaries', () => {
-  assert.match(operationsPageSource, /TablesOperationsShell/)
+  assert.match(operationsPageSource, /TablesOperationsClientLoader/)
   assert.match(operationsPageSource, /resolveTableDeepLink\(query\.tableId, tables\)/)
   assert.match(operationsPageSource, /initialTableId=\{initialTableId\}/)
   assert.doesNotMatch(operationsPageSource, /TablesBuilderShell|listDashboardTableQrTokens|initialQRStyle|restaurantSlug/)
-  assert.match(qrPageSource, /TablesBuilderShell/)
+  assert.match(qrPageSource, /TablesBuilderClientLoader/)
   assert.match(qrPageSource, /listDashboardTableQrTokens/)
   assert.doesNotMatch(qrPageSource, /getOpenTableSessions|initialOpenSessions|initialNow/)
   assert.match(frameSource, /Canlı Masalar/)
@@ -297,6 +328,21 @@ test('live operations and QR Studio are separate addressable route boundaries', 
   assert.doesNotMatch(shellSource, /useTablesLiveState|TablesNavigation|SettlementSheet|TableTransferDialog|useTableTransferFeedback/)
   assert.doesNotMatch(operationsShellSource, /useQRStyleEditor|TablesQRCanvas|TablesQRProperties|TablesTopBar|TablesStatusBar/)
   assert.doesNotMatch(navigationSource, /PNG\/SVG|PDF export/)
+})
+
+test('table directory failures remain distinct from a genuinely empty restaurant', () => {
+  assert.match(tableQuerySource, /export type TablesDirectoryResult/)
+  assert.match(tableQuerySource, /ok: false; tables: \[\]; error: string/)
+  assert.match(operationsPageSource, /initialDirectoryError=\{tablesResult\.ok \? null : tablesResult\.error\}/)
+  assert.match(qrPageSource, /initialDirectoryError=\{tablesResult\.ok \? null : tablesResult\.error\}/)
+  assert.match(shellSource, /role="alert" className="tb-tables__directory-error"/)
+})
+
+test('table actions expose stable localized failures without raw adapter errors', () => {
+  assert.match(tableActionsSource, /export type TablesActionResult<T>/)
+  assert.match(tableActionsSource, /TablesActionErrorCode/)
+  assert.doesNotMatch(tableActionsSource, /return \{ error: result\.error \}/)
+  assert.doesNotMatch(tableActionsSource, /Not authorized|Invalid input|Table not found|Session not found/)
 })
 
 test('tables section tabs stay in the content column beside the persistent icon rail', () => {
@@ -326,7 +372,10 @@ test('table routes expose task-specific, accessible loading boundaries', () => {
   assert.match(routeSkeletonSource, /tb-route-skeleton__properties/)
   assert.match(routeSkeletonSource, /@media \(max-width: 900px\)/)
   assert.doesNotMatch(routeSkeletonSource, /<(?:button|a|input|select)\b/)
-  assert.ok(routeSkeletonSource.split('\n').length <= 330)
+  assert.match(routeSkeletonSource, /tb-route-skeleton__mobile-actions/)
+  assert.match(routeSkeletonSource, /tb-route-skeleton__qr-taskbar/)
+  assert.match(routeSkeletonSource, /@media \(max-width: 360px\)/)
+  assert.ok(routeSkeletonSource.split('\n').length <= 380)
 })
 
 test('QR token rotation command stays behind its controller and dialog boundary', () => {
@@ -383,22 +432,24 @@ test('transfer history delegates filters and exposes privacy-safe audit metadata
   assert.ok(transferHistoryModelSource.split('\n').length <= 120)
 })
 
-test('tables realtime authenticates once and reconciles every live aggregate', () => {
+test('tables realtime authenticates once and consumes one narrow operational invalidation row', () => {
   assert.match(realtimeChannelHookSource, /import\('\.\/tables-realtime-channel-runtime'\)/)
   assert.match(realtimeChannelSource, /supabase\.auth\.getSession\(\)/)
   assert.match(realtimeChannelSource, /supabase\.realtime\.setAuth\(data\.session\.access_token\)/)
   assert.match(realtimeChannelSource, /supabase\.auth\.onAuthStateChange/)
   assert.equal((realtimeChannelSource.match(/\.channel\(`/g) ?? []).length, 1)
   assert.match(realtimeChannelSource, /channel\(`tables-live:/)
-  for (const table of ['table_sessions', 'orders', 'payment_shares', 'service_requests', 'tables']) {
-    assert.match(realtimeChannelSource, new RegExp(`table: '${table}'`))
-  }
+  assert.match(realtimeChannelSource, /table: 'pano_invalidations'/)
+  assert.match(realtimeChannelSource, /scheduleInvalidation/)
+  for (const table of ['table_sessions', 'orders', 'payment_shares', 'service_requests', 'tables']) assert.match(realtimeChannelSource, new RegExp(`source === '${table}'`))
+  assert.doesNotMatch(realtimeChannelSource, /table: '(?:table_sessions|orders|payment_shares|service_requests|tables)'/)
   assert.match(liveStateSource, /Promise\.all\(\[\s*refreshSessions\(\),\s*refreshPendingRequests\(\),\s*refreshTableDirectory\(\)/)
   assert.match(liveStateSource, /setLayoutInvalidation/)
 })
 
 test('tables realtime exposes recovery state and cleans every listener', () => {
   assert.match(realtimeChannelSource, /TABLES_REALTIME_SAFETY_INTERVAL_MS/)
+  assert.match(realtimeChannelSource, /consecutiveSafetyFailures >= 2 \? 'stale'/)
   assert.match(realtimeChannelSource, /status === 'CHANNEL_ERROR' \|\| status === 'TIMED_OUT'/)
   assert.match(realtimeChannelSource, /document\.addEventListener\('visibilitychange'/)
   assert.match(realtimeChannelSource, /window\.addEventListener\('online'/)

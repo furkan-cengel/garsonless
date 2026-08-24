@@ -19,7 +19,6 @@ type DragState = {
   startYBp: number
   moved: boolean
 }
-
 function formatMoney(value: number): string {
   return `₺${value.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`
 }
@@ -128,6 +127,7 @@ export const TablesFloorCard = memo(function TablesFloorCard({
   }
   return (
     <article
+      data-table-id={table.id}
       className={`tb-floor-card tb-floor-card--${state}${active ? ' is-active' : ''}${editing ? ' is-editing' : ''}${colliding ? ' is-colliding' : ''}`}
       onContextMenu={openContextMenu}
       style={{ left: `${entry.xBp / 100}%`, top: `${entry.yBp / 100}%`, width: `${dimensions.widthBp / 100}%`, height: `${dimensions.heightBp / 100}%` }}

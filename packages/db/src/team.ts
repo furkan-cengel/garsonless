@@ -19,6 +19,7 @@ export interface TeamMember {
   permissions: TeamSection[]
   status: MemberStatus
   invitedAt: string
+  inviteExpiresAt?: string | null
   acceptedAt: string | null
 }
 
@@ -54,6 +55,7 @@ interface MemberRow {
   permissions: unknown
   status: string
   invited_at: string
+  invite_expires_at: string | null
   accepted_at: string | null
 }
 
@@ -66,11 +68,12 @@ function mapMember(row: MemberRow): TeamMember {
     permissions: sanitizeTeamPermissions(row.permissions),
     status,
     invitedAt: row.invited_at,
+    inviteExpiresAt: row.invite_expires_at,
     acceptedAt: row.accepted_at,
   }
 }
 
-const MEMBER_COLS = 'id, user_id, email, permissions, status, invited_at, accepted_at'
+const MEMBER_COLS = 'id, user_id, email, permissions, status, invited_at, invite_expires_at, accepted_at'
 
 /** All members of a restaurant (service role; caller owner-gates). No token hash. */
 export async function listTeamMembers(restaurantId: string, signal?: AbortSignal): Promise<TeamMember[]> {

@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getRestaurantById } from '../../../../lib/queries/restaurants'
 import {
-  getDashboardKPIs,
+  getAnalyticsActiveOrderCount,
   getAnalyticsSalesReportData,
 } from '../../../../lib/queries/analytics'
 import AnalyticsClient from '../../../../components/analytics/AnalyticsClient'
@@ -30,7 +30,7 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
     return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="analytics_basic" isOwner={access.isOwner} />
   }
   const [liveKpis, salesReport] = await Promise.all([
-    getDashboardKPIs(restaurantId),
+    getAnalyticsActiveOrderCount(restaurantId),
     getAnalyticsSalesReportData(restaurantId, initialQuery, asOf),
   ])
   const hasAdvancedAnalytics = await canRestaurantUseFeature({
@@ -49,7 +49,7 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
     <AnalyticsClient
       restaurantId={restaurantId}
       restaurantName={restaurant.name}
-      liveActiveOrders={liveKpis.activeOrders}
+      liveActiveOrders={liveKpis}
       rangeKpis={salesReport.rangeKpis}
       topItems={salesReport.topItems}
       salesOverTime={salesReport.salesOverTime}
@@ -61,6 +61,8 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
       hasAdvancedAnalytics={hasAdvancedAnalytics}
       initialQuery={initialQuery}
       initialReport={initialReport}
+      initialGeneratedAt={asOf.toISOString()}
+      initialSnapshotVersion={asOf.getTime()}
     />
   )
 }

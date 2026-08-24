@@ -9,6 +9,17 @@ import {
   updateKitchenStation,
 } from '../../lib/actions/restaurant'
 import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
+import { Input } from '../ui/input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog'
 
 interface Props {
   restaurantId: string
@@ -27,16 +38,18 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
   const [stationName, setStationName] = useState('')
   const [stationColor, setStationColor] = useState(STATION_COLORS[0]!)
   const [renewalConfirmationOpen, setRenewalConfirmationOpen] = useState(false)
+  const [renewalPassword, setRenewalPassword] = useState('')
   const [isPending, startTransition] = useTransition()
   const [stationPending, startStationTransition] = useTransition()
 
-  async function handleGenerate() {
+  async function handleGenerate(currentPassword?: string) {
     setError('')
     startTransition(async () => {
-      const result = await generateKitchenToken(restaurantId)
+      const result = await generateKitchenToken(restaurantId, currentPassword)
       if ('error' in result) { setError(result.error); return }
       setHasAccess(true)
       setRenewalConfirmationOpen(false)
+      setRenewalPassword('')
       notifySettingsSaved()
     })
   }
@@ -181,38 +194,19 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
           {isPending ? 'Kaydediliyor…' : canUseKitchenDisplay ? (hasAccess ? 'Erişimi yenile' : 'Mutfak erişimi oluştur') : 'Pro pakette kullanılabilir'}
         </button>
       </div>
-      {renewalConfirmationOpen && (
-        <div
-          role="alertdialog"
-          aria-modal="false"
-          aria-labelledby="kitchen-access-renewal-title"
-          aria-describedby="kitchen-access-renewal-description"
-          style={{ marginTop: 14, padding: 14, border: '1px solid var(--warning-border, #e6c989)', borderRadius: 10, background: 'var(--warning-bg, #fff8e8)' }}
-        >
-          <div id="kitchen-access-renewal-title" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Mutfak erişimi yenilensin mi?</div>
-          <p id="kitchen-access-renewal-description" style={{ margin: '5px 0 12px', fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-2)' }}>
-            Bu işlem açık Mutfak Ekranı oturumlarını anında kapatır. Ekranı kullanan ekip üyeleri yeniden açılış yapmalıdır.
-          </p>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              onClick={() => setRenewalConfirmationOpen(false)}
-              disabled={isPending}
-              style={confirmationButtonStyle(false, isPending)}
-            >
-              Vazgeç
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleGenerate()}
-              disabled={isPending}
-              style={confirmationButtonStyle(true, isPending)}
-            >
-              {isPending ? 'Yenileniyor…' : 'Erişimi yenile'}
-            </button>
-          </div>
-        </div>
-      )}
+      <AlertDialog open={renewalConfirmationOpen} onOpenChange={(open) => { if (!isPending) { setRenewalConfirmationOpen(open); if (!open) setRenewalPassword('') } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mutfak erişimi yenilensin mi?</AlertDialogTitle>
+            <AlertDialogDescription>Bu işlem açık Mutfak Ekranı oturumlarını anında kapatır. Ekranı kullanan ekip üyeleri yeniden açılış yapmalıdır. Owner hesap şifrenizle doğrulayın.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <label className="grid gap-1 text-sm font-medium">Hesap şifresi<Input type="password" value={renewalPassword} onChange={(event) => setRenewalPassword(event.target.value)} autoComplete="current-password" /></label>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Vazgeç</AlertDialogCancel>
+            <AlertDialogAction disabled={isPending || renewalPassword.length === 0} onClick={(event) => { event.preventDefault(); void handleGenerate(renewalPassword) }}>{isPending ? 'Yenileniyor…' : 'Erişimi yenile'}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </section>
 
       <section style={{ padding: 18, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--surface)' }}>
@@ -334,20 +328,5 @@ function miniButton(disabled: boolean): React.CSSProperties {
     color: 'var(--text-2)',
     cursor: disabled ? 'not-allowed' : 'pointer',
     opacity: disabled ? 0.4 : 1,
-  }
-}
-
-function confirmationButtonStyle(primary: boolean, disabled: boolean): React.CSSProperties {
-  return {
-    height: 34,
-    padding: '0 12px',
-    borderRadius: 7,
-    border: primary ? 'none' : '1px solid var(--border-strong)',
-    background: primary ? 'var(--action)' : 'var(--surface)',
-    color: primary ? 'var(--on-action)' : 'var(--text)',
-    fontSize: 12.5,
-    fontWeight: primary ? 700 : 500,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.55 : 1,
   }
 }

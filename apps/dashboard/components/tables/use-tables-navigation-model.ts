@@ -10,23 +10,33 @@ import {
   type TableOperationalFilter,
 } from './tables-operation-model'
 import { realtimeStatusTone, type TablesRealtimeStatus } from './tables-realtime-model'
-
 export function useOperationalNow(initialNow: number) {
   const [now, setNow] = useState(initialNow)
   useEffect(() => {
-    const update = () => setNow(Date.now())
-    const timer = window.setInterval(update, 30_000)
+    let timer: number | null = null
+    const schedule = () => {
+      if (timer !== null) window.clearTimeout(timer)
+      const current = Date.now(), nextMinute = 60_000 - (current % 60_000) + 25
+      timer = window.setTimeout(() => {
+        if (document.visibilityState === 'visible') setNow(Date.now())
+        schedule()
+      }, nextMinute)
+    }
+    const update = () => {
+      if (document.visibilityState === 'visible') setNow(Date.now())
+      schedule()
+    }
+    schedule()
     window.addEventListener('focus', update)
     document.addEventListener('visibilitychange', update)
     return () => {
-      window.clearInterval(timer)
+      if (timer !== null) window.clearTimeout(timer)
       window.removeEventListener('focus', update)
       document.removeEventListener('visibilitychange', update)
     }
   }, [])
   return now
 }
-
 export function useTablesNavigationModel({
   tables,
   openSessions,

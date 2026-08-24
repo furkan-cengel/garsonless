@@ -34,6 +34,7 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, onClo
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [payUrl, setPayUrl] = useState('') // İyzico iframe when paying by card
+  const [cardAvailability, setCardAvailability] = useState<'loading' | 'available' | 'unavailable'>('loading')
 
   const active = orders.filter((o) => o.status !== 'cancelled')
   const sessionTotal = active.reduce((s, o) => s + o.total, 0)
@@ -56,6 +57,17 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, onClo
     const timer = window.setInterval(() => void load(), 3_000)
     return () => { alive = false; window.clearInterval(timer) }
   }, [loadState])
+
+  useEffect(() => {
+    let alive = true
+    void fetch(`/api/split/availability?token=${encodeURIComponent(tableToken)}`, { cache: 'no-store' })
+      .then(async (response) => response.json() as Promise<{ success: boolean; data?: { cardAvailable: boolean } }>)
+      .then((result) => {
+        if (alive) setCardAvailability(result.success && result.data?.cardAvailable ? 'available' : 'unavailable')
+      })
+      .catch(() => { if (alive) setCardAvailability('unavailable') })
+    return () => { alive = false }
+  }, [tableToken])
 
   // Card success from the İyzico iframe → the callback settled the share; realtime
   // will refresh. Close the iframe.
@@ -98,15 +110,33 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, onClo
   async function payByCard() {
     if (busy) return
     setBusy(true)
-    const shareId = await createShare('iyzico')
-    if (!shareId) { setBusy(false); return }
-    const res = await fetch('/api/split/pay', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ shareId, tableToken, buyerName: 'Misafir', buyerSurname: 'Musteri', buyerEmail: 'guest@masabu.co', buyerPhone: '+905000000000', deviceId: `dev-${Math.random().toString(36).slice(2)}` }),
-    })
-    const json = (await res.json()) as { success: boolean; data?: { paymentPageUrl: string }; error?: string }
-    if (!json.success || !json.data) { setError(json.error ?? 'Ödeme başlatılamadı'); setBusy(false); return }
-    setPayUrl(json.data.paymentPageUrl)
+    setError('')
+    const declaration = mode === 'items'
+      ? { assignedItems: assignedItemsPayload() }
+      : { amount: myAmount }
+    try {
+      const res = await fetch('/api/split/pay', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ...declaration,
+          slug,
+          tableToken,
+          tableSessionId,
+          label: 'Payım',
+          buyerName: 'Misafir',
+          buyerSurname: 'Musteri',
+          buyerEmail: 'guest@masabu.co',
+          buyerPhone: '+905000000000',
+          deviceId: `dev-${Math.random().toString(36).slice(2)}`,
+        }),
+      })
+      const json = (await res.json()) as { success: boolean; data?: { paymentPageUrl: string }; error?: string }
+      if (!json.success || !json.data) { setError(json.error ?? 'Ödeme başlatılamadı'); setBusy(false); return }
+      setPayUrl(json.data.paymentPageUrl)
+    } catch {
+      setError('Ödeme başlatılamadı. Bağlantını kontrol edip tekrar dene.')
+      setBusy(false)
+    }
   }
 
   async function declareCash() {
@@ -201,12 +231,19 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, onClo
                 {myAmount > remaining && <p className="text-xs text-amber-600">Payın kalan tutardan fazla — kartta kalan kadar tahsil edilir.</p>}
                 {error && <p className="text-xs text-red-600">{error}</p>}
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className={`grid gap-2 ${cardAvailability === 'unavailable' ? 'grid-cols-1' : 'grid-cols-2'}`}>
                   <button type="button" disabled={busy || myAmount <= 0} onClick={declareCash}
                     className="py-3 text-sm font-medium rounded-xl border border-neutral-300 text-neutral-800 disabled:opacity-40">Nakit ödeyeceğim</button>
-                  <button type="button" disabled={busy || myAmount <= 0} onClick={payByCard}
-                    className="py-3 text-sm font-medium rounded-xl bg-neutral-900 text-white disabled:opacity-40">{busy ? '…' : 'Kartla öde'}</button>
+                  {cardAvailability !== 'unavailable' && (
+                    <button type="button" aria-busy={busy} disabled={busy || myAmount <= 0 || cardAvailability === 'loading'} onClick={payByCard}
+                      className="py-3 text-sm font-medium rounded-xl bg-neutral-900 text-white disabled:opacity-40">
+                      {busy ? 'Ödeme açılıyor…' : cardAvailability === 'loading' ? 'Kart kontrol ediliyor…' : 'Kartla öde'}
+                    </button>
+                  )}
                 </div>
+                {cardAvailability === 'unavailable' && (
+                  <p className="text-[11px] text-neutral-500 text-center">Kartla ödeme bu işletmede aktif değil.</p>
+                )}
                 <p className="text-[11px] text-neutral-400 text-center">Nakit beyanı ödeme sayılmaz — garson masada onaylar.</p>
               </>
             )}

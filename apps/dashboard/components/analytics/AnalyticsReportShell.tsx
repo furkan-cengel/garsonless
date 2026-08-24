@@ -1,14 +1,12 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import type { AnalyticsReportId } from '../../lib/actions/analytics'
 import PageTopBar from '../layout/PageTopBar'
 import { I } from '../../lib/ui'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '../ui/alert'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '../ui/empty'
-import { Spinner } from '../ui/spinner'
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs'
 import {
   ANALYTICS_REPORTS,
@@ -16,6 +14,7 @@ import {
   getVisibleAnalyticsReports,
   type AnalyticsRange,
   type AnalyticsQuery,
+  type AnalyticsFreshness,
 } from './analytics-report-model'
 import AnalyticsFilterBar from './AnalyticsFilterBar'
 import AnalyticsRangePicker from './AnalyticsRangePicker'
@@ -40,10 +39,14 @@ export function AnalyticsReportShell({
   activeReportLoaded,
   canExport,
   loadError,
+  generatedAt,
+  freshness,
   onReportChange,
+  onReportIntent,
   onRangeChange,
   onQueryChange,
   onRetry,
+  onRefresh,
   onExport,
   children,
 }: {
@@ -57,15 +60,30 @@ export function AnalyticsReportShell({
   activeReportLoaded: boolean
   canExport: boolean
   loadError: string | null
+  generatedAt: string
+  freshness: AnalyticsFreshness
   onReportChange: (report: AnalyticsReportId) => void
+  onReportIntent: (report: AnalyticsReportId) => void
   onRangeChange: (range: AnalyticsRange) => void
   onQueryChange: (query: AnalyticsQuery) => void
   onRetry: () => void
+  onRefresh: () => void
   onExport: () => void
   children: ReactNode
 }) {
   const visibleReports = getVisibleAnalyticsReports(isOwner, hasAdvancedAnalytics)
   const activeLabel = ANALYTICS_REPORTS.find((report) => report.id === activeReport)?.label ?? 'Raporlar'
+  const mobileTabsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const activeTab = mobileTabsRef.current?.querySelector<HTMLElement>(`[data-report-id="${activeReport}"]`)
+    activeTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+  }, [activeReport])
+
+  const generatedTime = new Intl.DateTimeFormat('tr-TR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(generatedAt))
 
   return (
     <div className="analytics-shell" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -82,6 +100,7 @@ export function AnalyticsReportShell({
               onClick={onExport}
               disabled={!canExport}
               size="sm"
+              aria-label="Raporu CSV olarak dışa aktar"
             >
               <I.download data-icon="inline-start" /><span className="analytics-export-label">Dışa aktar</span>
             </Button>
@@ -89,7 +108,7 @@ export function AnalyticsReportShell({
         )}
       />
       <div className="analytics-body" style={{ display: 'flex', flex: 1, minHeight: 0, background: 'var(--bg)' }}>
-        <aside className="analytics-sidebar" style={{
+        <aside aria-label="Rapor navigasyonu" className="analytics-sidebar" style={{
           width: 220,
           flexShrink: 0,
           borderRight: '1px solid var(--border)',
@@ -110,6 +129,9 @@ export function AnalyticsReportShell({
                   key={report.id}
                   value={report.id}
                   aria-current={activeReport === report.id ? 'page' : undefined}
+                  data-report-id={report.id}
+                  onPointerEnter={() => onReportIntent(report.id)}
+                  onFocus={() => onReportIntent(report.id)}
                   className="analytics-report-tab h-auto w-full flex-none justify-start px-2 py-2 text-left"
                 >
                   <span aria-hidden="true" className="inline-flex w-5 justify-center">{REPORT_ICONS[report.id]}</span>
@@ -132,13 +154,16 @@ export function AnalyticsReportShell({
             <span>{analyticsRangeLabel(range)} · gerçek veri</span>
           </div>
           <Tabs value={activeReport} onValueChange={(value) => onReportChange(value as AnalyticsReportId)}>
-            <TabsList variant="line" aria-label="Rapor türleri" className="analytics-mobile-report-tabs">
+            <TabsList ref={mobileTabsRef} variant="line" aria-label="Rapor türleri" className="analytics-mobile-report-tabs">
               {visibleReports.map((report) => (
                 <TabsTrigger
                   className="analytics-report-tab analytics-report-tab--compact"
                   key={report.id}
                   value={report.id}
                   aria-current={activeReport === report.id ? 'page' : undefined}
+                  data-report-id={report.id}
+                  onPointerEnter={() => onReportIntent(report.id)}
+                  onFocus={() => onReportIntent(report.id)}
                 >
                   <span aria-hidden="true">{REPORT_ICONS[report.id]}</span>
                   <span>{report.label}</span>
@@ -148,7 +173,7 @@ export function AnalyticsReportShell({
           </Tabs>
         </div>
 
-        <section className="analytics-main" aria-label={`${activeLabel} raporu`} aria-busy={isPending} style={{ flex: 1, overflow: 'auto', minWidth: 0, opacity: isPending ? 0.6 : 1 }}>
+        <section className="analytics-main" aria-label={`${activeLabel} raporu`} aria-busy={isPending} style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
           <AnalyticsFilterBar
             restaurantName={restaurantName}
             query={query}
@@ -161,6 +186,22 @@ export function AnalyticsReportShell({
                 : undefined}
             onChange={onQueryChange}
           />
+          <div className="analytics-freshness" aria-live="polite" data-freshness={freshness}>
+            <span>
+              {freshness === 'offline'
+                ? `Çevrimdışı · son başarılı güncelleme ${generatedTime}`
+                : freshness === 'stale'
+                  ? `Yeni veriler var · son güncelleme ${generatedTime}`
+                  : freshness === 'refreshing'
+                    ? `Yenileniyor · son başarılı güncelleme ${generatedTime}`
+                    : `Son güncelleme ${generatedTime}`}
+            </span>
+            {(freshness === 'stale' || freshness === 'offline') && (
+              <Button type="button" variant="ghost" size="xs" onClick={onRefresh} disabled={isPending} aria-busy={isPending}>
+                Yenile
+              </Button>
+            )}
+          </div>
           <div className="analytics-content" style={{ padding: '24px 28px 60px' }}>
             <div className="analytics-active-label">{activeLabel}</div>
             {loadError && (
@@ -171,7 +212,7 @@ export function AnalyticsReportShell({
                 <AlertAction><Button className="analytics-retry-button" type="button" variant="outline" size="xs" onClick={onRetry} disabled={isPending}>Tekrar dene</Button></AlertAction>
               </Alert>
             )}
-            {!activeReportLoaded && isPending ? <AnalyticsReportLoading /> : children}
+            {!activeReportLoaded && isPending ? <AnalyticsReportLoading report={activeReport} /> : children}
           </div>
         </section>
       </div>
@@ -179,14 +220,20 @@ export function AnalyticsReportShell({
   )
 }
 
-function AnalyticsReportLoading() {
+function AnalyticsReportLoading({ report }: { report: AnalyticsReportId }) {
   return (
-    <Empty role="status" aria-live="polite" className="min-h-80">
-      <EmptyHeader>
-        <EmptyMedia variant="icon"><Spinner /></EmptyMedia>
-        <EmptyTitle>Rapor yükleniyor</EmptyTitle>
-        <EmptyDescription>Seçili dönem için veriler hazırlanıyor.</EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <div className="analytics-report-loading" role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">{ANALYTICS_REPORTS.find((item) => item.id === report)?.label ?? 'Rapor'} yükleniyor.</span>
+      <div aria-hidden="true" className="analytics-report-loading-visual">
+        <div className="analytics-loading-heading" />
+        <div className="analytics-loading-kpis">
+          {Array.from({ length: 4 }, (_, index) => <div key={index} className="analytics-loading-card" />)}
+        </div>
+        <div className="analytics-loading-panels">
+          <div className="analytics-loading-panel" />
+          <div className="analytics-loading-panel analytics-loading-panel--secondary" />
+        </div>
+      </div>
+    </div>
   )
 }

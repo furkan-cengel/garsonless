@@ -89,6 +89,7 @@ const TABLES_ROUTE_SKELETON_CSS = `
 .tb-route-skeleton__plan-grid { flex: 1; margin: 18px; padding: 42px; display: grid; grid-template-columns: repeat(4, minmax(90px, 1fr)); align-content: start; gap: 48px 42px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
 .tb-route-skeleton__plan-table { width: 100%; height: 92px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .tb-route-skeleton__operations-header { padding: 16px; border-bottom: 1px solid var(--border); }
+.tb-route-skeleton__mobile-actions { display: none; }
 .tb-route-skeleton__title-row, .tb-route-skeleton__status-row, .tb-route-skeleton__filter-row {
   display: flex;
   align-items: center;
@@ -192,6 +193,8 @@ const TABLES_ROUTE_SKELETON_CSS = `
   padding: 0 12px;
   border-top: 1px solid var(--border);
 }
+.tb-route-skeleton__qr-taskbar,
+.tb-route-skeleton__qr-mobile-selector { display: none; }
 @keyframes tb-route-skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) {
   .tb-route-skeleton__block { animation: none; }
@@ -207,29 +210,53 @@ const TABLES_ROUTE_SKELETON_CSS = `
   .tb-route-skeleton__operations-main { padding: 0; overflow: visible; }
   .tb-route-skeleton__operations-card { border: 0; border-radius: 0; box-shadow: none; }
   .tb-route-skeleton__operations-card { flex-direction: column; }
-  .tb-route-skeleton__operations-panel { width: 100%; max-height: 340px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .tb-route-skeleton__operations-panel { width: 100%; max-height: none; border-right: 0; border-bottom: 1px solid var(--border); }
   .tb-route-skeleton__operations-plan { min-height: 520px; }
   .tb-route-skeleton__plan-grid { margin: 10px; padding: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .tb-route-skeleton__plan-table { height: 126px; }
   .tb-route-skeleton__title-row { align-items: flex-start; }
-  .tb-route-skeleton__status-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tb-route-skeleton__status { width: 100%; height: 44px; }
-  .tb-route-skeleton__status::before { margin-top: 17px; }
-  .tb-route-skeleton__filter-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tb-route-skeleton__search { grid-column: 1 / -1; width: 100%; min-width: 0; height: 44px; }
-  .tb-route-skeleton__filter { width: 100%; height: 44px; }
-  .tb-route-skeleton__table-row { grid-template-columns: 12px minmax(0, 1fr) 44px; min-height: 82px; }
-  .tb-route-skeleton__table-row > .tb-route-skeleton__block:nth-last-child(2) { display: none; }
-  .tb-route-skeleton__table-action { height: 44px; }
-  .tb-route-skeleton__qr-picker { width: 100%; border-right: 0; border-bottom: 1px solid var(--border); }
-  .tb-route-skeleton__picker-row:nth-of-type(n + 4) { display: none; }
+  .tb-route-skeleton__status-row { margin-top: 8px; }
+  .tb-route-skeleton__status-row .tb-route-skeleton__status:not(:first-child),
+  .tb-route-skeleton__filter-row,
+  .tb-route-skeleton__list { display: none; }
+  .tb-route-skeleton__status { width: 148px; height: 24px; }
+  .tb-route-skeleton__status::before { margin-top: 7px; }
+  .tb-route-skeleton__mobile-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; padding: 0 10px 10px; }
+  .tb-route-skeleton__mobile-action { height: 48px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); }
+  .tb-route-skeleton__qr-picker { display: none; }
+  .tb-route-skeleton__qr-taskbar { min-height: 52px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .tb-route-skeleton__qr-taskbar .tb-route-skeleton__block { width: 100%; height: 40px; border-radius: 9px; }
+  .tb-route-skeleton__qr-mobile-selector { min-height: 66px; display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .tb-route-skeleton__qr-mobile-selector .tb-route-skeleton__block:nth-child(2) { margin-left: auto; }
   .tb-route-skeleton__canvas-toolbar { min-height: 60px; flex-wrap: wrap; }
   .tb-route-skeleton__canvas-toolbar .tb-route-skeleton__block { height: 44px !important; }
   .tb-route-skeleton__canvas-body { min-height: 440px; padding: 20px; }
   .tb-route-skeleton__qr-sheet { width: min(300px, 86vw); max-width: none; }
-  .tb-route-skeleton__properties { width: 100%; border-left: 0; border-top: 1px solid var(--border); }
-  .tb-route-skeleton__property-tabs .tb-route-skeleton__block { height: 44px !important; }
+  .tb-route-skeleton__properties { display: none; }
   .tb-route-skeleton__statusbar { display: none; }
+}
+@media (max-width: 760px) {
+  .tb-route-skeleton { padding-bottom: calc(58px + env(safe-area-inset-bottom)); }
+  .tb-route-skeleton__rail {
+    position: fixed;
+    z-index: 170;
+    inset: auto 0 0 0;
+    width: 100%;
+    height: calc(58px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    overflow: hidden;
+    border-right: 0;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .tb-route-skeleton__rail .tb-route-skeleton__block { flex: none; }
+}
+@media (max-width: 360px) {
+  .tb-route-skeleton__plan-grid { grid-template-columns: minmax(0, 1fr); }
 }
 `
 
@@ -270,6 +297,7 @@ function OperationsSkeleton() {
               <div className="tb-route-skeleton__status-row">{Array.from({ length: 4 }, (_, index) => <span className="tb-route-skeleton__status" key={index} />)}</div>
               <div className="tb-route-skeleton__filter-row"><Block className="tb-route-skeleton__search" /><Block className="tb-route-skeleton__filter" /><Block className="tb-route-skeleton__filter" /></div>
             </div>
+            <div className="tb-route-skeleton__mobile-actions">{Array.from({ length: 3 }, (_, index) => <span className="tb-route-skeleton__mobile-action" key={index} />)}</div>
             <div className="tb-route-skeleton__list">
               {Array.from({ length: 6 }, (_, index) => (
                 <div className="tb-route-skeleton__table-row" key={index}>
@@ -301,6 +329,8 @@ function QRSkeleton() {
           {Array.from({ length: 6 }, (_, index) => <div className="tb-route-skeleton__picker-row" key={index}><Block width={32} height={32} /><Block width={`${52 + (index % 3) * 10}%`} height={13} /></div>)}
         </aside>
         <main className="tb-route-skeleton__qr-canvas">
+          <div className="tb-route-skeleton__qr-taskbar"><Block /><Block /></div>
+          <div className="tb-route-skeleton__qr-mobile-selector"><Block width={128} height={28} /><Block width={92} height={44} /></div>
           <div className="tb-route-skeleton__canvas-toolbar"><Block width={104} height={30} /><Block width={82} height={30} /><Block width={96} height={30} /></div>
           <div className="tb-route-skeleton__canvas-body"><div className="tb-route-skeleton__qr-sheet"><Block className="tb-route-skeleton__qr-code" /></div></div>
         </main>

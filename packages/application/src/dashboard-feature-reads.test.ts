@@ -148,6 +148,7 @@ test('settings read limits owner-only projections and rejects replay before the 
     restaurantId: string
     userId: string
     includeOwnerData: boolean
+    scopes: Array<'team' | 'kitchen' | 'security'>
     operation: 'settings.snapshot'
   }> = []
   const port: DashboardSettingsReadModelPort<string, string, string, string> = {
@@ -170,13 +171,13 @@ test('settings read limits owner-only projections and rejects replay before the 
   const member = await readDashboardSettings(actor(['settings']), restaurantId, port)
   assert.equal(member.ok, true)
   assert.deepEqual(inputs[0], {
-    restaurantId, userId: 'user-a', includeOwnerData: false, operation: 'settings.snapshot',
+    restaurantId, userId: 'user-a', includeOwnerData: false, scopes: ['team', 'kitchen', 'security'], operation: 'settings.snapshot',
   })
 
   const owner = await readDashboardSettings({ ...actor(['settings']), isOwner: true }, restaurantId, port)
   assert.equal(owner.ok, true)
   assert.deepEqual(inputs[1], {
-    restaurantId, userId: 'user-a', includeOwnerData: true, operation: 'settings.snapshot',
+    restaurantId, userId: 'user-a', includeOwnerData: true, scopes: ['team', 'kitchen', 'security'], operation: 'settings.snapshot',
   })
 })
 

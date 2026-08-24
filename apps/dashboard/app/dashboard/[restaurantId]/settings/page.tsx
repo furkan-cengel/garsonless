@@ -3,16 +3,18 @@ import { getRestaurantById } from '../../../../lib/queries/restaurants'
 import { firstPermittedPath, type Section } from '../../../../lib/auth/access'
 import { getDashboardAuthenticatedUser, getDashboardFeatureContext } from '../../../../lib/queries/context'
 import { readDashboardSettings } from '@garsonless/application/settings'
+import type { DashboardSettingsReadScope } from '@garsonless/application/settings'
+import type { IntegrationHealth } from '@garsonless/application/settings'
 import { readSubscriptionBillingSettings } from '@garsonless/application/billing'
 import {
   canRestaurantUseFeature,
   createDashboardSettingsReadModelPort,
+  readRestaurantIntegrationHealth,
   createSubscriptionBillingSettingsReadPort,
 } from '@garsonless/db/server'
-import SettingsForm from '../../../../components/settings/SettingsForm'
+import SettingsForm from '../../../../components/settings/SettingsFormLoader'
 import { resolveSettingsSection } from '../../../../components/settings/settings-sections'
 import { readBillingPlanPrices } from '../../../../lib/billing/subscription-billing-request'
-import BillingSection from '../../../../components/settings/BillingSection'
 import PlanLockedPanel from '../../../../components/PlanLockedPanel'
 
 interface Props {
@@ -45,56 +47,66 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     if (!actor.isOwner) {
       return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="qr_menu" isOwner={false} />
     }
-    const billing = await readSubscriptionBillingSettings(
-      actor,
-      restaurantId,
-      createSubscriptionBillingSettingsReadPort(),
-    )
-    return (
-      <main style={{ padding: 24, maxWidth: 1040, margin: '0 auto' }}>
-        <div style={{ marginBottom: 18, padding: 16, borderRadius: 12, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 13, lineHeight: 1.55 }}>
-          <strong>Ürün erişiminiz kilitli.</strong> Verileriniz korunuyor. Bir paket seçerek menü yayınını ve operasyon araçlarını yeniden açabilirsiniz.
-        </div>
-        <BillingSection
-          restaurantId={restaurantId}
-          restaurantPlan={restaurant.plan}
-          billing={billing.ok ? billing.value : null}
-          loadError={billing.ok ? null : billing.error}
-          planPrices={readBillingPlanPrices()}
-          checkoutState={query.checkout === 'success' ? 'success' : null}
-        />
-      </main>
-    )
   }
-  const initialSection = resolveSettingsSection(query.section, actor.isOwner === true)
+  const requestedSection = resolveSettingsSection(query.section, actor.isOwner === true)
+  const continuitySections = new Set(['workspace', 'profile', 'billing', 'security', 'privacy'])
+  const initialSection = !productAccess && !continuitySections.has(requestedSection)
+    ? 'billing'
+    : requestedSection
   if (query.section && query.section !== initialSection) {
     const canonicalQuery = new URLSearchParams()
     canonicalQuery.set('section', initialSection)
     if (query.checkout === 'success' && initialSection === 'billing') canonicalQuery.set('checkout', 'success')
     redirect(`/dashboard/${restaurantId}/settings?${canonicalQuery.toString()}`)
   }
-  const [settings, billing, loyaltyAccess, kitchenDisplayAccess, browserNotificationsAccess] = await Promise.all([
-    readDashboardSettings(actor, restaurantId, createDashboardSettingsReadModelPort()),
-    actor.isOwner
+  const settingsScopes: DashboardSettingsReadScope[] = initialSection === 'team'
+    ? ['team']
+    : initialSection === 'kitchen'
+      ? ['kitchen']
+      : initialSection === 'security'
+        ? ['security']
+        : []
+  const emptySettings = {
+    hasKitchenAccess: false,
+    kitchenStations: [],
+    teamMembers: [],
+    teamAuditEvents: [],
+    securityEvents: [],
+  }
+  const [settings, billing, loyaltyAccess, kitchenDisplayAccess, browserNotificationsAccess, integrationHealthResult] = await Promise.all([
+    settingsScopes.length > 0
+      ? readDashboardSettings(actor, restaurantId, createDashboardSettingsReadModelPort(), settingsScopes)
+      : Promise.resolve({ ok: true as const, value: emptySettings }),
+    actor.isOwner && initialSection === 'billing'
       ? readSubscriptionBillingSettings(actor, restaurantId, createSubscriptionBillingSettingsReadPort())
       : Promise.resolve(null),
-    canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'loyalty' }),
-    canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'kitchen_display' }),
-    canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'browser_notifications' }),
+    initialSection === 'loyalty'
+      ? canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'loyalty' })
+      : Promise.resolve(false),
+    initialSection === 'kitchen'
+      ? canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'kitchen_display' })
+      : Promise.resolve(false),
+    initialSection === 'notifications'
+      ? canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'browser_notifications' })
+      : Promise.resolve(false),
+    actor.isOwner && (initialSection === 'payments' || initialSection === 'api')
+      ? readRestaurantIntegrationHealth(restaurantId)
+      : Promise.resolve({ ok: true as const, value: [] as IntegrationHealth[] }),
   ])
-  if (!settings.ok) throw new Error(settings.error)
+  const settingsValue = settings.ok ? settings.value : emptySettings
 
   return (
     <SettingsForm
       restaurant={restaurant}
       user={user}
-      hasKitchenAccess={settings.value.hasKitchenAccess}
-      kitchenStations={settings.value.kitchenStations}
-      securityEvents={settings.value.securityEvents}
+      hasKitchenAccess={settingsValue.hasKitchenAccess}
+      kitchenStations={settingsValue.kitchenStations}
+      securityEvents={settingsValue.securityEvents}
       renderedAt={new Date().toISOString()}
       isOwner={actor.isOwner === true}
-      teamMembers={settings.value.teamMembers}
-      teamAuditEvents={settings.value.teamAuditEvents}
+      teamMembers={settingsValue.teamMembers}
+      teamAuditEvents={settingsValue.teamAuditEvents}
+      sectionLoadError={!settings.ok ? settings.error : null}
       billing={billing?.ok ? billing.value : null}
       billingLoadError={billing && !billing.ok ? billing.error : null}
       billingPlanPrices={readBillingPlanPrices()}
@@ -105,6 +117,13 @@ export default async function SettingsPage({ params, searchParams }: Props) {
         kitchenDisplay: kitchenDisplayAccess,
         browserNotifications: browserNotificationsAccess,
       }}
+      productLocked={!productAccess}
+      integrationHealth={[
+        ...(integrationHealthResult.ok ? integrationHealthResult.value : []),
+        ...(initialSection === 'api' && !integrationHealthResult.ok
+          ? [{ provider: 'resend' as const, mode: 'platform' as const, state: 'error' as const, lastCheckedAt: null, lastSuccessAt: null, errorCode: 'health_read_failed' }]
+          : []),
+      ]}
     />
   )
 }

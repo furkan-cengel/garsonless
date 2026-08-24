@@ -35,10 +35,16 @@ import {
   createDashboardTablesReadModelPort,
   createPanoTableDetailReadModelPort,
   createTableSessionPort,
+  canRestaurantUseFeature,
+  readTransferableOrdersAccessBundle,
+  readTransferableOrdersForSession,
 } from '@garsonless/db/server'
 import { readOrderLineSnapshots } from '@garsonless/db/browser'
 import type { Tables } from '@garsonless/db/types'
 import { assertAccess, assertMember, getUserRestaurantAccess } from '../auth/access'
+import { getDashboardRequestAuth } from '../auth/current-user'
+import { resolveTablesCommandActor } from '../auth/tables-command-access'
+import { projectSettlementItems, type SettlementLineItem } from '../settlement-items'
 import { transferActorLabel } from '../table-transfer-actor-label'
 
 const tableLocationSchema = z.preprocess(
@@ -142,26 +148,45 @@ const qrStyleSchema = z.object({
   _presetId: z.string().max(60).optional(),
 }).strict()
 
+export type TablesActionErrorCode =
+  | 'INVALID_INPUT'
+  | 'NOT_AUTHORIZED'
+  | 'NOT_FOUND'
+  | 'CONFLICT'
+  | 'READ_FAILED'
+  | 'WRITE_FAILED'
+
+export type TablesActionFailure = { error: string; code: TablesActionErrorCode }
+export type TablesActionResult<T> = T | TablesActionFailure
+
+function tableActionError(code: TablesActionErrorCode, error: string): TablesActionFailure {
+  return { code, error }
+}
+
+function tableAuthorizationError(): TablesActionFailure {
+  return tableActionError('NOT_AUTHORIZED', 'Bu işlem için yetkiniz yok.')
+}
+
 export async function createTable(
   _prev: unknown,
   formData: FormData,
-): Promise<{ error: string } | { id: string; token: string }> {
+): Promise<TablesActionResult<{ id: string; token: string }>> {
   const parsed = createTableSchema.safeParse({
     restaurantId: formData.get('restaurantId'),
     label: formData.get('label'),
     floorLabel: formData.get('floorLabel'),
     areaLabel: formData.get('areaLabel'),
   })
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+  if (!parsed.success) return tableActionError('INVALID_INPUT', 'Masa bilgilerini kontrol edip tekrar deneyin.')
 
   const gate = await assertAccess(parsed.data.restaurantId, 'tables')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return tableAuthorizationError()
   const result = await createDashboardTable(
     { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['tables'] },
     parsed.data,
     createDashboardTablePort(),
   )
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return tableActionError('WRITE_FAILED', 'Masa oluşturulamadı. Lütfen tekrar deneyin.')
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   return { id: result.value.id, token: result.value.token }
@@ -169,18 +194,18 @@ export async function createTable(
 
 export async function renameTable(
   input: unknown,
-): Promise<{ error: string } | { success: true }> {
+): Promise<TablesActionResult<{ success: true }>> {
   const parsed = updateTableSchema.safeParse(input)
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+  if (!parsed.success) return tableActionError('INVALID_INPUT', 'Masa bilgilerini kontrol edip tekrar deneyin.')
 
   const gate = await assertAccess(parsed.data.restaurantId, 'tables')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return tableAuthorizationError()
   const result = await renameDashboardTable(
     { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['tables'] },
     parsed.data,
     createDashboardTablePort(),
   )
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return tableActionError('WRITE_FAILED', 'Masa güncellenemedi. Lütfen tekrar deneyin.')
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   return { success: true }
@@ -188,38 +213,38 @@ export async function renameTable(
 
 export async function deleteTable(
   input: unknown,
-): Promise<{ error: string } | { success: true }> {
+): Promise<TablesActionResult<{ success: true }>> {
   const parsed = deleteTableSchema.safeParse(input)
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+  if (!parsed.success) return tableActionError('INVALID_INPUT', 'Geçersiz masa bilgisi.')
 
   const gate = await assertAccess(parsed.data.restaurantId, 'tables')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return tableAuthorizationError()
   const result = await deleteDashboardTable(
     { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['tables'] },
     parsed.data,
     createDashboardTablePort(),
   )
-  if (!result.ok) return { error: result.error }
-  if (result.value === 'open_session') return { error: 'Bu masada açık adisyon var. Önce adisyonu kapatın.' }
-  if (result.value !== 'deleted') return { error: 'Table not found for this restaurant' }
+  if (!result.ok) return tableActionError('WRITE_FAILED', 'Masa silinemedi. Lütfen tekrar deneyin.')
+  if (result.value === 'open_session') return tableActionError('CONFLICT', 'Bu masada açık adisyon var. Önce adisyonu kapatın.')
+  if (result.value !== 'deleted') return tableActionError('NOT_FOUND', 'Masa bulunamadı veya artık aktif değil.')
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   return { success: true }
 }
 
 /** Revoke the current public QR credential and issue a replacement atomically. */
-export async function rotateTableQrToken(input: unknown): Promise<{ error: string } | { token: string }> {
+export async function rotateTableQrToken(input: unknown): Promise<TablesActionResult<{ token: string }>> {
   const parsed = rotateTableQrTokenSchema.safeParse(input)
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid QR rotation request' }
+  if (!parsed.success) return tableActionError('INVALID_INPUT', 'Geçersiz QR yenileme isteği.')
   const gate = await assertAccess(parsed.data.restaurantId, 'tables')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return tableAuthorizationError()
   const result = await rotateDashboardTableQrToken(
     { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['tables'] },
     parsed.data,
     createDashboardTablePort(),
   )
-  if (!result.ok) return { error: 'QR kodu döndürülemedi. Lütfen tekrar deneyin.' }
-  if (!result.value) return { error: 'Masa bulunamadı veya artık aktif değil.' }
+  if (!result.ok) return tableActionError('WRITE_FAILED', 'QR kodu yenilenemedi. Lütfen tekrar deneyin.')
+  if (!result.value) return tableActionError('NOT_FOUND', 'Masa bulunamadı veya artık aktif değil.')
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   return { token: result.value }
 }
@@ -229,21 +254,21 @@ export async function saveQRStyle(
   style: unknown,
   expectedRevision: number,
 ): Promise<
-  | { error: string }
+  | TablesActionFailure
   | { success: true; revision: number }
   | { conflict: true; revision: number; style: unknown }
 > {
   const gate = await assertAccess(restaurantId, 'tables')
-  if ('error' in gate) return { error: 'Not authorized' }
+  if ('error' in gate) return tableAuthorizationError()
 
   const parsed = qrStyleSchema.safeParse(style)
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid QR style' }
+  if (!parsed.success) return tableActionError('INVALID_INPUT', 'QR stili geçersiz.')
   const safety = inspectQRStyleSafety(parsed.data)
   if (!safety.safe || !safety.style) {
-    return { error: safety.issues[0] ?? 'Bu QR stili güvenli olmadığı için kaydedilmedi.' }
+    return tableActionError('INVALID_INPUT', safety.issues[0] ?? 'Bu QR stili güvenli olmadığı için kaydedilmedi.')
   }
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
-    return { error: 'Geçersiz QR stil sürümü.' }
+    return tableActionError('INVALID_INPUT', 'Geçersiz QR stil sürümü.')
   }
 
   const result = await saveDashboardQrStyle(
@@ -255,7 +280,7 @@ export async function saveQRStyle(
     },
     createDashboardTablePort(),
   )
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return tableActionError('WRITE_FAILED', 'QR stili kaydedilemedi. Lütfen tekrar deneyin.')
 
   revalidatePath(`/dashboard/${restaurantId}/tables`)
   return result.value.kind === 'saved'
@@ -296,6 +321,59 @@ export interface TableDetail {
   orders: TableDetailOrder[]
 }
 
+export interface TransferableSessionOrder {
+  id: string
+  total: number
+  items: SettlementLineItem[]
+  paidAt: string | null
+}
+
+const TRANSFER_ORDERS_LOAD_ERROR = 'Adisyon bilgileri yüklenemedi. Lütfen tekrar deneyin.'
+
+/** Minimal read model for account transfer. It deliberately omits payment
+ * shares and staff-directory labels used by the settlement sheet. */
+export async function getTransferableSessionOrders(
+  sessionId: string,
+  restaurantId: string,
+): Promise<TablesActionResult<TransferableSessionOrder[]>> {
+  const ids = z.object({ sessionId: z.string().uuid(), restaurantId: z.string().uuid() })
+    .safeParse({ sessionId, restaurantId })
+  if (!ids.success) return tableActionError('INVALID_INPUT', 'Geçersiz adisyon bilgisi.')
+
+  try {
+    const signal = AbortSignal.timeout(8_000)
+    const { user } = await getDashboardRequestAuth()
+    if (!user) return tableAuthorizationError()
+    const bundle = await readTransferableOrdersAccessBundle({
+      restaurantId,
+      sessionId,
+      actorUserId: user.id,
+    }, signal)
+    let rows: Array<{ id: string; total: number | null; paid_at: string | null; items: unknown }>
+    if (bundle) {
+      if (!bundle.authorized) return tableAuthorizationError()
+      const entitled = await canRestaurantUseFeature(
+        { restaurantId, plan: bundle.plan, feature: 'table_management' },
+        async () => ({ data: bundle.entitlementContext, error: null }),
+      )
+      if (!entitled) return tableAuthorizationError()
+      rows = bundle.orders
+    } else {
+      const gate = await assertAccess(restaurantId, 'tables')
+      if ('error' in gate) return tableAuthorizationError()
+      rows = await readTransferableOrdersForSession({ restaurantId, sessionId }, signal)
+    }
+    return (rows as Array<{ id: string; total: number | null; paid_at: string | null; items: unknown }>).map((order) => ({
+      id: order.id,
+      total: Number(order.total ?? 0),
+      paidAt: order.paid_at,
+      items: projectSettlementItems(order.items),
+    }))
+  } catch {
+    return tableActionError('READ_FAILED', TRANSFER_ORDERS_LOAD_ERROR)
+  }
+}
+
 function projectTableDetailItems(orderId: string, value: unknown): TableDetailItem[] {
   return readOrderLineSnapshots(value).map((line, index) => {
     const unitPrice = line.price + line.modifiersPriceDelta
@@ -316,18 +394,18 @@ function projectTableDetailItems(orderId: string, value: unknown): TableDetailIt
 export async function fetchTableDetail(
   restaurantId: string,
   tableId: string,
-): Promise<{ error: string } | TableDetail> {
+): Promise<TablesActionResult<TableDetail>> {
   const ids = z.object({ restaurantId: z.string().uuid(), tableId: z.string().uuid() })
     .safeParse({ restaurantId, tableId })
-  if (!ids.success) return { error: 'Geçersiz masa bilgisi.' }
+  if (!ids.success) return tableActionError('INVALID_INPUT', 'Geçersiz masa bilgisi.')
   const gate = await assertAccess(restaurantId, 'tables')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return tableAuthorizationError()
   const detail = await readPanoTableDetail(
     { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['tables'] },
     { restaurantId, tableId },
     createPanoTableDetailReadModelPort(),
   )
-  if (!detail.ok) return { error: detail.error }
+  if (!detail.ok) return tableActionError('READ_FAILED', 'Masa ayrıntıları yüklenemedi. Lütfen tekrar deneyin.')
 
   return {
     sessionId: detail.value.sessionId,
@@ -347,55 +425,55 @@ export async function fetchTableDetail(
 /** Open sessions with totals for every table of the restaurant. */
 export async function getOpenTableSessions(
   restaurantId: string,
-): Promise<OpenSessionInfo[] | { error: string }> {
+): Promise<OpenSessionInfo[] | TablesActionFailure> {
   const gate = await assertAccess(restaurantId, 'tables')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return tableAuthorizationError()
   const result = await listOpenTableSessions(
     { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['tables'] },
     restaurantId,
     createTableSessionPort(),
   )
-  return result.ok ? result.value : { error: result.error }
+  return result.ok ? result.value : tableActionError('READ_FAILED', 'Canlı masa durumu alınamadı. Lütfen tekrar deneyin.')
 }
 
 /** Realtime invalidation target for the tenant-scoped table directory. */
 export async function getTableDirectory(
   restaurantId: string,
-): Promise<Tables<'tables'>[] | { error: string }> {
+): Promise<Tables<'tables'>[] | TablesActionFailure> {
   const gate = await assertAccess(restaurantId, 'tables')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return tableAuthorizationError()
   const result = await readDashboardTables(
     { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['tables'] },
     restaurantId,
     createDashboardTablesReadModelPort(),
   )
-  return result.ok ? result.value : { error: result.error }
+  return result.ok ? result.value : tableActionError('READ_FAILED', 'Masa listesi güncellenemedi. Lütfen tekrar deneyin.')
 }
 
 export type TableLayoutSnapshot = import('@garsonless/application/tables').TableLayoutSnapshot
 
 export async function getTableLayout(
   restaurantId: string,
-): Promise<TableLayoutSnapshot | null | { error: string }> {
+): Promise<TableLayoutSnapshot | null | TablesActionFailure> {
   const gate = await assertAccess(restaurantId, 'tables')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return tableAuthorizationError()
   const result = await readDashboardTableLayout(
     { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['tables'] },
     restaurantId,
     createDashboardTablePort(),
   )
-  return result.ok ? result.value : { error: result.error }
+  return result.ok ? result.value : tableActionError('READ_FAILED', 'Salon yerleşimi yüklenemedi. Lütfen tekrar deneyin.')
 }
 
 export async function saveTableLayout(input: unknown): Promise<
-  | { error: string }
+  | TablesActionFailure
   | { success: true; idempotent: boolean; snapshot: TableLayoutSnapshot }
   | { conflict: true; snapshot: TableLayoutSnapshot }
 > {
   const parsed = saveTableLayoutSchema.safeParse(input)
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Geçersiz masa yerleşimi.' }
+  if (!parsed.success) return tableActionError('INVALID_INPUT', 'Geçersiz masa yerleşimi.')
   const gate = await assertAccess(parsed.data.restaurantId, 'tables')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return tableAuthorizationError()
   const result = await saveDashboardTableLayout(
     {
       actor: 'dashboard-member',
@@ -406,7 +484,7 @@ export async function saveTableLayout(input: unknown): Promise<
     parsed.data,
     createDashboardTablePort(),
   )
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return tableActionError('WRITE_FAILED', 'Salon yerleşimi kaydedilemedi. Lütfen tekrar deneyin.')
   if (result.value.kind === 'conflict') return { conflict: true, snapshot: result.value.snapshot }
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   return { success: true, idempotent: result.value.idempotent, snapshot: result.value.snapshot }
@@ -418,72 +496,72 @@ export type TransferHistoryItem = ApplicationTransferHistoryItem & {
   undoActorLabel: string | null
 }
 
-export async function moveTable(input: unknown): Promise<{ error: string } | { operationId: string }> {
+export async function moveTable(input: unknown): Promise<TablesActionResult<{ operationId: string }>> {
   const parsed = transferBaseSchema.safeParse(input)
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Geçersiz taşıma isteği.' }
-  const gate = await assertAccess(parsed.data.restaurantId, 'tables')
-  if ('error' in gate) return { error: gate.error }
+  if (!parsed.success) return tableActionError('INVALID_INPUT', 'Geçersiz taşıma isteği.')
+  const gate = await resolveTablesCommandActor(parsed.data.restaurantId)
+  if ('error' in gate) return tableAuthorizationError()
   const result = await moveTableSession(
     { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['tables'] },
     parsed.data, createTableSessionPort(),
   )
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return tableActionError('WRITE_FAILED', 'Masa taşınamadı. Hedef masayı kontrol edip tekrar deneyin.')
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/orders`)
   return { operationId: result.value.operationId }
 }
 
-export async function transferOrdersToTable(input: unknown): Promise<{ error: string } | { operationId: string }> {
+export async function transferOrdersToTable(input: unknown): Promise<TablesActionResult<{ operationId: string }>> {
   const parsed = accountTransferSchema.safeParse(input)
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Geçersiz hesap taşıma isteği.' }
+  if (!parsed.success) return tableActionError('INVALID_INPUT', 'Geçersiz hesap taşıma isteği.')
   const gate = await assertAccess(parsed.data.restaurantId, 'orders')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return tableAuthorizationError()
   const result = await transferTableOrders(
     { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['orders'] },
     parsed.data, createTableSessionPort(),
   )
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return tableActionError('WRITE_FAILED', 'Hesap taşınamadı. Seçimleri kontrol edip tekrar deneyin.')
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/orders`)
   return { operationId: result.value.operationId }
 }
 
-export async function transferOrderItemsToTable(input: unknown): Promise<{ error: string } | { operationId: string }> {
+export async function transferOrderItemsToTable(input: unknown): Promise<TablesActionResult<{ operationId: string }>> {
   const parsed = itemTransferSchema.safeParse(input)
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Geçersiz ürün taşıma isteği.' }
+  if (!parsed.success) return tableActionError('INVALID_INPUT', 'Geçersiz ürün taşıma isteği.')
   const gate = await assertAccess(parsed.data.restaurantId, 'orders')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return tableAuthorizationError()
   const result = await transferTableOrderItems(
     { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['orders'] },
     parsed.data, createTableSessionPort(),
   )
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return tableActionError('WRITE_FAILED', 'Ürünler taşınamadı. Seçimleri kontrol edip tekrar deneyin.')
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/orders`)
   return { operationId: result.value.operationId }
 }
 
-export async function undoTransfer(input: unknown): Promise<{ error: string } | { success: true }> {
+export async function undoTransfer(input: unknown): Promise<TablesActionResult<{ success: true }>> {
   const parsed = z.object({ restaurantId: z.string().uuid(), operationId: z.string().uuid() }).safeParse(input)
-  if (!parsed.success) return { error: 'Geçersiz geri alma isteği.' }
+  if (!parsed.success) return tableActionError('INVALID_INPUT', 'Geçersiz geri alma isteği.')
   const gate = await assertMember(parsed.data.restaurantId)
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return tableAuthorizationError()
   const access = await getUserRestaurantAccess(parsed.data.restaurantId)
-  if (!access) return { error: 'Not authorized' }
+  if (!access) return tableAuthorizationError()
   const result = await undoTableTransfer(
     { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: access.permissions, isOwner: access.isOwner },
     parsed.data, createTableSessionPort(),
   )
-  if (!result.ok) return { error: result.error }
-  if (result.value.error) return { error: result.value.error }
+  if (!result.ok) return tableActionError('WRITE_FAILED', 'Taşıma geri alınamadı. Lütfen tekrar deneyin.')
+  if (result.value.error) return tableActionError('CONFLICT', 'Bu taşıma artık geri alınamıyor. Masa durumlarını yenileyin.')
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/orders`)
   return { success: true }
 }
 
-export async function getTransferHistory(restaurantId: string, permission: 'tables' | 'orders' = 'tables'): Promise<TransferHistoryItem[] | { error: string }> {
+export async function getTransferHistory(restaurantId: string, permission: 'tables' | 'orders' = 'tables'): Promise<TransferHistoryItem[] | TablesActionFailure> {
   const gate = await assertAccess(restaurantId, permission)
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return tableAuthorizationError()
   const result = await listTableTransferHistory(
     { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: [permission] }, restaurantId, createTableSessionPort(),
   )
@@ -493,7 +571,7 @@ export async function getTransferHistory(restaurantId: string, permission: 'tabl
         actorLabel: transferActorLabel(item.createdBy, gate.userId),
         undoActorLabel: item.undoneBy ? transferActorLabel(item.undoneBy, gate.userId) : null,
       }))
-    : { error: result.error }
+    : tableActionError('READ_FAILED', 'Taşıma geçmişi alınamadı. Lütfen tekrar deneyin.')
 }
 
 /**
@@ -514,25 +592,34 @@ export async function closeTableSession(
   sessionId: string,
   restaurantId: string,
   opts?: { abnormalReason?: string },
-): Promise<{ error: string } | { success: true }> {
-  const gate = await assertAccess(restaurantId, 'tables')
-  if ('error' in gate) return { error: gate.error }
+): Promise<TablesActionResult<{ success: true }>> {
+  const startedAt = Date.now()
+  const gate = await resolveTablesCommandActor(restaurantId)
+  const authorizedAt = Date.now()
+  if ('error' in gate) return tableAuthorizationError()
   const result = await closeTableSessionCommand(
     { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['tables'] },
     { sessionId, restaurantId, abnormalReason: opts?.abnormalReason },
     createTableSessionPort(),
   )
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return tableActionError('WRITE_FAILED', 'Adisyon kapatılamadı. Lütfen tekrar deneyin.')
   const outcome = result.value
-  if (outcome === 'not_found') return { error: 'Session not found for this restaurant' }
-  if (outcome === 'unpaid') return { error: 'Ödenmemiş sipariş var — önce tahsil edin ya da bir sebeple anormal kapatın.' }
+  if (outcome === 'not_found') return tableActionError('NOT_FOUND', 'Adisyon bulunamadı veya daha önce kapatıldı.')
+  if (outcome === 'unpaid') return tableActionError('CONFLICT', 'Ödenmemiş sipariş var — önce tahsil edin ya da bir sebeple anormal kapatın.')
   if (outcome === 'payment_pending') {
-    return { error: 'Bu masa için online ödeme sonucu bekleniyor. Ödeme tamamlanmadan veya mutabakat yapılmadan adisyon kapatılamaz.' }
+    return tableActionError('CONFLICT', 'Bu masa için online ödeme sonucu bekleniyor. Ödeme tamamlanmadan veya mutabakat yapılmadan adisyon kapatılamaz.')
   }
   if (outcome === 'already_closed') return { success: true }
-  if (outcome !== 'closed_normal' && outcome !== 'closed_abnormal') return { error: 'Adisyon kapatılamadı.' }
+  if (outcome !== 'closed_normal' && outcome !== 'closed_abnormal') return tableActionError('WRITE_FAILED', 'Adisyon kapatılamadı.')
 
   revalidatePath(`/dashboard/${restaurantId}/tables`)
+  console.info(JSON.stringify({
+    event: 'tables.close.timing',
+    outcome,
+    authorizationMs: authorizedAt - startedAt,
+    commandMs: Date.now() - authorizedAt,
+    totalMs: Date.now() - startedAt,
+  }))
   return { success: true }
 }
 

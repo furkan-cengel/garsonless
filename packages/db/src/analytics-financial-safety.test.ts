@@ -10,16 +10,15 @@ const migration = readFileSync(
 
 test('analytics payment and cancellation projections retain money classification fields', () => {
   assert.match(adapter, /select\('total, payment_method, items'\)/)
-  assert.match(adapter, /select\('total, status, items, created_at, paid_at, payment_method'\)/)
-  assert.match(adapter, /paidAt: row\.paid_at/)
-  assert.match(adapter, /paymentMethod: row\.payment_method/)
+  assert.match(adapter, /rpc\('read_analytics_cancellation_aggregate'/)
+  assert.match(adapter, /parseAnalyticsCancellationAggregate/)
 })
 
 test('analytics time queries support an exclusive upper bound', () => {
   assert.match(adapter, /query = query\.lt\('paid_at', before\)/)
-  assert.match(adapter, /query = query\.lt\('created_at', before\)/)
-  assert.match(adapter, /sessionQuery = sessionQuery\.lt\('closed_at', before\)/)
-  assert.match(adapter, /closedSessionsQuery = closedSessionsQuery\.lt\('closed_at', before\)/)
+  assert.match(adapter, /p_current_start: currentStart/)
+  assert.match(adapter, /rpc\('read_analytics_abnormal_close_aggregate'/)
+  assert.match(adapter, /p_before: before \?\? new Date\(\)\.toISOString\(\)/)
 })
 
 test('analytics range indexes match tenant and time predicates', () => {

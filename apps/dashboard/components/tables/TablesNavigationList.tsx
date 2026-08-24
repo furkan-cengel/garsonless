@@ -22,6 +22,7 @@ export function TablesNavigationList({
   onDelete,
   onResolveRequest,
   onTransfer,
+  onPrefetchTransfer,
   onCloseSession,
   adding,
   startAdding,
@@ -48,6 +49,7 @@ export function TablesNavigationList({
   onDelete: (table: TableItem) => Promise<string | null>
   onResolveRequest: (requestId: string) => void
   onTransfer: (mode: 'table_move' | 'account_transfer', tableId: string) => void
+  onPrefetchTransfer: (tableId: string) => void
   onCloseSession: (session: OpenTableSessionView, label: string) => void
   adding: boolean
   startAdding: () => void
@@ -110,9 +112,9 @@ export function TablesNavigationList({
                   {session.unpaidTotal > 0 && ` · ₺${session.unpaidTotal.toLocaleString('tr-TR')} açık`}
                   {session.splitDeclaredCashTotal > 0 && ` · ₺${session.splitDeclaredCashTotal.toLocaleString('tr-TR')} nakit onayı`}
                 </span>
-                <Button className="tb-tables__session-action" type="button" variant="outline" size="xs" aria-label={`${table.label} masasını taşı`} title="Masayı taşı" onClick={(event) => { event.stopPropagation(); onTransfer('table_move', table.id) }}>Taşı</Button>
-                <Button className="tb-tables__session-action" type="button" variant="outline" size="xs" aria-label={`${table.label} ürün veya hesabını taşı`} title="Ürün veya hesap taşı" onClick={(event) => { event.stopPropagation(); onTransfer('account_transfer', table.id) }}>Ürün</Button>
-                <Button className="tb-tables__session-action" type="button" variant="positive" size="xs" onClick={(event) => { event.stopPropagation(); onCloseSession(session, table.label) }}>Kapat</Button>
+                <Button className="tb-tables__session-action" type="button" variant="outline" size="xs" aria-label={`${table.label} masasını taşı`} title="Masayı taşı" onPointerEnter={() => onPrefetchTransfer(table.id)} onPointerDown={() => onPrefetchTransfer(table.id)} onFocus={() => onPrefetchTransfer(table.id)} onClick={(event) => { event.stopPropagation(); onTransfer('table_move', table.id) }}>Taşı</Button>
+                <Button className="tb-tables__session-action" type="button" variant="outline" size="xs" aria-label={`${table.label} ürün veya hesabını taşı`} title="Ürün veya hesap taşı" onPointerEnter={() => onPrefetchTransfer(table.id)} onPointerDown={() => onPrefetchTransfer(table.id)} onFocus={() => onPrefetchTransfer(table.id)} onClick={(event) => { event.stopPropagation(); onTransfer('account_transfer', table.id) }}>Ürün</Button>
+                <Button className="tb-tables__session-action" type="button" variant="positive" size="xs" onPointerEnter={() => onPrefetchTransfer(table.id)} onPointerDown={() => onPrefetchTransfer(table.id)} onFocus={() => onPrefetchTransfer(table.id)} onClick={(event) => { event.stopPropagation(); onCloseSession(session, table.label) }}>Kapat</Button>
               </div>
             )}
           </div>
@@ -138,7 +140,7 @@ export function TablesNavigationList({
             <Input aria-label="Yeni masa alanı" value={newAreaLabel} maxLength={40} onChange={(event) => setNewAreaLabel(event.target.value)} placeholder="Alan" className="h-7 min-w-0 text-xs" />
           </div>
           <div className="flex gap-1">
-            <Button type="button" size="xs" onClick={addTable} disabled={saving} className="flex-1">{saving && <Spinner data-icon="inline-start" />}Ekle</Button>
+            <Button type="button" size="xs" onClick={addTable} aria-busy={saving} disabled={saving} className="flex-1">{saving && <Spinner aria-hidden="true" data-icon="inline-start" />}{saving ? 'Ekleniyor…' : 'Ekle'}</Button>
             <Button type="button" variant="outline" size="xs" onClick={cancelAdding}>İptal</Button>
           </div>
           {addError && <FieldError className="text-xs">{addError}</FieldError>}

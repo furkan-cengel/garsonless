@@ -75,13 +75,14 @@ export function MenuImageAttachment({
         size={orientation === 'horizontal' ? 'sm' : 'default'}
         orientation={orientation}
         aria-busy={uploading}
+        aria-live="polite"
       >
         <AttachmentMedia
           variant={hasImage ? 'image' : 'icon'}
           className={cn(orientation === 'vertical' && 'aspect-[4/3] w-full', mediaClassName)}
           style={mediaStyle}
         >
-          {imageUrl ? <img className="size-full object-cover" src={imageUrl} alt={imageAlt} /> : uploading ? <Spinner /> : (placeholder ?? <I.image />)}
+          {imageUrl ? <img className="size-full object-cover" src={imageUrl} alt={imageAlt} /> : uploading ? <Spinner aria-hidden="true" /> : (placeholder ?? <I.image />)}
         </AttachmentMedia>
         <AttachmentContent className={cn(orientation === 'vertical' && 'w-full')}>
           <AttachmentTitle>{title}</AttachmentTitle>
@@ -94,7 +95,7 @@ export function MenuImageAttachment({
             </AttachmentAction>
           )}
           <AttachmentAction type="button" variant="ghost" disabled={uploading} aria-label={selectLabel} onClick={openFilePicker}>
-            {uploading ? <Spinner /> : <I.image />}
+            {uploading ? <Spinner aria-hidden="true" /> : <I.image />}
           </AttachmentAction>
         </AttachmentActions>
         {!uploading && <AttachmentTrigger aria-label={selectLabel} onClick={openFilePicker} />}

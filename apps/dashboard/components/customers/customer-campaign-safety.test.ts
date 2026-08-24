@@ -4,13 +4,15 @@ import test from 'node:test'
 
 const client = readFileSync(new URL('./CustomersClient.tsx', import.meta.url), 'utf8')
 const actions = readFileSync(new URL('../../lib/actions/campaigns.ts', import.meta.url), 'utf8')
+const customerActions = readFileSync(new URL('../../lib/actions/customers.ts', import.meta.url), 'utf8')
 const page = readFileSync(new URL('../../app/dashboard/[restaurantId]/customers/page.tsx', import.meta.url), 'utf8')
 
-test('SMS stays visibly fail-closed while audience preview remains available', () => {
-  assert.match(page, /getSmsDeliveryAvailability\(\)\.enabled/)
-  assert.match(client, /SMS gönderimi şirket ve provider aktivasyonuna kadar kapalı/)
-  assert.match(client, /const canSend = smsDeliveryEnabled/)
-  assert.match(client, /disabled=\{!smsDeliveryEnabled \|\| testing/)
+test('email delivery is configuration-gated while SMS stays out of the active UI', () => {
+  assert.match(page, /getCampaignEmailDeliveryAvailability\(\)\.enabled/)
+  assert.match(client, /E-posta gönderimi için Resend yapılandırması eksik/)
+  assert.match(client, /const canSend = emailDeliveryEnabled/)
+  assert.doesNotMatch(client, />SMS kampanyası</)
+  assert.doesNotMatch(client, /customer-test-phone/)
   assert.match(client, /previewCampaignAudienceAction/)
 })
 
@@ -19,8 +21,9 @@ test('campaign intent keeps one request id and exposes exclusion reasons separat
   assert.match(client, /sendRequestId\.current = requestId/)
   assert.match(actions, /requestId: z\.string\(\)\.uuid\(\)/)
   assert.match(client, /İzin yok/)
-  assert.match(client, /Telefon yok\/geçersiz/)
-  assert.match(client, /Tekrar telefon/)
+  assert.match(client, /E-posta yok\/geçersiz/)
+  assert.match(client, /Tekrar e-posta/)
+  assert.match(client, /E-posta kampanyası gönderilsin mi\?/)
 })
 
 test('campaign modal uses the shadcn accessible responsive dialog', () => {
@@ -32,4 +35,13 @@ test('campaign modal uses the shadcn accessible responsive dialog', () => {
   assert.match(client, /@media \(max-width:760px\)/)
   assert.match(client, /grid-template-columns:1fr!important/)
   assert.match(client, /role=\{error \? 'alert' : 'status'\}/)
+})
+
+test('secondary CRM aggregates stay outside the route critical path', () => {
+  assert.doesNotMatch(page, /readCustomerSegmentCounts|readCustomerSegments|readCampaigns|listCampaignEmailTemplates/)
+  assert.match(page, /const initialResult = await readCustomers/)
+  assert.match(client, /loadCustomerPageSupportAction\(restaurantId\)/)
+  assert.match(customerActions, /const \[counts, segments, campaigns, emailTemplates\] = await Promise\.all/)
+  assert.match(customerActions, /readCustomerSegmentCounts/)
+  assert.match(customerActions, /readCampaigns/)
 })

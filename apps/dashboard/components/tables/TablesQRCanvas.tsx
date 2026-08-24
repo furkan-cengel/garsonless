@@ -161,6 +161,7 @@ const GridCard = memo(function GridCard({ qr, table }: { qr: QRConfig; table: Ta
         data: buildUrl(qr, table),
         margin: qr.margin / 2,
         logoMargin: qr.logoMargin / 2,
+        type: 'canvas',
       })
       if (!instanceRef.current) {
         instanceRef.current = new QRCodeStyling(options) as QRStylingInstance
@@ -202,7 +203,7 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
   const [copyState, setCopyState] = useState<'idle' | 'success' | 'error'>('idle')
   const [exportState, setExportState] = useState<'idle' | 'working'>('idle')
   const [exportError, setExportError] = useState<string | null>(null)
-  const deferredQR = React.useDeferredValue(qr)
+  const deferredGridQR = React.useDeferredValue(qr)
   const PREVIEW_SIZE = 280
 
   useEffect(() => {
@@ -211,13 +212,14 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
     const run = async () => {
       const QRCodeStyling = await loadQRCodeStyling()
       if (cancelled || !hostRef.current) return
-      const url = buildUrl(deferredQR, table)
-      const cfg = buildQRCodeStylingOptions(deferredQR, {
+      const url = buildUrl(qr, table)
+      const cfg = buildQRCodeStylingOptions(qr, {
         width: PREVIEW_SIZE,
         height: PREVIEW_SIZE,
         data: url,
-        margin: Math.round(deferredQR.margin * PREVIEW_SIZE / 600),
-        logoMargin: Math.round(deferredQR.logoMargin * PREVIEW_SIZE / 600),
+        margin: Math.round(qr.margin * PREVIEW_SIZE / 600),
+        logoMargin: Math.round(qr.logoMargin * PREVIEW_SIZE / 600),
+        type: 'canvas',
       })
       if (!qrInstanceRef.current) qrInstanceRef.current = new QRCodeStyling(cfg) as QRStylingInstance
       else qrInstanceRef.current.update(cfg)
@@ -229,7 +231,7 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
     }
     void run()
     return () => { cancelled = true }
-  }, [deferredQR, table, view])
+  }, [qr, table, view])
 
   const download = useCallback(async (format: TableCardExportFormat) => {
     if (!table) return
@@ -397,7 +399,7 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
-              {tables.map(t => <GridCard key={t.id} qr={deferredQR} table={t} />)}
+              {tables.map(t => <GridCard key={t.id} qr={deferredGridQR} table={t} />)}
             </div>
           </div>
         </div>

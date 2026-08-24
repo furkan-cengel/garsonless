@@ -114,6 +114,17 @@ export function PricingSection() {
         </div>
 
         <PricingPlanCards interval={interval} />
+        <aside className="pricing-addon" aria-label="Pro add-on">
+          <div>
+            <span className="pricing-addon__eyebrow">Pro’ya özel add-on</span>
+            <h3>İyzico Online Ödeme</h3>
+            <p>QR menüde kartla ödeme ve online tahsilat akışını açar. Add-on fiyatı, KDV ve genel toplam satın alma özetinde ayrı kalem olarak gösterilir.</p>
+          </div>
+          <div className="pricing-addon__meta">
+            <strong>Ayrıca fiyatlanır</strong>
+            <span>Yalnız Pro ile · İyzico işlem ücretleri hariç</span>
+          </div>
+        </aside>
         <a className="pricing-detail-link" href="/fiyatlar">
           Tüm paketleri ve özellikleri karşılaştır <MI.arrow size={16} />
         </a>

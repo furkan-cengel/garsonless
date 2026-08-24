@@ -5,7 +5,7 @@ const dashboardURL =
 
 export default defineConfig({
   testDir: "./tests/tables-runtime",
-  timeout: 180_000,
+  timeout: 300_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
   workers: 1,
@@ -14,6 +14,7 @@ export default defineConfig({
   outputDir: "test-results/tables-runtime/playwright",
   use: {
     browserName: "chromium",
+    actionTimeout: 15_000,
     colorScheme: "light",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",

@@ -56,7 +56,7 @@ export function TableTransferHistory({
   const filtersActive = filters.query.trim() !== '' || filters.kind !== 'all' || filters.status !== 'all'
 
   if (loadState === 'idle' || loadState === 'loading') {
-    return <div role="status" aria-live="polite" className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Spinner />Taşıma geçmişi yükleniyor…</div>
+    return <div role="status" aria-live="polite" aria-busy="true" className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Spinner aria-hidden="true" />Taşıma geçmişi yükleniyor…</div>
   }
   if (loadState === 'error') {
     return (

@@ -1,12 +1,21 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getSessionSettlement, settleOrder } from '../../lib/actions/settlement'
+import { settleSessionAndClose } from '../../lib/actions/settlement'
 import type { SettlementOrder, SettlementShare } from '../../lib/actions/settlement'
-import { confirmCashShare } from '../../lib/actions/split'
+import {
+  confirmCashShare,
+  reconcileCardShare as reconcileCardShareAction,
+  releaseUnstartedCardShare,
+} from '../../lib/actions/split'
 import { closeTableSession } from '../../lib/actions/tables'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
-import { SETTLEMENT_LOAD_ERROR, withSettlementLoadTimeout } from './settlement-load'
+import { SETTLEMENT_LOAD_ERROR } from './settlement-load'
+import {
+  clearSessionSettlementCache,
+  loadSessionSettlement,
+  settlementLoadKey,
+} from './settlement-data-load'
 import {
   deriveSettlementProjection,
   fillSettlementMethods,
@@ -38,17 +47,22 @@ export function useSettlementSheet({
   const [error, setError] = useState<string | null>(null)
   const [committing, setCommitting] = useState(false)
   const [confirmingShareId, setConfirmingShareId] = useState<string | null>(null)
+  const [resolvingShareId, setResolvingShareId] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const [abnormal, setAbnormal] = useState(false)
   const [abnormalReason, setAbnormalReason] = useState('')
+  const loadKey = settlementLoadKey(restaurantId, session)
 
-  const reload = useCallback(() => setReloadKey((value) => value + 1), [])
+  const reload = useCallback(() => {
+    clearSessionSettlementCache(restaurantId, session.sessionId)
+    setReloadKey((value) => value + 1)
+  }, [restaurantId, session.sessionId])
 
   useEffect(() => {
     let active = true
     setLoadState('loading')
     setLoadError(null)
-    void withSettlementLoadTimeout(() => getSessionSettlement(session.sessionId, restaurantId))
+    void loadSessionSettlement(restaurantId, session.sessionId, loadKey)
       .then((result) => {
         if (!active) return
         if ('error' in result) {
@@ -68,13 +82,13 @@ export function useSettlementSheet({
     return () => {
       active = false
     }
-  }, [session.sessionId, restaurantId, reloadKey])
+  }, [session.sessionId, restaurantId, loadKey, reloadKey])
 
   const projection = useMemo(
     () => deriveSettlementProjection(orders, shares, staged),
     [orders, shares, staged],
   )
-  const busy = committing
+  const busy = committing || confirmingShareId !== null || resolvingShareId !== null
 
   const setMethod = useCallback((orderId: string, method: SettlementMethod) => {
     setStaged((current) => toggleSettlementMethod(current, orderId, method))
@@ -98,6 +112,34 @@ export function useSettlementSheet({
     onSettled()
   }, [restaurantId, reload, onSettled])
 
+  const releaseCardShare = useCallback(async (shareId: string) => {
+    setError(null)
+    setResolvingShareId(shareId)
+    const result = await releaseUnstartedCardShare(shareId, restaurantId)
+    setResolvingShareId(null)
+    if ('error' in result) {
+      setError(result.error)
+      reload()
+      return
+    }
+    reload()
+    onSettled()
+  }, [restaurantId, reload, onSettled])
+
+  const reconcileCardShare = useCallback(async (shareId: string) => {
+    setError(null)
+    setResolvingShareId(shareId)
+    const result = await reconcileCardShareAction(shareId, restaurantId)
+    setResolvingShareId(null)
+    if ('error' in result) {
+      setError(result.error)
+      reload()
+      return
+    }
+    reload()
+    onSettled()
+  }, [restaurantId, reload, onSettled])
+
   const commit = useCallback(async () => {
     setError(null)
     setCommitting(true)
@@ -107,24 +149,22 @@ export function useSettlementSheet({
       reload()
       return
     }
-    for (const order of projection.unpaid) {
+    const settlements = projection.unpaid.flatMap((order) => {
       const method = staged[order.id]
-      if (!method) continue
-      const result = await settleOrder(order.id, restaurantId, method)
-      if ('error' in result) {
-        setError(result.error)
-        setCommitting(false)
-        reload()
-        return
-      }
-    }
-    const closeResult = await closeTableSession(session.sessionId, restaurantId)
+      return method ? [{ orderId: order.id, method }] : []
+    })
+    const closeResult = await settleSessionAndClose({
+      restaurantId,
+      sessionId: session.sessionId,
+      settlements,
+    })
     setCommitting(false)
     if ('error' in closeResult) {
       setError(closeResult.error)
       reload()
       return
     }
+    clearSessionSettlementCache(restaurantId, session.sessionId)
     onSettled()
     setDone(true)
   }, [projection.isSplitMode, projection.unpaid, staged, restaurantId, session.sessionId, reload, onSettled])
@@ -157,6 +197,7 @@ export function useSettlementSheet({
     error,
     committing,
     confirmingShareId,
+    resolvingShareId,
     done,
     abnormal,
     abnormalReason,
@@ -166,6 +207,8 @@ export function useSettlementSheet({
     setMethod,
     fillAll,
     confirmShare,
+    releaseCardShare,
+    reconcileCardShare,
     commit,
     confirmAbnormal,
     setAbnormal,

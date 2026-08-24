@@ -325,29 +325,32 @@ export function createDashboardSettingsReadModelPort(): DashboardSettingsReadMod
   TeamAuditEventRow
 > {
   return {
-    async readSettings({ restaurantId, userId, includeOwnerData }) {
+    async readSettings({ restaurantId, userId, includeOwnerData, scopes }) {
       const service = createServiceClient()
+      const includeKitchen = includeOwnerData && scopes.includes('kitchen')
+      const includeTeam = includeOwnerData && scopes.includes('team')
+      const includeSecurity = scopes.includes('security')
       const [credentialResult, securityResult, ownerResult, teamAuditResult] = await Promise.all([
-        service.from('kitchen_credentials')
+        includeKitchen ? service.from('kitchen_credentials')
           .select(projection.kitchenCredential)
           .eq('restaurant_id', restaurantId)
-          .maybeSingle(),
-        service.from('security_events')
+          .maybeSingle() : Promise.resolve({ data: null, error: null }),
+        includeSecurity ? service.from('security_events')
           .select(projection.securityEvent)
           .eq('user_id', userId)
           .in('event_type', ['login', 'password_change'])
           .order('created_at', { ascending: false })
-          .limit(20),
-        includeOwnerData
+          .limit(20) : Promise.resolve({ data: [], error: null }),
+        includeKitchen || includeTeam
           ? Promise.all([
-            service.from('kitchen_stations')
+            includeKitchen ? service.from('kitchen_stations')
               .select(projection.kitchenStation)
               .eq('restaurant_id', restaurantId)
-              .order('position'),
-            listTeamMembers(restaurantId),
+              .order('position') : Promise.resolve({ data: [], error: null }),
+            includeTeam ? listTeamMembers(restaurantId) : Promise.resolve([]),
           ])
           : Promise.resolve(null),
-        includeOwnerData
+        includeTeam
           ? service.from('security_events')
             .select('id, event_type, metadata, created_at')
             .eq('restaurant_id', restaurantId)

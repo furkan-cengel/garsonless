@@ -369,10 +369,14 @@ function resolveStoreStatus(hours: StoreInfo['hours'] | undefined, timeZone: str
     const schedule = hours[weekday]
     if (!schedule || schedule.active !== true || !schedule.open || !schedule.close) return { label: 'Şu an kapalı', tone: 'closed' as const }
     const toMinutes = (value: string) => { const match = /^(\d{1,2}):(\d{2})$/.exec(value); return match ? Number(match[1]) * 60 + Number(match[2]) : null }
-    const open = toMinutes(schedule.open); const close = toMinutes(schedule.close)
-    if (open === null || close === null) return null
     const now = hour * 60 + minute
-    const isOpen = close > open ? now >= open && now < close : now >= open || now < close
+    const intervals = schedule.intervals?.length
+      ? schedule.intervals
+      : [{ open: schedule.open, close: schedule.close }]
+    const isOpen = intervals.some((interval) => {
+      const open = toMinutes(interval.open); const close = toMinutes(interval.close)
+      return open !== null && close !== null && (close > open ? now >= open && now < close : now >= open || now < close)
+    })
     return isOpen
       ? { label: 'Şu an açık', tone: 'open' as const }
       : { label: 'Şu an kapalı', tone: 'closed' as const }

@@ -4,7 +4,13 @@ import { settleOrder as settleOrderCommand } from '@garsonless/application/order
 import { settleProviderShare } from '@garsonless/application/splits'
 import { createIyzicoClient, retrieveCheckout } from '../../../../lib/iyzico'
 import { resolveCredentialsByPaymentToken, resolveCredentialsByShareToken } from '../../../../lib/payment-credentials'
-import { attachOrderProviderPayment, createSettlementPort, createSplitPaymentPort, recordPaymentReconciliation } from '@garsonless/db/server'
+import {
+  attachOrderProviderPayment,
+  createSettlementPort,
+  createSplitPaymentPort,
+  readShareProviderCheckout,
+  recordPaymentReconciliation,
+} from '@garsonless/db/server'
 
 async function recordReconciliation(input: {
   token: string
@@ -88,8 +94,32 @@ export async function POST(req: Request): Promise<NextResponse> {
         return callbackHtml({ type: 'PAYMENT_FAILED', reason: 'Ödeme yapılandırması bulunamadı' }, 'Ödeme yapılandırması bulunamadı.', 503)
       }
       const sClient = createIyzicoClient(sCred)
-      const { paymentStatus: sStatus } = await retrieveCheckout(sClient, token, sCred.secretKey)
+      const shareCheckout = await readShareProviderCheckout({ shareId, restaurantId: sRest })
+      if (shareCheckout.error || !shareCheckout.share) {
+        return callbackHtml({ type: 'PAYMENT_FAILED', reason: 'Ödeme payı doğrulanamadı' }, 'Ödeme payı doğrulanamadı.', 503)
+      }
+      const {
+        paymentStatus: sStatus,
+        basketId: sBasketId,
+        paidPrice: sPaidPrice,
+        currency: sCurrency,
+      } = await retrieveCheckout(sClient, token, sCred.secretKey)
       if (sStatus === 'SUCCESS') {
+        const amountMatches = Math.round(sPaidPrice * 100) === Math.round(shareCheckout.share.amount * 100)
+        if (sBasketId !== shareId || sCurrency !== 'TRY' || !amountMatches) {
+          await recordReconciliation({
+            token,
+            eventType: 'share_settlement_failed',
+            restaurantId: sRest,
+            shareId,
+            detail: { stage: 'provider_result_mismatch' },
+          })
+          return callbackHtml(
+            { type: 'PAYMENT_FAILED', reason: 'Ödeme sonucu pay ile güvenle eşleştirilemedi.' },
+            'Ödeme sonucu güvenle eşleştirilemedi. Lütfen tekrar ödeme yapmayın ve işletmeye bildirin.',
+            503,
+          )
+        }
         // Card is real payment → settle the share (method already 'iyzico',
         // settled_by null = system). The repository stamps covered orders
         // paid+'split' if this crossed full coverage, but it does NOT close

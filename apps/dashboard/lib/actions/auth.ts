@@ -3,13 +3,14 @@
 import { createHash } from 'node:crypto'
 import { redirect } from 'next/navigation'
 import {
+  consumeDashboardAuthRateLimit,
   deleteDashboardPushEndpoint,
+  recordSecurityEvent,
   recordSignupLegalEvidence,
 } from '@garsonless/db/server'
 import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { z } from 'zod'
-import { recordSecurityEvent } from '@garsonless/db/server'
 import { createDashboardServerClient } from '../supabase-server'
 import { readRequestMeta } from '../request-meta'
 import { sanitizeServerDiagnostic } from '../server-log-redaction'
@@ -57,6 +58,36 @@ function legalIpHash(ip: string | null): string | null {
   return ip && salt ? createHash('sha256').update(`${salt}:${ip}`).digest('hex') : null
 }
 
+async function isSameOriginRequest(): Promise<boolean> {
+  const requestHeaders = await headers()
+  const origin = requestHeaders.get('origin')
+  if (!origin) return requestHeaders.get('sec-fetch-site') === 'same-origin'
+  const expectedHost = requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host')
+  try {
+    return Boolean(expectedHost) && new URL(origin).host === expectedHost
+  } catch {
+    return false
+  }
+}
+
+async function allowDashboardAuthAction(input: {
+  action: string
+  subject: string
+  limit: number
+  windowSeconds: number
+}): Promise<boolean> {
+  if (!await isSameOriginRequest()) return false
+  const { ip } = await readRequestMeta()
+  const subjects = [`subject:${input.subject}`, ...(ip ? [`ip:${ip}`] : [])]
+  const checks = await Promise.all(subjects.map((subject) => consumeDashboardAuthRateLimit({
+    action: input.action,
+    subject,
+    limit: input.limit,
+    windowSeconds: input.windowSeconds,
+  })))
+  return checks.every((check) => check.ok && check.allowed)
+}
+
 async function persistSignupLegalEvidence(input: {
   userId: string
   version: string
@@ -100,6 +131,10 @@ export async function signIn(
     return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
   }
 
+  if (!await allowDashboardAuthAction({ action: 'sign-in', subject: parsed.data.email, limit: 10, windowSeconds: 900 })) {
+    return { error: 'Çok fazla giriş denemesi yapıldı. Lütfen daha sonra tekrar deneyin.' }
+  }
+
   const supabase = await createDashboardServerClient()
   const { data, error } = await supabase.auth.signInWithPassword(parsed.data)
   if (error) return { error: publicAuthError(error, 'auth.sign-in', 'Giriş yapılamadı. Lütfen tekrar deneyin.') }
@@ -133,6 +168,10 @@ export async function signUp(
   })
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+  }
+
+  if (!await allowDashboardAuthAction({ action: 'sign-up', subject: parsed.data.email, limit: 3, windowSeconds: 3600 })) {
+    return { error: 'Çok fazla hesap oluşturma denemesi yapıldı. Lütfen daha sonra tekrar deneyin.' }
   }
 
   // Onboarding belongs to account creation. Login and other auth entrypoints
@@ -208,6 +247,10 @@ export async function sendMagicLink(
     return { error: parsed.error.issues[0]?.message ?? 'Invalid email' }
   }
 
+  if (!await allowDashboardAuthAction({ action: 'magic-link', subject: parsed.data.email, limit: 3, windowSeconds: 3600 })) {
+    return { error: 'Çok fazla bağlantı isteği gönderildi. Lütfen daha sonra tekrar deneyin.' }
+  }
+
   const supabase = await createDashboardServerClient()
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data.email,
@@ -224,6 +267,11 @@ export async function requestPasswordReset(
 ): Promise<{ error: string } | { success: true }> {
   const parsed = passwordResetRequestSchema.safeParse({ email: formData.get('email') })
   if (!parsed.success) return { error: 'Geçerli bir e-posta adresi girin.' }
+
+  if (!await allowDashboardAuthAction({ action: 'password-reset', subject: parsed.data.email, limit: 3, windowSeconds: 3600 })) {
+    // Enumeration-safe: throttled known and unknown addresses receive the same response.
+    return { success: true }
+  }
 
   const supabase = await createDashboardServerClient()
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
@@ -265,6 +313,114 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(8, 'Yeni şifre en az 8 karakter olmalı'),
 })
 
+const freshPasswordSchema = z.object({ currentPassword: z.string().min(1).max(256) }).strict()
+const emailChangeSchema = freshPasswordSchema.extend({ email: z.string().trim().email().max(320) }).strict()
+const totpCodeSchema = z.object({
+  factorId: z.string().uuid(),
+  code: z.string().trim().regex(/^\d{6}$/),
+}).strict()
+
+async function requireFreshUserPassword(currentPassword: string) {
+  const supabase = await createDashboardServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user?.email) return { ok: false as const, error: 'Oturum bulunamadı.' }
+  if (!await allowDashboardAuthAction({ action: 'fresh-reauth', subject: user.id, limit: 5, windowSeconds: 900 })) {
+    return { ok: false as const, error: 'Çok fazla doğrulama denemesi yapıldı. Lütfen daha sonra tekrar deneyin.' }
+  }
+  const [factors, assurance] = await Promise.all([
+    supabase.auth.mfa.listFactors(),
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+  ])
+  const hasVerifiedTotp = !factors.error && factors.data.totp.some((factor) => factor.status === 'verified')
+  if (hasVerifiedTotp && (assurance.error || assurance.data.currentLevel !== 'aal2')) {
+    return { ok: false as const, error: 'Bu işlem için önce Authenticator koduyla AAL2 doğrulaması yapın.' }
+  }
+  const { error } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPassword })
+  return error
+    ? { ok: false as const, error: 'Hesap şifresi doğrulanamadı.' }
+    : { ok: true as const, supabase, user }
+}
+
+export async function signOutOtherSessions(
+  input: { currentPassword: string },
+): Promise<{ error: string } | { success: true }> {
+  const parsed = freshPasswordSchema.safeParse(input)
+  if (!parsed.success) return { error: 'Bu işlem için hesap şifresi gerekli.' }
+  const fresh = await requireFreshUserPassword(parsed.data.currentPassword)
+  if (!fresh.ok) return { error: fresh.error }
+  const { error } = await fresh.supabase.auth.signOut({ scope: 'others' })
+  return error
+    ? { error: publicAuthError(error, 'auth.sign-out-others', 'Diğer oturumlar kapatılamadı.') }
+    : { success: true }
+}
+
+export async function requestEmailChange(
+  input: { currentPassword: string; email: string },
+): Promise<{ error: string } | { success: true }> {
+  const parsed = emailChangeSchema.safeParse(input)
+  if (!parsed.success) return { error: 'Geçerli yeni e-posta ve hesap şifresi gerekli.' }
+  const fresh = await requireFreshUserPassword(parsed.data.currentPassword)
+  if (!fresh.ok) return { error: fresh.error }
+  const { error } = await fresh.supabase.auth.updateUser({ email: parsed.data.email })
+  return error
+    ? { error: publicAuthError(error, 'auth.email-change', 'E-posta değişikliği başlatılamadı.') }
+    : { success: true }
+}
+
+export async function getDashboardMfaStatus(): Promise<
+  { error: string } | { factors: Array<{ id: string; friendlyName: string | null; status: string }>; aal: string | null }
+> {
+  const supabase = await createDashboardServerClient()
+  const [{ data: factorData, error: factorError }, { data: aalData, error: aalError }] = await Promise.all([
+    supabase.auth.mfa.listFactors(),
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+  ])
+  if (factorError || aalError) return { error: 'İki faktörlü doğrulama durumu yüklenemedi.' }
+  return {
+    factors: factorData.totp.map((factor) => ({ id: factor.id, friendlyName: factor.friendly_name ?? null, status: factor.status })),
+    aal: aalData.currentLevel,
+  }
+}
+
+export async function startTotpEnrollment(): Promise<
+  { error: string } | { factorId: string; qrCode: string; secret: string }
+> {
+  const supabase = await createDashboardServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Oturum bulunamadı.' }
+  const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Masabu Dashboard' })
+  return error
+    ? { error: publicAuthError(error, 'auth.mfa.enroll', 'Authenticator kurulumu başlatılamadı.') }
+    : { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret }
+}
+
+export async function verifyTotpEnrollment(
+  input: { factorId: string; code: string },
+): Promise<{ error: string } | { success: true }> {
+  const parsed = totpCodeSchema.safeParse(input)
+  if (!parsed.success) return { error: 'Altı haneli doğrulama kodunu girin.' }
+  const supabase = await createDashboardServerClient()
+  const challenge = await supabase.auth.mfa.challenge({ factorId: parsed.data.factorId })
+  if (challenge.error) return { error: 'Doğrulama oturumu başlatılamadı.' }
+  const verified = await supabase.auth.mfa.verify({
+    factorId: parsed.data.factorId,
+    challengeId: challenge.data.id,
+    code: parsed.data.code,
+  })
+  return verified.error ? { error: 'Authenticator kodu doğrulanamadı.' } : { success: true }
+}
+
+export async function removeTotpFactor(
+  input: { factorId: string; currentPassword: string },
+): Promise<{ error: string } | { success: true }> {
+  const parsed = freshPasswordSchema.extend({ factorId: z.string().uuid() }).strict().safeParse(input)
+  if (!parsed.success) return { error: 'Hesap şifresi gerekli.' }
+  const fresh = await requireFreshUserPassword(parsed.data.currentPassword)
+  if (!fresh.ok) return { error: fresh.error }
+  const { error } = await fresh.supabase.auth.mfa.unenroll({ factorId: parsed.data.factorId })
+  return error ? { error: 'Authenticator kaldırılamadı.' } : { success: true }
+}
+
 const resetPasswordSchema = z.object({
   newPassword: z.string().min(8, 'Yeni şifre en az 8 karakter olmalı'),
 })
@@ -281,6 +437,10 @@ export async function sendPasswordResetEmail(): Promise<{ error: string } | { su
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email) return { error: 'E-posta hesabı bulunamadı' }
+
+  if (!await allowDashboardAuthAction({ action: 'password-reset', subject: user.email, limit: 3, windowSeconds: 3600 })) {
+    return { success: true }
+  }
 
   const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
     redirectTo: passwordRecoveryRedirect(),

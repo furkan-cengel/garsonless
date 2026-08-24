@@ -79,6 +79,8 @@ export function MenuCategoryWorkspace({
 
   return (
     <aside
+      className="menu-category-workspace"
+      aria-labelledby="menu-categories-heading"
       style={{
         width: 'var(--nav)',
         flexShrink: 0,
@@ -97,10 +99,10 @@ export function MenuCategoryWorkspace({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>Kategoriler</div>
+          <div id="menu-categories-heading" style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>Kategoriler</div>
           <span style={{ ...S.mono, fontSize: 11, color: 'var(--text-3)' }}>{view.topLevel.length}</span>
         </div>
-        <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 4 }}>
+        <div className="menu-secondary-text" style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 4 }}>
           {view.totalItems} ürün · {view.availableItems} yayında
         </div>
       </div>
@@ -406,8 +408,9 @@ function CategoryRow({
         borderRadius: 7,
       }}
     >
-      <Button
+      <button
         type="button"
+        className="menu-category-select"
         onClick={onClick}
         aria-current={active ? 'true' : undefined}
         style={{
@@ -419,6 +422,10 @@ function CategoryRow({
           padding: 0,
           border: 0,
           background: 'transparent',
+          borderRadius: 0,
+          boxShadow: 'none',
+          filter: 'none',
+          transform: 'none',
           color: 'inherit',
           cursor: 'pointer',
           textAlign: 'left',
@@ -451,7 +458,7 @@ function CategoryRow({
         >
           {name}
         </span>
-      </Button>
+      </button>
       <span
         style={{
           ...S.mono,
@@ -479,7 +486,7 @@ function CategoryRow({
           <>
             <Button
               type="button"
-              aria-label="Düzenle"
+              aria-label={`${name} kategorisini düzenle`}
               onClick={onEdit}
               style={{
                 color: 'var(--text-2)',
@@ -495,7 +502,7 @@ function CategoryRow({
             </Button>
             <Button
               type="button"
-              aria-label="Sil"
+              aria-label={`${name} kategorisini sil`}
               onClick={onDelete}
               style={{
                 color: 'var(--critical)',

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { PANO_STALE_AFTER_MS, projectPanoLiveStatus } from './pano-live-model'
+import { PANO_STALE_AFTER_MS, panoReconnectDelay, projectPanoLiveStatus } from './pano-live-model'
 
 const now = Date.parse('2026-07-30T08:00:00.000Z')
 
@@ -15,4 +15,11 @@ test('Pano live status distinguishes connecting, live, stale, offline and refres
 test('offline and connecting channel state take precedence over snapshot age', () => {
   assert.equal(projectPanoLiveStatus({ channel: 'offline', lastSuccessfulAt: 0, now, refreshFailed: true }), 'offline')
   assert.equal(projectPanoLiveStatus({ channel: 'connecting', lastSuccessfulAt: 0, now, refreshFailed: true }), 'connecting')
+})
+
+test('Pano reconnect delay backs off and caps at thirty seconds', () => {
+  assert.equal(panoReconnectDelay(0), 1_000)
+  assert.equal(panoReconnectDelay(1), 2_000)
+  assert.equal(panoReconnectDelay(5), 30_000)
+  assert.equal(panoReconnectDelay(20), 30_000)
 })

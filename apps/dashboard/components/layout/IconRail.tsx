@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { I } from '../../lib/ui'
@@ -122,6 +122,7 @@ export default function IconRail({
   const base = `/dashboard/${restaurantId}`
   // Slim nav: render only permitted sections (owner sees all 8).
   const navItems = NAV.filter(item => isOwner || permissions.includes(navSection(item)))
+  const primaryNavRef = useRef<HTMLElement>(null)
 
   const activeId = (() => {
     const rel = pathname.replace(base, '')
@@ -129,6 +130,12 @@ export default function IconRail({
     const seg = rel.split('/')[1]
     return NAV.find(n => n.segment === seg)?.id ?? 'home'
   })()
+
+  useEffect(() => {
+    primaryNavRef.current
+      ?.querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [activeId])
 
   return (
     <>
@@ -144,7 +151,7 @@ export default function IconRail({
         padding: '10px 0',
         gap: 2,
       }}>
-        <div className="rail-primary">
+        <nav ref={primaryNavRef} className="rail-primary" aria-label="Ana bölümler">
           {navItems.map(item => (
             <RailLink
               key={item.id}
@@ -157,7 +164,7 @@ export default function IconRail({
               badge={item.id === 'orders' && ordersBadge > 0 ? ordersBadge : undefined}
             />
           ))}
-        </div>
+        </nav>
 
         <div className="rail-secondary" style={{
           marginTop: 'auto',
@@ -239,6 +246,7 @@ function RailLink({ ItemIcon, iconClassName, iconSize = 18, label, href, active,
       <Link
         href={href}
         aria-label={label}
+        aria-current={active ? 'page' : undefined}
         aria-describedby={tooltipId}
         prefetch={false}
         className={`rail-link${active ? ' rail-link--active' : ''}`}

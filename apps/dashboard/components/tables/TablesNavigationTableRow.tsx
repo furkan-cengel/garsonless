@@ -133,8 +133,8 @@ export function TablesNavigationTableRow({
           <Input aria-label="Alan" value={areaDraft} maxLength={40} onChange={(event) => setAreaDraft(event.target.value)} placeholder="Alan" className="h-7 min-w-0 text-xs" />
         </div>
         <div className="flex gap-1">
-          <Button type="button" size="xs" disabled={busy} onClick={() => void commitRename()} className="flex-1">
-            {busy ? <Spinner data-icon="inline-start" /> : React.cloneElement(TABLES_NAV_ICONS.check as React.ReactElement<{ size?: number }>, { size: 12 })}Kaydet
+          <Button type="button" size="xs" aria-busy={busy} disabled={busy} onClick={() => void commitRename()} className="flex-1">
+            {busy ? <Spinner aria-hidden="true" data-icon="inline-start" /> : React.cloneElement(TABLES_NAV_ICONS.check as React.ReactElement<{ size?: number }>, { size: 12 })}{busy ? 'Kaydediliyor…' : 'Kaydet'}
           </Button>
           <Button type="button" variant="outline" size="icon-xs" aria-label="Düzenlemeyi iptal et" onClick={() => { setEditing(false); setError(null) }}>
             {React.cloneElement(TABLES_NAV_ICONS.close as React.ReactElement<{ size?: number }>, { size: 12 })}
@@ -196,7 +196,7 @@ export function TablesNavigationTableRow({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Vazgeç</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={busy} onClick={() => { void commitDelete() }}>{busy && <Spinner data-icon="inline-start" />}Masayı sil</AlertDialogAction>
+            <AlertDialogAction variant="destructive" aria-busy={busy} disabled={busy} onClick={() => { void commitDelete() }}>{busy && <Spinner aria-hidden="true" data-icon="inline-start" />}{busy ? 'Siliniyor…' : 'Masayı sil'}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

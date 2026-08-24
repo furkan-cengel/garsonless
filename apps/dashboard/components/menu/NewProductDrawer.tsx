@@ -68,6 +68,7 @@ export default function NewProductDrawer({
   onCreated: (item: Tables<'menu_items'>) => void
 }) {
   const drawerRef = useRef<HTMLDivElement>(null)
+  const nameInputRef = useRef<HTMLInputElement>(null)
   const [step, setStep] = useState(1)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -123,7 +124,7 @@ export default function NewProductDrawer({
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const focusFrame = window.requestAnimationFrame(() => {
-      drawerRef.current?.querySelector<HTMLElement>('[aria-label="Ürün adı"], button')?.focus()
+      nameInputRef.current?.focus()
     })
     function handleKeyDown(event: KeyboardEvent) {
       if (discardConfirmOpenRef.current) return
@@ -317,6 +318,7 @@ export default function NewProductDrawer({
                   Ürün adı <span className="text-destructive">*</span>
                 </FieldLabel>
                 <Input
+                  ref={nameInputRef}
                   id="new-product-name"
                   aria-label="Ürün adı"
                   autoFocus
@@ -480,8 +482,8 @@ export default function NewProductDrawer({
                 Geri
               </Button>
             )}
-            <Button className="new-product-action new-product-action-primary" type="button" size="lg" disabled={pending || (step === 1 && !step1Valid)} onClick={next}>
-              {pending ? <Spinner data-icon="inline-start" /> : null}
+            <Button className="new-product-action new-product-action-primary" type="button" size="lg" aria-busy={pending} disabled={pending || (step === 1 && !step1Valid)} onClick={next}>
+              {pending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}
               {pending ? 'Oluşturuluyor…' : step === 3 ? 'Ürünü oluştur' : 'Devam'}
               {step < 3 && !pending && <I.chevRight data-icon="inline-end" size={13} />}
             </Button>

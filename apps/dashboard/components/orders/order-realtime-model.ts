@@ -5,13 +5,15 @@ import {
 import type { Order } from './useOrdersRealtime'
 
 export const ORDERS_REALTIME_SAFETY_INTERVAL_MS = 45_000
+export const ORDERS_REALTIME_DEBOUNCE_MS = 180
 
-export type OrdersRealtimeStatus = 'connecting' | 'live' | 'reconnecting' | 'offline'
+export type OrdersRealtimeStatus = 'connecting' | 'live' | 'reconnecting' | 'stale' | 'offline'
 
 export const ORDERS_REALTIME_COPY: Record<OrdersRealtimeStatus, string> = {
   connecting: 'Canlı sipariş akışına bağlanılıyor…',
   live: 'Canlı',
   reconnecting: 'Siparişler yeniden uzlaştırılıyor…',
+  stale: 'Veriler güncel olmayabilir. Canlı bağlantı açık, son uzlaştırma tamamlanamadı.',
   offline: 'Canlı bağlantı kesildi. Son alınan siparişler gösteriliyor.',
 }
 

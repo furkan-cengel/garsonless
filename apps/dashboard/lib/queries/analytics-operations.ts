@@ -1,21 +1,14 @@
-import {
-  restaurantCalendarDayCount,
-  startOfDayNDaysAgo,
-  restaurantDayKey,
-  restaurantHour,
-} from '@garsonless/db/browser'
 import { assertAccess, getUserRestaurantAccess } from '../auth/access'
-import { summarizeCancelledFinancials } from '../analytics-financial-model'
 import {
   analyticsReadModel,
   analyticsOrderReadFilters,
   COMP_METHOD,
-  foldOrderItems,
   getRestaurantTimezone,
   rangeWindowFor,
   type TopItem,
 } from './insights-shared'
 import { coerceAnalyticsQuery, type AnalyticsQuery } from '../analytics-filter-contract'
+import { projectCancellationAggregate } from '../analytics-cancellation-aggregate'
 
 /* ══════════════════════════════════════════════════════════════════════════
    OPERASYON reports (Wave-1 Phase A) — read-only, range-aware, OWNER-ONLY.
@@ -39,29 +32,6 @@ async function isOwnerViewer(restaurantId: string): Promise<boolean> {
 function pctChange(cur: number, prev: number): number | null {
   if (prev > 0) return Math.round(((cur - prev) / prev) * 1000) / 10
   return cur > 0 ? null : 0
-}
-
-// Count timestamps into range buckets (day → 24 hourly; else N daily), current
-// window only. Uses the SAME shared restaurant-local helpers as getSalesOverTime
-// — one source of truth for day/hour bucketing, not a second (formerly separate,
-// server-local) localDateKey implementation.
-function bucketCounts(timestamps: string[], tz: string, currentStart: Date, currentEnd: Date): Array<{ date: string; count: number }> {
-  const lastCurrentInstant = new Date(Math.max(currentStart.getTime(), currentEnd.getTime() - 1))
-  const days = restaurantCalendarDayCount(restaurantDayKey(currentStart, tz), restaurantDayKey(lastCurrentInstant, tz))
-  if (days === 1) {
-    const byHour: Record<number, number> = {}
-    for (const t of timestamps) { const h = restaurantHour(t, tz); byHour[h] = (byHour[h] ?? 0) + 1 }
-    return Array.from({ length: 24 }, (_, h) => ({ date: `${h.toString().padStart(2, '0')}:00`, count: byHour[h] ?? 0 }))
-  }
-  const byDay: Record<string, number> = {}
-  for (const t of timestamps) { const key = restaurantDayKey(t, tz); byDay[key] = (byDay[key] ?? 0) + 1 }
-  return Array.from({ length: days }, (_, i) => {
-    const dayStart = startOfDayNDaysAgo(tz, -i, currentStart)
-    return {
-      date: dayStart.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', timeZone: tz }),
-      count: byDay[restaurantDayKey(dayStart, tz)] ?? 0,
-    }
-  })
 }
 
 // ── 1. İptal raporu ──────────────────────────────────────────────────────────
@@ -110,48 +80,16 @@ export async function getCancellationReport(restaurantId: string, range: string 
     ...query,
     filters: { ...query.filters, status: 'all' },
   })
-  const result = await analyticsReadModel.readCancellationOrders({
+  const aggregateResult = await analyticsReadModel.readCancellationAggregate({
     restaurantId,
     since: previousStart.toISOString(),
+    currentStart: currentStart.toISOString(),
     before: currentEnd.toISOString(),
+    timezone: tz,
     filters,
   })
-  if (!result.ok) throw new Error(`getCancellationReport: ${result.error}`)
-  const rows = result.value.map((row) => ({ ...row, created_at: row.createdAt }))
-  const cur = rows.filter((r) => new Date(r.created_at) >= currentStart)
-  const prev = rows.filter((r) => { const d = new Date(r.created_at); return d >= previousStart && d < currentStart })
-  const curCancelled = cur.filter((r) => r.status === 'cancelled')
-  const prevCancelled = prev.filter((r) => r.status === 'cancelled')
-
-  const count = curCancelled.length
-  const cancellationFinancials = summarizeCancelledFinancials(curCancelled)
-  const previousCancellationFinancials = summarizeCancelledFinancials(prevCancelled)
-  const { lostAmount } = cancellationFinancials
-  const allOrders = cur.length
-  const rate = allOrders > 0 ? Math.round((count / allOrders) * 1000) / 10 : 0
-  const prevAll = prev.length
-  const prevRate = prevAll > 0 ? (prevCancelled.length / prevAll) * 100 : 0
-
-  const topItems = Array.from(foldOrderItems(curCancelled).entries())
-    .map(([name, v]) => ({ name, ...v }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5)
-
-  return {
-    count,
-    lostAmount,
-    collectedCancelledCount: cancellationFinancials.collectedCancelledCount,
-    collectedCancelledAmount: cancellationFinancials.collectedCancelledAmount,
-    compCancelledCount: cancellationFinancials.compCancelledCount,
-    compCancelledAmount: cancellationFinancials.compCancelledAmount,
-    allOrders,
-    rate,
-    topItems,
-    trend: bucketCounts(curCancelled.map((r) => r.created_at), tz, currentStart, currentEnd),
-    deltaCount: pctChange(count, prevCancelled.length),
-    deltaLost: pctChange(lostAmount, previousCancellationFinancials.lostAmount),
-    deltaRate: Math.round((rate - prevRate) * 10) / 10,
-  }
+  if (!aggregateResult.ok) throw new Error(`getCancellationReport: ${aggregateResult.error}`)
+  return projectCancellationAggregate(aggregateResult.value, tz, currentStart, currentEnd)
 }
 
 // ── 2. Anormal kapatma / kaçak ───────────────────────────────────────────────
@@ -241,13 +179,9 @@ export interface StaffSettlementReport {
   rows: StaffSettlementRow[]
   totalCollected: number
 }
-
 export async function getStaffSettlementReport(restaurantId: string, range: string | AnalyticsQuery = 'week', asOf = new Date()): Promise<StaffSettlementReport> {
   const empty: StaffSettlementReport = { rows: [], totalCollected: 0 }
-  // OWNER-ONLY (see block comment above): emails + per-person cash audit + the
-  // high-cash flag must never be readable by the audited staff themselves.
   if (!(await isOwnerViewer(restaurantId))) return empty
-
   const { currentStart, currentEnd } = await rangeWindowFor(restaurantId, range, asOf)
   const filters = analyticsOrderReadFilters(range)
   const result = await analyticsReadModel.readStaffSettlementData({
@@ -257,24 +191,35 @@ export async function getStaffSettlementReport(restaurantId: string, range: stri
     filters,
   })
   if (!result.ok) throw new Error(`getStaffSettlementReport: ${result.error}`)
-  const { orders, ownerId, ownerEmail, members } = result.value
+  const { orders, groups, ownerId, ownerEmail, members } = result.value
   const memberMap = new Map(members.filter((member) => member.userId).map((member) => [member.userId as string, member]))
-
   const SYSTEM = '__system'
   type Agg = { cash: number; pos: number; otherCollected: number; compAmount: number; compCount: number; settledCount: number }
   const bySettler = new Map<string, Agg>()
-  for (const o of orders) {
-    const key = o.settledBy ?? SYSTEM
-    const agg = bySettler.get(key) ?? { cash: 0, pos: 0, otherCollected: 0, compAmount: 0, compCount: 0, settledCount: 0 }
-    const amt = o.total ?? 0
-    if (o.paymentMethod === 'cash') agg.cash += amt
-    else if (o.paymentMethod === 'pos') agg.pos += amt
-    else if (o.paymentMethod === COMP_METHOD) { agg.compAmount += amt; agg.compCount += 1 }
-    else agg.otherCollected += amt // iyzico or legacy null-method paid
-    agg.settledCount += 1
-    bySettler.set(key, agg)
+  if (groups) {
+    for (const group of groups) {
+      bySettler.set(group.settledBy ?? SYSTEM, {
+        cash: group.cash,
+        pos: group.pos,
+        otherCollected: group.otherCollected,
+        compAmount: group.compAmount,
+        compCount: group.compCount,
+        settledCount: group.settledCount,
+      })
+    }
+  } else {
+    for (const o of orders) {
+      const key = o.settledBy ?? SYSTEM
+      const agg = bySettler.get(key) ?? { cash: 0, pos: 0, otherCollected: 0, compAmount: 0, compCount: 0, settledCount: 0 }
+      const amt = o.total ?? 0
+      if (o.paymentMethod === 'cash') agg.cash += amt
+      else if (o.paymentMethod === 'pos') agg.pos += amt
+      else if (o.paymentMethod === COMP_METHOD) { agg.compAmount += amt; agg.compCount += 1 }
+      else agg.otherCollected += amt // iyzico or legacy null-method paid
+      agg.settledCount += 1
+      bySettler.set(key, agg)
+    }
   }
-
   const rows: StaffSettlementRow[] = Array.from(bySettler.entries()).map(([key, agg]) => {
     let label = 'Bilinmeyen kullanıcı'
     let role: StaffSettlementRow['role'] = 'unknown'
@@ -292,7 +237,6 @@ export async function getStaffSettlementReport(restaurantId: string, range: stri
       highCash: cardCash > 0 && agg.cash / cardCash >= 0.8,
     }
   }).sort((a, b) => b.collected - a.collected)
-
   return { rows, totalCollected: rows.reduce((s, r) => s + r.collected, 0) }
 }
 

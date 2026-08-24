@@ -1,5 +1,8 @@
 import type {
   AnalyticsReadModelPort,
+  AnalyticsCancellationAggregate,
+  AnalyticsPaymentAggregate,
+  DashboardTablePerformanceSource,
   DashboardInsightsReadModelPort,
   OrdersBoardReadModelPort,
   PanoMetricsSource,
@@ -35,13 +38,136 @@ export type { DashboardOrderReadRow } from './dashboard-order-read-model'
 
 const BOARD_ORDER_SELECT = 'id, restaurant_id, table_id, table_session_id, session_id, customer_id, status, source, items, total, discount_breakdown, customer_tier, paid_at, payment_method, created_at, sent_to_kitchen_at, ready_at, served_at, cancel_reason, cancelled_by, settled_by, updated_at'
 
+function parseAnalyticsCancellationAggregate(value: unknown): AnalyticsCancellationAggregate | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const source = value as Record<string, unknown>
+  const current = source['current']
+  const previous = source['previous']
+  if (!current || typeof current !== 'object' || Array.isArray(current)
+      || !previous || typeof previous !== 'object' || Array.isArray(previous)
+      || !Array.isArray(source['topItems']) || !Array.isArray(source['trend'])) return null
+  const finite = (input: unknown): input is number => typeof input === 'number' && Number.isFinite(input) && input >= 0
+  const currentRow = current as Record<string, unknown>
+  const previousRow = previous as Record<string, unknown>
+  const currentKeys = ['allOrders', 'cancelledCount', 'lostAmount', 'collectedCancelledCount', 'collectedCancelledAmount', 'compCancelledCount', 'compCancelledAmount'] as const
+  const previousKeys = ['allOrders', 'cancelledCount', 'lostAmount'] as const
+  if (!currentKeys.every((key) => finite(currentRow[key])) || !previousKeys.every((key) => finite(previousRow[key]))) return null
+  const topItems = source['topItems'].flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+    const row = entry as Record<string, unknown>
+    return typeof row['name'] === 'string' && finite(row['count']) && finite(row['revenue'])
+      ? [{ name: row['name'], count: row['count'], revenue: row['revenue'] }]
+      : []
+  })
+  const trend = source['trend'].flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+    const row = entry as Record<string, unknown>
+    return typeof row['day'] === 'string' && finite(row['hour']) && row['hour'] <= 23 && finite(row['count'])
+      ? [{ day: row['day'], hour: row['hour'], count: row['count'] }]
+      : []
+  })
+  if (topItems.length !== source['topItems'].length || trend.length !== source['trend'].length) return null
+  return {
+    current: Object.fromEntries(currentKeys.map((key) => [key, currentRow[key]])) as AnalyticsCancellationAggregate['current'],
+    previous: Object.fromEntries(previousKeys.map((key) => [key, previousRow[key]])) as AnalyticsCancellationAggregate['previous'],
+    topItems,
+    trend,
+  }
+}
+
+function parseAnalyticsPaymentAggregate(value: unknown): AnalyticsPaymentAggregate | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const source = value as Record<string, unknown>
+  const financials = source['financials']
+  const refunds = source['refunds']
+  if (!Array.isArray(source['groups']) || !financials || typeof financials !== 'object' || Array.isArray(financials)
+      || !refunds || typeof refunds !== 'object' || Array.isArray(refunds)) return null
+  const finite = (input: unknown): input is number => typeof input === 'number' && Number.isFinite(input) && input >= 0
+  const groups = source['groups'].flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+    const row = entry as Record<string, unknown>
+    return (row['paymentMethod'] === null || typeof row['paymentMethod'] === 'string')
+      && finite(row['amount']) && finite(row['count'])
+      ? [{ paymentMethod: row['paymentMethod'] as string | null, amount: row['amount'], count: row['count'] }]
+      : []
+  })
+  const financial = financials as Record<string, unknown>
+  const financialKeys = ['grossSales', 'discountTotal', 'netSales', 'vatTotal', 'netOfVatTotal', 'unknownVatGross', 'unattributedAmount'] as const
+  if (!financialKeys.every((key) => finite(financial[key]))) return null
+  const refund = refunds as Record<string, unknown>
+  if (!finite(refund['total']) || !finite(refund['count']) || !finite(refund['fullCount'])
+      || !finite(refund['partialCount']) || !Array.isArray(refund['groups'])) return null
+  const refundGroups = refund['groups'].flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+    const row = entry as Record<string, unknown>
+    return (row['paymentMethod'] === 'cash' || row['paymentMethod'] === 'pos' || row['paymentMethod'] === 'iyzico')
+      && finite(row['amount']) && finite(row['count'])
+      ? [{
+          paymentMethod: row['paymentMethod'] as 'cash' | 'pos' | 'iyzico',
+          amount: row['amount'],
+          count: row['count'],
+        }]
+      : []
+  })
+  if (groups.length !== source['groups'].length || refundGroups.length !== refund['groups'].length) return null
+  return {
+    groups,
+    financials: Object.fromEntries(financialKeys.map((key) => [key, financial[key]])) as AnalyticsPaymentAggregate['financials'],
+    refunds: {
+      total: refund['total'], count: refund['count'], fullCount: refund['fullCount'],
+      partialCount: refund['partialCount'], groups: refundGroups,
+    },
+  }
+}
+
+function parseAnalyticsTablePerformance(value: unknown): DashboardTablePerformanceSource | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const source = value as Record<string, unknown>
+  if (!Array.isArray(source['tables']) || !Array.isArray(source['orders'])
+      || !Array.isArray(source['closedSessions']) || !Array.isArray(source['openTableIds'])) return null
+
+  const tables = source['tables'].flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+    const row = entry as Record<string, unknown>
+    return typeof row['id'] === 'string' && typeof row['label'] === 'string'
+      ? [{ id: row['id'], label: row['label'] }]
+      : []
+  })
+  const orders = source['orders'].flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+    const row = entry as Record<string, unknown>
+    return typeof row['tableId'] === 'string' && typeof row['total'] === 'number'
+      && Number.isFinite(row['total']) && typeof row['count'] === 'number' && Number.isFinite(row['count'])
+      ? [{ tableId: row['tableId'], total: row['total'], count: row['count'] }]
+      : []
+  })
+  const closedSessions = source['closedSessions'].flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+    const row = entry as Record<string, unknown>
+    return typeof row['tableId'] === 'string' && typeof row['turnover'] === 'number'
+      && Number.isFinite(row['turnover']) && typeof row['dwellSumMinutes'] === 'number'
+      && Number.isFinite(row['dwellSumMinutes'])
+      ? [{
+          tableId: row['tableId'],
+          turnover: row['turnover'],
+          dwellSumMinutes: row['dwellSumMinutes'],
+        }]
+      : []
+  })
+  const openTableIds = source['openTableIds'].filter((entry): entry is string => typeof entry === 'string')
+  if (tables.length !== source['tables'].length || orders.length !== source['orders'].length
+      || closedSessions.length !== source['closedSessions'].length
+      || openTableIds.length !== source['openTableIds'].length) return null
+  return { tables, orders, closedSessions, openTableIds }
+}
+
 export function createOrdersBoardReadModelPort(): OrdersBoardReadModelPort<DashboardOrderReadRow> {
   return {
     async readBoard({ restaurantId, since, pageSize = 500 }) {
       const service = createServiceClient()
-      const orders: DashboardOrderReadRow[] = []
 
       const appendPages = async (statuses: readonly string[], updatedSince?: string) => {
+        const rows: DashboardOrderReadRow[] = []
         for (let from = 0; ; from += pageSize) {
           let query = service
             .from('orders')
@@ -52,33 +178,34 @@ export function createOrdersBoardReadModelPort(): OrdersBoardReadModelPort<Dashb
             .order('created_at', { ascending: false })
           if (updatedSince) query = query.gte('updated_at', updatedSince)
           const { data, error } = await query.range(from, from + pageSize - 1)
-          if (error) return error.message
+          if (error) return { rows: null, error: error.message }
           let page: DashboardOrderReadRow[]
           try {
             page = ((data ?? []) as DashboardOrderStorageRow[]).map(normalizeDashboardOrderReadRow)
           } catch {
-            return 'Sipariş veri sözleşmesi geçersiz'
+            return { rows: null, error: 'Sipariş veri sözleşmesi geçersiz' }
           }
-          orders.push(...page)
+          rows.push(...page)
           if (page.length < pageSize) break
         }
-        return null
+        return { rows, error: null }
       }
 
       // Open work is not a daily report: it must survive midnight. Terminal
       // rows are bounded by their last transition so "Kapanan" remains a
       // restaurant-local daily view.
-      const openError = await appendPages(OPEN_ORDER_STATUSES)
-      if (openError) return err(`Siparişler yüklenemedi: ${openError}`)
-      const terminalError = await appendPages(['served', 'cancelled'], since)
-      if (terminalError) return err(`Kapanan siparişler yüklenemedi: ${terminalError}`)
+      const [openResult, terminalResult, tablesResult, credentialResult] = await Promise.all([
+        appendPages(OPEN_ORDER_STATUSES),
+        appendPages(['served', 'cancelled'], since),
+        service.from('tables').select('id, label').eq('restaurant_id', restaurantId).is('deleted_at', null),
+        service.from('kitchen_credentials').select('restaurant_id').eq('restaurant_id', restaurantId).maybeSingle(),
+      ])
+      if (openResult.error || !openResult.rows) return err(`Siparişler yüklenemedi: ${openResult.error}`)
+      if (terminalResult.error || !terminalResult.rows) return err(`Kapanan siparişler yüklenemedi: ${terminalResult.error}`)
+      const orders = [...openResult.rows, ...terminalResult.rows]
       orders.sort((a, b) => b.created_at.localeCompare(a.created_at))
 
-      const { data: liveTables, error: tablesError } = await service
-        .from('tables')
-        .select('id, label')
-        .eq('restaurant_id', restaurantId)
-        .is('deleted_at', null)
+      const { data: liveTables, error: tablesError } = tablesResult
       if (tablesError) return err(`Masa etiketleri yüklenemedi: ${tablesError.message}`)
 
       const tables = (liveTables ?? []) as Array<{ id: string; label: string }>
@@ -97,11 +224,7 @@ export function createOrdersBoardReadModelPort(): OrdersBoardReadModelPort<Dashb
         tables.push(...((deletedTables ?? []) as Array<{ id: string; label: string }>))
       }
 
-      const { data: credential, error: credentialError } = await service
-        .from('kitchen_credentials')
-        .select('restaurant_id')
-        .eq('restaurant_id', restaurantId)
-        .maybeSingle()
+      const { data: credential, error: credentialError } = credentialResult
       if (credentialError) return err(`Mutfak erişimi yüklenemedi: ${credentialError.message}`)
 
       return ok({
@@ -164,6 +287,30 @@ export function createPanoTableDetailReadModelPort(): PanoTableDetailReadModelPo
 
 export function createAnalyticsReadModelPort(): AnalyticsReadModelPort {
   return {
+    async readActiveOrderCount({ restaurantId }) {
+      const { count, error } = await createServiceClient()
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('restaurant_id', restaurantId)
+        .in('status', [...OPEN_ORDER_STATUSES])
+        .is('deleted_at', null)
+      return error ? err(error.message) : ok(count ?? 0)
+    },
+
+    async readPaymentAggregate({ restaurantId, since, before, filters }) {
+      const { data, error } = await createServiceClient().rpc('read_analytics_payment_aggregate', {
+        p_restaurant_id: restaurantId,
+        p_since: since,
+        p_before: before ?? new Date().toISOString(),
+        p_source: filters?.source ?? null,
+        p_payment_method: filters?.paymentMethod ?? null,
+        p_status: filters?.status ?? null,
+      })
+      if (error) return err(error.message)
+      const aggregate = parseAnalyticsPaymentAggregate(data)
+      return aggregate ? ok(aggregate) : err('Ödeme aggregate yanıtı doğrulanamadı.')
+    },
+
     async readPaymentOrders({ restaurantId, since, before, filters }) {
       let query = createServiceClient()
         .from('orders')
@@ -232,117 +379,93 @@ export function createAnalyticsReadModelPort(): AnalyticsReadModelPort {
       }))
     },
 
-    async readCancellationOrders({ restaurantId, since, before, filters }) {
-      let query = createServiceClient()
-        .from('orders')
-        .select('total, status, items, created_at, paid_at, payment_method')
-        .eq('restaurant_id', restaurantId)
-        .gte('created_at', since)
-        .is('deleted_at', null)
-      if (before) query = query.lt('created_at', before)
-      if (filters?.source) query = query.eq('source', filters.source)
-      if (filters?.status) query = query.eq('status', filters.status)
-      if (filters?.paymentMethod === 'unknown') query = query.is('payment_method', null)
-      else if (filters?.paymentMethod) query = query.eq('payment_method', filters.paymentMethod)
-      const { data, error } = await query.limit(ANALYTICS_SOURCE_SENTINEL)
+    async readCancellationAggregate({ restaurantId, since, currentStart, before, timezone, filters }) {
+      const { data, error } = await createServiceClient().rpc('read_analytics_cancellation_aggregate', {
+        p_restaurant_id: restaurantId,
+        p_since: since,
+        p_current_start: currentStart,
+        p_before: before ?? new Date().toISOString(),
+        p_timezone: timezone,
+        p_source: filters?.source ?? null,
+        p_payment_method: filters?.paymentMethod ?? null,
+      })
       if (error) return err(error.message)
-      const rows = boundedAnalyticsRows((data ?? []) as Array<{
-        total: number | null
-        status: string
-        items: unknown
-        created_at: string
-        paid_at: string | null
-        payment_method: string | null
-      }>)
-      if (!rows) return err('İptal raporu kaynak satır bütçesini aştı.')
-      return ok(rows.map((row) => ({
-        total: row.total,
-        status: row.status,
-        items: row.items,
-        createdAt: row.created_at,
-        paidAt: row.paid_at,
-        paymentMethod: row.payment_method,
-      })))
+      const aggregate = parseAnalyticsCancellationAggregate(data)
+      return aggregate ? ok(aggregate) : err('İptal aggregate yanıtı doğrulanamadı.')
     },
 
     async readAbnormalCloseData({ restaurantId, since, before }) {
       const service = createServiceClient()
-      let sessionQuery = service
-        .from('table_sessions')
-        .select('id, table_id, closed_at, close_reason')
-        .eq('restaurant_id', restaurantId)
-        .not('close_reason', 'is', null)
-        .neq('close_reason', 'auto')
-        .not('closed_at', 'is', null)
-        .gte('closed_at', since)
-      if (before) sessionQuery = sessionQuery.lt('closed_at', before)
-      const { data: sessionData, error: sessionError } = await sessionQuery.limit(ANALYTICS_SOURCE_SENTINEL)
-      if (sessionError) return err(sessionError.message)
-      const sessionRows = boundedAnalyticsRows((sessionData ?? []) as Array<{
-        id: string; table_id: string; closed_at: string; close_reason: string
-      }>)
-      if (!sessionRows) return err('Anormal kapanış raporu kaynak satır bütçesini aştı.')
-      const sessions = sessionRows.map((row) => ({
-        id: row.id,
-        tableId: row.table_id,
-        closedAt: row.closed_at,
-        closeReason: row.close_reason,
-      }))
-      if (sessions.length === 0) return ok({ sessions: [], unpaidOrders: [], tableLabels: {} })
-
-      const [{ data: orderData, error: orderError }, { data: tableData, error: tableError }] = await Promise.all([
-        service.from('orders')
-          .select('table_session_id, total')
-          .eq('restaurant_id', restaurantId)
-          .in('table_session_id', sessions.map((session) => session.id))
-          .is('paid_at', null)
-          .neq('status', 'cancelled')
-          .is('deleted_at', null)
-          .limit(ANALYTICS_SOURCE_SENTINEL),
-        service.from('tables')
-          .select('id, label')
-          .eq('restaurant_id', restaurantId)
-          .in('id', [...new Set(sessions.map((session) => session.tableId))]),
-      ])
-      if (orderError) return err(orderError.message)
-      if (tableError) return err(tableError.message)
-      const unpaidRows = boundedAnalyticsRows((orderData ?? []) as Array<{
-        table_session_id: string | null; total: number | null
-      }>)
-      if (!unpaidRows) return err('Anormal kapanış sipariş bütçesini aştı.')
-
+      const { data, error } = await service.rpc('read_analytics_abnormal_close_aggregate', {
+        p_restaurant_id: restaurantId,
+        p_since: since,
+        p_before: before ?? new Date().toISOString(),
+      })
+      if (error) return err(error.message)
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return err('Anormal kapanış aggregate yanıtı geçersiz.')
+      const source = data as Record<string, unknown>
+      if (source['overflow'] === true) return err('Anormal kapanış raporu güvenli ayrıntı sınırını aştı.')
+      if (!Array.isArray(source['sessions'])) return err('Anormal kapanış aggregate yanıtı geçersiz.')
+      const rows = source['sessions'].flatMap((entry) => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+        const row = entry as Record<string, unknown>
+        return typeof row['id'] === 'string' && typeof row['tableId'] === 'string'
+          && typeof row['closedAt'] === 'string' && typeof row['closeReason'] === 'string'
+          && typeof row['tableLabel'] === 'string' && typeof row['unpaidTotal'] === 'number'
+          && Number.isFinite(row['unpaidTotal']) && row['unpaidTotal'] >= 0
+          ? [row as {
+              id: string; tableId: string; closedAt: string; closeReason: string
+              tableLabel: string; unpaidTotal: number
+            }]
+          : []
+      })
+      if (rows.length !== source['sessions'].length) return err('Anormal kapanış aggregate yanıtı geçersiz.')
       return ok({
-        sessions,
-        unpaidOrders: unpaidRows.map((row) => ({ tableSessionId: row.table_session_id, total: row.total })),
-        tableLabels: Object.fromEntries(((tableData ?? []) as Array<{ id: string; label: string }>)
-          .map((row) => [row.id, row.label])),
+        sessions: rows.map((row) => ({
+          id: row.id, tableId: row.tableId, closedAt: row.closedAt, closeReason: row.closeReason,
+        })),
+        unpaidOrders: rows.map((row) => ({ tableSessionId: row.id, total: row.unpaidTotal })),
+        tableLabels: Object.fromEntries(rows.map((row) => [row.tableId, row.tableLabel])),
       })
     },
 
     async readStaffSettlementData({ restaurantId, since, before, filters }) {
       const service = createServiceClient()
-      let ordersQuery = service.from('orders')
-        .select('total, payment_method, settled_by')
-        .eq('restaurant_id', restaurantId)
-        .not('paid_at', 'is', null)
-        .neq('status', 'cancelled')
-        .gte('paid_at', since)
-        .is('deleted_at', null)
-      if (before) ordersQuery = ordersQuery.lt('paid_at', before)
-      if (filters?.source) ordersQuery = ordersQuery.eq('source', filters.source)
-      if (filters?.status) ordersQuery = ordersQuery.eq('status', filters.status)
-      if (filters?.paymentMethod === 'unknown') ordersQuery = ordersQuery.is('payment_method', null)
-      else if (filters?.paymentMethod) ordersQuery = ordersQuery.eq('payment_method', filters.paymentMethod)
-      const [{ data: orderData, error: orderError }, { data: restaurant, error: restaurantError }] = await Promise.all([
-        ordersQuery.limit(ANALYTICS_SOURCE_SENTINEL),
+      const [{ data: aggregateData, error: aggregateError }, { data: restaurant, error: restaurantError }] = await Promise.all([
+        service.rpc('read_analytics_staff_settlement_aggregate', {
+          p_restaurant_id: restaurantId,
+          p_since: since,
+          p_before: before ?? new Date().toISOString(),
+          p_source: filters?.source ?? null,
+          p_payment_method: filters?.paymentMethod ?? null,
+          p_status: filters?.status ?? null,
+        }),
         service.from('restaurants').select('owner_id').eq('id', restaurantId).maybeSingle(),
       ])
-      if (orderError) return err(orderError.message)
+      if (aggregateError) return err(aggregateError.message)
       if (restaurantError) return err(restaurantError.message)
-      const staffOrderRows = boundedAnalyticsRows((orderData ?? []) as Array<{
-        total: number | null; payment_method: string | null; settled_by: string | null
-      }>)
-      if (!staffOrderRows) return err('Personel tahsilat raporu kaynak satır bütçesini aştı.')
+      if (!aggregateData || typeof aggregateData !== 'object' || Array.isArray(aggregateData)
+          || !Array.isArray((aggregateData as Record<string, unknown>)['groups'])) {
+        return err('Personel tahsilat aggregate yanıtı geçersiz.')
+      }
+      const rawGroups = (aggregateData as Record<string, unknown>)['groups'] as unknown[]
+      const groups = rawGroups.flatMap((entry) => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+        const row = entry as Record<string, unknown>
+        const keys = ['cash', 'pos', 'otherCollected', 'compAmount', 'compCount', 'settledCount'] as const
+        if ((row['settledBy'] !== null && typeof row['settledBy'] !== 'string')
+            || !keys.every((key) => typeof row[key] === 'number' && Number.isFinite(row[key]) && row[key] >= 0)) return []
+        return [{
+          settledBy: row['settledBy'] as string | null,
+          cash: row['cash'] as number,
+          pos: row['pos'] as number,
+          otherCollected: row['otherCollected'] as number,
+          compAmount: row['compAmount'] as number,
+          compCount: row['compCount'] as number,
+          settledCount: row['settledCount'] as number,
+        }]
+      })
+      if (groups.length !== rawGroups.length) return err('Personel tahsilat aggregate yanıtı geçersiz.')
 
       const ownerId = (restaurant as { owner_id: string } | null)?.owner_id ?? null
       const [members, ownerResult] = await Promise.all([
@@ -352,11 +475,8 @@ export function createAnalyticsReadModelPort(): AnalyticsReadModelPort {
       if (ownerResult?.error) return err(ownerResult.error.message)
 
       return ok({
-        orders: staffOrderRows.map((row) => ({
-          total: row.total,
-          paymentMethod: row.payment_method,
-          settledBy: row.settled_by,
-        })),
+        orders: [],
+        groups,
         ownerId,
         ownerEmail: ownerResult?.data.user?.email ?? null,
         members: members.map((member) => ({
@@ -570,9 +690,11 @@ export function createDashboardInsightsReadModelPort(
         p_current_start: currentStart,
         p_before: before,
         p_timezone: timezone,
-        p_source: filters?.source ?? null,
-        p_payment_method: filters?.paymentMethod ?? null,
-        p_status: filters?.status ?? null,
+        // The SQL function deliberately accepts null as "no filter"; the
+        // generated Supabase type cannot infer nullable function parameters.
+        p_source: (filters?.source ?? null) as unknown as string,
+        p_payment_method: (filters?.paymentMethod ?? null) as unknown as string,
+        p_status: (filters?.status ?? null) as unknown as string,
       })
       if (error) return err(error.message)
       const metrics = parseAnalyticsCoreMetrics(data)
@@ -666,61 +788,17 @@ export function createDashboardInsightsReadModelPort(
     },
 
     async readTablePerformance({ restaurantId, since, before, filters }) {
-      const service = createServiceClient()
-      let ordersQuery = applyCollectedOrderFilter(
-        service.from('orders')
-          .select(DASHBOARD_INSIGHTS_PROJECTIONS.tablePerformanceOrders)
-          .eq('restaurant_id', restaurantId)
-          .gte('paid_at', since)
-          .is('deleted_at', null)
-          .not('table_id', 'is', null),
-      )
-      if (filters?.source) ordersQuery = ordersQuery.eq('source', filters.source)
-      if (filters?.status) ordersQuery = ordersQuery.eq('status', filters.status)
-      if (filters?.paymentMethod === 'unknown') ordersQuery = ordersQuery.is('payment_method', null)
-      else if (filters?.paymentMethod) ordersQuery = ordersQuery.eq('payment_method', filters.paymentMethod)
-      let closedSessionsQuery = service.from('table_sessions')
-        .select(DASHBOARD_INSIGHTS_PROJECTIONS.tablePerformanceClosedSessions)
-        .eq('restaurant_id', restaurantId)
-        .not('closed_at', 'is', null)
-        .gte('closed_at', since)
-      if (before) {
-        ordersQuery = ordersQuery.lt('paid_at', before)
-        closedSessionsQuery = closedSessionsQuery.lt('closed_at', before)
-      }
-      const [tablesResult, ordersResult, closedResult, openResult] = await Promise.all([
-        service.from('tables')
-          .select(DASHBOARD_INSIGHTS_PROJECTIONS.tablePerformanceTables)
-          .eq('restaurant_id', restaurantId)
-          .is('deleted_at', null)
-          .order('created_at'),
-        ordersQuery.limit(ANALYTICS_SOURCE_SENTINEL),
-        closedSessionsQuery.limit(ANALYTICS_SOURCE_SENTINEL),
-        service.from('table_sessions')
-          .select(DASHBOARD_INSIGHTS_PROJECTIONS.tablePerformanceOpenSessions)
-          .eq('restaurant_id', restaurantId)
-          .is('closed_at', null),
-      ])
-      const error = tablesResult.error ?? ordersResult.error ?? closedResult.error ?? openResult.error
-      if (error) return err(error.message)
-      const performanceOrders = boundedAnalyticsRows((ordersResult.data ?? []) as Array<{
-        table_id: string | null; total: number | null
-      }>)
-      const performanceSessions = boundedAnalyticsRows((closedResult.data ?? []) as Array<{
-        table_id: string; opened_at: string; closed_at: string
-      }>)
-      if (!performanceOrders || !performanceSessions) {
-        return err('Masa performansı kaynak satır bütçesini aştı.')
-      }
-      return ok({
-        tables: ((tablesResult.data ?? []) as Array<{ id: string; label: string }>),
-        orders: performanceOrders
-          .filter((row): row is { table_id: string; total: number | null } => row.table_id !== null)
-          .map((row) => ({ tableId: row.table_id, total: Number(row.total ?? 0) })),
-        closedSessions: performanceSessions
-          .map((row) => ({ tableId: row.table_id, openedAt: row.opened_at, closedAt: row.closed_at })),
-        openTableIds: ((openResult.data ?? []) as Array<{ table_id: string }>).map((row) => row.table_id),
+      const { data, error } = await createServiceClient().rpc('read_analytics_table_performance', {
+        p_restaurant_id: restaurantId,
+        p_since: since,
+        p_before: before ?? new Date().toISOString(),
+        p_source: filters?.source ?? null,
+        p_payment_method: filters?.paymentMethod ?? null,
+        p_status: filters?.status ?? null,
       })
+      if (error) return err(error.message)
+      const source = parseAnalyticsTablePerformance(data)
+      return source ? ok(source) : err('Masa performansı aggregate yanıtı doğrulanamadı.')
     },
 
     async readPanoMetrics({ restaurantId, todayStart, yesterdayStart, heatmapStart, timezone }) {

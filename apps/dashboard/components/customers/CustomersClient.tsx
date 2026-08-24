@@ -2,10 +2,25 @@
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import type {
   CampaignAudienceInput,
+  CampaignAudienceContactPage,
   CampaignAudiencePreview,
+  CampaignDeliveryLog,
+  CampaignEmailContentMode,
+  CampaignEmailDesign,
+  CampaignEmailTemplateId,
   CampaignSummary,
+  SavedCampaignEmailTemplate,
+} from '@garsonless/domain/campaigns'
+import {
+  EMAIL_CAMPAIGN_TEMPLATES,
+  DEFAULT_CAMPAIGN_EMAIL_DESIGN,
+  campaignEmailDesignToPlainText,
+  normalizeCampaignEmailDesign,
+  renderCampaignBuilderEmail,
+  renderCampaignTemplateEmail,
 } from '@garsonless/domain/campaigns'
 import {
   isCustomerLapsed,
@@ -22,12 +37,17 @@ import {
   createCustomerSegmentAction,
   deleteCustomerSegmentAction,
   listCustomers,
+  loadCustomerPageSupportAction,
   updateCustomerSegmentAction,
 } from '../../lib/actions/customers'
 import {
   previewCampaignAudienceAction,
+  previewCampaignEmailAction,
+  getCampaignDeliveryLogAction,
+  listCampaignAudienceContactsAction,
+  deleteCampaignEmailTemplateAction,
+  saveCampaignEmailTemplateAction,
   sendCampaignAction,
-  sendCampaignTestAction,
 } from '../../lib/actions/campaigns'
 import { formatCurrency } from '../../lib/utils'
 import { I, S } from '../../lib/ui'
@@ -72,6 +92,9 @@ const SEGMENTS: { id: CustomerSegment | ''; label: string }[] = [
   { id: 'lapsed', label: 'Uzun süredir gelmeyen' },
   { id: 'consented', label: 'İzinli' },
 ]
+const CampaignEmailBuilder = dynamic(() => import('./CampaignEmailBuilder'), {
+  loading: () => <div role="status" className="flex min-h-32 items-center justify-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />Tasarımcı yükleniyor…</div>,
+})
 const SORTS: { id: CustomerSort; label: string }[] = [
   { id: 'last_seen', label: 'Son görülme' },
   { id: 'spend', label: 'En çok harcayan' },
@@ -122,22 +145,20 @@ export default function CustomersClient({
   restaurantId,
   restaurantName,
   initial,
-  initialSegmentCounts,
-  initialSegments,
-  initialCampaigns,
   canManageCampaigns,
-  smsDeliveryEnabled,
+  emailDeliveryEnabled,
+  campaignReplyToEmail,
+  resendWebhookEnabled,
   initialState,
   referenceNow,
 }: {
   restaurantId: string
   restaurantName: string
   initial: RestaurantCustomersPage
-  initialSegmentCounts: CustomerSegmentCounts & { all: number }
-  initialSegments: SavedCustomerSegment[]
-  initialCampaigns: CampaignSummary[]
   canManageCampaigns: boolean
-  smsDeliveryEnabled: boolean
+  emailDeliveryEnabled: boolean
+  campaignReplyToEmail: string | null
+  resendWebhookEnabled: boolean
   initialState: CustomerListState
   referenceNow: string
 }) {
@@ -145,7 +166,8 @@ export default function CustomersClient({
   const router = useRouter()
   const pathname = usePathname()
   const [data, setData] = useState<RestaurantCustomersPage>(initial)
-  const [savedSegments, setSavedSegments] = useState<SavedCustomerSegment[]>(initialSegments)
+  const [segmentCounts, setSegmentCounts] = useState<CustomerSegmentCounts | null>(null)
+  const [savedSegments, setSavedSegments] = useState<SavedCustomerSegment[]>([])
   const [search, setSearch] = useState(initialState.search)
   const [segment, setSegment] = useState<CustomerSegment | ''>(initialState.segment)
   const [customSegmentId, setCustomSegmentId] = useState<string | null>(initialState.customSegmentId)
@@ -153,7 +175,11 @@ export default function CustomersClient({
   const [page, setPage] = useState(initialState.page)
   const [editor, setEditor] = useState<SegmentEditorState | null>(null)
   const [campaignOpen, setCampaignOpen] = useState(false)
-  const [campaigns, setCampaigns] = useState<CampaignSummary[]>(initialCampaigns)
+  const [campaigns, setCampaigns] = useState<CampaignSummary[]>([])
+  const [emailTemplates, setEmailTemplates] = useState<SavedCampaignEmailTemplate[]>([])
+  const [supportLoading, setSupportLoading] = useState(true)
+  const [supportError, setSupportError] = useState<string | null>(null)
+  const [supportRetry, setSupportRetry] = useState(0)
   const [segmentError, setSegmentError] = useState<string | null>(null)
   const [savingSegment, setSavingSegment] = useState(false)
   const [segmentToDelete, setSegmentToDelete] = useState<SavedCustomerSegment | null>(null)
@@ -162,6 +188,43 @@ export default function CustomersClient({
   const [pending, startTransition] = useTransition()
   const firstRender = useRef(true)
   const requestSequence = useRef(0)
+  const supportRequest = useRef<{
+    restaurantId: string
+    retry: number
+    promise: ReturnType<typeof loadCustomerPageSupportAction>
+  } | null>(null)
+
+  useEffect(() => {
+    let active = true
+    setSupportLoading(true)
+    setSupportError(null)
+    if (!supportRequest.current
+      || supportRequest.current.restaurantId !== restaurantId
+      || supportRequest.current.retry !== supportRetry) {
+      supportRequest.current = {
+        restaurantId,
+        retry: supportRetry,
+        promise: loadCustomerPageSupportAction(restaurantId),
+      }
+    }
+    void supportRequest.current.promise.then((result) => {
+      if (!active) return
+      setSupportLoading(false)
+      if ('error' in result) {
+        setSupportError(result.error)
+        return
+      }
+      setSegmentCounts(result.segmentCounts)
+      setSavedSegments(result.segments)
+      setCampaigns(result.campaigns)
+      setEmailTemplates(result.emailTemplates)
+    }).catch(() => {
+      if (!active) return
+      setSupportLoading(false)
+      setSupportError('Müşteri özetleri yüklenemedi')
+    })
+    return () => { active = false }
+  }, [restaurantId, supportRetry])
 
   useEffect(() => {
     const href = customerListHref(pathname, { search, segment, customSegmentId, sort, page })
@@ -215,10 +278,10 @@ export default function CustomersClient({
     : null
   const hasActiveFilters = Boolean(search.trim() || segment || customSegmentId)
 
-  function countForBuiltIn(id: string): number {
-    if (id === '') return initialSegmentCounts.all
+  function countForBuiltIn(id: string): number | string {
+    if (id === '') return initial.total
     if (id === 'new' || id === 'frequent' || id === 'lapsed' || id === 'consented') {
-      return initialSegmentCounts[id]
+      return segmentCounts?.[id] ?? '…'
     }
     return 0
   }
@@ -302,9 +365,16 @@ export default function CustomersClient({
     setPage(1)
   }
 
+  function openCustomer(customerId: string) {
+    const returnTo = customerListHref(pathname, { search, segment, customSegmentId, sort, page })
+    const href = `/dashboard/${restaurantId}/customers/${customerId}?returnTo=${encodeURIComponent(returnTo)}`
+    beginNavigation(href)
+    router.push(href)
+  }
+
   return (
     <div className="customer-route-shell" style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
-      <PageTopBar className="customer-page-topbar" restaurantName={restaurantName} title="Müşteriler" tag={<Badge variant="secondary">{initialSegmentCounts.all} müşteri</Badge>} />
+      <PageTopBar className="customer-page-topbar" restaurantName={restaurantName} title="Müşteriler" tag={<Badge variant="secondary">{initial.total} müşteri</Badge>} />
 
       <div className="customer-page-scroll" style={{ flex: '1 0 auto', overflow: 'visible', background: 'var(--bg)', minWidth: 0 }}>
         <div className="customer-page-content" style={{ maxWidth: 1180, margin: '0 auto', padding: '28px 32px 60px' }}>
@@ -315,7 +385,7 @@ export default function CustomersClient({
             </div>
             <div className="customer-page-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               {canManageCampaigns && <Button type="button" variant="outline" size="sm" onClick={() => setCampaignOpen(true)}>
-                <I.bell size={14} />SMS kampanyası
+                <I.mail size={14} />E-posta kampanyası
               </Button>}
               <Button type="button" size="sm" onClick={openCreateFromCurrent}>
                 <I.plus size={13} />Filtreyi kaydet
@@ -326,7 +396,7 @@ export default function CustomersClient({
           {!canManageCampaigns && (
             <Alert className="mb-5" role="status">
               <I.lock size={16} />
-              <AlertDescription>İletişim bilgileri güvenlik nedeniyle maskeli gösterilir. SMS kampanyası ve manuel puan/bakiye düzenlemeleri yalnız işletme sahibine açıktır.</AlertDescription>
+              <AlertDescription>İletişim bilgileri güvenlik nedeniyle maskeli gösterilir. E-posta kampanyası ve manuel puan/bakiye düzenlemeleri yalnız işletme sahibine açıktır.</AlertDescription>
             </Alert>
           )}
 
@@ -338,11 +408,25 @@ export default function CustomersClient({
             </Alert>
           )}
 
+          {supportError && (
+            <Alert aria-live="polite" className="mb-4 pr-28">
+              <I.warn size={16} />
+              <AlertDescription>Müşteri listesi hazır; özetler ve kampanya araçları yüklenemedi.</AlertDescription>
+              <AlertAction><Button type="button" variant="outline" size="xs" onClick={() => setSupportRetry((value) => value + 1)}>Özetleri yenile</Button></AlertAction>
+            </Alert>
+          )}
+
           <div className="customer-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 22 }}>
-            <MiniStat label="Toplam müşteri" value={initialSegmentCounts.all.toLocaleString('tr-TR')} icon={<I.users size={15} />} />
-            <MiniStat label="İletişim izinli" value={initialSegmentCounts.consented.toLocaleString('tr-TR')} icon={<I.check size={15} />} sub={`Tüm müşterilerin %${initialSegmentCounts.all ? Math.round((initialSegmentCounts.consented / initialSegmentCounts.all) * 100) : 0}'i`} />
-            <MiniStat label="Sık gelen" value={initialSegmentCounts.frequent.toLocaleString('tr-TR')} icon={<I.star size={15} />} sub="En az 3 ziyaret" />
-            <MiniStat label="Geri kazanılacak" value={initialSegmentCounts.lapsed.toLocaleString('tr-TR')} icon={<I.clock size={15} />} sub="60+ gündür gelmeyen" />
+            <MiniStat label="Toplam müşteri" value={initial.total.toLocaleString('tr-TR')} icon={<I.users size={15} />} />
+            <MiniStat
+              label="İletişim izinli"
+              value={segmentCounts?.consented.toLocaleString('tr-TR') ?? '—'}
+              icon={<I.check size={15} />}
+              sub={segmentCounts ? `Tüm müşterilerin %${initial.total ? Math.round((segmentCounts.consented / initial.total) * 100) : 0}'i` : undefined}
+              loading={supportLoading}
+            />
+            <MiniStat label="Sık gelen" value={segmentCounts?.frequent.toLocaleString('tr-TR') ?? '—'} icon={<I.star size={15} />} sub="En az 3 ziyaret" loading={supportLoading} />
+            <MiniStat label="Geri kazanılacak" value={segmentCounts?.lapsed.toLocaleString('tr-TR') ?? '—'} icon={<I.clock size={15} />} sub="60+ gündür gelmeyen" loading={supportLoading} />
           </div>
 
           <div className="customer-toolbar" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
@@ -352,7 +436,7 @@ export default function CustomersClient({
                 aria-label="Müşteri ara"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                placeholder="Ad veya telefon sonu (örn. 67)"
+                placeholder="Ad, e-posta veya telefon"
               />
               {search && <InputGroupAddon align="inline-end"><InputGroupButton size="icon-xs" aria-label="Aramayı temizle" onClick={() => { setSearch(''); setPage(1) }}><I.close size={13} /></InputGroupButton></InputGroupAddon>}
             </InputGroup>
@@ -362,7 +446,9 @@ export default function CustomersClient({
                 value={sort}
                 onValueChange={(value) => { if (value) setSort(value as CustomerSort); setPage(1) }}
               >
-                <SelectTrigger className="w-48 bg-card"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="customer-sort-control w-48 bg-card" aria-label="Müşterileri sırala">
+                  <SelectValue>{SORTS.find((option) => option.id === sort)?.label}</SelectValue>
+                </SelectTrigger>
                 <SelectContent>{SORTS.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
@@ -401,14 +487,18 @@ export default function CustomersClient({
             </div>
           )}
 
-          {canManageCampaigns && campaigns.length > 0 && (
-            <CampaignStrip campaigns={campaigns.slice(0, 3)} onOpen={() => setCampaignOpen(true)} />
+          {canManageCampaigns && supportLoading && (
+            <div aria-hidden="true" className="mb-4 h-[60px] w-full animate-pulse rounded-xl border bg-muted/40 motion-reduce:animate-none" />
+          )}
+
+          {canManageCampaigns && !supportLoading && campaigns.some((campaign) => campaign.channel === 'email') && (
+            <CampaignStrip campaigns={campaigns.filter((campaign) => campaign.channel === 'email').slice(0, 3)} onOpen={() => setCampaignOpen(true)} />
           )}
 
           {segmentError && <Alert variant="destructive" className="mb-3"><AlertDescription>{segmentError}</AlertDescription></Alert>}
 
           <Card className="customer-table relative gap-0 py-0" aria-busy={pending} style={{ opacity: pending ? 0.72 : 1 }}>
-            {pending && <Badge variant="secondary" className="absolute right-3 top-3 z-10 gap-1.5"><Spinner className="size-3" />Güncelleniyor</Badge>}
+            {pending && <Badge role="status" variant="secondary" className="absolute right-3 top-3 z-10 gap-1.5"><Spinner aria-hidden="true" className="size-3" />Güncelleniyor</Badge>}
             <Table className="min-w-[900px]">
               <TableHeader><TableRow className="bg-muted/50 hover:bg-muted/50">
                 <TableHead className="pl-5">MÜŞTERİ</TableHead><TableHead>TELEFON</TableHead><TableHead>SEVİYE</TableHead><TableHead className="text-right">ZİYARET</TableHead><TableHead className="text-right">HARCAMA</TableHead><TableHead className="text-right">PUAN</TableHead><TableHead className="pr-5 text-right">SON GÖRÜLME</TableHead>
@@ -427,20 +517,20 @@ export default function CustomersClient({
                   c={c}
                   delay={i * 25}
                   referenceNow={referenceNow}
-                  onClick={() => {
-                    const returnTo = customerListHref(pathname, { search, segment, customSegmentId, sort, page })
-                    const href = `/dashboard/${restaurantId}/customers/${c.customerId}?returnTo=${encodeURIComponent(returnTo)}`
-                    beginNavigation(href)
-                    router.push(href)
-                  }}
+                  onClick={() => openCustomer(c.customerId)}
                 />
               ))}
               </TableBody>
             </Table>
           </Card>
 
-          <div className="customer-table-scroll-hint" role="status" style={{ display: 'none', marginTop: 8, color: 'var(--text-3)', fontSize: 11.5, lineHeight: 1.4 }}>
-            Tüm sütunları görmek için tabloyu yatay kaydırın.
+          <div className="customer-mobile-list" role="list" aria-busy={pending} style={{ display: 'none' }}>
+            {pending && <div role="status" className="customer-mobile-update"><Spinner aria-hidden="true" className="size-3" />Güncelleniyor</div>}
+            {data.customers.length === 0 ? (
+              <Card role="listitem"><Empty className="min-h-56"><EmptyHeader><EmptyMedia variant="icon"><I.users size={18} /></EmptyMedia><EmptyTitle>Eşleşen müşteri yok</EmptyTitle><EmptyDescription>Arama veya segment ölçütlerini değiştirin.</EmptyDescription></EmptyHeader>{hasActiveFilters && <EmptyContent><Button type="button" variant="outline" size="sm" onClick={resetFilters}>Filtreleri temizle</Button></EmptyContent>}</Empty></Card>
+            ) : data.customers.map((customer) => (
+              <CustomerMobileCard key={customer.customerId} customer={customer} referenceNow={referenceNow} onOpen={() => openCustomer(customer.customerId)} />
+            ))}
           </div>
 
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 12, textAlign: 'center' }}>
@@ -471,10 +561,15 @@ export default function CustomersClient({
           restaurantId={restaurantId}
           savedSegments={savedSegments}
           campaigns={campaigns.slice(0, 6)}
-          smsDeliveryEnabled={smsDeliveryEnabled}
+          emailTemplates={emailTemplates}
+          emailDeliveryEnabled={emailDeliveryEnabled}
+          restaurantName={restaurantName}
+          campaignReplyToEmail={campaignReplyToEmail}
+          resendWebhookEnabled={resendWebhookEnabled}
           initialTarget={customSegmentId ? `custom:${customSegmentId}` : segment ? `builtin:${segment}` : 'all'}
           onClose={() => setCampaignOpen(false)}
           onSent={(campaign) => setCampaigns((prev) => [campaign, ...prev.filter((c) => c.id !== campaign.id)])}
+          onEmailTemplatesChange={setEmailTemplates}
         />
       )}
       {segmentToDelete && (
@@ -574,20 +669,60 @@ export default function CustomersClient({
           .customer-toolbar select { flex: 1 !important; min-width: 0 !important; height: 44px !important; }
           .customer-search { height: 46px !important; }
           .customer-search input { height: 44px !important; }
-          .customer-table { overflow-x: auto !important; }
-          .customer-grid-row { min-width: 900px; }
-          .customer-table-scroll-hint { display: block !important; }
+          .customer-table { display: none !important; }
+          .customer-mobile-list { display: grid !important; gap: 10px; position: relative; }
+          .customer-mobile-update { position: sticky; top: 68px; z-index: 5; justify-self: end; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-2); font-size: 12px; box-shadow: var(--shadow-1); }
         }
         @media (max-width: 520px) {
           .customer-page-content { padding: 20px 12px 44px !important; }
-          .customer-stats { grid-template-columns: 1fr !important; }
+          .customer-stats { grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 8px !important; }
+          .customer-stats > * { min-height: 118px !important; }
           .customer-page-actions > button { padding-left: 10px !important; padding-right: 10px !important; }
         }
         @media (prefers-reduced-motion: reduce) {
           .customer-control,
-          .customer-campaign-strip { transition: none !important; transform: none !important; }
+          .customer-campaign-strip,
+          .customer-row-action { transition: none !important; transform: none !important; animation: none !important; }
         }
       `}</style>
+    </div>
+  )
+}
+
+function CustomerMobileCard({ customer, referenceNow, onOpen }: { customer: RestaurantCustomer; referenceNow: string; onOpen: () => void }) {
+  const tags = tagsForCustomer(customer, referenceNow)
+  const soft = softForTier(customer.tier.color)
+  const contact = customer.email !== '—' ? customer.email : customer.phone
+  return (
+    <div role="listitem">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onOpen}
+        aria-label={`${customer.name || 'İsimsiz'} müşteri detayını aç`}
+        className="customer-mobile-card h-auto min-h-32 w-full items-stretch justify-start rounded-xl p-4 text-left"
+      >
+        <span className="flex min-w-0 flex-1 flex-col gap-3">
+          <span className="flex min-w-0 items-center gap-3">
+            <Avatar size="lg"><AvatarFallback style={{ background: soft, color: customer.tier.color }}>{initials(customer.name)}</AvatarFallback></Avatar>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-foreground">{customer.name || 'İsimsiz'}</span>
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground">{tags.join(' · ')}</span>
+            </span>
+            <Badge variant="secondary" style={{ color: customer.tier.color, background: soft }}><span className="size-1.5 rounded-full" style={{ background: customer.tier.color }} />{customer.tier.name}</Badge>
+          </span>
+          <span className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 border-t pt-3">
+            <span className="min-w-0">
+              <span className="block truncate font-mono text-xs text-muted-foreground">{contact}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">{relTime(customer.lastSeen, referenceNow)} · {customer.visits} ziyaret</span>
+            </span>
+            <span className="text-right">
+              <span className="block font-mono text-sm font-semibold tabular-nums text-foreground">{formatCurrency(customer.spend)}</span>
+              <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-700">{customer.points} puan <I.chevRight size={11} /></span>
+            </span>
+          </span>
+        </span>
+      </Button>
     </div>
   )
 }
@@ -609,15 +744,17 @@ function ConfirmDialog({ title, description, confirmLabel, onClose, onConfirm }:
   )
 }
 
-function MiniStat({ label, value, icon, sub, mono }: { label: string; value: string; icon: ReactNode; sub?: string; mono?: boolean }) {
+function MiniStat({ label, value, icon, sub, mono, loading = false }: { label: string; value: string; icon: ReactNode; sub?: string; mono?: boolean; loading?: boolean }) {
   return (
-    <Card size="sm">
+    <Card size="sm" aria-busy={loading || undefined}>
       <CardHeader>
         <CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle>
         <CardAction className="text-muted-foreground">{icon}</CardAction>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-semibold tracking-tight tabular-nums" style={mono ? S.mono : undefined}>{value}</div>
+        {loading
+          ? <div aria-hidden="true" className="h-7 w-12 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+          : <div className="text-2xl font-semibold tracking-tight tabular-nums" style={mono ? S.mono : undefined}>{value}</div>}
         {sub && <CardDescription className="mt-1 text-xs">{sub}</CardDescription>}
       </CardContent>
     </Card>
@@ -644,13 +781,13 @@ function CustomerRow({ c, onClick, delay, referenceNow }: { c: RestaurantCustome
         <Avatar size="lg"><AvatarFallback style={{ background: soft, color: c.tier.color }}>{initials(c.name)}</AvatarFallback></Avatar>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 650, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name || 'İsimsiz'}</div>
-          {tags.length > 0 && <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tags.join(' · ')}</div>}
+          {tags.length > 0 && <div style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tags.join(' · ')}</div>}
         </div>
         </div>
       </TableCell>
       <TableCell><span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2, ...S.mono }}>
-        <span style={{ fontSize: 13, color: c.phoneMasked ? 'var(--text-3)' : 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.phone}</span>
-        <span style={{ fontSize: 11, color: c.emailMasked ? 'var(--text-4)' : 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.email}</span>
+        <span style={{ fontSize: 13, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.phone}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.email}</span>
       </span></TableCell>
       <TableCell>
         <Badge variant="secondary" style={{ color: c.tier.color, background: soft }}>
@@ -666,6 +803,7 @@ function CustomerRow({ c, onClick, delay, referenceNow }: { c: RestaurantCustome
 }
 
 function CampaignStrip({ campaigns, onOpen }: { campaigns: CampaignSummary[]; onOpen: () => void }) {
+  const emailCampaigns = campaigns.filter((campaign) => campaign.channel === 'email')
   return (
     <Button
       type="button"
@@ -674,12 +812,12 @@ function CampaignStrip({ campaigns, onOpen }: { campaigns: CampaignSummary[]; on
       className="customer-campaign-strip mb-4 h-auto w-full justify-start gap-3 rounded-xl p-3 text-left"
     >
       <span style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--surface-3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-2)' }}>
-        <I.bell size={16} />
+        <I.mail size={16} />
       </span>
       <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>Son SMS kampanyaları</span>
+        <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>Son e-posta kampanyaları</span>
         <span style={{ display: 'block', marginTop: 2, fontSize: 12.5, color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {campaigns.map((c) => `${c.name} (${c.sentCount}/${c.recipientCount})`).join(' · ')}
+          {emailCampaigns.map((c) => `${c.name} (${c.sentCount}/${c.recipientCount})`).join(' · ')}
         </span>
       </span>
       <span style={{ color: 'var(--text-4)' }}><I.chevRight size={14} /></span>
@@ -702,35 +840,59 @@ function targetToAudience(target: CampaignTargetValue): CampaignAudienceInput {
 
 function CampaignModal({
   restaurantId,
+  restaurantName,
   savedSegments,
   campaigns,
-  smsDeliveryEnabled,
+  emailTemplates,
+  emailDeliveryEnabled,
+  campaignReplyToEmail,
+  resendWebhookEnabled,
   initialTarget,
   onClose,
   onSent,
+  onEmailTemplatesChange,
 }: {
   restaurantId: string
+  restaurantName: string
   savedSegments: SavedCustomerSegment[]
   campaigns: CampaignSummary[]
-  smsDeliveryEnabled: boolean
+  emailTemplates: SavedCampaignEmailTemplate[]
+  emailDeliveryEnabled: boolean
+  campaignReplyToEmail: string | null
+  resendWebhookEnabled: boolean
   initialTarget: CampaignTargetValue
   onClose: () => void
   onSent: (campaign: CampaignSummary) => void
+  onEmailTemplatesChange: (templates: SavedCampaignEmailTemplate[]) => void
 }) {
   const [target, setTarget] = useState<CampaignTargetValue>(initialTarget)
-  const [name, setName] = useState('Geri kazanım SMS')
-  const [message, setMessage] = useState('Merhaba, size özel fırsatlarımız hazır. Menüyü açıp ödüllerinizi kontrol edebilirsiniz.')
-  const [testPhone, setTestPhone] = useState('')
+  const [name, setName] = useState('Geri kazanım e-postası')
+  const [subject, setSubject] = useState('Sizi yeniden aramızda görmek isteriz')
+  const [message, setMessage] = useState('Merhaba,\n\nSize özel fırsatlarımız hazır. Menüyü açıp ödüllerinizi kontrol edebilirsiniz.')
+  const [contentMode, setContentMode] = useState<Exclude<CampaignEmailContentMode, 'plain'>>('template')
+  const [templateId, setTemplateId] = useState<CampaignEmailTemplateId>('announcement')
+  const [emailDesign, setEmailDesign] = useState<CampaignEmailDesign>(() => normalizeCampaignEmailDesign(DEFAULT_CAMPAIGN_EMAIL_DESIGN))
+  const [customHtml, setCustomHtml] = useState('<div style="padding:32px;background-color:#ffffff;color:#171719"><h1 style="font-size:28px;margin:0 0 16px">{{restaurant_name}}</h1><p style="font-size:16px;line-height:1.6;margin:0">Kampanya içeriğinizi buraya yazın.</p></div>')
+  const [previewHtml, setPreviewHtml] = useState('')
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [designPreviewing, setDesignPreviewing] = useState(false)
   const [preview, setPreview] = useState<CampaignAudiencePreview | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [previewing, setPreviewing] = useState(false)
-  const [testing, setTesting] = useState(false)
   const [sending, setSending] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [audienceContacts, setAudienceContacts] = useState<CampaignAudienceContactPage | null>(null)
+  const [audienceContactsLoading, setAudienceContactsLoading] = useState(false)
+  const [deliveryLog, setDeliveryLog] = useState<CampaignDeliveryLog | null>(null)
+  const [deliveryLogLoading, setDeliveryLogLoading] = useState(false)
+  const [emailTemplateName, setEmailTemplateName] = useState('')
+  const [emailTemplateSaving, setEmailTemplateSaving] = useState(false)
   const sendRequestId = useRef<string | null>(null)
 
   useEffect(() => {
     let alive = true
+    setAudienceContacts(null)
     setPreviewing(true)
     setError(null)
     const timer = setTimeout(() => {
@@ -754,33 +916,149 @@ function CampaignModal({
     return () => { alive = false; clearTimeout(timer) }
   }, [restaurantId, target])
 
-  const canSend = smsDeliveryEnabled && !sending && name.trim().length > 0 && message.trim().length >= 5 && Boolean(preview?.eligibleRecipients)
+  const activeContent = contentMode === 'html'
+    ? customHtml
+    : contentMode === 'builder'
+      ? campaignEmailDesignToPlainText(emailDesign)
+      : message
 
-  async function handleTest() {
-    if (!smsDeliveryEnabled) { setError('SMS gönderimi şirket ve provider aktivasyonuna kadar kapalı'); return }
-    setTesting(true)
+  useEffect(() => {
+    let alive = true
+    if (contentMode === 'template') {
+      setPreviewError(null)
+      setDesignPreviewing(false)
+      setPreviewHtml(renderCampaignTemplateEmail({
+        templateId,
+        content: activeContent,
+        restaurantName,
+      }))
+      return () => { alive = false }
+    }
+    if (contentMode === 'builder') {
+      setPreviewError(null)
+      setDesignPreviewing(false)
+      setPreviewHtml(renderCampaignBuilderEmail({ design: emailDesign, restaurantName }))
+      return () => { alive = false }
+    }
+    setDesignPreviewing(true)
+    setPreviewError(null)
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const result = await previewCampaignEmailAction(restaurantId, {
+            contentMode,
+            templateId: null,
+            content: activeContent,
+          })
+          if (!alive) return
+          if ('error' in result) {
+            setPreviewHtml('')
+            setPreviewError(result.error)
+          } else {
+            setPreviewHtml(result.html)
+          }
+        } catch {
+          if (alive) { setPreviewHtml(''); setPreviewError('E-posta önizlemesi oluşturulamadı') }
+        } finally {
+          if (alive) setDesignPreviewing(false)
+        }
+      })()
+    }, 260)
+    return () => { alive = false; clearTimeout(timer) }
+  }, [activeContent, contentMode, emailDesign, restaurantId, restaurantName, templateId])
+
+  const canSend = emailDeliveryEnabled && !sending && !designPreviewing && !previewError && name.trim().length > 0 && subject.trim().length > 0 && activeContent.trim().length >= 5 && Boolean(previewHtml) && Boolean(preview?.eligibleRecipients)
+  const selectedTargetLabel = target === 'all'
+    ? 'Tüm müşteriler'
+    : target.startsWith('builtin:')
+      ? SEGMENTS.find((segment) => segment.id === target.slice('builtin:'.length))?.label ?? 'Segment'
+      : `Kayıtlı: ${savedSegments.find((segment) => segment.id === target.slice('custom:'.length))?.name ?? 'Segment'}`
+
+  async function loadAudienceContacts() {
+    setAudienceContactsLoading(true)
     setError(null)
-    setNotice(null)
     try {
-      const res = await sendCampaignTestAction(restaurantId, { phone: testPhone, message })
-      if ('error' in res) setError(res.error)
-      else setNotice('Test SMS gönderildi')
+      const result = await listCampaignAudienceContactsAction(restaurantId, targetToAudience(target))
+      if ('error' in result) setError(result.error)
+      else setAudienceContacts(result)
     } catch {
-      setError('Test SMS sonucu doğrulanamadı')
+      setError('Alıcı e-postaları yüklenemedi')
     } finally {
-      setTesting(false)
+      setAudienceContactsLoading(false)
+    }
+  }
+
+  async function loadDeliveryLog(campaignId: string) {
+    setDeliveryLogLoading(true)
+    setDeliveryLog(null)
+    setError(null)
+    try {
+      const result = await getCampaignDeliveryLogAction(restaurantId, campaignId)
+      if ('error' in result) setError(result.error)
+      else setDeliveryLog(result)
+    } catch {
+      setError('Gönderim günlüğü yüklenemedi')
+    } finally {
+      setDeliveryLogLoading(false)
+    }
+  }
+
+  async function saveReusableTemplate() {
+    const trimmedName = emailTemplateName.trim()
+    if (!trimmedName) { setError('Şablon adı gerekli'); return }
+    setEmailTemplateSaving(true)
+    setError(null)
+    try {
+      const result = await saveCampaignEmailTemplateAction(restaurantId, {
+        name: trimmedName,
+        subject,
+        design: emailDesign,
+      })
+      if ('error' in result) setError(result.error)
+      else {
+        onEmailTemplatesChange([result.template, ...emailTemplates.filter((template) => template.id !== result.template.id && template.name.toLocaleLowerCase('tr-TR') !== result.template.name.toLocaleLowerCase('tr-TR'))])
+        setEmailTemplateName('')
+        setNotice('E-posta şablonu kaydedildi')
+      }
+    } catch {
+      setError('Şablon kaydedilemedi')
+    } finally {
+      setEmailTemplateSaving(false)
+    }
+  }
+
+  async function removeReusableTemplate(templateId: string) {
+    setEmailTemplateSaving(true)
+    setError(null)
+    try {
+      const result = await deleteCampaignEmailTemplateAction(restaurantId, templateId)
+      if ('error' in result) setError(result.error)
+      else onEmailTemplatesChange(emailTemplates.filter((template) => template.id !== templateId))
+    } catch {
+      setError('Şablon silinemedi')
+    } finally {
+      setEmailTemplateSaving(false)
     }
   }
 
   async function handleSend() {
-    if (!smsDeliveryEnabled) { setError('SMS gönderimi şirket ve provider aktivasyonuna kadar kapalı'); return }
+    if (!emailDeliveryEnabled) { setError('E-posta gönderimi yapılandırılmadı'); return }
     setSending(true)
     setError(null)
     setNotice(null)
     const requestId = sendRequestId.current ?? crypto.randomUUID()
     sendRequestId.current = requestId
     try {
-      const res = await sendCampaignAction(restaurantId, { requestId, name, message, audience: targetToAudience(target) })
+      const res = await sendCampaignAction(restaurantId, {
+        requestId,
+        name,
+        subject,
+        message: activeContent,
+        contentMode,
+        templateId: contentMode === 'template' ? templateId : null,
+        emailDesign: contentMode === 'builder' ? emailDesign : null,
+        audience: targetToAudience(target),
+      })
       if ('error' in res) {
         setError(res.error)
         if (res.preview) setPreview(res.preview)
@@ -794,28 +1072,107 @@ function CampaignModal({
       setError('Kampanya sonucu doğrulanamadı. Aynı istek güvenle yeniden denenebilir.')
     } finally {
       setSending(false)
+      setConfirming(false)
     }
   }
 
   return (
+    <>
     <Dialog open onOpenChange={(open) => { if (!open && !sending) onClose() }}>
       <DialogContent showCloseButton={!sending} className="customer-campaign-dialog max-h-[92dvh] gap-0 overflow-hidden p-0 sm:max-w-[940px]">
       <div className="customer-campaign-panel" style={{ overflow: 'hidden', display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) 300px' }}>
         <div className="customer-campaign-main" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: 'min(760px, 92vh)' }}>
           <DialogHeader className="border-b px-5 py-4 pr-12">
-            <DialogTitle id="customer-campaign-title">SMS kampanyası</DialogTitle>
-            <DialogDescription id="customer-campaign-description">Önizleme güncel pazarlama izni ve canonical telefon kurallarını kullanır.</DialogDescription>
+            <DialogTitle id="customer-campaign-title">E-posta kampanyası</DialogTitle>
+            <DialogDescription id="customer-campaign-description">Yalnız güncel pazarlama izni ve geçerli e-posta adresi olan müşterilere gönderilir.</DialogDescription>
           </DialogHeader>
 
           <div className="customer-campaign-content" style={{ padding: 18, overflow: 'auto', display: 'grid', gap: 14 }}>
-            {!smsDeliveryEnabled && (
-              <Alert role="status" className="border-warning/30 bg-warning/10 text-warning"><I.warn size={16} /><AlertDescription className="text-inherit">SMS gönderimi şirket ve provider aktivasyonuna kadar kapalı. Hedef kitle önizlemesi kullanılabilir; test veya kampanya gönderilemez.</AlertDescription></Alert>
+            {!emailDeliveryEnabled && (
+              <Alert role="status" className="border-warning/30 bg-warning/10 text-warning"><I.warn size={16} /><AlertDescription className="text-inherit">E-posta gönderimi için Resend yapılandırması eksik. Hedef kitle önizlemesi kullanılabilir; kampanya gönderilemez.</AlertDescription></Alert>
             )}
+            <Alert role="status" className={campaignReplyToEmail ? '' : 'border-warning/30 bg-warning/10 text-warning'}>
+              <I.mail size={16} />
+              <AlertDescription className={campaignReplyToEmail ? undefined : 'text-inherit'}>
+                <strong>Gönderen: {restaurantName}</strong>
+                {campaignReplyToEmail
+                  ? <> · Müşteri yanıtları <strong>{campaignReplyToEmail}</strong> adresine gelir.</>
+                  : <> · Yanıt adresi ayarlanmamış. Ayarlar → Mağaza bölümüne işletme e-postası ekleyin.</>}
+              </AlertDescription>
+            </Alert>
+            <Field>
+              <FieldLabel>E-posta tasarımı</FieldLabel>
+              <ToggleGroup
+                variant="outline"
+                value={[contentMode]}
+                onValueChange={(values) => {
+                  const value = values[0]
+                  if (value === 'template' || value === 'builder' || value === 'html') {
+                    sendRequestId.current = null
+                    setContentMode(value)
+                  }
+                }}
+                aria-label="E-posta tasarım modu"
+                className="w-full justify-stretch"
+              >
+                <ToggleGroupItem value="template" className="flex-1">Hazır şablon</ToggleGroupItem>
+                <ToggleGroupItem value="builder" className="flex-1">Tasarımcı</ToggleGroupItem>
+                <ToggleGroupItem value="html" className="flex-1">Özel HTML</ToggleGroupItem>
+              </ToggleGroup>
+              <FieldDescription>Renk, tipografi, görsel, buton ve grid elementleriyle tasarlayın; isterseniz güvenli özel HTML kullanın.</FieldDescription>
+            </Field>
+
+            {contentMode === 'template' ? (
+              <div className="customer-email-template-grid" role="radiogroup" aria-label="E-posta şablonları">
+                {EMAIL_CAMPAIGN_TEMPLATES.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={templateId === template.id}
+                    className="customer-email-template-card"
+                    onClick={() => { sendRequestId.current = null; setTemplateId(template.id) }}
+                  >
+                    <span className={`customer-email-template-swatch customer-email-template-swatch-${template.id}`} aria-hidden="true" />
+                    <strong>{template.label}</strong>
+                    <span>{template.description}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {contentMode === 'builder' ? (
+              <div className="grid gap-3">
+                <Card className="p-3">
+                  <div className="mb-2 text-sm font-semibold">İşletme şablonları</div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                    <Input value={emailTemplateName} onChange={(event) => setEmailTemplateName(event.target.value.slice(0, 80))} placeholder="Şablon adı" aria-label="Kaydedilecek şablon adı" />
+                    <Button type="button" variant="outline" size="sm" aria-busy={emailTemplateSaving} disabled={emailTemplateSaving || !emailTemplateName.trim()} onClick={() => { void saveReusableTemplate() }}>{emailTemplateSaving && <Spinner aria-hidden="true" />}Şablonu kaydet</Button>
+                  </div>
+                  {emailTemplates.length > 0 ? (
+                    <div className="mt-3 grid gap-2" role="list" aria-label="Kayıtlı işletme e-posta şablonları">
+                      {emailTemplates.map((template) => (
+                        <div key={template.id} role="listitem" className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-lg border p-2">
+                          <span className="min-w-0 truncate text-sm font-medium">{template.name}</span>
+                          <Button type="button" variant="ghost" size="xs" onClick={() => {
+                            sendRequestId.current = null
+                            setEmailDesign(normalizeCampaignEmailDesign(template.design))
+                            if (template.subject) setSubject(template.subject)
+                            setNotice(`“${template.name}” şablonu yüklendi`)
+                          }}>Yükle</Button>
+                          <Button type="button" variant="ghost" size="xs" disabled={emailTemplateSaving} onClick={() => { void removeReusableTemplate(template.id) }} aria-label={`${template.name} şablonunu sil`}>Sil</Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <FieldDescription className="mt-2">Henüz işletmeye özel kayıtlı şablon yok.</FieldDescription>}
+                </Card>
+                <CampaignEmailBuilder design={emailDesign} onChange={(next) => { sendRequestId.current = null; setEmailDesign(normalizeCampaignEmailDesign(next)) }} />
+              </div>
+            ) : null}
             <div className="customer-campaign-fields" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
               <Field><FieldLabel htmlFor="customer-campaign-name">Kampanya adı</FieldLabel><Input id="customer-campaign-name" value={name} onChange={(e) => { sendRequestId.current = null; setName(e.target.value) }} maxLength={80} /></Field>
               <Field><FieldLabel>Hedef segment</FieldLabel>
                 <Select value={target} onValueChange={(value) => { if (value) { sendRequestId.current = null; setTarget(value as CampaignTargetValue) } }}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full" aria-label="Hedef segment"><SelectValue>{selectedTargetLabel}</SelectValue></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tüm müşteriler</SelectItem>
                     {SEGMENTS.filter((sg) => sg.id).map((sg) => <SelectItem key={sg.id} value={`builtin:${sg.id}`}>{sg.label}</SelectItem>)}
@@ -825,31 +1182,72 @@ function CampaignModal({
               </Field>
             </div>
 
-            <div className="customer-campaign-audience" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
-              <AudienceBox label="Segment" value={previewing ? '...' : (preview?.totalCandidates ?? 0).toLocaleString('tr-TR')} />
-              <AudienceBox label="Uygun alıcı" value={previewing ? '...' : (preview?.eligibleRecipients ?? 0).toLocaleString('tr-TR')} tone="positive" />
-              <AudienceBox label="İzin yok" value={previewing ? '...' : (preview?.skippedNoMarketingConsent ?? 0).toLocaleString('tr-TR')} />
-              <AudienceBox label="Telefon yok/geçersiz" value={previewing ? '...' : (preview?.skippedInvalidPhone ?? 0).toLocaleString('tr-TR')} />
-              <AudienceBox label="Tekrar telefon" value={previewing ? '...' : (preview?.skippedDuplicatePhone ?? 0).toLocaleString('tr-TR')} />
-            </div>
-
             <Field>
-              <FieldLabel htmlFor="customer-campaign-message">Mesaj</FieldLabel>
-              <Textarea id="customer-campaign-message"
-                value={message}
-                onChange={(e) => { sendRequestId.current = null; setMessage(e.target.value.slice(0, 459)) }}
-                rows={5}
-                className="min-h-32"
-              />
-              <FieldDescription className="text-right tabular-nums">{message.length}/459</FieldDescription>
+              <FieldLabel htmlFor="customer-campaign-subject">E-posta konusu</FieldLabel>
+              <Input id="customer-campaign-subject" value={subject} onChange={(e) => { sendRequestId.current = null; setSubject(e.target.value.slice(0, 150)) }} maxLength={150} />
+              <FieldDescription className="text-right tabular-nums">{subject.length}/150</FieldDescription>
             </Field>
 
-            <div className="customer-campaign-test" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'end' }}>
-              <Field><FieldLabel htmlFor="customer-test-phone">Test telefon</FieldLabel><Input id="customer-test-phone" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="0555 123 45 67" /></Field>
-              <Button type="button" variant="outline" disabled={!smsDeliveryEnabled || testing || message.trim().length < 5} onClick={() => { void handleTest() }}>
-                {testing ? <Spinner /> : <I.phone size={13} />}{testing ? 'Gönderiliyor...' : 'Test gönder'}
-              </Button>
+            <div className="customer-campaign-audience" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
+              <AudienceBox label="Segment" value={previewing ? '…' : (preview?.totalCandidates ?? 0).toLocaleString('tr-TR')} />
+              <AudienceBox label="Uygun alıcı" value={previewing ? '…' : (preview?.eligibleRecipients ?? 0).toLocaleString('tr-TR')} tone="positive" />
+              <AudienceBox label="İzin yok" value={previewing ? '…' : (preview?.skippedNoMarketingConsent ?? 0).toLocaleString('tr-TR')} />
+              <AudienceBox label="E-posta yok/geçersiz" value={previewing ? '…' : (preview?.skippedInvalidContact ?? 0).toLocaleString('tr-TR')} />
+              <AudienceBox label="Tekrar e-posta" value={previewing ? '…' : (preview?.skippedDuplicateContact ?? 0).toLocaleString('tr-TR')} />
             </div>
+            <div>
+              <Button type="button" variant="outline" size="sm" aria-busy={audienceContactsLoading} disabled={audienceContactsLoading || previewing || !preview?.eligibleRecipients} onClick={() => { void loadAudienceContacts() }}>
+                {audienceContactsLoading && <Spinner aria-hidden="true" />}{audienceContactsLoading ? 'Alıcılar yükleniyor…' : 'Alıcı e-postalarını göster'}
+              </Button>
+              {audienceContacts && (
+                <Card className="mt-3 overflow-hidden">
+                  <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
+                    <strong className="text-sm">{selectedTargetLabel} · {audienceContacts.totalEligible.toLocaleString('tr-TR')} izinli alıcı</strong>
+                    <Button type="button" variant="ghost" size="xs" onClick={() => setAudienceContacts(null)}>Gizle</Button>
+                  </div>
+                  <div className="customer-campaign-recipient-list" role="list" aria-label="İzinli kampanya alıcıları">
+                    {audienceContacts.contacts.map((contact) => (
+                      <div key={contact.customerId} role="listitem" className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-3 border-b px-3 py-2 text-xs last:border-0">
+                        <span className="truncate font-medium">{contact.name || 'İsimsiz müşteri'}</span>
+                        <span className="truncate font-mono text-muted-foreground">{contact.email}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {audienceContacts.truncated && <div className="border-t px-3 py-2 text-xs text-muted-foreground">İlk {audienceContacts.contacts.length.toLocaleString('tr-TR')} alıcı gösteriliyor.</div>}
+                </Card>
+              )}
+            </div>
+
+            {contentMode === 'template' ? (
+              <Field>
+                <FieldLabel htmlFor="customer-campaign-message">Mesaj</FieldLabel>
+                <Textarea id="customer-campaign-message"
+                  value={message}
+                  onChange={(e) => { sendRequestId.current = null; setMessage(e.target.value.slice(0, 5_000)) }}
+                  rows={5}
+                  className="min-h-32"
+                />
+                <FieldDescription className="text-right tabular-nums">{message.length}/5.000</FieldDescription>
+              </Field>
+            ) : contentMode === 'html' ? (
+              <Field>
+                <FieldLabel htmlFor="customer-campaign-html">HTML içeriği</FieldLabel>
+                <Textarea
+                  id="customer-campaign-html"
+                  value={customHtml}
+                  onChange={(event) => { sendRequestId.current = null; setCustomHtml(event.target.value.slice(0, 100_000)) }}
+                  rows={12}
+                  spellCheck={false}
+                  className="min-h-64 font-mono text-xs"
+                />
+                <FieldDescription className="flex flex-wrap justify-between gap-2">
+                  <span>Kullanılabilir değişken: {'{{restaurant_name}}'}</span>
+                  <span className="tabular-nums">{customHtml.length.toLocaleString('tr-TR')}/100.000</span>
+                </FieldDescription>
+              </Field>
+            ) : null}
+
+            {previewError && <Alert variant="destructive" role="alert"><AlertDescription>{previewError}</AlertDescription></Alert>}
 
             {(error || notice) && (
               <Alert variant={error ? 'destructive' : 'default'} role={error ? 'alert' : 'status'} aria-live="polite"><AlertDescription>{error ?? notice}</AlertDescription></Alert>
@@ -858,20 +1256,53 @@ function CampaignModal({
 
           <div className="customer-campaign-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 18px', borderTop: '1px solid var(--divider)', background: 'var(--surface)' }}>
             <Button type="button" variant="outline" onClick={onClose} disabled={sending}>Kapat</Button>
-            <Button type="button" disabled={!canSend} onClick={() => { void handleSend() }}>
-              {sending ? <Spinner /> : <I.bell size={13} />}{sending ? 'Gönderiliyor...' : 'Kampanyayı gönder'}
+            <Button type="button" aria-busy={sending} disabled={!canSend} onClick={() => setConfirming(true)}>
+              {sending ? <Spinner aria-hidden="true" /> : <I.mail size={13} />}{sending ? 'Gönderiliyor…' : 'Kampanyayı gönder'}
             </Button>
           </div>
         </div>
 
-        <aside className="customer-campaign-history" style={{ borderLeft: '1px solid var(--divider)', background: 'var(--surface-2)', padding: 16, overflow: 'auto' }}>
-          <div style={{ fontSize: 12, fontWeight: 750, color: 'var(--text-3)', letterSpacing: '.05em', marginBottom: 10 }}>SON GÖNDERİMLER</div>
-          {campaigns.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.45 }}>Henüz SMS kampanyası yok.</div>
+        <aside aria-label="E-posta önizlemesi ve kampanya geçmişi" className="customer-campaign-history" style={{ borderLeft: '1px solid var(--divider)', background: 'var(--surface-2)', padding: 16, overflow: 'auto' }}>
+          <div style={{ fontSize: 12, fontWeight: 750, color: 'var(--text-3)', letterSpacing: '.05em', marginBottom: 10 }}>ÖNİZLEME</div>
+          <div className="customer-email-preview" aria-busy={designPreviewing}>
+            {designPreviewing ? (
+              <div role="status" className="customer-email-preview-status"><Spinner aria-hidden="true" />Önizleme hazırlanıyor…</div>
+            ) : previewHtml ? (
+              <iframe title="E-posta önizlemesi" sandbox="" referrerPolicy="no-referrer" srcDoc={previewHtml} />
+            ) : (
+              <div className="customer-email-preview-status">Önizleme kullanılamıyor</div>
+            )}
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 750, color: 'var(--text-3)', letterSpacing: '.05em', margin: '18px 0 10px' }}>SON GÖNDERİMLER</div>
+          {!resendWebhookEnabled && <div className="mb-3 rounded-lg border border-warning/30 bg-warning/10 p-2 text-[11px] leading-relaxed text-warning">Teslim, açılma ve tıklama takibi için production Resend webhook&apos;u henüz etkin değil. Sağlayıcının kabul ettiği gönderimler yine listelenir.</div>}
+          {deliveryLogLoading ? (
+            <div role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><Spinner aria-hidden="true" />Gönderim günlüğü yükleniyor…</div>
+          ) : deliveryLog ? (
+            <div>
+              <Button type="button" variant="ghost" size="xs" className="mb-2" onClick={() => setDeliveryLog(null)}>← Kampanyalara dön</Button>
+              <div className="mb-2 text-sm font-semibold">{deliveryLog.campaignName}</div>
+              {deliveryLog.subject && <div className="mb-3 text-xs text-muted-foreground">{deliveryLog.subject}</div>}
+              <div className="customer-campaign-log-list grid gap-2" role="list" aria-label="Kampanya gönderim günlüğü">
+                {deliveryLog.recipients.map((recipient) => (
+                  <div key={recipient.id} role="listitem" className="rounded-lg border bg-background p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <strong className="min-w-0 truncate text-xs">{recipient.name || 'İsimsiz müşteri'}</strong>
+                      <DeliveryStatusPill status={recipient.status} />
+                    </div>
+                    <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{recipient.email}</div>
+                    <div className="mt-1 text-[11px] text-muted-foreground">{recipient.lastEventAt ? new Date(recipient.lastEventAt).toLocaleString('tr-TR') : recipient.sentAt ? new Date(recipient.sentAt).toLocaleString('tr-TR') : 'Gönderim bekleniyor'}</div>
+                    {recipient.error && <div className="mt-1 text-[11px] text-destructive">{campaignDeliveryErrorLabel(recipient.error)}</div>}
+                  </div>
+                ))}
+              </div>
+              {deliveryLog.truncated && <div className="mt-2 text-xs text-muted-foreground">İlk {deliveryLog.recipients.length.toLocaleString('tr-TR')} kayıt gösteriliyor.</div>}
+            </div>
+          ) : campaigns.filter((campaign) => campaign.channel === 'email').length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.45 }}>Henüz e-posta kampanyası yok.</div>
           ) : (
             <div style={{ display: 'grid', gap: 9 }}>
-              {campaigns.map((campaign) => (
-                <div key={campaign.id} style={{ border: '1px solid var(--border)', borderRadius: 11, background: 'var(--surface)', padding: 11 }}>
+              {campaigns.filter((campaign) => campaign.channel === 'email').map((campaign) => (
+                <button type="button" key={campaign.id} onClick={() => { void loadDeliveryLog(campaign.id) }} className="customer-campaign-history-card" style={{ border: '1px solid var(--border)', borderRadius: 11, background: 'var(--surface)', padding: 11, textAlign: 'left', cursor: 'pointer' }} aria-label={`${campaign.name} gönderim günlüğünü aç`}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                     <div style={{ minWidth: 0, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{campaign.name}</div>
                     <StatusPill status={campaign.status} />
@@ -880,15 +1311,46 @@ function CampaignModal({
                     {campaign.sentCount}/{campaign.recipientCount} gönderildi
                     {campaign.failedCount ? ` · ${campaign.failedCount} hata` : ''}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </aside>
       </div>
-      <style>{`@media (max-width:760px){.customer-campaign-dialog{max-height:calc(100dvh - 20px)!important}.customer-campaign-panel{grid-template-columns:1fr!important;overflow-y:auto!important}.customer-campaign-main{max-height:none!important}.customer-campaign-content{overflow:visible!important}.customer-campaign-fields,.customer-campaign-test{grid-template-columns:1fr!important}.customer-campaign-audience{grid-template-columns:repeat(2,minmax(0,1fr))!important}.customer-campaign-footer{position:sticky!important;bottom:0!important;z-index:2}.customer-campaign-history{border-left:0!important;border-top:1px solid var(--divider)!important;overflow:visible!important}} @media (max-width:430px){.customer-campaign-audience{grid-template-columns:1fr!important}}`}</style>
+      <style>{`
+        .customer-email-template-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+        .customer-email-template-card{min-width:0;min-height:108px;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);display:flex;flex-direction:column;gap:5px;text-align:left;cursor:pointer}
+        .customer-email-template-card[aria-checked="true"]{border-color:var(--text);box-shadow:0 0 0 1px var(--text)}
+        .customer-email-template-card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+        .customer-email-template-card>span:last-child{font-size:11px;line-height:1.35;color:var(--text-2)}
+        .customer-email-template-swatch{height:30px;border-radius:7px;border:1px solid var(--border);background:var(--surface-2)}
+        .customer-email-template-swatch-announcement{background:linear-gradient(180deg,#171719 0 40%,#fff 40%)}
+        .customer-email-template-swatch-offer{background:linear-gradient(180deg,#f5f5f4 0 18%,#171719 18% 55%,#fff 55%)}
+        .customer-email-preview{height:370px;border:1px solid var(--border);border-radius:12px;background:#fff;overflow:hidden}
+        .customer-email-preview iframe{width:100%;height:100%;border:0;background:#fff}
+        .customer-email-preview-status{height:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:18px;color:var(--text-2);font-size:12px;text-align:center}
+        .customer-campaign-recipient-list,.customer-campaign-log-list{max-height:260px;overflow:auto}
+        .customer-campaign-history-card:hover{background:var(--surface-3)!important}.customer-campaign-history-card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+        @media (max-width:760px){.customer-campaign-dialog{max-height:calc(100dvh - 20px)!important}.customer-campaign-panel{grid-template-columns:1fr!important;overflow-y:auto!important}.customer-campaign-main{max-height:none!important}.customer-campaign-content{overflow:visible!important}.customer-campaign-fields{grid-template-columns:1fr!important}.customer-campaign-audience{grid-template-columns:repeat(2,minmax(0,1fr))!important}.customer-email-template-grid{grid-template-columns:1fr!important}.customer-email-template-card{min-height:88px}.customer-campaign-footer{position:sticky!important;bottom:0!important;z-index:2}.customer-campaign-history{border-left:0!important;border-top:1px solid var(--divider)!important;overflow:visible!important}}
+        @media (prefers-reduced-motion:reduce){.customer-email-template-card{transition:none!important}}
+      `}</style>
       </DialogContent>
     </Dialog>
+    <AlertDialog open={confirming} onOpenChange={(open) => { if (!sending) setConfirming(open) }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>E-posta kampanyası gönderilsin mi?</AlertDialogTitle>
+          <AlertDialogDescription>{preview?.eligibleRecipients.toLocaleString('tr-TR') ?? 0} izinli alıcıya “{subject}” konulu e-posta gönderilecek. Gönderim başladıktan sonra geri alınamaz.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={sending}>Vazgeç</AlertDialogCancel>
+          <AlertDialogAction aria-busy={sending} disabled={sending} onClick={(event) => { event.preventDefault(); void handleSend() }}>
+            {sending && <Spinner aria-hidden="true" />} {sending ? 'Gönderiliyor…' : 'Gönderimi onayla'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   )
 }
 
@@ -910,6 +1372,29 @@ function StatusPill({ status }: { status: CampaignSummary['status'] }) {
         ? { label: 'Gönderiliyor', variant: 'warning' as const }
         : { label: status, variant: 'secondary' as const }
   return <Badge variant={meta.variant}>{meta.label}</Badge>
+}
+
+function campaignDeliveryErrorLabel(error: string): string {
+  if (error === 'configuration_unavailable') return 'E-posta sağlayıcısı yapılandırılmadı'
+  if (error === 'provider_rejected') return 'Sağlayıcı gönderimi reddetti'
+  if (error === 'delivery_unknown') return 'Gönderim sonucu doğrulanamadı'
+  return 'Gönderim başarısız'
+}
+
+function DeliveryStatusPill({ status }: { status: CampaignDeliveryLog['recipients'][number]['status'] }) {
+  const labels: Record<typeof status, string> = {
+    pending: 'Kuyrukta', processing: 'Gönderiliyor', accepted: 'Kabul edildi', delivered: 'Teslim edildi',
+    delayed: 'Gecikti', opened: 'Açıldı', clicked: 'Tıklandı', bounced: 'Geri döndü',
+    complained: 'Spam bildirimi', suppressed: 'Baskılandı', failed: 'Hata',
+  }
+  const variant = status === 'failed' || status === 'bounced' || status === 'complained'
+    ? 'destructive' as const
+    : status === 'delivered' || status === 'opened' || status === 'clicked'
+      ? 'positive' as const
+      : status === 'delayed' || status === 'suppressed'
+        ? 'warning' as const
+        : 'secondary' as const
+  return <Badge variant={variant}>{labels[status]}</Badge>
 }
 
 type RuleKey = 'last_seen_days' | 'visits' | 'spend' | 'points' | 'lifetime_points'

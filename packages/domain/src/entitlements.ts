@@ -12,6 +12,26 @@ export type SelfServePlan = (typeof SELF_SERVE_PLANS)[number]
 export const BILLING_INTERVALS = ['monthly', 'annual'] as const
 export type BillingInterval = (typeof BILLING_INTERVALS)[number]
 
+/** Optional products are deliberately separate from plan features. Buying a
+ * Pro plan alone must not silently enable a provider integration that has its
+ * own commercial and operational contract. */
+export const RESTAURANT_ADD_ONS = ['iyzico_online_payments'] as const
+export type RestaurantAddOn = (typeof RESTAURANT_ADD_ONS)[number]
+
+export const ADD_ON_DEFINITIONS: Readonly<Record<RestaurantAddOn, {
+  label: string
+  description: string
+  availableOn: readonly RestaurantPlan[]
+  grants: readonly BillableFeature[]
+}>> = {
+  iyzico_online_payments: {
+    label: 'İyzico Online Ödeme',
+    description: 'Misafirlerin QR menüden kartla ödeme yapmasını sağlayan Pro eklentisi.',
+    availableOn: ['pro', 'business'],
+    grants: ['online_payments'],
+  },
+}
+
 /** Legacy persisted values are accepted only while the catalogue migration is rolling out. */
 export function normalizeRestaurantPlan(value: unknown): RestaurantPlan {
   if (value === 'free') return 'starter'
@@ -130,7 +150,6 @@ const PRO_FEATURES = [
   'guest_ordering',
   'service_requests',
   'kitchen_display',
-  'online_payments',
   'split_payments',
   'customer_accounts',
   'crm',
@@ -186,16 +205,44 @@ export type EffectiveFeatureEntitlement = FeatureEntitlement & {
   override: FeatureOverrideSnapshot | null
 }
 
-export function getFeatureEntitlement(planInput: unknown, feature: BillableFeature): FeatureEntitlement {
+function addOnGrantsFeature(
+  plan: RestaurantPlan,
+  feature: BillableFeature,
+  activeAddOns: readonly RestaurantAddOn[],
+): boolean {
+  return activeAddOns.some((addOn) => {
+    const definition = ADD_ON_DEFINITIONS[addOn]
+    return definition.availableOn.includes(plan) && definition.grants.includes(feature)
+  })
+}
+
+export function getFeatureEntitlement(
+  planInput: unknown,
+  feature: BillableFeature,
+  activeAddOns: readonly RestaurantAddOn[] = [],
+): FeatureEntitlement {
   const plan = normalizeRestaurantPlan(planInput)
   const known = isKnownPlanInput(planInput)
-  const allowed = known && PLAN_DEFINITIONS[plan].features.includes(feature)
-  const requiredPlan = RESTAURANT_PLANS.find((candidate) => PLAN_DEFINITIONS[candidate].features.includes(feature)) ?? null
+  const allowed = known && (
+    PLAN_DEFINITIONS[plan].features.includes(feature)
+    || addOnGrantsFeature(plan, feature, activeAddOns)
+  )
+  const requiredPlan = RESTAURANT_PLANS.find((candidate) => (
+    PLAN_DEFINITIONS[candidate].features.includes(feature)
+    || RESTAURANT_ADD_ONS.some((addOn) => (
+      ADD_ON_DEFINITIONS[addOn].availableOn.includes(candidate)
+      && ADD_ON_DEFINITIONS[addOn].grants.includes(feature)
+    ))
+  )) ?? null
   return { feature, plan, allowed, requiredPlan }
 }
 
-export function canUseFeature(planInput: unknown, feature: BillableFeature): boolean {
-  return getFeatureEntitlement(planInput, feature).allowed
+export function canUseFeature(
+  planInput: unknown,
+  feature: BillableFeature,
+  activeAddOns: readonly RestaurantAddOn[] = [],
+): boolean {
+  return getFeatureEntitlement(planInput, feature, activeAddOns).allowed
 }
 
 export function getEffectiveFeatureEntitlement(
@@ -203,8 +250,9 @@ export function getEffectiveFeatureEntitlement(
   feature: BillableFeature,
   override: FeatureOverrideSnapshot | null | undefined,
   now: Date = new Date(),
+  activeAddOns: readonly RestaurantAddOn[] = [],
 ): EffectiveFeatureEntitlement {
-  const planEntitlement = getFeatureEntitlement(planInput, feature)
+  const planEntitlement = getFeatureEntitlement(planInput, feature, activeAddOns)
   const expiresAt = override ? Date.parse(override.expiresAt) : Number.NaN
   const isActiveOverride = Boolean(
     override
@@ -231,6 +279,7 @@ export function canUseEffectiveFeature(
   feature: BillableFeature,
   override: FeatureOverrideSnapshot | null | undefined,
   now?: Date,
+  activeAddOns: readonly RestaurantAddOn[] = [],
 ): boolean {
-  return getEffectiveFeatureEntitlement(planInput, feature, override, now).allowed
+  return getEffectiveFeatureEntitlement(planInput, feature, override, now, activeAddOns).allowed
 }

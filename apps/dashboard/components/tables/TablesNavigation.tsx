@@ -10,7 +10,7 @@ import { useTablesNavigationModel } from './use-tables-navigation-model'
 import type { TablesNavigationProps } from './tables-operations-ui-types'
 const TablesFloorCanvas = dynamic(
   () => import('./TablesFloorCanvas').then((module) => module.TablesFloorCanvas),
-  { loading: () => <section className="tb-floor tb-floor--loading" aria-label="Salon planı yükleniyor" aria-busy="true"><div className="tb-floor__loading-block" /></section> },
+  { loading: () => <section className="tb-floor tb-floor--loading" role="status" aria-live="polite" aria-busy="true"><span className="sr-only">Salon planı yükleniyor</span><div className="tb-floor__loading-block" aria-hidden="true" /></section> },
 )
 export function TablesNavigation({
   tables,
@@ -20,7 +20,7 @@ export function TablesNavigation({
   restaurantId,
   openSessions,
   onCloseSession,
-  onTransfer,
+  onTransfer, onPrefetchTransfer,
   onOpenDetail,
   onNewOrder,
   onSettle,
@@ -90,7 +90,7 @@ export function TablesNavigation({
     onRename: (table: TableItem, input: { label: string; floorLabel: string; areaLabel: string }) => management.rename(table, input),
     onDelete: (table: TableItem) => management.remove(table),
     onResolveRequest,
-    onTransfer: (mode: 'table_move' | 'account_transfer', tableId: string) => onTransfer(mode, tableId),
+    onTransfer: (mode: 'table_move' | 'account_transfer', tableId: string) => onTransfer(mode, tableId), onPrefetchTransfer,
     onCloseSession,
     adding: management.adding,
     startAdding: management.startAdding,
@@ -152,7 +152,7 @@ export function TablesNavigation({
         setActiveId={setActiveId}
         onOpenDetail={onOpenDetail}
         onNewOrder={onNewOrder}
-        onTransfer={(mode, tableId, options) => onTransfer(mode, tableId, options)}
+        onTransfer={(mode, tableId, options) => onTransfer(mode, tableId, options)} onPrefetchTransfer={onPrefetchTransfer}
         onSettle={onSettle}
         onCloseSession={onCloseSession}
         onResolveRequest={onResolveRequest}

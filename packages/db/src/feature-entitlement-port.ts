@@ -2,8 +2,13 @@ import type {
   BillableFeature,
   EffectiveFeatureEntitlement,
   FeatureOverrideSnapshot,
+  RestaurantAddOn,
 } from '@garsonless/domain/entitlements'
-import { BILLABLE_FEATURES, getEffectiveFeatureEntitlement } from '@garsonless/domain/entitlements'
+import {
+  BILLABLE_FEATURES,
+  getEffectiveFeatureEntitlement,
+  RESTAURANT_ADD_ONS,
+} from '@garsonless/domain/entitlements'
 import { err, ok, type Result } from '@garsonless/domain/result'
 import { createServiceClient } from './client'
 
@@ -32,11 +37,26 @@ function parseOverride(value: unknown): FeatureOverrideSnapshot | null {
   }
 }
 
-function parseContext(value: unknown): { accessAllowed: boolean; override: FeatureOverrideSnapshot | null } {
+function parseContext(value: unknown): {
+  accessAllowed: boolean
+  override: FeatureOverrideSnapshot | null
+  activeAddOns: RestaurantAddOn[]
+  addOnEntitlementsVersion: 0 | 1
+} {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid entitlement context')
   const row = value as Record<string, unknown>
   if (typeof row.accessAllowed !== 'boolean') throw new Error('invalid entitlement context')
-  return { accessAllowed: row.accessAllowed, override: parseOverride(row.override) }
+  const candidateAddOns = row.activeAddOns ?? []
+  if (!Array.isArray(candidateAddOns)
+    || candidateAddOns.some((item) => !RESTAURANT_ADD_ONS.includes(item as RestaurantAddOn))) {
+    throw new Error('invalid entitlement context')
+  }
+  return {
+    accessAllowed: row.accessAllowed,
+    override: parseOverride(row.override),
+    activeAddOns: candidateAddOns as RestaurantAddOn[],
+    addOnEntitlementsVersion: row.addOnEntitlementsVersion === 1 ? 1 : 0,
+  }
 }
 
 function serviceRpc(): FeatureEntitlementRpc {
@@ -58,7 +78,21 @@ export async function resolveRestaurantFeatureEntitlement(
     })
     if (error) return err('feature_entitlement_resolution_failed')
     const context = parseContext(data)
-    const entitlement = getEffectiveFeatureEntitlement(input.plan, input.feature, context.override, input.now)
+    // Rolling-deploy compatibility: the old RPC had no add-on projection and
+    // Pro already included online payments. The new migration emits version 1;
+    // only then does the paid add-on become the sole source of this feature.
+    const activeAddOns = context.addOnEntitlementsVersion === 1
+      ? context.activeAddOns
+      : input.feature === 'online_payments'
+        ? ['iyzico_online_payments'] as const
+        : []
+    const entitlement = getEffectiveFeatureEntitlement(
+      input.plan,
+      input.feature,
+      context.override,
+      input.now,
+      activeAddOns,
+    )
     return ok(context.accessAllowed ? entitlement : {
       ...entitlement,
       allowed: false,

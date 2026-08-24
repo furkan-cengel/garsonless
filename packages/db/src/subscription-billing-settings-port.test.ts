@@ -14,13 +14,13 @@ const projection = {
     id: 'subscription-1', plan: 'pro', billingInterval: 'monthly', scheduledPlan: null, status: 'past_due',
     currentPeriodStart: '2026-07-01T00:00:00.000Z',
     currentPeriodEnd: '2026-08-01T00:00:00.000Z',
-    trialEndsAt: null, graceEndsAt: '2026-08-08T00:00:00.000Z', cancelledAt: null,
+    trialEndsAt: null, graceEndsAt: '2026-08-08T00:00:00.000Z', cancelledAt: null, activeAddOns: [],
   },
   invoices: [{
     id: 'invoice-1', plan: 'pro', billingInterval: 'monthly', amountDueMinor: 29990, amountPaidMinor: 0,
     currency: 'TRY', status: 'past_due', periodStart: '2026-07-01T00:00:00.000Z',
     periodEnd: '2026-08-01T00:00:00.000Z', dueAt: '2026-07-01T00:00:00.000Z',
-    paidAt: null, failedAt: '2026-07-01T10:00:00.000Z', canRetry: true,
+    paidAt: null, failedAt: '2026-07-01T10:00:00.000Z', canRetry: true, addOns: [],
   }],
   attention: { reconciliationCount: 1, hasPendingCheckout: false, nextDunningActionAt: '2026-07-23T00:00:00.000Z' },
 }

@@ -62,6 +62,7 @@ export type AnalyticsInitialData = Pick<
 >
 
 export type LoadedAnalyticsReports = Record<AnalyticsReportId, boolean>
+export type AnalyticsFreshness = 'fresh' | 'refreshing' | 'stale' | 'offline'
 
 export function createInitialAnalyticsData(initial: AnalyticsInitialData): AnalyticsData {
   return {

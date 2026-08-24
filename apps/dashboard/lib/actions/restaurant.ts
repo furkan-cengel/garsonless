@@ -13,6 +13,8 @@ import {
   createKitchenSettingsCommandPort,
   createRestaurantAssetStoragePort,
   createRestaurantSettingsPort,
+  hasKitchenCredential,
+  updateRestaurantTimezoneCas,
 } from '@garsonless/db/server'
 import {
   reorderKitchenStations as reorderKitchenStationsCommand,
@@ -24,6 +26,7 @@ import type { DashboardActionFailure } from '../server-action-error'
 import { dashboardActionFailure } from '../server-action-error'
 import { inspectLogoImage, validateLogoImageMetadata } from '../logo-image-policy'
 import { sanitizeServerDiagnostic } from '../server-log-redaction'
+import { requireFreshOwnerPassword } from '../auth/fresh-owner-auth'
 
 const createRestaurantSchema = z.object({
   name: z.string().min(1).max(100),
@@ -37,6 +40,14 @@ const updateRestaurantSchema = z.object({
   slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/).optional(),
   logo_url: z.string().url().nullable().optional(),
 })
+
+const timezoneUpdateSchema = z.object({
+  timezone: z.string().trim().min(1).max(100).refine((value) => {
+    try { new Intl.DateTimeFormat('tr-TR', { timeZone: value }); return true } catch { return false }
+  }, 'Geçersiz IANA zaman dilimi'),
+  expectedTimezone: z.string().trim().min(1).max(100),
+  requestId: z.string().uuid(),
+}).strict()
 
 const kitchenStationSchema = z.object({
   restaurantId: z.string().uuid(),
@@ -53,7 +64,81 @@ const kitchenStationUpdateSchema = kitchenStationSchema.partial().extend({
 const settingsWriteGuardSchema = z.object({
   expectedSettings: z.record(z.unknown()),
   requestId: z.string().uuid(),
-})
+}).strict()
+
+const optionalSettingText = (max: number) => z.string().trim().max(max)
+const businessTimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, 'Geçersiz saat')
+const businessIntervalSchema = z.object({ open: businessTimeSchema, close: businessTimeSchema }).strict()
+const businessDaySchema = z.object({
+  open: businessTimeSchema,
+  close: businessTimeSchema,
+  active: z.boolean(),
+  intervals: z.array(businessIntervalSchema).min(1).max(3).optional(),
+}).strict()
+const businessHoursSchema = z.object({
+  mon: businessDaySchema,
+  tue: businessDaySchema,
+  wed: businessDaySchema,
+  thu: businessDaySchema,
+  fri: businessDaySchema,
+  sat: businessDaySchema,
+  sun: businessDaySchema,
+}).strict()
+const contactSettingsPatchSchema = z.object({
+  contact: z.object({
+    phone: optionalSettingText(30),
+    email: z.union([z.literal(''), z.string().trim().email().max(320)]),
+    website: optionalSettingText(255),
+    address: optionalSettingText(500),
+    district: optionalSettingText(100),
+    city: optionalSettingText(100),
+    zip: optionalSettingText(20),
+    instagram: optionalSettingText(100),
+    facebook: optionalSettingText(150),
+    tiktok: optionalSettingText(100),
+    whatsapp: optionalSettingText(30),
+  }).strict(),
+}).strict()
+const taxSettingsPatchSchema = z.object({
+  tax: z.object({
+    company: optionalSettingText(200),
+    taxNumber: optionalSettingText(32),
+    office: optionalSettingText(100),
+    tcVkn: optionalSettingText(32),
+    address: optionalSettingText(500),
+  }).strict(),
+}).strict()
+const genericSettingsPatchSchema = z.union([
+  contactSettingsPatchSchema,
+  taxSettingsPatchSchema,
+  z.object({ hours: businessHoursSchema }).strict(),
+])
+
+export type GenericSettingsPatch = z.infer<typeof genericSettingsPatchSchema>
+
+export async function updateRestaurantTimezone(
+  restaurantId: string,
+  input: unknown,
+): Promise<{ error: string; code?: 'CONFLICT' } | { success: true; timezone: string; idempotent: boolean }> {
+  const parsedRestaurantId = z.string().uuid().safeParse(restaurantId)
+  const parsed = timezoneUpdateSchema.safeParse(input)
+  if (!parsedRestaurantId.success || !parsed.success) return { error: 'Geçerli bir zaman dilimi seçin.' }
+  const gate = await assertOwner(restaurantId)
+  if ('error' in gate) return gate
+  const result = await updateRestaurantTimezoneCas({
+    restaurantId,
+    actorUserId: gate.userId,
+    timezone: parsed.data.timezone,
+    expectedTimezone: parsed.data.expectedTimezone,
+    requestId: parsed.data.requestId,
+  })
+  if (!result.ok) return { error: 'Zaman dilimi kaydedilemedi.' }
+  if (result.value.outcome === 'applied') {
+    revalidatePath(`/dashboard/${restaurantId}/settings`)
+    return { success: true, timezone: result.value.timezone, idempotent: result.value.idempotent }
+  }
+  return { error: 'Zaman dilimi başka bir oturumda değiştirildi.', code: 'CONFLICT' }
+}
 
 export interface SettingsWriteGuard {
   expectedSettings: Record<string, unknown>
@@ -192,9 +277,11 @@ export async function updateRestaurant(
 
 export async function updateSettings(
   restaurantId: string,
-  settings: Record<string, unknown>,
+  settings: unknown,
   guard: SettingsWriteGuard,
 ): Promise<SettingsActionResult> {
+  const parsedSettings = genericSettingsPatchSchema.safeParse(settings)
+  if (!parsedSettings.success) return { error: 'Geçersiz veya desteklenmeyen ayar alanı' }
   const parsedGuard = settingsWriteGuardSchema.safeParse(guard)
   if (!parsedGuard.success) return { error: 'Geçersiz ayar kayıt isteği' }
   const { user } = await getAuthUser()
@@ -215,7 +302,7 @@ export async function updateSettings(
     },
     {
       restaurantId,
-      patch: settings,
+      patch: parsedSettings.data,
       expectedSettings: parsedGuard.data.expectedSettings,
       requestId: parsedGuard.data.requestId,
     },
@@ -246,32 +333,6 @@ const notificationPrefsSchema = z.object({
 const notificationSettingsSchema = z.object({
   prefs: notificationPrefsSchema,
   lateThresholdMin: z.number().int().min(5).max(120),
-})
-
-const businessTimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, 'Geçersiz saat')
-const businessDaySchema = z.object({
-  open: businessTimeSchema,
-  close: businessTimeSchema,
-  active: z.boolean(),
-})
-const businessHoursSchema = z.object({
-  mon: businessDaySchema,
-  tue: businessDaySchema,
-  wed: businessDaySchema,
-  thu: businessDaySchema,
-  fri: businessDaySchema,
-  sat: businessDaySchema,
-  sun: businessDaySchema,
-}).superRefine((hours, ctx) => {
-  for (const [day, value] of Object.entries(hours)) {
-    if (value.active && value.open >= value.close) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [day, 'close'],
-        message: 'Kapanış saati açılıştan sonra olmalı',
-      })
-    }
-  }
 })
 
 /**
@@ -712,10 +773,14 @@ export async function reorderKitchenStations(
 
 export async function generateKitchenToken(
   restaurantId: string,
+  currentPassword?: string,
 ): Promise<{ error: string } | { success: true }> {
   const parsedRestaurantId = z.string().uuid().safeParse(restaurantId)
   if (!parsedRestaurantId.success) return { error: 'Invalid input' }
-  const gate = await assertOwner(parsedRestaurantId.data)
+  const hasExistingCredential = await hasKitchenCredential(parsedRestaurantId.data)
+  const gate = hasExistingCredential
+    ? await requireFreshOwnerPassword(parsedRestaurantId.data, currentPassword ?? '')
+    : await assertOwner(parsedRestaurantId.data)
   if ('error' in gate) return gate
   const result = await rotateKitchenAccessCredential({
     actor: 'dashboard-member',

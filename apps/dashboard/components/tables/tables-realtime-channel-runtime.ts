@@ -3,6 +3,7 @@ import { createDashboardBrowserClient } from '../../lib/supabase'
 import { TABLES_REALTIME_SAFETY_INTERVAL_MS, type TablesRealtimeStatus } from './tables-realtime-model'
 
 type Refresh = () => Promise<boolean>
+type InvalidationSource = 'orders' | 'table_sessions' | 'payment_shares' | 'service_requests' | 'tables'
 
 export type TablesRealtimeRuntimeInput = {
   restaurantId: string
@@ -27,9 +28,16 @@ export function startTablesRealtimeRuntime({
   let sessionTimer: number | null = null
   let requestTimer: number | null = null
   let tableTimer: number | null = null
+  let consecutiveSafetyFailures = 0
 
   const settleStatus = (ok: boolean) => {
-    if (!cancelled) setConnectionStatus(ok && socketSubscribed ? 'live' : 'offline')
+    if (cancelled) return
+    if (ok && socketSubscribed) {
+      consecutiveSafetyFailures = 0
+      setConnectionStatus('live')
+    } else {
+      setConnectionStatus(socketSubscribed ? 'reconnecting' : 'offline')
+    }
   }
   const schedule = (kind: 'session' | 'request' | 'table') => {
     const current = kind === 'session' ? sessionTimer : kind === 'request' ? requestTimer : tableTimer
@@ -49,13 +57,26 @@ export function startTablesRealtimeRuntime({
     else tableTimer = timer
   }
 
+  const scheduleInvalidation = (source: InvalidationSource) => {
+    if (source === 'service_requests') schedule('request')
+    else if (source === 'tables') schedule('table')
+    else schedule('session')
+  }
+
   const channel = supabase
     .channel(`tables-live:${restaurantId}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'table_sessions', filter: `restaurant_id=eq.${restaurantId}` }, () => schedule('session'))
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` }, () => schedule('session'))
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_shares', filter: `restaurant_id=eq.${restaurantId}` }, () => schedule('session'))
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'service_requests', filter: `restaurant_id=eq.${restaurantId}` }, () => schedule('request'))
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'tables', filter: `restaurant_id=eq.${restaurantId}` }, () => schedule('table'))
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'pano_invalidations', filter: `restaurant_id=eq.${restaurantId}` },
+      (payload: { new: Record<string, unknown> }) => {
+        const source = payload.new['source']
+        if (source === 'orders' || source === 'table_sessions' || source === 'payment_shares' || source === 'service_requests' || source === 'tables') {
+          scheduleInvalidation(source)
+        } else {
+          void reconcile().then(settleStatus)
+        }
+      },
+    )
 
   const subscribe = async () => {
     try {
@@ -99,7 +120,16 @@ export function startTablesRealtimeRuntime({
   const reconcileVisible = () => {
     if (document.visibilityState !== 'visible') return
     if (!socketSubscribed) retryRealtime()
-    else void reconcile().then(settleStatus)
+    else void reconcile().then((ok) => {
+      if (cancelled) return
+      if (ok) {
+        consecutiveSafetyFailures = 0
+        setConnectionStatus('live')
+        return
+      }
+      consecutiveSafetyFailures += 1
+      setConnectionStatus(consecutiveSafetyFailures >= 2 ? 'stale' : 'reconnecting')
+    })
   }
   const handleOnline = () => retryRealtime()
   const handleOffline = () => {

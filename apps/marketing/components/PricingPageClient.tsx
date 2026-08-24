@@ -59,6 +59,15 @@ export function PricingPageClient() {
 
           <PricingPlanCards interval={interval} />
 
+          <aside className="pricing-addon" aria-label="Pro add-on">
+            <div>
+              <span className="pricing-addon__eyebrow">Pro’ya özel add-on</span>
+              <h3>İyzico Online Ödeme</h3>
+              <p>Add-on fiyatı, KDV ve ödenecek genel toplam Dashboard’daki güvenli satın alma özetinde ayrı kalem olarak gösterilir.</p>
+            </div>
+            <div className="pricing-addon__meta"><strong>Ayrıca fiyatlanır</strong><span>Yalnız Pro ile</span></div>
+          </aside>
+
           <a className="pricing-page-jump" href="#paket-karsilastirma">
             Paketleri ayrıntılı karşılaştır <MI.arrow size={16} />
           </a>

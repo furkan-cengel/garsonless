@@ -14,9 +14,11 @@ interface Props {
   center?: ReactNode
   right?: ReactNode
   backHref?: string
+  onBack?: () => void
+  backLabel?: string
 }
 
-export default function PageTopBar({ restaurantName, title, className, tag, center, right, backHref }: Props) {
+export default function PageTopBar({ restaurantName, title, className, tag, center, right, backHref, onBack, backLabel = 'Geri' }: Props) {
   const { beginNavigation, openStoreSwitcher, openNotifications, notificationCount } = useShell()
   const router = useRouter()
 
@@ -34,15 +36,21 @@ export default function PageTopBar({ restaurantName, title, className, tag, cent
       {/* Left: brand + breadcrumb */}
       <div className="page-topbar-left" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <div className="page-topbar-context" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-        {backHref && (
+        {(backHref || onBack) && (
           <button
             type="button"
             className="page-topbar-back"
             onClick={() => {
-              beginNavigation(backHref)
-              router.push(backHref)
+              if (onBack) {
+                onBack()
+                return
+              }
+              if (backHref) {
+                beginNavigation(backHref)
+                router.push(backHref)
+              }
             }}
-            aria-label="Geri"
+            aria-label={backLabel}
             style={{
               width: 44, height: 44, border: 'none', borderRadius: 8,
               background: 'transparent', color: 'var(--text-2)',
@@ -86,7 +94,7 @@ export default function PageTopBar({ restaurantName, title, className, tag, cent
       </div>
 
       {/* Center */}
-      {center && <div>{center}</div>}
+      {center && <div className="page-topbar-center">{center}</div>}
 
       {/* Right */}
       <div className="page-topbar-right" style={{

@@ -37,9 +37,18 @@ export const checkoutRequestSchema = z.object({
   requestId: z.string().uuid(),
   plan: paidPlanSchema,
   interval: billingIntervalSchema,
+  addOns: z.array(z.literal('iyzico_online_payments')).max(1).default([]),
   profile: billingProfileSchema,
   checkoutTermsAccepted: z.literal(true),
   legalDocumentVersion: z.literal(LEGAL_DOCUMENT_VERSION),
+}).strict().superRefine((value, context) => {
+  if (value.addOns.length > 0 && value.plan !== 'pro') {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['addOns'],
+      message: 'İyzico online payment add-on is available only with Pro',
+    })
+  }
 })
 
 export const retryRequestSchema = z.object({
@@ -47,9 +56,14 @@ export const retryRequestSchema = z.object({
   invoiceId: z.string().uuid(),
 })
 
-export const cancellationRequestSchema = z.object({ requestId: z.string().uuid() })
+export const cancellationRequestSchema = z.object({
+  requestId: z.string().uuid(),
+  currentPassword: z.string().min(1).max(256),
+}).strict()
 
-export type BillingPlanPrices = Record<PaidBillingPlan, Record<BillingInterval, number | null>>
+export type BillingPlanPrices = Record<PaidBillingPlan, Record<BillingInterval, number | null>> & {
+  iyzicoOnlinePaymentsAddOn: Record<BillingInterval, number | null>
+}
 
 /** Public display prices only. Provider plan references and credentials remain
  * server-side; an incomplete checkout/webhook contract renders every paid plan
@@ -58,7 +72,7 @@ export function readBillingPlanPrices(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): BillingPlanPrices {
   try {
-    readIyzicoSubscriptionBillingRuntimeConfig(env)
+    const config = readIyzicoSubscriptionBillingRuntimeConfig(env)
     return {
       starter: {
         monthly: getPlanPrice('starter', 'monthly').amountMinor,
@@ -72,12 +86,17 @@ export function readBillingPlanPrices(
         monthly: getPlanPrice('pro', 'monthly').amountMinor,
         annual: getPlanPrice('pro', 'annual').amountMinor,
       },
+      iyzicoOnlinePaymentsAddOn: {
+        monthly: config.provider.addOns?.iyzico_online_payments?.monthly.addOnNetAmountMinor ?? null,
+        annual: config.provider.addOns?.iyzico_online_payments?.annual.addOnNetAmountMinor ?? null,
+      },
     }
   } catch {
     return {
       starter: { monthly: null, annual: null },
       plus: { monthly: null, annual: null },
       pro: { monthly: null, annual: null },
+      iyzicoOnlinePaymentsAddOn: { monthly: null, annual: null },
     }
   }
 }

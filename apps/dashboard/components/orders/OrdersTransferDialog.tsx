@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { transferOrdersToTable } from '../../lib/actions/tables'
+import { formatCurrency } from '../../lib/utils'
 import type { Order } from './useOrdersRealtime'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -86,7 +87,7 @@ export default function OrdersTransferDialog({ restaurantId, orders, tables, onC
                       })}
                     />
                     <span className="min-w-0 flex-1 font-mono text-xs">#{order.id.slice(0, 6).toUpperCase()}</span>
-                    <strong>₺{order.total.toLocaleString('tr-TR')}</strong>
+                    <strong>{formatCurrency(order.total)}</strong>
                   </FieldLabel>
                 ))}
               </div>
@@ -106,8 +107,8 @@ export default function OrdersTransferDialog({ restaurantId, orders, tables, onC
 
         <DialogFooter className="mt-1">
           <Button variant="outline" disabled={busy} onClick={onClose}>Vazgeç</Button>
-          <Button disabled={busy || selected.size === 0 || !target} onClick={() => void submit()}>
-            {busy && <Spinner data-icon="inline-start" />}
+          <Button disabled={busy || selected.size === 0 || !target} aria-busy={busy} onClick={() => void submit()}>
+            {busy && <Spinner data-icon="inline-start" aria-hidden="true" />}
             {busy ? 'Taşınıyor…' : `${selected.size} siparişi taşı`}
           </Button>
         </DialogFooter>

@@ -46,7 +46,17 @@ export async function POST(request: Request) {
       { status: 413, headers: { 'Cache-Control': 'no-store' } },
     )
   }
+  const status = data.errorCode === 'INVALID_REQUEST'
+    ? 400
+    : data.errorCode === 'FORBIDDEN'
+      ? 403
+      : data.errorCode === 'FEATURE_LOCKED'
+        ? 402
+        : data.errorCode === 'LOAD_FAILED'
+          ? 503
+          : 200
   return new Response(serialized.body, {
+    status,
     headers: { 'Cache-Control': 'no-store', 'Content-Type': 'application/json; charset=utf-8' },
   })
 }

@@ -7,6 +7,7 @@ import {
   deletePaymentCredentialVault,
   readIyzicoCredentialRecord,
   readPaymentCredentialMeta,
+  recordRestaurantIntegrationHealth,
   rotatePaymentCredentialVault,
   writePaymentCredentialVault,
 } from '@garsonless/db/server'
@@ -212,24 +213,37 @@ export async function testPaymentCredentials(
       uri: credential.record.mode === 'live' ? LIVE_URL : SANDBOX_URL,
     })
 
-    return await new Promise((resolve) => {
+    const outcome = await new Promise<{ ok: boolean; message: string; errorCode: string | null }>((resolve) => {
       const timer = setTimeout(
-        () => resolve({ ok: false, message: 'İyzico yanıt vermedi (zaman aşımı)' }),
+        () => resolve({ ok: false, message: 'İyzico yanıt vermedi (zaman aşımı)', errorCode: 'timeout' }),
         10_000,
       )
       client.apiTest.retrieve({}, (error, result) => {
         clearTimeout(timer)
         if (error) {
-          resolve({ ok: false, message: 'İyzico bağlantısı kurulamadı.' })
+          resolve({ ok: false, message: 'İyzico bağlantısı kurulamadı.', errorCode: 'connection_failed' })
           return
         }
         if (result.status === 'success') {
-          resolve({ ok: true, message: 'Bağlantı başarılı — anahtarlar geçerli' })
+          resolve({ ok: true, message: 'Bağlantı başarılı — anahtarlar geçerli', errorCode: null })
         } else {
-          resolve({ ok: false, message: 'Anahtarlar doğrulanamadı.' })
+          resolve({ ok: false, message: 'Anahtarlar doğrulanamadı.', errorCode: 'credentials_rejected' })
         }
       })
     })
+    const checkedAt = new Date().toISOString()
+    await recordRestaurantIntegrationHealth({
+      restaurantId,
+      health: {
+        provider: 'iyzico',
+        mode: credential.record.mode === 'live' ? 'live' : 'sandbox',
+        state: outcome.ok ? 'healthy' : 'error',
+        lastCheckedAt: checkedAt,
+        lastSuccessAt: outcome.ok ? checkedAt : null,
+        errorCode: outcome.errorCode,
+      },
+    })
+    return { ok: outcome.ok, message: outcome.message }
   } catch {
     return { ok: false, message: 'İyzico bağlantısı güvenli biçimde başlatılamadı.' }
   }

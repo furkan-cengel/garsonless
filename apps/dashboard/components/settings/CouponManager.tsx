@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import type { CouponDefinition } from '@garsonless/domain/coupons'
 import { couponStatus } from '@garsonless/domain/coupons'
-import { archiveCoupon, getCouponEditorChoices, getRestaurantCoupons, upsertCoupon } from '../../lib/actions/coupons'
+import { archiveCoupon, getCouponEditorChoices, getRestaurantCoupons, restoreCoupon, upsertCoupon } from '../../lib/actions/coupons'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,16 @@ import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { I } from '../../lib/ui'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 type Choice = { id: string; name: string }
 type Draft = {
@@ -69,15 +79,19 @@ export function CouponManager({ restaurantId }: { restaurantId: string }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [archiveTarget, setArchiveTarget] = useState<CouponDefinition | null>(null)
+  const [undoArchive, setUndoArchive] = useState<{ id: string; code: string; archiveVersion: string } | null>(null)
   const [pending, startTransition] = useTransition()
 
   const reload = useCallback(async () => {
     setLoading(true)
-    const [couponResult, choiceResult] = await Promise.all([getRestaurantCoupons(restaurantId), getCouponEditorChoices(restaurantId)])
-    if ('coupons' in couponResult) setCoupons(couponResult.coupons)
-    else setError(couponResult.error)
-    if ('categories' in choiceResult) { setCategories(choiceResult.categories); setItems(choiceResult.items) }
-    setLoading(false)
+    try {
+      const [couponResult, choiceResult] = await Promise.all([getRestaurantCoupons(restaurantId), getCouponEditorChoices(restaurantId)])
+      if ('coupons' in couponResult) setCoupons(couponResult.coupons)
+      else setError(couponResult.error)
+      if ('categories' in choiceResult) { setCategories(choiceResult.categories); setItems(choiceResult.items) }
+    } catch { setError('Kuponlar yüklenemedi. Tekrar deneyin.') }
+    finally { setLoading(false) }
   }, [restaurantId])
   useEffect(() => { void reload() }, [reload])
 
@@ -90,16 +104,29 @@ export function CouponManager({ restaurantId }: { restaurantId: string }) {
   }
   const edit = (coupon?: CouponDefinition) => { setDraft(coupon ? toDraft(coupon) : EMPTY); setError(''); setOpen(true) }
   const save = () => startTransition(async () => {
-    const result = await upsertCoupon(restaurantId, draft)
-    if ('error' in result) { setError(result.error); return }
-    setOpen(false); setError(''); await reload()
+    try {
+      const result = await upsertCoupon(restaurantId, draft)
+      if ('error' in result) { setError(result.error); return }
+      setOpen(false); setError(''); await reload()
+    } catch { setError('Kupon kaydedilemedi. Taslağınız korundu.') }
   })
   const archive = (coupon: CouponDefinition) => {
-    if (!window.confirm(`${coupon.code} kuponu arşivlensin mi? Geçmiş kullanımlar korunur.`)) return
     startTransition(async () => {
-      const result = await archiveCoupon(restaurantId, coupon.id, coupon.updatedAt)
-      if ('error' in result) setError(result.error)
-      else await reload()
+      try {
+        const result = await archiveCoupon(restaurantId, coupon.id, coupon.updatedAt)
+        if ('error' in result) setError(result.error)
+        else { setArchiveTarget(null); setUndoArchive({ id: coupon.id, code: coupon.code, archiveVersion: result.archiveVersion }); await reload() }
+      } catch { setError('Kupon arşivlenemedi. Tekrar deneyin.') }
+    })
+  }
+  const undo = () => {
+    if (!undoArchive) return
+    startTransition(async () => {
+      try {
+        const result = await restoreCoupon(restaurantId, undoArchive.id, undoArchive.archiveVersion)
+        if ('error' in result) { setError(result.error); return }
+        setUndoArchive(null); await reload()
+      } catch { setError('Kupon arşivi geri alınamadı.') }
     })
   }
 
@@ -116,7 +143,8 @@ export function CouponManager({ restaurantId }: { restaurantId: string }) {
       </CardHeader>
       <CardContent className="flex flex-col gap-2 py-4">
         {error && !open && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-        {loading ? <div className="flex min-h-20 items-center justify-center"><Spinner /></div> : coupons.length === 0 ? (
+        {undoArchive && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>{undoArchive.code} arşivlendi.</span><Button type="button" size="sm" variant="outline" disabled={pending} onClick={undo}>Geri al</Button></AlertDescription></Alert>}
+        {loading ? <div className="flex min-h-20 items-center justify-center" role="status"><Spinner /><span className="sr-only">Kuponlar yükleniyor…</span></div> : coupons.length === 0 ? (
           <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">Henüz kupon yok. İlk gerçek checkout kuponunuzu oluşturun.</div>
         ) : coupons.map((coupon) => {
           const status = couponStatus(coupon)
@@ -127,7 +155,7 @@ export function CouponManager({ restaurantId }: { restaurantId: string }) {
           return <div key={coupon.id} className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-3">
             <span className="grid size-9 place-items-center rounded-lg bg-muted text-muted-foreground"><I.tag size={16} /></span>
             <div className="min-w-36 flex-1"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm">{coupon.name}</strong><Badge variant={status === 'active' ? 'default' : 'secondary'}>{STATUS_LABELS[status]}</Badge></div><div className="mt-1 text-xs text-muted-foreground"><span className="font-mono font-semibold text-foreground">{coupon.code}</span> · {value} · {scope} · {coupon.redemptionCount} kullanım</div></div>
-            <div className="flex gap-1"><Button type="button" size="sm" variant="outline" onClick={() => edit(coupon)}>Düzenle</Button><Button type="button" size="sm" variant="ghost" onClick={() => archive(coupon)}>Arşivle</Button></div>
+            <div className="flex gap-1"><Button type="button" size="sm" variant="outline" onClick={() => edit(coupon)}>Düzenle</Button><Button type="button" size="sm" variant="ghost" onClick={() => setArchiveTarget(coupon)}>Arşivle</Button></div>
           </div>
         })}
       </CardContent>
@@ -147,7 +175,6 @@ export function CouponManager({ restaurantId }: { restaurantId: string }) {
               {draft.discountType === 'percentage' && <Field><FieldLabel htmlFor="coupon-cap">Maksimum indirim (isteğe bağlı)</FieldLabel><Input id="coupon-cap" type="number" min={1} value={draft.maximumDiscountAmount ?? ''} onChange={(e) => patch({ maximumDiscountAmount: e.target.value ? Number(e.target.value) : null })} placeholder="Sınırsız" /><FieldDescription>Boş bırakılırsa yüzde indirimi sınırsız uygulanır. Örneğin 1 yazmak indirimi ₺1 ile sınırlar.</FieldDescription></Field>}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field><FieldLabel>Kapsam</FieldLabel><NativeSelect value={draft.scope} onChange={(e) => patch({ scope: e.target.value as Draft['scope'] })}><NativeSelectOption value="order">Tüm sepet</NativeSelectOption><NativeSelectOption value="category">Seçili kategoriler</NativeSelectOption><NativeSelectOption value="product">Seçili ürünler</NativeSelectOption></NativeSelect></Field>
               <Field><FieldLabel htmlFor="coupon-minimum">Minimum uygun tutar (₺)</FieldLabel><Input id="coupon-minimum" type="number" min={0} value={draft.minimumAmount} onChange={(e) => patch({ minimumAmount: Number(e.target.value) })} /></Field>
             </div>
             {draft.scope !== 'order' && <Field><FieldLabel>{draft.scope === 'category' ? 'Uygun kategoriler' : 'Uygun ürünler'}</FieldLabel><div className="grid max-h-40 gap-1 overflow-y-auto rounded-lg border p-2 sm:grid-cols-2">{selectedChoices.map((choice) => <label key={choice.id} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 text-xs hover:bg-muted"><Checkbox checked={selectedIds.includes(choice.id)} onCheckedChange={(checked) => toggleTarget(choice.id, checked === true)} />{choice.name}</label>)}</div></Field>}
@@ -170,6 +197,12 @@ export function CouponManager({ restaurantId }: { restaurantId: string }) {
           <DialogFooter><Button type="button" variant="outline" onClick={() => setOpen(false)}>Vazgeç</Button><Button type="button" onClick={save} disabled={pending}>{pending && <Spinner data-icon="inline-start" />}{pending ? 'Kaydediliyor…' : 'Kuponu kaydet'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={archiveTarget !== null} onOpenChange={(open) => { if (!open && !pending) setArchiveTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>{archiveTarget?.code} kuponu arşivlensin mi?</AlertDialogTitle><AlertDialogDescription>Kupon checkout’ta kullanılamaz; geçmiş kullanımlar korunur. İşlem sonrasında geri alma seçeneği gösterilir.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel disabled={pending}>Vazgeç</AlertDialogCancel><AlertDialogAction disabled={pending} onClick={(event) => { event.preventDefault(); if (archiveTarget) archive(archiveTarget) }}>{pending ? 'Arşivleniyor…' : 'Kuponu arşivle'}</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }

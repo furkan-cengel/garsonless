@@ -2,19 +2,16 @@ import { notFound } from 'next/navigation'
 import { getRestaurantById } from '../../../../lib/queries/restaurants'
 import { requireSection } from '../../../../lib/auth/access'
 import { getDashboardFeatureContext } from '../../../../lib/queries/context'
-import { readCampaigns } from '@garsonless/application/campaigns'
+import { readCustomers } from '@garsonless/application/customers'
 import {
-  readCustomerSegmentCounts,
-  readCustomerSegments,
-  readCustomers,
-} from '@garsonless/application/customers'
-import { createCampaignApplicationPort, createCustomerApplicationPort, getSmsDeliveryAvailability } from '@garsonless/db/server'
+  createCustomerApplicationPort,
+  canRestaurantUseFeature,
+  getCampaignEmailDeliveryAvailability,
+  getLoyaltyScope,
+  readCampaignEmailIdentity,
+} from '@garsonless/db/server'
 import CustomersClient from '../../../../components/customers/CustomersClient'
-import {
-  parseCustomerListState,
-  type CustomerListState,
-} from '../../../../components/customers/customer-list-state'
-import { canRestaurantUseFeature } from '@garsonless/db/server'
+import { parseCustomerListState } from '../../../../components/customers/customer-list-state'
 import PlanLockedPanel from '../../../../components/PlanLockedPanel'
 
 interface Props {
@@ -34,61 +31,46 @@ function toUrlSearchParams(input: Record<string, string | string[] | undefined>)
 export default async function CustomersPage({ params, searchParams }: Props) {
   const [{ restaurantId }, rawSearchParams] = await Promise.all([params, searchParams])
   const access = await requireSection(restaurantId, 'customers')
-  const [restaurant, actor] = await Promise.all([
-    getRestaurantById(restaurantId),
-    getDashboardFeatureContext(restaurantId),
+  const restaurantPromise = getRestaurantById(restaurantId)
+  const actorPromise = getDashboardFeatureContext(restaurantId)
+  const loyaltyScopePromise = getLoyaltyScope(restaurantId)
+  const featureAllowedPromise = restaurantPromise.then((restaurant) => restaurant
+    ? canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'customer_accounts' })
+    : false)
+  const [restaurant, actor, loyaltyScope, featureAllowed] = await Promise.all([
+    restaurantPromise,
+    actorPromise,
+    loyaltyScopePromise,
+    featureAllowedPromise,
   ])
   if (!restaurant || !actor) notFound()
-  if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'customer_accounts' })) {
+  if (!featureAllowed) {
     return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="customer_accounts" isOwner={access.isOwner} />
   }
-  const port = createCustomerApplicationPort()
+  const port = createCustomerApplicationPort({ loyaltyScope })
   const requestedState = parseCustomerListState(toUrlSearchParams(rawSearchParams))
-
-  const countsPromise = readCustomerSegmentCounts(actor, restaurantId, port)
-  const segmentsPromise = readCustomerSegments(actor, restaurantId, port)
-  const campaignsPromise = actor.isOwner
-    ? readCampaigns(actor, { restaurantId }, createCampaignApplicationPort())
-    : Promise.resolve({ ok: true as const, value: [] })
-  const segmentsResult = await segmentsPromise
-  if (!segmentsResult.ok) throw new Error(segmentsResult.error)
-  const customSegmentId = requestedState.customSegmentId
-    && segmentsResult.value.some((segment) => segment.id === requestedState.customSegmentId)
-    ? requestedState.customSegmentId
-    : null
-  const initialState: CustomerListState = {
-    ...requestedState,
-    customSegmentId,
-    segment: customSegmentId ? '' : requestedState.segment,
-  }
-  const [initialResult, countsResult, campaignsResult] = await Promise.all([
-    readCustomers(actor, {
-      restaurantId,
-      search: initialState.search,
-      segment: initialState.segment || null,
-      customSegmentId: initialState.customSegmentId,
-      sort: initialState.sort,
-      page: initialState.page,
-      pageSize: 25,
-    }, port),
-    countsPromise,
-    campaignsPromise,
-  ])
+  const initialResult = await readCustomers(actor, {
+    restaurantId,
+    search: requestedState.search,
+    segment: requestedState.segment || null,
+    customSegmentId: requestedState.customSegmentId,
+    sort: requestedState.sort,
+    page: requestedState.page,
+    pageSize: 25,
+  }, port)
   if (!initialResult.ok) throw new Error(initialResult.error)
-  if (!countsResult.ok) throw new Error(countsResult.error)
-  if (!campaignsResult.ok) throw new Error(campaignsResult.error)
+  const campaignEmailIdentity = readCampaignEmailIdentity(restaurant.name, restaurant.settings)
 
   return (
     <CustomersClient
       restaurantId={restaurantId}
       restaurantName={restaurant.name}
       initial={initialResult.value}
-      initialSegmentCounts={{ all: initialResult.value.total, ...countsResult.value }}
-      initialSegments={segmentsResult.value}
-      initialCampaigns={campaignsResult.value}
       canManageCampaigns={actor.isOwner === true}
-      smsDeliveryEnabled={getSmsDeliveryAvailability().enabled}
-      initialState={initialState}
+      emailDeliveryEnabled={getCampaignEmailDeliveryAvailability().enabled}
+      campaignReplyToEmail={campaignEmailIdentity.replyTo}
+      resendWebhookEnabled={Boolean(process.env['RESEND_WEBHOOK_SECRET'])}
+      initialState={requestedState}
       referenceNow={new Date().toISOString()}
     />
   )

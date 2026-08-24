@@ -278,6 +278,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
         <Button
           className="category-form-action category-form-submit"
           type="submit"
+          aria-busy={isPending}
           disabled={isPending}
           style={{
             flex: 1,
@@ -294,7 +295,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
         >
           {isPending ? (
             <>
-              <Spinner data-icon="inline-start" />
+              <Spinner aria-hidden="true" data-icon="inline-start" />
               Kaydediliyor…
             </>
           ) : existing ? (

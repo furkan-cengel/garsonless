@@ -13,6 +13,7 @@ export const SETTINGS_SECTION_IDS = [
   'api',
   'billing',
   'security',
+  'privacy',
 ] as const
 
 export type SettingsSectionId = (typeof SETTINGS_SECTION_IDS)[number]
@@ -27,6 +28,7 @@ const OWNER_ONLY_SETTINGS_SECTIONS = new Set<SettingsSectionId>([
   'kitchen',
   'api',
   'billing',
+  'privacy',
 ])
 
 export function isSettingsSectionId(value: unknown): value is SettingsSectionId {

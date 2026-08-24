@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import type { ReactNode } from 'react'
 import type { Tables } from '@garsonless/db/types'
+import type { IntegrationHealth } from '@garsonless/application/settings'
 import { I } from '../../lib/ui'
 import { SCard, FormRow } from './primitives'
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert'
@@ -37,6 +38,7 @@ import {
   FieldTitle,
 } from '../ui/field'
 import { Input } from '../ui/input'
+import { notifySettingsConflict } from './settings-conflict-state'
 import {
   Item,
   ItemActions,
@@ -75,7 +77,7 @@ import {
 } from '../../lib/actions/notifications'
 import { readNotificationPrefs, type NotificationPrefs, type OrderSoundPreset } from '../../lib/notification-prefs'
 import { readLateThresholdMin, clampLateThreshold, LATE_THRESHOLD_MIN_MIN, LATE_THRESHOLD_MIN_MAX } from '../../lib/orders-prefs'
-import { notifySettingsDirty, notifySettingsSaved } from './settings-dirty-state'
+import { notifySettingsSaved, useSettingsDirtyState } from './settings-dirty-state'
 import { useDashboardPushSubscription } from '../notifications/useDashboardPushSubscription'
 import { playOrderAlertSound } from '../notifications/order-alert-audio'
 import { testDashboardPush } from '../../lib/actions/push-subscriptions'
@@ -86,19 +88,32 @@ import {
 } from './settings-save-contract'
 
 /* ── PAYMENTS ─────────────────────────────────────── */
-export function PaymentsSection({ restaurantId }: { restaurantId: string }) {
+export function PaymentsSection({ restaurantId, health }: { restaurantId: string; health: IntegrationHealth | null }) {
+  const [provider, setProvider] = useState<{ meta: PaymentCredsMeta | null; loading: boolean }>({ meta: null, loading: true })
+  const onlineStatus = provider.loading
+    ? { label: 'Kontrol ediliyor', tone: 'neutral' as const, body: 'İyzico çalışma ortamı ve credential durumu doğrulanıyor.' }
+    : !provider.meta?.configured
+      ? { label: 'Kapalı', tone: 'neutral' as const, body: 'Müşteri kart ödemesi için İyzico credential bağlantısı gerekli.' }
+      : provider.meta.mode === 'sandbox'
+        ? { label: 'Yalnız test', tone: 'neutral' as const, body: 'Sandbox credential bağlıdır; gerçek müşteriden tahsilat yapılamaz.' }
+        : health?.state === 'healthy' && health.lastSuccessAt
+          ? { label: 'Aktif', tone: 'positive' as const, body: `Canlı credential son olarak ${new Date(health.lastSuccessAt).toLocaleString('tr-TR')} tarihinde doğrulandı.` }
+          : health?.state === 'error'
+            ? { label: 'Hata', tone: 'neutral' as const, body: 'Canlı credential son sağlık kontrolünü geçemedi; kart tahsilatı aktif kabul edilmez.' }
+            : { label: 'Test gerekli', tone: 'neutral' as const, body: 'Canlı credential bağlıdır; “Bağlantıyı test et” sonucu doğrulanmadan aktif kabul edilmez.' }
+
   return (
     <div className="flex flex-col gap-5">
-      <IyzicoCredentialsCard restaurantId={restaurantId} />
+      <IyzicoCredentialsCard restaurantId={restaurantId} onStatusChange={setProvider} />
 
       <SCard title="Gerçek ödeme yolları" subtitle="Bu bölüm yalnızca bugün çalışan akışları gösterir">
         <ItemGroup className="gap-0">
           <PaymentPath
             icon={<I.card />}
             title="Müşteri kart ödemesi"
-            body="Normal Öde ve hesap bölüşme kart akışları İyzico checkout üzerinden çalışır."
-            status="İyzico ile"
-            tone="positive"
+            body={onlineStatus.body}
+            status={onlineStatus.label}
+            tone={onlineStatus.tone}
           />
           <ItemSeparator className="my-0" />
           <PaymentPath
@@ -112,9 +127,11 @@ export function PaymentsSection({ restaurantId }: { restaurantId: string }) {
           <PaymentPath
             icon={<I.gift />}
             title="Hesap bölüşme"
-            body="Müşteri pay oluşturabilir; kart payı İyzico ile tahsil edilir, nakit beyanı garson onayı bekler."
-            status="Aktif"
-            tone="positive"
+            body={provider.meta?.mode === 'sandbox'
+              ? 'Pay oluşturma ve nakit beyanı kullanılabilir; kart payı yalnız İyzico sandbox testidir.'
+              : 'Müşteri pay oluşturabilir; kart payının durumu İyzico bağlantı sağlığına bağlıdır, nakit beyanı garson onayı bekler.'}
+            status={provider.meta?.mode === 'sandbox' ? 'Kart testi' : onlineStatus.label}
+            tone="neutral"
           />
         </ItemGroup>
         <div className="border-t px-4 py-3 text-sm leading-relaxed text-muted-foreground">
@@ -156,7 +173,13 @@ function PaymentPath({
 }
 
 /* ── İYZİCO CREDENTIALS ───────────────────────────── */
-function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
+function IyzicoCredentialsCard({
+  restaurantId,
+  onStatusChange,
+}: {
+  restaurantId: string
+  onStatusChange: (value: { meta: PaymentCredsMeta | null; loading: boolean }) => void
+}) {
   const [meta, setMeta] = useState<PaymentCredsMeta | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -169,95 +192,79 @@ function IyzicoCredentialsCard({ restaurantId }: { restaurantId: string }) {
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
+    onStatusChange({ meta, loading })
+  }, [loading, meta, onStatusChange])
+
+  useEffect(() => {
     let cancelled = false
-    getPaymentCredentialsMeta(restaurantId).then((result) => {
-      if (cancelled) return
-      setLoading(false)
-      if ('error' in result) {
-        setFeedback({ ok: false, text: result.error })
-        return
-      }
-      setMeta(result)
-      setMode(result.mode)
-    })
+    void getPaymentCredentialsMeta(restaurantId)
+      .then((result) => {
+        if (cancelled) return
+        if ('error' in result) setFeedback({ ok: false, text: result.error })
+        else { setMeta(result); setMode(result.mode) }
+      })
+      .catch(() => { if (!cancelled) setFeedback({ ok: false, text: 'İyzico bağlantı durumu yüklenemedi. Tekrar deneyin.' }) })
+      .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [restaurantId])
 
   async function handleSave() {
     setBusy('save')
     setFeedback(null)
-    const result = await savePaymentCredentials(restaurantId, {
-      apiKey,
-      secretKey,
-      mode,
-      requestId: crypto.randomUUID(),
-      currentPassword,
-    })
-    setBusy(null)
-    if ('error' in result) {
-      setFeedback({ ok: false, text: result.error })
-      return
+    try {
+      const result = await savePaymentCredentials(restaurantId, {
+        apiKey, secretKey, mode, requestId: crypto.randomUUID(), currentPassword,
+      })
+      if ('error' in result) return setFeedback({ ok: false, text: result.error })
+      setMeta(result.meta)
+      setApiKey(''); setSecretKey(''); setCurrentPassword(''); setEditing(false)
+      setFeedback({ ok: true, text: 'Anahtarlar kaydedildi' })
+      notifySettingsSaved()
+    } catch {
+      setFeedback({ ok: false, text: 'Bağlantı kesildi. Anahtarlar kaydedilmedi; tekrar deneyin.' })
+    } finally {
+      setBusy(null)
     }
-    setMeta(result.meta)
-    setApiKey('')
-    setSecretKey('')
-    setCurrentPassword('')
-    setEditing(false)
-    setFeedback({ ok: true, text: 'Anahtarlar kaydedildi' })
-    notifySettingsSaved()
   }
 
   async function handleTest() {
     setBusy('test')
     setFeedback(null)
-    const result = await testPaymentCredentials(restaurantId)
-    setBusy(null)
-    setFeedback({ ok: result.ok, text: result.message })
+    try {
+      const result = await testPaymentCredentials(restaurantId)
+      setFeedback({ ok: result.ok, text: result.message })
+    } catch {
+      setFeedback({ ok: false, text: 'Bağlantı testi tamamlanamadı. Tekrar deneyin.' })
+    } finally { setBusy(null) }
   }
 
   async function handleDelete() {
     setBusy('delete')
     setFeedback(null)
-    const result = await deletePaymentCredentials(restaurantId, {
-      requestId: crypto.randomUUID(),
-      currentPassword,
-    })
-    setBusy(null)
-    if ('error' in result) {
-      setFeedback({ ok: false, text: result.error })
-      return
-    }
-    setMeta({
-      configured: false,
-      mode: 'sandbox',
-      apiKeyLast4: null,
-      updatedAt: null,
-      protection: 'none',
-      requiresRotation: false,
-    })
-    setCurrentPassword('')
-    setConfirming(null)
-    setFeedback({ ok: true, text: 'Anahtarlar kaldırıldı' })
-    notifySettingsSaved()
+    try {
+      const result = await deletePaymentCredentials(restaurantId, { requestId: crypto.randomUUID(), currentPassword })
+      if ('error' in result) return setFeedback({ ok: false, text: result.error })
+      setMeta({ configured: false, mode: 'sandbox', apiKeyLast4: null, updatedAt: null, protection: 'none', requiresRotation: false })
+      setCurrentPassword(''); setConfirming(null)
+      setFeedback({ ok: true, text: 'Anahtarlar kaldırıldı' })
+      notifySettingsSaved()
+    } catch {
+      setFeedback({ ok: false, text: 'Bağlantı kesildi. Anahtarlar kaldırılmadı.' })
+    } finally { setBusy(null) }
   }
 
   async function handleRotate() {
     setBusy('rotate')
     setFeedback(null)
-    const result = await rotatePaymentCredentialsEncryption(restaurantId, {
-      requestId: crypto.randomUUID(),
-      currentPassword,
-    })
-    setBusy(null)
-    if ('error' in result) {
-      setFeedback({ ok: false, text: result.error })
-      return
-    }
-    setMeta(result.meta)
-    setCurrentPassword('')
-    setConfirming(null)
-    setFeedback({ ok: true, text: 'Credential şifrelemesi güncel anahtara taşındı' })
-    notifySettingsSaved()
+    try {
+      const result = await rotatePaymentCredentialsEncryption(restaurantId, { requestId: crypto.randomUUID(), currentPassword })
+      if ('error' in result) return setFeedback({ ok: false, text: result.error })
+      setMeta(result.meta); setCurrentPassword(''); setConfirming(null)
+      setFeedback({ ok: true, text: 'Credential şifrelemesi güncel anahtara taşındı' })
+      notifySettingsSaved()
+    } catch {
+      setFeedback({ ok: false, text: 'Bağlantı kesildi. Şifreleme rotasyonu tamamlanmadı.' })
+    } finally { setBusy(null) }
   }
 
   const configured = meta?.configured ?? false
@@ -508,11 +515,13 @@ function EmailPrefsBlock({ restaurantId }: { restaurantId: string }) {
 
   useEffect(() => {
     let cancelled = false
-    void getMyEmailNotificationPrefs(restaurantId).then((result) => {
-      if (cancelled) return
-      if ('order' in result) setEmailPrefs(result)
-      else setError(result.error)
-    })
+    void getMyEmailNotificationPrefs(restaurantId)
+      .then((result) => {
+        if (cancelled) return
+        if ('order' in result) setEmailPrefs(result)
+        else setError(result.error)
+      })
+      .catch(() => { if (!cancelled) setError('E-posta tercihleri yüklenemedi. Tekrar deneyin.') })
     return () => { cancelled = true }
   }, [restaurantId])
 
@@ -522,12 +531,11 @@ function EmailPrefsBlock({ restaurantId }: { restaurantId: string }) {
     const previous = prefs
     setEmailPrefs(next)
     setError('')
-    void saveMyEmailNotificationPrefs(restaurantId, next).then((result) => {
-      if ('error' in result) {
-        setEmailPrefs(previous)
-        setError(result.error)
-      }
-    })
+    void saveMyEmailNotificationPrefs(restaurantId, next)
+      .then((result) => {
+        if ('error' in result) { setEmailPrefs(previous); setError(result.error) }
+      })
+      .catch(() => { setEmailPrefs(previous); setError('Bağlantı kesildi. Tercih kaydedilmedi.') })
   }
 
   return (
@@ -537,7 +545,7 @@ function EmailPrefsBlock({ restaurantId }: { restaurantId: string }) {
           <h3 className="text-sm font-medium">E-posta bildirimleri</h3>
           <p className="text-sm text-muted-foreground">Yalnızca bu kullanıcı hesabı için geçerlidir.</p>
         </div>
-        {prefs === null && !error ? <Spinner className="text-muted-foreground" /> : <Badge variant="secondary">Kişisel</Badge>}
+        {prefs === null && !error ? <span role="status"><Spinner className="text-muted-foreground" /><span className="sr-only">E-posta tercihleri yükleniyor…</span></span> : <Badge variant="secondary">Kişisel</Badge>}
       </div>
       <FieldGroup className="gap-0">
         {EMAIL_PREF_ROWS.map(row => {
@@ -586,17 +594,18 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
   const [soundTest, setSoundTest] = useState<'idle' | 'playing' | 'blocked'>('idle')
   const [pushTest, setPushTest] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle')
   const [isPending, startTransition] = useTransition()
+  const initialNotificationRef = useRef({ prefs, lateThreshold })
+  const notificationsDirty = JSON.stringify({ prefs, lateThreshold }) !== JSON.stringify(initialNotificationRef.current)
+  useSettingsDirtyState('notifications:operations', notificationsDirty)
 
   function setToggle(key: NotificationToggleKey, value: boolean) {
     setPrefs(prev => ({ ...prev, [key]: value }))
     setSaved(false)
-    notifySettingsDirty()
   }
 
   function updateSoundPrefs(patch: Partial<NotificationPrefs>) {
     setPrefs(prev => ({ ...prev, ...patch }))
     setSaved(false)
-    notifySettingsDirty()
   }
 
   function handleSave(e: React.FormEvent) {
@@ -628,15 +637,23 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
         return
       }
       if ('error' in result) {
-        if ('code' in result && result.code === 'CONFLICT') mutationAttemptRef.current = null
+        if ('code' in result && result.code === 'CONFLICT') {
+          mutationAttemptRef.current = null
+          const canonicalSettings = result.canonicalSettings ?? {}
+          notifySettingsConflict({
+            source: 'notifications:operations', canonicalSettings, draft: settingsPatch,
+            prepareReapply: () => { settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, canonicalSettings) },
+          })
+        }
         setError(result.error)
         return
       }
       settingsSnapshotRef.current = mergeCanonicalSettings(settingsSnapshotRef.current, result.canonicalSettings)
       mutationAttemptRef.current = null
       setLateThreshold(String(clamped))
+      initialNotificationRef.current = { prefs, lateThreshold: String(clamped) }
       setSaved(true)
-      notifySettingsSaved()
+      notifySettingsSaved('notifications:operations')
     })
   }
 
@@ -800,7 +817,6 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                 onChange={event => {
                   setLateThreshold(event.target.value)
                   setSaved(false)
-                  notifySettingsDirty()
                 }}
               />
               <span className="text-sm text-muted-foreground">dakika</span>
@@ -888,7 +904,7 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
           <span role={error ? 'alert' : 'status'} className={error ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
             {error || (saved ? 'Değişiklikler kaydedildi' : 'Değişiklikleri kaydetmeyi unutmayın')}
           </span>
-          <Button type="submit" disabled={isPending}>
+          <Button type="submit" disabled={isPending || !notificationsDirty}>
             {isPending ? <Spinner data-icon="inline-start" /> : <I.check data-icon="inline-start" />}
             {isPending ? 'Kaydediliyor…' : 'Kaydet'}
           </Button>

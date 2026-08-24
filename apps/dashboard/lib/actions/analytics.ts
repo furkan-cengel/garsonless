@@ -43,6 +43,14 @@ export interface AnalyticsPayload {
 }
 
 export type AnalyticsReportId = 'sales' | 'items' | 'tables' | 'payments' | 'operasyon' | 'sadakat'
+export type AnalyticsReportErrorCode = 'INVALID_REQUEST' | 'FORBIDDEN' | 'FEATURE_LOCKED' | 'LOAD_FAILED'
+export interface AnalyticsReportResponse<T = Partial<AnalyticsPayload>> {
+  data?: T
+  generatedAt: string
+  snapshotVersion: number
+  error?: string
+  errorCode?: AnalyticsReportErrorCode
+}
 const REPORT_IDS: AnalyticsReportId[] = ['sales', 'items', 'tables', 'payments', 'operasyon', 'sadakat']
 const ADVANCED_REPORTS: ReadonlySet<AnalyticsReportId> = new Set(['operasyon', 'sadakat'])
 
@@ -73,30 +81,42 @@ export async function fetchAnalyticsReportData(
   restaurantId: string,
   queryInput: unknown,
   report: AnalyticsReportId,
-): Promise<Partial<AnalyticsPayload> & { error?: string }> {
+): Promise<AnalyticsReportResponse> {
+  const requestedAt = new Date()
+  const fail = (errorCode: AnalyticsReportErrorCode, error: string): AnalyticsReportResponse => ({
+    generatedAt: requestedAt.toISOString(),
+    snapshotVersion: requestedAt.getTime(),
+    errorCode,
+    error,
+  })
+  const succeed = (data: Partial<AnalyticsPayload>, generatedAt: Date): AnalyticsReportResponse => ({
+    data,
+    generatedAt: generatedAt.toISOString(),
+    snapshotVersion: generatedAt.getTime(),
+  })
   const query = validateAnalyticsQuery(queryInput)
-  if (!query || !validReport(report)) return { error: 'Geçersiz rapor isteği' }
+  if (!query || !validReport(report)) return fail('INVALID_REQUEST', 'Geçersiz rapor isteği')
   // Owner OR a member with 'analytics'. Denied → empty payload (no data).
   const gate = await assertAccess(restaurantId, 'analytics')
-  if ('error' in gate) return { error: gate.error }
+  if ('error' in gate) return fail('FORBIDDEN', gate.error)
   if (ADVANCED_REPORTS.has(report) && !(await hasAdvancedAnalyticsEntitlement(restaurantId))) {
-    return { error: 'Gelişmiş raporlar Pro paketiyle kullanılabilir.' }
+    return fail('FEATURE_LOCKED', 'Gelişmiş raporlar Pro paketiyle kullanılabilir.')
   }
 
   try {
     const asOf = new Date()
     if (report === 'sales') {
-      return getAnalyticsSalesReportData(restaurantId, query, asOf)
+      return succeed(await getAnalyticsSalesReportData(restaurantId, query, asOf), asOf)
     }
 
     if (report === 'items') {
       const productReport = await getProductReportData(restaurantId, query, asOf)
-      return { productReport }
+      return succeed({ productReport }, asOf)
     }
 
     if (report === 'tables') {
       const tableStats = await getTablesReportData(restaurantId, query, asOf)
-      return { tableStats }
+      return succeed({ tableStats }, asOf)
     }
 
     if (report === 'operasyon') {
@@ -105,7 +125,7 @@ export async function fetchAnalyticsReportData(
         getAbnormalCloseReport(restaurantId, query, asOf),
         getStaffSettlementReport(restaurantId, query, asOf),
       ])
-      return { cancellations, abnormalCloses, staffSettlement }
+      return succeed({ cancellations, abnormalCloses, staffSettlement }, asOf)
     }
 
     if (report === 'sadakat') {
@@ -116,12 +136,12 @@ export async function fetchAnalyticsReportData(
         getLoyaltyReport(restaurantId, dateOnlyQuery, asOf),
         getPaymentBreakdown(restaurantId, dateOnlyQuery, asOf),
       ])
-      return { loyalty: { ...loyaltyRaw, comp: paymentBreakdown.comp } }
+      return succeed({ loyalty: { ...loyaltyRaw, comp: paymentBreakdown.comp } }, asOf)
     }
 
     const paymentBreakdown = await getPaymentBreakdown(restaurantId, query, asOf)
-    return { paymentBreakdown }
+    return succeed({ paymentBreakdown }, asOf)
   } catch {
-    return { error: 'Rapor verileri yüklenemedi. Lütfen tekrar deneyin.' }
+    return fail('LOAD_FAILED', 'Rapor verileri yüklenemedi. Lütfen tekrar deneyin.')
   }
 }

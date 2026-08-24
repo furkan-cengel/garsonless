@@ -9,6 +9,7 @@ export interface TablesOperationsShellProps {
   restaurantId: string
   restaurantName: string
   initialTables: Tables<'tables'>[]
+  initialDirectoryError?: string | null
   initialOpenSessions: OpenSessionInfo[]
   initialSessionError?: string | null
   initialLayoutSnapshot: TableLayoutSnapshot
@@ -32,6 +33,7 @@ export interface TablesNavigationProps {
   openSessions: Record<string, OpenTableSessionView>
   onCloseSession: (session: OpenTableSessionView, label: string) => void
   onTransfer: TransferHandler
+  onPrefetchTransfer: (tableId: string) => void
   onOpenDetail: (tableId: string) => void
   onNewOrder: (tableId: string) => void
   onSettle: (session: OpenTableSessionView, label: string) => void
@@ -70,6 +72,7 @@ export interface TablesFloorCanvasProps {
   onOpenDetail: (tableId: string) => void
   onNewOrder: (tableId: string) => void
   onTransfer: (mode: 'table_move' | 'account_transfer', tableId: string, options?: { selectAll?: boolean }) => void
+  onPrefetchTransfer: (tableId: string) => void
   onSettle: (session: OpenTableSessionView, label: string) => void
   onCloseSession: (session: OpenTableSessionView, label: string) => void
   onResolveRequest: (requestId: string) => void

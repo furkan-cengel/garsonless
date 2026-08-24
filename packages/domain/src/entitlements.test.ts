@@ -9,6 +9,7 @@ import {
   getFeatureEntitlement,
   PLAN_DEFINITIONS,
   PLAN_PRICES,
+  RESTAURANT_ADD_ONS,
   RESTAURANT_PLANS,
   SELF_SERVE_PLANS,
 } from './entitlements'
@@ -36,6 +37,11 @@ test('feature boundaries match Starter, Plus, Pro and Business positioning', () 
   assert.equal(canUseFeature('pro', 'guest_ordering'), true)
   assert.equal(canUseFeature('pro', 'multi_location'), false)
   assert.equal(canUseFeature('business', 'multi_location'), true)
+  assert.deepEqual(RESTAURANT_ADD_ONS, ['iyzico_online_payments'])
+  assert.equal(canUseFeature('pro', 'online_payments'), false)
+  assert.equal(canUseFeature('plus', 'online_payments', ['iyzico_online_payments']), false)
+  assert.equal(canUseFeature('pro', 'online_payments', ['iyzico_online_payments']), true)
+  assert.equal(canUseFeature('business', 'online_payments', ['iyzico_online_payments']), true)
 })
 
 test('unknown plans fail closed while legacy values map to the new catalogue', () => {

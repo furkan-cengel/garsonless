@@ -7,13 +7,25 @@ import {
   createCustomerSegment as createCustomerSegmentCommand,
   deleteCustomerSegment as deleteCustomerSegmentCommand,
   grantCustomerStoreCredit,
+  readCustomerSegmentCounts,
+  readCustomerSegments,
   readCustomerTimeline,
   readCustomers,
   updateCustomerSegment as updateCustomerSegmentCommand,
 } from '@garsonless/application/customers'
-import { createCustomerApplicationPort } from '@garsonless/db/server'
+import { readCampaigns } from '@garsonless/application/campaigns'
+import {
+  createCampaignApplicationPort,
+  createCustomerApplicationPort,
+  listCampaignEmailTemplates,
+} from '@garsonless/db/server'
+import type {
+  CampaignSummary,
+  SavedCampaignEmailTemplate,
+} from '@garsonless/domain/campaigns'
 import type {
   RestaurantCustomersPage,
+  CustomerSegmentCounts,
   CustomerTimelinePage,
   CustomerSort,
   CustomerSegment,
@@ -81,6 +93,46 @@ export async function listCustomers(
     return { error: result.error === 'Segment bulunamadı' ? result.error : 'Müşteriler yüklenemedi' }
   }
   return result.value
+}
+
+export interface CustomerPageSupportData {
+  segmentCounts: CustomerSegmentCounts
+  segments: SavedCustomerSegment[]
+  campaigns: CampaignSummary[]
+  emailTemplates: SavedCampaignEmailTemplate[]
+}
+
+/** Secondary CRM data intentionally stays outside the route's critical path.
+ * The customer list can paint first while these independent aggregates and
+ * campaign tools load in one authenticated round trip. */
+export async function loadCustomerPageSupportAction(
+  restaurantId: string,
+): Promise<{ error: string } | CustomerPageSupportData> {
+  const actor = await getCustomerActor(restaurantId)
+  if ('error' in actor) return actor
+
+  const customerPort = createCustomerApplicationPort()
+  try {
+    const [counts, segments, campaigns, emailTemplates] = await Promise.all([
+      readCustomerSegmentCounts(actor, restaurantId, customerPort),
+      readCustomerSegments(actor, restaurantId, customerPort),
+      actor.isOwner
+        ? readCampaigns(actor, { restaurantId }, createCampaignApplicationPort())
+        : Promise.resolve({ ok: true as const, value: [] }),
+      actor.isOwner ? listCampaignEmailTemplates(restaurantId) : Promise.resolve([]),
+    ])
+    if (!counts.ok || !segments.ok || !campaigns.ok) {
+      return { error: 'Müşteri özetleri yüklenemedi' }
+    }
+    return {
+      segmentCounts: counts.value,
+      segments: segments.value,
+      campaigns: campaigns.value,
+      emailTemplates,
+    }
+  } catch {
+    return { error: 'Müşteri özetleri yüklenemedi' }
+  }
 }
 
 export async function loadCustomerTimelineAction(

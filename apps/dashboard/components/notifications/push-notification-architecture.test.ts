@@ -46,10 +46,11 @@ test('logout retires only the current browser endpoint and uses local auth scope
   assert.doesNotMatch(auth, /deleteDashboardPushSubscriptionsForUser/)
 })
 
-test('shell authenticates RLS-scoped Realtime before orders, inbox and service request subscriptions', () => {
+test('shell authenticates RLS-scoped Realtime before membership, orders, inbox and service request subscriptions', () => {
   const shell = source('../layout/RestaurantShell.tsx')
   const authCalls = shell.match(/await supabase\.realtime\.setAuth\(data\.session\.access_token\)/g) ?? []
-  assert.equal(authCalls.length, 3)
+  assert.equal(authCalls.length, 4)
+  assert.match(shell, /table: 'restaurant_members'/)
   assert.match(shell, /table: 'orders'/)
   assert.match(shell, /table: 'notification_inbox'/)
   assert.match(shell, /table: 'service_requests'/)

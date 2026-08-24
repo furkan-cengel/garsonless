@@ -61,7 +61,7 @@ export interface TopItem {
 export interface TableStatusData {
   id: string
   label: string
-  status: 'empty' | 'active' | 'new' | 'late' | 'paid'
+  status: 'empty' | 'active' | 'new' | 'late' | 'stale' | 'paid'
   time: number
   total: number
   sessionId: string | null
@@ -71,6 +71,7 @@ export interface TableStatusData {
   splitDeclaredCashTotal: number
   orderCount: number
   hasUnfinished: boolean
+  isStaleSession?: boolean
 }
 
 export const analyticsReadModel = createAnalyticsReadModelPort()

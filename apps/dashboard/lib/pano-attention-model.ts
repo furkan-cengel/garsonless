@@ -3,7 +3,7 @@ import type { PanoMetricsSource, PanoOperationalSource } from '@garsonless/appli
 import type { PaymentStatus, PanoAttentionItem } from './queries/pano'
 import type { TableStatusData } from './queries/insights-shared'
 import type { PanoLiveStatus } from '../components/pano/pano-live-model'
-import { formatPanoCurrency, formatPanoInteger } from './pano-format'
+import { formatPanoCurrency, formatPanoDuration } from './pano-format'
 
 const SEVERITY_RANK: Record<PanoAttentionItem['severity'], number> = {
   critical: 0,
@@ -48,7 +48,20 @@ export function buildPanoAttentionItems(input: AttentionInput): PanoAttentionIte
       kind: 'late_table',
       severity: 'critical',
       title: `${table.label} gecikiyor`,
-      detail: `${formatPanoInteger(table.time)} dk · ${formatPanoCurrency(Math.max(0, table.unpaidTotal - table.splitSettledTotal))} açık`,
+      detail: `${formatPanoDuration(table.time)} · ${formatPanoCurrency(Math.max(0, table.unpaidTotal - table.splitSettledTotal))} açık`,
+      createdAt: table.openedAt ?? input.generatedAt,
+      tableId: table.id,
+      actionHref: `/dashboard/${input.restaurantId}/tables`,
+    }))
+
+  const staleTableItems: PanoAttentionItem[] = input.tableStatuses
+    .filter((table) => table.status === 'stale')
+    .map((table) => ({
+      id: `stale-table:${table.id}`,
+      kind: 'stale_table',
+      severity: 'warning',
+      title: `${table.label} önceki günden açık`,
+      detail: `${formatPanoDuration(table.time)} · ${formatPanoCurrency(Math.max(0, table.unpaidTotal - table.splitSettledTotal))} açık`,
       createdAt: table.openedAt ?? input.generatedAt,
       tableId: table.id,
       actionHref: `/dashboard/${input.restaurantId}/tables`,
@@ -80,11 +93,27 @@ export function buildPanoAttentionItems(input: AttentionInput): PanoAttentionIte
       }]
     : []
 
-  return [...orderItems, ...lateTableItems, ...serviceItems, ...paymentItems]
+  return [...orderItems, ...lateTableItems, ...staleTableItems, ...serviceItems, ...paymentItems]
     .sort((left, right) => {
       const severity = SEVERITY_RANK[left.severity] - SEVERITY_RANK[right.severity]
       return severity || left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id)
     })
+}
+
+export function selectVisiblePanoAttentionItems(
+  items: PanoAttentionItem[],
+  limit = 6,
+): PanoAttentionItem[] {
+  const selected: PanoAttentionItem[] = []
+  const add = (item: PanoAttentionItem | undefined) => {
+    if (item && !selected.some((candidate) => candidate.id === item.id)) selected.push(item)
+  }
+
+  add(items.find((item) => item.kind === 'connection'))
+  add(items.find((item) => item.kind === 'pending_order'))
+  add(items.find((item) => item.kind === 'service_request'))
+  for (const item of items) add(item)
+  return selected.slice(0, limit)
 }
 
 export function withPanoConnectionAttention(

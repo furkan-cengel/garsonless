@@ -72,10 +72,12 @@ export const OPEN_ORDER_STATUSES: readonly OrderStatus[] = [
  * Canonical collected-revenue specification. Database adapters translate this
  * data-only policy to PostgREST/SQL while browser code evaluates it directly.
  * A paid legacy row with a null method is collected; a comp is not revenue.
+ * Lifecycle cancellation does not erase an already collected payment. Refunds
+ * are represented by their own successful ledger entries.
  */
 export const COLLECTED_ORDER_SPEC = {
   paidAtRequired: true,
-  excludedStatuses: ['cancelled'],
+  excludedStatuses: [],
   excludedPaymentMethods: ['comp'],
   includeNullPaymentMethod: true,
 } as const

@@ -288,6 +288,8 @@ export interface HistoryOrder {
   items: Json
   total: number
   created_at: string
+  served_at: string | null
+  updated_at: string
   paid_at: string | null
   payment_method: string | null
   customer_tier: Json | null
@@ -308,16 +310,27 @@ export async function getOrderHistory(
 
   const { data, error } = await supabase
     .from('orders')
-    .select('id, table_id, status, items, total, created_at, paid_at, payment_method, customer_tier')
+    .select('id, table_id, status, items, total, created_at, served_at, updated_at, paid_at, payment_method, customer_tier')
     .eq('restaurant_id', restaurantId)
     .in('status', ['served', 'cancelled'])
-    .gte('created_at', since.toISOString())
+    .gte('updated_at', since.toISOString())
     .is('deleted_at', null)
-    .order('created_at', { ascending: false })
+    .order('updated_at', { ascending: false })
     .limit(201)
 
   if (error) return dashboardActionFailure('SERVICE_UNAVAILABLE', { operation: 'orders.history', cause: error })
-  const rows = (data ?? []) as HistoryOrder[]
+  const sinceMs = since.getTime()
+  const rows = ((data ?? []) as HistoryOrder[])
+    .filter((order) => {
+      const terminalAt = order.status === 'served' && order.served_at ? order.served_at : order.updated_at
+      const timestamp = Date.parse(terminalAt)
+      return Number.isFinite(timestamp) && timestamp >= sinceMs
+    })
+    .sort((a, b) => {
+      const aTerminal = a.status === 'served' && a.served_at ? a.served_at : a.updated_at
+      const bTerminal = b.status === 'served' && b.served_at ? b.served_at : b.updated_at
+      return bTerminal.localeCompare(aTerminal)
+    })
   return { orders: rows.slice(0, 200), truncated: rows.length > 200 }
 }
 

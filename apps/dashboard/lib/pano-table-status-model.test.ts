@@ -69,3 +69,14 @@ test('Pano displays the remaining split-payment amount and settled state', () =>
   assert.equal(paid?.status, 'paid')
   assert.equal(paid?.splitSettledTotal, 820)
 })
+
+test('Pano separates sessions opened before the current restaurant day', () => {
+  const restaurantDayStart = Date.parse('2026-07-29T03:00:00.000Z')
+  const result = projectPanoTableStatuses(source({ openTableSessions: [{
+    sessionId: 'session-old', tableId: 'table-a', openedAt: '2026-07-28T22:00:00.000Z',
+    total: 80, unpaidTotal: 80, splitSettledTotal: 0, splitDeclaredCashTotal: 0,
+    orderCount: 1, hasUnfinished: false,
+  }] }), now, restaurantDayStart)[0]
+  assert.equal(result?.status, 'stale')
+  assert.equal(result?.isStaleSession, true)
+})

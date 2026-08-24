@@ -62,6 +62,12 @@ export function AnalyticsItemsReport({ items, query }: { items: ProductReportIte
     </div>
   )
 }
+
+const PRODUCT_SORT_LABELS = {
+  revenue: 'Tutar',
+  count: 'Adet',
+  name: 'Ürün adı',
+} as const
 function ABCAnalysis({
   items,
   totalRevenue,
@@ -163,7 +169,7 @@ function ProductTable({ items }: { items: ProductReportItem[] }) {
             const next = value as typeof sort
             setSort(next); setPage(1); writeTableState({ sort: next, page: null })
           }}>
-            <SelectTrigger size="sm" aria-label="Ürün tablosu sıralama alanı"><SelectValue /></SelectTrigger>
+            <SelectTrigger size="sm" aria-label="Ürün tablosu sıralama alanı"><SelectValue>{PRODUCT_SORT_LABELS[sort]}</SelectValue></SelectTrigger>
             <SelectContent>
               <SelectGroup>
                 <SelectItem value="revenue">Tutar</SelectItem>
@@ -202,7 +208,7 @@ function ProductTable({ items }: { items: ProductReportItem[] }) {
                 <TableCell style={s.mono} className="text-right font-medium tabular-nums">{formatCurrency(item.revenue)}</TableCell>
                 <TableCell style={s.mono} className="text-right text-muted-foreground tabular-nums">%{item.sharePct.toLocaleString('tr-TR')}</TableCell>
                 <TableCell className="text-right"><Badge variant={item.abcClass === 'A' ? 'positive' : item.abcClass === 'B' ? 'warning' : 'secondary'}>{item.abcClass}</Badge></TableCell>
-                <TableCell><Button type="button" variant="ghost" size="xs" className="analytics-table-detail-button" onClick={() => {
+                <TableCell><Button type="button" variant="ghost" size="xs" className="analytics-table-detail-button" aria-label={`${item.name} ürün detayını aç`} onClick={() => {
                   setSelected(item); writeTableState({ detail: item.name }, true)
                 }}>Detay</Button></TableCell>
               </TableRow>

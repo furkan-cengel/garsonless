@@ -1,30 +1,31 @@
 'use client'
 import { Toaster } from '@/components/ui/toast'
 import type { Tables } from '@garsonless/db/types'
-import NewProductDrawer from './NewProductDrawer'
-import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import type { MenuItemRecommendationRow } from '@garsonless/db/server'
-import { CsvImportModal, CsvImportStartModal } from './MenuCsvImportOverlays'
 import { useMenuCsvImport } from './use-menu-csv-import'
 import { deriveMenuManagerView } from './menu-manager-view-model'
 import { MenuCategoryWorkspace } from './MenuCategoryWorkspace'
-import { MenuItemEditPanel } from './MenuItemEditPanel'
 import { MenuItemsWorkspace } from './MenuItemsWorkspace'
-import { MenuManagerEmptyPanel, MenuManagerSkeleton, MenuManagerToast, MenuManagerTopBar } from './MenuManagerChrome'
+import { MenuLiveNotice, MenuManagerEmptyPanel, MenuManagerSkeleton, MenuManagerToast, MenuManagerTopBar } from './MenuManagerChrome'
+import { MenuManagerOverlays } from './MenuManagerOverlays'
 import { useMenuManagerCommands } from './use-menu-manager-commands'
 import { useMenuManagerShellState } from './use-menu-manager-shell-state'
 import { useMenuItemRecommendations } from './use-menu-item-recommendations'
+import { useMenuLiveState } from './use-menu-live-state'
+const MenuItemEditPanel = dynamic(() => import('./MenuItemEditPanel').then((module) => module.MenuItemEditPanel), {
+  loading: () => <div role="status" aria-live="polite" className="sr-only">Ürün editörü yükleniyor.</div>,
+})
 interface Props {
-  restaurantId: string
-  restaurantName: string
-  publicMenuPath: string
+  restaurantId: string; restaurantName: string; publicMenuPath: string
   initialCategories: Tables<'menu_categories'>[]
   initialItems: Tables<'menu_items'>[]
   kitchenStations: Tables<'kitchen_stations'>[]
   initialRecommendations: MenuItemRecommendationRow[]
+  recommendationsAvailable: boolean
 }
-export default function MenuManager({ restaurantId, restaurantName, publicMenuPath, initialCategories, initialItems, kitchenStations, initialRecommendations }: Props) {
+export default function MenuManager({ restaurantId, restaurantName, publicMenuPath, initialCategories, initialItems, kitchenStations, initialRecommendations, recommendationsAvailable }: Props) {
   const router = useRouter()
   const recommendations = useMenuItemRecommendations(initialRecommendations)
   const shell = useMenuManagerShellState({ initialCategories, initialItems })
@@ -40,6 +41,7 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
     setActiveSubCategory: setActiveSubCat,
     selectedItem,
     setSelectedItem,
+    itemEditDirty,
     setItemEditDirty,
     pendingEditorExit,
     showAddItem,
@@ -69,7 +71,14 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
     closeItemEditor,
     keepEditing,
     discardPendingChanges,
+    workspaceStage,
+    goBack,
   } = shell
+  const live = useMenuLiveState({
+    restaurantId,
+    hasUnsavedChanges: itemEditDirty,
+    onRefresh: () => router.refresh(),
+  })
   const commands = useMenuManagerCommands({
     restaurantId,
     categories,
@@ -89,11 +98,18 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
     categories,
     items,
     onCategoriesCreated: (createdCategories) => {
-      setCategories((current) => [...current, ...createdCategories])
+      setCategories((current) => [
+        ...current,
+        ...createdCategories.filter((created) => !current.some((category) => category.id === created.id)),
+      ])
     },
-    onComplete: (message, tone) => {
-      notify(message, tone)
+    onItemsCreated: (createdItems) => {
+      setItems((current) => [
+        ...current,
+        ...createdItems.filter((created) => !current.some((item) => item.id === created.id)),
+      ])
     },
+    onComplete: (message, tone) => notify(message, tone),
     onRefresh: () => router.refresh(),
   })
   if (!mounted) return <MenuManagerSkeleton />
@@ -112,6 +128,11 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
     selectedItem,
     search,
   })
+  const mobileContext = workspaceStage === 'editor'
+    ? (selectedItem?.name ?? 'Ürün düzenle')
+    : workspaceStage === 'items'
+      ? (search ? 'Arama sonuçları' : activeCat?.name ?? 'Ürünler')
+      : 'Kategoriler'
   return (
     <div
       className="menu-manager"
@@ -132,8 +153,17 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
         onOpenImport={csvImport.openStart}
         onOpenAddCategory={requestAddCategory}
         onOpenAddItem={requestAddItem}
+        workspaceStage={workspaceStage}
+        mobileContext={mobileContext}
+        onMobileBack={goBack}
+        onClearSearch={() => setSearch('')}
       />
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+      <MenuLiveNotice status={live.status} updatePending={live.updatePending} onRetry={live.retry} />
+      <div
+        className="menu-manager-workspace"
+        data-workspace-stage={workspaceStage}
+        style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden', position: 'relative' }}
+      >
         <MenuCategoryWorkspace
           categories={categories}
           items={items}
@@ -162,8 +192,10 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
           onQuickUpdate={commands.quickUpdate}
           onBulkAvailability={commands.setBulkAvailability}
           highlight={search || undefined}
+          categories={categories}
+          searching={Boolean(search)}
+          onClearSearch={() => setSearch('')}
         />
-
         {selectedItem ? (
           <MenuItemEditPanel
             key={selectedItem.id}
@@ -174,6 +206,8 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
             kitchenStations={kitchenStations}
             allItems={items}
             recommendationIds={recommendations.idsByItem.get(selectedItem.id)?.filter(Boolean) ?? []}
+            recommendationsAvailable={recommendationsAvailable}
+            onRetryRecommendations={() => router.refresh()}
             restaurantId={restaurantId}
             onClose={closeItemEditor}
             onSaved={saveItem}
@@ -186,41 +220,20 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
           <MenuManagerEmptyPanel categoryCount={categories.length} itemCount={items.length} onAddCategory={requestAddCategory} onAddItem={requestAddItem} />
         )}
       </div>
-
       {toastMsg && <MenuManagerToast message={toastMsg} tone={toastTone} onDone={clearToast} />}
-
-      {pendingEditorExit && (
-        <UnsavedChangesDialog
-          description="Bu üründe yaptığın değişiklikler henüz kaydedilmedi. Çıkarsan değişiklikler kalıcı olarak silinecek."
-          onKeepEditing={keepEditing}
-          onDiscard={discardPendingChanges}
-        />
-      )}
-
-      {csvImport.showStart && (
-        <CsvImportStartModal
-          error={csvImport.setupError}
-          onChoose={csvImport.chooseFile}
-          onFile={csvImport.parseFile}
-          onCancel={csvImport.closeStart}
-          onDownloadTemplate={csvImport.downloadTemplate}
-        />
-      )}
-      {csvImport.preview && (
-        <CsvImportModal preview={csvImport.preview} onConfirm={csvImport.importPreview} onCancel={csvImport.cancelPreview} onDownloadTemplate={csvImport.downloadTemplate} />
-      )}
-
-      {showAddItem && (activeSubCat ?? activeCategory) && (
-        <NewProductDrawer
-          restaurantId={restaurantId}
-          categoryId={(activeSubCat ?? activeCategory)!}
-          categoryName={categories.find((c) => c.id === (activeSubCat ?? activeCategory))?.name ?? 'Kategori'}
-          categoryStationId={categories.find((c) => c.id === (activeSubCat ?? activeCategory))?.kitchen_station_id ?? null}
-          kitchenStations={kitchenStations}
-          onCreated={createItem}
-          onClose={() => setShowAddItem(false)}
-        />
-      )}
+      <MenuManagerOverlays
+        pendingEditorExit={pendingEditorExit}
+        onKeepEditing={keepEditing}
+        onDiscardChanges={discardPendingChanges}
+        csvImport={csvImport}
+        showAddItem={showAddItem}
+        activeCategoryId={activeSubCat ?? activeCategory}
+        categories={categories}
+        kitchenStations={kitchenStations}
+        restaurantId={restaurantId}
+        onItemCreated={createItem}
+        onCloseAddItem={() => setShowAddItem(false)}
+      />
     </div>
   )
 }

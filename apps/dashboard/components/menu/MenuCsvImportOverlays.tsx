@@ -33,7 +33,7 @@ export function CsvImportStartModal({
         if (!open) onCancel()
       }}
     >
-      <DialogContent className="w-[520px] max-w-[calc(100%-2rem)] sm:max-w-[520px]">
+      <DialogContent className="menu-csv-dialog w-[520px] max-w-[calc(100%-2rem)] sm:max-w-[520px]">
         <DialogHeader className="grid grid-cols-[auto_1fr] gap-x-3 pr-8">
           <div
             style={{
@@ -234,7 +234,7 @@ export function CsvImportModal({
           }
         }
       `}</style>
-      <DialogContent className="flex max-h-[86vh] w-[720px] max-w-[calc(100%-2rem)] flex-col sm:max-w-[720px]" showCloseButton={!preview.importing}>
+      <DialogContent className="menu-csv-dialog flex max-h-[86vh] w-[720px] max-w-[calc(100%-2rem)] flex-col sm:max-w-[720px]" showCloseButton={!preview.importing}>
         <DialogHeader className="grid grid-cols-[1fr_auto] items-start gap-3 pr-8">
           <div style={{ flex: 1, minWidth: 0 }}>
             <DialogTitle>İçe aktarma önizlemesi</DialogTitle>
@@ -290,7 +290,7 @@ export function CsvImportModal({
               </Progress>
             ) : (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Spinner />
+                <Spinner aria-hidden="true" />
                 Menü içe aktarılıyor…
               </div>
             )}
@@ -301,10 +301,10 @@ export function CsvImportModal({
           <Button type="button" variant="outline" onClick={onCancel} disabled={preview.importing}>
             İptal
           </Button>
-          <Button type="button" onClick={onConfirm} disabled={preview.importing || valid === 0}>
+          <Button type="button" aria-busy={preview.importing} onClick={onConfirm} disabled={preview.importing || valid === 0}>
             {preview.importing ? (
               <>
-                <Spinner data-icon="inline-start" />
+                <Spinner aria-hidden="true" data-icon="inline-start" />
                 İçe aktarılıyor…
               </>
             ) : (

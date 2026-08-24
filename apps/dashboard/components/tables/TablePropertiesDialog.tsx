@@ -94,8 +94,8 @@ export function TablePropertiesDialog({
           {allowDelete && <button type="button" disabled={busy} className="is-destructive" onClick={() => setConfirmingDelete(true)}><AppIcons.trash size={14} />Masayı sil</button>}
           <span />
           <button type="button" disabled={busy} onClick={onClose}>İptal</button>
-          <button type="button" disabled={busy} className="is-primary" onClick={() => { void save() }}>
-            {busy ? <InlineSpinner size={12} color="var(--on-action)" /> : <AppIcons.check size={14} />}Kaydet
+          <button type="button" aria-busy={busy} disabled={busy} className="is-primary" onClick={() => { void save() }}>
+            {busy ? <InlineSpinner size={12} color="var(--on-action)" /> : <AppIcons.check size={14} />}{busy ? 'Kaydediliyor…' : 'Kaydet'}
           </button>
         </footer>}
       </div>

@@ -196,7 +196,14 @@ export function createIyzicoSubscriptionBillingProvider(
     },
 
     async createCheckout(input) {
-      const plan = config.plans[input.plan]?.[input.interval]
+      const addOns = [...(input.addOns ?? [])]
+      const plan = addOns.length === 0
+        ? config.plans[input.plan]?.[input.interval]
+        : input.plan === 'pro'
+          && addOns.length === 1
+          && addOns[0] === 'iyzico_online_payments'
+          ? config.addOns?.iyzico_online_payments?.[input.interval]
+          : null
       if (!plan || !validCustomer(input.customer) || !validUrl(input.callbackUrl)
         || !input.invoiceId.trim() || !input.idempotencyKey.trim()
         || input.amount.currency !== 'TRY' || input.amount.minor !== plan.amountMinor) {

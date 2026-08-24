@@ -9,6 +9,7 @@ import {
   getDietaryClaimsConflict,
   parseMenuNumericInput,
 } from '@garsonless/domain/menu'
+import type { DashboardActorContext } from '@garsonless/domain'
 import {
   createMenuCategory,
   createMenuItem,
@@ -148,14 +149,116 @@ const itemUpdateSchema = itemBaseSchema.partial().extend({
   images: z.array(z.string()).optional(),
 })
 
-async function getMenuActor(restaurantId: string) {
+const bulkImportRowSchema = z.object({
+  sourceRow: z.number().int().min(2),
+  category: z.string().trim().min(1).max(100),
+  name: z.string().trim().min(1).max(100),
+  description: z.string().trim().max(500),
+  price: z.number().min(0.01),
+  ingredients: z.array(ingredientSchema).max(100),
+  energyKcal: z.number().int().min(0).nullable(),
+  mayContainAllergens: z.array(z.enum(ALLERGEN_CODES)),
+  containsAlcohol: z.boolean(),
+  containsPork: z.boolean(),
+})
+
+export type MenuBulkImportRow = z.infer<typeof bulkImportRowSchema>
+
+export interface MenuBulkImportFailure {
+  row: number
+  category: string
+  name: string
+  error: string
+}
+
+export type MenuBulkImportResult =
+  | {
+    success: true
+    categories: Tables<'menu_categories'>[]
+    items: Tables<'menu_items'>[]
+    failures: MenuBulkImportFailure[]
+  }
+  | { error: string; code: 'invalid_input' | 'forbidden' | 'unavailable' }
+
+export type MenuActionErrorCode = 'invalid_input' | 'forbidden' | 'not_found' | 'conflict' | 'unavailable'
+export interface MenuActionFailure {
+  error: string
+  code?: MenuActionErrorCode
+}
+
+async function getMenuActor(restaurantId: string): Promise<MenuActionFailure | DashboardActorContext> {
   const gate = await assertAccess(restaurantId, 'menu')
-  if ('error' in gate) return gate
+  if ('error' in gate) return {
+    error: 'Bu menüde işlem yapma yetkiniz yok.',
+    code: 'forbidden' as const,
+  }
   return {
     actor: 'dashboard-member' as const,
     restaurantId,
     userId: gate.userId,
     permissions: ['menu'],
+  }
+}
+
+function menuCommandFailure(error: unknown, message: string): MenuActionFailure {
+  console.error('[menu-command-failure]', sanitizeServerDiagnostic(error))
+  return { error: message, code: 'unavailable' }
+}
+
+/**
+ * Handles the complete CSV payload behind one authenticated server-action
+ * boundary. Rows may fail independently, while authorization, the initial
+ * tenant snapshot and cache invalidation happen only once.
+ */
+export async function importMenuRows(
+  restaurantId: string,
+  rows: MenuBulkImportRow[],
+): Promise<MenuBulkImportResult> {
+  const restaurantInput = z.string().uuid().safeParse(restaurantId)
+  const rowsInput = z.array(bulkImportRowSchema).min(1).max(1000).safeParse(rows)
+  if (!restaurantInput.success || !rowsInput.success) {
+    return { error: 'İçe aktarma verileri geçersiz.', code: 'invalid_input' }
+  }
+
+  const actor = await getMenuActor(restaurantInput.data)
+  if ('error' in actor) return { error: 'Bu menüde işlem yapma yetkiniz yok.', code: 'forbidden' }
+
+  const supabase = await createDashboardServerClient()
+  const rpc = supabase.rpc.bind(supabase) as unknown as (
+    name: 'import_menu_rows',
+    args: { p_restaurant_id: string; p_rows: MenuBulkImportRow[] },
+  ) => Promise<{ data: unknown; error: { message: string } | null }>
+  const { data, error } = await rpc('import_menu_rows', {
+    p_restaurant_id: restaurantInput.data,
+    p_rows: rowsInput.data,
+  })
+  if (error) {
+    console.error('[menu-bulk-import-failure]', sanitizeServerDiagnostic(error))
+    return { error: 'Menü içe aktarılamadı. Lütfen tekrar deneyin.', code: 'unavailable' }
+  }
+
+  const output = z.object({
+    categories: z.array(z.unknown()),
+    items: z.array(z.unknown()),
+    failures: z.array(z.object({
+      row: z.number().int(),
+      category: z.string(),
+      name: z.string(),
+      error: z.string(),
+    })),
+  }).safeParse(data)
+  if (!output.success) {
+    console.error('[menu-bulk-import-invalid-result]', sanitizeServerDiagnostic(output.error))
+    return { error: 'İçe aktarma sonucu doğrulanamadı. Lütfen tekrar deneyin.', code: 'unavailable' }
+  }
+
+  revalidatePath(`/dashboard/${restaurantInput.data}/menu`)
+  revalidateTag(`menu:${restaurantInput.data}`)
+  return {
+    success: true,
+    categories: output.data.categories as Tables<'menu_categories'>[],
+    items: output.data.items as Tables<'menu_items'>[],
+    failures: output.data.failures,
   }
 }
 
@@ -229,7 +332,7 @@ function jsonFormValue(
 export async function createCategory(
   _prev: unknown,
   formData: FormData,
-): Promise<{ error: string } | { id: string }> {
+): Promise<MenuActionFailure | { id: string }> {
   const categoryVat = numericFormValue(formData, 'vat_rate', { min: 0, max: 100 })
   if (!categoryVat.ok) return { error: categoryVat.error }
 
@@ -242,7 +345,7 @@ export async function createCategory(
     vat_rate: categoryVat.value ?? undefined,
     kitchen_station_id: nullableUuidFormValue(formData, 'kitchen_station_id'),
   })
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+  if (!parsed.success) return { error: 'Kategori bilgileri geçersiz.', code: 'invalid_input' }
 
   const actor = await getMenuActor(parsed.data.restaurantId)
   if ('error' in actor) return actor
@@ -251,7 +354,7 @@ export async function createCategory(
     parsed.data as MenuCategoryDraft,
     createMenuCommandPort(),
   )
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return menuCommandFailure(result.error, 'Kategori oluşturulamadı. Lütfen tekrar deneyin.')
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
   revalidateTag(`menu:${parsed.data.restaurantId}`)
@@ -260,7 +363,7 @@ export async function createCategory(
 
 export async function updateCategory(
   formData: FormData,
-): Promise<{ error: string } | { success: true }> {
+): Promise<MenuActionFailure | { success: true }> {
   const categoryVat = numericFormValue(formData, 'vat_rate', { min: 0, max: 100 })
   if (!categoryVat.ok) return { error: categoryVat.error }
 
@@ -273,7 +376,7 @@ export async function updateCategory(
     vat_rate: categoryVat.value ?? undefined,
     kitchen_station_id: nullableUuidFormValue(formData, 'kitchen_station_id'),
   })
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+  if (!parsed.success) return { error: 'Kategori bilgileri geçersiz.', code: 'invalid_input' }
 
   const actor = await getMenuActor(parsed.data.restaurantId)
   if ('error' in actor) return actor
@@ -282,7 +385,7 @@ export async function updateCategory(
     parsed.data as MenuCategoryPatch,
     createMenuCommandPort(),
   )
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return menuCommandFailure(result.error, 'Kategori güncellenemedi. Lütfen tekrar deneyin.')
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
   revalidateTag(`menu:${parsed.data.restaurantId}`)
@@ -292,10 +395,10 @@ export async function updateCategory(
 export async function deleteCategory(
   categoryId: string,
   restaurantId: string,
-): Promise<{ error: string } | { success: true }> {
+): Promise<MenuActionFailure | { success: true }> {
   const categoryInput = z.string().uuid().safeParse(categoryId)
   const restaurantInput = z.string().uuid().safeParse(restaurantId)
-  if (!categoryInput.success || !restaurantInput.success) return { error: 'Invalid input' }
+  if (!categoryInput.success || !restaurantInput.success) return { error: 'Kategori bilgileri geçersiz.', code: 'invalid_input' }
 
   const actor = await getMenuActor(restaurantInput.data)
   if ('error' in actor) return actor
@@ -303,7 +406,7 @@ export async function deleteCategory(
     categoryId: categoryInput.data,
     restaurantId: restaurantInput.data,
   }, createMenuCommandPort())
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return menuCommandFailure(result.error, 'Kategori silinemedi. İçindeki ürünleri kontrol edip tekrar deneyin.')
 
   revalidatePath(`/dashboard/${restaurantId}/menu`)
   revalidateTag(`menu:${restaurantId}`)
@@ -313,17 +416,17 @@ export async function deleteCategory(
 export async function reorderCategories(
   restaurantId: string,
   orderedIds: string[],
-): Promise<{ error: string } | { success: true }> {
+): Promise<MenuActionFailure | { success: true }> {
   const restaurantInput = z.string().uuid().safeParse(restaurantId)
   const input = z.array(z.string().uuid()).max(500).safeParse(orderedIds)
-  if (!restaurantInput.success || !input.success) return { error: 'Invalid category order' }
+  if (!restaurantInput.success || !input.success) return { error: 'Kategori sırası geçersiz.', code: 'invalid_input' }
   const actor = await getMenuActor(restaurantInput.data)
   if ('error' in actor) return actor
   const result = await reorderMenuCategories(actor, {
     orderedIds: input.data,
     restaurantId: restaurantInput.data,
   }, createMenuCommandPort())
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return menuCommandFailure(result.error, 'Kategori sırası kaydedilemedi. Lütfen tekrar deneyin.')
 
   revalidatePath(`/dashboard/${restaurantId}/menu`)
   revalidateTag(`menu:${restaurantId}`)
@@ -333,7 +436,7 @@ export async function reorderCategories(
 export async function createItem(
   _prev: unknown,
   formData: FormData,
-): Promise<{ error: string } | { item: Tables<'menu_items'> }> {
+): Promise<MenuActionFailure | { item: Tables<'menu_items'> }> {
   const modifierGroupsRaw = formData.get('modifier_groups')
   const ingredientsRaw = formData.get('ingredients')
   const mayContainRaw = formData.get('may_contain_allergens')
@@ -385,7 +488,7 @@ export async function createItem(
     food_info_reviewed: formData.get('food_info_reviewed') === 'true',
     modifier_groups: jsonFields.modifierGroups.ok ? jsonFields.modifierGroups.value : [],
   })
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+  if (!parsed.success) return { error: 'Ürün bilgileri geçersiz.', code: 'invalid_input' }
 
   const actor = await getMenuActor(parsed.data.restaurantId)
   if ('error' in actor) return actor
@@ -394,7 +497,7 @@ export async function createItem(
     parsed.data as MenuItemDraft,
     createMenuCommandPort(),
   )
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return menuCommandFailure(result.error, 'Ürün oluşturulamadı. Lütfen tekrar deneyin.')
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
   revalidateTag(`menu:${parsed.data.restaurantId}`)
@@ -403,7 +506,7 @@ export async function createItem(
 
 export async function updateItem(
   formData: FormData,
-): Promise<{ error: string } | { item: Tables<'menu_items'> }> {
+): Promise<MenuActionFailure | { item: Tables<'menu_items'> }> {
   const modifierGroupsRaw = formData.get('modifier_groups')
   const imagesRaw = formData.get('images')
   const ingredientsRaw = formData.get('ingredients')
@@ -470,7 +573,7 @@ export async function updateItem(
     modifier_groups: jsonFields.modifierGroups.ok ? jsonFields.modifierGroups.value : undefined,
     images: jsonFields.images.ok ? jsonFields.images.value : undefined,
   })
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+  if (!parsed.success) return { error: 'Ürün bilgileri geçersiz.', code: 'invalid_input' }
 
   const actor = await getMenuActor(parsed.data.restaurantId)
   if ('error' in actor) return actor
@@ -479,7 +582,7 @@ export async function updateItem(
     parsed.data as MenuItemPatch,
     createMenuCommandPort(),
   )
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return menuCommandFailure(result.error, 'Ürün güncellenemedi. Lütfen tekrar deneyin.')
 
   revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
   revalidateTag(`menu:${parsed.data.restaurantId}`)
@@ -530,17 +633,17 @@ export async function replaceItemRecommendations(input: {
 export async function deleteItem(
   itemId: string,
   restaurantId: string,
-): Promise<{ error: string } | { success: true }> {
+): Promise<MenuActionFailure | { success: true }> {
   const itemInput = z.string().uuid().safeParse(itemId)
   const restaurantInput = z.string().uuid().safeParse(restaurantId)
-  if (!itemInput.success || !restaurantInput.success) return { error: 'Invalid input' }
+  if (!itemInput.success || !restaurantInput.success) return { error: 'Ürün bilgileri geçersiz.', code: 'invalid_input' }
   const actor = await getMenuActor(restaurantInput.data)
   if ('error' in actor) return actor
   const result = await deleteMenuItem(actor, {
     itemId: itemInput.data,
     restaurantId: restaurantInput.data,
   }, createMenuCommandPort())
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return menuCommandFailure(result.error, 'Ürün silinemedi. Lütfen tekrar deneyin.')
 
   revalidatePath(`/dashboard/${restaurantId}/menu`)
   revalidateTag(`menu:${restaurantId}`)
@@ -551,11 +654,11 @@ export async function setMenuItemsAvailability(
   restaurantId: string,
   itemIds: string[],
   isAvailable: boolean,
-): Promise<{ error: string } | { success: true }> {
+): Promise<MenuActionFailure | { success: true }> {
   const restaurantInput = z.string().uuid().safeParse(restaurantId)
   const itemsInput = z.array(z.string().uuid()).min(1).max(500).safeParse(itemIds)
   if (!restaurantInput.success || !itemsInput.success || new Set(itemsInput.data).size !== itemsInput.data.length) {
-    return { error: 'Invalid item selection' }
+    return { error: 'Ürün seçimi geçersiz.', code: 'invalid_input' }
   }
   const actor = await getMenuActor(restaurantInput.data)
   if ('error' in actor) return actor
@@ -564,7 +667,7 @@ export async function setMenuItemsAvailability(
     itemIds: itemsInput.data,
     isAvailable,
   }, createMenuCommandPort())
-  if (!result.ok) return { error: result.error }
+  if (!result.ok) return menuCommandFailure(result.error, 'Ürünlerin yayın durumu güncellenemedi. Lütfen tekrar deneyin.')
 
   revalidatePath(`/dashboard/${restaurantInput.data}/menu`)
   revalidateTag(`menu:${restaurantInput.data}`)

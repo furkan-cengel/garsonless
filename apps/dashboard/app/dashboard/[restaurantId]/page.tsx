@@ -30,6 +30,7 @@ export default async function PanoPage({ params }: Props) {
       generatedAt={snapshot.generatedAt}
       timezone={snapshot.timezone}
       initialErrors={snapshot.errors}
+      initialHealth={snapshot.health}
       permissions={access.permissions}
       kpis={snapshot.kpis}
       orderSummary={snapshot.orderSummary}

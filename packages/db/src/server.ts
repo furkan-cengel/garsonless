@@ -3,6 +3,7 @@ export { resolveCheckoutDiscount, resolveOrderLines } from './orders'
 export {
   applyCouponToDiscount,
   archiveRestaurantCoupon,
+  restoreRestaurantCoupon,
   listActivePublicCoupons,
   listRestaurantCoupons,
   resolveCouponPricing,
@@ -10,6 +11,14 @@ export {
 } from './coupons'
 export type { CouponWriteInput, ResolvedCouponPricing } from './coupons'
 export { recordSecurityEvent, TEAM_SECURITY_EVENT_TYPES } from './security'
+export {
+  consumeDashboardAuthRateLimit,
+  createTenantPrivacyExport,
+  readRestaurantIntegrationHealth,
+  recordRestaurantIntegrationHealth,
+  requestTenantPrivacyOperation,
+  updateRestaurantTimezoneCas,
+} from './dashboard-settings-security-port'
 export {
   recordLegalDocumentAcceptance,
   recordSignupLegalEvidence,
@@ -64,8 +73,23 @@ export type {
   CustomerReorderPreviewRecord,
 } from './customer-continuity-port'
 export { createCustomerApplicationPort } from './customer-application-port'
+export { getLoyaltyScope } from './loyalty'
 export { createCampaignApplicationPort } from './campaign-application-port'
+export {
+  getCampaignDeliveryLog,
+  listCampaignEmailTemplates,
+  listCampaignAudienceContacts,
+  recordResendCampaignEvent,
+  saveCampaignEmailTemplate,
+  deleteCampaignEmailTemplate,
+} from './campaigns'
 export { getSmsDeliveryAvailability } from './sms'
+export {
+  getCampaignEmailDeliveryAvailability,
+  readCampaignEmailIdentity,
+  renderCampaignEmail,
+  sanitizeCampaignHtml,
+} from './campaign-email'
 export { normalizeTurkishMobile } from './phone'
 export {
   createCustomerConsentApplicationPort,
@@ -166,7 +190,13 @@ export {
   createPublicOrderPort,
   createSettlementPort,
   createKitchenOrderPort,
+  readOrdersForSettlement,
+  readSessionSettlementAccessBundle,
+  readTablesCommandAccessBundle,
+  settleSessionAndCloseAtomic,
+  readTransferableOrdersAccessBundle,
   readPaymentSharesForSettlement,
+  readTransferableOrdersForSession,
 } from './order-command-port'
 export { createOrderRefundPort } from './order-refund-port'
 export {
@@ -216,8 +246,10 @@ export {
   readOrderPaymentMapping,
   readPaymentCredentialMeta,
   readSharePaymentMapping,
+  readShareProviderCheckout,
   rotatePaymentCredentialVault,
   writePaymentCredentialVault,
+  voidVerifiedFailedSplitShare,
 } from './payment-provider-port'
 export type {
   IyzicoCredentialRecord,

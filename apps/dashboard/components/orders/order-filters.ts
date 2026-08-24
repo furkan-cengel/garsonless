@@ -1,6 +1,6 @@
 import { orderHasPriorityService, readOrderLineSnapshots } from '@garsonless/db/browser'
 import type { Order } from './useOrdersRealtime'
-import { isActiveOrder, isCancelledOrder, isCompletedOrder, isLateOrder, isReadyWaitingOrder } from './order-status'
+import { isActiveOrder, isCancelledOrder, isCompletedOrder, projectOrderUrgency } from './order-status'
 
 export type FilterId = 'all' | 'active' | 'attention' | 'late' | 'ready_wait' | 'unpaid' | 'priority' | 'done' | 'cancelled'
 export type OrderSourceFilter = 'all' | Order['source']
@@ -20,10 +20,11 @@ export function orderMatchesSource(order: Order, source: OrderSourceFilter): boo
 }
 
 export function orderMatchesView(order: Order, filter: FilterId, lateThresholdMin: number, now: number): boolean {
+  const urgency = projectOrderUrgency(order, lateThresholdMin, now)
   if (filter === 'active') return isActiveOrder(order)
-  if (filter === 'attention') return isLateOrder(order, lateThresholdMin, now) || isReadyWaitingOrder(order, 5, now) || (isActiveOrder(order) && orderHasPriorityService(order))
-  if (filter === 'late') return isLateOrder(order, lateThresholdMin, now)
-  if (filter === 'ready_wait') return isReadyWaitingOrder(order, 5, now)
+  if (filter === 'attention') return urgency.attention || (isActiveOrder(order) && orderHasPriorityService(order))
+  if (filter === 'late') return urgency.late
+  if (filter === 'ready_wait') return urgency.readyWaiting
   if (filter === 'unpaid') return isActiveOrder(order) && order.paid_at === null
   if (filter === 'priority') return isActiveOrder(order) && orderHasPriorityService(order)
   if (filter === 'done') return isCompletedOrder(order)

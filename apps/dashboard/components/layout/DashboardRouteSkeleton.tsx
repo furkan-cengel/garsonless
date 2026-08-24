@@ -18,6 +18,12 @@ const shell: CSSProperties = {
 }
 
 const ROUTE_SKELETON_CSS = `
+.dashboard-route-skeleton-pano-metrics > div > div {
+  min-height: 126px;
+}
+.dashboard-route-skeleton-pano > * {
+  flex-shrink: 0;
+}
 @media (max-width: 760px) {
   .dashboard-route-skeleton-topbar {
     height: 52px !important;
@@ -37,6 +43,245 @@ const ROUTE_SKELETON_CSS = `
     height: 32px !important;
   }
 }
+@media (max-width: 900px) {
+  .dashboard-route-skeleton-topbar--pano {
+    height: 104px !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: 52px 52px;
+    gap: 0 8px !important;
+    padding: 0 10px !important;
+  }
+  .dashboard-route-skeleton-topbar--pano .dashboard-route-skeleton-topbar-start {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .dashboard-route-skeleton-topbar--pano .dashboard-route-skeleton-topbar-start > :nth-child(-n + 3) {
+    display: none !important;
+  }
+  .dashboard-route-skeleton-topbar--pano .dashboard-route-skeleton-topbar-start > :nth-child(4),
+  .dashboard-route-skeleton-topbar--pano .dashboard-route-skeleton-topbar-start > :nth-child(5) {
+    display: block !important;
+  }
+  .dashboard-route-skeleton-topbar--pano .dashboard-route-skeleton-topbar-center {
+    display: flex !important;
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+  }
+  .dashboard-route-skeleton-topbar--pano .dashboard-route-skeleton-topbar-end {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .dashboard-route-skeleton-topbar--pano .dashboard-route-skeleton-topbar-end > :first-child {
+    width: 104px !important;
+    height: 32px !important;
+  }
+  .dashboard-route-skeleton-topbar--pano .dashboard-route-skeleton-topbar-end > :last-child {
+    width: 32px !important;
+    height: 32px !important;
+  }
+}
+@media (max-width: 1024px) and (min-width: 761px) {
+  .dashboard-route-skeleton-menu {
+    --nav: 220px;
+  }
+  .dashboard-route-skeleton-menu-props {
+    display: none !important;
+  }
+}
+@media (max-width: 1279px) {
+  .dashboard-route-skeleton-analytics-sidebar {
+    display: none !important;
+  }
+  .dashboard-route-skeleton-analytics-mobile-nav {
+    display: flex !important;
+  }
+}
+@media (max-width: 1180px) {
+  .dashboard-route-skeleton-topbar--orders {
+    height: 104px !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: 52px 52px;
+    gap: 0 8px !important;
+    padding: 0 10px !important;
+  }
+  .dashboard-route-skeleton-topbar--orders .dashboard-route-skeleton-topbar-start {
+    display: flex !important;
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .dashboard-route-skeleton-topbar--orders .dashboard-route-skeleton-topbar-center {
+    display: flex !important;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: max-content;
+    min-width: 100%;
+  }
+  .dashboard-route-skeleton-topbar--orders .dashboard-route-skeleton-topbar-end {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .dashboard-route-skeleton-orders-nav,
+  .dashboard-route-skeleton-orders-detail {
+    display: none !important;
+  }
+  .dashboard-route-skeleton-orders-main {
+    padding: 0 12px 24px !important;
+    overflow-x: hidden !important;
+  }
+  .dashboard-route-skeleton-orders-toolbar {
+    display: flex !important;
+  }
+  .dashboard-route-skeleton-orders-kanban {
+    height: calc(100% - 68px) !important;
+    min-width: 0 !important;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-top: 12px;
+  }
+  .dashboard-route-skeleton-orders-column {
+    flex: 0 0 min(340px, calc(100vw - 112px)) !important;
+    min-width: min(340px, calc(100vw - 112px)) !important;
+    scroll-snap-align: start;
+  }
+}
+@media (max-width: 760px) {
+  .dashboard-route-skeleton-pano {
+    padding: 18px 14px 16px !important;
+  }
+  .dashboard-route-skeleton-pano-metrics > div,
+  .dashboard-route-skeleton-pano-panels {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .dashboard-route-skeleton-topbar--menu {
+    height: 104px !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: 52px 52px;
+    gap: 0 6px !important;
+    padding: 0 8px !important;
+  }
+  .dashboard-route-skeleton-topbar--menu .dashboard-route-skeleton-topbar-start {
+    display: flex !important;
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .dashboard-route-skeleton-topbar--menu .dashboard-route-skeleton-topbar-start > :not(:first-child) {
+    display: none !important;
+  }
+  .dashboard-route-skeleton-topbar--menu > :nth-child(2) {
+    display: block !important;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .dashboard-route-skeleton-topbar--menu .dashboard-route-skeleton-topbar-end {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .dashboard-route-skeleton-topbar--menu .dashboard-route-skeleton-topbar-end > :not(:last-child) {
+    display: none !important;
+  }
+  .dashboard-route-skeleton-menu {
+    --nav: 100%;
+    overflow: hidden;
+  }
+  .dashboard-route-skeleton-menu-items,
+  .dashboard-route-skeleton-menu-props {
+    display: none !important;
+  }
+  .dashboard-route-skeleton-menu-categories {
+    width: 100% !important;
+    border-right: 0 !important;
+  }
+  .dashboard-route-skeleton-topbar--orders {
+    height: 104px !important;
+  }
+  .dashboard-route-skeleton-topbar--orders .dashboard-route-skeleton-topbar-start > :nth-child(-n + 3) {
+    display: none !important;
+  }
+  .dashboard-route-skeleton-topbar--orders .dashboard-route-skeleton-topbar-start > :nth-child(4) {
+    display: none !important;
+  }
+  .dashboard-route-skeleton-topbar--orders .dashboard-route-skeleton-topbar-start > :nth-child(5) {
+    display: block !important;
+  }
+  .dashboard-route-skeleton-orders-main {
+    padding: 0 10px 20px !important;
+  }
+  .dashboard-route-skeleton-orders-tabs {
+    display: grid !important;
+  }
+  .dashboard-route-skeleton-orders-kanban {
+    height: calc(100% - 124px) !important;
+    overflow-x: hidden;
+  }
+  .dashboard-route-skeleton-orders-column {
+    flex-basis: 100% !important;
+    min-width: 100% !important;
+  }
+  .dashboard-route-skeleton-orders-column:not(:first-child) {
+    display: none !important;
+  }
+  .dashboard-route-skeleton-topbar--analytics {
+    height: 104px !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-rows: 52px 52px;
+    align-content: center;
+    gap: 0 6px !important;
+    padding: 0 8px !important;
+  }
+  .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-start {
+    display: flex !important;
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-center {
+    display: none !important;
+  }
+  .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-end {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 44px 44px;
+  }
+  .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-end > :first-child {
+    width: 100% !important;
+    height: 44px !important;
+  }
+  .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-end > :last-child {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .dashboard-route-skeleton-analytics-filter {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .dashboard-route-skeleton-analytics-filter-fields {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .dashboard-route-skeleton-analytics-content {
+    padding: 16px 12px 52px !important;
+  }
+  .dashboard-route-skeleton-analytics-kpis,
+  .dashboard-route-skeleton-analytics-panels {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+@media (max-width: 820px) {
+  .dashboard-route-skeleton-customers { overflow-y: auto !important; }
+  .dashboard-route-skeleton-customers-content { padding: 22px 20px 48px !important; }
+  .dashboard-route-skeleton-customers-header { align-items: stretch !important; flex-direction: column !important; }
+  .dashboard-route-skeleton-customers-actions > * { flex: 1 1 0 !important; }
+  .dashboard-route-skeleton-customers-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .dashboard-route-skeleton-customers-toolbar { flex-direction: column !important; }
+  .dashboard-route-skeleton-customers-toolbar > * { width: 100% !important; }
+  .dashboard-route-skeleton-customers-table { display: none !important; }
+  .dashboard-route-skeleton-customers-mobile { display: grid !important; }
+}
+@media (max-width: 520px) {
+  .dashboard-route-skeleton-customers-content { padding: 20px 12px 44px !important; }
+  .dashboard-route-skeleton-customers-kpis { gap: 8px !important; }
+}
 `
 
 function Block({ height, width = '100%', style }: { height: number | string; width?: number | string; style?: CSSProperties }) {
@@ -46,8 +291,9 @@ function Block({ height, width = '100%', style }: { height: number | string; wid
 function TopBarSkeleton({ kind }: { kind: SkeletonKind }) {
   const isMenu = kind === 'menu'
   const isCustomers = kind === 'customers'
+  const isPano = kind === 'pano'
   return (
-    <div className="dashboard-route-skeleton-topbar" style={{
+    <div className={`dashboard-route-skeleton-topbar dashboard-route-skeleton-topbar--${kind}`} style={{
       height: 'var(--topbar)',
       flexShrink: 0,
       display: 'grid',
@@ -69,6 +315,10 @@ function TopBarSkeleton({ kind }: { kind: SkeletonKind }) {
         <Block width="min(420px, 34vw)" height={32} style={{ minWidth: 300 }} />
       ) : isCustomers ? (
         <div className="dashboard-route-skeleton-topbar-center" />
+      ) : isPano ? (
+        <div className="dashboard-route-skeleton-topbar-center" style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
+          <Block width="min(280px, 46vw)" height={24} />
+        </div>
       ) : (
         <div className="dashboard-route-skeleton-topbar-center" style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
           <KpiShadow />
@@ -120,11 +370,49 @@ function MetricRow({ count = 4 }: { count?: number }) {
 
 function PanoSkeleton() {
   return (
-    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0, overflow: 'hidden' }}>
-      <MetricRow />
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(280px, .8fr)', gap: 14, minHeight: 0, flex: 1 }}>
-        <Panel rows={8} />
+    <div
+      className="dashboard-route-skeleton-pano"
+      style={{
+        width: '100%',
+        maxWidth: 1280,
+        height: '100%',
+        margin: '0 auto',
+        padding: '28px 32px 16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        minHeight: 0,
+        overflowX: 'hidden',
+        overflowY: 'auto',
+        overscrollBehaviorY: 'contain',
+      }}
+    >
+      <div className="dashboard-route-skeleton-pano-greeting" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12, flexShrink: 0 }}>
+        <Block width={168} height={30} />
+        <Block width="min(260px, 72%)" height={13} />
+      </div>
+      <div className="dashboard-route-skeleton-pano-attention" style={{ border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 12, overflow: 'hidden', flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--divider)' }}>
+          <Block width={148} height={15} />
+          <Block width={116} height={11} />
+        </div>
+        {Array.from({ length: 2 }).map((_, index) => (
+          <div key={index} style={{ minHeight: 72, padding: '13px 16px', display: 'grid', gridTemplateColumns: '36px minmax(0, 1fr) 58px', alignItems: 'center', gap: 12, borderBottom: index === 0 ? '1px solid var(--divider)' : undefined }}>
+            <Block width={32} height={32} style={{ borderRadius: 999 }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, minWidth: 0 }}>
+              <Block width={index === 0 ? '58%' : '42%'} height={13} />
+              <Block width={index === 0 ? '76%' : '54%'} height={11} />
+            </div>
+            <Block width={58} height={12} />
+          </div>
+        ))}
+      </div>
+      <div className="dashboard-route-skeleton-pano-metrics" style={{ flexShrink: 0 }}>
+        <MetricRow />
+      </div>
+      <div className="dashboard-route-skeleton-pano-panels" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: 12, minHeight: 280, flexShrink: 0 }}>
         <Panel rows={5} />
+        <Panel rows={4} />
       </div>
     </div>
   )
@@ -132,15 +420,32 @@ function PanoSkeleton() {
 
 function AnalyticsSkeleton() {
   return (
-    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-        <Block width={210} height={34} />
-        <Block width={184} height={34} />
-      </div>
-      <MetricRow />
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 14, minHeight: 0, flex: 1 }}>
-        <Panel rows={10} chart />
-        <Panel rows={7} />
+    <div className="dashboard-route-skeleton-analytics" style={{ display: 'flex', height: '100%', minHeight: 0, overflow: 'hidden' }}>
+      <aside className="dashboard-route-skeleton-analytics-sidebar" style={{ width: 220, flexShrink: 0, borderRight: '1px solid var(--border)', background: 'var(--surface)', padding: 14 }}>
+        <Block width={88} height={14} />
+        <Block width={124} height={10} style={{ marginTop: 8, marginBottom: 18 }} />
+        {Array.from({ length: 6 }, (_, index) => <Block key={index} height={52} style={{ marginBottom: 6, borderRadius: 8 }} />)}
+      </aside>
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <div className="dashboard-route-skeleton-analytics-mobile-nav" style={{ display: 'none', minHeight: 68, flexShrink: 0, alignItems: 'flex-end', gap: 6, padding: '8px 10px', overflow: 'hidden', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+          {Array.from({ length: 5 }, (_, index) => <Block key={index} width={96} height={44} style={{ flexShrink: 0 }} />)}
+        </div>
+        <div className="dashboard-route-skeleton-analytics-filter" style={{ display: 'grid', gridTemplateColumns: '150px minmax(0, 520px) minmax(160px, 1fr)', gap: 10, padding: '10px 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+          <Block height={36} />
+          <div className="dashboard-route-skeleton-analytics-filter-fields" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+            {Array.from({ length: 3 }, (_, index) => <Block key={index} height={36} />)}
+          </div>
+          <Block height={36} />
+        </div>
+        <div style={{ minHeight: 32, borderBottom: '1px solid var(--divider)', background: 'var(--surface-2)' }} />
+        <div className="dashboard-route-skeleton-analytics-content" style={{ padding: '24px 28px 60px', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0, overflow: 'hidden' }}>
+          <Block width={118} height={11} />
+          <div className="dashboard-route-skeleton-analytics-kpis"><MetricRow /></div>
+          <div className="dashboard-route-skeleton-analytics-panels" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(260px, 1fr)', gap: 14, minHeight: 0, flex: 1 }}>
+            <Panel rows={8} chart />
+            <Panel rows={6} />
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -148,23 +453,32 @@ function AnalyticsSkeleton() {
 
 function OrdersSkeleton() {
   return (
-    <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
-      <NavRailSkeleton rows={4} search footer />
-      <div style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '16px 16px 32px', background: 'var(--bg)' }}>
-        <div style={{ display: 'flex', gap: 12, minWidth: 'max-content', height: '100%' }}>
+    <div className="dashboard-route-skeleton-orders" style={{ display: 'flex', height: '100%', minHeight: 0 }}>
+      <div className="dashboard-route-skeleton-orders-nav" style={{ display: 'contents' }}><NavRailSkeleton rows={4} search footer /></div>
+      <div className="dashboard-route-skeleton-orders-main" style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '16px 16px 32px', background: 'var(--bg)' }}>
+        <div className="dashboard-route-skeleton-orders-toolbar" style={{ display: 'none', minHeight: 56, alignItems: 'center', gap: 8, marginInline: -12, padding: '6px 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+          <Block width={140} height={40} />
+          <Block width={44} height={40} />
+          <Block width={44} height={40} />
+          <Block width={44} height={40} />
+        </div>
+        <div className="dashboard-route-skeleton-orders-tabs" style={{ display: 'none', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 4, margin: '8px -2px 0', paddingBottom: 8, borderBottom: '1px solid var(--divider)' }}>
+          {Array.from({ length: 4 }).map((_, i) => <Block key={i} height={44} style={{ borderRadius: 8 }} />)}
+        </div>
+        <div className="dashboard-route-skeleton-orders-kanban" style={{ display: 'flex', gap: 12, minWidth: 'max-content', height: '100%' }}>
           {Array.from({ length: 4 }).map((_, i) => (
             <KanbanColumnShadow key={i} count={i === 0 ? 4 : i === 1 ? 3 : 2} />
           ))}
         </div>
       </div>
-      <DetailPanelShadow />
+      <div className="dashboard-route-skeleton-orders-detail" style={{ display: 'contents' }}><DetailPanelShadow /></div>
     </div>
   )
 }
 
 function KanbanColumnShadow({ count }: { count: number }) {
   return (
-    <div style={{
+    <div className="dashboard-route-skeleton-orders-column" style={{
       flex: 1,
       minWidth: 220,
       background: 'var(--surface-2)',
@@ -232,7 +546,7 @@ function OrderCardShadow({ dense = false }: { dense?: boolean }) {
 
 function MenuSkeleton() {
   return (
-    <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
+    <div className="dashboard-route-skeleton-menu" style={{ display: 'flex', height: '100%', minHeight: 0 }}>
       <CategoryRailShadow />
       <MenuCanvasShadow />
       <EmptyPropsShadow />
@@ -242,7 +556,7 @@ function MenuSkeleton() {
 
 function CategoryRailShadow() {
   return (
-    <div style={{ width: 'var(--nav)', flexShrink: 0, borderRight: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column' }}>
+    <div className="dashboard-route-skeleton-menu-categories" style={{ width: 'var(--nav)', flexShrink: 0, borderRight: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--divider)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Block width={112} height={16} />
@@ -289,7 +603,7 @@ function CategoryRowShadow({ active = false }: { active?: boolean }) {
 
 function MenuCanvasShadow() {
   return (
-    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg)' }}>
+    <div className="dashboard-route-skeleton-menu-items" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg)' }}>
       <div style={{
         height: 56,
         flexShrink: 0,
@@ -422,7 +736,7 @@ function NavRowShadow({ twoLine = false, count = false }: { twoLine?: boolean; c
 
 function EmptyPropsShadow() {
   return (
-    <div style={{ width: 'var(--props)', flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <div className="dashboard-route-skeleton-menu-props" style={{ width: 'var(--props)', flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <Block width={56} height={56} style={{ borderRadius: 14, marginBottom: 14 }} />
       <Block width={132} height={14} />
       <Block width={220} height={12} style={{ marginTop: 10 }} />
@@ -516,21 +830,21 @@ const CUST_COLS = '2.2fr 1.6fr 1.1fr .8fr 1.1fr .8fr 1.1fr'
 
 function CustomersSkeleton() {
   return (
-    <div style={{ height: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
-      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '28px 32px 60px' }}>
+    <div className="dashboard-route-skeleton-customers" style={{ height: '100%', overflow: 'hidden', background: 'var(--bg)' }}>
+      <div className="dashboard-route-skeleton-customers-content" style={{ maxWidth: 1180, margin: '0 auto', padding: '28px 32px 60px' }}>
         {/* header */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 18, marginBottom: 20 }}>
+        <div className="dashboard-route-skeleton-customers-header" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 18, marginBottom: 20 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
             <Block width={150} height={28} />
             <Block width={250} height={13} />
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="dashboard-route-skeleton-customers-actions" style={{ display: 'flex', gap: 8 }}>
             <Block width={152} height={40} style={{ borderRadius: 10 }} />
             <Block width={140} height={40} style={{ borderRadius: 10 }} />
           </div>
         </div>
         {/* 4 KPI cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 22 }}>
+        <div className="dashboard-route-skeleton-customers-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 22 }}>
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} style={{ border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 12, padding: '14px 16px', boxShadow: 'var(--shadow-1)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -543,7 +857,7 @@ function CustomersSkeleton() {
           ))}
         </div>
         {/* search + sort */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+        <div className="dashboard-route-skeleton-customers-toolbar" style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
           <Block height={40} style={{ flex: 1, borderRadius: 10 }} />
           <Block width={150} height={40} style={{ borderRadius: 10 }} />
         </div>
@@ -552,7 +866,7 @@ function CustomersSkeleton() {
           {[54, 96, 92, 138, 66].map((w, i) => <Block key={i} width={w} height={34} style={{ borderRadius: 999 }} />)}
         </div>
         {/* table */}
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow-1)', overflow: 'hidden' }}>
+        <div className="dashboard-route-skeleton-customers-table" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, boxShadow: 'var(--shadow-1)', overflow: 'hidden' }}>
           <div style={{ display: 'grid', gridTemplateColumns: CUST_COLS, gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--divider)', background: 'var(--surface-2)' }}>
             {Array.from({ length: 7 }).map((_, i) => <Block key={i} width={i === 0 ? 60 : i % 2 ? 52 : 72} height={10} />)}
           </div>
@@ -571,6 +885,21 @@ function CustomersSkeleton() {
               <Block width={58} height={12} style={{ marginLeft: 'auto' }} />
               <Block width={46} height={12} style={{ marginLeft: 'auto' }} />
               <Block width={66} height={12} style={{ marginLeft: 'auto' }} />
+            </div>
+          ))}
+        </div>
+        <div className="dashboard-route-skeleton-customers-mobile" style={{ display: 'none', gap: 10 }}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} style={{ border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 12, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Block width={40} height={40} style={{ borderRadius: 999, flexShrink: 0 }} />
+                <div style={{ flex: 1, display: 'grid', gap: 7 }}><Block width="54%" height={13} /><Block width="78%" height={10} /></div>
+                <Block width={58} height={22} style={{ borderRadius: 999 }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 72px', gap: 12, marginTop: 14, paddingTop: 13, borderTop: '1px solid var(--divider)' }}>
+                <div style={{ display: 'grid', gap: 7 }}><Block width="82%" height={10} /><Block width="55%" height={10} /></div>
+                <div style={{ display: 'grid', gap: 7 }}><Block height={11} /><Block width="72%" height={10} style={{ marginLeft: 'auto' }} /></div>
+              </div>
             </div>
           ))}
         </div>

@@ -59,7 +59,6 @@ as $$
       and o.paid_at >= p_since
       and o.paid_at < p_before
       and o.deleted_at is null
-      and o.status <> 'cancelled'
       and (o.payment_method is null or o.payment_method <> 'comp')
       and (p_source is null or o.source = p_source)
       and (p_status is null or o.status = p_status)

@@ -58,13 +58,19 @@ export interface AnalyticsRefundRow {
   refundedAt: string
 }
 
-export interface AnalyticsCancellationOrderRow {
-  total: number | null
-  status: string
-  items: unknown
-  createdAt: string
-  paidAt: string | null
-  paymentMethod: string | null
+export interface AnalyticsCancellationAggregate {
+  current: {
+    allOrders: number
+    cancelledCount: number
+    lostAmount: number
+    collectedCancelledCount: number
+    collectedCancelledAmount: number
+    compCancelledCount: number
+    compCancelledAmount: number
+  }
+  previous: { allOrders: number; cancelledCount: number; lostAmount: number }
+  topItems: Array<{ name: string; count: number; revenue: number }>
+  trend: Array<{ day: string; hour: number; count: number }>
 }
 
 export interface AnalyticsAbnormalSessionRow {
@@ -85,10 +91,40 @@ export interface AnalyticsStaffOrderRow {
   settledBy: string | null
 }
 
+export interface AnalyticsStaffAggregateRow {
+  settledBy: string | null
+  cash: number
+  pos: number
+  otherCollected: number
+  compAmount: number
+  compCount: number
+  settledCount: number
+}
+
 export interface AnalyticsStaffMemberRow {
   userId: string | null
   email: string
   permissions: string[]
+}
+
+export interface AnalyticsPaymentAggregate {
+  groups: Array<{ paymentMethod: string | null; amount: number; count: number }>
+  financials: {
+    grossSales: number
+    discountTotal: number
+    netSales: number
+    vatTotal: number
+    netOfVatTotal: number
+    unknownVatGross: number
+    unattributedAmount: number
+  }
+  refunds: {
+    total: number
+    count: number
+    fullCount: number
+    partialCount: number
+    groups: Array<{ paymentMethod: 'cash' | 'pos' | 'iyzico'; amount: number; count: number }>
+  }
 }
 
 export interface AnalyticsLoyaltyRow {
@@ -107,9 +143,18 @@ export interface AnalyticsOrderReadFilters {
 }
 
 export interface AnalyticsReadModelPort {
+  readActiveOrderCount?(input: { restaurantId: string }): Promise<Result<number>>
+  readPaymentAggregate?(input: { restaurantId: string; since: string; before?: string; filters?: AnalyticsOrderReadFilters }): Promise<Result<AnalyticsPaymentAggregate>>
   readPaymentOrders(input: { restaurantId: string; since: string; before?: string; filters?: AnalyticsOrderReadFilters }): Promise<Result<AnalyticsPaymentOrderRow[]>>
   readRefunds(input: { restaurantId: string; since: string; before?: string; filters?: AnalyticsOrderReadFilters }): Promise<Result<AnalyticsRefundRow[]>>
-  readCancellationOrders(input: { restaurantId: string; since: string; before?: string; filters?: AnalyticsOrderReadFilters }): Promise<Result<AnalyticsCancellationOrderRow[]>>
+  readCancellationAggregate(input: {
+    restaurantId: string
+    since: string
+    currentStart: string
+    before?: string
+    timezone: string
+    filters?: AnalyticsOrderReadFilters
+  }): Promise<Result<AnalyticsCancellationAggregate>>
   readAbnormalCloseData(input: { restaurantId: string; since: string; before?: string }): Promise<Result<{
     sessions: AnalyticsAbnormalSessionRow[]
     unpaidOrders: AnalyticsUnpaidOrderRow[]
@@ -117,6 +162,7 @@ export interface AnalyticsReadModelPort {
   }>>
   readStaffSettlementData(input: { restaurantId: string; since: string; before?: string; filters?: AnalyticsOrderReadFilters }): Promise<Result<{
     orders: AnalyticsStaffOrderRow[]
+    groups?: AnalyticsStaffAggregateRow[]
     ownerId: string | null
     ownerEmail: string | null
     members: AnalyticsStaffMemberRow[]
@@ -202,8 +248,14 @@ export interface DashboardInsightsTableRow {
 
 export interface DashboardTablePerformanceSource {
   tables: Array<{ id: string; label: string }>
-  orders: Array<{ tableId: string; total: number }>
-  closedSessions: Array<{ tableId: string; openedAt: string; closedAt: string }>
+  orders: Array<{ tableId: string; total: number; count?: number }>
+  closedSessions: Array<{
+    tableId: string
+    openedAt?: string
+    closedAt?: string
+    turnover?: number
+    dwellSumMinutes?: number
+  }>
   openTableIds: string[]
 }
 

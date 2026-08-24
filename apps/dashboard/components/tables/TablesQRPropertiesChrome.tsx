@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { Frame, ImageIcon, Link2, Paintbrush, QrCode, RotateCcw } from 'lucide-react'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -55,11 +56,17 @@ export function TablesQRPropertiesHeader({
   )
 }
 
-export function TablesQRPropertiesTabs({ onChange }: {
+export function TablesQRPropertiesTabs({ activeTab, onChange }: {
+  activeTab: QRPropertiesTab
   onChange: (tab: QRPropertiesTab) => void
 }) {
+  const listRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const active = listRef.current?.querySelector<HTMLElement>('[data-active]')
+    active?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [activeTab])
   return (
-    <TabsList variant="line" className="tb-tables__props-tabs h-11 w-full justify-start overflow-x-auto rounded-none border-b px-2" aria-label="QR stüdyosu ayarları">
+    <TabsList variant="line" ref={listRef} className="tb-tables__props-tabs h-11 w-full justify-start overflow-x-auto rounded-none border-b px-3" aria-label="QR stüdyosu ayarları">
       {QR_PROPERTY_TABS.map((item) => {
         const Icon = TAB_ICONS[item.icon]
         return <TabsTrigger key={item.id} value={item.id} onClick={() => onChange(item.id)} className="px-2.5"><Icon data-icon="inline-start" />{item.label}</TabsTrigger>

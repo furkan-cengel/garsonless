@@ -386,6 +386,58 @@ export async function readSharePaymentMapping(token: string): Promise<{
   }
 }
 
+/** Dashboard/provider reconciliation lookup. Raw token never crosses the
+ * server-action boundary or enters logs. */
+export async function readShareProviderCheckout(input: {
+  shareId: string
+  restaurantId: string
+}): Promise<{
+  share: { id: string; amount: number; status: string; method: string | null } | null
+  token: string | null
+  error: string | null
+}> {
+  const service = createServiceClient()
+  const { data: share, error: shareError } = await service.from('payment_shares')
+    .select('id, amount, status, method')
+    .eq('id', input.shareId)
+    .eq('restaurant_id', input.restaurantId)
+    .maybeSingle()
+  if (shareError) return { share: null, token: null, error: 'payment_share_lookup_failed' }
+  if (!share) return { share: null, token: null, error: null }
+  const { data: mapping, error: tokenError } = await service.from('payment_share_tokens')
+    .select('token')
+    .eq('share_id', input.shareId)
+    .maybeSingle()
+  return {
+    share: {
+      id: share.id,
+      amount: Number(share.amount ?? 0),
+      status: share.status,
+      method: share.method,
+    },
+    token: (mapping as { token: string } | null)?.token ?? null,
+    error: tokenError ? 'payment_share_token_lookup_failed' : null,
+  }
+}
+
+export async function voidVerifiedFailedSplitShare(input: {
+  shareId: string
+  restaurantId: string
+  providerTokenHash: string
+}): Promise<{ outcome: 'voided' | 'already_resolved' | 'not_found' | 'provider_mapping_mismatch' | null; error: string | null }> {
+  const service = createServiceClient()
+  const { data, error } = await service.rpc('void_verified_failed_split_share_atomic' as never, {
+    p_share_id: input.shareId,
+    p_restaurant_id: input.restaurantId,
+    p_provider_token_hash: input.providerTokenHash,
+  } as never) as unknown as { data: unknown; error: { message: string } | null }
+  if (error) return { outcome: null, error: 'payment_share_void_failed' }
+  const outcomes = ['voided', 'already_resolved', 'not_found', 'provider_mapping_mismatch'] as const
+  return outcomes.includes(data as typeof outcomes[number])
+    ? { outcome: data as typeof outcomes[number], error: null }
+    : { outcome: null, error: 'payment_share_void_failed' }
+}
+
 export async function attachOrderPaymentToken(
   orderId: string,
   restaurantId: string,

@@ -1,36 +1,40 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import type { Tables } from '@garsonless/db/types'
-import { updateRestaurant, uploadLogo } from '../../lib/actions/restaurant'
 import dynamic from 'next/dynamic'
-import { DEFAULT_TIERS, type LoyaltyTier, type CatalogReward } from './loyalty-config'
 import type { SecurityEventView } from './AdvancedSections'
 import type { TeamMember } from '@garsonless/db/types'
 import type { TeamAuditEventView } from './AccountSections'
 import type { SubscriptionBillingSettings } from '@garsonless/application/billing'
 import type { BillingPlanPrices } from '../../lib/billing/subscription-billing-request'
+import type { IntegrationHealth } from '@garsonless/application/settings'
 
-const KitchenAccessSection   = dynamic(() => import('./KitchenAccessSection'))
-const LoyaltySection         = dynamic(() => import('./LoyaltySection'))
-const ProfileSection         = dynamic(() => import('./AccountSections').then(m => ({ default: m.ProfileSection })))
-const TeamSection            = dynamic(() => import('./AccountSections').then(m => ({ default: m.TeamSection })))
-const StoreSection           = dynamic(() => import('./StoreSections').then(m => ({ default: m.StoreSection })))
-const HoursSection           = dynamic(() => import('./StoreSections').then(m => ({ default: m.HoursSection })))
-const TaxSection             = dynamic(() => import('./StoreSections').then(m => ({ default: m.TaxSection })))
-const LanguagesSection       = dynamic(() => import('./StoreSections').then(m => ({ default: m.LanguagesSection })))
-const PaymentsSection        = dynamic(() => import('./BusinessSections').then(m => ({ default: m.PaymentsSection })))
-const NotificationsSection   = dynamic(() => import('./BusinessSections').then(m => ({ default: m.NotificationsSection })))
-const ApiSection             = dynamic(() => import('./AdvancedSections').then(m => ({ default: m.ApiSection })))
-const SecuritySection        = dynamic(() => import('./AdvancedSections').then(m => ({ default: m.SecuritySection })))
-const BillingSection         = dynamic(() => import('./BillingSection'))
+function SectionLoading() {
+  return <div role="status" aria-live="polite" className="grid min-h-48 place-items-center rounded-xl border bg-card text-sm text-muted-foreground"><span>Ayar bölümü yükleniyor…</span></div>
+}
+const KitchenAccessSection   = dynamic(() => import('./KitchenAccessSection'), { loading: SectionLoading })
+const LoyaltySettingsSection = dynamic(() => import('./LoyaltySettingsSection'), { loading: SectionLoading })
+const WorkspaceSection       = dynamic(() => import('./WorkspaceSection'), { loading: SectionLoading })
+const ProfileSection         = dynamic(() => import('./AccountSections').then(m => ({ default: m.ProfileSection })), { loading: SectionLoading })
+const TeamSection            = dynamic(() => import('./AccountSections').then(m => ({ default: m.TeamSection })), { loading: SectionLoading })
+const StoreSection           = dynamic(() => import('./StoreSections').then(m => ({ default: m.StoreSection })), { loading: SectionLoading })
+const HoursSection           = dynamic(() => import('./StoreSections').then(m => ({ default: m.HoursSection })), { loading: SectionLoading })
+const TaxSection             = dynamic(() => import('./StoreSections').then(m => ({ default: m.TaxSection })), { loading: SectionLoading })
+const LanguagesSection       = dynamic(() => import('./StoreSections').then(m => ({ default: m.LanguagesSection })), { loading: SectionLoading })
+const PaymentsSection        = dynamic(() => import('./BusinessSections').then(m => ({ default: m.PaymentsSection })), { loading: SectionLoading })
+const NotificationsSection   = dynamic(() => import('./BusinessSections').then(m => ({ default: m.NotificationsSection })), { loading: SectionLoading })
+const ApiSection             = dynamic(() => import('./AdvancedSections').then(m => ({ default: m.ApiSection })), { loading: SectionLoading })
+const SecuritySection        = dynamic(() => import('./AdvancedSections').then(m => ({ default: m.SecuritySection })), { loading: SectionLoading })
+const PrivacySection         = dynamic(() => import('./AdvancedSections').then(m => ({ default: m.PrivacySection })), { loading: SectionLoading })
+const BillingSection         = dynamic(() => import('./BillingSection'), { loading: SectionLoading })
 import PageTopBar from '../layout/PageTopBar'
 import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import { useShell } from '../../lib/shell-context'
 import { I, S, Tag } from '../../lib/ui'
-import { notifySettingsSaved, SETTINGS_DIRTY_EVENT, SETTINGS_SAVED_EVENT } from './settings-dirty-state'
+import { SETTINGS_DIRTY_EVENT, SETTINGS_SAVED_EVENT, type SettingsDirtyEventDetail } from './settings-dirty-state'
 import {
   canAccessSettingsSection,
   resolveSettingsSection,
@@ -39,13 +43,9 @@ import {
 import styles from './SettingsForm.module.css'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { Spinner } from '../ui/spinner'
-import { FormRow, SCard } from './primitives'
-import {
-  Attachment,
-  AttachmentMedia,
-} from '../ui/attachment'
+import { useSettingsRevision } from './use-settings-revision'
+import { SETTINGS_CONFLICT_EVENT, type SettingsConflictEventDetail } from './settings-conflict-state'
+import SettingsConflictDialog from './SettingsConflictDialog'
 
 /* ============================================================
    NAV STRUCTURE
@@ -114,9 +114,12 @@ const GROUPS: NavGroup[] = [
       { id: 'api',      label: 'API & Webhooks',  desc: 'Geliştirici erişimi',    icon: SI.code },
       { id: 'billing',  label: 'Faturalama',      desc: 'Plan özeti',             icon: SI.invoice },
       { id: 'security', label: 'Güvenlik',        desc: 'Şifre ve güvenlik',      icon: SI.shield, tone: 'positive' },
+      { id: 'privacy',  label: 'Gizlilik',        desc: 'Dışa aktarma ve talepler', icon: SI.shield },
     ],
   },
 ]
+
+const LOCKED_CONTINUITY_SECTIONS = new Set<SectionId>(['workspace', 'profile', 'billing', 'security', 'privacy'])
 
 const SECTION_META: Record<SectionId, { label: string; desc: string; group: string }> = {
   workspace:     { label: 'Çalışma Alanı',  desc: 'Restoranın adını, kısa URL\'ini ve logosunu buradan düzenle.',       group: 'Hesap' },
@@ -133,6 +136,7 @@ const SECTION_META: Record<SectionId, { label: string; desc: string; group: stri
   api:           { label: 'API & Webhooks', desc: 'Geliştirici API ve webhook altyapısı bu sürümde kapalı.',            group: 'Gelişmiş' },
   billing:       { label: 'Faturalama',     desc: 'Planını, fatura profilini ve abonelik ödemelerini yönet.',           group: 'Gelişmiş' },
   security:      { label: 'Güvenlik',       desc: 'Şifre değişimi ve hesap güvenliği.',                                group: 'Gelişmiş' },
+  privacy:       { label: 'Gizlilik',        desc: 'Veri dışa aktarma ve hesap veya işletme kapatma talepleri.',        group: 'Gelişmiş' },
 }
 
 /* ============================================================
@@ -145,10 +149,10 @@ function canSeeSection(id: SectionId, isOwner: boolean): boolean {
   return canAccessSettingsSection(id, isOwner)
 }
 
-function SettingsNav({ active, onSelect, isOwner }: { active: SectionId; onSelect: (id: SectionId) => void; isOwner: boolean }) {
+function SettingsNav({ active, onSelect, isOwner, productLocked }: { active: SectionId; onSelect: (id: SectionId) => void; isOwner: boolean; productLocked: boolean }) {
   const activeItemRef = useRef<HTMLButtonElement>(null)
   const groups = GROUPS
-    .map(g => ({ ...g, items: g.items.filter(item => canSeeSection(item.id, isOwner)) }))
+    .map(g => ({ ...g, items: g.items.filter(item => canSeeSection(item.id, isOwner) && (!productLocked || LOCKED_CONTINUITY_SECTIONS.has(item.id))) }))
     .filter(g => g.items.length > 0)
 
   useEffect(() => {
@@ -211,10 +215,10 @@ function NavRow({ item, active, onClick, buttonRef }: {
 /* ============================================================
    CONTENT WRAPPER
    ============================================================ */
-function ContentArea({ active, children, onChangeCapture }: { active: SectionId; children: React.ReactNode; onChangeCapture?: () => void }) {
+function ContentArea({ active, children }: { active: SectionId; children: React.ReactNode }) {
   const meta = SECTION_META[active]
   return (
-    <div onChangeCapture={onChangeCapture} className={styles.contentArea} data-settings-content>
+    <div className={styles.contentArea} data-settings-content>
       <div className={styles.contentInner} style={{ maxWidth: active === 'loyalty' ? 880 : 760 }}>
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-3)', marginBottom: 6 }}>
@@ -230,206 +234,6 @@ function ContentArea({ active, children, onChangeCapture }: { active: SectionId;
     </div>
   )
 }
-
-/* ============================================================
-   SECTION: WORKSPACE
-   ============================================================ */
-function WorkspaceSection({ restaurant }: { restaurant: Tables<'restaurants'> }) {
-  const router = useRouter()
-  const identitySnapshotRef = useRef({ name: restaurant.name, slug: restaurant.slug })
-  const logoInputRef = useRef<HTMLInputElement>(null)
-  const [name, setName] = useState(restaurant.name)
-  const [slug, setSlug] = useState(restaurant.slug)
-  const [logoUrl, setLogoUrl] = useState(restaurant.logo_url)
-  const [error, setError] = useState('')
-  const [logoFeedback, setLogoFeedback] = useState('')
-  const [saved, setSaved] = useState(false)
-  const [isPending, startTransition] = useTransition()
-  const [isLogoPending, startLogoTransition] = useTransition()
-  const identityDirty = name !== identitySnapshotRef.current.name || slug !== identitySnapshotRef.current.slug
-
-  function handleSave(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    setSaved(false)
-    startTransition(async () => {
-      const fd = new FormData()
-      fd.append('id', restaurant.id)
-      fd.append('name', name)
-      fd.append('slug', slug)
-      const result = await updateRestaurant(fd)
-      if ('error' in result) { setError(result.error); return }
-      identitySnapshotRef.current = { name, slug }
-      setSaved(true)
-      notifySettingsSaved()
-    })
-  }
-
-  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
-    setError('')
-    setLogoFeedback('')
-    startLogoTransition(async () => {
-      const fd = new FormData()
-      fd.append('file', file)
-      const result = await uploadLogo(restaurant.id, fd)
-      if ('error' in result) {
-        setError(result.error)
-        return
-      }
-      // Public storage URLs may retain an image cache after an overwrite. The
-      // persisted value stays canonical; this preview-only version shows the
-      // just-uploaded asset immediately.
-      setLogoUrl(`${result.url}${result.url.includes('?') ? '&' : '?'}v=${Date.now()}`)
-      setLogoFeedback('✓ Logo güncellendi')
-      notifySettingsSaved()
-      router.refresh()
-    })
-  }
-
-  return (
-    <form onSubmit={handleSave} aria-busy={isPending || isLogoPending}>
-      <SCard
-        title="Mağaza kimliği"
-        subtitle="Müşterilere ve sisteme gösterilen temel bilgiler"
-        footer={(
-          <>
-            <span role="status" aria-live="polite" className="text-xs text-muted-foreground">
-              {isPending
-                ? 'Mağaza bilgileri kaydediliyor…'
-                : saved
-                  ? '✓ Mağaza bilgileri güncellendi'
-                  : identityDirty
-                    ? 'Kaydedilmemiş değişiklik var'
-                    : 'Mağaza bilgileri güncel'}
-            </span>
-            <Button type="submit" aria-busy={isPending} disabled={isPending || !identityDirty}>
-              {isPending ? <Spinner data-icon="inline-start" /> : <I.check data-icon="inline-start" />}
-              {isPending ? 'Kaydediliyor…' : 'Kaydet'}
-            </Button>
-          </>
-        )}
-      >
-        <FormRow label="Mağaza adı" hint="Müşteri menüsü ve faturalarda görünür">
-          <Input
-            value={name}
-            onChange={e => { setName(e.target.value); setSaved(false) }}
-            autoComplete="organization"
-            className="w-72 max-w-full"
-            required
-          />
-        </FormRow>
-        <FormRow label="URL slug" hint={`menu.masabu.co/${slug}`}>
-          <Input
-            value={slug}
-            onChange={e => { setSlug(e.target.value.replace(/[^a-z0-9-]/g, '')); setSaved(false) }}
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            className="w-72 max-w-full font-mono"
-            required
-          />
-        </FormRow>
-      </SCard>
-
-      <SCard title="Mağaza logosu" subtitle="Müşteri menüsü ve QR ekranlarında görünür" style={{ marginTop: 16 }}>
-        <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-          <Input
-            ref={logoInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            hidden
-            onChange={handleLogoChange}
-            disabled={isLogoPending}
-          />
-          <Attachment
-            state={isLogoPending ? 'uploading' : logoUrl ? 'done' : 'idle'}
-            size="sm"
-            orientation="vertical"
-            className="size-32 shrink-0 overflow-hidden p-0!"
-            aria-busy={isLogoPending}
-          >
-            <AttachmentMedia variant={logoUrl ? 'image' : 'icon'} className="size-full! rounded-none! bg-background">
-              {logoUrl
-                ? <img src={logoUrl} alt="Mağaza logosu" className="size-full object-cover!" />
-                : isLogoPending
-                  ? <Spinner />
-                  : <I.cutlery />}
-            </AttachmentMedia>
-          </Attachment>
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            <div className="flex flex-col gap-1">
-              <div className="text-sm font-medium">
-                {isLogoPending ? 'Logo yükleniyor…' : logoFeedback || (logoUrl ? 'Logo yüklendi' : 'Henüz logo yüklenmedi')}
-              </div>
-              <div className="text-sm leading-relaxed text-muted-foreground">
-                Logo önizleme alanını tamamen doldurur. Farklı oranlardaki görseller kenarlardan kırpılabilir. PNG, JPG veya WEBP · en fazla 2 MB.
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-fit"
-              disabled={isLogoPending}
-              onClick={() => logoInputRef.current?.click()}
-            >
-              {isLogoPending ? <Spinner data-icon="inline-start" /> : <I.image data-icon="inline-start" />}
-              {isLogoPending ? 'Yükleniyor…' : logoUrl ? 'Logoyu değiştir' : 'Logo yükle'}
-            </Button>
-          </div>
-        </div>
-      </SCard>
-
-      {error && (
-        <Alert variant="destructive" className="mt-3">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-    </form>
-  )
-}
-
-/* ============================================================
-   SECTION: LOYALTY (wrapper)
-   ============================================================ */
-function LoyaltySectionWrapper({ restaurant, featureAllowed }: { restaurant: Tables<'restaurants'>; featureAllowed: boolean }) {
-  const s = restaurant.settings as Record<string, unknown>
-  const raw = (s['loyalty'] ?? {}) as Record<string, unknown>
-  const str = (k: string, d: string) => (typeof raw[k] === 'string' ? (raw[k] as string) : d)
-  const numv = (k: string, d: number) => (typeof raw[k] === 'number' ? (raw[k] as number) : d)
-  const bool = (k: string, d: boolean) => (typeof raw[k] === 'boolean' ? (raw[k] as boolean) : d)
-  const tiers = Array.isArray(raw['tiers']) && (raw['tiers'] as unknown[]).length > 0
-    ? (raw['tiers'] as LoyaltyTier[])
-    : DEFAULT_TIERS
-  const rewardCatalog = Array.isArray(raw['reward_catalog']) ? (raw['reward_catalog'] as CatalogReward[]) : []
-  return (
-    <LoyaltySection
-      restaurantId={restaurant.id}
-      featureAllowed={featureAllowed}
-      initialSettings={s}
-      initial={{
-        stamp_enabled: bool('stamp_enabled', false),
-        stamp_goal: numv('stamp_goal', 10),
-        stamp_reward_text: str('stamp_reward_text', ''),
-        reward_item_id: typeof raw['reward_item_id'] === 'string' ? (raw['reward_item_id'] as string) : null,
-        points_enabled: bool('points_enabled', false),
-        points_per_lira: numv('points_per_lira', 1),
-        points_redeem_rate: numv('points_redeem_rate', 100),
-        scope: str('scope', 'restaurant') === 'network' ? 'network' : 'restaurant',
-        earn_trigger: str('earn_trigger', 'paid') === 'served' ? 'served' : 'paid',
-        member_discount_pct: numv('member_discount_pct', 0),
-        welcome_bonus_points: numv('welcome_bonus_points', 0),
-        tiers,
-        reward_catalog: rewardCatalog,
-      }}
-    />
-  )
-}
-
 /* ============================================================
    SECTION: KITCHEN (wrapper)
    ============================================================ */
@@ -457,7 +261,7 @@ function KitchenSectionWrapper({
 /* ============================================================
    MAIN
    ============================================================ */
-interface Props {
+export interface SettingsFormProps {
   restaurant: Tables<'restaurants'>
   user: User | null
   /** Credential existence only; the secret remains server-side. */
@@ -484,20 +288,31 @@ interface Props {
     kitchenDisplay: boolean
     browserNotifications: boolean
   }
+  productLocked: boolean
+  integrationHealth: IntegrationHealth[]
+  sectionLoadError: string | null
 }
 
 export default function SettingsForm({
   restaurant, user, hasKitchenAccess, kitchenStations, securityEvents, renderedAt,
   isOwner, teamMembers, teamAuditEvents, billing, billingLoadError,
   billingPlanPrices, initialSection, billingCheckoutState,
-  featureAccess,
-}: Props) {
+  featureAccess, productLocked, integrationHealth, sectionLoadError,
+}: SettingsFormProps) {
+  const router = useRouter()
   const { setNavigationGuard } = useShell()
   // A non-owner 'settings' member lands on a section they can see (workspace is owner-only).
   const [active, setActive] = useState<SectionId>(initialSection)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [dirtySources, setDirtySources] = useState<Set<string>>(() => new Set())
+  const hasUnsavedChanges = dirtySources.size > 0
+  const settingsRevision = useSettingsRevision(restaurant.id, hasUnsavedChanges)
   const [pendingSection, setPendingSection] = useState<SectionId | null>(null)
   const [pendingFromHistory, setPendingFromHistory] = useState(false)
+  const [conflict, setConflict] = useState<SettingsConflictEventDetail | null>(null)
+
+  useEffect(() => {
+    setActive(initialSection)
+  }, [initialSection])
 
   useEffect(() => {
     setNavigationGuard(hasUnsavedChanges
@@ -507,14 +322,29 @@ export default function SettingsForm({
   }, [hasUnsavedChanges, setNavigationGuard])
 
   useEffect(() => {
-    const onSaved = () => setHasUnsavedChanges(false)
-    const onDirty = () => setHasUnsavedChanges(true)
+    const source = (event: Event) => (event as CustomEvent<SettingsDirtyEventDetail>).detail?.source ?? 'active-section'
+    const onSaved = (event: Event) => setDirtySources(current => {
+      const next = new Set(current)
+      next.delete(source(event))
+      return next
+    })
+    const onDirty = (event: Event) => setDirtySources(current => {
+      const next = new Set(current)
+      next.add(source(event))
+      return next
+    })
     window.addEventListener(SETTINGS_SAVED_EVENT, onSaved)
     window.addEventListener(SETTINGS_DIRTY_EVENT, onDirty)
     return () => {
       window.removeEventListener(SETTINGS_SAVED_EVENT, onSaved)
       window.removeEventListener(SETTINGS_DIRTY_EVENT, onDirty)
     }
+  }, [])
+
+  useEffect(() => {
+    const onConflict = (event: Event) => setConflict((event as CustomEvent<SettingsConflictEventDetail>).detail)
+    window.addEventListener(SETTINGS_CONFLICT_EVENT, onConflict)
+    return () => window.removeEventListener(SETTINGS_CONFLICT_EVENT, onConflict)
   }, [])
 
   useEffect(() => {
@@ -552,9 +382,9 @@ export default function SettingsForm({
 
   function commitSectionChange(next: SectionId, mode: 'push' | 'replace' = 'push') {
     const url = sectionUrl(next)
-    if (mode === 'replace') window.history.replaceState(null, '', url)
-    else window.history.pushState(null, '', url)
     setActive(next)
+    if (mode === 'replace') router.replace(url)
+    else router.push(url)
   }
 
   function requestSectionChange(next: SectionId) {
@@ -572,18 +402,19 @@ export default function SettingsForm({
     if (!canSeeSection(active, isOwner)) return null
     switch (active) {
       case 'workspace':     return <WorkspaceSection restaurant={restaurant} />
-      case 'loyalty':       return <LoyaltySectionWrapper restaurant={restaurant} featureAllowed={featureAccess.loyalty} />
+      case 'loyalty':       return <LoyaltySettingsSection restaurant={restaurant} featureAllowed={featureAccess.loyalty} />
       case 'kitchen':       return <KitchenSectionWrapper restaurantId={restaurant.id} featureAllowed={featureAccess.kitchenDisplay} hasKitchenAccess={hasKitchenAccess} kitchenStations={kitchenStations} />
       case 'profile':       return <ProfileSection user={user} />
       case 'team':          return isOwner ? <TeamSection restaurantId={restaurant.id} ownerEmail={user?.email ?? ''} members={teamMembers} auditEvents={teamAuditEvents} /> : null
-      case 'store':         return <StoreSection restaurant={restaurant} />
+      case 'store':         return <StoreSection restaurant={restaurant} isOwner={isOwner} />
       case 'hours':         return <HoursSection restaurant={restaurant} />
       case 'tax':           return <TaxSection restaurant={restaurant} />
       case 'languages':     return <LanguagesSection />
-      case 'payments':      return <PaymentsSection restaurantId={restaurant.id} />
+      case 'payments':      return <PaymentsSection restaurantId={restaurant.id} health={integrationHealth.find(item => item.provider === 'iyzico') ?? null} />
       case 'notifications': return <NotificationsSection restaurant={restaurant} featureAllowed={featureAccess.browserNotifications} />
-      case 'api':           return <ApiSection />
+      case 'api':           return <ApiSection resendHealth={integrationHealth.find(item => item.provider === 'resend') ?? null} />
       case 'security':      return <SecuritySection events={securityEvents} renderedAt={renderedAt} userEmail={user?.email ?? ''} authProvider={typeof user?.app_metadata?.provider === 'string' ? user.app_metadata.provider : null} />
+      case 'privacy':       return isOwner ? <PrivacySection restaurantId={restaurant.id} restaurantName={restaurant.name} /> : null
       case 'billing':       return <BillingSection
         restaurantId={restaurant.id}
         restaurantPlan={restaurant.plan}
@@ -611,8 +442,34 @@ export default function SettingsForm({
       />
 
       <div className={styles.body}>
-        <SettingsNav active={active} onSelect={requestSectionChange} isOwner={isOwner} />
-        <ContentArea active={active} onChangeCapture={() => setHasUnsavedChanges(true)}>
+        <SettingsNav active={active} onSelect={requestSectionChange} isOwner={isOwner} productLocked={productLocked} />
+        <ContentArea active={active}>
+          {settingsRevision.hasRemoteRevision && (
+            <Alert className="mb-4 border-[var(--warning-bg)] text-[var(--warning)]">
+              <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                <span>Bu ayarlar başka bir oturumda güncellendi. Taslağınız korunuyor; sunucudaki sürümü almak taslağınızı siler.</span>
+                <Button type="button" variant="outline" size="sm" onClick={() => {
+                  setDirtySources(new Set())
+                  settingsRevision.refreshFromServer()
+                }}>Sunucudaki sürümü al</Button>
+              </AlertDescription>
+            </Alert>
+          )}
+          {productLocked && (
+            <Alert className="mb-4 border-[var(--warning-bg)] text-[var(--warning)]">
+              <AlertDescription>
+                Ürün erişimi kilitli. Verileriniz korunur; profil, çalışma alanı, güvenlik ve faturalama araçlarına erişmeye devam edebilirsiniz.
+              </AlertDescription>
+            </Alert>
+          )}
+          {sectionLoadError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                <span>Bu bölümün verileri yüklenemedi: {sectionLoadError}</span>
+                <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>Tekrar dene</Button>
+              </AlertDescription>
+            </Alert>
+          )}
           {renderContent()}
         </ContentArea>
       </div>
@@ -627,7 +484,7 @@ export default function SettingsForm({
           }}
           onDiscard={() => {
             const next = pendingSection
-            setHasUnsavedChanges(false)
+            setDirtySources(new Set())
             if (pendingFromHistory) setActive(next)
             else commitSectionChange(next)
             setPendingFromHistory(false)
@@ -635,6 +492,7 @@ export default function SettingsForm({
           }}
         />
       )}
+      {conflict && <SettingsConflictDialog conflict={conflict} onClose={() => setConflict(null)} />}
     </div>
   )
 }
