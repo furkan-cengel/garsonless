@@ -406,7 +406,7 @@ export default function OnboardingFlow({
         </div>
       </header>
 
-      <div className={styles.shell}>
+      <div className={`${styles.shell} ${step === 3 ? styles.successShell : ''}`}>
         {step < 3 && (
           <aside className={styles.stepRail} aria-label="Kurulum adımları">
             <span className={styles.railLabel}>KURULUM</span>

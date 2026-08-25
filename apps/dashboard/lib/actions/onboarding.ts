@@ -270,7 +270,8 @@ export async function createOnboardingMenuItem(input: unknown): Promise<Onboardi
   if (!('error' in response)) {
     revalidateTag(`menu:${parsed.data.restaurantId}`)
     revalidatePath(`/dashboard/${parsed.data.restaurantId}/menu`)
-    revalidatePath('/dashboard/onboarding')
+    // Keep the completed snapshot visible so the user can choose the next action.
+    // A later direct visit is still redirected by the onboarding server page.
   }
   return response
 }

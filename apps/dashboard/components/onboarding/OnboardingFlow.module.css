@@ -112,6 +112,11 @@
   padding: 38px 24px 70px;
 }
 
+.successShell {
+  grid-template-columns: minmax(0, 680px);
+  justify-content: center;
+}
+
 .stepRail { position: sticky; top: 92px; }
 .railLabel {
   display: block;

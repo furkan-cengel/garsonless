@@ -62,3 +62,16 @@ test('detected timezone and fixed TRY policy stay out of the setup form', () => 
   assert.doesNotMatch(flow, /label="Para birimi"/)
   assert.doesNotMatch(flow, /value="TRY — ₺"/)
 })
+
+test('completion stays visible in a centered single-column layout', () => {
+  assert.match(flow, /step === 3 \? styles\.successShell : ''/)
+  assert.match(css, /\.successShell\s*{[^}]*grid-template-columns:\s*minmax\(0, 680px\);[^}]*justify-content:\s*center;/s)
+
+  const completionAction = actions.slice(
+    actions.indexOf('export async function createOnboardingMenuItem'),
+    actions.indexOf('export async function importOnboardingCsvMenu'),
+  )
+  assert.match(completionAction, /revalidatePath\(`\/dashboard\/\$\{parsed\.data\.restaurantId\}\/menu`\)/)
+  assert.doesNotMatch(completionAction, /revalidatePath\('\/dashboard\/onboarding'\)/)
+  assert.match(page, /snapshot\?\.status === 'completed'[\s\S]*redirect/)
+})
