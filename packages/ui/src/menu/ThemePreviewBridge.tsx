@@ -52,6 +52,26 @@ function getCurrentPreviewSurface() {
   return /\/menu\/?$/.test(window.location.pathname) ? 'menu' : null
 }
 
+function scrollPreviewDocumentTo(target: HTMLElement, block: 'start' | 'center') {
+  const scroller = document.scrollingElement
+  if (!scroller) return
+
+  const bounds = target.getBoundingClientRect()
+  const currentTop = scroller.scrollTop
+  const desiredTop = block === 'center'
+    ? currentTop + bounds.top - Math.max(0, (window.innerHeight - bounds.height) / 2)
+    : currentTop + bounds.top
+  const maximumTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight)
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  // Scroll the preview document explicitly. Element.scrollIntoView() may also
+  // move scrollable ancestors around the iframe and displace the editor shell.
+  scroller.scrollTo({
+    top: Math.max(0, Math.min(desiredTop, maximumTop)),
+    behavior: reducedMotion ? 'auto' : 'smooth',
+  })
+}
+
 export function ThemePreviewBridge({ theme, onThemeChange }: ThemePreviewBridgeProps) {
   const pendingThemeAckRef = useRef<string | null>(null)
 
@@ -78,7 +98,8 @@ export function ThemePreviewBridge({ theme, onThemeChange }: ThemePreviewBridgeP
     if (!data) return
     if (data.type === 'SCROLL_TO_COMPONENT') {
       requestAnimationFrame(() => {
-        document.querySelector<HTMLElement>('[data-component="footer"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        const footer = document.querySelector<HTMLElement>('[data-component="footer"]')
+        if (footer) scrollPreviewDocumentTo(footer, 'start')
       })
       return
     }
@@ -101,14 +122,12 @@ export function ThemePreviewBridge({ theme, onThemeChange }: ThemePreviewBridgeP
           requestAnimationFrame(() => {
             target = document.querySelector<HTMLElement>(`#section-${escapedId}`)
             if (!target) return
-            const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-            target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' })
+            scrollPreviewDocumentTo(target, 'center')
           })
           return
         }
         if (!target) return
-        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' })
+        scrollPreviewDocumentTo(target, 'center')
       })
       return
     }

@@ -29,3 +29,13 @@ test('iframe iç navigasyonu dashboard parent originini kaybetmez', () => {
   assert.match(source, /window\.sessionStorage\.getItem\(PREVIEW_PARENT_ORIGIN_KEY\)/)
   assert.match(source, /url\.protocol === 'http:' \|\| url\.protocol === 'https:'/)
 })
+
+test('preview selection scrolls only the child document without moving the editor shell', () => {
+  const source = readFileSync(new URL('./ThemePreviewBridge.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /function scrollPreviewDocumentTo/)
+  assert.match(source, /document\.scrollingElement/)
+  assert.match(source, /scroller\.scrollTo\(/)
+  assert.match(source, /scrollPreviewDocumentTo\(footer, 'start'\)/)
+  assert.doesNotMatch(source, /\.scrollIntoView\(\{/)
+})
