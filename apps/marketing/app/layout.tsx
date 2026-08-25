@@ -1,34 +1,14 @@
 import type { Metadata } from 'next'
-import { Fraunces, Geist, Geist_Mono, Pacifico } from 'next/font/google'
+import localFont from 'next/font/local'
 import { FocusModalityScript } from '@garsonless/ui/focus-modality'
+import { normalizeWebVitalsSampleRate } from '@garsonless/application/web-vitals'
+import WebVitalsReporter from '../components/WebVitalsReporter'
 import './globals.css'
 
-const reloadScrollReset = `
-(() => {
-  const navigation = performance.getEntriesByType('navigation')[0];
-  if (!navigation || navigation.type !== 'reload') return;
-
-  const canControlRestoration = 'scrollRestoration' in history;
-  if (canControlRestoration) history.scrollRestoration = 'manual';
-
-  const resetScroll = () => {
-    requestAnimationFrame(() => {
-      window.scrollTo(0, 0);
-      requestAnimationFrame(() => {
-        if (canControlRestoration) history.scrollRestoration = 'auto';
-      });
-    });
-  };
-
-  if (document.readyState === 'complete') resetScroll();
-  else window.addEventListener('load', resetScroll, { once: true });
-})();
-`
-
-const geist = Geist({ subsets: ['latin'], variable: '--font-geist', display: 'swap' })
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono', display: 'swap' })
-const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', display: 'swap' })
-const pacifico = Pacifico({ subsets: ['latin'], weight: '400', variable: '--font-pacifico', display: 'swap' })
+const geist = localFont({ src: '../../../assets/fonts/Geist.ttf', variable: '--font-geist', display: 'swap', weight: '100 900' })
+const geistMono = localFont({ src: '../../../assets/fonts/Geist-Mono.ttf', variable: '--font-geist-mono', display: 'swap', weight: '100 900' })
+const fraunces = localFont({ src: '../../../assets/fonts/Fraunces.ttf', variable: '--font-fraunces', display: 'swap', weight: '300 800' })
+const pacifico = localFont({ src: '../../../assets/fonts/Pacifico.ttf', variable: '--font-pacifico', display: 'swap', weight: '400' })
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://masabu.co'),
@@ -59,9 +39,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="tr">
       <head>
         <FocusModalityScript />
-        <script dangerouslySetInnerHTML={{ __html: reloadScrollReset }} />
       </head>
-      <body className={`${geist.variable} ${geistMono.variable} ${fraunces.variable} ${pacifico.variable}`}>{children}</body>
+      <body className={`${geist.variable} ${geistMono.variable} ${fraunces.variable} ${pacifico.variable}`}>
+        <WebVitalsReporter sampleRate={normalizeWebVitalsSampleRate(process.env['MARKETING_WEB_VITALS_SAMPLE_RATE'])} />
+        {children}
+      </body>
     </html>
   )
 }

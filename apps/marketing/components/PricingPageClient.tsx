@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { PLAN_PRICES, type BillingInterval } from '@garsonless/domain/entitlements'
+import { ADD_ON_PRICES, PLAN_PRICES, type BillingInterval } from '@garsonless/domain/entitlements'
 import { MI } from '../lib/icons'
 import {
   MARKETING_PLANS,
@@ -34,6 +34,8 @@ function ComparisonCell({ value }: { value: ComparisonValue }) {
 
 export function PricingPageClient() {
   const [interval, setInterval] = useState<BillingInterval>('monthly')
+  const addOnPrice = ADD_ON_PRICES.iyzico_online_payments[interval]
+  const addOnDisplayMinor = interval === 'annual' ? Math.round(addOnPrice.amountMinor / 12) : addOnPrice.amountMinor
   const [openGroups, setOpenGroups] = useState<string[]>(() => PRICING_COMPARISON_GROUPS.map((group) => group.id))
 
   const toggleGroup = (id: string) => {
@@ -65,7 +67,7 @@ export function PricingPageClient() {
               <h3>İyzico Online Ödeme</h3>
               <p>Add-on fiyatı, KDV ve ödenecek genel toplam Dashboard’daki güvenli satın alma özetinde ayrı kalem olarak gösterilir.</p>
             </div>
-            <div className="pricing-addon__meta"><strong>Ayrıca fiyatlanır</strong><span>Yalnız Pro ile</span></div>
+            <div className="pricing-addon__meta"><strong>+{pricingMoney(addOnDisplayMinor)}/ay</strong><span>{interval === 'annual' ? `Yıllık peşin ${pricingMoney(addOnPrice.amountMinor)}` : 'Yalnız Pro ile'} · KDV hariç</span></div>
           </aside>
 
           <a className="pricing-page-jump" href="#paket-karsilastirma">

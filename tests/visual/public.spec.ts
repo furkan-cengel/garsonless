@@ -50,7 +50,7 @@ test.describe("public visual smoke", () => {
 
   test("public menu fixture is visually healthy", async ({ page }, testInfo) => {
     const failures = await collectPageFailures(page);
-    const response = await page.goto(`${menuURL}/${encodeURIComponent(menuSlug)}?preview=1`, {
+    const response = await page.goto(`${menuURL}/${encodeURIComponent(menuSlug)}`, {
       waitUntil: "domcontentloaded",
     });
     expect(response?.status()).toBe(200);
@@ -121,7 +121,7 @@ test.describe("public visual smoke", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.setViewportSize({ width: 390, height: 844 });
 
-    const response = await page.goto(`${menuURL}/${encodeURIComponent(menuSlug)}?preview=1`, {
+    const response = await page.goto(`${menuURL}/${encodeURIComponent(menuSlug)}`, {
       waitUntil: "domcontentloaded",
     });
     expect(response?.status()).toBe(200);
@@ -217,7 +217,7 @@ test.describe("public visual smoke", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.setViewportSize({ width: 1440, height: 950 });
 
-    const response = await page.goto(`${menuURL}/${encodeURIComponent(menuSlug)}?preview=1`, {
+    const response = await page.goto(`${menuURL}/${encodeURIComponent(menuSlug)}`, {
       waitUntil: "domcontentloaded",
     });
     expect(response?.status()).toBe(200);
@@ -294,7 +294,7 @@ test.describe("public visual smoke", () => {
   });
 
   test("public menu category strip keeps the active category reachable", async ({ page }) => {
-    const response = await page.goto(`${menuURL}/${encodeURIComponent(menuSlug)}?preview=1`, {
+    const response = await page.goto(`${menuURL}/${encodeURIComponent(menuSlug)}`, {
       waitUntil: "domcontentloaded",
     });
     expect(response?.status()).toBe(200);
@@ -340,7 +340,7 @@ test.describe("public visual smoke", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     // WCAG 200% zoom on a 1440px desktop leaves roughly a 720px CSS viewport.
     await page.setViewportSize({ width: 720, height: 900 });
-    const response = await page.goto(`${menuURL}/${encodeURIComponent(menuSlug)}?preview=1`, {
+    const response = await page.goto(`${menuURL}/${encodeURIComponent(menuSlug)}`, {
       waitUntil: "domcontentloaded",
     });
     expect(response?.status()).toBe(200);

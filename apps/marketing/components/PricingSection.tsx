@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import {
+  ADD_ON_PRICES,
   PLAN_PRICES,
   type BillingInterval,
 } from '@garsonless/domain/entitlements'
@@ -101,6 +102,8 @@ export function PricingPlanCards({ interval }: { interval: BillingInterval }) {
 
 export function PricingSection() {
   const [interval, setInterval] = useState<BillingInterval>('monthly')
+  const addOnPrice = ADD_ON_PRICES.iyzico_online_payments[interval]
+  const addOnDisplayMinor = interval === 'annual' ? Math.round(addOnPrice.amountMinor / 12) : addOnPrice.amountMinor
 
   return (
     <section id="fiyatlandırma" className="pricing-section story-section">
@@ -121,8 +124,8 @@ export function PricingSection() {
             <p>QR menüde kartla ödeme ve online tahsilat akışını açar. Add-on fiyatı, KDV ve genel toplam satın alma özetinde ayrı kalem olarak gösterilir.</p>
           </div>
           <div className="pricing-addon__meta">
-            <strong>Ayrıca fiyatlanır</strong>
-            <span>Yalnız Pro ile · İyzico işlem ücretleri hariç</span>
+            <strong>+{pricingMoney(addOnDisplayMinor)}/ay</strong>
+            <span>{interval === 'annual' ? `Yıllık peşin ${pricingMoney(addOnPrice.amountMinor)}` : 'Yalnız Pro ile'} · KDV ve İyzico işlem ücretleri hariç</span>
           </div>
         </aside>
         <a className="pricing-detail-link" href="/fiyatlar">

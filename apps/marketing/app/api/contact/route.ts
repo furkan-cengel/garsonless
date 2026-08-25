@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { consumeDashboardAuthRateLimit } from '@garsonless/db/server'
 
 export const runtime = 'nodejs'
 
@@ -15,13 +16,9 @@ type ContactMessage = {
   recaptchaToken: string
 }
 
-type RateEntry = { count: number; resetAt: number }
 type RecaptchaResponse = { success?: boolean; hostname?: string; 'error-codes'?: string[] }
 
 const RECAPTCHA_TEST_SECRET_KEY = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe'
-const rateStore = globalThis as typeof globalThis & { __masabuContactRate?: Map<string, RateEntry> }
-const messagesByIp = rateStore.__masabuContactRate ?? new Map<string, RateEntry>()
-rateStore.__masabuContactRate = messagesByIp
 
 function clean(value: unknown, max: number, required = true): string | null {
   if (typeof value !== 'string') return required ? null : ''
@@ -59,19 +56,6 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
   })[character]!)
-}
-
-function rateLimited(key: string, now = Date.now()): boolean {
-  if (messagesByIp.size > 2_000) {
-    for (const [entryKey, entry] of messagesByIp) if (entry.resetAt <= now) messagesByIp.delete(entryKey)
-  }
-  const current = messagesByIp.get(key)
-  if (!current || current.resetAt <= now) {
-    messagesByIp.set(key, { count: 1, resetAt: now + 10 * 60_000 })
-    return false
-  }
-  current.count += 1
-  return current.count > 3
 }
 
 async function verifyRecaptcha(token: string, expectedHostname: string): Promise<boolean> {
@@ -126,7 +110,14 @@ export async function POST(request: Request) {
 
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     ?? request.headers.get('x-real-ip')?.trim() ?? 'unknown'
-  if (rateLimited(ip)) return NextResponse.json({ message: 'Çok fazla mesaj gönderdiniz. Lütfen daha sonra tekrar deneyin.' }, { status: 429 })
+  const rateLimit = await consumeDashboardAuthRateLimit({
+    action: 'marketing-contact',
+    subject: `ip:${ip}`,
+    limit: 3,
+    windowSeconds: 10 * 60,
+  })
+  if (!rateLimit.ok) return NextResponse.json({ message: 'İletişim formu geçici olarak kullanılamıyor.' }, { status: 503 })
+  if (!rateLimit.allowed) return NextResponse.json({ message: 'Çok fazla mesaj gönderdiniz. Lütfen daha sonra tekrar deneyin.' }, { status: 429 })
 
   const verified = await verifyRecaptcha(contact.recaptchaToken, new URL(request.url).hostname)
   if (!verified) return NextResponse.json({ message: 'Güvenlik doğrulaması geçersiz veya süresi dolmuş. Lütfen tekrar deneyin.' }, { status: 400 })

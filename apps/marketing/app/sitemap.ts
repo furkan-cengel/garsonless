@@ -1,7 +1,10 @@
 import type { MetadataRoute } from 'next'
 import { BLOG_POSTS } from '../lib/blog'
 
-const PUBLIC_PATHS = ['', '/hakkimizda', '/fiyatlar', '/blog', '/iletisim'] as const
+const PUBLIC_PATHS = [
+  '', '/hakkimizda', '/fiyatlar', '/blog', '/iletisim',
+  '/solutions', '/resources', '/company',
+] as const
 const LEGAL_PATHS = [
   '/yasal',
   '/yasal/kvkk-aydinlatma-metni', '/yasal/gizlilik-politikasi',
@@ -11,12 +14,10 @@ const LEGAL_PATHS = [
 ] as const
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date()
   const staticPaths = [...PUBLIC_PATHS, ...LEGAL_PATHS]
   return [
     ...staticPaths.map((path) => ({
       url: `https://masabu.co${path}`,
-      lastModified: now,
       changeFrequency: path === '' ? 'weekly' as const : 'monthly' as const,
       priority: path === '' ? 1 : path === '/blog' ? .8 : .6,
     })),

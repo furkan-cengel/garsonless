@@ -46,6 +46,9 @@ test('pricing preserves exact CTA intent and honest commercial copy', () => {
   assert.doesNotMatch(pricing, /İhtiyacınıza göre sözleşme ve fiyat/)
   assert.doesNotMatch(pricing, /Aylık faturalandırılır/)
   assert.doesNotMatch(pricing, /\b(?:API|webhook|SSO|white-label)\b/i)
+  assert.match(pricing, /ADD_ON_PRICES\.iyzico_online_payments/)
+  assert.match(pricingPage, /ADD_ON_PRICES\.iyzico_online_payments/)
+  assert.match(catalog, /\+300 ₺\/ay/)
 })
 
 test('pricing keeps package details in cards and expands long feature lists', () => {
@@ -102,7 +105,9 @@ test('contact form supports general, sales and support messages with guarded del
   assert.match(endpoint, /google\.com\/recaptcha\/api\/siteverify/)
   assert.match(endpoint, /RECAPTCHA_SECRET_KEY/)
   assert.match(endpoint, /if \(contact\.website\)/)
-  assert.match(endpoint, /current\.count > 3/)
+  assert.match(endpoint, /consumeDashboardAuthRateLimit/)
+  assert.match(endpoint, /limit: 3/)
+  assert.match(endpoint, /!rateLimit\.allowed/)
   assert.match(endpoint, /result\.hostname === expectedHostname/)
   assert.match(endpoint, /AbortSignal\.timeout\(10_000\)/)
   assert.match(legacyEndpoint, /export const runtime = 'nodejs'/)
