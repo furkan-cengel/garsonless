@@ -10,7 +10,7 @@ import {
   RESTAURANT_ADD_ONS,
 } from '@garsonless/domain/entitlements'
 import { err, ok, type Result } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 type RpcResult = { data: unknown; error: { message: string } | null }
 export type FeatureEntitlementRpc = (

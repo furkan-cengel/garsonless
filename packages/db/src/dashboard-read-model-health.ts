@@ -3,7 +3,7 @@ import {
   type DashboardInsightsOperation,
 } from '@garsonless/application/read-models'
 import { err, ok, type Result } from '@garsonless/domain'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 export type DashboardInsightsHealthStatus = 'healthy' | 'warning' | 'critical'
 

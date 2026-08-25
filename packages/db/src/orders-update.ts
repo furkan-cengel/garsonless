@@ -1,4 +1,4 @@
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import { ORDER_STATUS_TRANSITIONS } from './enums'
 import type { OrderLifecycleTarget, PaymentMethod } from '@garsonless/domain'
 import { isOrderLifecycleTarget } from '@garsonless/domain'

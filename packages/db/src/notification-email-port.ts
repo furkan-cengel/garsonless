@@ -8,7 +8,7 @@ import {
 } from '@garsonless/application/notification-emails'
 import { err, ok } from '@garsonless/domain'
 import type { Json } from './types.gen'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)

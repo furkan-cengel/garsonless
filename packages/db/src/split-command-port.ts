@@ -1,6 +1,6 @@
 import type { SplitPaymentPort } from '@garsonless/application/splits'
 import { err, ok } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import { createShareDB } from './split'
 
 type RpcError = { message: string } | null

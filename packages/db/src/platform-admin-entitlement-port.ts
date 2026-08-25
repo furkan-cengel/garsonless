@@ -11,7 +11,7 @@ import {
   type FeatureOverrideDecision,
 } from '@garsonless/domain/entitlements'
 import { err, ok } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 type RpcResult = { data: unknown; error: { message: string } | null }
 export type PlatformEntitlementRpc = (

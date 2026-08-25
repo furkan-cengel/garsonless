@@ -1,6 +1,6 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { normalizeRestaurantPlan, type RestaurantPlan } from '@garsonless/domain'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import { canRestaurantUseFeature } from './feature-entitlement-port'
 
 const ARTIFACT_VERSION = 1

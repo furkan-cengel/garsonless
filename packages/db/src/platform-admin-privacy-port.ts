@@ -9,7 +9,7 @@ import {
   isPrivacyOperationSummary,
 } from '@garsonless/domain/platform-privacy'
 import { err, ok } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 type RpcName =
   | 'read_platform_admin_tenant_privacy_operations'

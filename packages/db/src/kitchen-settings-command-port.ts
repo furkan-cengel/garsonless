@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import type { KitchenSettingsCommandPort } from '@garsonless/application/kitchen'
 import { err, normalizeRestaurantPlan, ok, type Result } from '@garsonless/domain'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import { canRestaurantUseFeature } from './feature-entitlement-port'
 
 type KitchenSettingsRpc = (

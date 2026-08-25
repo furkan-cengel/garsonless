@@ -14,14 +14,21 @@ const SYSTEM_FONTS = new Set([
   'monospace',
 ])
 
+const SELF_HOSTED_FONT_VARIABLES: Record<string, string> = {
+  'DM Sans': 'var(--font-dm-sans)',
+  Fraunces: 'var(--font-fraunces)',
+  Inter: 'var(--font-inter)',
+  'Playfair Display': 'var(--font-playfair)',
+  Manrope: 'var(--font-manrope)',
+  Nunito: 'var(--font-nunito)',
+  Fredoka: 'var(--font-fredoka)',
+  'Fredoka One': 'var(--font-fredoka)',
+  Pacifico: 'var(--font-pacifico)',
+}
+
 export function buildFontsUrlFromTheme(theme: GarsonlessTheme): string | null {
-  const fonts = [...new Set([theme.bodyFont, theme.displayFont])]
-    .filter((f) => !SYSTEM_FONTS.has(f))
-  if (fonts.length === 0) return null
-  const params = fonts
-    .map((f) => `family=${encodeURIComponent(f)}:ital,wght@0,400;0,600;0,700;1,400`)
-    .join('&')
-  return `https://fonts.googleapis.com/css2?${params}&display=swap`
+  void theme
+  return null
 }
 
 const THEME_SHADOW_MAP: Record<GarsonlessTheme['shadow'], string> = {
@@ -37,12 +44,10 @@ const THEME_BORDER_W_MAP: Record<GarsonlessTheme['border'], string> = {
 }
 
 export function applyGarsonlessTheme(theme: GarsonlessTheme): string {
-  const bodyFont = SYSTEM_FONTS.has(theme.bodyFont)
-    ? theme.bodyFont
-    : `"${theme.bodyFont}", sans-serif`
-  const displayFont = SYSTEM_FONTS.has(theme.displayFont)
-    ? theme.displayFont
-    : `"${theme.displayFont}", serif`
+  const bodyFont = SELF_HOSTED_FONT_VARIABLES[theme.bodyFont]
+    ?? (SYSTEM_FONTS.has(theme.bodyFont) ? theme.bodyFont : 'sans-serif')
+  const displayFont = SELF_HOSTED_FONT_VARIABLES[theme.displayFont]
+    ?? (SYSTEM_FONTS.has(theme.displayFont) ? theme.displayFont : 'serif')
   return `:root {
   --p-bg: ${theme.bg};
   --p-card: ${theme.cardColor ?? '#ffffff'};

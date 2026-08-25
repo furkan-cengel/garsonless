@@ -1,4 +1,4 @@
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 // Split-payment core primitives (service-role). The customer declare/pay entry
 // points (P2 menu routes) and the staff cash-confirm action (dashboard) both land

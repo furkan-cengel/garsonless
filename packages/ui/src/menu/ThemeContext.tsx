@@ -11,25 +11,16 @@ const SYSTEM_FONTS_SET = new Set([
   'Bodoni 72', 'sans-serif', 'serif', 'cursive', 'monospace',
 ])
 
-function injectGoogleFonts(theme: GarsonlessTheme) {
-  const fonts = [...new Set([theme.bodyFont, theme.displayFont])].filter(
-    (f) => f && !SYSTEM_FONTS_SET.has(f),
-  )
-  if (fonts.length === 0) return
-  const params = fonts
-    .map((f) => `family=${encodeURIComponent(f)}:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400`)
-    .join('&')
-  const url = `https://fonts.googleapis.com/css2?${params}&display=swap`
-  const existing = document.querySelector('link[data-garsonless-fonts]') as HTMLLinkElement | null
-  if (existing) {
-    if (existing.href !== url) existing.href = url
-  } else {
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = url
-    link.setAttribute('data-garsonless-fonts', 'dynamic')
-    document.head.appendChild(link)
-  }
+const SELF_HOSTED_FONT_VARIABLES: Record<string, string> = {
+  'DM Sans': 'var(--font-dm-sans)',
+  Fraunces: 'var(--font-fraunces)',
+  Inter: 'var(--font-inter)',
+  'Playfair Display': 'var(--font-playfair)',
+  Manrope: 'var(--font-manrope)',
+  Nunito: 'var(--font-nunito)',
+  Fredoka: 'var(--font-fredoka)',
+  'Fredoka One': 'var(--font-fredoka)',
+  Pacifico: 'var(--font-pacifico)',
 }
 
 interface ThemeContextValue {
@@ -89,26 +80,12 @@ function applyFontVars(bodyFont: string, displayFont: string) {
   document.body.style.fontFamily = bodyFont
 }
 
-async function loadAndApplyFonts(t: GarsonlessTheme) {
-  const bodyFont = SYSTEM_FONTS_SET.has(t.bodyFont) ? t.bodyFont : `"${t.bodyFont}", sans-serif`
-  const displayFont = SYSTEM_FONTS_SET.has(t.displayFont) ? t.displayFont : `"${t.displayFont}", serif`
-  // Apply the declared stack immediately; font-display handles the eventual
-  // web-font swap without blocking the editor handshake.
+function loadAndApplyFonts(t: GarsonlessTheme) {
+  const bodyFont = SELF_HOSTED_FONT_VARIABLES[t.bodyFont]
+    ?? (SYSTEM_FONTS_SET.has(t.bodyFont) ? t.bodyFont : 'sans-serif')
+  const displayFont = SELF_HOSTED_FONT_VARIABLES[t.displayFont]
+    ?? (SYSTEM_FONTS_SET.has(t.displayFont) ? t.displayFont : 'serif')
   applyFontVars(bodyFont, displayFont)
-
-  const toLoad = [t.bodyFont, t.displayFont].filter((f) => f && !SYSTEM_FONTS_SET.has(f))
-  if (toLoad.length > 0) {
-    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
-    try {
-      await Promise.race([
-        Promise.all(toLoad.map((f) => document.fonts.load(`400 16px "${f}"`))),
-        new Promise<void>((r) => setTimeout(r, 3000)),
-      ])
-    } catch {
-      // proceed even if font check fails
-    }
-  }
-
 }
 
 interface ThemeProviderProps {
@@ -133,9 +110,8 @@ export function ThemeProvider({ children, initialTheme, isPreview = false, initi
   }, [onThemeChange])
 
   useEffect(() => {
-    injectGoogleFonts(theme)
     applyNonFontVars(theme)
-    void loadAndApplyFonts(theme)
+    loadAndApplyFonts(theme)
   }, [theme])
 
   return (

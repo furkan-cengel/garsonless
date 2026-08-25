@@ -5,7 +5,7 @@
 // is masked here whenever the customer has NOT given open consent at this venue;
 // the raw phone never leaves this module without consent.
 
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import type { Json } from './types.gen'
 import { computeTier } from '@garsonless/domain/loyalty'
 import { getLoyaltyScope, getMemberBalances } from './loyalty'

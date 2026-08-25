@@ -6,7 +6,7 @@ import {
   type TeamMemberStatus,
   type TeamSection,
 } from '@garsonless/domain/team'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 export { TEAM_SECTIONS }
 export type { TeamSection }

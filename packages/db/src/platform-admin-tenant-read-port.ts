@@ -16,7 +16,7 @@ import {
 import { SUBSCRIPTION_STATUSES } from '@garsonless/domain/billing'
 import { RESTAURANT_PLANS } from '@garsonless/domain/entitlements'
 import { err, ok } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 type RpcResult = { data: unknown; error: { message: string } | null }
 export type PlatformTenantReadRpc = (

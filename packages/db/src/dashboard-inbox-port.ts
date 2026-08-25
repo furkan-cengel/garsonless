@@ -8,7 +8,7 @@ import {
   isDashboardInboxEventType,
 } from '@garsonless/application/notifications'
 import { err, ok } from '@garsonless/domain'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)

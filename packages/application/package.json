@@ -2,6 +2,7 @@
   "name": "@garsonless/application",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "exports": {
     "./billing": "./src/billing.ts",
     "./billing-maintenance": "./src/billing-maintenance.ts",
@@ -12,11 +13,14 @@
     "./kitchen": "./src/kitchen.ts",
     "./loyalty": "./src/loyalty.ts",
     "./menu": "./src/menu.ts",
+    "./media-upload": "./src/media-upload.ts",
     "./orders": "./src/orders.ts",
     "./notification-emails": "./src/notification-emails.ts",
     "./notifications": "./src/notifications.ts",
+    "./onboarding": "./src/onboarding.ts",
     "./outbox": "./src/outbox.ts",
     "./payments": "./src/payments.ts",
+    "./public-menu-cache": "./src/public-menu-cache.ts",
     "./platform-admin": "./src/platform-admin.ts",
     "./platform-admin-errors": "./src/platform-admin-errors.ts",
     "./platform-admin-tenant-operations": "./src/platform-admin-tenant-operations.ts",
@@ -32,12 +36,14 @@
     "./payment-reconciliation": "./src/payment-reconciliation.ts",
     "./read-models": "./src/read-models.ts",
     "./restaurants": "./src/restaurants.ts",
+    "./runtime-errors": "./src/runtime-errors.ts",
     "./settings": "./src/settings.ts",
     "./splits": "./src/splits.ts",
     "./table-operations": "./src/table-operations.ts",
     "./tables": "./src/tables.ts",
     "./team": "./src/team.ts",
-    "./themes": "./src/themes.ts"
+    "./themes": "./src/themes.ts",
+    "./web-vitals": "./src/web-vitals.ts"
   },
   "dependencies": {
     "@garsonless/design-engine": "workspace:*",

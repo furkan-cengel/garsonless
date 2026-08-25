@@ -1,6 +1,6 @@
 import type { OrderCheckoutPort } from '@garsonless/application/payments'
 import { err, ok } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import {
   decryptPaymentCredentials,
   encryptPaymentCredentials,

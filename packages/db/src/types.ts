@@ -86,3 +86,4 @@ export type {
   OrderLineSnapshot,
   ResolvableMenuItem,
 } from './menu-domain'
+export type { MenuItemRecommendationRow } from './menu-recommendations'

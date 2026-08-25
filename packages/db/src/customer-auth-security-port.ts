@@ -1,4 +1,4 @@
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 type RpcError = { code?: string; message?: string } | null
 type RpcResult = { data: unknown; error: RpcError }

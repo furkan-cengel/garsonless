@@ -9,7 +9,7 @@ import type {
   PanoTableDetailReadModelPort,
 } from '@garsonless/application/read-models'
 import { OPEN_ORDER_STATUSES, err, isServiceRequestType, ok } from '@garsonless/domain'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import { DASHBOARD_INSIGHTS_PROJECTIONS } from './dashboard-read-model-contract'
 import {
   createStructuredDashboardInsightsObserver,

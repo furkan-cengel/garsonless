@@ -6,7 +6,7 @@ import type {
   PreparedMenuItemPatch,
 } from '@garsonless/application/menu'
 import { err, ok, type Result } from '@garsonless/domain'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import type { Json, Tables, TablesInsert, TablesUpdate } from './types.gen'
 
 type MenuItem = Tables<'menu_items'>

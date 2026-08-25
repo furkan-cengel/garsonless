@@ -10,7 +10,7 @@ import type {
   TableSessionPort,
 } from '@garsonless/application/tables'
 import { err, ok, serviceRequestLabel, type Result, type TableSessionCloseOutcome } from '@garsonless/domain'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import type { Json } from './types.gen'
 import {
   listActiveTableQrTokens,

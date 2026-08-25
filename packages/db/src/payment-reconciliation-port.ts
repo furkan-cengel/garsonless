@@ -4,7 +4,7 @@ import type {
   PaymentReconciliationPort,
 } from '@garsonless/application/payment-reconciliation'
 import { err, ok, type Result } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 type Rpc = (name: string, args: Record<string, unknown>) => Promise<{
   data: unknown

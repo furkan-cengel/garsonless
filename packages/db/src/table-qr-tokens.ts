@@ -4,7 +4,7 @@ import type {
   PublicTableState,
 } from '@garsonless/application/tables'
 import { err, ok } from '@garsonless/domain'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 type Rpc = (name: string, args: Record<string, unknown>) => Promise<{
   data: unknown

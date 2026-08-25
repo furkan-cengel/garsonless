@@ -1,7 +1,7 @@
 import type { TeamCommandPort } from '@garsonless/application/team'
 import { err, ok } from '@garsonless/domain'
 import { sanitizeTeamPermissions } from '@garsonless/domain/team'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import {
   acceptInvite,
   createInvite,

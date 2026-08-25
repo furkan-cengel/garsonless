@@ -4,7 +4,7 @@ import type {
   TenantPrivacyOperation,
   TenantPrivacyOperationType,
 } from '@garsonless/application/settings'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 type RpcResult = { data: unknown; error: { code?: string; message: string } | null }
 

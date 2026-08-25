@@ -1,3 +1,5 @@
+import 'server-only'
+
 /** Server-only database boundary for app adapters and application ports. */
 export { resolveCheckoutDiscount, resolveOrderLines } from './orders'
 export {
@@ -11,6 +13,10 @@ export {
 } from './coupons'
 export type { CouponWriteInput, ResolvedCouponPricing } from './coupons'
 export { recordSecurityEvent, TEAM_SECURITY_EVENT_TYPES } from './security'
+export {
+  completeDashboardSignupEmailVerification,
+  requireDashboardSignupEmailVerification,
+} from './dashboard-signup-verification-port'
 export {
   consumeDashboardAuthRateLimit,
   createTenantPrivacyExport,
@@ -107,6 +113,9 @@ export { createKitchenSettingsCommandPort } from './kitchen-settings-command-por
 export { createTeamCommandPort } from './team-command-port'
 export { createLoyaltyQueryPort } from './loyalty-query-port'
 export { createFeaturedProductsReadPort } from './featured-products-read-port'
+export { createPublicMenuRevisionPort } from './public-menu-revision-port'
+export { listPublishedPublicMenuSitemapEntries } from './public-menu-sitemap-port'
+export type { PublicMenuSitemapEntry } from './public-menu-sitemap-port'
 export { createThemeApplicationPort } from './theme-application-port'
 export {
   createThemePreviewAccessToken,

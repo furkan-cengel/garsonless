@@ -5,7 +5,7 @@ import type {
 } from '@garsonless/application/platform-admin-impersonation'
 import { PLATFORM_ADMIN_ROLES } from '@garsonless/domain/platform-admin'
 import { err, ok } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 type RpcResult = { data: unknown; error: { message: string } | null }
 export type PlatformImpersonationRpc = (

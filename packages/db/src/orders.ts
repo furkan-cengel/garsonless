@@ -1,4 +1,4 @@
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import type { Json } from './types.gen'
 import type { OrderStatus } from './enums'
 import { computeOrderDiscount, type OrderLineInput } from './loyalty'

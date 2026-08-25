@@ -1,5 +1,5 @@
 import { computeTier, loyaltyScopeKey, readLoyaltyConfig } from '@garsonless/domain/loyalty'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import { canRestaurantUseFeature } from './feature-entitlement-port'
 
 interface CustomerAccountRecord {

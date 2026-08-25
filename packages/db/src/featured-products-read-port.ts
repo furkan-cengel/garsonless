@@ -3,7 +3,7 @@ import type {
   FeaturedProductsReadPort,
 } from '@garsonless/application/featured-products'
 import { err, ok } from '@garsonless/domain'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import { normalizeTimeZone, startOfDayNDaysAgo, startOfRestaurantDay } from './restaurant-time'
 
 const PAGE_SIZE = 1_000

@@ -1,5 +1,5 @@
 /** Browser-safe helpers. Never export a Supabase service client from here. */
-export { createClient } from './client'
+export { createClient } from './browser-client'
 export {
   ALLERGEN_CODES,
   ALLERGEN_LABELS,

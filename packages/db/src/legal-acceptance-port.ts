@@ -1,6 +1,6 @@
 import type { LegalDocumentType } from '@garsonless/domain/legal'
 import { err, ok, type Result } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 type LegalAcceptanceRpc = (
   name: string,

@@ -2,6 +2,7 @@
   "name": "@garsonless/ui",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "sideEffects": [
     "**/*.css"
   ],
@@ -16,6 +17,7 @@
     "./errors": "./src/errors/RecoveryScreen.tsx",
     "./themes": "./src/themes/index.ts",
     "./themes/default": "./src/themes/default/index.ts",
+    "./themes/default/settings": "./src/themes/default/settings.ts",
     "./themes/default/comboRibbonModel": "./src/themes/default/sections/comboRibbonModel.ts",
     "./menu/CartDrawer": "./src/menu/CartDrawer.tsx",
     "./menu/Header": "./src/menu/Header.tsx",

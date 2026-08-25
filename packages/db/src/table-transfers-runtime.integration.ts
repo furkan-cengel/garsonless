@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import test from "node:test";
-import { createClient, createServiceClient } from "./client";
+import { createClient } from "./browser-client";
+import { createServiceClient } from "./service-client";
 import { createTableSessionPort } from "./table-command-port";
 import { resolveTransferredGuestTable } from "./table-qr-tokens";
 

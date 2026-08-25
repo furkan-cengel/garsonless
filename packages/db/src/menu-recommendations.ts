@@ -1,4 +1,4 @@
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 export interface MenuItemRecommendationRow {
   sourceItemId: string

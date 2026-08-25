@@ -10,7 +10,7 @@ import {
   type SubscriptionInvoiceStatus,
 } from '@garsonless/domain/billing'
 import { err, ok, type Result } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 export type SubscriptionBillingRpc = (name: string, args: Record<string, unknown>) => Promise<{
   data: unknown

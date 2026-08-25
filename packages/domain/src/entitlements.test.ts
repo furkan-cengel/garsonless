@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  ADD_ON_PRICES,
   BILLABLE_FEATURES,
   calculatePlanCharge,
   canUseEffectiveFeature,
   canUseFeature,
   getEffectiveFeatureEntitlement,
   getFeatureEntitlement,
+  getAddOnPrice,
   PLAN_DEFINITIONS,
   PLAN_PRICES,
   RESTAURANT_ADD_ONS,
@@ -66,6 +68,13 @@ test('annual catalogue prices exclude KDV and are exactly twenty percent below t
   assert.equal(PLAN_PRICES.starter.annual.amountMinor, 335_040)
   assert.equal(PLAN_PRICES.plus.annual.amountMinor, 671_040)
   assert.equal(PLAN_PRICES.pro.annual.amountMinor, 1_151_040)
+  assert.equal(ADD_ON_PRICES.iyzico_online_payments.monthly.amountMinor, 30_000)
+  assert.equal(ADD_ON_PRICES.iyzico_online_payments.annual.amountMinor, 288_000)
+  assert.equal(getAddOnPrice('iyzico_online_payments', 'monthly').amountMinor, 30_000)
+  assert.equal(
+    ADD_ON_PRICES.iyzico_online_payments.annual.amountMinor * 5,
+    ADD_ON_PRICES.iyzico_online_payments.monthly.amountMinor * 12 * 4,
+  )
   assert.deepEqual(calculatePlanCharge(PLAN_PRICES.pro.monthly, 20), {
     netAmountMinor: 119_900,
     vatAmountMinor: 23_980,

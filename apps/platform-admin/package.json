@@ -2,6 +2,7 @@
   "name": "@garsonless/platform-admin",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "node --env-file-if-exists=../dashboard/.env.local node_modules/next/dist/bin/next dev --turbopack --port 3004",
     "build": "next build",

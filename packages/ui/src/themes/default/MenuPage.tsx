@@ -160,9 +160,8 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
       navigateToVisualCategory(categoryId)
     }
     return (
-      <div data-menu-page-section-id={block.id}>
+      <div key={block.id} data-menu-page-section-id={block.id}>
       <CustomSectionRenderer
-        key={block.id}
         sectionId={sectionId}
         sectionInstanceId={block.id}
         config={config}

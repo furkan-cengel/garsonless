@@ -2,7 +2,7 @@
 // All service-role only. Earning is computed from the order's OWN
 // DB data (never client input), so points/stamps can't be inflated.
 
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import { canRestaurantUseFeature } from './feature-entitlement-port'
 import {
   applyBonusStamps,

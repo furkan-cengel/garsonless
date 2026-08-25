@@ -11,7 +11,7 @@ import {
   type CouponStackingPolicy,
   type PublicCouponChoice,
 } from '@garsonless/domain/coupons'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import { canRestaurantUseFeature } from './feature-entitlement-port'
 import type { DiscountResult, OrderLineInput } from './loyalty'
 

@@ -6,7 +6,7 @@ import type {
   SettlementPort,
 } from '@garsonless/application/orders'
 import { err, ok } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import { createOrder, resolveOrderLines } from './orders'
 import { dispatchAggregateDomainEvents } from './outbox-consumer-port'
 import type { Json } from './types.gen'

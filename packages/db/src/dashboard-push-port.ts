@@ -6,7 +6,7 @@ import type {
 } from '@garsonless/application/push-notifications'
 import { isDashboardPushEventType, DASHBOARD_PUSH_CONSUMER } from '@garsonless/application/push-notifications'
 import { err, ok } from '@garsonless/domain'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import { canRestaurantUseFeature } from './feature-entitlement-port'
 
 export async function upsertDashboardPushSubscription(input: {

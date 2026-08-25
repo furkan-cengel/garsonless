@@ -5,7 +5,7 @@ import type {
 } from '@garsonless/application/platform-admin-tenant-operations'
 import { isTenantServiceStatus } from '@garsonless/domain/platform-admin'
 import { err, ok } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 type RpcName =
   | 'read_platform_admin_tenant_service_control'

@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Masabu — Project Intelligence (formerly Garsonless)
 
 ## Product Vision

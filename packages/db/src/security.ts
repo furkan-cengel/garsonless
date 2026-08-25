@@ -1,4 +1,4 @@
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 export type TeamSecurityEventType =
   | 'team_member_invited'

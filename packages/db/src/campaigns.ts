@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import {
   getSmsDeliveryAvailability,
   getSmsProvider,

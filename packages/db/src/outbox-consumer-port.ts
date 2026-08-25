@@ -9,7 +9,7 @@ import {
   type Result,
 } from '@garsonless/domain'
 import { deliverCampaign } from './campaigns'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import {
   creditVisitsForSessionStrict,
   creditWelcomeBonusStrict,

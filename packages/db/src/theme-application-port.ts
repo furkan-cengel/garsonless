@@ -1,7 +1,7 @@
 import type { ThemeApplicationPort } from '@garsonless/application/themes'
 import { normalizeRestaurantPlan } from '@garsonless/domain/entitlements'
 import { err, ok } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import type { Json } from './types.gen'
 import { canRestaurantUseFeature } from './feature-entitlement-port'
 import {

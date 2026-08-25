@@ -2,7 +2,7 @@ import type {
   DashboardInsightsQueryObservation,
   DashboardInsightsQueryObserver,
 } from '@garsonless/application/read-models'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import {
   createStructuredDashboardInsightsObserver,
   dashboardInsightsLogDetail,

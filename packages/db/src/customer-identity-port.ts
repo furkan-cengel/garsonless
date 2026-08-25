@@ -1,4 +1,4 @@
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 export async function resolveCustomerIdentityForAuthUser(authUserId: string): Promise<{
   customerId: string

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { buildOrderLineSnapshot, readOrderLineSnapshot } from './menu-domain'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 type RpcResult = { data: unknown; error: { code?: string; message?: string } | null }
 type LooseRpcClient = { rpc(name: string, args: Record<string, unknown>): PromiseLike<RpcResult> }

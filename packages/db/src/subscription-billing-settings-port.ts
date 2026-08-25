@@ -13,7 +13,7 @@ import {
   RESTAURANT_PLANS,
 } from '@garsonless/domain/entitlements'
 import { err, ok, type Result } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 
 export type SubscriptionBillingSettingsRpc = (
   name: 'read_subscription_billing_settings' | 'read_restaurant_subscription_add_ons',

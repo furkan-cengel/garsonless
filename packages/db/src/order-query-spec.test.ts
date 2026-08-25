@@ -22,7 +22,6 @@ test('collected order PostgREST filter is generated from the domain policy', () 
   assert.equal(applyCollectedOrderFilter(query), query)
   assert.deepEqual(calls, [
     'not:paid_at:is:null',
-    'neq:status:cancelled',
     'or:payment_method.is.null,payment_method.neq.comp',
   ])
 })

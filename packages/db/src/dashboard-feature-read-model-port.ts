@@ -4,7 +4,7 @@ import type { DashboardTablesReadModelPort } from '@garsonless/application/table
 import type { ThemeMenuReferenceReadModelPort } from '@garsonless/application/themes'
 import type { DashboardSettingsReadModelPort } from '@garsonless/application/settings'
 import { err, ok } from '@garsonless/domain/result'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import { DASHBOARD_FEATURE_READ_PROJECTIONS as projection } from './dashboard-feature-read-model-contract'
 import { TEAM_SECURITY_EVENT_TYPES, type TeamSecurityEventType } from './security'
 import { listTeamMembers, type TeamMember } from './team'

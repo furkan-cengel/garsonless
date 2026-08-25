@@ -1,6 +1,6 @@
 import type { CustomerConsentPort, CustomerIdentityPort } from '@garsonless/application/customers'
 import { err, ok, type EnsureCustomerResult } from '@garsonless/domain'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import { getConsentStatus, recordConsent } from './customers'
 import { requestWelcomeBonus } from './outbox-consumer-port'
 import { normalizePhone } from './phone'

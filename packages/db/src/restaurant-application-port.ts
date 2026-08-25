@@ -4,7 +4,7 @@ import type {
   StandRequestPort,
 } from '@garsonless/application/restaurants'
 import { err, ok } from '@garsonless/domain'
-import { createServiceClient } from './client'
+import { createServiceClient } from './service-client'
 import type { Json } from './types.gen'
 
 export function createRestaurantSettingsPort(): RestaurantSettingsPort {

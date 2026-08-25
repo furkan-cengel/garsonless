@@ -67,8 +67,22 @@ export const PLAN_PRICES: Readonly<Record<SelfServePlan, Readonly<Record<Billing
   },
 }
 
+/** İyzico Online Ödeme is sold only as a Pro add-on. It follows the same
+ * annual catalogue policy as self-serve plans: twelve monthly payments minus
+ * twenty percent. Values are KDV-exclusive and are never provider-derived. */
+export const ADD_ON_PRICES: Readonly<Record<RestaurantAddOn, Readonly<Record<BillingInterval, PlanPrice>>>> = {
+  iyzico_online_payments: {
+    monthly: { amountMinor: 30_000, currency: PLAN_PRICE_CURRENCY, vatIncluded: false },
+    annual: { amountMinor: 288_000, currency: PLAN_PRICE_CURRENCY, vatIncluded: false },
+  },
+}
+
 export function getPlanPrice(plan: SelfServePlan, interval: BillingInterval): PlanPrice {
   return PLAN_PRICES[plan][interval]
+}
+
+export function getAddOnPrice(addOn: RestaurantAddOn, interval: BillingInterval): PlanPrice {
+  return ADD_ON_PRICES[addOn][interval]
 }
 
 export function calculatePlanCharge(price: PlanPrice, vatRate: number): {
