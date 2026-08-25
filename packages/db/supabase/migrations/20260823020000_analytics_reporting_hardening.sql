@@ -27,10 +27,15 @@ begin
   );
 
   if corrected_definition = function_definition then
-    raise exception 'analytics collected-order policy replacement did not match';
+    if position(
+      E'and o.deleted_at is null\n      and (o.payment_method is null or o.payment_method <> ''comp'')'
+      in function_definition
+    ) = 0 then
+      raise exception 'analytics collected-order policy replacement did not match a recognized shape';
+    end if;
+  else
+    execute corrected_definition;
   end if;
-
-  execute corrected_definition;
 end
 $migration$;
 
