@@ -112,6 +112,16 @@ export function MarketingFooter() {
           </nav>
         </div>
 
+        <div className="marketing-footer__payments" aria-label="Desteklenen güvenli ödeme yöntemleri">
+          <span>Güvenli ödeme yöntemleri</span>
+          <Image
+            src="/payments/iyzico-payment-methods.svg"
+            alt="iyzico ile Öde, Mastercard, Visa, American Express ve Troy"
+            width={429}
+            height={32}
+          />
+        </div>
+
         <div className="marketing-footer__bottom">
           <span>© 2026 Masabu · İstanbul, Türkiye</span>
           <ul className="marketing-footer__socials" aria-label="Masabu sosyal medya hesapları">
