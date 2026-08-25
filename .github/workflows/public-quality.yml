@@ -1,0 +1,98 @@
+name: Public Quality Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.DEV_SUPABASE_ANON_KEY }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
+  NEXT_PUBLIC_APP_URL: http://127.0.0.1:3011
+  NEXT_PUBLIC_MENU_URL: http://127.0.0.1:3011
+  NEXT_PUBLIC_DASHBOARD_URL: http://127.0.0.1:3005
+  NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3003
+  SMOKE_DASHBOARD_URL: http://127.0.0.1:3005
+  SMOKE_MENU_URL: http://127.0.0.1:3011
+  SMOKE_KITCHEN_URL: http://127.0.0.1:3002
+  SMOKE_MARKETING_URL: http://127.0.0.1:3003
+  SMOKE_MENU_SLUG: maf-lounge
+
+jobs:
+  browser-matrix:
+    name: Chromium, WebKit and Firefox critical paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+          run_install: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install browser engines
+        run: pnpm exec playwright install --with-deps chromium webkit firefox
+      - name: Build smoke applications
+        run: pnpm --parallel --filter @garsonless/dashboard --filter @garsonless/menu --filter @garsonless/kitchen --filter @garsonless/marketing build
+      - name: Run critical browser matrix
+        run: pnpm exec playwright test tests/smoke/cross-browser-critical.spec.ts --project=chromium --project=webkit-critical --project=firefox-critical
+
+  lighthouse:
+    name: Marketing and public menu Lighthouse budgets
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+          run_install: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build public applications
+        run: pnpm --parallel --filter @garsonless/menu --filter @garsonless/marketing build
+      - name: Start production servers
+        run: |
+          pnpm --filter @garsonless/menu exec next start --port 3011 &
+          pnpm --filter @garsonless/marketing exec next start --port 3003 &
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:3003/ >/dev/null && curl --fail --silent http://127.0.0.1:3011/maf-lounge >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+      - name: Enforce Lighthouse budgets
+        uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18
+        with:
+          urls: |
+            http://127.0.0.1:3003/
+            http://127.0.0.1:3011/maf-lounge
+          configPath: ./.lighthouserc.json
+          uploadArtifacts: true

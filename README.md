@@ -14,7 +14,6 @@ Masabu is a QR menu SaaS monorepo for restaurants: customizable digital menus, t
 - `@garsonless/ui` — shared UI primitives and icons
 - `@garsonless/db` — Supabase clients, types, migrations, data helpers
 - `@garsonless/design-engine` — menu theme schema/templates/rendering
-- `@garsonless/ai` — AI helper package
 
 ## Getting Started
 

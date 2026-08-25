@@ -1,9 +1,11 @@
 {
   "schemaVersion": 1,
   "origins": {
+    "marketing": "https://masabu.co",
     "dashboard": "https://app.masabu.co",
     "menu": "https://menu.masabu.co",
-    "kitchen": "https://kitchen.masabu.co"
+    "kitchen": "https://kds.masabu.co",
+    "platformAdmin": "https://admin.masabu.co"
   },
   "requiredScopes": [
     "dashboard",
@@ -21,7 +23,9 @@
     ["dashboard", "NEXT_PUBLIC_KITCHEN_URL", "kitchen"],
     ["menu", "NEXT_PUBLIC_APP_URL", "menu"],
     ["menu", "NEXT_PUBLIC_MENU_URL", "menu"],
-    ["marketing", "NEXT_PUBLIC_DASHBOARD_URL", "dashboard"]
+    ["marketing", "NEXT_PUBLIC_DASHBOARD_URL", "dashboard"],
+    ["marketing", "NEXT_PUBLIC_SITE_URL", "marketing"],
+    ["platform-admin", "NEXT_PUBLIC_ADMIN_URL", "platformAdmin"]
   ],
   "sharedValueGroups": [
     {
@@ -30,6 +34,7 @@
         ["dashboard", "NEXT_PUBLIC_SUPABASE_URL"],
         ["menu", "NEXT_PUBLIC_SUPABASE_URL"],
         ["kitchen", "NEXT_PUBLIC_SUPABASE_URL"],
+        ["marketing", "NEXT_PUBLIC_SUPABASE_URL"],
         ["platform-admin", "NEXT_PUBLIC_SUPABASE_URL"],
         ["outbox-worker", "SUPABASE_URL"]
       ]
@@ -49,6 +54,7 @@
         ["dashboard", "SUPABASE_SERVICE_ROLE_KEY"],
         ["menu", "SUPABASE_SERVICE_ROLE_KEY"],
         ["kitchen", "SUPABASE_SERVICE_ROLE_KEY"],
+        ["marketing", "SUPABASE_SERVICE_ROLE_KEY"],
         ["platform-admin", "SUPABASE_SERVICE_ROLE_KEY"],
         ["outbox-worker", "SUPABASE_SERVICE_ROLE_KEY"]
       ]

@@ -39,9 +39,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Report dead code (advisory)
-        continue-on-error: true
-        run: pnpm deadcode:report
-
       - name: Run architecture quality gate
         run: pnpm check:ci

@@ -20,8 +20,8 @@ function validEnv() {
       NEXT_PUBLIC_APP_URL: 'https://app.masabu.co',
       NEXT_PUBLIC_MENU_URL: 'https://menu.masabu.co',
       NEXT_PUBLIC_MENU_BASE_URL: 'https://menu.masabu.co',
-      KITCHEN_URL: 'https://kitchen.masabu.co',
-      NEXT_PUBLIC_KITCHEN_URL: 'https://kitchen.masabu.co',
+      KITCHEN_URL: 'https://kds.masabu.co',
+      NEXT_PUBLIC_KITCHEN_URL: 'https://kds.masabu.co',
       OUTBOX_WORKER_SECRET: SHARED_WORKER,
     },
     menu: {
@@ -37,11 +37,17 @@ function validEnv() {
       NEXT_PUBLIC_SUPABASE_ANON_KEY: SHARED_ANON,
       SUPABASE_SERVICE_ROLE_KEY: SHARED_SERVICE,
     },
-    marketing: { NEXT_PUBLIC_DASHBOARD_URL: 'https://app.masabu.co' },
+    marketing: {
+      NEXT_PUBLIC_SUPABASE_URL: supabase,
+      NEXT_PUBLIC_DASHBOARD_URL: 'https://app.masabu.co',
+      NEXT_PUBLIC_SITE_URL: 'https://masabu.co',
+      SUPABASE_SERVICE_ROLE_KEY: SHARED_SERVICE,
+    },
     'platform-admin': {
       NEXT_PUBLIC_SUPABASE_URL: supabase,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: SHARED_ANON,
       SUPABASE_SERVICE_ROLE_KEY: SHARED_SERVICE,
+      NEXT_PUBLIC_ADMIN_URL: 'https://admin.masabu.co',
     },
     'outbox-worker': {
       SUPABASE_URL: supabase,
