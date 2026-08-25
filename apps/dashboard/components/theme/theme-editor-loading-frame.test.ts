@@ -23,6 +23,8 @@ test('theme editor loading frame follows the editor responsive contract', () => 
   assert.match(source, /grid-template-columns: 260px minmax\(0, 1fr\) 300px/)
   assert.match(source, /theme-editor-loading-task-nav/)
   assert.match(source, /theme-editor-loading-phone/)
+  assert.match(source, /\.theme-editor-loading-frame \{[^]*flex: 1 1 0%/)
+  assert.doesNotMatch(source, /\.theme-editor-loading-frame \{[^}]*height: 100%/)
   assert.match(source, /prefers-reduced-motion: reduce/)
   assert.match(source, /role="status"/)
   assert.match(source, /aria-busy="true"/)

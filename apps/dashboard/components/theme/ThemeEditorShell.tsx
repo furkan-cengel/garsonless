@@ -256,7 +256,7 @@ export function ThemeEditorShell({
       data-theme-editor-root
       style={{
         width: '100%',
-        height: '100%',
+        flex: '1 1 0%',
         minWidth: 0,
         minHeight: 0,
         overflow: 'hidden',

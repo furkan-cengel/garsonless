@@ -804,6 +804,8 @@ test("theme editor delegates shell projections, toast view and navigation catalo
   assert.doesNotMatch(toastSource, /useState|lib\/actions|supabase/i);
   assert.match(shellSource, /<ThemeEditorToast/);
   assert.match(shellSource, /data-theme-editor-root/);
+  assert.match(shellSource, /flex: '1 1 0%'/);
+  assert.doesNotMatch(shellSource, /height: '100%'/);
   assert.doesNotMatch(shellSource, /min-height: 44px !important/);
   assert.doesNotMatch(shellSource, /min-width: 44px !important/);
   assert.match(shellSource, /prefers-reduced-motion/);
