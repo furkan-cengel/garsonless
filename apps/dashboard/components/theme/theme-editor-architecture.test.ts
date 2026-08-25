@@ -598,7 +598,7 @@ test("theme editor delegates responsive preview workspace state to its controlle
   assert.match(clientSource, /taskBased=\{taskBased\}/);
   assert.match(shellSource, /aria-label="Tema düzenleme çalışma alanı"/);
   assert.match(shellSource, /from '@\/components\/ui\/tabs'/);
-  assert.match(shellSource, /<Tabs value=\{activeSurface\}/);
+  assert.match(shellSource, /<Tabs\s+value=\{activeSurface\}/);
   assert.match(shellSource, /<TabsList data-theme-editor-task-nav/);
   assert.match(shellSource, /<TabsTrigger/);
   assert.match(shellSource, /\[data-slot="scroll-area"\]\[data-scrolling\]/);
@@ -806,6 +806,7 @@ test("theme editor delegates shell projections, toast view and navigation catalo
   assert.match(shellSource, /data-theme-editor-root/);
   assert.match(shellSource, /flex: '1 1 0%'/);
   assert.doesNotMatch(shellSource, /height: '100%'/);
+  assert.match(shellSource, /className="min-h-0 flex-1 flex-col gap-0 overflow-hidden"/);
   assert.doesNotMatch(shellSource, /min-height: 44px !important/);
   assert.doesNotMatch(shellSource, /min-width: 44px !important/);
   assert.match(shellSource, /prefers-reduced-motion/);

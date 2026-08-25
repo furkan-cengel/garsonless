@@ -267,31 +267,35 @@ export function ThemeEditorShell({
     >
       <style>{EDITOR_INTERACTION_CSS}</style>
       {topbar}
-      <Tabs value={activeSurface} onValueChange={(value) => onSurfaceChange(value as ThemeEditorSurface)} className="min-h-0 flex-1 gap-0">
-      {taskBased && <ThemeEditorTaskNavigation />}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div
-          id="theme-editor-page-panel"
-          role={taskBased ? 'tabpanel' : undefined}
-          aria-labelledby={taskBased ? 'theme-editor-page-tab' : undefined}
-          data-theme-editor-pane="page"
-          style={{ display: !taskBased || activeSurface === 'page' ? 'flex' : 'none' }}
-        >{sidebar}</div>
-        <div
-          id="theme-editor-preview-panel"
-          role={taskBased ? 'tabpanel' : undefined}
-          aria-labelledby={taskBased ? 'theme-editor-preview-tab' : undefined}
-          data-theme-editor-pane="preview"
-          style={{ display: !taskBased || activeSurface === 'preview' ? 'flex' : 'none', flex: 1 }}
-        >{canvas}</div>
-        <div
-          id="theme-editor-design-panel"
-          role={taskBased ? 'tabpanel' : undefined}
-          aria-labelledby={taskBased ? 'theme-editor-design-tab' : undefined}
-          data-theme-editor-pane="design"
-          style={{ display: !taskBased || activeSurface === 'design' ? 'flex' : 'none' }}
-        >{properties}</div>
-      </div>
+      <Tabs
+        value={activeSurface}
+        onValueChange={(value) => onSurfaceChange(value as ThemeEditorSurface)}
+        className="min-h-0 flex-1 flex-col gap-0 overflow-hidden"
+      >
+        {taskBased && <ThemeEditorTaskNavigation />}
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div
+            id="theme-editor-page-panel"
+            role={taskBased ? 'tabpanel' : undefined}
+            aria-labelledby={taskBased ? 'theme-editor-page-tab' : undefined}
+            data-theme-editor-pane="page"
+            style={{ display: !taskBased || activeSurface === 'page' ? 'flex' : 'none' }}
+          >{sidebar}</div>
+          <div
+            id="theme-editor-preview-panel"
+            role={taskBased ? 'tabpanel' : undefined}
+            aria-labelledby={taskBased ? 'theme-editor-preview-tab' : undefined}
+            data-theme-editor-pane="preview"
+            style={{ display: !taskBased || activeSurface === 'preview' ? 'flex' : 'none', flex: 1 }}
+          >{canvas}</div>
+          <div
+            id="theme-editor-design-panel"
+            role={taskBased ? 'tabpanel' : undefined}
+            aria-labelledby={taskBased ? 'theme-editor-design-tab' : undefined}
+            data-theme-editor-pane="design"
+            style={{ display: !taskBased || activeSurface === 'design' ? 'flex' : 'none' }}
+          >{properties}</div>
+        </div>
       </Tabs>
       {dialogs}
       <ThemeEditorToast message={toastMessage} />
