@@ -81,6 +81,8 @@ interface Props {
   previewState?: AuthPreviewState
   /** Editor-only authenticated account fixture. It never issues mutations. */
   accountPreviewState?: AccountPreviewState
+  /** Enables normal browser-history semantics for server-gated smoke fixtures. */
+  accountPreviewHistoryEnabled?: boolean
   /** Destination requested by the surface that opened the account sheet. */
   initialTarget?: MemberOpenTarget
 }
@@ -415,7 +417,7 @@ function AuthScreen({ restaurantName, restaurantLogoUrl, header, welcomeBonus, b
           {method === 'phone' ? 'E-posta ile devam et' : 'Telefon numarasıyla devam et'}
         </button>}
         <button type="button" className="ml-auth-guest" onClick={onSkip}>Misafir olarak devam et <AppIcons.arrow size={17} /></button>
-        <p className="ml-auth-legal">Devam ederek <a href="https://masabu.co/legal#uyelik" target="_blank" rel="noreferrer">Üyelik Koşulları</a>&apos;nı kabul eder ve <a href="https://masabu.co/legal#kvkk" target="_blank" rel="noreferrer">Aydınlatma Metni</a>&apos;ni okuduğunu beyan edersin. Pazarlama izni giriş için gerekli değildir.</p>
+        <p className="ml-auth-legal">Devam ederek <a href="https://masabu.co/yasal/abonelik-hizmet-sozlesmesi" target="_blank" rel="noreferrer">Üyelik Koşulları</a>&apos;nı kabul eder ve <a href="https://masabu.co/yasal/kvkk-aydinlatma-metni" target="_blank" rel="noreferrer">Aydınlatma Metni</a>&apos;ni okuduğunu beyan edersin. Pazarlama izni giriş için gerekli değildir.</p>
       </div>
     </AuthFrame>
   )
@@ -685,7 +687,7 @@ export default function MemberSheet({
   emailOtpEnabled = true,
   phoneOtpEnabled = false,
   welcomeBonus = 0, rewardCatalog = [], onRedeemCatalog, onRefresh: _onRefresh,
-  onAuthContextComplete, accountActions, previewState, accountPreviewState, initialTarget = 'overview',
+  onAuthContextComplete, accountActions, previewState, accountPreviewState, accountPreviewHistoryEnabled = false, initialTarget = 'overview',
 }: Props) {
   const { theme, logoUrl: restaurantLogoUrl } = useTheme()
   const authTheme = theme.surfaces?.auth
@@ -791,7 +793,11 @@ export default function MemberSheet({
   }, [])
 
   useEffect(() => {
-    if (phase !== 'home' || previewState || accountPreviewState) return
+    if (
+      previewState
+      || (accountPreviewState && !accountPreviewHistoryEnabled)
+      || (phase !== 'home' && !accountPreviewState)
+    ) return
     const token = crypto.randomUUID()
     accountHistoryTokenRef.current = token
     const currentState = window.history.state && typeof window.history.state === 'object' ? window.history.state : {}
@@ -806,7 +812,7 @@ export default function MemberSheet({
       window.removeEventListener('popstate', handlePopState)
       accountHistoryTokenRef.current = null
     }
-  }, [accountPreviewState, phase, previewState])
+  }, [accountPreviewHistoryEnabled, accountPreviewState, phase, previewState])
 
   useEffect(() => {
     if (previewState) {
@@ -883,6 +889,16 @@ export default function MemberSheet({
       previous?.focus()
     }
   }, [])
+
+  useEffect(() => {
+    if (phase !== 'home' && !accountPreviewState) return
+    const frame = window.requestAnimationFrame(() => {
+      dialogRef.current
+        ?.querySelector<HTMLElement>('button[aria-label="Hesabı kapat"]')
+        ?.focus()
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [accountPreviewState, phase])
 
   function handleDialogKeyDown(event: React.KeyboardEvent) {
     if (event.key === 'Escape') {
@@ -1224,6 +1240,7 @@ export default function MemberSheet({
             currentRestaurantName={restaurantName}
             currentRestaurantLoyalty={currentRestaurantLoyalty}
             previewState={accountPreviewState}
+            previewHistoryEnabled={accountPreviewHistoryEnabled}
             previewRestaurant={{ id: restaurantId ?? 'preview-restaurant', slug: restaurantSlug ?? 'preview', name: restaurantName, logoUrl: restaurantLogoUrl }}
             initialTab={initialTarget === 'loyalty' ? 'profile' : 'overview'}
           />

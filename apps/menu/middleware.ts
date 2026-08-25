@@ -45,7 +45,11 @@ export async function middleware(req: NextRequest) {
     },
   )
 
-  await supabase.auth.getUser()
+  // Anonymous QR traffic is the hot path. Avoid a remote Auth call unless the
+  // isolated customer session cookie is actually present.
+  if (readMenuAuthCookies(req.cookies.getAll()).length > 0) {
+    await supabase.auth.getUser()
+  }
 
   const isThemePreview = req.nextUrl.searchParams.get('preview') === '1'
     && (/^\/[^/]+\/menu$/.test(req.nextUrl.pathname) || /^\/theme-preview\/[^/]+$/.test(req.nextUrl.pathname))

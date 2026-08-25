@@ -27,7 +27,7 @@ import { readStoreInfo } from '@garsonless/ui/themes/storeInfo'
 import { allocateBundlePrice } from '@garsonless/domain/menu'
 import type { ServiceRequestType } from '@garsonless/domain/tables'
 import type { PublicRestaurant, TableSessionInfo, SessionOrderRow } from '../../lib/queries'
-import { MENU_CART_PREVIEW_EVENT, resolveMenuHeaderTheme, type GarsonlessTheme, type MenuCartPreviewState } from '@garsonless/design-engine'
+import { MENU_CART_PREVIEW_EVENT, resolveMenuHeaderTheme, type AccountPreviewState, type GarsonlessTheme, type MenuCartPreviewState } from '@garsonless/design-engine'
 import { getSectionDefinitionId } from '@garsonless/design-engine/section-blocks'
 import { resolveMenuActionPlacements } from '@garsonless/design-engine/menu-action-placement'
 import type { MemberBalances } from '@garsonless/db/types'
@@ -140,6 +140,8 @@ interface Props {
   initialMember?: { name: string | null } | null
   initialMemberBalances?: MemberBalances | null
   initialCustomerAuthReturn?: 'success' | 'error' | null
+  /** Server-gated, allowlisted smoke fixture. Never inferred by production clients. */
+  accountPreviewState?: AccountPreviewState
   isPreview?: boolean
   /** Server-resolved plan/override entitlement for the global request tool. */
   requestButtonsEnabled?: boolean
@@ -286,6 +288,7 @@ export function MenuPageClient({
   initialMember = null,
   initialMemberBalances = null,
   initialCustomerAuthReturn = null,
+  accountPreviewState = undefined,
   isPreview = false,
   requestButtonsEnabled = false,
   guestOrderingEnabled = false,
@@ -582,7 +585,7 @@ export function MenuPageClient({
     cartItems,
     initialMember,
     initialBalances: initialMemberBalances,
-    initialOpen: initialCustomerAuthReturn !== null,
+    initialOpen: initialCustomerAuthReturn !== null || accountPreviewState !== undefined,
   })
 
   const availableFavoriteItemIds = useMemo(
@@ -1584,6 +1587,7 @@ export function MenuPageClient({
           onVerified={(m) => { setMember(m); void refetchBalances() }}
           onAuthContextComplete={handleAuthContextComplete}
           accountActions={accountActions}
+          {...(accountPreviewState ? { accountPreviewState, accountPreviewHistoryEnabled: true } : {})}
         />
       )}
 

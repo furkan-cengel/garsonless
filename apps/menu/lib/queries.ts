@@ -8,6 +8,7 @@ import {
 } from '@garsonless/db/browser'
 import type { Tables } from '@garsonless/db/types'
 import type { MenuItem, MenuCategory } from '@garsonless/ui/menu'
+import { PUBLIC_MENU_CACHE_SECONDS, publicMenuCacheKey } from './public-menu-cache-policy'
 
 type PublicMenuItemRow = Pick<
   Tables<'menu_items'>,
@@ -112,11 +113,10 @@ async function readRestaurantBySlug(
   return data as PublicRestaurant | null
 }
 
-export const getRestaurantBySlug = cache((slug: string) => unstable_cache(
-  () => readRestaurantBySlug(slug),
-  ['public-menu-restaurant-v1', slug],
-  { revalidate: 60, tags: [`public-menu:${slug}`] },
-)())
+// This small lookup deliberately remains request-scoped. Restaurant identity
+// and slug changes happen in the Dashboard application, whose Next cache is a
+// different deployment and cannot invalidate this process reliably.
+export const getRestaurantBySlug = cache(readRestaurantBySlug)
 
 // Theme previews must reflect branding writes immediately. The dashboard and
 // menu are separate Next.js applications, so a dashboard-side cache
@@ -153,11 +153,11 @@ async function readMenuCategories(restaurantId: string): Promise<MenuCategory[]>
   return (data ?? []).map(mapCategory)
 }
 
-export function getMenuCategories(restaurantId: string): Promise<MenuCategory[]> {
+export function getMenuCategories(restaurantId: string, revision: number): Promise<MenuCategory[]> {
   return unstable_cache(
     () => readMenuCategories(restaurantId),
-    ['public-menu-categories-v1', restaurantId],
-    { revalidate: 300, tags: [`menu:${restaurantId}`] },
+    publicMenuCacheKey('categories', restaurantId, revision),
+    { revalidate: PUBLIC_MENU_CACHE_SECONDS },
   )()
 }
 
@@ -217,11 +217,12 @@ async function readMenuItems(categoryIds: string[]): Promise<MenuItem[]> {
 
 export function getMenuItems(
   restaurantId: string,
+  revision: number,
   categoryIds: string[],
 ): Promise<MenuItem[]> {
   return unstable_cache(
     () => readMenuItems(categoryIds),
-    ['public-menu-items-v1', restaurantId, ...categoryIds],
-    { revalidate: 300, tags: [`menu:${restaurantId}`] },
+    [...publicMenuCacheKey('items', restaurantId, revision), ...categoryIds],
+    { revalidate: PUBLIC_MENU_CACHE_SECONDS },
   )()
 }

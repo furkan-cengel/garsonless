@@ -7,8 +7,10 @@ import { ExperienceStatePreview } from '../../[slug]/ExperienceStatePreview'
 import { HomePagePreviewClient } from '../../[slug]/HomePagePreviewClient'
 import { getPreviewTheme } from '../../../lib/published-theme'
 import { hasThemePreviewAccess } from '../../../lib/theme-preview-access'
+import { getPublicMenuRevision } from '../../../lib/public-menu-revision'
 
 export const dynamic = 'force-dynamic'
+export const metadata = { robots: { index: false, follow: false, noarchive: true } }
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -28,9 +30,10 @@ export default async function ThemeExperiencePreview({ params, searchParams }: P
     slug: restaurant.slug,
   })) notFound()
 
+  const revisionSnapshot = await getPublicMenuRevision(restaurant.id)
   const [themeResult, categories, featuredRanking] = await Promise.all([
     getPreviewTheme(restaurant.id, previewTemplate),
-    getMenuCategories(restaurant.id),
+    getMenuCategories(restaurant.id, revisionSnapshot.revision),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
   ])
   if (!themeResult.ok) notFound()
@@ -45,7 +48,7 @@ export default async function ThemeExperiencePreview({ params, searchParams }: P
         ? accountStates.has(requestedState as AccountPreviewState) ? requestedState as AccountPreviewState : 'overview'
         : checkoutStates.has(requestedState as CheckoutPreviewState) ? requestedState as CheckoutPreviewState : 'cart'
     const checkoutItems = surface === 'checkout'
-      ? await getMenuItems(restaurant.id, categories.map((category) => category.id))
+      ? await getMenuItems(restaurant.id, revisionSnapshot.revision, categories.map((category) => category.id))
       : []
     return <ExperienceStatePreview
       restaurantName={restaurant.name}
@@ -57,7 +60,7 @@ export default async function ThemeExperiencePreview({ params, searchParams }: P
     />
   }
 
-  const menuItems = await getMenuItems(restaurant.id, categories.map((category) => category.id))
+  const menuItems = await getMenuItems(restaurant.id, revisionSnapshot.revision, categories.map((category) => category.id))
   const items = applyFeaturedProductRanking(menuItems, featuredRanking)
   return <HomePagePreviewClient
     restaurant={restaurant}

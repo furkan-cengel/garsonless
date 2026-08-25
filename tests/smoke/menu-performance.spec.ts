@@ -15,7 +15,7 @@ test.describe('production public-menu performance budgets', () => {
     // Prime the short-lived public catalogue cache so this budget measures a
     // normal production request rather than a fresh process + database TLS
     // handshake. Cold-start latency remains visible in deployment telemetry.
-    const warmup = await page.request.get(`${menuURL}/${encodeURIComponent(menuSlug)}?preview=1`)
+    const warmup = await page.request.get(`${menuURL}/${encodeURIComponent(menuSlug)}`)
     expect(warmup.status()).toBe(200)
     await page.addInitScript(() => {
       ;(window as Window & { __menuLcp?: number }).__menuLcp = 0
@@ -25,7 +25,7 @@ test.describe('production public-menu performance budgets', () => {
         if (last) (window as Window & { __menuLcp?: number }).__menuLcp = last.startTime
       }).observe({ type: 'largest-contentful-paint', buffered: true })
     })
-    const response = await page.goto(`${menuURL}/${encodeURIComponent(menuSlug)}?preview=1`, {
+    const response = await page.goto(`${menuURL}/${encodeURIComponent(menuSlug)}`, {
       waitUntil: 'networkidle',
     })
     expect(response?.status()).toBe(200)

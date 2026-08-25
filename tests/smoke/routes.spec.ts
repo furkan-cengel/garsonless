@@ -24,7 +24,7 @@ test.describe('route smoke', () => {
   })
 
   test('menu public route renders the smoke fixture', async ({ request }) => {
-    const response = await request.get(`${menuURL}/${encodeURIComponent(menuSlug)}?preview=1`)
+    const response = await request.get(`${menuURL}/${encodeURIComponent(menuSlug)}`)
     expect(response.status()).toBe(200)
     expect(await response.text()).toMatch(/menu|menü|garsonless/i)
   })

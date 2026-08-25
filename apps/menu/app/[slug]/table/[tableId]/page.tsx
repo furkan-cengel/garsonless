@@ -14,10 +14,12 @@ import { MenuPageClient } from '../../MenuPageClient'
 import { HomePageRenderer } from '../../HomePageClient'
 import { createLoyaltyQueryPort, createPublicTableQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
 import { getPublishedTheme } from '../../../../lib/published-theme'
+import { getPublicMenuRevision } from '../../../../lib/public-menu-revision'
 
 // Reading the auth cookie makes this route dynamic anyway; align with the
 // slug page instead of a stale ISR bill/session snapshot.
 export const dynamic = 'force-dynamic'
+export const metadata = { robots: { index: false, follow: false, noarchive: true } }
 
 interface Props {
   params: Promise<{ slug: string; tableId: string }>
@@ -39,9 +41,10 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
   if (!tableState || tableState.token.restaurantId !== restaurant.id || tableState.token.restaurantSlug !== slug) notFound()
 
   const themePort = createThemeApplicationPort()
+  const revisionSnapshot = await getPublicMenuRevision(restaurant.id)
   const [themeResult, categories, featuredRanking, session, customerAuthCapabilities] = await Promise.all([
     getPublishedTheme(restaurant.id),
-    getMenuCategories(restaurant.id),
+    getMenuCategories(restaurant.id, revisionSnapshot.revision),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
     getCustomerSession(),
     availableCustomerAuthCapabilities(),
@@ -73,7 +76,7 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
   if (!menuAccess.ok || !menuAccess.value) notFound()
   const customerAccountsEnabled = customerAccountsAccess.ok && customerAccountsAccess.value
   const [menuItems, memberBalancesResult] = await Promise.all([
-    getMenuItems(restaurant.id, categories.map((category) => category.id)),
+    getMenuItems(restaurant.id, revisionSnapshot.revision, categories.map((category) => category.id)),
     session && customerAccountsEnabled
       ? readMemberLoyalty(customerActorContext({
           authUserId: session.authUserId,

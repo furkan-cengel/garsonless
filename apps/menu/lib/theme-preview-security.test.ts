@@ -10,15 +10,18 @@ const themePreviewRoute = readFileSync(new URL('../app/theme-preview/[slug]/page
 const publicQueries = readFileSync(new URL('./queries.ts', import.meta.url), 'utf8')
 const memberSheet = readFileSync(new URL('../app/[slug]/components/MemberSheet.tsx', import.meta.url), 'utf8')
 const paymentModal = readFileSync(new URL('../app/[slug]/components/PaymentModal.tsx', import.meta.url), 'utf8')
+const playwrightConfig = readFileSync(new URL('../../../playwright.config.ts', import.meta.url), 'utf8')
 
 test('menu root no longer mounts the legacy global CSS preview receiver', () => {
   assert.doesNotMatch(layout, /PreviewInjector|GARSONLESS_THEME/)
   assert.equal(existsSync(legacyInjector), false)
 })
 
-test('theme previews bypass the public restaurant cache without weakening live menu caching', () => {
+test('theme previews and live identity reads bypass cross-deployment cache while menu data is revision-keyed', () => {
   assert.match(publicQueries, /export function getPreviewRestaurantBySlug[\s\S]*return readRestaurantBySlug\(slug\)/)
-  assert.match(publicQueries, /export const getRestaurantBySlug = cache[\s\S]*revalidate: 60/)
+  assert.match(publicQueries, /export const getRestaurantBySlug = cache\(readRestaurantBySlug\)/)
+  assert.match(publicQueries, /publicMenuCacheKey\('categories', restaurantId, revision\)/)
+  assert.match(publicQueries, /publicMenuCacheKey\('items', restaurantId, revision\)/)
   assert.match(experienceRoute, /isPreview\s*\? await getPreviewRestaurantBySlug\(slug\)\s*:\s*await getRestaurantBySlug\(slug\)/)
   assert.match(themePreviewRoute, /await getPreviewRestaurantBySlug\(slug\)/)
   assert.doesNotMatch(themePreviewRoute, /getRestaurantBySlug/)
@@ -58,6 +61,13 @@ test('account preview renders the production account center with closed non-muta
   assert.match(memberSheet, /accountPreviewState\?: AccountPreviewState/)
   assert.match(themePreviewRoute, /new Set<AccountPreviewState>/)
   assert.doesNotMatch(experiencePreview, /function AccountFixture/)
+})
+
+test('account smoke fixtures require an explicit server-only runtime gate and a closed state allowlist', () => {
+  assert.match(experienceRoute, /process\.env\['SMOKE_FIXTURES_ENABLED'\] !== 'true'/)
+  assert.match(experienceRoute, /new Set<AccountPreviewState>/)
+  assert.match(experienceRoute, /readSmokeAccountPreview\(sp\['__customerAccountPreview'\]\)/)
+  assert.match(playwrightConfig, /SMOKE_FIXTURES_ENABLED=true corepack pnpm --filter @garsonless\/menu/)
 })
 
 test('checkout theme preview renders the production cart and payment components', () => {

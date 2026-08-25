@@ -14,6 +14,29 @@ import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../li
 import { MenuPageClient } from './MenuPageClient'
 import { getPreviewTheme, getPublishedTheme } from '../../lib/published-theme'
 import { hasThemePreviewAccess } from '../../lib/theme-preview-access'
+import { getPublicMenuRevision } from '../../lib/public-menu-revision'
+import type { AccountPreviewState } from '@garsonless/design-engine'
+
+const ACCOUNT_PREVIEW_STATES = new Set<AccountPreviewState>([
+  'overview',
+  'orders',
+  'favorites',
+  'profile',
+  'detail',
+  'reorder',
+  'loading',
+  'error',
+  'empty',
+])
+
+function readSmokeAccountPreview(
+  value: string | string[] | undefined,
+): AccountPreviewState | null {
+  if (process.env['SMOKE_FIXTURES_ENABLED'] !== 'true' || typeof value !== 'string') return null
+  return ACCOUNT_PREVIEW_STATES.has(value as AccountPreviewState)
+    ? value as AccountPreviewState
+    : null
+}
 
 export async function renderMenuExperience({
   slug,
@@ -26,6 +49,7 @@ export async function renderMenuExperience({
   const initialCustomerAuthReturn = sp['customerAuth'] === 'complete'
     ? 'success'
     : sp['customerAuth'] === 'failed' ? 'error' : null
+  const accountPreviewState = readSmokeAccountPreview(sp['__customerAccountPreview'])
   const previewTemplate = typeof sp['template'] === 'string' ? sp['template'] : null
   const restaurant = isPreview
     ? await getPreviewRestaurantBySlug(slug)
@@ -39,11 +63,12 @@ export async function renderMenuExperience({
   if (isPreview && !previewAccessGranted) notFound()
 
   const themePort = createThemeApplicationPort()
+  const revisionSnapshot = await getPublicMenuRevision(restaurant.id)
   const [themeResult, categories, featuredRanking, session, customerAuthCapabilities] = await Promise.all([
     isPreview && previewTemplate
       ? getPreviewTheme(restaurant.id, previewTemplate)
       : getPublishedTheme(restaurant.id),
-    getMenuCategories(restaurant.id),
+    getMenuCategories(restaurant.id, revisionSnapshot.revision),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
     getCustomerSession(),
     availableCustomerAuthCapabilities(),
@@ -61,7 +86,7 @@ export async function renderMenuExperience({
   if (!previewAccessGranted && (!menuAccess.ok || !menuAccess.value)) notFound()
   const customerAccountsEnabled = customerAccountsAccess.ok && customerAccountsAccess.value
   const [menuItems, memberBalancesResult] = await Promise.all([
-    getMenuItems(restaurant.id, categories.map((category) => category.id)),
+    getMenuItems(restaurant.id, revisionSnapshot.revision, categories.map((category) => category.id)),
     session && customerAccountsEnabled
       ? readMemberLoyalty(customerActorContext({
           authUserId: session.authUserId,
@@ -96,6 +121,7 @@ export async function renderMenuExperience({
       initialMember={initialMember}
       initialMemberBalances={initialMemberBalances}
       initialCustomerAuthReturn={initialCustomerAuthReturn}
+      {...(accountPreviewState ? { accountPreviewState } : {})}
       isPreview={isPreview}
       requestButtonsEnabled={requestButtonsEnabled}
       guestOrderingEnabled={guestOrderingEnabled}

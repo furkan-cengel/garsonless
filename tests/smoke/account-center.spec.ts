@@ -15,7 +15,7 @@ async function waitForAccount(page: Page) {
 }
 
 test.describe('customer account center', () => {
-  test.beforeEach(async (_fixtures, testInfo) => testInfo.setTimeout(60_000))
+  test.describe.configure({ timeout: 60_000 })
 
   test('keeps one scroller, responsive bounds and 44px targets', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' })

@@ -35,6 +35,7 @@ interface Props {
   currentRestaurantLoyalty?: CustomerAccountLoyaltyView | null
   initialTab?: AccountTab
   previewState?: AccountPreviewState
+  previewHistoryEnabled?: boolean
   previewRestaurant?: { id: string; slug: string; name: string; logoUrl: string | null }
 }
 
@@ -58,7 +59,7 @@ interface OrdersState {
 
 const EMPTY_ORDERS: OrdersState = { items: [], nextCursor: null, loaded: false, loading: false, error: false }
 
-export default function AccountCenter({ fallbackName, onClose, onNameChange, actions, rewardCount = 0, onOpenRewards, currentRestaurantId, currentRestaurantSlug, currentRestaurantName, currentRestaurantLoyalty, initialTab = 'overview', previewState, previewRestaurant }: Props) {
+export default function AccountCenter({ fallbackName, onClose, onNameChange, actions, rewardCount = 0, onOpenRewards, currentRestaurantId, currentRestaurantSlug, currentRestaurantName, currentRestaurantLoyalty, initialTab = 'overview', previewState, previewHistoryEnabled = false, previewRestaurant }: Props) {
   const [tab, setTab] = useState<AccountTab>(initialTab)
   const [account, setAccount] = useState<CustomerAccountView | null>(null)
   const [accountLoading, setAccountLoading] = useState(true)
@@ -90,7 +91,7 @@ export default function AccountCenter({ fallbackName, onClose, onNameChange, act
   const [actionMessage, setActionMessage] = useState<string | null>(null)
   const [confirmAllLogout, setConfirmAllLogout] = useState(false)
   const [previewMode, setPreviewMode] = useState<string | null>(previewState ?? null)
-  const embeddedPreview = Boolean(previewState)
+  const embeddedPreview = Boolean(previewState) && !previewHistoryEnabled
   const tabRefs = useRef<Record<AccountTab, HTMLButtonElement | null>>({ overview: null, orders: null, favorites: null, profile: null })
   const reorderHeadingRef = useRef<HTMLHeadingElement | null>(null)
   const requestControllers = useRef(new Map<string, AbortController>())

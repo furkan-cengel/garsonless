@@ -9,6 +9,7 @@ import { HomePageRenderer } from './HomePageClient'
 import { getCustomerSession } from '../../lib/customer-session'
 import { availableCustomerAuthCapabilities } from '../../lib/customer-auth-provider'
 import { getPublishedTheme } from '../../lib/published-theme'
+import { getPublicMenuRevision } from '../../lib/public-menu-revision'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +24,10 @@ export default async function MenuPage({ params, searchParams }: Props) {
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) notFound()
 
-  const themeResult = await getPublishedTheme(restaurant.id)
+  const [themeResult, revisionSnapshot] = await Promise.all([
+    getPublishedTheme(restaurant.id),
+    getPublicMenuRevision(restaurant.id),
+  ])
   if (!themeResult.ok) notFound()
   const themePort = createThemeApplicationPort()
   const [menuAccess, guestOrderingAccess, customerAccountsAccess, advancedThemeAccess] = await Promise.all([
@@ -46,13 +50,13 @@ export default async function MenuPage({ params, searchParams }: Props) {
   }
 
   const [categories, featuredRanking, session, customerAuthCapabilities] = await Promise.all([
-    getMenuCategories(restaurant.id),
+    getMenuCategories(restaurant.id, revisionSnapshot.revision),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
     getCustomerSession(),
     availableCustomerAuthCapabilities(),
   ])
   const [menuItems, memberBalancesResult] = await Promise.all([
-    getMenuItems(restaurant.id, categories.map((category) => category.id)),
+    getMenuItems(restaurant.id, revisionSnapshot.revision, categories.map((category) => category.id)),
     session && customerAccountsEnabled
       ? readMemberLoyalty(customerActorContext({ authUserId: session.authUserId, customerId: session.customerId, restaurantId: restaurant.id }), createLoyaltyQueryPort())
       : Promise.resolve(null),

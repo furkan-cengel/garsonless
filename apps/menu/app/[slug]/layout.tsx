@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { applyGarsonlessTheme, buildFontsUrlFromTheme } from '@garsonless/design-engine'
+import { applyGarsonlessTheme } from '@garsonless/design-engine'
 import { getRestaurantBySlug } from '../../lib/queries'
 import { getPublishedTheme } from '../../lib/published-theme'
 import { resolveHomeOpenGraphImage } from '../../lib/home-metadata'
@@ -48,17 +48,19 @@ export default async function SlugLayout({ children, params }: Props) {
   const { theme } = themeResult.value
 
   const themeCSS = applyGarsonlessTheme(theme)
-  const fontsUrl = buildFontsUrlFromTheme(theme)
+  const origin = (process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011').replace(/\/$/, '')
+  const structuredData = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'Restaurant',
+    name: restaurant.name,
+    url: `${origin}/${encodeURIComponent(restaurant.slug)}`,
+    ...(restaurant.logo_url ? { image: restaurant.logo_url } : {}),
+    hasMenu: `${origin}/${encodeURIComponent(restaurant.slug)}/menu`,
+  }).replace(/</g, '\\u003c')
 
   return (
     <>
-      {fontsUrl && (
-        <>
-          <link rel="preconnect" href="https://fonts.googleapis.com" />
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-          <link rel="stylesheet" href={fontsUrl} precedence="default" />
-        </>
-      )}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredData }} />
       <style dangerouslySetInnerHTML={{ __html: themeCSS }} />
       {children}
     </>
