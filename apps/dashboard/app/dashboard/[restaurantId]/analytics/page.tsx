@@ -4,12 +4,13 @@ import {
   getAnalyticsActiveOrderCount,
   getAnalyticsSalesReportData,
 } from '../../../../lib/queries/analytics'
-import AnalyticsClient from '../../../../components/analytics/AnalyticsClient'
+import AnalyticsClient from '../../../../components/analytics/AnalyticsClientBoundary'
 import { requireSection } from '../../../../lib/auth/access'
 import { canRestaurantUseFeature } from '@garsonless/db/server'
 import { parseAnalyticsQuery } from '../../../../lib/analytics-filter-contract'
 import type { AnalyticsReportId } from '../../../../lib/actions/analytics'
 import PlanLockedPanel from '../../../../components/PlanLockedPanel'
+import { readBillingPlanPrices } from '../../../../lib/billing/subscription-billing-request'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -27,7 +28,7 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
   const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
   if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'analytics_basic' })) {
-    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="analytics_basic" isOwner={access.isOwner} />
+    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="analytics_basic" isOwner={access.isOwner} planPrices={readBillingPlanPrices()} />
   }
   const [liveKpis, salesReport] = await Promise.all([
     getAnalyticsActiveOrderCount(restaurantId),

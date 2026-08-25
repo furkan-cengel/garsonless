@@ -7,6 +7,7 @@ import { getOpenTableSessions, getTableLayout } from '../../../../lib/actions/ta
 import { resolveTableDeepLink } from '../../../../components/tables/tables-operation-model'
 import { canRestaurantUseFeature } from '@garsonless/db/server'
 import PlanLockedPanel from '../../../../components/PlanLockedPanel'
+import { readBillingPlanPrices } from '../../../../lib/billing/subscription-billing-request'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -19,7 +20,7 @@ export default async function TablesPage({ params, searchParams }: Props) {
   const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
   if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'table_management' })) {
-    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="table_management" isOwner={access.isOwner} />
+    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="table_management" isOwner={access.isOwner} planPrices={readBillingPlanPrices()} />
   }
   const [tablesResult, openSessionsResult, layoutResult] = await Promise.all([
     getTablesForRestaurant(restaurantId),

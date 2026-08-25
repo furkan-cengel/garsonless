@@ -5,6 +5,7 @@ import PanoClient from '../../../components/pano/PanoClient'
 import { requireSection } from '../../../lib/auth/access'
 import { canRestaurantUseFeature } from '@garsonless/db/server'
 import PlanLockedPanel from '../../../components/PlanLockedPanel'
+import { readBillingPlanPrices } from '../../../lib/billing/subscription-billing-request'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -19,7 +20,7 @@ export default async function PanoPage({ params }: Props) {
   const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
   if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'analytics_basic' })) {
-    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="analytics_basic" isOwner={access.isOwner} />
+    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="analytics_basic" isOwner={access.isOwner} planPrices={readBillingPlanPrices()} />
   }
   const snapshot = await getPanoSnapshot(restaurantId)
 

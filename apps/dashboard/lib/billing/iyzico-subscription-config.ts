@@ -1,6 +1,7 @@
 import {
   BILLING_INTERVALS,
   calculatePlanCharge,
+  getAddOnPrice,
   getPlanPrice,
   SELF_SERVE_PLANS,
   type BillingInterval,
@@ -97,6 +98,10 @@ function optionalIyzicoAddOnPlans(
   return Object.fromEntries(BILLING_INTERVALS.map((interval) => {
     const prefix = prefixes[interval]
     const addOnNetAmountMinor = amountEnv(env, `${prefix}_ADDON_NET_AMOUNT_MINOR`)
+    const expectedAddOnNetMinor = getAddOnPrice('iyzico_online_payments', interval).amountMinor
+    if (addOnNetAmountMinor !== expectedAddOnNetMinor) {
+      throw new Error(`${prefix}_ADDON_NET_AMOUNT_MINOR does not match the canonical add-on price`)
+    }
     const totalNetMinor = getPlanPrice('pro', interval).amountMinor + addOnNetAmountMinor
     const expectedGrossMinor = calculatePlanCharge({
       amountMinor: totalNetMinor,

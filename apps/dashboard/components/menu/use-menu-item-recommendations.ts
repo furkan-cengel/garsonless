@@ -1,6 +1,6 @@
 'use client'
 
-import type { MenuItemRecommendationRow } from '@garsonless/db/server'
+import type { MenuItemRecommendationRow } from '@garsonless/db/types'
 import { useMemo, useState } from 'react'
 
 export function useMenuItemRecommendations(initialRows: MenuItemRecommendationRow[]) {

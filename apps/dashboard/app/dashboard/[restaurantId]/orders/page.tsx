@@ -4,12 +4,13 @@ import { getRestaurantById } from '../../../../lib/queries/restaurants'
 import { startOfRestaurantDay } from '@garsonless/db/browser'
 import { readOrdersBoard } from '@garsonless/application/read-models'
 import { createOrdersBoardReadModelPort } from '@garsonless/db/server'
-import OrderBoard from '../../../../components/orders/OrderBoard'
+import OrderBoard from '../../../../components/orders/OrderBoardBoundary'
 import type { Order } from '../../../../components/orders/useOrdersRealtime'
 import { readLateThresholdMin } from '../../../../lib/orders-prefs'
 import { requireSection } from '../../../../lib/auth/access'
 import PlanLockedPanel from '../../../../components/PlanLockedPanel'
 import { canRestaurantUseFeature } from '@garsonless/db/server'
+import { readBillingPlanPrices } from '../../../../lib/billing/subscription-billing-request'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -21,7 +22,7 @@ export default async function OrdersPage({ params }: Props) {
   const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
   if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'staff_orders' })) {
-    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="staff_orders" isOwner={access.isOwner} />
+    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="staff_orders" isOwner={access.isOwner} planPrices={readBillingPlanPrices()} />
   }
 
   // Restaurant-local "today" — the board scopes to the café's own day, not the

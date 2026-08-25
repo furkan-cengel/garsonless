@@ -376,7 +376,11 @@ export default function SettingsForm({
   function sectionUrl(section: SectionId): string {
     const url = new URL(window.location.href)
     url.searchParams.set('section', section)
-    if (section !== 'billing') url.searchParams.delete('checkout')
+    if (section !== 'billing') {
+      url.searchParams.delete('checkout')
+      url.searchParams.delete('plan')
+      url.searchParams.delete('interval')
+    }
     return `${url.pathname}${url.search}${url.hash}`
   }
 

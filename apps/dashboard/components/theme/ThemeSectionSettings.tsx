@@ -4,7 +4,8 @@ import { useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent } from 'react'
 
 import { I } from '../../lib/ui'
-import { removeUnusedThemeMedia, uploadThemeMedia } from '../../lib/actions/theme'
+import { removeUnusedThemeMedia } from '../../lib/actions/theme'
+import { uploadThemeMedia } from '../../lib/dashboard-media-upload-client'
 import {
   type ThemeMediaPurpose,
   validateThemeMediaMetadata,

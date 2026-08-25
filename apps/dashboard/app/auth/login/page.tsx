@@ -302,9 +302,9 @@ export default function LoginPage(): ReactElement {
           <LoginTabs />
           <footer className={styles.authFooter}>
             <span>Devam ederek Masabu’nun</span>{' '}
-            <Link href="https://masabu.co/yasal/gizlilik">Gizlilik</Link>
+            <Link href="https://masabu.co/yasal/gizlilik-politikasi">Gizlilik</Link>
             {' ve '}
-            <Link href="https://masabu.co/yasal/hizmet-sozlesmesi">Hizmet sözleşmesi</Link>
+            <Link href="https://masabu.co/yasal/abonelik-hizmet-sozlesmesi">Hizmet sözleşmesi</Link>
             <span> koşullarını kabul etmiş olursunuz.</span>
           </footer>
         </section>

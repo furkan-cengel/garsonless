@@ -6,9 +6,14 @@ const dashboardIndex = readFileSync(new URL('../../app/dashboard/page.tsx', impo
 const middleware = readFileSync(new URL('../../middleware.ts', import.meta.url), 'utf8')
 const authActions = readFileSync(new URL('../actions/auth.ts', import.meta.url), 'utf8')
 
-test('an authenticated session without restaurant access lands on login, not onboarding', () => {
-  assert.match(dashboardIndex, /restaurants\.length === 0\) redirect\('\/auth\/login\?next=\/dashboard'\)/)
-  assert.doesNotMatch(dashboardIndex, /restaurants\.length === 0\) redirect\('\/dashboard\/onboarding'\)/)
+test('an authenticated session without restaurant access resumes onboarding', () => {
+  assert.match(dashboardIndex, /restaurants\.length === 0\) redirect\('\/dashboard\/onboarding'\)/)
+  assert.doesNotMatch(dashboardIndex, /restaurants\.length === 0\) redirect\('\/auth\/login/)
+})
+
+test('protected dashboard redirects preserve the full requested path as next', () => {
+  assert.match(middleware, /next: `\$\{req\.nextUrl\.pathname\}\$\{req\.nextUrl\.search\}`/)
+  assert.match(middleware, /redirectTo\('\/auth\/login', `\?\$\{loginSearch\.toString\(\)\}`\)/)
 })
 
 test('login remains reachable for replacing an existing browser session', () => {

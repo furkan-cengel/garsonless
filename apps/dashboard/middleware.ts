@@ -1,12 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import {
-  DASHBOARD_SECTIONS,
-  firstPermittedPath,
-  normalizeDashboardPermissions,
-} from './lib/auth/access-policy'
-import { resolveSettingsSection } from './components/settings/settings-sections'
 
 export async function middleware(req: NextRequest) {
   let supabaseResponse = NextResponse.next({ request: req })
@@ -53,8 +47,26 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
+  const signupEmailVerificationRequired =
+    user?.app_metadata?.['dashboard_signup_email_verification_required'] === true
+  const verificationProtectedPath = req.nextUrl.pathname === '/'
+    || req.nextUrl.pathname === '/auth/signup'
+    || req.nextUrl.pathname.startsWith('/dashboard')
+  if (user && signupEmailVerificationRequired && verificationProtectedPath) {
+    const verifySearch = new URLSearchParams({
+      email: user.email ?? '',
+      next: req.nextUrl.pathname.startsWith('/dashboard')
+        ? `${req.nextUrl.pathname}${req.nextUrl.search}`
+        : '/dashboard/onboarding',
+    })
+    return redirectTo('/auth/verify-email', `?${verifySearch.toString()}`)
+  }
+
   if (!user && req.nextUrl.pathname.startsWith('/dashboard')) {
-    return redirectTo('/auth/login')
+    const loginSearch = new URLSearchParams({
+      next: `${req.nextUrl.pathname}${req.nextUrl.search}`,
+    })
+    return redirectTo('/auth/login', `?${loginSearch.toString()}`)
   }
 
   // Keep login reachable even when the browser already has a session. This is
@@ -66,53 +78,6 @@ export async function middleware(req: NextRequest) {
 
   if (user && req.nextUrl.pathname === '/') {
     return redirectTo('/dashboard')
-  }
-
-  const settingsRoute = /^\/dashboard\/([^/]+)\/settings$/.exec(req.nextUrl.pathname)
-  if (user && settingsRoute) {
-    const restaurantId = settingsRoute[1]!
-    const [{ data: owned }, { data: membership }] = await Promise.all([
-      supabase
-        .from('restaurants')
-        .select('id')
-        .eq('id', restaurantId)
-        .eq('owner_id', user.id)
-        .is('deleted_at', null)
-        .maybeSingle(),
-      supabase
-        .from('restaurant_members')
-        .select('permissions')
-        .eq('restaurant_id', restaurantId)
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .maybeSingle(),
-    ])
-
-    const permissions = normalizeDashboardPermissions(membership?.permissions)
-    const access = owned
-      ? { isOwner: true, permissions: [...DASHBOARD_SECTIONS] }
-      : membership
-        ? { isOwner: false, permissions }
-        : null
-
-    // Resolve member authorization before any React Server Component starts
-    // streaming. A page-level redirect here previously became a client redirect
-    // instruction and could fail with a hook-order hydration exception.
-    if (access && !access.isOwner && !access.permissions.includes('settings')) {
-      return redirectTo(firstPermittedPath(restaurantId, access), '')
-    }
-
-    if (access) {
-      const requestedSection = req.nextUrl.searchParams.get('section') ?? undefined
-      const resolvedSection = resolveSettingsSection(requestedSection, access.isOwner)
-      if (requestedSection && requestedSection !== resolvedSection) {
-        const canonical = new URLSearchParams({ section: resolvedSection })
-        if (resolvedSection === 'billing' && req.nextUrl.searchParams.get('checkout') === 'success') {
-          canonical.set('checkout', 'success')
-        }
-        return redirectTo(req.nextUrl.pathname, `?${canonical.toString()}`)
-      }
-    }
   }
 
   return supabaseResponse

@@ -1,0 +1,17 @@
+.banner {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #ead8bd;
+  color: #4b3c2e;
+  background: #fff8e9;
+  flex: none;
+}
+.icon { width: 30px; height: 30px; display: grid; place-items: center; flex: none; border-radius: 9px; color: #80510d; background: #f5dfb7; }
+.banner > div { min-width: 0; flex: 1; }.banner strong, .banner p { display: block; margin: 0; }.banner strong { font-size: 12.5px; }.banner p { margin-top: 1px; overflow: hidden; color: #7f6a54; font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.banner a { min-height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 11px; border: 1px solid #dbc7aa; border-radius: 9px; color: #554331; background: rgba(255,255,255,.65); text-decoration: none; font-size: 11.5px; font-weight: 650; white-space: nowrap; }
+.banner > button { width: 36px; height: 36px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; color: #776b60; background: transparent; cursor: pointer; }
+.completed { border-color: #d7e7dc; color: #28533c; background: #f0f8f3; }.completed .icon { color: #17623e; background: #d9eddf; }.completed a { border-color: #c9dfd0; color: #28533c; }.completed p { color: #607668; }
+@media (max-width: 680px) { .banner { min-height: 62px; padding: 8px 10px; }.banner p { max-width: 42vw; }.banner a { width: 36px; padding: 0; justify-content: center; font-size: 0; }.banner a svg { width: 16px; }.banner > button { width: 32px; } }

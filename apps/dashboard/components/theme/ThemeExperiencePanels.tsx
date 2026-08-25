@@ -49,7 +49,7 @@ import {
 } from '@garsonless/design-engine'
 import type { PublicCouponChoice } from '@garsonless/domain/coupons'
 import { I, type Icon } from '../../lib/ui'
-import { uploadThemeMedia, uploadThemeVideo } from '../../lib/actions/theme'
+import { uploadThemeMedia, uploadThemeVideo } from '../../lib/dashboard-media-upload-client'
 import { HOME_SECTION_LIBRARY, SECTION_SETTING_SCHEMA } from './theme-editor-section-registry'
 import { buildVideoHeroModernSettings, buildVideoHeroResetSettings, createInitialSectionSettings } from './theme-section-initial-settings'
 import { ensureHomeV2, homeV2Patch } from './home-theme-editor-model'

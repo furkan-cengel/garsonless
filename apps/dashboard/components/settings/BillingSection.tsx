@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import type {
   SubscriptionBillingAddress,
   SubscriptionBillingProfile,
@@ -205,15 +205,20 @@ export default function BillingSection({
   checkoutState: 'success' | null
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const currentPlan = normalizeRestaurantPlan(restaurantPlan)
+  const requestedPlan = searchParams.get('plan')
+  const requestedInterval = searchParams.get('interval')
+  const initialPlan = PAID_PLANS.includes(requestedPlan as PaidBillingPlan)
+    ? requestedPlan as PaidBillingPlan
+    : currentPlan === 'business' ? 'pro' : currentPlan
+  const initialInterval: BillingInterval = requestedInterval === 'annual' ? 'annual' : 'monthly'
   const [profile, setProfile] = useState<SubscriptionBillingProfile>(billing?.profile ?? EMPTY_PROFILE)
   const [shippingSame, setShippingSame] = useState(
     billing?.profile ? JSON.stringify(billing.profile.billingAddress) === JSON.stringify(billing.profile.shippingAddress) : true,
   )
-  const [selectedPlan, setSelectedPlan] = useState<PaidBillingPlan>(
-    currentPlan === 'business' ? 'pro' : currentPlan,
-  )
-  const [selectedInterval, setSelectedInterval] = useState<BillingInterval>('monthly')
+  const [selectedPlan, setSelectedPlan] = useState<PaidBillingPlan>(initialPlan)
+  const [selectedInterval, setSelectedInterval] = useState<BillingInterval>(initialInterval)
   const [iyzicoAddOnSelected, setIyzicoAddOnSelected] = useState(false)
   const [feedback, setFeedback] = useState(checkoutState === 'success' ? 'Abonelik bilgileri doğrulandı. Ödeme sonucu işlenirken durum otomatik güncellenecek.' : '')
   const [checkoutContent, setCheckoutContent] = useState<string | null>(null)
@@ -232,6 +237,8 @@ export default function BillingSection({
   const subscription = billing?.subscription ?? null
   const addOnPrice = planPrices.iyzicoOnlinePaymentsAddOn[selectedInterval]
   const canStartNewCheckout = !subscription || ['trial', 'trial_expired', 'cancelled'].includes(subscription.status)
+  const checkoutAvailable = planPrices.checkoutAvailable
+  const addOnCheckoutAvailable = planPrices.iyzicoOnlinePaymentsAddOnCheckoutAvailable
   useSettingsDirtyState('billing:profile', profileDirty)
 
   const setProfileValue = (key: keyof Omit<SubscriptionBillingProfile, 'billingAddress' | 'shippingAddress'>, value: string) => {
@@ -251,6 +258,10 @@ export default function BillingSection({
   }
 
   function startCheckout() {
+    if (!checkoutAvailable) {
+      setFeedback('Güvenli ödeme altyapısı henüz etkin değil. Liste fiyatları güncel; satın alma açıldığında buradan devam edebilirsiniz.')
+      return
+    }
     if (!canStartNewCheckout) {
       setFeedback('Mevcut abonelikte plan değişikliği yeni ödeme adımıyla yapılamaz. Destek ekibiyle iletişime geçin.')
       return
@@ -349,7 +360,7 @@ export default function BillingSection({
             return (
               <button key={plan} type="button" aria-pressed={selected} disabled={!canStartNewCheckout} onClick={() => { setSelectedPlan(plan); if (plan !== 'pro') setIyzicoAddOnSelected(false) }} style={{ minWidth: 0, padding: 14, borderRadius: 10, border: selected ? '1.5px solid var(--text)' : '1px solid var(--border)', background: selected ? 'var(--surface-inset)' : 'var(--surface)', textAlign: 'left', cursor: canStartNewCheckout ? 'pointer' : 'not-allowed', opacity: canStartNewCheckout ? 1 : .62 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{PLAN_DEFINITIONS[plan].label}</div>
-                <div style={{ fontSize: 16, fontWeight: 750, marginTop: 8, overflowWrap: 'anywhere' }}>{planPrices[plan][selectedInterval] ? `${money(planPrices[plan][selectedInterval]!)}${selectedInterval === 'monthly' ? '/ay' : '/yıl'}` : 'Fiyat yapılandırılmadı'}</div>
+                <div style={{ fontSize: 16, fontWeight: 750, marginTop: 8, overflowWrap: 'anywhere' }}>{money(planPrices[plan][selectedInterval])}{selectedInterval === 'monthly' ? '/ay' : '/yıl'}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 5 }}>{PLAN_DEFINITIONS[plan].description}</div>
               </button>
             )
@@ -360,15 +371,16 @@ export default function BillingSection({
             <input
               type="checkbox"
               checked={iyzicoAddOnSelected}
-              disabled={selectedPlan !== 'pro' || !canStartNewCheckout || addOnPrice === null}
+              disabled={selectedPlan !== 'pro' || !canStartNewCheckout || !addOnCheckoutAvailable}
               onChange={(event) => setIyzicoAddOnSelected(event.target.checked)}
               style={{ marginTop: 3 }}
             />
             <span style={{ flex: 1 }}>
               <strong style={{ display: 'block', fontSize: 13.5 }}>İyzico Online Ödeme add-on</strong>
               <span style={{ display: 'block', marginTop: 4, fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5 }}>Yalnız Pro ile satın alınır. QR menüde kartla ödeme ve İyzico tahsilat akışını açar; İyzico’nun işlem ücretleri ayrıca uygulanabilir.</span>
+              {!addOnCheckoutAvailable && <span style={{ display: 'block', marginTop: 4, fontSize: 11, color: 'var(--text-3)' }}>Satın alma bağlantısı hazırlanıyor.</span>}
             </span>
-            <strong style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{addOnPrice === null ? 'Fiyat yapılandırılmadı' : `+${money(addOnPrice)}${selectedInterval === 'monthly' ? '/ay' : '/yıl'}`}</strong>
+            <strong style={{ fontSize: 13, whiteSpace: 'nowrap' }}>+{money(addOnPrice)}{selectedInterval === 'monthly' ? '/ay' : '/yıl'}</strong>
           </label>
         </div>
       </SCard>
@@ -393,9 +405,9 @@ export default function BillingSection({
             <strong>Ön bilgilendirme ve sözleşme özeti</strong>
             <div style={{ marginTop: 6 }}>
               {PLAN_DEFINITIONS[selectedPlan].label} · {selectedInterval === 'annual' ? '12 aylık, peşin' : '1 aylık'} ·{' '}
-              {planPrices[selectedPlan][selectedInterval] ? `${money(planPrices[selectedPlan][selectedInterval]! + (iyzicoAddOnSelected ? addOnPrice ?? 0 : 0))} + KDV` : 'Tutar yapılandırılmadı'}
+              {money(planPrices[selectedPlan][selectedInterval] + (iyzicoAddOnSelected ? addOnPrice : 0))} + KDV
             </div>
-            {iyzicoAddOnSelected && <div>Ek kalem: İyzico Online Ödeme add-on · {addOnPrice === null ? 'Fiyat yapılandırılmadı' : money(addOnPrice)}</div>}
+            {iyzicoAddOnSelected && <div>Ek kalem: İyzico Online Ödeme add-on · {money(addOnPrice)}</div>}
             <div>{effectiveProfile.legalName || 'Fatura alıcısı'} · {effectiveProfile.identityNumber || 'VKN/TCKN'} · {effectiveProfile.taxOffice || 'Vergi dairesi'}</div>
             <div style={{ marginTop: 6 }}>
               <a href={`${process.env.NEXT_PUBLIC_MARKETING_URL || 'http://localhost:3003'}/yasal/abonelik-hizmet-sozlesmesi`} target="_blank" rel="noreferrer">Abonelik Hizmet Sözleşmesi</a>
@@ -409,7 +421,7 @@ export default function BillingSection({
           </label>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <button type="button" aria-busy={profilePending} onClick={saveProfile} disabled={pending || !profileDirty} style={btnGhost()}>{profilePending ? 'Kaydediliyor…' : 'Profili kaydet'}</button>
-            <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={!canStartNewCheckout || pending || !checkoutTermsAccepted || planPrices[selectedPlan][selectedInterval] === null || (iyzicoAddOnSelected && addOnPrice === null)} style={btnPrimary({ opacity: !canStartNewCheckout || pending || !checkoutTermsAccepted || planPrices[selectedPlan][selectedInterval] === null || (iyzicoAddOnSelected && addOnPrice === null) ? .55 : 1, cursor: !canStartNewCheckout || pending || !checkoutTermsAccepted || planPrices[selectedPlan][selectedInterval] === null || (iyzicoAddOnSelected && addOnPrice === null) ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : canStartNewCheckout ? `${PLAN_DEFINITIONS[selectedPlan].label}${iyzicoAddOnSelected ? ' + add-on' : ''} ödeme adımını aç` : 'Plan değişikliği için desteğe ulaş'}</button>
+            <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={!checkoutAvailable || (iyzicoAddOnSelected && !addOnCheckoutAvailable) || !canStartNewCheckout || pending || !checkoutTermsAccepted} style={btnPrimary({ opacity: !checkoutAvailable || (iyzicoAddOnSelected && !addOnCheckoutAvailable) || !canStartNewCheckout || pending || !checkoutTermsAccepted ? .55 : 1, cursor: !checkoutAvailable || (iyzicoAddOnSelected && !addOnCheckoutAvailable) || !canStartNewCheckout || pending || !checkoutTermsAccepted ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : !checkoutAvailable ? 'Güvenli ödeme yakında' : iyzicoAddOnSelected && !addOnCheckoutAvailable ? 'Add-on satın alma yakında' : canStartNewCheckout ? `${PLAN_DEFINITIONS[selectedPlan].label}${iyzicoAddOnSelected ? ' + add-on' : ''} ödeme adımını aç` : 'Plan değişikliği için desteğe ulaş'}</button>
           </div>
           {feedback && <div role="status" style={{ fontSize: 12, color: feedback.includes('MAS-') ? 'var(--critical)' : 'var(--positive)', lineHeight: 1.5 }}>{feedback}</div>}
         </div>

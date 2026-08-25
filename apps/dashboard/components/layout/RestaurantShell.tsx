@@ -11,12 +11,14 @@ import type { NotificationPrefs } from '../../lib/notification-prefs'
 import { useGlobalOrderAlerts } from '../notifications/useGlobalOrderAlerts'
 import type { Order } from '../orders/useOrdersRealtime'
 import type { RestaurantSwitcherItem } from './restaurant-shell-model'
+import type { OnboardingSnapshot } from '@garsonless/application/onboarding'
 
 import { Skeleton } from '../../lib/ui'
 import IconRail from './IconRail'
 import ServiceRequestToast from './ServiceRequestToast'
 import { getUnreadInboxCount, syncDashboardInboxEvent } from '../../lib/actions/notifications'
 import NavigationFeedback, { useNavigationFeedback } from './NavigationFeedback'
+import OnboardingStatusBanner from '../onboarding/OnboardingStatusBanner'
 
 const HelpModal = dynamic(() => import('../overlays/HelpModal'), { ssr: false })
 const NotificationsPanel = dynamic(() => import('../overlays/NotificationsPanel'), { ssr: false })
@@ -121,6 +123,7 @@ interface Props {
   isOwner: boolean
   browserNotificationsEnabled: boolean
   notificationPrefs: NotificationPrefs
+  onboardingSnapshot: OnboardingSnapshot | null
   children: ReactNode
 }
 
@@ -136,6 +139,7 @@ export default function RestaurantShell({
   isOwner,
   browserNotificationsEnabled,
   notificationPrefs,
+  onboardingSnapshot,
   children,
 }: Props) {
   const pathname = usePathname()
@@ -540,6 +544,9 @@ export default function RestaurantShell({
             overscrollBehaviorY: isCustomersRoute ? 'contain' : 'auto',
           }}
         >
+          {onboardingSnapshot && (
+            <OnboardingStatusBanner snapshot={onboardingSnapshot} />
+          )}
           {children}
         </main>
       </div>

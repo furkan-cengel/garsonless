@@ -3,10 +3,12 @@
 import { createHash } from 'node:crypto'
 import { redirect } from 'next/navigation'
 import {
+  completeDashboardSignupEmailVerification,
   consumeDashboardAuthRateLimit,
   deleteDashboardPushEndpoint,
   recordSecurityEvent,
   recordSignupLegalEvidence,
+  requireDashboardSignupEmailVerification,
 } from '@garsonless/db/server'
 import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
 import { cookies, headers } from 'next/headers'
@@ -41,7 +43,7 @@ const signInSchema = z.object({
 const signUpSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
-  name: z.string().trim().max(100).optional(),
+  name: z.string().trim().min(2, 'Ad soyad gerekli.').max(100),
   businessName: z.string().trim().max(200).optional(),
   termsAccepted: z.literal('on'),
   termsVersion: z.literal(LEGAL_DOCUMENT_VERSION),
@@ -52,6 +54,16 @@ const magicLinkSchema = z.object({
 })
 
 const passwordResetRequestSchema = z.object({ email: z.string().email() })
+
+const signupEmailCodeSchema = z.object({
+  email: z.string().email(),
+  code: z.string().trim().regex(/^\d{6}$/),
+  next: z.string().optional(),
+})
+
+const resendSignupEmailCodeSchema = z.object({
+  email: z.string().email(),
+})
 
 function legalIpHash(ip: string | null): string | null {
   const salt = process.env['LEGAL_ACCEPTANCE_IP_SALT']?.trim()
@@ -70,13 +82,18 @@ async function isSameOriginRequest(): Promise<boolean> {
   }
 }
 
-async function allowDashboardAuthAction(input: {
+type DashboardAuthRateLimitDecision = 'allowed' | 'blocked' | 'unavailable'
+
+const AUTH_SECURITY_UNAVAILABLE =
+  'Güvenlik kontrolü şu anda kullanılamıyor. Lütfen kısa süre sonra tekrar deneyin.'
+
+async function checkDashboardAuthAction(input: {
   action: string
   subject: string
   limit: number
   windowSeconds: number
-}): Promise<boolean> {
-  if (!await isSameOriginRequest()) return false
+}): Promise<DashboardAuthRateLimitDecision> {
+  if (!await isSameOriginRequest()) return 'blocked'
   const { ip } = await readRequestMeta()
   const subjects = [`subject:${input.subject}`, ...(ip ? [`ip:${ip}`] : [])]
   const checks = await Promise.all(subjects.map((subject) => consumeDashboardAuthRateLimit({
@@ -85,7 +102,8 @@ async function allowDashboardAuthAction(input: {
     limit: input.limit,
     windowSeconds: input.windowSeconds,
   })))
-  return checks.every((check) => check.ok && check.allowed)
+  if (checks.some((check) => !check.ok)) return 'unavailable'
+  return checks.every((check) => check.ok && check.allowed) ? 'allowed' : 'blocked'
 }
 
 async function persistSignupLegalEvidence(input: {
@@ -131,8 +149,13 @@ export async function signIn(
     return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
   }
 
-  if (!await allowDashboardAuthAction({ action: 'sign-in', subject: parsed.data.email, limit: 10, windowSeconds: 900 })) {
-    return { error: 'Çok fazla giriş denemesi yapıldı. Lütfen daha sonra tekrar deneyin.' }
+  const rateLimit = await checkDashboardAuthAction({
+    action: 'sign-in', subject: parsed.data.email, limit: 10, windowSeconds: 900,
+  })
+  if (rateLimit !== 'allowed') {
+    return { error: rateLimit === 'unavailable'
+      ? AUTH_SECURITY_UNAVAILABLE
+      : 'Çok fazla giriş denemesi yapıldı. Lütfen daha sonra tekrar deneyin.' }
   }
 
   const supabase = await createDashboardServerClient()
@@ -157,7 +180,7 @@ function safeNext(value: FormDataEntryValue | null, fallback = '/dashboard'): st
 export async function signUp(
   _prev: unknown,
   formData: FormData,
-): Promise<{ error: string } | { success: true }> {
+): Promise<{ error: string }> {
   const parsed = signUpSchema.safeParse({
     email: formData.get('email'),
     password: formData.get('password'),
@@ -170,8 +193,13 @@ export async function signUp(
     return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
   }
 
-  if (!await allowDashboardAuthAction({ action: 'sign-up', subject: parsed.data.email, limit: 3, windowSeconds: 3600 })) {
-    return { error: 'Çok fazla hesap oluşturma denemesi yapıldı. Lütfen daha sonra tekrar deneyin.' }
+  const rateLimit = await checkDashboardAuthAction({
+    action: 'sign-up', subject: parsed.data.email, limit: 3, windowSeconds: 3600,
+  })
+  if (rateLimit !== 'allowed') {
+    return { error: rateLimit === 'unavailable'
+      ? AUTH_SECURITY_UNAVAILABLE
+      : 'Çok fazla hesap oluşturma denemesi yapıldı. Lütfen daha sonra tekrar deneyin.' }
   }
 
   // Onboarding belongs to account creation. Login and other auth entrypoints
@@ -196,20 +224,104 @@ export async function signUp(
     },
   })
   if (error) return { error: publicAuthError(error, 'auth.sign-up', 'Hesap oluşturulamadı. Lütfen tekrar deneyin.') }
-
-  if (data.user) {
-    await persistSignupLegalEvidence({
-      userId: data.user.id,
-      version: parsed.data.termsVersion,
-      occurredAt: acceptedAt,
-    })
+  if (!data.user || data.user.identities?.length === 0) {
+    await supabase.auth.signOut({ scope: 'local' })
+    return { error: 'Bu e-posta adresiyle zaten bir hesap var.' }
   }
 
-  // If the project doesn't require email confirmation, signUp returns a live
-  // session → go straight to `next` (e.g. accept-invite). Otherwise the
-  // confirmation email carries `next` via the callback above.
-  if (data.session) redirect(next)
-  return { success: true }
+  await persistSignupLegalEvidence({
+    userId: data.user.id,
+    version: parsed.data.termsVersion,
+    occurredAt: acceptedAt,
+  })
+  const pending = await requireDashboardSignupEmailVerification(data.user.id)
+  if (!pending.ok) {
+    await supabase.auth.signOut({ scope: 'local' })
+    return { error: 'E-posta doğrulaması başlatılamadı. Lütfen tekrar deneyin.' }
+  }
+
+  // The product-level OTP gate is independent from the Supabase project's
+  // `enable_confirmations` setting. This prevents an auto-confirmed provider
+  // configuration from opening onboarding before inbox possession is proven.
+  const { error: otpError } = await supabase.auth.signInWithOtp({
+    email: parsed.data.email,
+    options: { shouldCreateUser: false, emailRedirectTo: callbackUrl },
+  })
+  await supabase.auth.signOut({ scope: 'local' })
+  if (otpError) {
+    return { error: publicAuthError(otpError, 'auth.signup-otp', 'Doğrulama kodu gönderilemedi. Lütfen tekrar deneyin.') }
+  }
+
+  const verifySearch = new URLSearchParams({ email: parsed.data.email, next })
+  redirect(`/auth/verify-email?${verifySearch.toString()}`)
+}
+
+export async function verifySignupEmailCode(
+  _prev: unknown,
+  formData: FormData,
+): Promise<{ error: string }> {
+  const parsed = signupEmailCodeSchema.safeParse({
+    email: formData.get('email'),
+    code: formData.get('code'),
+    next: formData.get('next') || undefined,
+  })
+  if (!parsed.success) return { error: 'E-postana gönderilen 6 haneli kodu gir.' }
+
+  const rateLimit = await checkDashboardAuthAction({
+    action: 'verify-signup-email', subject: parsed.data.email, limit: 8, windowSeconds: 900,
+  })
+  if (rateLimit !== 'allowed') {
+    return { error: rateLimit === 'unavailable'
+      ? AUTH_SECURITY_UNAVAILABLE
+      : 'Çok fazla doğrulama denemesi yapıldı. Lütfen daha sonra tekrar dene.' }
+  }
+
+  const supabase = await createDashboardServerClient()
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: parsed.data.email,
+    token: parsed.data.code,
+    type: 'email',
+  })
+  if (error || !data.user) return { error: 'Doğrulama kodu geçersiz veya süresi dolmuş.' }
+
+  const completed = await completeDashboardSignupEmailVerification(data.user.id)
+  if (!completed.ok) {
+    await supabase.auth.signOut({ scope: 'local' })
+    return { error: 'E-posta doğrulaması tamamlanamadı. Lütfen tekrar dene.' }
+  }
+  const { error: refreshError } = await supabase.auth.refreshSession()
+  if (refreshError) {
+    await supabase.auth.signOut({ scope: 'local' })
+    return { error: 'Doğrulama tamamlandı ancak güvenli oturum açılamadı. Lütfen giriş yap.' }
+  }
+
+  redirect(safeNext(parsed.data.next ?? null, '/dashboard/onboarding'))
+}
+
+export async function resendSignupEmailCode(
+  _prev: unknown,
+  formData: FormData,
+): Promise<{ error: string } | { success: true }> {
+  const parsed = resendSignupEmailCodeSchema.safeParse({ email: formData.get('email') })
+  if (!parsed.success) return { error: 'Geçerli bir e-posta adresi gerekli.' }
+
+  const rateLimit = await checkDashboardAuthAction({
+    action: 'resend-signup-email', subject: parsed.data.email, limit: 3, windowSeconds: 3600,
+  })
+  if (rateLimit !== 'allowed') {
+    return { error: rateLimit === 'unavailable'
+      ? AUTH_SECURITY_UNAVAILABLE
+      : 'Çok fazla kod isteği gönderildi. Lütfen daha sonra tekrar dene.' }
+  }
+
+  const supabase = await createDashboardServerClient()
+  const { error } = await supabase.auth.signInWithOtp({
+    email: parsed.data.email,
+    options: { shouldCreateUser: false },
+  })
+  return error
+    ? { error: publicAuthError(error, 'auth.resend-signup-otp', 'Kod yeniden gönderilemedi.') }
+    : { success: true }
 }
 
 const logoutEndpointSchema = z.string().url().max(2_048).refine((value) => value.startsWith('https://'))
@@ -247,8 +359,13 @@ export async function sendMagicLink(
     return { error: parsed.error.issues[0]?.message ?? 'Invalid email' }
   }
 
-  if (!await allowDashboardAuthAction({ action: 'magic-link', subject: parsed.data.email, limit: 3, windowSeconds: 3600 })) {
-    return { error: 'Çok fazla bağlantı isteği gönderildi. Lütfen daha sonra tekrar deneyin.' }
+  const rateLimit = await checkDashboardAuthAction({
+    action: 'magic-link', subject: parsed.data.email, limit: 3, windowSeconds: 3600,
+  })
+  if (rateLimit !== 'allowed') {
+    return { error: rateLimit === 'unavailable'
+      ? AUTH_SECURITY_UNAVAILABLE
+      : 'Çok fazla bağlantı isteği gönderildi. Lütfen daha sonra tekrar deneyin.' }
   }
 
   const supabase = await createDashboardServerClient()
@@ -268,7 +385,11 @@ export async function requestPasswordReset(
   const parsed = passwordResetRequestSchema.safeParse({ email: formData.get('email') })
   if (!parsed.success) return { error: 'Geçerli bir e-posta adresi girin.' }
 
-  if (!await allowDashboardAuthAction({ action: 'password-reset', subject: parsed.data.email, limit: 3, windowSeconds: 3600 })) {
+  const rateLimit = await checkDashboardAuthAction({
+    action: 'password-reset', subject: parsed.data.email, limit: 3, windowSeconds: 3600,
+  })
+  if (rateLimit === 'unavailable') return { error: AUTH_SECURITY_UNAVAILABLE }
+  if (rateLimit === 'blocked') {
     // Enumeration-safe: throttled known and unknown addresses receive the same response.
     return { success: true }
   }
@@ -324,8 +445,13 @@ async function requireFreshUserPassword(currentPassword: string) {
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email) return { ok: false as const, error: 'Oturum bulunamadı.' }
-  if (!await allowDashboardAuthAction({ action: 'fresh-reauth', subject: user.id, limit: 5, windowSeconds: 900 })) {
-    return { ok: false as const, error: 'Çok fazla doğrulama denemesi yapıldı. Lütfen daha sonra tekrar deneyin.' }
+  const rateLimit = await checkDashboardAuthAction({
+    action: 'fresh-reauth', subject: user.id, limit: 5, windowSeconds: 900,
+  })
+  if (rateLimit !== 'allowed') {
+    return { ok: false as const, error: rateLimit === 'unavailable'
+      ? AUTH_SECURITY_UNAVAILABLE
+      : 'Çok fazla doğrulama denemesi yapıldı. Lütfen daha sonra tekrar deneyin.' }
   }
   const [factors, assurance] = await Promise.all([
     supabase.auth.mfa.listFactors(),
@@ -438,7 +564,11 @@ export async function sendPasswordResetEmail(): Promise<{ error: string } | { su
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email) return { error: 'E-posta hesabı bulunamadı' }
 
-  if (!await allowDashboardAuthAction({ action: 'password-reset', subject: user.email, limit: 3, windowSeconds: 3600 })) {
+  const rateLimit = await checkDashboardAuthAction({
+    action: 'password-reset', subject: user.email, limit: 3, windowSeconds: 3600,
+  })
+  if (rateLimit === 'unavailable') return { error: AUTH_SECURITY_UNAVAILABLE }
+  if (rateLimit === 'blocked') {
     return { success: true }
   }
 

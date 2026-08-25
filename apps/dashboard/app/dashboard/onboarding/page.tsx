@@ -1,132 +1,45 @@
-'use client'
+import { redirect } from 'next/navigation'
+import { getDashboardAuthenticatedUser } from '../../../lib/auth/current-user'
+import { getRestaurantsForUser } from '../../../lib/queries/restaurants'
+import { readOwnerOnboarding } from '../../../lib/actions/onboarding'
+import OnboardingFlow from '../../../components/onboarding/OnboardingFlow'
 
-import { Suspense, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import StepRestaurantInfo from '../../../components/onboarding/StepRestaurantInfo'
-import StepTemplateSelect from '../../../components/onboarding/StepTemplateSelect'
-import StepLogoUpload from '../../../components/onboarding/StepLogoUpload'
+interface Props {
+  searchParams: Promise<{ plan?: string }>
+}
 
-const STEPS = [
-  { label: 'Restaurant info', short: '1' },
-  { label: 'Choose theme',    short: '2' },
-  { label: 'Upload logo',     short: '3' },
-]
+export default async function OnboardingPage({ searchParams }: Props) {
+  const user = await getDashboardAuthenticatedUser()
+  if (!user) redirect('/auth/login?next=/dashboard/onboarding')
 
-export default function OnboardingPage() {
-  const router = useRouter()
-  const [step, setStep] = useState(0)
-  const [restaurantId, setRestaurantId] = useState('')
+  const [onboarding, restaurants, query] = await Promise.all([
+    readOwnerOnboarding(),
+    getRestaurantsForUser(),
+    searchParams,
+  ])
+  if ('error' in onboarding) redirect('/auth/login?next=/dashboard/onboarding')
 
-  function handleCreated(id: string) {
-    setRestaurantId(id)
-    setStep(1)
+  if (onboarding.snapshot?.status === 'completed' && onboarding.snapshot.restaurantId) {
+    redirect(`/dashboard/${onboarding.snapshot.restaurantId}/menu`)
+  }
+  if (!onboarding.snapshot && restaurants.length > 0) {
+    redirect(`/dashboard/${restaurants[0]!.id}/menu`)
   }
 
-  function handleTemplateSelected(id: string) {
-    void id
-    setStep(2)
-  }
-
-  function handleFinish() {
-    router.push(`/dashboard/${restaurantId}/menu`)
-  }
+  const requestedPlan = query.plan === 'starter' || query.plan === 'plus' || query.plan === 'pro'
+    ? query.plan
+    : null
+  const metadata = user.user_metadata as Record<string, unknown> | undefined
+  const businessName = typeof metadata?.['business_name'] === 'string' ? metadata['business_name'] : ''
+  const adminName = typeof metadata?.['full_name'] === 'string' ? metadata['full_name'] : ''
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--bg)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '32px 16px',
-    }}>
-      {/* Logo mark — real wordmark on the light onboarding surface. */}
-      <div style={{ marginBottom: 32, display: 'flex', alignItems: 'center' }}>
-        <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={111} height={24} priority style={{ height: 24, width: 'auto', display: 'block' }} />
-      </div>
-
-      <div style={{ width: '100%', maxWidth: 480 }}>
-        {/* Step header */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em', margin: 0 }}>
-            Set up your restaurant
-          </h1>
-          <p style={{ fontSize: 13.5, color: 'var(--text-3)', marginTop: 6 }}>
-            Just a few steps to get your menu live.
-          </p>
-        </div>
-
-        {/* Step indicators */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          gap: 4, marginBottom: 24,
-        }}>
-          {STEPS.map((s, i) => {
-            const done    = i < step
-            const current = i === step
-            return (
-              <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <div style={{
-                    width: 24, height: 24, borderRadius: '50%',
-                    background: done || current ? 'var(--text)' : 'var(--surface-3)',
-                    color: done || current ? 'var(--bg)' : 'var(--text-3)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 11, fontWeight: 700,
-                    transition: 'background 200ms',
-                  }}>
-                    {done ? '✓' : i + 1}
-                  </div>
-                  <span style={{
-                    fontSize: 12.5, fontWeight: current ? 600 : 400,
-                    color: current ? 'var(--text)' : 'var(--text-3)',
-                    transition: 'color 200ms',
-                  }}>
-                    {s.label}
-                  </span>
-                </div>
-                {i < STEPS.length - 1 && (
-                  <div style={{
-                    width: 20, height: 1,
-                    background: i < step ? 'var(--text-3)' : 'var(--divider)',
-                    marginLeft: 4,
-                    transition: 'background 200ms',
-                  }} />
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Card */}
-        <div style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 16,
-          padding: '28px 28px',
-          boxShadow: 'var(--shadow-2)',
-        }}>
-          {step === 0 && (
-            <Suspense fallback={<div role="status" style={{ minHeight: 180, display: 'grid', placeItems: 'center', color: 'var(--text-3)', fontSize: 13 }}>Kurulum hazırlanıyor…</div>}>
-              <StepRestaurantInfo onCreated={handleCreated} />
-            </Suspense>
-          )}
-          {step === 1 && (
-            <StepTemplateSelect
-              restaurantId={restaurantId}
-              onSelected={handleTemplateSelected}
-            />
-          )}
-          {step === 2 && (
-            <StepLogoUpload
-              restaurantId={restaurantId}
-              onFinish={handleFinish}
-            />
-          )}
-        </div>
-      </div>
-    </div>
+    <OnboardingFlow
+      initialSnapshot={onboarding.snapshot}
+      initialBusinessName={businessName}
+      requestedPlan={onboarding.snapshot?.targetPlan ?? requestedPlan}
+      adminName={adminName}
+      adminEmail={user.email ?? ''}
+    />
   )
 }

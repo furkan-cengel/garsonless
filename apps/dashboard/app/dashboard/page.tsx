@@ -4,11 +4,11 @@ import { getUserRestaurantAccess, firstPermittedPath } from '../../lib/auth/acce
 
 export default async function DashboardIndexPage() {
   const restaurants = await getRestaurantsForUser()
-  // An authenticated browser may still be carrying a session for a newly
-  // created or otherwise unprovisioned user. Do not trap that browser in
-  // onboarding: existing users must be able to replace the session from the
-  // login screen. New-account creation reaches onboarding explicitly.
-  if (restaurants.length === 0) redirect('/auth/login?next=/dashboard')
+  // A valid account without restaurant access is an unfinished activation,
+  // regardless of whether it arrived from signup, a confirmed demo account,
+  // or a resumed browser session. Login remains directly reachable as the
+  // account-switch escape hatch; the dashboard entry itself resumes setup.
+  if (restaurants.length === 0) redirect('/dashboard/onboarding')
 
   // Land on the first restaurant's first PERMITTED section (owner → Pano; a
   // member without 'pano' → their first section in nav order). Never notFound.

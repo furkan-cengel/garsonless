@@ -2,7 +2,8 @@
 
 import { useCallback, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { removeLogo, uploadLogo } from '../../lib/actions/restaurant'
+import { removeLogo } from '../../lib/actions/restaurant'
+import { uploadLogo } from '../../lib/dashboard-media-upload-client'
 
 interface ThemeEditorLogoOptions {
   restaurantId: string

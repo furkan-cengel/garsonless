@@ -4,6 +4,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const loginPage = readFileSync(new URL('../../app/auth/login/page.tsx', import.meta.url), 'utf8')
+const signupPage = readFileSync(new URL('../../app/auth/signup/page.tsx', import.meta.url), 'utf8')
 const showcase = readFileSync(new URL('../../components/auth/LoginShowcase.tsx', import.meta.url), 'utf8')
 const showcaseCss = readFileSync(new URL('../../components/auth/LoginShowcase.module.css', import.meta.url), 'utf8')
 
@@ -16,6 +17,21 @@ test('login keeps the real auth methods and removes misleading helper copy', () 
   assert.doesNotMatch(loginPage, /Sunucu taraflı yetkilendirme/)
   assert.doesNotMatch(loginPage, /VisualPanel/)
   assert.doesNotMatch(loginPage, /autoFocus/)
+})
+
+test('signup reuses the login auth shell while keeping account-specific fields', () => {
+  assert.match(signupPage, /import styles from '\.\.\/login\/login\.module\.css'/)
+  assert.match(signupPage, /<LoginShowcase \/>/)
+  assert.match(signupPage, /name="name"/)
+  assert.match(signupPage, /name="email"/)
+  assert.match(signupPage, /name="password"/)
+  assert.match(signupPage, /name="termsAccepted"/)
+  assert.doesNotMatch(signupPage, /name="biz"/)
+  assert.doesNotMatch(signupPage, /Kart gerekmez/)
+  assert.doesNotMatch(signupPage, /Deneme güvenceleri/)
+  assert.match(signupPage, /styles\.signupPanel/)
+  assert.match(signupPage, /styles\.signupContent/)
+  assert.doesNotMatch(signupPage, /VisualPanel/)
 })
 
 test('showcase only references available real menu captures', () => {

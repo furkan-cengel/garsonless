@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { SubscriptionBillingProfile } from '@garsonless/application/billing'
 import type { BillingInterval, SelfServePlan } from '@garsonless/domain/entitlements'
-import { getPlanPrice } from '@garsonless/domain/entitlements'
+import { getAddOnPrice, getPlanPrice } from '@garsonless/domain/entitlements'
 import { z } from 'zod'
 import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
 import { readIyzicoSubscriptionBillingRuntimeConfig } from './iyzico-subscription-config'
@@ -61,43 +61,53 @@ export const cancellationRequestSchema = z.object({
   currentPassword: z.string().min(1).max(256),
 }).strict()
 
-export type BillingPlanPrices = Record<PaidBillingPlan, Record<BillingInterval, number | null>> & {
-  iyzicoOnlinePaymentsAddOn: Record<BillingInterval, number | null>
+export type BillingPlanPrices = Record<PaidBillingPlan, Record<BillingInterval, number>> & {
+  iyzicoOnlinePaymentsAddOn: Record<BillingInterval, number>
+  checkoutAvailable: boolean
+  iyzicoOnlinePaymentsAddOnCheckoutAvailable: boolean
 }
 
-/** Public display prices only. Provider plan references and credentials remain
- * server-side; an incomplete checkout/webhook contract renders every paid plan
- * unavailable so the UI cannot advertise an unusable billing path. */
+/** Public catalogue prices are always available and never provider-derived.
+ * Provider plan references and credentials remain server-side; operational
+ * checkout readiness is exposed as a separate boolean so presentation cannot
+ * drift or become blank when an environment is incomplete. */
 export function readBillingPlanPrices(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): BillingPlanPrices {
-  try {
-    const config = readIyzicoSubscriptionBillingRuntimeConfig(env)
-    return {
-      starter: {
-        monthly: getPlanPrice('starter', 'monthly').amountMinor,
-        annual: getPlanPrice('starter', 'annual').amountMinor,
-      },
-      plus: {
-        monthly: getPlanPrice('plus', 'monthly').amountMinor,
-        annual: getPlanPrice('plus', 'annual').amountMinor,
-      },
-      pro: {
-        monthly: getPlanPrice('pro', 'monthly').amountMinor,
-        annual: getPlanPrice('pro', 'annual').amountMinor,
-      },
-      iyzicoOnlinePaymentsAddOn: {
-        monthly: config.provider.addOns?.iyzico_online_payments?.monthly.addOnNetAmountMinor ?? null,
-        annual: config.provider.addOns?.iyzico_online_payments?.annual.addOnNetAmountMinor ?? null,
-      },
+  const readiness = (() => {
+    try {
+      const config = readIyzicoSubscriptionBillingRuntimeConfig(env)
+      return {
+        checkoutAvailable: true,
+        iyzicoOnlinePaymentsAddOnCheckoutAvailable: Boolean(
+          config.provider.addOns?.iyzico_online_payments,
+        ),
+      }
+    } catch {
+      return {
+        checkoutAvailable: false,
+        iyzicoOnlinePaymentsAddOnCheckoutAvailable: false,
+      }
     }
-  } catch {
-    return {
-      starter: { monthly: null, annual: null },
-      plus: { monthly: null, annual: null },
-      pro: { monthly: null, annual: null },
-      iyzicoOnlinePaymentsAddOn: { monthly: null, annual: null },
-    }
+  })()
+  return {
+    starter: {
+      monthly: getPlanPrice('starter', 'monthly').amountMinor,
+      annual: getPlanPrice('starter', 'annual').amountMinor,
+    },
+    plus: {
+      monthly: getPlanPrice('plus', 'monthly').amountMinor,
+      annual: getPlanPrice('plus', 'annual').amountMinor,
+    },
+    pro: {
+      monthly: getPlanPrice('pro', 'monthly').amountMinor,
+      annual: getPlanPrice('pro', 'annual').amountMinor,
+    },
+    iyzicoOnlinePaymentsAddOn: {
+      monthly: getAddOnPrice('iyzico_online_payments', 'monthly').amountMinor,
+      annual: getAddOnPrice('iyzico_online_payments', 'annual').amountMinor,
+    },
+    ...readiness,
   }
 }
 

@@ -11,6 +11,7 @@ import { createDashboardProfileViewModel } from '../../../lib/profile-view-model
 import { readNotificationPrefs } from '../../../lib/notification-prefs'
 import WebVitalsReporter from '../../../components/analytics/WebVitalsReporter'
 import { normalizeWebVitalsSampleRate } from '../../../components/analytics/web-vitals-model'
+import { readOwnerOnboarding } from '../../../lib/actions/onboarding'
 
 interface Props {
   children: ReactNode
@@ -20,11 +21,12 @@ interface Props {
 export default async function RestaurantLayout({ children, params }: Props) {
   const { restaurantId } = await params
 
-  const [restaurant, restaurantRows, user, access] = await Promise.all([
+  const [restaurant, restaurantRows, user, access, onboarding] = await Promise.all([
     getRestaurantById(restaurantId),
     getRestaurantsForUser(),
     getDashboardAuthenticatedUser(),
     getUserRestaurantAccess(restaurantId),
+    readOwnerOnboarding(),
   ])
 
   if (!restaurant || !access) notFound()
@@ -59,6 +61,11 @@ export default async function RestaurantLayout({ children, params }: Props) {
         isOwner={access.isOwner}
         browserNotificationsEnabled={browserNotificationsEnabled}
         notificationPrefs={notificationPrefs}
+        onboardingSnapshot={
+          access.isOwner && 'snapshot' in onboarding && onboarding.snapshot?.restaurantId === restaurantId
+            ? onboarding.snapshot
+            : null
+        }
       >
         <Suspense fallback={<RestaurantShellSkeleton />}>
           {children}

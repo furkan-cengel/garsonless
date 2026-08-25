@@ -45,7 +45,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
   })
   if (!productAccess) {
     if (!actor.isOwner) {
-      return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="qr_menu" isOwner={false} />
+      return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="qr_menu" isOwner={false} planPrices={readBillingPlanPrices()} />
     }
   }
   const requestedSection = resolveSettingsSection(query.section, actor.isOwner === true)

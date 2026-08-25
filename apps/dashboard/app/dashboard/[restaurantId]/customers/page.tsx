@@ -10,9 +10,10 @@ import {
   getLoyaltyScope,
   readCampaignEmailIdentity,
 } from '@garsonless/db/server'
-import CustomersClient from '../../../../components/customers/CustomersClient'
+import CustomersClient from '../../../../components/customers/CustomersClientBoundary'
 import { parseCustomerListState } from '../../../../components/customers/customer-list-state'
 import PlanLockedPanel from '../../../../components/PlanLockedPanel'
+import { readBillingPlanPrices } from '../../../../lib/billing/subscription-billing-request'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -45,7 +46,7 @@ export default async function CustomersPage({ params, searchParams }: Props) {
   ])
   if (!restaurant || !actor) notFound()
   if (!featureAllowed) {
-    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="customer_accounts" isOwner={access.isOwner} />
+    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="customer_accounts" isOwner={access.isOwner} planPrices={readBillingPlanPrices()} />
   }
   const port = createCustomerApplicationPort({ loyaltyScope })
   const requestedState = parseCustomerListState(toUrlSearchParams(rawSearchParams))
