@@ -1,4 +1,9 @@
-import type { SelfServePlan } from '@garsonless/domain/entitlements'
+import {
+  canUseFeature,
+  RESTAURANT_PLANS,
+  type BillableFeature,
+  type SelfServePlan,
+} from '@garsonless/domain/entitlements'
 
 export type MarketingPlanId = SelfServePlan | 'business'
 
@@ -54,11 +59,19 @@ export const MARKETING_PLANS: readonly MarketingPlan[] = [
 
 export type ComparisonValue = boolean | string
 
-export type ComparisonRow = {
+export type EntitlementComparisonRow = {
+  feature: string
+  note?: string
+  entitlement: BillableFeature
+}
+
+export type StaticComparisonRow = {
   feature: string
   note?: string
   values: Record<MarketingPlanId, ComparisonValue>
 }
+
+export type ComparisonRow = EntitlementComparisonRow | StaticComparisonRow
 
 export type ComparisonGroup = {
   id: string
@@ -71,6 +84,15 @@ const all = (value: ComparisonValue): Record<MarketingPlanId, ComparisonValue> =
   starter: value, plus: value, pro: value, business: value,
 })
 
+/** Entitlement-backed comparison cells are always projected from the domain
+ * catalogue. Marketing owns labels and grouping, never package availability. */
+export function comparisonValues(row: ComparisonRow): Record<MarketingPlanId, ComparisonValue> {
+  if ('values' in row) return row.values
+  return Object.fromEntries(
+    RESTAURANT_PLANS.map((plan) => [plan, canUseFeature(plan, row.entitlement)]),
+  ) as Record<MarketingPlanId, ComparisonValue>
+}
+
 export const PRICING_COMPARISON_GROUPS: readonly ComparisonGroup[] = [
   {
     id: 'menu-marka',
@@ -78,13 +100,13 @@ export const PRICING_COMPARISON_GROUPS: readonly ComparisonGroup[] = [
     description: 'Menüyü yayınlamak, içeriği zenginleştirmek ve işletmenizin görünümüne uyarlamak için gerekenler.',
     rows: [
       { feature: 'Ürün ve kategori', values: all('Sınırsız') },
-      { feature: 'QR menü yayını', values: all(true) },
-      { feature: 'Görsel, açıklama, seçenek ve alerjen bilgileri', values: all(true) },
-      { feature: 'Logo, renk, tipografi, kart ve navigasyon düzenleri', values: all(true) },
-      { feature: 'Masa bazlı QR', values: { starter: false, plus: true, pro: true, business: true } },
-      { feature: 'QR Studio', values: { starter: false, plus: true, pro: true, business: true } },
-      { feature: 'Gelişmiş tema bölümleri', values: { starter: false, plus: false, pro: true, business: true } },
-      { feature: 'Video içeriği', values: { starter: false, plus: false, pro: true, business: true } },
+      { feature: 'QR menü yayını', entitlement: 'qr_menu' },
+      { feature: 'Görsel, açıklama, seçenek ve alerjen bilgileri', entitlement: 'rich_product_content' },
+      { feature: 'Logo, renk, tipografi, kart ve navigasyon düzenleri', entitlement: 'theme_editor' },
+      { feature: 'Masa bazlı QR', entitlement: 'table_management' },
+      { feature: 'QR Studio', entitlement: 'qr_studio' },
+      { feature: 'Gelişmiş tema bölümleri', entitlement: 'theme_advanced_sections' },
+      { feature: 'Video içeriği', entitlement: 'theme_advanced_sections' },
     ],
   },
   {
@@ -92,14 +114,14 @@ export const PRICING_COMPARISON_GROUPS: readonly ComparisonGroup[] = [
     title: 'Masa, sipariş ve tahsilat',
     description: 'Personelin ve misafirin sipariş akışını aynı masa kaydı üzerinde ilerleten operasyon araçları.',
     rows: [
-      { feature: 'Personelin manuel sipariş girişi', values: { starter: false, plus: true, pro: true, business: true } },
-      { feature: 'Canlı masalar ve adisyon', values: { starter: false, plus: true, pro: true, business: true } },
-      { feature: 'Personel tahsilat kaydı', values: { starter: false, plus: true, pro: true, business: true } },
-      { feature: 'Müşteri sepeti ve QR siparişi', values: { starter: false, plus: false, pro: true, business: true } },
-      { feature: 'Servis çağrıları', values: { starter: false, plus: false, pro: true, business: true } },
-      { feature: 'Mutfak ekranı ve istasyonlar', values: { starter: false, plus: false, pro: true, business: true } },
+      { feature: 'Personelin manuel sipariş girişi', entitlement: 'staff_orders' },
+      { feature: 'Canlı masalar ve adisyon', entitlement: 'table_management' },
+      { feature: 'Personel tahsilat kaydı', entitlement: 'settlement' },
+      { feature: 'Müşteri sepeti ve QR siparişi', entitlement: 'guest_ordering' },
+      { feature: 'Servis çağrıları', entitlement: 'service_requests' },
+      { feature: 'Mutfak ekranı ve istasyonlar', entitlement: 'kitchen_display' },
       { feature: 'İyzico online ödeme', note: 'Pro’ya aylık 300 ₺ + KDV ile eklenir; yıllık ödemede katalog indirimi uygulanır. İyzico işlem koşulları ayrıca geçerlidir.', values: { starter: false, plus: false, pro: '+300 ₺/ay', business: 'Özel kapsam' } },
-      { feature: 'Hesap bölüşme', values: { starter: false, plus: false, pro: true, business: true } },
+      { feature: 'Hesap bölüşme', entitlement: 'split_payments' },
     ],
   },
   {
@@ -107,11 +129,11 @@ export const PRICING_COMPARISON_GROUPS: readonly ComparisonGroup[] = [
     title: 'Raporlar ve ekip',
     description: 'Günlük performansı izlemek ve ekip erişimini işletme içinde güvenle paylaşmak için.',
     rows: [
-      { feature: 'Temel satış, ürün, masa ve ödeme raporları', values: { starter: false, plus: true, pro: true, business: true } },
-      { feature: 'Ekip üyeleri', values: { starter: false, plus: true, pro: true, business: true } },
-      { feature: 'Rol ve yetkilendirme', values: { starter: false, plus: true, pro: true, business: true } },
-      { feature: 'Gelişmiş raporlar', values: { starter: false, plus: false, pro: true, business: true } },
-      { feature: 'Tarayıcı bildirimleri', values: { starter: false, plus: false, pro: true, business: true } },
+      { feature: 'Temel satış, ürün, masa ve ödeme raporları', entitlement: 'analytics_basic' },
+      { feature: 'Ekip üyeleri', entitlement: 'team_management' },
+      { feature: 'Rol ve yetkilendirme', entitlement: 'team_management' },
+      { feature: 'Gelişmiş raporlar', entitlement: 'analytics_advanced' },
+      { feature: 'Tarayıcı bildirimleri', entitlement: 'browser_notifications' },
     ],
   },
   {
@@ -119,10 +141,10 @@ export const PRICING_COMPARISON_GROUPS: readonly ComparisonGroup[] = [
     title: 'Misafir ve büyüme',
     description: 'Tekrar ziyareti ve müşteri ilişkilerini aynı operasyon verisi üzerinden yönetmek için.',
     rows: [
-      { feature: 'Müşteri hesabı', values: { starter: false, plus: false, pro: true, business: true } },
-      { feature: 'CRM görünümü', values: { starter: false, plus: false, pro: true, business: true } },
-      { feature: 'Sadakat ve puan', values: { starter: false, plus: false, pro: true, business: true } },
-      { feature: 'Kampanyalar', values: { starter: false, plus: false, pro: true, business: true } },
+      { feature: 'Müşteri hesabı', entitlement: 'customer_accounts' },
+      { feature: 'CRM görünümü', entitlement: 'crm' },
+      { feature: 'Sadakat ve puan', entitlement: 'loyalty' },
+      { feature: 'Kampanyalar', entitlement: 'campaigns' },
     ],
   },
   {
@@ -131,9 +153,9 @@ export const PRICING_COMPARISON_GROUPS: readonly ComparisonGroup[] = [
     description: 'Birden fazla işletmeye ortak erişim gereken yapılara özel Business kapsamı.',
     rows: [
       { feature: 'İşletme / şube', values: { starter: '1 / 1', plus: '1 / 1', pro: '1 / 1', business: 'Birden fazla' } },
-      { feature: 'Organizasyon çalışma alanı', values: { starter: false, plus: false, pro: false, business: true } },
-      { feature: 'Ortak ekip erişimi', values: { starter: false, plus: false, pro: false, business: true } },
-      { feature: 'Güvenli şube geçişi', values: { starter: false, plus: false, pro: false, business: true } },
+      { feature: 'Organizasyon çalışma alanı', entitlement: 'multi_location' },
+      { feature: 'Ortak ekip erişimi', entitlement: 'multi_location' },
+      { feature: 'Güvenli şube geçişi', entitlement: 'multi_location' },
     ],
   },
   {

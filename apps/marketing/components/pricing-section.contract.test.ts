@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
+import { canUseFeature, RESTAURANT_PLANS } from '@garsonless/domain/entitlements'
+import {
+  comparisonValues,
+  PRICING_COMPARISON_GROUPS,
+} from '../lib/pricing-catalog'
 
 const pricing = readFileSync(new URL('./PricingSection.tsx', import.meta.url), 'utf8')
 const catalog = readFileSync(new URL('../lib/pricing-catalog.ts', import.meta.url), 'utf8')
@@ -87,6 +92,21 @@ test('dedicated pricing route provides a detailed, honest and accessible compari
   assert.match(faqAccordion, /aria-expanded=\{open\}/)
   assert.match(styles, /\.faq-item__answer \{[\s\S]*?grid-template-rows: 0fr;[\s\S]*?transition:/)
   assert.match(styles, /\.faq-item\[data-open="true"\] \.faq-item__answer \{[\s\S]*?grid-template-rows: 1fr/)
+})
+
+test('every entitlement-backed comparison row is projected from the canonical domain catalogue', () => {
+  const entitlementRows = PRICING_COMPARISON_GROUPS.flatMap((group) => group.rows)
+    .filter((row) => 'entitlement' in row)
+  assert.ok(entitlementRows.length > 0)
+
+  for (const row of entitlementRows) {
+    if (!('entitlement' in row)) continue
+    assert.deepEqual(
+      comparisonValues(row),
+      Object.fromEntries(RESTAURANT_PLANS.map((plan) => [plan, canUseFeature(plan, row.entitlement)])),
+      `${row.feature} must follow ${row.entitlement}`,
+    )
+  }
 })
 
 test('contact form supports general, sales and support messages with guarded delivery', () => {

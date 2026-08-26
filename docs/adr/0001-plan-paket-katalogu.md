@@ -1,6 +1,6 @@
 # ADR-0001 — Plan, Paket Kataloğu ve Pro Denemesi
 
-- **Durum:** Revize edildi (2026-08-14)
+- **Durum:** Kabul edildi (2026-08-26)
 - **Karar sahibi:** Ürün sahibi (Furkan)
 - **İlgili kod:** `packages/domain/src/entitlements.ts` (canonical katalog)
 
@@ -34,9 +34,9 @@ aylık fiyatın tam `%20` indirimlisidir.
 - Starter: QR menü, zengin ürün içeriği ve çekirdek tema editörü.
 - Plus: Starter + masa bazlı QR/QR Studio, personel siparişi, canlı masa,
   adisyon/tahsilat, temel analitik ve ekip yetkileri.
-- Pro: Plus + misafir QR siparişi, servis çağrısı, KDS, online/hesap bölüşmeli
-  ödeme, müşteri hesabı, CRM, sadakat, kampanya, gelişmiş analitik/bildirim ve
-  gelişmiş tema bölümleri.
+- Pro: Plus + misafir QR siparişi, servis çağrısı, KDS, hesap bölüşmeli ödeme,
+  müşteri hesabı, CRM, sadakat, kampanya, gelişmiş analitik/bildirim ve gelişmiş
+  tema bölümleri. İyzico online ödeme paket özelliği değil, ayrı add-on'dır.
 - Business: Pro + organizasyon, ortak ekip ve birden fazla şubeye erişim.
 
 Feature matrisi kümülatiftir. Genel `orders` yeteneği `staff_orders` ve
@@ -46,15 +46,19 @@ ve menü/fiyat senkronu çalışır bir ürün yüzeyi oluşmadan vaat edilmez.
 ### Kotalar ve add-on'lar
 
 Ürün, kategori, masa ve ekip kotası yoktur. `multi_location` yalnız Business
-özelliğidir. POS/ÖKC ve özel entegrasyonlar, profesyonel kurulum/menü aktarımı
-ve fiziksel QR standları add-on olabilir. KDS, sadakat ve QR siparişi Plus
-add-on'u değildir.
+özelliğidir. İyzico Online Ödeme yalnız Pro ile self-servis satın alınabilen,
+aylık ₺300 + KDV veya yıllık peşin ₺2.880 + KDV fiyatlı ayrı add-on'dır; yıllık
+fiyat on iki aylık tutarın tam `%20` indirimlisidir. Business kapsamındaki
+online ödeme özel teklifte belirlenir. POS/ÖKC ve özel entegrasyonlar,
+profesyonel kurulum/menü aktarımı ve fiziksel QR standları da add-on olabilir.
+KDS, sadakat ve QR siparişi Plus add-on'u değildir.
 
 ### Deneme ve kilit
 
 Yeni işletme kaydı, provider müşterisi gerektirmeyen 14 günlük Pro denemesini
 aynı veritabanı transaction'ında oluşturur. Fiyat kartındaki Starter/Plus/Pro
-seçimi niyet olarak saklanır; deneme erişimi Pro kalır.
+seçimi niyet olarak saklanır; deneme erişimi Pro kalır. Pro denemesi ayrı
+ticari ürün olan İyzico Online Ödeme add-on'unu otomatik etkinleştirmez.
 
 Süre sonunda durum `trial_expired` olur. Public menü ve ürün/operasyon yazma
 işlemleri kapanır; veri silinmez. Owner dashboard'da hesap, faturalama ve paket

@@ -7,6 +7,7 @@ import {
   MARKETING_PLANS,
   PRICING_COMPARISON_GROUPS,
   PRICING_FAQS,
+  comparisonValues,
   type ComparisonValue,
   type MarketingPlanId,
 } from '../lib/pricing-catalog'
@@ -118,19 +119,20 @@ export function PricingPageClient() {
                         </button>
                       </th>
                     </tr>
-                    {open && group.rows.map((row) => (
-                      <tr key={row.feature}>
+                    {open && group.rows.map((row) => {
+                      const values = comparisonValues(row)
+                      return <tr key={row.feature}>
                         <th scope="row">
                           {row.feature}
                           {row.note && <small>{row.note}</small>}
                         </th>
                         {MARKETING_PLANS.map((plan) => (
                           <td key={plan.id} className={plan.highlight ? 'is-highlighted' : undefined}>
-                            <ComparisonCell value={row.values[plan.id]} />
+                            <ComparisonCell value={values[plan.id]} />
                           </td>
                         ))}
                       </tr>
-                    ))}
+                    })}
                   </tbody>
                 )
               })}
@@ -175,19 +177,20 @@ export function PricingPageClient() {
                           </tr>
                         </thead>
                         <tbody>
-                          {group.rows.map((row) => (
-                            <tr key={row.feature}>
+                          {group.rows.map((row) => {
+                            const values = comparisonValues(row)
+                            return <tr key={row.feature}>
                               <th scope="row">
                                 {row.feature}
                                 {row.note && <small>{row.note}</small>}
                               </th>
                               {MARKETING_PLANS.map((plan) => (
                                 <td key={plan.id} className={plan.highlight ? 'is-highlighted' : undefined}>
-                                  <ComparisonCell value={row.values[plan.id]} />
+                                  <ComparisonCell value={values[plan.id]} />
                                 </td>
                               ))}
                             </tr>
-                          ))}
+                          })}
                         </tbody>
                       </table>
                     </div>
