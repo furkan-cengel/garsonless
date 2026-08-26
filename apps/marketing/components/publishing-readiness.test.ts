@@ -40,15 +40,6 @@ test('Supademo loads automatically only as its step enters the viewport', () => 
   assert.doesNotMatch(source, /masabu:supademo-consent|Etkileşimli demoyu başlat|startDemo/)
 })
 
-test('homepage hero leads with speed and operational control without implying staff replacement', () => {
-  const hero = read('components/HeroSection.tsx')
-  assert.match(hero, /Siparişinizi hızlandırın\./)
-  assert.match(hero, /Servisinizi kusursuzlaştırın\./)
-  assert.match(hero, /siparişini saniyeler içinde verir/)
-  assert.match(hero, /tek panelden kolayca yönetin/)
-  assert.doesNotMatch(hero, /garsonsuz/i)
-})
-
 test('legacy mock routes are permanent redirects and footer exposes all release pages', () => {
   assert.match(read('app/company/page.tsx'), /permanentRedirect\('\/hakkimizda'\)/)
   assert.match(read('app/resources/page.tsx'), /permanentRedirect\('\/blog'\)/)

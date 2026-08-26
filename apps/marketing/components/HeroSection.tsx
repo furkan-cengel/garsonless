@@ -10,12 +10,12 @@ export function HeroSection() {
       <div className="container marketing-hero__inner">
         <div className="marketing-hero__copy">
           <h1 id="marketing-hero-title" className="font-display marketing-hero__title">
-            Siparişinizi hızlandırın.<br />
-            <span>Servisinizi kusursuzlaştırın.</span>
+            Garsonsuz sipariş,<br />
+            <span>kusursuz servis.</span>
           </h1>
           <p className="marketing-hero__lead">
-            Misafir QR kodu okur, menüsünü inceler ve siparişini saniyeler içinde verir.
-            Siz masaları, siparişleri ve cironuzu tek panelden kolayca yönetin.
+            Misafir masadaki QR&apos;ı tarar, menüden seçer, öder. Siz her masayı,
+            her siparişi ve tüm cironuzu tek panodan yönetirsiniz.
           </p>
           <div className="marketing-hero__actions">
             <a className="marketing-hero__primary" href={`${DASHBOARD_URL}/auth/signup`}>
