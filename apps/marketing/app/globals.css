@@ -4878,6 +4878,60 @@ a {
   }
 }
 
+@media (max-width: 480px) {
+  .flow-panel--solution {
+    min-height: 452px;
+  }
+
+  .solution-routes {
+    grid-template-rows: minmax(82px, .86fr) minmax(154px, 1.34fr) minmax(82px, .86fr);
+    gap: 8px;
+  }
+
+  .solution-route--primary {
+    padding: 11px 10px 13px;
+  }
+
+  .solution-route--primary .solution-route__list {
+    column-gap: 4px;
+    padding-top: 8px;
+  }
+
+  .solution-route--primary .solution-route__list::before {
+    top: 30px;
+  }
+
+  .solution-route--primary .solution-route__step {
+    gap: 7px;
+  }
+
+  .solution-route--primary .solution-route__artwork {
+    width: 44px;
+    height: 44px;
+  }
+
+  .solution-route--primary .solution-route__artwork--asset img {
+    width: 42px;
+    height: 42px;
+  }
+
+  .solution-route--primary .solution-route__artwork--wide {
+    width: 50px;
+  }
+
+  .solution-route--primary .solution-route__artwork--wide img {
+    width: 48px;
+  }
+
+  .solution-route--primary .solution-route__step-label {
+    width: 100%;
+    min-height: 22px;
+    max-width: 44px;
+    font-size: 8px;
+    line-height: 1.25;
+  }
+}
+
 @keyframes problem-network-line-mobile-draw {
   to {
     opacity: .8;

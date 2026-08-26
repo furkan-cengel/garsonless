@@ -41,3 +41,16 @@ test('ProblemSolutionSection keeps the primary order flow in the middle on mobil
     /\.solution-route--(?:primary|top|bottom) \{\s*order:/,
   )
 })
+
+test('ProblemSolutionSection gives the primary mobile flow room without stacking it', () => {
+  const narrowMobileStart = globalsCss.indexOf('@media (max-width: 480px)')
+  const narrowMobileCss = globalsCss.slice(
+    narrowMobileStart,
+    globalsCss.indexOf('@media (prefers-reduced-motion: reduce)', narrowMobileStart),
+  )
+
+  assert.match(narrowMobileCss, /column-gap: 4px;/)
+  assert.match(narrowMobileCss, /max-width: 44px;/)
+  assert.match(narrowMobileCss, /min-height: 452px;/)
+  assert.doesNotMatch(narrowMobileCss, /grid-template-columns: repeat\(3,/)
+})
