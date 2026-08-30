@@ -29,6 +29,7 @@
     "verify:dashboard-insights-health": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-dashboard-insights-health-runtime.ts",
     "verify:dashboard-push": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-dashboard-push-runtime.ts",
     "verify:dashboard-push-provider": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local PUSH_TEST_CONSUMER_SECRET=dashboard-push-runtime-secret node --import dotenv/config --import tsx scripts/verify-dashboard-push-provider-runtime.ts",
+    "configure:outbox-worker-vault": "node --import tsx scripts/configure-outbox-worker-vault.ts",
     "health:dashboard-insights": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/check-dashboard-insights-health.ts",
     "seed:maf": "tsx src/seed-maf.ts",
     "prepare:supademo-menu-theme": "tsx scripts/prepare-supademo-menu-theme.ts",

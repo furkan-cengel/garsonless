@@ -46,6 +46,8 @@ test('turning on a push preference subscribes the current device inside the user
   assert.match(settings, /key === 'newOrderPush' \|\| key === 'serviceRequestPush'/)
   assert.match(settings, /device\.status !== 'subscribed'[\s\S]*?void device\.subscribe\(\)/)
   assert.match(settings, /device\.status === 'unsupported'[\s\S]*?'Desteklenmiyor'/)
+  assert.match(settings, /pushPreferenceDirty[\s\S]*?'Kaydedilmedi'/)
+  assert.match(settings, /bildirim tercihinin geçerli olması için Kaydet’e basın/)
 })
 
 test('installed dashboard PWA has a stable identity and immediately activates push worker updates', () => {

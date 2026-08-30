@@ -596,6 +596,9 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
   const [isPending, startTransition] = useTransition()
   const initialNotificationRef = useRef({ prefs, lateThreshold })
   const notificationsDirty = JSON.stringify({ prefs, lateThreshold }) !== JSON.stringify(initialNotificationRef.current)
+  const pushPreferenceDirty = prefs.newOrderPush !== initialNotificationRef.current.prefs.newOrderPush
+    || prefs.serviceRequestPush !== initialNotificationRef.current.prefs.serviceRequestPush
+  const hasEnabledPushChannel = prefs.newOrderPush || prefs.serviceRequestPush
   useSettingsDirtyState('notifications:operations', notificationsDirty)
 
   function setToggle(key: NotificationToggleKey, value: boolean) {
@@ -840,9 +843,13 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                 <FieldContent>
                   <div className="flex flex-wrap items-center gap-2">
                     <FieldTitle>Bu cihaz</FieldTitle>
-                    <Badge variant={device.status === 'subscribed' ? 'positive' : device.status === 'denied' ? 'destructive' : 'secondary'}>
+                    <Badge variant={device.status === 'subscribed' && hasEnabledPushChannel && !pushPreferenceDirty ? 'positive' : device.status === 'denied' ? 'destructive' : 'secondary'}>
                       {device.status === 'subscribed'
-                        ? 'Etkin'
+                        ? pushPreferenceDirty
+                          ? 'Kaydedilmedi'
+                          : hasEnabledPushChannel
+                            ? 'Etkin'
+                            : 'Cihaz bağlı'
                         : device.status === 'subscribing'
                           ? 'Bağlanıyor'
                           : device.status === 'denied'
@@ -858,7 +865,11 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                   </div>
                   <FieldDescription>
                     {device.status === 'subscribed'
-                      ? 'Panel kapalıyken de seçtiğiniz sistem bildirimlerini alır.'
+                      ? pushPreferenceDirty
+                        ? 'Cihaz bağlandı; bildirim tercihinin geçerli olması için Kaydet’e basın.'
+                        : hasEnabledPushChannel
+                          ? 'Panel kapalıyken de seçtiğiniz sistem bildirimlerini alır.'
+                          : 'Cihaz bağlı, ancak hiçbir sistem bildirimi seçili değil. Yukarıdan bir tercih açıp Kaydet’e basın.'
                       : device.status === 'unconfigured'
                         ? 'Web Push anahtarı bu ortamda yapılandırılmamış.'
                         : device.status === 'denied'
