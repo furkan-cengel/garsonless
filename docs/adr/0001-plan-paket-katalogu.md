@@ -31,8 +31,9 @@ aylık fiyatın tam `%20` indirimlisidir.
 
 ### Feature matrisi
 
-- Starter: QR menü, zengin ürün içeriği ve çekirdek tema editörü.
-- Plus: Starter + masa bazlı QR/QR Studio, personel siparişi, canlı masa,
+- Starter: QR menü, zengin ürün içeriği, çekirdek tema editörü, masa dizini ve
+  masa bazlı tam QR Studio. Masa QR token'ı paket değişiminde korunur.
+- Plus: Starter + personel siparişi, canlı masa,
   adisyon/tahsilat, temel analitik ve ekip yetkileri.
 - Pro: Plus + misafir QR siparişi, servis çağrısı, KDS, hesap bölüşmeli ödeme,
   müşteri hesabı, CRM, sadakat, kampanya, gelişmiş analitik/bildirim ve gelişmiş
@@ -42,6 +43,8 @@ aylık fiyatın tam `%20` indirimlisidir.
 Feature matrisi kümülatiftir. Genel `orders` yeteneği `staff_orders` ve
 `guest_ordering` olarak ayrıdır. API, webhook, SSO, white-label, merkezi rapor
 ve menü/fiyat senkronu çalışır bir ürün yüzeyi oluşmadan vaat edilmez.
+`qr_studio` temel masa dizini ve kalıcı masa QR'ını; `table_management` ise
+canlı masa, oturum ve adisyon operasyonlarını ifade eder.
 
 ### Kotalar ve add-on'lar
 

@@ -21,10 +21,10 @@ interface Props {
   initialCategories: Tables<'menu_categories'>[]
   initialItems: Tables<'menu_items'>[]
   kitchenStations: Tables<'kitchen_stations'>[]
-  initialRecommendations: MenuItemRecommendationRow[]
-  recommendationsAvailable: boolean
+  initialRecommendations: MenuItemRecommendationRow[]; recommendationsAvailable: boolean
+  orderingFeaturesEnabled: boolean; loyaltyStampEnabled: boolean
 }
-export default function MenuManager({ restaurantId, restaurantName, publicMenuPath, initialCategories, initialItems, kitchenStations, initialRecommendations, recommendationsAvailable }: Props) {
+export default function MenuManager({ restaurantId, restaurantName, publicMenuPath, initialCategories, initialItems, kitchenStations, initialRecommendations, recommendationsAvailable, orderingFeaturesEnabled, loyaltyStampEnabled }: Props) {
   const router = useRouter()
   const recommendations = useMenuItemRecommendations(initialRecommendations)
   const shell = useMenuManagerShellState({ initialCategories, initialItems })
@@ -206,6 +206,7 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
             allItems={items}
             recommendationIds={recommendations.idsByItem.get(selectedItem.id)?.filter(Boolean) ?? []}
             recommendationsAvailable={recommendationsAvailable}
+            orderingFeaturesEnabled={orderingFeaturesEnabled} loyaltyStampEnabled={loyaltyStampEnabled}
             onRetryRecommendations={() => router.refresh()}
             restaurantId={restaurantId}
             onClose={closeItemEditor}
@@ -229,7 +230,7 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
         activeCategoryId={activeSubCat ?? activeCategory}
         categories={categories}
         kitchenStations={kitchenStations}
-        restaurantId={restaurantId}
+        restaurantId={restaurantId} loyaltyStampEnabled={loyaltyStampEnabled}
         onItemCreated={createItem}
         onCloseAddItem={() => setShowAddItem(false)}
       />

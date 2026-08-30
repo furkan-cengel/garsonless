@@ -4,6 +4,7 @@ import type { ThemeEditorSurface } from '@garsonless/design-engine'
 import { I, type Icon } from '../../lib/ui'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { LockKeyholeIcon } from 'lucide-react'
 
 const SURFACES: Array<{ id: ThemeEditorSurface; label: string; description: string; icon: Icon }> = [
   { id: 'home', label: 'Ana sayfa', description: 'Karşılama ve marka hikâyesi', icon: I.home },
@@ -18,17 +19,26 @@ const SURFACE_ITEMS = SURFACES.map((surface) => ({ value: surface.id, label: sur
 export function ThemeExperienceSurfaceSelector({
   value,
   homeEnabled,
+  canUseGuestOrdering,
+  onLockedSurface,
   onChange,
 }: {
   value: ThemeEditorSurface
   homeEnabled: boolean
+  canUseGuestOrdering: boolean
+  onLockedSurface: (surface: ThemeEditorSurface) => void
   onChange: (surface: ThemeEditorSurface) => void
 }) {
   const active = SURFACES.find((surface) => surface.id === value) ?? SURFACES[1]!
   const ActiveIcon = active.icon
 
   return (
-    <Select items={SURFACE_ITEMS} value={value} onValueChange={(next) => { if (next) onChange(next as ThemeEditorSurface) }}>
+    <Select items={SURFACE_ITEMS} value={value} onValueChange={(next) => {
+      if (!next) return
+      const surface = next as ThemeEditorSurface
+      if (surface === 'checkout' && !canUseGuestOrdering) onLockedSurface(surface)
+      else onChange(surface)
+    }}>
       <SelectTrigger data-theme-surface-trigger data-theme-surface-selector className="h-9 min-w-40 border-transparent font-medium">
         <ActiveIcon className={`theme-surface-icon${active.id === 'menu' ? ' theme-surface-menu-dish' : ''}`} />
         <SelectValue>{active.label}</SelectValue>
@@ -48,6 +58,11 @@ export function ThemeExperienceSurfaceSelector({
                     {surface.id === 'home' && !homeEnabled && (
                       <Badge variant="secondary" className="group-focus/surface-option:bg-background group-focus/surface-option:text-foreground!">
                         Kapalı
+                      </Badge>
+                    )}
+                    {surface.id === 'checkout' && !canUseGuestOrdering && (
+                      <Badge variant="secondary" className="gap-1">
+                        <LockKeyholeIcon size={12} />Pro
                       </Badge>
                     )}
                   </span>

@@ -10,6 +10,7 @@ import { createServiceClient } from './service-client'
 type RpcName =
   | 'read_platform_admin_tenant_service_control'
   | 'set_platform_admin_tenant_service_status'
+  | 'read_tenant_order_ingress_status'
 type RpcResult = { data: unknown; error: { message: string } | null }
 export type PlatformTenantOperationsRpc = (
   name: RpcName,
@@ -104,12 +105,17 @@ export async function readTenantOrderIngressStatus(
   rpc: PlatformTenantOperationsRpc = serviceRpc(),
 ): Promise<'active' | 'suspended' | 'manual_hold' | 'unavailable'> {
   try {
-    const { data, error } = await rpc('read_platform_admin_tenant_service_control', {
+    const primary = await rpc('read_tenant_order_ingress_status', {
       p_restaurant_id: restaurantId,
     })
-    if (error) return 'unavailable'
-    const control = parseControl(data)
-    return control?.status ?? 'unavailable'
+    if (primary.error) {
+      const fallback = await rpc('read_platform_admin_tenant_service_control', {
+        p_restaurant_id: restaurantId,
+      })
+      if (fallback.error) return 'unavailable'
+      return parseControl(fallback.data)?.status ?? 'unavailable'
+    }
+    return isTenantServiceStatus(primary.data) ? primary.data : 'unavailable'
   } catch {
     return 'unavailable'
   }

@@ -273,6 +273,10 @@
 
 .primaryButton:disabled {
   opacity: 0.62;
+  cursor: not-allowed;
+}
+
+.primaryButton[data-pending='true'] {
   cursor: wait;
 }
 

@@ -615,7 +615,8 @@ koşullu evidence olarak listelenir.
 
 ## Şimdiki açık blokajlar
 
-- SaaS abonelik İyzico canlı merchant/plan referansları hazır değil.
+- İyzico hesabı aktif; SaaS abonelik canlı merchant/API değerleri ile altı aylık/yıllık
+  plan referansı production secret store'a bağlanıp provider doğrulamasından geçirilmedi.
 - PROD migration geçmişi ile remote Edge Function/cron/Vault/Auth Hook durumu
   henüz kanıtlanmadı.
 - PROD backup/PITR doğrulaması ve izole restore provası henüz yapılmadı; bundle

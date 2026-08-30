@@ -18,6 +18,22 @@ export const SETTINGS_SECTION_IDS = [
 
 export type SettingsSectionId = (typeof SETTINGS_SECTION_IDS)[number]
 
+export const SETTINGS_SECTION_FEATURES: Readonly<Partial<Record<SettingsSectionId, BillableFeature>>> = {
+  team: 'team_management',
+  payments: 'online_payments',
+  loyalty: 'loyalty',
+  kitchen: 'kitchen_display',
+  notifications: 'staff_orders',
+}
+
+export type SettingsSectionAccess = {
+  allowed: boolean
+  feature: BillableFeature | null
+  requiredPlanLabel: string | null
+}
+
+export type SettingsSectionsAccess = Record<SettingsSectionId, SettingsSectionAccess>
+
 const SETTINGS_SECTION_SET = new Set<string>(SETTINGS_SECTION_IDS)
 
 const OWNER_ONLY_SETTINGS_SECTIONS = new Set<SettingsSectionId>([
@@ -47,3 +63,4 @@ export function resolveSettingsSection(value: unknown, isOwner: boolean): Settin
   if (isSettingsSectionId(value) && canAccessSettingsSection(value, isOwner)) return value
   return defaultSettingsSection(isOwner)
 }
+import type { BillableFeature } from '@garsonless/domain/entitlements'

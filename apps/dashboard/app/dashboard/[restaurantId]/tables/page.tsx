@@ -20,7 +20,17 @@ export default async function TablesPage({ params, searchParams }: Props) {
   const restaurant = await getRestaurantById(restaurantId)
   if (!restaurant) notFound()
   if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'table_management' })) {
-    return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="table_management" isOwner={access.isOwner} planPrices={readBillingPlanPrices()} />
+    return (
+      <PlanLockedPanel
+        restaurantId={restaurantId}
+        currentPlan={restaurant.plan}
+        feature="table_management"
+        isOwner={access.isOwner}
+        planPrices={readBillingPlanPrices()}
+        returnHref={`/dashboard/${restaurantId}/tables/qr`}
+        returnLabel="QR Studio'ya dön"
+      />
+    )
   }
   const [tablesResult, openSessionsResult, layoutResult] = await Promise.all([
     getTablesForRestaurant(restaurantId),

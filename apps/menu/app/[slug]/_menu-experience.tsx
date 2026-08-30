@@ -5,7 +5,7 @@ import {
   type MemberBalances,
 } from '@garsonless/application/loyalty'
 import { withoutAdvancedThemeSections } from '@garsonless/application/themes'
-import { createLoyaltyQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
+import { createLoyaltyQueryPort, createThemeApplicationPort, readTenantOrderIngressStatus } from '@garsonless/db/server'
 import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
 import { getMenuCategories, getMenuItems, getPreviewRestaurantBySlug, getRestaurantBySlug } from '../../lib/queries'
 import { getCustomerSession } from '../../lib/customer-session'
@@ -76,12 +76,13 @@ export async function renderMenuExperience({
   if (!themeResult.ok) notFound()
 
   const { theme, templateId } = themeResult.value
-  const [menuAccess, guestOrderingAccess, requestButtonsAccess, customerAccountsAccess, advancedThemeAccess] = await Promise.all([
+  const [menuAccess, guestOrderingAccess, requestButtonsAccess, customerAccountsAccess, advancedThemeAccess, orderIngressStatus] = await Promise.all([
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'qr_menu' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'guest_ordering' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'service_requests' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'customer_accounts' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_advanced_sections' }),
+    readTenantOrderIngressStatus(restaurant.id),
   ])
   if (!previewAccessGranted && (!menuAccess.ok || !menuAccess.value)) notFound()
   const customerAccountsEnabled = customerAccountsAccess.ok && customerAccountsAccess.value
@@ -97,7 +98,7 @@ export async function renderMenuExperience({
   ])
   const items = applyFeaturedProductRanking(menuItems, featuredRanking)
   const requestButtonsEnabled = requestButtonsAccess?.ok === true && requestButtonsAccess.value
-  const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value
+  const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value && orderIngressStatus === 'active'
   const servedTheme = advancedThemeAccess.ok && advancedThemeAccess.value
     ? theme
     : withoutAdvancedThemeSections(theme)

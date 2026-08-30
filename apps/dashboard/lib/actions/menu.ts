@@ -2,7 +2,7 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
-import { assertAccess } from '../auth/access'
+import { assertAccess, assertRestaurantFeature } from '../auth/access'
 import type { Tables } from '@garsonless/db/types'
 import {
   ALLERGEN_CODES,
@@ -492,6 +492,15 @@ export async function createItem(
 
   const actor = await getMenuActor(parsed.data.restaurantId)
   if ('error' in actor) return actor
+  if (parsed.data.earns_stamp === true) {
+    const [orderingGate, loyaltyGate] = await Promise.all([
+      assertRestaurantFeature(parsed.data.restaurantId, 'guest_ordering'),
+      assertRestaurantFeature(parsed.data.restaurantId, 'loyalty'),
+    ])
+    if ('error' in orderingGate || 'error' in loyaltyGate) {
+      return { error: 'Sadakat damgası Pro paketiyle kullanılabilir.', code: 'forbidden' }
+    }
+  }
   const result = await createMenuItem(
     actor,
     parsed.data as MenuItemDraft,
@@ -577,6 +586,15 @@ export async function updateItem(
 
   const actor = await getMenuActor(parsed.data.restaurantId)
   if ('error' in actor) return actor
+  if (parsed.data.earns_stamp !== undefined) {
+    const [orderingGate, loyaltyGate] = await Promise.all([
+      assertRestaurantFeature(parsed.data.restaurantId, 'guest_ordering'),
+      assertRestaurantFeature(parsed.data.restaurantId, 'loyalty'),
+    ])
+    if ('error' in orderingGate || 'error' in loyaltyGate) {
+      return { error: 'Sadakat damgası Pro paketiyle kullanılabilir.', code: 'forbidden' }
+    }
+  }
   const result = await updateMenuItem(
     actor,
     parsed.data as MenuItemPatch,
@@ -610,6 +628,8 @@ export async function replaceItemRecommendations(input: {
 
   const access = await assertAccess(parsed.data.restaurantId, 'menu')
   if ('error' in access) return access
+  const orderingGate = await assertRestaurantFeature(parsed.data.restaurantId, 'guest_ordering')
+  if ('error' in orderingGate) return { error: 'Ürün önerileri Pro paketiyle kullanılabilir.' }
   const supabase = await createDashboardServerClient()
   const rpc = supabase.rpc.bind(supabase) as unknown as (
     name: 'replace_menu_item_recommendations',

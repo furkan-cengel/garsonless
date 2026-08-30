@@ -13,14 +13,15 @@ import { useThemeEditorLifecycle } from './use-theme-editor-lifecycle'; import {
 import { useThemeEditorNavigation } from './use-theme-editor-navigation'; import { useThemeEditorCoupons } from './use-theme-editor-coupons'
 import { useThemeEditorPropertyCommands } from './use-theme-editor-property-commands'; import { useThemeEditorWorkspace } from './use-theme-editor-workspace'; import { useThemeEditorCartPreview } from './use-theme-editor-cart-preview'
 import { useThemeEditorChromeScope } from './use-theme-editor-chrome-scope'; import { buildMenuHeaderContrastRepairPatch } from './menu-header-editor-scope'
-import { useThemeEditorDrawerPreview } from './use-theme-editor-drawer-preview'; import { useThemePublishGuidance } from './use-theme-publish-guidance'; import { useThemeExperienceSurface } from './use-theme-experience-surface'; import { buildEditorNavigation, buildThemeSettingsGroup } from './theme-editor-navigation-catalog'
+import { useThemeEditorDrawerPreview } from './use-theme-editor-drawer-preview'; import { useThemePublishGuidance } from './use-theme-publish-guidance'; import { useThemeExperienceSurface } from './use-theme-experience-surface'; import { buildEditorNavigation, buildThemeSettingsGroup, restrictOrderingThemeSchema } from './theme-editor-navigation-catalog'
 import { getThemeEditorSaveStatus } from './theme-editor-shell-model'; import { createThemeEditorPreviewDeriver } from './theme-editor-preview-theme-model'
 import { HOME_SECTION_LIBRARY, SECTION_GROUPS, SECTION_LIBRARY } from './theme-editor-section-registry'; import { createHomeThemeEditorController } from './home-theme-editor-controller'; import { resolveFooterStoreDataAvailability } from './footer-store-data'
 import { projectHomeV2ForEditor } from './home-theme-editor-model'; import { buildThemePreviewUrl } from './theme-preview-url'; import type { ThemeEditorClientProps } from './theme-editor-client-contract'
 export default function ThemeEditorClient({ restaurantId, restaurantSlug, restaurantName, restaurantLogoUrl,
-  canAddAdvancedSections, experienceV2Enabled, previewAccessToken, templateId, initialPersistence, restaurantSettings, initialCouponOptions, menuCategories, menuItems }: ThemeEditorClientProps) {
+  canAddAdvancedSections, canUseGuestOrdering, experienceV2Enabled, previewAccessToken, templateId, initialPersistence, restaurantSettings, initialCouponOptions, menuCategories, menuItems }: ThemeEditorClientProps) {
   const entry = THEME_REGISTRY[CANONICAL_THEME_ID]!
-  const schema: SettingsGroup[] = entry.SETTINGS_SCHEMA
+  const fullSchema: SettingsGroup[] = entry.SETTINGS_SCHEMA
+  const schema = useMemo(() => restrictOrderingThemeSchema(fullSchema, canUseGuestOrdering), [canUseGuestOrdering, fullSchema])
   const { setNavigationGuard } = useShell()
   const menuBaseUrl = process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'
   const initialHomeEnabled = initialPersistence.initialTheme.surfaces?.home.enabled === true
@@ -46,14 +47,8 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
     hasUnpublishedChanges, authContrastIssues, checkoutContrastIssues, menuHeaderContrastIssues, menuNavigationContrastIssues, menuCardContrastIssues, menuCartContrastIssues, menuFooterContrastIssues, menuThemeContrastIssues, unsavedFieldLabels, canUndo, canRedo, flashToast, postPreviewMessage,
     handleUndo, handleRedo, handleFieldChange, updateThemePatch, retireThemeMediaUrl, handleSave, handlePublish,
   } = useThemeEditorLifecycle({
-    restaurantId,
-    templateId,
-    previewUrl,
-    ...initialPersistence,
-    defaults: entry.THEME_DEFAULTS,
-    schema,
-    derivePreviewTheme,
-    setNavigationGuard,
+    restaurantId, templateId, previewUrl, ...initialPersistence,
+    defaults: entry.THEME_DEFAULTS, schema, derivePreviewTheme, setNavigationGuard,
     previewContext, onPreviewSurfaceNavigation: setExperienceSurface, menuItems,
   })
   const {
@@ -76,7 +71,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
   const couponOptions = useThemeEditorCoupons(restaurantId, initialCouponOptions)
   const footerStoreDataAvailability = useMemo(() => resolveFooterStoreDataAvailability(restaurantSettings), [restaurantSettings])
   const themeGroupData = buildThemeSettingsGroup(schema)
-  const navGroups = buildEditorNavigation(schema, entry.name)
+  const navGroups = buildEditorNavigation(fullSchema, entry.name, canUseGuestOrdering ? new Set() : new Set(['cart']))
   const {
     activeGroup, sectionPickerOpen, sectionSearch, editorSearch, editorQuery, sectionGroup,
     selectedSectionId, selectedPageBlockKey, pageFlowStatus, selectedSectionDefinitionId, selectedSectionBlock, dragBlockKey,
@@ -101,6 +96,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
     onRevealPageBlock: (block) => postPreviewMessage(createRevealMenuPageBlockCommand({ kind: block.type, id: block.id })),
   })
   const { cartPreviewState, setCartPreviewState } = useThemeEditorCartPreview({ activeGroup, previewStatus, postPreviewMessage })
+  const openOrderingUpsell = () => { flashToast('Sepet ve checkout Pro pakette kullanılabilir.'); window.location.assign(`/dashboard/${restaurantId}/settings?section=billing`) }
   useThemeEditorDrawerPreview({ activeGroup, iframeRef, previewStatus, previewUrl, selectedSectionDefinitionId,
     selectedSectionPlacement: selectedSectionBlock?.placement, selectedServicePlacement: resolvedMenuPreviewTheme.servicePlacement })
   const { copyCurrentSettings: handleCopyCurrentSettings, resetCurrentSettings: handleResetCurrentSettings } = useThemeEditorPropertyCommands({
@@ -149,6 +145,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
       sectionTriggerRef={sectionTriggerRef}
       onEditorSearchChange={setEditorSearch}
       onSelectGroup={(groupId) => { selectGroup(groupId); if (taskBased) setActiveSurface('design') }}
+      onSelectLockedGroup={openOrderingUpsell}
       onSelectPageBlock={(block) => { selectPageBlock(block); if (taskBased) setActiveSurface('design') }}
       onDragStart={setDragBlockKey}
       onDragEnd={() => setDragBlockKey(null)}
@@ -295,10 +292,12 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
         experienceSurface={experienceSurface}
         homeEnabled={homeEnabled}
         experienceV2Enabled={experienceV2Enabled}
+        canUseGuestOrdering={canUseGuestOrdering}
         onPreviewRetry={reloadPreviewFrame}
         onPreviewLoad={handlePreviewFrameLoad} onPreviewError={handlePreviewFrameError}
         onPreviewModeChange={setPreviewMode}
         onExperienceSurfaceChange={setExperienceSurface}
+        onLockedExperienceSurface={openOrderingUpsell}
         onZoom={changeZoom}
         onFit={fitPreview}
       />}

@@ -33,7 +33,11 @@ test('plan order and feature catalogue are closed and cumulative', () => {
 
 test('feature boundaries match Starter, Plus, Pro and Business positioning', () => {
   assert.equal(canUseFeature('starter', 'qr_menu'), true)
+  assert.equal(canUseFeature('starter', 'qr_studio'), true)
+  assert.equal(canUseFeature('starter', 'table_management'), false)
   assert.equal(canUseFeature('starter', 'staff_orders'), false)
+  assert.equal(canUseFeature('starter', 'analytics_basic'), false)
+  assert.equal(canUseFeature('starter', 'guest_ordering'), false)
   assert.equal(canUseFeature('plus', 'staff_orders'), true)
   assert.equal(canUseFeature('plus', 'guest_ordering'), false)
   assert.equal(canUseFeature('pro', 'guest_ordering'), true)

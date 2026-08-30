@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
 import { DEV_PROJECT_REF, migrationInventory, parseEnv, validateProductionConfig } from './production-readiness.mjs'
 
 const PROD_REF = 'svxvloeosiksqfadgkvo'
@@ -31,12 +32,19 @@ function billing(overrides = {}) {
     IYZICO_BILLING_API_KEY: LONG,
     IYZICO_BILLING_SECRET_KEY: LONG,
     IYZICO_BILLING_BASE_URL: 'https://api.iyzipay.com',
-    IYZICO_BILLING_STARTER_PLAN_REF: 'starter-live',
-    IYZICO_BILLING_STARTER_AMOUNT_MINOR: '14990',
-    IYZICO_BILLING_PRO_PLAN_REF: 'pro-live',
-    IYZICO_BILLING_PRO_AMOUNT_MINOR: '29990',
-    IYZICO_BILLING_ENTERPRISE_PLAN_REF: 'enterprise-live',
-    IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR: '59990',
+    INVOICE_VAT_RATE: '20',
+    IYZICO_BILLING_STARTER_MONTHLY_PLAN_REF: 'starter-monthly-live',
+    IYZICO_BILLING_STARTER_MONTHLY_AMOUNT_MINOR: '41880',
+    IYZICO_BILLING_STARTER_ANNUAL_PLAN_REF: 'starter-annual-live',
+    IYZICO_BILLING_STARTER_ANNUAL_AMOUNT_MINOR: '402048',
+    IYZICO_BILLING_PLUS_MONTHLY_PLAN_REF: 'plus-monthly-live',
+    IYZICO_BILLING_PLUS_MONTHLY_AMOUNT_MINOR: '83880',
+    IYZICO_BILLING_PLUS_ANNUAL_PLAN_REF: 'plus-annual-live',
+    IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR: '805248',
+    IYZICO_BILLING_PRO_MONTHLY_PLAN_REF: 'pro-monthly-live',
+    IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR: '143880',
+    IYZICO_BILLING_PRO_ANNUAL_PLAN_REF: 'pro-annual-live',
+    IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR: '1381248',
     ...overrides,
   }
 }
@@ -100,23 +108,59 @@ test('SaaS billing capability passes only a complete live callback contract', ()
   assert.deepEqual(result.errors, [])
 })
 
+test('Web Push production template and capability require a complete VAPID identity', () => {
+  const template = readFileSync(new URL('../.env.production.example', import.meta.url), 'utf8')
+  assert.match(template, /^NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY=/m)
+  assert.match(template, /^WEB_PUSH_VAPID_PRIVATE_KEY=/m)
+  assert.match(template, /^WEB_PUSH_SUBJECT=mailto:/m)
+  assert.match(template, /^OUTBOX_PUSH_CONSUMER_URL=https:\/\/app\.masabu\.co\/api\/internal\/push/m)
+
+  const complete = validateProductionConfig({
+    env: {
+      ...baseDashboard(),
+      NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY: `public-${LONG}`,
+      WEB_PUSH_VAPID_PRIVATE_KEY: `private-${LONG}`,
+      WEB_PUSH_SUBJECT: 'mailto:ops@masabu.co',
+      OUTBOX_PUSH_CONSUMER_URL: 'https://app.masabu.co/api/internal/push',
+    },
+    scopes: ['dashboard'], capabilities: ['web-push'], projectRef: PROD_REF,
+  })
+  assert.equal(complete.ok, true)
+
+  const missingVapid = validateProductionConfig({
+    env: { ...baseDashboard(), OUTBOX_PUSH_CONSUMER_URL: 'https://app.masabu.co/api/internal/push' },
+    scopes: ['dashboard'], capabilities: ['web-push'], projectRef: PROD_REF,
+  })
+  assert.equal(missingVapid.ok, false)
+  assert.ok(missingVapid.errors.some((error) => error.key === 'NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY'))
+})
+
 test('SaaS billing rejects ambiguous plan refs, unsafe amounts and non-origin callback bases', () => {
   const result = validateProductionConfig({
     env: {
       ...baseDashboard({ NEXT_PUBLIC_APP_URL: 'https://app.masabu.co/dashboard?source=deploy' }),
       ...billing({
-        IYZICO_BILLING_PRO_PLAN_REF: 'starter-live',
-        IYZICO_BILLING_PRO_AMOUNT_MINOR: '29.99',
-        IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR: '9007199254740992',
+        IYZICO_BILLING_PRO_MONTHLY_PLAN_REF: 'starter-monthly-live',
+        IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR: '29.99',
+        IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR: '9007199254740992',
       }),
     },
     scopes: ['dashboard'], capabilities: ['saas-billing'], projectRef: PROD_REF,
   })
   assert.equal(result.ok, false)
   assert.ok(result.errors.some((error) => error.key === 'IYZICO_BILLING_*_PLAN_REF'))
-  assert.ok(result.errors.some((error) => error.key === 'IYZICO_BILLING_PRO_AMOUNT_MINOR'))
-  assert.ok(result.errors.some((error) => error.key === 'IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR'))
+  assert.ok(result.errors.some((error) => error.key === 'IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR'))
+  assert.ok(result.errors.some((error) => error.key === 'IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR'))
   assert.ok(result.errors.some((error) => error.key === 'NEXT_PUBLIC_APP_URL'))
+})
+
+test('SaaS billing rejects a provider total that differs from canonical net price plus KDV', () => {
+  const result = validateProductionConfig({
+    env: { ...baseDashboard(), ...billing({ IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR: '805249' }) },
+    scopes: ['dashboard'], capabilities: ['saas-billing'], projectRef: PROD_REF,
+  })
+  assert.equal(result.ok, false)
+  assert.ok(result.errors.some((error) => error.key === 'IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR'))
 })
 
 test('dashboard deployment must explicitly align the billing switch with capability selection', () => {

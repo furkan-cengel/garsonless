@@ -11,8 +11,11 @@ import { err, type Result } from '@garsonless/domain/result'
 export type PlatformTenantPlanChange = {
   restaurantId: string
   previousPlan: RestaurantPlan
+  requestedPlan: RestaurantPlan
   plan: RestaurantPlan
   changed: boolean
+  scheduled: boolean
+  openSessionCount: number
   duplicate: boolean
   requestId: string
 }

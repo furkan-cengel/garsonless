@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext } from 'react'
+import type { DashboardSectionEntitlements } from './auth/dashboard-entitlements'
 
 export type ShellOverlay = 'store' | 'notif' | 'help' | 'profile' | null
 
@@ -35,6 +36,8 @@ export interface ShellContextValue {
     ordersBadge: number
     permissions: string[]
     isOwner: boolean
+    sectionEntitlements: DashboardSectionEntitlements
+    tableOperationsAllowed: boolean
   }
 }
 

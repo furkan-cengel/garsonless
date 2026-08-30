@@ -18,7 +18,8 @@ function port(overrides: Partial<PlatformTenantPlanManagementPort> = {}): Platfo
   return {
     setPlan: async (input) => ok({
       restaurantId: input.restaurantId,
-      previousPlan: 'starter', plan: input.plan, changed: true,
+      previousPlan: 'starter', requestedPlan: input.plan, plan: input.plan, changed: true,
+      scheduled: false, openSessionCount: 0,
       duplicate: false, requestId: input.requestId,
     }),
     ...overrides,
@@ -43,7 +44,8 @@ test('command trims reason and derives actor fields from trusted context', async
   }, port({ setPlan: async (input) => {
     received = input
     return ok({
-      restaurantId, previousPlan: 'starter', plan: 'starter', changed: true,
+      restaurantId, previousPlan: 'starter', requestedPlan: 'starter', plan: 'starter', changed: true,
+      scheduled: false, openSessionCount: 0,
       duplicate: false, requestId,
     })
   } }))

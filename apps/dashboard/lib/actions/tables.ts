@@ -41,9 +41,9 @@ import {
 } from '@garsonless/db/server'
 import { readOrderLineSnapshots } from '@garsonless/db/browser'
 import type { Tables } from '@garsonless/db/types'
-import { assertAccess, assertMember, getUserRestaurantAccess } from '../auth/access'
+import { assertAccess, assertMember, assertRestaurantFeature, getUserRestaurantAccess } from '../auth/access'
 import { getDashboardRequestAuth } from '../auth/current-user'
-import { resolveTablesCommandActor } from '../auth/tables-command-access'
+import { resolveTableQrCommandActor, resolveTablesCommandActor } from '../auth/tables-command-access'
 import { projectSettlementItems, type SettlementLineItem } from '../settlement-items'
 import { transferActorLabel } from '../table-transfer-actor-label'
 
@@ -179,7 +179,7 @@ export async function createTable(
   })
   if (!parsed.success) return tableActionError('INVALID_INPUT', 'Masa bilgilerini kontrol edip tekrar deneyin.')
 
-  const gate = await assertAccess(parsed.data.restaurantId, 'tables')
+  const gate = await resolveTableQrCommandActor(parsed.data.restaurantId)
   if ('error' in gate) return tableAuthorizationError()
   const result = await createDashboardTable(
     { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['tables'] },
@@ -198,7 +198,7 @@ export async function renameTable(
   const parsed = updateTableSchema.safeParse(input)
   if (!parsed.success) return tableActionError('INVALID_INPUT', 'Masa bilgilerini kontrol edip tekrar deneyin.')
 
-  const gate = await assertAccess(parsed.data.restaurantId, 'tables')
+  const gate = await resolveTableQrCommandActor(parsed.data.restaurantId)
   if ('error' in gate) return tableAuthorizationError()
   const result = await renameDashboardTable(
     { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['tables'] },
@@ -217,7 +217,7 @@ export async function deleteTable(
   const parsed = deleteTableSchema.safeParse(input)
   if (!parsed.success) return tableActionError('INVALID_INPUT', 'Geçersiz masa bilgisi.')
 
-  const gate = await assertAccess(parsed.data.restaurantId, 'tables')
+  const gate = await resolveTableQrCommandActor(parsed.data.restaurantId)
   if ('error' in gate) return tableAuthorizationError()
   const result = await deleteDashboardTable(
     { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['tables'] },
@@ -236,7 +236,7 @@ export async function deleteTable(
 export async function rotateTableQrToken(input: unknown): Promise<TablesActionResult<{ token: string }>> {
   const parsed = rotateTableQrTokenSchema.safeParse(input)
   if (!parsed.success) return tableActionError('INVALID_INPUT', 'Geçersiz QR yenileme isteği.')
-  const gate = await assertAccess(parsed.data.restaurantId, 'tables')
+  const gate = await resolveTableQrCommandActor(parsed.data.restaurantId)
   if ('error' in gate) return tableAuthorizationError()
   const result = await rotateDashboardTableQrToken(
     { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: ['tables'] },
@@ -258,7 +258,7 @@ export async function saveQRStyle(
   | { success: true; revision: number }
   | { conflict: true; revision: number; style: unknown }
 > {
-  const gate = await assertAccess(restaurantId, 'tables')
+  const gate = await resolveTableQrCommandActor(restaurantId)
   if ('error' in gate) return tableAuthorizationError()
 
   const parsed = qrStyleSchema.safeParse(style)
@@ -440,7 +440,7 @@ export async function getOpenTableSessions(
 export async function getTableDirectory(
   restaurantId: string,
 ): Promise<Tables<'tables'>[] | TablesActionFailure> {
-  const gate = await assertAccess(restaurantId, 'tables')
+  const gate = await resolveTableQrCommandActor(restaurantId)
   if ('error' in gate) return tableAuthorizationError()
   const result = await readDashboardTables(
     { actor: 'dashboard-member', restaurantId, userId: gate.userId, permissions: ['tables'] },
@@ -548,6 +548,8 @@ export async function undoTransfer(input: unknown): Promise<TablesActionResult<{
   if ('error' in gate) return tableAuthorizationError()
   const access = await getUserRestaurantAccess(parsed.data.restaurantId)
   if (!access) return tableAuthorizationError()
+  const entitlement = await assertRestaurantFeature(parsed.data.restaurantId, 'table_management')
+  if ('error' in entitlement) return tableAuthorizationError()
   const result = await undoTableTransfer(
     { actor: 'dashboard-member', restaurantId: parsed.data.restaurantId, userId: gate.userId, permissions: access.permissions, isOwner: access.isOwner },
     parsed.data, createTableSessionPort(),

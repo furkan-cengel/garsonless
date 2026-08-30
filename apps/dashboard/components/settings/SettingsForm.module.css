@@ -90,6 +90,7 @@
 
 .navRowIcon {
   display: inline-flex;
+  flex: 0 0 auto;
   color: var(--text-3);
 }
 
@@ -122,6 +123,21 @@
   font-size: 10.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.navRowLock {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+}
+
+.navRow:hover .navRowLock,
+.navRowActive .navRowLock {
+  color: var(--text);
 }
 
 .contentArea {

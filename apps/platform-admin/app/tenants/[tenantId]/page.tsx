@@ -133,6 +133,8 @@ function TenantOverview({
           ? 'Servis durumu değiştirilemedi. İşlem güvenli biçimde durduruldu.'
           : operation === 'plan-updated'
             ? 'İşletmenin paketi güncellendi ve denetim kaydı oluşturuldu.'
+            : operation === 'plan-draining'
+              ? 'Paket düşürme sıraya alındı. Yeni siparişler durduruldu; açık adisyonlar kapandıktan sonra aynı geçiş yeniden onaylanarak tamamlanabilir.'
             : operation === 'plan-unchanged'
               ? 'İstenen paket zaten etkindi; denetim kaydı oluşturuldu.'
               : operation === 'plan-forbidden'

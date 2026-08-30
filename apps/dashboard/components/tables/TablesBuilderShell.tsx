@@ -14,6 +14,8 @@ import { TABLES_SHELL_CSS, TablesIconRail, TablesSectionTabs } from './TablesShe
 import { validateRenderedQR } from './tables-qr-renderer'
 import { useQRStyleEditor } from './use-qr-style-editor'
 import { useTableQrTokenRotation } from './use-table-qr-token-rotation'
+import { useTableManagement } from './use-table-management'
+import { TablePropertiesDialog } from './TablePropertiesDialog'
 
 function DeferredDialogLoading() {
   return (
@@ -41,6 +43,7 @@ export interface TablesBuilderShellProps {
   initialQrTokens: Record<string, string>
   initialQRStyle?: unknown
   initialQRStyleRevision: number
+  tableOperationsAllowed: boolean
 }
 
 export default function TablesBuilderShell({
@@ -52,6 +55,7 @@ export default function TablesBuilderShell({
   initialQrTokens,
   initialQRStyle,
   initialQRStyleRevision,
+  tableOperationsAllowed,
 }: TablesBuilderShellProps) {
   const router = useRouter()
   const baseQRUrl = `${MENU_ORIGIN}/${restaurantSlug}`
@@ -59,6 +63,7 @@ export default function TablesBuilderShell({
   const [activeId, setActiveId] = useState(() => tables[0]?.id ?? '')
   const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
   const [operationError, setOperationError] = useState<string | null>(null)
+  const [editingTable, setEditingTable] = useState<TableItem | null>(null)
   const [qrTask, setQrTask] = useState<'preview' | 'design'>('preview')
   const activeTable = tables.find((table) => table.id === activeId)
   const onTaskTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -96,6 +101,7 @@ export default function TablesBuilderShell({
     setTables,
     onError: setOperationError,
   })
+  const tableManagement = useTableManagement({ restaurantId, tables, setTables, activeId, setActiveId })
 
   return (
     <>
@@ -116,7 +122,7 @@ export default function TablesBuilderShell({
         <div className="tb-tables__body">
           <TablesIconRail restaurantId={restaurantId} />
           <div className="tb-tables__content">
-            <TablesSectionTabs restaurantId={restaurantId} active="qr" />
+            <TablesSectionTabs restaurantId={restaurantId} active="qr" tableOperationsAllowed={tableOperationsAllowed} />
             {operationError && (
               <div role="alert" style={{ padding: '8px 14px', background: 'var(--critical-bg)', color: 'var(--critical)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ flex: 1 }}>{operationError}</span>
@@ -134,7 +140,7 @@ export default function TablesBuilderShell({
                 <button type="button" role="tab" aria-selected={qrTask === 'preview'} aria-controls="qr-preview-panel" tabIndex={qrTask === 'preview' ? 0 : -1} onKeyDown={onTaskTabKeyDown} onClick={() => setQrTask('preview')}>Önizleme</button>
                 <button type="button" role="tab" aria-selected={qrTask === 'design'} aria-controls="qr-design-panel" tabIndex={qrTask === 'design' ? 0 : -1} onKeyDown={onTaskTabKeyDown} onClick={() => setQrTask('design')}>Tasarım</button>
               </div>
-              <TablesQRTablePicker restaurantId={restaurantId} tables={tables} activeId={activeId} setActiveId={setActiveId} />
+              <TablesQRTablePicker restaurantId={restaurantId} tables={tables} activeId={activeId} setActiveId={setActiveId} management={tableManagement} onEdit={setEditingTable} tableOperationsAllowed={tableOperationsAllowed} />
               <TablesQRCanvas
                 qr={qr}
                 table={activeTable}
@@ -156,6 +162,15 @@ export default function TablesBuilderShell({
             error={qrTokenRotation.error}
             onCancel={qrTokenRotation.cancelRotation}
             onConfirm={() => { void qrTokenRotation.confirmRotation() }}
+          />
+        )}
+        {editingTable && (
+          <TablePropertiesDialog
+            table={editingTable}
+            allowDelete
+            onClose={() => setEditingTable(null)}
+            onSave={(input) => tableManagement.rename(editingTable, input)}
+            onDelete={() => tableManagement.remove(editingTable)}
           />
         )}
       </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { LockKeyhole } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import type { Tables } from '@garsonless/db/types'
 import dynamic from 'next/dynamic'
@@ -38,6 +39,7 @@ import { SETTINGS_DIRTY_EVENT, SETTINGS_SAVED_EVENT, type SettingsDirtyEventDeta
 import {
   canAccessSettingsSection,
   resolveSettingsSection,
+  type SettingsSectionsAccess,
   type SettingsSectionId,
 } from './settings-sections'
 import styles from './SettingsForm.module.css'
@@ -149,7 +151,7 @@ function canSeeSection(id: SectionId, isOwner: boolean): boolean {
   return canAccessSettingsSection(id, isOwner)
 }
 
-function SettingsNav({ active, onSelect, isOwner, productLocked }: { active: SectionId; onSelect: (id: SectionId) => void; isOwner: boolean; productLocked: boolean }) {
+function SettingsNav({ active, onSelect, isOwner, productLocked, sectionsAccess }: { active: SectionId; onSelect: (id: SectionId) => void; isOwner: boolean; productLocked: boolean; sectionsAccess: SettingsSectionsAccess }) {
   const activeItemRef = useRef<HTMLButtonElement>(null)
   const groups = GROUPS
     .map(g => ({ ...g, items: g.items.filter(item => canSeeSection(item.id, isOwner) && (!productLocked || LOCKED_CONTINUITY_SECTIONS.has(item.id))) }))
@@ -177,6 +179,8 @@ function SettingsNav({ active, onSelect, isOwner, productLocked }: { active: Sec
                 active={active === item.id}
                 onClick={() => onSelect(item.id)}
                 buttonRef={active === item.id ? activeItemRef : undefined}
+                locked={!sectionsAccess[item.id].allowed}
+                requiredPlanLabel={sectionsAccess[item.id].requiredPlanLabel}
               />
             ))}
           </div>
@@ -186,11 +190,13 @@ function SettingsNav({ active, onSelect, isOwner, productLocked }: { active: Sec
   )
 }
 
-function NavRow({ item, active, onClick, buttonRef }: {
+function NavRow({ item, active, onClick, buttonRef, locked, requiredPlanLabel }: {
   item: NavItem
   active: boolean
   onClick: () => void
   buttonRef?: React.Ref<HTMLButtonElement>
+  locked: boolean
+  requiredPlanLabel: string | null
 }) {
   return (
     <Button
@@ -199,15 +205,18 @@ function NavRow({ item, active, onClick, buttonRef }: {
       ref={buttonRef}
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
+      aria-label={locked ? `${item.label}, ${requiredPlanLabel ?? 'üst paket'} gerekir` : undefined}
       className={`${styles.navRow}${active ? ` ${styles.navRowActive}` : ''}`}
       data-settings-section={item.id}
     >
       <span className={styles.navRowIcon}>{item.icon}</span>
       <span className={styles.navRowCopy}>
         <span className={styles.navRowLabel}>{item.label}</span>
-        <span className={styles.navRowDescription}>{item.desc}</span>
+        <span className={styles.navRowDescription}>{locked ? `${requiredPlanLabel ?? 'Üst paket'} gerekir` : item.desc}</span>
       </span>
-      {item.badge && <Tag tone={item.tone ?? 'neutral'}>{item.badge}</Tag>}
+      {locked
+        ? <span className={styles.navRowLock} aria-hidden="true"><LockKeyhole size={15} strokeWidth={1.8} /></span>
+        : item.badge && <Tag tone={item.tone ?? 'neutral'}>{item.badge}</Tag>}
     </Button>
   )
 }
@@ -289,6 +298,7 @@ export interface SettingsFormProps {
     browserNotifications: boolean
   }
   productLocked: boolean
+  sectionsAccess: SettingsSectionsAccess
   integrationHealth: IntegrationHealth[]
   sectionLoadError: string | null
 }
@@ -298,6 +308,7 @@ export default function SettingsForm({
   isOwner, teamMembers, teamAuditEvents, billing, billingLoadError,
   billingPlanPrices, initialSection, billingCheckoutState,
   featureAccess, productLocked, integrationHealth, sectionLoadError,
+  sectionsAccess,
 }: SettingsFormProps) {
   const router = useRouter()
   const { setNavigationGuard } = useShell()
@@ -404,6 +415,16 @@ export default function SettingsForm({
   function renderContent() {
     // Defense in depth: never render an owner-only sub-section for a member.
     if (!canSeeSection(active, isOwner)) return null
+    const sectionAccess = sectionsAccess[active]
+    if (!sectionAccess.allowed) {
+      return (
+        <section className="grid gap-4 rounded-xl border bg-card p-6" data-settings-plan-lock role="region" aria-label={`${SECTION_META[active].label} paket kilidi`}>
+          <span className="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground"><LockKeyhole size={20} strokeWidth={1.75} /></span>
+          <div><h2 className="m-0 text-xl font-semibold">{SECTION_META[active].label} {sectionAccess.requiredPlanLabel ?? 'üst paket'} ile açılır</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Bu bölümdeki veriler korunur. Gerekli paket etkinleştiğinde kaldığınız yerden devam edebilirsiniz.</p></div>
+          {isOwner ? <Button type="button" className="w-fit" onClick={() => requestSectionChange('billing')}>Planları incele <I.chevRight size={14} /></Button> : <p className="m-0 text-sm font-medium">Paketi yükseltmek için işletme sahibinizle iletişime geçin.</p>}
+        </section>
+      )
+    }
     switch (active) {
       case 'workspace':     return <WorkspaceSection restaurant={restaurant} />
       case 'loyalty':       return <LoyaltySettingsSection restaurant={restaurant} featureAllowed={featureAccess.loyalty} />
@@ -446,7 +467,7 @@ export default function SettingsForm({
       />
 
       <div className={styles.body}>
-        <SettingsNav active={active} onSelect={requestSectionChange} isOwner={isOwner} productLocked={productLocked} />
+        <SettingsNav active={active} onSelect={requestSectionChange} isOwner={isOwner} productLocked={productLocked} sectionsAccess={sectionsAccess} />
         <ContentArea active={active}>
           {settingsRevision.hasRemoteRevision && (
             <Alert className="mb-4 border-[var(--warning-bg)] text-[var(--warning)]">

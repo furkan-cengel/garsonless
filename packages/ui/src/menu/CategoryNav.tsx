@@ -7,6 +7,7 @@ import { useTheme } from './ThemeContext'
 import {
   getActiveCategoryAtLine,
   getCategoryNavActiveTreatment,
+  getCategoryNavJustifyContent,
   getCategoryScrollEdges,
   getCenteredCategoryScrollLeft,
 } from './categoryNavModel'
@@ -248,7 +249,7 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
             display: 'flex',
             width: 'max-content',
             minWidth: '100%',
-            justifyContent: contentFits ? 'center' : 'flex-start',
+            justifyContent: getCategoryNavJustifyContent(categories.length, contentFits),
             gap,
             background: style === 'segmented' ? 'color-mix(in srgb, var(--p-border) 68%, transparent)' : 'transparent',
             padding: style === 'segmented' ? 3 : 0,

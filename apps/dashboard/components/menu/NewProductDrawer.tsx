@@ -32,6 +32,7 @@ import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
+import { LockKeyhole } from 'lucide-react'
 import type { Tables } from '@garsonless/db/types'
 import { normalizeMenuNumericText, parseMenuNumericInput } from '@garsonless/domain/menu'
 import { createItem } from '../../lib/actions/menu'
@@ -56,6 +57,7 @@ export default function NewProductDrawer({
   categoryName,
   categoryStationId,
   kitchenStations,
+  loyaltyStampEnabled,
   onClose,
   onCreated,
 }: {
@@ -64,6 +66,7 @@ export default function NewProductDrawer({
   categoryName: string
   categoryStationId: string | null
   kitchenStations: Tables<'kitchen_stations'>[]
+  loyaltyStampEnabled: boolean
   onClose: () => void
   onCreated: (item: Tables<'menu_items'>) => void
 }) {
@@ -179,7 +182,7 @@ export default function NewProductDrawer({
         fd.append('cost', cost)
         fd.append('kitchen_station_id', stationMode === 'category' ? '' : kitchenStationId)
         fd.append('is_available', String(isAvailable))
-        fd.append('earns_stamp', String(earnsStamp))
+        if (loyaltyStampEnabled) fd.append('earns_stamp', String(earnsStamp))
         fd.append('modifier_groups', JSON.stringify([]))
         appendNutritionToFormData(fd, nutri)
         const res = await createItem(null, fd)
@@ -388,9 +391,11 @@ export default function NewProductDrawer({
                   <ToggleRow
                     id="new-product-earns-stamp"
                     label="Sadakat damgası kazandırır"
-                    desc="Satın alınan her uygun adet 1 damga kazandırır"
+                    desc={loyaltyStampEnabled ? 'Satın alınan her uygun adet 1 damga kazandırır' : 'QR siparişi ve sadakat Pro ile açılır'}
                     checked={earnsStamp}
                     onCheckedChange={setEarnsStamp}
+                    disabled={!loyaltyStampEnabled}
+                    lockedLabel="Pro"
                   />
                 </FieldGroup>
               </FieldSet>
@@ -530,22 +535,29 @@ function ToggleRow({
   desc,
   checked,
   onCheckedChange,
+  disabled = false,
+  lockedLabel,
 }: {
   id: string
   label: string
   desc: string
   checked: boolean
   onCheckedChange: (checked: boolean) => void
+  disabled?: boolean
+  lockedLabel?: string
 }) {
   return (
-    <Field orientation="horizontal" className="new-product-toggle items-center rounded-lg border bg-card p-3">
+    <Field orientation="horizontal" data-disabled={disabled || undefined} className="new-product-toggle items-center rounded-lg border bg-card p-3 data-disabled:bg-muted/30">
       <FieldContent>
-        <FieldLabel htmlFor={id} className="cursor-pointer text-[13px] font-medium">
+        <FieldLabel htmlFor={id} className={`text-[13px] font-medium ${disabled ? 'cursor-default text-muted-foreground' : 'cursor-pointer'}`}>
           {label}
         </FieldLabel>
         <FieldDescription className="text-[11px]">{desc}</FieldDescription>
       </FieldContent>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} aria-label={label} />
+      <div className="flex shrink-0 items-center gap-2">
+        {disabled && lockedLabel && <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground"><LockKeyhole className="size-3.5" strokeWidth={1.8} />{lockedLabel}</span>}
+        <Switch id={id} checked={disabled ? false : checked} onCheckedChange={onCheckedChange} disabled={disabled} aria-label={label} />
+      </div>
     </Field>
   )
 }

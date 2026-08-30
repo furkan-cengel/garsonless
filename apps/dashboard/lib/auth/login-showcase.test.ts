@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 const loginPage = readFileSync(new URL('../../app/auth/login/page.tsx', import.meta.url), 'utf8')
 const signupPage = readFileSync(new URL('../../app/auth/signup/page.tsx', import.meta.url), 'utf8')
+const loginCss = readFileSync(new URL('../../app/auth/login/login.module.css', import.meta.url), 'utf8')
 const showcase = readFileSync(new URL('../../components/auth/LoginShowcase.tsx', import.meta.url), 'utf8')
 const showcaseCss = readFileSync(new URL('../../components/auth/LoginShowcase.module.css', import.meta.url), 'utf8')
 
@@ -32,6 +33,16 @@ test('signup reuses the login auth shell while keeping account-specific fields',
   assert.match(signupPage, /styles\.signupPanel/)
   assert.match(signupPage, /styles\.signupContent/)
   assert.doesNotMatch(signupPage, /VisualPanel/)
+})
+
+test('signup keeps restored terms acceptance aligned and only shows a wait cursor while submitting', () => {
+  assert.match(signupPage, /ref=\{termsAcceptedRef\}/)
+  assert.doesNotMatch(signupPage, /checked=\{accepted\}/)
+  assert.match(signupPage, /window\.addEventListener\('pageshow', syncAcceptedState\)/)
+  assert.match(signupPage, /disabled=\{!accepted \|\| pending\}/)
+  assert.match(signupPage, /data-pending=\{pending \|\| undefined\}/)
+  assert.match(loginCss, /\.primaryButton:disabled\s*\{[\s\S]*?cursor: not-allowed;/)
+  assert.match(loginCss, /\.primaryButton\[data-pending='true'\]\s*\{[\s\S]*?cursor: wait;/)
 })
 
 test('showcase only references available real menu captures', () => {

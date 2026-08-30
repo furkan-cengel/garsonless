@@ -11,7 +11,7 @@ import { createServiceClient } from './service-client'
 
 type RpcResult = { data: unknown; error: { message: string } | null }
 export type PlatformTenantPlanRpc = (
-  name: 'set_platform_admin_tenant_plan',
+  name: 'request_platform_admin_tenant_plan_transition',
   args: Record<string, unknown>,
 ) => PromiseLike<RpcResult>
 
@@ -27,16 +27,22 @@ function parseChange(value: unknown): PlatformTenantPlanChange {
   if (
     typeof row.restaurantId !== 'string' || !UUID.test(row.restaurantId)
     || !isPlan(row.previousPlan)
+    || !isPlan(row.requestedPlan)
     || !isPlan(row.plan)
     || typeof row.changed !== 'boolean'
+    || typeof row.scheduled !== 'boolean'
+    || !Number.isSafeInteger(row.openSessionCount) || (row.openSessionCount as number) < 0
     || typeof row.duplicate !== 'boolean'
     || typeof row.requestId !== 'string' || !UUID.test(row.requestId)
   ) throw new Error('invalid tenant plan change')
   return {
     restaurantId: row.restaurantId,
     previousPlan: row.previousPlan,
+    requestedPlan: row.requestedPlan,
     plan: row.plan,
     changed: row.changed,
+    scheduled: row.scheduled,
+    openSessionCount: row.openSessionCount as number,
     duplicate: row.duplicate,
     requestId: row.requestId,
   }
@@ -53,7 +59,7 @@ export function createPlatformAdminTenantPlanManagementPort(
   return {
     async setPlan(input) {
       try {
-        const { data, error } = await rpc('set_platform_admin_tenant_plan', {
+        const { data, error } = await rpc('request_platform_admin_tenant_plan_transition', {
           p_restaurant_id: input.restaurantId,
           p_actor_user_id: input.actorUserId,
           p_actor_role: input.actorRole,

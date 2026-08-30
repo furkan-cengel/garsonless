@@ -19,6 +19,7 @@ export function MenuManagerOverlays({
   categories,
   kitchenStations,
   restaurantId,
+  loyaltyStampEnabled,
   onItemCreated,
   onCloseAddItem,
 }: {
@@ -31,6 +32,7 @@ export function MenuManagerOverlays({
   categories: Tables<'menu_categories'>[]
   kitchenStations: Tables<'kitchen_stations'>[]
   restaurantId: string
+  loyaltyStampEnabled: boolean
   onItemCreated: (item: Tables<'menu_items'>) => void
   onCloseAddItem: () => void
 }) {
@@ -71,6 +73,7 @@ export function MenuManagerOverlays({
           categoryName={activeCategory.name}
           categoryStationId={activeCategory.kitchen_station_id}
           kitchenStations={kitchenStations}
+          loyaltyStampEnabled={loyaltyStampEnabled}
           onCreated={onItemCreated}
           onClose={onCloseAddItem}
         />

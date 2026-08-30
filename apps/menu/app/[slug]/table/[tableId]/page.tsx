@@ -12,7 +12,7 @@ import { availableCustomerAuthCapabilities } from '../../../../lib/customer-auth
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../../../lib/featured-products'
 import { MenuPageClient } from '../../MenuPageClient'
 import { HomePageRenderer } from '../../HomePageClient'
-import { createLoyaltyQueryPort, createPublicTableQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
+import { createLoyaltyQueryPort, createPublicTableQueryPort, createThemeApplicationPort, readTenantOrderIngressStatus } from '@garsonless/db/server'
 import { getPublishedTheme } from '../../../../lib/published-theme'
 import { getPublicMenuRevision } from '../../../../lib/public-menu-revision'
 
@@ -66,12 +66,13 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
   // balances — same pattern as the slug page; guests stay null.
   let initialMember: { name: string | null } | null = null
   let initialMemberBalances: MemberBalances | null = null
-  const [menuAccess, guestOrderingAccess, requestButtonsAccess, customerAccountsAccess, advancedThemeAccess] = await Promise.all([
+  const [menuAccess, guestOrderingAccess, requestButtonsAccess, customerAccountsAccess, advancedThemeAccess, orderIngressStatus] = await Promise.all([
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'qr_menu' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'guest_ordering' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'service_requests' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'customer_accounts' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_advanced_sections' }),
+    readTenantOrderIngressStatus(restaurant.id),
   ])
   if (!menuAccess.ok || !menuAccess.value) notFound()
   const customerAccountsEnabled = customerAccountsAccess.ok && customerAccountsAccess.value
@@ -96,7 +97,7 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
   // decides presence from the current (including live-preview) theme, while
   // this server result remains the authoritative PRO-plan gate.
   const requestButtonsEnabled = requestButtonsAccess?.ok === true && requestButtonsAccess.value
-  const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value
+  const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value && orderIngressStatus === 'active'
   const servedTheme = advancedThemeAccess.ok && advancedThemeAccess.value
     ? theme
     : withoutAdvancedThemeSections(theme)

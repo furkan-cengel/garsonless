@@ -24,7 +24,7 @@ import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle }
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { ArrowDownIcon, ArrowUpIcon, EllipsisVerticalIcon, GripVerticalIcon, Trash2Icon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, EllipsisVerticalIcon, GripVerticalIcon, LockKeyholeIcon, Trash2Icon } from 'lucide-react'
 
 type EditorNavGroup = {
   title: string
@@ -35,6 +35,7 @@ type EditorNavGroup = {
     icon: ReactNode
     parentLabel?: string
     depth?: number
+    locked?: boolean
   }>
 }
 
@@ -62,6 +63,7 @@ interface ThemeEditorSidebarProps {
   sectionTriggerRef: RefObject<HTMLButtonElement | null>
   onEditorSearchChange: (value: string) => void
   onSelectGroup: (groupId: string) => void
+  onSelectLockedGroup: (groupId: string) => void
   onSelectPageBlock: (block: PageBlock) => void
   onDragStart: (key: string) => void
   onDragEnd: () => void
@@ -89,6 +91,7 @@ export function ThemeEditorSidebar({
   sectionTriggerRef,
   onEditorSearchChange,
   onSelectGroup,
+  onSelectLockedGroup,
   onSelectPageBlock,
   onDragStart,
   onDragEnd,
@@ -338,7 +341,7 @@ export function ThemeEditorSidebar({
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => onSelectGroup(item.id)}
+                onClick={() => item.locked ? onSelectLockedGroup(item.id) : onSelectGroup(item.id)}
                 className={cn('h-auto min-h-12 w-full justify-start gap-2.5 px-2.5 py-2 text-left text-muted-foreground', item.depth && 'pl-5.5', activeGroup === item.id && 'bg-muted text-foreground')}
               >
                 <span style={{ display: 'inline-flex', color: activeGroup === item.id ? 'var(--text)' : 'var(--text-3)' }}>
@@ -350,7 +353,9 @@ export function ThemeEditorSidebar({
                     {item.sub}
                   </span>
                 </span>
-                {activeGroup === item.id && <I.chevRight size={17} />}
+                {item.locked
+                  ? <Badge variant="secondary" className="gap-1"><LockKeyholeIcon size={12} />Pro</Badge>
+                  : activeGroup === item.id && <I.chevRight size={17} />}
               </Button>
               </div>
             ))}

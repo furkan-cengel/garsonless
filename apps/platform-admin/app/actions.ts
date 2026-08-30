@@ -196,7 +196,7 @@ export async function changeTenantPlan(formData: FormData) {
   }
   revalidatePath('/')
   revalidatePath(`/tenants/${restaurantId}`)
-  redirect(`/tenants/${encodeURIComponent(restaurantId)}?operation=${result.value.changed ? 'plan-updated' : 'plan-unchanged'}`)
+  redirect(`/tenants/${encodeURIComponent(restaurantId)}?operation=${result.value.scheduled ? 'plan-draining' : result.value.changed ? 'plan-updated' : 'plan-unchanged'}`)
 }
 
 export async function eraseTenantPrivacyData(formData: FormData) {

@@ -144,6 +144,13 @@ test('draft save derives actor identity and publish forwards only persisted revi
     restaurantId: 'restaurant-a', templateId: 'default', theme: DEFAULT_THEME,
     expectedRevision: 3, requestId: request.requestId,
   }, adapter)
+  adapter.readDraft = async () => ok({
+    tokens: { ...DEFAULT_THEME, __template_id: 'default' },
+    templateId: 'default',
+    revision: 4,
+    basedOnPublishedRevision: 3,
+    savedAt: '2026-08-01T10:04:00.000Z',
+  })
   const published = await publishSavedRestaurantTheme(context, {
     restaurantId: 'restaurant-a', expectedDraftRevision: 4,
     expectedPublishedRevision: 3, requestId: request.requestId,
@@ -152,6 +159,90 @@ test('draft save derives actor identity and publish forwards only persisted revi
   assert.equal(published.ok, true)
   assert.equal(savedBy, 'user-a')
   assert.equal(publishedBy, 'user-a')
+})
+
+test('Starter may preserve but cannot mutate cart and checkout theme fields', async () => {
+  const adapter = port()
+  let saved = false
+  adapter.readRestaurant = async () => ok({
+    slug: 'cafe-a', name: 'Cafe A', logoUrl: null, settings: null, plan: 'starter',
+  })
+  adapter.readFeatureAccess = async ({ feature }) => ok(feature !== 'guest_ordering')
+  adapter.saveDraft = async () => {
+    saved = true
+    return ok({
+      status: 'saved', revision: 4, basedOnPublishedRevision: 3,
+      savedAt: '2026-08-01T10:04:00.000Z', hasUnpublishedChanges: true,
+    })
+  }
+
+  const coreOnly = await saveRestaurantThemeDraft(context, {
+    restaurantId: 'restaurant-a', templateId: 'default',
+    theme: { ...DEFAULT_THEME, accent: '#123456' },
+    expectedRevision: 3, requestId: request.requestId,
+  }, adapter)
+  assert.equal(coreOnly.ok, true)
+  assert.equal(saved, true)
+
+  saved = false
+  const cartMutation = await saveRestaurantThemeDraft(context, {
+    restaurantId: 'restaurant-a', templateId: 'default',
+    theme: { ...DEFAULT_THEME, cartButtonText: 'Starter değiştirdi' },
+    expectedRevision: 3, requestId: request.requestId,
+  }, adapter)
+  assert.deepEqual(cartMutation, err('Plan feature unavailable'))
+  assert.equal(saved, false)
+})
+
+test('Starter may edit core styling without deleting preserved Pro theme sections', async () => {
+  const adapter = port()
+  const proTheme = {
+    ...DEFAULT_THEME,
+    pageBlocks: [
+      { type: 'section' as const, id: 'product-grid' },
+      { type: 'section' as const, id: 'request-buttons' },
+    ],
+    sectionSettings: {
+      ...(DEFAULT_THEME.sectionSettings ?? {}),
+      'request-buttons': { title: 'Garson çağır' },
+    },
+  }
+  let saved = false
+  adapter.readRestaurant = async () => ok({
+    slug: 'cafe-a', name: 'Cafe A', logoUrl: null, settings: null, plan: 'starter',
+  })
+  adapter.readFeatureAccess = async ({ feature }) => ok(
+    feature !== 'guest_ordering' && feature !== 'theme_advanced_sections',
+  )
+  adapter.readDraft = async () => ok({
+    tokens: { ...proTheme, __template_id: 'default' },
+    templateId: 'default', revision: 3, basedOnPublishedRevision: 2,
+    savedAt: '2026-08-01T10:00:00.000Z',
+  })
+  adapter.saveDraft = async () => {
+    saved = true
+    return ok({
+      status: 'saved', revision: 4, basedOnPublishedRevision: 2,
+      savedAt: '2026-08-01T10:04:00.000Z', hasUnpublishedChanges: true,
+    })
+  }
+
+  const coreEdit = await saveRestaurantThemeDraft(context, {
+    restaurantId: 'restaurant-a', templateId: 'default',
+    theme: { ...proTheme, accent: '#123456' },
+    expectedRevision: 3, requestId: request.requestId,
+  }, adapter)
+  assert.equal(coreEdit.ok, true)
+  assert.equal(saved, true)
+
+  saved = false
+  const removeAdvanced = await saveRestaurantThemeDraft(context, {
+    restaurantId: 'restaurant-a', templateId: 'default',
+    theme: { ...proTheme, pageBlocks: [{ type: 'section' as const, id: 'product-grid' }] },
+    expectedRevision: 3, requestId: request.requestId,
+  }, adapter)
+  assert.deepEqual(removeAdvanced, err('Plan feature unavailable'))
+  assert.equal(saved, false)
 })
 
 test('publish sanitizes CSS-shaped values and derives audit identity from actor', async () => {

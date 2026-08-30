@@ -50,6 +50,15 @@ declare module 'iyzipay' {
     subscriptionCustomer: {
       create(request: Record<string, unknown>, callback: IyzipayCallback): void
     }
+    subscriptionProduct: {
+      create(request: Record<string, unknown>, callback: IyzipayCallback): void
+      retrieveList(request: Record<string, unknown>, callback: IyzipayCallback): void
+    }
+    subscriptionPricingPlan: {
+      create(request: Record<string, unknown>, callback: IyzipayCallback): void
+      retrieve(request: Record<string, unknown>, callback: IyzipayCallback): void
+      retrieveList(request: Record<string, unknown>, callback: IyzipayCallback): void
+    }
     subscriptionCheckoutForm: {
       initialize(request: Record<string, unknown>, callback: IyzipayCallback): void
       retrieve(request: Record<string, unknown>, callback: IyzipayCallback): void

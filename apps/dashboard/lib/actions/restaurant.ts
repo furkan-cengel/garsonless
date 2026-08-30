@@ -375,7 +375,7 @@ export async function saveNotificationPreferences(
   if (!access || (!access.isOwner && !access.permissions.includes('settings'))) {
     return { error: 'Not authorized' }
   }
-  const subscriptionGate = await assertRestaurantFeature(restaurantId, 'qr_menu')
+  const subscriptionGate = await assertRestaurantFeature(restaurantId, 'staff_orders')
   if ('error' in subscriptionGate) return subscriptionGate
   const { data: restaurant, error: planError } = await supabase
     .from('restaurants')

@@ -6,6 +6,10 @@ const homePage = readFileSync(new URL('../app/[slug]/page.tsx', import.meta.url)
 const menuExperience = readFileSync(new URL('../app/[slug]/_menu-experience.tsx', import.meta.url), 'utf8')
 const tablePage = readFileSync(new URL('../app/[slug]/table/[tableId]/page.tsx', import.meta.url), 'utf8')
 const homeClient = readFileSync(new URL('../app/[slug]/HomePageClient.tsx', import.meta.url), 'utf8')
+const menuClient = readFileSync(new URL('../app/[slug]/MenuPageClient.tsx', import.meta.url), 'utf8')
+const previewPage = readFileSync(new URL('../app/theme-preview/[slug]/page.tsx', import.meta.url), 'utf8')
+const cartStore = readFileSync(new URL('./store/useCartStore.ts', import.meta.url), 'utf8')
+const productModal = readFileSync(new URL('../../../packages/ui/src/menu/ProductModal.tsx', import.meta.url), 'utf8')
 
 test('public menu surfaces resolve subscription-aware plan features on the server', () => {
   for (const source of [homePage, menuExperience, tablePage]) {
@@ -23,6 +27,30 @@ test('home account and cart controls disappear when their Pro entitlements are a
   assert.match(homeClient, /guestOrderingEnabled \? \{[\s\S]+cartSummary/)
   assert.match(homeClient, /customerAccountsEnabled \? \{ memberSummary, onOpenMember/)
   assert.match(homeClient, /customerAccountsEnabled && memberOpen \? <MemberSheet/)
+})
+
+test('Starter is view-only on both live and preview menu surfaces', () => {
+  assert.match(menuClient, /const orderingEnabled = guestOrderingEnabled/)
+  assert.doesNotMatch(menuClient, /guestOrderingEnabled\s*\|\|\s*isPreview/)
+  assert.match(menuClient, /clearRestaurantCarts\(restaurant\.id\)/)
+  assert.match(menuClient, /\{orderingEnabled && hasOpenedCart && <CartDrawer/)
+  assert.match(menuClient, /\{orderingEnabled && !isCartOpen && effectiveCartItems\.length > 0 && \(/)
+  assert.match(previewPage, /feature: 'guest_ordering'/)
+  for (const source of [homePage, menuExperience, tablePage, previewPage]) {
+    assert.match(source, /readTenantOrderIngressStatus\(restaurant\.id\)/)
+    assert.match(source, /orderIngressStatus === 'active'/)
+  }
+  assert.match(previewPage, /if \(surface === 'checkout' && !guestOrderingEnabled\) notFound\(\)/)
+  assert.match(cartStore, /clearRestaurantCarts:[\s\S]+const prefix = `v1:\$\{restaurantId\}:`/)
+})
+
+test('the shared product modal uses orderingEnabled as the only ordering interaction boundary', () => {
+  assert.match(productModal, /data-ordering-enabled=\{orderingEnabled \? "true" : "false"\}/)
+  assert.match(productModal, /orderingEnabled && recommendationItems\.length > 0/)
+  assert.match(productModal, /orderingEnabled && <div[\s\S]+data-component="product-note"/)
+  assert.match(productModal, /orderingEnabled \? <div[\s\S]+data-component="product-modal-actions"/)
+  assert.match(productModal, /data-component="product-modal-view-only-notice"/)
+  assert.match(productModal, /Bu menü yalnızca görüntüleme amaçlıdır\./)
 })
 
 test('only a signed dashboard preview can bypass the public QR-menu entitlement gate', () => {

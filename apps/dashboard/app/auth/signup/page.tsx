@@ -6,6 +6,7 @@ import {
   useActionState,
   useEffect,
   useId,
+  useRef,
   useState,
   type ReactElement,
   type ReactNode,
@@ -90,6 +91,7 @@ function SignupForm(): ReactElement {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [accepted, setAccepted] = useState(false)
+  const termsAcceptedRef = useRef<HTMLInputElement>(null)
   const [state, action, pending] = useActionState(signUp, null)
   const [next, setNext] = useState('')
   const [prefillEmail, setPrefillEmail] = useState('')
@@ -102,6 +104,18 @@ function SignupForm(): ReactElement {
       : ''
     setNext(params.get('next') ?? planNext)
     setPrefillEmail(params.get('email') ?? '')
+  }, [])
+
+  useEffect(() => {
+    const syncAcceptedState = () => {
+      setAccepted(Boolean(termsAcceptedRef.current?.checked))
+    }
+
+    // Browsers may restore checkbox state after navigating back without
+    // dispatching a change event. Keep the submit state aligned with the DOM.
+    syncAcceptedState()
+    window.addEventListener('pageshow', syncAcceptedState)
+    return () => window.removeEventListener('pageshow', syncAcceptedState)
   }, [])
 
   const strength = password ? passwordStrength(password) : 0
@@ -174,11 +188,11 @@ function SignupForm(): ReactElement {
 
       <label className={styles.termsLabel}>
         <input
+          ref={termsAcceptedRef}
           type="checkbox"
           name="termsAccepted"
           value="on"
           required
-          checked={accepted}
           onChange={(event) => setAccepted(event.target.checked)}
         />
         <span>
@@ -199,7 +213,12 @@ function SignupForm(): ReactElement {
 
       <FormError message={error} />
 
-      <button type="submit" className={styles.primaryButton} disabled={!accepted || pending}>
+      <button
+        type="submit"
+        className={styles.primaryButton}
+        disabled={!accepted || pending}
+        data-pending={pending || undefined}
+      >
         <span>{pending ? 'Hesap oluşturuluyor…' : 'Hesabımı oluştur'}</span>
         {!pending ? <I.chevRight size={16} /> : null}
       </button>

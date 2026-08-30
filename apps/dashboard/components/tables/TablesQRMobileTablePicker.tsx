@@ -7,12 +7,16 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { filterTables } from './tables-builder-model'
 import type { TableItem } from './tables-builder-types'
 import { TablesQRPickerContent } from './TablesQRPickerContent'
+import type { TableManagementModel } from './TablesQRTablePicker'
 
-export function TablesQRMobileTablePicker({ restaurantId, tables, activeId, setActiveId }: {
+export function TablesQRMobileTablePicker({ restaurantId, tables, activeId, setActiveId, management, onEdit, tableOperationsAllowed }: {
   restaurantId: string
   tables: TableItem[]
   activeId: string
   setActiveId: (tableId: string) => void
+  management: TableManagementModel
+  onEdit: (table: TableItem) => void
+  tableOperationsAllowed: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -37,7 +41,7 @@ export function TablesQRMobileTablePicker({ restaurantId, tables, activeId, setA
           <SheetTitle>Masa seçin</SheetTitle>
           <SheetDescription>Önizlenecek ve indirilecek QR masasını seçin.</SheetDescription>
         </SheetHeader>
-        <TablesQRPickerContent mobile restaurantId={restaurantId} tables={tables} filtered={filtered} activeId={activeId} query={query} setQuery={setQuery} onSelect={select} />
+        <TablesQRPickerContent mobile restaurantId={restaurantId} tables={tables} filtered={filtered} activeId={activeId} query={query} setQuery={setQuery} onSelect={select} management={management} onEdit={onEdit} tableOperationsAllowed={tableOperationsAllowed} />
       </SheetContent>
     </Sheet>
   )

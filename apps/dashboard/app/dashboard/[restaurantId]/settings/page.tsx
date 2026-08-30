@@ -13,9 +13,10 @@ import {
   createSubscriptionBillingSettingsReadPort,
 } from '@garsonless/db/server'
 import SettingsForm from '../../../../components/settings/SettingsFormLoader'
-import { resolveSettingsSection } from '../../../../components/settings/settings-sections'
+import { SETTINGS_SECTION_FEATURES, SETTINGS_SECTION_IDS, resolveSettingsSection, type SettingsSectionsAccess } from '../../../../components/settings/settings-sections'
 import { readBillingPlanPrices } from '../../../../lib/billing/subscription-billing-request'
 import PlanLockedPanel from '../../../../components/PlanLockedPanel'
+import { getFeatureEntitlement, PLAN_DEFINITIONS } from '@garsonless/domain/entitlements'
 
 interface Props {
   params: Promise<{ restaurantId: string }>
@@ -59,7 +60,21 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     if (query.checkout === 'success' && initialSection === 'billing') canonicalQuery.set('checkout', 'success')
     redirect(`/dashboard/${restaurantId}/settings?${canonicalQuery.toString()}`)
   }
-  const settingsScopes: DashboardSettingsReadScope[] = initialSection === 'team'
+  const sectionAccessEntries = await Promise.all(SETTINGS_SECTION_IDS.map(async (section) => {
+    const feature = SETTINGS_SECTION_FEATURES[section]
+    if (!feature) return [section, { allowed: true, feature: null, requiredPlanLabel: null }] as const
+    const [allowed, entitlement] = await Promise.all([
+      canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature }),
+      Promise.resolve(getFeatureEntitlement(restaurant.plan, feature)),
+    ])
+    const requiredPlanLabel = feature === 'online_payments'
+      ? 'Pro + İyzico add-on'
+      : entitlement.requiredPlan ? PLAN_DEFINITIONS[entitlement.requiredPlan].label : null
+    return [section, { allowed, feature, requiredPlanLabel }] as const
+  }))
+  const sectionsAccess = Object.fromEntries(sectionAccessEntries) as SettingsSectionsAccess
+  const activeSectionAllowed = sectionsAccess[initialSection].allowed
+  const settingsScopes: DashboardSettingsReadScope[] = !activeSectionAllowed ? [] : initialSection === 'team'
     ? ['team']
     : initialSection === 'kitchen'
       ? ['kitchen']
@@ -80,16 +95,16 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     actor.isOwner && initialSection === 'billing'
       ? readSubscriptionBillingSettings(actor, restaurantId, createSubscriptionBillingSettingsReadPort())
       : Promise.resolve(null),
-    initialSection === 'loyalty'
+    activeSectionAllowed && initialSection === 'loyalty'
       ? canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'loyalty' })
       : Promise.resolve(false),
-    initialSection === 'kitchen'
+    activeSectionAllowed && initialSection === 'kitchen'
       ? canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'kitchen_display' })
       : Promise.resolve(false),
-    initialSection === 'notifications'
+    activeSectionAllowed && initialSection === 'notifications'
       ? canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'browser_notifications' })
       : Promise.resolve(false),
-    actor.isOwner && (initialSection === 'payments' || initialSection === 'api')
+    activeSectionAllowed && actor.isOwner && (initialSection === 'payments' || initialSection === 'api')
       ? readRestaurantIntegrationHealth(restaurantId)
       : Promise.resolve({ ok: true as const, value: [] as IntegrationHealth[] }),
   ])
@@ -118,6 +133,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
         browserNotifications: browserNotificationsAccess,
       }}
       productLocked={!productAccess}
+      sectionsAccess={sectionsAccess}
       integrationHealth={[
         ...(integrationHealthResult.ok ? integrationHealthResult.value : []),
         ...(initialSection === 'api' && !integrationHealthResult.ok

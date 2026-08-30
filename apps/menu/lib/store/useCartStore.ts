@@ -31,6 +31,7 @@ interface CartState {
   legacyUnbound: boolean
   bindScope: (restaurantId: string, tableToken: string | null) => void
   clearTableScope: (restaurantId: string) => void
+  clearRestaurantCarts: (restaurantId: string) => void
   setTableId: (tableId: string | null) => void
   addItem: (
     item: MenuItem,
@@ -103,6 +104,20 @@ export const useCartStore = create<CartState>()(
         const scopes = state.scopeKey ? { ...state.scopes, [state.scopeKey]: snapshotCartScope(state) } : { ...state.scopes }
         const next = scopes[nextScopeKey] ?? { items: [], sessionId: generateId(), tableId: null }
         return { ...state, ...next, tableId: null, scopeKey: nextScopeKey, scopes, lastTableByRestaurant, legacyUnbound: false }
+      }),
+
+      clearRestaurantCarts: (restaurantId) => set((state) => {
+        const prefix = `v1:${restaurantId}:`
+        const scopes = Object.fromEntries(
+          Object.entries(state.scopes).filter(([key]) => !key.startsWith(prefix)),
+        )
+        if (!state.scopeKey?.startsWith(prefix)) return { ...state, scopes }
+        return {
+          ...state,
+          items: [],
+          sessionId: generateId(),
+          scopes,
+        }
       }),
 
       setTableId: (tableId) => set((state) => withActiveCartScope(state, { tableId })),

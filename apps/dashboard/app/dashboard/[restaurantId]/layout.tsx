@@ -6,7 +6,9 @@ import { getRestaurantById, getRestaurantsForUser } from '../../../lib/queries/r
 import { getUserRestaurantAccess } from '../../../lib/auth/access'
 import { getDashboardAuthenticatedUser } from '../../../lib/auth/current-user'
 import { canRestaurantUseFeature } from '@garsonless/db/server'
-import { normalizeRestaurantPlan, PLAN_DEFINITIONS } from '@garsonless/domain/entitlements'
+import { getFeatureEntitlement, normalizeRestaurantPlan, PLAN_DEFINITIONS } from '@garsonless/domain/entitlements'
+import { DASHBOARD_SECTIONS } from '../../../lib/auth/access-policy'
+import { DASHBOARD_SECTION_FEATURES, type DashboardSectionEntitlements } from '../../../lib/auth/dashboard-entitlements'
 import { createDashboardProfileViewModel } from '../../../lib/profile-view-model'
 import { readNotificationPrefs } from '../../../lib/notification-prefs'
 import WebVitalsReporter from '../../../components/analytics/WebVitalsReporter'
@@ -31,11 +33,29 @@ export default async function RestaurantLayout({ children, params }: Props) {
 
   if (!restaurant || !access) notFound()
 
-  const browserNotificationsEnabled = await canRestaurantUseFeature({
-    restaurantId,
-    plan: restaurant.plan,
-    feature: 'browser_notifications',
-  })
+  const [browserNotificationsEnabled, tableOperationsAllowed, sectionEntitlementEntries] = await Promise.all([
+    canRestaurantUseFeature({
+      restaurantId,
+      plan: restaurant.plan,
+      feature: 'browser_notifications',
+    }),
+    canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'table_management' }),
+    Promise.all(DASHBOARD_SECTIONS.map(async (section) => {
+      const feature = DASHBOARD_SECTION_FEATURES[section]
+      if (!feature) return [section, { allowed: true, feature: null, requiredPlan: null, requiredPlanLabel: null }] as const
+      const [allowed, catalogue] = await Promise.all([
+        canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature }),
+        Promise.resolve(getFeatureEntitlement(restaurant.plan, feature)),
+      ])
+      return [section, {
+        allowed,
+        feature,
+        requiredPlan: catalogue.requiredPlan,
+        requiredPlanLabel: catalogue.requiredPlan ? PLAN_DEFINITIONS[catalogue.requiredPlan].label : null,
+      }] as const
+    })),
+  ])
+  const sectionEntitlements = Object.fromEntries(sectionEntitlementEntries) as DashboardSectionEntitlements
 
   const restaurants = restaurantRows.map(({ id, name, slug }) => ({ id, name, slug }))
   const notificationPrefs = readNotificationPrefs(restaurant.settings)
@@ -57,6 +77,8 @@ export default async function RestaurantLayout({ children, params }: Props) {
         userInitials={profile.initials}
         userAvatarUrl={profile.avatarUrl}
         planLabel={planLabel}
+        sectionEntitlements={sectionEntitlements}
+        tableOperationsAllowed={tableOperationsAllowed}
         permissions={access.permissions}
         isOwner={access.isOwner}
         browserNotificationsEnabled={browserNotificationsEnabled}

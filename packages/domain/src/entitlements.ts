@@ -147,11 +147,11 @@ const STARTER_FEATURES = [
   'qr_menu',
   'rich_product_content',
   'theme_editor',
+  'qr_studio',
 ] as const satisfies readonly BillableFeature[]
 
 const PLUS_FEATURES = [
   ...STARTER_FEATURES,
-  'qr_studio',
   'table_management',
   'staff_orders',
   'settlement',

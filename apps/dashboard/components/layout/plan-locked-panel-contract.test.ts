@@ -32,6 +32,18 @@ test('plan lock separates owner checkout from member guidance', () => {
   assert.match(panel, /type="radio"/)
 })
 
+test('plan lock always provides a deterministic escape route', () => {
+  const panel = read('../PlanLockedPanel.tsx')
+  const tablesPage = read('../../app/dashboard/[restaurantId]/tables/page.tsx')
+
+  assert.match(panel, /returnHref\?: string/)
+  assert.match(panel, /returnLabel = 'Menüye dön'/)
+  assert.match(panel, /returnHref \?\? `\/dashboard\/\$\{restaurantId\}\/menu`/)
+  assert.match(panel, /className=\{styles\.returnLink\}/)
+  assert.match(tablesPage, /returnHref=\{`\/dashboard\/\$\{restaurantId\}\/tables\/qr`\}/)
+  assert.match(tablesPage, /returnLabel="QR Studio'ya dön"/)
+})
+
 test('plan lock is responsive, touch-safe and reduced-motion safe', () => {
   const styles = read('../PlanLockedPanel.module.css')
 

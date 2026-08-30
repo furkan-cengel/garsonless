@@ -100,25 +100,61 @@ const ADVANCED_THEME_SECTION_IDS = new Set([
   'request-buttons',
 ])
 
-function usesAdvancedThemeSections(theme: GarsonlessTheme): boolean {
-  const advancedMenu = (theme.pageBlocks ?? []).some(
-    (block) => {
-      const sectionId = getSectionDefinitionId(block)
-      return sectionId !== null && ADVANCED_THEME_SECTION_IDS.has(sectionId)
-    },
-  )
-  const advancedHome = (theme.surfaces?.home.sections ?? []).some(
-    (section) => section.enabled && (
-      section.type === 'hero-video'
+const ORDERING_THEME_KEYS: ReadonlyArray<keyof GarsonlessTheme> = [
+  'cartPlacement',
+  'cartStyle',
+  'cartHeaderTriggerStyle',
+  'cartFooterTriggerStyle',
+  'cartIcon',
+  'cartShowBadge',
+  'cartPillPosition',
+  'cartPillTone',
+  'cartDrawerTone',
+  'cartShowSubtotal',
+  'cartShowItemCount',
+  'cartPrimaryActionText',
+  'cartButtonText',
+  'cartEmptyText',
+]
+
+function orderingThemeProjection(theme: GarsonlessTheme): unknown {
+  const topLevel = Object.fromEntries(ORDERING_THEME_KEYS.map((key) => [key, theme[key]]))
+  return {
+    ...topLevel,
+    checkout: theme.surfaces?.checkout ?? null,
+  }
+}
+
+function hasSameOrderingTheme(left: GarsonlessTheme, right: GarsonlessTheme): boolean {
+  return JSON.stringify(orderingThemeProjection(left)) === JSON.stringify(orderingThemeProjection(right))
+}
+
+function advancedThemeProjection(theme: GarsonlessTheme): unknown {
+  const settings = theme.sectionSettings ?? {}
+  const pageBlocks = (theme.pageBlocks ?? []).flatMap((block, index) => {
+    const sectionId = getSectionDefinitionId(block)
+    if (sectionId === null || !ADVANCED_THEME_SECTION_IDS.has(sectionId)) return []
+    return [{ index, block, settings: settings[block.id] ?? null, sectionSettings: settings[sectionId] ?? null }]
+  })
+  const home = theme.surfaces?.home
+  const homeSections = (home?.sections ?? []).flatMap((section, index) => (
+    section.type === 'hero-video'
       || section.type === 'featured-products'
       || section.type === 'gallery'
       || section.type === 'promo-slider'
-    ),
-  )
-  const advancedHomeBlocks = (theme.surfaces?.home.blocks ?? []).some(
-    (block) => ADVANCED_THEME_SECTION_IDS.has(block.sectionId),
-  )
-  return advancedMenu || advancedHome || advancedHomeBlocks
+      ? [{ index, section }]
+      : []
+  ))
+  const homeBlocks = (home?.blocks ?? []).flatMap((block, index) => (
+    ADVANCED_THEME_SECTION_IDS.has(block.sectionId)
+      ? [{ index, block, settings: settings[block.id] ?? null, sectionSettings: settings[block.sectionId] ?? null }]
+      : []
+  ))
+  return { pageBlocks, homeSections, homeBlocks }
+}
+
+function hasSameAdvancedTheme(left: GarsonlessTheme, right: GarsonlessTheme): boolean {
+  return JSON.stringify(advancedThemeProjection(left)) === JSON.stringify(advancedThemeProjection(right))
 }
 
 /**
@@ -339,14 +375,40 @@ async function enforceThemeEntitlement(
   const restaurantResult = await port.readRestaurant({ restaurantId })
   if (!restaurantResult.ok) return restaurantResult
   if (!restaurantResult.value) return err('Restaurant not found')
-  if (!usesAdvancedThemeSections(theme)) return ok(true)
-  const featureAccess = await port.readFeatureAccess({
-    restaurantId,
-    plan: restaurantResult.value.plan,
-    feature: 'theme_advanced_sections',
-  })
-  if (!featureAccess.ok) return featureAccess
-  return featureAccess.value ? ok(true) : err('Plan feature unavailable')
+  const [advancedAccess, orderingAccess] = await Promise.all([
+    port.readFeatureAccess({
+      restaurantId,
+      plan: restaurantResult.value.plan,
+      feature: 'theme_advanced_sections',
+    }),
+    port.readFeatureAccess({
+      restaurantId,
+      plan: restaurantResult.value.plan,
+      feature: 'guest_ordering',
+    }),
+  ])
+  if (!advancedAccess.ok) return advancedAccess
+  if (!orderingAccess.ok) return orderingAccess
+  if (advancedAccess.value && orderingAccess.value) return ok(true)
+
+  const draftResult = await port.readDraft({ restaurantId })
+  if (!draftResult.ok) return draftResult
+  const persistedDraft = draftResult.value
+  if (persistedDraft) {
+    const currentDraft = sanitizeThemeTokens(persistedDraft.tokens, persistedDraft.templateId)
+    if (!currentDraft || persistedDraft.templateId !== CANONICAL_THEME_ID) {
+      return err('Invalid theme draft response')
+    }
+    if (!advancedAccess.value && !hasSameAdvancedTheme(theme, currentDraft)) return err('Plan feature unavailable')
+    if (!orderingAccess.value && !hasSameOrderingTheme(theme, currentDraft)) return err('Plan feature unavailable')
+    return ok(true)
+  }
+
+  const currentResult = await resolveFromPort({ restaurantId, templateOverride: CANONICAL_THEME_ID }, port)
+  if (!currentResult.ok) return currentResult
+  if (!advancedAccess.value && !hasSameAdvancedTheme(theme, currentResult.value.theme)) return err('Plan feature unavailable')
+  if (!orderingAccess.value && !hasSameOrderingTheme(theme, currentResult.value.theme)) return err('Plan feature unavailable')
+  return ok(true)
 }
 
 export async function saveRestaurantThemeDraft(
@@ -412,6 +474,15 @@ export async function publishSavedRestaurantTheme(
     || !Number.isSafeInteger(input.expectedPublishedRevision) || input.expectedPublishedRevision < 0
     || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.requestId)
   ) return err('Invalid theme publish request')
+  const draftResult = await port.readDraft({ restaurantId: input.restaurantId })
+  if (!draftResult.ok) return draftResult
+  if (!draftResult.value) return err('Theme draft not found')
+  const draftTheme = sanitizeThemeTokens(draftResult.value.tokens, draftResult.value.templateId)
+  if (!draftTheme || draftResult.value.templateId !== CANONICAL_THEME_ID) {
+    return err('Invalid theme draft response')
+  }
+  const entitlement = await enforceThemeEntitlement(input.restaurantId, draftTheme, port)
+  if (!entitlement.ok) return entitlement
   const result = await port.publishSavedDraft({
     restaurantId: input.restaurantId,
     publishedBy: context.userId,
@@ -493,18 +564,8 @@ export async function publishRestaurantTheme(
   const theme = sanitizeThemeTokens(input.theme, CANONICAL_THEME_ID)
   if (!theme || hasIncompleteHomeVideo(theme)) return err('Invalid theme document')
 
-  const restaurantResult = await port.readRestaurant({ restaurantId: input.restaurantId })
-  if (!restaurantResult.ok) return restaurantResult
-  if (!restaurantResult.value) return err('Restaurant not found')
-  if (usesAdvancedThemeSections(theme)) {
-    const featureAccess = await port.readFeatureAccess({
-      restaurantId: input.restaurantId,
-      plan: restaurantResult.value.plan,
-      feature: 'theme_advanced_sections',
-    })
-    if (!featureAccess.ok) return featureAccess
-    if (!featureAccess.value) return err('Plan feature unavailable')
-  }
+  const entitlement = await enforceThemeEntitlement(input.restaurantId, theme, port)
+  if (!entitlement.ok) return entitlement
 
   const publishResult = await port.publish({
     restaurantId: input.restaurantId,

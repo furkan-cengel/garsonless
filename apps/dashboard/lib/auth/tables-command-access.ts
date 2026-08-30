@@ -1,5 +1,5 @@
 import { canRestaurantUseFeature, readTablesCommandAccessBundle } from '@garsonless/db/server'
-import { assertAccess } from './access'
+import { assertAccess, assertRestaurantFeature, getUserRestaurantAccess } from './access'
 import { getDashboardRequestAuth } from './current-user'
 
 export async function resolveTablesCommandActor(
@@ -25,4 +25,17 @@ export async function resolveTablesCommandActor(
   } catch {
     return { error: 'Not authorized' }
   }
+}
+
+/** Basic table directory and stable QR-token administration is a Starter
+ * capability. Keep it separate from live table/session operations. */
+export async function resolveTableQrCommandActor(
+  restaurantId: string,
+): Promise<{ userId: string } | { error: string }> {
+  const access = await getUserRestaurantAccess(restaurantId)
+  if (!access || (!access.isOwner && !access.permissions.includes('tables'))) {
+    return { error: 'Not authorized' }
+  }
+  const entitlement = await assertRestaurantFeature(restaurantId, 'qr_studio')
+  return 'error' in entitlement ? entitlement : { userId: access.userId }
 }

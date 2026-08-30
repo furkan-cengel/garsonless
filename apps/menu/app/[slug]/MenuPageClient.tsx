@@ -302,7 +302,7 @@ export function MenuPageClient({
   initialPromotionKind = null,
   homeEnabled = false,
 }: Props) {
-  const orderingEnabled = guestOrderingEnabled || isPreview
+  const orderingEnabled = guestOrderingEnabled
   const [runtimeTheme, setRuntimeTheme] = useState(theme)
   useEffect(() => {
     const root = document.documentElement
@@ -351,7 +351,7 @@ export function MenuPageClient({
   }, [isCartOpen])
 
   useEffect(() => {
-    if (!isPreview) return
+    if (!isPreview || !orderingEnabled) return
     const handleCartPreview = (event: Event) => {
       const state = (event as CustomEvent<{ state: MenuCartPreviewState | null }>).detail?.state ?? null
       setCartPreviewState(state)
@@ -362,7 +362,7 @@ export function MenuPageClient({
     }
     window.addEventListener(MENU_CART_PREVIEW_EVENT, handleCartPreview)
     return () => window.removeEventListener(MENU_CART_PREVIEW_EVENT, handleCartPreview)
-  }, [isPreview])
+  }, [isPreview, orderingEnabled])
 
   useEffect(() => {
     if (selectedItem) setHasOpenedProduct(true)
@@ -423,6 +423,7 @@ export function MenuPageClient({
   const attachPromotion = useCartStore((s) => s.attachPromotion)
   const detachPromotion = useCartStore((s) => s.detachPromotion)
   const clearCart = useCartStore((s) => s.clearCart)
+  const clearRestaurantCarts = useCartStore((s) => s.clearRestaurantCarts)
   const bindCartScope = useCartStore((s) => s.bindScope)
   const clearTableScope = useCartStore((s) => s.clearTableScope)
 
@@ -759,6 +760,14 @@ export function MenuPageClient({
     void restore()
     return () => { cancelled = true }
   }, [bindCartScope, restaurant.id, tableToken])
+
+  useEffect(() => {
+    if (!cartScopeReady || orderingEnabled) return
+    clearRestaurantCarts(restaurant.id)
+    setIsCartOpen(false)
+    setHasOpenedCart(false)
+    setCartPreviewState(null)
+  }, [cartScopeReady, clearRestaurantCarts, orderingEnabled, restaurant.id])
 
   useEffect(() => {
     if (!cartScopeReady || tableToken || !storedTableToken) return

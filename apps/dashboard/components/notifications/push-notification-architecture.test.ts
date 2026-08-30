@@ -32,6 +32,37 @@ test('push capability state hydrates deterministically before reading browser pe
   assert.ok(hook.indexOf('const browserPermission = Notification.permission') > hook.indexOf('useEffect(() =>'))
 })
 
+test('granted Android PWA permission self-heals into a persisted push endpoint', () => {
+  const hook = source('./useDashboardPushSubscription.ts')
+  assert.match(hook, /navigator\.serviceWorker\.register\('\/sw\.js', \{ scope: '\/' \}\)/)
+  assert.match(hook, /await navigator\.serviceWorker\.ready/)
+  assert.match(hook, /subscription \?\? registration\.pushManager\.subscribe/)
+  assert.match(hook, /Notification\.permission !== 'granted'/)
+  assert.match(hook, /await persist\(subscription\)/)
+})
+
+test('turning on a push preference subscribes the current device inside the user gesture', () => {
+  const settings = source('../settings/BusinessSections.tsx')
+  assert.match(settings, /key === 'newOrderPush' \|\| key === 'serviceRequestPush'/)
+  assert.match(settings, /device\.status !== 'subscribed'[\s\S]*?void device\.subscribe\(\)/)
+  assert.match(settings, /device\.status === 'unsupported'[\s\S]*?'Desteklenmiyor'/)
+})
+
+test('installed dashboard PWA has a stable identity and immediately activates push worker updates', () => {
+  const manifest = source('../../public/site.webmanifest')
+  const worker = source('../../public/sw.js')
+  assert.deepEqual(JSON.parse(manifest), {
+    ...JSON.parse(manifest),
+    id: '/',
+    start_url: '/dashboard',
+    scope: '/',
+  })
+  assert.match(worker, /addEventListener\('install'/)
+  assert.match(worker, /self\.skipWaiting\(\)/)
+  assert.match(worker, /addEventListener\('activate'/)
+  assert.match(worker, /self\.clients\.claim\(\)/)
+})
+
 test('subscription server action re-checks membership and paid entitlement', () => {
   const action = source('../../lib/actions/push-subscriptions.ts')
   assert.match(action, /assertMember\(restaurantId\)/)

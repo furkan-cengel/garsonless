@@ -17,6 +17,7 @@ export interface ThemeEditorClientProps {
   restaurantName: string
   restaurantLogoUrl: string | null
   canAddAdvancedSections: boolean
+  canUseGuestOrdering: boolean
   experienceV2Enabled: boolean
   previewAccessToken: string
   templateId: string

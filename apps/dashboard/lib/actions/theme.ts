@@ -152,36 +152,6 @@ function validateOwnedHomeVideoPairs(theme: unknown, restaurantId: string, requi
   })
 }
 
-function usesAdvancedHomeSections(theme: unknown): boolean {
-  if (!theme || typeof theme !== 'object' || Array.isArray(theme)) return false
-  const surfaces = (theme as Record<string, unknown>)['surfaces']
-  if (!surfaces || typeof surfaces !== 'object' || Array.isArray(surfaces)) return false
-  const home = (surfaces as Record<string, unknown>)['home']
-  if (!home || typeof home !== 'object' || Array.isArray(home)) return false
-  const sections = (home as Record<string, unknown>)['sections']
-  if (Array.isArray(sections) && sections.some((section) => section && typeof section === 'object' && !Array.isArray(section) && ['hero-video', 'gallery', 'promo-slider'].includes(String((section as Record<string, unknown>)['type'])))) return true
-  const blocks = (home as Record<string, unknown>)['blocks']
-  if (!Array.isArray(blocks)) return false
-  const settings = (theme as Record<string, unknown>)['sectionSettings']
-  const advancedSectionIds = new Set([
-    'storefront-video-hero',
-    'featured-scroll',
-    'chef-pick',
-    'combo-ribbon',
-    'discount-badge',
-    'promo-slider',
-    'gallery',
-  ])
-  return blocks.some((block) => {
-    if (!block || typeof block !== 'object' || Array.isArray(block)) return false
-    const record = block as Record<string, unknown>
-    if (advancedSectionIds.has(String(record['sectionId']))) return true
-    if (record['sectionId'] !== 'storefront-hero' || typeof record['id'] !== 'string' || !settings || typeof settings !== 'object' || Array.isArray(settings)) return false
-    const heroSettings = (settings as Record<string, unknown>)[record['id']]
-    return Boolean(heroSettings && typeof heroSettings === 'object' && !Array.isArray(heroSettings) && (heroSettings as Record<string, unknown>)['mediaType'] === 'video')
-  })
-}
-
 function collectThemeMediaUrls(value: unknown, result = new Set<string>()): Set<string> {
   if (typeof value === 'string') {
     if (value.includes('/storage/v1/object/public/restaurant-assets/')) result.add(value)
@@ -341,9 +311,6 @@ export async function publishTheme(
   if (!validateOwnedHomeVideoPairs(draftTokens, restaurantId, true)) {
     return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.publish', message: 'Tema videosu için video ve poster dosyalarını birlikte yükleyin.' })
   }
-  if (usesAdvancedHomeSections(draftTokens) && !await canUseAdvancedThemeMedia(restaurantId)) {
-    return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.publish', message: 'Bu ana sayfa bölümleri Pro paket gerektirir.' })
-  }
   if (!sanitizedDraft || inspectAuthSurfaceContrast(sanitizedDraft).length > 0) {
     return dashboardActionFailure('VALIDATION_FAILED', {
       operation: 'theme.publish',
@@ -465,9 +432,6 @@ export async function saveThemeDraft(
   if (!parsed.success) return dashboardThemeFailure('Invalid theme draft request')
   if (!validateOwnedHomeVideoPairs(parsed.data.theme, restaurantId, false)) {
     return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.save-draft' })
-  }
-  if (usesAdvancedHomeSections(parsed.data.theme) && !await canUseAdvancedThemeMedia(restaurantId)) {
-    return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.save-draft', message: 'Bu ana sayfa bölümleri Pro paket gerektirir.' })
   }
 
   try {

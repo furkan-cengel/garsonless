@@ -16,6 +16,14 @@ export interface CategoryNavActiveTreatment {
   boxShadow: string
 }
 
+export function getCategoryNavJustifyContent(
+  categoryCount: number,
+  contentFits: boolean,
+): 'center' | 'flex-start' {
+  if (categoryCount <= 1) return 'flex-start'
+  return contentFits ? 'center' : 'flex-start'
+}
+
 export function getCategoryNavActiveTreatment(
   activeStyle: CategoryNavActiveStyle,
   accent = 'var(--p-accent)',

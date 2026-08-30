@@ -254,7 +254,7 @@ function HomeV2({
             ...(promotion ? { promotionSectionId: promotion.sectionInstanceId, promotionKind: promotion.kind } : {}),
           }))}
           onSelectCategory={(categoryId) => navigate(buildHomeMenuHref(restaurant.slug, { ...menuNavigation, categoryId }))}
-          {...(guestOrderingEnabled || isPreview ? {
+          {...(guestOrderingEnabled ? {
             onAddFreebie: (campaign) => {
               if (isPreview) {
                 storeFreebieIntentHandoff(window.sessionStorage, {

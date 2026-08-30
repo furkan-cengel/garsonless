@@ -4,9 +4,21 @@ import test from 'node:test'
 import {
   getActiveCategoryAtLine,
   getCategoryNavActiveTreatment,
+  getCategoryNavJustifyContent,
   getCategoryScrollEdges,
   getCenteredCategoryScrollLeft,
 } from './categoryNavModel'
+
+test('a single category always starts at the left edge of the navigation strip', () => {
+  assert.equal(getCategoryNavJustifyContent(1, true), 'flex-start')
+  assert.equal(getCategoryNavJustifyContent(1, false), 'flex-start')
+  assert.equal(getCategoryNavJustifyContent(0, true), 'flex-start')
+})
+
+test('multiple categories keep the existing fit-aware alignment', () => {
+  assert.equal(getCategoryNavJustifyContent(2, true), 'center')
+  assert.equal(getCategoryNavJustifyContent(2, false), 'flex-start')
+})
 
 test('active category is the last section that reached the sticky activation line', () => {
   const sections = [

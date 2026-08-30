@@ -46,11 +46,13 @@ const CAPABILITIES = {
     keys: [
       'IYZICO_BILLING_MERCHANT_ID', 'IYZICO_BILLING_API_KEY',
       'IYZICO_BILLING_SECRET_KEY', 'IYZICO_BILLING_BASE_URL',
-      'SAAS_BILLING_ENABLED',
-      'IYZICO_BILLING_STARTER_PLAN_REF', 'IYZICO_BILLING_STARTER_AMOUNT_MINOR',
-      'IYZICO_BILLING_PRO_PLAN_REF', 'IYZICO_BILLING_PRO_AMOUNT_MINOR',
-      'IYZICO_BILLING_ENTERPRISE_PLAN_REF',
-      'IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR',
+      'SAAS_BILLING_ENABLED', 'INVOICE_VAT_RATE',
+      'IYZICO_BILLING_STARTER_MONTHLY_PLAN_REF', 'IYZICO_BILLING_STARTER_MONTHLY_AMOUNT_MINOR',
+      'IYZICO_BILLING_STARTER_ANNUAL_PLAN_REF', 'IYZICO_BILLING_STARTER_ANNUAL_AMOUNT_MINOR',
+      'IYZICO_BILLING_PLUS_MONTHLY_PLAN_REF', 'IYZICO_BILLING_PLUS_MONTHLY_AMOUNT_MINOR',
+      'IYZICO_BILLING_PLUS_ANNUAL_PLAN_REF', 'IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR',
+      'IYZICO_BILLING_PRO_MONTHLY_PLAN_REF', 'IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR',
+      'IYZICO_BILLING_PRO_ANNUAL_PLAN_REF', 'IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR',
     ],
   },
   'web-push': {
@@ -83,15 +85,29 @@ const URL_KEYS = new Set([
 ])
 
 const BILLING_PLAN_REF_KEYS = [
-  'IYZICO_BILLING_STARTER_PLAN_REF',
-  'IYZICO_BILLING_PRO_PLAN_REF',
-  'IYZICO_BILLING_ENTERPRISE_PLAN_REF',
+  'IYZICO_BILLING_STARTER_MONTHLY_PLAN_REF',
+  'IYZICO_BILLING_STARTER_ANNUAL_PLAN_REF',
+  'IYZICO_BILLING_PLUS_MONTHLY_PLAN_REF',
+  'IYZICO_BILLING_PLUS_ANNUAL_PLAN_REF',
+  'IYZICO_BILLING_PRO_MONTHLY_PLAN_REF',
+  'IYZICO_BILLING_PRO_ANNUAL_PLAN_REF',
 ]
 const BILLING_AMOUNT_KEYS = [
-  'IYZICO_BILLING_STARTER_AMOUNT_MINOR',
-  'IYZICO_BILLING_PRO_AMOUNT_MINOR',
-  'IYZICO_BILLING_ENTERPRISE_AMOUNT_MINOR',
+  'IYZICO_BILLING_STARTER_MONTHLY_AMOUNT_MINOR',
+  'IYZICO_BILLING_STARTER_ANNUAL_AMOUNT_MINOR',
+  'IYZICO_BILLING_PLUS_MONTHLY_AMOUNT_MINOR',
+  'IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR',
+  'IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR',
+  'IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR',
 ]
+const BILLING_NET_AMOUNTS = {
+  IYZICO_BILLING_STARTER_MONTHLY_AMOUNT_MINOR: 34_900,
+  IYZICO_BILLING_STARTER_ANNUAL_AMOUNT_MINOR: 335_040,
+  IYZICO_BILLING_PLUS_MONTHLY_AMOUNT_MINOR: 69_900,
+  IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR: 671_040,
+  IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR: 119_900,
+  IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR: 1_151_040,
+}
 
 function stripInlineComment(value) {
   if (value.startsWith('"') || value.startsWith("'")) return value
@@ -145,12 +161,24 @@ function validateUrl(key, value) {
 
 function validateSaasBillingContract(env) {
   const errors = []
+  const vatRaw = env.INVOICE_VAT_RATE?.trim() ?? ''
+  const vatRate = Number(vatRaw)
+  const validVatRate = /^\d+$/.test(vatRaw) && Number.isInteger(vatRate) && vatRate >= 0 && vatRate <= 100
+  if (vatRaw && !isPlaceholder(vatRaw) && !validVatRate) {
+    errors.push(issue('MAS-DEP-006', 'INVOICE_VAT_RATE', '0 ile 100 arasında bir tamsayı olmalı.'))
+  }
   for (const key of BILLING_AMOUNT_KEYS) {
     const raw = env[key]?.trim() ?? ''
     if (!raw || isPlaceholder(raw)) continue
     const value = Number(raw)
     if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(value)) {
       errors.push(issue('MAS-DEP-006', key, 'Pozitif ve güvenli bir TRY minor-unit tamsayısı olmalı.'))
+    } else if (validVatRate) {
+      const netAmount = BILLING_NET_AMOUNTS[key]
+      const expected = netAmount + Math.round(netAmount * vatRate / 100)
+      if (value !== expected) {
+        errors.push(issue('MAS-DEP-006', key, 'Kanonik net fiyat ile INVOICE_VAT_RATE toplamına eşit olmalı.'))
+      }
     }
   }
 

@@ -20,7 +20,7 @@ export const MARKETING_PLANS: readonly MarketingPlan[] = [
     id: 'starter',
     name: 'Starter',
     description: 'Dijital menüyle başlayın.',
-    features: ['Sınırsız ürün ve kategori', 'QR menü ve zengin ürün içeriği', 'Logo, renk, tipografi ve kart düzenleri'],
+    features: ['Sınırsız ürün ve kategori', 'QR menü ve zengin ürün içeriği', 'Masa bazlı QR ve QR Studio', 'Logo, renk, tipografi ve kart düzenleri'],
   },
   {
     id: 'plus',
@@ -28,7 +28,6 @@ export const MARKETING_PLANS: readonly MarketingPlan[] = [
     description: 'Masa ve adisyon operasyonu.',
     features: [
       'Starter’daki her şey',
-      'Masa bazlı QR ve QR Studio',
       'Personel siparişi, adisyon ve tahsilat',
       'Temel satış, ürün, masa ve ödeme raporları',
       'Ekip ve yetkilendirme',
@@ -103,7 +102,7 @@ export const PRICING_COMPARISON_GROUPS: readonly ComparisonGroup[] = [
       { feature: 'QR menü yayını', entitlement: 'qr_menu' },
       { feature: 'Görsel, açıklama, seçenek ve alerjen bilgileri', entitlement: 'rich_product_content' },
       { feature: 'Logo, renk, tipografi, kart ve navigasyon düzenleri', entitlement: 'theme_editor' },
-      { feature: 'Masa bazlı QR', entitlement: 'table_management' },
+      { feature: 'Masa bazlı QR', entitlement: 'qr_studio' },
       { feature: 'QR Studio', entitlement: 'qr_studio' },
       { feature: 'Gelişmiş tema bölümleri', entitlement: 'theme_advanced_sections' },
       { feature: 'Video içeriği', entitlement: 'theme_advanced_sections' },

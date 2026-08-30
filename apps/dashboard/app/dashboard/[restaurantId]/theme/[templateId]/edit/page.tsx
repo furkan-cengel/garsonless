@@ -47,11 +47,18 @@ export default async function ThemeEditPage({ params }: Props) {
   } = themeResult.value
   const menuCategories = menuRefs.categories
   const menuItems = menuRefs.items
-  const canAddAdvancedSections = await canRestaurantUseFeature({
-    restaurantId,
-    plan: restaurant.plan,
-    feature: 'theme_advanced_sections',
-  })
+  const [canAddAdvancedSections, canUseGuestOrdering] = await Promise.all([
+    canRestaurantUseFeature({
+      restaurantId,
+      plan: restaurant.plan,
+      feature: 'theme_advanced_sections',
+    }),
+    canRestaurantUseFeature({
+      restaurantId,
+      plan: restaurant.plan,
+      feature: 'guest_ordering',
+    }),
+  ])
   const experienceV2Enabled = process.env['THEME_EXPERIENCE_V2_ENABLED'] === 'true' || process.env.NODE_ENV === 'development'
   const previewSigningSecret = resolveThemePreviewSigningSecret()
   if (!previewSigningSecret) throw new Error('Theme preview signing secret is missing')
@@ -67,6 +74,7 @@ export default async function ThemeEditPage({ params }: Props) {
       restaurantName={restaurant.name}
       restaurantLogoUrl={restaurant.logoUrl}
       canAddAdvancedSections={canAddAdvancedSections}
+      canUseGuestOrdering={canUseGuestOrdering}
       experienceV2Enabled={experienceV2Enabled}
       previewAccessToken={previewAccessToken}
       templateId={templateId}

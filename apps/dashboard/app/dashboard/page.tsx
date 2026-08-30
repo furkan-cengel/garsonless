@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getRestaurantsForUser } from '../../lib/queries/restaurants'
 import { getUserRestaurantAccess, firstPermittedPath } from '../../lib/auth/access'
+import { canRestaurantUseFeature } from '@garsonless/db/server'
 
 export default async function DashboardIndexPage() {
   const restaurants = await getRestaurantsForUser()
@@ -14,5 +15,13 @@ export default async function DashboardIndexPage() {
   // member without 'pano' → their first section in nav order). Never notFound.
   const first = restaurants[0]!
   const access = await getUserRestaurantAccess(first.id)
+  if (access && (access.isOwner || access.permissions.includes('menu'))) {
+    const panoAllowed = await canRestaurantUseFeature({
+      restaurantId: first.id,
+      plan: first.plan,
+      feature: 'analytics_basic',
+    })
+    if (!panoAllowed) redirect(`/dashboard/${first.id}/menu`)
+  }
   redirect(access ? firstPermittedPath(first.id, access) : `/dashboard/${first.id}`)
 }

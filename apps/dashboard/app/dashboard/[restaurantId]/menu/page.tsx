@@ -22,9 +22,11 @@ export default async function MenuPage({ params }: Props) {
   if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'qr_menu' })) {
     return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="qr_menu" isOwner={access.isOwner} planPrices={readBillingPlanPrices()} />
   }
-  const [menuResult, themeResult] = await Promise.all([
+  const [menuResult, themeResult, guestOrderingEnabled, loyaltyEnabled] = await Promise.all([
     getMenuManagementData(restaurantId),
     readPublishedTheme({ restaurantId }, createThemeApplicationPort()),
+    canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'guest_ordering' }),
+    canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'loyalty' }),
   ])
   if (!menuResult.ok) return <MenuLoadError message={menuResult.error} />
 
@@ -42,6 +44,8 @@ export default async function MenuPage({ params }: Props) {
       kitchenStations={kitchenStations}
       initialRecommendations={recommendations}
       recommendationsAvailable={recommendationsAvailable}
+      orderingFeaturesEnabled={guestOrderingEnabled}
+      loyaltyStampEnabled={guestOrderingEnabled && loyaltyEnabled}
     />
   )
 }

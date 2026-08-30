@@ -19,7 +19,7 @@ test('category navigation keeps the filter control fixed while category chips sc
   assert.match(categoryNavSource, /minWidth: 44,[\s\S]*?minHeight: 44/)
   assert.match(categoryNavSource, /const visibleHeight = density === 'compact' \? 32 : density === 'comfortable' \? 40 : 36/)
   assert.match(categoryNavSource, /clamp\(12px, calc\(var\(--p-fs\) - 2px\), 17px\)/)
-  assert.match(categoryNavSource, /justifyContent: contentFits \? 'center' : 'flex-start'/)
+  assert.match(categoryNavSource, /justifyContent: getCategoryNavJustifyContent\(categories\.length, contentFits\)/)
   assert.match(categoryNavSource, /role="status"/)
   assert.match(menuPageSource, /<CategoryNav[\s\S]*?leadingControl=\{menuFilters\}/)
   assert.doesNotMatch(menuPageSource, /data-component="dietary-filters"/)

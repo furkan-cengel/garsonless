@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { ReactNode } from 'react'
+import type { DashboardSectionEntitlements } from '../../lib/auth/dashboard-entitlements'
 import { serviceRequestLabel } from '@garsonless/domain/tables'
 import { OPEN_ORDER_STATUSES } from '@garsonless/domain/orders'
 import { ShellContext, type ShellOverlay } from '../../lib/shell-context'
@@ -66,12 +67,16 @@ const MOBILE_RAIL_SHELL_CSS = `
   }
   .restaurant-shell--mobile-rail .restaurant-rail {
     order: 2;
+    box-sizing: border-box;
     width: 100% !important;
     height: calc(58px + var(--mobile-rail-safe-area));
     flex-direction: row !important;
     align-items: center !important;
     gap: 2px !important;
     padding: 6px 8px calc(6px + var(--mobile-rail-safe-area)) !important;
+    background: var(--surface) !important;
+    isolation: isolate;
+    contain: paint;
     overflow-x: hidden;
     overflow-y: hidden;
     border-right: 0 !important;
@@ -80,23 +85,53 @@ const MOBILE_RAIL_SHELL_CSS = `
   }
   .restaurant-shell--mobile-rail .restaurant-rail::-webkit-scrollbar { display: none; }
   .restaurant-shell--mobile-rail .restaurant-rail .rail-primary {
+    height: 44px;
+    min-height: 44px;
     min-width: 0;
-    flex: 1;
-    flex-direction: row;
+    flex: var(--mobile-rail-primary-count) 1 0%;
+    display: grid;
+    grid-template-columns: repeat(var(--mobile-rail-primary-count), minmax(0, 1fr));
     align-items: center;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-snap-type: x proximity;
-    overscroll-behavior-x: contain;
-    mask-image: linear-gradient(to right, transparent, #000 10px, #000 calc(100% - 10px), transparent);
+    gap: 2px;
+    overflow: visible;
   }
-  .restaurant-shell--mobile-rail .restaurant-rail .rail-primary .rail-item { scroll-snap-align: center; }
+  .restaurant-shell--mobile-rail .restaurant-rail .rail-item {
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+    flex: none;
+    align-items: center;
+  }
   .restaurant-shell--mobile-rail .restaurant-rail .rail-secondary {
+    height: 44px;
+    min-height: 44px;
     margin-top: 0 !important;
-    margin-left: auto;
-    flex-direction: row !important;
-    flex-shrink: 0;
-    background: var(--surface);
+    margin-left: 0 !important;
+    flex: 2 1 0%;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    background: transparent;
+  }
+  .restaurant-shell--mobile-rail .restaurant-rail .rail-link,
+  .restaurant-shell--mobile-rail .restaurant-rail .rail-btn,
+  .restaurant-shell--mobile-rail .restaurant-rail .rail-profile {
+    width: 100% !important;
+    max-width: 44px;
+    height: 44px !important;
+    flex: 0 0 44px;
+    margin: 0 !important;
+    padding: 0;
+    line-height: 0;
+  }
+  .restaurant-shell--mobile-rail .restaurant-rail .rail-secondary .rail-item {
+    margin-top: 0 !important;
+  }
+  .restaurant-shell--mobile-rail .restaurant-rail .rail-item svg {
+    display: block;
+    flex: none;
   }
   .restaurant-shell--mobile-rail .restaurant-rail .rail-tooltip { display: none; }
   .restaurant-shell--mobile-rail .restaurant-rail .rail-active-indicator {
@@ -118,6 +153,8 @@ interface Props {
   userInitials: string
   userAvatarUrl: string | null
   planLabel: string
+  sectionEntitlements: DashboardSectionEntitlements
+  tableOperationsAllowed: boolean
   /** Sections the user may access (owner → all 8); drives the slim nav. */
   permissions: string[]
   isOwner: boolean
@@ -135,6 +172,8 @@ export default function RestaurantShell({
   userInitials,
   userAvatarUrl,
   planLabel,
+  sectionEntitlements,
+  tableOperationsAllowed,
   permissions,
   isOwner,
   browserNotificationsEnabled,
@@ -436,7 +475,7 @@ export default function RestaurantShell({
     beginNavigation: navigationFeedback.beginNavigation,
     cancelNavigation: navigationFeedback.cancelNavigation,
     notificationCount,
-    navigation: { pathname, userDisplayName, userInitials, userAvatarUrl, ordersBadge, permissions, isOwner },
+    navigation: { pathname, userDisplayName, userInitials, userAvatarUrl, ordersBadge, permissions, isOwner, sectionEntitlements, tableOperationsAllowed },
   }), [
     closeOverlay,
     getNavigationGuard,
@@ -452,6 +491,8 @@ export default function RestaurantShell({
     overlay,
     pathname,
     permissions,
+    sectionEntitlements,
+    tableOperationsAllowed,
     setNavigationGuard,
     toggleOverlay,
     userAvatarUrl,
@@ -532,6 +573,8 @@ export default function RestaurantShell({
           ordersBadge={ordersBadge}
           permissions={permissions}
           isOwner={isOwner}
+          sectionEntitlements={sectionEntitlements}
+          tableOperationsAllowed={tableOperationsAllowed}
         />
         <main
           className={`restaurant-main${isCustomersRoute ? ' restaurant-main--customers' : ''}`}

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
+import { LockKeyhole } from 'lucide-react'
 import { useShell } from '../../lib/shell-context'
 import DashboardIconRail from '../layout/IconRail'
 import { TABLES_MOBILE_STYLES } from './tables-builder-mobile-styles'
@@ -329,19 +330,22 @@ export function TablesIconRail({ restaurantId }: { restaurantId: string }) {
       ordersBadge={navigation.ordersBadge}
       permissions={navigation.permissions}
       isOwner={navigation.isOwner}
+      sectionEntitlements={navigation.sectionEntitlements}
+      tableOperationsAllowed={navigation.tableOperationsAllowed}
     />
   )
 }
 
-export function TablesSectionTabs({ restaurantId, active }: {
+export function TablesSectionTabs({ restaurantId, active, tableOperationsAllowed = true }: {
   restaurantId: string
   active: 'operations' | 'qr'
+  tableOperationsAllowed?: boolean
 }) {
   const base = `/dashboard/${restaurantId}/tables`
   return (
     <nav className="tb-tables__section-tabs" aria-label="Masalar bölümü">
       <Link className="tb-tables__section-tab" href={base} prefetch={false} aria-current={active === 'operations' ? 'page' : undefined}>
-        Canlı Masalar
+        {!tableOperationsAllowed && <LockKeyhole size={12} />} Canlı Masalar
       </Link>
       <Link className="tb-tables__section-tab" href={`${base}/qr`} prefetch={false} aria-current={active === 'qr' ? 'page' : undefined}>
         QR Studio

@@ -601,6 +601,15 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
   function setToggle(key: NotificationToggleKey, value: boolean) {
     setPrefs(prev => ({ ...prev, [key]: value }))
     setSaved(false)
+    if (
+      value
+      && (key === 'newOrderPush' || key === 'serviceRequestPush')
+      && device.status !== 'subscribed'
+    ) {
+      // Keep the browser permission request inside the user's switch gesture.
+      // An enabled restaurant preference alone cannot create a device endpoint.
+      void device.subscribe()
+    }
   }
 
   function updateSoundPrefs(patch: Partial<NotificationPrefs>) {
@@ -840,7 +849,11 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                             ? 'İzin engelli'
                             : device.status === 'unconfigured'
                               ? 'Yapılandırılmamış'
-                              : 'Kapalı'}
+                              : device.status === 'unsupported'
+                                ? 'Desteklenmiyor'
+                                : device.status === 'error'
+                                  ? 'Bağlantı hatası'
+                                  : 'Kapalı'}
                     </Badge>
                   </div>
                   <FieldDescription>
@@ -850,7 +863,9 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                         ? 'Web Push anahtarı bu ortamda yapılandırılmamış.'
                         : device.status === 'denied'
                           ? 'Tarayıcı izni engellenmiş; site ayarlarından açın.'
-                          : device.error ?? 'Bu tarayıcıyı dayanıklı bildirim teslimatına bağlayın.'}
+                          : device.status === 'unsupported'
+                            ? 'Bu tarayıcı Web Push veya service worker desteği sunmuyor.'
+                            : device.error ?? 'Bildirim tercihini açtığınızda bu cihaz da otomatik olarak bağlanır.'}
                   </FieldDescription>
                 </FieldContent>
                 <div className="flex flex-wrap items-center gap-2">
@@ -871,7 +886,7 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                   <Button
                     type="button"
                     variant={device.status === 'subscribed' ? 'outline' : 'default'}
-                    disabled={device.status === 'subscribing' || device.status === 'unconfigured' || device.status === 'denied'}
+                    disabled={device.status === 'subscribing' || device.status === 'unconfigured' || device.status === 'denied' || device.status === 'unsupported'}
                     onClick={() => void (device.status === 'subscribed' ? device.unsubscribe() : device.subscribe())}
                   >
                     {device.status === 'subscribing'
@@ -894,7 +909,7 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
             <I.bell />
             <AlertTitle>Bildirim teslimatı</AlertTitle>
             <AlertDescription>
-              Uygulama içi uyarılar tüm paketlerde çalışır. Sistem bildirimleri Starter ve üzeri paketlerde
+              Uygulama içi uyarılar tüm paketlerde çalışır. Sistem bildirimleri Pro paketinde
               tarayıcı izni gerektirir. E-posta tercihleri kişiseldir; SMS henüz desteklenmiyor.
             </AlertDescription>
           </Alert>

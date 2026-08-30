@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { customerActorContext, readMemberLoyalty, type MemberBalances } from '@garsonless/application/loyalty'
 import { withoutAdvancedThemeSections } from '@garsonless/application/themes'
-import { createLoyaltyQueryPort, createThemeApplicationPort } from '@garsonless/db/server'
+import { createLoyaltyQueryPort, createThemeApplicationPort, readTenantOrderIngressStatus } from '@garsonless/db/server'
 import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
 import { getMenuCategories, getMenuItems, getRestaurantBySlug } from '../../lib/queries'
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../lib/featured-products'
@@ -30,15 +30,16 @@ export default async function MenuPage({ params, searchParams }: Props) {
   ])
   if (!themeResult.ok) notFound()
   const themePort = createThemeApplicationPort()
-  const [menuAccess, guestOrderingAccess, customerAccountsAccess, advancedThemeAccess] = await Promise.all([
+  const [menuAccess, guestOrderingAccess, customerAccountsAccess, advancedThemeAccess, orderIngressStatus] = await Promise.all([
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'qr_menu' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'guest_ordering' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'customer_accounts' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_advanced_sections' }),
+    readTenantOrderIngressStatus(restaurant.id),
   ])
   if (!menuAccess.ok || !menuAccess.value) notFound()
   const customerAccountsEnabled = customerAccountsAccess.ok && customerAccountsAccess.value
-  const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value
+  const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value && orderIngressStatus === 'active'
   const theme = advancedThemeAccess.ok && advancedThemeAccess.value
     ? themeResult.value.theme
     : withoutAdvancedThemeSections(themeResult.value.theme)

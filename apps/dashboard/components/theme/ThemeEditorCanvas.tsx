@@ -25,11 +25,13 @@ interface ThemeEditorCanvasProps {
   experienceSurface: ThemeEditorSurface
   homeEnabled: boolean
   experienceV2Enabled: boolean
+  canUseGuestOrdering: boolean
   onPreviewRetry: () => void
   onPreviewLoad: () => void
   onPreviewError: () => void
   onPreviewModeChange: (mode: ThemePreviewMode) => void
   onExperienceSurfaceChange: (surface: ThemeEditorSurface) => void
+  onLockedExperienceSurface: (surface: ThemeEditorSurface) => void
   onZoom: (delta: number) => void
   onFit: () => void
 }
@@ -45,11 +47,13 @@ export function ThemeEditorCanvas({
   experienceSurface,
   homeEnabled,
   experienceV2Enabled,
+  canUseGuestOrdering,
   onPreviewRetry,
   onPreviewLoad,
   onPreviewError,
   onPreviewModeChange,
   onExperienceSurfaceChange,
+  onLockedExperienceSurface,
   onZoom,
   onFit,
 }: ThemeEditorCanvasProps) {
@@ -114,6 +118,8 @@ export function ThemeEditorCanvas({
             <ThemeExperienceSurfaceSelector
               value={experienceSurface}
               homeEnabled={homeEnabled}
+              canUseGuestOrdering={canUseGuestOrdering}
+              onLockedSurface={onLockedExperienceSurface}
               onChange={onExperienceSurfaceChange}
             />
           )}

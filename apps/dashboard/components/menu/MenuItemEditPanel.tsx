@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
+import { LockKeyhole } from 'lucide-react'
 
 import { useEffect, useRef, useState, useTransition, type CSSProperties, type ReactNode } from 'react'
 import type { Tables } from '@garsonless/db/types'
@@ -40,6 +41,8 @@ export function MenuItemEditPanel({
   allItems,
   recommendationIds,
   recommendationsAvailable,
+  orderingFeaturesEnabled,
+  loyaltyStampEnabled,
   onRetryRecommendations,
   restaurantId,
   onClose,
@@ -57,6 +60,8 @@ export function MenuItemEditPanel({
   allItems: Tables<'menu_items'>[]
   recommendationIds: string[]
   recommendationsAvailable: boolean
+  orderingFeaturesEnabled: boolean
+  loyaltyStampEnabled: boolean
   onRetryRecommendations: () => void
   restaurantId: string
   onClose: () => void
@@ -188,7 +193,7 @@ export function MenuItemEditPanel({
       fd.append('vat_rate', vatMode === 'category' ? '' : vatRate)
       fd.append('kitchen_station_id', stationMode === 'category' ? '' : kitchenStationId)
       fd.append('is_available', String(isAvailable))
-      fd.append('earns_stamp', String(earnsStamp))
+      if (loyaltyStampEnabled) fd.append('earns_stamp', String(earnsStamp))
       appendNutritionToFormData(fd, nutri)
       fd.append('cost', cost)
       fd.append('images', JSON.stringify(images))
@@ -701,7 +706,9 @@ export function MenuItemEditPanel({
       </PanelSection>
 
       <PanelSection title="Yanında iyi gider">
-        {recommendationsAvailable ? (
+        {!orderingFeaturesEnabled ? (
+          <FeatureLockNotice description="Ürün önerileri, misafirin sepete ekleme ve sipariş akışıyla birlikte Pro paketinde açılır." />
+        ) : recommendationsAvailable ? (
           <MenuItemRecommendationEditor
             restaurantId={restaurantId}
             sourceItem={item}
@@ -734,8 +741,10 @@ export function MenuItemEditPanel({
       <PanelSection title="Sadakat">
         <FieldRow label="Damga kazandırır">
           <div className="flex items-center gap-2">
-            <Switch checked={earnsStamp} onCheckedChange={setEarnsStamp} aria-label="Sadakat damgası kazandırır" />
-            <Badge variant={earnsStamp ? 'positive' : 'secondary'}>{earnsStamp ? 'Evet' : 'Hayır'}</Badge>
+            <Switch checked={loyaltyStampEnabled && earnsStamp} onCheckedChange={setEarnsStamp} disabled={!loyaltyStampEnabled} aria-label="Sadakat damgası kazandırır" />
+            <Badge variant={loyaltyStampEnabled && earnsStamp ? 'positive' : 'secondary'}>
+              {loyaltyStampEnabled ? earnsStamp ? 'Evet' : 'Hayır' : <><LockKeyhole className="size-3" strokeWidth={1.8} />Pro</>}
+            </Badge>
           </div>
         </FieldRow>
         <p
@@ -746,12 +755,27 @@ export function MenuItemEditPanel({
             lineHeight: 1.4,
           }}
         >
-          Bu ürün satın alındığında her uygun adet için 1 sadakat damgası kazanılır.
+          {loyaltyStampEnabled
+            ? 'Bu ürün satın alındığında her uygun adet için 1 sadakat damgası kazanılır.'
+            : 'QR siparişi ve sadakat etkinleştirildiğinde bu ayarı kullanabilirsin.'}
         </p>
       </PanelSection>
     </MenuItemEditorFrame>
   )
 }
+
+function FeatureLockNotice({ description }: { description: string }) {
+  return (
+    <div role="status" className="flex items-start gap-2.5 rounded-lg border bg-muted/30 p-3 text-muted-foreground">
+      <LockKeyhole className="mt-0.5 size-4 shrink-0" strokeWidth={1.8} />
+      <div className="grid gap-0.5 text-[11.5px] leading-relaxed">
+        <strong className="font-semibold text-foreground">Pro ile açılır</strong>
+        <span>{description}</span>
+      </div>
+    </div>
+  )
+}
+
 function PanelSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--divider)' }}>

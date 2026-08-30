@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHmac } from 'node:crypto'
 import test from 'node:test'
 import {
   createIyzicoSubscriptionWebhookVerifier,
@@ -30,6 +31,18 @@ function request(
     },
   }
 }
+
+test('iyzico subscription V3 signature follows the documented secret-key-first field order', () => {
+  const message = config.secretKey
+    + config.merchantId
+    + payload.iyziEventType
+    + payload.subscriptionReferenceCode
+    + payload.orderReferenceCode
+    + payload.customerReferenceCode
+  const expected = createHmac('sha256', config.secretKey).update(message, 'utf8').digest('hex')
+
+  assert.equal(signIyzicoSubscriptionWebhookForTest(config, payload), expected)
+})
 
 test('iyzico subscription webhook verifies V3 signature and returns only allowlisted refs', async () => {
   const result = await createIyzicoSubscriptionWebhookVerifier(config, () => now).verifyWebhook(request())

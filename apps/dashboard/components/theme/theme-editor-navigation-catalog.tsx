@@ -5,19 +5,50 @@ import { THEME_EDITOR_THEME_GROUP_ID } from './theme-editor-properties-model'
 const THEME_GROUP_SOURCE_IDS = new Set(['colors', 'typography'])
 const HEADER_GROUP_IDS = new Set(['header', 'header-layout', 'header-context', 'header-actions', 'drawer'])
 
-export function buildEditorNavigation(schema: SettingsGroup[], themeName: string) {
+const ORDERING_THEME_FIELD_IDS = new Set([
+  'cartPlacement',
+  'cartStyle',
+  'cartHeaderTriggerStyle',
+  'cartFooterTriggerStyle',
+  'cartIcon',
+  'cartShowBadge',
+  'cartPillPosition',
+  'cartPillTone',
+  'cartDrawerTone',
+  'cartShowSubtotal',
+  'cartShowItemCount',
+  'cartPrimaryActionText',
+  'cartButtonText',
+  'cartEmptyText',
+])
+
+export function restrictOrderingThemeSchema(schema: SettingsGroup[], canUseGuestOrdering: boolean) {
+  if (canUseGuestOrdering) return schema
+  return schema.map((group) => ({
+    ...group,
+    fields: group.id === 'cart'
+      ? []
+      : group.fields.filter((field) => !ORDERING_THEME_FIELD_IDS.has(field.themeField)),
+  }))
+}
+
+export function buildEditorNavigation(
+  schema: SettingsGroup[],
+  themeName: string,
+  lockedGroupIds: ReadonlySet<string> = new Set(),
+) {
   const visibleSchema = schema.filter((group) => !THEME_GROUP_SOURCE_IDS.has(group.id))
   const headerGroups = visibleSchema.filter((group) => HEADER_GROUP_IDS.has(group.id))
   const remaining = visibleSchema.filter((group) => !HEADER_GROUP_IDS.has(group.id))
   const splitIndex = Math.ceil(remaining.length / 2)
   const structure = [
     ...headerGroups.map((group) => ({
-      ...toNavigationItem(group),
+      ...toNavigationItem(group, lockedGroupIds),
       label: group.id === 'header' ? 'Logo ve Marka' : group.label,
       parentLabel: 'Header',
       depth: 1,
     })),
-    ...remaining.slice(0, splitIndex).map(toNavigationItem),
+    ...remaining.slice(0, splitIndex).map((group) => toNavigationItem(group, lockedGroupIds)),
   ]
   const style = [
     ...(schema.some((group) => THEME_GROUP_SOURCE_IDS.has(group.id))
@@ -28,7 +59,7 @@ export function buildEditorNavigation(schema: SettingsGroup[], themeName: string
           icon: <I.palette size={17} />,
         }]
       : []),
-    ...remaining.slice(splitIndex).map(toNavigationItem),
+    ...remaining.slice(splitIndex).map((group) => toNavigationItem(group, lockedGroupIds)),
   ]
 
   return [
@@ -47,12 +78,13 @@ export function buildThemeSettingsGroup(schema: SettingsGroup[]): SettingsGroup 
   }
 }
 
-function toNavigationItem(group: SettingsGroup) {
+function toNavigationItem(group: SettingsGroup, lockedGroupIds: ReadonlySet<string>) {
   return {
     id: group.id,
     label: group.label,
     sub: getNavigationSubtitle(group.id, group.label),
     icon: getNavigationIcon(group.id),
+    locked: lockedGroupIds.has(group.id),
   }
 }
 

@@ -40,13 +40,13 @@ const FEATURE_PRESENTATIONS: Partial<Record<BillableFeature, FeaturePresentation
     ],
   },
   table_management: {
-    label: 'Masalar',
+    label: 'Canlı Masalar',
     icon: I.chair,
     benefits: [
-      'Masa bazlı QR kodları',
       'Canlı masa ve hesap takibi',
       'Masa taşıma ve hesap birleştirme araçları',
       'Salon düzenini tek ekrandan yönetme',
+      'Adisyon ve tahsilat operasyonu',
     ],
   },
   customer_accounts: {
@@ -148,12 +148,14 @@ function PlanPreview() {
   )
 }
 
-export default function PlanLockedPanel({ restaurantId, currentPlan: currentPlanInput, feature, isOwner, planPrices }: {
+export default function PlanLockedPanel({ restaurantId, currentPlan: currentPlanInput, feature, isOwner, planPrices, returnHref, returnLabel = 'Menüye dön' }: {
   restaurantId: string
   currentPlan: unknown
   feature: BillableFeature
   isOwner: boolean
   planPrices: BillingPlanPrices
+  returnHref?: string
+  returnLabel?: string
 }) {
   const entitlement = getFeatureEntitlement(currentPlanInput, feature)
   const currentPlan = normalizeRestaurantPlan(currentPlanInput)
@@ -170,6 +172,7 @@ export default function PlanLockedPanel({ restaurantId, currentPlan: currentPlan
   const description = entitlement.allowed
     ? 'Deneme veya abonelik süreniz sona ermiş olabilir. Verileriniz korunuyor; yeniden etkinleştirdiğinizde kaldığınız yerden devam edersiniz.'
     : `Bu bölüm ${requiredLabel} veya üzeri paketlerde kullanılabilir. Planınızı yükselttiğinizde mevcut verileriniz değişmeden erişiminiz açılır.`
+  const safeReturnHref = returnHref ?? `/dashboard/${restaurantId}/menu`
 
   return (
     <main className={styles.root} data-plan-locked-panel>
@@ -177,6 +180,11 @@ export default function PlanLockedPanel({ restaurantId, currentPlan: currentPlan
       <div className={styles.scrim} aria-hidden="true" />
       <section className={styles.card} aria-labelledby="plan-lock-title">
         <div className={styles.valuePanel}>
+          <Link className={styles.returnLink} href={safeReturnHref}>
+            <I.chevLeft size={15} />
+            {returnLabel}
+          </Link>
+
           <div className={styles.iconWrap} aria-hidden="true">
             <span className={styles.iconHalo} />
             <span className={styles.iconTile}><I.lock size={25} /></span>

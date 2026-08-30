@@ -25,6 +25,15 @@ test('settings navigation exposes the canonical current section', () => {
   assert.match(settingsForm, /aria-current=\{active \? 'page' : undefined\}/)
 })
 
+test('locked settings keep their label unobstructed and use a Lucide lock indicator', () => {
+  assert.match(settingsForm, /import \{ LockKeyhole \} from 'lucide-react'/)
+  assert.match(settingsForm, /className=\{styles\.navRowLock\}/)
+  assert.match(settingsForm, /locked \? `\$\{requiredPlanLabel \?\? 'Üst paket'\} gerekir` : item\.desc/)
+  assert.match(settingsForm, /aria-label=\{locked \? `\$\{item\.label\}, \$\{requiredPlanLabel \?\? 'üst paket'\} gerekir`/)
+  assert.doesNotMatch(settingsForm, /locked \? <Tag/)
+  assert.match(styles, /\.navRowLock \{[\s\S]*flex: 0 0 18px/)
+})
+
 test('shared shadcn form rows associate labels and hint descriptions with controls', () => {
   assert.match(workspace, /<FormRow label="Mağaza adı"/)
   assert.match(workspace, /<Input[\s\S]*value=\{name\}/)

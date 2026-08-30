@@ -136,6 +136,50 @@ function CompactSelectionControl({
   );
 }
 
+function ReadOnlyModifierOption({ option }: { option: ModifierGroup["options"][number] }) {
+  const priceDelta = option.price_delta !== 0
+    ? `${option.price_delta > 0 ? "+" : ""}${formatTRY(option.price_delta)}`
+    : null;
+  const detail = [
+    priceDelta,
+    option.calorie_delta !== 0 ? `${option.calorie_delta > 0 ? "+" : ""}${option.calorie_delta} kcal` : null,
+  ].filter(Boolean).join(" · ");
+
+  return (
+    <div
+      data-component="product-modal-readonly-option"
+      style={{
+        minHeight: 40,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+        padding: "5px 0",
+      }}
+    >
+      <span style={{ minWidth: 0, display: "inline-flex", alignItems: "center", gap: 7 }}>
+        <span style={{ color: "var(--p-text)", fontSize: 13 }}>{option.name}</span>
+        {option.is_default ? (
+          <small
+            style={{
+              flexShrink: 0,
+              padding: "2px 6px",
+              borderRadius: 999,
+              background: "var(--p-accent-soft)",
+              color: "var(--p-accent)",
+              fontSize: 9.5,
+              fontWeight: 800,
+            }}
+          >
+            Standart
+          </small>
+        ) : null}
+      </span>
+      {detail ? <span style={{ flexShrink: 0, color: "var(--p-text-2)", fontSize: 12 }}>{detail}</span> : null}
+    </div>
+  );
+}
+
 function ComboContextSummary({ context }: { context: ProductModalComboContext }) {
   const stateLabel = {
     current: "Şimdi seçiliyor",
@@ -431,6 +475,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
         key="modal"
         ref={modalRef}
         data-component="product-modal"
+        data-ordering-enabled={orderingEnabled ? "true" : "false"}
         role="dialog"
         aria-modal={configuringRecommendation ? undefined : "true"}
         aria-hidden={configuringRecommendation ? true : undefined}
@@ -783,7 +828,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                         fontWeight: 750,
                       }}
                     >
-                      İsteğe bağlı
+                      {orderingEnabled ? "İsteğe bağlı" : "Bilgi"}
                     </span>
                   </div>
                   <p
@@ -793,38 +838,44 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                       color: "var(--p-text-2)",
                     }}
                   >
-                    İstemediğin malzemeleri işaretle
+                    {orderingEnabled ? "İstemediğin malzemeleri işaretle" : "Ürün, aşağıdaki malzemeler çıkarılarak hazırlanabilir."}
                   </p>
                   {item.ingredients
                     .filter((ingredient) => ingredient.removable)
                     .map((ingredient) => (
-                      <label
-                        key={ingredient.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 9,
-                          minHeight: 40,
-                          padding: "6px 0",
-                          fontSize: 13,
-                          cursor: "pointer",
-                        }}
-                      >
-                        <span>{ingredient.name} olmasın</span>
-                        <CompactSelectionControl
-                          type="checkbox"
-                          label={`${ingredient.name} malzemesini çıkar`}
-                          checked={removedIngredientIds.includes(ingredient.id)}
-                          onCheckedChange={(checked) =>
-                            setRemovedIngredientIds((current) =>
-                              checked
-                                ? [...current, ingredient.id]
-                                : current.filter((id) => id !== ingredient.id),
-                            )
-                          }
-                        />
-                      </label>
+                      orderingEnabled ? (
+                        <label
+                          key={ingredient.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 9,
+                            minHeight: 40,
+                            padding: "6px 0",
+                            fontSize: 13,
+                            cursor: "pointer",
+                          }}
+                        >
+                          <span>{ingredient.name} olmasın</span>
+                          <CompactSelectionControl
+                            type="checkbox"
+                            label={`${ingredient.name} malzemesini çıkar`}
+                            checked={removedIngredientIds.includes(ingredient.id)}
+                            onCheckedChange={(checked) =>
+                              setRemovedIngredientIds((current) =>
+                                checked
+                                  ? [...current, ingredient.id]
+                                  : current.filter((id) => id !== ingredient.id),
+                              )
+                            }
+                          />
+                        </label>
+                      ) : (
+                        <div key={ingredient.id} data-component="product-modal-readonly-removable" style={{ minHeight: 36, display: "flex", alignItems: "center", padding: "4px 0", color: "var(--p-text)", fontSize: 13 }}>
+                          {ingredient.name}
+                        </div>
+                      )
                     ))}
                 </div>
               )}
@@ -960,12 +1011,12 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                 return (
                   <div
                     key={group.id}
-                    role="group"
-                    data-modifier-invalid={validationAttempted && !groupIsValid ? "true" : "false"}
+                    role={orderingEnabled ? "group" : undefined}
+                    data-modifier-invalid={orderingEnabled && validationAttempted && !groupIsValid ? "true" : "false"}
                     aria-labelledby={groupLabelId}
                     aria-describedby={groupHintId}
-                    aria-required={minimumSelections > 0}
-                    tabIndex={-1}
+                    aria-required={orderingEnabled && minimumSelections > 0 ? true : undefined}
+                    tabIndex={orderingEnabled ? -1 : undefined}
                     style={{
                       borderTop: "1px solid rgba(15,23,42,.08)",
                       padding: "14px 18px",
@@ -1000,14 +1051,16 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                             color: "var(--p-text-2)",
                           }}
                         >
-                          {minimumSelections === group.max
-                            ? `${minimumSelections} seçim yap`
-                            : minimumSelections > 0
-                              ? `En az ${minimumSelections}, en fazla ${group.max} seçim`
-                              : `En fazla ${group.max} seçim`}
+                          {orderingEnabled
+                            ? minimumSelections === group.max
+                              ? `${minimumSelections} seçim yap`
+                              : minimumSelections > 0
+                                ? `En az ${minimumSelections}, en fazla ${group.max} seçim`
+                                : `En fazla ${group.max} seçim`
+                            : "Seçenekler ve fiyat farkları"}
                         </p>
                       </div>
-                      {minimumSelections > 0 && (
+                      {orderingEnabled && minimumSelections > 0 && (
                         <span
                           style={{
                             backgroundColor: "var(--p-accent)",
@@ -1024,6 +1077,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                     </div>
 
                     {group.options.map((opt) => {
+                      if (!orderingEnabled) return <ReadOnlyModifierOption key={opt.id} option={opt} />;
                       const isSelected = (selections[group.id] ?? []).some((s) => s.option_id === opt.id);
                       const priceDeltaStr = opt.price_delta !== 0 ? (opt.price_delta > 0 ? "+" : "") + formatTRY(opt.price_delta) : null;
                       const optionQuantity = (selections[group.id] ?? []).find((selection) => selection.option_id === opt.id)?.quantity ?? 0;
@@ -1180,7 +1234,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                 );
               })}
 
-              {recommendationItems.length > 0 && (
+              {orderingEnabled && recommendationItems.length > 0 && (
                 <div
                   data-component="product-recommendations"
                   style={{
@@ -1382,7 +1436,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                 </div>
               )}
 
-              <div
+              {orderingEnabled && <div
                 data-component="product-note"
                 style={{
                   borderTop: "1px solid rgba(15,23,42,.08)",
@@ -1446,12 +1500,12 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                 >
                   {productNote.length}/500 karakter
                 </div>
-              </div>
+              </div>}
             </div>
           </div>
         </div>
 
-        <div
+        {orderingEnabled ? <div
           data-component="product-modal-actions"
           style={{
             flexShrink: 0,
@@ -1557,9 +1611,8 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
           )}
           <button
             type="button"
-            disabled={!orderingEnabled}
             aria-describedby={validationAttempted && !isValid ? validationMessageId : undefined}
-            aria-disabled={!orderingEnabled || !isValid}
+            aria-disabled={!isValid}
             onClick={handleAddToCart}
             style={{
               width: "100%",
@@ -1570,14 +1623,37 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
               color: "#fff",
               fontSize: 15,
               fontWeight: 850,
-              cursor: orderingEnabled ? "pointer" : "not-allowed",
-              opacity: orderingEnabled && isValid ? 1 : 0.55,
+              cursor: "pointer",
+              opacity: isValid ? 1 : 0.55,
               transition: "opacity 150ms ease",
             }}
           >
-            {orderingEnabled ? (submitLabel ?? "Sepete ekle") : "Yalnızca menü görüntüleme"}
+            {submitLabel ?? "Sepete ekle"}
           </button>
-        </div>
+        </div> : (
+          <div
+            data-component="product-modal-view-only-notice"
+            role="note"
+            style={{
+              minHeight: 52,
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              padding: "10px 18px max(10px, env(safe-area-inset-bottom))",
+              borderTop: "1px solid rgba(15,23,42,.08)",
+              background: "color-mix(in srgb, var(--p-card) 92%, var(--p-accent-soft))",
+              color: "var(--p-text-2)",
+              fontSize: 12,
+              fontWeight: 750,
+              textAlign: "center",
+            }}
+          >
+            <I.eye size={16} aria-hidden="true" />
+            Bu menü yalnızca görüntüleme amaçlıdır.
+          </div>
+        )}
       </motion.div>
       {configuringRecommendation && (
         <ProductModal

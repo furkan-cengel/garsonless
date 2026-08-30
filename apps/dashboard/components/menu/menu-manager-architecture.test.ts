@@ -28,6 +28,7 @@ const csvImportSource = readFileSync(`${directory}/use-menu-csv-import.ts`, 'utf
 const overlaysSource = readFileSync(`${directory}/MenuManagerOverlays.tsx`, 'utf8')
 const menuActionsSource = readFileSync(`${directory}/../../lib/actions/menu.ts`, 'utf8')
 const routeSkeletonSource = readFileSync(`${directory}/../layout/DashboardRouteSkeleton.tsx`, 'utf8')
+const menuPageSource = readFileSync(`${directory}/../../app/dashboard/[restaurantId]/menu/page.tsx`, 'utf8')
 
 test('MenuManager delegates category and quick-item commands to its controller', () => {
   assert.match(managerSource, /useMenuManagerCommands/)
@@ -114,6 +115,20 @@ test('recommendation drafts participate in the shared unsaved-change guard', () 
   assert.match(recommendationEditorSource, /savedIdsRef\.current = idsToSave/)
   assert.match(itemEditorSource, /itemIsDirty \|\| recommendationsDirty/)
   assert.match(itemEditorSource, /onDirtyChange=\{setRecommendationsDirty\}/)
+})
+
+test('ordering-only product controls fail closed outside Pro without erasing saved values', () => {
+  assert.match(menuPageSource, /feature: 'guest_ordering'/)
+  assert.match(menuPageSource, /feature: 'loyalty'/)
+  assert.match(managerSource, /orderingFeaturesEnabled=\{orderingFeaturesEnabled\}/)
+  assert.match(itemEditorSource, /!orderingFeaturesEnabled \? \(/)
+  assert.match(itemEditorSource, /disabled=\{!loyaltyStampEnabled\}/)
+  assert.match(itemEditorSource, /if \(loyaltyStampEnabled\) fd\.append\('earns_stamp'/)
+  assert.match(newProductDrawerSource, /disabled=\{!loyaltyStampEnabled\}/)
+  assert.match(newProductDrawerSource, /if \(loyaltyStampEnabled\) fd\.append\('earns_stamp'/)
+  assert.match(menuActionsSource, /assertRestaurantFeature\(parsed\.data\.restaurantId, 'guest_ordering'\)/)
+  assert.match(menuActionsSource, /assertRestaurantFeature\(parsed\.data\.restaurantId, 'loyalty'\)/)
+  assert.match(menuActionsSource, /Ürün önerileri Pro paketiyle kullanılabilir/)
 })
 
 test('new product drawer traps focus, protects drafts and restores page scrolling', () => {

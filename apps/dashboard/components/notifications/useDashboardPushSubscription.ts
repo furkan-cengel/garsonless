@@ -15,6 +15,8 @@ export type DashboardPushStatus =
   | 'denied'
   | 'error'
 
+let browserSubscriptionTask: Promise<PushSubscription> | null = null
+
 function applicationServerKey(value: string) {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
   const padding = '='.repeat((4 - normalized.length % 4) % 4)
@@ -34,6 +36,29 @@ function supported() {
     && 'Notification' in window
     && 'serviceWorker' in navigator
     && 'PushManager' in window
+}
+
+function ensureBrowserSubscription(publicKey: string) {
+  if (browserSubscriptionTask) return browserSubscriptionTask
+  const task = (async () => {
+    await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+    const registration = await navigator.serviceWorker.ready
+    const key = applicationServerKey(publicKey)
+    let subscription = await registration.pushManager.getSubscription()
+    if (subscription && !hasApplicationServerKey(subscription, key)) {
+      await subscription.unsubscribe()
+      subscription = null
+    }
+    return subscription ?? registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: key,
+    })
+  })()
+  browserSubscriptionTask = task
+  void task.finally(() => {
+    if (browserSubscriptionTask === task) browserSubscriptionTask = null
+  }).catch(() => {})
+  return task
 }
 
 export function useDashboardPushSubscription(restaurantId: string, entitled: boolean) {
@@ -66,26 +91,21 @@ export function useDashboardPushSubscription(restaurantId: string, entitled: boo
     if ('error' in result) throw new Error(`${result.error} (${result.publicCode})`)
   }, [restaurantId])
 
-  // Reconcile an existing browser subscription with the current authenticated
-  // restaurant. This restores the server row after a previous logout without
-  // prompting the browser for permission again.
+  // A granted origin permission is not itself a Web Push subscription. Repair
+  // or create the browser endpoint and persist it for this tenant without
+  // showing a second permission prompt. This also heals installed Android PWAs
+  // whose OS permission survived a logout, reinstall or VAPID key rotation.
   useEffect(() => {
     if (!entitled || !publicKey || !supported() || Notification.permission !== 'granted') return
     let cancelled = false
-    navigator.serviceWorker.register('/sw.js')
-      .then((registration) => registration.pushManager.getSubscription())
+    ensureBrowserSubscription(publicKey)
       .then(async (subscription) => {
-        if (cancelled || !subscription) return
-        if (!hasApplicationServerKey(subscription, applicationServerKey(publicKey))) {
-          await subscription.unsubscribe()
-          if (!cancelled) {
-            setStatus('idle')
-            setError('Bildirim anahtarı yenilendi. Bu cihazı yeniden etkinleştirin.')
-          }
-          return
-        }
+        if (cancelled) return
         await persist(subscription)
-        if (!cancelled) setStatus('subscribed')
+        if (!cancelled) {
+          setError(null)
+          setStatus('subscribed')
+        }
       })
       .catch((cause) => {
         if (cancelled) return
@@ -111,17 +131,7 @@ export function useDashboardPushSubscription(restaurantId: string, entitled: boo
         setStatus(nextPermission === 'denied' ? 'denied' : 'idle')
         return
       }
-      const registration = await navigator.serviceWorker.register('/sw.js')
-      const key = applicationServerKey(publicKey)
-      let existing = await registration.pushManager.getSubscription()
-      if (existing && !hasApplicationServerKey(existing, key)) {
-        await existing.unsubscribe()
-        existing = null
-      }
-      const subscription = existing ?? await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: key,
-      })
+      const subscription = await ensureBrowserSubscription(publicKey)
       await persist(subscription)
       setStatus('subscribed')
     } catch (cause) {

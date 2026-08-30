@@ -15,7 +15,8 @@ test('tenant plan port maps trusted command arguments and parses projection', as
     received = { name, args }
     return {
       data: {
-        restaurantId, previousPlan: 'starter', plan: 'pro', changed: true,
+        restaurantId, previousPlan: 'starter', requestedPlan: 'pro', plan: 'pro', changed: true,
+        scheduled: false, openSessionCount: 0,
         duplicate: false, requestId,
       },
       error: null,
@@ -27,7 +28,7 @@ test('tenant plan port maps trusted command arguments and parses projection', as
   })
   assert.equal(result.ok, true)
   assert.deepEqual(received, {
-    name: 'set_platform_admin_tenant_plan',
+    name: 'request_platform_admin_tenant_plan_transition',
     args: {
       p_restaurant_id: restaurantId,
       p_actor_user_id: actorUserId,
@@ -62,7 +63,8 @@ test('live billing conflict is preserved without leaking other database errors',
 test('malformed plan projections fail closed', async () => {
   const malformed: PlatformTenantPlanRpc = async () => ({
     data: {
-      restaurantId, previousPlan: 'starter', plan: 'unknown', changed: true,
+      restaurantId, previousPlan: 'starter', requestedPlan: 'pro', plan: 'unknown', changed: true,
+      scheduled: false, openSessionCount: 0,
       duplicate: false, requestId,
     },
     error: null,

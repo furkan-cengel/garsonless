@@ -8,6 +8,7 @@ import { HomePagePreviewClient } from '../../[slug]/HomePagePreviewClient'
 import { getPreviewTheme } from '../../../lib/published-theme'
 import { hasThemePreviewAccess } from '../../../lib/theme-preview-access'
 import { getPublicMenuRevision } from '../../../lib/public-menu-revision'
+import { createThemeApplicationPort, readTenantOrderIngressStatus } from '@garsonless/db/server'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { robots: { index: false, follow: false, noarchive: true } }
@@ -37,8 +38,18 @@ export default async function ThemeExperiencePreview({ params, searchParams }: P
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
   ])
   if (!themeResult.ok) notFound()
+  const [guestOrderingAccess, orderIngressStatus] = await Promise.all([
+    createThemeApplicationPort().readFeatureAccess({
+      restaurantId: restaurant.id,
+      plan: themeResult.value.restaurant.plan,
+      feature: 'guest_ordering',
+    }),
+    readTenantOrderIngressStatus(restaurant.id),
+  ])
+  const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value && orderIngressStatus === 'active'
 
   if (surface === 'auth' || surface === 'account' || surface === 'checkout') {
+    if (surface === 'checkout' && !guestOrderingEnabled) notFound()
     const authStates = new Set<AuthPreviewState>(['join', 'otp', 'profile', 'challenge', 'success', 'error'])
     const accountStates = new Set<AccountPreviewState>(['overview', 'orders', 'favorites', 'profile', 'detail', 'reorder', 'loading', 'error', 'empty'])
     const checkoutStates = new Set<CheckoutPreviewState>(['cart', 'payment', 'success', 'table-payment', 'error'])
@@ -69,5 +80,6 @@ export default async function ThemeExperiencePreview({ params, searchParams }: P
     theme={themeResult.value.theme}
     previewTemplateId={themeResult.value.templateId}
     previewAccessToken={typeof sp['previewAccess'] === 'string' ? sp['previewAccess'] : null}
+    guestOrderingEnabled={guestOrderingEnabled}
   />
 }

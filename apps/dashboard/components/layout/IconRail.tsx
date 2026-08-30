@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { I } from '../../lib/ui'
@@ -9,6 +9,7 @@ import { useShell } from '../../lib/shell-context'
 import { SHELL_OVERLAY_IDS } from '../../lib/shell-context'
 import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import ProfileAvatar from '../overlays/ProfileAvatar'
+import type { DashboardSectionEntitlements } from '../../lib/auth/dashboard-entitlements'
 
 const RAIL_CSS = `
 .rail-link {
@@ -30,6 +31,12 @@ const RAIL_CSS = `
   outline:2px solid var(--action);outline-offset:2px;
 }
 .rail-link--active { background:var(--surface-inset)!important;color:var(--text)!important; }
+.rail-link--locked { color:var(--text-4); }
+.rail-lock-badge {
+  position:absolute;right:1px;bottom:3px;z-index:2;
+  width:15px;height:15px;border:1.5px solid var(--surface);border-radius:999px;
+  background:var(--surface-inset);color:var(--text-2);display:grid;place-items:center;
+}
 .rail-primary { display:flex;flex-direction:column;gap:2px;align-items:center; }
 .rail-item { position:relative;width:48px;display:flex;justify-content:center; }
 .rail-active-indicator {
@@ -99,6 +106,8 @@ interface Props {
   /** Sections the user may access; owner sees all. */
   permissions: string[]
   isOwner: boolean
+  sectionEntitlements: DashboardSectionEntitlements
+  tableOperationsAllowed: boolean
   className?: string
 }
 
@@ -116,6 +125,8 @@ export default function IconRail({
   ordersBadge = 0,
   permissions,
   isOwner,
+  sectionEntitlements,
+  tableOperationsAllowed,
   className,
 }: Props) {
   const { overlay, toggleOverlay } = useShell()
@@ -151,18 +162,33 @@ export default function IconRail({
         padding: '10px 0',
         gap: 2,
       }}>
-        <nav ref={primaryNavRef} className="rail-primary" aria-label="Ana bölümler">
+        <nav
+          ref={primaryNavRef}
+          className="rail-primary"
+          aria-label="Ana bölümler"
+          style={{ '--mobile-rail-primary-count': navItems.length } as CSSProperties}
+        >
           {navItems.map(item => (
+            (() => {
+              const section = navSection(item) as keyof DashboardSectionEntitlements
+              const entitlement = sectionEntitlements[section]
+              const tablesHref = item.id === 'tables' && entitlement.allowed && !tableOperationsAllowed
+                ? `${base}/tables/qr`
+                : `${base}${item.segment ? `/${item.segment}` : ''}`
+              return (
             <RailLink
               key={item.id}
               ItemIcon={item.Icon}
               iconClassName={item.iconClassName}
               iconSize={item.iconSize}
-              label={item.label}
-              href={`${base}${item.segment ? `/${item.segment}` : ''}`}
+              label={entitlement.allowed || !entitlement.requiredPlanLabel ? item.label : `${item.label} · ${entitlement.requiredPlanLabel}`}
+              href={tablesHref}
               active={activeId === item.id}
+              locked={!entitlement.allowed}
               badge={item.id === 'orders' && ordersBadge > 0 ? ordersBadge : undefined}
             />
+              )
+            })()
           ))}
         </nav>
 
@@ -228,9 +254,10 @@ interface RailLinkProps {
   href: string
   active: boolean
   badge?: number
+  locked?: boolean
 }
 
-function RailLink({ ItemIcon, iconClassName, iconSize = 18, label, href, active, badge }: RailLinkProps) {
+function RailLink({ ItemIcon, iconClassName, iconSize = 18, label, href, active, badge, locked = false }: RailLinkProps) {
   const router = useRouter()
   const { beginNavigation, getNavigationGuard } = useShell()
   const [confirmNavigation, setConfirmNavigation] = useState(false)
@@ -249,7 +276,7 @@ function RailLink({ ItemIcon, iconClassName, iconSize = 18, label, href, active,
         aria-current={active ? 'page' : undefined}
         aria-describedby={tooltipId}
         prefetch={false}
-        className={`rail-link${active ? ' rail-link--active' : ''}`}
+        className={`rail-link${active ? ' rail-link--active' : ''}${locked ? ' rail-link--locked' : ''}`}
         onClick={(e) => {
           if (active) return
           const guardMessage = getNavigationGuard()
@@ -264,6 +291,7 @@ function RailLink({ ItemIcon, iconClassName, iconSize = 18, label, href, active,
       >
         <ItemIcon className={iconClassName} size={iconSize} />
       </Link>
+      {locked && <span className="rail-lock-badge" aria-hidden="true"><I.lock size={9} /></span>}
       <span id={tooltipId} role="tooltip" className="rail-tooltip">{label}</span>
       {badge !== undefined && (
         <div style={{

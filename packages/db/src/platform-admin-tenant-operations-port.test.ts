@@ -55,9 +55,23 @@ test('malformed projections and query failures fail closed', async () => {
 })
 
 test('order ingress reads the same canonical service status', async () => {
-  const rpc: PlatformTenantOperationsRpc = async () => ({
-    data: { restaurantId, status: 'manual_hold', version: 2, updatedAt: '2026-07-22T12:00:00Z' },
+  const rpc: PlatformTenantOperationsRpc = async (name) => ({
+    data: name === 'read_tenant_order_ingress_status'
+      ? 'manual_hold'
+      : { restaurantId, status: 'manual_hold', version: 2, updatedAt: '2026-07-22T12:00:00Z' },
     error: null,
   })
   assert.equal(await readTenantOrderIngressStatus(restaurantId, rpc), 'manual_hold')
+})
+
+test('order ingress stays compatible before the downgrade-aware RPC is deployed', async () => {
+  const calls: string[] = []
+  const rpc: PlatformTenantOperationsRpc = async (name) => {
+    calls.push(name)
+    return name === 'read_tenant_order_ingress_status'
+      ? { data: null, error: { message: 'function does not exist' } }
+      : { data: { restaurantId, status: 'active', version: 0, updatedAt: null }, error: null }
+  }
+  assert.equal(await readTenantOrderIngressStatus(restaurantId, rpc), 'active')
+  assert.deepEqual(calls, ['read_tenant_order_ingress_status', 'read_platform_admin_tenant_service_control'])
 })
