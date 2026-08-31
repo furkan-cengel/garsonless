@@ -188,22 +188,18 @@ export async function consumeDashboardPush(
   if (!subscriptions.ok) return subscriptions
 
   const payload = buildDashboardPushPayload(event)
-  let sent = 0
-  let gone = 0
-  const failures: string[] = []
-
-  for (const subscription of subscriptions.value) {
+  const deliveries = await Promise.all(subscriptions.value.map(async (subscription) => {
     const current = await port.readDelivery({ eventId, subscriptionId: subscription.id })
-    if (!current.ok) return current
-    if (current.value?.status === 'sent') { sent += 1; continue }
-    if (current.value?.status === 'gone') { gone += 1; continue }
+    if (!current.ok) return err(current.error)
+    if (current.value?.status === 'sent') return ok({ sent: 1, gone: 0, failure: null })
+    if (current.value?.status === 'gone') return ok({ sent: 0, gone: 1, failure: null })
 
     const begun = await port.beginDelivery({
       eventId,
       subscriptionId: subscription.id,
       attempts: (current.value?.attempts ?? 0) + 1,
     })
-    if (!begun.ok) return begun
+    if (!begun.ok) return err(begun.error)
 
     const result = await provider.send({ subscription, payload, topic: pushTopic(event.id) })
     const completed = await port.completeDelivery({
@@ -212,15 +208,27 @@ export async function consumeDashboardPush(
       status: result.outcome,
       error: result.outcome === 'sent' ? null : result.error,
     })
-    if (!completed.ok) return completed
+    if (!completed.ok) return err(completed.error)
 
-    if (result.outcome === 'sent') sent += 1
     if (result.outcome === 'gone') {
-      gone += 1
       const disabled = await port.disableSubscription({ subscriptionId: subscription.id, error: result.error })
-      if (!disabled.ok) return disabled
+      if (!disabled.ok) return err(disabled.error)
     }
-    if (result.outcome === 'failed') failures.push(result.error)
+    return ok({
+      sent: result.outcome === 'sent' ? 1 : 0,
+      gone: result.outcome === 'gone' ? 1 : 0,
+      failure: result.outcome === 'failed' ? result.error : null,
+    })
+  }))
+
+  let sent = 0
+  let gone = 0
+  const failures: string[] = []
+  for (const delivery of deliveries) {
+    if (!delivery.ok) return delivery
+    sent += delivery.value.sent
+    gone += delivery.value.gone
+    if (delivery.value.failure) failures.push(delivery.value.failure)
   }
 
   if (failures.length > 0) return err(`Dashboard push delivery failed: ${failures.join('; ')}`)

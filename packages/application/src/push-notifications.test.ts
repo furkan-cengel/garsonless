@@ -135,11 +135,36 @@ test('successful and expired endpoints complete before the consumer receipt', as
     ok: true,
     value: { duplicate: false, skipped: false, subscriptions: 2, sent: 1, gone: 1 },
   })
-  assert.deepEqual(calls, [
+  assert.equal(calls.at(-1), 'receipt')
+  assert.deepEqual(new Set(calls.slice(0, -1)), new Set([
     'begin:active', 'sent:active',
     'begin:gone', 'gone:gone', 'disable:gone',
-    'receipt',
-  ])
+  ]))
+})
+
+test('eligible device deliveries run concurrently', async () => {
+  let active = 0
+  let maxActive = 0
+  const subscriptions = [
+    { id: 'one', endpoint: 'https://push/one', p256dh: 'a', auth: 'b' },
+    { id: 'two', endpoint: 'https://push/two', p256dh: 'a', auth: 'b' },
+    { id: 'three', endpoint: 'https://push/three', p256dh: 'a', auth: 'b' },
+  ]
+
+  const result = await consumeDashboardPush(event.id, port({
+    async listSubscriptions() { return ok(subscriptions) },
+  }), {
+    async send() {
+      active += 1
+      maxActive = Math.max(maxActive, active)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      active -= 1
+      return { outcome: 'sent' }
+    },
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(maxActive, subscriptions.length)
 })
 
 test('transient provider failure leaves the event without a receipt for retry', async () => {
