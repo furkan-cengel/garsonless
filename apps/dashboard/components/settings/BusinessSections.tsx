@@ -55,6 +55,7 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '../ui/select'
@@ -75,7 +76,12 @@ import {
   saveMyEmailNotificationPrefs,
   type EmailNotificationPrefs,
 } from '../../lib/actions/notifications'
-import { readNotificationPrefs, type NotificationPrefs, type OrderSoundPreset } from '../../lib/notification-prefs'
+import {
+  readNotificationPrefs,
+  type NotificationPrefs,
+  type OrderSoundPreset,
+  type OrderSoundRepeatSeconds,
+} from '../../lib/notification-prefs'
 import { readLateThresholdMin, clampLateThreshold, LATE_THRESHOLD_MIN_MIN, LATE_THRESHOLD_MIN_MAX } from '../../lib/orders-prefs'
 import { notifySettingsSaved, useSettingsDirtyState } from './settings-dirty-state'
 import { useDashboardPushSubscription } from '../notifications/useDashboardPushSubscription'
@@ -725,6 +731,14 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
+                        <SelectLabel>Güçlü</SelectLabel>
+                        <SelectItem value="masabu-alert">Masabu alarmı</SelectItem>
+                        <SelectItem value="kitchen-pulse">Güçlü mutfak zili</SelectItem>
+                        <SelectItem value="double-strike">Çift darbe</SelectItem>
+                        <SelectItem value="urgent-triple">Hızlı üçlü</SelectItem>
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel>Standart</SelectLabel>
                         <SelectItem value="classic">Klasik</SelectItem>
                         <SelectItem value="kitchen-bell">Mutfak zili</SelectItem>
                         <SelectItem value="double-chime">Üçlü melodi</SelectItem>
@@ -759,12 +773,14 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                   <Select
                     value={String(prefs.newOrderRepeatSeconds)}
                     disabled={!prefs.newOrderSound}
-                    onValueChange={(value) => updateSoundPrefs({ newOrderRepeatSeconds: Number(value) as 0 | 15 | 30 | 60 })}
+                    onValueChange={(value) => updateSoundPrefs({ newOrderRepeatSeconds: Number(value) as OrderSoundRepeatSeconds })}
                   >
                     <SelectTrigger className="w-full" aria-label="Yeni sipariş sesi tekrar aralığı"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
                         <SelectItem value="0">Tekrar etme</SelectItem>
+                        <SelectItem value="5">5 saniyede bir</SelectItem>
+                        <SelectItem value="10">10 saniyede bir</SelectItem>
                         <SelectItem value="15">15 saniyede bir</SelectItem>
                         <SelectItem value="30">30 saniyede bir</SelectItem>
                         <SelectItem value="60">60 saniyede bir</SelectItem>

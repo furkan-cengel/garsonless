@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Order } from '../orders/useOrdersRealtime'
 import OrderToast from '../orders/OrderToast'
 import type { NotificationPrefs } from '../../lib/notification-prefs'
-import { playOrderAlertSound } from './order-alert-audio'
+import { playOrderAlertSound, preloadOrderAlertSounds } from './order-alert-audio'
 import { useDashboardPushSubscription } from './useDashboardPushSubscription'
 import { formatCurrency } from '../../lib/utils'
 import { enqueueOrderAlert, isPendingCustomerOrder, resolveOrderAlert } from './order-alert-policy'
@@ -17,7 +17,9 @@ const CHANNEL_NAME = 'masabu-order-alerts'
 const STORAGE_MESSAGE_KEY = 'masabu:order-alert-message'
 const AUDIO_RECEIPT_PREFIX = 'masabu:order-audio'
 const AUDIO_LOCK_PREFIX = 'masabu:order-audio-lock'
+const AUDIO_GROUP_LOCK_PREFIX = 'masabu:order-audio-group'
 const AUDIO_LOCK_TTL_MS = 5_000
+const AUDIO_GROUP_LOCK_TTL_MS = 2_500
 
 function receiptKey(restaurantId: string, orderId: string, attempt: number) {
   return `${AUDIO_RECEIPT_PREFIX}:${restaurantId}:${orderId}:${attempt}`
@@ -25,6 +27,23 @@ function receiptKey(restaurantId: string, orderId: string, attempt: number) {
 
 function lockKey(restaurantId: string, orderId: string, attempt: number) {
   return `${AUDIO_LOCK_PREFIX}:${restaurantId}:${orderId}:${attempt}`
+}
+
+async function claimAudioLease(key: string, ttlMs: number): Promise<boolean> {
+  try {
+    const current = JSON.parse(window.localStorage.getItem(key) ?? 'null') as { token?: string; at?: number } | null
+    if (current?.at && Date.now() - current.at < ttlMs) return false
+    const claim = { token: crypto.randomUUID(), at: Date.now() }
+    const serialized = JSON.stringify(claim)
+    window.localStorage.setItem(key, serialized)
+    // Let competing tabs publish their claim, then only the final writer wins.
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+    return window.localStorage.getItem(key) === serialized
+  } catch {
+    // Storage-disabled browsers still receive same-tab coalescing from the
+    // shared audio engine.
+    return true
+  }
 }
 
 export function useGlobalOrderAlerts(input: {
@@ -38,6 +57,10 @@ export function useGlobalOrderAlerts(input: {
   const [audioBlocked, setAudioBlocked] = useState(false)
   const channelRef = useRef<BroadcastChannel | null>(null)
   const repeatTimersRef = useRef(new Map<string, number>())
+
+  useEffect(() => {
+    void preloadOrderAlertSounds()
+  }, [])
 
   const remove = useCallback((orderId: string) => {
     setQueue((current) => resolveOrderAlert(current, orderId))
@@ -55,10 +78,17 @@ export function useGlobalOrderAlerts(input: {
     const lock = lockKey(restaurantId, order.id, attempt)
     try {
       if (window.localStorage.getItem(key) === '1') return
-      const lockedAt = Number(window.localStorage.getItem(lock))
-      if (Number.isFinite(lockedAt) && Date.now() - lockedAt < AUDIO_LOCK_TTL_MS) return
-      window.localStorage.setItem(lock, String(Date.now()))
     } catch { /* in-memory delivery still proceeds */ }
+    if (!await claimAudioLease(lock, AUDIO_LOCK_TTL_MS)) return
+
+    const groupLock = `${AUDIO_GROUP_LOCK_PREFIX}:${restaurantId}`
+    if (!await claimAudioLease(groupLock, AUDIO_GROUP_LOCK_TTL_MS)) {
+      try {
+        window.localStorage.setItem(key, '1')
+        window.localStorage.removeItem(lock)
+      } catch { /* privacy mode */ }
+      return
+    }
 
     const played = await playOrderAlertSound(prefs.newOrderSoundPreset, prefs.newOrderSoundVolume)
     if (!played) {

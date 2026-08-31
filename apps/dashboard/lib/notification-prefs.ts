@@ -12,7 +12,7 @@ export interface NotificationPrefs {
   newOrderSound: boolean
   newOrderSoundPreset: OrderSoundPreset
   newOrderSoundVolume: number
-  newOrderRepeatSeconds: 0 | 15 | 30 | 60
+  newOrderRepeatSeconds: OrderSoundRepeatSeconds
   newOrderRepeatMaxMinutes: number
   newOrderPush: boolean
   newOrderToast: boolean
@@ -20,8 +20,18 @@ export interface NotificationPrefs {
   serviceRequestPush: boolean
 }
 
-const ORDER_SOUND_PRESETS = ['classic', 'kitchen-bell', 'double-chime', 'soft-ping'] as const
+export const ORDER_SOUND_PRESETS = [
+  'classic',
+  'kitchen-bell',
+  'double-chime',
+  'soft-ping',
+  'masabu-alert',
+  'kitchen-pulse',
+  'double-strike',
+  'urgent-triple',
+] as const
 export type OrderSoundPreset = (typeof ORDER_SOUND_PRESETS)[number]
+export type OrderSoundRepeatSeconds = 0 | 5 | 10 | 15 | 30 | 60
 
 // Default ON → preserves today's (always-firing) behaviour for existing tenants
 // that have no saved notification config.
@@ -59,7 +69,8 @@ export function readNotificationPrefs(settings: unknown): NotificationPrefs {
     newOrderSoundVolume: typeof volume === 'number' && Number.isFinite(volume)
       ? Math.min(100, Math.max(0, Math.round(volume)))
       : DEFAULT_NOTIFICATION_PREFS.newOrderSoundVolume,
-    newOrderRepeatSeconds: repeatSeconds === 15 || repeatSeconds === 30 || repeatSeconds === 60
+    newOrderRepeatSeconds: repeatSeconds === 5 || repeatSeconds === 10
+      || repeatSeconds === 15 || repeatSeconds === 30 || repeatSeconds === 60
       ? repeatSeconds
       : 0,
     newOrderRepeatMaxMinutes: typeof repeatMaxMinutes === 'number' && Number.isFinite(repeatMaxMinutes)

@@ -320,9 +320,14 @@ export async function updateSettings(
 // Zod-validated shape; only the four real channels are accepted.
 const notificationPrefsSchema = z.object({
   newOrderSound: z.boolean(),
-  newOrderSoundPreset: z.enum(['classic', 'kitchen-bell', 'double-chime', 'soft-ping']),
+  newOrderSoundPreset: z.enum([
+    'classic', 'kitchen-bell', 'double-chime', 'soft-ping',
+    'masabu-alert', 'kitchen-pulse', 'double-strike', 'urgent-triple',
+  ]),
   newOrderSoundVolume: z.number().int().min(0).max(100),
-  newOrderRepeatSeconds: z.union([z.literal(0), z.literal(15), z.literal(30), z.literal(60)]),
+  newOrderRepeatSeconds: z.union([
+    z.literal(0), z.literal(5), z.literal(10), z.literal(15), z.literal(30), z.literal(60),
+  ]),
   newOrderRepeatMaxMinutes: z.number().int().min(1).max(10),
   newOrderPush: z.boolean(),
   newOrderToast: z.boolean(),

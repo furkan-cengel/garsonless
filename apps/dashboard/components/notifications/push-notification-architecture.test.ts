@@ -27,6 +27,12 @@ test('global shell alert controller avoids a second local notification after dur
   assert.match(hook, /useDashboardPushSubscription/)
   assert.match(hook, /BroadcastChannel/)
   assert.match(hook, /enqueueOrderAlert/)
+  assert.match(hook, /preloadOrderAlertSounds/)
+  assert.match(hook, /claimAudioLease/)
+  assert.match(hook, /AUDIO_GROUP_LOCK_TTL_MS/)
+  assert.match(hook, /window\.localStorage\.getItem\(key\) === serialized/)
+  assert.match(hook, /window\.clearTimeout\(timer\)/)
+  assert.match(hook, /onDismiss=\{\(\) => active && setQueue/)
 })
 
 test('push capability state hydrates deterministically before reading browser permission', () => {
