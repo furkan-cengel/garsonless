@@ -10,6 +10,9 @@ const COOLDOWN_MS = 90_000
 /**
  * Shared waiter-call logic for the menu app. After a successful (or throttled)
  * call the button stays in 'called' for 90s, matching the server-side throttle.
+ * Every user action still reaches the server: mobile browsers can suspend the
+ * reset timer while the PWA is backgrounded, so client state is never allowed
+ * to claim a successful delivery on its own.
  */
 export function useWaiterCall(tableToken: string | null) {
   const [callState, setCallState] = useState<WaiterCallState>('idle')
@@ -22,8 +25,7 @@ export function useWaiterCall(tableToken: string | null) {
   const sendServiceRequest = useCallback(async (requestType: ServiceRequestType) => {
     if (!tableToken) return false
     if (requestType === 'waiter') {
-      if (callState === 'called') return true
-      if (callState !== 'idle') return false
+      if (callState === 'calling') return false
       setCallState('calling')
     }
     try {
