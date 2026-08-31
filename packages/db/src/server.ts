@@ -270,6 +270,7 @@ export {
   createTableServiceRequestPort,
   createTableSessionPort,
 } from './table-command-port'
+export { triggerDomainOutboxWorker } from './outbox-worker-trigger'
 export { createPublicTableQueryPort, resolveTransferredGuestTable } from './table-qr-tokens'
 export {
   createDashboardPushPort,

@@ -1,8 +1,12 @@
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requestTableService, resolvePublicTableContext } from '@garsonless/application/tables'
 import { SERVICE_REQUEST_TYPES } from '@garsonless/domain/tables'
-import { createPublicTableQueryPort, createTableServiceRequestPort } from '@garsonless/db/server'
+import {
+  createPublicTableQueryPort,
+  createTableServiceRequestPort,
+  triggerDomainOutboxWorker,
+} from '@garsonless/db/server'
 import { publicRestaurantHasFeature } from '../../../lib/restaurant-feature-access'
 
 const schema = z.object({
@@ -54,6 +58,9 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse>> {
   if (!result.ok) {
     const status = result.error === 'Table not found for this restaurant' ? 400 : 500
     return NextResponse.json(result, { status })
+  }
+  if (!result.value.throttled) {
+    after(() => triggerDomainOutboxWorker())
   }
   return NextResponse.json({ ok: true, throttled: result.value.throttled })
 }
