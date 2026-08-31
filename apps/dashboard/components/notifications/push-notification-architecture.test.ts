@@ -14,6 +14,11 @@ test('service worker accepts provider push and de-duplicates by event tag', () =
   assert.match(worker, /notificationclick/)
   assert.match(worker, /ORDER_RESOLVED/)
   assert.match(worker, /getNotifications\(\{ tag: `order:\$\{orderId\}` \}\)/)
+  assert.match(worker, /MASABU_NOTIFICATION_ICON/)
+  assert.match(worker, /MASABU_NOTIFICATION_BADGE/)
+  assert.match(worker, /actions: \[\{ action: 'open', title: notificationAction\(kind\) \}\]/)
+  assert.match(worker, /requireInteraction: kind !== 'test'/)
+  assert.match(worker, /vibrate: kind === 'test'/)
 })
 
 test('global shell alert controller avoids a second local notification after durable subscription', () => {

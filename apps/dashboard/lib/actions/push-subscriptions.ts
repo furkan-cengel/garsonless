@@ -158,12 +158,16 @@ export async function testDashboardPush(restaurantId: string): Promise<PushActio
       subscription: subscription.value,
       topic: `test-${Date.now()}`.slice(0, 32),
       payload: {
-        title: 'Masabu test bildirimi',
-        body: 'Bu cihaz yeni sipariş bildirimlerini alabiliyor.',
-        icon: '/icon.svg',
-        badge: '/icon.svg',
+        title: 'Masabu bildirimleri hazır',
+        body: 'Bu cihaz sipariş ve masa isteklerini alabilir.',
+        icon: '/brand/masabu-m-favicon-256x256.png',
+        badge: '/notification-badge.svg',
         tag: `test:${context.user.id}`,
-        data: { eventId: crypto.randomUUID(), url: `/dashboard/${restaurantId}/settings?section=notifications` },
+        data: {
+          eventId: crypto.randomUUID(),
+          url: `/dashboard/${restaurantId}/settings?section=notifications`,
+          kind: 'test',
+        },
       },
     })
     if (result.outcome === 'sent') return { success: true }

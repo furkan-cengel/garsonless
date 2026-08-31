@@ -67,10 +67,35 @@ test('payload points at the tenant order board and keeps a stable event tag', ()
   assert.deepEqual(buildDashboardPushPayload(event), {
     title: 'Yeni sipariş',
     body: 'Masa 4 · ₺150,00',
-    icon: '/icon.svg',
-    badge: '/icon.svg',
+    icon: '/brand/masabu-m-favicon-256x256.png',
+    badge: '/notification-badge.svg',
     tag: `order:${event.aggregateId}`,
-    data: { eventId: event.id, orderId: event.aggregateId, url: '/dashboard/restaurant-1/orders' },
+    data: {
+      eventId: event.id,
+      orderId: event.aggregateId,
+      url: '/dashboard/restaurant-1/orders',
+      kind: 'order',
+    },
+  })
+})
+
+test('service request payload names the request and opens the tables surface', () => {
+  assert.deepEqual(buildDashboardPushPayload({
+    ...event,
+    type: 'service_request.created',
+    tableLabel: 'Masa 4',
+    payload: { requestType: 'waiter' },
+  }), {
+    title: 'Garson çağrısı',
+    body: 'Masa 4 sizi bekliyor.',
+    icon: '/brand/masabu-m-favicon-256x256.png',
+    badge: '/notification-badge.svg',
+    tag: `service-request:${event.id}`,
+    data: {
+      eventId: event.id,
+      url: '/dashboard/restaurant-1/tables',
+      kind: 'service-request',
+    },
   })
 })
 

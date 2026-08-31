@@ -6,6 +6,41 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim())
 })
 
+const MASABU_NOTIFICATION_ICON = '/brand/masabu-m-favicon-256x256.png'
+const MASABU_NOTIFICATION_BADGE = '/notification-badge.svg'
+
+function notificationAction(kind) {
+  if (kind === 'order') return 'Siparişleri aç'
+  if (kind === 'service-request') return 'Masaları aç'
+  return 'Ayarları aç'
+}
+
+function notificationOptions(payload, data) {
+  const kind = data.kind === 'order' || data.kind === 'service-request' || data.kind === 'test'
+    ? data.kind
+    : data.orderId
+      ? 'order'
+      : 'service-request'
+
+  return {
+    body: payload.body ?? '',
+    icon: payload.icon ?? MASABU_NOTIFICATION_ICON,
+    badge: payload.badge ?? MASABU_NOTIFICATION_BADGE,
+    tag: payload.tag ?? `masabu:${data.eventId ?? 'notification'}`,
+    lang: 'tr',
+    renotify: kind !== 'test',
+    requireInteraction: kind !== 'test',
+    vibrate: kind === 'test' ? [120] : [200, 100, 200],
+    actions: [{ action: 'open', title: notificationAction(kind) }],
+    data: {
+      eventId: data.eventId ?? null,
+      orderId: data.orderId ?? null,
+      kind,
+      url: data.url ?? '/',
+    },
+  }
+}
+
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'ORDER_RESOLVED') {
     const orderId = event.data?.orderId
@@ -21,13 +56,14 @@ self.addEventListener('message', (event) => {
 
   const { title, body, orderId, url } = event.data
 
-  event.waitUntil(self.registration.showNotification(title ?? 'Yeni sipariş!', {
-    body: body ?? '',
-    icon: '/icon.svg',
-    badge: '/icon.svg',
-    tag: `order:${orderId ?? 'unknown'}`,
-    data: { url: url ?? '/' },
-  }))
+  event.waitUntil(self.registration.showNotification(
+    title ?? 'Yeni sipariş',
+    notificationOptions({ body, tag: `order:${orderId ?? 'unknown'}` }, {
+      orderId,
+      kind: 'order',
+      url,
+    }),
+  ))
 })
 
 self.addEventListener('push', (event) => {
@@ -40,17 +76,10 @@ self.addEventListener('push', (event) => {
   if (!payload || typeof payload !== 'object') return
 
   const data = payload.data && typeof payload.data === 'object' ? payload.data : {}
-  event.waitUntil(self.registration.showNotification(payload.title ?? 'Masabu bildirimi', {
-    body: payload.body ?? '',
-    icon: payload.icon ?? '/icon.svg',
-    badge: payload.badge ?? '/icon.svg',
-    tag: payload.tag ?? `masabu:${data.eventId ?? 'notification'}`,
-    renotify: false,
-    data: {
-      eventId: data.eventId ?? null,
-      url: data.url ?? '/',
-    },
-  }))
+  event.waitUntil(self.registration.showNotification(
+    payload.title ?? 'Masabu bildirimi',
+    notificationOptions(payload, data),
+  ))
 })
 
 self.addEventListener('notificationclick', (event) => {

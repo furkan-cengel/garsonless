@@ -31,7 +31,12 @@ export type DashboardPushPayload = {
   icon: string
   badge: string
   tag: string
-  data: { eventId: string; orderId?: string; url: string }
+  data: {
+    eventId: string
+    orderId?: string
+    url: string
+    kind: 'order' | 'service-request' | 'test'
+  }
 }
 
 type DashboardPushProviderResult =
@@ -125,10 +130,15 @@ export function buildDashboardPushPayload(event: DashboardPushEvent): DashboardP
     return {
       title: 'Yeni sipariş',
       body: [tableLabel, formatCurrency(event.payload['total'])].filter(Boolean).join(' · '),
-      icon: '/icon.svg',
-      badge: '/icon.svg',
+      icon: '/brand/masabu-m-favicon-256x256.png',
+      badge: '/notification-badge.svg',
       tag: `order:${event.aggregateId}`,
-      data: { eventId: event.id, orderId: event.aggregateId, url: `/dashboard/${event.restaurantId}/orders` },
+      data: {
+        eventId: event.id,
+        orderId: event.aggregateId,
+        url: `/dashboard/${event.restaurantId}/orders`,
+        kind: 'order',
+      },
     }
   }
 
@@ -136,12 +146,16 @@ export function buildDashboardPushPayload(event: DashboardPushEvent): DashboardP
     ? event.payload['requestType']
     : 'waiter'
   return {
-    title: 'Masa isteği',
-    body: `${tableLabel} · ${serviceRequestLabel(requestType)}`,
-    icon: '/icon.svg',
-    badge: '/icon.svg',
+    title: serviceRequestLabel(requestType),
+    body: `${tableLabel} sizi bekliyor.`,
+    icon: '/brand/masabu-m-favicon-256x256.png',
+    badge: '/notification-badge.svg',
     tag: `service-request:${event.id}`,
-    data: { eventId: event.id, url: `/dashboard/${event.restaurantId}/tables` },
+    data: {
+      eventId: event.id,
+      url: `/dashboard/${event.restaurantId}/tables`,
+      kind: 'service-request',
+    },
   }
 }
 
