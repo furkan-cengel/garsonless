@@ -219,7 +219,10 @@ export async function consumeNotificationEmail(
   if (!loaded.value) return err('Notification email event not found or unsupported')
   const event = loaded.value
 
-  if (event.type === 'order.created' && event.payload['source'] !== 'customer') {
+  if (
+    (event.type === 'order.created' && event.payload['source'] !== 'customer')
+    || (event.type === 'service_request.created' && event.payload['reminder'] === true)
+  ) {
     const recorded = await port.recordReceipt(eventId)
     return recorded.ok
       ? ok({ duplicate: false, recipients: 0, sent: 0, muted: 0, dead: 0 })

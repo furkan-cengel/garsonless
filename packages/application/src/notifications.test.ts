@@ -101,6 +101,24 @@ test('staff-created order records a no-op receipt without notifying recipients',
   assert.deepEqual(receipts, ['evt-1'])
 })
 
+test('waiter reminder records a no-op inbox receipt without duplicating the pending item', async () => {
+  let listed = 0
+  const { port, inserted, receipts } = makePort({
+    event: {
+      ...ORDER_EVENT,
+      type: 'service_request.created',
+      aggregateId: 'request-1',
+      payload: { requestType: 'waiter', reminder: true },
+    },
+    listRecipients: async () => { listed += 1; return ok([]) },
+  })
+  const result = await consumeDashboardInbox('evt-1', port)
+  assert.ok(result.ok)
+  assert.equal(listed, 0)
+  assert.equal(inserted.length, 0)
+  assert.deepEqual(receipts, ['evt-1'])
+})
+
 test('muted recipient is skipped but receipt still records', async () => {
   const { port, inserted, receipts } = makePort({
     recipients: [

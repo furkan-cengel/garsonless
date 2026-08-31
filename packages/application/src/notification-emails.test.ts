@@ -26,6 +26,7 @@ const ORDER_EVENT: NotificationEmailEvent = {
 type DeliveryState = { status: 'pending' | 'sent' | 'failed' | 'dead'; attempts: number }
 
 function makeHarness(options: {
+  event?: NotificationEmailEvent
   recipients?: NotificationEmailRecipient[]
   receipt?: boolean
   template?: { subject: string; bodyHtml: string } | null
@@ -38,7 +39,7 @@ function makeHarness(options: {
   const completed: Array<{ userId: string; status: string; error: string | null }> = []
 
   const port: NotificationEmailPort = {
-    loadEvent: async () => ok(ORDER_EVENT),
+    loadEvent: async () => ok(options.event ?? ORDER_EVENT),
     hasReceipt: async () => ok(options.receipt ?? false),
     listRecipients: async () => ok(options.recipients ?? [
       { userId: 'u1', email: 'u1@test.dev', prefs: { email: { order: true } } },
@@ -102,6 +103,24 @@ test('opt-in recipient gets exactly one send; default recipients are muted', asy
   assert.equal(sends.length, 1)
   assert.equal(sends[0]!.to, 'u1@test.dev')
   assert.match(sends[0]!.subject, /Test Cafe/)
+  assert.deepEqual(receipts, ['evt-1'])
+})
+
+test('waiter reminder is push-only and cannot duplicate e-mail', async () => {
+  const { port, provider, sends, receipts } = makeHarness({
+    event: {
+      ...ORDER_EVENT,
+      type: 'service_request.created',
+      aggregateId: 'request-1',
+      payload: { requestType: 'waiter', reminder: true },
+    },
+    recipients: [
+      { userId: 'u1', email: 'u1@test.dev', prefs: { email: { service_request: true } } },
+    ],
+  })
+  const result = await consumeNotificationEmail('evt-1', port, provider)
+  assert.ok(result.ok)
+  assert.equal(sends.length, 0)
   assert.deepEqual(receipts, ['evt-1'])
 })
 
