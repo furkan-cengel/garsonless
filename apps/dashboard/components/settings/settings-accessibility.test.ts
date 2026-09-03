@@ -139,10 +139,11 @@ test('modal dialogs trap focus, close on Escape, and restore their opener', () =
   assert.match(modalFocus, /event\.shiftKey/)
   assert.match(modalFocus, /previouslyFocused\?\.isConnected/)
   assert.match(unsavedDialog, /useModalDialogFocus\(onKeepEditing\)/)
-  assert.match(billing, /useModalDialogFocus\(onClose\)/)
   assert.match(unsavedDialog, /data-dialog-initial-focus/)
-  assert.match(billing, /data-dialog-initial-focus/)
-  assert.match(billing, /onFocus=\{\(\) => dialogRef\.current/)
+  assert.match(billing, /<Dialog open/)
+  assert.match(billing, /<DialogContent/)
+  assert.match(billing, /<DialogTitle/)
+  assert.match(billing, /resultHeadingRef\.current\?\.focus\(\)/)
 })
 
 test('section-specific controls expose names and selection semantics', () => {

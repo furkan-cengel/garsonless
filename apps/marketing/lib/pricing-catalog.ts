@@ -105,7 +105,7 @@ export const PRICING_COMPARISON_GROUPS: readonly ComparisonGroup[] = [
       { feature: 'Masa bazlı QR', entitlement: 'qr_studio' },
       { feature: 'QR Studio', entitlement: 'qr_studio' },
       { feature: 'Gelişmiş tema bölümleri', entitlement: 'theme_advanced_sections' },
-      { feature: 'Video içeriği', entitlement: 'theme_advanced_sections' },
+      { feature: 'Video içeriği', entitlement: 'theme_video_hero' },
     ],
   },
   {

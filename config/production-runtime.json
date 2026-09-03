@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "capabilities": ["accounting", "customer-phone-auth"],
   "requiredCapabilities": {
     "extensions": ["pg_cron", "pg_net"],
     "schemas": ["vault"]
@@ -47,6 +48,20 @@
       "importMap": "packages/db/supabase/functions/send-email-hook/deno.json",
       "urlTemplate": "https://{projectRef}.supabase.co/functions/v1/send-email-hook",
       "requiredSecrets": ["SEND_EMAIL_HOOK_SECRET", "RESEND_API_KEY"]
+    },
+    {
+      "name": "send-sms-hook",
+      "capability": "customer-phone-auth",
+      "verifyJwt": false,
+      "entrypoint": "packages/db/supabase/functions/send-sms-hook/index.ts",
+      "importMap": "packages/db/supabase/functions/send-sms-hook/deno.json",
+      "urlTemplate": "https://{projectRef}.supabase.co/functions/v1/send-sms-hook",
+      "requiredSecrets": [
+        "SEND_SMS_HOOK_SECRETS",
+        "NETGSM_USERCODE",
+        "NETGSM_PASSWORD",
+        "NETGSM_MSGHEADER"
+      ]
     }
   ],
   "authHooks": [
@@ -54,6 +69,13 @@
       "name": "send-email",
       "function": "send-email-hook",
       "urlTemplate": "https://{projectRef}.supabase.co/functions/v1/send-email-hook",
+      "enabled": true
+    },
+    {
+      "name": "send-sms",
+      "capability": "customer-phone-auth",
+      "function": "send-sms-hook",
+      "urlTemplate": "https://{projectRef}.supabase.co/functions/v1/send-sms-hook",
       "enabled": true
     }
   ],
@@ -68,6 +90,25 @@
       "name": "outbox_worker_secret",
       "kind": "secret",
       "sourceMigration": "packages/db/supabase/migrations/20260715020000_domain_outbox_scheduler.sql"
+    },
+    {
+      "name": "accounting_worker_url",
+      "capability": "accounting",
+      "kind": "url",
+      "expectedTemplate": "https://app.masabu.co/api/internal/accounting-invoices",
+      "sourceMigration": "packages/db/supabase/migrations/20260902040000_parasut_e_document_contract.sql"
+    },
+    {
+      "name": "accounting_worker_secret",
+      "capability": "accounting",
+      "kind": "secret",
+      "sourceMigration": "packages/db/supabase/migrations/20260902040000_parasut_e_document_contract.sql"
+    },
+    {
+      "name": "parasut_refresh_token",
+      "capability": "accounting",
+      "kind": "secret",
+      "sourceMigration": "packages/db/supabase/migrations/20260902040000_parasut_e_document_contract.sql"
     }
   ],
   "cronJobs": [
@@ -94,6 +135,13 @@
       "schedule": "31 3 * * *",
       "command": "select public.prune_platform_error_events();",
       "sourceMigration": "packages/db/supabase/migrations/20260722190000_platform_error_events.sql"
+    },
+    {
+      "name": "accounting-invoice-worker-every-minute",
+      "capability": "accounting",
+      "schedule": "* * * * *",
+      "command": "select public.invoke_accounting_invoice_worker();",
+      "sourceMigration": "packages/db/supabase/migrations/20260902040000_parasut_e_document_contract.sql"
     }
   ],
   "postDeployProbes": [
@@ -110,6 +158,19 @@
     {
       "name": "email-hook-invalid-signature-rejected",
       "function": "send-email-hook",
+      "expectedStatus": 401
+    },
+    {
+      "name": "sms-hook-invalid-signature-rejected",
+      "capability": "customer-phone-auth",
+      "function": "send-sms-hook",
+      "expectedStatus": 401
+    },
+    {
+      "name": "accounting-worker-unauthorized-rejected",
+      "capability": "accounting",
+      "url": "https://app.masabu.co/api/internal/accounting-invoices",
+      "routeFile": "apps/dashboard/app/api/internal/accounting-invoices/route.ts",
       "expectedStatus": 401
     }
   ],

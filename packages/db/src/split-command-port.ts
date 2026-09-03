@@ -27,6 +27,18 @@ function sumAmounts(rows: unknown): number {
  * settlement authorities. Raw payment-share primitives stay package-private. */
 export function createSplitPaymentPort(): SplitPaymentPort {
   return {
+    async consumeRateLimit(input) {
+      const { data, error } = await rpc(createServiceClient())('consume_public_order_rate_limit', {
+        p_restaurant_id: input.restaurantId,
+        p_key_hash: `split:${input.keyHash}`,
+        p_max: input.max,
+        p_window_seconds: input.windowSeconds,
+      })
+      if (error) return err('Pay güvenlik kontrolü kullanılamıyor')
+      return data === true
+        ? ok(true)
+        : err('Çok fazla pay denemesi. Lütfen kısa süre sonra tekrar deneyin.')
+    },
     async readDeclarationSnapshot(input) {
       const service = createServiceClient()
       const { data: session, error: sessionError } = await service
@@ -62,9 +74,16 @@ export function createSplitPaymentPort(): SplitPaymentPort {
     },
     async createDeclaredShare(input) {
       const result = await createShareDB(input)
-      return result.error || !result.shareId
-        ? err(result.error ?? 'Pay oluşturulamadı')
-        : ok({ shareId: result.shareId })
+      const publicError = result.error?.includes('split_active_intent_limit')
+        ? 'Bu masa için çok fazla bekleyen pay var. Garsondan yardım isteyin.'
+        : result.error?.includes('split_request_id_conflict')
+          ? 'Aynı istek farklı pay bilgileriyle tekrarlandı.'
+          : result.error
+            ? 'Pay oluşturulamadı'
+            : null
+      return publicError || !result.shareId || result.amount === null
+        ? err(publicError ?? 'Pay oluşturulamadı')
+        : ok({ shareId: result.shareId, amount: result.amount })
     },
     async reserveOnlineCheckout(input) {
       const service = createServiceClient()

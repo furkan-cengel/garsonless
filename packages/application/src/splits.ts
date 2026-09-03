@@ -18,6 +18,12 @@ export interface SplitDeclarationSnapshot {
 }
 
 export interface SplitPaymentPort {
+  consumeRateLimit(input: {
+    restaurantId: string
+    keyHash: string
+    max: number
+    windowSeconds: number
+  }): Promise<Result<true>>
   readDeclarationSnapshot(input: {
     restaurantId: string
     tableId: string
@@ -25,13 +31,16 @@ export interface SplitPaymentPort {
   }): Promise<Result<SplitDeclarationSnapshot>>
   createDeclaredShare(input: {
     restaurantId: string
+    tableId: string
     tableSessionId: string
+    requestId: string
+    requestFingerprint: string
     amount: number
     method: 'iyzico' | 'cash'
     customerId: string | null
     label: string | null
     assignedItems: SplitAssignedItem[] | null
-  }): Promise<Result<{ shareId: string }>>
+  }): Promise<Result<{ shareId: string; amount: number }>>
   reserveOnlineCheckout(input: {
     restaurantId: string
     tableId: string
@@ -101,10 +110,21 @@ export async function declareSplitShare(
     assignedItems?: SplitAssignedItem[]
     customerId: string | null
     label?: string | null
+    requestId: string
+    requestFingerprint: string
+    rateLimitKey: string
   },
   port: SplitPaymentPort,
 ): Promise<Result<{ shareId: string; amount: number }>> {
   if (!hasSameRestaurant(context, input.restaurantId)) return err('Invalid table context')
+  const rateLimit = await port.consumeRateLimit({
+    restaurantId: input.restaurantId,
+    keyHash: input.rateLimitKey,
+    max: 12,
+    windowSeconds: 60,
+  })
+  if (!rateLimit.ok) return rateLimit
+
   const snapshot = await port.readDeclarationSnapshot({
     restaurantId: input.restaurantId,
     tableId: context.tableId,
@@ -123,14 +143,17 @@ export async function declareSplitShare(
 
   const created = await port.createDeclaredShare({
     restaurantId: input.restaurantId,
+    tableId: context.tableId,
     tableSessionId: input.tableSessionId,
+    requestId: input.requestId,
+    requestFingerprint: input.requestFingerprint,
     amount,
     method: input.method,
     customerId: input.customerId,
     label: input.label ?? null,
     assignedItems: assigned,
   })
-  return created.ok ? ok({ shareId: created.value.shareId, amount }) : created
+  return created.ok ? ok({ shareId: created.value.shareId, amount: created.value.amount }) : created
 }
 
 /** Reserves the provider charge atomically against the persisted session

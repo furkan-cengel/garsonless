@@ -21,11 +21,22 @@ export function resolveFrameAncestors({
       }
     })
   if (!isProduction) {
-    origins.push('http://localhost:3000', 'http://127.0.0.1:3000')
+    origins.push(
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:3004',
+      'http://127.0.0.1:3004',
+    )
   }
   return [...new Set(origins)]
 }
 
 export function frameAncestorsDirective(origins: readonly string[]): string {
   return `frame-ancestors ${origins.length > 0 ? origins.join(' ') : "'none'"}`
+}
+
+export function shouldApplyMenuFrameAncestors(pathname: string): boolean {
+  // The provider POSTs this document into a same-origin payment iframe. The
+  // callback route owns a stricter nonce-based CSP with frame-ancestors 'self'.
+  return pathname !== '/api/payment/callback'
 }

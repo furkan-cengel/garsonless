@@ -29,6 +29,7 @@ interface ThemeEditorDialogsLayerProps {
   groups: readonly string[]
   activeSections: readonly string[]
   canAddAdvancedSections: boolean
+  canUseVideoHero: boolean
   setSectionSearch: Dispatch<SetStateAction<string>>
   setSectionGroup: Dispatch<SetStateAction<(typeof SECTION_GROUPS)[number]>>
   onSectionAdd: (sectionId: string) => void
@@ -52,6 +53,7 @@ export function ThemeEditorDialogsLayer({
   groups,
   activeSections,
   canAddAdvancedSections,
+  canUseVideoHero,
   setSectionSearch,
   setSectionGroup,
   onSectionAdd,
@@ -71,6 +73,7 @@ export function ThemeEditorDialogsLayer({
           visibleSections={filteredSections}
           activeSectionIds={activeSections}
           canAddAdvancedSections={canAddAdvancedSections}
+          canUseVideoHero={canUseVideoHero}
           onSearchChange={setSectionSearch}
           onGroupChange={(group) => setSectionGroup(group as (typeof SECTION_GROUPS)[number])}
           onAddSection={onSectionAdd}

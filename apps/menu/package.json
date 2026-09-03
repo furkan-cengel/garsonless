@@ -22,7 +22,7 @@
     "framer-motion": "^12.4.7",
     "iyzipay": "^2.0.67",
     "next": "^15.5.21",
-    "postcss": "^8.5.14",
+    "postcss": "8.5.23",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "server-only": "^0.0.1",

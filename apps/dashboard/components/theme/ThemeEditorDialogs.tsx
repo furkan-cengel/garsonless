@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 import { XIcon } from 'lucide-react'
+import { VIDEO_HERO_SECTION_ID } from '@garsonless/design-engine'
 import { ThemeSectionCatalogIcon, type ThemeSectionCatalogIconName } from './ThemeSectionCatalogIcon'
 
 export type ThemeSectionOption = {
@@ -43,6 +44,7 @@ interface SectionPickerDialogProps {
   visibleSections: readonly ThemeSectionOption[]
   activeSectionIds: readonly string[]
   canAddAdvancedSections: boolean
+  canUseVideoHero: boolean
   onSearchChange: (value: string) => void
   onGroupChange: (group: string) => void
   onAddSection: (sectionId: string) => void
@@ -61,6 +63,7 @@ export function SectionPickerDialog({
   visibleSections,
   activeSectionIds,
   canAddAdvancedSections,
+  canUseVideoHero,
   onSearchChange,
   onGroupChange,
   onAddSection,
@@ -68,6 +71,11 @@ export function SectionPickerDialog({
   onClose,
   renderPreview,
 }: SectionPickerDialogProps) {
+  // Video Hero is billed separately from the bundled advanced catalogue, so it
+  // unlocks on its own add-on rather than on `theme_advanced_sections`.
+  const isSectionLocked = (section: ThemeSectionOption) => section.plan !== 'pro'
+    ? false
+    : section.id === VIDEO_HERO_SECTION_ID ? !canUseVideoHero : !canAddAdvancedSections
   const [selectedId, setSelectedId] = useState(() => visibleSections[0]?.id ?? sections[0]?.id ?? '')
   const selected = useMemo(
     () => sections.find((section) => section.id === selectedId) ?? visibleSections[0] ?? null,
@@ -83,7 +91,7 @@ export function SectionPickerDialog({
     ? countSectionInstances(activeSectionIds, selected.id)
     : 0
   const selectedExists = selectedInstanceCount > 0
-  const selectedLocked = selected?.plan === 'pro' && !canAddAdvancedSections
+  const selectedLocked = selected !== null && isSectionLocked(selected)
   const selectedPlanned = selected?.status === 'planned'
   const readyCount = sections.filter((section) => section.status === 'ready').length
   const plannedCount = sections.length - readyCount
@@ -300,7 +308,7 @@ export function SectionPickerDialog({
             {visibleSections.map((section) => {
               const instanceCount = countSectionInstances(activeSectionIds, section.id)
               const exists = instanceCount > 0
-              const locked = section.plan === 'pro' && !canAddAdvancedSections
+              const locked = isSectionLocked(section)
               const planned = section.status === 'planned'
               const isSelected = selected?.id === section.id
               return (

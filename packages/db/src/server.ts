@@ -208,6 +208,7 @@ export {
   readTransferableOrdersForSession,
 } from './order-command-port'
 export { createOrderRefundPort } from './order-refund-port'
+export { createPlatformSubscriptionRefundPort } from './subscription-refund-port'
 export {
   createPaymentReconciliationPort,
   recordPaymentReconciliation,
@@ -216,11 +217,13 @@ export { createSubscriptionBillingPersistencePort } from './subscription-billing
 export { createSubscriptionBillingWebhookInboxPort } from './subscription-billing-webhook-port'
 export { createSubscriptionBillingOperationsPort } from './subscription-billing-operations-port'
 export { createSubscriptionBillingSettingsReadPort } from './subscription-billing-settings-port'
+export { createSubscriptionCancellationSchedulePort } from './subscription-cancellation-port'
 export {
   createAccountingInvoicePort,
   type AccountingInvoiceJob,
   type AccountingProfileSnapshot,
 } from './accounting-invoice-port'
+export { createParasutOAuthPort, type ParasutOAuthLease } from './parasut-oauth-port'
 export { createBillingMaintenancePort } from './billing-maintenance-port'
 export { createPlatformAdminIdentityPort } from './platform-admin-identity-port'
 export {
@@ -237,6 +240,7 @@ export { createPlatformAdminEntitlementPort } from './platform-admin-entitlement
 export { createPlatformAdminImpersonationPort } from './platform-admin-impersonation-port'
 export { createPlatformAdminPrivacyPort } from './platform-admin-privacy-port'
 export {
+  canPublicRestaurantUseFeature,
   canRestaurantUseFeature,
   resolveRestaurantFeatureEntitlement,
 } from './feature-entitlement-port'
@@ -290,5 +294,6 @@ export {
 export {
   createNotificationEmailPort,
   getNotificationPreferences,
+  recordResendNotificationEvent,
   upsertNotificationPreferences,
 } from './notification-email-port'

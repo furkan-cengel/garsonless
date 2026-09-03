@@ -9,6 +9,7 @@ export const SUBSCRIPTION_STATUSES = [
   'past_due',
   'grace_period',
   'suspended',
+  'refund_cancel_pending',
   'cancelled',
   'manual_hold',
 ] as const
@@ -68,12 +69,13 @@ export type BillingSubscriptionSnapshot = {
 export const SUBSCRIPTION_STATUS_TRANSITIONS: Readonly<Record<SubscriptionStatus, readonly SubscriptionStatus[]>> = {
   trial: ['active', 'trial_expired', 'cancelled', 'manual_hold'],
   trial_expired: ['active', 'cancelled', 'manual_hold'],
-  active: ['past_due', 'cancelled', 'manual_hold'],
-  past_due: ['active', 'grace_period', 'cancelled', 'manual_hold'],
-  grace_period: ['active', 'suspended', 'cancelled', 'manual_hold'],
-  suspended: ['active', 'cancelled', 'manual_hold'],
+  active: ['past_due', 'refund_cancel_pending', 'cancelled', 'manual_hold'],
+  past_due: ['active', 'grace_period', 'refund_cancel_pending', 'cancelled', 'manual_hold'],
+  grace_period: ['active', 'suspended', 'refund_cancel_pending', 'cancelled', 'manual_hold'],
+  suspended: ['active', 'refund_cancel_pending', 'cancelled', 'manual_hold'],
+  refund_cancel_pending: ['cancelled'],
   cancelled: [],
-  manual_hold: ['active', 'past_due', 'grace_period', 'suspended', 'cancelled'],
+  manual_hold: ['active', 'past_due', 'grace_period', 'suspended', 'refund_cancel_pending', 'cancelled'],
 }
 
 export function canTransitionSubscriptionStatus(from: SubscriptionStatus, to: SubscriptionStatus): boolean {

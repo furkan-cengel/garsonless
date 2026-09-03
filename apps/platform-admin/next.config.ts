@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
     return [{ source: '/:path*', headers: createSecurityHeaders({ noIndex: true, isProduction: process.env.NODE_ENV === 'production' }) }]
   },
   transpilePackages: ['@garsonless/application', '@garsonless/db', '@garsonless/domain', '@garsonless/ui'],
+  // iyzipay 2.x resolves resource modules dynamically at runtime. Keeping the
+  // Node-only SDK external prevents Turbopack from trying to statically bundle
+  // those CommonJS resource lookups into the admin application.
+  serverExternalPackages: ['iyzipay'],
   turbopack: {
     root: path.join(process.cwd(), '../..'),
   },

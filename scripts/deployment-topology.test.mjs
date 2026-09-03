@@ -23,6 +23,7 @@ function validEnv() {
       KITCHEN_URL: 'https://kds.masabu.co',
       NEXT_PUBLIC_KITCHEN_URL: 'https://kds.masabu.co',
       OUTBOX_WORKER_SECRET: SHARED_WORKER,
+      ACCOUNTING_WORKER_URL: 'https://app.masabu.co/api/internal/accounting-invoices',
     },
     menu: {
       NEXT_PUBLIC_SUPABASE_URL: supabase,
@@ -60,6 +61,8 @@ function validEnv() {
       PAYMENT_RECONCILIATION_URL: 'https://menu.masabu.co/api/internal/payment-reconciliation',
       BILLING_MAINTENANCE_URL: 'https://app.masabu.co/api/internal/billing-maintenance',
     },
+    'send-email-hook': {},
+    'send-sms-hook': {},
   }
 }
 
@@ -68,7 +71,7 @@ test('production topology binds every app, shared credential and route', () => {
   const result = validateDeploymentTopology({ spec, envByScope: validEnv(), projectRef: PROD_REF })
   assert.equal(result.ok, true)
   assert.deepEqual(result.errors, [])
-  assert.equal(result.publicEndpoints.length, 11)
+  assert.equal(result.publicEndpoints.length, 13)
   assert.match(sha256, /^[a-f0-9]{64}$/)
 })
 

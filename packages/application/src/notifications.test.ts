@@ -3,9 +3,11 @@ import { test } from 'node:test'
 import { ok, err, type Result } from '@garsonless/domain'
 import {
   buildInboxContent,
+  buildBillingNotificationContent,
   consumeDashboardInbox,
   inboxCategoryForEvent,
   inboxRecipientSection,
+  notificationDedupeKeyForEvent,
   type DashboardInboxEntry,
   type DashboardInboxEvent,
   type DashboardInboxPort,
@@ -64,6 +66,89 @@ test('billing notifications are owner-only, unmutable and link to billing settin
   assert.equal(content.severity, 'critical')
   assert.match(content.title, /Son ödeme/)
   assert.equal(content.linkPath, '/dashboard/rest-1/settings?section=billing')
+})
+
+test('upcoming renewal is mandatory and dedupes per period rather than forever', () => {
+  const first: DashboardInboxEvent = {
+    ...ORDER_EVENT,
+    type: 'invoice.upcoming',
+    aggregateId: 'subscription-1',
+    tableLabel: null,
+    payload: { periodEnd: '2026-10-01T00:00:00.000Z' },
+  }
+  const second = { ...first, payload: { periodEnd: '2026-11-01T00:00:00.000Z' } }
+  assert.equal(inboxRecipientSection(first.type), null)
+  assert.equal(buildInboxContent(first).severity, 'info')
+  assert.notEqual(notificationDedupeKeyForEvent(first), notificationDedupeKeyForEvent(second))
+  assert.equal(
+    notificationDedupeKeyForEvent(first),
+    'invoice.upcoming:subscription-1:2026-10-01T00:00:00.000Z',
+  )
+})
+
+test('payment method update is an owner-only billing notification', () => {
+  const event: DashboardInboxEvent = {
+    ...ORDER_EVENT,
+    type: 'payment_method.updated',
+    aggregateId: 'subscription-1',
+    tableLabel: null,
+    payload: {},
+  }
+  assert.equal(inboxRecipientSection(event.type), null)
+  const content = buildInboxContent(event)
+  assert.equal(content.severity, 'info')
+  assert.match(content.title, /Ödeme yönteminiz güncellendi/)
+})
+
+test('period-end cancellation lifecycle stays owner-only and explains access timing', () => {
+  const scheduled: DashboardInboxEvent = {
+    ...ORDER_EVENT,
+    type: 'subscription.cancellation_scheduled',
+    aggregateId: 'cancellation-request-1',
+    tableLabel: null,
+    payload: { effectiveAt: '2026-10-01T00:00:00.000Z' },
+  }
+  assert.equal(inboxRecipientSection(scheduled.type), null)
+  assert.match(buildInboxContent(scheduled).body, /dönem sonuna kadar açık/)
+  assert.equal(buildInboxContent({ ...scheduled, type: 'subscription.cancellation_withdrawn' }).severity, 'info')
+  assert.equal(buildInboxContent({ ...scheduled, type: 'subscription.cancelled' }).severity, 'critical')
+})
+
+test('subscription refund lifecycle is owner-only and keeps money separate from access', () => {
+  for (const eventType of ['refund.requested', 'refund.succeeded', 'refund.failed'] as const) {
+    assert.equal(inboxRecipientSection(eventType), null)
+    const content = buildBillingNotificationContent(eventType, 'restaurant-1')
+    assert.equal(content.linkPath, '/dashboard/restaurant-1/settings?section=billing')
+    assert.doesNotMatch(`${content.title} ${content.body}`, /paket.*kapat|özellik.*kapat/i)
+  }
+})
+
+test('trial lifecycle is mandatory billing communication with one event per milestone', () => {
+  for (const eventType of [
+    'subscription.trial_started',
+    'subscription.trial_expiring_7',
+    'subscription.trial_expiring_3',
+    'subscription.trial_expiring_1',
+    'subscription.trial_expired',
+  ] as const) {
+    assert.equal(inboxCategoryForEvent(eventType), 'billing')
+    assert.equal(inboxRecipientSection(eventType), null)
+    assert.match(buildBillingNotificationContent(eventType, 'restaurant-1').linkPath, /section=billing/)
+  }
+})
+
+test('onboarding reminders are owner-only lifecycle messages and dedupe at 24/72 hours', () => {
+  const first: DashboardInboxEvent = {
+    ...ORDER_EVENT,
+    type: 'onboarding.incomplete',
+    aggregateId: 'restaurant-1',
+    payload: { reminderHour: 24 },
+  }
+  const second = { ...first, payload: { reminderHour: 72 } }
+  assert.equal(inboxCategoryForEvent(first.type), 'lifecycle')
+  assert.equal(inboxRecipientSection(first.type), null)
+  assert.equal(buildInboxContent(first).linkPath, '/dashboard/onboarding')
+  assert.notEqual(notificationDedupeKeyForEvent(first), notificationDedupeKeyForEvent(second))
 })
 
 test('happy path writes one entry per recipient with a stable dedupe key', async () => {

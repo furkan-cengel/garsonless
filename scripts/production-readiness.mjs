@@ -11,12 +11,13 @@ const APP_SCOPES = {
     'SUPABASE_SERVICE_ROLE_KEY', 'NEXT_PUBLIC_APP_URL', 'NEXT_PUBLIC_MENU_URL',
     'NEXT_PUBLIC_MENU_BASE_URL', 'KITCHEN_URL', 'NEXT_PUBLIC_KITCHEN_URL',
     'OUTBOX_WORKER_SECRET', 'RESEND_API_KEY', 'RESEND_FROM_EMAIL',
-    'RESEND_STANDS_TO_EMAIL', 'SAAS_BILLING_ENABLED',
+    'RESEND_STANDS_TO_EMAIL', 'SAAS_BILLING_SALES_ENABLED',
+    'ACCOUNTING_DISPATCH_ENABLED',
   ],
   menu: [
     'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
     'SUPABASE_SERVICE_ROLE_KEY', 'NEXT_PUBLIC_APP_URL', 'NEXT_PUBLIC_MENU_URL',
-    'OUTBOX_WORKER_SECRET',
+    'OUTBOX_WORKER_SECRET', 'CUSTOMER_AUTH_PHONE_OTP_ENABLED',
   ],
   kitchen: [
     'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
@@ -25,7 +26,7 @@ const APP_SCOPES = {
   marketing: ['NEXT_PUBLIC_DASHBOARD_URL'],
   'platform-admin': [
     'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
-    'SUPABASE_SERVICE_ROLE_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY', 'SAAS_BILLING_FINANCIAL_OPS_ENABLED',
   ],
   'outbox-worker': [
     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
@@ -34,7 +35,62 @@ const APP_SCOPES = {
     'PAYMENT_RECONCILIATION_URL', 'BILLING_MAINTENANCE_URL',
   ],
   'send-email-hook': ['SEND_EMAIL_HOOK_SECRET', 'RESEND_API_KEY'],
+  // The SMS hook is optional. Its provider secrets become mandatory only when
+  // customer-phone-auth is selected for this Edge Function scope.
+  'send-sms-hook': [],
 }
+
+const BILLING_PRODUCT_CONTRACTS = [
+  { prefix: 'IYZICO_BILLING_STARTER_MONTHLY', planNetAmountMinor: 34_900 },
+  { prefix: 'IYZICO_BILLING_STARTER_ANNUAL', planNetAmountMinor: 335_040 },
+  { prefix: 'IYZICO_BILLING_PLUS_MONTHLY', planNetAmountMinor: 69_900 },
+  { prefix: 'IYZICO_BILLING_PLUS_ANNUAL', planNetAmountMinor: 671_040 },
+  { prefix: 'IYZICO_BILLING_PRO_MONTHLY', planNetAmountMinor: 119_900 },
+  { prefix: 'IYZICO_BILLING_PRO_ANNUAL', planNetAmountMinor: 1_151_040 },
+  {
+    prefix: 'IYZICO_BILLING_PRO_IYZICO_ADDON_MONTHLY',
+    planNetAmountMinor: 119_900,
+    addOnNetAmountMinor: 30_000,
+  },
+  {
+    prefix: 'IYZICO_BILLING_PRO_IYZICO_ADDON_ANNUAL',
+    planNetAmountMinor: 1_151_040,
+    addOnNetAmountMinor: 288_000,
+  },
+  {
+    prefix: 'IYZICO_BILLING_STARTER_VIDEO_HERO_MONTHLY',
+    planNetAmountMinor: 34_900,
+    addOnNetAmountMinor: 3_900,
+  },
+  {
+    prefix: 'IYZICO_BILLING_STARTER_VIDEO_HERO_ANNUAL',
+    planNetAmountMinor: 335_040,
+    addOnNetAmountMinor: 37_440,
+  },
+  {
+    prefix: 'IYZICO_BILLING_PLUS_VIDEO_HERO_MONTHLY',
+    planNetAmountMinor: 69_900,
+    addOnNetAmountMinor: 3_900,
+  },
+  {
+    prefix: 'IYZICO_BILLING_PLUS_VIDEO_HERO_ANNUAL',
+    planNetAmountMinor: 671_040,
+    addOnNetAmountMinor: 37_440,
+  },
+]
+
+const BILLING_PLAN_REF_KEYS = BILLING_PRODUCT_CONTRACTS.map(({ prefix }) => `${prefix}_PLAN_REF`)
+const BILLING_AMOUNT_KEYS = BILLING_PRODUCT_CONTRACTS.map(({ prefix }) => `${prefix}_AMOUNT_MINOR`)
+const BILLING_ADD_ON_NET_AMOUNTS = Object.fromEntries(
+  BILLING_PRODUCT_CONTRACTS
+    .filter(({ addOnNetAmountMinor }) => addOnNetAmountMinor !== undefined)
+    .map(({ prefix, addOnNetAmountMinor }) => [`${prefix}_ADDON_NET_AMOUNT_MINOR`, addOnNetAmountMinor]),
+)
+const BILLING_NET_AMOUNTS = Object.fromEntries(
+  BILLING_PRODUCT_CONTRACTS.map(({ prefix, planNetAmountMinor, addOnNetAmountMinor = 0 }) => [
+    `${prefix}_AMOUNT_MINOR`, planNetAmountMinor + addOnNetAmountMinor,
+  ]),
+)
 
 const CAPABILITIES = {
   'order-card-payments': {
@@ -46,14 +102,38 @@ const CAPABILITIES = {
     keys: [
       'IYZICO_BILLING_MERCHANT_ID', 'IYZICO_BILLING_API_KEY',
       'IYZICO_BILLING_SECRET_KEY', 'IYZICO_BILLING_BASE_URL',
-      'SAAS_BILLING_ENABLED', 'INVOICE_VAT_RATE',
-      'IYZICO_BILLING_STARTER_MONTHLY_PLAN_REF', 'IYZICO_BILLING_STARTER_MONTHLY_AMOUNT_MINOR',
-      'IYZICO_BILLING_STARTER_ANNUAL_PLAN_REF', 'IYZICO_BILLING_STARTER_ANNUAL_AMOUNT_MINOR',
-      'IYZICO_BILLING_PLUS_MONTHLY_PLAN_REF', 'IYZICO_BILLING_PLUS_MONTHLY_AMOUNT_MINOR',
-      'IYZICO_BILLING_PLUS_ANNUAL_PLAN_REF', 'IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR',
-      'IYZICO_BILLING_PRO_MONTHLY_PLAN_REF', 'IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR',
-      'IYZICO_BILLING_PRO_ANNUAL_PLAN_REF', 'IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR',
+      'SAAS_BILLING_SALES_ENABLED', 'INVOICE_VAT_RATE',
+      ...BILLING_PLAN_REF_KEYS, ...BILLING_AMOUNT_KEYS,
+      ...Object.keys(BILLING_ADD_ON_NET_AMOUNTS),
     ],
+  },
+  'subscription-refunds': {
+    scopes: ['platform-admin'],
+    keys: [
+      'SAAS_BILLING_FINANCIAL_OPS_ENABLED', 'IYZICO_BILLING_API_KEY',
+      'IYZICO_BILLING_SECRET_KEY', 'IYZICO_BILLING_BASE_URL',
+    ],
+  },
+  accounting: {
+    scopes: ['dashboard'],
+    keys: [
+      'ACCOUNTING_DISPATCH_ENABLED', 'ACCOUNTING_WORKER_SECRET', 'ACCOUNTING_WORKER_URL',
+      'PARASUT_CLIENT_ID', 'PARASUT_CLIENT_SECRET', 'PARASUT_COMPANY_ID',
+      'PARASUT_PRODUCT_ID', 'PARASUT_API_BASE_URL', 'PARASUT_INTERNET_SALE_URL',
+      'INVOICE_VAT_RATE', 'INVOICE_SERVICE_NAME',
+    ],
+  },
+  'customer-phone-auth': {
+    scopes: ['menu', 'send-sms-hook'],
+    keysByScope: {
+      menu: [
+        'CUSTOMER_AUTH_PHONE_OTP_ENABLED', 'CUSTOMER_AUTH_STATE_KEYS',
+        'NEXT_PUBLIC_RECAPTCHA_SITE_KEY', 'RECAPTCHA_SECRET_KEY',
+      ],
+      'send-sms-hook': [
+        'SEND_SMS_HOOK_SECRETS', 'NETGSM_USERCODE', 'NETGSM_PASSWORD', 'NETGSM_MSGHEADER',
+      ],
+    },
   },
   'web-push': {
     scopes: ['dashboard', 'outbox-worker'],
@@ -73,6 +153,8 @@ const SECRET_KEYS = new Set([
   'OUTBOX_WORKER_SECRET', 'SEND_EMAIL_HOOK_SECRET', 'RESEND_API_KEY',
   'IYZICO_API_KEY', 'IYZICO_SECRET_KEY', 'IYZICO_BILLING_API_KEY',
   'IYZICO_BILLING_SECRET_KEY', 'WEB_PUSH_VAPID_PRIVATE_KEY', 'NETGSM_PASSWORD',
+  'ACCOUNTING_WORKER_SECRET', 'PARASUT_CLIENT_SECRET', 'SEND_SMS_HOOK_SECRETS',
+  'CUSTOMER_AUTH_STATE_KEYS', 'RECAPTCHA_SECRET_KEY',
 ])
 
 const URL_KEYS = new Set([
@@ -82,32 +164,8 @@ const URL_KEYS = new Set([
   'OUTBOX_PUSH_CONSUMER_URL', 'OUTBOX_INBOX_CONSUMER_URL',
   'OUTBOX_EMAIL_CONSUMER_URL', 'PAYMENT_RECONCILIATION_URL',
   'BILLING_MAINTENANCE_URL', 'IYZICO_BASE_URL', 'IYZICO_BILLING_BASE_URL',
+  'ACCOUNTING_WORKER_URL', 'PARASUT_API_BASE_URL', 'PARASUT_INTERNET_SALE_URL',
 ])
-
-const BILLING_PLAN_REF_KEYS = [
-  'IYZICO_BILLING_STARTER_MONTHLY_PLAN_REF',
-  'IYZICO_BILLING_STARTER_ANNUAL_PLAN_REF',
-  'IYZICO_BILLING_PLUS_MONTHLY_PLAN_REF',
-  'IYZICO_BILLING_PLUS_ANNUAL_PLAN_REF',
-  'IYZICO_BILLING_PRO_MONTHLY_PLAN_REF',
-  'IYZICO_BILLING_PRO_ANNUAL_PLAN_REF',
-]
-const BILLING_AMOUNT_KEYS = [
-  'IYZICO_BILLING_STARTER_MONTHLY_AMOUNT_MINOR',
-  'IYZICO_BILLING_STARTER_ANNUAL_AMOUNT_MINOR',
-  'IYZICO_BILLING_PLUS_MONTHLY_AMOUNT_MINOR',
-  'IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR',
-  'IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR',
-  'IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR',
-]
-const BILLING_NET_AMOUNTS = {
-  IYZICO_BILLING_STARTER_MONTHLY_AMOUNT_MINOR: 34_900,
-  IYZICO_BILLING_STARTER_ANNUAL_AMOUNT_MINOR: 335_040,
-  IYZICO_BILLING_PLUS_MONTHLY_AMOUNT_MINOR: 69_900,
-  IYZICO_BILLING_PLUS_ANNUAL_AMOUNT_MINOR: 671_040,
-  IYZICO_BILLING_PRO_MONTHLY_AMOUNT_MINOR: 119_900,
-  IYZICO_BILLING_PRO_ANNUAL_AMOUNT_MINOR: 1_151_040,
-}
 
 function stripInlineComment(value) {
   if (value.startsWith('"') || value.startsWith("'")) return value
@@ -159,7 +217,7 @@ function validateUrl(key, value) {
   return null
 }
 
-function validateSaasBillingContract(env) {
+function validateInvoiceVatRate(env) {
   const errors = []
   const vatRaw = env.INVOICE_VAT_RATE?.trim() ?? ''
   const vatRate = Number(vatRaw)
@@ -167,17 +225,33 @@ function validateSaasBillingContract(env) {
   if (vatRaw && !isPlaceholder(vatRaw) && !validVatRate) {
     errors.push(issue('MAS-DEP-006', 'INVOICE_VAT_RATE', '0 ile 100 arasında bir tamsayı olmalı.'))
   }
+  return { errors, vatRate: validVatRate ? vatRate : null }
+}
+
+function validateSaasBillingContract(env) {
+  const { errors, vatRate } = validateInvoiceVatRate(env)
+  for (const [key, expected] of Object.entries(BILLING_ADD_ON_NET_AMOUNTS)) {
+    const raw = env[key]?.trim() ?? ''
+    if (!raw || isPlaceholder(raw)) continue
+    const value = Number(raw)
+    if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(value)) {
+      errors.push(issue('MAS-DEP-006', key, 'Pozitif ve güvenli bir TRY minor-unit tamsayısı olmalı.'))
+    } else if (value !== expected) {
+      errors.push(issue('MAS-DEP-006', key, 'Kanonik add-on net fiyatına tam olarak eşit olmalı.'))
+    }
+  }
+
   for (const key of BILLING_AMOUNT_KEYS) {
     const raw = env[key]?.trim() ?? ''
     if (!raw || isPlaceholder(raw)) continue
     const value = Number(raw)
     if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(value)) {
       errors.push(issue('MAS-DEP-006', key, 'Pozitif ve güvenli bir TRY minor-unit tamsayısı olmalı.'))
-    } else if (validVatRate) {
+    } else if (vatRate !== null) {
       const netAmount = BILLING_NET_AMOUNTS[key]
       const expected = netAmount + Math.round(netAmount * vatRate / 100)
       if (value !== expected) {
-        errors.push(issue('MAS-DEP-006', key, 'Kanonik net fiyat ile INVOICE_VAT_RATE toplamına eşit olmalı.'))
+        errors.push(issue('MAS-DEP-006', key, 'Kanonik plan/add-on net toplamı ile INVOICE_VAT_RATE genel toplamına eşit olmalı.'))
       }
     }
   }
@@ -192,9 +266,8 @@ function validateSaasBillingContract(env) {
       references.push({ key, value })
     }
   }
-  if (references.length === BILLING_PLAN_REF_KEYS.length
-    && new Set(references.map(({ value }) => value)).size !== references.length) {
-    errors.push(issue('MAS-DEP-006', 'IYZICO_BILLING_*_PLAN_REF', 'Paid plan provider referansları benzersiz olmalı.'))
+  if (new Set(references.map(({ value }) => value)).size !== references.length) {
+    errors.push(issue('MAS-DEP-006', 'IYZICO_BILLING_*_PLAN_REF', '12 paid product provider referansı benzersiz olmalı.'))
   }
 
   const merchantId = env.IYZICO_BILLING_MERCHANT_ID?.trim() ?? ''
@@ -224,11 +297,57 @@ function requiredKeys(scopes, capabilities) {
   for (const capability of capabilities) {
     const contract = CAPABILITIES[capability]
     if (!contract) continue
-    if (contract.scopes.some((scope) => scopes.includes(scope))) {
-      for (const key of contract.keys) keys.add(key)
+    for (const scope of scopes) {
+      if (!contract.scopes.includes(scope)) continue
+      for (const key of contract.keys ?? []) keys.add(key)
+      for (const key of contract.keysByScope?.[scope] ?? []) keys.add(key)
     }
   }
   return [...keys]
+}
+
+function capabilityApplies(capability, scopes) {
+  return CAPABILITIES[capability]?.scopes.some((scope) => scopes.includes(scope)) ?? false
+}
+
+const CAPABILITY_FLAGS = [
+  {
+    scope: 'dashboard', capability: 'saas-billing', key: 'SAAS_BILLING_SALES_ENABLED',
+    label: 'SaaS billing satış',
+  },
+  {
+    scope: 'platform-admin', capability: 'subscription-refunds',
+    key: 'SAAS_BILLING_FINANCIAL_OPS_ENABLED', label: 'Abonelik iade',
+  },
+  {
+    scope: 'dashboard', capability: 'accounting', key: 'ACCOUNTING_DISPATCH_ENABLED',
+    label: 'Paraşüt dispatch',
+  },
+  {
+    scope: 'menu', capability: 'customer-phone-auth', key: 'CUSTOMER_AUTH_PHONE_OTP_ENABLED',
+    label: 'Müşteri telefon OTP',
+  },
+]
+
+function validateCapabilityFlags(env, scopes, capabilities) {
+  const errors = []
+  for (const { scope, capability, key, label } of CAPABILITY_FLAGS) {
+    if (!scopes.includes(scope)) continue
+    const value = env[key]?.trim() ?? ''
+    if (!value || isPlaceholder(value)) continue
+    const enabled = capabilities.includes(capability)
+    const expected = enabled ? 'true' : 'false'
+    if (value !== expected) {
+      errors.push(issue(
+        'MAS-DEP-006',
+        key,
+        enabled
+          ? `${label} capability için açıkça true olmalı.`
+          : `${label} capability seçili değilken fail-closed false olmalı.`,
+      ))
+    }
+  }
+  return errors
 }
 
 export function migrationInventory(root = ROOT) {
@@ -251,6 +370,11 @@ export function validateProductionConfig({ env, scopes, capabilities = [], proje
 
   for (const scope of unknownScopes) errors.push(issue('MAS-DEP-006', 'scope', `Bilinmeyen scope: ${scope}`))
   for (const capability of unknownCapabilities) errors.push(issue('MAS-DEP-006', 'capability', `Bilinmeyen capability: ${capability}`))
+  for (const capability of capabilities.filter((name) => CAPABILITIES[name])) {
+    if (!capabilityApplies(capability, scopes)) {
+      errors.push(issue('MAS-DEP-006', 'capability', `${capability} seçili scope'ların hiçbirine uygulanamaz.`))
+    }
+  }
 
   if (scopes.some((scope) => APP_SCOPES[scope]?.some((key) => ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_URL'].includes(key)))) {
     if (!projectRef) errors.push(issue('MAS-DEP-001', 'project-ref', 'Supabase production project ref zorunlu.'))
@@ -289,28 +413,32 @@ export function validateProductionConfig({ env, scopes, capabilities = [], proje
   if (env.NEXT_PUBLIC_SUPABASE_ANON_KEY && env.NEXT_PUBLIC_SUPABASE_ANON_KEY === env.SUPABASE_SERVICE_ROLE_KEY) {
     errors.push(issue('MAS-DEP-006', 'SUPABASE_SERVICE_ROLE_KEY', 'Anon ve service-role anahtarları aynı olamaz.'))
   }
-  if (capabilities.includes('order-card-payments') && env.IYZICO_BASE_URL !== 'https://api.iyzipay.com') {
+  const orderPaymentsEnabled = capabilities.includes('order-card-payments')
+    && capabilityApplies('order-card-payments', scopes)
+  const saasBillingEnabled = capabilities.includes('saas-billing')
+    && capabilityApplies('saas-billing', scopes)
+  const subscriptionRefundsEnabled = capabilities.includes('subscription-refunds')
+    && capabilityApplies('subscription-refunds', scopes)
+  const accountingEnabled = capabilities.includes('accounting')
+    && capabilityApplies('accounting', scopes)
+
+  if (orderPaymentsEnabled && env.IYZICO_BASE_URL !== 'https://api.iyzipay.com') {
     errors.push(issue('MAS-DEP-006', 'IYZICO_BASE_URL', 'Canlı kart ödemesinde production İyzico origin zorunlu.'))
   }
-  if (capabilities.includes('saas-billing') && env.IYZICO_BILLING_BASE_URL !== 'https://api.iyzipay.com') {
-    errors.push(issue('MAS-DEP-006', 'IYZICO_BILLING_BASE_URL', 'Canlı SaaS billing için production İyzico origin zorunlu.'))
+  if ((saasBillingEnabled || subscriptionRefundsEnabled)
+    && env.IYZICO_BILLING_BASE_URL !== 'https://api.iyzipay.com') {
+    errors.push(issue('MAS-DEP-006', 'IYZICO_BILLING_BASE_URL', 'Canlı SaaS billing işlemi için production İyzico origin zorunlu.'))
   }
-  if (capabilities.includes('saas-billing')) {
+  if (accountingEnabled && env.PARASUT_API_BASE_URL !== 'https://api.parasut.com') {
+    errors.push(issue('MAS-DEP-006', 'PARASUT_API_BASE_URL', 'Canlı accounting için production Paraşüt origin zorunlu.'))
+  }
+  if (saasBillingEnabled) {
     errors.push(...validateSaasBillingContract(env))
+  } else if (accountingEnabled) {
+    errors.push(...validateInvoiceVatRate(env).errors)
   }
-  if (scopes.includes('dashboard') && env.SAAS_BILLING_ENABLED) {
-    const expected = capabilities.includes('saas-billing') ? 'true' : 'false'
-    if (env.SAAS_BILLING_ENABLED !== expected) {
-      errors.push(issue(
-        'MAS-DEP-006',
-        'SAAS_BILLING_ENABLED',
-        capabilities.includes('saas-billing')
-          ? 'SaaS billing capability için açıkça true olmalı.'
-          : 'SaaS billing capability seçili değilken fail-closed false olmalı.',
-      ))
-    }
-  }
-  if (capabilities.includes('sms') && env.SMS_PROVIDER !== 'netgsm') {
+  errors.push(...validateCapabilityFlags(env, scopes, capabilities))
+  if (capabilities.includes('sms') && capabilityApplies('sms', scopes) && env.SMS_PROVIDER !== 'netgsm') {
     errors.push(issue('MAS-DEP-006', 'SMS_PROVIDER', 'Production SMS capability için provider netgsm olmalı.'))
   }
 

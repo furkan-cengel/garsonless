@@ -15,7 +15,7 @@ export type BillingInterval = (typeof BILLING_INTERVALS)[number]
 /** Optional products are deliberately separate from plan features. Buying a
  * Pro plan alone must not silently enable a provider integration that has its
  * own commercial and operational contract. */
-export const RESTAURANT_ADD_ONS = ['iyzico_online_payments'] as const
+export const RESTAURANT_ADD_ONS = ['iyzico_online_payments', 'storefront_video_hero'] as const
 export type RestaurantAddOn = (typeof RESTAURANT_ADD_ONS)[number]
 
 export const ADD_ON_DEFINITIONS: Readonly<Record<RestaurantAddOn, {
@@ -29,6 +29,12 @@ export const ADD_ON_DEFINITIONS: Readonly<Record<RestaurantAddOn, {
     description: 'Misafirlerin QR menüden kartla ödeme yapmasını sağlayan Pro eklentisi.',
     availableOn: ['pro', 'business'],
     grants: ['online_payments'],
+  },
+  storefront_video_hero: {
+    label: 'Video Hero',
+    description: 'Ana sayfanın üstünde poster destekli, sessiz ve döngülü hero videosu. Pro pakete dahildir; alt paketlere eklenti olarak açılır.',
+    availableOn: ['starter', 'plus'],
+    grants: ['theme_video_hero'],
   },
 }
 
@@ -75,6 +81,10 @@ export const ADD_ON_PRICES: Readonly<Record<RestaurantAddOn, Readonly<Record<Bil
     monthly: { amountMinor: 30_000, currency: PLAN_PRICE_CURRENCY, vatIncluded: false },
     annual: { amountMinor: 288_000, currency: PLAN_PRICE_CURRENCY, vatIncluded: false },
   },
+  storefront_video_hero: {
+    monthly: { amountMinor: 3_900, currency: PLAN_PRICE_CURRENCY, vatIncluded: false },
+    annual: { amountMinor: 37_440, currency: PLAN_PRICE_CURRENCY, vatIncluded: false },
+  },
 }
 
 export function getPlanPrice(plan: SelfServePlan, interval: BillingInterval): PlanPrice {
@@ -83,6 +93,37 @@ export function getPlanPrice(plan: SelfServePlan, interval: BillingInterval): Pl
 
 export function getAddOnPrice(addOn: RestaurantAddOn, interval: BillingInterval): PlanPrice {
   return ADD_ON_PRICES[addOn][interval]
+}
+
+export function isAddOnAvailableOnPlan(
+  addOn: RestaurantAddOn,
+  plan: RestaurantPlan,
+): boolean {
+  return ADD_ON_DEFINITIONS[addOn].availableOn.includes(plan)
+}
+
+/** Canonical commercial compatibility boundary shared by checkout, plan
+ * changes, provider configuration and presentation. Unknown, duplicate or
+ * plan-incompatible add-ons fail closed. */
+export function isValidAddOnSelection(
+  plan: RestaurantPlan,
+  addOns: readonly unknown[],
+): addOns is readonly RestaurantAddOn[] {
+  return new Set(addOns).size === addOns.length
+    && addOns.every((addOn) => RESTAURANT_ADD_ONS.includes(addOn as RestaurantAddOn)
+      && isAddOnAvailableOnPlan(addOn as RestaurantAddOn, plan))
+}
+
+export function subscriptionNetAmountMinor(
+  plan: SelfServePlan,
+  interval: BillingInterval,
+  addOns: readonly RestaurantAddOn[] = [],
+): number {
+  if (!isValidAddOnSelection(plan, addOns)) {
+    throw new Error('Add-on selection is not available on the selected plan')
+  }
+  return getPlanPrice(plan, interval).amountMinor
+    + addOns.reduce((total, addOn) => total + getAddOnPrice(addOn, interval).amountMinor, 0)
 }
 
 export function calculatePlanCharge(price: PlanPrice, vatRate: number): {
@@ -123,6 +164,7 @@ export const BILLABLE_FEATURES = [
   'analytics_advanced',
   'browser_notifications',
   'theme_advanced_sections',
+  'theme_video_hero',
   'multi_location',
 ] as const
 export type BillableFeature = (typeof BILLABLE_FEATURES)[number]
@@ -172,6 +214,7 @@ const PRO_FEATURES = [
   'analytics_advanced',
   'browser_notifications',
   'theme_advanced_sections',
+  'theme_video_hero',
 ] as const satisfies readonly BillableFeature[]
 
 export const PLAN_DEFINITIONS: Readonly<Record<RestaurantPlan, PlanDefinition>> = {

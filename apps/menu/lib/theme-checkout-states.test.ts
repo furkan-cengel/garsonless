@@ -30,5 +30,5 @@ test('result announcements are accessible while runtime payment facts stay autho
   assert.match(paymentModal, /<p>\{errorMsg\}<\/p>/)
   assert.match(paymentModal, /formatTRY\(total\)/)
   assert.match(paymentModal, /İyzico güvenli ödeme altyapısı/)
-  assert.match(paymentModal, /iframe src=\{paymentPageUrl\}/)
+  assert.match(paymentModal, /iframe ref=\{paymentFrameRef\} src=\{paymentPageUrl\}/)
 })

@@ -86,10 +86,10 @@ export function signIyzicoSubscriptionWebhookForTest(
   payload: Pick<IyzicoSubscriptionWebhookPayload,
     'iyziEventType' | 'subscriptionReferenceCode' | 'orderReferenceCode' | 'customerReferenceCode'>,
 ): string {
-  // iyzico's subscription V3 contract is strict about field order:
-  // secretKey + merchantId + eventType + subscription + order + customer.
-  const message = config.secretKey
-    + config.merchantId
+  // iyzico's subscription V3 sample is strict about field order:
+  // merchantId + secretKey + eventType + subscription + order + customer.
+  const message = config.merchantId
+    + config.secretKey
     + payload.iyziEventType
     + payload.subscriptionReferenceCode
     + payload.orderReferenceCode

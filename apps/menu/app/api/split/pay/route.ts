@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { z } from 'zod'
 import { declareSplitShare, prepareSplitCheckout, releaseSplitCheckout } from '@garsonless/application/splits'
 import { resolvePublicTableContext } from '@garsonless/application/tables'
 import { createPublicTableQueryPort, createSplitPaymentPort } from '@garsonless/db/server'
@@ -8,39 +7,28 @@ import { resolveIyzicoCredentials, attachPaymentTokenToShare } from '../../../..
 import { buildCheckoutAddresses } from '../../../../lib/checkout-address'
 import { publicRestaurantHasFeature } from '../../../../lib/restaurant-feature-access'
 import { getCustomerSession } from '../../../../lib/customer-session'
+import { isIyzicoEnvironmentAllowed } from '../../../../lib/iyzico-environment'
+import {
+  createSplitRateLimitKey,
+  createSplitRequestFingerprint,
+  readBoundedPaymentJson,
+  splitErrorStatus,
+  splitPaySchema,
+} from '../../../../lib/split-request'
 
 // Start an İyzico checkout for ONE split share. The charge is SERVER-AUTHORITATIVE
 // AND CLAMPED to the remaining uncovered total: charge = min(share.amount,
 // session_total − Σ settled shares). A client can never be overcharged past what
 // the table still owes; a fully-covered session rejects the checkout.
 
-const schema = z.object({
-  shareId: z.string().uuid().optional(),
-  slug: z.string().min(1).optional(),
-  tableSessionId: z.string().uuid().optional(),
-  label: z.string().max(40).optional(),
-  amount: z.number().positive().optional(),
-  assignedItems: z.array(z.object({ orderId: z.string().uuid(), itemId: z.string() })).optional(),
-  tableToken: z.string().uuid(),
-  buyerName: z.string().min(1).max(50),
-  buyerSurname: z.string().min(1).max(50),
-  buyerEmail: z.string().email(),
-  buyerPhone: z.string().min(7).max(20),
-  deviceId: z.string().min(1),
-}).superRefine((value, context) => {
-  if (!value.shareId && (!value.slug || !value.tableSessionId || (!value.amount && !value.assignedItems?.length))) {
-    context.addIssue({ code: 'custom', message: 'Kart payı bilgileri eksik.' })
-  }
-})
-
 type ApiResponse<T> = { success: true; data: T } | { success: false; error: string }
 
 export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ paymentPageUrl: string; token: string; amount: number; shareId: string }>>> {
-  let body: unknown
-  try { body = await req.json() } catch { return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 }) }
-  const parsed = schema.safeParse(body)
+  const raw = await readBoundedPaymentJson(req)
+  if (!raw.ok) return NextResponse.json({ success: false, error: raw.error }, { status: raw.status })
+  const parsed = splitPaySchema.safeParse(raw.data)
   if (!parsed.success) return NextResponse.json({ success: false, error: parsed.error.issues[0]?.message ?? 'Invalid request' }, { status: 400 })
-  const { tableToken, buyerName, buyerSurname, buyerEmail, buyerPhone, deviceId } = parsed.data
+  const { tableToken, buyerName, buyerSurname, buyerEmail, buyerPhone, buyerIdentityNumber, deviceId } = parsed.data
 
   const tableResult = await resolvePublicTableContext(tableToken, createPublicTableQueryPort())
   if (!tableResult.ok) return NextResponse.json({ success: false, error: 'Masa bağlantısı doğrulanamadı.' }, { status: 503 })
@@ -54,11 +42,13 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ pay
     return NextResponse.json({ success: false, error: 'Kartla ödeme bu işletmede aktif değil.' }, { status: 403 })
   }
   const credentials = await resolveIyzicoCredentials(restaurantId)
-  if (!credentials || (process.env['NODE_ENV'] === 'production' && credentials.baseUrl.includes('sandbox'))) {
+  if (!credentials || !isIyzicoEnvironmentAllowed(credentials.baseUrl)) {
     return NextResponse.json({ success: false, error: 'Kartla ödeme bu işletmede henüz kullanıma hazır değil.' }, { status: 503 })
   }
 
   const tableContext = { actor: 'table-guest' as const, restaurantId, tableId: table.tableId, tableToken }
+  const splitPort = createSplitPaymentPort()
+  const rateLimitKey = createSplitRateLimitKey(req, tableToken)
   let shareId = parsed.data.shareId
   if (!shareId) {
     if (table.restaurantSlug !== parsed.data.slug) {
@@ -70,23 +60,42 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ pay
       {
         restaurantId,
         tableSessionId: parsed.data.tableSessionId!,
+        requestId: parsed.data.requestId!,
+        requestFingerprint: createSplitRequestFingerprint({
+          tableSessionId: parsed.data.tableSessionId!,
+          method: 'iyzico',
+          label: parsed.data.label,
+          amount: parsed.data.amount,
+          assignedItems: parsed.data.assignedItems,
+        }),
+        rateLimitKey,
         method: 'iyzico',
         label: parsed.data.label,
         amount: parsed.data.amount,
         assignedItems: parsed.data.assignedItems,
         customerId: customerSession?.customerId ?? null,
       },
-      createSplitPaymentPort(),
+      splitPort,
     )
     if (!declaration.ok) {
-      return NextResponse.json({ success: false, error: declaration.error }, { status: 409 })
+      return NextResponse.json({ success: false, error: declaration.error }, { status: splitErrorStatus(declaration.error) })
     }
     shareId = declaration.value.shareId
+  } else {
+    const rateLimit = await splitPort.consumeRateLimit({
+      restaurantId,
+      keyHash: rateLimitKey,
+      max: 12,
+      windowSeconds: 60,
+    })
+    if (!rateLimit.ok) {
+      return NextResponse.json({ success: false, error: rateLimit.error }, { status: splitErrorStatus(rateLimit.error) })
+    }
   }
   const prepared = await prepareSplitCheckout(
     tableContext,
     { restaurantId, shareId },
-    createSplitPaymentPort(),
+    splitPort,
   )
   if (!prepared.ok) {
     const status = prepared.error.includes('bulunamadı') || prepared.error.includes('geçersiz') ? 404 : 409
@@ -98,7 +107,7 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ pay
     const released = await releaseSplitCheckout(
       tableContext,
       { restaurantId, shareId },
-      createSplitPaymentPort(),
+      splitPort,
     )
     if (!released.ok) {
       console.warn(JSON.stringify({ event: 'payment.split_reservation.release_failed' }))
@@ -123,7 +132,7 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ pay
     const result = await initializeCheckout(client, {
       locale: 'tr', conversationId: shareId, price: priceStr, paidPrice: priceStr, currency: 'TRY',
       basketId: shareId, paymentGroup: 'PRODUCT', callbackUrl,
-      buyer: { id: deviceId, name: buyerName, surname: buyerSurname, email: buyerEmail, gsmNumber: buyerPhone, identityNumber: '11111111111', registrationAddress: checkoutAddress.registrationAddress, city: checkoutAddress.city, country: 'Turkey', ip },
+      buyer: { id: deviceId, name: buyerName, surname: buyerSurname, email: buyerEmail, gsmNumber: buyerPhone, identityNumber: buyerIdentityNumber, registrationAddress: checkoutAddress.registrationAddress, city: checkoutAddress.city, country: 'Turkey', ip },
       shippingAddress: checkoutAddress.shippingAddress,
       billingAddress: checkoutAddress.billingAddress,
       basketItems: [{ id: shareId, name: 'Hesap payı', category1: 'Food', itemType: 'VIRTUAL', price: priceStr }],

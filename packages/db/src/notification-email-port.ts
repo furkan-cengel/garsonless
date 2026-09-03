@@ -228,3 +228,26 @@ export async function upsertNotificationPreferences(input: {
     }, { onConflict: 'restaurant_id,user_id' })
   return error ? err(error.message) : ok(null)
 }
+
+export async function recordResendNotificationEvent(input: {
+  webhookId: string
+  providerMessageId: string
+  eventType: 'sent' | 'delivered' | 'delivery_delayed' | 'opened' | 'clicked' | 'bounced' | 'complained' | 'suppressed' | 'failed'
+  occurredAt: string
+}): Promise<boolean> {
+  const occurredAt = new Date(input.occurredAt)
+  if (Number.isNaN(occurredAt.getTime())) throw new Error('invalid_resend_notification_event_time')
+  const service = createServiceClient()
+  const rpc = service.rpc.bind(service) as unknown as (
+    name: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message: string } | null }>
+  const { data, error } = await rpc('record_resend_notification_event', {
+    p_webhook_id: input.webhookId,
+    p_provider_message_id: input.providerMessageId,
+    p_event_type: input.eventType,
+    p_occurred_at: occurredAt.toISOString(),
+  })
+  if (error) throw new Error('record Resend notification event failed')
+  return data === true
+}

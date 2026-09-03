@@ -83,7 +83,8 @@ corepack pnpm prod:preflight -- \
 ```
 
 Diğer scope'lar: `kitchen`, `marketing`, `outbox-worker`,
-`send-email-hook`. Tam liste `corepack pnpm prod:preflight -- --list` ile
+`send-email-hook`, `send-sms-hook`. Tam liste
+`corepack pnpm prod:preflight -- --list` ile
 alınır.
 
 ## Capability'ler
@@ -98,6 +99,15 @@ Provider hazır olmayan özellikler core deploy kontrolünü engellemez; ancak
 # Masabu SaaS abonelik tahsilatı
 --capability saas-billing
 
+# Platform-admin abonelik iade/iptal para hareketi
+--capability subscription-refunds
+
+# Dashboard Paraşüt mali belge dispatch'i
+--capability accounting
+
+# Menu telefon OTP + Supabase Send SMS Hook
+--capability customer-phone-auth
+
 # Browser push fan-out
 --capability web-push
 
@@ -105,9 +115,28 @@ Provider hazır olmayan özellikler core deploy kontrolünü engellemez; ancak
 --capability sms
 ```
 
-İyzico capability'leri sandbox origin ile production preflight'tan geçmez.
-SaaS billing, şirket ve sanal POS hesabı hazır olana kadar `MAS-DEP-W01`
-olarak açıkça ertelenir; sessizce etkin kabul edilmez.
+`customer-phone-auth` iki ayrı runtime sözleşmesidir: `menu` scope'u
+`CUSTOMER_AUTH_PHONE_OTP_ENABLED` ile uygulama/CAPTCHA değerlerini,
+`send-sms-hook` scope'u ise hook imzası ve Netgsm secret'larını doğrular. Edge
+secret'ları menu `.env.production` dosyasına kopyalanmaz; iki scope kendi güvenli
+env kaynağıyla ayrı çalıştırılır.
+
+Preflight, capability seçilmediğinde `SAAS_BILLING_SALES_ENABLED`,
+`SAAS_BILLING_FINANCIAL_OPS_ENABLED`, `ACCOUNTING_DISPATCH_ENABLED` ve
+`CUSTOMER_AUTH_PHONE_OTP_ENABLED` değerlerini açıkça `false` ister. Legacy
+`SAAS_BILLING_ENABLED` uygulama geçişi için fallback olsa da production
+preflight'ta yeni satış bayrağının yerini tutmaz. Capability açılırken yalnız
+ilgili bayrak `true` yapılır; diğer para hareketi ve dispatch kapıları bağımsız
+kalır.
+
+İyzico capability'leri yalnız seçildiklerinde production origin ister; ertelenen
+bir capability'nin boş/sandbox provider ayarı core deploy kontrolünü engellemez.
+`saas-billing` açıldığında altı temel ve altı birleşik add-on ürünü olmak üzere
+12 benzersiz provider referansı zorunludur. İyzico add-on netleri aylık/yıllık
+`30000/288000`, Video Hero netleri `3900/37440` minor unit olmalı; her provider
+brüt tutarı plan + add-on net toplamına tamsayı `INVOICE_VAT_RATE` uygulanmış
+değerle bire bir eşleşmelidir. SaaS billing ve Paraşüt doğrulaması tamamlanana
+kadar ilgili capability'ler `MAS-DEP-W01` olarak açıkça ertelenir.
 
 ## Deploy sırası
 
@@ -133,9 +162,51 @@ dosya değiştirilmesi release artifact karşılaştırmasında görünür olur:
 corepack pnpm prod:migration-manifest -- --output /tmp/masabu-migrations.json
 ```
 
-Remote kontrol ağ erişimi veya migration mutation'ı yapmaz. Operatör doğru
-linked PROD projesinde `supabase migration list` çıktısını alır ve kanıta
-secret olmayan iki metadata satırı ekler:
+Remote kontrol migration mutation'ı yapmaz. Hedef korumalı komut doğru PROD
+projesinden listeyi alır, secret olmayan iki metadata satırını ekler ve kanıtı
+atomik olarak `0600` izinleriyle yazar. Komut bittiğinde aktif Supabase link'i
+güvenli varsayılan olan DEV'e geri döner:
+
+```bash
+corepack pnpm --filter @garsonless/db db:status -- \
+  --target prod --confirm-prod <PROD_PROJECT_REF> \
+  --evidence-output /tmp/prod-migration-list.txt
+```
+
+Raw `supabase link`, `supabase db pull`, `supabase db push` ve linked type
+üretimi release prosedürü değildir. Remote işlemler yalnız paket sarmalayıcısı
+üzerinden yürütülür; `db:pull` ve `types:gen` sadece senkronize DEV hedefini
+kabul eder. `db:pull` DEV şema farkı varsa yeni bir yerel migration üretir ve
+DEV remote migration history tablosunu günceller; bu nedenle temiz worktree,
+açık DEV hedefi ve çıktı incelemesi zorunludur:
+
+Sarmalayıcı ortak linked-project durumunu süreçler arası kilitler; aynı anda
+ikinci bir status/pull/types/backup/push işlemi fail-closed reddedilir. Eski
+`scripts/migrate.mjs` doğrudan bağlantı yolu devre dışıdır ve uygulama/Vercel
+environment'ına doğrudan Postgres bağlantı dizesi konmaz.
+Stale görünümlü bir kilit yarış riski nedeniyle otomatik silinmez; hata
+mesajındaki kilit dosyası ancak hiçbir target işleminin çalışmadığı operatörce
+doğrulandıktan sonra elle kaldırılır.
+
+```bash
+corepack pnpm db:pull -- --target dev
+corepack pnpm types:gen -- --target dev
+```
+
+PROD değişiklik penceresinden önce boş ve yeni bir dizine mantıksal yedek şu
+hedef kilitli komutla alınır:
+
+```bash
+corepack pnpm db:backup -- \
+  --target prod --confirm-prod <PROD_PROJECT_REF> \
+  --backup-directory /tmp/masabu-prod-backup-<release-id>
+```
+
+Komut `schema.sql`, `roles.sql`, `data.sql` ve SHA-256 manifestini kısıtlı
+izinlerle üretir; başarılı veya başarısız her uzak işlemden sonra paket linkini
+DEV'e geri döndürür.
+
+Üretilen biçim:
 
 ```text
 # masabu-project-ref: <PROD_PROJECT_REF>

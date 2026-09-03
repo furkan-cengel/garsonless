@@ -1,0 +1,9 @@
+# Copy to ~/.cloudflared/masabu-sandbox.yml after `cloudflared tunnel login`
+# and replace the two placeholders with the named tunnel id and credential file.
+tunnel: <tunnel-id>
+credentials-file: /Users/<user>/.cloudflared/<tunnel-id>.json
+
+ingress:
+  - hostname: sandbox.masabu.co
+    service: http://localhost:3004
+  - service: http_status:404

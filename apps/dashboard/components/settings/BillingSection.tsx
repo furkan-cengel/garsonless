@@ -1,27 +1,61 @@
 'use client'
 
-import { useMemo, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type {
   SubscriptionBillingAddress,
   SubscriptionBillingProfile,
   SubscriptionBillingSettings,
   SubscriptionBillingSettingsInvoice,
+  SubscriptionBillingSettingsRefund,
 } from '@garsonless/application/billing'
-import { PLAN_DEFINITIONS, normalizeRestaurantPlan, type BillingInterval } from '@garsonless/domain/entitlements'
+import {
+  ADD_ON_DEFINITIONS,
+  PLAN_DEFINITIONS,
+  isValidAddOnSelection,
+  normalizeRestaurantPlan,
+  type BillingInterval,
+  type RestaurantAddOn,
+} from '@garsonless/domain/entitlements'
 import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
 import type { BillingPlanPrices, PaidBillingPlan } from '../../lib/billing/subscription-billing-request'
+import { createIyzicoCheckoutDocument } from '../../lib/billing/iyzico-checkout-document'
+import {
+  isBillingCheckoutResultMessage,
+  type BillingCheckoutPublicCode,
+} from '../../lib/billing/subscription-billing-checkout-result'
 import {
   cancelBillingSubscriptionAction,
+  checkSubscriptionCheckoutAction,
   retryBillingInvoiceAction,
   saveBillingProfileAction,
+  scheduleBillingPlanChangeAction,
   startBillingCheckoutAction,
+  startBillingCardUpdateAction,
+  undoBillingSubscriptionCancellationAction,
 } from '../../lib/actions/billing'
 import { I, Tag, btnGhost, btnPrimary } from '../../lib/ui'
-import { useModalDialogFocus } from '../overlays/use-modal-dialog-focus'
 import { notifySettingsSaved, useSettingsDirtyState } from './settings-dirty-state'
 import { SCard, inputStyle } from './primitives'
 import { Input } from '../ui/input'
+import { Spinner } from '../ui/spinner'
+import { Button } from '../ui/button'
+import { Badge } from '../ui/badge'
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert'
+import { Progress } from '../ui/progress'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '../ui/collapsible'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,13 +78,18 @@ const EMPTY_PROFILE: SubscriptionBillingProfile = {
 
 const PAID_PLANS: PaidBillingPlan[] = ['starter', 'plus', 'pro']
 
+function commercialAddOnForPlan(plan: PaidBillingPlan): RestaurantAddOn {
+  return plan === 'pro' ? 'iyzico_online_payments' : 'storefront_video_hero'
+}
+
 const STATUS_LABELS = {
   trial: 'Deneme', trial_expired: 'Deneme sona erdi', active: 'Aktif', past_due: 'Ödeme gecikti', grace_period: 'Ek süre',
   suspended: 'Askıya alındı', cancelled: 'İptal edildi', manual_hold: 'İncelemede',
+  refund_cancel_pending: 'İptal ediliyor',
 } as const
 
 const INVOICE_LABELS = {
-  draft: 'Taslak', open: 'Açık', paid: 'Ödendi', past_due: 'Gecikti',
+  draft: 'Taslak', open: 'Ödeme teyidi bekleniyor', paid: 'Ödendi', past_due: 'Ödeme gecikti',
   void: 'İptal', uncollectible: 'Tahsil edilemedi',
 } as const
 
@@ -66,7 +105,7 @@ function date(value: string | null): string {
 function statusTone(status: string): 'positive' | 'warning' | 'critical' | 'neutral' {
   if (status === 'active' || status === 'paid') return 'positive'
   if (status === 'past_due' || status === 'grace_period' || status === 'open') return 'warning'
-  if (status === 'trial_expired' || status === 'suspended' || status === 'uncollectible') return 'critical'
+  if (status === 'trial_expired' || status === 'suspended' || status === 'refund_cancel_pending' || status === 'uncollectible') return 'critical'
   return 'neutral'
 }
 
@@ -123,38 +162,522 @@ function AddressFields({ title, value, onChange }: {
   )
 }
 
-function HostedCheckoutDialog({ content, onClose }: { content: string; onClose: () => void }) {
-  const dialogRef = useModalDialogFocus(onClose)
+const CHECKOUT_LOAD_TIMEOUT_MS = 15_000
+const CHECKOUT_PROBE_DELAYS_MS = [2_000, 4_000, 8_000, 15_000, 30_000, 45_000] as const
+const CHECKOUT_SUCCESS_CLOSE_DELAY_MS = 1_200
+const CHECKOUT_SUCCESS_REFRESH_RETRY_MS = 1_500
+const CHECKOUT_ACTIVATION_TIMEOUT_MS = 45_000
+const CARD_UPDATE_VERIFY_TIMEOUT_MS = 15_000
+
+type CheckoutDialogState =
+  | 'loading' | 'ready' | 'attempting' | 'verifying'
+  | 'succeeded' | 'incomplete' | 'pending' | 'failed' | 'expired'
+
+type CheckoutSession = {
+  content: string
+  plan: PaidBillingPlan
+  addOns: RestaurantAddOn[]
+  operationId: string
+  expiresAt: string | null
+}
+
+type CardUpdateSession = {
+  content: string
+  operationId: string
+  expiresAt: string | null
+}
+
+function HostedCheckoutDialog({ restaurantId, session, billing, onClose }: {
+  restaurantId: string
+  session: CheckoutSession
+  billing: SubscriptionBillingSettings | null
+  onClose: () => void
+}) {
+  const router = useRouter()
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const resultHeadingRef = useRef<HTMLHeadingElement>(null)
+  const terminalRef = useRef(false)
+  const sawIncompleteRef = useRef(false)
+  const successRefreshStartedRef = useRef(false)
+  const onCloseRef = useRef(onClose)
+  const [attempt, setAttempt] = useState(0)
+  const [dialogState, setDialogState] = useState<CheckoutDialogState>('loading')
+  const [resultCode, setResultCode] = useState<BillingCheckoutPublicCode | null>(null)
+  const [probeSequence, setProbeSequence] = useState(0)
+  const [probeStep, setProbeStep] = useState(0)
+  const [frameSession, setFrameSession] = useState<{ key: string; nonce: string } | null>(null)
+  const subscription = billing?.subscription ?? null
+  const invoice = billing?.invoices.find((item) => item.plan === session.plan) ?? billing?.invoices[0] ?? null
+  const planActive = subscription?.status === 'active' && subscription.plan === session.plan
+  const invoicePaid = invoice?.status === 'paid'
+  const requestedAddOnsActive = session.addOns.every((addOn) => subscription?.activeAddOns.includes(addOn) === true)
+  const activationComplete = dialogState === 'succeeded' && planActive && invoicePaid && requestedAddOnsActive
+  const activationPending = dialogState === 'succeeded' && !activationComplete
+  const dismissLocked = dialogState === 'verifying' || activationPending
+  const activationProgress = activationComplete ? 100 : planActive || invoicePaid ? 84 : 64
+  const activationTarget = [
+    `${PLAN_DEFINITIONS[session.plan].label} planı`,
+    ...session.addOns.map((addOn) => ADD_ON_DEFINITIONS[addOn].label),
+  ].join(' + ')
+  const resultVisible = dialogState === 'succeeded'
+    || dialogState === 'pending'
+    || dialogState === 'expired'
+    || (dialogState === 'failed' && resultCode !== null)
+  const frameHidden = resultVisible
+
+  useEffect(() => {
+    const nonce = crypto.randomUUID()
+    terminalRef.current = false
+    sawIncompleteRef.current = false
+    successRefreshStartedRef.current = false
+    setDialogState('loading')
+    setResultCode(null)
+    setProbeSequence(0)
+    setProbeStep(0)
+    setFrameSession({ key: nonce, nonce })
+  }, [session.content, attempt])
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  const checkoutDocument = useMemo(() => frameSession
+    ? createIyzicoCheckoutDocument(session.content, frameSession.nonce)
+    : null, [session.content, frameSession])
+
+  useEffect(() => {
+    if (!frameSession) return
+    const receiveCheckoutMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow || event.origin !== window.location.origin) return
+      const data = event.data as { type?: unknown; nonce?: unknown } | null
+      if (data?.type === 'masabu:iyzico-mounted' && data.nonce === frameSession.nonce) {
+        setDialogState((current) => current === 'loading' ? 'ready' : current)
+        iframeRef.current?.contentWindow?.postMessage({
+          type: 'masabu:iyzico-mounted-ack', nonce: frameSession.nonce,
+        }, window.location.origin)
+        return
+      }
+      if (data?.type === 'masabu:iyzico-attempting' && data.nonce === frameSession.nonce) {
+        sawIncompleteRef.current = false
+        setDialogState('attempting')
+        setProbeSequence((current) => current + 1)
+        return
+      }
+      if (data?.type === 'masabu:iyzico-navigating' && data.nonce === frameSession.nonce) {
+        setDialogState('verifying')
+        setProbeSequence((current) => current || 1)
+        return
+      }
+      if (!isBillingCheckoutResultMessage(event.data)) return
+      setResultCode(event.data.code ?? null)
+      terminalRef.current = event.data.outcome !== 'incomplete'
+      setDialogState(event.data.outcome)
+    }
+    window.addEventListener('message', receiveCheckoutMessage)
+    const timeout = window.setTimeout(() => setDialogState((current) => (
+      current === 'ready' || current === 'verifying' || resultVisible ? current : 'failed'
+    )), CHECKOUT_LOAD_TIMEOUT_MS)
+    return () => {
+      window.removeEventListener('message', receiveCheckoutMessage)
+      window.clearTimeout(timeout)
+    }
+  }, [frameSession, resultVisible])
+
+  useEffect(() => {
+    if (!probeSequence || terminalRef.current) return
+    let cancelled = false
+    const timers = CHECKOUT_PROBE_DELAYS_MS.map((delay, index) => window.setTimeout(async () => {
+      if (cancelled || terminalRef.current) return
+      setProbeStep(index + 1)
+      const result = await checkSubscriptionCheckoutAction(restaurantId, session.operationId)
+      if (cancelled || terminalRef.current) return
+      if ('error' in result) {
+        if (index === CHECKOUT_PROBE_DELAYS_MS.length - 1 && !sawIncompleteRef.current) {
+          setDialogState('pending')
+        }
+        return
+      }
+      if (result.outcome === 'active') {
+        terminalRef.current = true
+        setDialogState('succeeded')
+        return
+      }
+      if (result.outcome === 'expired') {
+        terminalRef.current = true
+        setDialogState('expired')
+        router.refresh()
+        return
+      }
+      if (result.outcome === 'incomplete') {
+        sawIncompleteRef.current = true
+        setDialogState('incomplete')
+        return
+      }
+      if (index === CHECKOUT_PROBE_DELAYS_MS.length - 1 && !sawIncompleteRef.current) {
+        setDialogState('pending')
+      }
+    }, delay))
+    return () => {
+      cancelled = true
+      timers.forEach((timer) => window.clearTimeout(timer))
+    }
+  }, [probeSequence, restaurantId, router, session.operationId])
+
+  useEffect(() => {
+    if (!planActive || terminalRef.current || probeSequence === 0) return
+    terminalRef.current = true
+    setDialogState('succeeded')
+  }, [planActive, probeSequence])
+
+  useEffect(() => {
+    if (dialogState !== 'succeeded') return
+    if (!successRefreshStartedRef.current) {
+      successRefreshStartedRef.current = true
+      router.refresh()
+    }
+    if (activationComplete) {
+      const closeTimer = window.setTimeout(
+        () => onCloseRef.current(),
+        CHECKOUT_SUCCESS_CLOSE_DELAY_MS,
+      )
+      return () => window.clearTimeout(closeTimer)
+    }
+    const refreshTimer = window.setTimeout(
+      () => router.refresh(),
+      CHECKOUT_SUCCESS_REFRESH_RETRY_MS,
+    )
+    return () => window.clearTimeout(refreshTimer)
+  }, [activationComplete, dialogState, router])
+
+  useEffect(() => {
+    if (!activationPending) return
+    const timeout = window.setTimeout(() => {
+      setDialogState('pending')
+      router.refresh()
+    }, CHECKOUT_ACTIVATION_TIMEOUT_MS)
+    return () => window.clearTimeout(timeout)
+  }, [activationPending, router])
+
+  useEffect(() => {
+    if (!session.expiresAt || terminalRef.current) return
+    const remaining = Date.parse(session.expiresAt) - Date.now()
+    if (remaining <= 0) {
+      terminalRef.current = true
+      setDialogState('expired')
+      return
+    }
+    const timeout = window.setTimeout(() => {
+      if (!terminalRef.current) {
+        terminalRef.current = true
+        setDialogState('expired')
+      }
+    }, Math.min(remaining, 2_147_483_647))
+    return () => window.clearTimeout(timeout)
+  }, [session.expiresAt])
+
+  useEffect(() => {
+    if (!resultVisible) return
+    resultHeadingRef.current?.focus()
+  }, [resultVisible])
+
+  const resultTitle = dialogState === 'failed'
+    ? 'Ödeme doğrulanamadı'
+    : dialogState === 'expired'
+      ? 'Ödeme oturumu sona erdi'
+      : dialogState === 'pending'
+        ? 'Sonuç henüz kesinleşmedi'
+        : activationComplete
+          ? `${PLAN_DEFINITIONS[session.plan].label} planınız aktif`
+          : `${activationTarget} etkinleştiriliyor`
+  const resultDescription = dialogState === 'failed'
+    ? `Ödeme tamamlanmadı. Kartınızdan yeniden tahsilat başlatmadan önce faturalama ekranına dönün.${resultCode ? ` Destek kodu: ${resultCode}.` : ''}`
+    : dialogState === 'expired'
+      ? 'Bu form artık kullanılamaz. Faturalama ekranından yeni bir ödeme oturumu başlatabilirsiniz.'
+      : dialogState === 'pending'
+        ? 'İyzico sonucu güvenli biçimde tekrar kontrol edilecek. Şimdilik yeni bir ödeme başlatmayın.'
+        : activationComplete
+          ? 'Ödeme tamamlandı ve faturanız kaydedildi. Faturalama ekranına yönlendiriliyorsunuz.'
+          : 'Ödemeniz alındı. Planınız ve ücretli özellikleriniz hesabınıza güvenli biçimde uygulanıyor.'
+
   return (
-    <div
-      role="presentation"
-      onMouseDown={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(15,23,42,.48)', backdropFilter: 'blur(4px)', display: 'grid', placeItems: 'center', padding: 24 }}
-    >
-      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="billing-checkout-title" onMouseDown={(event) => event.stopPropagation()} style={{ width: 'min(720px, 100%)', height: 'min(760px, 92vh)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: '0 24px 70px rgba(15,23,42,.24)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--divider)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--surface-3)', display: 'grid', placeItems: 'center' }}><I.card size={17} /></div>
-          <div style={{ flex: 1 }}>
-            <div id="billing-checkout-title" style={{ fontSize: 14, fontWeight: 700 }}>Güvenli ödeme</div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>Kart bilgileri İyzico’nun barındırdığı formda girilir; Masabu kart verisini görmez.</div>
+    <Dialog open onOpenChange={(open) => { if (!open && !dismissLocked) onClose() }}>
+      <DialogContent
+        showCloseButton={false}
+        aria-busy={dismissLocked}
+        className="h-[min(760px,92dvh)] max-w-[min(720px,calc(100%-2rem))] grid-rows-[auto_1fr] gap-0 overflow-hidden p-0 sm:max-w-[720px]"
+      >
+        <DialogHeader className="border-b px-4 py-3 pr-14">
+          <div className="flex items-center gap-3">
+            <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted"><I.card size={17} /></div>
+            <div className="min-w-0">
+              <DialogTitle id="billing-checkout-title">{activationPending ? 'Abonelik aktivasyonu' : resultVisible ? 'Abonelik sonucu' : 'Güvenli ödeme'}</DialogTitle>
+              <DialogDescription>Kart bilgileri İyzico’nun barındırdığı formda girilir; Masabu kart verisini görmez.</DialogDescription>
+            </div>
           </div>
-          <button data-dialog-initial-focus type="button" aria-label="Ödeme penceresini kapat" onClick={onClose} style={btnGhost({ width: 32, padding: 0, justifyContent: 'center' })}><I.close size={15} /></button>
+        </DialogHeader>
+        {!dismissLocked && (
+          <DialogClose
+            render={<Button variant="outline" size="icon" className="absolute right-3 top-3" />}
+            aria-label="Ödeme penceresini kapat"
+          >
+            <I.close />
+          </DialogClose>
+        )}
+        <div className="relative min-h-0 bg-background">
+          {!frameHidden && checkoutDocument && (
+            <div className="flex size-full min-h-0 flex-col">
+              {(dialogState === 'attempting' || dialogState === 'incomplete') && (
+                <div className="p-3 pb-0">
+                  <Alert>
+                    <I.warn />
+                    <AlertTitle>{dialogState === 'incomplete' ? 'İşlem tamamlanmadı' : 'Kart bilgileriniz kontrol ediliyor'}</AlertTitle>
+                    <AlertDescription>
+                      {dialogState === 'incomplete'
+                        ? 'İyzico mesajını kontrol edip aynı formda düzeltme yaparak yeniden deneyin.'
+                        : 'Form açık kalır; doğrulama hatası varsa aşağıda gösterilir.'}
+                    </AlertDescription>
+                    <Progress value={(probeStep / CHECKOUT_PROBE_DELAYS_MS.length) * 100} className="col-span-full mt-2" />
+                  </Alert>
+                </div>
+              )}
+              <iframe
+                key={frameSession?.key}
+                ref={iframeRef}
+                title="İyzico abonelik ödeme formu"
+                srcDoc={checkoutDocument}
+                sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-top-navigation-by-user-activation"
+                referrerPolicy="no-referrer"
+                onError={() => setDialogState('failed')}
+                className="min-h-0 flex-1 border-0 bg-background"
+              />
+            </div>
+          )}
+          {(dialogState === 'loading' || dialogState === 'verifying') && (
+            <div role="status" aria-live="polite" className="absolute inset-0 grid place-items-center bg-background p-6 text-center">
+              <div className="grid max-w-sm justify-items-center gap-3 text-muted-foreground">
+                <Spinner />
+                <strong className="text-foreground">{dialogState === 'verifying' ? 'Ödemeniz doğrulanıyor…' : 'Güvenli ödeme formu yükleniyor…'}</strong>
+                {dialogState === 'verifying' && <span>Sonuç alınana kadar lütfen bu pencereyi kapatmayın.</span>}
+              </div>
+            </div>
+          )}
+          {dialogState === 'failed' && !resultVisible && (
+            <div role="alert" className="absolute inset-0 grid place-items-center bg-background p-6 text-center">
+              <div className="grid max-w-sm justify-items-center gap-3">
+                <strong>Ödeme formu yüklenemedi</strong>
+                <span className="text-muted-foreground">Bağlantıyı kontrol edip yeniden deneyin. Ödeme işlemi başlatılmadı.</span>
+                <div className="flex gap-2">
+                  <Button type="button" onClick={() => setAttempt((current) => current + 1)}><I.refresh data-icon="inline-start" />Yeniden dene</Button>
+                  <Button type="button" variant="outline" onClick={onClose}>Kapat</Button>
+                </div>
+              </div>
+            </div>
+          )}
+          {resultVisible && (
+            <div role={dialogState === 'failed' ? 'alert' : 'status'} aria-live="polite" className="absolute inset-0 grid place-items-center overflow-auto bg-background p-6 text-center">
+              <div className="grid max-w-md justify-items-center gap-4">
+                <div className="grid size-14 place-items-center rounded-full bg-muted text-foreground">
+                  {dialogState === 'pending'
+                    ? <Spinner />
+                    : dialogState === 'succeeded'
+                      ? activationPending ? <Spinner className="size-6" /> : <I.check size={26} />
+                      : <I.warn size={24} />}
+                </div>
+                <h2 ref={resultHeadingRef} tabIndex={-1} className="text-xl font-semibold outline-none">{resultTitle}</h2>
+                <p className="text-sm leading-6 text-muted-foreground">{resultDescription}</p>
+                {dialogState === 'succeeded' && (
+                  <div className="flex flex-wrap justify-center gap-2" aria-label="Aktivasyon durumu">
+                    <Badge variant="positive"><I.check />Ödeme alındı</Badge>
+                    <Badge variant={activationComplete ? 'positive' : 'info'}>
+                      {activationPending ? <Spinner /> : <I.check />}
+                      {activationComplete ? 'Plan ve özellikler aktif' : 'Plan ve özellikler hazırlanıyor'}
+                    </Badge>
+                  </div>
+                )}
+                {activationPending && (
+                  <Alert role="status" className="w-full">
+                    <Spinner />
+                    <AlertTitle>Hesabınız güncelleniyor</AlertTitle>
+                    <AlertDescription>Bu işlem genellikle birkaç saniye sürer. Tamamlandığında ekran otomatik yenilenecek.</AlertDescription>
+                    <Progress
+                      value={activationProgress}
+                      aria-label="Abonelik aktivasyon ilerlemesi"
+                      className="col-span-full mt-3"
+                    />
+                  </Alert>
+                )}
+                {planActive && subscription?.currentPeriodEnd && (
+                  <div className="w-full rounded-lg border bg-muted/40 p-4 text-left text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Plan</span><strong>{PLAN_DEFINITIONS[session.plan].label}</strong>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <span>Dönem sonu</span><strong>{date(subscription.currentPeriodEnd)}</strong>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <span>Fatura</span><Tag tone={invoicePaid ? 'positive' : 'warning'}>{invoicePaid ? 'Ödendi' : 'Teyit bekleniyor'}</Tag>
+                    </div>
+                  </div>
+                )}
+                {activationPending
+                  ? (
+                    <Button type="button" disabled>
+                      <Spinner data-icon="inline-start" />Etkinleştirme tamamlanıyor…
+                    </Button>
+                  )
+                  : (
+                    <Button type="button" onClick={onClose}>Faturalamaya dön</Button>
+                  )}
+              </div>
+            </div>
+          )}
         </div>
-        <iframe
-          title="İyzico abonelik ödeme formu"
-          srcDoc={content}
-          sandbox="allow-forms allow-scripts allow-popups allow-top-navigation-by-user-activation"
-          referrerPolicy="no-referrer"
-          style={{ flex: 1, width: '100%', border: 0, background: '#fff' }}
-        />
-        <span
-          tabIndex={0}
-          aria-hidden="true"
-          onFocus={() => dialogRef.current?.querySelector<HTMLElement>('[data-dialog-initial-focus]')?.focus()}
-          style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)' }}
-        />
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function HostedCardUpdateDialog({ session, onClose }: {
+  session: CardUpdateSession
+  onClose: () => void
+}) {
+  const router = useRouter()
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [state, setState] = useState<CheckoutDialogState>('loading')
+  const [resultCode, setResultCode] = useState<BillingCheckoutPublicCode | null>(null)
+  const [attempt, setAttempt] = useState(0)
+  const [frameSession, setFrameSession] = useState<{ key: string; nonce: string } | null>(null)
+  const resultVisible = ['succeeded', 'pending', 'expired'].includes(state)
+    || (state === 'failed' && resultCode !== null)
+
+  useEffect(() => {
+    const nonce = crypto.randomUUID()
+    setState('loading')
+    setResultCode(null)
+    setFrameSession({ key: nonce, nonce })
+  }, [session.content, attempt])
+
+  const checkoutDocument = useMemo(() => frameSession
+    ? createIyzicoCheckoutDocument(session.content, frameSession.nonce)
+    : null, [session.content, frameSession])
+
+  useEffect(() => {
+    if (!frameSession) return
+    const receive = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow || event.origin !== window.location.origin) return
+      const data = event.data as { type?: unknown; nonce?: unknown } | null
+      if (data?.type === 'masabu:iyzico-mounted' && data.nonce === frameSession.nonce) {
+        setState('ready')
+        iframeRef.current?.contentWindow?.postMessage({
+          type: 'masabu:iyzico-mounted-ack', nonce: frameSession.nonce,
+        }, window.location.origin)
+        return
+      }
+      if (data?.type === 'masabu:iyzico-attempting' && data.nonce === frameSession.nonce) {
+        setState('attempting')
+        return
+      }
+      if (data?.type === 'masabu:iyzico-navigating' && data.nonce === frameSession.nonce) {
+        setState('verifying')
+        return
+      }
+      if (!isBillingCheckoutResultMessage(event.data)) return
+      setResultCode(event.data.code ?? null)
+      setState(event.data.outcome)
+      if (event.data.outcome === 'succeeded') router.refresh()
+    }
+    window.addEventListener('message', receive)
+    const timeout = window.setTimeout(() => {
+      setState((current) => current === 'loading' ? 'failed' : current)
+    }, CHECKOUT_LOAD_TIMEOUT_MS)
+    return () => {
+      window.removeEventListener('message', receive)
+      window.clearTimeout(timeout)
+    }
+  }, [frameSession, router])
+
+  useEffect(() => {
+    if (!session.expiresAt || resultVisible) return
+    const remaining = Date.parse(session.expiresAt) - Date.now()
+    if (remaining <= 0) {
+      setState('expired')
+      return
+    }
+    const timeout = window.setTimeout(() => setState('expired'), Math.min(remaining, 2_147_483_647))
+    return () => window.clearTimeout(timeout)
+  }, [resultVisible, session.expiresAt])
+
+  useEffect(() => {
+    if (state !== 'verifying') return
+    const timeout = window.setTimeout(() => {
+      setResultCode('MAS-PAY-409')
+      setState('pending')
+    }, CARD_UPDATE_VERIFY_TIMEOUT_MS)
+    return () => window.clearTimeout(timeout)
+  }, [state])
+
+  const title = state === 'succeeded' ? 'Kartınız güncellendi'
+    : state === 'pending' ? 'Sonuç kontrol ediliyor'
+      : state === 'expired' ? 'Kart güncelleme oturumu sona erdi'
+        : 'Kart güncelleme tamamlanamadı'
+  const description = state === 'succeeded'
+    ? 'Yeni kartınız sonraki abonelik tahsilatlarında İyzico tarafından kullanılacak.'
+    : state === 'pending'
+      ? 'Sonuç uzlaştırılıyor. Aynı işlemi tekrar başlatmayın.'
+      : state === 'expired'
+        ? 'Yeni bir güvenli kart güncelleme oturumu başlatabilirsiniz.'
+        : `Kart güncelleme doğrulanamadı.${resultCode ? ` Destek kodu: ${resultCode}.` : ''}`
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open && state !== 'verifying') onClose() }}>
+      <DialogContent showCloseButton={false} className="h-[min(760px,92dvh)] max-w-[min(720px,calc(100%-2rem))] grid-rows-[auto_1fr] gap-0 overflow-hidden p-0 sm:max-w-[720px]">
+        <DialogHeader className="border-b px-4 py-3 pr-14">
+          <DialogTitle>Güvenli kart güncelleme</DialogTitle>
+          <DialogDescription>Kart bilgileri yalnız İyzico formuna girilir; Masabu kart numarasını görmez veya saklamaz.</DialogDescription>
+        </DialogHeader>
+        <DialogClose render={<Button variant="outline" size="icon" className="absolute right-3 top-3" />} aria-label="Kart güncelleme penceresini kapat" disabled={state === 'verifying'}>
+          <I.close />
+        </DialogClose>
+        <div className="relative min-h-0 bg-background">
+          {!resultVisible && checkoutDocument && (
+            <iframe
+              key={frameSession?.key}
+              ref={iframeRef}
+              title="İyzico abonelik kart güncelleme formu"
+              srcDoc={checkoutDocument}
+              sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-top-navigation-by-user-activation"
+              referrerPolicy="no-referrer"
+              onError={() => setState('failed')}
+              className="size-full min-h-0 border-0 bg-background"
+            />
+          )}
+          {(state === 'loading' || state === 'verifying') && (
+            <div role="status" className="absolute inset-0 grid place-items-center bg-background p-6 text-center">
+              <div className="grid justify-items-center gap-3"><Spinner /><strong>{state === 'verifying' ? 'Kart güncellemesi doğrulanıyor…' : 'Güvenli form yükleniyor…'}</strong></div>
+            </div>
+          )}
+          {state === 'failed' && !resultVisible && (
+            <div role="alert" className="absolute inset-0 grid place-items-center bg-background p-6 text-center">
+              <div className="grid justify-items-center gap-3">
+                <strong>Form yüklenemedi</strong>
+                <span className="text-sm text-muted-foreground">Kart bilgileriniz alınmadı. Bağlantıyı kontrol edip yeniden deneyin.</span>
+                <div className="flex gap-2"><Button onClick={() => setAttempt((value) => value + 1)}>Yeniden dene</Button><Button variant="outline" onClick={onClose}>Kapat</Button></div>
+              </div>
+            </div>
+          )}
+          {resultVisible && (
+            <div role={state === 'failed' ? 'alert' : 'status'} className="absolute inset-0 grid place-items-center overflow-auto bg-background p-6 text-center">
+              <div className="grid max-w-md justify-items-center gap-4">
+                <div className="grid size-14 place-items-center rounded-full bg-muted">{state === 'succeeded' ? <I.check size={26} /> : <I.warn size={24} />}</div>
+                <h2 className="text-xl font-semibold">{title}</h2>
+                <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+                <Button type="button" onClick={onClose}>Faturalamaya dön</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -162,6 +685,7 @@ function InvoiceRow({ restaurantId, invoice }: { restaurantId: string; invoice: 
   const router = useRouter()
   const [message, setMessage] = useState('')
   const [pending, startTransition] = useTransition()
+  const addOnLabels = invoice.addOns.map((addOn) => ADD_ON_DEFINITIONS[addOn].label)
   function retry() {
     setMessage('')
     startTransition(async () => {
@@ -176,8 +700,10 @@ function InvoiceRow({ restaurantId, invoice }: { restaurantId: string; invoice: 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr .9fr .8fr auto', gap: 12, alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid var(--divider)' }}>
       <div>
-        <div style={{ fontSize: 12.5, fontWeight: 600 }}>{PLAN_DEFINITIONS[invoice.plan].label}{invoice.addOns.includes('iyzico_online_payments') ? ' + İyzico Online Ödeme' : ''} · {invoice.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'} · {date(invoice.periodStart)}–{date(invoice.periodEnd)}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>Vade {date(invoice.dueAt)}</div>
+        <div style={{ fontSize: 12.5, fontWeight: 600 }}>{PLAN_DEFINITIONS[invoice.plan].label}{addOnLabels.length ? ` + ${addOnLabels.join(', ')}` : ''} · {invoice.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'} · {date(invoice.periodStart)}–{date(invoice.periodEnd)}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>
+          {invoice.status === 'open' ? 'İyzico bildirimi bekleniyor · ' : 'Vade '}{date(invoice.dueAt)}
+        </div>
         {message && <div role="status" style={{ fontSize: 11, color: message.includes('MAS-') ? 'var(--critical)' : 'var(--positive)', marginTop: 4 }}>{message}</div>}
       </div>
       <div style={{ fontSize: 12.5, fontWeight: 650 }}>{money(invoice.amountDueMinor)}</div>
@@ -187,6 +713,22 @@ function InvoiceRow({ restaurantId, invoice }: { restaurantId: string; invoice: 
       ) : <span style={{ width: 92 }} />}
     </div>
   )
+}
+
+function RefundRow({ refund }: { refund: SubscriptionBillingSettingsRefund }) {
+  const status = refund.status === 'succeeded' ? 'Tamamlandı'
+    : refund.status === 'failed' ? 'Tamamlanamadı'
+      : refund.status === 'requires_reconciliation' ? 'Kontrol ediliyor' : 'İşleniyor'
+  const tone = refund.status === 'succeeded' ? 'positive'
+    : refund.status === 'failed' ? 'critical' : 'warning'
+  const accessLabel = refund.accessAction === 'keep' ? 'Erişim korunuyor'
+    : refund.cancellationStatus === 'applied' ? 'Abonelik iptal edildi'
+      : refund.cancellationStatus === 'requires_reconciliation' ? 'Manuel kontrol gerekiyor'
+        : refund.status === 'succeeded' ? 'Abonelik kapatılıyor' : 'İade sonucu bekleniyor'
+  return <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+    <div><strong style={{ fontSize: 13 }}>{refund.kind === 'same_day_cancel' ? 'Aynı gün tam iptal' : refund.scope === 'full' ? 'Tam iade' : 'Kısmi iade'}</strong><div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 3 }}>{new Date(refund.requestedAt).toLocaleString('tr-TR')} · Fatura …{refund.invoiceId.slice(-8)}</div><div style={{ fontSize: 11.5, color: refund.cancellationStatus === 'requires_reconciliation' ? 'var(--critical)' : 'var(--text-2)', marginTop: 4 }}>{accessLabel}</div></div>
+    <div style={{ textAlign: 'right' }}><strong>{money(refund.amountMinor)}</strong><div style={{ marginTop: 4 }}><Tag tone={tone}>{status}</Tag></div></div>
+  </div>
 }
 
 export default function BillingSection({
@@ -219,26 +761,55 @@ export default function BillingSection({
   )
   const [selectedPlan, setSelectedPlan] = useState<PaidBillingPlan>(initialPlan)
   const [selectedInterval, setSelectedInterval] = useState<BillingInterval>(initialInterval)
-  const [iyzicoAddOnSelected, setIyzicoAddOnSelected] = useState(false)
+  const [selectedAddOn, setSelectedAddOn] = useState<RestaurantAddOn | null>(null)
   const [feedback, setFeedback] = useState(checkoutState === 'success' ? 'Abonelik bilgileri doğrulandı. Ödeme sonucu işlenirken durum otomatik güncellenecek.' : '')
-  const [checkoutContent, setCheckoutContent] = useState<string | null>(null)
+  const [checkoutSession, setCheckoutSession] = useState<CheckoutSession | null>(null)
+  const [cardUpdateSession, setCardUpdateSession] = useState<CardUpdateSession | null>(null)
   const [showCancel, setShowCancel] = useState(false)
+  const [planChangeTarget, setPlanChangeTarget] = useState<{
+    plan: PaidBillingPlan
+    addOns: RestaurantAddOn[]
+  } | null>(null)
+  const [showPlanComparison, setShowPlanComparison] = useState(false)
   const [cancelPassword, setCancelPassword] = useState('')
   const [checkoutTermsAccepted, setCheckoutTermsAccepted] = useState(false)
   const [profilePending, startProfileTransition] = useTransition()
   const [checkoutPending, startCheckoutTransition] = useTransition()
+  const [cardUpdatePending, startCardUpdateTransition] = useTransition()
+  const [planChangePending, startPlanChangeTransition] = useTransition()
   const [cancelPending, startCancelTransition] = useTransition()
-  const pending = profilePending || checkoutPending || cancelPending
+  const pending = profilePending || checkoutPending || cardUpdatePending || planChangePending || cancelPending
   const effectiveProfile = useMemo(() => shippingSame
     ? { ...profile, shippingAddress: { ...profile.billingAddress } }
     : profile, [profile, shippingSame])
   const profileSnapshotRef = useRef(effectiveProfile)
   const profileDirty = JSON.stringify(effectiveProfile) !== JSON.stringify(profileSnapshotRef.current)
   const subscription = billing?.subscription ?? null
-  const addOnPrice = planPrices.iyzicoOnlinePaymentsAddOn[selectedInterval]
+  const currentSelfServePlan = subscription && PAID_PLANS.includes(subscription.plan as PaidBillingPlan)
+    ? subscription.plan as PaidBillingPlan
+    : null
+  const latestInvoice = billing?.invoices[0] ?? null
+  const selectableAddOn = commercialAddOnForPlan(selectedPlan)
+  const addOnPrice = (selectableAddOn === 'iyzico_online_payments'
+    ? planPrices.iyzicoOnlinePaymentsAddOn
+    : planPrices.storefrontVideoHeroAddOn)[selectedInterval]
   const canStartNewCheckout = !subscription || ['trial', 'trial_expired', 'cancelled'].includes(subscription.status)
   const checkoutAvailable = planPrices.checkoutAvailable
-  const addOnCheckoutAvailable = planPrices.iyzicoOnlinePaymentsAddOnCheckoutAvailable
+  const addOnCheckoutAvailable = selectableAddOn === 'iyzico_online_payments'
+    ? planPrices.iyzicoOnlinePaymentsAddOnCheckoutAvailable
+    : planPrices.storefrontVideoHeroAddOnCheckoutAvailable
+  const currentPlanAddOn = currentSelfServePlan ? commercialAddOnForPlan(currentSelfServePlan) : null
+  const currentPlanAddOnActive = currentPlanAddOn
+    ? subscription?.activeAddOns.includes(currentPlanAddOn) === true
+    : false
+  const currentPlanAddOnPrice = currentPlanAddOn
+    ? (currentPlanAddOn === 'iyzico_online_payments'
+      ? planPrices.iyzicoOnlinePaymentsAddOn
+      : planPrices.storefrontVideoHeroAddOn)[subscription?.billingInterval ?? 'monthly']
+    : 0
+  const currentPlanAddOnAvailable = currentPlanAddOn === 'iyzico_online_payments'
+    ? planPrices.iyzicoOnlinePaymentsAddOnCheckoutAvailable
+    : planPrices.storefrontVideoHeroAddOnCheckoutAvailable
   useSettingsDirtyState('billing:profile', profileDirty)
 
   const setProfileValue = (key: keyof Omit<SubscriptionBillingProfile, 'billingAddress' | 'shippingAddress'>, value: string) => {
@@ -270,12 +841,18 @@ export default function BillingSection({
     startCheckoutTransition(async () => {
       const result = await startBillingCheckoutAction(restaurantId, {
         plan: selectedPlan, interval: selectedInterval, profile: effectiveProfile,
-        addOns: iyzicoAddOnSelected ? ['iyzico_online_payments'] : [],
+        addOns: selectedAddOn ? [selectedAddOn] : [],
         requestId: crypto.randomUUID(), checkoutTermsAccepted, legalDocumentVersion: LEGAL_DOCUMENT_VERSION,
       })
       if ('error' in result) return setFeedback(failureMessage(result))
       notifySettingsSaved()
-      if (result.checkoutContent) setCheckoutContent(result.checkoutContent)
+      if (result.checkoutContent) setCheckoutSession({
+        content: result.checkoutContent,
+        plan: selectedPlan,
+        addOns: selectedAddOn ? [selectedAddOn] : [],
+        operationId: result.operationId,
+        expiresAt: result.expiresAt,
+      })
       else setFeedback('Bu ödeme adımı daha önce başlatıldı. Sonucu görmek için sayfayı yenileyin.')
     })
   }
@@ -290,7 +867,60 @@ export default function BillingSection({
       if ('error' in result) return setFeedback(failureMessage(result))
       setShowCancel(false)
       setCancelPassword('')
-      setFeedback('Abonelik iptal edildi. Verileriniz korunurken ücretli yüzeyler kilitlendi.')
+      setFeedback(`İptal ${date(result.effectiveAt)} dönem sonuna planlandı. Bu tarihe kadar planınız ve özellikleriniz aktif kalır.`)
+      router.refresh()
+    })
+  }
+
+  function undoCancellation() {
+    if (!subscription?.cancellationRequestId || subscription.cancellationStatus !== 'scheduled') return
+    setFeedback('')
+    startCancelTransition(async () => {
+      const result = await undoBillingSubscriptionCancellationAction(restaurantId, {
+        requestId: crypto.randomUUID(),
+        cancellationRequestId: subscription.cancellationRequestId,
+      })
+      if ('error' in result) return setFeedback(failureMessage(result))
+      setFeedback('Dönem sonu iptal talebi geri alındı. Aboneliğiniz yenilenmeye devam edecek.')
+      router.refresh()
+    })
+  }
+
+  function startCardUpdate() {
+    setFeedback('')
+    startCardUpdateTransition(async () => {
+      const result = await startBillingCardUpdateAction(restaurantId, {
+        requestId: crypto.randomUUID(),
+      })
+      if ('error' in result) return setFeedback(failureMessage(result))
+      if (!result.checkoutContent) {
+        setFeedback(result.duplicate
+          ? 'Bu kart güncelleme işlemi daha önce tamamlandı.'
+          : 'Başlatılmış kart güncelleme işleminin sonucunu bekleyin.')
+        return
+      }
+      setCardUpdateSession({
+        content: result.checkoutContent,
+        operationId: result.operationId,
+        expiresAt: result.expiresAt,
+      })
+    })
+  }
+
+  function schedulePlanChange() {
+    if (!planChangeTarget || !subscription) return
+    setFeedback('')
+    startPlanChangeTransition(async () => {
+      const result = await scheduleBillingPlanChangeAction(restaurantId, {
+        requestId: crypto.randomUUID(),
+        toPlan: planChangeTarget.plan,
+        billingInterval: subscription.billingInterval,
+        addOns: planChangeTarget.addOns,
+      })
+      if ('error' in result) return setFeedback(failureMessage(result))
+      setPlanChangeTarget(null)
+      const targetLabel = `${PLAN_DEFINITIONS[planChangeTarget.plan].label}${planChangeTarget.addOns.length ? ` + ${ADD_ON_DEFINITIONS[planChangeTarget.addOns[0]!].label}` : ''}`
+      setFeedback(`${targetLabel} değişikliği ${date(result.effectiveAt)} döneminde, başarılı yenileme ödemesinden sonra uygulanacak.`)
       router.refresh()
     })
   }
@@ -307,7 +937,20 @@ export default function BillingSection({
 
   return (
     <>
-      {checkoutContent && <HostedCheckoutDialog content={checkoutContent} onClose={() => setCheckoutContent(null)} />}
+      {checkoutSession && (
+        <HostedCheckoutDialog
+          restaurantId={restaurantId}
+          session={checkoutSession}
+          billing={billing}
+          onClose={() => setCheckoutSession(null)}
+        />
+      )}
+      {cardUpdateSession && (
+        <HostedCardUpdateDialog
+          session={cardUpdateSession}
+          onClose={() => setCardUpdateSession(null)}
+        />
+      )}
 
       <div style={{ padding: 18, marginBottom: 16, background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', display: 'flex', gap: 14, alignItems: 'center' }}>
         <div style={{ width: 46, height: 46, borderRadius: 12, background: 'var(--surface-3)', display: 'grid', placeItems: 'center', fontWeight: 800 }}>{PLAN_DEFINITIONS[currentPlan].label.slice(0, 3).toUpperCase()}</div>
@@ -315,20 +958,43 @@ export default function BillingSection({
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <strong style={{ fontSize: 16 }}>{PLAN_DEFINITIONS[currentPlan].label} planı</strong>
             <Tag tone={subscription ? statusTone(subscription.status) : 'neutral'}>{subscription ? STATUS_LABELS[subscription.status] : 'Abonelik yok'}</Tag>
-            {subscription?.activeAddOns.includes('iyzico_online_payments') && <Tag tone="positive">İyzico add-on aktif</Tag>}
+            {subscription?.activeAddOns.map((addOn) => (
+              <Tag key={addOn} tone="positive">{ADD_ON_DEFINITIONS[addOn].label} aktif</Tag>
+            ))}
+            {subscription?.scheduledPlan && <Tag tone="warning">{PLAN_DEFINITIONS[subscription.scheduledPlan].label} planlandı</Tag>}
+            {subscription?.scheduledAddOns.map((addOn) => (
+              <Tag key={`scheduled-${addOn}`} tone="warning">{ADD_ON_DEFINITIONS[addOn].label} planlandı</Tag>
+            ))}
+            {subscription?.cancelAtPeriodEnd && subscription.cancellationEffectiveAt && (
+              <Tag tone="warning">İptal {date(subscription.cancellationEffectiveAt)} için planlandı</Tag>
+            )}
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 5 }}>
             {subscription?.currentPeriodEnd ? `${subscription.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'} dönem ${date(subscription.currentPeriodEnd)} tarihinde sona erer.` : 'Ücretli bir plan başlattığınızda dönem ve ödeme durumu burada görünür.'}
           </div>
         </div>
-        {subscription && subscription.status !== 'cancelled' && (
-          <button type="button" onClick={() => { setCancelPassword(''); setShowCancel(true) }} disabled={pending} style={btnGhost({ color: 'var(--critical)', borderColor: 'var(--critical-bg)', opacity: pending ? .55 : 1 })}>Aboneliği iptal et</button>
+        {subscription && !['cancelled', 'refund_cancel_pending'].includes(subscription.status) && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button type="button" onClick={startCardUpdate} disabled={pending} style={btnGhost({ opacity: pending ? .55 : 1 })}><I.card size={13} />{cardUpdatePending ? 'Hazırlanıyor…' : 'Kartı güncelle'}</button>
+            {subscription.cancelAtPeriodEnd ? (
+              <button
+                type="button"
+                onClick={undoCancellation}
+                disabled={pending || subscription.cancellationStatus !== 'scheduled' || !subscription.cancellationRequestId}
+                style={btnGhost({ opacity: pending || subscription.cancellationStatus !== 'scheduled' ? .55 : 1 })}
+              >
+                {cancelPending ? 'Geri alınıyor…' : subscription.cancellationStatus === 'scheduled' ? 'İptal talebini geri al' : 'İptal işleniyor'}
+              </button>
+            ) : (
+              <button type="button" onClick={() => { setCancelPassword(''); setShowCancel(true) }} disabled={pending} style={btnGhost({ color: 'var(--critical)', borderColor: 'var(--critical-bg)', opacity: pending ? .55 : 1 })}>Aboneliği iptal et</button>
+            )}
+          </div>
         )}
       </div>
 
       {(subscription?.status === 'past_due' || subscription?.status === 'grace_period') && (
         <div role="status" style={{ padding: 13, marginBottom: 16, borderRadius: 10, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 12.5, lineHeight: 1.55 }}>
-          <strong>Ödeme erişimi uyarılı durumda.</strong> Profil, güvenlik, gizlilik ve faturalama erişiminiz sürer. Yeni checkout başlatmak yerine geciken faturadaki “Tekrar dene” aksiyonunu kullanın{subscription.graceEndsAt ? `; ek süre ${date(subscription.graceEndsAt)} tarihinde biter` : ''}.
+          <strong>Ödeme erişimi uyarılı durumda.</strong> Gerekirse önce “Kartı güncelle”, ardından geciken faturadaki “Tekrar dene” aksiyonunu kullanın{subscription.graceEndsAt ? `; ek süre ${date(subscription.graceEndsAt)} tarihinde biter` : ''}.
         </div>
       )}
       {(subscription?.status === 'trial_expired' || subscription?.status === 'suspended' || subscription?.status === 'cancelled' || subscription?.status === 'manual_hold') && (
@@ -336,17 +1002,30 @@ export default function BillingSection({
           <strong>Operasyonel değişiklikler ve yayın kilitli.</strong> Verileriniz korunur; profil, çalışma alanı, güvenlik, gizlilik/dışa aktarma ve faturalama araçlarını kullanmaya devam edebilirsiniz.
         </div>
       )}
+      {subscription?.status === 'refund_cancel_pending' && (
+        <Alert variant="destructive" style={{ marginBottom: 16 }}>
+          <I.warn size={16} />
+          <AlertTitle>Abonelik iptal ediliyor</AlertTitle>
+          <AlertDescription>İade tamamlandı ve ücretli özellikler kilitlendi. İyzico’daki tüm abonelik kayıtları doğrulanıyor; bu sırada yeni ödeme veya plan değişikliği başlatmayın. Verileriniz ve faturalama araçlarınız erişilebilir kalır.</AlertDescription>
+        </Alert>
+      )}
 
       {(billing?.attention.reconciliationCount ?? 0) > 0 && (
         <div role="status" style={{ padding: 13, marginBottom: 16, borderRadius: 10, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 12.5, display: 'flex', gap: 9 }}>
           <I.warn size={16} /> <span><strong>Ödeme durumu kontrol ediliyor.</strong> Sonucu kesinleşmemiş {billing?.attention.reconciliationCount} işlem var; bu sırada aynı işlemi tekrar başlatmayın.</span>
         </div>
       )}
-      {billing?.attention.hasPendingCheckout && (
+      {billing?.attention.hasPendingCheckout && canStartNewCheckout && (
         <div role="status" style={{ padding: 13, marginBottom: 16, borderRadius: 10, background: 'var(--info-bg)', color: 'var(--info)', fontSize: 12.5 }}>Başlatılmış bir ödeme adımı callback sonucunu bekliyor.</div>
       )}
+      {subscription?.status === 'active' && latestInvoice?.status === 'open' && (
+        <div role="status" style={{ padding: 13, marginBottom: 16, borderRadius: 10, background: 'var(--info-bg)', color: 'var(--info)', fontSize: 12.5, lineHeight: 1.55 }}>
+          <strong>Planınız aktif.</strong> İlk fatura için İyzico teyidi bekleniyor; tekrar ödeme yapmayın. Durum güvenli bildirim geldiğinde otomatik güncellenecek.
+        </div>
+      )}
 
-      <SCard title="Plan seçimi" subtitle="Kart bilgileri yalnız İyzico’nun güvenli ödeme formunda alınır">
+      {canStartNewCheckout ? (
+        <SCard title="Plan seçimi" subtitle="Kart bilgileri yalnız İyzico’nun güvenli ödeme formunda alınır">
         <div role="group" aria-label="Fatura dönemi" style={{ padding: '16px 16px 0', display: 'flex', gap: 6 }}>
           {(['monthly', 'annual'] as const).map((interval) => (
             <button key={interval} type="button" aria-pressed={selectedInterval === interval} onClick={() => setSelectedInterval(interval)} style={selectedInterval === interval ? btnPrimary() : btnGhost()}>
@@ -358,7 +1037,7 @@ export default function BillingSection({
           {PAID_PLANS.map((plan) => {
             const selected = selectedPlan === plan
             return (
-              <button key={plan} type="button" aria-pressed={selected} disabled={!canStartNewCheckout} onClick={() => { setSelectedPlan(plan); if (plan !== 'pro') setIyzicoAddOnSelected(false) }} style={{ minWidth: 0, padding: 14, borderRadius: 10, border: selected ? '1.5px solid var(--text)' : '1px solid var(--border)', background: selected ? 'var(--surface-inset)' : 'var(--surface)', textAlign: 'left', cursor: canStartNewCheckout ? 'pointer' : 'not-allowed', opacity: canStartNewCheckout ? 1 : .62 }}>
+              <button key={plan} type="button" aria-pressed={selected} disabled={!canStartNewCheckout} onClick={() => { setSelectedPlan(plan); setSelectedAddOn(null) }} style={{ minWidth: 0, padding: 14, borderRadius: 10, border: selected ? '1.5px solid var(--text)' : '1px solid var(--border)', background: selected ? 'var(--surface-inset)' : 'var(--surface)', textAlign: 'left', cursor: canStartNewCheckout ? 'pointer' : 'not-allowed', opacity: canStartNewCheckout ? 1 : .62 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{PLAN_DEFINITIONS[plan].label}</div>
                 <div style={{ fontSize: 16, fontWeight: 750, marginTop: 8, overflowWrap: 'anywhere' }}>{money(planPrices[plan][selectedInterval])}{selectedInterval === 'monthly' ? '/ay' : '/yıl'}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 5 }}>{PLAN_DEFINITIONS[plan].description}</div>
@@ -367,23 +1046,100 @@ export default function BillingSection({
           })}
         </div>
         <div style={{ padding: '0 16px 16px' }}>
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: selectedPlan === 'pro' ? 'var(--surface)' : 'var(--surface-inset)', cursor: selectedPlan === 'pro' && canStartNewCheckout ? 'pointer' : 'not-allowed', opacity: selectedPlan === 'pro' ? 1 : .58 }}>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', cursor: canStartNewCheckout ? 'pointer' : 'not-allowed' }}>
             <input
               type="checkbox"
-              checked={iyzicoAddOnSelected}
-              disabled={selectedPlan !== 'pro' || !canStartNewCheckout || !addOnCheckoutAvailable}
-              onChange={(event) => setIyzicoAddOnSelected(event.target.checked)}
+              checked={selectedAddOn === selectableAddOn}
+              disabled={!canStartNewCheckout || !addOnCheckoutAvailable}
+              onChange={(event) => setSelectedAddOn(event.target.checked ? selectableAddOn : null)}
               style={{ marginTop: 3 }}
             />
             <span style={{ flex: 1 }}>
-              <strong style={{ display: 'block', fontSize: 13.5 }}>İyzico Online Ödeme add-on</strong>
-              <span style={{ display: 'block', marginTop: 4, fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5 }}>Yalnız Pro ile satın alınır. QR menüde kartla ödeme ve İyzico tahsilat akışını açar; İyzico’nun işlem ücretleri ayrıca uygulanabilir.</span>
+              <strong style={{ display: 'block', fontSize: 13.5 }}>{ADD_ON_DEFINITIONS[selectableAddOn].label} add-on</strong>
+              <span style={{ display: 'block', marginTop: 4, fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5 }}>{ADD_ON_DEFINITIONS[selectableAddOn].description}</span>
               {!addOnCheckoutAvailable && <span style={{ display: 'block', marginTop: 4, fontSize: 11, color: 'var(--text-3)' }}>Satın alma bağlantısı hazırlanıyor.</span>}
             </span>
             <strong style={{ fontSize: 13, whiteSpace: 'nowrap' }}>+{money(addOnPrice)}{selectedInterval === 'monthly' ? '/ay' : '/yıl'}</strong>
           </label>
         </div>
-      </SCard>
+        </SCard>
+      ) : (
+        <Collapsible open={showPlanComparison} onOpenChange={setShowPlanComparison}>
+          <SCard title="Plan yönetimi" subtitle="Aynı fatura dönemindeki değişiklik bir sonraki başarılı yenilemede uygulanır">
+            <div style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <strong style={{ display: 'block', fontSize: 13.5 }}>{PLAN_DEFINITIONS[currentPlan].label} planını kullanıyorsunuz</strong>
+                <span style={{ display: 'block', marginTop: 4, fontSize: 11.5, color: 'var(--text-3)' }}>
+                  {subscription?.scheduledPlan
+                    ? `${PLAN_DEFINITIONS[subscription.scheduledPlan].label}${subscription.scheduledAddOns.length ? ` + ${subscription.scheduledAddOns.map((addOn) => ADD_ON_DEFINITIONS[addOn].label).join(', ')}` : ''} değişikliği planlandı; başarılı dönem ödemesinden sonra özellikler güncellenecek.`
+                    : subscription?.activeAddOns.length
+                      ? `Aktif: ${subscription.activeAddOns.map((addOn) => ADD_ON_DEFINITIONS[addOn].label).join(', ')}. Uyumlu plan ve add-on değişiklikleri dönem sonuna planlanabilir.`
+                      : 'Hemen ücret alınmaz; mevcut planınız dönem sonuna kadar değişmez.'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <CollapsibleTrigger render={<Button variant="outline" />}>
+                  <I.chevDown data-icon="inline-start" />
+                  {showPlanComparison ? 'Planları gizle' : 'Diğer planları görüntüle'}
+                </CollapsibleTrigger>
+              </div>
+            </div>
+            {subscription && currentSelfServePlan && currentPlanAddOn && (
+              <div style={{ margin: '0 16px 16px', padding: 14, border: '1px solid var(--border)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <strong style={{ display: 'block', fontSize: 13 }}>{ADD_ON_DEFINITIONS[currentPlanAddOn].label}</strong>
+                  <span style={{ display: 'block', marginTop: 4, fontSize: 11.5, color: 'var(--text-3)' }}>
+                    {currentPlanAddOnActive ? 'Aktif; kaldırma başarılı sonraki dönem ödemesinde uygulanır.' : `+${money(currentPlanAddOnPrice)}${subscription.billingInterval === 'annual' ? '/yıl' : '/ay'}; ekleme başarılı sonraki dönem ödemesinde uygulanır.`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  disabled={pending || subscription.status !== 'active' || subscription.cancelAtPeriodEnd || Boolean(subscription.scheduledPlan) || (!currentPlanAddOnActive && !currentPlanAddOnAvailable)}
+                  onClick={() => setPlanChangeTarget({
+                    plan: currentSelfServePlan,
+                    addOns: currentPlanAddOnActive ? [] : [currentPlanAddOn],
+                  })}
+                  style={btnGhost({ opacity: pending || subscription.status !== 'active' || subscription.cancelAtPeriodEnd || Boolean(subscription.scheduledPlan) || (!currentPlanAddOnActive && !currentPlanAddOnAvailable) ? .55 : 1 })}
+                >
+                  {currentPlanAddOnActive ? 'Dönem sonunda kaldır' : currentPlanAddOnAvailable ? 'Dönem sonuna ekle' : 'Satın alma hazırlanıyor'}
+                </button>
+              </div>
+            )}
+            <CollapsibleContent>
+              <div style={{ padding: '0 16px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                {PAID_PLANS.map((plan) => {
+                  const isCurrent = plan === currentSelfServePlan
+                  const isScheduled = plan === subscription?.scheduledPlan
+                  const targetAddOns = subscription?.activeAddOns.filter((addOn) => (
+                    isValidAddOnSelection(plan, [addOn])
+                  )) ?? []
+                  const canSchedule = subscription?.status === 'active'
+                    && currentSelfServePlan !== null
+                    && !subscription.cancelAtPeriodEnd
+                    && !subscription.scheduledPlan
+                    && !isCurrent
+                  return (
+                  <div key={plan} style={{ minWidth: 0, padding: 14, borderRadius: 10, border: isCurrent ? '1.5px solid var(--text)' : '1px solid var(--border)', background: isCurrent ? 'var(--surface-inset)' : 'var(--surface)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                      <strong style={{ fontSize: 13.5 }}>{PLAN_DEFINITIONS[plan].label}</strong>
+                      {isCurrent && <Tag tone="positive">Mevcut</Tag>}
+                      {isScheduled && <Tag tone="warning">Planlandı</Tag>}
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 750, marginTop: 8, overflowWrap: 'anywhere' }}>{money(planPrices[plan][subscription?.billingInterval ?? 'monthly'])}{subscription?.billingInterval === 'annual' ? '/yıl' : '/ay'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 5 }}>{PLAN_DEFINITIONS[plan].description}</div>
+                    {!isCurrent && (
+                      <button type="button" disabled={!canSchedule || pending} onClick={() => setPlanChangeTarget({ plan, addOns: targetAddOns })} style={{ ...btnGhost(), width: '100%', justifyContent: 'center', marginTop: 12, opacity: canSchedule && !pending ? 1 : .55 }}>
+                        {isScheduled ? 'Geçiş planlandı' : `${PLAN_DEFINITIONS[plan].label} planına geç`}
+                      </button>
+                    )}
+                  </div>
+                  )
+                })}
+              </div>
+            </CollapsibleContent>
+          </SCard>
+        </Collapsible>
+      )}
 
       <SCard title="Fatura profili" subtitle="İyzico abonelik işlemi için zorunlu yasal ve iletişim bilgileri" style={{ marginTop: 16 }}>
         <div style={{ padding: 16, display: 'grid', gap: 14 }}>
@@ -401,27 +1157,32 @@ export default function BillingSection({
             <input type="checkbox" checked={shippingSame} onChange={(event) => setShippingSame(event.target.checked)} /> Teslimat adresi fatura adresiyle aynı
           </label>
           {!shippingSame && <AddressFields title="Teslimat adresi" value={profile.shippingAddress} onChange={(shippingAddress) => setProfile((current) => ({ ...current, shippingAddress }))} />}
-          <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface-inset)', fontSize: 12, lineHeight: 1.55 }}>
-            <strong>Ön bilgilendirme ve sözleşme özeti</strong>
-            <div style={{ marginTop: 6 }}>
-              {PLAN_DEFINITIONS[selectedPlan].label} · {selectedInterval === 'annual' ? '12 aylık, peşin' : '1 aylık'} ·{' '}
-              {money(planPrices[selectedPlan][selectedInterval] + (iyzicoAddOnSelected ? addOnPrice : 0))} + KDV
-            </div>
-            {iyzicoAddOnSelected && <div>Ek kalem: İyzico Online Ödeme add-on · {money(addOnPrice)}</div>}
-            <div>{effectiveProfile.legalName || 'Fatura alıcısı'} · {effectiveProfile.identityNumber || 'VKN/TCKN'} · {effectiveProfile.taxOffice || 'Vergi dairesi'}</div>
-            <div style={{ marginTop: 6 }}>
-              <a href={`${process.env.NEXT_PUBLIC_MARKETING_URL || 'http://localhost:3003'}/yasal/abonelik-hizmet-sozlesmesi`} target="_blank" rel="noreferrer">Abonelik Hizmet Sözleşmesi</a>
-              {' · '}
-              <a href={`${process.env.NEXT_PUBLIC_MARKETING_URL || 'http://localhost:3003'}/yasal/iptal-iade-ve-dijital-teslimat`} target="_blank" rel="noreferrer">İptal ve iade politikası</a>
-            </div>
-          </div>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, lineHeight: 1.5, cursor: 'pointer' }}>
-            <input type="checkbox" checked={checkoutTermsAccepted} onChange={(event) => setCheckoutTermsAccepted(event.target.checked)} />
-            Seçtiğim planı, dönemi, KDV hariç liste fiyatını ve ödeme adımında KDV’nin ayrıca ekleneceğini okudum; Abonelik Hizmet Sözleşmesi’ni ticari işletmem adına onaylıyorum.
-          </label>
+          {canStartNewCheckout && (
+            <>
+              <div style={{ padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface-inset)', fontSize: 12, lineHeight: 1.55 }}>
+                <strong>Ön bilgilendirme ve sözleşme özeti</strong>
+                <div style={{ marginTop: 6 }}>
+                  {PLAN_DEFINITIONS[selectedPlan].label} · {selectedInterval === 'annual' ? '12 aylık, peşin' : '1 aylık'} ·{' '}
+                  {money(planPrices[selectedPlan][selectedInterval])} + KDV
+                </div>
+                {selectedAddOn && <div>Ek kalem: {ADD_ON_DEFINITIONS[selectedAddOn].label} add-on · {money(addOnPrice)}</div>}
+                {selectedAddOn && <div><strong>Toplam: {money(planPrices[selectedPlan][selectedInterval] + addOnPrice)} + KDV</strong></div>}
+                <div>{effectiveProfile.legalName || 'Fatura alıcısı'} · {effectiveProfile.identityNumber || 'VKN/TCKN'} · {effectiveProfile.taxOffice || 'Vergi dairesi'}</div>
+                <div style={{ marginTop: 6 }}>
+                  <a href={`${process.env.NEXT_PUBLIC_MARKETING_URL || 'http://localhost:3003'}/yasal/abonelik-hizmet-sozlesmesi`} target="_blank" rel="noreferrer">Abonelik Hizmet Sözleşmesi</a>
+                  {' · '}
+                  <a href={`${process.env.NEXT_PUBLIC_MARKETING_URL || 'http://localhost:3003'}/yasal/iptal-iade-ve-dijital-teslimat`} target="_blank" rel="noreferrer">İptal ve iade politikası</a>
+                </div>
+              </div>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, lineHeight: 1.5, cursor: 'pointer' }}>
+                <input type="checkbox" checked={checkoutTermsAccepted} onChange={(event) => setCheckoutTermsAccepted(event.target.checked)} />
+                Seçtiğim planı, dönemi, KDV hariç liste fiyatını ve ödeme adımında KDV’nin ayrıca ekleneceğini okudum; Abonelik Hizmet Sözleşmesi’ni ticari işletmem adına onaylıyorum.
+              </label>
+            </>
+          )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <button type="button" aria-busy={profilePending} onClick={saveProfile} disabled={pending || !profileDirty} style={btnGhost()}>{profilePending ? 'Kaydediliyor…' : 'Profili kaydet'}</button>
-            <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={!checkoutAvailable || (iyzicoAddOnSelected && !addOnCheckoutAvailable) || !canStartNewCheckout || pending || !checkoutTermsAccepted} style={btnPrimary({ opacity: !checkoutAvailable || (iyzicoAddOnSelected && !addOnCheckoutAvailable) || !canStartNewCheckout || pending || !checkoutTermsAccepted ? .55 : 1, cursor: !checkoutAvailable || (iyzicoAddOnSelected && !addOnCheckoutAvailable) || !canStartNewCheckout || pending || !checkoutTermsAccepted ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : !checkoutAvailable ? 'Güvenli ödeme yakında' : iyzicoAddOnSelected && !addOnCheckoutAvailable ? 'Add-on satın alma yakında' : canStartNewCheckout ? `${PLAN_DEFINITIONS[selectedPlan].label}${iyzicoAddOnSelected ? ' + add-on' : ''} ödeme adımını aç` : 'Plan değişikliği için desteğe ulaş'}</button>
+            {canStartNewCheckout && <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={!checkoutAvailable || (selectedAddOn !== null && !addOnCheckoutAvailable) || pending || !checkoutTermsAccepted} style={btnPrimary({ opacity: !checkoutAvailable || (selectedAddOn !== null && !addOnCheckoutAvailable) || pending || !checkoutTermsAccepted ? .55 : 1, cursor: !checkoutAvailable || (selectedAddOn !== null && !addOnCheckoutAvailable) || pending || !checkoutTermsAccepted ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : !checkoutAvailable ? 'Güvenli ödeme yakında' : selectedAddOn && !addOnCheckoutAvailable ? 'Add-on satın alma yakında' : `${PLAN_DEFINITIONS[selectedPlan].label}${selectedAddOn ? ' + add-on' : ''} ödeme adımını aç`}</button>}
           </div>
           {feedback && <div role="status" style={{ fontSize: 12, color: feedback.includes('MAS-') ? 'var(--critical)' : 'var(--positive)', lineHeight: 1.5 }}>{feedback}</div>}
         </div>
@@ -433,12 +1194,42 @@ export default function BillingSection({
           : billing?.invoices.map((invoice) => <InvoiceRow key={invoice.id} restaurantId={restaurantId} invoice={invoice} />)}
       </SCard>
 
+      <SCard title="İade geçmişi" subtitle="Para hareketleri paket ve özellik erişiminden ayrı yönetilir" style={{ marginTop: 16 }}>
+        {(billing?.refunds.length ?? 0) === 0
+          ? <div style={{ padding: 24, textAlign: 'center', fontSize: 12.5, color: 'var(--text-3)' }}>Henüz abonelik iadesi yok.</div>
+          : billing?.refunds.map((refund) => <RefundRow key={refund.id} refund={refund} />)}
+      </SCard>
+
+      <AlertDialog open={planChangeTarget !== null} onOpenChange={(open) => { if (!open && !planChangePending) setPlanChangeTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {planChangeTarget ? `${PLAN_DEFINITIONS[planChangeTarget.plan].label}${planChangeTarget.addOns.length ? ` + ${ADD_ON_DEFINITIONS[planChangeTarget.addOns[0]!].label}` : ''} değişikliği planlansın mı?` : 'Abonelik değişikliği'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Mevcut planınız ve özellikleriniz dönem sonuna kadar korunur. Yeni plan yalnız İyzico’daki bir sonraki dönem ödemesi başarıyla alındıktan sonra etkinleşir.
+              {planChangeTarget && currentSelfServePlan
+                && (PAID_PLANS.indexOf(planChangeTarget.plan) < PAID_PLANS.indexOf(currentSelfServePlan)
+                  || planChangeTarget.addOns.length < subscription!.activeAddOns.length)
+                ? ' Açık adisyon varsa yeni sipariş girişi durdurulur; mevcut adisyonlar kapandıktan sonra daha düşük plan uygulanır.'
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={planChangePending}>Vazgeç</AlertDialogCancel>
+            <AlertDialogAction disabled={pending || !planChangeTarget} onClick={(event) => { event.preventDefault(); schedulePlanChange() }}>
+              {planChangePending ? 'Planlanıyor…' : 'Dönem sonuna planla'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={showCancel} onOpenChange={(open) => { if (!cancelPending) setShowCancel(open) }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Aboneliği hemen iptal et?</AlertDialogTitle>
+            <AlertDialogTitle>Aboneliği dönem sonunda iptal et?</AlertDialogTitle>
             <AlertDialogDescription>
-              İyzico aboneliği anında iptal edilir. Menü yayını ve ücretli operasyon araçları kilitlenir; verileriniz korunur.
+              Mevcut planınız ve ücretli özellikleriniz ödediğiniz dönemin sonuna kadar açık kalır. Talebi, dönem sonundaki işlem başlamadan önce bu ekrandan geri alabilirsiniz.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="grid gap-2">
@@ -448,11 +1239,11 @@ export default function BillingSection({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={cancelPending}>Vazgeç</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               disabled={pending || cancelPassword.length === 0}
               onClick={(event) => { event.preventDefault(); cancelSubscription() }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {cancelPending ? 'Abonelik iptal ediliyor…' : 'Aboneliği hemen iptal et'}
+              {cancelPending ? 'İptal planlanıyor…' : 'Dönem sonunda iptal et'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

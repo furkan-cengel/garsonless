@@ -1,5 +1,4 @@
 import {
-  notificationDedupeKey,
   readNotificationChannelPrefs,
   shouldDeliverOnChannel,
   type NotificationCategory,
@@ -10,6 +9,9 @@ import { err, ok, type Result } from '@garsonless/domain'
 import {
   BILLING_NOTIFICATION_EVENT_TYPES,
   buildBillingNotificationContent,
+  buildLifecycleNotificationContent,
+  LIFECYCLE_NOTIFICATION_EVENT_TYPES,
+  notificationDedupeKeyForEvent,
   type BillingNotificationEventType,
 } from './notifications'
 
@@ -17,6 +19,7 @@ export const NOTIFICATION_EMAIL_CONSUMER = 'notification-email'
 const NOTIFICATION_EMAIL_EVENT_TYPES = [
   'order.created',
   'service_request.created',
+  ...LIFECYCLE_NOTIFICATION_EVENT_TYPES,
   ...BILLING_NOTIFICATION_EVENT_TYPES,
 ] as const
 export type NotificationEmailEventType = (typeof NOTIFICATION_EMAIL_EVENT_TYPES)[number]
@@ -31,6 +34,7 @@ export function isNotificationEmailEventType(value: string): value is Notificati
 function emailCategoryForEvent(eventType: NotificationEmailEventType): NotificationCategory {
   if (eventType === 'order.created') return 'order'
   if (eventType === 'service_request.created') return 'service_request'
+  if (eventType === 'onboarding.incomplete') return 'lifecycle'
   return eventType === 'billing.reconciliation_required' ? 'system' : 'billing'
 }
 
@@ -121,6 +125,15 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<NotificationCategory, EmailTemplate
       '<p style="margin:0;color:#666;font-size:13px">İsteği panodan kapatabilirsiniz.</p>',
     ].join(''),
   },
+  lifecycle: {
+    subject: '{{restaurantName}} · {{title}}',
+    bodyHtml: [
+      '<h2 style="margin:0 0 8px">{{title}}</h2>',
+      '<p style="margin:0 0 12px"><strong>{{restaurantName}}</strong></p>',
+      '<p style="margin:0 0 12px">{{message}}</p>',
+      '<p style="margin:0;color:#666;font-size:13px">Kurulum akışına dönerek kaldığınız yerden devam edebilirsiniz.</p>',
+    ].join(''),
+  },
   billing: {
     subject: '{{restaurantName}} · {{title}}',
     bodyHtml: [
@@ -175,6 +188,10 @@ export function buildEmailVars(event: NotificationEmailEvent): Record<string, st
       : 'waiter'
     return { ...base, requestLabel: serviceRequestLabel(requestType) }
   }
+  if (event.type === 'onboarding.incomplete') {
+    const content = buildLifecycleNotificationContent(event.type)
+    return { ...base, title: content.title, message: content.body }
+  }
   const content = buildBillingNotificationContent(
     event.type as BillingNotificationEventType,
     event.restaurantId,
@@ -194,6 +211,7 @@ export type NotificationEmailConsumption = {
 
 function emailSeverity(event: NotificationEmailEvent): NotificationSeverity {
   if (event.type === 'order.created' || event.type === 'service_request.created') return 'info'
+  if (event.type === 'onboarding.incomplete') return buildLifecycleNotificationContent(event.type).severity
   return buildBillingNotificationContent(event.type as BillingNotificationEventType, event.restaurantId).severity
 }
 
@@ -241,7 +259,7 @@ export async function consumeNotificationEmail(
   if (!override.ok) return override
   const template = override.value ?? DEFAULT_EMAIL_TEMPLATES[category]
   const rendered = renderEmailTemplate(template, buildEmailVars(event))
-  const dedupeKey = notificationDedupeKey(event.type, event.aggregateId)
+  const dedupeKey = notificationDedupeKeyForEvent(event)
 
   let sent = 0
   let muted = 0

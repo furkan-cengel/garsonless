@@ -1,7 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatTRY } from '@garsonless/ui/menu'
+import {
+  readTrustedPaymentCallbackMessage,
+  resolvePaymentCallbackOutcome,
+} from '../../../lib/payment-callback-message'
 
 const fmt = formatTRY
 
@@ -9,7 +13,17 @@ interface Props {
   slug: string
   tableToken: string
   tableSessionId: string
+  deviceId: string
+  initialBuyerName?: string | null
   onClose: () => void
+}
+
+interface BuyerInfo {
+  name: string
+  surname: string
+  email: string
+  phone: string
+  identityNumber: string
 }
 
 interface SessionOrder { id: string; total: number; status: string; items: unknown }
@@ -25,7 +39,13 @@ interface Share {
 }
 interface Line { itemId: string; name: string; price: number; quantity: number; modifiersPriceDelta: number }
 
-export default function SplitBillModal({ slug, tableToken, tableSessionId, onClose }: Props) {
+function splitName(fullName?: string | null): Pick<BuyerInfo, 'name' | 'surname'> {
+  const parts = fullName?.trim().split(/\s+/).filter(Boolean) ?? []
+  return { name: parts[0] ?? '', surname: parts.slice(1).join(' ') }
+}
+
+export default function SplitBillModal({ slug, tableToken, tableSessionId, deviceId, initialBuyerName, onClose }: Props) {
+  const initialName = splitName(initialBuyerName)
   const [shares, setShares] = useState<Share[]>([])
   const [orders, setOrders] = useState<SessionOrder[]>([])
   const [mode, setMode] = useState<'items' | 'free'>('items')
@@ -34,7 +54,16 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, onClo
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [payUrl, setPayUrl] = useState('') // İyzico iframe when paying by card
+  const paymentFrameRef = useRef<HTMLIFrameElement>(null)
+  const requestIntentRef = useRef<{ key: string; requestId: string } | null>(null)
   const [cardAvailability, setCardAvailability] = useState<'loading' | 'available' | 'unavailable'>('loading')
+  const [buyer, setBuyer] = useState<BuyerInfo>({
+    name: initialName.name,
+    surname: initialName.surname,
+    email: '',
+    phone: '',
+    identityNumber: '',
+  })
 
   const active = orders.filter((o) => o.status !== 'cancelled')
   const sessionTotal = active.reduce((s, o) => s + o.total, 0)
@@ -74,9 +103,15 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, onClo
   useEffect(() => {
     if (!payUrl) return
     const onMsg = (e: MessageEvent) => {
-      const m = e.data as { type?: string }
-      if (m?.type === 'SHARE_PAYMENT_SUCCESS' || m?.type === 'PAYMENT_SUCCESS') { setPayUrl(''); setBusy(false) }
-      else if (m?.type === 'PAYMENT_FAILED') { setPayUrl(''); setBusy(false); setError('Ödeme tamamlanamadı.') }
+      const message = readTrustedPaymentCallbackMessage(
+        e,
+        window.location.origin,
+        paymentFrameRef.current?.contentWindow,
+      )
+      if (!message) return
+      const outcome = resolvePaymentCallbackOutcome('share', message)
+      if (outcome?.status === 'success') { setPayUrl(''); setBusy(false) }
+      else if (outcome?.status === 'failed') { setPayUrl(''); setBusy(false); setError(outcome.reason) }
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
@@ -96,11 +131,43 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, onClo
     return lines.filter((x) => picked.has(x.key)).map((x) => ({ orderId: x.orderId, itemId: x.line.itemId }))
   }
 
+  function declarationBody(method: 'iyzico' | 'cash') {
+    const declaration = mode === 'items'
+      ? { assignedItems: assignedItemsPayload() }
+      : { amount: myAmount }
+    const key = JSON.stringify({ tableSessionId, method, ...declaration })
+    const intent = requestIntentRef.current?.key === key
+      ? requestIntentRef.current
+      : { key, requestId: crypto.randomUUID() }
+    requestIntentRef.current = intent
+    return {
+      ...declaration,
+      slug,
+      tableToken,
+      tableSessionId,
+      requestId: intent.requestId,
+      label: 'Payım',
+    }
+  }
+
+  function updateBuyer(field: keyof BuyerInfo, value: string) {
+    setBuyer((current) => ({ ...current, [field]: value }))
+  }
+
+  function hasValidBuyer(): boolean {
+    return Boolean(
+      buyer.name.trim()
+      && buyer.surname.trim()
+      && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyer.email.trim())
+      && /^\+?[0-9 ()-]{7,20}$/.test(buyer.phone.trim())
+      && /^[A-Za-z0-9]{5,32}$/.test(buyer.identityNumber.trim()),
+    )
+  }
+
   async function createShare(method: 'iyzico' | 'cash'): Promise<string | null> {
     setError('')
     if (myAmount <= 0) { setError('Önce payını seç ya da tutar gir.'); return null }
-    const bodyBase = { slug, tableToken, tableSessionId, method, label: 'Payım' }
-    const body = mode === 'items' ? { ...bodyBase, assignedItems: assignedItemsPayload() } : { ...bodyBase, amount: myAmount }
+    const body = { ...declarationBody(method), method }
     const res = await fetch('/api/split/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
     const json = (await res.json()) as { success: boolean; data?: { shareId: string }; error?: string }
     if (!json.success || !json.data) { setError(json.error ?? 'Pay oluşturulamadı'); return null }
@@ -109,25 +176,24 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, onClo
 
   async function payByCard() {
     if (busy) return
+    if (!hasValidBuyer()) {
+      setError('Kartla ödeme için gerçek ad, iletişim ve kimlik/pasaport bilgilerini eksiksiz gir.')
+      return
+    }
     setBusy(true)
     setError('')
-    const declaration = mode === 'items'
-      ? { assignedItems: assignedItemsPayload() }
-      : { amount: myAmount }
+    const declaration = declarationBody('iyzico')
     try {
       const res = await fetch('/api/split/pay', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           ...declaration,
-          slug,
-          tableToken,
-          tableSessionId,
-          label: 'Payım',
-          buyerName: 'Misafir',
-          buyerSurname: 'Musteri',
-          buyerEmail: 'guest@masabu.co',
-          buyerPhone: '+905000000000',
-          deviceId: `dev-${Math.random().toString(36).slice(2)}`,
+          buyerName: buyer.name.trim(),
+          buyerSurname: buyer.surname.trim(),
+          buyerEmail: buyer.email.trim(),
+          buyerPhone: buyer.phone.trim(),
+          buyerIdentityNumber: buyer.identityNumber.trim(),
+          deviceId,
         }),
       })
       const json = (await res.json()) as { success: boolean; data?: { paymentPageUrl: string }; error?: string }
@@ -167,7 +233,7 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, onClo
         {payUrl ? (
           <div className="p-4">
             <p className="text-xs text-neutral-500 mb-2">Güvenli ödeme</p>
-            <iframe src={payUrl} title="İyzico güvenli ödeme" className="w-full rounded-xl border border-neutral-200 bg-white" style={{ height: 'min(620px, 70dvh)' }} />
+            <iframe ref={paymentFrameRef} src={payUrl} title="İyzico güvenli ödeme" className="w-full rounded-xl border border-neutral-200 bg-white" style={{ height: 'min(620px, 70dvh)' }} />
             <button type="button" onClick={() => { setPayUrl(''); setBusy(false) }} className="mt-3 w-full py-2.5 text-sm text-neutral-600 border border-neutral-200 rounded-xl">Vazgeç</button>
           </div>
         ) : (
@@ -229,6 +295,19 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, onClo
                   <span className="font-bold text-neutral-900">{fmt(myAmount)}</span>
                 </div>
                 {myAmount > remaining && <p className="text-xs text-amber-600">Payın kalan tutardan fazla — kartta kalan kadar tahsil edilir.</p>}
+                {cardAvailability !== 'unavailable' && (
+                  <div className="rounded-xl border border-neutral-200 p-3 space-y-2">
+                    <p className="text-xs font-medium text-neutral-700">Kart ödeyen bilgileri</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input aria-label="Ad" autoComplete="given-name" maxLength={50} value={buyer.name} onChange={(event) => updateBuyer('name', event.target.value)} placeholder="Ad" className="h-10 px-3 rounded-lg border border-neutral-200 text-sm" />
+                      <input aria-label="Soyad" autoComplete="family-name" maxLength={50} value={buyer.surname} onChange={(event) => updateBuyer('surname', event.target.value)} placeholder="Soyad" className="h-10 px-3 rounded-lg border border-neutral-200 text-sm" />
+                    </div>
+                    <input aria-label="E-posta" type="email" inputMode="email" autoComplete="email" maxLength={254} value={buyer.email} onChange={(event) => updateBuyer('email', event.target.value)} placeholder="E-posta" className="h-10 w-full px-3 rounded-lg border border-neutral-200 text-sm" />
+                    <input aria-label="Telefon" type="tel" inputMode="tel" autoComplete="tel" maxLength={20} value={buyer.phone} onChange={(event) => updateBuyer('phone', event.target.value)} placeholder="Telefon" className="h-10 w-full px-3 rounded-lg border border-neutral-200 text-sm" />
+                    <input aria-label="T.C. kimlik / pasaport no" autoComplete="off" autoCapitalize="characters" spellCheck={false} minLength={5} maxLength={32} pattern="[A-Za-z0-9]+" value={buyer.identityNumber} onChange={(event) => updateBuyer('identityNumber', event.target.value)} placeholder="T.C. kimlik / pasaport no" className="h-10 w-full px-3 rounded-lg border border-neutral-200 text-sm" />
+                    <p className="text-[11px] leading-4 text-neutral-400">Kimlik bilgisi yalnız ödeme için İyzico'ya aktarılır; Masabu'da saklanmaz.</p>
+                  </div>
+                )}
                 {error && <p className="text-xs text-red-600">{error}</p>}
 
                 <div className={`grid gap-2 ${cardAvailability === 'unavailable' ? 'grid-cols-1' : 'grid-cols-2'}`}>

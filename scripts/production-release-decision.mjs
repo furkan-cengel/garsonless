@@ -90,6 +90,16 @@ export function validateReleasePolicy(policy) {
       }
     }
   }
+  const runtimeBindings = policy?.runtimeCapabilityBindings
+  if (!runtimeBindings || typeof runtimeBindings !== 'object' || Array.isArray(runtimeBindings)) {
+    errors.push(issue('MAS-DEP-029', 'runtimeCapabilityBindings', 'Runtime capability bağları geçersiz.'))
+  } else {
+    for (const [releaseCapability, runtimeCapability] of Object.entries(runtimeBindings)) {
+      if (!capabilityNames.includes(releaseCapability) || typeof runtimeCapability !== 'string' || runtimeCapability.length === 0) {
+        errors.push(issue('MAS-DEP-029', releaseCapability, 'Runtime capability bağı release capability sözleşmesiyle uyuşmuyor.'))
+      }
+    }
+  }
   if (!hasExactKeys(policy?.allowedWarningCodes, ['pre-deploy', 'post-deploy'])) {
     errors.push(issue('MAS-DEP-029', 'allowedWarningCodes', 'Her release modu için exact warning allowlist gerekli.'))
   }
@@ -348,6 +358,11 @@ export function evaluateReleaseDecision({
   for (const [releaseCapability, smokeCapability] of Object.entries(policy.smokeCapabilityBindings ?? {})) {
     if (smokeEvidence?.enabledCapabilities?.[smokeCapability] !== capabilities[releaseCapability]) {
       errors.push(issue('MAS-DEP-030', `capability:${releaseCapability}`, 'Operatör, env preflight ve smoke capability durumları uyuşmuyor.'))
+    }
+  }
+  for (const [releaseCapability, runtimeCapability] of Object.entries(policy.runtimeCapabilityBindings ?? {})) {
+    if (runtimeEvidence?.enabledCapabilities?.[runtimeCapability] !== capabilities[releaseCapability]) {
+      errors.push(issue('MAS-DEP-030', `capability:${releaseCapability}`, 'Operatör, env preflight ve runtime capability durumları uyuşmuyor.'))
     }
   }
 

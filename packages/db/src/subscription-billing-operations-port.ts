@@ -1,13 +1,20 @@
 import type {
   BillingCancellationPreparation,
   BillingCheckoutPreparation,
+  BillingCheckoutRecoveryJob,
+  BillingCardUpdatePreparation,
   BillingProviderOperationStatus,
+  BillingPlanChangePreparation,
   BillingRetryPreparation,
   SubscriptionBillingAddress,
   SubscriptionBillingOperationsPort,
+  SubscriptionCheckoutRecoveryPort,
+  SubscriptionCardUpdatePort,
+  SubscriptionPlanChangePort,
   SubscriptionBillingProfile,
 } from '@garsonless/application/billing'
 import { err, ok, type Result } from '@garsonless/domain/result'
+import { isValidAddOnSelection } from '@garsonless/domain/entitlements'
 import { createServiceClient } from './service-client'
 
 export type SubscriptionBillingOperationsRpc = (
@@ -35,7 +42,7 @@ function nullableText(value: unknown): string | null | undefined {
 }
 
 function operationStatus(value: unknown): BillingProviderOperationStatus | null {
-  return ['processing', 'awaiting_callback', 'succeeded', 'requires_reconciliation'].includes(value as string)
+  return ['processing', 'awaiting_callback', 'succeeded', 'requires_reconciliation', 'expired'].includes(value as string)
     ? value as BillingProviderOperationStatus
     : null
 }
@@ -88,8 +95,7 @@ function checkoutPreparation(value: unknown): Result<BillingCheckoutPreparation>
     || providerCheckoutRef === undefined
     || !['starter', 'plus', 'pro'].includes(plan as string)
     || !Array.isArray(addOns)
-    || addOns.some((addOn) => addOn !== 'iyzico_online_payments')
-    || (addOns.length > 0 && plan !== 'pro')
+    || !isValidAddOnSelection(plan as BillingCheckoutPreparation['plan'], addOns)
     || !['monthly', 'annual'].includes(interval as string)
     || typeof amountMinor !== 'number' || !Number.isSafeInteger(amountMinor) || amountMinor <= 0
     || row.currency !== 'TRY' || typeof row.dispatchable !== 'boolean'
@@ -144,14 +150,174 @@ function profileArgs(restaurantId: string, value: SubscriptionBillingProfile): R
   }
 }
 
+function checkoutRecoveryJob(value: unknown): Result<BillingCheckoutRecoveryJob> {
+  const row = object(value)
+  const operationId = text(row?.operationId)
+  const restaurantId = text(row?.restaurantId)
+  const providerCheckoutRef = text(row?.providerCheckoutRef)
+  const expectedProviderPlanRef = text(row?.expectedProviderPlanRef)
+  const expectedAmountMinor = row?.expectedAmountMinor
+  const expectedCurrency = row?.expectedCurrency
+  const expectedBillingInterval = row?.expectedBillingInterval
+  const expiresAt = text(row?.expiresAt)
+  const attempts = row?.attempts
+  return row && operationId && restaurantId && providerCheckoutRef && expectedProviderPlanRef
+    && typeof expectedAmountMinor === 'number' && Number.isSafeInteger(expectedAmountMinor) && expectedAmountMinor > 0
+    && expectedCurrency === 'TRY' && ['monthly', 'annual'].includes(expectedBillingInterval as string)
+    && expiresAt && Number.isFinite(Date.parse(expiresAt))
+    && typeof attempts === 'number' && Number.isInteger(attempts) && attempts >= 1
+    ? ok({
+      operationId, restaurantId, providerCheckoutRef, expectedProviderPlanRef,
+      expectedAmount: { minor: expectedAmountMinor, currency: 'TRY' },
+      expectedBillingInterval: expectedBillingInterval as BillingCheckoutRecoveryJob['expectedBillingInterval'],
+      expiresAt, attempts,
+    })
+    : err('Billing checkout recovery result is invalid')
+}
+
+function planChangePreparation(value: unknown): Result<BillingPlanChangePreparation> {
+  const row = object(value)
+  const changeRequestId = text(row?.changeRequestId)
+  const operationId = text(row?.operationId)
+  const subscriptionId = text(row?.subscriptionId)
+  const providerSubscriptionRef = text(row?.providerSubscriptionRef)
+  const providerTargetPlanRef = text(row?.providerTargetPlanRef)
+  const fromPlan = row?.fromPlan
+  const toPlan = row?.toPlan
+  const billingInterval = row?.billingInterval
+  const effectiveAt = text(row?.effectiveAt)
+  const status = row?.status
+  if (!row || !changeRequestId || !operationId || !subscriptionId
+    || !providerSubscriptionRef || !providerTargetPlanRef || !effectiveAt
+    || !Number.isFinite(Date.parse(effectiveAt))
+    || !['starter', 'plus', 'pro'].includes(fromPlan as string)
+    || !['starter', 'plus', 'pro'].includes(toPlan as string)
+    || !['monthly', 'annual'].includes(billingInterval as string)
+    || row.effectivePolicy !== 'next_period'
+    || !['processing', 'scheduled', 'requires_reconciliation'].includes(status as string)
+    || typeof row.dispatchable !== 'boolean' || typeof row.duplicate !== 'boolean') {
+    return err('Billing plan change preparation result is invalid')
+  }
+  return ok({
+    changeRequestId, operationId, subscriptionId, providerSubscriptionRef, providerTargetPlanRef,
+    fromPlan: fromPlan as BillingPlanChangePreparation['fromPlan'],
+    toPlan: toPlan as BillingPlanChangePreparation['toPlan'],
+    billingInterval: billingInterval as BillingPlanChangePreparation['billingInterval'],
+    effectivePolicy: 'next_period', effectiveAt,
+    status: status as BillingPlanChangePreparation['status'],
+    dispatchable: row.dispatchable, duplicate: row.duplicate,
+  })
+}
+
+function cardUpdatePreparation(value: unknown): Result<BillingCardUpdatePreparation> {
+  const row = object(value)
+  const operationId = text(row?.operationId)
+  const subscriptionId = text(row?.subscriptionId)
+  const providerSubscriptionRef = text(row?.providerSubscriptionRef)
+  const status = operationStatus(row?.status)
+  const providerCheckoutRef = nullableText(row?.providerCheckoutRef)
+  const expiresAt = nullableText(row?.expiresAt)
+  if (!row || !operationId || !subscriptionId || !providerSubscriptionRef || !status
+    || providerCheckoutRef === undefined || expiresAt === undefined
+    || (expiresAt !== null && !Number.isFinite(Date.parse(expiresAt)))
+    || typeof row.dispatchable !== 'boolean' || typeof row.duplicate !== 'boolean') {
+    return err('Billing card update preparation result is invalid')
+  }
+  return ok({
+    operationId, subscriptionId, providerSubscriptionRef, status,
+    providerCheckoutRef, expiresAt,
+    dispatchable: row.dispatchable, duplicate: row.duplicate,
+  })
+}
+
 export function createSubscriptionBillingOperationsPort(
   rpc: SubscriptionBillingOperationsRpc = serviceRpc(),
-): SubscriptionBillingOperationsPort {
+): SubscriptionBillingOperationsPort & SubscriptionCheckoutRecoveryPort
+  & SubscriptionPlanChangePort & SubscriptionCardUpdatePort {
   const call = async (name: string, args: Record<string, unknown>) => {
     const { data, error } = await rpc(name, args)
     return error ? err(error.message) : ok(data)
   }
   return {
+    async prepareCardUpdate(input) {
+      const result = await call('prepare_subscription_card_update', {
+        p_restaurant_id: input.restaurantId,
+        p_idempotency_key: input.idempotencyKey,
+        p_request_fingerprint: input.requestFingerprint,
+        p_callback_state_hash: input.callbackStateHash,
+      })
+      return result.ok ? cardUpdatePreparation(result.value) : result
+    },
+    async markCardUpdateInitialized(input) {
+      const result = await call('mark_subscription_card_update_initialized', {
+        p_operation_id: input.operationId,
+        p_provider_checkout_ref: input.providerCheckoutRef,
+        p_provider_checkout_expires_at: input.expiresAt,
+      })
+      return result.ok && result.value === true
+        ? ok(true)
+        : result.ok ? err('Billing card update mark result is invalid') : result
+    },
+    async completeCardUpdate(input) {
+      const result = await call('complete_subscription_card_update', {
+        p_provider_checkout_ref: input.providerCheckoutRef,
+        p_callback_state: input.callbackState,
+        p_occurred_at: input.occurredAt,
+      })
+      if (!result.ok) return result
+      const row = object(result.value)
+      const operationId = text(row?.operationId)
+      const restaurantId = text(row?.restaurantId)
+      const subscriptionId = text(row?.subscriptionId)
+      const outcome = row?.outcome
+      return operationId && restaurantId && subscriptionId
+        && ['succeeded', 'ambiguous'].includes(outcome as string)
+        && typeof row?.duplicate === 'boolean'
+        ? ok({
+          operationId, restaurantId, subscriptionId,
+          outcome: outcome as 'succeeded' | 'ambiguous',
+          duplicate: row.duplicate,
+        })
+        : err('Billing card update completion result is invalid')
+    },
+    async preparePlanChange(input) {
+      const result = await call('prepare_subscription_plan_change', {
+        p_restaurant_id: input.restaurantId,
+        p_to_plan: input.toPlan,
+        p_to_add_ons: input.toAddOns,
+        p_to_billing_interval: input.toBillingInterval,
+        p_provider_target_plan_ref: input.providerTargetPlanRef,
+        p_effective_policy: input.effectivePolicy,
+        p_idempotency_key: input.idempotencyKey,
+        p_request_fingerprint: input.requestFingerprint,
+        p_requested_by: input.requestedBy,
+      })
+      return result.ok ? planChangePreparation(result.value) : result
+    },
+    async finalizePlanChange(input) {
+      const provider = input.result
+      const result = await call('finalize_subscription_plan_change', {
+        p_operation_id: input.operationId,
+        p_change_request_id: input.changeRequestId,
+        p_provider_parent_subscription_ref: provider.providerParentSubscriptionRef,
+        p_provider_target_subscription_ref: provider.providerTargetSubscriptionRef,
+        p_provider_target_plan_ref: provider.providerTargetPlanRef,
+        p_provider_status: provider.providerStatus,
+        p_provider_period_start: provider.providerPeriodStart,
+        p_provider_period_end: provider.providerPeriodEnd,
+        p_occurred_at: input.occurredAt,
+      })
+      if (!result.ok) return result
+      const row = object(result.value)
+      const changeRequestId = text(row?.changeRequestId)
+      const subscriptionId = text(row?.subscriptionId)
+      const effectiveAt = text(row?.effectiveAt)
+      return changeRequestId && subscriptionId && effectiveAt
+        && Number.isFinite(Date.parse(effectiveAt))
+        && row?.status === 'scheduled' && typeof row?.duplicate === 'boolean'
+        ? ok({ changeRequestId, subscriptionId, status: 'scheduled', effectiveAt, duplicate: row.duplicate })
+        : err('Billing plan change finalization result is invalid')
+    },
     async saveProfile(input) {
       const result = await call('upsert_subscription_billing_profile', profileArgs(input.restaurantId, input.profile))
       if (!result.ok) return result
@@ -184,6 +350,7 @@ export function createSubscriptionBillingOperationsPort(
       const result = await call('mark_subscription_checkout_initialized', {
         p_operation_id: input.operationId,
         p_provider_checkout_ref: input.providerCheckoutRef,
+        p_provider_checkout_expires_at: input.expiresAt,
       })
       return result.ok && result.value === true ? ok(true) : result.ok ? err('Billing checkout mark result is invalid') : result
     },
@@ -205,19 +372,37 @@ export function createSubscriptionBillingOperationsPort(
       const invoiceId = text(row?.invoiceId)
       const requestedPlan = text(row?.requestedPlan)
       const expectedProviderPlanRef = text(row?.expectedProviderPlanRef)
+      const expectedAmountMinor = row?.expectedAmountMinor
+      const expectedCurrency = row?.expectedCurrency
+      const expectedBillingInterval = row?.expectedBillingInterval
+      const expiresAt = text(row?.expiresAt)
+      const attempts = row?.attempts
       return operationId && restaurantId && invoiceId
         && (requestedPlan === 'starter' || requestedPlan === 'plus' || requestedPlan === 'pro')
         && expectedProviderPlanRef && /^[\x21-\x7e]{1,200}$/.test(expectedProviderPlanRef)
-        ? ok({ operationId, restaurantId, invoiceId, requestedPlan, expectedProviderPlanRef })
+        && typeof expectedAmountMinor === 'number' && Number.isSafeInteger(expectedAmountMinor) && expectedAmountMinor > 0
+        && expectedCurrency === 'TRY' && ['monthly', 'annual'].includes(expectedBillingInterval as string)
+        && expiresAt && Number.isFinite(Date.parse(expiresAt))
+        && typeof attempts === 'number' && Number.isInteger(attempts) && attempts >= 1
+        ? ok({
+          operationId, restaurantId, invoiceId, requestedPlan, expectedProviderPlanRef,
+          expectedAmount: { minor: expectedAmountMinor, currency: 'TRY' },
+          expectedBillingInterval: expectedBillingInterval as BillingCheckoutRecoveryJob['expectedBillingInterval'],
+          expiresAt, attempts,
+        })
         : err('Billing checkout callback result is invalid')
     },
     async finalizeCheckout(input) {
-      const result = await call('finalize_subscription_checkout_operation', {
+      const result = await call('finalize_subscription_checkout_with_payment_identity', {
         p_operation_id: input.operationId,
         p_provider_customer_ref: input.providerCustomerRef,
         p_provider_subscription_ref: input.providerSubscriptionRef,
         p_provider_plan_ref: input.providerPlanRef,
         p_provider_invoice_ref: input.providerInvoiceRef,
+        p_provider_payment_id: input.providerPaymentId,
+        p_provider_order_status: input.providerOrderStatus,
+        p_amount_minor: input.amount.minor,
+        p_currency: input.amount.currency,
         p_period_start: input.periodStart,
         p_period_end: input.periodEnd,
       })
@@ -226,9 +411,17 @@ export function createSubscriptionBillingOperationsPort(
       const restaurantId = text(row?.restaurantId)
       const subscriptionId = text(row?.subscriptionId)
       const invoiceId = text(row?.invoiceId)
-      return restaurantId && subscriptionId && invoiceId && typeof row?.duplicate === 'boolean'
-        ? ok({ restaurantId, subscriptionId, invoiceId, duplicate: row.duplicate })
-        : err('Billing checkout finalization result is invalid')
+      if (!(restaurantId && subscriptionId && invoiceId
+        && row?.invoiceStatus === 'paid'
+        && row?.paymentEvidence === 'authenticated_retrieve'
+        && typeof row?.duplicate === 'boolean')) {
+        return err('Billing checkout finalization result is invalid')
+      }
+      return ok({
+          restaurantId, subscriptionId, invoiceId,
+          invoiceStatus: 'paid', paymentEvidence: 'authenticated_retrieve',
+          duplicate: row.duplicate,
+        })
     },
     async prepareRetry(input) {
       const result = await call('claim_subscription_billing_operation', {
@@ -277,6 +470,35 @@ export function createSubscriptionBillingOperationsPort(
       return subscriptionId && typeof row?.duplicate === 'boolean'
         ? ok({ subscriptionId, duplicate: row.duplicate })
         : err('Billing cancellation result is invalid')
+    },
+    async claimCheckoutRecoveryOperation(input) {
+      const result = await call('claim_subscription_checkout_recovery_operation', {
+        p_restaurant_id: input.restaurantId,
+        p_operation_id: input.operationId,
+        p_worker: input.workerId,
+        p_lease_seconds: input.leaseSeconds,
+      })
+      return result.ok ? checkoutRecoveryJob(result.value) : result
+    },
+    async rescheduleCheckoutRecovery(input) {
+      const result = await call('reschedule_subscription_checkout_recovery', {
+        p_operation_id: input.operationId,
+        p_worker: input.workerId,
+        p_next_at: input.nextAt,
+        p_reason: input.reason,
+      })
+      return result.ok && result.value === true
+        ? ok(true)
+        : result.ok ? err('Billing checkout recovery schedule result is invalid') : result
+    },
+    async expireCheckoutRecovery(input) {
+      const result = await call('expire_subscription_checkout_recovery', {
+        p_operation_id: input.operationId,
+        p_worker: input.workerId,
+      })
+      return result.ok && result.value === true
+        ? ok(true)
+        : result.ok ? err('Billing checkout expiry result is invalid') : result
     },
   }
 }

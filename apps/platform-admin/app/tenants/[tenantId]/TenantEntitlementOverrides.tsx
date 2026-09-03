@@ -24,6 +24,7 @@ const FEATURE_LABELS: Record<BillableFeature, string> = {
   analytics_advanced: 'Gelişmiş raporlar',
   browser_notifications: 'Tarayıcı bildirimleri',
   theme_advanced_sections: 'Gelişmiş tema bölümleri',
+  theme_video_hero: 'Video Hero',
   multi_location: 'Çoklu lokasyon',
 }
 

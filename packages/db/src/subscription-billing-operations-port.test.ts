@@ -109,11 +109,49 @@ test('operations port maps retry and cancellation claims to their distinct provi
   assert.equal(calls[1]?.args.p_invoice_id, null)
 })
 
+test('operations port maps exact plan change preparation and finalization contracts', async () => {
+  const calls: Array<{ name: string; args: Record<string, unknown> }> = []
+  const port = createSubscriptionBillingOperationsPort(async (name, args) => {
+    calls.push({ name, args })
+    if (name === 'prepare_subscription_plan_change') return { data: {
+      changeRequestId: 'change-1', operationId: 'operation-1', subscriptionId: 'subscription-1',
+      providerSubscriptionRef: 'provider-parent', providerTargetPlanRef: 'provider-plan-pro',
+      fromPlan: 'plus', toPlan: 'pro', billingInterval: 'monthly',
+      effectivePolicy: 'next_period', effectiveAt: '2026-10-01T00:00:00.000Z',
+      status: 'processing', dispatchable: true, duplicate: false,
+    }, error: null }
+    return { data: {
+      changeRequestId: 'change-1', subscriptionId: 'subscription-1', status: 'scheduled',
+      effectiveAt: '2026-10-01T00:00:00.000Z', duplicate: false,
+    }, error: null }
+  })
+  assert.equal((await port.preparePlanChange({
+    restaurantId: 'restaurant-1', toPlan: 'pro', toAddOns: [],
+    toBillingInterval: 'monthly', providerTargetPlanRef: 'provider-plan-pro',
+    effectivePolicy: 'next_period', idempotencyKey: 'change-key',
+    requestFingerprint: 'd'.repeat(64), requestedBy: 'owner-1',
+  })).ok, true)
+  assert.equal((await port.finalizePlanChange({
+    operationId: 'operation-1', changeRequestId: 'change-1',
+    occurredAt: '2026-09-01T12:00:00.000Z',
+    result: {
+      providerParentSubscriptionRef: 'provider-parent',
+      providerTargetSubscriptionRef: 'provider-child', providerTargetPlanRef: 'provider-plan-pro',
+      providerStatus: 'active', providerPeriodStart: '2026-10-01T00:00:00.000Z',
+      providerPeriodEnd: '2027-10-01T00:00:00.000Z',
+    },
+  })).ok, true)
+  assert.equal(calls[0]?.args.p_effective_policy, 'next_period')
+  assert.equal(calls[1]?.args.p_provider_target_subscription_ref, 'provider-child')
+})
+
 test('operations port fail-closes a callback lookup without one claimed paid plan', async () => {
   const valid = createSubscriptionBillingOperationsPort(async () => ({
     data: {
       operationId: 'operation-1', restaurantId: 'restaurant-1',
       invoiceId: 'invoice-1', requestedPlan: 'pro', expectedProviderPlanRef: 'plan-pro',
+      expectedAmountMinor: 143_880, expectedCurrency: 'TRY', expectedBillingInterval: 'monthly',
+      expiresAt: '2026-09-01T12:30:00.000Z', attempts: 2,
     },
     error: null,
   }))
@@ -122,6 +160,8 @@ test('operations port fail-closes a callback lookup without one claimed paid pla
     value: {
       operationId: 'operation-1', restaurantId: 'restaurant-1',
       invoiceId: 'invoice-1', requestedPlan: 'pro', expectedProviderPlanRef: 'plan-pro',
+      expectedAmount: { minor: 143_880, currency: 'TRY' }, expectedBillingInterval: 'monthly',
+      expiresAt: '2026-09-01T12:30:00.000Z', attempts: 2,
     },
   })
 
@@ -129,12 +169,36 @@ test('operations port fail-closes a callback lookup without one claimed paid pla
     data: {
       operationId: 'operation-1', restaurantId: 'restaurant-1',
       invoiceId: 'invoice-1', requestedPlan: 'free', expectedProviderPlanRef: 'plan-free',
+      expectedAmountMinor: 143_880, expectedCurrency: 'TRY', expectedBillingInterval: 'monthly',
+      expiresAt: '2026-09-01T12:30:00.000Z', attempts: 1,
     },
     error: null,
   }))
   assert.deepEqual(await invalid.findCheckoutCallback('checkout-1'), {
     ok: false, error: 'Billing checkout callback result is invalid',
   })
+})
+
+test('operations port never exposes provider checkout recovery without tenant-scoped claim data', async () => {
+  const calls: Array<{ name: string; args: Record<string, unknown> }> = []
+  const port = createSubscriptionBillingOperationsPort(async (name, args) => {
+    calls.push({ name, args })
+    return {
+      data: {
+        operationId: 'operation-1', restaurantId: 'restaurant-1',
+        providerCheckoutRef: 'provider-token', expectedProviderPlanRef: 'plan-pro',
+        expectedAmountMinor: 143_880, expectedCurrency: 'TRY', expectedBillingInterval: 'monthly',
+        expiresAt: '2026-09-01T12:30:00.000Z', attempts: 1,
+      },
+      error: null,
+    }
+  })
+  assert.equal((await port.claimCheckoutRecoveryOperation({
+    restaurantId: 'restaurant-1', operationId: 'operation-1',
+    workerId: 'dashboard-1', leaseSeconds: 10,
+  })).ok, true)
+  assert.equal(calls[0]?.name, 'claim_subscription_checkout_recovery_operation')
+  assert.equal(calls[0]?.args.p_restaurant_id, 'restaurant-1')
 })
 
 test('operations port binds the exact provider plan before hosted checkout dispatch', async () => {
@@ -153,4 +217,106 @@ test('operations port binds the exact provider plan before hosted checkout dispa
       p_expected_provider_plan_ref: 'plan-pro-live',
     },
   }])
+})
+
+test('operations port accepts checkout finalization only with explicit paid retrieve evidence', async () => {
+  const input = {
+    operationId: 'operation-1', providerCustomerRef: 'customer-1',
+    providerSubscriptionRef: 'subscription-provider-1', providerPlanRef: 'plan-1',
+    providerInvoiceRef: 'invoice-provider-1', providerPaymentId: 'payment-provider-1',
+    providerOrderStatus: 'succeeded' as const,
+    amount: { minor: 143_880, currency: 'TRY' as const },
+    providerStatus: 'active' as const,
+    periodStart: '2026-09-01T00:00:00.000Z', periodEnd: '2026-10-01T00:00:00.000Z',
+  }
+  const valid = createSubscriptionBillingOperationsPort(async (name) => ({
+    data: name === 'bind_subscription_payment_provider_id' ? true : {
+      restaurantId: 'restaurant-1', subscriptionId: 'subscription-1', invoiceId: 'invoice-1',
+      invoiceStatus: 'paid', paymentEvidence: 'authenticated_retrieve', duplicate: false,
+    },
+    error: null,
+  }))
+  assert.deepEqual(await valid.finalizeCheckout(input), {
+    ok: true,
+    value: {
+      restaurantId: 'restaurant-1', subscriptionId: 'subscription-1', invoiceId: 'invoice-1',
+      invoiceStatus: 'paid', paymentEvidence: 'authenticated_retrieve', duplicate: false,
+    },
+  })
+
+  const legacyOpen = createSubscriptionBillingOperationsPort(async () => ({
+    data: {
+      restaurantId: 'restaurant-1', subscriptionId: 'subscription-1', invoiceId: 'invoice-1',
+      duplicate: false,
+    },
+    error: null,
+  }))
+  assert.deepEqual(await legacyOpen.finalizeCheckout(input), {
+    ok: false, error: 'Billing checkout finalization result is invalid',
+  })
+})
+
+test('checkout payment identity fault is one atomic RPC failure, never a second bind window', async () => {
+  const calls: Array<{ name: string; args: Record<string, unknown> }> = []
+  const port = createSubscriptionBillingOperationsPort(async (name, args) => {
+    calls.push({ name, args })
+    return { data: null, error: { message: 'billing_payment_identity_attempt_mismatch' } }
+  })
+  const result = await port.finalizeCheckout({
+    operationId: 'operation-1', providerCustomerRef: 'customer-1',
+    providerSubscriptionRef: 'subscription-provider-1', providerPlanRef: 'plan-1',
+    providerInvoiceRef: 'invoice-provider-1', providerPaymentId: 'payment-provider-1',
+    providerOrderStatus: 'succeeded', amount: { minor: 143_880, currency: 'TRY' },
+    providerStatus: 'active', periodStart: '2026-09-01T00:00:00.000Z',
+    periodEnd: '2026-10-01T00:00:00.000Z',
+  })
+  assert.deepEqual(result, { ok: false, error: 'billing_payment_identity_attempt_mismatch' })
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0]?.name, 'finalize_subscription_checkout_with_payment_identity')
+  assert.equal(calls[0]?.args.p_provider_payment_id, 'payment-provider-1')
+  assert.equal(calls[0]?.args.p_provider_order_status, 'succeeded')
+  assert.equal(calls[0]?.args.p_amount_minor, 143_880)
+})
+
+test('operations port maps hosted card initialization and callback completion without card fields', async () => {
+  const calls: Array<{ name: string; args: Record<string, unknown> }> = []
+  const port = createSubscriptionBillingOperationsPort(async (name, args) => {
+    calls.push({ name, args })
+    if (name === 'prepare_subscription_card_update') return {
+      data: {
+        operationId: 'card-operation-1', subscriptionId: 'subscription-1',
+        providerSubscriptionRef: 'provider-subscription-1', status: 'processing',
+        providerCheckoutRef: null, expiresAt: null,
+        dispatchable: true, duplicate: false,
+      },
+      error: null,
+    }
+    if (name === 'mark_subscription_card_update_initialized') return { data: true, error: null }
+    return {
+      data: {
+        operationId: 'card-operation-1', restaurantId: 'restaurant-1',
+        subscriptionId: 'subscription-1', outcome: 'succeeded', duplicate: false,
+      },
+      error: null,
+    }
+  })
+  assert.equal((await port.prepareCardUpdate({
+    restaurantId: 'restaurant-1', idempotencyKey: 'card-1',
+    requestFingerprint: 'a'.repeat(64), callbackStateHash: 'b'.repeat(64),
+  })).ok, true)
+  assert.equal((await port.markCardUpdateInitialized({
+    operationId: 'card-operation-1', providerCheckoutRef: 'card-token-1',
+    expiresAt: '2026-09-01T12:30:00.000Z',
+  })).ok, true)
+  assert.equal((await port.completeCardUpdate({
+    providerCheckoutRef: 'card-token-1', callbackState: 'c'.repeat(32),
+    occurredAt: '2026-09-01T12:05:00.000Z',
+  })).ok, true)
+  assert.deepEqual(calls.map((call) => call.name), [
+    'prepare_subscription_card_update',
+    'mark_subscription_card_update_initialized',
+    'complete_subscription_card_update',
+  ])
+  assert.equal(calls[2]?.args.p_callback_state, 'c'.repeat(32))
+  assert.equal('cardNumber' in calls[2]!.args, false)
 })

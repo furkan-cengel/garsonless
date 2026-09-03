@@ -1605,6 +1605,8 @@ export function MenuPageClient({
           slug={restaurant.slug}
           tableToken={effectiveTableToken!}
           tableSessionId={tableSessionId}
+          deviceId={deviceId}
+          initialBuyerName={member?.name ?? null}
           onClose={() => setIsSplitOpen(false)}
         />
       )}

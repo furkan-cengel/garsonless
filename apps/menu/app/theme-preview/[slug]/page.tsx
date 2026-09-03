@@ -9,6 +9,7 @@ import { getPreviewTheme } from '../../../lib/published-theme'
 import { hasThemePreviewAccess } from '../../../lib/theme-preview-access'
 import { getPublicMenuRevision } from '../../../lib/public-menu-revision'
 import { createThemeApplicationPort, readTenantOrderIngressStatus } from '@garsonless/db/server'
+import { projectThemeForEntitlements } from '@garsonless/application/themes'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { robots: { index: false, follow: false, noarchive: true } }
@@ -38,15 +39,30 @@ export default async function ThemeExperiencePreview({ params, searchParams }: P
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
   ])
   if (!themeResult.ok) notFound()
-  const [guestOrderingAccess, orderIngressStatus] = await Promise.all([
-    createThemeApplicationPort().readFeatureAccess({
+  const themePort = createThemeApplicationPort()
+  const [guestOrderingAccess, advancedThemeAccess, videoHeroAccess, orderIngressStatus] = await Promise.all([
+    themePort.readFeatureAccess({
       restaurantId: restaurant.id,
       plan: themeResult.value.restaurant.plan,
       feature: 'guest_ordering',
     }),
+    themePort.readFeatureAccess({
+      restaurantId: restaurant.id,
+      plan: themeResult.value.restaurant.plan,
+      feature: 'theme_advanced_sections',
+    }),
+    themePort.readFeatureAccess({
+      restaurantId: restaurant.id,
+      plan: themeResult.value.restaurant.plan,
+      feature: 'theme_video_hero',
+    }),
     readTenantOrderIngressStatus(restaurant.id),
   ])
   const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value && orderIngressStatus === 'active'
+  const previewTheme = projectThemeForEntitlements(themeResult.value.theme, {
+    advancedSections: advancedThemeAccess.ok && advancedThemeAccess.value,
+    videoHero: videoHeroAccess.ok && videoHeroAccess.value,
+  })
 
   if (surface === 'auth' || surface === 'account' || surface === 'checkout') {
     if (surface === 'checkout' && !guestOrderingEnabled) notFound()
@@ -64,7 +80,7 @@ export default async function ThemeExperiencePreview({ params, searchParams }: P
     return <ExperienceStatePreview
       restaurantName={restaurant.name}
       logoUrl={restaurant.logo_url}
-      theme={themeResult.value.theme}
+      theme={previewTheme}
       surface={surface}
       state={state}
       menuItems={checkoutItems as MenuItem[]}
@@ -77,7 +93,7 @@ export default async function ThemeExperiencePreview({ params, searchParams }: P
     restaurant={restaurant}
     categories={categories as MenuCategory[]}
     items={items as MenuItem[]}
-    theme={themeResult.value.theme}
+    theme={previewTheme}
     previewTemplateId={themeResult.value.templateId}
     previewAccessToken={typeof sp['previewAccess'] === 'string' ? sp['previewAccess'] : null}
     guestOrderingEnabled={guestOrderingEnabled}

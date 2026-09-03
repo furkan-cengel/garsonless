@@ -41,11 +41,15 @@ test('billing DB port fail-closes malformed payment results and preserves RPC er
 })
 
 test('billing DB port accepts typed idempotent failure and reactivation projections', async () => {
+  const calls: string[] = []
   const values = [
     { invoiceId: 'invoice-1', attemptId: null, invoiceStatus: 'paid', subscriptionStatus: 'active', duplicate: false, ignoredBecausePaid: true },
     { invoiceId: 'invoice-1', attemptId: 'attempt-1', invoiceStatus: 'paid', subscriptionStatus: 'active', duplicate: false, reactivated: true },
   ]
-  const rpc: SubscriptionBillingRpc = async () => ({ data: values.shift(), error: null })
+  const rpc: SubscriptionBillingRpc = async (name) => {
+    calls.push(name)
+    return { data: values.shift(), error: null }
+  }
   const port = createSubscriptionBillingPersistencePort(rpc)
   const common = {
     restaurantId: 'restaurant-1', subscriptionId: 'subscription-1', invoiceId: 'invoice-1',
@@ -55,4 +59,8 @@ test('billing DB port accepts typed idempotent failure and reactivation projecti
   }
   assert.equal((await port.recordPaymentFailure({ ...common, failureCode: null, failureMessage: null })).ok, true)
   assert.equal((await port.recordPaymentSuccess(common)).ok, true)
+  assert.deepEqual(calls, [
+    'record_subscription_payment_failure_atomic',
+    'record_subscription_payment_success_with_plan_change_atomic',
+  ])
 })

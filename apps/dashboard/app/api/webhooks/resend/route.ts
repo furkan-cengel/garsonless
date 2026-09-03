@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { Webhook } from 'svix'
-import { recordResendCampaignEvent } from '@garsonless/db/server'
+import { recordResendCampaignEvent, recordResendNotificationEvent } from '@garsonless/db/server'
 
 export const runtime = 'nodejs'
 
@@ -48,12 +48,16 @@ export async function POST(request: Request) {
   if (!providerMessageId) return NextResponse.json({ error: 'E-posta kimliği eksik' }, { status: 400 })
 
   try {
-    await recordResendCampaignEvent({
+    const providerEvent = {
       webhookId,
       providerMessageId,
       eventType: event.type.slice('email.'.length) as 'sent' | 'delivered' | 'delivery_delayed' | 'opened' | 'clicked' | 'bounced' | 'complained' | 'suppressed' | 'failed',
       occurredAt: event.created_at,
-    })
+    }
+    await Promise.all([
+      recordResendCampaignEvent(providerEvent),
+      recordResendNotificationEvent(providerEvent),
+    ])
     return NextResponse.json({ received: true })
   } catch {
     return NextResponse.json({ error: 'Webhook işlenemedi' }, { status: 500 })

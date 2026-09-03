@@ -2,12 +2,28 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   billingCheckoutCallbackUrl,
+  billingCardUpdateCallbackUrl,
   billingDashboardUrl,
   billingPeriod,
+  billingValidationMessage,
+  cancellationWithdrawalRequestSchema,
   checkoutRequestSchema,
+  planChangeRequestSchema,
   readBillingPlanPrices,
   requestFingerprint,
 } from './subscription-billing-request'
+
+test('billing validation guidance names only allow-listed fields without echoing values', () => {
+  assert.equal(billingValidationMessage([
+    { path: ['profile', 'identityNumber'], code: 'invalid_format' },
+  ]), 'VKN / TCKN 10 veya 11 rakamdan oluşmalıdır.')
+  assert.equal(billingValidationMessage([
+    { path: ['profile', 'billingAddress', 'city'], code: 'too_small' },
+  ]), 'Fatura adresindeki şehir alanını kontrol edin.')
+  assert.equal(billingValidationMessage([
+    { path: ['requestId'], code: 'invalid_format' },
+  ]), 'Gönderilen fatura bilgilerini kontrol edip tekrar deneyin.')
+})
 
 const address = {
   contactName: 'Masabu Test', city: 'İstanbul', district: null,
@@ -34,6 +50,12 @@ test('checkout input normalizes provider identity without accepting free or malf
   assert.equal(checkoutRequestSchema.safeParse({
     ...parsed, plan: 'plus', addOns: ['iyzico_online_payments'],
   }).success, false)
+  assert.equal(checkoutRequestSchema.safeParse({
+    ...parsed, plan: 'starter', addOns: ['storefront_video_hero'],
+  }).success, true)
+  assert.equal(checkoutRequestSchema.safeParse({
+    ...parsed, plan: 'pro', addOns: ['storefront_video_hero'],
+  }).success, false)
   assert.equal(checkoutRequestSchema.safeParse({ ...parsed, plan: 'free' }).success, false)
   assert.equal(checkoutRequestSchema.safeParse({ ...parsed, plan: 'business' }).success, false)
   assert.equal(checkoutRequestSchema.safeParse({ ...parsed, interval: 'weekly' }).success, false)
@@ -53,6 +75,33 @@ test('billing request fingerprint is deterministic and changes with immutable in
   assert.match(left, /^[a-f0-9]{64}$/)
 })
 
+test('plan change request is same-interval shaped and keeps add-on compatibility closed', () => {
+  const base = {
+    requestId: '11111111-1111-4111-8111-111111111111',
+    toPlan: 'pro', billingInterval: 'monthly', addOns: [],
+  }
+  assert.equal(planChangeRequestSchema.safeParse(base).success, true)
+  assert.equal(planChangeRequestSchema.safeParse({
+    ...base, toPlan: 'plus', addOns: ['iyzico_online_payments'],
+  }).success, false)
+  assert.equal(planChangeRequestSchema.safeParse({
+    ...base, toPlan: 'plus', addOns: ['storefront_video_hero'],
+  }).success, true)
+  assert.equal(planChangeRequestSchema.safeParse({ ...base, billingInterval: 'weekly' }).success, false)
+})
+
+test('cancellation withdrawal requires two immutable UUIDs and rejects unknown fields', () => {
+  const input = {
+    requestId: '11111111-1111-4111-8111-111111111111',
+    cancellationRequestId: '22222222-2222-4222-8222-222222222222',
+  }
+  assert.equal(cancellationWithdrawalRequestSchema.safeParse(input).success, true)
+  assert.equal(cancellationWithdrawalRequestSchema.safeParse({
+    ...input, cancellationRequestId: 'not-an-id',
+  }).success, false)
+  assert.equal(cancellationWithdrawalRequestSchema.safeParse({ ...input, status: 'applied' }).success, false)
+})
+
 test('monthly period clamps end-of-month and callback URL is origin constrained', () => {
   assert.deepEqual(billingPeriod(new Date('2026-01-31T10:00:00.000Z'), 'monthly'), {
     periodStart: '2026-01-31T10:00:00.000Z',
@@ -68,6 +117,11 @@ test('monthly period clamps end-of-month and callback URL is origin constrained'
     billingCheckoutCallbackUrl('https://app.masabu.co'),
     'https://app.masabu.co/api/billing/iyzico/checkout/callback',
   )
+  assert.equal(
+    billingCardUpdateCallbackUrl('https://app.masabu.co', 'a'.repeat(32)),
+    `https://app.masabu.co/api/billing/iyzico/card-update/callback?state=${'a'.repeat(32)}`,
+  )
+  assert.throws(() => billingCardUpdateCallbackUrl('https://app.masabu.co', 'short'), /state is invalid/)
   assert.throws(() => billingCheckoutCallbackUrl('http://dashboard.example.com'), /origin is invalid/)
   assert.throws(() => billingDashboardUrl('/dashboard', undefined, 'production'), /origin is required/)
   assert.throws(() => billingDashboardUrl(
@@ -102,8 +156,10 @@ test('public catalogue prices stay visible while checkout readiness fails closed
     plus: { monthly: 69_900, annual: 671_040 },
     pro: { monthly: 119_900, annual: 1_151_040 },
     iyzicoOnlinePaymentsAddOn: { monthly: 30_000, annual: 288_000 },
+    storefrontVideoHeroAddOn: { monthly: 3_900, annual: 37_440 },
     checkoutAvailable: true,
     iyzicoOnlinePaymentsAddOnCheckoutAvailable: false,
+    storefrontVideoHeroAddOnCheckoutAvailable: false,
   })
   assert.deepEqual(readBillingPlanPrices({
     ...complete,
@@ -111,8 +167,10 @@ test('public catalogue prices stay visible while checkout readiness fails closed
   }), {
     starter: { monthly: 34_900, annual: 335_040 }, plus: { monthly: 69_900, annual: 671_040 }, pro: { monthly: 119_900, annual: 1_151_040 },
     iyzicoOnlinePaymentsAddOn: { monthly: 30_000, annual: 288_000 },
+    storefrontVideoHeroAddOn: { monthly: 3_900, annual: 37_440 },
     checkoutAvailable: false,
     iyzicoOnlinePaymentsAddOnCheckoutAvailable: false,
+    storefrontVideoHeroAddOnCheckoutAvailable: false,
   })
   assert.deepEqual(readBillingPlanPrices({
     ...complete,
@@ -120,8 +178,10 @@ test('public catalogue prices stay visible while checkout readiness fails closed
   }), {
     starter: { monthly: 34_900, annual: 335_040 }, plus: { monthly: 69_900, annual: 671_040 }, pro: { monthly: 119_900, annual: 1_151_040 },
     iyzicoOnlinePaymentsAddOn: { monthly: 30_000, annual: 288_000 },
+    storefrontVideoHeroAddOn: { monthly: 3_900, annual: 37_440 },
     checkoutAvailable: false,
     iyzicoOnlinePaymentsAddOnCheckoutAvailable: false,
+    storefrontVideoHeroAddOnCheckoutAvailable: false,
   })
 })
 

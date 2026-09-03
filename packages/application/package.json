@@ -26,6 +26,7 @@
     "./platform-admin-tenant-operations": "./src/platform-admin-tenant-operations.ts",
     "./platform-admin-tenant-plans": "./src/platform-admin-tenant-plans.ts",
     "./platform-admin-billing": "./src/platform-admin-billing.ts",
+    "./platform-admin-subscription-refunds": "./src/platform-admin-subscription-refunds.ts",
     "./platform-admin-entitlements": "./src/platform-admin-entitlements.ts",
     "./platform-admin-impersonation": "./src/platform-admin-impersonation.ts",
     "./platform-admin-privacy": "./src/platform-admin-privacy.ts",

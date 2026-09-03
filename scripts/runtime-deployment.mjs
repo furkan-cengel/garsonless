@@ -49,6 +49,9 @@ function uniqueNames(items) {
 export function validateRuntimeSource({ spec, root = ROOT }) {
   const errors = []
   if (spec.schemaVersion !== 1) errors.push(issue('MAS-DEP-018', 'schemaVersion', 'Runtime sözleşme sürümü desteklenmiyor.'))
+  if (!Array.isArray(spec.capabilities) || !uniqueNames(spec.capabilities.map((name) => ({ name })))) {
+    errors.push(issue('MAS-DEP-018', 'capabilities', 'Runtime capability listesi eksik veya benzersiz değil.'))
+  }
   for (const group of ['edgeFunctions', 'authHooks', 'vaultSecrets', 'cronJobs', 'postDeployProbes']) {
     if (!Array.isArray(spec[group]) || !uniqueNames(spec[group])) {
       errors.push(issue('MAS-DEP-018', group, 'Liste eksik veya isimler benzersiz değil.'))
@@ -124,7 +127,19 @@ export function validateRuntimeSource({ spec, root = ROOT }) {
     if (!functionNames.has(hook.function)) errors.push(issue('MAS-DEP-018', hook.name, 'Auth hook bilinmeyen function’a bağlı.'))
   }
   for (const probe of spec.postDeployProbes ?? []) {
-    if (!functionNames.has(probe.function)) errors.push(issue('MAS-DEP-018', probe.name, 'Probe bilinmeyen function’a bağlı.'))
+    if (probe.function && !functionNames.has(probe.function)) errors.push(issue('MAS-DEP-018', probe.name, 'Probe bilinmeyen function’a bağlı.'))
+    if (!probe.function && (!probe.url || !probe.routeFile)) errors.push(issue('MAS-DEP-018', probe.name, 'HTTP probe URL ve route kaynağı belirtmeli.'))
+    if (probe.routeFile && !existsSync(resolve(root, probe.routeFile))) {
+      errors.push(issue('MAS-DEP-015', probe.name, `Probe route kaynağı bulunamadı: ${probe.routeFile}`))
+    }
+  }
+  const knownCapabilities = new Set(spec.capabilities ?? [])
+  for (const group of ['edgeFunctions', 'authHooks', 'vaultSecrets', 'cronJobs', 'postDeployProbes']) {
+    for (const item of spec[group] ?? []) {
+      if (item.capability && !knownCapabilities.has(item.capability)) {
+        errors.push(issue('MAS-DEP-018', `${group}:${item.name}`, `Bilinmeyen runtime capability: ${item.capability}`))
+      }
+    }
   }
   return { ok: errors.length === 0, errors }
 }
@@ -143,8 +158,10 @@ export function buildRuntimeManifest({ spec, specSha256, projectRef, root = ROOT
     runtimeSpecSha256: specSha256,
     supabaseConfigSha256: sha256(readFileSync(resolve(root, SUPABASE_CONFIG_PATH))),
     capabilities: spec.requiredCapabilities,
+    runtimeCapabilities: [...spec.capabilities].sort(),
     edgeFunctions: spec.edgeFunctions.map((fn) => ({
       name: fn.name,
+      ...(fn.capability ? { capability: fn.capability } : {}),
       verifyJwt: fn.verifyJwt,
       url: template(fn.urlTemplate, projectRef),
       entrypoint: fn.entrypoint,
@@ -155,6 +172,7 @@ export function buildRuntimeManifest({ spec, specSha256, projectRef, root = ROOT
     authHooks: spec.authHooks.map((hook) => ({ ...hook, url: template(hook.urlTemplate, projectRef), urlTemplate: undefined })),
     vaultSecrets: spec.vaultSecrets.map((secret) => ({
       name: secret.name,
+      ...(secret.capability ? { capability: secret.capability } : {}),
       kind: secret.kind,
       expectedUrl: secret.expectedTemplate ? template(secret.expectedTemplate, projectRef) : undefined,
       sourceMigration: secret.sourceMigration,
@@ -165,7 +183,11 @@ export function buildRuntimeManifest({ spec, specSha256, projectRef, root = ROOT
       sourceMigration,
       sourceSha256: sha256(readFileSync(resolve(root, sourceMigration))),
     })),
-    postDeployProbes: spec.postDeployProbes,
+    postDeployProbes: spec.postDeployProbes.map((probe) => {
+      const manifestProbe = { ...probe }
+      delete manifestProbe.routeFile
+      return manifestProbe
+    }),
   }
   return { ...manifest, artifactSha256: sha256(JSON.stringify(manifest)) }
 }
@@ -202,6 +224,19 @@ export function validateRuntimeEvidence({ manifest, evidence, mode = 'post-deplo
   const forbiddenField = containsForbiddenEvidenceField(evidence)
   if (forbiddenField) errors.push(issue('MAS-DEP-022', forbiddenField, 'Runtime kanıtı credential değeri içeremez; yalnız ad/configured metadata kabul edilir.'))
 
+  const enabledCapabilities = evidence?.enabledCapabilities
+  const expectedCapabilityNames = [...(manifest.runtimeCapabilities ?? [])].sort()
+  if (
+    !enabledCapabilities
+    || typeof enabledCapabilities !== 'object'
+    || Array.isArray(enabledCapabilities)
+    || Object.keys(enabledCapabilities).sort().join('\0') !== expectedCapabilityNames.join('\0')
+    || Object.values(enabledCapabilities).some((value) => typeof value !== 'boolean')
+  ) {
+    errors.push(issue('MAS-DEP-019', 'enabledCapabilities', 'Runtime capability durumları tam ve boolean olmalı.'))
+  }
+  const required = (item) => !item.capability || enabledCapabilities?.[item.capability] === true
+
   for (const [kind, required] of Object.entries(manifest.capabilities)) {
     const actual = new Set(evidence?.capabilities?.[kind] ?? [])
     for (const name of required) if (!actual.has(name)) compare(mode, errors, warnings, 'MAS-DEP-022', `${kind}:${name}`, 'Gerekli database capability görünmüyor.')
@@ -210,6 +245,7 @@ export function validateRuntimeEvidence({ manifest, evidence, mode = 'post-deplo
   const functions = new Map((evidence?.edgeFunctions ?? []).map((item) => [item.name, item]))
   for (const expected of manifest.edgeFunctions) {
     const actual = functions.get(expected.name)
+    if (!actual && !required(expected)) continue
     if (!actual || actual.active !== true || actual.verifyJwt !== expected.verifyJwt || actual.url !== expected.url) {
       compare(mode, errors, warnings, 'MAS-DEP-020', expected.name, 'Edge Function aktif değil veya URL/verifyJwt sözleşmesi uyuşmuyor.')
       continue
@@ -223,6 +259,7 @@ export function validateRuntimeEvidence({ manifest, evidence, mode = 'post-deplo
   const hooks = new Map((evidence?.authHooks ?? []).map((item) => [item.name, item]))
   for (const expected of manifest.authHooks) {
     const actual = hooks.get(expected.name)
+    if (!actual && !required(expected)) continue
     if (!actual || actual.enabled !== expected.enabled || actual.url !== expected.url) {
       compare(mode, errors, warnings, 'MAS-DEP-020', expected.name, 'Auth hook etkinliği veya URL’si uyuşmuyor.')
     }
@@ -231,6 +268,7 @@ export function validateRuntimeEvidence({ manifest, evidence, mode = 'post-deplo
   const vault = new Map((evidence?.vaultSecrets ?? []).map((item) => [item.name, item]))
   for (const expected of manifest.vaultSecrets) {
     const actual = vault.get(expected.name)
+    if (!actual && !required(expected)) continue
     if (!actual || actual.configured !== true || (expected.expectedUrl && actual.url !== expected.expectedUrl)) {
       compare(mode, errors, warnings, 'MAS-DEP-022', expected.name, 'Vault secret metadata’sı eksik veya worker URL’si uyuşmuyor.')
     }
@@ -239,6 +277,7 @@ export function validateRuntimeEvidence({ manifest, evidence, mode = 'post-deplo
   const jobs = new Map((evidence?.cronJobs ?? []).map((item) => [item.name, item]))
   for (const expected of manifest.cronJobs) {
     const actual = jobs.get(expected.name)
+    if (!actual && !required(expected)) continue
     if (!actual || actual.active !== true || actual.schedule !== expected.schedule || normalizeSql(actual.command ?? '') !== normalizeSql(expected.command)) {
       compare(mode, errors, warnings, 'MAS-DEP-021', expected.name, 'Cron aktif değil veya schedule/command sözleşmesi uyuşmuyor.')
     }
@@ -247,6 +286,7 @@ export function validateRuntimeEvidence({ manifest, evidence, mode = 'post-deplo
   const probes = new Map((evidence?.probes ?? []).map((item) => [item.name, item]))
   for (const expected of manifest.postDeployProbes) {
     const actual = probes.get(expected.name)
+    if (!actual && !required(expected)) continue
     if (!actual || actual.status !== expected.expectedStatus) {
       compare(mode, errors, warnings, 'MAS-DEP-023', expected.name, 'Güvenli post-deploy probe sonucu beklenen HTTP durumunu vermedi.')
     }

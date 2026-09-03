@@ -16,6 +16,7 @@ import {
   resolveCheckoutTablePaymentState,
   resolveHomeSurfacePalette,
   DEFAULT_THEME,
+  VIDEO_HERO_SECTION_ID,
   type AuthContrastIssue,
   type AuthErrorIcon,
   type AuthErrorStateTheme,
@@ -403,6 +404,7 @@ export function ThemeExperienceProperties({
   width,
   restaurantId,
   canAddAdvancedSections,
+  canUseVideoHero,
   surface,
   authState,
   accountState,
@@ -418,6 +420,7 @@ export function ThemeExperienceProperties({
   width: number
   restaurantId: string
   canAddAdvancedSections: boolean
+  canUseVideoHero: boolean
   surface: ThemeEditorSurface
   authState: AuthPreviewState
   accountState: AccountPreviewState
@@ -439,6 +442,10 @@ export function ThemeExperienceProperties({
   const selectedHomeDefinition = selectedSection
     ? HOME_SECTION_LIBRARY.find((item) => item.id === selectedSection.sectionId) ?? null
     : null
+  // Locked sections stay editable so a downgrade never silently discards the
+  // owner's work; only the preview and the published menu drop them.
+  const selectedHomeSectionLocked = selectedHomeDefinition?.plan === 'pro'
+    && (selectedHomeDefinition.id === VIDEO_HERO_SECTION_ID ? !canUseVideoHero : !canAddAdvancedSections)
   const [homeEditorTab, setHomeEditorTab] = useState<EditorTab>('content')
   const homeSectionFields = selectedSection ? SECTION_SETTING_SCHEMA[selectedSection.sectionId] ?? [] : []
   const homeTabs = getAvailableSectionTabs(homeSectionFields)
@@ -588,7 +595,9 @@ export function ThemeExperienceProperties({
                 </TabsList>
               </Tabs>
             )}>
-              <SettingsCardHeader icon={selectedHomeDefinition ? <ThemeSectionCatalogIcon icon={selectedHomeDefinition.icon} size={17} /> : <I.layout size={17} />} title={selectedHomeDefinition?.label ?? 'Ana sayfa bölümü'} meta={selectedHomeDefinition?.id === 'storefront-video-hero' ? 'Pro · Ana sayfa' : selectedHomeDefinition?.plan === 'pro' ? 'Pro · Menü bileşeni' : 'Menü bileşeni'} />
+              <SettingsCardHeader icon={selectedHomeDefinition ? <ThemeSectionCatalogIcon icon={selectedHomeDefinition.icon} size={17} /> : <I.layout size={17} />} title={selectedHomeDefinition?.label ?? 'Ana sayfa bölümü'} meta={selectedHomeDefinition?.id === VIDEO_HERO_SECTION_ID ? 'Eklenti · Ana sayfa' : selectedHomeDefinition?.plan === 'pro' ? 'Pro · Menü bileşeni' : 'Menü bileşeni'} />
+
+              {selectedHomeSectionLocked ? <Alert><I.lock /><AlertTitle>Bu bölüm paketinde aktif değil</AlertTitle><AlertDescription>Ayarların korunuyor, ancak bölüm önizlemede ve yayındaki menüde gösterilmiyor. {selectedSection.sectionId === VIDEO_HERO_SECTION_ID ? 'Video Hero, Pro pakete dahildir; alt paketlerde ayrı eklenti olarak açılır.' : 'Bölüm, Pro paketle birlikte açılır.'}</AlertDescription></Alert> : null}
 
               {selectedSection.sectionId === 'storefront-video-hero' && videoHeroBlocks.length > 1 ? <Alert variant="destructive"><I.warn /><AlertTitle>Birden fazla Video Hero var</AlertTitle><AlertDescription>{videoHeroBlocks[0]?.id === selectedSection.id ? 'Bu ilk ve birincil hero. Diğer eski örnekleri kaldırmanız önerilir.' : 'Bu ek hero sayfada ikinci H1 ve gereksiz video yükü oluşturabilir.'}</AlertDescription></Alert> : null}
               {selectedSection.sectionId === 'storefront-video-hero' && selectedHomeSettings.editorialVersion !== '2' ? <Alert><I.sparkles /><AlertTitle>Modern yerleşim hazır</AlertTitle><AlertDescription>Medya ve metinler korunarak güvenli 3×3 konum sistemine geçebilirsiniz.</AlertDescription><Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => updateSelected(buildVideoHeroModernSettings(selectedHomeSettings))}>Modern Video Hero’ya geçir</Button></Alert> : null}
@@ -600,7 +609,7 @@ export function ThemeExperienceProperties({
               {effectiveHomeTab === 'content' && selectedSection.sectionId === 'storefront-video-hero' && (
               <HeroVideoUploader
                 restaurantId={restaurantId}
-                enabled={canAddAdvancedSections}
+                enabled={canUseVideoHero}
                 videoUrl={selectedHomeSettings.videoUrl ?? ''}
                 posterUrl={selectedHomeSettings.posterUrl ?? ''}
                 onChange={(patch) => updateSelected(patch)}

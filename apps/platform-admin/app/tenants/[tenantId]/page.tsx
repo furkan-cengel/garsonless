@@ -157,6 +157,24 @@ function TenantOverview({
                                 ? 'Bu fatura artık işlem yapılabilir bir ödeme takibi durumunda değil.'
                                 : operation === 'dunning-failed'
                                 ? 'Ödeme takibi işlemi uygulanamadı. İşlem güvenli biçimde durduruldu.'
+                                : operation === 'refund-succeeded'
+                                  ? 'İade sağlayıcıda doğrulandı; muhasebe belge incelemesi sıraya alındı.'
+                                  : operation === 'refund-cancel-pending'
+                                    ? 'İade tamamlandı ve ücretli erişim kilitlendi. İyzico abonelikleri doğrulanarak kapatılıyor.'
+                                    : operation === 'refund-cancel-reconciliation'
+                                      ? 'İade tamamlandı ve erişim kilitlendi; abonelik iptali manuel kontrol gerektiriyor.'
+                                  : operation === 'refund-reconciliation'
+                                    ? 'İade sonucu kesinleşmedi. İşlem tekrar gönderilmeden mutabakata alındı.'
+                                    : operation === 'refund-rejected'
+                                      ? 'İade sağlayıcı tarafından reddedildi; fatura bakiyesi değişmedi.'
+                                      : operation === 'refund-processing'
+                                        ? 'İade talebi güvenli işlem defterine kaydedildi.'
+                                        : operation === 'refund-forbidden'
+                                          ? 'İade işlemi için Finans veya Süper yönetici yetkisi gerekir.'
+                                          : operation === 'refund-provider-unavailable'
+                                            ? 'İade sağlayıcı yapılandırması kullanılamıyor; hiçbir iade talebi oluşturulmadı.'
+                                            : operation === 'refund-failed'
+                                              ? 'İade işlemi başlatılamadı; para hareketi yapılmadı.'
                                 : operation === 'entitlement-updated'
                                   ? 'Geçici özellik izni kaydedildi ve denetim kaydı oluşturuldu.'
                                   : operation === 'entitlement-revoked'
@@ -191,7 +209,7 @@ function TenantOverview({
       <Link className="back-link" href="/">← İşletmelere dön</Link>
       <div className="page-heading detail-heading"><div><p className="eyebrow">İşletme özeti · /{tenant.slug}</p><h1>{tenant.name}</h1><p className="lead">Kişisel veri ve ödeme sağlayıcı ayrıntıları içermeyen, güvenli işletme sağlık ve erişim özeti.</p></div><span className="read-only">Denetimli erişim</span></div>
 
-      {operationNotice ? <div className="operation-notice" data-tone={operation === 'failed' || operation === 'forbidden' || operation === 'plan-failed' || operation === 'plan-forbidden' || operation === 'plan-billing-managed' || operation === 'dunning-failed' || operation === 'dunning-forbidden' || operation === 'dunning-busy' || operation === 'dunning-not-actionable' || operation === 'entitlement-failed' || operation === 'entitlement-forbidden' || operation === 'impersonation-forbidden' || operation === 'impersonation-invalid' || operation === 'impersonation-failed' || operation === 'impersonation-end-failed' || operation === 'privacy-forbidden' || operation === 'privacy-confirmation-invalid' || operation === 'privacy-erase-failed' ? 'danger' : 'success'} role="status">{operationNotice}</div> : null}
+      {operationNotice ? <div className="operation-notice" data-tone={operation === 'failed' || operation === 'forbidden' || operation === 'plan-failed' || operation === 'plan-forbidden' || operation === 'plan-billing-managed' || operation === 'dunning-failed' || operation === 'dunning-forbidden' || operation === 'dunning-busy' || operation === 'dunning-not-actionable' || operation === 'refund-reconciliation' || operation === 'refund-rejected' || operation === 'refund-forbidden' || operation === 'refund-provider-unavailable' || operation === 'refund-failed' || operation === 'entitlement-failed' || operation === 'entitlement-forbidden' || operation === 'impersonation-forbidden' || operation === 'impersonation-invalid' || operation === 'impersonation-failed' || operation === 'impersonation-end-failed' || operation === 'privacy-forbidden' || operation === 'privacy-confirmation-invalid' || operation === 'privacy-erase-failed' ? 'danger' : 'success'} role="status">{operationNotice}</div> : null}
 
       <div className="metric-grid">
         <article className="metric"><span>Plan</span><strong>{PLAN_LABELS[tenant.plan]}</strong><small>İşletmenin paketi</small></article>

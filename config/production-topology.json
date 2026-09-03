@@ -13,7 +13,9 @@
     "kitchen",
     "marketing",
     "platform-admin",
-    "outbox-worker"
+    "outbox-worker",
+    "send-email-hook",
+    "send-sms-hook"
   ],
   "originBindings": [
     ["dashboard", "NEXT_PUBLIC_APP_URL", "dashboard"],
@@ -116,12 +118,21 @@
       "origin": "dashboard",
       "path": "/api/internal/billing-maintenance",
       "routeFile": "apps/dashboard/app/api/internal/billing-maintenance/route.ts"
+    },
+    {
+      "name": "accounting-invoice-worker",
+      "scope": "dashboard",
+      "envKey": "ACCOUNTING_WORKER_URL",
+      "origin": "dashboard",
+      "path": "/api/internal/accounting-invoices",
+      "routeFile": "apps/dashboard/app/api/internal/accounting-invoices/route.ts"
     }
   ],
   "derivedPublicRoutes": [
     ["dashboard-auth-callback", "dashboard", "/auth/callback", "apps/dashboard/app/auth/callback/route.ts"],
     ["dashboard-billing-callback", "dashboard", "/api/billing/iyzico/checkout/callback", "apps/dashboard/app/api/billing/iyzico/checkout/callback/route.ts"],
     ["dashboard-billing-webhook", "dashboard", "/api/billing/iyzico/webhook", "apps/dashboard/app/api/billing/iyzico/webhook/route.ts"],
+    ["dashboard-card-update-callback", "dashboard", "/api/billing/iyzico/card-update/callback", "apps/dashboard/app/api/billing/iyzico/card-update/callback/route.ts"],
     ["menu-auth-callback", "menu", "/auth/callback", "apps/menu/app/auth/callback/route.ts"],
     ["menu-payment-callback", "menu", "/api/payment/callback", "apps/menu/app/api/payment/callback/route.ts"]
   ]

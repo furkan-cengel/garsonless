@@ -4,7 +4,10 @@
   "capabilities": [
     "core",
     "order-card-payments",
-    "saas-billing"
+    "saas-billing",
+    "subscription-refunds",
+    "accounting",
+    "customer-phone-auth"
   ],
   "checks": [
     {
@@ -162,6 +165,80 @@
         "failed_collection_schedules_dunning",
         "grace_expiry_suspends_tenant",
         "successful_collection_restores_service"
+      ]
+    },
+    {
+      "name": "saas-billing-checkout-and-card-update",
+      "category": "billing",
+      "capability": "saas-billing",
+      "sourcePaths": [
+        "apps/dashboard/lib/actions/billing.ts",
+        "apps/dashboard/lib/billing/iyzico-subscription-provider.ts",
+        "apps/dashboard/app/api/billing/iyzico/checkout/callback/route.ts",
+        "apps/dashboard/app/api/billing/iyzico/card-update/callback/route.ts"
+      ],
+      "assertions": [
+        "requested_plan_addons_and_interval_match_provider_product",
+        "gross_amount_currency_and_period_match_request",
+        "provider_payment_identity_is_persisted_atomically",
+        "checkout_callback_replay_is_idempotent",
+        "card_update_callback_is_bound_to_exact_operation"
+      ]
+    },
+    {
+      "name": "subscription-refund-provider-lifecycle",
+      "category": "billing",
+      "capability": "subscription-refunds",
+      "sourcePaths": [
+        "apps/platform-admin/app/actions.ts",
+        "apps/platform-admin/lib/iyzico-subscription-refund.ts",
+        "packages/db/src/subscription-refund-port.ts",
+        "apps/dashboard/lib/billing/subscription-reconciliation-operator.ts"
+      ],
+      "assertions": [
+        "finance_role_and_aal2_are_required",
+        "financial_operations_switch_is_required",
+        "refund_amount_currency_and_payment_identity_match",
+        "uncertain_provider_result_requires_reconciliation",
+        "access_changes_only_after_confirmed_full_refund",
+        "production_reconciliation_is_exact_record_scoped"
+      ]
+    },
+    {
+      "name": "accounting-invoice-dispatch",
+      "category": "accounting",
+      "capability": "accounting",
+      "target": { "origin": "dashboard", "path": "/api/internal/accounting-invoices" },
+      "sourcePaths": [
+        "apps/dashboard/app/api/internal/accounting-invoices/route.ts",
+        "apps/dashboard/lib/accounting/parasut-invoice-provider.ts",
+        "apps/dashboard/lib/accounting/invoice-email.ts",
+        "packages/db/src/accounting-invoice-port.ts"
+      ],
+      "assertions": [
+        "dispatch_switch_is_required",
+        "invalid_worker_signature_is_rejected",
+        "invoice_job_is_claimed_once",
+        "provider_invoice_matches_tenant_amount_and_currency",
+        "email_follows_confirmed_provider_invoice",
+        "retry_creates_no_duplicate_invoice"
+      ]
+    },
+    {
+      "name": "customer-phone-auth-delivery",
+      "category": "auth",
+      "capability": "customer-phone-auth",
+      "sourcePaths": [
+        "apps/menu/app/api/customer-auth/phone/start/route.ts",
+        "apps/menu/app/api/customer-auth/phone/verify/route.ts",
+        "packages/db/supabase/functions/send-sms-hook/index.ts"
+      ],
+      "assertions": [
+        "phone_auth_switch_is_required",
+        "invalid_hook_signature_is_rejected",
+        "phone_identity_is_e164_and_tenant_bound",
+        "otp_is_never_logged_or_persisted_in_plaintext",
+        "replay_and_attempt_limits_are_enforced"
       ]
     }
   ]

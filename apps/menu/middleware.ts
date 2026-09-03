@@ -1,7 +1,11 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { frameAncestorsDirective, resolveFrameAncestors } from './lib/frame-ancestors'
+import {
+  frameAncestorsDirective,
+  resolveFrameAncestors,
+  shouldApplyMenuFrameAncestors,
+} from './lib/frame-ancestors'
 import { readMenuAuthCookies, writeMenuAuthCookie } from './lib/customer-auth-cookie'
 
 /**
@@ -51,17 +55,19 @@ export async function middleware(req: NextRequest) {
     await supabase.auth.getUser()
   }
 
-  const isThemePreview = req.nextUrl.searchParams.get('preview') === '1'
-    && (/^\/[^/]+\/menu$/.test(req.nextUrl.pathname) || /^\/theme-preview\/[^/]+$/.test(req.nextUrl.pathname))
-  const frameAncestors = resolveFrameAncestors({
-    isThemePreview,
-    configuredOrigins: process.env['DASHBOARD_PREVIEW_ORIGINS'],
-    isProduction: process.env.NODE_ENV === 'production',
-  })
-  supabaseResponse.headers.set(
-    'Content-Security-Policy',
-    frameAncestorsDirective(frameAncestors),
-  )
+  if (shouldApplyMenuFrameAncestors(req.nextUrl.pathname)) {
+    const isThemePreview = req.nextUrl.searchParams.get('preview') === '1'
+      && (/^\/[^/]+\/menu$/.test(req.nextUrl.pathname) || /^\/theme-preview\/[^/]+$/.test(req.nextUrl.pathname))
+    const frameAncestors = resolveFrameAncestors({
+      isThemePreview,
+      configuredOrigins: process.env['DASHBOARD_PREVIEW_ORIGINS'],
+      isProduction: process.env.NODE_ENV === 'production',
+    })
+    supabaseResponse.headers.set(
+      'Content-Security-Policy',
+      frameAncestorsDirective(frameAncestors),
+    )
+  }
 
   return supabaseResponse
 }

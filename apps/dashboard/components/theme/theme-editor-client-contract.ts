@@ -17,6 +17,8 @@ export interface ThemeEditorClientProps {
   restaurantName: string
   restaurantLogoUrl: string | null
   canAddAdvancedSections: boolean
+  /** Video Hero is billed on its own so it can be sold below Pro as an add-on. */
+  canUseVideoHero: boolean
   canUseGuestOrdering: boolean
   experienceV2Enabled: boolean
   previewAccessToken: string

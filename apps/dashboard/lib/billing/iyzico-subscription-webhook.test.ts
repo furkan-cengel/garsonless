@@ -32,9 +32,9 @@ function request(
   }
 }
 
-test('iyzico subscription V3 signature follows the documented secret-key-first field order', () => {
-  const message = config.secretKey
-    + config.merchantId
+test('iyzico subscription V3 signature follows the documented merchant-id-first field order', () => {
+  const message = config.merchantId
+    + config.secretKey
     + payload.iyziEventType
     + payload.subscriptionReferenceCode
     + payload.orderReferenceCode
@@ -42,6 +42,24 @@ test('iyzico subscription V3 signature follows the documented secret-key-first f
   const expected = createHmac('sha256', config.secretKey).update(message, 'utf8').digest('hex')
 
   assert.equal(signIyzicoSubscriptionWebhookForTest(config, payload), expected)
+})
+
+test('iyzico subscription V3 rejects the legacy secret-key-first ordering', async () => {
+  const legacyMessage = config.secretKey
+    + config.merchantId
+    + payload.iyziEventType
+    + payload.subscriptionReferenceCode
+    + payload.orderReferenceCode
+    + payload.customerReferenceCode
+  const legacySignature = createHmac('sha256', config.secretKey)
+    .update(legacyMessage, 'utf8')
+    .digest('hex')
+
+  assert.deepEqual(
+    await createIyzicoSubscriptionWebhookVerifier(config, () => now)
+      .verifyWebhook(request(payload, legacySignature)),
+    { ok: false, error: 'Iyzico billing webhook signature is invalid' },
+  )
 })
 
 test('iyzico subscription webhook verifies V3 signature and returns only allowlisted refs', async () => {

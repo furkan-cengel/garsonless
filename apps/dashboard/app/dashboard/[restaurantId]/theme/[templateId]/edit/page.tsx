@@ -47,11 +47,16 @@ export default async function ThemeEditPage({ params }: Props) {
   } = themeResult.value
   const menuCategories = menuRefs.categories
   const menuItems = menuRefs.items
-  const [canAddAdvancedSections, canUseGuestOrdering] = await Promise.all([
+  const [canAddAdvancedSections, canUseVideoHero, canUseGuestOrdering] = await Promise.all([
     canRestaurantUseFeature({
       restaurantId,
       plan: restaurant.plan,
       feature: 'theme_advanced_sections',
+    }),
+    canRestaurantUseFeature({
+      restaurantId,
+      plan: restaurant.plan,
+      feature: 'theme_video_hero',
     }),
     canRestaurantUseFeature({
       restaurantId,
@@ -74,6 +79,7 @@ export default async function ThemeEditPage({ params }: Props) {
       restaurantName={restaurant.name}
       restaurantLogoUrl={restaurant.logoUrl}
       canAddAdvancedSections={canAddAdvancedSections}
+      canUseVideoHero={canUseVideoHero}
       canUseGuestOrdering={canUseGuestOrdering}
       experienceV2Enabled={experienceV2Enabled}
       previewAccessToken={previewAccessToken}

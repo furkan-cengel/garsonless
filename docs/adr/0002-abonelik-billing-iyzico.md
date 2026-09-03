@@ -1,6 +1,6 @@
 # ADR-0002 — SaaS Abonelik Billing: İyzico (tek provider) + Dunning Politikası
 
-- **Durum:** Revize edildi (2026-08-14)
+- **Durum:** Revize edildi (2026-09-01)
 - **Karar sahibi:** Ürün sahibi (Furkan)
 - **Bağımlılık:** ADR-0001 (paketler), ADR-0003 (tenant lifecycle)
 
@@ -26,8 +26,11 @@ interface SubscriptionBillingProvider {
   createCustomer(...)
   createCheckout(...)
   retrieveCheckout(...)
+  retrieveRenewalOrder(...)
   verifyWebhook(...)
   retryInvoice(...)
+  upgradeSubscription(...)
+  initializeSubscriptionCardUpdate(...)
   cancelSubscription(...)
 }
 ```
@@ -48,6 +51,15 @@ interface SubscriptionBillingProvider {
 - Checkout sonucu callback sonrasında token ile ayrıca retrieve edilir. Lokal
   customer/subscription/plan referansları ancak bu doğrulanmış sonuçtan sonra
   provider referanslarıyla eşleştirilir.
+- Ödeme otoritesi tek bir `provider payment evidence` katmanıdır. Bu katmana
+  yalnız iki doğrulanmış kanal girebilir: V3 imzalı İyzico webhook'u veya Masabu
+  sunucusunun kendi abonelik credential'larıyla yaptığı authenticated
+  retrieve/search. İki kanal da aynı idempotent, first-success-wins atomik
+  payment-success transition'ını çağırır.
+- Browser callback'i tek başına ödeme kanıtı değildir. Callback yalnız opaque
+  token'ı server-side recovery'ye taşır; provider sorgusu `ACTIVE`, beklenen plan
+  referansı, order/subscription/customer referansları ve dönem doğrulamasını
+  geçmeden local invoice `paid` olmaz ve entitlement açılmaz.
 - Otomatik ödeme retry çağrısı, doğrulanmış failure webhook'undaki
   `orderReferenceCode` ile yapılır. Çağrının kabul edilmesi ödeme başarısı
   değildir; kesin durum yine imzalı webhook ile oluşur.
@@ -85,10 +97,14 @@ yalnız kendi tenant'ının fatura/durum projection'ını owner-gated okur.
 - Checkout callback token'ı log, URL query veya ledger idempotency anahtarına
   ham olarak yazılmaz. Lokal callback anahtarı token'ın SHA-256 özetinden
   türetilir.
-- Hosted checkout callback'i kimlik eşleştirmesidir, ödeme otoritesi değildir.
-  Subscription/invoice provider referansları callback retrieve/search sonucuyla
-  kaydedilebilir; tenant entitlement'ı yalnız doğrulanmış imzalı payment webhook
-  ve atomik payment-success RPC'siyle açılır.
+- Hosted checkout callback'i ödeme otoritesi değildir. Callback sonrasında
+  authenticated retrieve başarılıysa referans eşleştirmesi, payment evidence
+  event'i, paid invoice, payment attempt, subscription/plan projection ve outbox
+  aynı transaction'da yazılır. Herhangi bir adım başarısızsa access açılmaz.
+- Mapping oluşmadan önce gelen imzalı webhook durable inbox ve reconciliation'da
+  kalır. Authenticated retrieve aynı order/subscription'ı doğruladığında bu event
+  ortak paid transition sonucuna yakınsar; ters sırada gelen webhook ise paid
+  invoice üzerinde idempotent duplicate olur.
 
 ### Tenant billing settings projection'ı
 
@@ -101,16 +117,19 @@ yalnız kendi tenant'ının fatura/durum projection'ını owner-gated okur.
   Provider referansları, raw/sanitized provider debug projection'ları, internal
   error metni, credential ve reconciliation ayrıntısı client'a çıkmaz.
 - Hosted form içeriği uygulama DOM'una güvenilir markup gibi enjekte edilmez;
-  `allow-same-origin` içermeyen sandbox iframe sınırında render edilir. Formun
-  tamamlanması entitlement açmaz; payment webhook otoritesi korunur.
+  CSP ile oluşturulan `srcDoc` ve yalnız gerekli izinleri taşıyan same-origin
+  sandbox iframe sınırında render edilir. Mesajlar exact iframe source, dashboard
+  origin ve oturum nonce'ı ile doğrulanır. Checkout formunun tamamlanması tek
+  başına entitlement açmaz; payment-evidence otoritesi korunur.
 - Faturalama read modelinin geçici hatası bütün Ayarlar ekranını düşürmez.
   Bölüm güvenli bir public hata kodu ve retry yüzeyiyle degrade olur; diğer
   tenant ayarları kullanılabilir kalır.
 
 ### Kritik kurallar (pazarlık edilemez)
 
-1. Webhook işleme **idempotent**tir; aynı provider event'i iki kez state
-   değiştiremez. İlk başarılı event kazanır.
+1. Provider payment evidence işleme **idempotent**tir; aynı webhook veya
+   authenticated retrieve replay'i iki kez state değiştiremez. İlk başarılı
+   kanıt kazanır.
 2. Provider event ham payload'ı PII/secret filtrelenerek saklanır
    (`billing_provider_events`), debug için yeterli, sızıntı için yetersiz.
 3. Invoice/payment state değişikliği + outbox event **aynı transaction**da
@@ -118,7 +137,7 @@ yalnız kendi tenant'ının fatura/durum projection'ını owner-gated okur.
 4. Başarılı ödeme tenant'ı **atomik** biçimde `active` yapar.
 5. Başarısız retry, dunning schedule'ını **yalnız bir kez** planlar (aynı
    fatura için çift dunning koşusu üretilemez).
-6. Manuel admin müdahalesi (muafiyet, elle aktifleştirme) provider webhook
+6. Manuel admin müdahalesi (muafiyet, elle aktifleştirme) provider evidence
    akışından **ayrı audit** edilir (ADR-0004).
 7. Reconciliation job'ı provider ile lokal state arasındaki tutarsızlığı
    periyodik tarar; fark otomatik "düzeltilmez", görünür operasyon olayı olur.
@@ -132,6 +151,71 @@ yalnız kendi tenant'ının fatura/durum projection'ını owner-gated okur.
 - Domain kataloğundaki KDV hariç kuruş tutarı, muhasebeci onaylı KDV oranı ve yapılandırılan provider genel toplamı
   tutarı birebir uyuşmazsa checkout provider'a çağrı yapmadan fail-closed olur.
 - Dönem ortası pro-rata v1'de yoktur; mevcut iptal/retention politikası korunur.
+
+### Plan değişikliği ve kart güncelleme
+
+- Same-interval upgrade/downgrade provider'da `NEXT_PERIOD` ile başlatılır.
+  Provider parent/target plan ve child subscription referansları durable change
+  request ledger'ına exact bağlanmadan lokal pending projection oluşmaz.
+- Plan yalnız child renewal payment evidence başarıyla işlendiğinde uygulanır.
+  Provider lineage aynı transaction'da current/retired döner; retired parent
+  olayı money state oluşturamaz ve reconciliation'a gider.
+- Downgrade effective olduğunda açık adisyon varsa yeni değer üretimi kapanır;
+  mevcut settlement/closure korunur ve daha düşük entitlement drain sonrasında
+  tek kez uygulanır. Aylık↔yıllık değişim v1'de fail-closed kalır.
+- Subscription kart güncelleme yalnız İyzico hosted formudur. Masabu kart alanı
+  almaz; provider'ın 1 TRY validasyon/otomatik iade hareketini kendi invoice veya
+  payment-attempt ledger'ına yazmaz.
+- Card-update initialize idempotent provider operation'dır. Callback exact hosted
+  token ile ayrı, yalnız hash'i saklanan opaque state'i birlikte doğrular.
+  Başarı tek `payment_method.updated` outbox olayı üretir; lineage drift false
+  success yerine reconciliation üretir.
+- Başarılı kart güncelleme gecikmiş faturayı otomatik retry etmez. Owner ayrı
+  idempotent “Tekrar dene” aksiyonunu kullanır ve provider retry kabulü yine
+  payment başarısı sayılmaz.
+
+### Dönem sonu iptal ve SaaS refund
+
+- Owner iptalinin varsayılanı dönem sonudur. Talep vade anına kadar geri
+  alınabilir; provider cancel yalnız leased worker due claim'inden sonra gider.
+- Refund yalnız başarılı payment attempt'e authenticated provider order
+  evidence'ından bağlanan exact `paymentId` ile yapılır. Provider invoice/order
+  referansı tek başına refund otoritesi değildir.
+- Full/partial refund ayrı, immutable finansal ledger ve provider operation
+  üzerinden yürür. Requested/processing/succeeded/reconciliation rezervasyonları
+  birlikte paid invoice tutarını aşamaz; aynı request farklı intent ile replay
+  edilirse fail-closed olur.
+- İyzico Refund V2 başarısı paymentId, TRY tutarı, conversationId ve dokümante
+  response HMAC sırasıyla doğrulanır. Timeout, transport hatası veya identity/
+  signature drift'i başarı sayılmaz ve otomatik redispatch yapılmadan
+  reconciliation'a alınır.
+- Banka kaynaklı `refundHostReference` / `cancelHostReference` değerleri global
+  benzersiz değildir; provider payment kimliği bağlamında aranır. Reporting
+  API'den doğrulanan exact `refundId` ise ayrı namespace'te tekil tutulur.
+- Aynı-gün cancel İstanbul takvim gününde yalnız tam tutara izin verir. Refund
+  subscription/plan/add-on entitlement'ını dolaylı değiştirmez; erişim değişimi
+  ayrı cancellation policy ve durable operation gerektirir.
+- Başarılı refund accounting review üretir. Owner yalnız güvenli tutar/durum
+  projection'ını, finance/superadmin ise AAL2 + audited platform action'ı görür.
+
+### Trial, onboarding ve mali belge iletişimi
+
+- Trial başlangıcı transaction trigger'ı; D-7/D-3/D-1 ve expiry bounded,
+  skip-locked scheduler ile üretilir. Her milestone subscription + trial end +
+  semantic version anahtarıyla tek occurrence'tır.
+- Trial ve tüm ödeme/iptal/iade/fiscal olayları owner-only zorunlu billing
+  kanalıdır. Tamamlanmamış onboarding `lifecycle` kategorisidir: in-app açık,
+  e-posta açık rıza/opt-in olmadan kapalıdır.
+- Mali belge attachment e-postasının Resend message id'si accounting completion
+  öncesinde delivery ledger'ına yazılır. Ardından üretilen
+  `fiscal_document.ready` aynı dedupe anahtarını kullanır ve ikinci e-posta atmaz.
+- İmzalı Resend webhook sonucu sent/delivered/delayed/bounced/complained/
+  suppressed/failed olarak project edilir. Raw webhook ve alıcı PII'sı provider
+  event tablosuna kopyalanmaz; bounce/complaint notification health'e girer.
+- Delivery health worker routing sözleşmesini birebir izler. Trial, onboarding,
+  billing ve fiscal olayları inbox/e-posta için sayılır; yalnız order/service
+  request olayları web-push health'ine girer. Böylece route edilmeyen lifecycle
+  olayları web-push kanalında kalıcı false-positive pending üretmez.
 
 ### Dunning politikası (platform politikası — kod sabiti DEĞİL)
 
@@ -166,11 +250,13 @@ Supabase outbox worker ortamında aşağıdaki URL'ler birlikte tanımlanır:
 
 Üç endpoint de dashboard ve Edge worker'da aynı `OUTBOX_WORKER_SECRET` ile
 korunur. Billing maintenance çağrısı bounded batch, lease ve backoff kullanır;
-imzalı provider webhook'u paid/reactivated durumunun tek otoritesi kalır.
+paid/reactivated durumu yalnız doğrulanmış provider payment evidence katmanından
+çıkar.
 
 ## Sonuçlar
 
-- Faz 5 implementasyonu bu ADR'deki tablo/kural setine birebir uyar.
+- Faz 1–6 DEV implementasyonu bu ADR'deki tablo/kural setine uyar. Gerçek
+  sandbox matrisi ve production rollout ayrı kabul kapıları olarak açık kalır.
 - İyzico'nun abonelik API yüzeyi yetersiz kalırsa (ör. kayıtlı kart ile
   otomatik tekrar tahsilat kısıtları) karar şu şekilde esner: dönemsel
   "checkout linki + manuel ödeme" akışı port arkasında ilk sürüm olarak kabul

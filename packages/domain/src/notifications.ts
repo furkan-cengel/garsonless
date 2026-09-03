@@ -5,7 +5,7 @@
  * `@garsonless/application`, persistence to `@garsonless/db`.
  */
 
-export const NOTIFICATION_CATEGORIES = ['order', 'service_request', 'billing', 'system'] as const
+export const NOTIFICATION_CATEGORIES = ['order', 'service_request', 'lifecycle', 'billing', 'system'] as const
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number]
 
 export const NOTIFICATION_SEVERITIES = ['info', 'warning', 'critical'] as const
@@ -42,8 +42,8 @@ export function notificationDedupeKey(eventType: string, aggregateId: string): s
 export type NotificationChannelPrefs = Record<NotificationCategory, boolean>
 
 export const NOTIFICATION_CHANNEL_DEFAULTS: Record<'inapp' | 'email', NotificationChannelPrefs> = {
-  inapp: { order: true, service_request: true, billing: true, system: true },
-  email: { order: false, service_request: false, billing: true, system: true },
+  inapp: { order: true, service_request: true, lifecycle: true, billing: true, system: true },
+  email: { order: false, service_request: false, lifecycle: false, billing: true, system: true },
 }
 
 export function readNotificationChannelPrefs(

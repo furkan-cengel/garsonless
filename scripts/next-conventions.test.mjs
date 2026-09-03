@@ -42,7 +42,7 @@ test('every application owns route, root, and not-found recovery UI', () => {
 test('every application applies the shared baseline security headers', () => {
   for (const app of apps) {
     const config = readFileSync(join(root, 'apps', app, 'next.config.ts'), 'utf8')
-    assert.match(config, /allowedDevOrigins:\s*\['127\.0\.0\.1'\]/)
+    assert.match(config, /allowedDevOrigins:\s*\[[^\]]*['"]127\.0\.0\.1['"][^\]]*\]/)
     assert.match(config, /createSecurityHeaders/)
     assert.match(config, /poweredByHeader:\s*false/)
   }

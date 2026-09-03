@@ -513,6 +513,7 @@ const NOTIFICATION_ROWS: { key: NotificationToggleKey; label: string; hint: stri
 const EMAIL_PREF_ROWS: { key: keyof EmailNotificationPrefs; label: string; hint: string }[] = [
   { key: 'order', label: 'Yeni sipariş e-postası', hint: 'Her yeni siparişte size e-posta gönderilir (kişisel tercih)' },
   { key: 'service_request', label: 'Masa isteği e-postası', hint: 'Garson çağrılarında size e-posta gönderilir (kişisel tercih)' },
+  { key: 'lifecycle', label: 'Kurulum hatırlatmaları', hint: 'Tamamlanmamış işletme kurulumu için 24 ve 72 saatlik e-posta hatırlatmaları (isteğe bağlı)' },
 ]
 
 function EmailPrefsBlock({ restaurantId }: { restaurantId: string }) {

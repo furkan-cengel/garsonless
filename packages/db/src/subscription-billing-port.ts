@@ -124,7 +124,7 @@ export function createSubscriptionBillingPersistencePort(
       return error ? err(error.message) : failureResult(data)
     },
     async recordPaymentSuccess(input) {
-      const { data, error } = await rpc('record_subscription_payment_success_atomic', {
+      const { data, error } = await rpc('record_subscription_payment_success_with_plan_change_atomic', {
         p_restaurant_id: input.restaurantId,
         p_subscription_id: input.subscriptionId,
         p_invoice_id: input.invoiceId,

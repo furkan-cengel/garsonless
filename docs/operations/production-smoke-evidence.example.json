@@ -10,7 +10,10 @@
   "enabledCapabilities": {
     "core": true,
     "order-card-payments": false,
-    "saas-billing": false
+    "saas-billing": false,
+    "subscription-refunds": false,
+    "accounting": false,
+    "customer-phone-auth": false
   },
   "checks": [
     {
@@ -109,6 +112,34 @@
     },
     {
       "name": "saas-billing-dunning-lifecycle",
+      "status": "deferred",
+      "durationMs": 0,
+      "assertions": {},
+      "reasonCode": "CAPABILITY_DISABLED"
+    },
+    {
+      "name": "saas-billing-checkout-and-card-update",
+      "status": "deferred",
+      "durationMs": 0,
+      "assertions": {},
+      "reasonCode": "CAPABILITY_DISABLED"
+    },
+    {
+      "name": "subscription-refund-provider-lifecycle",
+      "status": "deferred",
+      "durationMs": 0,
+      "assertions": {},
+      "reasonCode": "CAPABILITY_DISABLED"
+    },
+    {
+      "name": "accounting-invoice-dispatch",
+      "status": "deferred",
+      "durationMs": 0,
+      "assertions": {},
+      "reasonCode": "CAPABILITY_DISABLED"
+    },
+    {
+      "name": "customer-phone-auth-delivery",
       "status": "deferred",
       "durationMs": 0,
       "assertions": {},

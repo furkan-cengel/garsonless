@@ -21,6 +21,7 @@ export const PLATFORM_BILLING_TIMELINE_KINDS = [
   'reconciliation',
   'provider_event',
   'provider_operation',
+  'refund',
 ] as const
 export type PlatformBillingTimelineKind = typeof PLATFORM_BILLING_TIMELINE_KINDS[number]
 
@@ -42,12 +43,20 @@ export const PLATFORM_PROVIDER_OPERATION_STATUSES = [
   'awaiting_callback',
   'succeeded',
   'requires_reconciliation',
+  'expired',
 ] as const
 export const PLATFORM_PROVIDER_OPERATION_TYPES = [
   'checkout.initialize',
   'payment.retry',
   'subscription.cancel',
+  'subscription.change',
+  'card_update.initialize',
+  'subscription.refund',
 ] as const
+export const PLATFORM_SUBSCRIPTION_REFUND_STATUSES = [
+  'requested', 'processing', 'succeeded', 'failed', 'requires_reconciliation',
+] as const
+export const PLATFORM_SUBSCRIPTION_REFUND_ACTIONS = ['same_day_cancel', 'refund'] as const
 
 export type PlatformBillingTimelineItem = {
   id: string
@@ -62,6 +71,8 @@ export type PlatformBillingTimelineItem = {
   nextActionAt: string | null
   completedAt: string | null
   hasError: boolean
+  accessAction: 'keep' | 'cancel_immediately' | null
+  cancellationStatus: 'scheduled' | 'processing' | 'provider_cancelled' | 'applied' | 'requires_reconciliation' | null
 }
 
 export type PlatformTenantBillingTimeline = {
@@ -72,6 +83,7 @@ export type PlatformTenantBillingTimeline = {
     activeDunning: number
     openReconciliation: number
     failedAttempts: number
+    refundedMinor?: number
   }
   items: PlatformBillingTimelineItem[]
 }
@@ -206,6 +218,7 @@ export function isPlatformBillingTimelineStatus(kind: PlatformBillingTimelineKin
     case 'reconciliation': return PLATFORM_RECONCILIATION_STATUSES.includes(value as typeof PLATFORM_RECONCILIATION_STATUSES[number])
     case 'provider_event': return PLATFORM_PROVIDER_EVENT_STATUSES.includes(value as typeof PLATFORM_PROVIDER_EVENT_STATUSES[number])
     case 'provider_operation': return PLATFORM_PROVIDER_OPERATION_STATUSES.includes(value as typeof PLATFORM_PROVIDER_OPERATION_STATUSES[number])
+    case 'refund': return PLATFORM_SUBSCRIPTION_REFUND_STATUSES.includes(value as typeof PLATFORM_SUBSCRIPTION_REFUND_STATUSES[number])
   }
 }
 
@@ -217,6 +230,7 @@ export function isPlatformBillingTimelineAction(kind: PlatformBillingTimelineKin
     case 'reconciliation': return PLATFORM_RECONCILIATION_SCOPES.includes(value as typeof PLATFORM_RECONCILIATION_SCOPES[number])
     case 'provider_event': return PLATFORM_PROVIDER_EVENT_TYPES.includes(value as typeof PLATFORM_PROVIDER_EVENT_TYPES[number])
     case 'provider_operation': return PLATFORM_PROVIDER_OPERATION_TYPES.includes(value as typeof PLATFORM_PROVIDER_OPERATION_TYPES[number])
+    case 'refund': return PLATFORM_SUBSCRIPTION_REFUND_ACTIONS.includes(value as typeof PLATFORM_SUBSCRIPTION_REFUND_ACTIONS[number])
   }
 }
 

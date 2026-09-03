@@ -22,10 +22,22 @@ test('plan lock upsell uses the canonical catalogue and carries selection into h
   assert.match(panel, /Ödeme yapılandırılıyor/)
 })
 
+test('plan lock reflects an already scheduled provider change without offering a duplicate checkout', () => {
+  const panel = read('../PlanLockedPanel.tsx')
+
+  assert.match(panel, /readSubscriptionBillingSettings/)
+  assert.match(panel, /scheduledUnlockPlan/)
+  assert.match(panel, /Yeni paket yalnızca bir sonraki dönem ödemesi başarıyla alındıktan sonra etkinleşir/)
+  assert.match(panel, /Şimdi tekrar ödeme başlatmanız gerekmez/)
+  assert.match(panel, /Planlamayı görüntüle/)
+  assert.doesNotMatch(panel, />Anında etkinleşir</)
+})
+
 test('plan lock separates owner checkout from member guidance', () => {
   const panel = read('../PlanLockedPanel.tsx')
 
-  assert.match(panel, /isOwner \? plans\.length > 0 \? \(/)
+  assert.match(panel, /isOwner \? scheduledUnlockPlan \? \(/)
+  assert.match(panel, /\) : plans\.length > 0 \? \(/)
   assert.match(panel, /Yükseltme yetkiniz bulunmuyor/)
   assert.match(panel, /Plan ve ödeme bilgilerini yalnız işletme sahibi değiştirebilir/)
   assert.match(panel, /aria-label="Hedef paket"/)

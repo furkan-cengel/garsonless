@@ -259,6 +259,7 @@ function MemberRow({ restaurantId, member }: { restaurantId: string; member: Tea
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Vazgeç</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               disabled={isPending || removePassword.length === 0}
               onClick={(event) => {
                 event.preventDefault()
@@ -267,7 +268,6 @@ function MemberRow({ restaurantId, member }: { restaurantId: string; member: Tea
                   () => { setRemoveOpen(false); setRemovePassword('') },
                 )
               }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isPending ? 'Çıkarılıyor…' : 'Üyeyi ekipten çıkar'}
             </AlertDialogAction>
