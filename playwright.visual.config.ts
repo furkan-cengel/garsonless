@@ -14,6 +14,7 @@ const marketingURL = process.env['SMOKE_MARKETING_URL'] ?? 'http://localhost:300
 const authSetupProject = 'dashboard-auth-setup'
 
 export default defineConfig({
+  globalTeardown: './tests/visual/dashboard-fixture.ts',
   testDir: './tests/visual',
   timeout: 45_000,
   expect: { timeout: 8_000 },

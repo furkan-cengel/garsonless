@@ -92,7 +92,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     ))
     expect(animated, 'Pano animations must stop under reduced motion.').toBe(0)
     await page.locator('.pano-shell').locator('..').evaluate((element) => element.scrollTo({ top: element.scrollHeight }))
-    await expect(page.getByText('Yoğun saatler')).toBeVisible()
+    await expect(page.getByText('Yoğun saatler', { exact: true })).toBeVisible()
     await assertVisualHealth(page, testInfo, 'dashboard-pano')
     expect(failures).toEqual([])
   })
@@ -105,6 +105,8 @@ test.describe('authenticated dashboard visual smoke', () => {
     const failures = await collectPageFailures(page)
     const restaurantId = getRestaurantId()
     const panoPath = `/dashboard/${restaurantId}`
+    let releaseNavigation = () => {}
+    const navigationGate = new Promise<void>((resolve) => { releaseNavigation = resolve })
     await page.route('**/*', async (route) => {
       const request = route.request()
       const url = new URL(request.url())
@@ -112,9 +114,9 @@ test.describe('authenticated dashboard visual smoke', () => {
       const isPanoRsc = url.pathname === panoPath && headers['rsc'] === '1'
       if (!isPanoRsc) return route.continue()
 
-      // Delay both prefetch and navigation requests. Aborting a prefetch can
+      // Hold prefetch and navigation until loading assertions finish. Aborting a prefetch can
       // surface a recoverable client error and make the console assertion noisy.
-      await new Promise((resolve) => setTimeout(resolve, 2_000))
+      await navigationGate
       return route.continue()
     })
 
@@ -162,6 +164,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     await expect(page.locator('.restaurant-rail')).toBeVisible()
     await assertVisualHealth(page, testInfo, 'dashboard-pano-loading', { minTextLength: 5 })
 
+    releaseNavigation()
     await navigation
     await expect(loading).toBeHidden()
     await expect(page.getByText(/Tahsil edilen ciro|Sipariş hacmi|Masa durumu/i).first()).toBeVisible()
@@ -172,6 +175,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     test.skip(testInfo.project.name !== 'dashboard-desktop', 'Reconnect is exercised once on desktop.')
     const restaurantId = getRestaurantId()
     await page.goto(`${dashboardURL}/dashboard/${restaurantId}`, { waitUntil: 'domcontentloaded' })
+    await expect(page.getByText(/^Bağlı/).filter({ visible: true }).first()).toBeVisible({ timeout: 35_000 })
     await page.context().setOffline(true)
     await expect(page.getByText(/Çevrimdışı/).first()).toBeVisible()
     await page.context().setOffline(false)
@@ -228,6 +232,7 @@ test.describe('authenticated dashboard visual smoke', () => {
         await expect(workspace).toHaveAttribute('data-workspace-stage', 'editor')
         await expect(editor).toBeVisible()
         await page.getByRole('button', { name: 'Ürünlere dön', exact: true }).click()
+        await expect(firstEditorAction).toBeFocused()
 
         const newProduct = itemsWorkspace.getByRole('button', { name: 'Yeni ürün', exact: true })
         await newProduct.click()
@@ -272,10 +277,10 @@ test.describe('authenticated dashboard visual smoke', () => {
       await expect(itemsWorkspace).toBeVisible()
       await expect(emptyPanel).toBeVisible()
 
-      const categoryName = (await categoryWorkspace.locator('button[aria-current]').first().innerText()).trim()
+      const categoryName = (await categoryWorkspace.locator('.menu-category-select').first().innerText()).trim()
       const search = page.getByRole('textbox', { name: 'Ürün veya kategori ara' })
       await search.fill(categoryName.toLocaleUpperCase('tr-TR'))
-      await expect(page.getByText('Arama sonuçları', { exact: true })).toBeVisible()
+      await expect(page.locator('#menu-products-heading')).toHaveText('Arama sonuçları')
       await expect(itemsWorkspace.locator('.menu-product-breadcrumb').first()).toBeVisible()
       await expect(page.getByRole('button', { name: 'Aramayı temizle', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Yeni ürün', exact: true })).toBeHidden()
@@ -338,12 +343,14 @@ test.describe('authenticated dashboard visual smoke', () => {
     }
     const restaurantId = getRestaurantId()
     const menuPath = `/dashboard/${restaurantId}/menu`
+    let releaseNavigation = () => {}
+    const navigationGate = new Promise<void>((resolve) => { releaseNavigation = resolve })
     await page.route('**/*', async (route) => {
       const request = route.request()
       const url = new URL(request.url())
       const isMenuRsc = url.pathname === menuPath && request.headers()['rsc'] === '1'
       if (!isMenuRsc) return route.continue()
-      await new Promise((resolve) => setTimeout(resolve, 2_000))
+      await navigationGate
       return route.continue()
     })
 
@@ -390,6 +397,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     expect(layout.animated).toBe(0)
     await expect(page.locator('.restaurant-rail')).toBeVisible()
 
+    releaseNavigation()
     await navigation
     await expect(loading).toBeHidden()
     await expect(page.getByText(/Kategoriler|Yeni ürün/i).filter({ visible: true }).first()).toBeVisible()
@@ -402,9 +410,10 @@ test.describe('authenticated dashboard visual smoke', () => {
     expect(response?.status()).toBe(200)
     await expect(page.getByText(/Siparişler|Sipariş Akışı|Sipariş yok/i).filter({ visible: true }).first()).toBeVisible()
     await expect(page.locator('.orders-shell')).toBeVisible()
+    await expect(page.locator('.orders-column-slot').filter({ visible: true }).first()).toBeVisible()
     const responsive = await page.locator('.orders-shell').evaluate((root) => {
       const visibleStages = Array.from(root.querySelectorAll('.orders-column-slot')).filter((element) => getComputedStyle(element).display !== 'none')
-      const tabs = Array.from(root.querySelectorAll('.orders-mobile-stage-tabs [role="tab"]')).filter((element) => getComputedStyle(element).display !== 'none')
+      const tabs = Array.from(root.querySelectorAll('.orders-mobile-stage-tabs [role="tab"]')).filter((element) => element.getBoundingClientRect().width > 0 && getComputedStyle(element).visibility !== 'hidden')
       return {
         width: window.innerWidth,
         horizontalOverflow: document.documentElement.scrollWidth - window.innerWidth,
@@ -442,11 +451,13 @@ test.describe('authenticated dashboard visual smoke', () => {
     if (testInfo.project.name === 'dashboard-zoom-200') await page.setViewportSize({ width: 720, height: 900 })
     const restaurantId = getRestaurantId()
     const ordersPath = `/dashboard/${restaurantId}/orders`
+    let releaseNavigation = () => {}
+    const navigationGate = new Promise<void>((resolve) => { releaseNavigation = resolve })
     await page.route('**/*', async (route) => {
       const request = route.request()
       const url = new URL(request.url())
       if (url.pathname !== ordersPath || request.headers()['rsc'] !== '1') return route.continue()
-      await new Promise((resolve) => setTimeout(resolve, 2_000))
+      await navigationGate
       return route.continue()
     })
 
@@ -489,6 +500,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     }
     expect(layout.animated).toBe(0)
     await expect(page.getByRole('navigation', { name: 'Ana bölümler' })).toBeVisible()
+    releaseNavigation()
     await navigation
     await expect(loading).toBeHidden()
   })
@@ -566,10 +578,10 @@ test.describe('authenticated dashboard visual smoke', () => {
     await page.goto(`${dashboardURL}/dashboard/${restaurantId}/settings?section=store`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByText('Ayarlar güvenli biçimde yükleniyor…')).toBeHidden({ timeout: 15_000 })
     await phone.fill(`${originalPhone}1`)
-    await page.getByRole('button', { name: /^Profil / }).click()
+    await page.locator('[data-settings-section="profile"]').click()
     const unsaved = page.getByRole('alertdialog')
     await expect(unsaved).toBeVisible()
-    await expect(unsaved.getByRole('button', { name: /Düzenlemeye devam et/i })).toBeFocused()
+    await expect(unsaved.getByRole('button', { name: 'Düzenlemeye dön', exact: true })).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(unsaved).toBeHidden()
 
@@ -592,11 +604,13 @@ test.describe('authenticated dashboard visual smoke', () => {
     })
     expect(response?.status()).toBe(200)
     await expect(page.getByText(/Tema Düzenleyici|Önizleme/i).filter({ visible: true }).first()).toBeVisible()
+    const pageTab = page.getByRole('tab', { name: 'Sayfa', exact: true })
+    if (await pageTab.isVisible()) await pageTab.click()
     await page.getByRole('button', { name: /^Bölüm ekle$/i }).click()
     const sectionPicker = page.getByRole('dialog', { name: /Bölüm ekle/i })
     await expect(sectionPicker).toBeVisible()
     await expect(sectionPicker.getByRole('textbox', { name: /Eklenecek bölüm ara/i })).toBeVisible()
-    await expect(sectionPicker.getByText(/Geliştiriliyor/i).first()).toBeVisible()
+    await expect(sectionPicker.getByRole('button', { name: 'Hero Banner bölümünü seç', exact: true })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(sectionPicker).toBeHidden()
     await assertVisualHealth(page, testInfo, 'dashboard-theme-editor', { maxHorizontalOverflow: 16 })

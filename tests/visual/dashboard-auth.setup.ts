@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { createDashboardFixture } from './dashboard-fixture'
 
 const dashboardURL = process.env['SMOKE_DASHBOARD_URL'] ?? 'http://localhost:3005'
 const email = process.env['DASHBOARD_VISUAL_EMAIL']
@@ -16,6 +17,7 @@ const requestedRestaurantId = process.env['DASHBOARD_VISUAL_RESTAURANT_ID']
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 test('create dashboard authenticated storage state', async ({ page }) => {
+  let targetRestaurantId = requestedRestaurantId
   const canUsePassword = Boolean(email && password)
   const canUseMagicLink = Boolean(magicLinkEmail && supabaseUrl && serviceRoleKey)
   test.skip(!canUsePassword && !canUseMagicLink, 'Set Dashboard visual password credentials or a service-role magic-link fixture.')
@@ -50,6 +52,9 @@ test('create dashboard authenticated storage state', async ({ page }) => {
     })
     expect(verified.error).toBeNull()
     expect(verified.data.session).toBeTruthy()
+    if (process.env['DASHBOARD_VISUAL_ISOLATED_FIXTURE'] === '1') {
+      targetRestaurantId = await createDashboardFixture(verified.data.user!.id)
+    }
     const projectRef = new URL(supabaseUrl!).hostname.split('.')[0]
     const cookieName = `sb-${projectRef}-auth-token`
     const value = `base64-${Buffer.from(JSON.stringify(verified.data.session)).toString('base64url')}`
@@ -65,9 +70,9 @@ test('create dashboard authenticated storage state', async ({ page }) => {
 
   await page.waitForURL(/\/dashboard(\/|$)/, { timeout: 20_000 })
 
-  if (requestedRestaurantId) {
-    expect(requestedRestaurantId).toMatch(uuidPattern)
-    await page.goto(`${dashboardURL}/dashboard/${requestedRestaurantId}`, { waitUntil: 'domcontentloaded' })
+  if (targetRestaurantId) {
+    expect(targetRestaurantId).toMatch(uuidPattern)
+    await page.goto(`${dashboardURL}/dashboard/${targetRestaurantId}`, { waitUntil: 'domcontentloaded' })
   }
 
   if (new URL(page.url()).pathname === '/dashboard') {

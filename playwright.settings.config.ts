@@ -14,6 +14,7 @@ const dashboardProject = (name: string, viewport: { width: number; height: numbe
 })
 
 export default defineConfig({
+  globalTeardown: './tests/visual/dashboard-fixture.ts',
   testDir: './tests/visual',
   timeout: 180_000,
   expect: { timeout: 15_000 },
