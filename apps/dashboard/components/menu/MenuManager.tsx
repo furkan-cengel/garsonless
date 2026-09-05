@@ -44,7 +44,7 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
     setItemEditDirty,
     pendingEditorExit,
     showAddItem,
-    setShowAddItem,
+    closeAddItem,
     categoryAddRequest,
     search,
     setSearch,
@@ -232,7 +232,7 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
         kitchenStations={kitchenStations}
         restaurantId={restaurantId} loyaltyStampEnabled={loyaltyStampEnabled}
         onItemCreated={createItem}
-        onCloseAddItem={() => setShowAddItem(false)}
+        onCloseAddItem={closeAddItem}
       />
     </div>
   )

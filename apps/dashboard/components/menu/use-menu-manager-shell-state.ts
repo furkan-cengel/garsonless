@@ -33,6 +33,7 @@ export function useMenuManagerShellState({
   const [toastTone, setToastTone] = useState<'error' | 'success'>('error')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const editorReturnFocusRef = useRef<HTMLElement | null>(null)
+  const addItemReturnFocusRef = useRef<HTMLElement | null>(null)
   const itemEditDirtyRef = useRef(itemEditDirty)
 
   useEffect(() => setMounted(true), [])
@@ -162,7 +163,9 @@ export function useMenuManagerShellState({
     setCategoryAddRequest((current) => current + 1)
   }
 
-  function requestAddItem() {
+  function requestAddItem(event?: { currentTarget: EventTarget | null }) {
+    const trigger = event?.currentTarget ?? document.activeElement
+    addItemReturnFocusRef.current = trigger instanceof HTMLElement ? trigger : null
     const targetCategoryId = activeSubCategory
       ?? activeCategory
       ?? categories.find((category) => !category.parent_id)?.id
@@ -183,6 +186,11 @@ export function useMenuManagerShellState({
     }
     setWorkspaceStage('items')
     setShowAddItem(true)
+  }
+
+  function closeAddItem() {
+    setShowAddItem(false)
+    requestAnimationFrame(() => addItemReturnFocusRef.current?.focus())
   }
 
   function closeItemEditor() {
@@ -238,7 +246,7 @@ export function useMenuManagerShellState({
     setItemEditDirty,
     pendingEditorExit,
     showAddItem,
-    setShowAddItem,
+    closeAddItem,
     categoryAddRequest,
     search,
     setSearch: updateSearch,
