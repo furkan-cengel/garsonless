@@ -34,7 +34,7 @@ function equal(a: unknown, b: unknown): boolean {
   }
   return JSON.stringify(a) === JSON.stringify(b)
 }
-interface ThemeRecoveryConflict { path: string; local: unknown; remote: unknown }
+export interface ThemeRecoveryConflict { path: string; local: unknown; remote: unknown }
 /** Arrays are atomic: block reordering/removal must never be silently interleaved. */
 export function mergeThemeRecovery(base: GarsonlessTheme, local: GarsonlessTheme, remote: GarsonlessTheme, preference: 'local' | 'remote' = 'local') {
   const conflicts: ThemeRecoveryConflict[] = []

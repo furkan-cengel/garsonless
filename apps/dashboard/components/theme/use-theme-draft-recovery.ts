@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { ThemeEditorSnapshot } from '@garsonless/application/themes'
 import { readThemeRecoverySnapshot } from '../../lib/actions/theme'
-import { mergeThemeRecovery, readThemeRecovery, themeRecoveryKey, type ThemeRecoveryRecord, type ThemeRecoveryScope } from './theme-draft-recovery-model'
+import { mergeThemeRecovery, readThemeRecovery, themeRecoveryKey, type ThemeRecoveryConflict, type ThemeRecoveryRecord, type ThemeRecoveryScope } from './theme-draft-recovery-model'
 
 interface Options extends ThemeRecoveryScope {
   base: GarsonlessTheme
@@ -84,6 +84,6 @@ export function useThemeDraftRecovery(options: Options) {
     anchor.click()
     setTimeout(() => URL.revokeObjectURL(url), 1_000)
   }
-  const conflicts = pending && remote ? mergeThemeRecovery(pending.base, pending.local, remote.theme).conflicts : []
+  const conflicts: ThemeRecoveryConflict[] = pending && remote ? mergeThemeRecovery(pending.base, pending.local, remote.theme).conflicts : []
   return { ready, pending, remote, conflicts, busy, error, storageError, start, compare, apply, download }
 }
