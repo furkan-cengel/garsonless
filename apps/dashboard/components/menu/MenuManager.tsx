@@ -73,21 +73,14 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
     workspaceStage,
     goBack,
   } = shell
-  const live = useMenuLiveState({
-    restaurantId,
-    hasUnsavedChanges: itemEditDirty,
-    onRefresh: () => router.refresh(),
-  })
   const commands = useMenuManagerCommands({
     restaurantId,
     categories,
     setCategories,
     items,
     setItems,
-    activeCategory,
     setActiveCategory,
     setActiveSubCategory: setActiveSubCat,
-    selectedItem,
     setSelectedItem,
     onError: showError,
     onSuccess: showSuccess,
@@ -109,6 +102,11 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
       ])
     },
     onComplete: (message, tone) => notify(message, tone),
+    onRefresh: () => router.refresh(),
+  })
+  const live = useMenuLiveState({
+    restaurantId,
+    hasUnsavedChanges: itemEditDirty || commands.pending || Boolean(csvImport.preview?.importing),
     onRefresh: () => router.refresh(),
   })
   if (!mounted) return <MenuManagerSkeleton />
@@ -184,21 +182,23 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
           activeSubCat={activeSubCat}
           onSubCatChange={selectSubCategory}
           selectedItem={selectedItem}
-          onSelectItem={selectItem}
-          canAddProduct={categories.length > 0}
+          onSelectItem={(item) => { if (!commands.pendingItemIds.has(item.id)) selectItem(item) }}
           onAddCategory={requestAddCategory}
           onAddItem={requestAddItem}
+          pendingItemIds={commands.pendingItemIds}
+          structuralPending={commands.structuralPending}
+          editingItemId={selectedItem?.id}
           onQuickUpdate={commands.quickUpdate}
           onBulkAvailability={commands.setBulkAvailability}
           highlight={search || undefined}
           categories={categories}
-          searching={Boolean(search)}
           onClearSearch={() => setSearch('')}
         />
         {selectedItem ? (
           <MenuItemEditPanel
             key={selectedItem.id}
             item={selectedItem}
+            externalPending={commands.pendingItemIds.has(selectedItem.id) || commands.structuralPending}
             categoryName={activeCatForPanel?.name ?? ''}
             categoryVatRate={Number(activeCatForPanel?.vat_rate ?? 10)}
             categoryStationId={activeCatForPanel?.kitchen_station_id ?? null}

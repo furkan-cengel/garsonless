@@ -94,7 +94,7 @@ export function useMenuManagerShellState({
   }
 
   function selectItem(item: MenuItem) {
-    if (selectedItem?.id === item.id) return
+    if (selectedItem?.id === item.id && workspaceStage === 'editor') return
     const source = document.activeElement
     if (source instanceof HTMLElement) editorReturnFocusRef.current = source
     requestEditorExit(() => {
@@ -154,6 +154,7 @@ export function useMenuManagerShellState({
     setItems((current) => [...current, item])
     setShowAddItem(false)
     setSelectedItem(item)
+    setWorkspaceStage('editor')
   }
 
   function requestAddCategory() {

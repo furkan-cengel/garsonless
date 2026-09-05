@@ -44,7 +44,7 @@ test('menu command controller owns actions while its projection model stays pure
   assert.match(controllerSource, /reorderCategories/)
   assert.match(controllerSource, /setMenuItemsAvailability/)
   assert.match(controllerSource, /patchMenuItemCollection/)
-  assert.match(controllerSource, /removeCategoryTreeFromMenu/)
+  assert.match(controllerSource, /collectCategoryTreeIds/)
   assert.doesNotMatch(controllerSource, /createClient|supabase|serviceRole/i)
   assert.doesNotMatch(modelSource, /useState|useEffect|useTransition|lib\/actions|createClient|supabase/i)
 })

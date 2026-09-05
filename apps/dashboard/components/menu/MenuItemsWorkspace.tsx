@@ -23,14 +23,15 @@ export function MenuItemsWorkspace({
   onSubCatChange,
   selectedItem,
   onSelectItem,
-  canAddProduct,
   onAddCategory,
   onAddItem,
   onQuickUpdate,
+  pendingItemIds,
+  structuralPending,
+  editingItemId,
   onBulkAvailability,
   highlight,
   categories,
-  searching,
   onClearSearch,
 }: {
   items: Tables<'menu_items'>[]
@@ -40,16 +41,19 @@ export function MenuItemsWorkspace({
   onSubCatChange: (id: string | null) => void
   selectedItem: Tables<'menu_items'> | null
   onSelectItem: (item: Tables<'menu_items'>) => void
-  canAddProduct: boolean
   onAddCategory: () => void
   onAddItem: () => void
+  pendingItemIds: ReadonlySet<string>
+  structuralPending: boolean
+  editingItemId?: string
   onQuickUpdate: (id: string, patch: { price?: number; is_available?: boolean }) => void
   onBulkAvailability: (ids: string[], isAvailable: boolean) => Promise<boolean>
   highlight?: string
   categories: Tables<'menu_categories'>[]
-  searching: boolean
   onClearSearch: () => void
 }) {
+  const canAddProduct = categories.length > 0
+  const searching = Boolean(highlight)
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
@@ -82,6 +86,7 @@ export function MenuItemsWorkspace({
 
   async function applyBulkAvailability(isAvailable: boolean) {
     const ids = [...selectedIds]
+    if (structuralPending || ids.some((id) => pendingItemIds.has(id) || id === editingItemId)) return
     if (await onBulkAvailability(ids, isAvailable)) setSelectedIds(new Set())
   }
 
@@ -173,10 +178,10 @@ export function MenuItemsWorkspace({
               >
                 {selectedIds.size} seçili
               </span>
-              <Button className="menu-bulk-action" variant="outline" size="sm" type="button" onClick={() => void applyBulkAvailability(true)}>
+              <Button className="menu-bulk-action" variant="outline" size="sm" type="button" disabled={structuralPending || [...selectedIds].some((id) => pendingItemIds.has(id) || id === editingItemId)} onClick={() => void applyBulkAvailability(true)}>
                 Yayına al
               </Button>
-              <Button className="menu-bulk-action" variant="outline" size="sm" type="button" onClick={() => void applyBulkAvailability(false)}>
+              <Button className="menu-bulk-action" variant="outline" size="sm" type="button" disabled={structuralPending || [...selectedIds].some((id) => pendingItemIds.has(id) || id === editingItemId)} onClick={() => void applyBulkAvailability(false)}>
                 Pasife al
               </Button>
               <Button
@@ -324,6 +329,7 @@ export function MenuItemsWorkspace({
                 item={item}
                 active={selectedItem?.id === item.id}
                 onClick={() => onSelectItem(item)}
+                pending={structuralPending || pendingItemIds.has(item.id) || editingItemId === item.id}
                 onPriceUpdate={(p) => onQuickUpdate(item.id, { price: p })}
                 onToggleAvailable={() => onQuickUpdate(item.id, { is_available: !item.is_available })}
                 selectedForBulk={selectedIds.has(item.id)}
@@ -354,6 +360,7 @@ function ItemCard({
   active,
   onClick,
   onPriceUpdate,
+  pending,
   onToggleAvailable,
   selectedForBulk,
   onToggleSelected,
@@ -363,6 +370,7 @@ function ItemCard({
   item: Tables<'menu_items'>
   active: boolean
   onClick: () => void
+  pending: boolean
   onPriceUpdate?: (price: number) => void
   onToggleAvailable?: () => void
   selectedForBulk: boolean
@@ -377,6 +385,7 @@ function ItemCard({
   const missingInfo = getMissingProductInfo(item)
 
   function commitPrice() {
+    if (pending) return
     const n = Number(priceVal)
     if (!isNaN(n) && n > 0 && n !== item.price) onPriceUpdate?.(n)
     setEditingPrice(false)
@@ -499,6 +508,7 @@ function ItemCard({
             <Button
               type="button"
               aria-label={`${item.name} ürününü ${item.is_available ? 'pasife al' : 'aktife al'}`}
+              disabled={pending}
               onClick={(e) => {
                 e.stopPropagation()
                 onToggleAvailable?.()
@@ -580,6 +590,7 @@ function ItemCard({
           {editingPrice ? (
             <Input
               autoFocus
+              disabled={pending}
               type="number"
               min={0.01}
               step={0.01}
@@ -608,6 +619,7 @@ function ItemCard({
             <Button
               type="button"
               aria-label={`${item.name} fiyatını düzenle`}
+              disabled={pending}
               title="Düzenlemek için tıkla"
               onClick={(e) => {
                 e.stopPropagation()
