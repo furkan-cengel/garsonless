@@ -131,7 +131,9 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
               justifyContent: theme.cardLayout === 'vertical' ? 'center' : 'stretch',
             }}
           >
-            {renderItems(cat.id)}
+            {renderItems(cat.id, visualNav
+              ? visualStage === 'products' && cat.id === activeVisualCategoryId
+              : cat.id === firstProductImageCategoryId)}
           </div>
         </div>
       </section>
@@ -269,6 +271,12 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
       })),
     })
   }, [categories, theme.pageBlocks, theme.sections])
+  // The theme may reorder categories independently of database positions.
+  // Choose the LCP candidate from the actual page flow, not the input array.
+  const firstProductImageCategoryId = useMemo(() => {
+    const imageCategories = new Set(items?.filter((item) => item.images.length > 0).map((item) => item.category_id))
+    return pageBlocks.find((block) => block.type === 'category' && imageCategories.has(block.id))?.id
+  }, [items, pageBlocks])
   const activePromoSliderCampaigns = useMemo(
     () => deriveActivePromoSliderCampaigns({
       pageBlocks,

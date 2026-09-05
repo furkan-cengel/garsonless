@@ -106,7 +106,6 @@ function TrialQrMotion() {
         width={700}
         height={700}
         sizes="(max-width: 700px) 220px, 264px"
-        priority
       />
       {trialParticles.map((particle) => (
         <Image

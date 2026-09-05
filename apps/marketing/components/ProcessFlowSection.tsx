@@ -247,7 +247,7 @@ export function ProcessFlowSection() {
                         <small>masabu.co</small>
                       </span>
                       <span className="process-poster__image">
-                        <Image src={step.poster} alt={step.posterAlt} fill priority={index === 0} sizes="(max-width: 760px) 92vw, 520px" />
+                        <Image src={step.poster} alt={step.posterAlt} fill sizes="(max-width: 760px) 92vw, 520px" />
                       </span>
                       <span className="process-poster__action">
                         <MI.play size={13} /> Posteri büyüt

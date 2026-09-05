@@ -46,7 +46,7 @@ a {
 }
 
 .font-display {
-  font-family: var(--font-fraunces), Georgia, serif;
+  font-family: var(--font-fraunces-primary), var(--font-fraunces), Georgia, serif;
   font-feature-settings: "ss01";
 }
 
@@ -2015,7 +2015,7 @@ a {
 
 .process-flow__heading > span {
   color: var(--story-text);
-  font-family: var(--font-fraunces), Georgia, serif;
+  font-family: var(--font-fraunces-primary), var(--font-fraunces), Georgia, serif;
   font-size: clamp(48px, 6vw, 76px);
   font-weight: 500;
   letter-spacing: -.04em;
@@ -2411,7 +2411,7 @@ a {
   color: #226b4b;
   background: linear-gradient(145deg, #f4d59e, #e9a44b);
   border-radius: 8px;
-  font-family: var(--font-fraunces), Georgia, serif;
+  font-family: var(--font-fraunces-primary), var(--font-fraunces), Georgia, serif;
   font-size: 18px;
 }
 
@@ -5180,7 +5180,7 @@ a {
 .legal-document h2 {
   margin: 52px 0 16px;
   color: var(--ink);
-  font-family: var(--font-fraunces), Georgia, serif;
+  font-family: var(--font-fraunces-primary), var(--font-fraunces), Georgia, serif;
   font-size: 32px;
   font-weight: 550;
   letter-spacing: -.025em;
@@ -5211,7 +5211,7 @@ a {
   margin: 32px 0;
   padding: 4px 0 4px 24px;
   border-left: 3px solid var(--positive);
-  font-family: var(--font-fraunces), Georgia, serif;
+  font-family: var(--font-fraunces-primary), var(--font-fraunces), Georgia, serif;
   font-size: 24px;
 }
 

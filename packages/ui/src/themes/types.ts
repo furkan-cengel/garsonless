@@ -27,7 +27,7 @@ export type MemberOpenTarget = 'overview' | 'loyalty'
 export interface ThemeMenuPageProps {
   categories: MenuCategory[]
   categoryMeta?: Record<string, { imageUrl?: string | null; itemCount?: number }>
-  renderItems: (catId: string) => ReactNode
+  renderItems: (catId: string, prioritizeFirstImage?: boolean) => ReactNode
   menuFilters?: ReactNode
   orderStatus?: ReactNode
   filterEmptyState?: ReactNode

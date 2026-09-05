@@ -56,9 +56,6 @@ export function useMenuCatalog({
       }
       return result
     }, {})
-    const firstCardItemId = visibleCategories
-      .flatMap((category) => itemsByCategory[category.id] ?? [])
-      .find((item) => item.images.length > 0)?.id ?? null
     const cartQuantityByItemId = buildCatalogCartQuantityByItemId(cartItems)
     const cartSummary = cartItems.reduce((summary, item) => ({
       count: summary.count + item.quantity,
@@ -70,7 +67,6 @@ export function useMenuCatalog({
       visibleCategories,
       itemsByCategory,
       categoryMeta,
-      firstCardItemId,
       cartQuantityByItemId,
       cartSummary,
     }

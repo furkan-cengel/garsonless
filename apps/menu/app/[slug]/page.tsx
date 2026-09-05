@@ -3,7 +3,7 @@ import { customerActorContext, readMemberLoyalty, type MemberBalances } from '@g
 import { projectThemeForEntitlements } from '@garsonless/application/themes'
 import { createLoyaltyQueryPort, createThemeApplicationPort, readTenantOrderIngressStatus } from '@garsonless/db/server'
 import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
-import { getMenuCategories, getMenuItems, getRestaurantBySlug } from '../../lib/queries'
+import { getMenuCatalog, getRestaurantBySlug } from '../../lib/queries'
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../lib/featured-products'
 import { HomePageRenderer } from './HomePageClient'
 import { getCustomerSession } from '../../lib/customer-session'
@@ -38,14 +38,21 @@ export default async function MenuPage({ params, searchParams }: Props) {
     return renderMenuExperience({ slug, sp })
   }
   const themePort = createThemeApplicationPort()
-  const [menuAccess, guestOrderingAccess, customerAccountsAccess, advancedThemeAccess, videoHeroAccess, orderIngressStatus] = await Promise.all([
-    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'qr_menu' }),
-    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'guest_ordering' }),
-    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'customer_accounts' }),
-    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_advanced_sections' }),
-    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_video_hero' }),
-    readTenantOrderIngressStatus(restaurant.id),
+  const [access, { categories, items: menuItems }, featuredRanking, session, customerAuthCapabilities] = await Promise.all([
+    Promise.all([
+      themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'qr_menu' }),
+      themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'guest_ordering' }),
+      themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'customer_accounts' }),
+      themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_advanced_sections' }),
+      themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_video_hero' }),
+      readTenantOrderIngressStatus(restaurant.id),
+    ]),
+    getMenuCatalog(restaurant.id, revisionSnapshot.revision),
+    getFeaturedProductRanking(restaurant.id, restaurant.timezone),
+    getCustomerSession(),
+    availableCustomerAuthCapabilities(),
   ])
+  const [menuAccess, guestOrderingAccess, customerAccountsAccess, advancedThemeAccess, videoHeroAccess, orderIngressStatus] = access
   if (!menuAccess.ok || !menuAccess.value) notFound()
   const customerAccountsEnabled = customerAccountsAccess.ok && customerAccountsAccess.value
   const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value && orderIngressStatus === 'active'
@@ -53,18 +60,9 @@ export default async function MenuPage({ params, searchParams }: Props) {
     advancedSections: advancedThemeAccess.ok && advancedThemeAccess.value,
     videoHero: videoHeroAccess.ok && videoHeroAccess.value,
   })
-  const [categories, featuredRanking, session, customerAuthCapabilities] = await Promise.all([
-    getMenuCategories(restaurant.id, revisionSnapshot.revision),
-    getFeaturedProductRanking(restaurant.id, restaurant.timezone),
-    getCustomerSession(),
-    availableCustomerAuthCapabilities(),
-  ])
-  const [menuItems, memberBalancesResult] = await Promise.all([
-    getMenuItems(restaurant.id, revisionSnapshot.revision, categories.map((category) => category.id)),
-    session && customerAccountsEnabled
-      ? readMemberLoyalty(customerActorContext({ authUserId: session.authUserId, customerId: session.customerId, restaurantId: restaurant.id }), createLoyaltyQueryPort())
-      : Promise.resolve(null),
-  ])
+  const memberBalancesResult = session && customerAccountsEnabled
+    ? await readMemberLoyalty(customerActorContext({ authUserId: session.authUserId, customerId: session.customerId, restaurantId: restaurant.id }), createLoyaltyQueryPort())
+    : null
   const items = applyFeaturedProductRanking(menuItems, featuredRanking)
   const initialMember = session && customerAccountsEnabled ? { name: session.name } : null
   const initialMemberBalances: MemberBalances | null = memberBalancesResult?.ok ? memberBalancesResult.value : null

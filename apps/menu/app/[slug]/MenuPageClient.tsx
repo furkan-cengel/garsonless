@@ -1209,7 +1209,6 @@ export function MenuPageClient({
     visibleCategories,
     itemsByCategory,
     categoryMeta,
-    firstCardItemId,
     cartQuantityByItemId,
     cartSummary,
   } = useMenuCatalog({ items, categories, menuFilters, cartItems })
@@ -1220,8 +1219,11 @@ export function MenuPageClient({
       : [...current, filter])
   }, [])
 
-  function renderItems(catId: string) {
+  function renderItems(catId: string, prioritizeFirstImage = false) {
     const catItems = itemsByCategory[catId] ?? []
+    const firstCardItemId = prioritizeFirstImage
+      ? catItems.find((item) => item.images.length > 0)?.id
+      : undefined
     return (
       <>
         {catItems.map((item) => {

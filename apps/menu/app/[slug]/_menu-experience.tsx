@@ -7,14 +7,13 @@ import {
 import { projectThemeForEntitlements } from '@garsonless/application/themes'
 import { createLoyaltyQueryPort, createThemeApplicationPort, readTenantOrderIngressStatus } from '@garsonless/db/server'
 import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
-import { getMenuCategories, getMenuItems, getPreviewRestaurantBySlug, getRestaurantBySlug } from '../../lib/queries'
+import { getMenuCatalog, getPreviewRestaurantBySlug, getRestaurantBySlug } from '../../lib/queries'
 import { getCustomerSession } from '../../lib/customer-session'
 import { availableCustomerAuthCapabilities } from '../../lib/customer-auth-provider'
 import { applyFeaturedProductRanking, getFeaturedProductRanking } from '../../lib/featured-products'
 import { MenuPageClient } from './MenuPageClient'
 import { getPreviewTheme, getPublishedTheme } from '../../lib/published-theme'
 import { hasThemePreviewAccess } from '../../lib/theme-preview-access'
-import { getPublicMenuRevision } from '../../lib/public-menu-revision'
 import type { AccountPreviewState } from '@garsonless/design-engine'
 
 const ACCOUNT_PREVIEW_STATES = new Set<AccountPreviewState>([
@@ -62,41 +61,42 @@ export async function renderMenuExperience({
   })
   if (isPreview && !previewAccessGranted) notFound()
 
-  const themePort = createThemeApplicationPort()
-  const revisionSnapshot = await getPublicMenuRevision(restaurant.id)
-  const [themeResult, categories, featuredRanking, session, customerAuthCapabilities] = await Promise.all([
-    isPreview && previewTemplate
-      ? getPreviewTheme(restaurant.id, previewTemplate)
-      : getPublishedTheme(restaurant.id),
-    getMenuCategories(restaurant.id, revisionSnapshot.revision),
+  // Catalog reads advance as soon as their own dependencies are ready. Theme
+  // authorization runs alongside them; nothing is rendered before it succeeds.
+  const [presentation, { categories, items: menuItems }, featuredRanking, session, customerAuthCapabilities] = await Promise.all([
+    (async () => {
+      const themeResult = await (isPreview && previewTemplate
+        ? getPreviewTheme(restaurant.id, previewTemplate)
+        : getPublishedTheme(restaurant.id))
+      if (!themeResult.ok) notFound()
+      const themePort = createThemeApplicationPort()
+      const [menuAccess, guestOrderingAccess, requestButtonsAccess, customerAccountsAccess, advancedThemeAccess, videoHeroAccess, orderIngressStatus] = await Promise.all([
+        themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'qr_menu' }),
+        themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'guest_ordering' }),
+        themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'service_requests' }),
+        themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'customer_accounts' }),
+        themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_advanced_sections' }),
+        themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_video_hero' }),
+        readTenantOrderIngressStatus(restaurant.id),
+      ])
+      if (!previewAccessGranted && (!menuAccess.ok || !menuAccess.value)) notFound()
+      return { themeResult, guestOrderingAccess, requestButtonsAccess, customerAccountsAccess, advancedThemeAccess, videoHeroAccess, orderIngressStatus }
+    })(),
+    getMenuCatalog(restaurant.id),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),
     getCustomerSession(),
     availableCustomerAuthCapabilities(),
   ])
-  if (!themeResult.ok) notFound()
-
+  const { themeResult, guestOrderingAccess, requestButtonsAccess, customerAccountsAccess, advancedThemeAccess, videoHeroAccess, orderIngressStatus } = presentation
   const { theme, templateId } = themeResult.value
-  const [menuAccess, guestOrderingAccess, requestButtonsAccess, customerAccountsAccess, advancedThemeAccess, videoHeroAccess, orderIngressStatus] = await Promise.all([
-    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'qr_menu' }),
-    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'guest_ordering' }),
-    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'service_requests' }),
-    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'customer_accounts' }),
-    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_advanced_sections' }),
-    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_video_hero' }),
-    readTenantOrderIngressStatus(restaurant.id),
-  ])
-  if (!previewAccessGranted && (!menuAccess.ok || !menuAccess.value)) notFound()
   const customerAccountsEnabled = customerAccountsAccess.ok && customerAccountsAccess.value
-  const [menuItems, memberBalancesResult] = await Promise.all([
-    getMenuItems(restaurant.id, revisionSnapshot.revision, categories.map((category) => category.id)),
-    session && customerAccountsEnabled
-      ? readMemberLoyalty(customerActorContext({
-          authUserId: session.authUserId,
-          customerId: session.customerId,
-          restaurantId: restaurant.id,
-        }), createLoyaltyQueryPort())
-      : Promise.resolve(null),
-  ])
+  const memberBalancesResult = session && customerAccountsEnabled
+    ? await readMemberLoyalty(customerActorContext({
+      authUserId: session.authUserId,
+      customerId: session.customerId,
+      restaurantId: restaurant.id,
+    }), createLoyaltyQueryPort())
+    : null
   const items = applyFeaturedProductRanking(menuItems, featuredRanking)
   const requestButtonsEnabled = requestButtonsAccess?.ok === true && requestButtonsAccess.value
   const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value && orderIngressStatus === 'active'

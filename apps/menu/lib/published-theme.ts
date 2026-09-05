@@ -5,6 +5,8 @@ import { listActivePublicCoupons } from '@garsonless/db/server'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 
 async function withLiveCoupons(restaurantId: string, theme: GarsonlessTheme): Promise<GarsonlessTheme> {
+  // Themes without linked coupon cards need no additional database round trip.
+  if (!Object.values(theme.sectionSettings ?? {}).some((settings) => settings['couponId'])) return theme
   const choices = await listActivePublicCoupons(restaurantId).catch(() => [])
   const byId = new Map(choices.map((coupon) => [coupon.id, coupon]))
   const settings = Object.fromEntries(Object.entries(theme.sectionSettings ?? {}).map(([instanceId, value]) => {

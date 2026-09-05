@@ -10,6 +10,8 @@ import type { Tables } from '@garsonless/db/types'
 import type { MenuItem, MenuCategory } from '@garsonless/ui/menu'
 import { PUBLIC_MENU_CACHE_SECONDS, publicMenuCacheKey } from './public-menu-cache-policy'
 import { readPublicRestaurantWithRpcFallback } from './public-restaurant-rollout'
+import { getPublicMenuRevision } from './public-menu-revision'
+import { loadMenuCatalog } from './menu-catalog-loader'
 
 type PublicMenuItemRow = Pick<
   Tables<'menu_items'>,
@@ -241,4 +243,14 @@ export function getMenuItems(
     [...publicMenuCacheKey('items', restaurantId, revision), ...categoryIds],
     { revalidate: PUBLIC_MENU_CACHE_SECONDS },
   )()
+}
+
+export function getMenuCatalog(restaurantId: string, revision?: number) {
+  return loadMenuCatalog(restaurantId, {
+    readRevision: () => revision === undefined
+      ? getPublicMenuRevision(restaurantId)
+      : Promise.resolve({ revision }),
+    readCategories: getMenuCategories,
+    readItems: getMenuItems,
+  })
 }
