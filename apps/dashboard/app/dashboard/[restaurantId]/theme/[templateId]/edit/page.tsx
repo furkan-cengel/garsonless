@@ -74,6 +74,8 @@ export default async function ThemeEditPage({ params }: Props) {
 
   return (
     <ThemeEditorClientLoader
+      key={`${access.userId}:${restaurantId}:${templateId}`}
+      userId={access.userId}
       restaurantId={restaurantId}
       restaurantSlug={restaurant.slug}
       restaurantName={restaurant.name}

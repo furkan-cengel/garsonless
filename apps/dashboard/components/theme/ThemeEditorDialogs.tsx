@@ -1,5 +1,7 @@
 'use client'
 
+import { isThemeSectionLocked } from './theme-section-access-model'
+
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, ReactNode, RefObject } from 'react'
 import { I } from '../../lib/ui'
@@ -15,7 +17,6 @@ import { Separator } from '@/components/ui/separator'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 import { XIcon } from 'lucide-react'
-import { VIDEO_HERO_SECTION_ID } from '@garsonless/design-engine'
 import { ThemeSectionCatalogIcon, type ThemeSectionCatalogIconName } from './ThemeSectionCatalogIcon'
 
 export type ThemeSectionOption = {
@@ -73,9 +74,7 @@ export function SectionPickerDialog({
 }: SectionPickerDialogProps) {
   // Video Hero is billed separately from the bundled advanced catalogue, so it
   // unlocks on its own add-on rather than on `theme_advanced_sections`.
-  const isSectionLocked = (section: ThemeSectionOption) => section.plan !== 'pro'
-    ? false
-    : section.id === VIDEO_HERO_SECTION_ID ? !canUseVideoHero : !canAddAdvancedSections
+  const isSectionLocked = (section: ThemeSectionOption) => isThemeSectionLocked(section, canAddAdvancedSections, canUseVideoHero)
   const [selectedId, setSelectedId] = useState(() => visibleSections[0]?.id ?? sections[0]?.id ?? '')
   const selected = useMemo(
     () => sections.find((section) => section.id === selectedId) ?? visibleSections[0] ?? null,
@@ -346,7 +345,7 @@ export function SectionPickerDialog({
                         <span className="truncate text-xs font-medium text-muted-foreground">{section.group}</span>
                       </div>
                       <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                        {exists && <StatusPill tone="added">{section.singleton ? 'Etkin' : `${instanceCount} ekli`}</StatusPill>}
+                        {exists && <StatusPill tone="added">{section.singleton ? 'Temaya ekli' : `${instanceCount} ekli`}</StatusPill>}
                         {planned && <StatusPill tone="warn">Geliştiriliyor</StatusPill>}
                         {locked && !planned && <StatusPill tone="lock">Kilitli</StatusPill>}
                       </div>

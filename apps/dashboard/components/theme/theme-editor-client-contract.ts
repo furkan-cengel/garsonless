@@ -12,6 +12,7 @@ interface ThemeEditorInitialPersistence {
 }
 
 export interface ThemeEditorClientProps {
+  userId: string
   restaurantId: string
   restaurantSlug: string
   restaurantName: string

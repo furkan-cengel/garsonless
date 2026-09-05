@@ -20,9 +20,9 @@ test('theme preview URL carries a validated template id', () => {
 })
 
 test('card contrast blocks client and server publishing', () => {
-  assert.match(lifecycle, /inspectMenuCardSurfaceContrast\(previewTheme\)/)
-  assert.match(lifecycle, /menuCardContrastIssues\.length > 0/)
-  assert.match(actions, /inspectMenuCardSurfaceContrast\(sanitizedDraft\)/)
+  assert.match(lifecycle, /inspectThemePublishContrast\(previewTheme\)/)
+  assert.match(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
+  assert.match(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
   assert.match(guidance, /Ürün kartı kritik kontrast sorunlarını düzelt/)
 })
 

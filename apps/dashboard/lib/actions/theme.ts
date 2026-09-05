@@ -2,13 +2,15 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
-import { inspectAuthSurfaceContrast, inspectCheckoutSurfaceContrast, inspectMenuCardSurfaceContrast, inspectMenuCartContrast, inspectMenuFooterContrast, inspectMenuNavigationContrast, inspectMenuThemeContrast, sanitizeThemeTokens } from '@garsonless/design-engine'
+import { inspectThemePublishContrast, sanitizeThemeTokens } from '@garsonless/design-engine'
 import {
   publishSavedRestaurantTheme,
   readThemeMenuReferences,
+  readThemeForEditor,
   saveRestaurantThemeDraft,
   type SavedThemePublishResult,
   type ThemeDraftSaveResult,
+  type ThemeEditorSnapshot,
 } from '@garsonless/application/themes'
 import {
   createRestaurantAssetStoragePort,
@@ -84,6 +86,19 @@ export interface SaveThemeDraftInput {
   theme: unknown
   expectedRevision: number
   requestId: string
+}
+
+export async function readThemeRecoverySnapshot(restaurantId: string, templateId: string): Promise<{ snapshot: ThemeEditorSnapshot } | DashboardActionFailure> {
+  if (!z.string().uuid().safeParse(restaurantId).success || templateId !== 'default') {
+    return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.recovery' })
+  }
+  const gate = await assertAccess(restaurantId, 'theme')
+  if ('error' in gate) return dashboardAccessFailure(gate.error, 'theme.recovery')
+  const result = await readThemeForEditor({ actor: 'dashboard-member', userId: gate.userId, restaurantId, permissions: ['theme'] },
+    { restaurantId, templateId }, createThemeApplicationPort())
+  if (!result.ok) return dashboardActionFailure('SERVICE_UNAVAILABLE', { operation: 'theme.recovery' })
+  const { theme, revision, templateId: resolvedTemplateId, publishedAt, draftRevision, publishedRevision, draftSavedAt, hasUnpublishedChanges } = result.value
+  return { snapshot: { theme, revision, templateId: resolvedTemplateId, publishedAt, draftRevision, publishedRevision, draftSavedAt, hasUnpublishedChanges } }
 }
 
 export type ThemeMediaUploadResult =
@@ -312,46 +327,12 @@ export async function publishTheme(
   if (!validateOwnedHomeVideoPairs(draftTokens, restaurantId, true)) {
     return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.publish', message: 'Tema videosu için video ve poster dosyalarını birlikte yükleyin.' })
   }
-  if (!sanitizedDraft || inspectAuthSurfaceContrast(sanitizedDraft).length > 0) {
+  if (!sanitizedDraft) return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.publish' })
+  const contrastIssue = Object.values(inspectThemePublishContrast(sanitizedDraft)).flat()[0]
+  if (contrastIssue) {
     return dashboardActionFailure('VALIDATION_FAILED', {
       operation: 'theme.publish',
-      message: 'Giriş yüzeyindeki kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz.',
-    })
-  }
-  if (inspectCheckoutSurfaceContrast(sanitizedDraft).length > 0) {
-    return dashboardActionFailure('VALIDATION_FAILED', {
-      operation: 'theme.publish',
-      message: 'Checkout yüzeyindeki kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz.',
-    })
-  }
-  if (inspectMenuThemeContrast(sanitizedDraft).length > 0) {
-    return dashboardActionFailure('VALIDATION_FAILED', {
-      operation: 'theme.publish',
-      message: 'Tema paletindeki kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz.',
-    })
-  }
-  if (inspectMenuCardSurfaceContrast(sanitizedDraft).length > 0) {
-    return dashboardActionFailure('VALIDATION_FAILED', {
-      operation: 'theme.publish',
-      message: 'Ürün kartlarındaki kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz.',
-    })
-  }
-  if (inspectMenuCartContrast(sanitizedDraft).length > 0) {
-    return dashboardActionFailure('VALIDATION_FAILED', {
-      operation: 'theme.publish',
-      message: 'Sepet yüzeyindeki kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz.',
-    })
-  }
-  if (inspectMenuFooterContrast(sanitizedDraft).length > 0) {
-    return dashboardActionFailure('VALIDATION_FAILED', {
-      operation: 'theme.publish',
-      message: 'Footer yüzeyindeki kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz.',
-    })
-  }
-  if (inspectMenuNavigationContrast(sanitizedDraft).length > 0) {
-    return dashboardActionFailure('VALIDATION_FAILED', {
-      operation: 'theme.publish',
-      message: 'Menü navigasyonundaki kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz.',
+      message: `Yayın engeli: ${contrastIssue.label} ${contrastIssue.ratio}:1 · gereken ${contrastIssue.minimum}:1`,
     })
   }
   const promoSliderIssues = getThemePromoSliderIssues(sanitizedDraft)

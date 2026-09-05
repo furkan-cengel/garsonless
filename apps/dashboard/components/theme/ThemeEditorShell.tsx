@@ -10,6 +10,8 @@ import {
 
 interface ThemeEditorShellProps {
   topbar: ReactNode
+  notices?: ReactNode
+  editingBlocked?: boolean
   sidebar: ReactNode
   canvas: ReactNode
   properties: ReactNode
@@ -242,6 +244,8 @@ const EDITOR_INTERACTION_CSS = `
 
 export function ThemeEditorShell({
   topbar,
+  notices,
+  editingBlocked = false,
   sidebar,
   canvas,
   properties,
@@ -266,7 +270,9 @@ export function ThemeEditorShell({
       }}
     >
       <style>{EDITOR_INTERACTION_CSS}</style>
-      {topbar}
+      <div inert={editingBlocked} className="shrink-0">{topbar}</div>
+      {notices}
+      <div inert={editingBlocked} className="flex min-h-0 flex-1 flex-col">
       <Tabs
         value={activeSurface}
         onValueChange={(value) => onSurfaceChange(value as ThemeEditorSurface)}
@@ -297,6 +303,7 @@ export function ThemeEditorShell({
           >{properties}</div>
         </div>
       </Tabs>
+      </div>
       {dialogs}
       <ThemeEditorToast message={toastMessage} />
     </div>

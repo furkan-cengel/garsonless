@@ -147,9 +147,9 @@ export function ThemeEditorTopbar({
           </ButtonGroup>
           <Separator orientation="vertical" className="ml-1 h-5" />
         </div>
-        <Button data-theme-editor-open-preview type="button" variant="outline" aria-label="Önizlemeyi yeni sekmede aç" onClick={onOpenPreview}>
+        <Button data-theme-editor-open-preview type="button" variant="outline" aria-label="Yayınlanmış tasarımı yeni sekmede aç" title="Yayınlanmış tasarım açılır; taslak değişiklikleri editör önizlemesindedir" onClick={onOpenPreview}>
           <I.eye data-icon="inline-start" />
-          {showFullCopy && 'Önizle'}
+          {showFullCopy && 'Yayındaki tasarım'}
         </Button>
         <Button
           data-theme-editor-save-draft

@@ -25,6 +25,7 @@ interface ThemePublishGuidanceOptions {
   menuNavigationContrastIssues: MenuNavigationContrastIssue[]
   menuThemeContrastIssues: MenuThemeContrastIssue[]
   taskBased: boolean
+  selectGroup: (groupId: string) => void
   setExperienceSurface: (surface: ThemeEditorSurface) => void
   setAuthState: (state: AuthPreviewState) => void
   setCheckoutState: (state: CheckoutPreviewState) => void
@@ -43,6 +44,7 @@ export function useThemePublishGuidance({
   menuNavigationContrastIssues,
   menuThemeContrastIssues,
   taskBased,
+  selectGroup,
   setExperienceSurface,
   setAuthState,
   setCheckoutState,
@@ -83,6 +85,7 @@ export function useThemePublishGuidance({
       setCheckoutState('cart')
     } else {
       setExperienceSurface('menu')
+      selectGroup(menuHeaderContrastIssues.length ? 'header' : menuThemeContrastIssues.length ? 'theme' : menuNavigationContrastIssues.length ? 'nav' : menuCardContrastIssues.length ? 'cards' : menuCartContrastIssues.length ? 'cart' : 'footer')
     }
     if (taskBased) setActiveSurface('design')
     flashToast(`Yayın engeli açıldı: ${issue.label} ${issue.ratio}:1 · gereken ${issue.minimum}:1`)
@@ -98,6 +101,7 @@ export function useThemePublishGuidance({
     menuNavigationContrastIssues,
     menuThemeContrastIssues,
     setActiveSurface,
+    selectGroup,
     setAuthState,
     setCheckoutState,
     setExperienceSurface,

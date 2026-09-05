@@ -362,7 +362,7 @@ export default function IconRail({
       {pendingNavigation && (
         <UnsavedChangesDialog
           description={pendingNavigation.message}
-          discardLabel="Değişiklikleri sil ve çık"
+          discardLabel="Kaydetmeden çık"
           onKeepEditing={() => setPendingNavigation(null)}
           onDiscard={() => {
             const href = pendingNavigation.href

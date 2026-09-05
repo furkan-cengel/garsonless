@@ -91,6 +91,7 @@ interface ThemeEditorPropertiesWorkspaceProps {
   sectionMediaPanel?: ReactNode;
   inheritanceNotice?: { target: 'Header' | 'Footer'; customized: boolean };
   scopeNotice?: string;
+  sectionAccessNotice?: string;
   contrastIssues?: Array<MenuHeaderContrastIssue | MenuCardContrastIssue | MenuCartContrastIssue | MenuNavigationContrastIssue | MenuFooterContrastIssue>;
   themeContrastIssues: MenuThemeContrastIssue[];
   contrastRepairLabel?: string;
@@ -135,6 +136,7 @@ export function ThemeEditorPropertiesWorkspace({
   sectionMediaPanel,
   inheritanceNotice,
   scopeNotice,
+  sectionAccessNotice,
   contrastIssues,
   themeContrastIssues,
   contrastRepairLabel,
@@ -227,6 +229,7 @@ export function ThemeEditorPropertiesWorkspace({
       >
         {selectedSection && selectedSectionId ? (
           <>
+            {sectionAccessNotice && <Alert><AlertDescription>{sectionAccessNotice}</AlertDescription></Alert>}
             <PropertySection title="Bölüm İçeriği" defaultOpen>
               {sectionMediaPanel}
               {visibleSectionFields.length > 0 ? (

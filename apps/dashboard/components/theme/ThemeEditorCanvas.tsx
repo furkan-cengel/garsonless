@@ -84,10 +84,10 @@ export function ThemeEditorCanvas({
         backdropFilter: 'blur(8px)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-2)', fontSize: 12, minWidth: 0, flex: '1 1 260px' }}>
-          <h2 id="theme-editor-preview-heading" style={{ margin: 0, fontSize: 12, lineHeight: 1.2, fontWeight: 650, color: 'var(--text)' }}>Önizleme</h2>
+          <h2 id="theme-editor-preview-heading" style={{ margin: 0, fontSize: 12, lineHeight: 1.2, fontWeight: 650, color: 'var(--text)' }}>Taslak önizlemesi</h2>
           <span style={{ color: 'var(--text-4)' }}>·</span>
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {previewUrl.replace(/^https?:\/\//, '')}
+            Henüz yayına alınmamış değişiklikleri de gösterir
           </span>
           {previewStatus === 'stale' && (
             <Badge
@@ -106,11 +106,13 @@ export function ThemeEditorCanvas({
           <a
             href={previewUrl}
             target="_blank"
+            aria-label="Yayınlanmış tasarımı yeni sekmede aç"
+            title="Yeni sekmede yayınlanmış tasarım açılır; taslak bu editörde önizlenir"
             rel="noreferrer"
             className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'h-[34px]')}
           >
             <I.globe data-icon="inline-start" />
-            Aç
+            Yayındaki tasarım
           </a>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>

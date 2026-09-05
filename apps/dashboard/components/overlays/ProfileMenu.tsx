@@ -188,7 +188,7 @@ export default function ProfileMenu({
     return (
       <UnsavedChangesDialog
         description={logoutGuardMessage}
-        discardLabel="Değişiklikleri sil ve çıkış yap"
+        discardLabel="Kaydetmeden çıkış yap"
         onKeepEditing={() => setLogoutGuardMessage(null)}
         onDiscard={() => {
           setLogoutGuardMessage(null)

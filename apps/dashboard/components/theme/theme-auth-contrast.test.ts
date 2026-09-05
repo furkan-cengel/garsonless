@@ -8,11 +8,11 @@ const publishGuidance = readFileSync(new URL('./use-theme-publish-guidance.ts', 
 const actions = readFileSync(new URL('../../lib/actions/theme.ts', import.meta.url), 'utf8')
 
 test('auth contrast blocks publish in both client and server layers', () => {
-  assert.match(lifecycle, /inspectAuthSurfaceContrast\(previewTheme\)/)
-  assert.match(lifecycle, /authContrastIssues\.length > 0/)
+  assert.match(lifecycle, /inspectThemePublishContrast\(previewTheme\)/)
+  assert.match(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
   assert.match(topbar, /publishBlockedReason/)
-  assert.match(actions, /inspectAuthSurfaceContrast\(sanitizedDraft\)/)
-  assert.match(actions, /kritik kontrast sorunlarını düzeltmeden tema yayınlanamaz/)
+  assert.match(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
+  assert.match(actions, /Yayın engeli:.*contrastIssue\.label/)
 })
 
 test('a hidden contrast issue opens its editable surface instead of disabling publish feedback', () => {
@@ -30,16 +30,16 @@ test('auth CTA contrast offers an explicit safe repair', () => {
 
 test('contrast errors do not block private draft saves', () => {
   const saveBody = actions.slice(actions.indexOf('export async function saveThemeDraft'))
-  assert.doesNotMatch(saveBody, /inspectAuthSurfaceContrast/)
+  assert.doesNotMatch(saveBody, /inspectThemePublishContrast/)
   assert.match(saveBody, /saveRestaurantThemeDraft/)
 })
 
 test('cart contrast blocks publish in both client and server layers and exposes repair', () => {
   const client = readFileSync(new URL('./ThemeEditorClient.tsx', import.meta.url), 'utf8')
-  assert.match(lifecycle, /inspectMenuCartContrast\(previewTheme\)/)
-  assert.match(lifecycle, /menuCartContrastIssues\.length > 0/)
+  assert.match(lifecycle, /inspectThemePublishContrast\(previewTheme\)/)
+  assert.match(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
   assert.match(publishGuidance, /Sepet kritik kontrast sorunlarını düzelt/)
-  assert.match(actions, /inspectMenuCartContrast\(sanitizedDraft\)/)
+  assert.match(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
   assert.match(client, /buildMenuCartContrastRepairPatch\(previewTheme\)/)
 })
 

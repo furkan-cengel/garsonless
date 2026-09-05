@@ -37,9 +37,9 @@ test('checkout system facts stay outside editable theme fields', () => {
 })
 
 test('checkout contrast blocks publish but not private draft saves', () => {
-  assert.match(lifecycle, /inspectCheckoutSurfaceContrast\(previewTheme\)/)
-  assert.match(lifecycle, /checkoutContrastIssues\.length > 0/)
-  assert.match(actions, /inspectCheckoutSurfaceContrast\(sanitizedDraft\)/)
+  assert.match(lifecycle, /inspectThemePublishContrast\(previewTheme\)/)
+  assert.match(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
+  assert.match(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
   const saveBody = actions.slice(actions.indexOf('export async function saveThemeDraft'))
   assert.doesNotMatch(saveBody, /inspectCheckoutSurfaceContrast/)
 })

@@ -3,14 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   createFullThemePreviewCommand,
-  inspectAuthSurfaceContrast,
-  inspectCheckoutSurfaceContrast,
-  inspectMenuCardSurfaceContrast,
-  inspectMenuCartContrast,
-  inspectMenuFooterContrast,
-  inspectMenuHeaderContrast,
-  inspectMenuNavigationContrast,
-  inspectMenuThemeContrast,
+  inspectThemePublishContrast,
   projectThemeForSectionAccess,
   resolveMenuActionPlacements,
   type GarsonlessTheme,
@@ -36,10 +29,12 @@ import {
 import { useThemePreviewBridge } from './use-theme-preview-bridge'
 import { getThemePromoSliderIssues } from '../../lib/promo-slider-validation'
 import { getThemeComboRibbonIssues } from '../../lib/combo-ribbon-validation'
+import { useThemeDraftRecovery } from './use-theme-draft-recovery'
 
 const NAVIGATION_GUARD_MESSAGE = 'Kaydedilmemiş değişiklikler var. Çıkmak istediğine emin misin?'
 
 interface ThemeEditorLifecycleOptions {
+  userId: string
   restaurantId: string
   templateId: string
   previewUrl: string
@@ -74,6 +69,7 @@ export interface ThemePatchOptions {
 }
 
 export function useThemeEditorLifecycle({
+  userId,
   restaurantId,
   templateId,
   previewUrl,
@@ -141,38 +137,9 @@ export function useThemeEditorLifecycle({
     () => projectThemeForSectionAccess(previewTheme, sectionAccess),
     [previewTheme, sectionAccess],
   )
-  const authContrastIssues = useMemo(
-    () => inspectAuthSurfaceContrast(previewTheme),
-    [previewTheme],
-  )
-  const checkoutContrastIssues = useMemo(
-    () => inspectCheckoutSurfaceContrast(previewTheme),
-    [previewTheme],
-  )
-  const menuHeaderContrastIssues = useMemo(
-    () => inspectMenuHeaderContrast(previewTheme),
-    [previewTheme],
-  )
-  const menuCardContrastIssues = useMemo(
-    () => inspectMenuCardSurfaceContrast(previewTheme),
-    [previewTheme],
-  )
-  const menuCartContrastIssues = useMemo(
-    () => inspectMenuCartContrast(previewTheme),
-    [previewTheme],
-  )
-  const menuFooterContrastIssues = useMemo(
-    () => inspectMenuFooterContrast(previewTheme),
-    [previewTheme],
-  )
-  const menuNavigationContrastIssues = useMemo(
-    () => inspectMenuNavigationContrast(previewTheme),
-    [previewTheme],
-  )
-  const menuThemeContrastIssues = useMemo(
-    () => inspectMenuThemeContrast(previewTheme),
-    [previewTheme],
-  )
+  const publishContrast = useMemo(() => inspectThemePublishContrast(previewTheme), [previewTheme])
+  const { authContrastIssues, checkoutContrastIssues, menuHeaderContrastIssues, menuThemeContrastIssues,
+    menuNavigationContrastIssues, menuCardContrastIssues, menuCartContrastIssues, menuFooterContrastIssues } = publishContrast
   const {
     iframeRef,
     frameUrl: previewFrameUrl,
@@ -291,6 +258,28 @@ export function useThemeEditorLifecycle({
     postPreviewMessage(createFullThemePreviewCommand(deriveBridgeTheme(snapshot), undefined, previewContext))
   }, [deriveBridgeTheme, postPreviewMessage, previewContext])
 
+  const recovery = useThemeDraftRecovery({
+    userId, restaurantId, templateId, base: savedThemeRef.current, local: previewTheme, dirty: hasUnsavedChanges,
+    onApply: (theme, snapshot) => {
+      savedThemeRef.current = snapshot.theme
+      savedOverridesRef.current = createThemeOverrides(snapshot.theme, defaults, schema)
+      draftRevisionRef.current = snapshot.draftRevision
+      publishedRevisionRef.current = snapshot.publishedRevision
+      draftSaveAttemptRef.current = null
+      publishAttemptRef.current = null
+      setLastSavedAt(snapshot.draftSavedAt ? new Date(snapshot.draftSavedAt) : null)
+      setLastPublishedAt(snapshot.publishedAt ? new Date(snapshot.publishedAt) : null)
+      setHasUnpublishedChanges(snapshot.hasUnpublishedChanges)
+      setUndoStack([])
+      setRedoStack([])
+      applyOverridesSnapshot(createThemeOverrides(theme, defaults, schema))
+      flashToast('Güncel taslak yüklendi. Birleştirilen değişiklikleri kontrol edip kaydet.')
+    },
+  })
+  const startRecovery = recovery.start
+  const recoveryBlocked = !recovery.ready || Boolean(recovery.pending)
+  const requestInFlightRef = useRef(false)
+
   const handleUndo = useCallback(() => {
     const previous = undoStack[undoStack.length - 1]
     if (!previous) return
@@ -343,6 +332,8 @@ export function useThemeEditorLifecycle({
   }, [deriveBridgeTheme, markDirty, overrides, postPreviewMessage, previewContext, rememberInteractionStart])
 
   const handleSave = useCallback(async () => {
+    if (recoveryBlocked || requestInFlightRef.current) return
+    requestInFlightRef.current = true
     const savingRevision = revisionRef.current
     const savingTheme = previewTheme
     const savingOverrides = overrides
@@ -362,11 +353,13 @@ export function useThemeEditorLifecycle({
         requestId: attempt.requestId,
       })
     } catch {
+      requestInFlightRef.current = false
       setSavingDraft(false)
       flashToast('Taslak yanıtı alınamadı; aynı istek güvenle tekrar denenebilir')
       return
     }
     setSavingDraft(false)
+    requestInFlightRef.current = false
 
     if ('error' in result) {
       flashToast(`Hata: ${result.error}`)
@@ -374,8 +367,7 @@ export function useThemeEditorLifecycle({
     }
 
     if (result.status === 'conflict') {
-      const revision = result.snapshot?.revision ?? 0
-      flashToast(`Taslak başka bir çalışan tarafından değiştirildi (sürüm ${revision}). Yerel değişikliklerin korundu; sayfayı yenileyip birleştir.`)
+      startRecovery()
       return
     }
 
@@ -397,9 +389,10 @@ export function useThemeEditorLifecycle({
     flashToast(result.status === 'replayed'
       ? 'Taslak kaydı doğrulandı; QR menü için yayınla'
       : 'Taslak kaydedildi; QR menüde görünmesi için yayınla')
-  }, [flashToast, overrides, previewTheme, restaurantId, templateId])
+  }, [flashToast, overrides, previewTheme, startRecovery, recoveryBlocked, restaurantId, templateId])
 
   const handlePublish = useCallback(async () => {
+    if (recoveryBlocked || requestInFlightRef.current) return
     const comboRibbonIssues = getThemeComboRibbonIssues(previewTheme, menuItems)
     if (comboRibbonIssues.length > 0) {
       flashToast(`Kombo Şerit: ${comboRibbonIssues[0]}`)
@@ -410,36 +403,9 @@ export function useThemeEditorLifecycle({
       flashToast(`Kampanya Slider: ${promoSliderIssues[0]}`)
       return
     }
-    if (authContrastIssues.length > 0) {
-      flashToast('Giriş yüzeyindeki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
-      return
-    }
-    if (checkoutContrastIssues.length > 0) {
-      flashToast('Checkout yüzeyindeki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
-      return
-    }
-    if (menuHeaderContrastIssues.length > 0) {
-      flashToast('Menü Header kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
-      return
-    }
-    if (menuThemeContrastIssues.length > 0) {
-      flashToast('Tema paletindeki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
-      return
-    }
-    if (menuNavigationContrastIssues.length > 0) {
-      flashToast('Menü navigasyonundaki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
-      return
-    }
-    if (menuCardContrastIssues.length > 0) {
-      flashToast('Ürün kartlarındaki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
-      return
-    }
-    if (menuCartContrastIssues.length > 0) {
-      flashToast('Sepet yüzeyindeki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
-      return
-    }
-    if (menuFooterContrastIssues.length > 0) {
-      flashToast('Footer yüzeyindeki kritik kontrast sorunlarını düzeltmeden yayınlayamazsın')
+    const contrastIssue = Object.values(publishContrast).flat()[0]
+    if (contrastIssue) {
+      flashToast(`Yayın engeli: ${contrastIssue.label} ${contrastIssue.ratio}:1 · gereken ${contrastIssue.minimum}:1`)
       return
     }
     if (hasUnsavedChanges) {
@@ -452,6 +418,7 @@ export function useThemeEditorLifecycle({
       expectedPublishedRevision: publishedRevisionRef.current,
     })
     publishAttemptRef.current = attempt
+    requestInFlightRef.current = true
     setPublishing(true)
     let result: Awaited<ReturnType<typeof publishTheme>>
     try {
@@ -461,21 +428,23 @@ export function useThemeEditorLifecycle({
         requestId: attempt.requestId,
       })
     } catch {
+      requestInFlightRef.current = false
       setPublishing(false)
       flashToast('Yayın yanıtı alınamadı; aynı istek güvenle tekrar denenebilir')
       return
     }
     setPublishing(false)
+    requestInFlightRef.current = false
     if ('error' in result) {
       flashToast(`Hata: ${result.error}`)
       return
     }
     if (result.status === 'draft_conflict') {
-      flashToast(`Taslak başka bir çalışan tarafından değiştirildi (sürüm ${result.snapshot.revision}). Sayfayı yenileyip güncel taslağı kontrol et.`)
+      startRecovery()
       return
     }
     if (result.status === 'conflict') {
-      flashToast(`Canlı Tema başka bir çalışan tarafından yayınlandı (sürüm ${result.snapshot.revision}). Taslağın korundu; güncel sürümü kontrol et.`)
+      startRecovery()
       return
     }
     publishedRevisionRef.current = result.revision
@@ -483,7 +452,7 @@ export function useThemeEditorLifecycle({
     setLastPublishedAt(new Date(result.publishedAt))
     setHasUnpublishedChanges(false)
     flashToast(result.status === 'replayed' ? 'QR menü yayını doğrulandı' : 'Tema masa QR menüsünde yayınlandı')
-  }, [authContrastIssues.length, checkoutContrastIssues.length, flashToast, hasUnpublishedChanges, hasUnsavedChanges, menuCardContrastIssues.length, menuCartContrastIssues.length, menuFooterContrastIssues.length, menuHeaderContrastIssues.length, menuItems, menuNavigationContrastIssues.length, menuThemeContrastIssues.length, previewTheme, restaurantId])
+  }, [flashToast, hasUnpublishedChanges, hasUnsavedChanges, menuItems, previewTheme, publishContrast, startRecovery, recoveryBlocked, restaurantId])
 
   const unsavedFieldLabels = useMemo(
     () => getUnsavedFieldLabels(hasUnsavedChanges, schema, previewTheme, savedThemeRef.current),
@@ -491,6 +460,8 @@ export function useThemeEditorLifecycle({
   )
 
   return {
+    recovery,
+    recoveryBlocked,
     overrides,
     previewTheme,
     iframeRef,

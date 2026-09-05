@@ -176,3 +176,5 @@ export {
   type MenuCartPreviewState,
   type MenuPageBlockRevealTarget,
 } from './theme-preview-protocol'
+
+export { inspectThemePublishContrast } from './theme-publish-validation'

@@ -1,5 +1,7 @@
 'use client'
 
+import { isThemeSectionLocked } from './theme-section-access-model'
+
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { getSectionDefinitionId, getSectionVisibility } from '@garsonless/design-engine'
@@ -43,9 +45,12 @@ type SectionLibraryItem = {
   id: string
   label: string
   sub: string
+  plan?: string
 }
 
 interface ThemeEditorSidebarProps {
+  canAddAdvancedSections?: boolean
+  canUseVideoHero?: boolean
   width: number
   templateName: string
   editorSearch: string
@@ -74,6 +79,8 @@ interface ThemeEditorSidebarProps {
 }
 
 export function ThemeEditorSidebar({
+  canAddAdvancedSections = true,
+  canUseVideoHero = true,
   width,
   templateName,
   editorSearch,
@@ -147,6 +154,7 @@ export function ThemeEditorSidebar({
         ? 'Kategori Menüsü'
         : category?.name ?? block.id
     return {
+      locked: isThemeSectionLocked(preset, canAddAdvancedSections, canUseVideoHero),
       label: sectionLabel(block, baseLabel),
       description: block.type === 'section'
         ? `${drawer ? 'Menü Drawer' : getSectionScopeLabel(block)} · ${preset?.sub ?? 'Özel bölüm'}`
@@ -177,7 +185,7 @@ export function ThemeEditorSidebar({
 
   const renderRow = (block: PageBlock, child = false) => {
     const key = pageBlockKey(block)
-    const { label, description } = getBlockCopy(block)
+    const { label, description, locked } = getBlockCopy(block)
     const selected = selectedPageBlockKey === key || (block.type === 'section' && selectedSectionId === block.id)
     const upTarget = getKeyboardMoveTarget(pageBlocks, menuCategories, key, -1)
     const downTarget = getKeyboardMoveTarget(pageBlocks, menuCategories, key, 1)
@@ -228,6 +236,7 @@ export function ThemeEditorSidebar({
             <ItemContent data-page-flow-content className="min-w-0 items-start gap-0">
               <ItemTitle className="w-full truncate">{label}</ItemTitle>
               <ItemDescription className="w-full truncate">{description}</ItemDescription>
+              {locked && <span className="text-xs text-muted-foreground">Paket nedeniyle gösterilmiyor</span>}
             </ItemContent>
           </TooltipTrigger>
           <TooltipContent side="right" sideOffset={8} align="center" className="max-w-64 whitespace-normal text-[11px] leading-snug">

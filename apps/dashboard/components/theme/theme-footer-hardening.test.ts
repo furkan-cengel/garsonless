@@ -10,9 +10,9 @@ const actions = readFileSync(new URL('../../lib/actions/theme.ts', import.meta.u
 const footer = readFileSync(new URL('../../../../packages/ui/src/menu/MenuFooter.tsx', import.meta.url), 'utf8')
 
 test('footer contrast blocks client and server publishing and exposes local repair', () => {
-  assert.match(lifecycle, /inspectMenuFooterContrast\(previewTheme\)/)
-  assert.match(lifecycle, /menuFooterContrastIssues\.length > 0/)
-  assert.match(actions, /inspectMenuFooterContrast\(sanitizedDraft\)/)
+  assert.match(lifecycle, /inspectThemePublishContrast\(previewTheme\)/)
+  assert.match(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
+  assert.match(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
   assert.match(client, /buildMenuFooterContrastRepairPatch\(previewTheme\)/)
   assert.match(client, /Footer tonunu güvenli hale getir/)
 })

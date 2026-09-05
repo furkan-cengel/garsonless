@@ -4,9 +4,10 @@ import { THEME_REGISTRY, type SettingsGroup } from '@garsonless/ui/themes'
 import { buildMenuCartContrastRepairPatch, buildMenuFooterContrastRepairPatch, buildMenuThemeContrastRepairPatch, CANONICAL_THEME_ID, createRevealMenuPageBlockCommand, resolveMenuHeaderTheme, type GarsonlessTheme } from '@garsonless/design-engine'
 import { useShell } from '../../lib/shell-context'
 import { ThemeEditorTopbar } from './ThemeEditorTopbar'; import { ThemeEditorCanvas } from './ThemeEditorCanvas'
+import { isThemeSectionLocked, THEME_SECTION_ACCESS_NOTICE } from './theme-section-access-model'
 import { ThemeExperienceProperties, ThemeExperienceSidebar } from './ThemeExperiencePanels'
 import { ThemeEditorDialogsLayer } from './ThemeEditorDialogsLayer'; import { ThemeEditorPropertiesWorkspace } from './ThemeEditorPropertiesWorkspace'
-import { ThemeEditorShell } from './ThemeEditorShell'; import { ThemeEditorSidebar } from './ThemeEditorSidebar'
+import { ThemeEditorNotices } from './ThemeEditorNotices'; import { ThemeEditorShell } from './ThemeEditorShell'; import { ThemeEditorSidebar } from './ThemeEditorSidebar'
 import { ChefPickIconUploadPanels, GalleryUploadPanel, PromoSliderImageUploadPanel, SectionImageUploadPanel, ServiceRequestIconUploadPanels } from './ThemeSectionSettings'
 import { ThemeLogoUploadCard } from './ThemeLogoUploadCard'
 import { useThemeEditorLifecycle } from './use-theme-editor-lifecycle'; import { useThemeEditorLogo } from './use-theme-editor-logo'
@@ -17,7 +18,7 @@ import { useThemeEditorDrawerPreview } from './use-theme-editor-drawer-preview';
 import { getThemeEditorSaveStatus } from './theme-editor-shell-model'; import { createThemeEditorPreviewDeriver } from './theme-editor-preview-theme-model'
 import { HOME_SECTION_LIBRARY, SECTION_GROUPS, SECTION_LIBRARY } from './theme-editor-section-registry'; import { createHomeThemeEditorController } from './home-theme-editor-controller'; import { resolveFooterStoreDataAvailability } from './footer-store-data'
 import { projectHomeV2ForEditor } from './home-theme-editor-model'; import { buildThemePreviewUrl } from './theme-preview-url'; import type { ThemeEditorClientProps } from './theme-editor-client-contract'
-export default function ThemeEditorClient({ restaurantId, restaurantSlug, restaurantName, restaurantLogoUrl,
+export default function ThemeEditorClient({ userId, restaurantId, restaurantSlug, restaurantName, restaurantLogoUrl,
   canAddAdvancedSections, canUseVideoHero, canUseGuestOrdering, experienceV2Enabled, previewAccessToken, templateId, initialPersistence, restaurantSettings, initialCouponOptions, menuCategories, menuItems }: ThemeEditorClientProps) {
   const entry = THEME_REGISTRY[CANONICAL_THEME_ID]!
   const fullSchema: SettingsGroup[] = entry.SETTINGS_SCHEMA
@@ -41,13 +42,13 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
     return (overrides: Partial<GarsonlessTheme>) => projectHomeV2ForEditor(deriveBaseTheme(overrides))
   }, [entry.THEME_DEFAULTS, menuCategories])
   const {
-    overrides, previewTheme, iframeRef, previewFrameUrl,
+    overrides, previewTheme, iframeRef, previewFrameUrl, recovery, recoveryBlocked,
     previewStatus, reloadPreviewFrame, handlePreviewFrameLoad, handlePreviewFrameError,
     savingDraft, publishing, toast, hasUnsavedChanges, lastSavedAt, lastPublishedAt,
     hasUnpublishedChanges, authContrastIssues, checkoutContrastIssues, menuHeaderContrastIssues, menuNavigationContrastIssues, menuCardContrastIssues, menuCartContrastIssues, menuFooterContrastIssues, menuThemeContrastIssues, unsavedFieldLabels, canUndo, canRedo, flashToast, postPreviewMessage,
     handleUndo, handleRedo, handleFieldChange, updateThemePatch, retireThemeMediaUrl, handleSave, handlePublish,
   } = useThemeEditorLifecycle({
-    restaurantId, templateId, previewUrl, ...initialPersistence,
+    userId, restaurantId, templateId, previewUrl, ...initialPersistence,
     defaults: entry.THEME_DEFAULTS, schema, derivePreviewTheme, setNavigationGuard,
     previewContext, onPreviewSurfaceNavigation: setExperienceSurface, menuItems, canAddAdvancedSections, canUseVideoHero,
   })
@@ -111,14 +112,10 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
   })
   const { leftPanelWidth, rightPanelWidth, showFullTopbarCopy, taskBased } = workspaceLayout
   const saveStatus = getThemeEditorSaveStatus({
-    savingDraft,
-    publishing,
-    hasUnsavedChanges,
-    hasUnpublishedChanges,
-    lastSavedAt,
-    lastPublishedAt,
+    savingDraft, publishing, hasUnsavedChanges,
+    hasUnpublishedChanges, lastSavedAt, lastPublishedAt,
   })
-  const { publishBlockedReason, handlePublishRequest } = useThemePublishGuidance({ authContrastIssues, checkoutContrastIssues, menuHeaderContrastIssues, menuNavigationContrastIssues, menuCardContrastIssues, menuCartContrastIssues, menuFooterContrastIssues, menuThemeContrastIssues, taskBased, setExperienceSurface, setAuthState, setCheckoutState, setActiveSurface, flashToast, handlePublish })
+  const { publishBlockedReason, handlePublishRequest } = useThemePublishGuidance({ authContrastIssues, checkoutContrastIssues, menuHeaderContrastIssues, menuNavigationContrastIssues, menuCardContrastIssues, menuCartContrastIssues, menuFooterContrastIssues, menuThemeContrastIssues, taskBased, selectGroup, setExperienceSurface, setAuthState, setCheckoutState, setActiveSurface, flashToast, handlePublish })
   const homeEnabled = previewTheme.surfaces?.home.enabled === true
   const menuSectionGroups = SECTION_GROUPS.filter((group) => group === 'Tümü' || SECTION_LIBRARY.some((section) => section.group === group))
   const homeEditor = createHomeThemeEditorController({
@@ -128,6 +125,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
   })
   const experienceSidebar = experienceSurface === 'menu' ? (
     <ThemeEditorSidebar
+      canAddAdvancedSections={canAddAdvancedSections} canUseVideoHero={canUseVideoHero}
       width={leftPanelWidth}
       templateName={entry.name}
       editorSearch={editorSearch}
@@ -180,6 +178,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
   const chromeScope = useThemeEditorChromeScope({ activeGroup, activeGroupData, experienceSurface, selectedHomeSectionId, previewTheme, resolvedMenuPreviewTheme, overrides, defaults: entry.THEME_DEFAULTS, updateThemePatch, flashToast }); const { sharedChromeActive, menuHeaderActive } = chromeScope
   const menuOrSharedProperties = (
     <ThemeEditorPropertiesWorkspace
+      sectionAccessNotice={isThemeSectionLocked(SECTION_LIBRARY.find((section) => section.id === selectedSectionDefinitionId), canAddAdvancedSections, canUseVideoHero) ? THEME_SECTION_ACCESS_NOTICE : undefined}
       couponOptions={couponOptions} width={rightPanelWidth}
       activeGroup={activeGroup} activeGroupData={activeGroupData}
       selectedSection={sharedChromeActive ? null : selectedSection} selectedSectionId={sharedChromeActive ? null : selectedSectionId}
@@ -259,6 +258,8 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
   )
   return (
     <ThemeEditorShell
+      editingBlocked={recoveryBlocked}
+      notices={<ThemeEditorNotices restaurantName={restaurantName} saveStatusText={saveStatus.text} hasUnsavedChanges={hasUnsavedChanges} unsavedFieldLabels={unsavedFieldLabels} publishBlockedReason={publishBlockedReason} onInspectPublishBlock={handlePublishRequest} recovery={recovery} recoveryBlocked={recoveryBlocked} />}
       taskBased={taskBased} activeSurface={activeSurface} onSurfaceChange={setActiveSurface} toastMessage={toast}
       topbar={<ThemeEditorTopbar
         restaurantName={restaurantName}
