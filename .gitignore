@@ -83,3 +83,4 @@ Thumbs.db
 
 # Local agent/plugin clones
 agent-skills/
+.vercel

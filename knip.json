@@ -9,6 +9,7 @@
   ],
   "project": ["*.{ts,mjs}", "scripts/**/*.{mjs,ts}", "tests/**/*.{mjs,ts}"],
   "ignore": [
+    "docs/audits/**/evidence/**",
     "**/.next/**",
     "**/dist/**",
     "**/coverage/**",
