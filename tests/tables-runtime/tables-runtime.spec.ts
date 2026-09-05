@@ -533,10 +533,12 @@ test.describe("tables production runtime gate", () => {
         .click();
       await expect(transfer).toHaveCount(0);
       await expect(desktop.getByText("Taşıma tamamlandı.", { exact: true })).toBeVisible();
-      await waitForActiveTable(desktop, targetLabel);
+      // Use the 12-second undo action immediately; live refresh can arrive later.
       await desktop.getByRole("button", { name: "Geri al", exact: true }).click();
       await expect(desktop.getByText("Taşıma geri alındı.", { exact: true })).toBeVisible();
       await waitForActiveTable(desktop, sourceLabel);
+      await expect(desktop.locator(".tb-floor-card__main").filter({ hasText: targetLabel }))
+        .toHaveAccessibleName(`${targetLabel}, Boş`, { timeout: 25_000 });
       evidence["itemQuantityTransfer"] = {
         selected: "2 of 3 Runtime Avokado Tost",
         desktopResponsive: true,
