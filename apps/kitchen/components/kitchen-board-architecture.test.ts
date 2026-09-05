@@ -13,10 +13,10 @@ test('kitchen station tabs filter line snapshots without exposing an unassigned 
 })
 
 test('kitchen transport reconciles on interval, visibility and focus', () => {
-  assert.match(boardSource, /setInterval\(\(\) => void reconcile\(\), 2_000\)/)
+  assert.match(boardSource, /setInterval\(\(\) => void poller\.poll\(\), 2_000\)/)
   assert.match(boardSource, /visibilitychange/)
   assert.match(boardSource, /addEventListener\('focus'/)
-  assert.match(boardSource, /Kitchen session expired/)
+  assert.match(boardSource, /createKitchenOrderPoller/)
 })
 
 test('kitchen status transitions stay behind the authenticated action boundary', () => {

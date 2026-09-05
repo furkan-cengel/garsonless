@@ -44,7 +44,8 @@
     "./tables": "./src/tables.ts",
     "./team": "./src/team.ts",
     "./themes": "./src/themes.ts",
-    "./web-vitals": "./src/web-vitals.ts"
+    "./web-vitals": "./src/web-vitals.ts",
+    "./request-body": "./src/request-body.ts"
   },
   "dependencies": {
     "@garsonless/design-engine": "workspace:*",

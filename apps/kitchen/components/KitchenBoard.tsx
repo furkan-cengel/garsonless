@@ -11,6 +11,7 @@ import {
 } from '@garsonless/application/tables'
 import { readOrderLineSnapshots, sortOrdersByPriorityThenCreatedAt } from '@garsonless/db/browser'
 import KitchenCard from './KitchenCard'
+import { createKitchenOrderPoller, type KitchenConnectionState } from './kitchen-order-poller'
 import { getKitchenOrdersAction } from '../lib/actions/orders'
 
 interface Column {
@@ -68,48 +69,37 @@ export default function KitchenBoard({
   )
   const [activeStationId, setActiveStationId] = useState<'expo' | 'unassigned' | string>('expo')
   const [now, setNow] = useState('--:--')
-  const cursorRef = useRef(initialOrderBatch.cursor)
-  const inFlightRef = useRef(false)
-  const lastSnapshotAtRef = useRef(Date.now())
+  const [connection, setConnection] = useState<KitchenConnectionState>({ status: 'connecting', lastSuccess: null })
+  const initialCursorRef = useRef(initialOrderBatch.cursor)
+  const retryRef = useRef<() => void>(() => undefined)
 
   useEffect(() => {
-    let alive = true
-    const reconcile = async (forceSnapshot = false) => {
-      if (inFlightRef.current) return
-      inFlightRef.current = true
-      try {
-        const snapshotDue = forceSnapshot || Date.now() - lastSnapshotAtRef.current >= 60_000
-        const result = await getKitchenOrdersAction(
-          restaurantId,
-          snapshotDue ? null : cursorRef.current,
-        )
-        if (alive && 'batch' in result) {
-          cursorRef.current = result.batch.cursor
-          if (result.batch.snapshot) lastSnapshotAtRef.current = Date.now()
-          setOrders((current) => sortOrdersByPriorityThenCreatedAt(
-            mergeKitchenOrderProjection(current, result.batch),
-          ))
-        }
-        if (alive && 'error' in result && result.error === 'Kitchen session expired') {
-          window.location.reload()
-        }
-      } finally {
-        inFlightRef.current = false
-      }
-    }
-    void reconcile()
-    const timer = window.setInterval(() => void reconcile(), 2_000)
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void reconcile(true)
-    }
-    const onFocus = () => void reconcile(true)
-    document.addEventListener('visibilitychange', onVisible)
-    window.addEventListener('focus', onFocus)
+    const poller = createKitchenOrderPoller({
+      cursor: initialCursorRef.current,
+      read: (cursor) => getKitchenOrdersAction(restaurantId, cursor),
+      isOnline: () => navigator.onLine,
+      isVisible: () => document.visibilityState === 'visible',
+      now: Date.now,
+      onBatch: (batch) => setOrders((current) => sortOrdersByPriorityThenCreatedAt(mergeKitchenOrderProjection(current, batch))),
+      onState: setConnection,
+      onExpired: () => window.location.reload(),
+    })
+    const retry = () => { void poller.poll(true) }
+    retryRef.current = retry
+    void poller.poll()
+    const timer = window.setInterval(() => void poller.poll(), 2_000)
+    document.addEventListener('visibilitychange', retry)
+    window.addEventListener('focus', retry)
+    window.addEventListener('online', retry)
+    window.addEventListener('offline', retry)
     return () => {
-      alive = false
+      poller.stop()
+      retryRef.current = () => undefined
       window.clearInterval(timer)
-      document.removeEventListener('visibilitychange', onVisible)
-      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', retry)
+      window.removeEventListener('focus', retry)
+      window.removeEventListener('online', retry)
+      window.removeEventListener('offline', retry)
     }
   }, [restaurantId])
 
@@ -146,13 +136,26 @@ export default function KitchenBoard({
     <div className="min-h-screen flex flex-col bg-background">
       <header className="border-b border-border bg-surface px-4 py-4 md:px-6">
         <div className="flex items-center gap-3">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-success" />
-          </span>
+          <span aria-hidden="true" className={connection.status === 'live' ? 'size-2.5 shrink-0 rounded-full bg-success' : 'size-2.5 shrink-0 rounded-full bg-warning'} />
           <span className="font-semibold text-text">{restaurant.name}</span>
           <span className="text-xs font-semibold text-text-muted">Mutfak Ekranı</span>
           <span className="ml-auto font-mono text-sm tabular-nums text-text">{now}</span>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+          <span role="status">
+            {connection.status === 'live' ? 'Canlı · Siparişler güncel'
+              : connection.status === 'offline' ? 'Çevrimdışı · Son alınan siparişler gösteriliyor'
+              : connection.status === 'stale' ? 'Güncelleme gecikti · Son alınan siparişler gösteriliyor'
+              : 'Sipariş bağlantısı kontrol ediliyor…'}
+          </span>
+          {connection.lastSuccess !== null && connection.status !== 'live' && (
+            <span>Son bağlantı: {new Date(connection.lastSuccess).toLocaleTimeString('tr-TR')}</span>
+          )}
+          {(connection.status === 'stale' || connection.status === 'offline') && (
+            <button type="button" className="min-h-11 rounded-md border border-border px-3 font-semibold text-text" onClick={() => retryRef.current()}>
+              Tekrar dene
+            </button>
+          )}
         </div>
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
           {stationTabs.map((station) => {

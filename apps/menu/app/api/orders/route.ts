@@ -1,3 +1,4 @@
+import { readBoundedRequestBody } from '@garsonless/application/request-body'
 import { NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { placePublicOrder } from '@garsonless/application/orders'
@@ -5,7 +6,7 @@ import { resolvePublicTableContext } from '@garsonless/application/tables'
 import type { OrderDiscountBreakdown } from '@garsonless/db/types'
 import { createPublicOrderPort, createPublicTableQueryPort, resolveTransferredGuestTable } from '@garsonless/db/server'
 import { getCustomerSession } from '../../../lib/customer-session'
-import { parseOrderRequestBody, validateOrderRequestHeaders } from './order-request'
+import { MAX_ORDER_BODY_BYTES, parseOrderRequestBody, validateOrderRequestHeaders } from './order-request'
 
 type ApiResponse<T> = { success: true; data: T } | { success: false; error: string; code?: string }
 
@@ -17,9 +18,13 @@ export async function POST(
     return NextResponse.json({ success: false, error: headerError.error }, { status: headerError.status })
   }
 
+  const body = await readBoundedRequestBody(req, MAX_ORDER_BODY_BYTES)
+  if (!body.ok) {
+    return NextResponse.json({ success: false, error: body.status === 413 ? 'Sipariş isteği çok büyük.' : 'Geçersiz JSON.' }, { status: body.status })
+  }
   let rawBody: string
   try {
-    rawBody = await req.text()
+    rawBody = new TextDecoder('utf-8', { fatal: true }).decode(body.bytes)
   } catch {
     return NextResponse.json({ success: false, error: 'Geçersiz JSON.' }, { status: 400 })
   }
