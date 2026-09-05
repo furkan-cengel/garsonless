@@ -29,7 +29,7 @@ export function MenuItemEditorFrame({ itemId, itemName, position, createdAt, upd
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== 'Escape' || document.querySelector('[role="dialog"][aria-modal="true"]')) return
+      if (event.defaultPrevented || event.key !== 'Escape' || document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"]')) return
       event.preventDefault()
       onClose()
     }

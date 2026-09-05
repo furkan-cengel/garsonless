@@ -134,6 +134,7 @@ export default function NewProductDrawer({
       if (event.key === 'Escape') {
         if (pendingRef.current) return
         event.preventDefault()
+        event.stopImmediatePropagation()
         if (dirtyRef.current) setDiscardConfirmOpen(true)
         else onCloseRef.current()
         return
