@@ -1,3 +1,4 @@
+import { readBoundedRequestBody } from '@garsonless/application/request-body'
 import { processSubscriptionBillingWebhook } from '@garsonless/application/billing'
 import {
   createSubscriptionBillingPersistencePort,
@@ -45,15 +46,11 @@ export async function POST(request: Request) {
     return json({ ok: false, code: 'BILLING_WEBHOOK_NOT_CONFIGURED' }, 503)
   }
 
-  let rawBody: Uint8Array
-  try {
-    rawBody = new Uint8Array(await request.arrayBuffer())
-  } catch {
-    return json({ ok: false, code: 'BILLING_WEBHOOK_INVALID_BODY' }, 400)
+  const body = await readBoundedRequestBody(request, MAX_WEBHOOK_BYTES)
+  if (!body.ok) {
+    return json({ ok: false, code: body.status === 413 ? 'BILLING_WEBHOOK_TOO_LARGE' : 'BILLING_WEBHOOK_INVALID_BODY' }, body.status)
   }
-  if (rawBody.byteLength > MAX_WEBHOOK_BYTES) {
-    return json({ ok: false, code: 'BILLING_WEBHOOK_TOO_LARGE' }, 413)
-  }
+  const rawBody = body.bytes
   const result = await processSubscriptionBillingWebhook(
     {
       rawBody,

@@ -211,7 +211,7 @@
       "target": { "origin": "dashboard", "path": "/api/internal/accounting-invoices" },
       "sourcePaths": [
         "apps/dashboard/app/api/internal/accounting-invoices/route.ts",
-        "apps/dashboard/lib/accounting/parasut-invoice-provider.ts",
+        "apps/dashboard/lib/accounting/nilvera-invoice-provider.ts",
         "apps/dashboard/lib/accounting/invoice-email.ts",
         "packages/db/src/accounting-invoice-port.ts"
       ],

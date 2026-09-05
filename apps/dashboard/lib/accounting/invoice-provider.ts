@@ -7,17 +7,6 @@ export type FormalizedDocument = {
   type: FiscalDocumentType
 }
 
-export type ParasutRefreshTokenLease = {
-  refreshToken: string
-  version: number
-}
-
-export interface ParasutRefreshTokenStore {
-  claim(): Promise<ParasutRefreshTokenLease>
-  rotate(lease: ParasutRefreshTokenLease, nextRefreshToken: string): Promise<void>
-  release(lease: ParasutRefreshTokenLease): Promise<void>
-}
-
 export type ProviderStepError = Error & {
   code: string
   retryable: boolean
@@ -26,7 +15,7 @@ export type ProviderStepError = Error & {
 export interface InvoiceProvider {
   ensureContact(job: AccountingInvoiceJob): Promise<string>
   resolveDocumentType(job: AccountingInvoiceJob): Promise<FiscalDocumentType>
-  createSalesInvoice(job: AccountingInvoiceJob, contactRef: string): Promise<string>
+  createSalesInvoice(job: AccountingInvoiceJob, contactRef: string, type: FiscalDocumentType): Promise<string>
   formalize(job: AccountingInvoiceJob, invoiceRef: string, type: FiscalDocumentType): Promise<string>
   readTask(taskRef: string): Promise<'pending' | 'succeeded'>
   resolveFormalizedDocument(invoiceRef: string, expectedType: FiscalDocumentType): Promise<FormalizedDocument | null>

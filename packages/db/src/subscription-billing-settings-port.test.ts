@@ -24,6 +24,7 @@ const projection = {
     currency: 'TRY', status: 'past_due', periodStart: '2026-07-01T00:00:00.000Z',
     periodEnd: '2026-08-01T00:00:00.000Z', dueAt: '2026-07-01T00:00:00.000Z',
     paidAt: null, failedAt: '2026-07-01T10:00:00.000Z', canRetry: true, addOns: [],
+    fiscalDocumentStatus: 'not_available', fiscalDocumentType: null, canDownload: false,
   }],
   refunds: [{
     id: 'refund-1', invoiceId: 'invoice-1', kind: 'refund', scope: 'partial',
@@ -62,6 +63,30 @@ test('billing settings port parses a safe projection and rejects malformed money
   }))
   assert.deepEqual(await malformed.readSettings({ restaurantId: 'restaurant-1' }), {
     ok: false, error: 'Billing settings projection is invalid',
+  })
+
+  const unsafeDownload = createSubscriptionBillingSettingsReadPort(async () => ({
+    data: {
+      ...projection,
+      invoices: [{ ...projection.invoices[0], fiscalDocumentStatus: 'preparing', canDownload: true }],
+    },
+    error: null,
+  }))
+  assert.deepEqual(await unsafeDownload.readSettings({ restaurantId: 'restaurant-1' }), {
+    ok: false, error: 'Billing settings projection is invalid',
+  })
+})
+
+test('billing settings port remains compatible before the additive fiscal projection migration', async () => {
+  const { fiscalDocumentStatus: _status, fiscalDocumentType: _type, canDownload: _download, ...legacyInvoice } = projection.invoices[0]!
+  const port = createSubscriptionBillingSettingsReadPort(async () => ({
+    data: { ...projection, invoices: [legacyInvoice] }, error: null,
+  }))
+  const result = await port.readSettings({ restaurantId: 'restaurant-1' })
+  assert.equal(result.ok, true)
+  if (result.ok) assert.deepEqual(result.value.invoices[0], {
+    ...legacyInvoice,
+    fiscalDocumentStatus: 'not_available', fiscalDocumentType: null, canDownload: false,
   })
 })
 

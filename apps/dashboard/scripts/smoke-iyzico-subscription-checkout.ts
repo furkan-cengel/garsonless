@@ -113,28 +113,33 @@ async function devDatabaseSmoke() {
   const service = createClient(supabaseUrl, requiredEnv('SUPABASE_SERVICE_ROLE_KEY'), {
     auth: { autoRefreshToken: false, persistSession: false },
   })
-  const { data: customer, error: customerError } = await service
+  const { data: profileCandidates, error: customerError } = await service
     .from('billing_customers')
     .select('restaurant_id,legal_name,contact_name,contact_surname,identity_number,contact_email,gsm_number,billing_address,shipping_address')
     .not('profile_completed_at', 'is', null)
     .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (customerError || !customer) throw new Error('sandbox_checkout_smoke_profile_unavailable')
+    .limit(20)
+  if (customerError || !profileCandidates?.length) {
+    throw new Error('sandbox_checkout_smoke_profile_unavailable')
+  }
 
-  const billingAddress = record(customer.billing_address)
-  const parsedProfile = billingProfileSchema.safeParse({
-    legalName: customer.legal_name,
-    taxOffice: billingAddress?.taxOffice,
-    name: customer.contact_name,
-    surname: customer.contact_surname,
-    identityNumber: customer.identity_number,
-    email: customer.contact_email,
-    gsmNumber: customer.gsm_number,
-    billingAddress: customer.billing_address,
-    shippingAddress: customer.shipping_address,
-  })
-  if (!parsedProfile.success) throw new Error('sandbox_checkout_smoke_profile_invalid')
+  const selected = profileCandidates.flatMap((candidate) => {
+    const billingAddress = record(candidate.billing_address)
+    const profile = billingProfileSchema.safeParse({
+      legalName: candidate.legal_name,
+      taxOffice: billingAddress?.taxOffice,
+      name: candidate.contact_name,
+      surname: candidate.contact_surname,
+      identityNumber: candidate.identity_number,
+      email: candidate.contact_email,
+      gsmNumber: candidate.gsm_number,
+      billingAddress: candidate.billing_address,
+      shippingAddress: candidate.shipping_address,
+    })
+    return profile.success ? [{ customer: candidate, profile }] : []
+  })[0]
+  if (!selected) throw new Error('sandbox_checkout_smoke_profile_invalid')
+  const { customer, profile: parsedProfile } = selected
 
   const requestId = randomUUID()
   const idempotencyKey = `billing:checkout-runtime-smoke:${customer.restaurant_id}:${requestId}`

@@ -31,6 +31,7 @@ export type Database = {
           provider_contact_ref: string | null
           provider_document_ref: string | null
           provider_invoice_ref: string | null
+          provider_name: string | null
           provider_task_ref: string | null
           restaurant_id: string
           status: string
@@ -53,6 +54,7 @@ export type Database = {
           provider_contact_ref?: string | null
           provider_document_ref?: string | null
           provider_invoice_ref?: string | null
+          provider_name?: string | null
           provider_task_ref?: string | null
           restaurant_id: string
           status: string
@@ -75,6 +77,7 @@ export type Database = {
           provider_contact_ref?: string | null
           provider_document_ref?: string | null
           provider_invoice_ref?: string | null
+          provider_name?: string | null
           provider_task_ref?: string | null
           restaurant_id?: string
           status?: string
@@ -6211,7 +6214,7 @@ export type Database = {
             Returns: boolean
           }
       claim_accounting_invoice_jobs: {
-        Args: { p_limit?: number; p_worker_id: string }
+        Args: { p_limit?: number; p_provider_name: string; p_worker_id: string }
         Returns: Json
       }
       claim_active_customer_guest_orders: {
@@ -6337,10 +6340,6 @@ export type Database = {
           p_occurred_at?: string
           p_worker: string
         }
-        Returns: Json
-      }
-      claim_parasut_refresh_token: {
-        Args: { p_lease_seconds?: number; p_worker_id: string }
         Returns: Json
       }
       claim_payment_reconciliation: {
@@ -6523,10 +6522,6 @@ export type Database = {
       configure_outbox_worker_vault: {
         Args: { p_secret: string; p_url: string }
         Returns: Json
-      }
-      configure_parasut_refresh_token: {
-        Args: { p_refresh_token: string }
-        Returns: boolean
       }
       consume_customer_auth_intent: {
         Args: { p_context_hash: string; p_nonce_hash: string }
@@ -7210,10 +7205,6 @@ export type Database = {
           p_provider_subscription_ref: string
         }
         Returns: Json
-      }
-      initialize_parasut_refresh_token: {
-        Args: { p_refresh_token: string }
-        Returns: boolean
       }
       intervene_platform_admin_billing_dunning: {
         Args: {
@@ -8029,10 +8020,6 @@ export type Database = {
         Args: { p_order: string; p_reason: string }
         Returns: boolean
       }
-      release_parasut_refresh_token: {
-        Args: { p_expected_version: number; p_worker_id: string }
-        Returns: boolean
-      }
       release_split_checkout_reservation: {
         Args: { p_restaurant_id: string; p_share_id: string }
         Returns: boolean
@@ -8187,14 +8174,6 @@ export type Database = {
       restaurant_table_layout_snapshot: {
         Args: { p_restaurant_id: string }
         Returns: Json
-      }
-      rotate_parasut_refresh_token: {
-        Args: {
-          p_expected_version: number
-          p_refresh_token: string
-          p_worker_id: string
-        }
-        Returns: boolean
       }
       rotate_table_qr_token: {
         Args: {

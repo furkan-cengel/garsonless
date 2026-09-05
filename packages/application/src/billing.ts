@@ -173,6 +173,9 @@ export type SubscriptionBillingSettingsInvoice = {
   paidAt: string | null
   failedAt: string | null
   canRetry: boolean
+  fiscalDocumentStatus: 'not_available' | 'preparing' | 'profile_required' | 'ready' | 'failed'
+  fiscalDocumentType: 'e_fatura' | 'e_arsiv' | null
+  canDownload: boolean
 }
 
 export type SubscriptionBillingSettingsRefund = {

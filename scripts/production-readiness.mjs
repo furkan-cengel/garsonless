@@ -118,8 +118,9 @@ const CAPABILITIES = {
     scopes: ['dashboard'],
     keys: [
       'ACCOUNTING_DISPATCH_ENABLED', 'ACCOUNTING_WORKER_SECRET', 'ACCOUNTING_WORKER_URL',
-      'PARASUT_CLIENT_ID', 'PARASUT_CLIENT_SECRET', 'PARASUT_COMPANY_ID',
-      'PARASUT_PRODUCT_ID', 'PARASUT_API_BASE_URL', 'PARASUT_INTERNET_SALE_URL',
+      'ACCOUNTING_PROVIDER', 'NILVERA_API_KEY', 'NILVERA_SELLER_TAX_NUMBER',
+      'NILVERA_EINVOICE_SERIES', 'NILVERA_EARCHIVE_SERIES',
+      'NILVERA_API_BASE_URL', 'NILVERA_INTERNET_SALE_URL',
       'INVOICE_VAT_RATE', 'INVOICE_SERVICE_NAME',
     ],
   },
@@ -153,7 +154,7 @@ const SECRET_KEYS = new Set([
   'OUTBOX_WORKER_SECRET', 'SEND_EMAIL_HOOK_SECRET', 'RESEND_API_KEY',
   'IYZICO_API_KEY', 'IYZICO_SECRET_KEY', 'IYZICO_BILLING_API_KEY',
   'IYZICO_BILLING_SECRET_KEY', 'WEB_PUSH_VAPID_PRIVATE_KEY', 'NETGSM_PASSWORD',
-  'ACCOUNTING_WORKER_SECRET', 'PARASUT_CLIENT_SECRET', 'SEND_SMS_HOOK_SECRETS',
+  'ACCOUNTING_WORKER_SECRET', 'NILVERA_API_KEY', 'SEND_SMS_HOOK_SECRETS',
   'CUSTOMER_AUTH_STATE_KEYS', 'RECAPTCHA_SECRET_KEY',
 ])
 
@@ -164,7 +165,7 @@ const URL_KEYS = new Set([
   'OUTBOX_PUSH_CONSUMER_URL', 'OUTBOX_INBOX_CONSUMER_URL',
   'OUTBOX_EMAIL_CONSUMER_URL', 'PAYMENT_RECONCILIATION_URL',
   'BILLING_MAINTENANCE_URL', 'IYZICO_BASE_URL', 'IYZICO_BILLING_BASE_URL',
-  'ACCOUNTING_WORKER_URL', 'PARASUT_API_BASE_URL', 'PARASUT_INTERNET_SALE_URL',
+  'ACCOUNTING_WORKER_URL', 'NILVERA_API_BASE_URL', 'NILVERA_INTERNET_SALE_URL',
 ])
 
 function stripInlineComment(value) {
@@ -321,7 +322,7 @@ const CAPABILITY_FLAGS = [
   },
   {
     scope: 'dashboard', capability: 'accounting', key: 'ACCOUNTING_DISPATCH_ENABLED',
-    label: 'Paraşüt dispatch',
+    label: 'Nilvera dispatch',
   },
   {
     scope: 'menu', capability: 'customer-phone-auth', key: 'CUSTOMER_AUTH_PHONE_OTP_ENABLED',
@@ -429,8 +430,19 @@ export function validateProductionConfig({ env, scopes, capabilities = [], proje
     && env.IYZICO_BILLING_BASE_URL !== 'https://api.iyzipay.com') {
     errors.push(issue('MAS-DEP-006', 'IYZICO_BILLING_BASE_URL', 'Canlı SaaS billing işlemi için production İyzico origin zorunlu.'))
   }
-  if (accountingEnabled && env.PARASUT_API_BASE_URL !== 'https://api.parasut.com') {
-    errors.push(issue('MAS-DEP-006', 'PARASUT_API_BASE_URL', 'Canlı accounting için production Paraşüt origin zorunlu.'))
+  if (accountingEnabled && env.ACCOUNTING_PROVIDER !== 'nilvera') {
+    errors.push(issue('MAS-DEP-006', 'ACCOUNTING_PROVIDER', 'Canlı accounting provider nilvera olmalı.'))
+  }
+  if (accountingEnabled && env.NILVERA_API_BASE_URL !== 'https://api.nilvera.com') {
+    errors.push(issue('MAS-DEP-006', 'NILVERA_API_BASE_URL', 'Canlı accounting için production Nilvera origin zorunlu.'))
+  }
+  if (accountingEnabled && !/^\d{10,11}$/.test(env.NILVERA_SELLER_TAX_NUMBER ?? '')) {
+    errors.push(issue('MAS-DEP-006', 'NILVERA_SELLER_TAX_NUMBER', 'Nilvera satıcı VKN/TCKN değeri 10 veya 11 haneli olmalı.'))
+  }
+  for (const key of ['NILVERA_EINVOICE_SERIES', 'NILVERA_EARCHIVE_SERIES']) {
+    if (accountingEnabled && !/^[A-Z0-9]{3}$/.test(env[key] ?? '')) {
+      errors.push(issue('MAS-DEP-006', key, 'Nilvera belge serisi üç büyük harf veya rakamdan oluşmalı.'))
+    }
   }
   if (saasBillingEnabled) {
     errors.push(...validateSaasBillingContract(env))

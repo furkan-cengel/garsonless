@@ -102,7 +102,7 @@ Provider hazır olmayan özellikler core deploy kontrolünü engellemez; ancak
 # Platform-admin abonelik iade/iptal para hareketi
 --capability subscription-refunds
 
-# Dashboard Paraşüt mali belge dispatch'i
+# Dashboard Nilvera mali belge dispatch'i
 --capability accounting
 
 # Menu telefon OTP + Supabase Send SMS Hook
@@ -135,7 +135,7 @@ bir capability'nin boş/sandbox provider ayarı core deploy kontrolünü engelle
 12 benzersiz provider referansı zorunludur. İyzico add-on netleri aylık/yıllık
 `30000/288000`, Video Hero netleri `3900/37440` minor unit olmalı; her provider
 brüt tutarı plan + add-on net toplamına tamsayı `INVOICE_VAT_RATE` uygulanmış
-değerle bire bir eşleşmelidir. SaaS billing ve Paraşüt doğrulaması tamamlanana
+değerle bire bir eşleşmelidir. SaaS billing ve Nilvera doğrulaması tamamlanana
 kadar ilgili capability'ler `MAS-DEP-W01` olarak açıkça ertelenir.
 
 ## Deploy sırası

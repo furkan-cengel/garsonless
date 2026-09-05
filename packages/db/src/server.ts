@@ -217,13 +217,18 @@ export { createSubscriptionBillingPersistencePort } from './subscription-billing
 export { createSubscriptionBillingWebhookInboxPort } from './subscription-billing-webhook-port'
 export { createSubscriptionBillingOperationsPort } from './subscription-billing-operations-port'
 export { createSubscriptionBillingSettingsReadPort } from './subscription-billing-settings-port'
+export {
+  createSubscriptionInvoiceDocumentReadPort,
+  type SubscriptionInvoiceDocumentLookup,
+} from './subscription-invoice-document-port'
 export { createSubscriptionCancellationSchedulePort } from './subscription-cancellation-port'
 export {
   createAccountingInvoicePort,
+  type ActiveAccountingProviderName,
   type AccountingInvoiceJob,
   type AccountingProfileSnapshot,
+  type AccountingProviderName,
 } from './accounting-invoice-port'
-export { createParasutOAuthPort, type ParasutOAuthLease } from './parasut-oauth-port'
 export { createBillingMaintenancePort } from './billing-maintenance-port'
 export { createPlatformAdminIdentityPort } from './platform-admin-identity-port'
 export {

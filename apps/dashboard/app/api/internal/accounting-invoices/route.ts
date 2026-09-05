@@ -1,9 +1,12 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
-import { createAccountingInvoicePort, type AccountingInvoiceJob } from '@garsonless/db/server'
+import {
+  createAccountingInvoicePort,
+  type AccountingInvoiceJob,
+  type ActiveAccountingProviderName,
+} from '@garsonless/db/server'
 import { sendInvoiceEmail } from '../../../../lib/accounting/invoice-email'
-import { createParasutInvoiceProvider, readParasutConfig } from '../../../../lib/accounting/parasut-invoice-provider'
-import { createParasutRefreshTokenStore } from '../../../../lib/accounting/parasut-refresh-token-store'
+import { createNilveraInvoiceProvider, readNilveraConfig } from '../../../../lib/accounting/nilvera-invoice-provider'
 import { providerError, type InvoiceProvider, type ProviderStepError } from '../../../../lib/accounting/invoice-provider'
 
 export const runtime = 'nodejs'
@@ -48,7 +51,7 @@ async function processJob(
       fiscalDocumentType: type,
     })
     if (!checkpoint.ok) throw providerError('ACCOUNTING_TYPE_CHECKPOINT', true)
-    const invoiceRef = await provider.createSalesInvoice(job, contactRef)
+    const invoiceRef = await provider.createSalesInvoice(job, contactRef, type)
     checkpoint = await port.checkpoint({
       jobId: job.id, workerId, providerContactRef: contactRef,
       providerInvoiceRef: invoiceRef, providerTaskRef: job.providerTaskRef,
@@ -69,12 +72,12 @@ async function processJob(
       if (!checkpoint.ok) throw providerError('ACCOUNTING_CHECKPOINT', true)
     }
     if (!document) {
-      if (!taskRef) throw providerError('PARASUT_TASK_IDENTITY_MISSING', true)
+      if (!taskRef) throw providerError('ACCOUNTING_TASK_IDENTITY_MISSING', true)
       const taskStatus = await provider.readTask(taskRef)
-      if (taskStatus === 'pending') throw providerError('PARASUT_TASK_PENDING', true)
+      if (taskStatus === 'pending') throw providerError('ACCOUNTING_TASK_PENDING', true)
       document = await provider.resolveFormalizedDocument(invoiceRef, type)
     }
-    if (!document) throw providerError('PARASUT_DOCUMENT_PENDING', true)
+    if (!document) throw providerError('ACCOUNTING_DOCUMENT_PENDING', true)
     checkpoint = await port.checkpoint({
       jobId: job.id, workerId, providerContactRef: contactRef,
       providerInvoiceRef: invoiceRef, providerTaskRef: taskRef,
@@ -114,20 +117,19 @@ export async function POST(request: Request) {
   }
   const workerId = `accounting-${crypto.randomUUID()}`
   let provider: InvoiceProvider
+  const providerName: ActiveAccountingProviderName = 'nilvera'
   try {
-    const config = readParasutConfig()
-    provider = createParasutInvoiceProvider(
-      config,
-      fetch,
-      createParasutRefreshTokenStore(workerId, config.refreshToken),
-    )
+    if (process.env['ACCOUNTING_PROVIDER']?.trim() !== providerName) {
+      throw providerError('ACCOUNTING_PROVIDER_UNSUPPORTED', false)
+    }
+    provider = createNilveraInvoiceProvider(readNilveraConfig())
   } catch {
     return NextResponse.json({ error: 'Accounting provider unavailable' }, { status: 503 })
   }
   const port = createAccountingInvoicePort()
-  // A fresh job uses up to ten Paraşüt V4 calls. Claiming one job per minute
-  // keeps the documented 10 requests / 10 seconds company limit deterministic.
-  const claimed = await port.claim(workerId, 1)
+  // Keep the first release deliberately serial. This bounds
+  // retries and duplicate risk while the fiscal-document flow is monitored.
+  const claimed = await port.claim(workerId, providerName, 1)
   if (!claimed.ok) return NextResponse.json({ error: 'Accounting queue unavailable' }, { status: 503 })
   const results = []
   for (const job of claimed.value) results.push(await processJob(job, workerId, provider))

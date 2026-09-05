@@ -143,6 +143,11 @@ function invoice(value: unknown): SubscriptionBillingSettingsInvoice | null {
   const paidAt = nullableTimestamp(row?.paidAt ?? null)
   const failedAt = nullableTimestamp(row?.failedAt ?? null)
   const addOns = row?.addOns ?? []
+  const hasFiscalProjection = row?.fiscalDocumentStatus !== undefined
+    || row?.fiscalDocumentType !== undefined || row?.canDownload !== undefined
+  const fiscalDocumentStatus = hasFiscalProjection ? row?.fiscalDocumentStatus : 'not_available'
+  const fiscalDocumentType = hasFiscalProjection ? row?.fiscalDocumentType : null
+  const canDownload = hasFiscalProjection ? row?.canDownload : false
   if (!row || !id || !['starter', 'plus', 'pro'].includes(plan as string)
     || !BILLING_INTERVALS.includes(billingInterval as never)
     || !SUBSCRIPTION_INVOICE_STATUSES.includes(status as never)
@@ -151,7 +156,12 @@ function invoice(value: unknown): SubscriptionBillingSettingsInvoice | null {
     || !Number.isSafeInteger(row.amountDueMinor) || (row.amountDueMinor as number) < 0
     || !Number.isSafeInteger(row.amountPaidMinor) || (row.amountPaidMinor as number) < 0
     || row.currency !== 'TRY' || !periodStart || !periodEnd || !dueAt
-    || paidAt === undefined || failedAt === undefined || typeof row.canRetry !== 'boolean') return null
+    || paidAt === undefined || failedAt === undefined || typeof row.canRetry !== 'boolean'
+    || !['not_available', 'preparing', 'profile_required', 'ready', 'failed'].includes(String(fiscalDocumentStatus))
+    || !(fiscalDocumentType === null || ['e_fatura', 'e_arsiv'].includes(String(fiscalDocumentType)))
+    || typeof canDownload !== 'boolean'
+    || (canDownload && fiscalDocumentStatus !== 'ready')
+    || (fiscalDocumentStatus === 'ready' && (!canDownload || fiscalDocumentType === null))) return null
   return {
     id,
     plan: plan as SubscriptionBillingSettingsInvoice['plan'],
@@ -161,6 +171,9 @@ function invoice(value: unknown): SubscriptionBillingSettingsInvoice | null {
     amountPaidMinor: row.amountPaidMinor as number,
     currency: 'TRY', status: status as SubscriptionBillingSettingsInvoice['status'],
     periodStart, periodEnd, dueAt, paidAt, failedAt, canRetry: row.canRetry,
+    fiscalDocumentStatus: fiscalDocumentStatus as SubscriptionBillingSettingsInvoice['fiscalDocumentStatus'],
+    fiscalDocumentType: fiscalDocumentType as SubscriptionBillingSettingsInvoice['fiscalDocumentType'],
+    canDownload,
   }
 }
 

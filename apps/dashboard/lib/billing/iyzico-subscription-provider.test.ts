@@ -163,6 +163,20 @@ test('platform config is explicit and rejects generic/fallback origins', () => {
   assert.throws(() => readIyzicoSubscriptionProviderConfig({
     ...env, NODE_ENV: 'production', IYZICO_BILLING_BASE_URL: config.baseUrl,
   }), /live origin in production/)
+  assert.doesNotThrow(() => readIyzicoSubscriptionProviderConfig({
+    ...env,
+    NODE_ENV: 'production',
+    NEXT_PUBLIC_APP_URL: 'https://sandbox.masabu.co',
+    IYZICO_BILLING_ALLOW_SANDBOX_IN_PRODUCTION: 'true',
+    IYZICO_BILLING_BASE_URL: config.baseUrl,
+  }))
+  assert.throws(() => readIyzicoSubscriptionProviderConfig({
+    ...env,
+    NODE_ENV: 'production',
+    NEXT_PUBLIC_APP_URL: 'https://app.masabu.co',
+    IYZICO_BILLING_ALLOW_SANDBOX_IN_PRODUCTION: 'true',
+    IYZICO_BILLING_BASE_URL: config.baseUrl,
+  }), /live origin in production/)
   assert.throws(() => readIyzicoSubscriptionProviderConfig({
     ...env,
     IYZICO_BILLING_BASE_URL: config.baseUrl,

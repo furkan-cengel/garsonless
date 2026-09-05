@@ -3,6 +3,7 @@ import { createNotificationEmailPort } from '@garsonless/db/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createNotificationEmailProvider } from '../../../../lib/notification-email-provider'
+import { billingDashboardUrl } from '../../../../lib/billing/subscription-billing-request'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
       parsed.data.eventId,
       createNotificationEmailPort(),
       createNotificationEmailProvider(),
+      { dashboardBaseUrl: billingDashboardUrl('/', process.env['NEXT_PUBLIC_APP_URL']).origin },
     )
     if (result.ok) return NextResponse.json(result.value)
     console.error('[notification-email-consumer]', { eventId: parsed.data.eventId, error: result.error })

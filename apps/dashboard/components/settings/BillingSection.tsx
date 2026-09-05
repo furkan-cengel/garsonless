@@ -697,6 +697,24 @@ function InvoiceRow({ restaurantId, invoice }: { restaurantId: string; invoice: 
       router.refresh()
     })
   }
+  const documentControl = invoice.fiscalDocumentStatus === 'ready' && invoice.canDownload
+    ? (
+      <Button
+        variant="outline"
+        size="sm"
+        render={<a href={`/api/restaurants/${encodeURIComponent(restaurantId)}/billing/invoices/${encodeURIComponent(invoice.id)}/document`} />}
+        aria-label={`${invoice.fiscalDocumentType === 'e_fatura' ? 'e-Fatura' : 'e-Arşiv'} PDF indir`}
+      >
+        <I.download data-icon="inline-start" />PDF indir
+      </Button>
+      )
+    : invoice.fiscalDocumentStatus === 'preparing'
+      ? <Badge variant="info"><Spinner data-icon="inline-start" aria-hidden="true" />Fatura hazırlanıyor</Badge>
+      : invoice.fiscalDocumentStatus === 'profile_required'
+        ? <Badge variant="warning" render={<a href="#billing-profile" />}>Fatura profili gerekli</Badge>
+        : invoice.fiscalDocumentStatus === 'failed'
+          ? <Badge variant="destructive">Fatura oluşturulamadı</Badge>
+          : <span className="text-xs text-muted-foreground">Henüz kullanılamıyor</span>
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr .9fr .8fr auto', gap: 12, alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid var(--divider)' }}>
       <div>
@@ -710,7 +728,7 @@ function InvoiceRow({ restaurantId, invoice }: { restaurantId: string; invoice: 
       <Tag tone={statusTone(invoice.status)}>{INVOICE_LABELS[invoice.status]}</Tag>
       {invoice.canRetry ? (
         <button type="button" onClick={retry} disabled={pending} style={btnGhost()}>{pending ? 'Gönderiliyor…' : 'Tekrar dene'}</button>
-      ) : <span style={{ width: 92 }} />}
+      ) : documentControl}
     </div>
   )
 }
@@ -810,7 +828,35 @@ export default function BillingSection({
   const currentPlanAddOnAvailable = currentPlanAddOn === 'iyzico_online_payments'
     ? planPrices.iyzicoOnlinePaymentsAddOnCheckoutAvailable
     : planPrices.storefrontVideoHeroAddOnCheckoutAvailable
+  const hasPreparingInvoice = billing?.invoices.some((invoice) =>
+    invoice.status === 'paid' && invoice.fiscalDocumentStatus === 'preparing') === true
+  const invoicePollingStartedAtRef = useRef<number | null>(null)
+  const [invoicePollingTimedOut, setInvoicePollingTimedOut] = useState(false)
   useSettingsDirtyState('billing:profile', profileDirty)
+
+  useEffect(() => {
+    if (!hasPreparingInvoice) {
+      invoicePollingStartedAtRef.current = null
+      setInvoicePollingTimedOut(false)
+      return
+    }
+    const startedAt = invoicePollingStartedAtRef.current ?? Date.now()
+    invoicePollingStartedAtRef.current = startedAt
+    const remainingMs = 120_000 - (Date.now() - startedAt)
+    if (remainingMs <= 0) {
+      setInvoicePollingTimedOut(true)
+      return
+    }
+    const refreshTimer = window.setInterval(() => router.refresh(), 5_000)
+    const stopTimer = window.setTimeout(() => {
+      window.clearInterval(refreshTimer)
+      setInvoicePollingTimedOut(true)
+    }, remainingMs)
+    return () => {
+      window.clearInterval(refreshTimer)
+      window.clearTimeout(stopTimer)
+    }
+  }, [hasPreparingInvoice, router])
 
   const setProfileValue = (key: keyof Omit<SubscriptionBillingProfile, 'billingAddress' | 'shippingAddress'>, value: string) => {
     setProfile((current) => ({ ...current, [key]: value }))
@@ -1141,8 +1187,9 @@ export default function BillingSection({
         </Collapsible>
       )}
 
-      <SCard title="Fatura profili" subtitle="İyzico abonelik işlemi için zorunlu yasal ve iletişim bilgileri" style={{ marginTop: 16 }}>
-        <div style={{ padding: 16, display: 'grid', gap: 14 }}>
+      <div id="billing-profile">
+        <SCard title="Fatura profili" subtitle="İyzico abonelik işlemi için zorunlu yasal ve iletişim bilgileri" style={{ marginTop: 16 }}>
+          <div style={{ padding: 16, display: 'grid', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div style={{ gridColumn: '1 / -1' }}><Field label="Yasal unvan" value={profile.legalName} onChange={(value) => setProfileValue('legalName', value)} /></div>
             <Field label="Ad" value={profile.name} onChange={(value) => setProfileValue('name', value)} />
@@ -1185,10 +1232,16 @@ export default function BillingSection({
             {canStartNewCheckout && <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={!checkoutAvailable || (selectedAddOn !== null && !addOnCheckoutAvailable) || pending || !checkoutTermsAccepted} style={btnPrimary({ opacity: !checkoutAvailable || (selectedAddOn !== null && !addOnCheckoutAvailable) || pending || !checkoutTermsAccepted ? .55 : 1, cursor: !checkoutAvailable || (selectedAddOn !== null && !addOnCheckoutAvailable) || pending || !checkoutTermsAccepted ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : !checkoutAvailable ? 'Güvenli ödeme yakında' : selectedAddOn && !addOnCheckoutAvailable ? 'Add-on satın alma yakında' : `${PLAN_DEFINITIONS[selectedPlan].label}${selectedAddOn ? ' + add-on' : ''} ödeme adımını aç`}</button>}
           </div>
           {feedback && <div role="status" style={{ fontSize: 12, color: feedback.includes('MAS-') ? 'var(--critical)' : 'var(--positive)', lineHeight: 1.5 }}>{feedback}</div>}
-        </div>
-      </SCard>
+          </div>
+        </SCard>
+      </div>
 
       <SCard title="Fatura geçmişi" subtitle="Son 12 abonelik faturası" style={{ marginTop: 16 }}>
+        {invoicePollingTimedOut && hasPreparingInvoice && (
+          <div role="status" className="border-b bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+            Fatura işlemi arka planda devam ediyor. Hazır olduğunda bu sayfada indirilebilir olacak.
+          </div>
+        )}
         {(billing?.invoices.length ?? 0) === 0
           ? <div style={{ padding: 24, textAlign: 'center', fontSize: 12.5, color: 'var(--text-3)' }}>Henüz abonelik faturası yok.</div>
           : billing?.invoices.map((invoice) => <InvoiceRow key={invoice.id} restaurantId={restaurantId} invoice={invoice} />)}

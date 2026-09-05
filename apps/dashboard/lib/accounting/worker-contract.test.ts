@@ -7,8 +7,11 @@ const email = readFileSync(new URL('./invoice-email.ts', import.meta.url), 'utf8
 
 test('accounting worker authenticates before claiming and checkpoints each external identity', () => {
   assert.match(route, /timingSafeEqual/)
-  assert.ok(route.indexOf('if (!authorized(request))') < route.indexOf('port.claim(workerId, 1)'))
-  assert.ok(route.indexOf("ACCOUNTING_DISPATCH_ENABLED'] !== 'true'") < route.indexOf('port.claim(workerId, 1)'))
+  assert.ok(route.indexOf('if (!authorized(request))') < route.indexOf('port.claim(workerId, providerName, 1)'))
+  assert.ok(route.indexOf("ACCOUNTING_DISPATCH_ENABLED'] !== 'true'") < route.indexOf('port.claim(workerId, providerName, 1)'))
+  assert.match(route, /port\.claim\(workerId, providerName, 1\)/)
+  assert.match(route, /ACCOUNTING_PROVIDER'\]\?\.trim\(\) !== providerName/)
+  assert.doesNotMatch(route, /createParasutInvoiceProvider|createParasutRefreshTokenStore/)
   assert.match(route, /ACCOUNTING_CONTACT_CHECKPOINT/)
   assert.match(route, /ACCOUNTING_INVOICE_CHECKPOINT/)
   assert.match(route, /providerTaskRef: taskRef/)

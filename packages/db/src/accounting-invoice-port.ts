@@ -17,6 +17,9 @@ export type AccountingProfileSnapshot = {
   billingInterval: 'monthly' | 'annual'
 }
 
+export type AccountingProviderName = 'parasut' | 'nilvera'
+export type ActiveAccountingProviderName = 'nilvera'
+
 export type AccountingInvoiceJob = {
   id: string
   restaurantId: string
@@ -25,6 +28,7 @@ export type AccountingInvoiceJob = {
   currency: 'TRY'
   profile: AccountingProfileSnapshot
   attempts: number
+  providerName: AccountingProviderName
   providerContactRef: string | null
   providerInvoiceRef: string | null
   providerTaskRef: string | null
@@ -92,6 +96,7 @@ function parseJob(value: unknown): AccountingInvoiceJob | null {
   const restaurantId = text(row?.restaurantId)
   const subscriptionInvoiceId = text(row?.subscriptionInvoiceId)
   const profile = parseProfile(row?.profile)
+  const providerName = row?.providerName
   const providerContactRef = nullableText(row?.providerContactRef ?? null)
   const providerInvoiceRef = nullableText(row?.providerInvoiceRef ?? null)
   const providerTaskRef = nullableText(row?.providerTaskRef ?? null)
@@ -100,12 +105,14 @@ function parseJob(value: unknown): AccountingInvoiceJob | null {
   if (!row || !id || !restaurantId || !subscriptionInvoiceId || !profile
     || !Number.isSafeInteger(row.amountMinor) || (row.amountMinor as number) < 0
     || row.currency !== 'TRY' || !Number.isInteger(row.attempts) || (row.attempts as number) < 1
+    || !['parasut', 'nilvera'].includes(providerName as string)
     || providerContactRef === undefined || providerInvoiceRef === undefined
     || providerTaskRef === undefined || providerDocumentRef === undefined
     || !(fiscalDocumentType === null || ['e_fatura', 'e_arsiv'].includes(fiscalDocumentType as string))) return null
   return {
     id, restaurantId, subscriptionInvoiceId, profile,
     amountMinor: row.amountMinor as number, currency: 'TRY', attempts: row.attempts as number,
+    providerName: providerName as AccountingProviderName,
     providerContactRef, providerInvoiceRef, providerTaskRef, providerDocumentRef,
     fiscalDocumentType: fiscalDocumentType as AccountingInvoiceJob['fiscalDocumentType'],
   }
@@ -113,17 +120,24 @@ function parseJob(value: unknown): AccountingInvoiceJob | null {
 
 export function createAccountingInvoicePort(rpc: Rpc = serviceRpc()) {
   return {
-    async claim(workerId: string, limit = 5): Promise<Result<AccountingInvoiceJob[]>> {
-      if (!workerId.trim() || workerId.length > 100 || !Number.isInteger(limit) || limit < 1 || limit > 20) {
+    async claim(
+      workerId: string,
+      providerName: ActiveAccountingProviderName,
+      limit = 5,
+    ): Promise<Result<AccountingInvoiceJob[]>> {
+      if (!workerId.trim() || workerId.length > 100 || providerName !== 'nilvera'
+        || !Number.isInteger(limit) || limit < 1 || limit > 20) {
         return err('Accounting claim input is invalid')
       }
       const { data, error } = await rpc('claim_accounting_invoice_jobs', {
-        p_worker_id: workerId, p_limit: limit,
+        p_worker_id: workerId, p_provider_name: providerName, p_limit: limit,
       })
       if (error) return err('Accounting jobs are unavailable')
       if (!Array.isArray(data)) return err('Accounting job projection is invalid')
       const parsed = data.map(parseJob)
-      return parsed.every((job): job is AccountingInvoiceJob => job !== null)
+      return parsed.every((job): job is AccountingInvoiceJob => (
+        job !== null && job.providerName === providerName
+      ))
         ? ok(parsed) : err('Accounting job projection is invalid')
     },
     async complete(input: {

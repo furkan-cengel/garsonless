@@ -821,3 +821,10 @@ Faz 7 gerçek İyzico sandbox kanıt matrisidir:
 
 PROD aktivasyonu ve production migration'ları, bu matris ile readiness
 checklist'i tamamlanana kadar bloke kalır. `SAAS_BILLING_ENABLED=false` korunur.
+# Sağlayıcı değişikliği notu — 2026-09-04
+
+Bu belge 1 Eylül tarihli karar ve kanıt durumunu tarihsel olarak korur. Paraşüt
+referansları artık aktif mimariyi temsil etmez; mali belge sağlayıcısı Nilvera'ya
+taşınmıştır. Güncel işletim sözleşmesi için
+[`docs/operations/nilvera-e-document.md`](../operations/nilvera-e-document.md)
+kullanılır.

@@ -96,7 +96,7 @@ test('runtime manifest is deterministic and contains hashes plus names but no cr
   assert.deepEqual(first, second)
   assert.equal(first.edgeFunctions.length, 3)
   assert.equal(first.cronJobs.length, 5)
-  assert.equal(first.vaultSecrets.length, 5)
+  assert.equal(first.vaultSecrets.length, 4)
   assert.deepEqual(first.runtimeCapabilities, ['accounting', 'customer-phone-auth'])
   assert.match(first.artifactSha256, /^[a-f0-9]{64}$/)
   const serialized = JSON.stringify(first)

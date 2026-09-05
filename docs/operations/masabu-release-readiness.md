@@ -20,7 +20,7 @@ Bu belge production secret içermez. İşaretlenmeyen kapılar canlı ödeme ve 
 - [ ] MERSİS veya ESBİS/esnaf sicil statüsü mali müşavirle doğrulandı; yalnız doğrulanmış bilgi yayımlandı.
 - [ ] ETBİS kaydı tamamlandı ve alan adı/iletişim bilgileri güncel tutuluyor.
 - [ ] VERBİS yükümlülüğü ve istisnalar KVKK hukukçusu tarafından yazılı değerlendirildi.
-- [ ] Supabase, Resend, iyzico, Paraşüt ve Supademo için bölge, saklama, alt işleyen ve yurt dışı aktarım envanteri tamamlandı.
+- [ ] Supabase, Resend, iyzico, Nilvera ve Supademo için bölge, saklama, alt işleyen ve yurt dışı aktarım envanteri tamamlandı.
 - [ ] Gerekli yurt dışı aktarım güvenceleri ve Kurum bildirimleri tamamlandı.
 - [ ] KVKK, gizlilik, çerez, abonelik ve iptal/iade metinleri avukat tarafından onaylandı; ardından `LEGAL_DOCS_APPROVED=true` verildi.
 - [ ] Muhasebeci `INVOICE_VAT_RATE` ve `INVOICE_SERVICE_NAME` production değerlerini onayladı.
@@ -49,13 +49,13 @@ Her alan adı için geçerli TLS sertifikası, HSTS kararı, doğru origin yönl
 - İyzico callback/webhook URL’leri HTTPS ve production origin üzerinde doğrulanır.
 - Provider plan tutarları kod kataloğuyla bire bir uyuşmadığında checkout’un açılmadığı test edilir.
 - `POST https://app.masabu.co/api/internal/accounting-invoices` yalnız `ACCOUNTING_WORKER_SECRET` Bearer değeriyle çağrılır. `ACCOUNTING_WORKER_URL` ve aynı secret ile `pnpm --filter @garsonless/db configure:accounting-worker-vault` çalıştırıldığında Supabase Vault değerleri ve dakikalık cron birlikte yapılandırılır.
-- Paraşüt OAuth refresh token’ı ilk worker çağrısında Supabase Vault’a alınır; Paraşüt’ün her yenilemede döndürdüğü yeni refresh token atomik olarak Vault’a yazılır. Token loglanmaz veya veritabanı iş kayıtlarına konmaz.
-- İlk yetkilendirmede Paraşüt’ün döndürdüğü tek kullanımlık code, geçici `PARASUT_AUTHORIZATION_CODE` olarak verilerek `pnpm --filter @garsonless/dashboard accounting:configure-parasut:dev` çalıştırılır. Komut yalnız refresh token’ı Vault’a yazar; token’ı ekrana basmaz. Ardından authorization code secret’tan kaldırılır.
-- `pnpm --filter @garsonless/dashboard accounting:verify-parasut:dev` yalnız yapılandırılmış Paraşüt ürününü okur; müşteri, taslak veya mali belge oluşturmaz.
-- Worker Paraşüt’ün şirket başına `10 istek / 10 saniye` sınırına uymak için her çağrıda yalnız bir mali belge işi alır.
+- Worker yalnız açıkça `ACCOUNTING_PROVIDER=nilvera` seçildiğinde başlar; eksik veya eski sağlayıcı değeri fail-closed davranır.
+- Nilvera API anahtarı portalda yalnız gerekli e-Fatura/e-Arşiv okuma-yazma yetkileriyle ve ortam bazında ayrı oluşturulur.
+- `pnpm --filter @garsonless/dashboard accounting:verify-nilvera:sandbox` şirket ve seri erişimini yalnız okuyarak doğrular.
+- Worker ilk yayında yinelenen belge riskini sınırlamak için her çağrıda yalnız bir mali belge işi alır.
 - `ACCOUNTING_DISPATCH_ENABLED=false` iken worker hiçbir kuyruk kaydı almaz; DEV test şirketi ve production açılışı ayrı ayrı açıkça etkinleştirilir.
-- Aynı ödenmiş abonelik faturası için `subscription_invoice_id` unique sınırı yalnız bir Paraşüt işi üretir.
-- Paraşüt kesintisi aboneliği geri almaz; kuyruk backoff ile tekrar eder.
+- Aynı ödenmiş abonelik faturası için `subscription_invoice_id` unique sınırı yalnız bir muhasebe işi üretir; ilk claim sağlayıcıyı kalıcı bağlar.
+- Nilvera kesintisi aboneliği geri almaz; kuyruk backoff ile tekrar eder.
 - İptal/iade mali belgeyi otomatik silmez; muhasebe inceleme kuyruğu açar.
 
 ## Yayın kanıtı
@@ -66,4 +66,4 @@ Her alan adı için geçerli TLS sertifikası, HSTS kararı, doğru origin yönl
 - [ ] Supademo yalnız ilgili demo adımı görüntü alanına girdiğinde otomatik yükleniyor; diğer adımlar erken ağ isteği üretmiyor.
 - [ ] Signup sözleşme kabulü ve checkout özeti sürüm, kullanıcı, zaman ve request-id bağlamıyla kaydoluyor.
 - [ ] Şifre, magic link, recovery ve harici `next` reddi production origin’de test edildi.
-- [ ] iyzico sandbox ve Paraşüt test şirketi üzerinde idempotency/kesinti senaryoları geçti.
+- [ ] iyzico sandbox ve Nilvera test şirketi üzerinde idempotency/kesinti senaryoları geçti.

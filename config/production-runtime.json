@@ -103,12 +103,6 @@
       "capability": "accounting",
       "kind": "secret",
       "sourceMigration": "packages/db/supabase/migrations/20260902040000_parasut_e_document_contract.sql"
-    },
-    {
-      "name": "parasut_refresh_token",
-      "capability": "accounting",
-      "kind": "secret",
-      "sourceMigration": "packages/db/supabase/migrations/20260902040000_parasut_e_document_contract.sql"
     }
   ],
   "cronJobs": [

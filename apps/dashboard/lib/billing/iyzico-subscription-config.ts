@@ -14,6 +14,7 @@ import {
 
 const IYZICO_SUBSCRIPTION_SANDBOX_URL = 'https://sandbox-api.iyzipay.com'
 const IYZICO_SUBSCRIPTION_LIVE_URL = 'https://api.iyzipay.com'
+const MASABU_SANDBOX_ORIGIN = 'https://sandbox.masabu.co'
 
 type BillingEnv = Readonly<Record<string, string | undefined>>
 type ProviderPlan = { referenceCode: string; amountMinor: number }
@@ -184,7 +185,16 @@ export function readIyzicoSubscriptionProviderConfig(
   if (baseUrl !== IYZICO_SUBSCRIPTION_SANDBOX_URL && baseUrl !== IYZICO_SUBSCRIPTION_LIVE_URL) {
     throw new Error('IYZICO_BILLING_BASE_URL must be an approved iyzico API origin')
   }
-  if (env.NODE_ENV === 'production' && baseUrl !== IYZICO_SUBSCRIPTION_LIVE_URL) {
+  const sandboxProductionDeployment = env.IYZICO_BILLING_ALLOW_SANDBOX_IN_PRODUCTION?.trim() === 'true'
+    && (() => {
+      try {
+        return new URL(env.NEXT_PUBLIC_APP_URL ?? '').origin === MASABU_SANDBOX_ORIGIN
+      } catch {
+        return false
+      }
+    })()
+  if (env.NODE_ENV === 'production' && baseUrl !== IYZICO_SUBSCRIPTION_LIVE_URL
+    && !sandboxProductionDeployment) {
     throw new Error('IYZICO_BILLING_BASE_URL must use the live origin in production')
   }
 

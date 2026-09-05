@@ -106,12 +106,13 @@ function accounting(overrides = {}) {
     ACCOUNTING_DISPATCH_ENABLED: 'true',
     ACCOUNTING_WORKER_SECRET: `accounting-${LONG}`,
     ACCOUNTING_WORKER_URL: 'https://app.masabu.co/api/internal/accounting-invoices',
-    PARASUT_CLIENT_ID: 'parasut-client-live',
-    PARASUT_CLIENT_SECRET: `parasut-${LONG}`,
-    PARASUT_COMPANY_ID: 'company-live',
-    PARASUT_PRODUCT_ID: 'product-live',
-    PARASUT_API_BASE_URL: 'https://api.parasut.com',
-    PARASUT_INTERNET_SALE_URL: 'https://masabu.co',
+    ACCOUNTING_PROVIDER: 'nilvera',
+    NILVERA_API_KEY: `nilvera-${LONG}`,
+    NILVERA_SELLER_TAX_NUMBER: '1234567890',
+    NILVERA_EINVOICE_SERIES: 'FAV',
+    NILVERA_EARCHIVE_SERIES: 'EAT',
+    NILVERA_API_BASE_URL: 'https://api.nilvera.com',
+    NILVERA_INTERNET_SALE_URL: 'https://masabu.co',
     INVOICE_VAT_RATE: '20',
     INVOICE_SERVICE_NAME: 'Masabu abonelik hizmeti',
     ...overrides,
@@ -374,7 +375,7 @@ test('subscription refunds have an independent platform-admin flag and live prov
   assert.equal(deferred.ok, true)
 })
 
-test('accounting requires the dispatch flag, complete Paraşüt contract and live API origin', () => {
+test('accounting requires the dispatch flag, complete Nilvera contract and live API origin', () => {
   const complete = validateProductionConfig({
     env: { ...baseDashboard(), ...accounting() },
     scopes: ['dashboard'], capabilities: ['accounting'], projectRef: PROD_REF,
@@ -388,19 +389,25 @@ test('accounting requires the dispatch flag, complete Paraşüt contract and liv
   assert.ok(disabled.errors.some((error) => error.key === 'ACCOUNTING_DISPATCH_ENABLED'))
 
   const incomplete = validateProductionConfig({
-    env: { ...baseDashboard(), ...accounting({ PARASUT_PRODUCT_ID: '' }) },
+    env: { ...baseDashboard(), ...accounting({ NILVERA_EINVOICE_SERIES: '' }) },
     scopes: ['dashboard'], capabilities: ['accounting'], projectRef: PROD_REF,
   })
-  assert.ok(incomplete.errors.some((error) => error.key === 'PARASUT_PRODUCT_ID'))
+  assert.ok(incomplete.errors.some((error) => error.key === 'NILVERA_EINVOICE_SERIES'))
+
+  const wrongProvider = validateProductionConfig({
+    env: { ...baseDashboard(), ...accounting({ ACCOUNTING_PROVIDER: 'legacy' }) },
+    scopes: ['dashboard'], capabilities: ['accounting'], projectRef: PROD_REF,
+  })
+  assert.ok(wrongProvider.errors.some((error) => error.key === 'ACCOUNTING_PROVIDER'))
 
   const sandbox = validateProductionConfig({
-    env: { ...baseDashboard(), ...accounting({ PARASUT_API_BASE_URL: 'https://sandbox.parasut.com' }) },
+    env: { ...baseDashboard(), ...accounting({ NILVERA_API_BASE_URL: 'https://apitest.nilvera.com' }) },
     scopes: ['dashboard'], capabilities: ['accounting'], projectRef: PROD_REF,
   })
-  assert.ok(sandbox.errors.some((error) => error.key === 'PARASUT_API_BASE_URL'))
+  assert.ok(sandbox.errors.some((error) => error.key === 'NILVERA_API_BASE_URL'))
 
   const deferred = validateProductionConfig({
-    env: baseDashboard({ PARASUT_API_BASE_URL: 'https://sandbox.parasut.com' }),
+    env: baseDashboard({ NILVERA_API_BASE_URL: 'https://apitest.nilvera.com' }),
     scopes: ['dashboard'], projectRef: PROD_REF,
   })
   assert.equal(deferred.ok, true)

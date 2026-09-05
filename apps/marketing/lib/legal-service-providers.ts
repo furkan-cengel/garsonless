@@ -30,9 +30,9 @@ export const LEGAL_SERVICE_PROVIDERS = [
     href: 'https://www.iyzico.com/gizlilik-politikasi',
   },
   {
-    name: 'Paraşüt',
+    name: 'Nilvera',
     purpose: 'Satış faturası, e-Fatura/e-Arşiv ve mali belge işlemleri',
     data: 'Fatura alıcısı, vergi, adres, iletişim, plan, tutar ve ödeme referansları',
-    href: 'https://www.parasut.com',
+    href: 'https://www.nilvera.com/gizlilik-politikasi',
   },
 ] as const
