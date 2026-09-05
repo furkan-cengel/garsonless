@@ -239,7 +239,7 @@ const TABLES_ROUTE_SKELETON_CSS = `
   .tb-route-skeleton { padding-bottom: calc(58px + env(safe-area-inset-bottom)); }
   .tb-route-skeleton__rail {
     position: fixed;
-    z-index: 170;
+    z-index: 20;
     inset: auto 0 0 0;
     width: 100%;
     height: calc(58px + env(safe-area-inset-bottom));

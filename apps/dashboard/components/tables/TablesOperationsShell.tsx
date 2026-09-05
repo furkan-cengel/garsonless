@@ -41,8 +41,7 @@ export default function TablesOperationsShell({
   restaurantName,
   restaurantTimezone = 'Europe/Istanbul',
   initialTables, initialDirectoryError = null,
-  initialOpenSessions,
-  initialSessionError = null,
+  initialOpenSessions, initialSessionError = null,
   initialLayoutSnapshot,
   initialLayoutError = null,
   initialNow,
@@ -97,6 +96,10 @@ export default function TablesOperationsShell({
   })
   const { openTableDetail, prefetchOperations } = useTableOperationPrefetch({ restaurantId, openSessions, setDetailTableId })
   const detailTable = detailTableId ? tables.find((table) => table.id === detailTableId) ?? null : null
+  const startNewOrder = (tableId: string | null) => {
+    setDetailTableId(null)
+    setNewOrderTableId(tableId)
+  }
   const tableStatuses = useMemo<TableStatusData[]>(() => tables.map((table) => {
     const session = openSessions[table.id]
     if (!session) return {
@@ -142,7 +145,7 @@ export default function TablesOperationsShell({
               onTransfer={(mode, tableId, options) => setTransfer({ mode, tableId: tableId ?? null, selectAllInitially: options?.selectAll })}
               onPrefetchTransfer={prefetchOperations}
               onOpenDetail={openTableDetail}
-              onNewOrder={(tableId) => setNewOrderTableId(tableId)}
+              onNewOrder={startNewOrder}
               pendingRequests={pendingRequests}
               onResolveRequest={resolveRequest}
               requestError={requestError}
@@ -168,7 +171,7 @@ export default function TablesOperationsShell({
                 now={now}
                 canCreateOrders={canCreateOrders}
                 onClose={() => setDetailTableId(null)}
-                onNewOrder={() => setNewOrderTableId(detailTable.id)}
+                onNewOrder={() => startNewOrder(detailTable.id)}
                 onTransferOrders={(orderIds) => {
                   setTransfer({ mode: 'account_transfer', tableId: detailTable.id, initialOrderIds: orderIds })
                   setDetailTableId(null)

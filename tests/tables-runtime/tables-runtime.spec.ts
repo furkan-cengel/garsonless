@@ -11,6 +11,7 @@ import { loadEnvFile } from "node:process";
 import { createClient } from "../../packages/db/src/browser-client";
 import { createServiceClient } from "../../packages/db/src/service-client";
 import { createTableSessionPort } from "../../packages/db/src/table-command-port";
+import { verifyMobileOrderOverlays } from './mobile-overlay-regression';
 
 const DEV_PROJECT_REF = "yxsegwkzyiscrxiwdeuf";
 const dashboardURL =
@@ -372,6 +373,9 @@ test.describe("tables production runtime gate", () => {
         waitForActiveTable(desktop, sourceLabel),
         waitForActiveTable(mobile, sourceLabel),
       ]);
+
+      await verifyMobileOrderOverlays(mobile, targetLabel);
+      evidence["mobileOrderOverlays"] = { widths: [320, 390], profileUncovered: true, footerUncovered: true, singleOrderDialog: true };
 
       // T04: safety refreshes must not discard an in-progress transfer selection.
       await mobile.getByRole("button", { name: new RegExp(`^${sourceLabel},`) }).first().click();

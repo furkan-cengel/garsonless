@@ -171,9 +171,9 @@ export default function NewOrderModal({ restaurantId, tableStatuses, initialTabl
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent
         showCloseButton={false}
-        className="flex h-[min(85dvh,720px)] max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl max-sm:h-dvh max-sm:max-h-dvh max-sm:max-w-none max-sm:rounded-none"
+        className="flex h-[min(85dvh,720px)] max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:max-h-dvh max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none"
       >
-        <DialogHeader className="flex-row items-center gap-4 border-b px-5 py-4 text-left">
+        <DialogHeader className="shrink-0 flex-row items-center gap-4 border-b px-5 py-4 text-left">
           <div className="min-w-0 flex-1">
             <DialogTitle className="text-lg">Yeni sipariş oluştur</DialogTitle>
             <DialogDescription className="mt-1 text-xs">
@@ -199,7 +199,7 @@ export default function NewOrderModal({ restaurantId, tableStatuses, initialTabl
           <OrderSummary selectedTable={selectedTable} items={items} total={total} />
         </div>
 
-        <DialogFooter className="m-0 flex-row items-center justify-between rounded-none border-t bg-muted/30 px-5 py-3">
+        <DialogFooter className="m-0 shrink-0 flex-row flex-wrap items-center justify-between gap-2 rounded-none border-t bg-muted/30 px-5 py-3 max-sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <div className="flex min-w-0 items-center gap-3">
             <Button type="button" variant="outline" onClick={onClose}>İptal</Button>
             {error && <p role="alert" className="truncate text-xs text-destructive">{error}</p>}

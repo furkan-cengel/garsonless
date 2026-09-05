@@ -256,7 +256,8 @@ export const TABLES_MOBILE_STYLES = `
   }
   .tb-tables__rail {
     position: fixed !important;
-    z-index: 170;
+    /* Shared dialog/sheet portals use layer 50 and must cover the rail. */
+    z-index: 20;
     inset: auto 0 0 0;
     width: 100% !important;
     height: calc(58px + env(safe-area-inset-bottom));
