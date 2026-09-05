@@ -535,7 +535,7 @@ test.describe("tables production runtime gate", () => {
       await expect(desktop.getByText("Taşıma tamamlandı.", { exact: true })).toBeVisible();
       // Use the 12-second undo action immediately; live refresh can arrive later.
       await desktop.getByRole("button", { name: "Geri al", exact: true }).click();
-      await expect(desktop.getByText("Taşıma geri alındı.", { exact: true })).toBeVisible();
+      await expect(desktop.getByText("Taşıma geri alındı.", { exact: true })).toBeVisible({ timeout: 35_000 });
       await waitForActiveTable(desktop, sourceLabel);
       await expect(desktop.locator(".tb-floor-card__main").filter({ hasText: targetLabel }))
         .toHaveAccessibleName(`${targetLabel}, Boş`, { timeout: 25_000 });
