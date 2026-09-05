@@ -186,7 +186,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     }
     const response = await page.goto(`${dashboardURL}/dashboard/${restaurantId}/menu`, { waitUntil: 'domcontentloaded' })
     expect(response?.status()).toBe(200)
-    await expect(page.getByText(/Kategoriler|Yeni ürün/i).first()).toBeVisible()
+    await expect(page.getByText(/Kategoriler|Yeni ürün/i).filter({ visible: true }).first()).toBeVisible()
     await page.emulateMedia({ reducedMotion: 'reduce' })
 
     const viewportWidth = await page.evaluate(() => window.innerWidth)
@@ -392,7 +392,7 @@ test.describe('authenticated dashboard visual smoke', () => {
 
     await navigation
     await expect(loading).toBeHidden()
-    await expect(page.getByText(/Kategoriler|Yeni ürün/i).first()).toBeVisible()
+    await expect(page.getByText(/Kategoriler|Yeni ürün/i).filter({ visible: true }).first()).toBeVisible()
   })
 
   test('orders board is visually healthy', async ({ page }, testInfo) => {
@@ -400,7 +400,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     const restaurantId = getRestaurantId()
     const response = await page.goto(`${dashboardURL}/dashboard/${restaurantId}/orders`, { waitUntil: 'domcontentloaded' })
     expect(response?.status()).toBe(200)
-    await expect(page.getByText(/Siparişler|Sipariş Akışı|Sipariş yok/i).first()).toBeVisible()
+    await expect(page.getByText(/Siparişler|Sipariş Akışı|Sipariş yok/i).filter({ visible: true }).first()).toBeVisible()
     await expect(page.locator('.orders-shell')).toBeVisible()
     const responsive = await page.locator('.orders-shell').evaluate((root) => {
       const visibleStages = Array.from(root.querySelectorAll('.orders-column-slot')).filter((element) => getComputedStyle(element).display !== 'none')
@@ -498,7 +498,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     const restaurantId = getRestaurantId()
     const response = await page.goto(`${dashboardURL}/dashboard/${restaurantId}/customers`, { waitUntil: 'domcontentloaded' })
     expect(response?.status()).toBe(200)
-    await expect(page.getByText(/Müşteriler|Segment/i).first()).toBeVisible()
+    await expect(page.getByText(/Müşteriler|Segment/i).filter({ visible: true }).first()).toBeVisible()
     await assertVisualHealth(page, testInfo, 'dashboard-customers')
     expect(failures).toEqual([])
   })
@@ -508,7 +508,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     const restaurantId = getRestaurantId()
     const response = await page.goto(`${dashboardURL}/dashboard/${restaurantId}/tables`, { waitUntil: 'domcontentloaded' })
     expect(response?.status()).toBe(200)
-    await expect(page.getByText(/Masalar & QR|Masalar|QR/i).first()).toBeVisible()
+    await expect(page.getByText(/Masalar & QR|Masalar|QR/i).filter({ visible: true }).first()).toBeVisible()
     await assertVisualHealth(page, testInfo, 'dashboard-tables-builder', { maxHorizontalOverflow: 16 })
     expect(failures).toEqual([])
   })
@@ -591,7 +591,7 @@ test.describe('authenticated dashboard visual smoke', () => {
       waitUntil: 'domcontentloaded',
     })
     expect(response?.status()).toBe(200)
-    await expect(page.getByText(/Tema Düzenleyici|Önizleme/i).first()).toBeVisible()
+    await expect(page.getByText(/Tema Düzenleyici|Önizleme/i).filter({ visible: true }).first()).toBeVisible()
     await page.getByRole('button', { name: /^Bölüm ekle$/i }).click()
     const sectionPicker = page.getByRole('dialog', { name: /Bölüm ekle/i })
     await expect(sectionPicker).toBeVisible()

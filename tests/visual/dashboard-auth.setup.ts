@@ -12,6 +12,7 @@ const anonKey = process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']
 const serviceRoleKey = process.env['SUPABASE_SERVICE_ROLE_KEY']
 const storageStatePath = process.env['DASHBOARD_VISUAL_STORAGE_STATE'] ?? 'test-results/visual-auth/dashboard-storage-state.json'
 const metadataPath = process.env['DASHBOARD_VISUAL_METADATA'] ?? 'test-results/visual-auth/dashboard-metadata.json'
+const requestedRestaurantId = process.env['DASHBOARD_VISUAL_RESTAURANT_ID']
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 test('create dashboard authenticated storage state', async ({ page }) => {
@@ -63,6 +64,11 @@ test('create dashboard authenticated storage state', async ({ page }) => {
   }
 
   await page.waitForURL(/\/dashboard(\/|$)/, { timeout: 20_000 })
+
+  if (requestedRestaurantId) {
+    expect(requestedRestaurantId).toMatch(uuidPattern)
+    await page.goto(`${dashboardURL}/dashboard/${requestedRestaurantId}`, { waitUntil: 'domcontentloaded' })
+  }
 
   if (new URL(page.url()).pathname === '/dashboard') {
     await page.waitForURL(/\/dashboard\/[^/]+/, { timeout: 20_000 })
