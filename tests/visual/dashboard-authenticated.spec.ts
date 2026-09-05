@@ -224,6 +224,10 @@ test.describe('authenticated dashboard visual smoke', () => {
         await expect(page.locator(`#${headingId}`)).toBeFocused()
         await page.getByRole('button', { name: 'Ürünlere dön', exact: true }).click()
         await expect(firstEditorAction).toBeFocused()
+        await firstEditorAction.click()
+        await expect(workspace).toHaveAttribute('data-workspace-stage', 'editor')
+        await expect(editor).toBeVisible()
+        await page.getByRole('button', { name: 'Ürünlere dön', exact: true }).click()
 
         const newProduct = itemsWorkspace.getByRole('button', { name: 'Yeni ürün', exact: true })
         await newProduct.click()
@@ -233,6 +237,21 @@ test.describe('authenticated dashboard visual smoke', () => {
         await page.keyboard.press('Escape')
         await expect(newProductDialog).toBeHidden()
         await expect(newProduct).toBeFocused()
+        // A dirty nested confirmation must preserve the draft and restore focus.
+        await newProduct.click()
+        await newProductDialog.getByRole('textbox', { name: 'Ürün adı' }).fill('Audit taslağı — kaydedilmez')
+        await page.keyboard.press('Escape')
+        const confirmation = page.getByRole('alertdialog')
+        await expect(confirmation).toBeVisible()
+        await expect(confirmation.getByRole('button', { name: 'Düzenlemeye dön' })).toBeFocused()
+        await page.keyboard.press('Escape')
+        await expect(confirmation).toBeHidden()
+        await expect(newProductDialog.getByRole('textbox', { name: 'Ürün adı' })).toHaveValue('Audit taslağı — kaydedilmez')
+        await page.keyboard.press('Escape')
+        await confirmation.getByRole('button', { name: /sil|vazgeç/i }).click()
+        await expect(newProductDialog).toBeHidden()
+        await expect(newProduct).toBeFocused()
+
       }
     } else if (viewportWidth <= 1024) {
       await expect(categoryWorkspace).toBeVisible()
@@ -273,6 +292,40 @@ test.describe('authenticated dashboard visual smoke', () => {
     expect(animated, 'Menu animations must stop under reduced motion.').toBe(0)
     await assertVisualHealth(page, testInfo, 'dashboard-menu-manager')
     expect(failures).toEqual([])
+  })
+
+  test('notifications recover from rejected requests and keep keyboard focus inside the panel', async ({ page }, testInfo) => {
+    const restaurantId = getRestaurantId()
+    await page.goto(`${dashboardURL}/dashboard/${restaurantId}/menu`, { waitUntil: 'domcontentloaded' })
+    if (testInfo.project.name === 'dashboard-zoom-200') {
+      await page.locator('html').evaluate((element) => { element.style.zoom = '2' })
+    }
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    const trigger = page.getByRole('button', { name: 'Bildirimler', exact: true })
+    await expect(trigger).toBeVisible()
+    let failRequests = true
+    await page.route('**/dashboard/**', async (route) => {
+      if (failRequests && route.request().method() === 'POST' && route.request().headers()['next-action']) {
+        await route.abort('failed')
+      } else await route.continue()
+    })
+    await trigger.click()
+    const panel = page.getByRole('dialog', { name: 'Bildirimler', exact: true })
+    await expect(panel).toBeVisible()
+    await expect(panel.getByText('Bildirimler yüklenemedi', { exact: true })).toBeVisible()
+    await expect(panel.locator('.dashboard-notifications-list')).toHaveAttribute('aria-busy', 'false')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+    const close = panel.getByRole('button', { name: 'Bildirimleri kapat' })
+    await close.focus()
+    await page.keyboard.press('Shift+Tab')
+    await expect(panel.getByRole('button', { name: /Tümünü gör/ })).toBeFocused()
+    failRequests = false
+    await panel.getByRole('button', { name: 'Tekrar dene', exact: true }).click()
+    await expect(panel.locator('.dashboard-notifications-list')).toHaveAttribute('aria-busy', 'false')
+    await expect(panel.getByText('Bildirimler yüklenemedi', { exact: true })).toBeHidden()
+    await page.keyboard.press('Escape')
+    await expect(panel).toBeHidden()
+    await expect(trigger).toBeFocused()
   })
 
   test('menu loading skeleton mirrors its responsive workspace', async ({ page }, testInfo) => {

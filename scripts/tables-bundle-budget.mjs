@@ -72,7 +72,7 @@ function isRouteEntry(chunk, budget) {
   return /^page-[a-f0-9]+\.js$/u.test(fileName)
 }
 
-export function measureTablesRoute({ buildDirectory, manifest, budget }) {
+export function measureTablesRoute({ buildDirectory, manifest, budget, loadableManifest = {} }) {
   const routeFiles = manifest.pages[budget.manifestRoute]
   if (!Array.isArray(routeFiles) || routeFiles.length === 0) {
     fail(`Build manifestte ${budget.publicRoute} route'u bulunamadı.`)
@@ -96,6 +96,15 @@ export function measureTablesRoute({ buildDirectory, manifest, budget }) {
       gzipBytes: gzipSync(contents, { level: 9 }).byteLength,
     }
   })
+  const eagerFiles = (budget.eagerDynamicImports ?? []).flatMap((key) => {
+    const entry = loadableManifest[key]
+    if (!entry || !Array.isArray(entry.files) || !entry.files.some((file) => typeof file === 'string' && file.endsWith('.js'))) {
+      fail(`Eager dynamic import bulunamadı: ${key}`)
+    }
+    return entry.files.filter((file) => typeof file === 'string' && file.endsWith('.js'))
+  })
+  const readyFiles = [...new Set([...javascriptFiles, ...eagerFiles])]
+  const readyGzipBytes = readyFiles.reduce((total, file) => total + gzipSync(readFileSync(resolveChunk(buildDirectory, file)), { level: 9 }).byteLength, 0)
   const entry = files.find((file) => file.file === entryFiles[0])
   if (!entry) fail(`${budget.publicRoute} route entry chunk ölçülemedi.`)
 
@@ -111,6 +120,11 @@ export function measureTablesRoute({ buildDirectory, manifest, budget }) {
     entryGzipBytes: entry.gzipBytes,
     initialRawBytes,
     initialGzipBytes,
+    readyGzipBytes,
+    readyFiles,
+    eagerDynamicImports: budget.eagerDynamicImports ?? [],
+    maxReadyGzipBytes: budget.maxReadyGzipBytes,
+    baselineReadyGzipBytes: budget.baselineReadyGzipBytes,
     maxEntryGzipBytes: budget.maxEntryGzipBytes,
     maxInitialGzipBytes: budget.maxInitialGzipBytes,
     ...(budget.hardMaxInitialGzipBytes ? { hardMaxInitialGzipBytes: budget.hardMaxInitialGzipBytes } : {}),
@@ -127,7 +141,12 @@ export function verifyTablesBundleBudgets({ buildDirectory, budgets = TABLES_BUN
 
   const absoluteBuildDirectory = resolve(buildDirectory)
   const manifest = parseManifest(absoluteBuildDirectory)
-  const routes = budgets.map((budget) => measureTablesRoute({ buildDirectory: absoluteBuildDirectory, manifest, budget }))
+  let loadableManifest = {}
+  if (budgets.some((budget) => budget.eagerDynamicImports?.length)) {
+    try { loadableManifest = JSON.parse(readFileSync(resolve(absoluteBuildDirectory, 'react-loadable-manifest.json'), 'utf8')) }
+    catch { fail('Next.js react-loadable manifest okunamadı.') }
+  }
+  const routes = budgets.map((budget) => measureTablesRoute({ buildDirectory: absoluteBuildDirectory, manifest, budget, loadableManifest }))
   const violations = routes.flatMap((route) => {
     const routeViolations = []
     if (route.entryGzipBytes > route.maxEntryGzipBytes) {
@@ -135,6 +154,9 @@ export function verifyTablesBundleBudgets({ buildDirectory, budgets = TABLES_BUN
     }
     if (route.initialGzipBytes > route.maxInitialGzipBytes) {
       routeViolations.push(`${route.publicRoute} initial ${route.initialGzipBytes} B > ${route.maxInitialGzipBytes} B`)
+    }
+    if (route.maxReadyGzipBytes !== undefined && route.readyGzipBytes > route.maxReadyGzipBytes) {
+      routeViolations.push(`${route.publicRoute} ready ${route.readyGzipBytes} B > ${route.maxReadyGzipBytes} B`)
     }
     return routeViolations
   })

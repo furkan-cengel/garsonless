@@ -40,7 +40,7 @@ export default defineConfig({
     dashboardProject('dashboard-zoom-200', { width: 1440, height: 900 }),
   ],
   webServer: {
-    command: 'corepack pnpm --filter @garsonless/dashboard exec next dev --port 3005',
+    command: `corepack pnpm --filter @garsonless/dashboard exec next ${process.env['VISUAL_PRODUCTION'] === '1' ? 'start' : 'dev'} --port 3005`,
     url: `${dashboardURL}/auth/login`,
     reuseExistingServer: !process.env['CI'],
     timeout: 120_000,

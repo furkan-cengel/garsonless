@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const serverMode = process.env['VISUAL_PRODUCTION'] === '1' ? 'start' : 'dev'
 const isCI = Boolean(process.env['CI'])
 const hasDashboardVisualCredentials = Boolean(
   process.env['DASHBOARD_VISUAL_EMAIL'] && process.env['DASHBOARD_VISUAL_PASSWORD'],
@@ -81,25 +82,25 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'corepack pnpm --filter @garsonless/dashboard exec next dev --port 3005',
+      command: `corepack pnpm --filter @garsonless/dashboard exec next ${serverMode} --port 3005`,
       url: `${dashboardURL}/auth/login`,
       reuseExistingServer: !isCI,
       timeout: 120_000,
     },
     {
-      command: 'corepack pnpm --filter @garsonless/menu exec next dev --port 3011',
+      command: `corepack pnpm --filter @garsonless/menu exec next ${serverMode} --port 3011`,
       url: menuURL,
       reuseExistingServer: !isCI,
       timeout: 120_000,
     },
     {
-      command: 'corepack pnpm --filter @garsonless/kitchen exec next dev --port 3002',
+      command: `corepack pnpm --filter @garsonless/kitchen exec next ${serverMode} --port 3002`,
       url: kitchenURL,
       reuseExistingServer: !isCI,
       timeout: 120_000,
     },
     {
-      command: 'corepack pnpm --filter @garsonless/marketing exec next dev --port 3003',
+      command: `corepack pnpm --filter @garsonless/marketing exec next ${serverMode} --port 3003`,
       url: marketingURL,
       reuseExistingServer: !isCI,
       timeout: 120_000,
