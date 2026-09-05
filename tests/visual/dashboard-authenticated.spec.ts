@@ -105,8 +105,6 @@ test.describe('authenticated dashboard visual smoke', () => {
     const failures = await collectPageFailures(page)
     const restaurantId = getRestaurantId()
     const panoPath = `/dashboard/${restaurantId}`
-    let releaseNavigation = () => {}
-    const navigationGate = new Promise<void>((resolve) => { releaseNavigation = resolve })
     await page.route('**/*', async (route) => {
       const request = route.request()
       const url = new URL(request.url())
@@ -114,9 +112,9 @@ test.describe('authenticated dashboard visual smoke', () => {
       const isPanoRsc = url.pathname === panoPath && headers['rsc'] === '1'
       if (!isPanoRsc) return route.continue()
 
-      // Hold prefetch and navigation until loading assertions finish. Aborting a prefetch can
+      // Delay prefetch and navigation requests. Aborting a prefetch can
       // surface a recoverable client error and make the console assertion noisy.
-      await navigationGate
+      await new Promise((resolve) => setTimeout(resolve, 2_000))
       return route.continue()
     })
 
@@ -164,7 +162,6 @@ test.describe('authenticated dashboard visual smoke', () => {
     await expect(page.locator('.restaurant-rail')).toBeVisible()
     await assertVisualHealth(page, testInfo, 'dashboard-pano-loading', { minTextLength: 5 })
 
-    releaseNavigation()
     await navigation
     await expect(loading).toBeHidden()
     await expect(page.getByText(/Tahsil edilen ciro|Sipariş hacmi|Masa durumu/i).first()).toBeVisible()
@@ -343,14 +340,12 @@ test.describe('authenticated dashboard visual smoke', () => {
     }
     const restaurantId = getRestaurantId()
     const menuPath = `/dashboard/${restaurantId}/menu`
-    let releaseNavigation = () => {}
-    const navigationGate = new Promise<void>((resolve) => { releaseNavigation = resolve })
     await page.route('**/*', async (route) => {
       const request = route.request()
       const url = new URL(request.url())
       const isMenuRsc = url.pathname === menuPath && request.headers()['rsc'] === '1'
       if (!isMenuRsc) return route.continue()
-      await navigationGate
+      await new Promise((resolve) => setTimeout(resolve, 2_000))
       return route.continue()
     })
 
@@ -397,7 +392,6 @@ test.describe('authenticated dashboard visual smoke', () => {
     expect(layout.animated).toBe(0)
     await expect(page.locator('.restaurant-rail')).toBeVisible()
 
-    releaseNavigation()
     await navigation
     await expect(loading).toBeHidden()
     await expect(page.getByText(/Kategoriler|Yeni ürün/i).filter({ visible: true }).first()).toBeVisible()
@@ -451,13 +445,11 @@ test.describe('authenticated dashboard visual smoke', () => {
     if (testInfo.project.name === 'dashboard-zoom-200') await page.setViewportSize({ width: 720, height: 900 })
     const restaurantId = getRestaurantId()
     const ordersPath = `/dashboard/${restaurantId}/orders`
-    let releaseNavigation = () => {}
-    const navigationGate = new Promise<void>((resolve) => { releaseNavigation = resolve })
     await page.route('**/*', async (route) => {
       const request = route.request()
       const url = new URL(request.url())
       if (url.pathname !== ordersPath || request.headers()['rsc'] !== '1') return route.continue()
-      await navigationGate
+      await new Promise((resolve) => setTimeout(resolve, 2_000))
       return route.continue()
     })
 
@@ -500,7 +492,6 @@ test.describe('authenticated dashboard visual smoke', () => {
     }
     expect(layout.animated).toBe(0)
     await expect(page.getByRole('navigation', { name: 'Ana bölümler' })).toBeVisible()
-    releaseNavigation()
     await navigation
     await expect(loading).toBeHidden()
   })
@@ -588,6 +579,9 @@ test.describe('authenticated dashboard visual smoke', () => {
     await page.goto(`${dashboardURL}/dashboard/${restaurantId}/settings?section=privacy`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByText('Ayarlar güvenli biçimde yükleniyor…')).toBeHidden({ timeout: 15_000 })
     const deletionRequest = page.getByRole('button', { name: /İşletme kapatma talebi/i })
+    await expect(deletionRequest).toBeDisabled()
+    await page.getByRole('textbox', { name: 'Talep gerekçesi', exact: true }).fill('Audit — talep gönderilmez')
+    await page.getByLabel('Hesap şifresi', { exact: true }).fill('not-submitted')
     await deletionRequest.click()
     const sensitiveDialog = page.getByRole('alertdialog')
     await expect(sensitiveDialog).toBeVisible()
