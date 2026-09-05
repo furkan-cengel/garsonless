@@ -41,6 +41,22 @@ function getRestaurantId(): string {
   return restaurantId!
 }
 
+// Cold document streaming exercises loading.tsx even when a warm router
+// navigation correctly skips the fallback. Restore bandwidth before completion.
+async function throttleLoadingNavigation(page: import('@playwright/test').Page) {
+  const client = await page.context().newCDPSession(page)
+  await client.send('Network.enable')
+  await client.send('Network.emulateNetworkConditions', {
+    offline: false, latency: 80, downloadThroughput: 48 * 1024, uploadThroughput: 48 * 1024,
+  })
+  return async () => {
+    await client.send('Network.emulateNetworkConditions', {
+      offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1,
+    })
+    await client.detach()
+  }
+}
+
 test.describe('authenticated dashboard visual smoke', () => {
   test.beforeAll(() => {
     if (isCI) {
@@ -105,22 +121,11 @@ test.describe('authenticated dashboard visual smoke', () => {
     const failures = await collectPageFailures(page)
     const restaurantId = getRestaurantId()
     const panoPath = `/dashboard/${restaurantId}`
-    await page.route('**/*', async (route) => {
-      const request = route.request()
-      const url = new URL(request.url())
-      const headers = request.headers()
-      const isPanoRsc = url.pathname === panoPath && headers['rsc'] === '1'
-      if (!isPanoRsc) return route.continue()
-
-      // Delay prefetch and navigation requests. Aborting a prefetch can
-      // surface a recoverable client error and make the console assertion noisy.
-      await new Promise((resolve) => setTimeout(resolve, 2_000))
-      return route.continue()
-    })
 
     await page.goto(`${dashboardURL}${panoPath}/menu`, { waitUntil: 'domcontentloaded' })
     await page.emulateMedia({ reducedMotion: 'reduce' })
-    const navigation = page.getByRole('navigation', { name: 'Ana bölümler' }).getByRole('link', { name: 'Pano' }).click()
+    const restoreNetwork = await throttleLoadingNavigation(page)
+    await page.goto(`${dashboardURL}${panoPath}`, { waitUntil: 'commit' })
     const loading = page.getByRole('status', { name: 'Pano yükleniyor' })
     await expect(loading).toBeVisible()
     await expect(loading).toHaveAttribute('aria-busy', 'true')
@@ -162,7 +167,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     await expect(page.locator('.restaurant-rail')).toBeVisible()
     await assertVisualHealth(page, testInfo, 'dashboard-pano-loading', { minTextLength: 5 })
 
-    await navigation
+    await restoreNetwork()
     await expect(loading).toBeHidden()
     await expect(page.getByText(/Tahsil edilen ciro|Sipariş hacmi|Masa durumu/i).first()).toBeVisible()
     expect(failures).toEqual([])
@@ -340,18 +345,11 @@ test.describe('authenticated dashboard visual smoke', () => {
     }
     const restaurantId = getRestaurantId()
     const menuPath = `/dashboard/${restaurantId}/menu`
-    await page.route('**/*', async (route) => {
-      const request = route.request()
-      const url = new URL(request.url())
-      const isMenuRsc = url.pathname === menuPath && request.headers()['rsc'] === '1'
-      if (!isMenuRsc) return route.continue()
-      await new Promise((resolve) => setTimeout(resolve, 2_000))
-      return route.continue()
-    })
 
     await page.goto(`${dashboardURL}/dashboard/${restaurantId}`, { waitUntil: 'domcontentloaded' })
     await page.emulateMedia({ reducedMotion: 'reduce' })
-    const navigation = page.getByRole('navigation', { name: 'Ana bölümler' }).getByRole('link', { name: 'Menü' }).click()
+    const restoreNetwork = await throttleLoadingNavigation(page)
+    await page.goto(`${dashboardURL}${menuPath}`, { waitUntil: 'commit' })
     const loading = page.getByRole('status', { name: 'Menü yükleniyor' })
     await expect(loading).toBeVisible()
     await expect(loading).toHaveAttribute('aria-busy', 'true')
@@ -392,7 +390,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     expect(layout.animated).toBe(0)
     await expect(page.locator('.restaurant-rail')).toBeVisible()
 
-    await navigation
+    await restoreNetwork()
     await expect(loading).toBeHidden()
     await expect(page.getByText(/Kategoriler|Yeni ürün/i).filter({ visible: true }).first()).toBeVisible()
   })
@@ -445,17 +443,11 @@ test.describe('authenticated dashboard visual smoke', () => {
     if (testInfo.project.name === 'dashboard-zoom-200') await page.setViewportSize({ width: 720, height: 900 })
     const restaurantId = getRestaurantId()
     const ordersPath = `/dashboard/${restaurantId}/orders`
-    await page.route('**/*', async (route) => {
-      const request = route.request()
-      const url = new URL(request.url())
-      if (url.pathname !== ordersPath || request.headers()['rsc'] !== '1') return route.continue()
-      await new Promise((resolve) => setTimeout(resolve, 2_000))
-      return route.continue()
-    })
 
     await page.goto(`${dashboardURL}/dashboard/${restaurantId}`, { waitUntil: 'domcontentloaded' })
     await page.emulateMedia({ reducedMotion: 'reduce' })
-    const navigation = page.getByRole('navigation', { name: 'Ana bölümler' }).getByRole('link', { name: 'Siparişler' }).click()
+    const restoreNetwork = await throttleLoadingNavigation(page)
+    await page.goto(`${dashboardURL}${ordersPath}`, { waitUntil: 'commit' })
     const loading = page.getByRole('status', { name: 'Siparişler yükleniyor' })
     await expect(loading).toBeVisible()
     await expect(loading).toHaveAttribute('aria-busy', 'true')
@@ -492,7 +484,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     }
     expect(layout.animated).toBe(0)
     await expect(page.getByRole('navigation', { name: 'Ana bölümler' })).toBeVisible()
-    await navigation
+    await restoreNetwork()
     await expect(loading).toBeHidden()
   })
 
