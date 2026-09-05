@@ -32,7 +32,7 @@ const SecuritySection        = dynamic(() => import('./AdvancedSections').then(m
 const PrivacySection         = dynamic(() => import('./AdvancedSections').then(m => ({ default: m.PrivacySection })), { loading: SectionLoading })
 const BillingSection         = dynamic(() => import('./BillingSection'), { loading: SectionLoading })
 import PageTopBar from '../layout/PageTopBar'
-import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
+const UnsavedChangesDialog = dynamic(() => import('../overlays/UnsavedChangesDialog'))
 import { useShell } from '../../lib/shell-context'
 import { I, S, Tag } from '../../lib/ui'
 import { SETTINGS_DIRTY_EVENT, SETTINGS_SAVED_EVENT, type SettingsDirtyEventDetail } from './settings-dirty-state'

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { I, Tag } from '../../lib/ui'
 import { LoadingStatus } from '@garsonless/ui/spinners'
@@ -13,6 +13,8 @@ import {
 } from '../../lib/actions/notifications'
 import { resolveServiceRequest } from '../../lib/actions/service-requests'
 import { useShell } from '../../lib/shell-context'
+import { loadNotificationFeeds } from './notification-feed-loader'
+import { useModalDialogFocus } from './use-modal-dialog-focus'
 
 interface Props {
   restaurantId: string
@@ -35,69 +37,214 @@ const ICON_META = {
   order: { bg: 'var(--info-bg)', fg: 'var(--info)', Icon: I.clipboard },
 } as const
 
+const NOTIFICATIONS_CSS = `
+.dashboard-notifications-overlay {
+  position:fixed;inset:0;z-index:95;
+  background:rgba(17,17,19,.2);
+}
+.dashboard-notifications-panel {
+  position:absolute;right:16px;top:56px;
+  width:min(400px,calc(100vw - 32px));max-height:min(80dvh,760px);min-height:0;
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  box-shadow:var(--shadow-pop);
+}
+.dashboard-notifications-header {
+  flex:0 0 auto;min-width:0;padding:12px 16px;
+  display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid var(--divider);
+}
+.dashboard-notifications-title {
+  flex:1;min-width:0;font-size:14px;font-weight:600;
+}
+.dashboard-notifications-mark-all {
+  min-height:36px;padding:0 4px;white-space:nowrap;
+  border:0;border-radius:7px;background:transparent;
+  color:var(--text-3);font-size:11px;font-weight:600;cursor:pointer;
+}
+.dashboard-notifications-mark-all:hover { background:var(--surface-inset);color:var(--text); }
+.dashboard-notifications-close {
+  width:36px;height:36px;flex:0 0 auto;margin:-8px -8px -8px 0;padding:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  border:0;border-radius:8px;background:transparent;color:var(--text-2);cursor:pointer;
+}
+.dashboard-notifications-close:hover { background:var(--surface-inset);color:var(--text); }
+.dashboard-notifications-mark-all:focus-visible,
+.dashboard-notifications-close:focus-visible {
+  outline:2px solid var(--focus-ring,var(--text));outline-offset:1px;
+}
+.dashboard-notifications-list {
+  flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;
+  overscroll-behavior-y:contain;scrollbar-gutter:stable;
+}
+.dashboard-notification-copy { overflow-wrap:anywhere; }
+.dashboard-notifications-footer {
+  flex:0 0 auto;padding:10px 16px;
+  border-top:1px solid var(--divider);background:var(--surface-2);text-align:center;
+}
+.dashboard-notification-history-row {
+  position:relative;
+  transition:background-color 140ms ease,box-shadow 140ms ease;
+}
+.dashboard-notification-history-row[data-interactive="true"]:hover {
+  background:var(--surface-inset)!important;
+  box-shadow:inset 3px 0 0 var(--action);
+}
+.dashboard-notification-history-row[data-interactive="true"]:focus-visible {
+  background:var(--surface-inset)!important;
+  box-shadow:inset 3px 0 0 var(--action);
+  outline:2px solid var(--focus-ring,var(--text));outline-offset:-2px;
+}
+.dashboard-notification-footer-action {
+  min-height:36px;padding:0 14px;border-radius:8px;
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  transition:background-color 140ms ease,box-shadow 140ms ease,transform 140ms ease;
+}
+.dashboard-notification-footer-action:hover {
+  background:var(--surface-inset)!important;
+  box-shadow:inset 0 0 0 1px var(--border-strong),0 2px 8px rgba(17,17,19,.08);
+  transform:translateY(-1px);
+}
+.dashboard-notification-footer-arrow { display:inline-flex;transition:transform 140ms ease; }
+.dashboard-notification-footer-action:hover .dashboard-notification-footer-arrow { transform:translateX(3px); }
+.dashboard-notification-footer-action:active { transform:translateY(0) scale(.98); }
+.dashboard-notification-footer-action:focus-visible {
+  background:var(--surface-inset)!important;
+  outline:2px solid var(--focus-ring,var(--text));outline-offset:1px;
+}
+@media (max-width:640px) {
+  .dashboard-notifications-overlay {
+    display:flex;align-items:flex-end;
+    padding-top:max(16px,env(safe-area-inset-top));
+    background:rgba(17,17,19,.36);
+  }
+  .dashboard-notifications-panel {
+    position:relative;inset:auto;width:100%;max-height:min(84dvh,720px);
+    border-right:0;border-bottom:0;border-left:0;border-radius:18px 18px 0 0;
+    padding-bottom:env(safe-area-inset-bottom);
+    box-shadow:0 -18px 56px rgba(17,17,19,.2);
+  }
+  .dashboard-notifications-header { padding:12px 16px; }
+  .dashboard-notifications-title { font-size:15px;font-weight:700; }
+  .dashboard-notifications-mark-all { min-height:44px;padding:0 6px; }
+  .dashboard-notifications-close { width:44px;height:44px;margin:-8px -12px -8px 0; }
+  .dashboard-notifications-list { scrollbar-gutter:auto; }
+  .dashboard-notification-live-row,
+  .dashboard-notification-history-row { padding:12px 16px!important; }
+  .dashboard-notification-footer-action { min-height:44px; }
+  .dashboard-notifications-footer { padding:8px 16px; }
+}
+@media (max-width:360px) {
+  .dashboard-notifications-header { gap:6px; }
+  .dashboard-notifications-mark-all { font-size:10.5px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .dashboard-notification-history-row,
+  .dashboard-notification-footer-action,
+  .dashboard-notification-footer-arrow { transition:none!important; }
+}
+`
+
 export default function NotificationsPanel({ restaurantId, browserNotificationsEnabled, onClose }: Props) {
   const { beginNavigation } = useShell()
   const router = useRouter()
+  const dialogRef = useModalDialogFocus(onClose)
   const [items, setItems] = useState<NotificationItem[]>([])
   const [inboxItems, setInboxItems] = useState<InboxNotificationItem[]>([])
   const [inboxUnread, setInboxUnread] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<{ message: string; publicCode?: string } | null>(null)
 
+  const [inboxError, setInboxError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [markingRead, setMarkingRead] = useState(false)
+  const requestGeneration = useRef(0)
+  const readPending = useRef(false)
+  const resolving = useRef(new Set<string>())
+
   const load = useCallback(async () => {
+    if (readPending.current) return
+    const generation = ++requestGeneration.current
+    const current = () => generation === requestGeneration.current
     setLoading(true)
     setError(null)
-    const [result, inbox] = await Promise.all([
-      getNotifications(restaurantId),
-      getInboxFeed(restaurantId),
-    ])
-    if (Array.isArray(result)) {
-      setItems(result)
-    } else {
-      setError({ message: result.error, publicCode: result.publicCode })
+    setInboxError(null)
+    try {
+      await loadNotificationFeeds({
+        live: () => getNotifications(restaurantId),
+        history: () => getInboxFeed(restaurantId),
+        onLive: (result) => { if (current()) setItems(result) },
+        onLiveError: (result) => { if (current()) setError({ message: result.error, publicCode: result.publicCode }) },
+        onHistory: (inbox) => {
+          if (!current()) return
+          setInboxItems(inbox.items)
+          setInboxUnread(inbox.unread)
+        },
+        onHistoryError: (result) => { if (current()) setInboxError(result.error) },
+      })
+    } finally {
+      if (current()) setLoading(false)
     }
-    // The durable inbox is additive history — its load failure must not take
-    // down the live actionable feed; it simply renders empty.
-    if ('items' in inbox) {
-      setInboxItems(inbox.items)
-      setInboxUnread(inbox.unread)
-    }
-    setLoading(false)
   }, [restaurantId])
 
-  const handleInboxClick = useCallback(async (item: InboxNotificationItem) => {
-    if (!item.readAt) {
-      setInboxItems((prev) => prev.map((entry) => entry.id === item.id
-        ? { ...entry, readAt: new Date().toISOString() }
-        : entry))
-      setInboxUnread((prev) => Math.max(0, prev - 1))
-      void markInboxRead(restaurantId, [item.id])
+  const markRead = useCallback(async (ids?: string[]) => {
+    if (readPending.current) return false
+    readPending.current = true
+    setMarkingRead(true)
+    setActionError(null)
+    // Update the local state only after the server acknowledges the command.
+    const unreadIds = ids ?? inboxItems.filter((item) => !item.readAt).map((item) => item.id)
+    try {
+      const result = await markInboxRead(restaurantId, ids)
+      if ('error' in result) throw new Error(result.error)
+      setInboxItems((prev) => prev.map((entry) => unreadIds.includes(entry.id)
+        ? { ...entry, readAt: entry.readAt ?? new Date().toISOString() } : entry))
+      setInboxUnread((prev) => ids ? Math.max(0, prev - unreadIds.length) : 0)
+      return true
+    } catch {
+      setActionError('Okundu bilgisi kaydedilemedi. Tekrar deneyin.')
+      return false
+    } finally {
+      readPending.current = false
+      setMarkingRead(false)
     }
+  }, [inboxItems, restaurantId])
+
+  const handleInboxClick = useCallback(async (item: InboxNotificationItem) => {
+    if (loading || readPending.current) return
+    const generation = requestGeneration.current
+    if (!item.readAt && !await markRead([item.id])) return
+    if (generation !== requestGeneration.current) return
     if (item.linkPath) {
       onClose()
       beginNavigation(item.linkPath)
       router.push(item.linkPath)
     }
-  }, [beginNavigation, restaurantId, onClose, router])
+  }, [beginNavigation, loading, markRead, onClose, router])
 
-  const handleMarkAllRead = useCallback(async () => {
-    setInboxItems((prev) => prev.map((entry) => entry.readAt ? entry : { ...entry, readAt: new Date().toISOString() }))
-    setInboxUnread(0)
-    void markInboxRead(restaurantId)
-  }, [restaurantId])
+  const handleMarkAllRead = useCallback(() => markRead(), [markRead])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void load()
+    const generation = requestGeneration
+    return () => { generation.current++ }
+  }, [load])
 
   const handleResolve = useCallback(async (item: NotificationItem) => {
-    if (!item.requestId) return
-    setItems((prev) => prev.filter((n) => n.id !== item.id)) // optimistic
-    const result = await resolveServiceRequest(item.requestId, restaurantId)
-    if ('error' in result) {
+    if (!item.requestId || resolving.current.has(item.id)) return
+    resolving.current.add(item.id)
+    setActionError(null)
+    setItems((prev) => prev.filter((n) => n.id !== item.id))
+    try {
+      const result = await resolveServiceRequest(item.requestId, restaurantId)
+      if ('error' in result) throw new Error(result.error)
+      void load()
+    } catch {
       setItems((prev) => prev.some((entry) => entry.id === item.id) ? prev : [item, ...prev])
-      setError({ message: 'Çağrı kapatılamadı. Lütfen tekrar deneyin.' })
-      return
+      setActionError('Çağrı kapatılamadı. Lütfen tekrar deneyin.')
+    } finally {
+      resolving.current.delete(item.id)
     }
-    void load()
   }, [restaurantId, load])
 
   const goToOrders = useCallback(() => {
@@ -109,109 +256,67 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
 
   return (
     <div
-      onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 95, background: 'rgba(17,17,19,.2)' }}
+      className="dashboard-notifications-overlay"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
     >
-      <style>{`
-        .dashboard-notification-history-row {
-          position: relative;
-          transition: background-color 140ms ease, box-shadow 140ms ease;
-        }
-        .dashboard-notification-history-row[data-interactive="true"]:hover {
-          background: var(--surface-inset) !important;
-          box-shadow: inset 3px 0 0 var(--action);
-        }
-        .dashboard-notification-history-row[data-interactive="true"]:focus-visible {
-          background: var(--surface-inset) !important;
-          box-shadow: inset 3px 0 0 var(--action);
-          outline: 2px solid var(--focus-ring, var(--text));
-          outline-offset: -2px;
-        }
-        .dashboard-notification-footer-action {
-          min-height: 36px;
-          padding: 0 14px;
-          border-radius: 8px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 5px;
-          transition: background-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
-        }
-        .dashboard-notification-footer-action:hover {
-          background: var(--surface-inset) !important;
-          box-shadow: inset 0 0 0 1px var(--border-strong), 0 2px 8px rgba(17, 17, 19, .08);
-          transform: translateY(-1px);
-        }
-        .dashboard-notification-footer-arrow {
-          display: inline-flex;
-          transition: transform 140ms ease;
-        }
-        .dashboard-notification-footer-action:hover .dashboard-notification-footer-arrow {
-          transform: translateX(3px);
-        }
-        .dashboard-notification-footer-action:active { transform: translateY(0) scale(.98); }
-        .dashboard-notification-footer-action:focus-visible {
-          background: var(--surface-inset) !important;
-          outline: 2px solid var(--focus-ring, var(--text));
-          outline-offset: 1px;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .dashboard-notification-history-row,
-          .dashboard-notification-footer-action,
-          .dashboard-notification-footer-arrow { transition: none !important; }
-        }
-      `}</style>
+      <style>{NOTIFICATIONS_CSS}</style>
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dashboard-notifications-title"
+        tabIndex={-1}
         className="dashboard-notifications-panel"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: 'absolute', right: 16, top: 56,
-          width: 400, maxHeight: '80vh',
-          background: 'var(--surface)', borderRadius: 12,
-          boxShadow: 'var(--shadow-pop)', border: '1px solid var(--border)',
-          overflow: 'hidden', display: 'flex', flexDirection: 'column',
-        }}
       >
         {/* Header */}
-        <div style={{
-          padding: '12px 16px', borderBottom: '1px solid var(--divider)',
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          <span style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>Bildirimler</span>
+        <div className="dashboard-notifications-header">
+          <span id="dashboard-notifications-title" className="dashboard-notifications-title">Bildirimler</span>
           {inboxUnread > 0 && (
             <button
               type="button"
+              className="dashboard-notifications-mark-all"
+              disabled={markingRead || loading}
               onClick={() => void handleMarkAllRead()}
-              style={{
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                fontSize: 11, fontWeight: 600, color: 'var(--text-3)', padding: 0,
-              }}
             >
               Tümünü okundu say
             </button>
           )}
           {items.length > 0 && <Tag tone="critical">{items.length}</Tag>}
+          <button
+            type="button"
+            className="dashboard-notifications-close"
+            data-dialog-initial-focus
+            aria-label="Bildirimleri kapat"
+            onClick={onClose}
+          >
+            <I.x size={17} />
+          </button>
         </div>
 
         {/* List */}
-        <div aria-busy={loading} style={{ flex: 1, overflow: 'auto' }}>
-          {loading ? (
+        <div className="dashboard-notifications-list" aria-busy={loading}>
+          {actionError && <div role="alert" style={{ padding: 16, color: 'var(--critical)' }}>{actionError}</div>}
+          {error && items.length > 0 && <div role="alert" style={{ padding: 16 }}>
+            {error.message} · Son alınan bildirimler gösteriliyor.
+            <button type="button" style={btnRetry} onClick={() => void load()}>Tekrar dene</button>
+          </div>}
+          {loading && items.length === 0 ? (
             <div style={{ padding: '32px 16px', textAlign: 'center', fontSize: 12.5, color: 'var(--text-3)' }}>
               <LoadingStatus label="Bildirimler yükleniyor…" />
             </div>
-          ) : error ? (
+          ) : error && items.length === 0 ? (
             <div role="alert" style={{ padding: '32px 20px', textAlign: 'center' }}>
               <div style={{ color: 'var(--critical)', marginBottom: 8, display: 'inline-flex' }}><I.warn size={25} /></div>
               <div style={{ fontSize: 13, fontWeight: 650, color: 'var(--text)' }}>Bildirimler yüklenemedi</div>
               <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.5 }}>{error.message}</div>
-              {error.publicCode && <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5 }}>Hata kodu: {error.publicCode}</div>}
+              {error.publicCode && <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 5 }}>Hata kodu: {error.publicCode}</div>}
               <button type="button" onClick={() => void load()} style={{ marginTop: 14, ...btnRetry }}>Tekrar dene</button>
             </div>
           ) : items.length === 0 ? (
             <div style={{ padding: '40px 16px', textAlign: 'center' }}>
-              <div style={{ color: 'var(--text-4)', marginBottom: 8, display: 'inline-flex' }}><I.bell size={26} /></div>
+              <div style={{ color: 'var(--text-3)', marginBottom: 8, display: 'inline-flex' }}><I.bell size={26} /></div>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-2)' }}>Yeni bildirim yok</div>
-              <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 3 }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 3 }}>
                 Garson çağrıları ve yeni siparişler burada görünür.
               </div>
             </div>
@@ -222,6 +327,12 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
               return (
                 <div
                   key={n.id}
+                  className="dashboard-notification-live-row"
+                  role={n.type === 'order' ? 'button' : undefined}
+                  tabIndex={n.type === 'order' ? 0 : undefined}
+                  onKeyDown={n.type === 'order' ? (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); goToOrders() }
+                  } : undefined}
                   onClick={n.type === 'order' ? goToOrders : undefined}
                   style={{
                     padding: '12px 16px', display: 'flex', gap: 10,
@@ -239,8 +350,8 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.3 }}>{n.title}</div>
-                    <div style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 2 }}>{n.subtitle}</div>
-                    <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 4 }}>{relativeTime(n.createdAt)}</div>
+                    <div className="dashboard-notification-copy" style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 2 }}>{n.subtitle}</div>
+                    <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 4 }}>{relativeTime(n.createdAt)}</div>
                   </div>
                   {n.type === 'waiter' && (
                     <button
@@ -259,12 +370,16 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
           )}
 
           {/* Durable inbox history (notification_inbox) */}
-          {!loading && !error && inboxItems.length > 0 && (
+          {inboxError && <div role="alert" style={{ padding: 16 }}>
+            {inboxError}
+            <button type="button" disabled={loading} style={btnRetry} onClick={() => void load()}>Geçmişi tekrar yükle</button>
+          </div>}
+          {inboxItems.length > 0 && (
             <>
               <div style={{
                 padding: '8px 16px 6px', fontSize: 10.5, fontWeight: 700,
                 letterSpacing: '.06em', textTransform: 'uppercase',
-                color: 'var(--text-4)', background: 'var(--surface-2)',
+                color: 'var(--text-3)', background: 'var(--surface-2)',
                 borderBottom: '1px solid var(--divider)',
               }}>
                 Geçmiş
@@ -278,6 +393,7 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
                     key={n.id}
                     className="dashboard-notification-history-row"
                     data-interactive={interactive}
+                    aria-disabled={interactive && markingRead ? true : undefined}
                     role={interactive ? 'button' : undefined}
                     tabIndex={interactive ? 0 : undefined}
                     onClick={interactive ? () => void handleInboxClick(n) : undefined}
@@ -304,8 +420,8 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12.5, fontWeight: unread ? 700 : 500, lineHeight: 1.3 }}>{n.title}</div>
-                      <div style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 2 }}>{n.body}</div>
-                      <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 4 }}>{relativeTime(n.createdAt)}</div>
+                      <div className="dashboard-notification-copy" style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 2 }}>{n.body}</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 4 }}>{relativeTime(n.createdAt)}</div>
                     </div>
                   </div>
                 )
@@ -315,13 +431,10 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
         </div>
 
         {/* Footer */}
-        <div style={{
-          padding: '10px 16px', borderTop: '1px solid var(--divider)',
-          background: 'var(--surface-2)', textAlign: 'center',
-        }}>
+        <div className="dashboard-notifications-footer">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             {!browserNotificationsEnabled && (
-              <span title="İşletim sistemi bildirimleri Starter paketinde açılır" style={{ fontSize: 10.5, color: 'var(--text-4)' }}>
+              <span title="İşletim sistemi bildirimleri Starter paketinde açılır" style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
                 Masaüstü bildirimi · Starter
               </span>
             )}
