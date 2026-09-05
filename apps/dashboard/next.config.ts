@@ -9,7 +9,11 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/:path*',
-        headers: createSecurityHeaders({ noIndex: true, isProduction: process.env.NODE_ENV === 'production' }),
+        headers: createSecurityHeaders({
+          noIndex: true,
+          isProduction: process.env.NODE_ENV === 'production',
+          additionalFrameOrigins: [process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'],
+        }),
       },
       {
         source: '/api/billing/iyzico/card-update/callback',

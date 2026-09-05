@@ -62,6 +62,16 @@ test('baseline headers deny embedding except for the tenant-aware public menu', 
   assert.equal(menuHeaders.has('Content-Security-Policy'), false)
 })
 
+test('preview frames allow only configured origins and preserve embedding protection', () => {
+  const headers = new Map(createSecurityHeaders({
+    additionalFrameOrigins: ['https://menu.masabu.co/preview', 'http://localhost:3011'],
+  }).map(({ key, value }) => [key, value]))
+  assert.match(headers.get('Content-Security-Policy-Report-Only'), /frame-src [^;]* https:\/\/menu\.masabu\.co http:\/\/localhost:3011;/)
+  assert.equal(headers.get('Content-Security-Policy'), "frame-ancestors 'none'")
+  assert.throws(() => createSecurityHeaders({ additionalFrameOrigins: ['javascript:alert(1)'] }))
+  assert.throws(() => createSecurityHeaders({ additionalFrameOrigins: ['https://user:pass@example.com'] }))
+})
+
 test('private apps are noindex and every app owns instrumentation', () => {
   for (const app of ['dashboard', 'kitchen', 'platform-admin']) {
     const config = readFileSync(join(root, 'apps', app, 'next.config.ts'), 'utf8')
