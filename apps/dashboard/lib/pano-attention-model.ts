@@ -51,7 +51,7 @@ export function buildPanoAttentionItems(input: AttentionInput): PanoAttentionIte
       detail: `${formatPanoDuration(table.time)} · ${formatPanoCurrency(Math.max(0, table.unpaidTotal - table.splitSettledTotal))} açık`,
       createdAt: table.openedAt ?? input.generatedAt,
       tableId: table.id,
-      actionHref: `/dashboard/${input.restaurantId}/tables`,
+      actionHref: `/dashboard/${input.restaurantId}/tables?tableId=${encodeURIComponent(table.id)}`,
     }))
 
   const staleTableItems: PanoAttentionItem[] = input.tableStatuses
@@ -64,7 +64,7 @@ export function buildPanoAttentionItems(input: AttentionInput): PanoAttentionIte
       detail: `${formatPanoDuration(table.time)} · ${formatPanoCurrency(Math.max(0, table.unpaidTotal - table.splitSettledTotal))} açık`,
       createdAt: table.openedAt ?? input.generatedAt,
       tableId: table.id,
-      actionHref: `/dashboard/${input.restaurantId}/tables`,
+      actionHref: `/dashboard/${input.restaurantId}/tables?tableId=${encodeURIComponent(table.id)}`,
     }))
 
   const serviceItems: PanoAttentionItem[] = input.serviceRequests.map((request) => {
@@ -77,7 +77,7 @@ export function buildPanoAttentionItems(input: AttentionInput): PanoAttentionIte
       detail: table?.label ?? 'Masa',
       createdAt: request.createdAt,
       tableId: request.tableId,
-      actionHref: `/dashboard/${input.restaurantId}/tables`,
+      actionHref: `/dashboard/${input.restaurantId}/tables?tableId=${encodeURIComponent(request.tableId)}`,
     }
   })
 
@@ -139,8 +139,34 @@ export function getPanoAttentionTableCount(
   tables: TableStatusData[],
   requests: PanoOperationalSource['pendingServiceRequests'],
 ): number {
-  return new Set([
-    ...tables.filter((table) => table.status === 'late').map((table) => table.id),
-    ...requests.map((request) => request.tableId),
-  ]).size
+  return selectPanoAttentionTables(tables, requests).length
+}
+
+/** The KPI and table list must describe the same set of available tables. */
+export function selectPanoAttentionTables(
+  tables: TableStatusData[],
+  requests: PanoOperationalSource['pendingServiceRequests'],
+) {
+  const requestsByTable = new Map<string, typeof requests>()
+  for (const request of requests) {
+    const current = requestsByTable.get(request.tableId) ?? []
+    current.push(request)
+    requestsByTable.set(request.tableId, current)
+  }
+  return [...new Map(tables.map((table) => [table.id, table])).values()]
+    .filter((table) => table.status === 'late' || table.status === 'stale' || requestsByTable.has(table.id))
+    .map((table) => ({ table, requests: requestsByTable.get(table.id) ?? [] }))
+    .sort((left, right) => {
+      const late = Number(right.table.status === 'late') - Number(left.table.status === 'late')
+      const requestCount = right.requests.length - left.requests.length
+      const stale = Number(left.table.status === 'stale') - Number(right.table.status === 'stale')
+      return requestCount || late || stale || right.table.time - left.table.time || left.table.label.localeCompare(right.table.label, 'tr')
+    })
+}
+
+export function partitionPanoAttentionItems(items: PanoAttentionItem[]) {
+  return {
+    operational: items.filter((item) => item.kind !== 'payment_configuration'),
+    setup: items.filter((item) => item.kind === 'payment_configuration'),
+  }
 }

@@ -7,6 +7,7 @@ import type {
 } from '../../lib/queries/pano'
 import type { PanoLiveStatus } from './pano-live-model'
 import { formatPanoCurrency } from '../../lib/pano-format'
+import { getPanoAttentionTableCount } from '../../lib/pano-attention-model'
 
 type PanoTrend = 'up' | 'down' | 'flat'
 type PanoIndicatorTone = 'positive' | 'warning' | 'critical' | 'neutral'
@@ -82,10 +83,7 @@ export function getPanoKpiCards(
   const lateTableIds = operational.tables
     .filter((table) => table.status === 'late')
     .map((table) => table.id)
-  const attentionTableCount = new Set([
-    ...lateTableIds,
-    ...operational.serviceRequests.map((request) => request.tableId),
-  ]).size
+  const attentionTableCount = getPanoAttentionTableCount(operational.tables, operational.serviceRequests)
 
   return [
     {
@@ -143,11 +141,10 @@ export function getPanoHealthChecks({
 }): PanoHealthCheck[] {
   const checks: PanoHealthCheck[] = []
 
-  if (isOwner && paymentStatus) {
+  // Missing configuration has its own setup notice, outside live system health.
+  if (isOwner && paymentStatus?.configured) {
     checks.push(
-      !paymentStatus.configured
-        ? { label: 'İyzico ödeme', status: 'down', detail: 'Yapılandırılmamış' }
-        : paymentStatus.mode === 'live'
+      paymentStatus.mode === 'live'
           ? { label: 'İyzico ödeme', status: 'ok', detail: 'Canlı · bağlı' }
           : { label: 'İyzico ödeme', status: 'warn', detail: 'Test modu (sandbox)' },
     )

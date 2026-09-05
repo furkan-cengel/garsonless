@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment } from 'react'
+import { selectPanoAttentionTables } from '../../lib/pano-attention-model'
 import Link from 'next/link'
 import { serviceRequestLabel } from '@garsonless/domain/tables'
 import { I } from '../../lib/ui'
@@ -28,25 +29,6 @@ const STATUS = {
 
 function remainingTotal(table: TableStatusData): number {
   return Math.max(0, table.unpaidTotal - table.splitSettledTotal)
-}
-
-function attentionTables(tables: TableStatusData[], requests: PanoServiceRequest[]): Array<{ table: TableStatusData; requests: PanoServiceRequest[] }> {
-  const requestsByTable = new Map<string, PanoServiceRequest[]>()
-  for (const request of requests) {
-    const current = requestsByTable.get(request.tableId) ?? []
-    current.push(request)
-    requestsByTable.set(request.tableId, current)
-  }
-
-  return tables
-    .filter((table) => table.status === 'late' || table.status === 'stale' || requestsByTable.has(table.id))
-    .map((table) => ({ table, requests: requestsByTable.get(table.id) ?? [] }))
-    .sort((left, right) => {
-      const late = Number(right.table.status === 'late') - Number(left.table.status === 'late')
-      const requestCount = right.requests.length - left.requests.length
-      const stale = Number(left.table.status === 'stale') - Number(right.table.status === 'stale')
-      return requestCount || late || stale || right.table.time - left.table.time || left.table.label.localeCompare(right.table.label, 'tr')
-    })
 }
 
 function TableAttentionRow({
@@ -115,7 +97,7 @@ export default function PanoAttentionTables({
   serviceRequests: PanoServiceRequest[]
   canViewTables: boolean
 }) {
-  const attention = attentionTables(tables, serviceRequests)
+  const attention = selectPanoAttentionTables(tables, serviceRequests)
   const visible = attention.slice(0, 5)
   return (
     <PanoCard
