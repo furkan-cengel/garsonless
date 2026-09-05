@@ -250,6 +250,7 @@ export async function syncDashboardInboxEvent(
 export interface EmailNotificationPrefs {
   order: boolean
   service_request: boolean
+  lifecycle: boolean
 }
 
 export async function getMyEmailNotificationPrefs(
@@ -274,7 +275,7 @@ export async function getMyEmailNotificationPrefs(
     })
   }
   const prefs = readNotificationChannelPrefs(stored.value, 'email')
-  return { order: prefs.order, service_request: prefs.service_request }
+  return { order: prefs.order, service_request: prefs.service_request, lifecycle: prefs.lifecycle }
 }
 
 export async function saveMyEmailNotificationPrefs(
@@ -311,6 +312,7 @@ export async function saveMyEmailNotificationPrefs(
         ...existingEmail,
         order: input.order === true,
         service_request: input.service_request === true,
+        lifecycle: input.lifecycle === true,
       },
     },
   })

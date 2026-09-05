@@ -149,6 +149,15 @@ export {
   isSectionBlockVisibleInContext,
 } from './section-blocks'
 export {
+  ADVANCED_THEME_SECTION_IDS,
+  VIDEO_HERO_SECTION_ID,
+  gatedThemeSectionIds,
+  gatedThemeSectionProjection,
+  hasSameGatedThemeSections,
+  projectThemeForSectionAccess,
+  type ThemeSectionAccess,
+} from './theme-entitlement-projection'
+export {
   applyGarsonlessTheme,
   buildFontsUrlFromTheme,
 } from './apply'

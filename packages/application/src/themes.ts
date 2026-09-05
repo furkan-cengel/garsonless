@@ -1,10 +1,13 @@
 import {
   CANONICAL_THEME_ID,
-  getSectionDefinitionId,
+  gatedThemeSectionIds,
+  hasSameGatedThemeSections,
   isThemeTemplateId,
+  projectThemeForSectionAccess,
   resolveTheme,
   sanitizeThemeTokens,
   type GarsonlessTheme,
+  type ThemeSectionAccess,
 } from '@garsonless/design-engine'
 import {
   err,
@@ -85,21 +88,6 @@ export type ThemePublishPersistenceResult =
       }
     }
 
-/**
- * Persisted identifiers of the Pro-only theme catalogue. The command checks
- * them itself so a caller cannot bypass the dashboard's disabled UI state.
- */
-const ADVANCED_THEME_SECTION_IDS = new Set([
-  'storefront-video-hero',
-  'featured-scroll',
-  'chef-pick',
-  'combo-ribbon',
-  'discount-badge',
-  'promo-slider',
-  'gallery',
-  'request-buttons',
-])
-
 const ORDERING_THEME_KEYS: ReadonlyArray<keyof GarsonlessTheme> = [
   'cartPlacement',
   'cartStyle',
@@ -129,80 +117,16 @@ function hasSameOrderingTheme(left: GarsonlessTheme, right: GarsonlessTheme): bo
   return JSON.stringify(orderingThemeProjection(left)) === JSON.stringify(orderingThemeProjection(right))
 }
 
-function advancedThemeProjection(theme: GarsonlessTheme): unknown {
-  const settings = theme.sectionSettings ?? {}
-  const pageBlocks = (theme.pageBlocks ?? []).flatMap((block, index) => {
-    const sectionId = getSectionDefinitionId(block)
-    if (sectionId === null || !ADVANCED_THEME_SECTION_IDS.has(sectionId)) return []
-    return [{ index, block, settings: settings[block.id] ?? null, sectionSettings: settings[sectionId] ?? null }]
-  })
-  const home = theme.surfaces?.home
-  const homeSections = (home?.sections ?? []).flatMap((section, index) => (
-    section.type === 'hero-video'
-      || section.type === 'featured-products'
-      || section.type === 'gallery'
-      || section.type === 'promo-slider'
-      ? [{ index, section }]
-      : []
-  ))
-  const homeBlocks = (home?.blocks ?? []).flatMap((block, index) => (
-    ADVANCED_THEME_SECTION_IDS.has(block.sectionId)
-      ? [{ index, block, settings: settings[block.id] ?? null, sectionSettings: settings[block.sectionId] ?? null }]
-      : []
-  ))
-  return { pageBlocks, homeSections, homeBlocks }
-}
-
-function hasSameAdvancedTheme(left: GarsonlessTheme, right: GarsonlessTheme): boolean {
-  return JSON.stringify(advancedThemeProjection(left)) === JSON.stringify(advancedThemeProjection(right))
-}
-
 /**
  * Public rendering boundary for a theme created during Pro trial and later
- * served on Starter/Plus. Persisted data is preserved; only Pro-only blocks
- * are removed from the runtime projection.
+ * served on Starter/Plus. Persisted data is preserved; only the sections the
+ * tenant is not entitled to are removed from the runtime projection.
  */
-export function withoutAdvancedThemeSections(theme: GarsonlessTheme): GarsonlessTheme {
-  const removedSettingKeys = new Set<string>()
-  const pageBlocks = (theme.pageBlocks ?? []).filter((block) => {
-    const sectionId = getSectionDefinitionId(block)
-    const advanced = sectionId !== null && ADVANCED_THEME_SECTION_IDS.has(sectionId)
-    if (advanced) {
-      removedSettingKeys.add(block.id)
-      if (sectionId) removedSettingKeys.add(sectionId)
-    }
-    return !advanced
-  })
-  const home = theme.surfaces?.home
-  const homeBlocks = (home?.blocks ?? []).filter((block) => {
-    const advanced = ADVANCED_THEME_SECTION_IDS.has(block.sectionId)
-    if (advanced) {
-      removedSettingKeys.add(block.id)
-      removedSettingKeys.add(block.sectionId)
-    }
-    return !advanced
-  })
-  const homeSections = (home?.sections ?? []).filter((section) => !(
-    section.type === 'hero-video'
-    || section.type === 'featured-products'
-    || section.type === 'gallery'
-    || section.type === 'promo-slider'
-  ))
-  const sectionSettings = Object.fromEntries(
-    Object.entries(theme.sectionSettings ?? {}).filter(([key]) => !removedSettingKeys.has(key)),
-  )
-
-  return {
-    ...theme,
-    pageBlocks,
-    sectionSettings,
-    ...(theme.surfaces && home ? {
-      surfaces: {
-        ...theme.surfaces,
-        home: { ...home, blocks: homeBlocks, sections: homeSections },
-      },
-    } : {}),
-  }
+export function projectThemeForEntitlements(
+  theme: GarsonlessTheme,
+  access: ThemeSectionAccess,
+): GarsonlessTheme {
+  return projectThemeForSectionAccess(theme, access)
 }
 
 function hasIncompleteHomeVideo(theme: GarsonlessTheme): boolean {
@@ -375,7 +299,7 @@ async function enforceThemeEntitlement(
   const restaurantResult = await port.readRestaurant({ restaurantId })
   if (!restaurantResult.ok) return restaurantResult
   if (!restaurantResult.value) return err('Restaurant not found')
-  const [advancedAccess, orderingAccess] = await Promise.all([
+  const [advancedAccess, videoHeroAccess, orderingAccess] = await Promise.all([
     port.readFeatureAccess({
       restaurantId,
       plan: restaurantResult.value.plan,
@@ -384,12 +308,25 @@ async function enforceThemeEntitlement(
     port.readFeatureAccess({
       restaurantId,
       plan: restaurantResult.value.plan,
+      feature: 'theme_video_hero',
+    }),
+    port.readFeatureAccess({
+      restaurantId,
+      plan: restaurantResult.value.plan,
       feature: 'guest_ordering',
     }),
   ])
   if (!advancedAccess.ok) return advancedAccess
+  if (!videoHeroAccess.ok) return videoHeroAccess
   if (!orderingAccess.ok) return orderingAccess
-  if (advancedAccess.value && orderingAccess.value) return ok(true)
+  // Sections the tenant may keep but not add, reorder or reconfigure. Video
+  // Hero is billed separately, so an add-on holder edits it while the rest of
+  // the advanced catalogue stays frozen.
+  const frozenSections = gatedThemeSectionIds({
+    advancedSections: advancedAccess.value,
+    videoHero: videoHeroAccess.value,
+  })
+  if (frozenSections.size === 0 && orderingAccess.value) return ok(true)
 
   const draftResult = await port.readDraft({ restaurantId })
   if (!draftResult.ok) return draftResult
@@ -399,14 +336,14 @@ async function enforceThemeEntitlement(
     if (!currentDraft || persistedDraft.templateId !== CANONICAL_THEME_ID) {
       return err('Invalid theme draft response')
     }
-    if (!advancedAccess.value && !hasSameAdvancedTheme(theme, currentDraft)) return err('Plan feature unavailable')
+    if (!hasSameGatedThemeSections(theme, currentDraft, frozenSections)) return err('Plan feature unavailable')
     if (!orderingAccess.value && !hasSameOrderingTheme(theme, currentDraft)) return err('Plan feature unavailable')
     return ok(true)
   }
 
   const currentResult = await resolveFromPort({ restaurantId, templateOverride: CANONICAL_THEME_ID }, port)
   if (!currentResult.ok) return currentResult
-  if (!advancedAccess.value && !hasSameAdvancedTheme(theme, currentResult.value.theme)) return err('Plan feature unavailable')
+  if (!hasSameGatedThemeSections(theme, currentResult.value.theme, frozenSections)) return err('Plan feature unavailable')
   if (!orderingAccess.value && !hasSameOrderingTheme(theme, currentResult.value.theme)) return err('Plan feature unavailable')
   return ok(true)
 }

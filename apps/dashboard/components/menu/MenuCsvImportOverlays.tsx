@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Progress, ProgressLabel } from '@/components/ui/progress'
 import { Spinner } from '@/components/ui/spinner'
 
 import { useState } from 'react'
@@ -281,19 +280,10 @@ export function CsvImportModal({
               gap: 6,
             }}
           >
-            {preview.importProgress.total > 0 ? (
-              <Progress value={(preview.importProgress.done / preview.importProgress.total) * 100}>
-                <ProgressLabel>Menü içe aktarma ilerlemesi</ProgressLabel>
-                <span className="ml-auto text-sm text-muted-foreground tabular-nums">
-                  {preview.importProgress.done}/{preview.importProgress.total}
-                </span>
-              </Progress>
-            ) : (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Spinner aria-hidden="true" />
-                Menü içe aktarılıyor…
-              </div>
-            )}
+            <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner aria-hidden="true" />
+              {preview.importProgress.total} ürün içe aktarılıyor…
+            </div>
           </div>
         )}
 

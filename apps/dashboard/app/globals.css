@@ -6,6 +6,8 @@
 
 /* Admin design system — exact values from Dashboard.html :root{} */
 :root {
+  /* Confirmation dialogs must cover legacy drawers until their migration. */
+  --layer-confirmation: 220;
   --bg: #f6f6f7;
   --surface: #ffffff;
   --surface-2: #fafafa;
@@ -17,7 +19,7 @@
 
   --text: #111113;
   --text-2: #5b5d63;
-  --text-3: #8b8d94;
+  --text-3: #606269;
   --text-4: #b3b4ba;
 
   --action: #18181b;

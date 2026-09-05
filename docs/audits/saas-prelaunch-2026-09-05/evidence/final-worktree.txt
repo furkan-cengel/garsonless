@@ -1,0 +1,75 @@
+ M .env.production.example
+ M .gitignore
+ M apps/dashboard/.env.example
+ M apps/dashboard/.env.sandbox.example
+ M apps/dashboard/app/api/internal/accounting-invoices/route.ts
+ M apps/dashboard/app/api/internal/notification-email/route.ts
+ M apps/dashboard/components/layout/IconRail.tsx
+ M apps/dashboard/components/layout/RestaurantShell.tsx
+ M apps/dashboard/components/layout/mobile-rail-visual-contract.test.ts
+ M apps/dashboard/components/overlays/NotificationsPanel.tsx
+ M apps/dashboard/components/settings/BillingSection.tsx
+ M apps/dashboard/lib/accounting/invoice-provider.ts
+ D apps/dashboard/lib/accounting/parasut-invoice-provider.test.ts
+ D apps/dashboard/lib/accounting/parasut-invoice-provider.ts
+ D apps/dashboard/lib/accounting/parasut-operations-contract.test.ts
+ D apps/dashboard/lib/accounting/parasut-refresh-token-store.ts
+ M apps/dashboard/lib/accounting/worker-contract.test.ts
+ M apps/dashboard/lib/billing/iyzico-subscription-config.ts
+ M apps/dashboard/lib/billing/iyzico-subscription-provider.test.ts
+ M apps/dashboard/package.json
+ D apps/dashboard/scripts/configure-parasut-oauth.ts
+ M apps/dashboard/scripts/smoke-iyzico-subscription-checkout.ts
+ D apps/dashboard/scripts/verify-parasut-access.ts
+ M apps/marketing/app/yasal/gizlilik-politikasi/page.tsx
+ M apps/marketing/lib/legal-service-providers.ts
+ M config/production-runtime.json
+ M config/production-smoke.json
+ M docs/audits/iyzico-subscription-completion-plan-2026-09-01.md
+ M docs/operations/masabu-release-readiness.md
+ D docs/operations/parasut-e-document.md
+ M docs/operations/production-readiness.md
+ M packages/application/src/billing.ts
+ M packages/application/src/notification-emails.test.ts
+ M packages/application/src/notification-emails.ts
+ M packages/db/src/accounting-invoice-port.test.ts
+ M packages/db/src/accounting-invoice-port.ts
+ D packages/db/src/parasut-oauth-port.test.ts
+ D packages/db/src/parasut-oauth-port.ts
+ M packages/db/src/server.ts
+ M packages/db/src/subscription-billing-settings-port.test.ts
+ M packages/db/src/subscription-billing-settings-port.ts
+ M packages/db/src/types.gen.ts
+ M scripts/production-readiness.mjs
+ M scripts/production-readiness.test.mjs
+ M scripts/runtime-deployment.test.mjs
+?? apps/dashboard/app/api/restaurants/
+?? apps/dashboard/components/overlays/notifications-panel-mobile-contract.test.ts
+?? apps/dashboard/components/settings/billing-invoice-document-contract.test.ts
+?? apps/dashboard/lib/accounting/nilvera-invoice-provider.test.ts
+?? apps/dashboard/lib/accounting/nilvera-invoice-provider.ts
+?? apps/dashboard/lib/accounting/nilvera-worker-canary-contract.test.ts
+?? apps/dashboard/lib/accounting/subscription-invoice-document-handler.ts
+?? apps/dashboard/lib/accounting/subscription-invoice-document-route.test.ts
+?? apps/dashboard/lib/accounting/subscription-purchase-replay-contract.test.ts
+?? apps/dashboard/scripts/configure-sandbox-hosting.ts
+?? apps/dashboard/scripts/prepare-nilvera-worker-canary.ts
+?? apps/dashboard/scripts/prepare-subscription-e2e.ts
+?? apps/dashboard/scripts/preview-nilvera-invoices.ts
+?? apps/dashboard/scripts/run-nilvera-worker-canary.ts
+?? apps/dashboard/scripts/smoke-nilvera-einvoice.ts
+?? apps/dashboard/scripts/verify-nilvera-access.ts
+?? docs/audits/saas-prelaunch-2026-09-05/
+?? docs/operations/nilvera-e-document.md
+?? packages/db/src/accounting-legacy-provider-backfill-migration.test.ts
+?? packages/db/src/accounting-provider-binding-migration.test.ts
+?? packages/db/src/first-paid-activation-migration.test.ts
+?? packages/db/src/parasut-retirement-migration.test.ts
+?? packages/db/src/subscription-invoice-document-migration.test.ts
+?? packages/db/src/subscription-invoice-document-port.test.ts
+?? packages/db/src/subscription-invoice-document-port.ts
+?? packages/db/supabase/migrations/20260903060000_accounting_provider_binding.sql
+?? packages/db/supabase/migrations/20260903061000_accounting_legacy_provider_backfill.sql
+?? packages/db/supabase/migrations/20260904010000_retire_parasut_accounting.sql
+?? packages/db/supabase/migrations/20260904020000_first_paid_activation_welcome.sql
+?? packages/db/supabase/migrations/20260904030000_subscription_invoice_document_projection.sql

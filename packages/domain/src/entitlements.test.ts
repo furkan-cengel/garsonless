@@ -9,11 +9,13 @@ import {
   getEffectiveFeatureEntitlement,
   getFeatureEntitlement,
   getAddOnPrice,
+  isValidAddOnSelection,
   PLAN_DEFINITIONS,
   PLAN_PRICES,
   RESTAURANT_ADD_ONS,
   RESTAURANT_PLANS,
   SELF_SERVE_PLANS,
+  subscriptionNetAmountMinor,
 } from './entitlements'
 
 test('plan order and feature catalogue are closed and cumulative', () => {
@@ -46,12 +48,42 @@ test('feature boundaries match Starter, Plus, Pro and Business positioning', () 
 })
 
 test('Iyzico online payments remain a Pro add-on instead of a trial or plan feature', () => {
-  assert.deepEqual(RESTAURANT_ADD_ONS, ['iyzico_online_payments'])
+  assert.deepEqual(RESTAURANT_ADD_ONS, ['iyzico_online_payments', 'storefront_video_hero'])
   assert.equal(canUseFeature('starter', 'online_payments', ['iyzico_online_payments']), false)
   assert.equal(canUseFeature('plus', 'online_payments', ['iyzico_online_payments']), false)
   assert.equal(canUseFeature('pro', 'online_payments'), false)
   assert.equal(canUseFeature('pro', 'online_payments', ['iyzico_online_payments']), true)
   assert.equal(canUseFeature('business', 'online_payments', ['iyzico_online_payments']), true)
+})
+
+test('Video Hero ships inside Pro and is sold as an add-on below it', () => {
+  assert.equal(canUseFeature('starter', 'theme_video_hero'), false)
+  assert.equal(canUseFeature('plus', 'theme_video_hero'), false)
+  assert.equal(canUseFeature('pro', 'theme_video_hero'), true)
+  assert.equal(canUseFeature('business', 'theme_video_hero'), true)
+  assert.equal(canUseFeature('starter', 'theme_video_hero', ['storefront_video_hero']), true)
+  assert.equal(canUseFeature('plus', 'theme_video_hero', ['storefront_video_hero']), true)
+  // The add-on unlocks nothing else in the bundled advanced catalogue.
+  assert.equal(canUseFeature('starter', 'theme_advanced_sections', ['storefront_video_hero']), false)
+  // Nor does the payments add-on leak into it.
+  assert.equal(canUseFeature('starter', 'theme_video_hero', ['iyzico_online_payments']), false)
+})
+
+test('canonical add-on compatibility and combined net prices fail closed', () => {
+  assert.equal(isValidAddOnSelection('starter', ['storefront_video_hero']), true)
+  assert.equal(isValidAddOnSelection('plus', ['storefront_video_hero']), true)
+  assert.equal(isValidAddOnSelection('pro', ['iyzico_online_payments']), true)
+  assert.equal(isValidAddOnSelection('starter', ['iyzico_online_payments']), false)
+  assert.equal(isValidAddOnSelection('pro', ['storefront_video_hero']), false)
+  assert.equal(isValidAddOnSelection('pro', ['iyzico_online_payments', 'iyzico_online_payments']), false)
+  assert.equal(isValidAddOnSelection('pro', ['unknown']), false)
+  assert.equal(subscriptionNetAmountMinor('starter', 'monthly', ['storefront_video_hero']), 38_800)
+  assert.equal(subscriptionNetAmountMinor('plus', 'annual', ['storefront_video_hero']), 708_480)
+  assert.equal(subscriptionNetAmountMinor('pro', 'monthly', ['iyzico_online_payments']), 149_900)
+  assert.throws(
+    () => subscriptionNetAmountMinor('starter', 'monthly', ['iyzico_online_payments']),
+    /not available/,
+  )
 })
 
 test('unknown plans fail closed while legacy values map to the new catalogue', () => {

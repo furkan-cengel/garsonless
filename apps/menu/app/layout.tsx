@@ -5,14 +5,14 @@ import { normalizeWebVitalsSampleRate } from '@garsonless/application/web-vitals
 import WebVitalsReporter from '../components/WebVitalsReporter'
 import './globals.css'
 
-const dmSans = localFont({ src: '../../../assets/fonts/DM-Sans.ttf', variable: '--font-dm-sans', display: 'swap', weight: '300 800' })
-const fraunces = localFont({ src: '../../../assets/fonts/Fraunces.ttf', variable: '--font-fraunces', display: 'swap', weight: '300 800' })
-const fredoka = localFont({ src: '../../../assets/fonts/Fredoka.ttf', variable: '--font-fredoka', display: 'swap', weight: '300 700' })
-const inter = localFont({ src: '../../../assets/fonts/Inter.ttf', variable: '--font-inter', display: 'swap', weight: '300 800' })
-const manrope = localFont({ src: '../../../assets/fonts/Manrope.ttf', variable: '--font-manrope', display: 'swap', weight: '300 800' })
-const nunito = localFont({ src: '../../../assets/fonts/Nunito.ttf', variable: '--font-nunito', display: 'swap', weight: '300 800' })
-const pacifico = localFont({ src: '../../../assets/fonts/Pacifico.ttf', variable: '--font-pacifico', display: 'swap', weight: '400' })
-const playfair = localFont({ src: '../../../assets/fonts/Playfair-Display.ttf', variable: '--font-playfair', display: 'swap', weight: '400 800' })
+const dmSans = localFont({ src: '../../../assets/fonts/DM-Sans.woff2', variable: '--font-dm-sans', display: 'swap', preload: false, weight: '300 800' })
+const fraunces = localFont({ src: '../../../assets/fonts/Fraunces.woff2', variable: '--font-fraunces', display: 'swap', preload: false, weight: '300 800' })
+const fredoka = localFont({ src: '../../../assets/fonts/Fredoka.woff2', variable: '--font-fredoka', display: 'swap', preload: false, weight: '300 700' })
+const inter = localFont({ src: '../../../assets/fonts/Inter.woff2', variable: '--font-inter', display: 'swap', preload: false, weight: '300 800' })
+const manrope = localFont({ src: '../../../assets/fonts/Manrope.woff2', variable: '--font-manrope', display: 'swap', preload: false, weight: '300 800' })
+const nunito = localFont({ src: '../../../assets/fonts/Nunito.woff2', variable: '--font-nunito', display: 'swap', preload: false, weight: '300 800' })
+const pacifico = localFont({ src: '../../../assets/fonts/Pacifico.woff2', variable: '--font-pacifico', display: 'swap', preload: false, weight: '400' })
+const playfair = localFont({ src: '../../../assets/fonts/Playfair-Display.woff2', variable: '--font-playfair', display: 'swap', preload: false, weight: '400 800' })
 const themeFontVariables = [dmSans, fraunces, fredoka, inter, manrope, nunito, pacifico, playfair]
   .map((font) => font.variable)
   .join(' ')

@@ -28,6 +28,27 @@ const operational = {
   canTables: true,
 }
 
+test('stale-only operation shows one attention table with a critical indicator', () => {
+  const cards = getPanoKpiCards(kpis, 'restaurant-1', {
+    ...operational,
+    tables: [{ ...operational.tables[0]!, status: 'stale' }],
+    serviceRequests: [],
+  })
+  assert.equal(cards[3]?.value, '1')
+  assert.equal(cards[3]?.indicatorTone, 'critical')
+  assert.match(cards[3]?.sub ?? '', /1 eski oturum/)
+})
+
+test('missing payment setup is not duplicated as a live connection failure', () => {
+  const checks = getPanoHealthChecks({
+    paymentStatus: { configured: false, mode: null }, isOwner: true,
+    realtime: 'live', updatedAt: new Date('2026-09-05T08:00:00.000Z'),
+    lastOrderAt: null, now: new Date('2026-09-05T08:00:00.000Z'),
+  })
+  assert.deepEqual(checks.map((check) => check.label), ['Canlı veri', 'Son sipariş'])
+  assert.equal(checks[0]?.status, 'ok')
+})
+
 test('Pano model derives greeting and KPI comparison cards from one snapshot', () => {
   assert.equal(getPanoGreeting('Europe/Istanbul', new Date('2026-07-20T06:00:00.000Z')), 'Günaydın')
   assert.equal(getPanoGreeting('Europe/Istanbul', new Date('2026-07-20T12:00:00.000Z')), 'İyi günler')

@@ -64,12 +64,13 @@ export const PLAN_LABELS: Record<RestaurantPlan, string> = {
 export const SUBSCRIPTION_LABELS: Record<SubscriptionStatus, string> = {
   trial: 'Deneme', trial_expired: 'Deneme süresi doldu', active: 'Aktif', past_due: 'Ödeme gecikti', grace_period: 'Ek süre',
   suspended: 'Askıda', cancelled: 'İptal', manual_hold: 'Manuel bekletme',
+  refund_cancel_pending: 'İptal ediliyor',
 }
 
 export function subscriptionTone(status: SubscriptionStatus | null): string {
   if (status === 'active' || status === 'trial') return 'success'
   if (status === 'past_due' || status === 'grace_period') return 'warning'
-  if (status === 'trial_expired' || status === 'suspended' || status === 'cancelled' || status === 'manual_hold') return 'danger'
+  if (status === 'trial_expired' || status === 'suspended' || status === 'refund_cancel_pending' || status === 'cancelled' || status === 'manual_hold') return 'danger'
   return 'neutral'
 }
 

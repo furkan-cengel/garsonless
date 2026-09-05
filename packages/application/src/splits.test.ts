@@ -12,8 +12,9 @@ import {
 
 function port(overrides: Partial<SplitPaymentPort> = {}): SplitPaymentPort {
   return {
+    async consumeRateLimit() { return { ok: true, value: true } },
     async readDeclarationSnapshot() { return { ok: true, value: { orders: [], settledTotal: 0 } } },
-    async createDeclaredShare() { return { ok: true, value: { shareId: 'share' } } },
+    async createDeclaredShare() { return { ok: true, value: { shareId: 'share', amount: 1 } } },
     async reserveOnlineCheckout() {
       return { ok: true, value: { amount: 50, restaurantSettings: null } }
     },
@@ -38,13 +39,14 @@ test('split declaration is tenant-scoped, deduplicates item refs, and caps remai
     },
     async createDeclaredShare(input) {
       created.push(input)
-      return { ok: true, value: { shareId: 'share' } }
+      return { ok: true, value: { shareId: 'share', amount: input.amount } }
     },
   })
   const result = await declareSplitShare(
     { actor: 'table-guest', restaurantId: 'r', tableId: 't', tableToken: 'token' },
     {
       restaurantId: 'r', tableSessionId: 'session', method: 'cash', customerId: null,
+      requestId: 'request', requestFingerprint: 'fingerprint', rateLimitKey: 'rate-key',
       assignedItems: [{ orderId: 'order', itemId: 'coffee' }, { orderId: 'order', itemId: 'coffee' }],
     },
     adapter,
@@ -55,11 +57,52 @@ test('split declaration is tenant-scoped, deduplicates item refs, and caps remai
   let touched = false
   const denied = await declareSplitShare(
     { actor: 'table-guest', restaurantId: 'r', tableId: 't', tableToken: 'token' },
-    { restaurantId: 'other', tableSessionId: 'session', method: 'cash', customerId: null, amount: 10 },
+    { restaurantId: 'other', tableSessionId: 'session', method: 'cash', customerId: null, amount: 10, requestId: 'request', requestFingerprint: 'fingerprint', rateLimitKey: 'rate-key' },
     port({ async readDeclarationSnapshot() { touched = true; throw new Error('unreachable') } }),
   )
   assert.deepEqual(denied, { ok: false, error: 'Invalid table context' })
   assert.equal(touched, false)
+})
+
+test('split declaration rate-limits before reading the session snapshot', async () => {
+  let snapshotRead = false
+  const result = await declareSplitShare(
+    { actor: 'table-guest', restaurantId: 'r', tableId: 't', tableToken: 'token' },
+    {
+      restaurantId: 'r', tableSessionId: 'session', method: 'cash', customerId: null,
+      amount: 10, requestId: 'request', requestFingerprint: 'fingerprint', rateLimitKey: 'rate-key',
+    },
+    port({
+      async consumeRateLimit() {
+        return { ok: false, error: 'Çok fazla pay denemesi. Lütfen kısa süre sonra tekrar deneyin.' }
+      },
+      async readDeclarationSnapshot() {
+        snapshotRead = true
+        throw new Error('unreachable')
+      },
+    }),
+  )
+  assert.deepEqual(result, { ok: false, error: 'Çok fazla pay denemesi. Lütfen kısa süre sonra tekrar deneyin.' })
+  assert.equal(snapshotRead, false)
+})
+
+test('idempotent declaration returns the amount persisted by the atomic port', async () => {
+  const result = await declareSplitShare(
+    { actor: 'table-guest', restaurantId: 'r', tableId: 't', tableToken: 'token' },
+    {
+      restaurantId: 'r', tableSessionId: 'session', method: 'cash', customerId: null,
+      amount: 20, requestId: 'request', requestFingerprint: 'fingerprint', rateLimitKey: 'rate-key',
+    },
+    port({
+      async readDeclarationSnapshot() {
+        return { ok: true, value: { orders: [{ id: 'order', total: 20, items: [] }], settledTotal: 0 } }
+      },
+      async createDeclaredShare() {
+        return { ok: true, value: { shareId: 'existing-share', amount: 18 } }
+      },
+    }),
+  )
+  assert.deepEqual(result, { ok: true, value: { shareId: 'existing-share', amount: 18 } })
 })
 
 test('checkout delegates amount reservation to the atomic port', async () => {

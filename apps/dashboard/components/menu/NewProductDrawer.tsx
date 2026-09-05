@@ -134,6 +134,7 @@ export default function NewProductDrawer({
       if (event.key === 'Escape') {
         if (pendingRef.current) return
         event.preventDefault()
+        event.stopImmediatePropagation()
         if (dirtyRef.current) setDiscardConfirmOpen(true)
         else onCloseRef.current()
         return
@@ -324,7 +325,6 @@ export default function NewProductDrawer({
                   ref={nameInputRef}
                   id="new-product-name"
                   aria-label="Ürün adı"
-                  autoFocus
                   value={name}
                   maxLength={100}
                   onChange={(e) => setName(e.target.value)}

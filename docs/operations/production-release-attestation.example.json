@@ -12,6 +12,9 @@
   "enabledCapabilities": {
     "order-card-payments": false,
     "saas-billing": false,
+    "subscription-refunds": false,
+    "accounting": false,
+    "customer-phone-auth": false,
     "web-push": false,
     "sms": false
   },

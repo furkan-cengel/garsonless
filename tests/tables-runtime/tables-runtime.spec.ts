@@ -8,10 +8,8 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { loadEnvFile } from "node:process";
-import {
-  createClient,
-  createServiceClient,
-} from "../../packages/db/src/client";
+import { createClient } from "../../packages/db/src/browser-client";
+import { createServiceClient } from "../../packages/db/src/service-client";
 import { createTableSessionPort } from "../../packages/db/src/table-command-port";
 
 const DEV_PROJECT_REF = "yxsegwkzyiscrxiwdeuf";
@@ -129,9 +127,12 @@ async function captureRouteLoading({
     uploadThroughput: 48 * 1024,
   });
   const link = page.getByRole("link", { name: linkName, exact: true });
-  const clickPromise = link.click();
+  await expect(link).toBeVisible();
+  // A warm client navigation may correctly bypass loading.tsx entirely.
+  // Reload the target document to exercise its cold streamed loading state.
+  const clickPromise = page.goto(`${dashboardURL}${targetPath}`, { waitUntil: "commit" });
   try {
-    const skeleton = page.locator(".tb-route-skeleton");
+    const skeleton = page.locator(".tb-route-skeleton").filter({ hasText: statusText });
     await expect(skeleton).toContainText(statusText, { timeout: 10_000 });
     const measurements = await skeleton.evaluate((element) => {
       const rectangle = element.getBoundingClientRect();
@@ -372,6 +373,22 @@ test.describe("tables production runtime gate", () => {
         waitForActiveTable(mobile, sourceLabel),
       ]);
 
+      // T04: safety refreshes must not discard an in-progress transfer selection.
+      await mobile.getByRole("button", { name: new RegExp(`^${sourceLabel},`) }).first().click();
+      const detail = mobile.getByRole("dialog");
+      await detail.getByRole("button", { name: "Taşımak için seç", exact: true }).click();
+      await detail.getByRole("checkbox", { name: "1. siparişi seç", exact: true }).check();
+      for (let cycle = 0; cycle < 2; cycle++) {
+        const refreshed = await mobile.waitForEvent("requestfinished", {
+          predicate: request => request.method() === "POST" && request.url().includes(`/dashboard/${restaurantId}/tables`),
+          timeout: 60_000,
+        });
+        expect((await refreshed.response())?.ok()).toBe(true);
+        await expect(detail.getByRole("checkbox", { name: "1. siparişi seç", exact: true })).toBeChecked();
+        await expect(detail.getByRole("button", { name: "Ürünleri seç (1)", exact: true })).toBeVisible();
+      }
+      await mobile.keyboard.press("Escape");
+
       await desktop.getByRole("button", { name: "Kapat", exact: true }).click();
       const settlement = desktop.getByRole("dialog", {
         name: "Tahsilatı tamamla",
@@ -434,7 +451,8 @@ test.describe("tables production runtime gate", () => {
           name: "Runtime Avokado Tost taşınacak adet",
           exact: true,
         })
-        .selectOption("2");
+        .click();
+      await desktop.getByRole("option", { name: /^2 \/ / }).click();
       await expect(
         transfer.getByRole("button", {
           name: "Taşımayı onayla · 2 adet",
@@ -494,7 +512,8 @@ test.describe("tables production runtime gate", () => {
           name: "Runtime Avokado Tost taşınacak adet",
           exact: true,
         })
-        .selectOption("2");
+        .click();
+      await mobile.getByRole("option", { name: /^2 \/ / }).click();
       await mobile.screenshot({
         path: resolve(evidenceDir, "64-item-quantity-transfer-mobile.png"),
         animations: "disabled",

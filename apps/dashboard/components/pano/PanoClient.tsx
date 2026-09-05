@@ -25,9 +25,9 @@ import type {
   PanoSnapshotHealth,
 } from '../../lib/queries/pano'
 import type { Section } from '../../lib/auth/access'
-import { PanoKpiCard, PanoAttentionQueue, PanoPeakHours, PanoCardSkeleton, PanoSystemHealth, PanoTopItemsWidget } from './PanoOverviewWidgets'
+import { PanoKpiCard, PanoAttentionQueue, PanoPeakHours, PanoCardSkeleton, PanoSystemHealth, PanoTopItemsWidget, PanoSetupNotice } from './PanoOverviewWidgets'
 import { getPanoGreeting, getPanoHealthChecks, getPanoKpiCards } from './pano-view-model'
-import { withPanoConnectionAttention } from '../../lib/pano-attention-model'
+import { partitionPanoAttentionItems, withPanoConnectionAttention } from '../../lib/pano-attention-model'
 import { usePanoSalesChart } from './use-pano-sales-chart'
 import { usePanoLiveState } from './use-pano-live-state'
 import { usePanoOrderApproval } from './use-pano-order-approval'
@@ -114,11 +114,11 @@ export default function PanoClient(props: Props) {
     canOrders: can('orders'),
     canTables: can('tables'),
   })
-  const operationalAttention = withPanoConnectionAttention(attentionItems, realtime, snapshot.generatedAt).map((item) => {
+  const { operational: operationalAttention, setup: setupAttention } = partitionPanoAttentionItems(withPanoConnectionAttention(attentionItems, realtime, snapshot.generatedAt).map((item) => {
     const canOpen =
       item.kind === 'pending_order' ? can('orders') : item.kind === 'payment_configuration' ? isOwner : item.kind === 'connection' || can('tables')
     return canOpen ? item : { ...item, actionHref: undefined }
-  })
+  }))
   const lateTableCount = liveTableStatuses.filter((table) => table.status === 'late').length
   const operationTagTone =
     orderSummary.pending > 0 || lateTableCount > 0 ? ('critical' as const) : orderSummary.preparing > 0 ? ('warning' as const) : ('positive' as const)
@@ -281,6 +281,8 @@ export default function PanoClient(props: Props) {
             />
             <PanoSystemHealth checks={healthChecks} onRetry={() => void retryLive()} retrying={refreshing} />
           </div>
+
+          {isOwner && <PanoSetupNotice items={setupAttention} />}
 
           <Collapsible className="pano-analytics" open={analyticsOpen} onOpenChange={setAnalyticsOpen}>
             <CollapsibleTrigger className="pano-analytics-summary">

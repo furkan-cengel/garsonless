@@ -25,6 +25,7 @@ export function TablesFloorCanvas({
   now,
   floorFilter,
   filtersActive,
+  onClearFilters, onAddTable,
   activeId,
   setActiveId,
   onOpenDetail,
@@ -48,9 +49,9 @@ export function TablesFloorCanvas({
   const overviewDraft = useMemo(() => buildTableLayoutOverviewDraft(tables), [tables])
   const displayedDraft = floorFilter || layout.editing ? layout.draft : overviewDraft
   const floorLabel = floorFilter === UNASSIGNED_LOCATION_FILTER ? 'Atanmamış kat' : floorFilter || 'Tüm katlar · Özet'
-  const editDisabledReason = initialLayoutError ?? (!floorFilter ? 'Düzeni düzenlemek için bir kat seçin.' : null)
+  const editDisabledReason = layout.loadError ?? (!floorFilter ? 'Düzeni düzenlemek için bir kat seçin.' : null)
   const floorActions = useTableFloorActions({
-    tables, openSessions, pendingRequests, floorFilter, initialLayoutError, canCreateOrders,
+    tables, openSessions, pendingRequests, floorFilter, initialLayoutError: layout.loadError, canCreateOrders,
     setActiveId, startEditing: layout.startEditing, onOpenDetail, onNewOrder, onTransfer, onPrefetchTransfer,
     onSettle, onCloseSession, onResolveRequest, onRename, onDelete,
   })
@@ -89,6 +90,8 @@ export function TablesFloorCanvas({
           <span><i className="is-new" />Yeni</span>
           <span><i className="is-open" />Dolu</span>
           <span><i className="is-late" />Geciken</span>
+          <span><i className="is-stale" />Önceki günden</span>
+          <span><i className="is-paid" />Tahsil edildi</span>
         </div>
         <div className="tb-floor__actions">
           {layout.editing ? (
@@ -141,6 +144,7 @@ export function TablesFloorCanvas({
       {(layout.error || layout.notice) && (
         <Alert variant={layout.error ? 'destructive' : 'default'} className={`tb-floor__message ${layout.error ? 'is-error' : 'is-success'}`} role={layout.error ? 'alert' : 'status'}>
           <AlertDescription className="text-current">{layout.error ?? layout.notice}</AlertDescription>
+          {layout.loadError && <Button type="button" variant="outline" size="sm" disabled={layout.retrying} onClick={() => void layout.retryLayout()}>{layout.retrying ? 'Yükleniyor…' : 'Yerleşimi yeniden yükle'}</Button>}
           {layout.conflict && <span className="tb-floor__conflict-actions"><Button type="button" variant="outline" size="xs" onClick={layout.loadRemoteConflict}>Güncel düzeni yükle</Button><Button type="button" variant="outline" size="xs" onClick={layout.keepLocalDraft}>Taslağımı koru</Button></span>}
           {layout.notice && <AlertAction><Button type="button" variant="ghost" size="icon-xs" aria-label="Bildirimi kapat" onClick={layout.dismissNotice}><AppIcons.close /></Button></AlertAction>}
         </Alert>
@@ -151,7 +155,9 @@ export function TablesFloorCanvas({
           {layout.editing && <div className="tb-floor__grid" aria-hidden="true" />}
           {filteredTables.length === 0 ? (
             <Empty className="tb-floor__empty border-0">
-              <EmptyHeader><EmptyMedia variant="icon"><AppIcons.grid /></EmptyMedia><EmptyTitle>{tables.length === 0 ? 'Henüz masa yok' : 'Bu filtrede masa bulunamadı'}</EmptyTitle><EmptyDescription>{filtersActive ? 'Sol paneldeki filtreleri değiştirin.' : 'Sol panelden ilk masanızı ekleyin.'}</EmptyDescription></EmptyHeader>
+              <EmptyHeader><EmptyMedia variant="icon"><AppIcons.grid /></EmptyMedia><EmptyTitle>{tables.length === 0 ? 'Henüz masa yok' : 'Bu filtrede masa bulunamadı'}</EmptyTitle><EmptyDescription>{filtersActive ? 'Arama veya filtreleri temizleyerek masalarınızı görüntüleyin.' : 'İlk masanızı ekleyerek salonunuzu hazırlayın.'}</EmptyDescription></EmptyHeader>
+              {tables.length === 0 && <Button type="button" onClick={onAddTable}>İlk masayı ekle</Button>}
+              {filtersActive && <Button type="button" variant="outline" onClick={onClearFilters}>Filtreleri temizle</Button>}
             </Empty>
           ) : filteredTables.map((table) => {
             const entry = displayedDraft[table.id]

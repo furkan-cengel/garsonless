@@ -11,5 +11,7 @@ test('Resend campaign webhook verifies the untouched body and Svix headers befor
   assert.match(route, /'svix-timestamp': timestamp/)
   assert.match(route, /'svix-signature': signature/)
   assert.match(route, /recordResendCampaignEvent/)
+  assert.match(route, /recordResendNotificationEvent/)
+  assert.match(route, /Promise\.all/)
   assert.doesNotMatch(route, /console\.|request\.json\(\)/)
 })

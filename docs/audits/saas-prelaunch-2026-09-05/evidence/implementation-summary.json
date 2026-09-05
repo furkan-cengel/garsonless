@@ -1,0 +1,16 @@
+{
+  "tests": 2343,
+  "pass": 2343,
+  "fail": 0,
+  "skipped": 0,
+  "groups": 25,
+  "buildApps": [
+    "apps/marketing",
+    "apps/kitchen",
+    "apps/menu",
+    "apps/platform-admin",
+    "apps/dashboard"
+  ],
+  "bundleRoutesPassed": 10,
+  "visualExecution": "not run: Computer Use native pipe startup failed"
+}

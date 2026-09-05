@@ -3,6 +3,7 @@ import type {
   SubscriptionBillingProfile,
   SubscriptionBillingSettings,
   SubscriptionBillingSettingsInvoice,
+  SubscriptionBillingSettingsRefund,
   SubscriptionBillingSettingsReadPort,
   SubscriptionBillingSettingsSubscription,
 } from '@garsonless/application/billing'
@@ -95,12 +96,23 @@ function subscription(value: unknown): SubscriptionBillingSettingsSubscription |
   const graceEndsAt = nullableTimestamp(row?.graceEndsAt ?? null)
   const cancelledAt = nullableTimestamp(row?.cancelledAt ?? null)
   const activeAddOns = row?.activeAddOns ?? []
+  const scheduledAddOns = row?.scheduledAddOns ?? []
+  const cancelAtPeriodEnd = row?.cancelAtPeriodEnd ?? false
+  const cancellationRequestId = nullableText(row?.cancellationRequestId ?? null)
+  const cancellationEffectiveAt = nullableTimestamp(row?.cancellationEffectiveAt ?? null)
+  const cancellationStatus = row?.cancellationStatus ?? null
   if (!row || !id || !RESTAURANT_PLANS.includes(plan as never)
     || !BILLING_INTERVALS.includes(billingInterval as never)
     || !(scheduledPlan === null || RESTAURANT_PLANS.includes(scheduledPlan as never))
     || !SUBSCRIPTION_STATUSES.includes(status as never)
     || !Array.isArray(activeAddOns)
     || activeAddOns.some((addOn) => !RESTAURANT_ADD_ONS.includes(addOn as never))
+    || !Array.isArray(scheduledAddOns)
+    || scheduledAddOns.some((addOn) => !RESTAURANT_ADD_ONS.includes(addOn as never))
+    || typeof cancelAtPeriodEnd !== 'boolean'
+    || cancellationRequestId === undefined || cancellationEffectiveAt === undefined
+    || !(cancellationStatus === null
+      || ['scheduled', 'processing', 'provider_cancelled', 'requires_reconciliation'].includes(cancellationStatus as string))
     || currentPeriodStart === undefined || currentPeriodEnd === undefined
     || trialEndsAt === undefined || graceEndsAt === undefined || cancelledAt === undefined) return undefined
   return {
@@ -111,6 +123,11 @@ function subscription(value: unknown): SubscriptionBillingSettingsSubscription |
     status: status as SubscriptionBillingSettingsSubscription['status'],
     currentPeriodStart, currentPeriodEnd, trialEndsAt, graceEndsAt, cancelledAt,
     activeAddOns: activeAddOns as SubscriptionBillingSettingsSubscription['activeAddOns'],
+    scheduledAddOns: scheduledAddOns as SubscriptionBillingSettingsSubscription['scheduledAddOns'],
+    cancelAtPeriodEnd,
+    cancellationRequestId,
+    cancellationEffectiveAt,
+    cancellationStatus: cancellationStatus as SubscriptionBillingSettingsSubscription['cancellationStatus'],
   }
 }
 
@@ -126,6 +143,11 @@ function invoice(value: unknown): SubscriptionBillingSettingsInvoice | null {
   const paidAt = nullableTimestamp(row?.paidAt ?? null)
   const failedAt = nullableTimestamp(row?.failedAt ?? null)
   const addOns = row?.addOns ?? []
+  const hasFiscalProjection = row?.fiscalDocumentStatus !== undefined
+    || row?.fiscalDocumentType !== undefined || row?.canDownload !== undefined
+  const fiscalDocumentStatus = hasFiscalProjection ? row?.fiscalDocumentStatus : 'not_available'
+  const fiscalDocumentType = hasFiscalProjection ? row?.fiscalDocumentType : null
+  const canDownload = hasFiscalProjection ? row?.canDownload : false
   if (!row || !id || !['starter', 'plus', 'pro'].includes(plan as string)
     || !BILLING_INTERVALS.includes(billingInterval as never)
     || !SUBSCRIPTION_INVOICE_STATUSES.includes(status as never)
@@ -134,7 +156,12 @@ function invoice(value: unknown): SubscriptionBillingSettingsInvoice | null {
     || !Number.isSafeInteger(row.amountDueMinor) || (row.amountDueMinor as number) < 0
     || !Number.isSafeInteger(row.amountPaidMinor) || (row.amountPaidMinor as number) < 0
     || row.currency !== 'TRY' || !periodStart || !periodEnd || !dueAt
-    || paidAt === undefined || failedAt === undefined || typeof row.canRetry !== 'boolean') return null
+    || paidAt === undefined || failedAt === undefined || typeof row.canRetry !== 'boolean'
+    || !['not_available', 'preparing', 'profile_required', 'ready', 'failed'].includes(String(fiscalDocumentStatus))
+    || !(fiscalDocumentType === null || ['e_fatura', 'e_arsiv'].includes(String(fiscalDocumentType)))
+    || typeof canDownload !== 'boolean'
+    || (canDownload && fiscalDocumentStatus !== 'ready')
+    || (fiscalDocumentStatus === 'ready' && (!canDownload || fiscalDocumentType === null))) return null
   return {
     id,
     plan: plan as SubscriptionBillingSettingsInvoice['plan'],
@@ -144,6 +171,39 @@ function invoice(value: unknown): SubscriptionBillingSettingsInvoice | null {
     amountPaidMinor: row.amountPaidMinor as number,
     currency: 'TRY', status: status as SubscriptionBillingSettingsInvoice['status'],
     periodStart, periodEnd, dueAt, paidAt, failedAt, canRetry: row.canRetry,
+    fiscalDocumentStatus: fiscalDocumentStatus as SubscriptionBillingSettingsInvoice['fiscalDocumentStatus'],
+    fiscalDocumentType: fiscalDocumentType as SubscriptionBillingSettingsInvoice['fiscalDocumentType'],
+    canDownload,
+  }
+}
+
+function refund(value: unknown): SubscriptionBillingSettingsRefund | null {
+  const row = object(value)
+  const id = text(row?.id)
+  const invoiceId = text(row?.invoiceId)
+  const requestedAt = timestamp(row?.requestedAt)
+  const completedAt = nullableTimestamp(row?.completedAt ?? null)
+  const cancellationRequestId = nullableText(row?.cancellationRequestId ?? null)
+  const accessAction = row?.accessAction
+  const cancellationStatus = row?.cancellationStatus ?? null
+  if (!row || !id || !invoiceId
+    || !['same_day_cancel', 'refund'].includes(String(row.kind))
+    || !['full', 'partial'].includes(String(row.scope))
+    || !['keep', 'cancel_immediately'].includes(String(accessAction))
+    || !['requested', 'processing', 'succeeded', 'failed', 'requires_reconciliation'].includes(String(row.status))
+    || !Number.isSafeInteger(row.amountMinor) || (row.amountMinor as number) <= 0
+    || !(cancellationStatus === null
+      || ['scheduled', 'processing', 'provider_cancelled', 'applied', 'requires_reconciliation'].includes(String(cancellationStatus)))
+    || cancellationRequestId === undefined
+    || row.currency !== 'TRY' || !requestedAt || completedAt === undefined) return null
+  return {
+    id, invoiceId, kind: row.kind as SubscriptionBillingSettingsRefund['kind'],
+    scope: row.scope as SubscriptionBillingSettingsRefund['scope'],
+    accessAction: accessAction as SubscriptionBillingSettingsRefund['accessAction'],
+    amountMinor: row.amountMinor as number, currency: 'TRY',
+    status: row.status as SubscriptionBillingSettingsRefund['status'],
+    requestedAt, completedAt, cancellationRequestId,
+    cancellationStatus: cancellationStatus as SubscriptionBillingSettingsRefund['cancellationStatus'],
   }
 }
 
@@ -152,10 +212,12 @@ function parse(value: unknown): Result<SubscriptionBillingSettings> {
   const parsedProfile = profile(row?.profile)
   const parsedSubscription = subscription(row?.subscription)
   const invoices = Array.isArray(row?.invoices) ? row.invoices.map(invoice) : null
+  const refunds = row?.refunds === undefined ? [] : Array.isArray(row.refunds) ? row.refunds.map(refund) : null
   const attention = object(row?.attention)
   const nextDunningActionAt = nullableTimestamp(attention?.nextDunningActionAt ?? null)
   if (!row || parsedProfile === undefined || parsedSubscription === undefined
-    || !invoices || invoices.some((item) => item === null) || !attention
+    || !invoices || invoices.some((item) => item === null)
+    || !refunds || refunds.some((item) => item === null) || !attention
     || !Number.isInteger(attention.reconciliationCount) || (attention.reconciliationCount as number) < 0
     || typeof attention.hasPendingCheckout !== 'boolean' || nextDunningActionAt === undefined) {
     return err('Billing settings projection is invalid')
@@ -164,6 +226,7 @@ function parse(value: unknown): Result<SubscriptionBillingSettings> {
     profile: parsedProfile,
     subscription: parsedSubscription,
     invoices: invoices as SubscriptionBillingSettingsInvoice[],
+    refunds: refunds as SubscriptionBillingSettingsRefund[],
     attention: {
       reconciliationCount: attention.reconciliationCount as number,
       hasPendingCheckout: attention.hasPendingCheckout,

@@ -12,17 +12,28 @@
     "marketing",
     "platform-admin",
     "outbox-worker",
-    "send-email-hook"
+    "send-email-hook",
+    "send-sms-hook"
   ],
   "capabilityScopes": {
     "order-card-payments": ["menu"],
     "saas-billing": ["dashboard"],
+    "subscription-refunds": ["platform-admin"],
+    "accounting": ["dashboard"],
+    "customer-phone-auth": ["menu", "send-sms-hook"],
     "web-push": ["dashboard", "outbox-worker"],
     "sms": ["dashboard"]
   },
   "smokeCapabilityBindings": {
     "order-card-payments": "order-card-payments",
-    "saas-billing": "saas-billing"
+    "saas-billing": "saas-billing",
+    "subscription-refunds": "subscription-refunds",
+    "accounting": "accounting",
+    "customer-phone-auth": "customer-phone-auth"
+  },
+  "runtimeCapabilityBindings": {
+    "accounting": "accounting",
+    "customer-phone-auth": "customer-phone-auth"
   },
   "requiredApprovals": [
     "backupPitrVerified",

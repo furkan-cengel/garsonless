@@ -78,14 +78,11 @@ export async function resolveRestaurantFeatureEntitlement(
     })
     if (error) return err('feature_entitlement_resolution_failed')
     const context = parseContext(data)
-    // Rolling-deploy compatibility: the old RPC had no add-on projection and
-    // Pro already included online payments. The new migration emits version 1;
-    // only then does the paid add-on become the sole source of this feature.
+    // Add-on access fails closed when the database projection is stale or
+    // absent. A plan name must never stand in for a paid add-on entitlement.
     const activeAddOns = context.addOnEntitlementsVersion === 1
       ? context.activeAddOns
-      : input.feature === 'online_payments'
-        ? ['iyzico_online_payments'] as const
-        : []
+      : []
     const entitlement = getEffectiveFeatureEntitlement(
       input.plan,
       input.feature,
@@ -111,4 +108,23 @@ export async function canRestaurantUseFeature(
 ): Promise<boolean> {
   const result = await resolveRestaurantFeatureEntitlement(input, rpc)
   return result.ok && result.value.allowed
+}
+
+/** Server-only convenience for public routes. The plan is intentionally read
+ * with the service client so it never has to be exposed through the anonymous
+ * restaurant projection. */
+export async function canPublicRestaurantUseFeature(input: {
+  restaurantId: string
+  feature: BillableFeature
+  now?: Date
+}): Promise<boolean> {
+  if (!UUID.test(input.restaurantId) || !BILLABLE_FEATURES.includes(input.feature)) return false
+  const { data, error } = await createServiceClient()
+    .from('restaurants')
+    .select('plan')
+    .eq('id', input.restaurantId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (error || !data) return false
+  return canRestaurantUseFeature({ ...input, plan: data.plan })
 }

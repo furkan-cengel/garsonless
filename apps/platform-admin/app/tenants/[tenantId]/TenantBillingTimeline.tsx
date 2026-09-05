@@ -4,6 +4,7 @@ import type {
 } from '@garsonless/application/platform-admin-billing'
 import { interveneTenantDunning } from '../../actions'
 import { billingStatusLabel } from '../../../lib/tenant-presentation'
+import { SubscriptionRefundForm } from './SubscriptionRefundForm'
 
 const KIND_LABELS: Record<PlatformBillingTimelineItem['kind'], string> = {
   invoice: 'Fatura',
@@ -12,6 +13,7 @@ const KIND_LABELS: Record<PlatformBillingTimelineItem['kind'], string> = {
   reconciliation: 'Mutabakat',
   provider_event: 'Ödeme sağlayıcı olayı',
   provider_operation: 'Ödeme sağlayıcı işlemi',
+  refund: 'Abonelik iadesi',
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -35,6 +37,11 @@ const ACTION_LABELS: Record<string, string> = {
   'checkout.initialize': 'Ödeme oturumu başlatma',
   'payment.retry': 'Tahsilatı yeniden deneme',
   'subscription.cancel': 'Abonelik iptali',
+  'subscription.change': 'Abonelik değişikliği',
+  'card_update.initialize': 'Kart güncelleme oturumu',
+  'subscription.refund': 'Abonelik iadesi sağlayıcı işlemi',
+  same_day_cancel: 'Aynı gün tam iptal',
+  refund: 'Tam/kısmi iade',
 }
 
 function formatDate(value: string | null) {
@@ -52,6 +59,7 @@ function formatMoney(amountMinor: number | null, currency: string | null) {
 }
 
 function itemTone(item: PlatformBillingTimelineItem) {
+  if (item.cancellationStatus === 'requires_reconciliation') return 'danger'
   if (item.hasError || ['failed', 'past_due', 'uncollectible', 'dead_lettered', 'discrepancy'].includes(item.status)) {
     return 'danger'
   }
@@ -59,6 +67,14 @@ function itemTone(item: PlatformBillingTimelineItem) {
     return 'success'
   }
   return 'neutral'
+}
+
+function refundAccessLabel(item: PlatformBillingTimelineItem) {
+  if (item.kind !== 'refund' || item.accessAction === null) return null
+  if (item.accessAction === 'keep') return 'İade tamamlandı · erişim açık kaldı'
+  if (item.cancellationStatus === 'applied') return 'Abonelik iptal edildi'
+  if (item.cancellationStatus === 'requires_reconciliation') return 'Manuel kontrol gerekiyor'
+  return 'Abonelik kapatılıyor'
 }
 
 export function TenantBillingTimelinePanel({
@@ -87,6 +103,8 @@ export function TenantBillingTimelinePanel({
     && item.invoiceId !== null
     && (item.status === 'scheduled' || item.status === 'failed')
   ))
+  const paidInvoices = timeline.items.filter((item) => item.kind === 'invoice' && item.status === 'paid')
+  const refunds = timeline.items.filter((item) => item.kind === 'refund')
   return (
     <article className="panel billing-timeline-panel">
       <div className="panel-heading billing-heading">
@@ -99,6 +117,7 @@ export function TenantBillingTimelinePanel({
         <div><span>Aktif takip</span><strong>{summary.activeDunning}</strong></div>
         <div><span>Mutabakat</span><strong>{summary.openReconciliation}</strong></div>
         <div><span>Başarısız deneme</span><strong>{summary.failedAttempts}</strong></div>
+        <div><span>Toplam iade</span><strong>{formatMoney(summary.refundedMinor ?? 0, summary.currency)}</strong></div>
       </div>
       {timeline.items.length === 0 ? (
         <p className="empty-inline">Henüz ödeme kaydı yok.</p>
@@ -115,6 +134,7 @@ export function TenantBillingTimelinePanel({
                     <span>{formatDate(item.occurredAt)}</span>
                     {item.attempt !== null ? <span>Deneme {item.attempt}</span> : null}
                     {item.nextActionAt ? <span>Sonraki adım {formatDate(item.nextActionAt)}</span> : null}
+                    {refundAccessLabel(item) ? <span>{refundAccessLabel(item)}</span> : null}
                   </div>
                 </div>
                 <div className="timeline-result">
@@ -183,6 +203,15 @@ export function TenantBillingTimelinePanel({
               <button className="button primary" type="submit">Müdahaleyi kaydet</button>
             </div>
           </form>
+        )}
+      </div>
+      <div className="billing-intervention">
+        <div className="panel-heading">
+          <div><p className="eyebrow">Denetimli para hareketi</p><h3>Abonelik faturası iadesi</h3></div>
+          <span className="read-only">Finans · Süper yönetici</span>
+        </div>
+        {paidInvoices.length === 0 ? <p className="empty-inline">İade edilebilir ödenmiş fatura görünmüyor.</p> : (
+          <SubscriptionRefundForm paidInvoices={paidInvoices} refunds={refunds} restaurantId={restaurantId} />
         )}
       </div>
     </article>

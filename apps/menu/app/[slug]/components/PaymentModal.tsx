@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { formatTRY, useTheme } from '@garsonless/ui/menu'
 import { AppIcons as I } from '@garsonless/ui/icons'
 import {
@@ -14,6 +14,10 @@ import {
   type CheckoutSuccessIcon,
   type CheckoutTablePaymentIcon,
 } from '@garsonless/design-engine'
+import {
+  readTrustedPaymentCallbackMessage,
+  resolvePaymentCallbackOutcome,
+} from '../../../lib/payment-callback-message'
 
 interface Props {
   orderId: string
@@ -37,6 +41,7 @@ interface BuyerInfo {
   surname: string
   email: string
   phone: string
+  identityNumber: string
 }
 
 type Step = 'form' | 'iframe' | 'success' | 'table-success' | 'error'
@@ -84,6 +89,7 @@ export default function PaymentModal({
   const [step, setStep] = useState<Step>(() => previewStep(previewState))
   const [choice, setChoice] = useState<PaymentChoice>('card')
   const [paymentPageUrl, setPaymentPageUrl] = useState('')
+  const paymentFrameRef = useRef<HTMLIFrameElement>(null)
   const [errorMsg, setErrorMsg] = useState(previewState === 'error' ? 'Kartından tahsilat yapılmadı. Yeniden deneyebilirsin.' : '')
   const [loading, setLoading] = useState(false)
   const [buyer, setBuyer] = useState<BuyerInfo>({
@@ -91,6 +97,7 @@ export default function PaymentModal({
     surname: initialName.surname,
     email: '',
     phone: '',
+    identityNumber: '',
   })
 
   function updateBuyer(field: keyof BuyerInfo, value: string) {
@@ -116,6 +123,7 @@ export default function PaymentModal({
           buyerSurname: buyer.surname.trim(),
           buyerEmail: buyer.email.trim(),
           buyerPhone: buyer.phone.trim(),
+          buyerIdentityNumber: buyer.identityNumber.trim(),
         }),
       })
       const data = (await response.json()) as
@@ -163,17 +171,18 @@ export default function PaymentModal({
     if (step !== 'iframe') return
 
     function handleIframeMessage(event: MessageEvent) {
-      if (event.origin !== window.location.origin) return
-      if (typeof event.data !== 'object' || event.data === null) return
-      const message = event.data as Record<string, unknown>
-
-      if (message['type'] === 'PAYMENT_SUCCESS') {
+      const message = readTrustedPaymentCallbackMessage(
+        event,
+        window.location.origin,
+        paymentFrameRef.current?.contentWindow,
+      )
+      if (!message) return
+      const outcome = resolvePaymentCallbackOutcome('order', message)
+      if (outcome?.status === 'success') {
         setStep('success')
-      } else if (message['type'] === 'PAYMENT_FAILED') {
+      } else if (outcome?.status === 'failed') {
         setErrorMsg(
-          typeof message['reason'] === 'string' && message['reason']
-            ? message['reason']
-            : 'Ödeme tamamlanamadı. Lütfen tekrar dene.',
+          outcome.reason || 'Ödeme tamamlanamadı. Lütfen tekrar dene.',
         )
         setStep('error')
       }
@@ -290,6 +299,7 @@ export default function PaymentModal({
                       <input
                         required
                         autoComplete="given-name"
+                        maxLength={50}
                         value={buyer.name}
                         onChange={(event) => updateBuyer('name', event.target.value)}
                       />
@@ -298,6 +308,7 @@ export default function PaymentModal({
                       <input
                         required
                         autoComplete="family-name"
+                        maxLength={50}
                         value={buyer.surname}
                         onChange={(event) => updateBuyer('surname', event.target.value)}
                       />
@@ -309,6 +320,7 @@ export default function PaymentModal({
                       required
                       inputMode="email"
                       autoComplete="email"
+                      maxLength={254}
                       placeholder="ornek@email.com"
                       value={buyer.email}
                       onChange={(event) => updateBuyer('email', event.target.value)}
@@ -320,11 +332,27 @@ export default function PaymentModal({
                       required
                       inputMode="tel"
                       autoComplete="tel"
+                      maxLength={20}
                       placeholder="05xx xxx xx xx"
                       value={buyer.phone}
                       onChange={(event) => updateBuyer('phone', event.target.value)}
                     />
                   </Field>
+                  <Field label="T.C. kimlik / pasaport no" icon={<I.shield size={15} />}>
+                    <input
+                      required
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      spellCheck={false}
+                      minLength={5}
+                      maxLength={32}
+                      pattern="[A-Za-z0-9]+"
+                      placeholder="Ödeme sağlayıcısının istediği kimlik no"
+                      value={buyer.identityNumber}
+                      onChange={(event) => updateBuyer('identityNumber', event.target.value)}
+                    />
+                  </Field>
+                  <p className="payment-identity-note">Yalnız ödeme işlemi için İyzico'ya aktarılır; Masabu'da saklanmaz.</p>
                 </div>
               )}
 
@@ -365,7 +393,7 @@ export default function PaymentModal({
               <I.lock size={14} />
               Kart bilgilerin doğrudan İyzico tarafından alınır.
             </div>
-            <iframe src={paymentPageUrl} title="İyzico güvenli ödeme" />
+            <iframe ref={paymentFrameRef} src={paymentPageUrl} title="İyzico güvenli ödeme" />
           </div>
         )}
 
@@ -723,6 +751,7 @@ const PAYMENT_CSS = `
     font-size: 13px;
   }
   .payment-field input:focus { border-color: var(--pay-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pay-accent) 12%, transparent); }
+  .payment-identity-note { margin: -3px 0 0; color: var(--pay-muted); font-size: 11px; line-height: 1.45; }
   .payment-table-note, .payment-error-note {
     display: flex;
     gap: 10px;

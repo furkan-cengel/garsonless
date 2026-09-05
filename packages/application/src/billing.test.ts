@@ -3,6 +3,7 @@ import test from 'node:test'
 import { ok, type Result } from '@garsonless/domain/result'
 import {
   cancelTenantSubscription,
+  completeSubscriptionCardUpdate,
   completeSubscriptionCheckout,
   createSubscriptionInvoice,
   processSubscriptionBillingWebhook,
@@ -11,12 +12,19 @@ import {
   readSubscriptionBillingSettings,
   retrySubscriptionInvoice,
   saveSubscriptionBillingProfile,
+  scheduleTenantSubscriptionCancellation,
+  scheduleSubscriptionPlanChange,
+  startSubscriptionCardUpdate,
   startSubscriptionCheckout,
   verifySubscriptionBillingWebhook,
+  withdrawTenantSubscriptionCancellation,
   type SubscriptionBillingOperationsPort,
   type SubscriptionBillingPersistencePort,
   type SubscriptionBillingProfile,
   type SubscriptionBillingProvider,
+  type SubscriptionCardUpdatePort,
+  type SubscriptionCancellationSchedulePort,
+  type SubscriptionPlanChangePort,
   type SubscriptionBillingWebhookInboxPort,
   type SubscriptionBillingWebhookInboxResult,
   type VerifiedSubscriptionBillingEvent,
@@ -28,6 +36,7 @@ function providerWith(event: VerifiedSubscriptionBillingEvent): SubscriptionBill
     createCustomer: unused,
     createCheckout: unused,
     retrieveCheckout: unused,
+    probeCheckout: unused,
     retryInvoice: unused,
     cancelSubscription: unused,
     verifyWebhook: async () => ok(event),
@@ -247,7 +256,7 @@ const billingOwner = {
 } as const
 const fingerprint = 'a'.repeat(64)
 
-function operationsPort(calls: string[]): SubscriptionBillingOperationsPort {
+function operationsPort(calls: string[]): SubscriptionBillingOperationsPort & import('./billing').SubscriptionCheckoutRecoveryPort {
   return {
     saveProfile: async () => {
       calls.push('profile')
@@ -276,11 +285,16 @@ function operationsPort(calls: string[]): SubscriptionBillingOperationsPort {
         operationId: 'operation-checkout', restaurantId: 'restaurant-1',
         invoiceId: 'operation-checkout', requestedPlan: 'pro',
         expectedProviderPlanRef: 'provider-plan-1',
+        expectedAmount: baseAmount, expectedBillingInterval: 'monthly',
+        expiresAt: '2099-07-22T10:30:00.000Z', attempts: 1,
       })
     },
     finalizeCheckout: async () => {
       calls.push('finalize-checkout')
-      return ok({ restaurantId: 'restaurant-1', subscriptionId: 'subscription-1', invoiceId: 'invoice-1', duplicate: false })
+      return ok({
+        restaurantId: 'restaurant-1', subscriptionId: 'subscription-1', invoiceId: 'invoice-1',
+        invoiceStatus: 'paid', paymentEvidence: 'authenticated_retrieve', duplicate: false,
+      })
     },
     prepareRetry: async (input) => {
       calls.push('prepare-retry')
@@ -310,6 +324,14 @@ function operationsPort(calls: string[]): SubscriptionBillingOperationsPort {
       calls.push(`finalize-cancel:${cancelledAt}`)
       return ok({ subscriptionId: 'subscription-1', duplicate: false })
     },
+    claimCheckoutRecoveryOperation: async () => ok({
+      operationId: 'operation-checkout', restaurantId: 'restaurant-1',
+      providerCheckoutRef: 'checkout-token', expectedProviderPlanRef: 'provider-plan-1',
+      expectedAmount: baseAmount, expectedBillingInterval: 'monthly',
+      expiresAt: '2099-07-22T10:30:00.000Z', attempts: 1,
+    }),
+    rescheduleCheckoutRecovery: async () => ok(true),
+    expireCheckoutRecovery: async () => ok(true),
   }
 }
 
@@ -328,8 +350,25 @@ function capabilityProvider(calls: string[]): SubscriptionBillingProvider {
       providerCustomerRef: 'provider-customer-1',
       providerSubscriptionRef: 'provider-subscription-1',
       providerPlanRef: 'provider-plan-1', providerInvoiceRef: 'provider-order-1',
+      providerPaymentId: 'provider-payment-1',
+      providerOrderStatus: 'succeeded', amount: baseAmount,
       periodStart: '2026-07-22T10:00:00.000Z', periodEnd: '2026-08-22T10:00:00.000Z',
       status: 'active',
+    })
+  }
+  provider.probeCheckout = async ({ expectedProviderPlanRef }) => {
+    calls.push(`provider-probe:${expectedProviderPlanRef}`)
+    return ok({
+      outcome: 'active',
+      checkout: {
+        providerCustomerRef: 'provider-customer-1',
+        providerSubscriptionRef: 'provider-subscription-1',
+        providerPlanRef: 'provider-plan-1', providerInvoiceRef: 'provider-order-1',
+        providerPaymentId: 'provider-payment-1',
+        providerOrderStatus: 'succeeded', amount: baseAmount,
+        periodStart: '2026-07-22T10:00:00.000Z', periodEnd: '2026-08-22T10:00:00.000Z',
+        status: 'active',
+      },
     })
   }
   provider.retryInvoice = async ({ providerPaymentRef }) => {
@@ -385,7 +424,7 @@ test('checkout is claimed before one hosted provider dispatch and duplicate clai
   })
   assert.deepEqual(await startSubscriptionCheckout(billingOwner, input, port, provider), ok({
     operationId: 'operation-checkout', providerCheckoutRef: 'checkout-token',
-    checkoutContent: null, duplicate: true,
+    checkoutContent: null, expiresAt: null, duplicate: true,
   }))
   assert.deepEqual(calls, [])
 })
@@ -397,19 +436,14 @@ test('checkout callback maps the provider order and quarantines non-active resul
   assert.equal((await completeSubscriptionCheckout({
     providerCheckoutRef: 'checkout-token', idempotencyKey: 'callback-1',
   }, port, provider)).ok, true)
-  assert.deepEqual(calls, ['find-checkout', 'provider-retrieve:provider-plan-1', 'finalize-checkout'])
+  assert.deepEqual(calls, ['find-checkout', 'provider-probe:provider-plan-1', 'finalize-checkout'])
 
   calls.length = 0
-  provider.retrieveCheckout = async () => ok({
-    providerCustomerRef: 'provider-customer-1', providerSubscriptionRef: 'provider-subscription-1',
-    providerPlanRef: 'provider-plan-1', providerInvoiceRef: 'provider-order-1',
-    periodStart: '2026-07-22T10:00:00.000Z', periodEnd: '2026-08-22T10:00:00.000Z',
-    status: 'unpaid',
-  })
+  provider.probeCheckout = async () => ok({ outcome: 'incomplete' })
   assert.deepEqual(await completeSubscriptionCheckout({
     providerCheckoutRef: 'checkout-token', idempotencyKey: 'callback-2',
-  }, port, provider), { ok: false, error: 'Billing checkout is not active' })
-  assert.deepEqual(calls, ['find-checkout', 'reconcile:operation-checkout'])
+  }, port, provider), ok({ outcome: 'incomplete' }))
+  assert.deepEqual(calls, ['find-checkout'])
 })
 
 test('checkout never dispatches before durable plan binding and quarantines provider drift', async () => {
@@ -473,6 +507,68 @@ test('retry and immediate cancellation use claimed references and complete the d
   ])
 })
 
+test('owner period-end cancellation is scheduled locally and can be withdrawn before dispatch', async () => {
+  const calls: string[] = []
+  const port: SubscriptionCancellationSchedulePort = {
+    async scheduleCancellation(input) {
+      calls.push(`schedule:${input.requestedBy}:${input.occurredAt}`)
+      return ok({
+        cancellationRequestId: 'cancel-request-1',
+        subscriptionId: 'subscription-1',
+        status: 'scheduled',
+        effectiveAt: '2026-10-01T00:00:00.000Z',
+        duplicate: false,
+      })
+    },
+    async withdrawCancellation(input) {
+      calls.push(`withdraw:${input.cancellationRequestId}:${input.withdrawnBy}:${input.occurredAt}`)
+      return ok({
+        cancellationRequestId: input.cancellationRequestId,
+        subscriptionId: 'subscription-1',
+        status: 'withdrawn',
+        duplicate: false,
+      })
+    },
+  }
+  assert.deepEqual(await scheduleTenantSubscriptionCancellation(billingOwner, {
+    restaurantId: 'restaurant-1', idempotencyKey: 'schedule-cancel-1',
+    requestFingerprint: fingerprint, occurredAt: '2026-09-01T00:00:00.000Z',
+  }, port), ok({
+    cancellationRequestId: 'cancel-request-1', subscriptionId: 'subscription-1',
+    status: 'scheduled', effectiveAt: '2026-10-01T00:00:00.000Z', duplicate: false,
+  }))
+  assert.deepEqual(await withdrawTenantSubscriptionCancellation(billingOwner, {
+    restaurantId: 'restaurant-1', cancellationRequestId: 'cancel-request-1',
+    idempotencyKey: 'withdraw-cancel-1', requestFingerprint: fingerprint,
+    occurredAt: '2026-09-02T00:00:00.000Z',
+  }, port), ok({
+    cancellationRequestId: 'cancel-request-1', subscriptionId: 'subscription-1',
+    status: 'withdrawn', duplicate: false,
+  }))
+  assert.deepEqual(calls, [
+    'schedule:owner-1:2026-09-01T00:00:00.000Z',
+    'withdraw:cancel-request-1:owner-1:2026-09-02T00:00:00.000Z',
+  ])
+})
+
+test('period-end cancellation keeps owner and immutable request validation at the application boundary', async () => {
+  let called = false
+  const port: SubscriptionCancellationSchedulePort = {
+    async scheduleCancellation() { called = true; throw new Error('must not run') },
+    async withdrawCancellation() { called = true; throw new Error('must not run') },
+  }
+  assert.deepEqual(await scheduleTenantSubscriptionCancellation(
+    { ...billingOwner, isOwner: false },
+    { restaurantId: 'restaurant-1', idempotencyKey: 'key', requestFingerprint: fingerprint },
+    port,
+  ), { ok: false, error: 'Billing owner context required' })
+  assert.deepEqual(await withdrawTenantSubscriptionCancellation(billingOwner, {
+    restaurantId: 'restaurant-1', cancellationRequestId: ' ',
+    idempotencyKey: 'key', requestFingerprint: fingerprint,
+  }, port), { ok: false, error: 'Billing cancellation withdrawal input is invalid' })
+  assert.equal(called, false)
+})
+
 test('provider success followed by a local completion failure is never reported as a clean success', async () => {
   const calls: string[] = []
   const port = operationsPort(calls)
@@ -487,6 +583,69 @@ test('provider success followed by a local completion failure is never reported 
   ])
 })
 
+test('plan change stays scheduled until renewal evidence and provider/local failures reconcile', async () => {
+  const calls: string[] = []
+  const port: SubscriptionPlanChangePort & Pick<SubscriptionBillingOperationsPort, 'markOperationForReconciliation'> = {
+    async preparePlanChange() {
+      calls.push('prepare-change')
+      return ok({
+        changeRequestId: 'change-1', operationId: 'operation-change-1',
+        subscriptionId: 'subscription-1', providerSubscriptionRef: 'provider-parent',
+        providerTargetPlanRef: 'provider-plan-pro', fromPlan: 'plus' as const, toPlan: 'pro' as const,
+        billingInterval: 'monthly' as const, effectivePolicy: 'next_period' as const,
+        effectiveAt: '2026-10-01T00:00:00.000Z', status: 'processing' as const,
+        dispatchable: true, duplicate: false,
+      })
+    },
+    async finalizePlanChange(input: { result: { providerTargetSubscriptionRef: string } }) {
+      calls.push(`finalize-change:${input.result.providerTargetSubscriptionRef}`)
+      return ok({
+        changeRequestId: 'change-1', subscriptionId: 'subscription-1',
+        status: 'scheduled' as const, effectiveAt: '2026-10-01T00:00:00.000Z', duplicate: false,
+      })
+    },
+    async markOperationForReconciliation(input: { operationId: string }) {
+      calls.push(`reconcile:${input.operationId}`)
+      return ok(true as const)
+    },
+  }
+  const provider = {
+    async upgradeSubscription() {
+      calls.push('provider-upgrade-next-period')
+      return ok({
+        providerParentSubscriptionRef: 'provider-parent',
+        providerTargetSubscriptionRef: 'provider-child',
+        providerTargetPlanRef: 'provider-plan-pro', providerStatus: 'active' as const,
+        providerPeriodStart: '2026-10-01T00:00:00.000Z',
+        providerPeriodEnd: '2027-10-01T00:00:00.000Z',
+      })
+    },
+  }
+  const result = await scheduleSubscriptionPlanChange(billingOwner, {
+    restaurantId: 'restaurant-1', toPlan: 'pro', toBillingInterval: 'monthly',
+    providerTargetPlanRef: 'provider-plan-pro', effectivePolicy: 'next_period',
+    idempotencyKey: 'plan-change-1', requestFingerprint: fingerprint,
+    occurredAt: '2026-09-01T12:00:00.000Z',
+  }, port, provider)
+  assert.deepEqual(result, ok({
+    changeRequestId: 'change-1', subscriptionId: 'subscription-1',
+    status: 'scheduled', effectiveAt: '2026-10-01T00:00:00.000Z', duplicate: false,
+  }))
+  assert.deepEqual(calls, [
+    'prepare-change', 'provider-upgrade-next-period', 'finalize-change:provider-child',
+  ])
+
+  port.finalizePlanChange = async () => ({ ok: false, error: 'db unavailable' })
+  calls.length = 0
+  const ambiguous = await scheduleSubscriptionPlanChange(billingOwner, {
+    restaurantId: 'restaurant-1', toPlan: 'pro', toBillingInterval: 'monthly',
+    providerTargetPlanRef: 'provider-plan-pro', effectivePolicy: 'next_period',
+    idempotencyKey: 'plan-change-2', requestFingerprint: fingerprint,
+  }, port, provider)
+  assert.deepEqual(ambiguous, { ok: false, error: 'Billing plan change requires reconciliation' })
+  assert.ok(calls.includes('reconcile:operation-change-1'))
+})
+
 test('billing settings projection is owner-only and tenant-scoped before the read port', async () => {
   const calls: string[] = []
   const port = {
@@ -496,6 +655,7 @@ test('billing settings projection is owner-only and tenant-scoped before the rea
         profile: null,
         subscription: null,
         invoices: [],
+        refunds: [],
         attention: { reconciliationCount: 0, hasPendingCheckout: false, nextDunningActionAt: null },
       })
     },
@@ -511,4 +671,59 @@ test('billing settings projection is owner-only and tenant-scoped before the rea
   const result = await readSubscriptionBillingSettings(billingOwner, 'restaurant-1', port)
   assert.equal(result.ok, true)
   assert.deepEqual(calls, ['restaurant-1'])
+})
+
+test('hosted card update separates durable initialization from exact callback completion', async () => {
+  const calls: string[] = []
+  const cardPort: SubscriptionCardUpdatePort & Pick<SubscriptionBillingOperationsPort, 'markOperationForReconciliation'> = {
+    async prepareCardUpdate() {
+      calls.push('prepare-card')
+      return ok({
+        operationId: 'card-operation-1', subscriptionId: 'subscription-1',
+        providerSubscriptionRef: 'provider-subscription-1', status: 'processing' as const,
+        providerCheckoutRef: null, expiresAt: null,
+        dispatchable: true, duplicate: false,
+      })
+    },
+    async markCardUpdateInitialized(input) {
+      calls.push(`mark-card:${input.providerCheckoutRef}`)
+      return ok(true as const)
+    },
+    async completeCardUpdate(input) {
+      calls.push(`complete-card:${input.providerCheckoutRef}:${input.callbackState}`)
+      return ok({
+        operationId: 'card-operation-1', restaurantId: 'restaurant-1',
+        subscriptionId: 'subscription-1', outcome: 'succeeded' as const, duplicate: false,
+      })
+    },
+    async markOperationForReconciliation(input) {
+      calls.push(`reconcile:${input.operationId}`)
+      return ok(true as const)
+    },
+  }
+  const provider = {
+    async initializeSubscriptionCardUpdate(input: { providerSubscriptionRef: string }) {
+      calls.push(`provider-card:${input.providerSubscriptionRef}`)
+      return ok({
+        providerCheckoutRef: 'card-token-1', checkoutContent: '<script></script>',
+        expiresAt: '2026-09-01T12:30:00.000Z',
+      })
+    },
+  }
+  const started = await startSubscriptionCardUpdate(billingOwner, {
+    restaurantId: 'restaurant-1',
+    callbackUrl: 'https://app.masabu.co/api/billing/iyzico/card-update/callback?state=opaque',
+    callbackStateHash: 'a'.repeat(64),
+    idempotencyKey: 'card-update-1', requestFingerprint: fingerprint,
+  }, cardPort, provider)
+  assert.equal(started.ok && started.value.providerCheckoutRef, 'card-token-1')
+  const completed = await completeSubscriptionCardUpdate({
+    providerCheckoutRef: 'card-token-1', callbackState: 'a'.repeat(32),
+    occurredAt: '2026-09-01T12:05:00.000Z',
+  }, cardPort)
+  assert.equal(completed.ok && completed.value.outcome, 'succeeded')
+  assert.deepEqual(calls, [
+    'prepare-card', 'provider-card:provider-subscription-1',
+    'mark-card:card-token-1', `complete-card:card-token-1:${'a'.repeat(32)}`,
+  ])
 })

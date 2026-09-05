@@ -1,5 +1,4 @@
 import {
-  notificationDedupeKey,
   readNotificationChannelPrefs,
   shouldDeliverOnChannel,
   type NotificationCategory,
@@ -8,8 +7,17 @@ import {
 import { serviceRequestLabel } from '@garsonless/domain/tables'
 import { err, ok, type Result } from '@garsonless/domain'
 import {
+  ADD_ON_DEFINITIONS,
+  PLAN_DEFINITIONS,
+  type RestaurantAddOn,
+  type RestaurantPlan,
+} from '@garsonless/domain/entitlements'
+import {
   BILLING_NOTIFICATION_EVENT_TYPES,
   buildBillingNotificationContent,
+  buildLifecycleNotificationContent,
+  LIFECYCLE_NOTIFICATION_EVENT_TYPES,
+  notificationDedupeKeyForEvent,
   type BillingNotificationEventType,
 } from './notifications'
 
@@ -17,6 +25,7 @@ export const NOTIFICATION_EMAIL_CONSUMER = 'notification-email'
 const NOTIFICATION_EMAIL_EVENT_TYPES = [
   'order.created',
   'service_request.created',
+  ...LIFECYCLE_NOTIFICATION_EVENT_TYPES,
   ...BILLING_NOTIFICATION_EVENT_TYPES,
 ] as const
 export type NotificationEmailEventType = (typeof NOTIFICATION_EMAIL_EVENT_TYPES)[number]
@@ -31,6 +40,7 @@ export function isNotificationEmailEventType(value: string): value is Notificati
 function emailCategoryForEvent(eventType: NotificationEmailEventType): NotificationCategory {
   if (eventType === 'order.created') return 'order'
   if (eventType === 'service_request.created') return 'service_request'
+  if (eventType === 'onboarding.incomplete') return 'lifecycle'
   return eventType === 'billing.reconciliation_required' ? 'system' : 'billing'
 }
 
@@ -58,6 +68,11 @@ export type NotificationEmailRecipient = {
 }
 
 export type EmailTemplate = { subject: string; bodyHtml: string }
+
+export type NotificationEmailRuntime = {
+  /** Validated absolute dashboard origin supplied by the server runtime. */
+  dashboardBaseUrl?: string
+}
 
 type NotificationEmailProviderResult =
   | { outcome: 'sent'; messageId: string | null }
@@ -121,6 +136,15 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<NotificationCategory, EmailTemplate
       '<p style="margin:0;color:#666;font-size:13px">İsteği panodan kapatabilirsiniz.</p>',
     ].join(''),
   },
+  lifecycle: {
+    subject: '{{restaurantName}} · {{title}}',
+    bodyHtml: [
+      '<h2 style="margin:0 0 8px">{{title}}</h2>',
+      '<p style="margin:0 0 12px"><strong>{{restaurantName}}</strong></p>',
+      '<p style="margin:0 0 12px">{{message}}</p>',
+      '<p style="margin:0;color:#666;font-size:13px">Kurulum akışına dönerek kaldığınız yerden devam edebilirsiniz.</p>',
+    ].join(''),
+  },
   billing: {
     subject: '{{restaurantName}} · {{title}}',
     bodyHtml: [
@@ -138,6 +162,19 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<NotificationCategory, EmailTemplate
       '<p style="margin:0">{{message}}</p>',
     ].join(''),
   },
+}
+
+export const FIRST_PAID_ACTIVATION_EMAIL_TEMPLATE: EmailTemplate = {
+  subject: '{{restaurantName}} · Masabu’ya hoş geldiniz',
+  bodyHtml: [
+    '<h2 style="margin:0 0 8px">Masabu’ya hoş geldiniz</h2>',
+    '<p style="margin:0 0 12px"><strong>{{restaurantName}}</strong> için ücretli aboneliğiniz başarıyla etkinleştirildi.</p>',
+    '<p style="margin:0 0 4px">Paket: <strong>{{planLabel}} · {{billingIntervalLabel}}</strong></p>',
+    '<p style="margin:0 0 12px">Ek hizmetler: {{addOnLabels}}</p>',
+    '<p style="margin:0 0 16px">Faturanız hazır olduğunda fatura profilinizdeki e-posta adresine PDF olarak ayrıca gönderilecek.</p>',
+    '<p style="margin:0 0 16px"><a href="{{actionUrl}}" style="display:inline-block;padding:10px 16px;background:#111827;color:#fff;text-decoration:none;border-radius:8px">{{actionLabel}}</a></p>',
+    '<p style="margin:0;color:#666;font-size:13px">Yardıma ihtiyaç duyarsanız bu e-postayı yanıtlayabilirsiniz.</p>',
+  ].join(''),
 }
 
 function escapeHtml(value: string): string {
@@ -161,7 +198,38 @@ function formatCurrency(value: unknown) {
   }).format(amount)
 }
 
-export function buildEmailVars(event: NotificationEmailEvent): Record<string, string> {
+function welcomePlanLabel(value: unknown): string {
+  if (typeof value !== 'string' || !(value in PLAN_DEFINITIONS)) return 'Masabu'
+  return PLAN_DEFINITIONS[value as RestaurantPlan].label
+}
+
+function welcomeAddOnLabels(value: unknown): string {
+  if (!Array.isArray(value)) return 'Yok'
+  const labels = value.flatMap((entry) => (
+    typeof entry === 'string' && entry in ADD_ON_DEFINITIONS
+      ? [ADD_ON_DEFINITIONS[entry as RestaurantAddOn].label]
+      : []
+  ))
+  return labels.length > 0 ? labels.join(', ') : 'Yok'
+}
+
+function firstPaidActivation(event: NotificationEmailEvent): boolean {
+  return event.type === 'invoice.paid' && event.payload['firstPaidActivation'] === true
+}
+
+function welcomeActionUrl(event: NotificationEmailEvent, runtime: NotificationEmailRuntime): string {
+  const base = runtime.dashboardBaseUrl?.trim()
+  if (!base) throw new Error('Notification email dashboard origin is required')
+  const path = event.payload['onboardingComplete'] === true
+    ? `/dashboard/${event.restaurantId}`
+    : '/dashboard/onboarding'
+  return new URL(path, base).toString()
+}
+
+export function buildEmailVars(
+  event: NotificationEmailEvent,
+  runtime: NotificationEmailRuntime = {},
+): Record<string, string> {
   const base = {
     restaurantName: event.restaurantName,
     tableLabel: event.tableLabel ?? 'Masa',
@@ -174,6 +242,20 @@ export function buildEmailVars(event: NotificationEmailEvent): Record<string, st
       ? event.payload['requestType']
       : 'waiter'
     return { ...base, requestLabel: serviceRequestLabel(requestType) }
+  }
+  if (event.type === 'onboarding.incomplete') {
+    const content = buildLifecycleNotificationContent(event.type)
+    return { ...base, title: content.title, message: content.body }
+  }
+  if (firstPaidActivation(event)) {
+    return {
+      ...base,
+      planLabel: welcomePlanLabel(event.payload['plan']),
+      billingIntervalLabel: event.payload['billingInterval'] === 'annual' ? 'Yıllık' : 'Aylık',
+      addOnLabels: welcomeAddOnLabels(event.payload['addOns']),
+      actionLabel: event.payload['onboardingComplete'] === true ? 'Panele git' : 'Kuruluma devam et',
+      actionUrl: welcomeActionUrl(event, runtime),
+    }
   }
   const content = buildBillingNotificationContent(
     event.type as BillingNotificationEventType,
@@ -194,6 +276,7 @@ export type NotificationEmailConsumption = {
 
 function emailSeverity(event: NotificationEmailEvent): NotificationSeverity {
   if (event.type === 'order.created' || event.type === 'service_request.created') return 'info'
+  if (event.type === 'onboarding.incomplete') return buildLifecycleNotificationContent(event.type).severity
   return buildBillingNotificationContent(event.type as BillingNotificationEventType, event.restaurantId).severity
 }
 
@@ -209,6 +292,7 @@ export async function consumeNotificationEmail(
   eventId: string,
   port: NotificationEmailPort,
   provider: NotificationEmailProvider,
+  runtime: NotificationEmailRuntime = {},
 ): Promise<Result<NotificationEmailConsumption>> {
   const receipt = await port.hasReceipt(eventId)
   if (!receipt.ok) return receipt
@@ -239,9 +323,11 @@ export async function consumeNotificationEmail(
   const severity = emailSeverity(event)
   const override = await port.loadTemplate(category)
   if (!override.ok) return override
-  const template = override.value ?? DEFAULT_EMAIL_TEMPLATES[category]
-  const rendered = renderEmailTemplate(template, buildEmailVars(event))
-  const dedupeKey = notificationDedupeKey(event.type, event.aggregateId)
+  const template = firstPaidActivation(event)
+    ? FIRST_PAID_ACTIVATION_EMAIL_TEMPLATE
+    : override.value ?? DEFAULT_EMAIL_TEMPLATES[category]
+  const rendered = renderEmailTemplate(template, buildEmailVars(event, runtime))
+  const dedupeKey = notificationDedupeKeyForEvent(event)
 
   let sent = 0
   let muted = 0

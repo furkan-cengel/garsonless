@@ -101,6 +101,28 @@ test('dunning interventions use the audited application/DB boundary without paym
   assert.doesNotMatch(timeline, /providerPaymentRef|providerSubscriptionRef|contact_email/)
 })
 
+test('subscription refunds cross the audited boundary and make full-refund access policy explicit', () => {
+  const detail = read('./app/tenants/[tenantId]/page.tsx')
+  const timeline = read('./app/tenants/[tenantId]/TenantBillingTimeline.tsx')
+  const actions = read('./app/actions.ts')
+  const provider = read('./lib/iyzico-subscription-refund.ts')
+  assert.match(detail, /platformAdminCan\(actor, 'billing\.manage'\)/)
+  assert.match(timeline, /SubscriptionRefundForm/)
+  const refundForm = read('./app/tenants/[tenantId]/SubscriptionRefundForm.tsx')
+  assert.match(refundForm, /İade sonrası erişim/)
+  assert.match(refundForm, /İade et ve aboneliği hemen kapat/)
+  assert.match(refundForm, /Kısmi iadelerde erişim/)
+  assert.match(actions, /requestPlatformSubscriptionRefund/)
+  assert.match(actions, /createPlatformSubscriptionRefundPort/)
+  assert.match(actions, /createIyzicoSubscriptionRefundProvider/)
+  assert.match(actions, /const requestId = randomUUID\(\)/)
+  assert.match(provider, /validSignature\(config\.secretKey/)
+  assert.match(provider, /\[paymentId, price, currency, conversationId\]/)
+  assert.match(provider, /requires_reconciliation|uncertain/)
+  assert.doesNotMatch(`${timeline}\n${refundForm}`, /providerPaymentId|providerPaymentRef|providerSubscriptionRef|contact_email/)
+  assert.doesNotMatch(actions, /createServiceClient|\.from\(/)
+})
+
 test('time-bounded entitlement overrides cross audited ports and never mutate plan or billing state', () => {
   const detail = read('./app/tenants/[tenantId]/page.tsx')
   const panel = read('./app/tenants/[tenantId]/TenantEntitlementOverrides.tsx')
@@ -115,7 +137,7 @@ test('time-bounded entitlement overrides cross audited ports and never mutate pl
   assert.match(actions, /requirePlatformAdminActor/)
   assert.match(actions, /randomUUID\(\)/)
   assert.doesNotMatch(actions, /formData\.get\(['"]requestId/)
-  assert.doesNotMatch(actions, /update.*restaurants|billing_subscriptions|subscription_invoices|provider/i)
+  assert.doesNotMatch(actions, /update.*restaurants|billing_subscriptions|subscription_invoices/i)
 })
 
 test('support view is time-bounded, read-only and isolated from tenant membership', () => {
@@ -158,10 +180,28 @@ test('tenant privacy operations are superadmin-only, audited and keep exports tr
   }
 })
 
-test('local platform development reuses the linked dashboard env without copying secrets', () => {
+test('local platform development reuses the linked dashboard sandbox and local env without copying secrets', () => {
   const packageJson = JSON.parse(read('./package.json'))
+  const nextConfig = read('./next.config.ts')
+  assert.match(packageJson.scripts.dev, /--env-file-if-exists=\.\.\/dashboard\/\.env\.sandbox/)
   assert.match(packageJson.scripts.dev, /--env-file-if-exists=\.\.\/dashboard\/\.env\.local/)
-  assert.match(packageJson.scripts.dev, /next dev --turbopack --port 3004/)
+  assert.match(packageJson.scripts.dev, /next dev --turbopack --port 3005/)
+  assert.match(nextConfig, /serverExternalPackages:\s*\['iyzipay'\]/)
+  assert.equal(packageJson.dependencies.postcss, undefined)
+})
+
+test('platform admin auth cookie is isolated from the dashboard session on the same localhost host', () => {
+  const cookie = read('./lib/auth-cookie.ts')
+  const browser = read('./lib/supabase-browser.ts')
+  const server = read('./lib/supabase-server.ts')
+  const middleware = read('./middleware.ts')
+
+  assert.match(cookie, /platform-admin-auth-token/)
+  assert.match(cookie, /NEXT_PUBLIC_SUPABASE_URL/)
+  for (const source of [browser, server, middleware]) {
+    assert.match(source, /getPlatformAdminAuthCookieName/)
+    assert.match(source, /cookieOptions/)
+  }
 })
 
 test('Supabase TOTP QR data is normalized before Next Image receives it', () => {

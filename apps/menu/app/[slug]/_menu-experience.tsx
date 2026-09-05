@@ -4,7 +4,7 @@ import {
   readMemberLoyalty,
   type MemberBalances,
 } from '@garsonless/application/loyalty'
-import { withoutAdvancedThemeSections } from '@garsonless/application/themes'
+import { projectThemeForEntitlements } from '@garsonless/application/themes'
 import { createLoyaltyQueryPort, createThemeApplicationPort, readTenantOrderIngressStatus } from '@garsonless/db/server'
 import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
 import { getMenuCategories, getMenuItems, getPreviewRestaurantBySlug, getRestaurantBySlug } from '../../lib/queries'
@@ -76,12 +76,13 @@ export async function renderMenuExperience({
   if (!themeResult.ok) notFound()
 
   const { theme, templateId } = themeResult.value
-  const [menuAccess, guestOrderingAccess, requestButtonsAccess, customerAccountsAccess, advancedThemeAccess, orderIngressStatus] = await Promise.all([
+  const [menuAccess, guestOrderingAccess, requestButtonsAccess, customerAccountsAccess, advancedThemeAccess, videoHeroAccess, orderIngressStatus] = await Promise.all([
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'qr_menu' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'guest_ordering' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'service_requests' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'customer_accounts' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_advanced_sections' }),
+    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_video_hero' }),
     readTenantOrderIngressStatus(restaurant.id),
   ])
   if (!previewAccessGranted && (!menuAccess.ok || !menuAccess.value)) notFound()
@@ -99,9 +100,10 @@ export async function renderMenuExperience({
   const items = applyFeaturedProductRanking(menuItems, featuredRanking)
   const requestButtonsEnabled = requestButtonsAccess?.ok === true && requestButtonsAccess.value
   const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value && orderIngressStatus === 'active'
-  const servedTheme = advancedThemeAccess.ok && advancedThemeAccess.value
-    ? theme
-    : withoutAdvancedThemeSections(theme)
+  const servedTheme = projectThemeForEntitlements(theme, {
+    advancedSections: advancedThemeAccess.ok && advancedThemeAccess.value,
+    videoHero: videoHeroAccess.ok && videoHeroAccess.value,
+  })
   const experienceV2Enabled = process.env['THEME_EXPERIENCE_V2_ENABLED'] === 'true' || process.env.NODE_ENV === 'development'
   const homeEnabled = !isPreview && experienceV2Enabled && servedTheme.surfaces?.home.enabled === true
 

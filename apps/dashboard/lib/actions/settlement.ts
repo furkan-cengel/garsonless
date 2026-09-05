@@ -3,11 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { settleOrder as settleOrderCommand } from '@garsonless/application/orders'
-import { closeTableSession as closeTableSessionCommand } from '@garsonless/application/tables'
 import {
   canRestaurantUseFeature,
   createSettlementPort,
-  createTableSessionPort,
   listTeamMembers,
   readOrdersForSettlement,
   readPaymentSharesForSettlement,
@@ -90,8 +88,7 @@ export async function settleOrder(
   return { success: true }
 }
 
-/** Settles every staged order concurrently and closes the adisyon through one
- * browser-to-server action. Authorization and entitlement are resolved once. */
+/** Collect and close in one database transaction; never fall back to partial writes. */
 export async function settleSessionAndClose(input: unknown): Promise<{ error: string } | { success: true }> {
   const startedAt = Date.now()
   const parsed = settleSessionSchema.safeParse(input)
@@ -100,12 +97,6 @@ export async function settleSessionAndClose(input: unknown): Promise<{ error: st
   const gate = await resolveTablesCommandActor(parsed.data.restaurantId)
   const authorizedAt = Date.now()
   if ('error' in gate) return { error: 'Bu işlem için yetkiniz yok.' }
-  const context = {
-    actor: 'dashboard-member' as const,
-    userId: gate.userId,
-    restaurantId: parsed.data.restaurantId,
-    permissions: ['tables'] as const,
-  }
   try {
     const fastResult = await settleSessionAndCloseAtomic({
       restaurantId: parsed.data.restaurantId,
@@ -133,35 +124,7 @@ export async function settleSessionAndClose(input: unknown): Promise<{ error: st
   } catch {
     return { error: 'Tahsilat tamamlanamadı. Adisyonu yenileyip tekrar deneyin.' }
   }
-  const settlementPort = createSettlementPort()
-  const results = await Promise.all(parsed.data.settlements.map((settlement) => settleOrderCommand(
-    context,
-    { ...settlement, restaurantId: parsed.data.restaurantId },
-    settlementPort,
-  )))
-  const failed = results.find((result) => !result.ok)
-  if (failed && !failed.ok) return { error: 'Tahsilat tamamlanamadı. Adisyonu yenileyip tekrar deneyin.' }
-
-  const closeResult = await closeTableSessionCommand(
-    context,
-    { sessionId: parsed.data.sessionId, restaurantId: parsed.data.restaurantId },
-    createTableSessionPort(),
-  )
-  if (!closeResult.ok) return { error: 'Adisyon kapatılamadı. Lütfen tekrar deneyin.' }
-  if (closeResult.value === 'not_found') return { error: 'Adisyon bulunamadı veya daha önce kapatıldı.' }
-  if (closeResult.value === 'unpaid') return { error: 'Ödenmemiş sipariş var. Adisyonu yenileyip tüm tahsilat yöntemlerini seçin.' }
-  if (closeResult.value === 'payment_pending') return { error: 'Bu masa için online ödeme sonucu bekleniyor.' }
-  if (!['already_closed', 'closed_normal'].includes(closeResult.value)) return { error: 'Adisyon kapatılamadı.' }
-
-  revalidatePath(`/dashboard/${parsed.data.restaurantId}/tables`)
-  revalidatePath(`/dashboard/${parsed.data.restaurantId}/orders`)
-  console.info(JSON.stringify({
-    event: 'tables.settlement_close.timing',
-    path: 'fallback',
-    authorizationMs: authorizedAt - startedAt,
-    totalMs: Date.now() - startedAt,
-  }))
-  return { success: true }
+  return { error: 'Tahsilat altyapısı güncelleniyor. Hiçbir ödeme kaydı oluşturulmadı; lütfen daha sonra tekrar deneyin.' }
 }
 
 export interface SettlementOrder {

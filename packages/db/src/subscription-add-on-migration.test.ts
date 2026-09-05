@@ -6,6 +6,10 @@ const migration = readFileSync(
   new URL('../supabase/migrations/20260824050000_subscription_checkout_add_ons.sql', import.meta.url),
   'utf8',
 )
+const paymentEvidenceMigration = readFileSync(
+  new URL('../supabase/migrations/20260901030000_subscription_checkout_payment_evidence.sql', import.meta.url),
+  'utf8',
+)
 
 test('subscription add-on storage is service-role-only and Pro-scoped', () => {
   assert.match(migration, /create table public\.restaurant_subscription_add_ons/)
@@ -22,9 +26,15 @@ test('existing plan checkout RPC remains untouched while add-on checkout is addi
   assert.match(migration, /provider_plan_ref <> btrim\(p_expected_provider_plan_ref\)/)
 })
 
-test('verified checkout activation and cancellation update add-on entitlement atomically', () => {
+test('legacy operation-status activation is superseded by paid-invoice evidence', () => {
   assert.match(migration, /after update of status on public\.billing_provider_operations/)
-  assert.match(migration, /insert into public\.restaurant_subscription_add_ons/)
+  assert.match(paymentEvidenceMigration, /drop trigger if exists activate_subscription_checkout_add_ons/)
+  assert.match(paymentEvidenceMigration, /new\.status <> 'paid'/)
+  assert.match(paymentEvidenceMigration, /insert into public\.restaurant_subscription_add_ons/)
+  assert.match(paymentEvidenceMigration, /deferrable initially deferred/)
+})
+
+test('subscription cancellation and period changes keep paid add-on projection synchronized', () => {
   assert.match(migration, /after update of status, current_period_start, current_period_end on public\.billing_subscriptions/)
   assert.match(migration, /set current_period_start = new\.current_period_start/)
   assert.match(migration, /'addOnEntitlementsVersion', 1/)

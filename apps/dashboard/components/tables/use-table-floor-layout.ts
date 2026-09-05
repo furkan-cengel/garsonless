@@ -3,7 +3,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { TableLayoutSnapshot } from '@garsonless/application/tables'
-import { saveTableLayout } from '../../lib/actions/tables'
+import { getTableLayout, saveTableLayout } from '../../lib/actions/tables'
 import type { TableItem } from './tables-builder-types'
 import {
   buildTableLayoutDraft,
@@ -18,7 +18,7 @@ export function useTableFloorLayout({
   tables,
   setTables,
   initialSnapshot,
-  initialLayoutError,
+  initialLayoutError: initialError,
   layoutInvalidation,
 }: {
   restaurantId: string
@@ -28,6 +28,8 @@ export function useTableFloorLayout({
   initialLayoutError: string | null
   layoutInvalidation: number
 }) {
+  const [initialLayoutError, setLayoutLoadError] = useState(initialError)
+  const [retrying, setRetrying] = useState(false)
   const [snapshot, setSnapshot] = useState(initialSnapshot)
   const [draft, setDraft] = useState(() => buildTableLayoutDraft(tables, initialSnapshot))
   const [editing, setEditing] = useState(false)
@@ -52,6 +54,26 @@ export function useTableFloorLayout({
       return entry ? [[table.id, entry]] : []
     })))
   }, [editing, snapshot, tables])
+
+  const retryLayout = async () => {
+    if (retrying) return
+    setRetrying(true)
+    try {
+      const result = await getTableLayout(restaurantId)
+      if (!result || 'error' in result) {
+        setError(result && 'error' in result ? result.error : 'Salon yerleşimi alınamadı.')
+        return
+      }
+      external.applySnapshot(result)
+      setLayoutLoadError(null)
+      setError(null)
+      setNotice('Salon yerleşimi yüklendi. Düzenleyebilirsiniz.')
+    } catch {
+      setError('Salon yerleşimi alınamadı. Bağlantınızı kontrol edip tekrar deneyin.')
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   const patchEntry = useCallback((tableId: string, patch: Parameters<typeof patchTableLayoutEntry>[2]) => {
     setNotice(null)
@@ -128,6 +150,9 @@ export function useTableFloorLayout({
   }
 
   return {
+    loadError: initialLayoutError,
+    retrying,
+    retryLayout,
     draft,
     editing,
     saving,

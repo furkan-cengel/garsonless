@@ -34,6 +34,7 @@ const VAT_RATE_PRESETS = [1, 10, 20]
    ============================================================ */
 export function MenuItemEditPanel({
   item,
+  externalPending = false,
   categoryName,
   categoryVatRate,
   categoryStationId,
@@ -53,6 +54,7 @@ export function MenuItemEditPanel({
   onRecommendationsSaved,
 }: {
   item: Tables<'menu_items'>
+  externalPending?: boolean
   categoryName: string
   categoryVatRate: number
   categoryStationId: string | null
@@ -315,7 +317,7 @@ export function MenuItemEditPanel({
               type="button"
               variant="destructive"
               onClick={handleDelete}
-              disabled={deleting || isPending}
+              disabled={externalPending || deleting || isPending}
               style={{ flex: 1 }}
             >
               <I.trash size={13} />
@@ -325,7 +327,7 @@ export function MenuItemEditPanel({
               className="menu-item-footer-action menu-item-save-action menu-save-action"
               type="button"
               onClick={handleSave}
-              disabled={deleting || itemSaveState !== 'dirty'}
+              disabled={externalPending || deleting || itemSaveState !== 'dirty'}
               aria-busy={itemSaveState === 'saving'}
               data-save-state={itemSaveState}
               variant={itemSaveState === 'saved' ? 'positive' : itemSaveState === 'clean' ? 'secondary' : 'default'}

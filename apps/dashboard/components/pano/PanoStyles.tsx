@@ -4,6 +4,7 @@ export default function PanoStyles() {
     .pano-shell { max-width: 1280px; margin: 0 auto; padding: 28px 32px 16px; }
     .pano-number, .pano-metric-value { font-variant-numeric: tabular-nums lining-nums; font-feature-settings: 'tnum' 1, 'lnum' 1; }
     .pano-metric-value { letter-spacing: -.015em; }
+    .pano-kpi-card { min-width: 0; overflow-wrap: anywhere; }
     .pano-greeting { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
     .pano-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
     .pano-attention { margin-bottom: 12px; }
@@ -54,12 +55,20 @@ export default function PanoStyles() {
       .pano-status-compact { display: inline; }
     }
     @media (max-width: 760px) {
-      .pano-shell { padding: 18px 14px 16px; }
-      .pano-greeting { align-items: flex-start; flex-direction: column; margin-bottom: 18px; }
+      .pano-shell { padding: 16px 14px; }
+      .pano-greeting { align-items: flex-start; flex-direction: column; margin-bottom: 14px; }
       .pano-kpis, .pano-lower-grid { grid-template-columns: minmax(0, 1fr); }
+      .pano-kpis { gap: 10px; margin-bottom: 14px; }
+      .pano-shell .pano-kpi-card { min-height: 0; padding-block: 12px; --card-spacing: 12px; }
+      .pano-shell .pano-empty { min-height: 96px; padding: 16px; }
+      .pano-attention .pano-empty { min-height: 72px; }
       .pano-chart-head { align-items: flex-start !important; flex-wrap: wrap; }
       .pano-chart-ranges { width: 100%; margin-left: 0 !important; }
       .pano-chart-ranges button { flex: 1; }
+    }
+    @media (min-width: 380px) and (max-width: 760px) {
+      .pano-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .pano-kpi-meta { align-items: flex-start; flex-direction: column; }
     }
     @media (min-width: 901px) { .pano-status-compact { display: none; } }
     @media (max-width: 420px) {

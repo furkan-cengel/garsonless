@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { AppIcons } from '@garsonless/ui/icons'
 import { AccessibleDialog } from './AccessibleDialog'
 
 type MobilePanel = 'filters' | 'list'
 
 export function TablesResponsiveNavigation({
+  listOpenRequest = 0,
   header,
   feedback,
   renderFilters,
@@ -16,6 +17,7 @@ export function TablesResponsiveNavigation({
   activeFilterCount,
   onOpenHistory,
 }: {
+  listOpenRequest?: number
   header: ReactNode
   feedback: ReactNode
   renderFilters: () => ReactNode
@@ -26,6 +28,9 @@ export function TablesResponsiveNavigation({
   onOpenHistory: () => void
 }) {
   const [panel, setPanel] = useState<MobilePanel | null>(null)
+  useEffect(() => {
+    if (listOpenRequest > 0 && window.matchMedia('(max-width: 1180px)').matches) setPanel('list')
+  }, [listOpenRequest])
   const closePanel = () => setPanel(null)
   const panelTitle = panel === 'filters' ? 'Masa filtreleri' : 'Masa listesi'
 

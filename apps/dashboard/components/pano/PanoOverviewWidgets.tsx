@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { I } from '../../lib/ui'
 import { formatPanoCurrency, formatPanoInteger } from '../../lib/pano-format'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
@@ -52,13 +53,26 @@ export function PanoCardSkeleton({ label }: { label: string }) {
 
 export function PanoEmptyState({ title, sub }: { title: string; sub?: string }) {
   return (
-    <Empty className="min-h-40">
+    <Empty className="pano-empty min-h-40">
       <EmptyHeader>
         <EmptyTitle>{title}</EmptyTitle>
         {sub && <EmptyDescription>{sub}</EmptyDescription>}
       </EmptyHeader>
     </Empty>
   )
+}
+
+export function PanoSetupNotice({ items }: { items: PanoAttentionItem[] }) {
+  return items.map((item) => (
+    <Alert key={item.id} role="note" className="mb-4">
+      <I.card aria-hidden="true" />
+      <AlertTitle>Kurulum · {item.title}</AlertTitle>
+      <AlertDescription>
+        {item.detail}{' '}
+        {item.actionHref && <Link href={item.actionHref}>Ödeme ayarlarına git</Link>}
+      </AlertDescription>
+    </Alert>
+  ))
 }
 
 export function PanoKpiCard({ model }: { model: PanoKpiCardModel }) {
@@ -73,12 +87,12 @@ export function PanoKpiCard({ model }: { model: PanoKpiCardModel }) {
   const content = (
     <Card
       className={cn(
-        'min-h-[126px] gap-0 py-4 [--card-spacing:16px] transition-[transform,box-shadow]',
+        'pano-kpi-card h-full min-h-[126px] gap-0 py-4 [--card-spacing:16px] transition-[transform,box-shadow]',
         model.featured && 'bg-primary text-primary-foreground ring-transparent',
       )}
     >
       <CardHeader className="gap-0">
-        <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="pano-kpi-meta mb-2 flex flex-wrap items-center justify-between gap-2">
           <CardDescription className={cn('text-[11.5px] leading-none font-medium tracking-[0.05em] uppercase', model.featured && 'text-primary-foreground/60')}>
             {model.label}
           </CardDescription>

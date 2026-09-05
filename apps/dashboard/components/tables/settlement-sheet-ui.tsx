@@ -1,3 +1,4 @@
+import { sessionDuration } from './tables-operation-model'
 import React from 'react'
 import { Banknote, CreditCard, Gift } from 'lucide-react'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -28,9 +29,7 @@ export const METHOD_LIST = [METHODS.cash, METHODS.pos, METHODS.comp]
 export const formatSettlementAmount = (amount: number) => `₺${amount.toLocaleString('tr-TR')}`
 
 export function settlementDurationLabel(openedAt: string): string {
-  const minutes = Math.max(0, Math.floor((Date.now() - new Date(openedAt).getTime()) / 60_000))
-  if (minutes < 60) return `${minutes}dk açık`
-  return `${Math.floor(minutes / 60)}s ${minutes % 60}dk açık`
+  return `${sessionDuration(openedAt, Date.now())} açık`
 }
 
 export const SETTLEMENT_KEYFRAMES = `

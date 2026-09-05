@@ -9,6 +9,7 @@ import {
   readOrderPaymentMapping,
   readSharePaymentMapping,
 } from '@garsonless/db/server'
+import { isIyzicoEnvironmentAllowed } from './iyzico-environment'
 
 export interface IyzicoCredentials {
   apiKey: string
@@ -33,12 +34,15 @@ export async function resolveIyzicoCredentials(
   const { record, error } = await readIyzicoCredentialRecord(restaurantId)
   if (error) return credentialResolutionFailed(error)
   if (!record) return credentialResolutionFailed('payment_credential_not_configured')
-  return {
+  const credentials: IyzicoCredentials = {
     apiKey: record.apiKey,
     secretKey: record.secretKey,
     baseUrl: record.mode === 'live' ? LIVE_URL : SANDBOX_URL,
     source: 'restaurant',
   }
+  return isIyzicoEnvironmentAllowed(credentials.baseUrl)
+    ? credentials
+    : credentialResolutionFailed('live_credentials_required')
 }
 
 /** Callback path: token → order_payment_tokens → orders.restaurant_id →

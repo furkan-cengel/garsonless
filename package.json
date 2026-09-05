@@ -7,7 +7,7 @@
   "scripts": {
     "build": "corepack pnpm -r --if-present --workspace-concurrency=4 build",
     "check": "corepack pnpm check:ci && corepack pnpm build && corepack pnpm smoke",
-    "check:ci": "corepack pnpm deadcode:report && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:next-conventions && corepack pnpm test:architecture && corepack pnpm test:db && corepack pnpm test:prod-preflight && corepack pnpm test:prod-release && corepack pnpm test:prod-topology && corepack pnpm test:prod-runtime && corepack pnpm test:prod-smoke && corepack pnpm test:prod-handoff && corepack pnpm test:prod-candidate && corepack pnpm test:prod-execution && corepack pnpm test:prod-recovery && corepack pnpm test:prod-decision && corepack pnpm test:prod-bundle && corepack pnpm test:tables-bundle-budget && corepack pnpm test:dashboard-bundle-budget && corepack pnpm test:workspace-artifacts",
+    "check:ci": "corepack pnpm deadcode:report && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:next-conventions && corepack pnpm test:architecture && corepack pnpm test:db && corepack pnpm test:prod-preflight && corepack pnpm test:prod-release && corepack pnpm test:prod-topology && corepack pnpm test:prod-runtime && corepack pnpm test:prod-smoke && corepack pnpm test:prod-handoff && corepack pnpm test:prod-candidate && corepack pnpm test:prod-execution && corepack pnpm test:prod-recovery && corepack pnpm test:prod-decision && corepack pnpm test:prod-bundle && corepack pnpm test:tables-bundle-budget && corepack pnpm test:dashboard-bundle-budget && corepack pnpm test:workspace-artifacts && corepack pnpm test:runtime-versions && corepack pnpm check:runtime-versions",
     "check:visual": "corepack pnpm check && corepack pnpm visual:smoke",
     "deadcode": "knip",
     "deadcode:report": "knip --reporter compact",
@@ -19,7 +19,7 @@
     "lint": "eslint .",
     "smoke": "playwright test",
     "test:application": "corepack pnpm --filter @garsonless/application test",
-    "test:architecture": "corepack pnpm test:domain && corepack pnpm test:application && corepack pnpm --filter @garsonless/ui test && corepack pnpm --filter @garsonless/menu test && corepack pnpm test:dashboard-architecture && corepack pnpm --filter @garsonless/kitchen test:architecture && corepack pnpm --filter @garsonless/platform-admin test:architecture",
+    "test:architecture": "corepack pnpm test:domain && corepack pnpm test:design-engine && corepack pnpm test:application && corepack pnpm --filter @garsonless/ui test && corepack pnpm --filter @garsonless/menu test && corepack pnpm test:dashboard-architecture && corepack pnpm --filter @garsonless/kitchen test:architecture && corepack pnpm --filter @garsonless/platform-admin test:architecture",
     "test:dashboard-architecture": "corepack pnpm --filter @garsonless/dashboard test:architecture",
     "test:next-conventions": "node --test scripts/next-conventions.test.mjs",
     "test:db": "corepack pnpm --filter @garsonless/db test",
@@ -53,6 +53,7 @@
     "db:pull": "corepack pnpm --filter @garsonless/db db:pull",
     "db:diff": "corepack pnpm --filter @garsonless/db db:diff",
     "db:status": "corepack pnpm --filter @garsonless/db db:status",
+    "db:backup": "corepack pnpm --filter @garsonless/db db:backup",
     "db:reset": "corepack pnpm --filter @garsonless/db db:reset",
     "types:gen": "corepack pnpm --filter @garsonless/db types:gen",
     "prod:preflight": "node scripts/production-readiness.mjs",
@@ -74,11 +75,14 @@
     "check:tables-bundle-budget": "node scripts/tables-bundle-budget.mjs",
     "check:dashboard-bundle-budget": "node scripts/dashboard-bundle-budget.mjs",
     "clean:artifacts": "node scripts/workspace-artifacts.mjs clean",
-    "workspace:size": "node scripts/workspace-artifacts.mjs size"
+    "workspace:size": "node scripts/workspace-artifacts.mjs size",
+    "test:design-engine": "corepack pnpm --filter @garsonless/design-engine test",
+    "check:runtime-versions": "node scripts/runtime-versions.mjs",
+    "test:runtime-versions": "node --test scripts/runtime-versions.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@next/eslint-plugin-next": "15.5.21",
+    "@next/eslint-plugin-next": "15.5.25",
     "@playwright/test": "^1.61.0",
     "eslint": "^10.5.0",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -88,5 +92,16 @@
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.61.1"
   },
-  "packageManager": "pnpm@9.15.4"
+  "packageManager": "pnpm@9.15.4",
+  "pnpm": {
+    "overrides": {
+      "postcss@<8.5.23": "8.5.23",
+      "sharp@<0.35.4": "0.35.4",
+      "uuid@<11.1.1": "11.1.1",
+      "qs@<6.16.0": "6.16.0",
+      "ip-address@>=10.1.1 <10.7.0": "10.7.0",
+      "nanoid@<3.3.18": "3.3.18",
+      "browserslist@<=4.28.6": "4.28.8"
+    }
+  }
 }

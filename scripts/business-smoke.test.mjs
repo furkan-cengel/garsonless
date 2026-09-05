@@ -51,6 +51,9 @@ function validEvidence(manifest, releaseEvidence, capturedAt = NOW.toISOString()
       core: true,
       'order-card-payments': false,
       'saas-billing': false,
+      'subscription-refunds': false,
+      accounting: false,
+      'customer-phone-auth': false,
     },
     checks: manifest.checks.map((check) => check.capability === 'core'
       ? {
@@ -92,8 +95,8 @@ test('smoke manifest is deterministic, source-bound and secretless', () => {
   const first = fixture().manifest
   const second = fixture().manifest
   assert.deepEqual(first, second)
-  assert.equal(first.checks.length, 10)
-  assert.equal(first.capabilities.length, 3)
+  assert.equal(first.checks.length, 14)
+  assert.equal(first.capabilities.length, 6)
   assert.ok(first.checks.every((check) => check.sources.every((source) => /^[a-f0-9]{64}$/.test(source.sha256))))
   assert.doesNotMatch(JSON.stringify(first), /service-role|authorization|tableTokenValue|api-key/i)
 })
@@ -118,12 +121,11 @@ test('disabled capabilities cannot claim runtime duration or partial assertions'
   assert.ok(result.errors.some((item) => item.code === 'MAS-DEP-026'))
 })
 
-test('enabled payment and billing capabilities require their complete passing checks', () => {
+test('enabled optional capabilities require their complete passing checks', () => {
   const { manifest } = fixture()
   const releaseEvidence = releaseFixture(manifest)
   const evidence = validEvidence(manifest, releaseEvidence)
-  evidence.enabledCapabilities['order-card-payments'] = true
-  evidence.enabledCapabilities['saas-billing'] = true
+  for (const capability of manifest.capabilities) evidence.enabledCapabilities[capability] = true
   for (const check of evidence.checks) {
     const expected = manifest.checks.find((item) => item.name === check.name)
     if (expected.capability !== 'core') {

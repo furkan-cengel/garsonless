@@ -28,26 +28,29 @@ function runtimeFixture() {
 }
 
 function validEvidence(manifest, capturedAt = NOW.toISOString()) {
+  const enabledCapabilities = Object.fromEntries(manifest.runtimeCapabilities.map((name) => [name, false]))
+  const required = (item) => !item.capability || enabledCapabilities[item.capability]
   return {
     schemaVersion: 1,
     projectRef: PROD_REF,
     capturedAt,
+    enabledCapabilities,
     capabilities: manifest.capabilities,
-    edgeFunctions: manifest.edgeFunctions.map((fn) => ({
+    edgeFunctions: manifest.edgeFunctions.filter(required).map((fn) => ({
       name: fn.name,
       active: true,
       verifyJwt: fn.verifyJwt,
       url: fn.url,
       configuredSecretNames: fn.requiredSecretNames,
     })),
-    authHooks: manifest.authHooks.map((hook) => ({ name: hook.name, enabled: hook.enabled, url: hook.url })),
-    vaultSecrets: manifest.vaultSecrets.map((secret) => ({
+    authHooks: manifest.authHooks.filter(required).map((hook) => ({ name: hook.name, enabled: hook.enabled, url: hook.url })),
+    vaultSecrets: manifest.vaultSecrets.filter(required).map((secret) => ({
       name: secret.name,
       configured: true,
       ...(secret.expectedUrl ? { url: secret.expectedUrl } : {}),
     })),
-    cronJobs: manifest.cronJobs.map((job) => ({ name: job.name, active: true, schedule: job.schedule, command: job.command })),
-    probes: manifest.postDeployProbes.map((probe) => ({ name: probe.name, status: probe.expectedStatus })),
+    cronJobs: manifest.cronJobs.filter(required).map((job) => ({ name: job.name, active: true, schedule: job.schedule, command: job.command })),
+    probes: manifest.postDeployProbes.filter(required).map((probe) => ({ name: probe.name, status: probe.expectedStatus })),
   }
 }
 
@@ -91,9 +94,10 @@ test('runtime manifest is deterministic and contains hashes plus names but no cr
   const first = runtimeFixture().manifest
   const second = runtimeFixture().manifest
   assert.deepEqual(first, second)
-  assert.equal(first.edgeFunctions.length, 2)
-  assert.equal(first.cronJobs.length, 4)
-  assert.equal(first.vaultSecrets.length, 2)
+  assert.equal(first.edgeFunctions.length, 3)
+  assert.equal(first.cronJobs.length, 5)
+  assert.equal(first.vaultSecrets.length, 4)
+  assert.deepEqual(first.runtimeCapabilities, ['accounting', 'customer-phone-auth'])
   assert.match(first.artifactSha256, /^[a-f0-9]{64}$/)
   const serialized = JSON.stringify(first)
   assert.match(serialized, /OUTBOX_WORKER_SECRET/)
@@ -106,6 +110,18 @@ test('fresh exact post-deploy evidence passes every Edge, Vault, cron, hook and 
   assert.equal(result.ok, true)
   assert.deepEqual(result.errors, [])
   assert.deepEqual(result.warnings, [])
+})
+
+test('enabled optional runtime capabilities require their functions, hooks, Vault, cron and probes', () => {
+  const { manifest } = runtimeFixture()
+  const evidence = validEvidence(manifest)
+  evidence.enabledCapabilities.accounting = true
+  evidence.enabledCapabilities['customer-phone-auth'] = true
+  const missing = validateRuntimeEvidence({ manifest, evidence, now: NOW })
+  assert.equal(missing.ok, false)
+  assert.ok(missing.errors.some((item) => item.subject === 'send-sms-hook'))
+  assert.ok(missing.errors.some((item) => item.subject === 'accounting_worker_url'))
+  assert.ok(missing.errors.some((item) => item.subject === 'accounting-invoice-worker-every-minute'))
 })
 
 test('post-deploy mismatches fail closed with stable public deploy codes', () => {

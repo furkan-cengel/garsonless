@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { readSubscriptionBillingSettings } from '@garsonless/application/billing'
+import { createSubscriptionBillingSettingsReadPort } from '@garsonless/db/server'
 import {
   getFeatureEntitlement,
   normalizeRestaurantPlan,
@@ -10,6 +12,7 @@ import {
 import type { BillingPlanPrices } from '../lib/billing/subscription-billing-request'
 import type { Icon } from '../lib/ui'
 import { I } from '../lib/ui'
+import { getUserRestaurantAccess } from '../lib/auth/access'
 import styles from './PlanLockedPanel.module.css'
 
 type FeaturePresentation = {
@@ -101,6 +104,12 @@ function formatMoney(amountMinor: number): string {
   }).format(amountMinor / 100)
 }
 
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat('tr-TR', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul',
+  }).format(new Date(value))
+}
+
 function planUnlocksFeature(plan: SelfServePlan, feature: BillableFeature): boolean {
   return getFeatureEntitlement(plan, feature).allowed
 }
@@ -148,7 +157,7 @@ function PlanPreview() {
   )
 }
 
-export default function PlanLockedPanel({ restaurantId, currentPlan: currentPlanInput, feature, isOwner, planPrices, returnHref, returnLabel = 'Menüye dön' }: {
+export default async function PlanLockedPanel({ restaurantId, currentPlan: currentPlanInput, feature, isOwner, planPrices, returnHref, returnLabel = 'Menüye dön' }: {
   restaurantId: string
   currentPlan: unknown
   feature: BillableFeature
@@ -165,11 +174,35 @@ export default function PlanLockedPanel({ restaurantId, currentPlan: currentPlan
   const plans = selectablePlans(currentPlan, feature, entitlement.allowed)
   const recommendedPlan = plans[0] ?? null
   const checkoutConfigured = plans.length > 0 && planPrices.checkoutAvailable
+  const access = isOwner ? await getUserRestaurantAccess(restaurantId) : null
+  const billingResult = access?.isOwner
+    ? await readSubscriptionBillingSettings({
+      actor: 'dashboard-member', restaurantId, userId: access.userId,
+      permissions: ['settings'], isOwner: true,
+    }, restaurantId, createSubscriptionBillingSettingsReadPort())
+    : null
+  const subscription = billingResult?.ok ? billingResult.value.subscription : null
+  const scheduledPlan = subscription?.scheduledPlan
+  const scheduledUnlockPlan = scheduledPlan && SELF_SERVE_PLANS.includes(scheduledPlan as SelfServePlan)
+    && planUnlocksFeature(scheduledPlan as SelfServePlan, feature)
+    ? scheduledPlan as SelfServePlan
+    : null
+  const scheduledEffectiveAt = scheduledUnlockPlan ? subscription?.currentPeriodEnd ?? null : null
+  const existingSubscriptionChangesAtPeriodEnd = subscription?.status === 'active'
+    && currentPlan !== 'business'
   const FeatureIcon = presentation.icon
-  const title = entitlement.allowed
+  const title = scheduledUnlockPlan
+    ? `${presentation.label} dönem sonunda açılacak`
+    : subscription?.status === 'refund_cancel_pending'
+    ? 'Aboneliğiniz iptal ediliyor'
+    : entitlement.allowed
     ? 'Erişiminiz geçici olarak kilitli'
     : `${presentation.label} ${requiredLabel} ile açılır`
-  const description = entitlement.allowed
+  const description = scheduledUnlockPlan
+    ? `${PLAN_DEFINITIONS[scheduledUnlockPlan].label} geçişiniz planlandı. Yeni paket yalnızca bir sonraki dönem ödemesi başarıyla alındıktan sonra etkinleşir.`
+    : subscription?.status === 'refund_cancel_pending'
+    ? 'İadeniz tamamlandı ve ücretli özellikler güvenli biçimde kapatıldı. İyzico abonelik iptali doğrulanırken verileriniz korunur; faturalama ve hesap araçlarına erişmeye devam edebilirsiniz.'
+    : entitlement.allowed
     ? 'Deneme veya abonelik süreniz sona ermiş olabilir. Verileriniz korunuyor; yeniden etkinleştirdiğinizde kaldığınız yerden devam edersiniz.'
     : `Bu bölüm ${requiredLabel} veya üzeri paketlerde kullanılabilir. Planınızı yükselttiğinizde mevcut verileriniz değişmeden erişiminiz açılır.`
   const safeReturnHref = returnHref ?? `/dashboard/${restaurantId}/menu`
@@ -208,14 +241,31 @@ export default function PlanLockedPanel({ restaurantId, currentPlan: currentPlan
           </ul>
 
           <div className={styles.assurances} aria-label="Abonelik güvenceleri">
-            <span><I.zap size={14} />Anında etkinleşir</span>
+            <span><I.zap size={14} />{scheduledUnlockPlan || existingSubscriptionChangesAtPeriodEnd ? 'Dönem sonunda etkinleşir' : 'Ödeme onayıyla etkinleşir'}</span>
             <span><I.shield size={14} />Verileriniz korunur</span>
             <span><I.clock size={14} />İstediğiniz an iptal</span>
           </div>
         </div>
 
         <aside className={styles.purchasePanel} aria-label="Plan yükseltme">
-          {isOwner ? plans.length > 0 ? (
+          {isOwner ? scheduledUnlockPlan ? (
+            <div className={styles.businessSupport}>
+              <div className={styles.purchaseHeader}>
+                <div>
+                  <strong>{PLAN_DEFINITIONS[scheduledUnlockPlan].label} geçişi planlandı</strong>
+                  <span>Mevcut paketiniz dönem sonuna kadar korunur.</span>
+                </div>
+              </div>
+              <div className={styles.ownerSupport}>
+                <span aria-hidden="true"><I.clock size={20} /></span>
+                <strong>{scheduledEffectiveAt ? `${formatDate(scheduledEffectiveAt)} tarihinde yenilenecek` : 'Sonraki başarılı yenilemede uygulanacak'}</strong>
+                <p>Yenileme ödemesi başarılı olduğunda {presentation.label.toLocaleLowerCase('tr-TR')} erişiminiz otomatik açılır. Şimdi tekrar ödeme başlatmanız gerekmez.</p>
+              </div>
+              <Link className={styles.compareLink} href={`/dashboard/${restaurantId}/settings?section=billing`}>
+                Planlamayı görüntüle
+              </Link>
+            </div>
+          ) : plans.length > 0 ? (
             <form className={styles.purchaseForm} action={`/dashboard/${restaurantId}/settings`} method="get">
               <input type="hidden" name="section" value="billing" />
               <div className={styles.purchaseHeader}>

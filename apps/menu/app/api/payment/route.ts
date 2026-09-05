@@ -7,6 +7,8 @@ import { createIyzicoClient, initializeCheckout } from '../../../lib/iyzico'
 import { resolveIyzicoCredentials, attachPaymentTokenToOrder } from '../../../lib/payment-credentials'
 import { buildCheckoutAddresses } from '../../../lib/checkout-address'
 import { publicRestaurantHasFeature } from '../../../lib/restaurant-feature-access'
+import { isIyzicoEnvironmentAllowed } from '../../../lib/iyzico-environment'
+import { checkoutBuyerFields, readBoundedPaymentJson } from '../../../lib/split-request'
 
 const paymentSchema = z.object({
   orderId: z.string().uuid(),
@@ -15,26 +17,17 @@ const paymentSchema = z.object({
   total: z.number().positive().optional(),
   restaurantId: z.string().uuid(),
   tableToken: z.string().uuid(),
-  buyerName: z.string().min(1).max(50),
-  buyerSurname: z.string().min(1).max(50),
-  buyerEmail: z.string().email(),
-  buyerPhone: z.string().min(7).max(20),
-  deviceId: z.string().min(1),
-})
+  ...checkoutBuyerFields,
+}).strict()
 
 type ApiResponse<T> = { success: true; data: T } | { success: false; error: string }
 
 export async function POST(
   req: Request,
 ): Promise<NextResponse<ApiResponse<{ paymentPageUrl: string; token: string }>>> {
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 })
-  }
-
-  const parsed = paymentSchema.safeParse(body)
+  const raw = await readBoundedPaymentJson(req)
+  if (!raw.ok) return NextResponse.json({ success: false, error: raw.error }, { status: raw.status })
+  const parsed = paymentSchema.safeParse(raw.data)
   if (!parsed.success) {
     return NextResponse.json(
       { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid request' },
@@ -50,6 +43,7 @@ export async function POST(
     buyerSurname,
     buyerEmail,
     buyerPhone,
+    buyerIdentityNumber,
     deviceId,
   } = parsed.data
 
@@ -105,10 +99,10 @@ export async function POST(
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
 
   const credentials = await resolveIyzicoCredentials(restaurantId)
-  if (!credentials) {
+  if (!credentials || !isIyzicoEnvironmentAllowed(credentials.baseUrl)) {
     await releaseReservation()
     return NextResponse.json(
-      { success: false, error: 'Bu restoran için ödeme yapılandırılmamış' },
+      { success: false, error: 'Kartla ödeme bu işletmede henüz kullanıma hazır değil.' },
       { status: 503 },
     )
   }
@@ -130,7 +124,7 @@ export async function POST(
         surname: buyerSurname,
         email: buyerEmail,
         gsmNumber: buyerPhone,
-        identityNumber: '11111111111',
+        identityNumber: buyerIdentityNumber,
         registrationAddress: checkoutAddress.registrationAddress,
         city: checkoutAddress.city,
         country: 'Turkey',

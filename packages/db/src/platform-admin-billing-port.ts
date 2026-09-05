@@ -98,6 +98,15 @@ function parseItem(value: unknown): PlatformBillingTimelineItem {
   }
   if (row.currency !== null && !isPlatformBillingCurrency(row.currency)) throw new Error('invalid currency')
   if (typeof row.hasError !== 'boolean') throw new Error('invalid error projection')
+  const accessAction = row.accessAction ?? null
+  const cancellationStatus = row.cancellationStatus ?? null
+  if (accessAction !== null && !['keep', 'cancel_immediately'].includes(accessAction as string)) {
+    throw new Error('invalid refund access action')
+  }
+  if (cancellationStatus !== null
+    && !['scheduled', 'processing', 'provider_cancelled', 'applied', 'requires_reconciliation'].includes(cancellationStatus as string)) {
+    throw new Error('invalid refund cancellation status')
+  }
   return {
     id: row.id,
     kind: row.kind,
@@ -111,6 +120,8 @@ function parseItem(value: unknown): PlatformBillingTimelineItem {
     nextActionAt: nullableTimestamp(row.nextActionAt),
     completedAt: nullableTimestamp(row.completedAt),
     hasError: row.hasError,
+    accessAction: accessAction as PlatformBillingTimelineItem['accessAction'],
+    cancellationStatus: cancellationStatus as PlatformBillingTimelineItem['cancellationStatus'],
   }
 }
 
@@ -128,6 +139,7 @@ function parseTimeline(value: unknown): PlatformTenantBillingTimeline {
       activeDunning: count(summary.activeDunning),
       openReconciliation: count(summary.openReconciliation),
       failedAttempts: count(summary.failedAttempts),
+      refundedMinor: count(summary.refundedMinor ?? 0),
     },
     items: row.items.map(parseItem),
   }

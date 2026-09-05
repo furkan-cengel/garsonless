@@ -38,7 +38,7 @@ export function TablesNavigationHeader({
         <Button className="tb-tables__nav-history" type="button" variant="ghost" size="xs" onClick={onOpenHistory}>Geçmiş</Button>
       </div>
       <div className="text-xs text-muted-foreground">
-        {activeCount} açık · {lateCount} geciken · {TABLE_LATE_AFTER_MINUTES} dk eşik
+        {activeCount} açık adisyon · {lateCount} geciken · {TABLE_LATE_AFTER_MINUTES} dk eşik
       </div>
       <div className="mt-2 flex items-center gap-1.5" role="status" aria-live="polite">
         <Badge variant={realtimeVariant} className="h-5 max-w-full truncate px-1.5 text-[10.5px]">

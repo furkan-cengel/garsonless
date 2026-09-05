@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import type { Database } from '@garsonless/db/types'
 import { cookies } from 'next/headers'
+import { getPlatformAdminAuthCookieName } from './auth-cookie'
 
 export async function createPlatformAdminServerClient() {
   const cookieStore = await cookies()
@@ -8,6 +9,7 @@ export async function createPlatformAdminServerClient() {
     process.env['NEXT_PUBLIC_SUPABASE_URL']!,
     process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']!,
     {
+      cookieOptions: { name: getPlatformAdminAuthCookieName() },
       cookies: {
         getAll: () => cookieStore.getAll(),
         setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {

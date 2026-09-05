@@ -1,9 +1,8 @@
 import Iyzipay from "iyzipay";
 import {
-  BILLING_INTERVALS,
-  SELF_SERVE_PLANS,
-} from "@garsonless/domain/entitlements";
-import { readIyzicoSubscriptionProviderConfig } from "../lib/billing/iyzico-subscription-config";
+  configuredProviderPlanBindings,
+  readIyzicoSubscriptionProviderConfig,
+} from "../lib/billing/iyzico-subscription-config";
 import { verifyIyzicoSubscriptionPlanResponse } from "../lib/billing/iyzico-subscription-plan-verification";
 
 type ProviderResponse = Record<string, unknown>;
@@ -49,13 +48,12 @@ async function main() {
     secretKey: config.secretKey,
     uri: config.baseUrl,
   }) as unknown as PricingPlanClient;
-  const plans = SELF_SERVE_PLANS.flatMap((plan) =>
-    BILLING_INTERVALS.map((interval) => ({
-      label: `${plan}/${interval}`,
-      interval,
-      ...config.plans[plan][interval],
-    })),
-  );
+  const plans = configuredProviderPlanBindings(config).map((binding) => ({
+    label: `${binding.plan}${binding.addOns.length ? `+${binding.addOns.join('+')}` : ''}/${binding.billingInterval}`,
+    interval: binding.billingInterval,
+    referenceCode: binding.referenceCode,
+    amountMinor: binding.amountMinor,
+  }));
 
   for (const plan of plans) {
     const response = await retrieve(client, plan.referenceCode);

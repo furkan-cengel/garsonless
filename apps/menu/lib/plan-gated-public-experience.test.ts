@@ -14,8 +14,15 @@ const productModal = readFileSync(new URL('../../../packages/ui/src/menu/Product
 test('public menu surfaces resolve subscription-aware plan features on the server', () => {
   for (const source of [homePage, menuExperience, tablePage]) {
     assert.match(source, /feature: 'qr_menu'/)
+  }
+  // Both paid theme entitlements are resolved server-side on every public
+  // surface, and all four project the theme through the shared boundary.
+  for (const source of [homePage, menuExperience, tablePage, previewPage]) {
     assert.match(source, /feature: 'theme_advanced_sections'/)
-    assert.match(source, /withoutAdvancedThemeSections/)
+    assert.match(source, /feature: 'theme_video_hero'/)
+    assert.match(source, /projectThemeForEntitlements\(/)
+    assert.match(source, /advancedSections: advancedThemeAccess\.ok && advancedThemeAccess\.value/)
+    assert.match(source, /videoHero: videoHeroAccess\.ok && videoHeroAccess\.value/)
   }
   for (const source of [homePage, menuExperience, tablePage]) {
     assert.match(source, /feature: 'guest_ordering'/)

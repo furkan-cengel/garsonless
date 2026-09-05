@@ -5,6 +5,7 @@ import {
   buildEmailVars,
   consumeNotificationEmail,
   DEFAULT_EMAIL_TEMPLATES,
+  FIRST_PAID_ACTIVATION_EMAIL_TEMPLATE,
   NOTIFICATION_EMAIL_MAX_ATTEMPTS,
   renderEmailTemplate,
   type NotificationEmailEvent,
@@ -12,6 +13,7 @@ import {
   type NotificationEmailProvider,
   type NotificationEmailRecipient,
 } from './notification-emails'
+import { buildBillingNotificationContent } from './notifications'
 
 const ORDER_EVENT: NotificationEmailEvent = {
   id: 'evt-1',
@@ -87,6 +89,186 @@ test('order vars include the formatted total', () => {
   const vars = buildEmailVars(ORDER_EVENT)
   assert.equal(vars['restaurantName'], 'Test Cafe')
   assert.match(vars['total']!, /150/)
+})
+
+test('upcoming renewal uses the mandatory billing email template', () => {
+  const vars = buildEmailVars({
+    ...ORDER_EVENT,
+    type: 'invoice.upcoming',
+    aggregateId: 'subscription-1',
+    tableLabel: null,
+    payload: { periodEnd: '2026-10-01T00:00:00.000Z' },
+  })
+  assert.match(vars['title']!, /yenilemeniz/i)
+  assert.match(vars['message']!, /Kart ve fatura/i)
+})
+
+test('first paid activation replaces the generic payment e-mail with one welcome e-mail', async () => {
+  const event: NotificationEmailEvent = {
+    ...ORDER_EVENT,
+    type: 'invoice.paid',
+    aggregateId: 'invoice-first',
+    tableLabel: null,
+    payload: {
+      firstPaidActivation: true,
+      plan: 'starter',
+      billingInterval: 'monthly',
+      addOns: [],
+      onboardingComplete: false,
+    },
+  }
+  const harness = makeHarness({
+    event,
+    recipients: [{ userId: 'owner', email: 'owner@test.dev', prefs: { email: { billing: false } } }],
+  })
+  const result = await consumeNotificationEmail(event.id, harness.port, harness.provider, {
+    dashboardBaseUrl: 'https://sandbox.masabu.co',
+  })
+  assert.ok(result.ok)
+  assert.equal(result.value.sent, 1)
+  assert.equal(harness.sends.length, 1)
+  assert.match(harness.sends[0]!.subject, /hoş geldiniz/i)
+  assert.match(harness.sends[0]!.html, /Starter · Aylık/)
+  assert.match(harness.sends[0]!.html, /https:\/\/sandbox\.masabu\.co\/dashboard\/onboarding/)
+  assert.doesNotMatch(harness.sends[0]!.html, /Ödemeniz başarıyla kaydedildi/)
+})
+
+test('replayed first paid activation receipt cannot send a second welcome e-mail', async () => {
+  const event: NotificationEmailEvent = {
+    ...ORDER_EVENT,
+    type: 'invoice.paid',
+    aggregateId: 'invoice-first',
+    tableLabel: null,
+    payload: {
+      firstPaidActivation: true,
+      plan: 'starter',
+      billingInterval: 'monthly',
+      addOns: [],
+      onboardingComplete: false,
+    },
+  }
+  const replay = makeHarness({
+    event,
+    receipt: true,
+    recipients: [{ userId: 'owner', email: 'owner@test.dev', prefs: { email: { billing: false } } }],
+  })
+  const result = await consumeNotificationEmail(event.id, replay.port, replay.provider, {
+    dashboardBaseUrl: 'https://sandbox.masabu.co',
+  })
+  assert.ok(result.ok)
+  assert.deepEqual(result.value, { duplicate: true, recipients: 0, sent: 0, muted: 0, dead: 0 })
+  assert.deepEqual(replay.sends, [])
+})
+
+test('completed onboarding uses the restaurant dashboard CTA in the welcome e-mail', () => {
+  const vars = buildEmailVars({
+    ...ORDER_EVENT,
+    type: 'invoice.paid',
+    aggregateId: 'invoice-first',
+    tableLabel: null,
+    payload: {
+      firstPaidActivation: true,
+      plan: 'pro',
+      billingInterval: 'annual',
+      addOns: ['iyzico_online_payments'],
+      onboardingComplete: true,
+    },
+  }, { dashboardBaseUrl: 'https://app.masabu.co' })
+  assert.equal(vars['planLabel'], 'Pro')
+  assert.equal(vars['billingIntervalLabel'], 'Yıllık')
+  assert.equal(vars['addOnLabels'], 'İyzico Online Ödeme')
+  assert.equal(vars['actionLabel'], 'Panele git')
+  assert.equal(vars['actionUrl'], 'https://app.masabu.co/dashboard/rest-1')
+})
+
+test('renewal invoice.paid keeps the regular payment confirmation', async () => {
+  const event: NotificationEmailEvent = {
+    ...ORDER_EVENT,
+    type: 'invoice.paid',
+    aggregateId: 'invoice-renewal',
+    tableLabel: null,
+    payload: {
+      firstPaidActivation: false,
+      plan: 'starter',
+      billingInterval: 'monthly',
+      addOns: [],
+      onboardingComplete: true,
+    },
+  }
+  const harness = makeHarness({
+    event,
+    recipients: [{ userId: 'owner', email: 'owner@test.dev', prefs: null }],
+  })
+  const result = await consumeNotificationEmail(event.id, harness.port, harness.provider)
+  assert.ok(result.ok)
+  assert.equal(harness.sends.length, 1)
+  assert.match(harness.sends[0]!.subject, /Abonelik ödemeniz alındı/)
+  assert.doesNotMatch(harness.sends[0]!.subject, /hoş geldiniz/i)
+})
+
+test('period-end cancellation lifecycle uses mandatory billing email copy', () => {
+  const vars = buildEmailVars({
+    ...ORDER_EVENT,
+    type: 'subscription.cancellation_scheduled',
+    aggregateId: 'cancellation-request-1',
+    tableLabel: null,
+    payload: { effectiveAt: '2026-10-01T00:00:00.000Z' },
+  })
+  assert.match(vars['title']!, /iptaliniz planlandı/i)
+  assert.match(vars['message']!, /dönem sonuna kadar açık/i)
+})
+
+test('subscription refund lifecycle uses mandatory owner email copy', () => {
+  for (const eventType of ['refund.requested', 'refund.succeeded', 'refund.failed'] as const) {
+    const content = buildBillingNotificationContent(eventType, 'restaurant-1')
+    assert.ok(content.title.includes('iade'))
+    assert.equal(content.linkPath, '/dashboard/restaurant-1/settings?section=billing')
+  }
+})
+
+test('onboarding e-mail is consent-gated while in-app remains available', async () => {
+  const event: NotificationEmailEvent = {
+    ...ORDER_EVENT,
+    type: 'onboarding.incomplete',
+    aggregateId: 'restaurant-1',
+    tableLabel: null,
+    payload: { reminderHour: 24 },
+  }
+  const muted = makeHarness({
+    event,
+    recipients: [{ userId: 'owner', email: 'owner@test.dev', prefs: null }],
+  })
+  const mutedResult = await consumeNotificationEmail(event.id, muted.port, muted.provider)
+  assert.ok(mutedResult.ok)
+  assert.equal(muted.sends.length, 0)
+
+  const optedIn = makeHarness({
+    event,
+    recipients: [{ userId: 'owner', email: 'owner@test.dev', prefs: { email: { lifecycle: true } } }],
+  })
+  const sentResult = await consumeNotificationEmail(event.id, optedIn.port, optedIn.provider)
+  assert.ok(sentResult.ok)
+  assert.equal(optedIn.sends.length, 1)
+  assert.match(optedIn.sends[0]!.subject, /kurulum/i)
+})
+
+test('fiscal-document event reuses the already-sent attachment delivery receipt', async () => {
+  const event: NotificationEmailEvent = {
+    ...ORDER_EVENT,
+    type: 'fiscal_document.ready',
+    aggregateId: 'invoice-1',
+    tableLabel: null,
+    payload: { fiscalDocumentType: 'e_arsiv' },
+  }
+  const harness = makeHarness({
+    event,
+    recipients: [{ userId: 'owner', email: 'owner@test.dev', prefs: null }],
+    deliveries: { owner: { status: 'sent', attempts: 1 } },
+  })
+  const result = await consumeNotificationEmail(event.id, harness.port, harness.provider)
+  assert.ok(result.ok)
+  assert.equal(harness.sends.length, 0)
+  assert.deepEqual(harness.receipts, [event.id])
 })
 
 test('opt-in recipient gets exactly one send; default recipients are muted', async () => {
@@ -187,6 +369,7 @@ test('code default templates exist for both operational categories', () => {
   assert.ok(DEFAULT_EMAIL_TEMPLATES.service_request.subject.includes('{{restaurantName}}'))
   assert.ok(DEFAULT_EMAIL_TEMPLATES.billing.subject.includes('{{title}}'))
   assert.ok(DEFAULT_EMAIL_TEMPLATES.system.bodyHtml.includes('{{message}}'))
+  assert.ok(FIRST_PAID_ACTIVATION_EMAIL_TEMPLATE.bodyHtml.includes('{{actionUrl}}'))
 })
 
 test('mandatory billing email ignores a stored opt-out and renders safe billing copy', async () => {
@@ -195,16 +378,35 @@ test('mandatory billing email ignores a stored opt-out and renders safe billing 
   })
   harness.port.loadEvent = async () => ok({
     ...ORDER_EVENT,
-    type: 'billing.warning_7',
-    aggregateId: 'invoice-1',
+    type: 'invoice.upcoming',
+    aggregateId: 'subscription-1',
     tableLabel: null,
-    payload: {},
+    payload: { periodEnd: '2026-10-01T00:00:00.000Z' },
   })
   const result = await consumeNotificationEmail('evt-1', harness.port, harness.provider)
   assert.ok(result.ok)
   assert.equal(result.value.sent, 1)
-  assert.match(harness.sends[0]!.subject, /Son ödeme uyarısı/)
-  assert.match(harness.sends[0]!.html, /geçici olarak duraklatılacak/)
+  assert.match(harness.sends[0]!.subject, /yenilemeniz yaklaşıyor/i)
+  assert.match(harness.sends[0]!.html, /Kart ve fatura/i)
+  assert.ok(harness.deliveries.has('owner'))
+})
+
+test('card update sends one mandatory owner confirmation without card data', async () => {
+  const harness = makeHarness({
+    recipients: [{ userId: 'owner', email: 'owner@test.dev', prefs: { email: { billing: false } } }],
+  })
+  harness.port.loadEvent = async () => ok({
+    ...ORDER_EVENT,
+    type: 'payment_method.updated',
+    aggregateId: 'subscription-1',
+    tableLabel: null,
+    payload: { semanticVersion: 1 },
+  })
+  const result = await consumeNotificationEmail('evt-1', harness.port, harness.provider)
+  assert.ok(result.ok)
+  assert.equal(result.value.sent, 1)
+  assert.match(harness.sends[0]!.subject, /Ödeme yönteminiz güncellendi/)
+  assert.doesNotMatch(harness.sends[0]!.html, /cardNumber|pan|cvv/i)
 })
 
 test('port failure surfaces as err', async () => {

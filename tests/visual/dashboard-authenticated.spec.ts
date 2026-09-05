@@ -41,6 +41,22 @@ function getRestaurantId(): string {
   return restaurantId!
 }
 
+// Cold document streaming exercises loading.tsx even when a warm router
+// navigation correctly skips the fallback. Restore bandwidth before completion.
+async function throttleLoadingNavigation(page: import('@playwright/test').Page) {
+  const client = await page.context().newCDPSession(page)
+  await client.send('Network.enable')
+  await client.send('Network.emulateNetworkConditions', {
+    offline: false, latency: 80, downloadThroughput: 48 * 1024, uploadThroughput: 48 * 1024,
+  })
+  return async () => {
+    await client.send('Network.emulateNetworkConditions', {
+      offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1,
+    })
+    await client.detach()
+  }
+}
+
 test.describe('authenticated dashboard visual smoke', () => {
   test.beforeAll(() => {
     if (isCI) {
@@ -92,7 +108,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     ))
     expect(animated, 'Pano animations must stop under reduced motion.').toBe(0)
     await page.locator('.pano-shell').locator('..').evaluate((element) => element.scrollTo({ top: element.scrollHeight }))
-    await expect(page.getByText('Yoğun saatler')).toBeVisible()
+    await expect(page.getByText('Yoğun saatler', { exact: true })).toBeVisible()
     await assertVisualHealth(page, testInfo, 'dashboard-pano')
     expect(failures).toEqual([])
   })
@@ -105,22 +121,11 @@ test.describe('authenticated dashboard visual smoke', () => {
     const failures = await collectPageFailures(page)
     const restaurantId = getRestaurantId()
     const panoPath = `/dashboard/${restaurantId}`
-    await page.route('**/*', async (route) => {
-      const request = route.request()
-      const url = new URL(request.url())
-      const headers = request.headers()
-      const isPanoRsc = url.pathname === panoPath && headers['rsc'] === '1'
-      if (!isPanoRsc) return route.continue()
-
-      // Delay both prefetch and navigation requests. Aborting a prefetch can
-      // surface a recoverable client error and make the console assertion noisy.
-      await new Promise((resolve) => setTimeout(resolve, 2_000))
-      return route.continue()
-    })
 
     await page.goto(`${dashboardURL}${panoPath}/menu`, { waitUntil: 'domcontentloaded' })
     await page.emulateMedia({ reducedMotion: 'reduce' })
-    const navigation = page.getByRole('navigation', { name: 'Ana bölümler' }).getByRole('link', { name: 'Pano' }).click()
+    const restoreNetwork = await throttleLoadingNavigation(page)
+    await page.goto(`${dashboardURL}${panoPath}`, { waitUntil: 'commit' })
     const loading = page.getByRole('status', { name: 'Pano yükleniyor' })
     await expect(loading).toBeVisible()
     await expect(loading).toHaveAttribute('aria-busy', 'true')
@@ -162,7 +167,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     await expect(page.locator('.restaurant-rail')).toBeVisible()
     await assertVisualHealth(page, testInfo, 'dashboard-pano-loading', { minTextLength: 5 })
 
-    await navigation
+    await restoreNetwork()
     await expect(loading).toBeHidden()
     await expect(page.getByText(/Tahsil edilen ciro|Sipariş hacmi|Masa durumu/i).first()).toBeVisible()
     expect(failures).toEqual([])
@@ -172,6 +177,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     test.skip(testInfo.project.name !== 'dashboard-desktop', 'Reconnect is exercised once on desktop.')
     const restaurantId = getRestaurantId()
     await page.goto(`${dashboardURL}/dashboard/${restaurantId}`, { waitUntil: 'domcontentloaded' })
+    await expect(page.getByText(/^Bağlı/).filter({ visible: true }).first()).toBeVisible({ timeout: 35_000 })
     await page.context().setOffline(true)
     await expect(page.getByText(/Çevrimdışı/).first()).toBeVisible()
     await page.context().setOffline(false)
@@ -186,7 +192,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     }
     const response = await page.goto(`${dashboardURL}/dashboard/${restaurantId}/menu`, { waitUntil: 'domcontentloaded' })
     expect(response?.status()).toBe(200)
-    await expect(page.getByText(/Kategoriler|Yeni ürün/i).first()).toBeVisible()
+    await expect(page.getByText(/Kategoriler|Yeni ürün/i).filter({ visible: true }).first()).toBeVisible()
     await page.emulateMedia({ reducedMotion: 'reduce' })
 
     const viewportWidth = await page.evaluate(() => window.innerWidth)
@@ -224,6 +230,11 @@ test.describe('authenticated dashboard visual smoke', () => {
         await expect(page.locator(`#${headingId}`)).toBeFocused()
         await page.getByRole('button', { name: 'Ürünlere dön', exact: true }).click()
         await expect(firstEditorAction).toBeFocused()
+        await firstEditorAction.click()
+        await expect(workspace).toHaveAttribute('data-workspace-stage', 'editor')
+        await expect(editor).toBeVisible()
+        await page.getByRole('button', { name: 'Ürünlere dön', exact: true }).click()
+        await expect(firstEditorAction).toBeFocused()
 
         const newProduct = itemsWorkspace.getByRole('button', { name: 'Yeni ürün', exact: true })
         await newProduct.click()
@@ -233,6 +244,21 @@ test.describe('authenticated dashboard visual smoke', () => {
         await page.keyboard.press('Escape')
         await expect(newProductDialog).toBeHidden()
         await expect(newProduct).toBeFocused()
+        // A dirty nested confirmation must preserve the draft and restore focus.
+        await newProduct.click()
+        await newProductDialog.getByRole('textbox', { name: 'Ürün adı' }).fill('Audit taslağı — kaydedilmez')
+        await page.keyboard.press('Escape')
+        const confirmation = page.getByRole('alertdialog')
+        await expect(confirmation).toBeVisible()
+        await expect(confirmation.getByRole('button', { name: 'Düzenlemeye dön' })).toBeFocused()
+        await page.keyboard.press('Escape')
+        await expect(confirmation).toBeHidden()
+        await expect(newProductDialog.getByRole('textbox', { name: 'Ürün adı' })).toHaveValue('Audit taslağı — kaydedilmez')
+        await page.keyboard.press('Escape')
+        await confirmation.getByRole('button', { name: /sil|vazgeç/i }).click()
+        await expect(newProductDialog).toBeHidden()
+        await expect(newProduct).toBeFocused()
+
       }
     } else if (viewportWidth <= 1024) {
       await expect(categoryWorkspace).toBeVisible()
@@ -253,10 +279,10 @@ test.describe('authenticated dashboard visual smoke', () => {
       await expect(itemsWorkspace).toBeVisible()
       await expect(emptyPanel).toBeVisible()
 
-      const categoryName = (await categoryWorkspace.locator('button[aria-current]').first().innerText()).trim()
+      const categoryName = (await categoryWorkspace.locator('.menu-category-select').first().innerText()).trim()
       const search = page.getByRole('textbox', { name: 'Ürün veya kategori ara' })
       await search.fill(categoryName.toLocaleUpperCase('tr-TR'))
-      await expect(page.getByText('Arama sonuçları', { exact: true })).toBeVisible()
+      await expect(page.locator('#menu-products-heading')).toHaveText('Arama sonuçları')
       await expect(itemsWorkspace.locator('.menu-product-breadcrumb').first()).toBeVisible()
       await expect(page.getByRole('button', { name: 'Aramayı temizle', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Yeni ürün', exact: true })).toBeHidden()
@@ -275,6 +301,40 @@ test.describe('authenticated dashboard visual smoke', () => {
     expect(failures).toEqual([])
   })
 
+  test('notifications recover from rejected requests and keep keyboard focus inside the panel', async ({ page }, testInfo) => {
+    const restaurantId = getRestaurantId()
+    await page.goto(`${dashboardURL}/dashboard/${restaurantId}/menu`, { waitUntil: 'domcontentloaded' })
+    if (testInfo.project.name === 'dashboard-zoom-200') {
+      await page.locator('html').evaluate((element) => { element.style.zoom = '2' })
+    }
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    const trigger = page.getByRole('button', { name: 'Bildirimler', exact: true })
+    await expect(trigger).toBeVisible()
+    let failRequests = true
+    await page.route('**/dashboard/**', async (route) => {
+      if (failRequests && route.request().method() === 'POST' && route.request().headers()['next-action']) {
+        await route.abort('failed')
+      } else await route.continue()
+    })
+    await trigger.click()
+    const panel = page.getByRole('dialog', { name: 'Bildirimler', exact: true })
+    await expect(panel).toBeVisible()
+    await expect(panel.getByText('Bildirimler yüklenemedi', { exact: true })).toBeVisible()
+    await expect(panel.locator('.dashboard-notifications-list')).toHaveAttribute('aria-busy', 'false')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+    const close = panel.getByRole('button', { name: 'Bildirimleri kapat' })
+    await close.focus()
+    await page.keyboard.press('Shift+Tab')
+    await expect(panel.getByRole('button', { name: /Tümünü gör/ })).toBeFocused()
+    failRequests = false
+    await panel.getByRole('button', { name: 'Tekrar dene', exact: true }).click()
+    await expect(panel.locator('.dashboard-notifications-list')).toHaveAttribute('aria-busy', 'false')
+    await expect(panel.getByText('Bildirimler yüklenemedi', { exact: true })).toBeHidden()
+    await page.keyboard.press('Escape')
+    await expect(panel).toBeHidden()
+    await expect(trigger).toBeFocused()
+  })
+
   test('menu loading skeleton mirrors its responsive workspace', async ({ page }, testInfo) => {
     test.skip(
       !['dashboard-mobile', 'dashboard-narrow', 'dashboard-tablet', 'dashboard-zoom-200'].includes(testInfo.project.name),
@@ -285,18 +345,11 @@ test.describe('authenticated dashboard visual smoke', () => {
     }
     const restaurantId = getRestaurantId()
     const menuPath = `/dashboard/${restaurantId}/menu`
-    await page.route('**/*', async (route) => {
-      const request = route.request()
-      const url = new URL(request.url())
-      const isMenuRsc = url.pathname === menuPath && request.headers()['rsc'] === '1'
-      if (!isMenuRsc) return route.continue()
-      await new Promise((resolve) => setTimeout(resolve, 2_000))
-      return route.continue()
-    })
 
     await page.goto(`${dashboardURL}/dashboard/${restaurantId}`, { waitUntil: 'domcontentloaded' })
     await page.emulateMedia({ reducedMotion: 'reduce' })
-    const navigation = page.getByRole('navigation', { name: 'Ana bölümler' }).getByRole('link', { name: 'Menü' }).click()
+    const restoreNetwork = await throttleLoadingNavigation(page)
+    await page.goto(`${dashboardURL}${menuPath}`, { waitUntil: 'commit' })
     const loading = page.getByRole('status', { name: 'Menü yükleniyor' })
     await expect(loading).toBeVisible()
     await expect(loading).toHaveAttribute('aria-busy', 'true')
@@ -337,9 +390,9 @@ test.describe('authenticated dashboard visual smoke', () => {
     expect(layout.animated).toBe(0)
     await expect(page.locator('.restaurant-rail')).toBeVisible()
 
-    await navigation
+    await restoreNetwork()
     await expect(loading).toBeHidden()
-    await expect(page.getByText(/Kategoriler|Yeni ürün/i).first()).toBeVisible()
+    await expect(page.getByText(/Kategoriler|Yeni ürün/i).filter({ visible: true }).first()).toBeVisible()
   })
 
   test('orders board is visually healthy', async ({ page }, testInfo) => {
@@ -347,11 +400,12 @@ test.describe('authenticated dashboard visual smoke', () => {
     const restaurantId = getRestaurantId()
     const response = await page.goto(`${dashboardURL}/dashboard/${restaurantId}/orders`, { waitUntil: 'domcontentloaded' })
     expect(response?.status()).toBe(200)
-    await expect(page.getByText(/Siparişler|Sipariş Akışı|Sipariş yok/i).first()).toBeVisible()
+    await expect(page.getByText(/Siparişler|Sipariş Akışı|Sipariş yok/i).filter({ visible: true }).first()).toBeVisible()
     await expect(page.locator('.orders-shell')).toBeVisible()
+    await expect(page.locator('.orders-column-slot').filter({ visible: true }).first()).toBeVisible()
     const responsive = await page.locator('.orders-shell').evaluate((root) => {
       const visibleStages = Array.from(root.querySelectorAll('.orders-column-slot')).filter((element) => getComputedStyle(element).display !== 'none')
-      const tabs = Array.from(root.querySelectorAll('.orders-mobile-stage-tabs [role="tab"]')).filter((element) => getComputedStyle(element).display !== 'none')
+      const tabs = Array.from(root.querySelectorAll('.orders-mobile-stage-tabs [role="tab"]')).filter((element) => element.getBoundingClientRect().width > 0 && getComputedStyle(element).visibility !== 'hidden')
       return {
         width: window.innerWidth,
         horizontalOverflow: document.documentElement.scrollWidth - window.innerWidth,
@@ -389,17 +443,11 @@ test.describe('authenticated dashboard visual smoke', () => {
     if (testInfo.project.name === 'dashboard-zoom-200') await page.setViewportSize({ width: 720, height: 900 })
     const restaurantId = getRestaurantId()
     const ordersPath = `/dashboard/${restaurantId}/orders`
-    await page.route('**/*', async (route) => {
-      const request = route.request()
-      const url = new URL(request.url())
-      if (url.pathname !== ordersPath || request.headers()['rsc'] !== '1') return route.continue()
-      await new Promise((resolve) => setTimeout(resolve, 2_000))
-      return route.continue()
-    })
 
     await page.goto(`${dashboardURL}/dashboard/${restaurantId}`, { waitUntil: 'domcontentloaded' })
     await page.emulateMedia({ reducedMotion: 'reduce' })
-    const navigation = page.getByRole('navigation', { name: 'Ana bölümler' }).getByRole('link', { name: 'Siparişler' }).click()
+    const restoreNetwork = await throttleLoadingNavigation(page)
+    await page.goto(`${dashboardURL}${ordersPath}`, { waitUntil: 'commit' })
     const loading = page.getByRole('status', { name: 'Siparişler yükleniyor' })
     await expect(loading).toBeVisible()
     await expect(loading).toHaveAttribute('aria-busy', 'true')
@@ -436,7 +484,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     }
     expect(layout.animated).toBe(0)
     await expect(page.getByRole('navigation', { name: 'Ana bölümler' })).toBeVisible()
-    await navigation
+    await restoreNetwork()
     await expect(loading).toBeHidden()
   })
 
@@ -445,7 +493,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     const restaurantId = getRestaurantId()
     const response = await page.goto(`${dashboardURL}/dashboard/${restaurantId}/customers`, { waitUntil: 'domcontentloaded' })
     expect(response?.status()).toBe(200)
-    await expect(page.getByText(/Müşteriler|Segment/i).first()).toBeVisible()
+    await expect(page.getByText(/Müşteriler|Segment/i).filter({ visible: true }).first()).toBeVisible()
     await assertVisualHealth(page, testInfo, 'dashboard-customers')
     expect(failures).toEqual([])
   })
@@ -455,7 +503,7 @@ test.describe('authenticated dashboard visual smoke', () => {
     const restaurantId = getRestaurantId()
     const response = await page.goto(`${dashboardURL}/dashboard/${restaurantId}/tables`, { waitUntil: 'domcontentloaded' })
     expect(response?.status()).toBe(200)
-    await expect(page.getByText(/Masalar & QR|Masalar|QR/i).first()).toBeVisible()
+    await expect(page.getByText(/Masalar & QR|Masalar|QR/i).filter({ visible: true }).first()).toBeVisible()
     await assertVisualHealth(page, testInfo, 'dashboard-tables-builder', { maxHorizontalOverflow: 16 })
     expect(failures).toEqual([])
   })
@@ -513,16 +561,19 @@ test.describe('authenticated dashboard visual smoke', () => {
     await page.goto(`${dashboardURL}/dashboard/${restaurantId}/settings?section=store`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByText('Ayarlar güvenli biçimde yükleniyor…')).toBeHidden({ timeout: 15_000 })
     await phone.fill(`${originalPhone}1`)
-    await page.getByRole('button', { name: /^Profil / }).click()
+    await page.locator('[data-settings-section="profile"]').click()
     const unsaved = page.getByRole('alertdialog')
     await expect(unsaved).toBeVisible()
-    await expect(unsaved.getByRole('button', { name: /Düzenlemeye devam et/i })).toBeFocused()
+    await expect(unsaved.getByRole('button', { name: 'Düzenlemeye dön', exact: true })).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(unsaved).toBeHidden()
 
     await page.goto(`${dashboardURL}/dashboard/${restaurantId}/settings?section=privacy`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByText('Ayarlar güvenli biçimde yükleniyor…')).toBeHidden({ timeout: 15_000 })
     const deletionRequest = page.getByRole('button', { name: /İşletme kapatma talebi/i })
+    await expect(deletionRequest).toBeDisabled()
+    await page.getByRole('textbox', { name: 'Talep gerekçesi', exact: true }).fill('Audit — talep gönderilmez')
+    await page.getByLabel('Hesap şifresi', { exact: true }).fill('not-submitted')
     await deletionRequest.click()
     const sensitiveDialog = page.getByRole('alertdialog')
     await expect(sensitiveDialog).toBeVisible()
@@ -538,12 +589,14 @@ test.describe('authenticated dashboard visual smoke', () => {
       waitUntil: 'domcontentloaded',
     })
     expect(response?.status()).toBe(200)
-    await expect(page.getByText(/Tema Düzenleyici|Önizleme/i).first()).toBeVisible()
+    await expect(page.getByText(/Tema Düzenleyici|Önizleme/i).filter({ visible: true }).first()).toBeVisible()
+    const pageTab = page.getByRole('tab', { name: 'Sayfa', exact: true })
+    if (await pageTab.isVisible()) await pageTab.click()
     await page.getByRole('button', { name: /^Bölüm ekle$/i }).click()
     const sectionPicker = page.getByRole('dialog', { name: /Bölüm ekle/i })
     await expect(sectionPicker).toBeVisible()
     await expect(sectionPicker.getByRole('textbox', { name: /Eklenecek bölüm ara/i })).toBeVisible()
-    await expect(sectionPicker.getByText(/Geliştiriliyor/i).first()).toBeVisible()
+    await expect(sectionPicker.getByRole('button', { name: 'Hero Banner bölümünü seç', exact: true })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(sectionPicker).toBeHidden()
     await assertVisualHealth(page, testInfo, 'dashboard-theme-editor', { maxHorizontalOverflow: 16 })

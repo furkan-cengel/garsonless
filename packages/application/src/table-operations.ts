@@ -40,3 +40,14 @@ export function projectTableOperation(
     isSettled,
   }
 }
+
+export type TableAttentionState = TableOperationalState | 'stale' | 'paid'
+
+/** The same day/collection precedence is used by Pano and table operations. */
+export function projectTableAttentionState(session: OpenTableSession | undefined, now: number, dayStart = now - 86_400_000): TableAttentionState {
+  const operation = projectTableOperation(session, now)
+  if (!session) return 'empty'
+  if (Date.parse(session.openedAt) < dayStart) return 'stale'
+  if (operation.isSettled) return 'paid'
+  return operation.state
+}

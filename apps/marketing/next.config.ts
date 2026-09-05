@@ -8,6 +8,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: '/:path*', headers: createSecurityHeaders({ isProduction: process.env.NODE_ENV === 'production' }) }]
   },
+  async redirects() {
+    return [{
+      source: '/:path*',
+      has: [{ type: 'host', value: 'www.masabu.co' }],
+      destination: 'https://masabu.co/:path*',
+      permanent: true,
+    }]
+  },
   transpilePackages: ['@garsonless/ui', '@garsonless/db', '@garsonless/application', '@garsonless/domain'],
   outputFileTracingRoot: path.join(process.cwd(), '../..'),
   outputFileTracingIncludes: {

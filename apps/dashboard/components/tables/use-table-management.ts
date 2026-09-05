@@ -26,6 +26,7 @@ export function useTableManagement({
   activeId,
   setActiveId,
 }: UseTableManagementOptions) {
+  const [listOpenRequest, setListOpenRequest] = useState(0)
   const [adding, setAdding] = useState(false)
   const [newLabel, setNewLabel] = useState('')
   const [newFloorLabel, setNewFloorLabel] = useState('')
@@ -107,7 +108,8 @@ export function useTableManagement({
 
   return {
     adding,
-    startAdding: () => setAdding(true),
+    listOpenRequest,
+    startAdding: () => { setAdding(true); setListOpenRequest((value) => value + 1) },
     cancelAdding,
     newLabel,
     setNewLabel,

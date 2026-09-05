@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getPlatformAdminAuthCookieName } from './lib/auth-cookie'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
@@ -7,6 +8,7 @@ export async function middleware(request: NextRequest) {
     process.env['NEXT_PUBLIC_SUPABASE_URL']!,
     process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']!,
     {
+      cookieOptions: { name: getPlatformAdminAuthCookieName() },
       cookies: {
         getAll: () => request.cookies.getAll(),
         setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {

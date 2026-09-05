@@ -51,13 +51,13 @@ test('expired or cancelled subscription status wins over plan and override acces
   assert.equal(await canRestaurantUseFeature({ restaurantId, plan: 'pro', feature: 'loyalty' }, locked), false)
 })
 
-test('online payments keep rolling-deploy compatibility until add-on projection v1 is live', async () => {
+test('online payments fail closed until paid add-on projection v1 is live', async () => {
   const legacy: FeatureEntitlementRpc = async () => ({
     data: { accessAllowed: true, override: null }, error: null,
   })
   assert.equal(await canRestaurantUseFeature({
     restaurantId, plan: 'pro', feature: 'online_payments',
-  }, legacy), true)
+  }, legacy), false)
 
   const addOnMissing: FeatureEntitlementRpc = async () => ({
     data: { accessAllowed: true, override: null, addOnEntitlementsVersion: 1, activeAddOns: [] }, error: null,

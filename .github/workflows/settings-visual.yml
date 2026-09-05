@@ -1,4 +1,4 @@
-name: Settings Visual Gate
+name: Dashboard Visual Gate
 
 on:
   pull_request:
@@ -15,9 +15,9 @@ concurrency:
 
 jobs:
   settings-visual:
-    name: Authenticated Settings matrix
+    name: Authenticated dashboard, menu, theme and settings matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.DEV_SUPABASE_ANON_KEY }}
@@ -25,6 +25,8 @@ jobs:
       DASHBOARD_VISUAL_EMAIL: ${{ secrets.DASHBOARD_VISUAL_EMAIL }}
       DASHBOARD_VISUAL_PASSWORD: ${{ secrets.DASHBOARD_VISUAL_PASSWORD }}
       DASHBOARD_VISUAL_MAGICLINK_EMAIL: ${{ secrets.DASHBOARD_VISUAL_MAGICLINK_EMAIL }}
+      DASHBOARD_VISUAL_ISOLATED_FIXTURE: 1
+      VISUAL_PRODUCTION: 1
       NEXT_PUBLIC_APP_URL: http://localhost:3005
       SMOKE_DASHBOARD_URL: http://localhost:3005
 
@@ -51,5 +53,26 @@ jobs:
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run authenticated Settings matrix
+      - name: Build applications for authenticated journeys
+        run: pnpm --parallel --filter @garsonless/dashboard --filter @garsonless/menu --filter @garsonless/kitchen --filter @garsonless/marketing build
+
+      - name: Enforce production runtime and route budgets
+        run: |
+          pnpm check:runtime-versions
+          pnpm check:dashboard-bundle-budget --output test-results/dashboard-bundle-budget.json
+
+      - name: Run authenticated dashboard matrix
+        run: pnpm visual:auth
+
+      - name: Run focused Settings matrix
         run: pnpm visual:settings
+
+      - name: Upload failed journeys and budget evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-quality-evidence
+          path: |
+            test-results/
+            !test-results/visual-auth/*storage-state*.json
+          retention-days: 14

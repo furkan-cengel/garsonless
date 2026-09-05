@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { InlineSpinner } from '@garsonless/ui/spinners'
 import { AppIcons } from '@garsonless/ui/icons'
 import { fetchTableDetail, type TableDetail } from '../../lib/actions/tables'
@@ -55,6 +55,8 @@ export function TableDetailPanel({
   const [reloadKey, setReloadKey] = useState(0)
   const [selecting, setSelecting] = useState(false)
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set())
+  const sessionId = session?.sessionId
+  const loadedSession = useRef<string | undefined>(undefined)
   const state = tableOperationalState(session, now)
   const collected = session ? Math.max(0, session.total - session.unpaidTotal + session.splitSettledTotal) : 0
   const remaining = session ? Math.max(0, session.unpaidTotal - session.splitSettledTotal) : 0
@@ -70,23 +72,29 @@ export function TableDetailPanel({
   useEffect(() => {
     setSelecting(false)
     setSelectedOrderIds(new Set())
-    if (!session) {
+    setDetail(null)
+    loadedSession.current = undefined
+  }, [restaurantId, sessionId, table.id])
+
+  useEffect(() => {
+    if (!sessionId) {
       setDetail(null)
       setLoading(false)
       setError(null)
       return
     }
     let active = true
-    setLoading(true)
+    setLoading(loadedSession.current !== sessionId)
     setError(null)
     void fetchTableDetail(restaurantId, table.id)
       .then((result) => {
         if (!active) return
         if ('error' in result) {
           setError(result.error)
-          setDetail(null)
         } else {
+          loadedSession.current = sessionId
           setDetail(result)
+          setSelectedOrderIds((current) => new Set([...current].filter((id) => result.orders.some((order) => order.id === id))))
         }
       })
       .catch(() => {
@@ -96,7 +104,7 @@ export function TableDetailPanel({
         if (active) setLoading(false)
       })
     return () => { active = false }
-  }, [reloadKey, restaurantId, session, table.id])
+  }, [reloadKey, restaurantId, sessionId, session, table.id])
 
   const toggleOrder = (orderId: string) => {
     setSelectedOrderIds((current) => {

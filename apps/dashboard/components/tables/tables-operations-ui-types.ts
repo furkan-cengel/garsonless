@@ -8,6 +8,7 @@ import type { TablesRealtimeStatus } from './tables-realtime-model'
 export interface TablesOperationsShellProps {
   restaurantId: string
   restaurantName: string
+  restaurantTimezone?: string
   initialTables: Tables<'tables'>[]
   initialDirectoryError?: string | null
   initialOpenSessions: OpenSessionInfo[]
@@ -67,6 +68,8 @@ export interface TablesFloorCanvasProps {
   now: number
   floorFilter: string
   filtersActive: boolean
+  onClearFilters: () => void
+  onAddTable: () => void
   activeId: string
   setActiveId: (tableId: string) => void
   onOpenDetail: (tableId: string) => void

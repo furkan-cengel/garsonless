@@ -8,7 +8,7 @@ import {
   readPublishedTheme,
   readThemeForEditor,
   saveRestaurantThemeDraft,
-  withoutAdvancedThemeSections,
+  projectThemeForEntitlements,
   type ThemeApplicationPort,
 } from './themes'
 
@@ -245,6 +245,73 @@ test('Starter may edit core styling without deleting preserved Pro theme section
   assert.equal(saved, false)
 })
 
+test('the Video Hero add-on unfreezes only its own section', async () => {
+  const adapter = port()
+  const home = DEFAULT_THEME.surfaces!.home
+  const persisted = {
+    ...DEFAULT_THEME,
+    sectionSettings: {
+      'video-home': { videoUrl: 'https://cdn.example.com/a.mp4', posterUrl: 'https://cdn.example.com/a.jpg' },
+      'gallery-home': { title: 'Galeri' },
+    },
+    surfaces: {
+      ...DEFAULT_THEME.surfaces!,
+      home: {
+        ...home,
+        compositionVersion: 2 as const,
+        blocks: [
+          { id: 'video-home', sectionId: 'storefront-video-hero' as const, enabled: true },
+          { id: 'gallery-home', sectionId: 'gallery' as const, enabled: true },
+        ],
+      },
+    },
+  }
+  let saved = false
+  adapter.readRestaurant = async () => ok({
+    slug: 'cafe-a', name: 'Cafe A', logoUrl: null, settings: null, plan: 'starter',
+  })
+  // Starter holding only the Video Hero add-on.
+  adapter.readFeatureAccess = async ({ feature }) => ok(feature === 'theme_video_hero')
+  adapter.readDraft = async () => ok({
+    tokens: { ...persisted, __template_id: 'default' },
+    templateId: 'default', revision: 3, basedOnPublishedRevision: 2,
+    savedAt: '2026-08-01T10:00:00.000Z',
+  })
+  adapter.saveDraft = async () => {
+    saved = true
+    return ok({
+      status: 'saved', revision: 4, basedOnPublishedRevision: 2,
+      savedAt: '2026-08-01T10:04:00.000Z', hasUnpublishedChanges: true,
+    })
+  }
+
+  const editVideo = await saveRestaurantThemeDraft(context, {
+    restaurantId: 'restaurant-a', templateId: 'default',
+    theme: {
+      ...persisted,
+      sectionSettings: {
+        ...persisted.sectionSettings,
+        'video-home': { videoUrl: 'https://cdn.example.com/b.mp4', posterUrl: 'https://cdn.example.com/b.jpg' },
+      },
+    },
+    expectedRevision: 3, requestId: request.requestId,
+  }, adapter)
+  assert.equal(editVideo.ok, true)
+  assert.equal(saved, true)
+
+  saved = false
+  const editGallery = await saveRestaurantThemeDraft(context, {
+    restaurantId: 'restaurant-a', templateId: 'default',
+    theme: {
+      ...persisted,
+      sectionSettings: { ...persisted.sectionSettings, 'gallery-home': { title: 'Yeni galeri' } },
+    },
+    expectedRevision: 3, requestId: request.requestId,
+  }, adapter)
+  assert.deepEqual(editGallery, err('Plan feature unavailable'))
+  assert.equal(saved, false)
+})
+
 test('publish sanitizes CSS-shaped values and derives audit identity from actor', async () => {
   const adapter = port()
   let publishedBy = ''
@@ -432,7 +499,7 @@ test('public theme projection hides Pro blocks without deleting the persisted do
     },
   }
 
-  const projected = withoutAdvancedThemeSections(persisted)
+  const projected = projectThemeForEntitlements(persisted, { advancedSections: false, videoHero: false })
   assert.deepEqual(projected.pageBlocks?.map((block) => block.id), ['product-grid'])
   assert.deepEqual(projected.surfaces?.home.blocks?.map((block) => block.id), ['hero-home'])
   assert.equal(projected.surfaces?.home.sections.some((section) => section.type === 'hero-video'), false)

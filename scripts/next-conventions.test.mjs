@@ -42,7 +42,7 @@ test('every application owns route, root, and not-found recovery UI', () => {
 test('every application applies the shared baseline security headers', () => {
   for (const app of apps) {
     const config = readFileSync(join(root, 'apps', app, 'next.config.ts'), 'utf8')
-    assert.match(config, /allowedDevOrigins:\s*\['127\.0\.0\.1'\]/)
+    assert.match(config, /allowedDevOrigins:\s*\[[^\]]*['"]127\.0\.0\.1['"][^\]]*\]/)
     assert.match(config, /createSecurityHeaders/)
     assert.match(config, /poweredByHeader:\s*false/)
   }
@@ -60,6 +60,16 @@ test('baseline headers deny embedding except for the tenant-aware public menu', 
   )
   assert.equal(menuHeaders.has('X-Frame-Options'), false)
   assert.equal(menuHeaders.has('Content-Security-Policy'), false)
+})
+
+test('preview frames allow only configured origins and preserve embedding protection', () => {
+  const headers = new Map(createSecurityHeaders({
+    additionalFrameOrigins: ['https://menu.masabu.co/preview', 'http://localhost:3011'],
+  }).map(({ key, value }) => [key, value]))
+  assert.match(headers.get('Content-Security-Policy-Report-Only'), /frame-src [^;]* https:\/\/menu\.masabu\.co http:\/\/localhost:3011;/)
+  assert.equal(headers.get('Content-Security-Policy'), "frame-ancestors 'none'")
+  assert.throws(() => createSecurityHeaders({ additionalFrameOrigins: ['javascript:alert(1)'] }))
+  assert.throws(() => createSecurityHeaders({ additionalFrameOrigins: ['https://user:pass@example.com'] }))
 })
 
 test('private apps are noindex and every app owns instrumentation', () => {

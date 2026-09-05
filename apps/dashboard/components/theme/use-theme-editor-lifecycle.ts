@@ -11,9 +11,11 @@ import {
   inspectMenuHeaderContrast,
   inspectMenuNavigationContrast,
   inspectMenuThemeContrast,
+  projectThemeForSectionAccess,
   resolveMenuActionPlacements,
   type GarsonlessTheme,
   type ThemePreviewContext,
+  type ThemeSectionAccess,
 } from '@garsonless/design-engine'
 import type { SettingField, SettingsGroup } from '@garsonless/ui/themes'
 import { publishTheme, removeUnusedThemeMedia, saveThemeDraft } from '../../lib/actions/theme'
@@ -52,6 +54,9 @@ interface ThemeEditorLifecycleOptions {
   derivePreviewTheme: (overrides: Partial<GarsonlessTheme>) => GarsonlessTheme
   setNavigationGuard: (message: string | null) => void
   previewContext: ThemePreviewContext
+  /** Entitlements applied to the live preview theme only, never to the editor tree. */
+  canAddAdvancedSections: boolean
+  canUseVideoHero: boolean
   onPreviewSurfaceNavigation?: (surface: 'home' | 'menu') => void
   menuItems: Array<{
     id: string
@@ -83,6 +88,8 @@ export function useThemeEditorLifecycle({
   derivePreviewTheme,
   setNavigationGuard,
   previewContext,
+  canAddAdvancedSections,
+  canUseVideoHero,
   onPreviewSurfaceNavigation,
   menuItems,
 }: ThemeEditorLifecycleOptions) {
@@ -115,6 +122,24 @@ export function useThemeEditorLifecycle({
   const previewTheme = useMemo(
     () => derivePreviewTheme(overrides),
     [derivePreviewTheme, overrides],
+  )
+  // The preview iframe is a public rendering surface: the editor's live theme
+  // would otherwise overwrite the server-side plan projection over postMessage
+  // and bring unentitled sections back on screen. Every theme that crosses the
+  // bridge goes through here — the editor keeps the full document so locked
+  // sections stay listed, selectable and configurable without losing settings.
+  const sectionAccess = useMemo<ThemeSectionAccess>(
+    () => ({ advancedSections: canAddAdvancedSections, videoHero: canUseVideoHero }),
+    [canAddAdvancedSections, canUseVideoHero],
+  )
+  const deriveBridgeTheme = useCallback(
+    (nextOverrides: Partial<GarsonlessTheme>) =>
+      projectThemeForSectionAccess(derivePreviewTheme(nextOverrides), sectionAccess),
+    [derivePreviewTheme, sectionAccess],
+  )
+  const bridgeTheme = useMemo(
+    () => projectThemeForSectionAccess(previewTheme, sectionAccess),
+    [previewTheme, sectionAccess],
   )
   const authContrastIssues = useMemo(
     () => inspectAuthSurfaceContrast(previewTheme),
@@ -156,7 +181,7 @@ export function useThemeEditorLifecycle({
     reload: reloadPreviewFrame,
     handleFrameLoad: handlePreviewFrameLoad,
     handleFrameError: handlePreviewFrameError,
-  } = useThemePreviewBridge({ previewUrl, theme: previewTheme, context: previewContext, onSurfaceNavigation: onPreviewSurfaceNavigation })
+  } = useThemePreviewBridge({ previewUrl, theme: bridgeTheme, context: previewContext, onSurfaceNavigation: onPreviewSurfaceNavigation })
 
   const flashToast = useCallback((message: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
@@ -263,8 +288,8 @@ export function useThemeEditorLifecycle({
     setOverrides(snapshot)
     revisionRef.current += 1
     setHasUnsavedChanges(!areThemeOverridesEqual(snapshot, savedOverridesRef.current))
-    postPreviewMessage(createFullThemePreviewCommand(derivePreviewTheme(snapshot), undefined, previewContext))
-  }, [derivePreviewTheme, postPreviewMessage, previewContext])
+    postPreviewMessage(createFullThemePreviewCommand(deriveBridgeTheme(snapshot), undefined, previewContext))
+  }, [deriveBridgeTheme, postPreviewMessage, previewContext])
 
   const handleUndo = useCallback(() => {
     const previous = undoStack[undoStack.length - 1]
@@ -306,16 +331,16 @@ export function useThemeEditorLifecycle({
     markDirty()
     setOverrides(nextOverrides)
 
-    postPreviewMessage(createFullThemePreviewCommand(derivePreviewTheme(nextOverrides), undefined, previewContext))
-  }, [derivePreviewTheme, flashToast, markDirty, overrides, postPreviewMessage, previewContext, rememberInteractionStart])
+    postPreviewMessage(createFullThemePreviewCommand(deriveBridgeTheme(nextOverrides), undefined, previewContext))
+  }, [deriveBridgeTheme, derivePreviewTheme, flashToast, markDirty, overrides, postPreviewMessage, previewContext, rememberInteractionStart])
 
   const updateThemePatch = useCallback((patch: Partial<GarsonlessTheme>, options?: ThemePatchOptions) => {
     const nextOverrides = { ...overrides, ...patch }
     rememberInteractionStart(overrides, options?.historyGroup)
     markDirty()
     setOverrides(nextOverrides)
-    postPreviewMessage(createFullThemePreviewCommand(derivePreviewTheme(nextOverrides), undefined, previewContext))
-  }, [derivePreviewTheme, markDirty, overrides, postPreviewMessage, previewContext, rememberInteractionStart])
+    postPreviewMessage(createFullThemePreviewCommand(deriveBridgeTheme(nextOverrides), undefined, previewContext))
+  }, [deriveBridgeTheme, markDirty, overrides, postPreviewMessage, previewContext, rememberInteractionStart])
 
   const handleSave = useCallback(async () => {
     const savingRevision = revisionRef.current

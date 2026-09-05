@@ -1,0 +1,46 @@
+{
+  "method": "Current source functions executed with state/action doubles; no browser or database",
+  "findings": [
+    {
+      "id": "F01",
+      "observed": "createItem + selectItem(same item) leaves mobile workspaceStage=items",
+      "state": {
+        "items": [
+          {
+            "id": "audit-product",
+            "name": "Audit ürünü"
+          }
+        ],
+        "selectedItem": {
+          "id": "audit-product",
+          "name": "Audit ürünü"
+        },
+        "workspaceStage": "items",
+        "showAddItem": false
+      }
+    },
+    {
+      "id": "F03",
+      "observed": "rejected notification action leaves loading=true and no local error",
+      "state": {
+        "loading": true,
+        "error": null
+      }
+    },
+    {
+      "id": "F03",
+      "observed": "rejected import action leaves importing=true",
+      "importing": true
+    },
+    {
+      "id": "F04",
+      "observed": "in-order failures for optimistic 10->20->30 restore UI price=20 although neither mutation succeeded",
+      "authoritativeStartingPrice": 10,
+      "finalUiPrice": 20
+    },
+    {
+      "id": "F12",
+      "observed": "domain input accepts 120,50; CSV Number conversion returns NaN"
+    }
+  ]
+}

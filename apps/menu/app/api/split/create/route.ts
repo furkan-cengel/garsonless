@@ -1,36 +1,30 @@
 import { NextResponse } from 'next/server'
-import { z } from 'zod'
 import { declareSplitShare } from '@garsonless/application/splits'
 import { resolvePublicTableContext } from '@garsonless/application/tables'
 import { createPublicTableQueryPort, createSplitPaymentPort } from '@garsonless/db/server'
 import { getCustomerSession } from '../../../../lib/customer-session'
 import { publicRestaurantHasFeature } from '../../../../lib/restaurant-feature-access'
+import {
+  createSplitRateLimitKey,
+  createSplitRequestFingerprint,
+  readBoundedPaymentJson,
+  splitCreateSchema,
+  splitErrorStatus,
+} from '../../../../lib/split-request'
 
 // Customer declares a split share (card intent OR cash). Service-role, gated by
 // the slug↔restaurant cross-check + an OPEN session (mirrors /api/orders). The
 // amount is SERVER-AUTHORITATIVE: item-splits derive it from the session's order
 // items; free-splits take the client amount but validate it against the session.
 
-const schema = z.object({
-  slug: z.string().min(1),
-  tableToken: z.string().uuid(),
-  tableSessionId: z.string().uuid(),
-  method: z.enum(['iyzico', 'cash']),
-  label: z.string().max(40).optional(),
-  // free-amount split
-  amount: z.number().positive().optional(),
-  // item-based split: line refs; the server re-derives the amount from the DB.
-  assignedItems: z.array(z.object({ orderId: z.string().uuid(), itemId: z.string() })).optional(),
-})
-
 type ApiResponse<T> = { success: true; data: T } | { success: false; error: string }
 
 export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ shareId: string; amount: number }>>> {
-  let body: unknown
-  try { body = await req.json() } catch { return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 }) }
-  const parsed = schema.safeParse(body)
+  const raw = await readBoundedPaymentJson(req)
+  if (!raw.ok) return NextResponse.json({ success: false, error: raw.error }, { status: raw.status })
+  const parsed = splitCreateSchema.safeParse(raw.data)
   if (!parsed.success) return NextResponse.json({ success: false, error: parsed.error.issues[0]?.message ?? 'Invalid request' }, { status: 400 })
-  const { slug, tableToken, tableSessionId, method, label, amount, assignedItems } = parsed.data
+  const { slug, tableToken, tableSessionId, requestId, method, label, amount, assignedItems } = parsed.data
 
   const tableResult = await resolvePublicTableContext(tableToken, createPublicTableQueryPort())
   if (!tableResult.ok) return NextResponse.json({ success: false, error: 'Masa bağlantısı doğrulanamadı.' }, { status: 503 })
@@ -48,6 +42,15 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ sha
     {
       restaurantId: table.restaurantId,
       tableSessionId,
+      requestId,
+      requestFingerprint: createSplitRequestFingerprint({
+        tableSessionId,
+        method,
+        label,
+        amount,
+        assignedItems,
+      }),
+      rateLimitKey: createSplitRateLimitKey(req, tableToken),
       method,
       label,
       amount,
@@ -57,7 +60,7 @@ export async function POST(req: Request): Promise<NextResponse<ApiResponse<{ sha
     createSplitPaymentPort(),
   )
   if (!result.ok) {
-    const status = result.error.includes('bulunamadı') || result.error.includes('kapanmış') ? 404 : 400
+    const status = splitErrorStatus(result.error)
     return NextResponse.json({ success: false, error: result.error }, { status })
   }
   return NextResponse.json({ success: true, data: result.value })

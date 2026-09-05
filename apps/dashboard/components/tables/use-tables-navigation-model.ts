@@ -77,7 +77,7 @@ export function useTablesNavigationModel({
     floorLabel: floorFilter,
     areaLabel: areaFilter,
   })
-  const activeCount = stateCounts.new + stateCounts.open + stateCounts.late
+  const activeCount = stateCounts.new + stateCounts.open + stateCounts.late + stateCounts.stale + stateCounts.paid
   const realtimeTone = realtimeStatusTone(connectionStatus)
   const realtimeColor = realtimeTone === 'positive'
     ? 'var(--positive)'

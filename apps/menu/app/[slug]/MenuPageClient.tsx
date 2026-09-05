@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import dynamic from 'next/dynamic'
+import { productImageDelivery } from '../../lib/product-image-delivery'
 import {
   ThemeProvider,
   ProductCard,
@@ -1241,6 +1242,7 @@ export function MenuPageClient({
                 onToggleFavorite: () => setFavoriteToggleRequest((current) => ({ itemId: item.id, requestId: (current?.requestId ?? 0) + 1 })),
               } : {})}
               imagePriority={item.id === firstCardItemId}
+              imageDelivery={productImageDelivery(item.images[0])}
               onIncrement={() => {
                 if (automaticFreebie) {
                   const paired = cartItems.find((ci) => ci.itemId === item.id && ci.promotion?.offer === 'freebie' && ci.promotion.role === 'qualifier')
@@ -1605,6 +1607,8 @@ export function MenuPageClient({
           slug={restaurant.slug}
           tableToken={effectiveTableToken!}
           tableSessionId={tableSessionId}
+          deviceId={deviceId}
+          initialBuyerName={member?.name ?? null}
           onClose={() => setIsSplitOpen(false)}
         />
       )}

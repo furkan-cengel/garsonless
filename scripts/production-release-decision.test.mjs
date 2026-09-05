@@ -44,6 +44,9 @@ function validEnvByScope() {
       RESEND_FROM_EMAIL: 'Masabu <noreply@masabu.co>',
       RESEND_STANDS_TO_EMAIL: 'stands@masabu.co',
       SAAS_BILLING_ENABLED: 'false',
+      SAAS_BILLING_SALES_ENABLED: 'false',
+      ACCOUNTING_DISPATCH_ENABLED: 'false',
+      ACCOUNTING_WORKER_URL: 'https://app.masabu.co/api/internal/accounting-invoices',
     },
     menu: {
       NEXT_PUBLIC_SUPABASE_URL: supabase,
@@ -52,6 +55,7 @@ function validEnvByScope() {
       NEXT_PUBLIC_APP_URL: 'https://menu.masabu.co',
       NEXT_PUBLIC_MENU_URL: 'https://menu.masabu.co',
       OUTBOX_WORKER_SECRET: `worker-${SECRET}`,
+      CUSTOMER_AUTH_PHONE_OTP_ENABLED: 'false',
     },
     kitchen: {
       NEXT_PUBLIC_SUPABASE_URL: supabase,
@@ -69,6 +73,7 @@ function validEnvByScope() {
       NEXT_PUBLIC_SUPABASE_ANON_KEY: `anon-${SECRET}`,
       SUPABASE_SERVICE_ROLE_KEY: `service-${SECRET}`,
       NEXT_PUBLIC_ADMIN_URL: 'https://admin.masabu.co',
+      SAAS_BILLING_FINANCIAL_OPS_ENABLED: 'false',
     },
     'outbox-worker': {
       SUPABASE_URL: supabase,
@@ -85,26 +90,35 @@ function validEnvByScope() {
       SEND_EMAIL_HOOK_SECRET: `hook-${SECRET}`,
       RESEND_API_KEY: `resend-${SECRET}`,
     },
+    'send-sms-hook': {
+      SEND_SMS_HOOK_SECRETS: `v1,whsec_${SECRET}`,
+      NETGSM_USERCODE: '8500000000',
+      NETGSM_PASSWORD: `netgsm-${SECRET}`,
+      NETGSM_MSGHEADER: 'MASABU',
+    },
   }
 }
 
 function runtimeEvidence(manifest) {
+  const enabledCapabilities = Object.fromEntries(manifest.runtimeCapabilities.map((name) => [name, false]))
+  const required = (item) => !item.capability || enabledCapabilities[item.capability]
   return {
     schemaVersion: 1,
     projectRef: PROD_REF,
     capturedAt: '2026-07-23T12:15:00.000Z',
+    enabledCapabilities,
     capabilities: manifest.capabilities,
-    edgeFunctions: manifest.edgeFunctions.map((item) => ({
+    edgeFunctions: manifest.edgeFunctions.filter(required).map((item) => ({
       name: item.name,
       active: true,
       verifyJwt: item.verifyJwt,
       url: item.url,
       configuredSecretNames: item.requiredSecretNames,
     })),
-    authHooks: manifest.authHooks.map((item) => ({ name: item.name, enabled: item.enabled, url: item.url })),
-    vaultSecrets: manifest.vaultSecrets.map((item) => ({ name: item.name, configured: true, ...(item.expectedUrl ? { url: item.expectedUrl } : {}) })),
-    cronJobs: manifest.cronJobs.map((item) => ({ name: item.name, active: true, schedule: item.schedule, command: item.command })),
-    probes: manifest.postDeployProbes.map((item) => ({ name: item.name, status: item.expectedStatus })),
+    authHooks: manifest.authHooks.filter(required).map((item) => ({ name: item.name, enabled: item.enabled, url: item.url })),
+    vaultSecrets: manifest.vaultSecrets.filter(required).map((item) => ({ name: item.name, configured: true, ...(item.expectedUrl ? { url: item.expectedUrl } : {}) })),
+    cronJobs: manifest.cronJobs.filter(required).map((item) => ({ name: item.name, active: true, schedule: item.schedule, command: item.command })),
+    probes: manifest.postDeployProbes.filter(required).map((item) => ({ name: item.name, status: item.expectedStatus })),
   }
 }
 
@@ -118,7 +132,14 @@ function smokeEvidence(manifest, release) {
     releaseArtifactSha256: release.artifactSha256,
     runtimeArtifactSha256: release.runtime.sha256,
     smokeArtifactSha256: manifest.artifactSha256,
-    enabledCapabilities: { core: true, 'order-card-payments': false, 'saas-billing': false },
+    enabledCapabilities: {
+      core: true,
+      'order-card-payments': false,
+      'saas-billing': false,
+      'subscription-refunds': false,
+      accounting: false,
+      'customer-phone-auth': false,
+    },
     checks: manifest.checks.map((check) => check.capability === 'core'
       ? {
           name: check.name,
@@ -217,7 +238,15 @@ function fixture() {
     backupRestoreEvidenceSha256: sha256(backupRestoreEvidenceRaw),
     releaseCandidateEvidenceSha256: sha256(releaseCandidateEvidenceRaw),
     releaseExecutionEvidenceSha256: null,
-    enabledCapabilities: { 'order-card-payments': false, 'saas-billing': false, 'web-push': false, sms: false },
+    enabledCapabilities: {
+      'order-card-payments': false,
+      'saas-billing': false,
+      'subscription-refunds': false,
+      accounting: false,
+      'customer-phone-auth': false,
+      'web-push': false,
+      sms: false,
+    },
     approvals: Object.fromEntries(policy.requiredApprovals.map((name) => [name, true])),
   }
   const base = {
@@ -241,7 +270,11 @@ function fixture() {
     root: ROOT,
   }
   const preDeployDecision = evaluateReleaseDecision({ ...base, mode: 'pre-deploy' })
-  assert.equal(preDeployDecision.decision, 'go-to-deploy')
+  assert.equal(
+    preDeployDecision.decision,
+    'go-to-deploy',
+    JSON.stringify(preDeployDecision.errors, null, 2),
+  )
   const executionPlan = buildReleaseExecutionPlan({
     projectRef: PROD_REF,
     bundleManifest,
@@ -279,22 +312,24 @@ function fixture() {
 test('release policy is closed, internally consistent and source controlled', () => {
   const { policy } = fixture()
   assert.deepEqual(validateReleasePolicy(policy), { ok: true, errors: [] })
-  assert.equal(policy.requiredScopes.length, 7)
+  assert.equal(policy.requiredScopes.length, 8)
   assert.equal(policy.requiredApprovals.length, 6)
   assert.equal(policy.maxReleaseCandidateEvidenceAgeHours, 4)
   assert.equal(policy.maxReleaseExecutionDurationMinutes, 180)
   assert.equal(policy.maxReleaseRecoveryDurationMinutes, 120)
 })
 
-test('release policy rejects missing warning modes and unknown smoke capability bindings', () => {
+test('release policy rejects missing warning modes and unknown capability bindings', () => {
   const { policy } = fixture()
   delete policy.allowedWarningCodes['post-deploy']
   policy.smokeCapabilityBindings['unknown-capability'] = 'unknown-smoke'
+  policy.runtimeCapabilityBindings['unknown-runtime-capability'] = 'unknown-runtime'
   const result = validateReleasePolicy(policy)
   assert.equal(result.ok, false)
   assert.ok(result.errors.every((item) => item.code === 'MAS-DEP-029'))
   assert.ok(result.errors.some((item) => item.subject === 'allowedWarningCodes'))
   assert.ok(result.errors.some((item) => item.subject === 'unknown-capability'))
+  assert.ok(result.errors.some((item) => item.subject === 'unknown-runtime-capability'))
 })
 
 test('release policy rejects an unsafe recovery duration', () => {
@@ -376,6 +411,15 @@ test('operator and smoke capability states must agree', () => {
   const result = evaluateReleaseDecision({ ...input, mode: 'post-deploy' })
   assert.equal(result.decision, 'no-go')
   assert.ok(result.errors.some((item) => item.code === 'MAS-DEP-030' && item.subject === 'capability:order-card-payments'))
+})
+
+test('operator and runtime capability states must agree', () => {
+  const input = fixture()
+  input.attestation.enabledCapabilities.accounting = true
+  input.attestationRaw = JSON.stringify(input.attestation)
+  const result = evaluateReleaseDecision({ ...input, mode: 'post-deploy' })
+  assert.equal(result.decision, 'no-go')
+  assert.ok(result.errors.some((item) => item.code === 'MAS-DEP-030' && item.subject === 'capability:accounting'))
 })
 
 test('missing restore proof or mismatched attestation binding prevents release', () => {

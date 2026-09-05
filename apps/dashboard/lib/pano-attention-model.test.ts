@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildPanoAttentionItems, getPanoAttentionTableCount, selectVisiblePanoAttentionItems, withPanoConnectionAttention } from './pano-attention-model'
+import { buildPanoAttentionItems, getPanoAttentionTableCount, partitionPanoAttentionItems, selectPanoAttentionTables, selectVisiblePanoAttentionItems, withPanoConnectionAttention } from './pano-attention-model'
 import { formatPanoCurrency, formatPanoDuration, formatPanoInteger } from './pano-format'
 import type { TableStatusData } from './queries/insights-shared'
 
@@ -9,6 +9,55 @@ const table = (overrides: Partial<TableStatusData> = {}): TableStatusData => ({
   sessionId: 'session-1', openedAt: '2026-07-29T08:00:00.000Z', unpaidTotal: 400,
   splitSettledTotal: 150, splitDeclaredCashTotal: 0, orderCount: 2, hasUnfinished: false,
   ...overrides,
+})
+
+test('attention KPI and rows include stale sessions and deduplicate overlapping signals', () => {
+  const tables = [table({ status: 'stale' }), table({ id: 'table-2' }), table({ id: 'table-3', status: 'active' })]
+  const requests = [
+    { id: 'r1', tableId: 'table-1', requestType: 'bill' as const, createdAt: '' },
+    { id: 'r2', tableId: 'table-1', requestType: 'water' as const, createdAt: '' },
+    { id: 'r3', tableId: 'table-2', requestType: 'bill' as const, createdAt: '' },
+    { id: 'r4', tableId: 'removed-table', requestType: 'bill' as const, createdAt: '' },
+  ]
+  const rows = selectPanoAttentionTables(tables, requests)
+  assert.deepEqual(rows.map(({ table }) => table.id), ['table-1', 'table-2'])
+  assert.equal(rows[0]?.requests.length, 2)
+  assert.equal(getPanoAttentionTableCount(tables, requests), rows.length)
+  assert.equal(getPanoAttentionTableCount([table({ status: 'stale' })], []), 1)
+  assert.equal(getPanoAttentionTableCount([table({ status: 'active' })], []), 0)
+  assert.equal(getPanoAttentionTableCount([tables[0]!, tables[0]!], []), 1)
+})
+
+test('each table warning keeps the exact table context in its destination', () => {
+  const items = buildPanoAttentionItems({
+    restaurantId: 'restaurant-1', generatedAt: '2026-09-05T08:00:00.000Z',
+    pendingOrderCount: 0, recentOrders: [],
+    tableStatuses: [table({ id: 'late/table' }), table({ id: 'old&table', status: 'stale' })],
+    serviceRequests: [{ id: 'r1', tableId: 'old&table', requestType: 'bill', createdAt: '' }],
+    paymentStatus: null,
+  })
+  assert.equal(items.length, 3)
+  for (const item of items) {
+    const url = new URL(item.actionHref!, 'http://localhost')
+    assert.equal(url.pathname, '/dashboard/restaurant-1/tables')
+    assert.equal(url.searchParams.get('tableId'), item.tableId)
+    assert.equal([...url.searchParams].length, 1)
+  }
+})
+
+test('payment setup does not count as an operational warning or hide connection failures', () => {
+  const items = buildPanoAttentionItems({
+    restaurantId: 'restaurant-1', generatedAt: '2026-09-05T08:00:00.000Z',
+    pendingOrderCount: 0, recentOrders: [], tableStatuses: [], serviceRequests: [],
+    paymentStatus: { configured: false, mode: null },
+  })
+  const { operational, setup } = partitionPanoAttentionItems(items)
+  assert.deepEqual(operational, [])
+  assert.equal(setup.length, 1)
+  assert.equal(setup[0]?.actionHref, '/dashboard/restaurant-1/settings')
+  const offline = partitionPanoAttentionItems(withPanoConnectionAttention(items, 'offline', '2026-09-05T08:00:00.000Z'))
+  assert.deepEqual(offline.operational.map((item) => item.kind), ['connection'])
+  assert.deepEqual(offline.setup, setup)
 })
 
 test('Pano numbers share Turkish currency and integer formatting', () => {

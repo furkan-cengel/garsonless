@@ -94,14 +94,15 @@ export type ThemeVideoUploadResult =
   | { error: string }
   | { url: string; durationSeconds: number; mime: 'video/mp4' | 'video/webm' }
 
-async function canUseAdvancedThemeMedia(restaurantId: string): Promise<boolean> {
+/** Hero video and its poster are billed by the separately sold Video Hero entitlement. */
+async function canUseVideoHeroMedia(restaurantId: string): Promise<boolean> {
   const port = createThemeApplicationPort()
   const restaurant = await port.readRestaurant({ restaurantId })
   if (!restaurant.ok || !restaurant.value) return false
   const access = await port.readFeatureAccess({
     restaurantId,
     plan: restaurant.value.plan,
-    feature: 'theme_advanced_sections',
+    feature: 'theme_video_hero',
   })
   return access.ok && access.value
 }
@@ -176,8 +177,8 @@ export async function uploadThemeMedia(formData: FormData): Promise<ThemeMediaUp
 
   const gate = await assertAccess(restaurantId, 'theme')
   if ('error' in gate) return { error: 'Tema medyası yüklemek için yetkiniz yok.' }
-  if (purposeValue === 'home-hero-poster' && !await canUseAdvancedThemeMedia(restaurantId)) {
-    return { error: 'Hero video posteri Pro pakette kullanılabilir.' }
+  if (purposeValue === 'home-hero-poster' && !await canUseVideoHeroMedia(restaurantId)) {
+    return { error: 'Hero video posteri, Video Hero paketinizde aktif değil.' }
   }
 
   const file = formData.get('file')
@@ -220,7 +221,7 @@ export async function uploadThemeVideo(formData: FormData): Promise<ThemeVideoUp
   if (!z.string().uuid().safeParse(restaurantId).success) return { error: 'Geçersiz Tema video hedefi.' }
   const gate = await assertAccess(restaurantId, 'theme')
   if ('error' in gate) return { error: 'Tema videosu yüklemek için yetkiniz yok.' }
-  if (!await canUseAdvancedThemeMedia(restaurantId)) return { error: 'Hero video Pro pakette kullanılabilir.' }
+  if (!await canUseVideoHeroMedia(restaurantId)) return { error: 'Hero video, paketinizde aktif değil.' }
   const file = formData.get('file')
   if (!(file instanceof File)) return { error: 'Video dosyası bulunamadı.' }
   const validated = validateThemeVideo({ bytes: new Uint8Array(await file.arrayBuffer()), claimedType: file.type })

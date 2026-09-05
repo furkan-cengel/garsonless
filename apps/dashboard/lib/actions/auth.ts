@@ -14,6 +14,7 @@ import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
 import { cookies, headers } from 'next/headers'
 import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
+import { safeCallbackPath } from '../auth/callback-path'
 import { readRequestMeta } from '../request-meta'
 import { sanitizeServerDiagnostic } from '../server-log-redaction'
 
@@ -174,7 +175,7 @@ export async function signIn(
 
 /** Only allow same-origin relative redirects (e.g. the accept-invite return path). */
 function safeNext(value: FormDataEntryValue | null, fallback = '/dashboard'): string {
-  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : fallback
+  return safeCallbackPath(typeof value === 'string' ? value : null, fallback)
 }
 
 export async function signUp(

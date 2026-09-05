@@ -2,6 +2,10 @@
   "schemaVersion": 1,
   "projectRef": "<PROD_PROJECT_REF>",
   "capturedAt": "<ISO_8601_UTC>",
+  "enabledCapabilities": {
+    "accounting": false,
+    "customer-phone-auth": false
+  },
   "capabilities": {
     "extensions": ["pg_cron", "pg_net"],
     "schemas": ["vault"]

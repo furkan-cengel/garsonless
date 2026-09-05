@@ -3,6 +3,7 @@ import Iyzipay from 'iyzipay'
 import {
   IYZICO_SUBSCRIPTION_PRODUCT_NAME,
   iyzicoSubscriptionProvisioningPlans,
+  validateIyzicoProvisioningTarget,
 } from '../lib/billing/iyzico-subscription-provisioning'
 import { verifyIyzicoSubscriptionPlanResponse } from '../lib/billing/iyzico-subscription-plan-verification'
 
@@ -14,7 +15,6 @@ type ProvisioningClient = {
   subscriptionPricingPlan: { create: ProviderMethod; retrieveList: ProviderMethod }
 }
 
-const LIVE_URL = 'https://api.iyzipay.com'
 const TIMEOUT_MS = 15_000
 const PAGE_SIZE = 100
 
@@ -81,10 +81,19 @@ async function listAll(method: ProviderMethod, base: Record<string, unknown>): P
 
 async function main() {
   const apply = process.argv.includes('--apply')
+  const targetArgument = process.argv.find((argument) => argument.startsWith('--target='))
+  const target = targetArgument?.slice('--target='.length) ?? null
+  const baseUrl = required('IYZICO_BILLING_BASE_URL')
+  const environment = validateIyzicoProvisioningTarget({
+    target,
+    baseUrl,
+    apply,
+    liveConfirmed: process.argv.includes('--confirm-live'),
+  })
   const rate = vatRate()
   const plans = iyzicoSubscriptionProvisioningPlans(rate)
   if (!apply) {
-    console.log(`DRY RUN ${IYZICO_SUBSCRIPTION_PRODUCT_NAME}`)
+    console.log(`DRY RUN ${IYZICO_SUBSCRIPTION_PRODUCT_NAME} (${environment})`)
     for (const plan of plans) {
       console.log(`${plan.name}: ${(plan.amountMinor / 100).toFixed(2)} TRY / ${plan.request.paymentInterval}`)
     }
@@ -92,8 +101,6 @@ async function main() {
     return
   }
 
-  const baseUrl = required('IYZICO_BILLING_BASE_URL')
-  if (baseUrl !== LIVE_URL) throw new Error('IYZICO_BILLING_BASE_URL_not_live')
   const client = new Iyzipay({
     apiKey: required('IYZICO_BILLING_API_KEY'),
     secretKey: required('IYZICO_BILLING_SECRET_KEY'),
@@ -123,7 +130,8 @@ async function main() {
   const envLines: string[] = []
   for (const plan of plans) {
     const matches = existing.filter((item) => item.name === plan.name)
-    if (matches.length > 1) throw new Error(`${plan.plan}_${plan.interval}_duplicate`)
+    const variant = [plan.plan, ...plan.addOns, plan.interval].join('_')
+    if (matches.length > 1) throw new Error(`${variant}_duplicate`)
     let response: ProviderResponse
     if (matches.length === 1) {
       response = { status: 'success', data: matches[0] }
@@ -135,21 +143,25 @@ async function main() {
       })
     }
     if (response.status !== 'success') {
-      throw new Error(`${plan.plan}_${plan.interval}_create_failed:${providerErrorCode(response)}`)
+      throw new Error(`${variant}_create_failed:${providerErrorCode(response)}`)
     }
     const planReferenceCode = reference(object(response.data))
-    if (!planReferenceCode) throw new Error(`${plan.plan}_${plan.interval}_reference_missing`)
+    if (!planReferenceCode) throw new Error(`${variant}_reference_missing`)
     const verified = verifyIyzicoSubscriptionPlanResponse(response, {
       referenceCode: planReferenceCode,
       amountMinor: plan.amountMinor,
       interval: plan.interval,
     })
-    if (!verified.ok) throw new Error(`${plan.plan}_${plan.interval}_contract_mismatch`)
+    if (!verified.ok) throw new Error(`${variant}_contract_mismatch`)
     envLines.push(`${plan.envReferenceKey}=${planReferenceCode}`)
+    if (plan.envAddOnNetAmountKey && plan.addOnNetAmountMinor) {
+      envLines.push(`${plan.envAddOnNetAmountKey}=${plan.addOnNetAmountMinor}`)
+    }
     envLines.push(`${plan.envAmountKey}=${plan.amountMinor}`)
-    console.log(`PASS ${plan.plan}/${plan.interval}`)
+    console.log(`PASS ${plan.plan}${plan.addOns.length ? `+${plan.addOns.join('+')}` : ''}/${plan.interval}`)
   }
-  console.log('\nCopy these non-secret provider references into .env.production:')
+  const targetFile = environment === 'sandbox' ? '.env.sandbox' : '.env.production'
+  console.log(`\nCopy these non-secret provider references into ${targetFile}:`)
   console.log(envLines.join('\n'))
 }
 

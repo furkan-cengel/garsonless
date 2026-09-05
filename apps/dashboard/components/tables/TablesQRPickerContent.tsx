@@ -73,7 +73,7 @@ export function TablesQRPickerContent({
             {management.addError && <FieldError>{management.addError}</FieldError>}
           </FieldGroup>
         ) : <Button type="button" variant="outline" className="w-full" onClick={management.startAdding}><Plus />Masa ekle</Button>}
-        <Button variant="ghost" className="mt-2 w-full" render={<Link href={`/dashboard/${restaurantId}/tables`} />}>{!tableOperationsAllowed && <LockKeyhole />}{tableOperationsAllowed ? 'Canlı Masaları aç' : 'Canlı Masalar · Plus'}</Button>
+        <Button nativeButton={false} variant="ghost" className="mt-2 w-full" render={<Link href={`/dashboard/${restaurantId}/tables`} />}>{!tableOperationsAllowed && <LockKeyhole />}{tableOperationsAllowed ? 'Canlı Masaları aç' : 'Canlı Masalar · Plus'}</Button>
       </div>
     </>
   )

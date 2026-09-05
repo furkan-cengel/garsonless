@@ -7,7 +7,10 @@ import { createServiceClient } from './service-client'
 
 export interface CreateShareInput {
   restaurantId: string
+  tableId: string
   tableSessionId: string
+  requestId: string
+  requestFingerprint: string
   amount: number
   method?: 'iyzico' | 'cash' | null
   customerId?: string | null
@@ -17,24 +20,30 @@ export interface CreateShareInput {
 
 /** Insert a DECLARED share (never counted until settled). Server-authoritative
  *  amount is the caller's responsibility (P2 clamps card charges to the remaining). */
-export async function createShareDB(input: CreateShareInput): Promise<{ shareId: string | null; error: string | null }> {
+export async function createShareDB(input: CreateShareInput): Promise<{ shareId: string | null; amount: number | null; error: string | null }> {
   const svc = createServiceClient()
-  const { data, error } = await svc
-    .from('payment_shares')
-    .insert({
-      restaurant_id: input.restaurantId,
-      table_session_id: input.tableSessionId,
-      amount: input.amount,
-      method: input.method ?? null,
-      customer_id: input.customerId ?? null,
-      label: input.label ?? null,
-      assigned_items: (input.assignedItems ?? null) as never,
-      status: 'declared',
-    })
-    .select('id')
-    .single()
-  if (error) return { shareId: null, error: error.message }
-  return { shareId: (data as { id: string }).id, error: null }
+  const rpc = svc.rpc.bind(svc) as unknown as (
+    name: 'create_split_share_guarded',
+    args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message: string } | null }>
+  const { data, error } = await rpc('create_split_share_guarded', {
+    p_restaurant_id: input.restaurantId,
+    p_table_id: input.tableId,
+    p_table_session_id: input.tableSessionId,
+    p_request_id: input.requestId,
+    p_request_fingerprint: input.requestFingerprint,
+    p_amount: input.amount,
+    p_method: input.method ?? null,
+    p_customer_id: input.customerId ?? null,
+    p_label: input.label ?? null,
+    p_assigned_items: input.assignedItems ?? null,
+    p_active_max: 50,
+  })
+  if (error) return { shareId: null, amount: null, error: error.message }
+  const value = data as { shareId?: unknown; amount?: unknown } | null
+  return typeof value?.shareId === 'string' && typeof value.amount === 'number'
+    ? { shareId: value.shareId, amount: value.amount, error: null }
+    : { shareId: null, amount: null, error: 'Pay oluşturma işlemi geçersiz yanıt döndürdü' }
 }
 
 /** Void a share BEFORE it settles (customer removes it). Settled shares are real

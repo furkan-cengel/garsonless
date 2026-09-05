@@ -1,6 +1,6 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { setPlatformTenantPlan } from '@garsonless/application/platform-admin-tenant-plans'
 import {
   changePlatformTenantFeatureOverride,
@@ -12,6 +12,15 @@ import {
   PLATFORM_DUNNING_INTERVENTIONS,
   type PlatformDunningIntervention,
 } from '@garsonless/application/platform-admin-billing'
+import {
+  requestPlatformSubscriptionRefund,
+  SUBSCRIPTION_REFUND_ACCESS_ACTIONS,
+  SUBSCRIPTION_REFUND_KINDS,
+  SUBSCRIPTION_REFUND_REASON_CODES,
+  type SubscriptionRefundKind,
+  type SubscriptionRefundAccessAction,
+  type SubscriptionRefundReasonCode,
+} from '@garsonless/application/platform-admin-subscription-refunds'
 import { setPlatformTenantServiceStatus } from '@garsonless/application/platform-admin-tenant-operations'
 import {
   endPlatformImpersonationSession,
@@ -22,6 +31,7 @@ import {
 import { erasePlatformTenantPrivacyData } from '@garsonless/application/platform-admin-privacy'
 import {
   createPlatformAdminDunningInterventionPort,
+  createPlatformSubscriptionRefundPort,
   createPlatformAdminEntitlementPort,
   createPlatformAdminImpersonationPort,
   createPlatformAdminPrivacyPort,
@@ -41,6 +51,19 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requirePlatformAdminActor } from '../lib/platform-admin-auth'
 import { createPlatformAdminServerClient } from '../lib/supabase-server'
+import {
+  createIyzicoSubscriptionRefundProvider,
+  readIyzicoSubscriptionRefundConfig,
+} from '../lib/iyzico-subscription-refund'
+
+function tryAmountMinor(value: FormDataEntryValue | null): number | null {
+  const raw = String(value ?? '').trim()
+  if (!/^[1-9]\d*(?:[.,]\d{1,2})?$/.test(raw)) return null
+  const normalized = raw.replace(',', '.')
+  const [whole, fraction = ''] = normalized.split('.')
+  const minor = Number(whole) * 100 + Number(fraction.padEnd(2, '0'))
+  return Number.isSafeInteger(minor) && minor > 0 ? minor : null
+}
 
 export async function signOut() {
   const supabase = await createPlatformAdminServerClient()
@@ -147,6 +170,56 @@ export async function interveneTenantDunning(formData: FormData) {
   }
   revalidatePath(`/tenants/${restaurantId}`)
   redirect(`/tenants/${encodeURIComponent(restaurantId)}?operation=${result.value.duplicate ? 'dunning-duplicate' : result.value.intervention === 'defer' ? 'dunning-deferred' : 'dunning-retry-scheduled'}`)
+}
+
+export async function refundTenantSubscriptionInvoice(formData: FormData) {
+  const actor = await requirePlatformAdminActor()
+  const restaurantId = String(formData.get('restaurantId') ?? '')
+  const invoiceId = String(formData.get('invoiceId') ?? '')
+  const requestId = randomUUID()
+  const kind = String(formData.get('kind') ?? '')
+  const accessActionRaw = String(formData.get('accessAction') ?? 'keep')
+  const reasonCode = String(formData.get('reasonCode') ?? '')
+  const reasonDetail = String(formData.get('reasonDetail') ?? '')
+  const amountMinor = tryAmountMinor(formData.get('amount'))
+  if (!amountMinor
+    || !SUBSCRIPTION_REFUND_KINDS.includes(kind as SubscriptionRefundKind)
+    || !SUBSCRIPTION_REFUND_ACCESS_ACTIONS.includes(accessActionRaw as SubscriptionRefundAccessAction)
+    || !SUBSCRIPTION_REFUND_REASON_CODES.includes(reasonCode as SubscriptionRefundReasonCode)) redirect('/')
+
+  const accessAction: SubscriptionRefundAccessAction = kind === 'same_day_cancel'
+    ? 'cancel_immediately'
+    : accessActionRaw as SubscriptionRefundAccessAction
+  const idempotencyKey = `subscription-refund:${requestId}`
+  const requestFingerprint = createHash('sha256').update([
+    restaurantId, invoiceId, kind, accessAction, String(amountMinor), reasonCode, reasonDetail.trim(), requestId,
+  ].join('\n')).digest('hex')
+
+  let provider
+  try {
+    provider = createIyzicoSubscriptionRefundProvider(readIyzicoSubscriptionRefundConfig())
+  } catch {
+    redirect(`/tenants/${encodeURIComponent(restaurantId)}?operation=refund-provider-unavailable`)
+  }
+  const result = await requestPlatformSubscriptionRefund(actor, {
+    restaurantId, invoiceId, kind: kind as SubscriptionRefundKind, accessAction, amountMinor,
+    reasonCode: reasonCode as SubscriptionRefundReasonCode, reasonDetail,
+    requestId, idempotencyKey, requestFingerprint,
+  }, createPlatformSubscriptionRefundPort(), provider)
+
+  if (!result.ok) {
+    const code = result.error === 'Not authorized' ? 'refund-forbidden' : 'refund-failed'
+    redirect(`/tenants/${encodeURIComponent(restaurantId)}?operation=${code}`)
+  }
+  revalidatePath(`/tenants/${restaurantId}`)
+  const code = result.value.status === 'succeeded' && result.value.accessAction === 'cancel_immediately'
+    ? result.value.cancellationStatus === 'requires_reconciliation'
+      ? 'refund-cancel-reconciliation'
+      : 'refund-cancel-pending'
+    : result.value.status === 'succeeded' ? 'refund-succeeded'
+    : result.value.status === 'requires_reconciliation' ? 'refund-reconciliation'
+      : result.value.status === 'failed' ? 'refund-rejected' : 'refund-processing'
+  redirect(`/tenants/${encodeURIComponent(restaurantId)}?operation=${code}`)
 }
 
 export async function changeTenantServiceStatus(formData: FormData) {

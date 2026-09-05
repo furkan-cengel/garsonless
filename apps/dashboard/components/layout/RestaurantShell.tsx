@@ -56,24 +56,25 @@ const MOBILE_RAIL_SHELL_CSS = `
 @media (max-width: 760px) {
   .restaurant-shell--mobile-rail {
     --mobile-rail-safe-area: env(safe-area-inset-bottom, 0px);
+    --mobile-navigation-height: 64px;
     height: 100dvh !important;
     flex-direction: column !important;
   }
   .restaurant-shell--mobile-rail .restaurant-main {
     order: 1;
     width: 100%;
-    height: calc(100dvh - 58px - var(--mobile-rail-safe-area));
+    height: calc(100dvh - var(--mobile-navigation-height) - var(--mobile-rail-safe-area));
     flex: none !important;
   }
   .restaurant-shell--mobile-rail .restaurant-rail {
     order: 2;
     box-sizing: border-box;
     width: 100% !important;
-    height: calc(58px + var(--mobile-rail-safe-area));
+    height: calc(var(--mobile-navigation-height) + var(--mobile-rail-safe-area));
     flex-direction: row !important;
-    align-items: center !important;
-    gap: 2px !important;
-    padding: 6px 8px calc(6px + var(--mobile-rail-safe-area)) !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    padding: 4px 6px calc(4px + var(--mobile-rail-safe-area)) !important;
     background: var(--surface) !important;
     isolation: isolate;
     contain: paint;
@@ -84,64 +85,6 @@ const MOBILE_RAIL_SHELL_CSS = `
     scrollbar-width: none;
   }
   .restaurant-shell--mobile-rail .restaurant-rail::-webkit-scrollbar { display: none; }
-  .restaurant-shell--mobile-rail .restaurant-rail .rail-primary {
-    height: 44px;
-    min-height: 44px;
-    min-width: 0;
-    flex: var(--mobile-rail-primary-count) 1 0%;
-    display: grid;
-    grid-template-columns: repeat(var(--mobile-rail-primary-count), minmax(0, 1fr));
-    align-items: center;
-    gap: 2px;
-    overflow: visible;
-  }
-  .restaurant-shell--mobile-rail .restaurant-rail .rail-item {
-    width: 100%;
-    min-width: 0;
-    height: 44px;
-    flex: none;
-    align-items: center;
-  }
-  .restaurant-shell--mobile-rail .restaurant-rail .rail-secondary {
-    height: 44px;
-    min-height: 44px;
-    margin-top: 0 !important;
-    margin-left: 0 !important;
-    flex: 2 1 0%;
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: center;
-    gap: 2px;
-    min-width: 0;
-    background: transparent;
-  }
-  .restaurant-shell--mobile-rail .restaurant-rail .rail-link,
-  .restaurant-shell--mobile-rail .restaurant-rail .rail-btn,
-  .restaurant-shell--mobile-rail .restaurant-rail .rail-profile {
-    width: 100% !important;
-    max-width: 44px;
-    height: 44px !important;
-    flex: 0 0 44px;
-    margin: 0 !important;
-    padding: 0;
-    line-height: 0;
-  }
-  .restaurant-shell--mobile-rail .restaurant-rail .rail-secondary .rail-item {
-    margin-top: 0 !important;
-  }
-  .restaurant-shell--mobile-rail .restaurant-rail .rail-item svg {
-    display: block;
-    flex: none;
-  }
-  .restaurant-shell--mobile-rail .restaurant-rail .rail-tooltip { display: none; }
-  .restaurant-shell--mobile-rail .restaurant-rail .rail-active-indicator {
-    left: 8px;
-    right: 8px;
-    top: auto;
-    bottom: 0;
-    width: auto;
-    height: 2.5px;
-  }
 }
 `
 

@@ -14,6 +14,7 @@ const dashboardProject = (name: string, viewport: { width: number; height: numbe
 })
 
 export default defineConfig({
+  globalTeardown: './tests/visual/dashboard-fixture.ts',
   testDir: './tests/visual',
   timeout: 180_000,
   expect: { timeout: 15_000 },
@@ -40,7 +41,7 @@ export default defineConfig({
     dashboardProject('dashboard-zoom-200', { width: 1440, height: 900 }),
   ],
   webServer: {
-    command: 'corepack pnpm --filter @garsonless/dashboard exec next dev --port 3005',
+    command: `corepack pnpm --filter @garsonless/dashboard exec next ${process.env['VISUAL_PRODUCTION'] === '1' ? 'start' : 'dev'} --port 3005`,
     url: `${dashboardURL}/auth/login`,
     reuseExistingServer: !process.env['CI'],
     timeout: 120_000,

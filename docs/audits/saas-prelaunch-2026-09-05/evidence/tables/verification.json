@@ -1,0 +1,60 @@
+{
+  "date": "2026-09-05",
+  "route": "/dashboard/e0b1faf4-03d6-4171-8044-4fb8ca9dafe6/tables",
+  "testFixture": {
+    "tables": 2,
+    "openSessions": 1,
+    "unpaidTRY": 323
+  },
+  "checks": {
+    "tablesTests": {
+      "exitCode": 0,
+      "pass": 125,
+      "fail": 0
+    },
+    "targetedEslint": {
+      "exitCode": 0
+    },
+    "dashboardTypecheck": {
+      "exitCode": 0
+    },
+    "existingBuildBundleBudget": {
+      "exitCode": 0,
+      "tablesInitialGzipKB": 114.6,
+      "qrInitialGzipKB": 114.6
+    }
+  },
+  "geometry": [
+    {
+      "width": 320,
+      "height": 800,
+      "documentWidth": 310,
+      "horizontalControlOverflow": []
+    },
+    {
+      "width": 390,
+      "height": 843,
+      "documentWidth": 380,
+      "horizontalControlOverflow": []
+    },
+    {
+      "width": 768,
+      "height": 900,
+      "documentWidth": 768,
+      "horizontalControlOverflow": []
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "documentWidth": 1440,
+      "horizontalControlOverflow": []
+    }
+  ],
+  "limits": [
+    "Viewport override screenshots were not accepted as visual evidence; geometry only.",
+    "No financial, transfer, layout or QR mutations performed.",
+    "No fresh production build or CWV/lighthouse measurement in this audit.",
+    "Database migration deployment state not verified.",
+    "No full keyboard, screenreader, 200% zoom or reduced-motion matrix."
+  ]
+}

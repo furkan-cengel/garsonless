@@ -18,7 +18,7 @@ import { getThemeEditorSaveStatus } from './theme-editor-shell-model'; import { 
 import { HOME_SECTION_LIBRARY, SECTION_GROUPS, SECTION_LIBRARY } from './theme-editor-section-registry'; import { createHomeThemeEditorController } from './home-theme-editor-controller'; import { resolveFooterStoreDataAvailability } from './footer-store-data'
 import { projectHomeV2ForEditor } from './home-theme-editor-model'; import { buildThemePreviewUrl } from './theme-preview-url'; import type { ThemeEditorClientProps } from './theme-editor-client-contract'
 export default function ThemeEditorClient({ restaurantId, restaurantSlug, restaurantName, restaurantLogoUrl,
-  canAddAdvancedSections, canUseGuestOrdering, experienceV2Enabled, previewAccessToken, templateId, initialPersistence, restaurantSettings, initialCouponOptions, menuCategories, menuItems }: ThemeEditorClientProps) {
+  canAddAdvancedSections, canUseVideoHero, canUseGuestOrdering, experienceV2Enabled, previewAccessToken, templateId, initialPersistence, restaurantSettings, initialCouponOptions, menuCategories, menuItems }: ThemeEditorClientProps) {
   const entry = THEME_REGISTRY[CANONICAL_THEME_ID]!
   const fullSchema: SettingsGroup[] = entry.SETTINGS_SCHEMA
   const schema = useMemo(() => restrictOrderingThemeSchema(fullSchema, canUseGuestOrdering), [canUseGuestOrdering, fullSchema])
@@ -49,7 +49,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
   } = useThemeEditorLifecycle({
     restaurantId, templateId, previewUrl, ...initialPersistence,
     defaults: entry.THEME_DEFAULTS, schema, derivePreviewTheme, setNavigationGuard,
-    previewContext, onPreviewSurfaceNavigation: setExperienceSurface, menuItems,
+    previewContext, onPreviewSurfaceNavigation: setExperienceSurface, menuItems, canAddAdvancedSections, canUseVideoHero,
   })
   const {
     previewMode, setPreviewMode, previewScale, layout: workspaceLayout,
@@ -244,7 +244,7 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
     <ThemeExperienceProperties
       width={rightPanelWidth}
       restaurantId={restaurantId}
-      canAddAdvancedSections={canAddAdvancedSections}
+      canAddAdvancedSections={canAddAdvancedSections} canUseVideoHero={canUseVideoHero}
       surface={experienceSurface}
       authState={authState}
       accountState={accountState}
@@ -319,10 +319,10 @@ export default function ThemeEditorClient({ restaurantId, restaurantSlug, restau
         activeSections={experienceSurface === 'home'
           ? homeEditor.state.home.blocks.map((block) => block.sectionId)
           : activeSectionDefinitionIds}
-        canAddAdvancedSections={canAddAdvancedSections}
+        canAddAdvancedSections={canAddAdvancedSections} canUseVideoHero={canUseVideoHero}
         setSectionSearch={setSectionSearch} setSectionGroup={setSectionGroup}
         onSectionAdd={experienceSurface === 'home' ? homeEditor.add : handleAddSection}
-        onLockedSection={() => flashToast('Bu bölüm Pro pakette kullanılabilir.')}
+        onLockedSection={() => flashToast('Bu bölüm mevcut paketinde kullanılabilir değil.')}
         onSectionClose={closeSectionPicker}
       /> : null} />
   )}

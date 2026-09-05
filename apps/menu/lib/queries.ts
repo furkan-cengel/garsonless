@@ -9,6 +9,7 @@ import {
 import type { Tables } from '@garsonless/db/types'
 import type { MenuItem, MenuCategory } from '@garsonless/ui/menu'
 import { PUBLIC_MENU_CACHE_SECONDS, publicMenuCacheKey } from './public-menu-cache-policy'
+import { readPublicRestaurantWithRpcFallback } from './public-restaurant-rollout'
 
 type PublicMenuItemRow = Pick<
   Tables<'menu_items'>,
@@ -103,13 +104,28 @@ async function readRestaurantBySlug(
   slug: string,
 ): Promise<PublicRestaurant | null> {
   const supabase = createClient()
-  const { data, error } = await supabase
-    .from('restaurants')
-    .select('id, name, slug, logo_url, settings, timezone')
-    .eq('slug', slug)
-    .is('deleted_at', null)
-    .maybeSingle()
-  assertNoMenuQueryError('restaurants.select', error)
+  const normalizedSlug = slug.trim()
+  const { data, error, source } = await readPublicRestaurantWithRpcFallback<PublicRestaurant>(
+    async () => {
+      const result = await supabase
+        .rpc('read_public_restaurant_by_slug', { p_slug: slug })
+        .maybeSingle()
+      return { data: result.data as PublicRestaurant | null, error: result.error }
+    },
+    async () => {
+      const result = await supabase
+        .from('restaurants')
+        .select('id, name, slug, logo_url, settings, timezone')
+        .eq('slug', normalizedSlug)
+        .is('deleted_at', null)
+        .maybeSingle()
+      return { data: result.data as PublicRestaurant | null, error: result.error }
+    },
+  )
+  assertNoMenuQueryError(
+    source === 'rpc' ? 'read_public_restaurant_by_slug' : 'restaurants.select.rpc-rollout-fallback',
+    error,
+  )
   return data as PublicRestaurant | null
 }
 

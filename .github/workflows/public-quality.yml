@@ -54,9 +54,29 @@ jobs:
         run: pnpm --parallel --filter @garsonless/dashboard --filter @garsonless/menu --filter @garsonless/kitchen --filter @garsonless/marketing build
       - name: Run critical browser matrix
         run: pnpm exec playwright test tests/smoke/cross-browser-critical.spec.ts --project=chromium --project=webkit-critical --project=firefox-critical
+      - name: Enforce mobile cold and warm browser-cache budgets
+        run: pnpm exec playwright test tests/smoke/menu-mobile-performance.spec.ts --project=chromium
+        env:
+          SMOKE_PERFORMANCE_BUDGETS: 1
+      - name: Upload browser and mobile performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-browser-quality-evidence
+          path: test-results/
+          retention-days: 14
+
 
   lighthouse:
-    name: Marketing and public menu Lighthouse budgets
+    name: Public Lighthouse (${{ matrix.profile }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: desktop
+            config: ./.lighthouserc.json
+          - profile: mobile
+            config: ./.lighthouserc.mobile.json
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -94,5 +114,6 @@ jobs:
           urls: |
             http://127.0.0.1:3003/
             http://127.0.0.1:3011/maf-lounge
-          configPath: ./.lighthouserc.json
+          configPath: ${{ matrix.config }}
           uploadArtifacts: true
+          artifactName: lighthouse-${{ matrix.profile }}

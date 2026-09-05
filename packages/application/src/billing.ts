@@ -6,6 +6,7 @@ import type {
   RestaurantPlan,
   SelfServePlan,
 } from '@garsonless/domain/entitlements'
+import { isValidAddOnSelection } from '@garsonless/domain/entitlements'
 import { err, ok, type Result } from '@garsonless/domain/result'
 
 export const BILLING_PROVIDER_EVENT_TYPES = [
@@ -89,15 +90,17 @@ export interface SubscriptionBillingProvider {
     idempotencyKey: string
     /** Exact provider reference durably captured during hosted initialization. */
     expectedProviderPlanRef: string
-  }): Promise<Result<{
-    providerCustomerRef: string
-    providerSubscriptionRef: string
-    providerPlanRef: string
-    providerInvoiceRef: string
-    periodStart: string
-    periodEnd: string
-    status: 'active' | 'pending' | 'unpaid' | 'cancelled' | 'expired' | 'upgraded'
-  }>>
+    expectedAmount: BillingAmount
+    expectedBillingInterval: BillingInterval
+  }): Promise<Result<BillingCheckoutActiveResult>>
+
+  probeCheckout(input: {
+    providerCheckoutRef: string
+    idempotencyKey: string
+    expectedProviderPlanRef: string
+    expectedAmount: BillingAmount
+    expectedBillingInterval: BillingInterval
+  }): Promise<Result<BillingCheckoutProbeResult>>
 
   verifyWebhook(input: {
     rawBody: Uint8Array
@@ -119,6 +122,16 @@ export interface SubscriptionBillingProvider {
     providerSubscriptionRef: string
     idempotencyKey: string
   }): Promise<Result<{ cancelledAt: string | null }>>
+
+  /** Read-only provider lookup used to reconcile an ambiguous cancellation.
+   * It must never mutate, retry or infer a successful cancellation. */
+  probeSubscriptionStatus?(input: {
+    providerSubscriptionRef: string
+    idempotencyKey: string
+  }): Promise<Result<{
+    status: 'active' | 'pending' | 'unpaid' | 'cancelled' | 'expired' | 'upgraded'
+    observedAt: string
+  }>>
 }
 
 export type SubscriptionBillingProfile = SubscriptionBillingCustomer & {
@@ -138,6 +151,11 @@ export type SubscriptionBillingSettingsSubscription = {
   graceEndsAt: string | null
   cancelledAt: string | null
   activeAddOns: RestaurantAddOn[]
+  scheduledAddOns: RestaurantAddOn[]
+  cancelAtPeriodEnd: boolean
+  cancellationRequestId: string | null
+  cancellationEffectiveAt: string | null
+  cancellationStatus: 'scheduled' | 'processing' | 'provider_cancelled' | 'requires_reconciliation' | null
 }
 
 export type SubscriptionBillingSettingsInvoice = {
@@ -155,6 +173,24 @@ export type SubscriptionBillingSettingsInvoice = {
   paidAt: string | null
   failedAt: string | null
   canRetry: boolean
+  fiscalDocumentStatus: 'not_available' | 'preparing' | 'profile_required' | 'ready' | 'failed'
+  fiscalDocumentType: 'e_fatura' | 'e_arsiv' | null
+  canDownload: boolean
+}
+
+export type SubscriptionBillingSettingsRefund = {
+  id: string
+  invoiceId: string
+  kind: 'same_day_cancel' | 'refund'
+  scope: 'full' | 'partial'
+  accessAction: 'keep' | 'cancel_immediately'
+  amountMinor: number
+  currency: 'TRY'
+  status: 'requested' | 'processing' | 'succeeded' | 'failed' | 'requires_reconciliation'
+  requestedAt: string
+  completedAt: string | null
+  cancellationRequestId: string | null
+  cancellationStatus: 'scheduled' | 'processing' | 'provider_cancelled' | 'applied' | 'requires_reconciliation' | null
 }
 
 /** Owner-facing, tenant-scoped projection. Provider references, raw errors and
@@ -163,6 +199,8 @@ export type SubscriptionBillingSettings = {
   profile: SubscriptionBillingProfile | null
   subscription: SubscriptionBillingSettingsSubscription | null
   invoices: SubscriptionBillingSettingsInvoice[]
+  /** Read-only money history; provider references and internal reasons stay private. */
+  refunds: SubscriptionBillingSettingsRefund[]
   attention: {
     reconciliationCount: number
     hasPendingCheckout: boolean
@@ -191,6 +229,215 @@ export type BillingProviderOperationStatus =
   | 'awaiting_callback'
   | 'succeeded'
   | 'requires_reconciliation'
+  | 'expired'
+
+export type BillingCheckoutActiveResult = {
+  providerCustomerRef: string
+  providerSubscriptionRef: string
+  providerPlanRef: string
+  providerInvoiceRef: string
+  providerPaymentId: string
+  providerOrderStatus: 'succeeded'
+  amount: BillingAmount
+  periodStart: string
+  periodEnd: string
+  status: 'active'
+}
+
+export type BillingCheckoutProbeResult =
+  | { outcome: 'active'; checkout: BillingCheckoutActiveResult }
+  | { outcome: 'incomplete' }
+  | { outcome: 'expired' }
+  | { outcome: 'ambiguous' }
+
+export type BillingSubscriptionOrderEvidence = {
+  providerCustomerRef: string
+  providerSubscriptionRef: string
+  providerInvoiceRef: string
+  /** Present only for a provider-authenticated successful payment attempt. */
+  providerPaymentId: string | null
+  providerPlanRef: string
+  plan: SelfServePlan
+  addOns: RestaurantAddOn[]
+  billingInterval: BillingInterval
+  amount: BillingAmount
+  periodStart: string
+  periodEnd: string
+  status: 'succeeded' | 'failed' | 'pending'
+}
+
+export interface SubscriptionRenewalProvider {
+  retrieveSubscriptionOrder(input: {
+    providerCustomerRef: string
+    providerSubscriptionRef: string
+    providerInvoiceRef: string
+    idempotencyKey: string
+  }): Promise<Result<BillingSubscriptionOrderEvidence>>
+}
+
+export type BillingPlanChangePreparation = {
+  changeRequestId: string
+  operationId: string
+  subscriptionId: string
+  providerSubscriptionRef: string
+  providerTargetPlanRef: string
+  fromPlan: SelfServePlan
+  toPlan: SelfServePlan
+  billingInterval: BillingInterval
+  effectivePolicy: 'next_period'
+  effectiveAt: string
+  status: 'processing' | 'scheduled' | 'requires_reconciliation'
+  dispatchable: boolean
+  duplicate: boolean
+}
+
+export type BillingProviderPlanChangeResult = {
+  providerParentSubscriptionRef: string
+  providerTargetSubscriptionRef: string
+  providerTargetPlanRef: string
+  providerStatus: 'active'
+  providerPeriodStart: string
+  providerPeriodEnd: string
+}
+
+export interface SubscriptionPlanChangeProvider {
+  upgradeSubscription(input: {
+    providerSubscriptionRef: string
+    providerTargetPlanRef: string
+    effectivePolicy: 'next_period'
+    idempotencyKey: string
+  }): Promise<Result<BillingProviderPlanChangeResult>>
+}
+
+export type BillingCardUpdatePreparation = {
+  operationId: string
+  subscriptionId: string
+  providerSubscriptionRef: string
+  status: BillingProviderOperationStatus
+  providerCheckoutRef: string | null
+  expiresAt: string | null
+  dispatchable: boolean
+  duplicate: boolean
+}
+
+export type BillingProviderCardUpdateSession = {
+  providerCheckoutRef: string
+  checkoutContent: string
+  expiresAt: string | null
+}
+
+export interface SubscriptionCardUpdateProvider {
+  initializeSubscriptionCardUpdate(input: {
+    providerSubscriptionRef: string
+    callbackUrl: string
+    idempotencyKey: string
+  }): Promise<Result<BillingProviderCardUpdateSession>>
+}
+
+export interface SubscriptionCardUpdatePort {
+  prepareCardUpdate(input: {
+    restaurantId: string
+    idempotencyKey: string
+    requestFingerprint: string
+    callbackStateHash: string
+  }): Promise<Result<BillingCardUpdatePreparation>>
+  markCardUpdateInitialized(input: {
+    operationId: string
+    providerCheckoutRef: string
+    expiresAt: string | null
+  }): Promise<Result<true>>
+  completeCardUpdate(input: {
+    providerCheckoutRef: string
+    callbackState: string
+    occurredAt: string
+  }): Promise<Result<{
+    operationId: string
+    restaurantId: string
+    subscriptionId: string
+    outcome: 'succeeded' | 'ambiguous'
+    duplicate: boolean
+  }>>
+}
+
+export interface SubscriptionPlanChangePort {
+  preparePlanChange(input: {
+    restaurantId: string
+    toPlan: SelfServePlan
+    toAddOns: RestaurantAddOn[]
+    toBillingInterval: BillingInterval
+    providerTargetPlanRef: string
+    effectivePolicy: 'next_period'
+    idempotencyKey: string
+    requestFingerprint: string
+    requestedBy: string
+  }): Promise<Result<BillingPlanChangePreparation>>
+  finalizePlanChange(input: {
+    operationId: string
+    changeRequestId: string
+    result: BillingProviderPlanChangeResult
+    occurredAt: string
+  }): Promise<Result<{
+    changeRequestId: string
+    subscriptionId: string
+    status: 'scheduled'
+    effectiveAt: string
+    duplicate: boolean
+  }>>
+}
+
+export interface SubscriptionCancellationSchedulePort {
+  scheduleCancellation(input: {
+    restaurantId: string
+    idempotencyKey: string
+    requestFingerprint: string
+    requestedBy: string
+    occurredAt: string
+  }): Promise<Result<{
+    cancellationRequestId: string
+    subscriptionId: string
+    status: 'scheduled' | 'processing' | 'provider_cancelled' | 'applied' | 'withdrawn' | 'requires_reconciliation'
+    effectiveAt: string
+    duplicate: boolean
+  }>>
+  withdrawCancellation(input: {
+    restaurantId: string
+    cancellationRequestId: string
+    idempotencyKey: string
+    requestFingerprint: string
+    withdrawnBy: string
+    occurredAt: string
+  }): Promise<Result<{
+    cancellationRequestId: string
+    subscriptionId: string
+    status: 'withdrawn'
+    duplicate: boolean
+  }>>
+}
+
+export type BillingCheckoutRecoveryJob = {
+  operationId: string
+  restaurantId: string
+  providerCheckoutRef: string
+  expectedProviderPlanRef: string
+  expectedAmount: BillingAmount
+  expectedBillingInterval: BillingInterval
+  expiresAt: string
+  attempts: number
+}
+
+export type BillingCheckoutRecoveryOutcome =
+  | {
+    outcome: 'active'
+    restaurantId: string
+    subscriptionId: string
+    invoiceId: string
+    invoiceStatus: 'paid'
+    paymentEvidence: 'authenticated_retrieve'
+    duplicate: boolean
+  }
+  | { outcome: 'incomplete' }
+  | { outcome: 'expired' }
+  | { outcome: 'ambiguous' }
 
 export type BillingCheckoutPreparation = {
   operationId: string
@@ -247,6 +494,7 @@ export interface SubscriptionBillingOperationsPort {
   markCheckoutInitialized(input: {
     operationId: string
     providerCheckoutRef: string
+    expiresAt: string | null
   }): Promise<Result<true>>
   bindCheckoutProviderPlan(input: {
     operationId: string
@@ -258,6 +506,10 @@ export interface SubscriptionBillingOperationsPort {
     invoiceId: string
     requestedPlan: SelfServePlan
     expectedProviderPlanRef: string
+    expectedAmount: BillingAmount
+    expectedBillingInterval: BillingInterval
+    expiresAt: string
+    attempts: number
   }>>
   finalizeCheckout(input: {
     operationId: string
@@ -265,10 +517,20 @@ export interface SubscriptionBillingOperationsPort {
     providerSubscriptionRef: string
     providerPlanRef: string
     providerInvoiceRef: string
+    providerPaymentId: string
+    providerOrderStatus: 'succeeded'
+    amount: BillingAmount
     providerStatus: SubscriptionProviderStatus
     periodStart: string
     periodEnd: string
-  }): Promise<Result<{ restaurantId: string; subscriptionId: string; invoiceId: string; duplicate: boolean }>>
+  }): Promise<Result<{
+    restaurantId: string
+    subscriptionId: string
+    invoiceId: string
+    invoiceStatus: 'paid'
+    paymentEvidence: 'authenticated_retrieve'
+    duplicate: boolean
+  }>>
   prepareRetry(input: {
     restaurantId: string
     invoiceId: string
@@ -294,6 +556,25 @@ export interface SubscriptionBillingOperationsPort {
     actorUserId: string
     requestId: string
   }): Promise<Result<{ subscriptionId: string; duplicate: boolean }>>
+}
+
+export interface SubscriptionCheckoutRecoveryPort {
+  claimCheckoutRecoveryOperation(input: {
+    restaurantId: string
+    operationId: string
+    workerId: string
+    leaseSeconds: number
+  }): Promise<Result<BillingCheckoutRecoveryJob>>
+  rescheduleCheckoutRecovery(input: {
+    operationId: string
+    workerId: string | null
+    nextAt: string
+    reason: string | null
+  }): Promise<Result<true>>
+  expireCheckoutRecovery(input: {
+    operationId: string
+    workerId: string | null
+  }): Promise<Result<true>>
 }
 
 /** Signature verification is deliberately narrower than the full provider
@@ -612,15 +893,14 @@ export async function startSubscriptionCheckout(
   operationId: string
   providerCheckoutRef: string
   checkoutContent: string | null
+  expiresAt: string | null
   duplicate: boolean
 }>> {
   if (!dashboardOwnerMatches(context, input.restaurantId)) return err('Billing owner context required')
   if (!validBillingProfile(input.profile) || !validOperationInput(input)) return err('Billing checkout input is invalid')
   const addOns = [...(input.addOns ?? [])]
   if (!['starter', 'plus', 'pro'].includes(input.plan)
-    || addOns.some((addOn) => addOn !== 'iyzico_online_payments')
-    || new Set(addOns).size !== addOns.length
-    || (addOns.length > 0 && input.plan !== 'pro')
+    || !isValidAddOnSelection(input.plan, addOns)
     || !['monthly', 'annual'].includes(input.interval)
     || !Number.isSafeInteger(input.amount.minor) || input.amount.minor <= 0
     || input.amount.currency !== 'TRY'
@@ -638,6 +918,7 @@ export async function startSubscriptionCheckout(
         operationId: prepared.value.operationId,
         providerCheckoutRef: prepared.value.providerCheckoutRef,
         checkoutContent: null,
+        expiresAt: null,
         duplicate: true,
       })
       : err('Billing checkout operation is already in progress')
@@ -687,6 +968,7 @@ export async function startSubscriptionCheckout(
   const marked = await port.markCheckoutInitialized({
     operationId: prepared.value.operationId,
     providerCheckoutRef: checkout.value.providerCheckoutRef,
+    expiresAt: checkout.value.expiresAt,
   })
   if (!marked.ok) {
     const reconciled = await port.markOperationForReconciliation({
@@ -701,15 +983,122 @@ export async function startSubscriptionCheckout(
     operationId: prepared.value.operationId,
     providerCheckoutRef: checkout.value.providerCheckoutRef,
     checkoutContent: checkout.value.checkoutContent,
+    expiresAt: checkout.value.expiresAt,
     duplicate: false,
   })
 }
 
+function checkoutRecoveryDelaySeconds(attempts: number): number {
+  const delays = [2, 4, 8, 15, 30, 45, 60] as const
+  return delays[Math.min(Math.max(0, attempts - 1), delays.length - 1)]!
+}
+
+export async function recoverClaimedSubscriptionCheckout(
+  job: BillingCheckoutRecoveryJob,
+  input: { workerId: string | null; occurredAt?: string },
+  port: SubscriptionBillingOperationsPort & SubscriptionCheckoutRecoveryPort,
+  provider: Pick<SubscriptionBillingProvider, 'probeCheckout'>,
+): Promise<Result<BillingCheckoutRecoveryOutcome>> {
+  const occurredAt = input.occurredAt ?? new Date().toISOString()
+  if (!validId(job.operationId) || !validId(job.restaurantId)
+    || !validId(job.providerCheckoutRef) || !validId(job.expectedProviderPlanRef)
+    || !job.expectedAmount || !Number.isSafeInteger(job.expectedAmount.minor) || job.expectedAmount.minor <= 0
+    || job.expectedAmount.currency !== 'TRY'
+    || !['monthly', 'annual'].includes(job.expectedBillingInterval)
+    || !validTimestamp(job.expiresAt) || !Number.isInteger(job.attempts) || job.attempts < 1
+    || !validTimestamp(occurredAt)) {
+    return err('Billing checkout recovery input is invalid')
+  }
+
+  const schedule = async (reason: string | null) => port.rescheduleCheckoutRecovery({
+    operationId: job.operationId,
+    workerId: input.workerId,
+    nextAt: new Date(Date.parse(occurredAt) + checkoutRecoveryDelaySeconds(job.attempts) * 1_000).toISOString(),
+    reason,
+  })
+  const expire = async (): Promise<Result<BillingCheckoutRecoveryOutcome>> => {
+    const expired = await port.expireCheckoutRecovery({ operationId: job.operationId, workerId: input.workerId })
+    return expired.ok ? ok({ outcome: 'expired' }) : expired
+  }
+
+  const probe = await provider.probeCheckout({
+    providerCheckoutRef: job.providerCheckoutRef,
+    expectedProviderPlanRef: job.expectedProviderPlanRef,
+    expectedAmount: job.expectedAmount,
+    expectedBillingInterval: job.expectedBillingInterval,
+    idempotencyKey: `billing:checkout-probe:${job.operationId}:${job.attempts}`,
+  })
+  if (!probe.ok) {
+    if (job.attempts >= 8) {
+      const marked = await port.markOperationForReconciliation({
+        operationId: job.operationId,
+        reason: 'Checkout recovery provider probe failed repeatedly',
+      })
+      return marked.ok ? ok({ outcome: 'ambiguous' }) : marked
+    }
+    const scheduled = await schedule('Checkout recovery provider probe failed')
+    return scheduled.ok ? ok({ outcome: 'ambiguous' }) : scheduled
+  }
+
+  if (probe.value.outcome === 'active') {
+    const finalized = await port.finalizeCheckout({
+      operationId: job.operationId,
+      ...probe.value.checkout,
+      providerStatus: 'active',
+    })
+    if (!finalized.ok) {
+      const marked = await port.markOperationForReconciliation({
+        operationId: job.operationId,
+        reason: 'Active checkout could not be finalized atomically',
+      })
+      return marked.ok ? ok({ outcome: 'ambiguous' }) : marked
+    }
+    return ok({ outcome: 'active', ...finalized.value })
+  }
+
+  if (probe.value.outcome === 'expired' || Date.parse(occurredAt) >= Date.parse(job.expiresAt)) {
+    return expire()
+  }
+  if (probe.value.outcome === 'incomplete') {
+    const scheduled = await schedule(null)
+    return scheduled.ok ? ok({ outcome: 'incomplete' }) : scheduled
+  }
+  if (job.attempts >= 8) {
+    const marked = await port.markOperationForReconciliation({
+      operationId: job.operationId,
+      reason: 'Checkout recovery remained ambiguous',
+    })
+    return marked.ok ? ok({ outcome: 'ambiguous' }) : marked
+  }
+  const scheduled = await schedule('Checkout recovery result was ambiguous')
+  return scheduled.ok ? ok({ outcome: 'ambiguous' }) : scheduled
+}
+
+export async function recoverSubscriptionCheckout(
+  context: DashboardActorContext,
+  input: { restaurantId: string; operationId: string; workerId: string },
+  port: SubscriptionBillingOperationsPort & SubscriptionCheckoutRecoveryPort,
+  provider: Pick<SubscriptionBillingProvider, 'probeCheckout'>,
+): Promise<Result<BillingCheckoutRecoveryOutcome>> {
+  if (!dashboardOwnerMatches(context, input.restaurantId)) return err('Billing owner context required')
+  if (!validId(input.operationId) || !validId(input.workerId) || input.workerId.length > 160) {
+    return err('Billing checkout recovery input is invalid')
+  }
+  const claimed = await port.claimCheckoutRecoveryOperation({
+    restaurantId: input.restaurantId,
+    operationId: input.operationId,
+    workerId: input.workerId,
+    leaseSeconds: 10,
+  })
+  if (!claimed.ok) return claimed
+  return recoverClaimedSubscriptionCheckout(claimed.value, { workerId: input.workerId }, port, provider)
+}
+
 export async function completeSubscriptionCheckout(
   input: { providerCheckoutRef: string; idempotencyKey: string },
-  port: SubscriptionBillingOperationsPort,
+  port: SubscriptionBillingOperationsPort & SubscriptionCheckoutRecoveryPort,
   provider: SubscriptionBillingProvider,
-): Promise<Result<{ restaurantId: string; subscriptionId: string; invoiceId: string; duplicate: boolean }>> {
+): Promise<Result<BillingCheckoutRecoveryOutcome>> {
   if (!validId(input.providerCheckoutRef)
     || !validId(input.idempotencyKey)
     || input.idempotencyKey.trim().length > 160) {
@@ -717,31 +1106,16 @@ export async function completeSubscriptionCheckout(
   }
   const pending = await port.findCheckoutCallback(input.providerCheckoutRef)
   if (!pending.ok) return pending
-  const retrieved = await provider.retrieveCheckout({
-    ...input,
-    expectedProviderPlanRef: pending.value.expectedProviderPlanRef,
-  })
-  if (!retrieved.ok) {
-    const marked = await port.markOperationForReconciliation({
-      operationId: pending.value.operationId,
-      reason: retrieved.error,
-    })
-    if (!marked.ok) return err('Billing checkout retrieval and reconciliation tracking failed')
-    return retrieved
-  }
-  if (retrieved.value.status !== 'active') {
-    const marked = await port.markOperationForReconciliation({
-      operationId: pending.value.operationId,
-      reason: `Checkout returned non-active status: ${retrieved.value.status}`,
-    })
-    if (!marked.ok) return err('Billing checkout status and reconciliation tracking failed')
-    return err('Billing checkout is not active')
-  }
-  return port.finalizeCheckout({
+  return recoverClaimedSubscriptionCheckout({
     operationId: pending.value.operationId,
-    ...retrieved.value,
-    providerStatus: retrieved.value.status,
-  })
+    restaurantId: pending.value.restaurantId,
+    providerCheckoutRef: input.providerCheckoutRef,
+    expectedProviderPlanRef: pending.value.expectedProviderPlanRef,
+    expectedAmount: pending.value.expectedAmount,
+    expectedBillingInterval: pending.value.expectedBillingInterval,
+    expiresAt: pending.value.expiresAt,
+    attempts: Math.max(1, pending.value.attempts),
+  }, { workerId: null }, port, provider)
 }
 
 export async function retrySubscriptionInvoice(
@@ -785,6 +1159,76 @@ export async function retrySubscriptionInvoice(
   return ok({ accepted: true, duplicate: false })
 }
 
+/** Records an owner request for provider cancellation at the already-paid
+ * period boundary. This step never calls the provider or closes access. */
+export async function scheduleTenantSubscriptionCancellation(
+  context: DashboardActorContext,
+  input: {
+    restaurantId: string
+    idempotencyKey: string
+    requestFingerprint: string
+    occurredAt?: string
+  },
+  port: SubscriptionCancellationSchedulePort,
+): Promise<Result<{
+  cancellationRequestId: string
+  subscriptionId: string
+  status: 'scheduled'
+  effectiveAt: string
+  duplicate: boolean
+}>> {
+  if (!dashboardOwnerMatches(context, input.restaurantId)) return err('Billing owner context required')
+  if (!validOperationInput(input)) return err('Billing cancellation schedule input is invalid')
+  const occurredAt = input.occurredAt ?? new Date().toISOString()
+  if (!validTimestamp(occurredAt)) return err('Billing cancellation schedule timestamp is invalid')
+  const scheduled = await port.scheduleCancellation({
+    restaurantId: input.restaurantId,
+    idempotencyKey: input.idempotencyKey,
+    requestFingerprint: input.requestFingerprint,
+    requestedBy: context.userId,
+    occurredAt,
+  })
+  if (!scheduled.ok) return scheduled
+  return scheduled.value.status === 'scheduled'
+    ? ok({ ...scheduled.value, status: 'scheduled' })
+    : err('Billing cancellation request is no longer schedulable')
+}
+
+/** Withdraws a still-local period-end request before the due worker claims it. */
+export async function withdrawTenantSubscriptionCancellation(
+  context: DashboardActorContext,
+  input: {
+    restaurantId: string
+    cancellationRequestId: string
+    idempotencyKey: string
+    requestFingerprint: string
+    occurredAt?: string
+  },
+  port: SubscriptionCancellationSchedulePort,
+): Promise<Result<{
+  cancellationRequestId: string
+  subscriptionId: string
+  status: 'withdrawn'
+  duplicate: boolean
+}>> {
+  if (!dashboardOwnerMatches(context, input.restaurantId)) return err('Billing owner context required')
+  if (!validId(input.cancellationRequestId) || !validOperationInput(input)) {
+    return err('Billing cancellation withdrawal input is invalid')
+  }
+  const occurredAt = input.occurredAt ?? new Date().toISOString()
+  if (!validTimestamp(occurredAt)) return err('Billing cancellation withdrawal timestamp is invalid')
+  return port.withdrawCancellation({
+    restaurantId: input.restaurantId,
+    cancellationRequestId: input.cancellationRequestId,
+    idempotencyKey: input.idempotencyKey,
+    requestFingerprint: input.requestFingerprint,
+    withdrawnBy: context.userId,
+    occurredAt,
+  })
+}
+
+/** Immediate cancellation is reserved for separately authorized support/legal
+ * operations. Owner self-service uses scheduleTenantSubscriptionCancellation. */
 export async function cancelTenantSubscription(
   context: DashboardActorContext,
   input: { restaurantId: string; idempotencyKey: string; requestFingerprint: string },
@@ -832,5 +1276,213 @@ export async function cancelTenantSubscription(
     cancelledAt,
     actorUserId: context.userId,
     requestId: input.idempotencyKey,
+  })
+}
+
+/**
+ * Schedules a same-interval plan change at the next paid renewal. Provider
+ * acceptance alone never changes the local plan or entitlements.
+ */
+export async function scheduleSubscriptionPlanChange(
+  context: DashboardActorContext,
+  input: {
+    restaurantId: string
+    toPlan: SelfServePlan
+    toAddOns?: readonly RestaurantAddOn[]
+    toBillingInterval: BillingInterval
+    providerTargetPlanRef: string
+    effectivePolicy: 'next_period'
+    idempotencyKey: string
+    requestFingerprint: string
+    occurredAt?: string
+  },
+  port: SubscriptionPlanChangePort & Pick<SubscriptionBillingOperationsPort, 'markOperationForReconciliation'>,
+  provider: SubscriptionPlanChangeProvider,
+): Promise<Result<{
+  changeRequestId: string
+  subscriptionId: string
+  status: 'scheduled'
+  effectiveAt: string
+  duplicate: boolean
+}>> {
+  if (!dashboardOwnerMatches(context, input.restaurantId)) return err('Billing owner context required')
+  const toAddOns = [...(input.toAddOns ?? [])]
+  if (!['starter', 'plus', 'pro'].includes(input.toPlan)
+    || !['monthly', 'annual'].includes(input.toBillingInterval)
+    || input.effectivePolicy !== 'next_period'
+    || !isValidAddOnSelection(input.toPlan, toAddOns)
+    || !/^[\x21-\x7e]{1,200}$/.test(input.providerTargetPlanRef)
+    || !validOperationInput(input)) {
+    return err('Billing plan change input is invalid')
+  }
+  const occurredAt = input.occurredAt ?? new Date().toISOString()
+  if (!validTimestamp(occurredAt)) return err('Billing plan change timestamp is invalid')
+
+  const prepared = await port.preparePlanChange({
+    restaurantId: input.restaurantId,
+    toPlan: input.toPlan,
+    toAddOns,
+    toBillingInterval: input.toBillingInterval,
+    providerTargetPlanRef: input.providerTargetPlanRef,
+    effectivePolicy: input.effectivePolicy,
+    idempotencyKey: input.idempotencyKey,
+    requestFingerprint: input.requestFingerprint,
+    requestedBy: context.userId,
+  })
+  if (!prepared.ok) return prepared
+  if (!prepared.value.dispatchable) {
+    return prepared.value.status === 'scheduled'
+      ? ok({
+        changeRequestId: prepared.value.changeRequestId,
+        subscriptionId: prepared.value.subscriptionId,
+        status: 'scheduled',
+        effectiveAt: prepared.value.effectiveAt,
+        duplicate: true,
+      })
+      : err('Billing plan change operation is already in progress')
+  }
+
+  const upgraded = await provider.upgradeSubscription({
+    providerSubscriptionRef: prepared.value.providerSubscriptionRef,
+    providerTargetPlanRef: prepared.value.providerTargetPlanRef,
+    effectivePolicy: prepared.value.effectivePolicy,
+    idempotencyKey: input.idempotencyKey,
+  })
+  if (!upgraded.ok) {
+    const marked = await port.markOperationForReconciliation({
+      operationId: prepared.value.operationId,
+      reason: upgraded.error,
+    })
+    return marked.ok ? upgraded : err('Billing plan change failed and reconciliation tracking failed')
+  }
+  const finalized = await port.finalizePlanChange({
+    operationId: prepared.value.operationId,
+    changeRequestId: prepared.value.changeRequestId,
+    result: upgraded.value,
+    occurredAt,
+  })
+  if (finalized.ok) return finalized
+  const marked = await port.markOperationForReconciliation({
+    operationId: prepared.value.operationId,
+    reason: finalized.error,
+  })
+  return marked.ok
+    ? err('Billing plan change requires reconciliation')
+    : err('Billing plan change finalization and reconciliation tracking failed')
+}
+
+/** Starts iyzico's hosted card-update form. The platform never receives card
+ * fields; provider initialization is not treated as a successful update. */
+export async function startSubscriptionCardUpdate(
+  context: DashboardActorContext,
+  input: {
+    restaurantId: string
+    callbackUrl: string
+    callbackStateHash: string
+    idempotencyKey: string
+    requestFingerprint: string
+  },
+  port: SubscriptionCardUpdatePort & Pick<SubscriptionBillingOperationsPort, 'markOperationForReconciliation'>,
+  provider: SubscriptionCardUpdateProvider,
+): Promise<Result<{
+  operationId: string
+  providerCheckoutRef: string | null
+  checkoutContent: string | null
+  expiresAt: string | null
+  duplicate: boolean
+}>> {
+  if (!dashboardOwnerMatches(context, input.restaurantId)) return err('Billing owner context required')
+  if (!validOperationInput(input)
+    || !/^[a-f0-9]{64}$/.test(input.callbackStateHash)
+    || input.callbackUrl.length > 2_000) {
+    return err('Billing card update input is invalid')
+  }
+  try {
+    const callbackUrl = new URL(input.callbackUrl)
+    if (callbackUrl.protocol !== 'https:'
+      && !(callbackUrl.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(callbackUrl.hostname))) {
+      return err('Billing card update callback is invalid')
+    }
+  } catch {
+    return err('Billing card update callback is invalid')
+  }
+
+  const prepared = await port.prepareCardUpdate(input)
+  if (!prepared.ok) return prepared
+  if (!prepared.value.dispatchable) {
+    if (prepared.value.status === 'succeeded') {
+      return ok({
+        operationId: prepared.value.operationId,
+        providerCheckoutRef: prepared.value.providerCheckoutRef,
+        checkoutContent: null,
+        expiresAt: prepared.value.expiresAt,
+        duplicate: true,
+      })
+    }
+    return err('Billing card update operation is already in progress')
+  }
+
+  const initialized = await provider.initializeSubscriptionCardUpdate({
+    providerSubscriptionRef: prepared.value.providerSubscriptionRef,
+    callbackUrl: input.callbackUrl,
+    idempotencyKey: input.idempotencyKey,
+  })
+  if (!initialized.ok) {
+    const marked = await port.markOperationForReconciliation({
+      operationId: prepared.value.operationId,
+      reason: initialized.error,
+    })
+    return marked.ok ? initialized : err('Billing card update failed and reconciliation tracking failed')
+  }
+  const persisted = await port.markCardUpdateInitialized({
+    operationId: prepared.value.operationId,
+    providerCheckoutRef: initialized.value.providerCheckoutRef,
+    expiresAt: initialized.value.expiresAt,
+  })
+  if (!persisted.ok) {
+    const marked = await port.markOperationForReconciliation({
+      operationId: prepared.value.operationId,
+      reason: persisted.error,
+    })
+    return marked.ok
+      ? err('Billing card update requires reconciliation')
+      : err('Billing card update initialization and reconciliation tracking failed')
+  }
+  return ok({
+    operationId: prepared.value.operationId,
+    providerCheckoutRef: initialized.value.providerCheckoutRef,
+    checkoutContent: initialized.value.checkoutContent,
+    expiresAt: initialized.value.expiresAt,
+    duplicate: false,
+  })
+}
+
+/** The official hosted flow posts its initialized token only after successful
+ * card validation/update. A second random callback state binds that token to
+ * the exact local operation without creating payment or entitlement evidence. */
+export async function completeSubscriptionCardUpdate(
+  input: {
+    providerCheckoutRef: string
+    callbackState: string
+    occurredAt?: string
+  },
+  port: SubscriptionCardUpdatePort,
+): Promise<Result<{
+  operationId: string
+  restaurantId: string
+  subscriptionId: string
+  outcome: 'succeeded' | 'ambiguous'
+  duplicate: boolean
+}>> {
+  const occurredAt = input.occurredAt ?? new Date().toISOString()
+  if (!/^[\x21-\x7e]{1,200}$/.test(input.providerCheckoutRef)
+    || !/^[A-Za-z0-9_-]{32,200}$/.test(input.callbackState)
+    || !validTimestamp(occurredAt)) {
+    return err('Billing card update callback input is invalid')
+  }
+  return port.completeCardUpdate({
+    providerCheckoutRef: input.providerCheckoutRef,
+    callbackState: input.callbackState,
+    occurredAt,
   })
 }

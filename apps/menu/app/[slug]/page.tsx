@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { customerActorContext, readMemberLoyalty, type MemberBalances } from '@garsonless/application/loyalty'
-import { withoutAdvancedThemeSections } from '@garsonless/application/themes'
+import { projectThemeForEntitlements } from '@garsonless/application/themes'
 import { createLoyaltyQueryPort, createThemeApplicationPort, readTenantOrderIngressStatus } from '@garsonless/db/server'
 import type { MenuCategory, MenuItem } from '@garsonless/ui/menu'
 import { getMenuCategories, getMenuItems, getRestaurantBySlug } from '../../lib/queries'
@@ -21,6 +21,10 @@ interface Props {
 export default async function MenuPage({ params, searchParams }: Props) {
   const [{ slug }, sp] = await Promise.all([params, searchParams])
   const experienceV2Enabled = process.env['THEME_EXPERIENCE_V2_ENABLED'] === 'true' || process.env.NODE_ENV === 'development'
+  if (!experienceV2Enabled) {
+    const { renderMenuExperience } = await import('./_menu-experience')
+    return renderMenuExperience({ slug, sp })
+  }
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) notFound()
 
@@ -29,27 +33,26 @@ export default async function MenuPage({ params, searchParams }: Props) {
     getPublicMenuRevision(restaurant.id),
   ])
   if (!themeResult.ok) notFound()
+  if (themeResult.value.theme.surfaces?.home.enabled !== true) {
+    const { renderMenuExperience } = await import('./_menu-experience')
+    return renderMenuExperience({ slug, sp })
+  }
   const themePort = createThemeApplicationPort()
-  const [menuAccess, guestOrderingAccess, customerAccountsAccess, advancedThemeAccess, orderIngressStatus] = await Promise.all([
+  const [menuAccess, guestOrderingAccess, customerAccountsAccess, advancedThemeAccess, videoHeroAccess, orderIngressStatus] = await Promise.all([
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'qr_menu' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'guest_ordering' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'customer_accounts' }),
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_advanced_sections' }),
+    themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'theme_video_hero' }),
     readTenantOrderIngressStatus(restaurant.id),
   ])
   if (!menuAccess.ok || !menuAccess.value) notFound()
   const customerAccountsEnabled = customerAccountsAccess.ok && customerAccountsAccess.value
   const guestOrderingEnabled = guestOrderingAccess.ok && guestOrderingAccess.value && orderIngressStatus === 'active'
-  const theme = advancedThemeAccess.ok && advancedThemeAccess.value
-    ? themeResult.value.theme
-    : withoutAdvancedThemeSections(themeResult.value.theme)
-  const homeEnabled = experienceV2Enabled && theme.surfaces?.home.enabled === true
-
-  if (!homeEnabled) {
-    const { renderMenuExperience } = await import('./_menu-experience')
-    return renderMenuExperience({ slug, sp })
-  }
-
+  const theme = projectThemeForEntitlements(themeResult.value.theme, {
+    advancedSections: advancedThemeAccess.ok && advancedThemeAccess.value,
+    videoHero: videoHeroAccess.ok && videoHeroAccess.value,
+  })
   const [categories, featuredRanking, session, customerAuthCapabilities] = await Promise.all([
     getMenuCategories(restaurant.id, revisionSnapshot.revision),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),

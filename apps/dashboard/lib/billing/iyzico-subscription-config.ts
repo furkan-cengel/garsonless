@@ -1,19 +1,27 @@
 import {
   BILLING_INTERVALS,
+  ADD_ON_DEFINITIONS,
   calculatePlanCharge,
   getAddOnPrice,
   getPlanPrice,
+  isValidAddOnSelection,
+  RESTAURANT_ADD_ONS,
   SELF_SERVE_PLANS,
   type BillingInterval,
+  type RestaurantAddOn,
   type SelfServePlan,
 } from '@garsonless/domain/entitlements'
 
 const IYZICO_SUBSCRIPTION_SANDBOX_URL = 'https://sandbox-api.iyzipay.com'
 const IYZICO_SUBSCRIPTION_LIVE_URL = 'https://api.iyzipay.com'
+const MASABU_SANDBOX_ORIGIN = 'https://sandbox.masabu.co'
 
 type BillingEnv = Readonly<Record<string, string | undefined>>
 type ProviderPlan = { referenceCode: string; amountMinor: number }
 export type ProviderAddOnPlan = ProviderPlan & { addOnNetAmountMinor: number }
+export type ProviderAddOnPlanGroup = Partial<
+  Record<SelfServePlan, Record<BillingInterval, ProviderAddOnPlan>>
+>
 
 export type IyzicoSubscriptionProviderConfig = {
   apiKey: string
@@ -21,9 +29,7 @@ export type IyzicoSubscriptionProviderConfig = {
   baseUrl: typeof IYZICO_SUBSCRIPTION_SANDBOX_URL | typeof IYZICO_SUBSCRIPTION_LIVE_URL
   vatRate: number
   plans: Record<SelfServePlan, Record<BillingInterval, ProviderPlan>>
-  addOns?: {
-    iyzico_online_payments: Record<BillingInterval, ProviderAddOnPlan> | null
-  }
+  addOns: Record<RestaurantAddOn, ProviderAddOnPlanGroup | null>
 }
 
 export type IyzicoSubscriptionWebhookConfig = {
@@ -78,60 +84,117 @@ function providerPlan(env: BillingEnv, plan: SelfServePlan, interval: BillingInt
   }
 }
 
-function optionalIyzicoAddOnPlans(
+const ADD_ON_ENV_SLUG: Readonly<Record<RestaurantAddOn, string>> = {
+  iyzico_online_payments: 'IYZICO_ADDON',
+  storefront_video_hero: 'VIDEO_HERO',
+}
+
+export function providerAddOnEnvPrefix(plan: SelfServePlan, addOn: RestaurantAddOn): string {
+  return `IYZICO_BILLING_${plan.toUpperCase()}_${ADD_ON_ENV_SLUG[addOn]}`
+}
+
+const ADD_ON_PROVIDER_VARIANTS: Readonly<Record<RestaurantAddOn, readonly {
+  plan: SelfServePlan
+  prefix: string
+}[]>> = Object.fromEntries(RESTAURANT_ADD_ONS.map((addOn) => [
+  addOn,
+  ADD_ON_DEFINITIONS[addOn].availableOn
+    .filter((plan): plan is SelfServePlan => SELF_SERVE_PLANS.includes(plan as SelfServePlan))
+    .map((plan) => ({ plan, prefix: providerAddOnEnvPrefix(plan, addOn) })),
+])) as Record<RestaurantAddOn, { plan: SelfServePlan; prefix: string }[]>
+
+function optionalAddOnPlanGroup(
   env: BillingEnv,
   vatRate: number,
-): Record<BillingInterval, ProviderAddOnPlan> | null {
-  const prefixes = {
-    monthly: 'IYZICO_BILLING_PRO_IYZICO_ADDON_MONTHLY',
-    annual: 'IYZICO_BILLING_PRO_IYZICO_ADDON_ANNUAL',
-  } as const
-  const names = BILLING_INTERVALS.flatMap((interval) => {
-    const prefix = prefixes[interval]
-    return [`${prefix}_PLAN_REF`, `${prefix}_ADDON_NET_AMOUNT_MINOR`, `${prefix}_AMOUNT_MINOR`]
-  })
+  addOn: RestaurantAddOn,
+): ProviderAddOnPlanGroup | null {
+  const variants = ADD_ON_PROVIDER_VARIANTS[addOn]
+  const names = variants.flatMap(({ prefix }) => BILLING_INTERVALS.flatMap((interval) => {
+    const intervalPrefix = `${prefix}_${interval.toUpperCase()}`
+    return [`${intervalPrefix}_PLAN_REF`, `${intervalPrefix}_ADDON_NET_AMOUNT_MINOR`, `${intervalPrefix}_AMOUNT_MINOR`]
+  }))
   const configured = names.filter((name) => Boolean(env[name]?.trim()))
   if (configured.length === 0) return null
   if (configured.length !== names.length) {
-    throw new Error('IYZICO_BILLING_PRO_IYZICO_ADDON_* must be configured as one complete contract')
+    throw new Error(`${addOn} provider variants must be configured as one complete contract`)
   }
-  return Object.fromEntries(BILLING_INTERVALS.map((interval) => {
-    const prefix = prefixes[interval]
-    const addOnNetAmountMinor = amountEnv(env, `${prefix}_ADDON_NET_AMOUNT_MINOR`)
-    const expectedAddOnNetMinor = getAddOnPrice('iyzico_online_payments', interval).amountMinor
-    if (addOnNetAmountMinor !== expectedAddOnNetMinor) {
-      throw new Error(`${prefix}_ADDON_NET_AMOUNT_MINOR does not match the canonical add-on price`)
-    }
-    const totalNetMinor = getPlanPrice('pro', interval).amountMinor + addOnNetAmountMinor
-    const expectedGrossMinor = calculatePlanCharge({
-      amountMinor: totalNetMinor,
-      currency: 'TRY',
-      vatIncluded: false,
-    }, vatRate).totalAmountMinor
-    const amountMinor = amountEnv(env, `${prefix}_AMOUNT_MINOR`)
-    if (amountMinor !== expectedGrossMinor) {
-      throw new Error(`${prefix}_AMOUNT_MINOR does not match Pro plus add-on net price and configured KDV`)
-    }
-    return [interval, {
-      referenceCode: referenceEnv(env, `${prefix}_PLAN_REF`),
-      addOnNetAmountMinor,
-      amountMinor,
-    }]
-  })) as Record<BillingInterval, ProviderAddOnPlan>
+  return Object.fromEntries(variants.map(({ plan, prefix }) => [
+    plan,
+    Object.fromEntries(BILLING_INTERVALS.map((interval) => {
+      const intervalPrefix = `${prefix}_${interval.toUpperCase()}`
+      const addOnNetAmountMinor = amountEnv(env, `${intervalPrefix}_ADDON_NET_AMOUNT_MINOR`)
+      const expectedAddOnNetMinor = getAddOnPrice(addOn, interval).amountMinor
+      if (addOnNetAmountMinor !== expectedAddOnNetMinor) {
+        throw new Error(`${intervalPrefix}_ADDON_NET_AMOUNT_MINOR does not match the canonical add-on price`)
+      }
+      const totalNetMinor = getPlanPrice(plan, interval).amountMinor + addOnNetAmountMinor
+      const expectedGrossMinor = calculatePlanCharge({
+        amountMinor: totalNetMinor, currency: 'TRY', vatIncluded: false,
+      }, vatRate).totalAmountMinor
+      const amountMinor = amountEnv(env, `${intervalPrefix}_AMOUNT_MINOR`)
+      if (amountMinor !== expectedGrossMinor) {
+        throw new Error(`${intervalPrefix}_AMOUNT_MINOR does not match the plan plus add-on net price and configured KDV`)
+      }
+      return [interval, {
+        referenceCode: referenceEnv(env, `${intervalPrefix}_PLAN_REF`),
+        addOnNetAmountMinor, amountMinor,
+      }]
+    })) as Record<BillingInterval, ProviderAddOnPlan>,
+  ])) as ProviderAddOnPlanGroup
+}
+
+export function providerPlanForSelection(
+  config: IyzicoSubscriptionProviderConfig,
+  plan: SelfServePlan,
+  interval: BillingInterval,
+  addOns: readonly RestaurantAddOn[],
+): ProviderPlan | ProviderAddOnPlan | null {
+  if (!isValidAddOnSelection(plan, addOns)) return null
+  if (addOns.length === 0) return config.plans[plan][interval]
+  if (addOns.length !== 1) return null
+  return config.addOns[addOns[0]!]?.[plan]?.[interval] ?? null
+}
+
+export function configuredProviderPlanBindings(config: IyzicoSubscriptionProviderConfig): {
+  plan: SelfServePlan
+  billingInterval: BillingInterval
+  addOns: RestaurantAddOn[]
+  referenceCode: string
+  amountMinor: number
+}[] {
+  const base = SELF_SERVE_PLANS.flatMap((plan) => BILLING_INTERVALS.map((interval) => ({
+    plan, billingInterval: interval, addOns: [] as RestaurantAddOn[], ...config.plans[plan][interval],
+  })))
+  const combined = RESTAURANT_ADD_ONS.flatMap((addOn) => {
+    const group = config.addOns[addOn]
+    return group ? SELF_SERVE_PLANS.flatMap((plan) => {
+      const intervals = group[plan]
+      return intervals ? BILLING_INTERVALS.map((interval) => ({
+        plan, billingInterval: interval, addOns: [addOn], ...intervals[interval],
+      })) : []
+    }) : []
+  })
+  return [...base, ...combined]
 }
 
 /** Six immutable provider variants: Starter/Plus/Pro × monthly/annual. */
 export function readIyzicoSubscriptionProviderConfig(
   env: BillingEnv = process.env,
 ): IyzicoSubscriptionProviderConfig {
-  if (env.SAAS_BILLING_ENABLED?.trim() !== 'true') {
-    throw new Error('SAAS_BILLING_ENABLED must be true for provider operations')
-  }
   const baseUrl = requiredEnv(env, 'IYZICO_BILLING_BASE_URL')
   if (baseUrl !== IYZICO_SUBSCRIPTION_SANDBOX_URL && baseUrl !== IYZICO_SUBSCRIPTION_LIVE_URL) {
     throw new Error('IYZICO_BILLING_BASE_URL must be an approved iyzico API origin')
   }
-  if (env.NODE_ENV === 'production' && baseUrl !== IYZICO_SUBSCRIPTION_LIVE_URL) {
+  const sandboxProductionDeployment = env.IYZICO_BILLING_ALLOW_SANDBOX_IN_PRODUCTION?.trim() === 'true'
+    && (() => {
+      try {
+        return new URL(env.NEXT_PUBLIC_APP_URL ?? '').origin === MASABU_SANDBOX_ORIGIN
+      } catch {
+        return false
+      }
+    })()
+  if (env.NODE_ENV === 'production' && baseUrl !== IYZICO_SUBSCRIPTION_LIVE_URL
+    && !sandboxProductionDeployment) {
     throw new Error('IYZICO_BILLING_BASE_URL must use the live origin in production')
   }
 
@@ -143,13 +206,19 @@ export function readIyzicoSubscriptionProviderConfig(
       providerPlan(env, plan, interval, vatRate),
     ])) as Record<BillingInterval, ProviderPlan>,
   ])) as Record<SelfServePlan, Record<BillingInterval, ProviderPlan>>
-  const iyzicoAddOnPlans = optionalIyzicoAddOnPlans(env, vatRate)
+  const addOns = Object.fromEntries(RESTAURANT_ADD_ONS.map((addOn) => [
+    addOn, optionalAddOnPlanGroup(env, vatRate, addOn),
+  ])) as IyzicoSubscriptionProviderConfig['addOns']
 
   const references = SELF_SERVE_PLANS.flatMap((plan) => (
     BILLING_INTERVALS.map((interval) => plans[plan][interval].referenceCode)
-  )).concat(iyzicoAddOnPlans
-    ? BILLING_INTERVALS.map((interval) => iyzicoAddOnPlans[interval].referenceCode)
-    : [])
+  )).concat(RESTAURANT_ADD_ONS.flatMap((addOn) => {
+    const group = addOns[addOn]
+    return group ? SELF_SERVE_PLANS.flatMap((plan) => {
+      const intervals = group[plan]
+      return intervals ? BILLING_INTERVALS.map((interval) => intervals[interval].referenceCode) : []
+    }) : []
+  }))
   if (new Set(references).size !== references.length) {
     throw new Error('IYZICO_BILLING_*_PLAN_REF values must be unique')
   }
@@ -159,7 +228,17 @@ export function readIyzicoSubscriptionProviderConfig(
     baseUrl,
     vatRate,
     plans,
-    addOns: { iyzico_online_payments: iyzicoAddOnPlans },
+    addOns,
+  }
+}
+
+/** Sales admission is intentionally separate from provider credentials.
+ * Turning checkout sales off must not disable callback recovery, renewal,
+ * cancellation or reconciliation work for subscriptions already sold. */
+export function assertIyzicoSubscriptionSalesEnabled(env: BillingEnv = process.env): void {
+  const enabled = env.SAAS_BILLING_SALES_ENABLED ?? env.SAAS_BILLING_ENABLED
+  if (enabled?.trim() !== 'true') {
+    throw new Error('SAAS_BILLING_SALES_ENABLED must be true to start subscription checkout')
   }
 }
 
