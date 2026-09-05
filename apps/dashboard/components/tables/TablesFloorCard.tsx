@@ -1,5 +1,4 @@
 'use client'
-
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
@@ -149,11 +148,12 @@ export const TablesFloorCard = memo(function TablesFloorCard({
           <span className="tb-floor-card__status"><span aria-hidden="true" className="tb-floor-card__dot" />{TABLE_OPERATIONAL_COPY[state]}</span>
           {editing && <AppIcons.drag size={14} aria-hidden="true" />}
         </span>
-        <strong className="tb-floor-card__label">{table.label}</strong>
+        <strong className="tb-floor-card__label" title={table.label}>{table.label}</strong>
         <span className="tb-floor-card__summary"><span className="tb-floor-card__meta">{session ? `${session.orderCount} sipariş · ${sessionDuration(session.openedAt, now)}` : 'Sipariş bekliyor'}</span>
           {session && session.orderCount > 0 && <span className="tb-floor-card__amount">{session.unpaidTotal > 0 ? `${formatMoney(session.unpaidTotal)} açık` : formatMoney(session.total)}</span>}
         </span>
         <span className="tb-floor-card__badges">
+          <span className="tb-floor-card__badge">#{table.slug}</span>
           {tableIsSettled(session) && <span className="tb-floor-card__badge">Tahsil edildi</span>}
           {requestCount > 0 && <span className="tb-floor-card__badge tb-floor-card__badge--request"><AppIcons.bell size={10} />{requestCount}</span>}
           <span className="tb-floor-card__seats"><AppIcons.chair size={11} />{entry.seatCount}</span>

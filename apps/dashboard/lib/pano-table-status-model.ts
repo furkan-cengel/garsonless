@@ -1,4 +1,4 @@
-import { projectTableOperation } from '@garsonless/application/table-operations'
+import { projectTableOperation, projectTableAttentionState } from '@garsonless/application/table-operations'
 import type { PanoOperationalSource } from '@garsonless/application/read-models'
 import type { TableStatusData } from './queries/insights-shared'
 
@@ -32,15 +32,9 @@ export function projectPanoTableStatuses(
         }
       }
 
-      const openedAt = new Date(session.openedAt).getTime()
-      const isStaleSession = Number.isFinite(openedAt) && openedAt < restaurantDayStart
-      const status: TableStatusData['status'] = isStaleSession
-        ? 'stale'
-        : operation.isSettled
-        ? 'paid'
-        : operation.state === 'open'
-          ? 'active'
-          : operation.state
+      const attention = projectTableAttentionState(session, now, restaurantDayStart)
+      const isStaleSession = attention === 'stale'
+      const status: TableStatusData['status'] = attention === 'open' ? 'active' : attention
 
       return {
         id: table.id,

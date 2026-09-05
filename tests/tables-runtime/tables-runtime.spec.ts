@@ -372,6 +372,22 @@ test.describe("tables production runtime gate", () => {
         waitForActiveTable(mobile, sourceLabel),
       ]);
 
+      // T04: safety refreshes must not discard an in-progress transfer selection.
+      await mobile.getByRole("button", { name: new RegExp(`^${sourceLabel},`) }).first().click();
+      const detail = mobile.getByRole("dialog");
+      await detail.getByRole("button", { name: "Taşımak için seç", exact: true }).click();
+      await detail.getByRole("checkbox", { name: "1. siparişi seç", exact: true }).check();
+      await mobile.clock.install();
+      for (let cycle = 0; cycle < 2; cycle++) {
+        const refreshed = mobile.waitForResponse(response => response.request().method() === "POST" && response.url().includes(`/dashboard/${restaurantId}/tables`) && response.ok());
+        await mobile.clock.fastForward(46_000);
+        await (await refreshed).finished();
+        await expect(detail.getByRole("checkbox", { name: "1. siparişi seç", exact: true })).toBeChecked();
+        await expect(detail.getByRole("button", { name: "Ürünleri seç (1)", exact: true })).toBeVisible();
+      }
+      await mobile.keyboard.press("Escape");
+      await mobile.clock.resume();
+
       await desktop.getByRole("button", { name: "Kapat", exact: true }).click();
       const settlement = desktop.getByRole("dialog", {
         name: "Tahsilatı tamamla",

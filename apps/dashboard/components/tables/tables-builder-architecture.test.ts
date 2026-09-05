@@ -129,7 +129,7 @@ test('operational status and location filters share one deterministic projection
   assert.match(operationsShellSource, /useOperationalNow\(initialNow\)/)
   assert.doesNotMatch(`${navigationSource}\n${navigationModelSource}\n${navigationListSource}`, /sipariş bugün|function LiveSessionDuration/)
   assert.match(operationModelSource, /@garsonless\/application\/table-operations/)
-  assert.match(operationModelSource, /projectTableOperation/)
+  assert.match(operationModelSource, /projectTableAttentionState/)
   assert.match(operationModelSource, /export \{ TABLE_LATE_AFTER_MINUTES \}/)
   assert.match(operationModelSource, /UNASSIGNED_LOCATION_FILTER/)
   assert.doesNotMatch(operationModelSource, /lib\/actions|createClient|supabase/i)
@@ -416,7 +416,7 @@ test('transfer history renders explicit loading, empty and recoverable error sta
   assert.match(transferHistorySource, /Henüz taşıma yok/)
   assert.match(transferHistorySource, /İlk masa veya hesap taşımanız tamamlandığında burada görünecek\./)
   assert.match(transferDialogSource, /setHistoryReloadKey/)
-  assert.match(transferDialogSource, /Taşıma tamamlanamadı\. Bağlantınızı kontrol edip tekrar deneyin\./)
+  assert.match(transferDialogSource, /Taşımanın sonucu doğrulanamadı\./)
 })
 
 test('transfer history delegates filters and exposes privacy-safe audit metadata', () => {

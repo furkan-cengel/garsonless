@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -28,6 +28,7 @@ import {
   selectionNeedsOrderSplit,
   type TransferItemSelectionState,
 } from './table-transfer-selection-model'
+import { createTransferRequestIds } from './table-transfer-request'
 type Mode = 'table_move' | 'account_transfer' | 'history'
 type OrdersLoadState = 'idle' | 'loading' | 'ready' | 'error'
 type TransferOrder = { id: string; total: number; items: SettlementLineItem[]; paidAt: string | null }
@@ -39,6 +40,8 @@ export default function TableTransferDialog({ open, mode: initialMode, sourceTab
   selectAllInitially?: boolean
   onClose: () => void; onChanged: (operationId?: string) => void
 }) {
+  const requestIds = useMemo(createTransferRequestIds, [])
+  const submitting = useRef(false)
   const [mode, setMode] = useState<Mode>(initialMode)
   const [targetId, setTargetId] = useState('')
   const [orders, setOrders] = useState<TransferOrder[]>([])
@@ -119,12 +122,16 @@ export default function TableTransferDialog({ open, mode: initialMode, sourceTab
   const targets = tables.filter((table) => table.id !== sourceTableId && (mode !== 'table_move' || !sessions[table.id]))
   const dialogTitle = mode === 'history' ? 'Taşıma Geçmişi' : mode === 'table_move' ? 'Masayı taşı' : 'Ürün veya sipariş taşı'
   const submit = async () => {
+    if (submitting.current) return
     if (!sourceTableId || !targetId || !sourceSession) { setError('Kaynak ve hedef masa seçin.'); return }
     const itemSelections = selectedTransferItems(orders, selected)
     if (mode === 'account_transfer' && itemSelections.length === 0) { setError('En az bir ürün seçin.'); return }
+    submitting.current = true
     setBusy(true); setError('')
     try {
-      const requestId = crypto.randomUUID()
+      const intent = JSON.stringify([restaurantId, sourceSession.sessionId, sourceTableId, targetId, mode,
+        [...itemSelections].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))])
+      const requestId = requestIds.forIntent(intent)
       const result = mode === 'table_move'
         ? await moveTable({ restaurantId, sourceTableId, targetTableId: targetId, requestId })
         : selectionNeedsOrderSplit(orders, selected)
@@ -133,10 +140,12 @@ export default function TableTransferDialog({ open, mode: initialMode, sourceTab
       if ('error' in result) { setError(result.error); return }
       clearRecentSettlementLoads(`transfer:${restaurantId}:`)
       clearRecentSettlementLoads(`settlement:${restaurantId}:`)
+      requestIds.clear()
       onChanged(result.operationId); onClose()
     } catch {
-      setError('Taşıma tamamlanamadı. Bağlantınızı kontrol edip tekrar deneyin.')
+      setError('Taşımanın sonucu doğrulanamadı. Aynı seçimle tekrar deneyin; tamamlanan işlem ikinci kez uygulanmaz.')
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }

@@ -54,7 +54,7 @@ export interface PendingTableRequestView {
   label: string
 }
 
-export type OpenTableSessionView = import('@garsonless/application/tables').OpenTableSession
+export type OpenTableSessionView = import('@garsonless/application/tables').OpenTableSession & { restaurantDayStart?: number }
 
 export type QRHealth = {
   state: 'checking' | 'valid' | 'warning' | 'invalid'

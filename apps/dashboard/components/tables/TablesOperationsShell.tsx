@@ -1,5 +1,6 @@
 'use client'
 import dynamic from 'next/dynamic'
+import { startOfRestaurantDay } from '@garsonless/db/browser'
 import { useMemo, useState } from 'react'
 import type { TableStatusData } from '../../lib/queries/pano'
 import { useShell } from '../../lib/shell-context'
@@ -38,6 +39,7 @@ const NewOrderModal = dynamic(() => import('../overlays/NewOrderModal'), {
 export default function TablesOperationsShell({
   restaurantId,
   restaurantName,
+  restaurantTimezone = 'Europe/Istanbul',
   initialTables, initialDirectoryError = null,
   initialOpenSessions,
   initialSessionError = null,
@@ -61,10 +63,9 @@ export default function TablesOperationsShell({
     selectAllInitially?: boolean
   } | null>(null)
   const {
-    openSessions,
+    openSessions: rawOpenSessions,
     sessionError,
     refreshSessions,
-    markSessionClosed,
     settlementTarget,
     dismissSettlement,
     requestSessionClose,
@@ -88,6 +89,8 @@ export default function TablesOperationsShell({
     initialDirectoryError,
     setTables,
   })
+  const restaurantDayStart = startOfRestaurantDay(restaurantTimezone, new Date(now)).getTime()
+  const openSessions = useMemo(() => Object.fromEntries(Object.entries(rawOpenSessions).map(([id, session]) => [id, { ...session, restaurantDayStart }])), [rawOpenSessions, restaurantDayStart])
   const transferFeedback = useTableTransferFeedback({
     restaurantId,
     onChanged: refreshSessions,
@@ -102,14 +105,10 @@ export default function TablesOperationsShell({
       splitDeclaredCashTotal: 0, orderCount: 0, hasUnfinished: false,
     }
     const state = tableOperationalState(session, now)
-    const fullyCollected = session.orderCount > 0
-      && Math.max(0, session.unpaidTotal - session.splitSettledTotal) === 0
-      && session.splitDeclaredCashTotal === 0
-      && !session.hasUnfinished
     return {
       id: table.id,
       label: table.label,
-      status: fullyCollected ? 'paid' : state === 'late' ? 'late' : state === 'new' ? 'new' : 'active',
+      status: state === 'open' ? 'active' : state,
       time: Math.max(0, Math.floor((now - new Date(session.openedAt).getTime()) / 60_000)),
       total: session.total,
       sessionId: session.sessionId,
@@ -121,7 +120,6 @@ export default function TablesOperationsShell({
       hasUnfinished: session.hasUnfinished,
     }
   }), [now, openSessions, tables])
-
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: TABLES_SHELL_CSS }} />
@@ -201,7 +199,7 @@ export default function TablesOperationsShell({
             session={settlementTarget.session}
             tableLabel={settlementTarget.label}
             onClose={dismissSettlement}
-            onSettled={() => { markSessionClosed(settlementTarget.session.sessionId); void refreshSessions() }}
+            onSettled={() => { void refreshSessions() }}
             onSessionClosed={() => { dismissSettlement(); void refreshSessions() }}
           />
         )}

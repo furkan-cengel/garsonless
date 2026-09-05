@@ -13,8 +13,7 @@ const TablesFloorCanvas = dynamic(
   { loading: () => <section className="tb-floor tb-floor--loading" role="status" aria-live="polite" aria-busy="true"><span className="sr-only">Salon planı yükleniyor</span><div className="tb-floor__loading-block" aria-hidden="true" /></section> },
 )
 export function TablesNavigation({
-  tables,
-  setTables,
+  tables, setTables,
   activeId,
   setActiveId,
   restaurantId,
@@ -30,16 +29,12 @@ export function TablesNavigation({
   sessionError,
   feedbackNotice,
   onDismissFeedbackNotice,
-  requestRetrying,
-  sessionRetrying,
-  onRetryPendingRequests,
-  onRetrySessions,
+  requestRetrying, sessionRetrying,
+  onRetryPendingRequests, onRetrySessions,
   connectionStatus,
   onRetryRealtime,
   now,
-  initialLayoutSnapshot,
-  initialLayoutError,
-  layoutInvalidation,
+  initialLayoutSnapshot, initialLayoutError, layoutInvalidation,
   canCreateOrders,
   detailPanel,
 }: TablesNavigationProps) {
@@ -107,7 +102,7 @@ export function TablesNavigation({
   }
   return (
     <div className="tb-tables__operations-workspace">
-      <TablesResponsiveNavigation
+      <TablesResponsiveNavigation listOpenRequest={management.listOpenRequest}
         tableCount={tables.length}
         resultCount={model.filteredTables.length}
         activeFilterCount={model.activeFilterCount}
@@ -146,6 +141,8 @@ export function TablesNavigation({
         openSessions={openSessions}
         pendingRequests={pendingRequests}
         now={model.now}
+        onAddTable={management.startAdding}
+        onClearFilters={model.clearFilters}
         floorFilter={model.floorFilter}
         filtersActive={model.filtersActive}
         activeId={activeId}

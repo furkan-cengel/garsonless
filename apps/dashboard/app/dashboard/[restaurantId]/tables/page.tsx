@@ -62,6 +62,7 @@ export default async function TablesPage({ params, searchParams }: Props) {
     <TablesOperationsClientLoader
       restaurantId={restaurantId}
       restaurantName={restaurant.name}
+      restaurantTimezone={restaurant.timezone ?? 'Europe/Istanbul'}
       initialTables={tables}
       initialDirectoryError={tablesResult.ok ? null : tablesResult.error}
       initialOpenSessions={Array.isArray(openSessionsResult) ? openSessionsResult : []}

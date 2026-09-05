@@ -1,8 +1,8 @@
 import type { OpenTableSessionView, TableItem } from './tables-builder-types'
 import {
-  projectTableOperation,
+  projectTableAttentionState,
   TABLE_LATE_AFTER_MINUTES,
-  type TableOperationalState,
+  type TableAttentionState as TableOperationalState,
 } from '@garsonless/application/table-operations'
 
 export { TABLE_LATE_AFTER_MINUTES }
@@ -23,6 +23,8 @@ export const TABLE_OPERATIONAL_COPY: Record<TableOperationalState, string> = {
   new: 'Yeni açıldı',
   open: 'Açık',
   late: 'Gecikiyor',
+  stale: 'Önceki günden açık',
+  paid: 'Tahsil edildi',
 }
 
 export function resolveTableDeepLink(
@@ -44,7 +46,7 @@ export function tableOperationalState(
   session: OpenTableSessionView | undefined,
   now: number,
 ): TableOperationalState {
-  return projectTableOperation(session, now).state
+  return projectTableAttentionState(session, now, session?.restaurantDayStart)
 }
 
 function matchesLocation(value: string | null, filter: string): boolean {
@@ -85,7 +87,7 @@ export function operationalStateCounts(
   sessions: Record<string, OpenTableSessionView>,
   now: number,
 ): Record<TableOperationalState, number> {
-  const counts: Record<TableOperationalState, number> = { empty: 0, new: 0, open: 0, late: 0 }
+  const counts: Record<TableOperationalState, number> = { empty: 0, new: 0, open: 0, late: 0, stale: 0, paid: 0 }
   for (const table of tables) counts[tableOperationalState(sessions[table.id], now)] += 1
   return counts
 }
@@ -112,6 +114,8 @@ export function sessionDuration(openedAt: string, now: number): string {
   const minutes = Number.isFinite(timestamp)
     ? Math.max(0, Math.floor((now - timestamp) / 60_000))
     : 0
-  if (minutes < 60) return `${minutes}dk`
-  return `${Math.floor(minutes / 60)}s ${minutes % 60}dk`
+  if (minutes < 60) return `${minutes} dk`
+  const hours = Math.floor(minutes / 60)
+  if (hours >= 24) return `${Math.floor(hours / 24)} gün ${hours % 24} sa`
+  return `${hours} sa ${minutes % 60} dk`
 }

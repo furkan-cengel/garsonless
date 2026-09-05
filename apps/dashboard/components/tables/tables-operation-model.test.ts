@@ -33,7 +33,7 @@ const session = (input: Partial<OpenTableSessionView> & Pick<OpenTableSessionVie
   sessionId: `session-${input.tableId}`,
   openedAt: new Date(now - 10 * 60_000).toISOString(),
   total: 0,
-  unpaidTotal: 0,
+  unpaidTotal: 100,
   splitSettledTotal: 0,
   splitDeclaredCashTotal: 0,
   orderCount: 0,
@@ -97,7 +97,7 @@ test('durum sayıları birbirini dışlar, konum seçenekleri Türkçe sıralan�
   assert.deepEqual(operationalStateCounts(tables, {
     a: session({ tableId: 'a' }),
     b: session({ tableId: 'b', orderCount: 2 }),
-  }, now), { empty: 1, new: 1, open: 1, late: 0 })
+  }, now), { empty: 1, new: 1, open: 1, late: 0, stale: 0, paid: 0 })
   assert.deepEqual(tableLocationOptions(tables, 'floorLabel'), {
     values: ['1. Kat', 'Zemin'], hasUnassigned: true,
   })
@@ -107,7 +107,7 @@ test('konum ve süre sunumu whitespace, uzunluk ve saat sınırlarını normaliz
   assert.equal(normalizeTableLocation('  Zemin  '), 'Zemin')
   assert.equal(normalizeTableLocation('   '), null)
   assert.equal(normalizeTableLocation('a'.repeat(50))?.length, 40)
-  assert.equal(sessionDuration(new Date(now - 75 * 60_000).toISOString(), now), '1s 15dk')
+  assert.equal(sessionDuration(new Date(now - 75 * 60_000).toISOString(), now), '1 sa 15 dk')
 })
 
 test('masa deep-link yalnız görünür tenant tablosundaki tam kimliği kabul eder', () => {
@@ -116,4 +116,11 @@ test('masa deep-link yalnız görünür tenant tablosundaki tam kimliği kabul e
   assert.equal(resolveTableDeepLink('table-foreign', visibleTables), null)
   assert.equal(resolveTableDeepLink(['table-owned'], visibleTables), null)
   assert.equal(resolveTableDeepLink('table-owned '.repeat(20), visibleTables), null)
+})
+
+test('önceki işletme günü ve tahsilat durumları servis gecikmesinden ayrılır', () => {
+  const restaurantDayStart = Date.parse('2026-07-28T03:00:00Z')
+  assert.equal(tableOperationalState(session({ tableId: 'old', restaurantDayStart, openedAt: '2026-07-28T02:59:59Z' }), now), 'stale')
+  assert.equal(tableOperationalState(session({ tableId: 'paid', orderCount: 1, unpaidTotal: 0, restaurantDayStart }), now), 'paid')
+  assert.equal(sessionDuration(new Date(now - 334 * 3_600_000).toISOString(), now), '13 gün 22 sa')
 })

@@ -5,6 +5,7 @@ import { dirname } from "node:path";
 import test from "node:test";
 import { createClient } from "./browser-client";
 import { createServiceClient } from "./service-client";
+import { settleSessionAndCloseAtomic } from "./order-command-port";
 import { createTableSessionPort } from "./table-command-port";
 import { resolveTransferredGuestTable } from "./table-qr-tokens";
 
@@ -175,6 +176,41 @@ test(
     const fixture = await createFixture();
 
     try {
+      await suite.test("collect-and-close rolls back rejected payment writes", async () => {
+        for (const outcome of ["unpaid", "payment_pending"] as const) {
+          const tableId = await fixture.createTable(`rollback-${outcome}`);
+          const source = await fixture.createSession(tableId, [100, 25]);
+          if (outcome === "payment_pending") {
+            const { error } = await fixture.service.from("payment_shares").insert({
+              restaurant_id: fixture.restaurantId, table_session_id: source.sessionId,
+              amount: 125, method: "iyzico", status: "declared", checkout_amount: 125,
+              checkout_reserved_until: new Date(Date.now() + 600_000).toISOString(),
+            });
+            assert.ifError(error);
+          }
+          const result = await settleSessionAndCloseAtomic({
+            restaurantId: fixture.restaurantId, sessionId: source.sessionId, actorUserId: fixture.ownerId,
+            settlements: source.orders.slice(0, outcome === "unpaid" ? 1 : 2).map((order) => ({ orderId: order.id, method: "cash" })),
+          });
+          assert.ok(result, "Required settlement RPC migration is missing");
+          assert.equal(result.outcome, outcome);
+          assert.deepEqual(result.settledOrderIds, []);
+          const { data: orders, error } = await fixture.service.from("orders")
+            .select("paid_at,payment_method,settled_by").eq("table_session_id", source.sessionId);
+          assert.ifError(error);
+          assert.equal(orders?.length, 2);
+          for (const order of orders ?? []) {
+            assert.equal(order.paid_at, null);
+            assert.equal(order.payment_method, null);
+            assert.equal(order.settled_by, null);
+          }
+          const { data: session, error: sessionError } = await fixture.service.from("table_sessions")
+            .select("closed_at").eq("id", source.sessionId).single();
+          assert.ifError(sessionError);
+          assert.equal(session?.closed_at, null);
+        }
+      });
+
       await suite.test(
         "RLS and service-role boundaries fail closed",
         async () => {

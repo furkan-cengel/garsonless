@@ -32,7 +32,7 @@ export function TablesNavigationFilters({
   areaFilter: string
   onAreaFilterChange: (filter: string) => void
   tableCount: number
-  stateCounts: Record<'empty' | 'new' | 'open' | 'late', number>
+  stateCounts: Record<'empty' | 'new' | 'open' | 'late' | 'stale' | 'paid', number>
   floorOptions: LocationOptions
   areaOptions: LocationOptions
   filtersActive: boolean
@@ -59,6 +59,8 @@ export function TablesNavigationFilters({
           size="sm"
         >
           <NativeSelectOption value="all">Tüm durumlar ({tableCount})</NativeSelectOption>
+          <NativeSelectOption value="stale">Önceki günden açık ({stateCounts.stale})</NativeSelectOption>
+          <NativeSelectOption value="paid">Tahsil edildi ({stateCounts.paid})</NativeSelectOption>
           <NativeSelectOption value="late">Gecikiyor ({stateCounts.late})</NativeSelectOption>
           <NativeSelectOption value="open">Açık ({stateCounts.open})</NativeSelectOption>
           <NativeSelectOption value="new">Yeni açıldı ({stateCounts.new})</NativeSelectOption>

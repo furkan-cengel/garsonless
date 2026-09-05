@@ -243,7 +243,8 @@ export const TABLES_MOBILE_STYLES = `
   }
   .tb-tables__canvas-toolbar-actions .tb-qr-view-switch button svg { width: 14px; height: 14px; }
   .tb-tables__canvas-toolbar-actions .tb-qr-divider { display: none; }
-  .tb-tables__canvas-toolbar-actions .tb-qr-export-actions { flex: 1 1 auto; min-width: 0; }
+  .tb-tables__canvas-toolbar-actions { flex-wrap: wrap; }
+  .tb-tables__canvas-toolbar-actions .tb-qr-export-actions { flex: 1 0 100%; min-width: 0; }
   .tb-tables__canvas-toolbar-actions .tb-qr-export-actions > button:first-child { flex: 1 1 auto; min-width: 0; }
   .tb-tables__canvas-toolbar-actions .tb-qr-export-actions > div > button { width: 44px; min-width: 44px; padding: 0 !important; }
   .tb-qr-field { grid-template-columns: 1fr !important; gap: 5px !important; align-items: start !important; }

@@ -21,6 +21,7 @@ import {
   fillSettlementMethods,
   toggleSettlementMethod,
 } from './settlement-sheet-model'
+import { createTableMutationRunner } from './table-mutation-runner'
 import type { SettlementMethod } from './settlement-sheet-model'
 
 export type SettlementLoadState = 'loading' | 'ready' | 'error'
@@ -38,6 +39,7 @@ export function useSettlementSheet({
   onSettled,
   onSessionClosed,
 }: UseSettlementSheetInput) {
+  const runMutation = useMemo(createTableMutationRunner, [])
   const [orders, setOrders] = useState<SettlementOrder[] | null>(null)
   const [shares, setShares] = useState<SettlementShare[]>([])
   const [loadState, setLoadState] = useState<SettlementLoadState>('loading')
@@ -55,6 +57,8 @@ export function useSettlementSheet({
 
   const reload = useCallback(() => {
     clearSessionSettlementCache(restaurantId, session.sessionId)
+    setLoadState('loading')
+    setStaged({})
     setReloadKey((value) => value + 1)
   }, [restaurantId, session.sessionId])
 
@@ -98,54 +102,40 @@ export function useSettlementSheet({
     setStaged((current) => fillSettlementMethods(current, projection.unpaid, method))
   }, [projection.unpaid])
 
-  const confirmShare = useCallback(async (shareId: string) => {
-    setError(null)
-    setConfirmingShareId(shareId)
-    const result = await confirmCashShare(shareId, restaurantId)
-    setConfirmingShareId(null)
-    if ('error' in result) {
-      setError(result.error)
+  const mutate = useCallback((action: () => Promise<void>, kind: 'commit' | 'confirm' | 'resolve', shareId?: string) => runMutation({
+    action,
+    onStart: () => {
+      setError(null)
+      if (kind === 'commit') setCommitting(true)
+      else if (kind === 'confirm') setConfirmingShareId(shareId ?? null)
+      else setResolvingShareId(shareId ?? null)
+    },
+    onFailure: () => {
+      setError('İşlemin sonucu doğrulanamadı. Adisyon yeniden yükleniyor; tekrar işlem yapmadan güncel tahsilatı kontrol edin.')
       reload()
-      return
-    }
-    reload()
-    onSettled()
-  }, [restaurantId, reload, onSettled])
+    },
+    onFinish: () => {
+      setCommitting(false)
+      setConfirmingShareId(null)
+      setResolvingShareId(null)
+    },
+  }), [reload, runMutation])
 
-  const releaseCardShare = useCallback(async (shareId: string) => {
-    setError(null)
-    setResolvingShareId(shareId)
-    const result = await releaseUnstartedCardShare(shareId, restaurantId)
-    setResolvingShareId(null)
-    if ('error' in result) {
-      setError(result.error)
-      reload()
-      return
-    }
+  const updateShare = useCallback((action: () => Promise<{ error: string } | { success: true }>, kind: 'confirm' | 'resolve', shareId: string) => mutate(async () => {
+    const result = await action()
     reload()
-    onSettled()
-  }, [restaurantId, reload, onSettled])
+    if ('error' in result) setError(result.error)
+    else onSettled()
+  }, kind, shareId), [mutate, reload, onSettled])
 
-  const reconcileCardShare = useCallback(async (shareId: string) => {
-    setError(null)
-    setResolvingShareId(shareId)
-    const result = await reconcileCardShareAction(shareId, restaurantId)
-    setResolvingShareId(null)
-    if ('error' in result) {
-      setError(result.error)
-      reload()
-      return
-    }
-    reload()
-    onSettled()
-  }, [restaurantId, reload, onSettled])
+  const confirmShare = (shareId: string) => updateShare(() => confirmCashShare(shareId, restaurantId), 'confirm', shareId)
+  const releaseCardShare = (shareId: string) => updateShare(() => releaseUnstartedCardShare(shareId, restaurantId), 'resolve', shareId)
+  const reconcileCardShare = (shareId: string) => updateShare(() => reconcileCardShareAction(shareId, restaurantId), 'resolve', shareId)
 
-  const commit = useCallback(async () => {
-    setError(null)
-    setCommitting(true)
+  const commit = () => mutate(async () => {
+    if (loadState !== 'ready') return
     if (projection.isSplitMode && projection.unpaid.length > 0) {
       setError('Bu adisyon split ödeme ile devam ediyor. Önce tüm paylar ödensin veya nakit beyanları garson tarafından onaylansın.')
-      setCommitting(false)
       reload()
       return
     }
@@ -153,12 +143,7 @@ export function useSettlementSheet({
       const method = staged[order.id]
       return method ? [{ orderId: order.id, method }] : []
     })
-    const closeResult = await settleSessionAndClose({
-      restaurantId,
-      sessionId: session.sessionId,
-      settlements,
-    })
-    setCommitting(false)
+    const closeResult = await settleSessionAndClose({ restaurantId, sessionId: session.sessionId, settlements })
     if ('error' in closeResult) {
       setError(closeResult.error)
       reload()
@@ -167,21 +152,19 @@ export function useSettlementSheet({
     clearSessionSettlementCache(restaurantId, session.sessionId)
     onSettled()
     setDone(true)
-  }, [projection.isSplitMode, projection.unpaid, staged, restaurantId, session.sessionId, reload, onSettled])
+  }, 'commit')
 
-  const confirmAbnormal = useCallback(async () => {
+  const confirmAbnormal = () => mutate(async () => {
     const reason = abnormalReason.trim()
-    if (!reason) return
-    setError(null)
-    setCommitting(true)
+    if (!reason || loadState !== 'ready') return
     const result = await closeTableSession(session.sessionId, restaurantId, { abnormalReason: reason })
-    setCommitting(false)
     if ('error' in result) {
       setError(result.error)
+      reload()
       return
     }
     onSessionClosed()
-  }, [abnormalReason, session.sessionId, restaurantId, onSessionClosed])
+  }, 'commit')
 
   const cancelAbnormal = useCallback(() => {
     setAbnormal(false)

@@ -9,7 +9,7 @@ import {
   Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Field, FieldGroup } from '@/components/ui/field'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -33,8 +33,8 @@ import { useSettlementSheet } from './use-settlement-sheet'
 /**
  * Close-flow settlement sheet — STAGE THEN COMMIT. Each unpaid order gets a
  * staged method locally (Nakit / Fiziksel POS / İkram); the running summary,
- * progress and tally update live. "Masayı kapat" commits every staged payment
- * sequentially, then frees the table and records one normal visit. Already-paid
+ * progress and tally update live. "Masayı kapat" commits payments and closes
+ * the session in one transaction. Already-paid
  * orders (e.g. İyzico) are shown locked.
  * "Ödeme almadan kapat" requires a recorded reason → abnormal close (money stays
  * unpaid, no visit). İkram = comp = ₺0 collected, reported separately.
@@ -236,7 +236,7 @@ export default function SettlementSheet({
 
         {loadState === 'ready' && orders !== null && (
           <DialogFooter className="mx-0 mb-0 flex-col gap-2 p-4 sm:flex-col">
-            <div className="flex w-full gap-2">
+            {!abnormal && <div className="flex w-full gap-2">
               <Button type="button" variant="outline" size="lg" disabled={busy} onClick={onClose} className="flex-1">Vazgeç</Button>
               <Button type="button" variant={allStaged ? 'positive' : 'default'} size="lg" aria-busy={committing} disabled={!allStaged || busy} onClick={() => void commit()} className="flex-[1.6]">
                 {committing
@@ -247,7 +247,7 @@ export default function SettlementSheet({
                       ? `Split ödeme kalan ${formatSettlementAmount(splitRemaining)}`
                       : `Kalan ${formatSettlementAmount(remaining)} işaretle`}
               </Button>
-            </div>
+            </div>}
 
             {!abnormal ? (
               <Button type="button" variant="link" size="sm" disabled={busy} onClick={() => setAbnormal(true)}>Ödeme almadan kapat</Button>
@@ -258,7 +258,9 @@ export default function SettlementSheet({
                   Tahsilat kaydı olmadan kapatılacak — <b>anormal kapatma</b> olarak raporlanır. Sebep zorunlu.
                 <FieldGroup className="gap-2">
                   <Field data-invalid={!abnormalReason.trim()}>
+                  <FieldLabel htmlFor="abnormal-close-reason">Kapatma gerekçesi</FieldLabel>
                   <Input
+                  id="abnormal-close-reason"
                   value={abnormalReason}
                   onChange={(e) => setAbnormalReason(e.target.value)}
                   placeholder="Sebep (örn. müşteri ödemeden ayrıldı)"

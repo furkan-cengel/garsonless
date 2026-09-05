@@ -82,9 +82,11 @@ export const TABLES_SHELL_CSS = `
 .tb-floor__heading strong { font-size: 14px; letter-spacing: -.012em; }
 .tb-floor__heading > span:last-child { font-size: 10.5px; color: var(--text-3); }
 .tb-floor__eyebrow { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 10.5px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
-.tb-floor__legend { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 14px; color: var(--text-3); font-size: 10.5px; }
+.tb-floor__legend { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px; color: var(--text-3); font-size: 10.5px; }
 .tb-floor__legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .tb-floor__legend i { width: 8px; height: 8px; display: inline-block; border-radius: 999px; background: var(--text-4); }
+.tb-floor__legend i.is-stale { background: var(--warning); }
+.tb-floor__legend i.is-paid { background: var(--positive); }
 .tb-floor__legend i.is-new { background: var(--warning); }
 .tb-floor__legend i.is-open { background: var(--positive); }
 .tb-floor__legend i.is-late { background: var(--critical); }
@@ -123,6 +125,8 @@ export const TABLES_SHELL_CSS = `
 .tb-floor-card__more { position: absolute; top: 6px; right: 6px; z-index: 2; width: 44px; height: 44px; display: none; place-items: center; border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--text-2); box-shadow: var(--shadow-1); cursor: pointer; }
 .tb-floor-card--new { border-color: color-mix(in srgb, var(--warning) 52%, var(--border)); background: var(--warning-bg); }
 .tb-floor-card--open { border-color: color-mix(in srgb, var(--positive) 52%, var(--border)); background: var(--positive-bg); }
+.tb-floor-card--stale { border-color: var(--warning); background: var(--warning-bg); }
+.tb-floor-card--paid { border-color: var(--positive); background: var(--positive-bg); }
 .tb-floor-card--late { border-color: color-mix(in srgb, var(--critical) 55%, var(--border)); background: var(--critical-bg); }
 .tb-floor-card.is-active { outline: 3px solid color-mix(in srgb, var(--action) 22%, transparent); outline-offset: 2px; border-color: var(--action); }
 .tb-floor-card.is-editing { cursor: grab; }
@@ -286,7 +290,8 @@ ${TABLES_MOBILE_STYLES}
   .tb-floor-card__main { padding: 10px 52px 10px 10px; }
   .tb-floor-card__summary { display: grid; gap: 1px; }
   .tb-floor-card__more { display: grid; }
-  .tb-floor-card__label { font-size: 13px; }
+  .tb-floor-card__label { font-size: 13px; white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; }
+  .tb-floor-card__status { white-space: normal; }
   .tb-floor-card__meta, .tb-floor-card__amount { font-size: 10px; }
   .tb-floor-card__status { font-size: 8.5px; }
   .tb-floor-card__badge, .tb-floor-card__seats { font-size: 8px; }
