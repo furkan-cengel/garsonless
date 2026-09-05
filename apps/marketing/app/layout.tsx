@@ -5,10 +5,10 @@ import { normalizeWebVitalsSampleRate } from '@garsonless/application/web-vitals
 import WebVitalsReporter from '../components/WebVitalsReporter'
 import './globals.css'
 
-const geist = localFont({ src: '../../../assets/fonts/Geist.ttf', variable: '--font-geist', display: 'swap', weight: '100 900' })
-const geistMono = localFont({ src: '../../../assets/fonts/Geist-Mono.ttf', variable: '--font-geist-mono', display: 'swap', weight: '100 900' })
-const fraunces = localFont({ src: '../../../assets/fonts/Fraunces.ttf', variable: '--font-fraunces', display: 'swap', weight: '300 800' })
-const pacifico = localFont({ src: '../../../assets/fonts/Pacifico.ttf', variable: '--font-pacifico', display: 'swap', weight: '400' })
+const geist = localFont({ src: '../../../assets/fonts/Geist-Latin.woff2', variable: '--font-geist', display: 'swap', weight: '100 900' })
+const geistMono = localFont({ src: '../../../assets/fonts/Geist-Mono-Latin.woff2', variable: '--font-geist-mono', display: 'swap', preload: false, weight: '100 900' })
+const fraunces = localFont({ src: '../../../assets/fonts/Fraunces-Latin.woff2', variable: '--font-fraunces', display: 'swap', weight: '300 800' })
+const pacifico = localFont({ src: '../../../assets/fonts/Pacifico-Latin.woff2', variable: '--font-pacifico', display: 'swap', preload: false, weight: '400' })
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://masabu.co'),

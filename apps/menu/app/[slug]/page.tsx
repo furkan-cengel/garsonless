@@ -21,6 +21,10 @@ interface Props {
 export default async function MenuPage({ params, searchParams }: Props) {
   const [{ slug }, sp] = await Promise.all([params, searchParams])
   const experienceV2Enabled = process.env['THEME_EXPERIENCE_V2_ENABLED'] === 'true' || process.env.NODE_ENV === 'development'
+  if (!experienceV2Enabled) {
+    const { renderMenuExperience } = await import('./_menu-experience')
+    return renderMenuExperience({ slug, sp })
+  }
   const restaurant = await getRestaurantBySlug(slug)
   if (!restaurant) notFound()
 
@@ -29,6 +33,10 @@ export default async function MenuPage({ params, searchParams }: Props) {
     getPublicMenuRevision(restaurant.id),
   ])
   if (!themeResult.ok) notFound()
+  if (themeResult.value.theme.surfaces?.home.enabled !== true) {
+    const { renderMenuExperience } = await import('./_menu-experience')
+    return renderMenuExperience({ slug, sp })
+  }
   const themePort = createThemeApplicationPort()
   const [menuAccess, guestOrderingAccess, customerAccountsAccess, advancedThemeAccess, videoHeroAccess, orderIngressStatus] = await Promise.all([
     themePort.readFeatureAccess({ restaurantId: restaurant.id, plan: themeResult.value.restaurant.plan, feature: 'qr_menu' }),
@@ -45,13 +53,6 @@ export default async function MenuPage({ params, searchParams }: Props) {
     advancedSections: advancedThemeAccess.ok && advancedThemeAccess.value,
     videoHero: videoHeroAccess.ok && videoHeroAccess.value,
   })
-  const homeEnabled = experienceV2Enabled && theme.surfaces?.home.enabled === true
-
-  if (!homeEnabled) {
-    const { renderMenuExperience } = await import('./_menu-experience')
-    return renderMenuExperience({ slug, sp })
-  }
-
   const [categories, featuredRanking, session, customerAuthCapabilities] = await Promise.all([
     getMenuCategories(restaurant.id, revisionSnapshot.revision),
     getFeaturedProductRanking(restaurant.id, restaurant.timezone),

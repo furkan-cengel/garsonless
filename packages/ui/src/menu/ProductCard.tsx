@@ -20,6 +20,7 @@ interface ProductCardProps {
   onIncrement?: () => void
   onDecrement?: () => void
   imagePriority?: boolean
+  imageDelivery?: { src: string; srcSet: string; sizes: string }
   isFavorite?: boolean
   onToggleFavorite?: () => void
 }
@@ -51,7 +52,7 @@ function FoodMeta({ item, inline = false }: { item: MenuItem; inline?: boolean }
   )
 }
 
-export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, orderingEnabled = true, cartQuantity = 0, onIncrement, onDecrement, imagePriority = false, isFavorite = false, onToggleFavorite }: ProductCardProps) {
+export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, orderingEnabled = true, cartQuantity = 0, onIncrement, onDecrement, imagePriority = false, imageDelivery, isFavorite = false, onToggleFavorite }: ProductCardProps) {
   const { theme } = useTheme()
   const cardRef = useRef<HTMLDivElement>(null)
   const [cardWidth, setCardWidth] = useState<number | null>(null)
@@ -182,7 +183,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, ordering
         }}>
           {hasProductImage ? (
             <img
-              src={imageUrl} alt={item.name}
+              src={imageDelivery?.src ?? imageUrl} srcSet={imageDelivery?.srcSet} sizes={imageDelivery?.sizes} alt={item.name}
               loading={imagePriority ? 'eager' : 'lazy'}
               fetchPriority={imagePriority ? 'high' : 'auto'}
               decoding="async"
@@ -259,7 +260,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, ordering
       }}>
         {hasProductImage ? (
           <img
-            src={imageUrl} alt={item.name}
+            src={imageDelivery?.src ?? imageUrl} srcSet={imageDelivery?.srcSet} sizes={imageDelivery?.sizes} alt={item.name}
             loading={imagePriority ? 'eager' : 'lazy'}
             fetchPriority={imagePriority ? 'high' : 'auto'}
             decoding="async"
