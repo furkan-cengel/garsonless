@@ -1,0 +1,91 @@
+{
+  "method": "gzip level9 per JS asset; union deduplicates route and immediately mounted next/dynamic component; excludes later nested dynamic imports, iframe, CSS, HTTP/browser cache effects",
+  "rows": [
+    {
+      "label": "Tema edit\u00f6r\u00fc",
+      "route": "/dashboard/[restaurantId]/theme/[templateId]/edit/page",
+      "routeManifestGzipBytes": 119924,
+      "immediateDynamicManifestGzipBytes": 360479,
+      "deduplicatedUnionGzipBytes": 480403,
+      "extraDynamicGzipBytes": 360479,
+      "routeFiles": [
+        "static/chunks/0db01471-f791eb28a971f8d3.js",
+        "static/chunks/2719-47e4876e94e27638.js",
+        "static/chunks/3224-de126649783c244e.js",
+        "static/chunks/9313-169291697cd74560.js",
+        "static/chunks/app/dashboard/[restaurantId]/theme/[templateId]/edit/page-78ffb2b2834d4068.js",
+        "static/chunks/main-app-55a7aff1905ef2e4.js",
+        "static/chunks/webpack-bda2288b1f6e47d8.js"
+      ],
+      "dynamicFiles": [
+        "static/chunks/1274-2af570270c96c2da.js",
+        "static/chunks/1302.370a435ee733f3cb.js",
+        "static/chunks/1305.730315ae42198941.js",
+        "static/chunks/213-7948350b0b5ca190.js",
+        "static/chunks/2389-ac5c4bdbf9c3ee62.js",
+        "static/chunks/2397-a60801a5688ce24c.js",
+        "static/chunks/2718-2b24531626572b04.js",
+        "static/chunks/3142.aba24958fdb5a06d.js",
+        "static/chunks/3404.8afac448437eff8b.js",
+        "static/chunks/3878-95870b267a39d88c.js",
+        "static/chunks/4024-1c2007479fd74035.js",
+        "static/chunks/4140-58bb26be5e927b39.js",
+        "static/chunks/4191-95b2c03e0891dbf8.js",
+        "static/chunks/4694.11aada82fbbad483.js",
+        "static/chunks/4818.567b985106c35a03.js",
+        "static/chunks/4922.73d3634b840d50ec.js",
+        "static/chunks/5173.b51ada6544fe3e5d.js",
+        "static/chunks/5785-1db3075c44424b6e.js",
+        "static/chunks/6427.f7bf8dc5d55d37b6.js",
+        "static/chunks/6487.d77bcaa6eeb54b24.js",
+        "static/chunks/6690-9902bb90a27879a9.js",
+        "static/chunks/7882-31cd73d4da2672d6.js",
+        "static/chunks/8770.501257e485a8e70e.js",
+        "static/chunks/9159.fad0fc2ea99b6cc1.js",
+        "static/chunks/9184.9e966c4cd361b8a8.js",
+        "static/chunks/9212-0e01e5237397c7fd.js",
+        "static/chunks/9921.1d42e1b4b49c6478.js"
+      ]
+    },
+    {
+      "label": "Sipari\u015fler",
+      "route": "/dashboard/[restaurantId]/orders/page",
+      "routeManifestGzipBytes": 129273,
+      "immediateDynamicManifestGzipBytes": 171174,
+      "deduplicatedUnionGzipBytes": 300447,
+      "extraDynamicGzipBytes": 171174,
+      "routeFiles": [
+        "static/chunks/0db01471-f791eb28a971f8d3.js",
+        "static/chunks/1805-34913e92943ade0d.js",
+        "static/chunks/2719-47e4876e94e27638.js",
+        "static/chunks/3224-de126649783c244e.js",
+        "static/chunks/9313-169291697cd74560.js",
+        "static/chunks/9342-4da148198d6af8fc.js",
+        "static/chunks/app/dashboard/[restaurantId]/orders/page-a91996323539ccc6.js",
+        "static/chunks/main-app-55a7aff1905ef2e4.js",
+        "static/chunks/webpack-bda2288b1f6e47d8.js"
+      ],
+      "dynamicFiles": [
+        "static/chunks/1305.730315ae42198941.js",
+        "static/chunks/1645-157400cd83b7f4a7.js",
+        "static/chunks/213-7948350b0b5ca190.js",
+        "static/chunks/2397-a60801a5688ce24c.js",
+        "static/chunks/2507-f92b70528cc519fa.js",
+        "static/chunks/2718-2b24531626572b04.js",
+        "static/chunks/2730.34e54216a294663c.js",
+        "static/chunks/3218-fc62a9b7be5a003e.js",
+        "static/chunks/3878-95870b267a39d88c.js",
+        "static/chunks/4024-1c2007479fd74035.js",
+        "static/chunks/4191-95b2c03e0891dbf8.js",
+        "static/chunks/43938ccf-a9f034087c97bc8b.js",
+        "static/chunks/4405.587b7f4bb1eb5385.js",
+        "static/chunks/5785-1db3075c44424b6e.js",
+        "static/chunks/6012-a77b69e226f3d33b.js",
+        "static/chunks/6690-9902bb90a27879a9.js",
+        "static/chunks/7716.3e894e6fa0a5d14a.js",
+        "static/chunks/8770.501257e485a8e70e.js",
+        "static/chunks/9184.9e966c4cd361b8a8.js"
+      ]
+    }
+  ]
+}

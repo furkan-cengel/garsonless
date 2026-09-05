@@ -1,0 +1,25 @@
+{
+  "method": "WCAG relative luminance; declared CSS colors; computed-style/browser checks unavailable",
+  "results": [
+    {
+      "foreground": "#8b8d94",
+      "background": "#ffffff",
+      "contrastRatio": 3.314724718810272
+    },
+    {
+      "foreground": "#8b8d94",
+      "background": "#f6f6f7",
+      "contrastRatio": 3.0691119836024745
+    },
+    {
+      "foreground": "#8b8d94",
+      "background": "#fdfaf5",
+      "contrastRatio": 3.183601570477449
+    },
+    {
+      "foreground": "#5b5d63",
+      "background": "#ffffff",
+      "contrastRatio": 6.581545128435825
+    }
+  ]
+}

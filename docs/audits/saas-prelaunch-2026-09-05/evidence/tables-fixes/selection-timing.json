@@ -1,0 +1,6 @@
+{
+  "before": "2026-09-05T08:33:40.721993+00:00",
+  "after": "2026-09-05T08:35:51.258821+00:00",
+  "elapsedSeconds": 131,
+  "observation": "Same order remains selected without UI actions across safety refreshes."
+}

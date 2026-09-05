@@ -1,0 +1,13 @@
+{
+  "date": "2026-09-05",
+  "authorized": true,
+  "browserInventory": [],
+  "computerUseResult": "Sky Computer Use native pipe startup failed",
+  "attempts": [
+    "@oai/sky list_apps",
+    "current @oai/cua/tinyskyAlt setup + getState",
+    "kernel reset + setup + getState"
+  ],
+  "screenshotsCaptured": 0,
+  "status": "blocked_by_local_connection_startup"
+}
