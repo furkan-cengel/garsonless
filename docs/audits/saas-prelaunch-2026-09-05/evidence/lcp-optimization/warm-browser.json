@@ -1,0 +1,14 @@
+{
+  "kind": "lab",
+  "cache": "warm-browser",
+  "serverCache": "uncontrolled",
+  "viewport": "Pixel 7",
+  "latencyMs": 150,
+  "downloadMbps": 1.6,
+  "interactionMs": 65.8999999910593,
+  "lcp": 1140,
+  "cls": 0.03891040088443287,
+  "ttfb": 992.5,
+  "jsTransferBytes": 0,
+  "jsEncodedBytes": 295598
+}

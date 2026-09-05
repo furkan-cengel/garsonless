@@ -1,0 +1,26 @@
+{
+  "date": "2026-09-05",
+  "routes": [
+    "/dashboard/e0b1faf4-03d6-4171-8044-4fb8ca9dafe6/theme/default/edit",
+    "/dashboard/03352bb3-d38b-4db1-90ef-37379a07b1e5/theme/default/edit"
+  ],
+  "verifiedCssWidths": [
+    320,
+    390,
+    768,
+    1440
+  ],
+  "previewComparison": {
+    "unsavedBackground": "#fff0e0",
+    "iframeComputedBackground": "rgb(255, 240, 224)",
+    "detachedComputedBackground": "rgb(248, 249, 248)",
+    "originalBackground": "#f8f9f8",
+    "saveOrPublishSubmitted": false
+  },
+  "saveDisabledAfterUndo": true,
+  "dialogCloseFocus": "Bölüm ekle",
+  "tests": {
+    "passed": 271,
+    "failed": 0
+  }
+}

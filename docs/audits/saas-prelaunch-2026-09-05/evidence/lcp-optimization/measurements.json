@@ -1,0 +1,1056 @@
+{
+  "kind": "local production build, Lighthouse mobile simulation; 3 runs per route per stage; server/data cache uncontrolled",
+  "lighthouseVersion": "12.6.1",
+  "stages": {
+    "before": {
+      "marketing": {
+        "runs": [
+          {
+            "url": "http://127.0.0.1:3003/",
+            "fetchTime": "2026-09-05T15:07:23.666Z",
+            "performanceScore": 0.85,
+            "metrics": {
+              "largest-contentful-paint": 4292.158799999999,
+              "first-contentful-paint": 1375.7381999999998,
+              "server-response-time": 118.87,
+              "total-blocking-time": 17.5,
+              "cumulative-layout-shift": 0.001930188391188822
+            },
+            "lcpElement": {
+              "label": "Garsonsuz sipariş,\nkusursuz servis.",
+              "selector": "section.marketing-hero > div.container > div.marketing-hero__copy > h1#marketing-hero-title",
+              "boundingRect": {
+                "top": 539,
+                "bottom": 626,
+                "left": 16,
+                "right": 396,
+                "width": 380,
+                "height": 87
+              }
+            },
+            "jsTransferBytes": 187161,
+            "fontTransferBytes": 168383,
+            "lcpDiscovery": null,
+            "unthrottledDiagnosticPhases": [
+              {
+                "type": "table",
+                "headings": [
+                  {
+                    "key": "label",
+                    "valueType": "text",
+                    "label": "Phase"
+                  },
+                  {
+                    "key": "duration",
+                    "valueType": "ms",
+                    "label": "Duration"
+                  }
+                ],
+                "items": [
+                  {
+                    "phase": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "duration": 120.931
+                  },
+                  {
+                    "phase": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "duration": 184.21000000000004
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "url": "http://127.0.0.1:3003/",
+            "fetchTime": "2026-09-05T15:07:36.703Z",
+            "performanceScore": 0.86,
+            "metrics": {
+              "largest-contentful-paint": 4144.9121,
+              "first-contentful-paint": 1369.9121,
+              "server-response-time": 20.874,
+              "total-blocking-time": 33.500000000000455,
+              "cumulative-layout-shift": 0.001930188391188822
+            },
+            "lcpElement": {
+              "label": "Garsonsuz sipariş,\nkusursuz servis.",
+              "selector": "section.marketing-hero > div.container > div.marketing-hero__copy > h1#marketing-hero-title",
+              "boundingRect": {
+                "top": 539,
+                "bottom": 626,
+                "left": 16,
+                "right": 396,
+                "width": 380,
+                "height": 87
+              }
+            },
+            "jsTransferBytes": 187161,
+            "fontTransferBytes": 168383,
+            "lcpDiscovery": null,
+            "unthrottledDiagnosticPhases": [
+              {
+                "type": "table",
+                "headings": [
+                  {
+                    "key": "label",
+                    "valueType": "text",
+                    "label": "Phase"
+                  },
+                  {
+                    "key": "duration",
+                    "valueType": "ms",
+                    "label": "Duration"
+                  }
+                ],
+                "items": [
+                  {
+                    "phase": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "duration": 22.258999984741212
+                  },
+                  {
+                    "phase": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "duration": 169.61500001525877
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "url": "http://127.0.0.1:3003/",
+            "fetchTime": "2026-09-05T15:07:51.057Z",
+            "performanceScore": 0.85,
+            "metrics": {
+              "largest-contentful-paint": 4289.685400000001,
+              "first-contentful-paint": 1372.0281000000002,
+              "server-response-time": 12.991,
+              "total-blocking-time": 47.000000000000455,
+              "cumulative-layout-shift": 0.001930188391188822
+            },
+            "lcpElement": {
+              "label": "Garsonsuz sipariş,\nkusursuz servis.",
+              "selector": "section.marketing-hero > div.container > div.marketing-hero__copy > h1#marketing-hero-title",
+              "boundingRect": {
+                "top": 539,
+                "bottom": 626,
+                "left": 16,
+                "right": 396,
+                "width": 380,
+                "height": 87
+              }
+            },
+            "jsTransferBytes": 187161,
+            "fontTransferBytes": 168383,
+            "lcpDiscovery": null,
+            "unthrottledDiagnosticPhases": [
+              {
+                "type": "table",
+                "headings": [
+                  {
+                    "key": "label",
+                    "valueType": "text",
+                    "label": "Phase"
+                  },
+                  {
+                    "key": "duration",
+                    "valueType": "ms",
+                    "label": "Duration"
+                  }
+                ],
+                "items": [
+                  {
+                    "phase": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "duration": 14.765
+                  },
+                  {
+                    "phase": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "duration": 172.974
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "median": {
+          "largest-contentful-paint": 4289.685400000001,
+          "first-contentful-paint": 1372.0281000000002,
+          "server-response-time": 20.874,
+          "total-blocking-time": 33.500000000000455,
+          "cumulative-layout-shift": 0.001930188391188822
+        }
+      },
+      "menu": {
+        "runs": [
+          {
+            "url": "http://127.0.0.1:3011/maf-lounge",
+            "fetchTime": "2026-09-05T15:08:04.338Z",
+            "performanceScore": 0.84,
+            "metrics": {
+              "largest-contentful-paint": 4142.4962,
+              "first-contentful-paint": 919.2295999999999,
+              "server-response-time": 2175.419,
+              "total-blocking-time": 48,
+              "cumulative-layout-shift": 0.0003053290977164486
+            },
+            "lcpElement": {
+              "label": "Serpme Kahvaltı",
+              "selector": "div > div#product-536c4f28-fbdb-4ee7-9e25-eb189c80c8fc > div > img",
+              "boundingRect": {
+                "top": 201,
+                "bottom": 338,
+                "left": 17,
+                "right": 199,
+                "width": 182,
+                "height": 137
+              }
+            },
+            "jsTransferBytes": 321581,
+            "fontTransferBytes": 90404,
+            "lcpDiscovery": {
+              "type": "list",
+              "items": [
+                {
+                  "type": "checklist",
+                  "items": {
+                    "priorityHinted": {
+                      "label": "fetchpriority=high should be applied",
+                      "value": false
+                    },
+                    "requestDiscoverable": {
+                      "label": "Request is discoverable in initial document",
+                      "value": true
+                    },
+                    "eagerlyLoaded": {
+                      "label": "lazy load not applied",
+                      "value": false
+                    }
+                  }
+                },
+                {
+                  "type": "node",
+                  "lhId": "page-0-IMG",
+                  "path": "1,HTML,1,BODY,4,DIV,5,MAIN,1,DIV,0,SECTION,1,DIV,0,DIV,0,DIV,1,DIV,0,IMG",
+                  "selector": "div > div#product-536c4f28-fbdb-4ee7-9e25-eb189c80c8fc > div > img",
+                  "boundingRect": {
+                    "top": 201,
+                    "bottom": 338,
+                    "left": 17,
+                    "right": 199,
+                    "width": 182,
+                    "height": 137
+                  },
+                  "snippet": "<img src=\"http://127.0.0.1:3011/_next/image?url=https%3A%2F%2Fyxsegwkzyiscrxiwdeuf.s…\" srcset=\"/_next/image?url=https%3A%2F%2Fyxsegwkzyiscrxiwdeuf.supabase.co%2Fstorage%…\" sizes=\"(max-width: 760px) 50vw, (max-width: 1024px) 33vw, 320px\" alt=\"Serpme Kahvaltı\" loading=\"lazy\" fetchpriority=\"auto\" decoding=\"async\" style=\"position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: cover;\">",
+                  "nodeLabel": "Serpme Kahvaltı"
+                }
+              ]
+            },
+            "unthrottledDiagnosticPhases": [
+              {
+                "type": "table",
+                "headings": [
+                  {
+                    "key": "label",
+                    "valueType": "text",
+                    "label": "Phase"
+                  },
+                  {
+                    "key": "duration",
+                    "valueType": "ms",
+                    "label": "Duration"
+                  }
+                ],
+                "items": [
+                  {
+                    "phase": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "duration": 2177.273
+                  },
+                  {
+                    "phase": "resourceLoadDelay",
+                    "label": "Resource load delay",
+                    "duration": 69.90899999999965
+                  },
+                  {
+                    "phase": "resourceLoadDuration",
+                    "label": "Resource load duration",
+                    "duration": 44.64700000000039
+                  },
+                  {
+                    "phase": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "duration": 29.242999999999938
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "url": "http://127.0.0.1:3011/maf-lounge",
+            "fetchTime": "2026-09-05T15:08:18.468Z",
+            "performanceScore": 0.76,
+            "metrics": {
+              "largest-contentful-paint": 4434.9038,
+              "first-contentful-paint": 1383.67785,
+              "server-response-time": 1352.05,
+              "total-blocking-time": 301.5,
+              "cumulative-layout-shift": 0.0003053290977164486
+            },
+            "lcpElement": {
+              "label": "Serpme Kahvaltı",
+              "selector": "div > div#product-536c4f28-fbdb-4ee7-9e25-eb189c80c8fc > div > img",
+              "boundingRect": {
+                "top": 201,
+                "bottom": 338,
+                "left": 17,
+                "right": 199,
+                "width": 182,
+                "height": 137
+              }
+            },
+            "jsTransferBytes": 321581,
+            "fontTransferBytes": 90404,
+            "lcpDiscovery": {
+              "type": "list",
+              "items": [
+                {
+                  "type": "checklist",
+                  "items": {
+                    "priorityHinted": {
+                      "label": "fetchpriority=high should be applied",
+                      "value": false
+                    },
+                    "requestDiscoverable": {
+                      "label": "Request is discoverable in initial document",
+                      "value": true
+                    },
+                    "eagerlyLoaded": {
+                      "label": "lazy load not applied",
+                      "value": false
+                    }
+                  }
+                },
+                {
+                  "type": "node",
+                  "lhId": "page-4-IMG",
+                  "path": "1,HTML,1,BODY,4,DIV,5,MAIN,1,DIV,0,SECTION,1,DIV,0,DIV,0,DIV,1,DIV,0,IMG",
+                  "selector": "div > div#product-536c4f28-fbdb-4ee7-9e25-eb189c80c8fc > div > img",
+                  "boundingRect": {
+                    "top": 201,
+                    "bottom": 338,
+                    "left": 17,
+                    "right": 199,
+                    "width": 182,
+                    "height": 137
+                  },
+                  "snippet": "<img src=\"http://127.0.0.1:3011/_next/image?url=https%3A%2F%2Fyxsegwkzyiscrxiwdeuf.s…\" srcset=\"/_next/image?url=https%3A%2F%2Fyxsegwkzyiscrxiwdeuf.supabase.co%2Fstorage%…\" sizes=\"(max-width: 760px) 50vw, (max-width: 1024px) 33vw, 320px\" alt=\"Serpme Kahvaltı\" loading=\"lazy\" fetchpriority=\"auto\" decoding=\"async\" style=\"position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: cover;\">",
+                  "nodeLabel": "Serpme Kahvaltı"
+                }
+              ]
+            },
+            "unthrottledDiagnosticPhases": [
+              {
+                "type": "table",
+                "headings": [
+                  {
+                    "key": "label",
+                    "valueType": "text",
+                    "label": "Phase"
+                  },
+                  {
+                    "key": "duration",
+                    "valueType": "ms",
+                    "label": "Duration"
+                  }
+                ],
+                "items": [
+                  {
+                    "phase": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "duration": 1359.927
+                  },
+                  {
+                    "phase": "resourceLoadDelay",
+                    "label": "Resource load delay",
+                    "duration": 193.5010000000002
+                  },
+                  {
+                    "phase": "resourceLoadDuration",
+                    "label": "Resource load duration",
+                    "duration": 25.78599999999983
+                  },
+                  {
+                    "phase": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "duration": 202.413
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "url": "http://127.0.0.1:3011/maf-lounge",
+            "fetchTime": "2026-09-05T15:08:37.739Z",
+            "performanceScore": 0.86,
+            "metrics": {
+              "largest-contentful-paint": 4011.3109999999997,
+              "first-contentful-paint": 1363.3110000000001,
+              "server-response-time": 1613.762,
+              "total-blocking-time": 35,
+              "cumulative-layout-shift": 0.0003053290977164486
+            },
+            "lcpElement": {
+              "label": "Serpme Kahvaltı",
+              "selector": "div > div#product-536c4f28-fbdb-4ee7-9e25-eb189c80c8fc > div > img",
+              "boundingRect": {
+                "top": 201,
+                "bottom": 338,
+                "left": 17,
+                "right": 199,
+                "width": 182,
+                "height": 137
+              }
+            },
+            "jsTransferBytes": 321581,
+            "fontTransferBytes": 90404,
+            "lcpDiscovery": {
+              "type": "list",
+              "items": [
+                {
+                  "type": "checklist",
+                  "items": {
+                    "priorityHinted": {
+                      "label": "fetchpriority=high should be applied",
+                      "value": false
+                    },
+                    "requestDiscoverable": {
+                      "label": "Request is discoverable in initial document",
+                      "value": true
+                    },
+                    "eagerlyLoaded": {
+                      "label": "lazy load not applied",
+                      "value": false
+                    }
+                  }
+                },
+                {
+                  "type": "node",
+                  "lhId": "page-4-IMG",
+                  "path": "1,HTML,1,BODY,4,DIV,5,MAIN,1,DIV,0,SECTION,1,DIV,0,DIV,0,DIV,1,DIV,0,IMG",
+                  "selector": "div > div#product-536c4f28-fbdb-4ee7-9e25-eb189c80c8fc > div > img",
+                  "boundingRect": {
+                    "top": 201,
+                    "bottom": 338,
+                    "left": 17,
+                    "right": 199,
+                    "width": 182,
+                    "height": 137
+                  },
+                  "snippet": "<img src=\"http://127.0.0.1:3011/_next/image?url=https%3A%2F%2Fyxsegwkzyiscrxiwdeuf.s…\" srcset=\"/_next/image?url=https%3A%2F%2Fyxsegwkzyiscrxiwdeuf.supabase.co%2Fstorage%…\" sizes=\"(max-width: 760px) 50vw, (max-width: 1024px) 33vw, 320px\" alt=\"Serpme Kahvaltı\" loading=\"lazy\" fetchpriority=\"auto\" decoding=\"async\" style=\"position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: cover;\">",
+                  "nodeLabel": "Serpme Kahvaltı"
+                }
+              ]
+            },
+            "unthrottledDiagnosticPhases": [
+              {
+                "type": "table",
+                "headings": [
+                  {
+                    "key": "label",
+                    "valueType": "text",
+                    "label": "Phase"
+                  },
+                  {
+                    "key": "duration",
+                    "valueType": "ms",
+                    "label": "Duration"
+                  }
+                ],
+                "items": [
+                  {
+                    "phase": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "duration": 1616.895
+                  },
+                  {
+                    "phase": "resourceLoadDelay",
+                    "label": "Resource load delay",
+                    "duration": 66.00199999999995
+                  },
+                  {
+                    "phase": "resourceLoadDuration",
+                    "label": "Resource load duration",
+                    "duration": 8.394000000000005
+                  },
+                  {
+                    "phase": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "duration": 66.0440000000001
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "median": {
+          "largest-contentful-paint": 4142.4962,
+          "first-contentful-paint": 1363.3110000000001,
+          "server-response-time": 1613.762,
+          "total-blocking-time": 48,
+          "cumulative-layout-shift": 0.0003053290977164486
+        }
+      }
+    },
+    "after": {
+      "marketing": {
+        "runs": [
+          {
+            "url": "http://127.0.0.1:3003/",
+            "fetchTime": "2026-09-05T15:50:31.246Z",
+            "performanceScore": 0.87,
+            "metrics": {
+              "largest-contentful-paint": 3965.5047,
+              "first-contentful-paint": 1378.3662000000002,
+              "server-response-time": 74.193,
+              "total-blocking-time": 57.589200000000346,
+              "cumulative-layout-shift": 0.001930188391188822
+            },
+            "lcpElement": {
+              "label": "Garsonsuz sipariş,\nkusursuz servis.",
+              "selector": "section.marketing-hero > div.container > div.marketing-hero__copy > h1#marketing-hero-title",
+              "boundingRect": {
+                "top": 539,
+                "bottom": 626,
+                "left": 16,
+                "right": 396,
+                "width": 380,
+                "height": 87
+              }
+            },
+            "jsTransferBytes": 187187,
+            "fontTransferBytes": 143350,
+            "lcpDiscovery": null,
+            "unthrottledDiagnosticPhases": [
+              {
+                "type": "table",
+                "headings": [
+                  {
+                    "key": "label",
+                    "valueType": "text",
+                    "label": "Phase"
+                  },
+                  {
+                    "key": "duration",
+                    "valueType": "ms",
+                    "label": "Duration"
+                  }
+                ],
+                "items": [
+                  {
+                    "phase": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "duration": 81.4189999847412
+                  },
+                  {
+                    "phase": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "duration": 1148.4000000152587
+                  }
+                ]
+              },
+              {
+                "type": "node",
+                "lhId": "page-0-H1",
+                "path": "2,HTML,1,BODY,2,MAIN,0,SECTION,1,DIV,0,DIV,0,H1",
+                "selector": "section.marketing-hero > div.container > div.marketing-hero__copy > h1#marketing-hero-title",
+                "boundingRect": {
+                  "top": 539,
+                  "bottom": 626,
+                  "left": 16,
+                  "right": 396,
+                  "width": 380,
+                  "height": 87
+                },
+                "snippet": "<h1 id=\"marketing-hero-title\" class=\"font-display marketing-hero__title\">",
+                "nodeLabel": "Garsonsuz sipariş,\nkusursuz servis."
+              }
+            ]
+          },
+          {
+            "url": "http://127.0.0.1:3003/",
+            "fetchTime": "2026-09-05T15:50:45.838Z",
+            "performanceScore": 0.88,
+            "metrics": {
+              "largest-contentful-paint": 3898.6401499999997,
+              "first-contentful-paint": 1369.14015,
+              "server-response-time": 8.737,
+              "total-blocking-time": 31.5,
+              "cumulative-layout-shift": 0.001930188391188822
+            },
+            "lcpElement": {
+              "label": "Garsonsuz sipariş,\nkusursuz servis.",
+              "selector": "section.marketing-hero > div.container > div.marketing-hero__copy > h1#marketing-hero-title",
+              "boundingRect": {
+                "top": 539,
+                "bottom": 626,
+                "left": 16,
+                "right": 396,
+                "width": 380,
+                "height": 87
+              }
+            },
+            "jsTransferBytes": 187187,
+            "fontTransferBytes": 143350,
+            "lcpDiscovery": null,
+            "unthrottledDiagnosticPhases": [
+              {
+                "type": "table",
+                "headings": [
+                  {
+                    "key": "label",
+                    "valueType": "text",
+                    "label": "Phase"
+                  },
+                  {
+                    "key": "duration",
+                    "valueType": "ms",
+                    "label": "Duration"
+                  }
+                ],
+                "items": [
+                  {
+                    "phase": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "duration": 10.287
+                  },
+                  {
+                    "phase": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "duration": 140.81799999999998
+                  }
+                ]
+              },
+              {
+                "type": "node",
+                "lhId": "page-0-H1",
+                "path": "2,HTML,1,BODY,2,MAIN,0,SECTION,1,DIV,0,DIV,0,H1",
+                "selector": "section.marketing-hero > div.container > div.marketing-hero__copy > h1#marketing-hero-title",
+                "boundingRect": {
+                  "top": 539,
+                  "bottom": 626,
+                  "left": 16,
+                  "right": 396,
+                  "width": 380,
+                  "height": 87
+                },
+                "snippet": "<h1 id=\"marketing-hero-title\" class=\"font-display marketing-hero__title\">",
+                "nodeLabel": "Garsonsuz sipariş,\nkusursuz servis."
+              }
+            ]
+          },
+          {
+            "url": "http://127.0.0.1:3003/",
+            "fetchTime": "2026-09-05T15:51:00.139Z",
+            "performanceScore": 0.87,
+            "metrics": {
+              "largest-contentful-paint": 3782.321299999999,
+              "first-contentful-paint": 1382.3213,
+              "server-response-time": 73.44500000000001,
+              "total-blocking-time": 149.83934999999997,
+              "cumulative-layout-shift": 0.001930188391188822
+            },
+            "lcpElement": {
+              "label": "Garsonsuz sipariş,\nkusursuz servis.",
+              "selector": "section.marketing-hero > div.container > div.marketing-hero__copy > h1#marketing-hero-title",
+              "boundingRect": {
+                "top": 539,
+                "bottom": 626,
+                "left": 16,
+                "right": 396,
+                "width": 380,
+                "height": 87
+              }
+            },
+            "jsTransferBytes": 187187,
+            "fontTransferBytes": 143350,
+            "lcpDiscovery": null,
+            "unthrottledDiagnosticPhases": [
+              {
+                "type": "table",
+                "headings": [
+                  {
+                    "key": "label",
+                    "valueType": "text",
+                    "label": "Phase"
+                  },
+                  {
+                    "key": "duration",
+                    "valueType": "ms",
+                    "label": "Duration"
+                  }
+                ],
+                "items": [
+                  {
+                    "phase": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "duration": 85.626
+                  },
+                  {
+                    "phase": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "duration": 395.222
+                  }
+                ]
+              },
+              {
+                "type": "node",
+                "lhId": "page-0-H1",
+                "path": "2,HTML,1,BODY,2,MAIN,0,SECTION,1,DIV,0,DIV,0,H1",
+                "selector": "section.marketing-hero > div.container > div.marketing-hero__copy > h1#marketing-hero-title",
+                "boundingRect": {
+                  "top": 539,
+                  "bottom": 626,
+                  "left": 16,
+                  "right": 396,
+                  "width": 380,
+                  "height": 87
+                },
+                "snippet": "<h1 id=\"marketing-hero-title\" class=\"font-display marketing-hero__title\">",
+                "nodeLabel": "Garsonsuz sipariş,\nkusursuz servis."
+              }
+            ]
+          }
+        ],
+        "median": {
+          "largest-contentful-paint": 3898.6401499999997,
+          "first-contentful-paint": 1378.3662000000002,
+          "server-response-time": 73.44500000000001,
+          "total-blocking-time": 57.589200000000346,
+          "cumulative-layout-shift": 0.001930188391188822
+        }
+      },
+      "menu": {
+        "runs": [
+          {
+            "url": "http://127.0.0.1:3011/maf-lounge",
+            "fetchTime": "2026-09-05T15:39:39.149Z",
+            "performanceScore": 0.86,
+            "metrics": {
+              "largest-contentful-paint": 3999.6974999999993,
+              "first-contentful-paint": 1364.8184999999999,
+              "server-response-time": 1290.361,
+              "total-blocking-time": 54.5,
+              "cumulative-layout-shift": 0.0003053290977164486
+            },
+            "lcpElement": {
+              "label": "Serpme Kahvaltı",
+              "selector": "div > div#product-536c4f28-fbdb-4ee7-9e25-eb189c80c8fc > div > img",
+              "boundingRect": {
+                "top": 201,
+                "bottom": 338,
+                "left": 17,
+                "right": 199,
+                "width": 182,
+                "height": 137
+              }
+            },
+            "jsTransferBytes": 321613,
+            "fontTransferBytes": 90404,
+            "lcpDiscovery": {
+              "type": "list",
+              "items": [
+                {
+                  "type": "checklist",
+                  "items": {
+                    "priorityHinted": {
+                      "label": "fetchpriority=high applied",
+                      "value": true
+                    },
+                    "requestDiscoverable": {
+                      "label": "Request is discoverable in initial document",
+                      "value": true
+                    },
+                    "eagerlyLoaded": {
+                      "label": "lazy load not applied",
+                      "value": true
+                    }
+                  }
+                },
+                {
+                  "type": "node",
+                  "lhId": "page-4-IMG",
+                  "path": "1,HTML,1,BODY,4,DIV,5,MAIN,1,DIV,0,SECTION,1,DIV,0,DIV,0,DIV,1,DIV,0,IMG",
+                  "selector": "div > div#product-536c4f28-fbdb-4ee7-9e25-eb189c80c8fc > div > img",
+                  "boundingRect": {
+                    "top": 201,
+                    "bottom": 338,
+                    "left": 17,
+                    "right": 199,
+                    "width": 182,
+                    "height": 137
+                  },
+                  "snippet": "<img src=\"http://127.0.0.1:3011/_next/image?url=https%3A%2F%2Fyxsegwkzyiscrxiwdeuf.s…\" srcset=\"/_next/image?url=https%3A%2F%2Fyxsegwkzyiscrxiwdeuf.supabase.co%2Fstorage%…\" sizes=\"(max-width: 760px) 50vw, (max-width: 1024px) 33vw, 320px\" alt=\"Serpme Kahvaltı\" loading=\"eager\" fetchpriority=\"high\" decoding=\"async\" style=\"position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: cover;\">",
+                  "nodeLabel": "Serpme Kahvaltı"
+                }
+              ]
+            },
+            "unthrottledDiagnosticPhases": [
+              {
+                "type": "table",
+                "headings": [
+                  {
+                    "key": "label",
+                    "valueType": "text",
+                    "label": "Phase"
+                  },
+                  {
+                    "key": "duration",
+                    "valueType": "ms",
+                    "label": "Duration"
+                  }
+                ],
+                "items": [
+                  {
+                    "phase": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "duration": 1293.25
+                  },
+                  {
+                    "phase": "resourceLoadDelay",
+                    "label": "Resource load delay",
+                    "duration": 15.288000000000011
+                  },
+                  {
+                    "phase": "resourceLoadDuration",
+                    "label": "Resource load duration",
+                    "duration": 38.519000000000005
+                  },
+                  {
+                    "phase": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "duration": 98.06999999999994
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "url": "http://127.0.0.1:3011/maf-lounge",
+            "fetchTime": "2026-09-05T15:39:51.966Z",
+            "performanceScore": 0.87,
+            "metrics": {
+              "largest-contentful-paint": 3840.1706999999997,
+              "first-contentful-paint": 1365.1707000000001,
+              "server-response-time": 1707.837,
+              "total-blocking-time": 42.50000000000023,
+              "cumulative-layout-shift": 0.0003053290977164486
+            },
+            "lcpElement": {
+              "label": "Serpme Kahvaltı",
+              "selector": "div > div#product-536c4f28-fbdb-4ee7-9e25-eb189c80c8fc > div > img",
+              "boundingRect": {
+                "top": 201,
+                "bottom": 338,
+                "left": 17,
+                "right": 199,
+                "width": 182,
+                "height": 137
+              }
+            },
+            "jsTransferBytes": 321613,
+            "fontTransferBytes": 90404,
+            "lcpDiscovery": {
+              "type": "list",
+              "items": [
+                {
+                  "type": "checklist",
+                  "items": {
+                    "priorityHinted": {
+                      "label": "fetchpriority=high applied",
+                      "value": true
+                    },
+                    "requestDiscoverable": {
+                      "label": "Request is discoverable in initial document",
+                      "value": true
+                    },
+                    "eagerlyLoaded": {
+                      "label": "lazy load not applied",
+                      "value": true
+                    }
+                  }
+                },
+                {
+                  "type": "node",
+                  "lhId": "page-0-IMG",
+                  "path": "1,HTML,1,BODY,4,DIV,5,MAIN,1,DIV,0,SECTION,1,DIV,0,DIV,0,DIV,1,DIV,0,IMG",
+                  "selector": "div > div#product-536c4f28-fbdb-4ee7-9e25-eb189c80c8fc > div > img",
+                  "boundingRect": {
+                    "top": 201,
+                    "bottom": 338,
+                    "left": 17,
+                    "right": 199,
+                    "width": 182,
+                    "height": 137
+                  },
+                  "snippet": "<img src=\"http://127.0.0.1:3011/_next/image?url=https%3A%2F%2Fyxsegwkzyiscrxiwdeuf.s…\" srcset=\"/_next/image?url=https%3A%2F%2Fyxsegwkzyiscrxiwdeuf.supabase.co%2Fstorage%…\" sizes=\"(max-width: 760px) 50vw, (max-width: 1024px) 33vw, 320px\" alt=\"Serpme Kahvaltı\" loading=\"eager\" fetchpriority=\"high\" decoding=\"async\" style=\"position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: cover;\">",
+                  "nodeLabel": "Serpme Kahvaltı"
+                }
+              ]
+            },
+            "unthrottledDiagnosticPhases": [
+              {
+                "type": "table",
+                "headings": [
+                  {
+                    "key": "label",
+                    "valueType": "text",
+                    "label": "Phase"
+                  },
+                  {
+                    "key": "duration",
+                    "valueType": "ms",
+                    "label": "Duration"
+                  }
+                ],
+                "items": [
+                  {
+                    "phase": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "duration": 1709.805
+                  },
+                  {
+                    "phase": "resourceLoadDelay",
+                    "label": "Resource load delay",
+                    "duration": 9.42599999999993
+                  },
+                  {
+                    "phase": "resourceLoadDuration",
+                    "label": "Resource load duration",
+                    "duration": 9.034000000000106
+                  },
+                  {
+                    "phase": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "duration": 78.05799999999999
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "url": "http://127.0.0.1:3011/maf-lounge",
+            "fetchTime": "2026-09-05T15:40:04.615Z",
+            "performanceScore": 0.94,
+            "metrics": {
+              "largest-contentful-paint": 3038.6081499999996,
+              "first-contentful-paint": 911.0309,
+              "server-response-time": 842.369,
+              "total-blocking-time": 15.000000000000227,
+              "cumulative-layout-shift": 0.0003053290977164486
+            },
+            "lcpElement": {
+              "label": "Serpme Kahvaltı",
+              "selector": "div > div#product-536c4f28-fbdb-4ee7-9e25-eb189c80c8fc > div > img",
+              "boundingRect": {
+                "top": 201,
+                "bottom": 338,
+                "left": 17,
+                "right": 199,
+                "width": 182,
+                "height": 137
+              }
+            },
+            "jsTransferBytes": 321613,
+            "fontTransferBytes": 90404,
+            "lcpDiscovery": {
+              "type": "list",
+              "items": [
+                {
+                  "type": "checklist",
+                  "items": {
+                    "priorityHinted": {
+                      "label": "fetchpriority=high applied",
+                      "value": true
+                    },
+                    "requestDiscoverable": {
+                      "label": "Request is discoverable in initial document",
+                      "value": true
+                    },
+                    "eagerlyLoaded": {
+                      "label": "lazy load not applied",
+                      "value": true
+                    }
+                  }
+                },
+                {
+                  "type": "node",
+                  "lhId": "page-0-IMG",
+                  "path": "1,HTML,1,BODY,4,DIV,5,MAIN,1,DIV,0,SECTION,1,DIV,0,DIV,0,DIV,1,DIV,0,IMG",
+                  "selector": "div > div#product-536c4f28-fbdb-4ee7-9e25-eb189c80c8fc > div > img",
+                  "boundingRect": {
+                    "top": 201,
+                    "bottom": 338,
+                    "left": 17,
+                    "right": 199,
+                    "width": 182,
+                    "height": 137
+                  },
+                  "snippet": "<img src=\"http://127.0.0.1:3011/_next/image?url=https%3A%2F%2Fyxsegwkzyiscrxiwdeuf.s…\" srcset=\"/_next/image?url=https%3A%2F%2Fyxsegwkzyiscrxiwdeuf.supabase.co%2Fstorage%…\" sizes=\"(max-width: 760px) 50vw, (max-width: 1024px) 33vw, 320px\" alt=\"Serpme Kahvaltı\" loading=\"eager\" fetchpriority=\"high\" decoding=\"async\" style=\"position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: cover;\">",
+                  "nodeLabel": "Serpme Kahvaltı"
+                }
+              ]
+            },
+            "unthrottledDiagnosticPhases": [
+              {
+                "type": "table",
+                "headings": [
+                  {
+                    "key": "label",
+                    "valueType": "text",
+                    "label": "Phase"
+                  },
+                  {
+                    "key": "duration",
+                    "valueType": "ms",
+                    "label": "Duration"
+                  }
+                ],
+                "items": [
+                  {
+                    "phase": "timeToFirstByte",
+                    "label": "Time to first byte",
+                    "duration": 843.786
+                  },
+                  {
+                    "phase": "resourceLoadDelay",
+                    "label": "Resource load delay",
+                    "duration": 5.951000000000022
+                  },
+                  {
+                    "phase": "resourceLoadDuration",
+                    "label": "Resource load duration",
+                    "duration": 6.600999999999999
+                  },
+                  {
+                    "phase": "elementRenderDelay",
+                    "label": "Element render delay",
+                    "duration": 63.85400000000004
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "median": {
+          "largest-contentful-paint": 3840.1706999999997,
+          "first-contentful-paint": 1364.8184999999999,
+          "server-response-time": 1290.361,
+          "total-blocking-time": 42.50000000000023,
+          "cumulative-layout-shift": 0.0003053290977164486
+        }
+      }
+    }
+  }
+}
