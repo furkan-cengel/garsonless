@@ -1,0 +1,31 @@
+{
+  "capturedBeforeRelease": true,
+  "applications": [
+    {
+      "project": "masabu-sandbox",
+      "deploymentId": "dpl_ksZt9DG4PVi1Pz2mnRXAiBPqRHvL"
+    },
+    {
+      "project": "masabu-dashboard",
+      "deploymentId": "dpl_AT3bmiC9VtRKXVQYkTbhk3J5FAQ5"
+    },
+    {
+      "project": "masabu-marketing",
+      "deploymentId": "dpl_4T5oKz32tao6mYqkCA9zFJejtUkP"
+    },
+    {
+      "project": "masabu-menu",
+      "deploymentId": "dpl_E5Pf91ENNLxzrViEBjXLmcRkNbZ3"
+    },
+    {
+      "project": "masabu-platform-admin",
+      "deploymentId": "dpl_BkAUgqtjdXUQzX4GWy9sHKQFn4aM"
+    },
+    {
+      "project": "masabu-kitchen",
+      "deploymentId": "dpl_FXQLKQPnxPeQgYoCdRqCBP9v8oXe"
+    }
+  ],
+  "databaseBackup": "/tmp/masabu-prod-backup-20260905-release/",
+  "databaseScope": "public schema + public data + roles; not auth/storage"
+}

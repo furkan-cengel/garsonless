@@ -1,0 +1,28 @@
+[
+  {
+    "url": "http://127.0.0.1:3003/",
+    "fetchTime": "2026-09-05T12:45:33.997Z",
+    "kind": "local lab, mobile simulation, single run; server cache uncontrolled",
+    "performanceScore": 0.77,
+    "accessibilityScore": 0.88,
+    "metrics": {
+      "largest-contentful-paint": 3899.1162000000004,
+      "cumulative-layout-shift": 0.001930188391188822,
+      "total-blocking-time": 396.50000000000045,
+      "server-response-time": 120.146
+    }
+  },
+  {
+    "url": "http://127.0.0.1:3011/maf-lounge",
+    "fetchTime": "2026-09-05T12:45:49.807Z",
+    "kind": "local lab, mobile simulation, single run; server cache uncontrolled",
+    "performanceScore": 0.85,
+    "accessibilityScore": 0.96,
+    "metrics": {
+      "largest-contentful-paint": 4128.1805,
+      "cumulative-layout-shift": 0.0003053290977164486,
+      "total-blocking-time": 87,
+      "server-response-time": 1327.405
+    }
+  }
+]

@@ -1,0 +1,154 @@
+{
+  "verifiedAt": "2026-09-05T13:20:45.995240+00:00",
+  "productionSourceCommit": "6963fb4fe7fcabdbc1b1db5f3a78370e02cb3859",
+  "applications": [
+    {
+      "project": "masabu-kitchen",
+      "projectId": "prj_kMDaCKHxyJTUEA7XrfhMvtjnptXl",
+      "deploymentId": "dpl_BjFzwC1FzWYti59364Z2icDbwHRN",
+      "sourceCommit": "6963fb4fe7fcabdbc1b1db5f3a78370e02cb3859",
+      "state": "READY",
+      "url": "https://kds.masabu.co"
+    },
+    {
+      "project": "masabu-platform-admin",
+      "projectId": "prj_ZOZJDteUZHhA6xwSOCMOCx3fUgFv",
+      "deploymentId": "dpl_Bo3tsdVnsaMcJBpehPhQEABWDktd",
+      "sourceCommit": "6963fb4fe7fcabdbc1b1db5f3a78370e02cb3859",
+      "state": "READY",
+      "url": "https://admin.masabu.co"
+    },
+    {
+      "project": "masabu-menu",
+      "projectId": "prj_9FEkMOqGZ38qjQAwBp4lcO2ePNLs",
+      "deploymentId": "dpl_2e4XthwszSQen7ShReL976TtSM3x",
+      "sourceCommit": "6963fb4fe7fcabdbc1b1db5f3a78370e02cb3859",
+      "state": "READY",
+      "url": "https://menu.masabu.co"
+    },
+    {
+      "project": "masabu-marketing",
+      "projectId": "prj_WDtscCgGSXPdy8FeMk5hltsITSSp",
+      "deploymentId": "dpl_CRgckRZgUhgsWBeTw6b18AyMFWbk",
+      "sourceCommit": "6963fb4fe7fcabdbc1b1db5f3a78370e02cb3859",
+      "state": "READY",
+      "url": "https://masabu.co"
+    },
+    {
+      "project": "masabu-dashboard",
+      "projectId": "prj_ZqK6tY7wjGhjqrw6eYsYICzlFOW7",
+      "deploymentId": "dpl_2piRsD1zAurto9CxeppTQRy4UQf3",
+      "sourceCommit": "6963fb4fe7fcabdbc1b1db5f3a78370e02cb3859",
+      "state": "READY",
+      "url": "https://app.masabu.co"
+    },
+    {
+      "project": "masabu-sandbox",
+      "projectId": "prj_8jQ7cF34unDV5oYING7fibugYO6c",
+      "deploymentId": "dpl_9bRWfMMh7yNtqeGayCAoCHtjYJeu",
+      "sourceCommit": "6963fb4fe7fcabdbc1b1db5f3a78370e02cb3859",
+      "state": "READY",
+      "url": "https://sandbox.masabu.co"
+    }
+  ],
+  "http": [
+    {
+      "url": "https://app.masabu.co/auth/login",
+      "finalUrl": "https://app.masabu.co/auth/login",
+      "status": 200,
+      "checkedAt": "2026-09-05T13:19:21.794Z",
+      "nextNotFound": false
+    },
+    {
+      "url": "https://masabu.co/",
+      "finalUrl": "https://masabu.co/",
+      "status": 200,
+      "checkedAt": "2026-09-05T13:19:21.896Z",
+      "nextNotFound": false
+    },
+    {
+      "url": "https://menu.masabu.co/hey",
+      "finalUrl": "https://menu.masabu.co/hey",
+      "status": 200,
+      "checkedAt": "2026-09-05T13:19:24.647Z",
+      "nextNotFound": false
+    },
+    {
+      "url": "https://menu.masabu.co/test",
+      "finalUrl": "https://menu.masabu.co/test",
+      "status": 200,
+      "checkedAt": "2026-09-05T13:19:24.127Z",
+      "nextNotFound": false
+    },
+    {
+      "url": "https://admin.masabu.co/auth/login",
+      "finalUrl": "https://admin.masabu.co/auth/login",
+      "status": 200,
+      "checkedAt": "2026-09-05T13:19:21.989Z",
+      "nextNotFound": false
+    },
+    {
+      "url": "https://kds.masabu.co/",
+      "finalUrl": "https://kds.masabu.co/",
+      "status": 200,
+      "checkedAt": "2026-09-05T13:19:22.221Z",
+      "nextNotFound": false
+    },
+    {
+      "url": "https://sandbox.masabu.co/auth/login",
+      "finalUrl": "https://sandbox.masabu.co/auth/login",
+      "status": 200,
+      "checkedAt": "2026-09-05T13:19:22.007Z",
+      "nextNotFound": false
+    }
+  ],
+  "healthQueries": [
+    {
+      "name": "get_domain_outbox_health",
+      "status": 200,
+      "data": [
+        {
+          "pending_count": 0,
+          "ready_count": 0,
+          "leased_count": 0,
+          "dead_letter_count": 0,
+          "oldest_pending_seconds": 0,
+          "last_processed_at": "2026-09-01T19:44:03.798742+00:00"
+        }
+      ]
+    },
+    {
+      "name": "get_notification_delivery_health",
+      "status": 200,
+      "data": [
+        {
+          "consumer": "dashboard-inbox",
+          "pending_count": 0,
+          "failed_count": 0,
+          "dead_letter_count": 0,
+          "last_success_at": "2026-08-31T19:13:43.834846+00:00"
+        },
+        {
+          "consumer": "dashboard-push",
+          "pending_count": 0,
+          "failed_count": 0,
+          "dead_letter_count": 0,
+          "last_success_at": "2026-08-31T19:14:03.916531+00:00"
+        },
+        {
+          "consumer": "notification-email",
+          "pending_count": 0,
+          "failed_count": 0,
+          "dead_letter_count": 0,
+          "last_success_at": "2026-08-31T19:14:06.086788+00:00"
+        }
+      ]
+    }
+  ],
+  "supabase": {
+    "projectRef": "svxvloeosiksqfadgkvo",
+    "pendingMigrations": 0,
+    "outboxWorkerVersion": 5,
+    "outboxWorkerState": "ACTIVE"
+  }
+}
