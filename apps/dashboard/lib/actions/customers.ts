@@ -224,20 +224,23 @@ export async function createCustomerSegmentAction(
 export async function updateCustomerSegmentAction(
   restaurantId: string,
   segmentId: string,
-  input: { name: string; definition: CustomerSegmentDefinition },
-): Promise<{ error: string } | SavedCustomerSegment> {
+  input: { expectedUpdatedAt: string; name: string; definition: CustomerSegmentDefinition },
+): Promise<{ error: string; code?: 'conflict' } | SavedCustomerSegment> {
   const actor = await getCustomerActor(restaurantId)
   if ('error' in actor) return actor
   if (!z.string().uuid().safeParse(segmentId).success) return { error: 'Geçersiz segment' }
-  const parsed = segmentInputSchema.safeParse(input)
+  const parsed = segmentInputSchema.extend({ expectedUpdatedAt: z.string().datetime({ offset: true }) }).safeParse(input)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Geçersiz segment' }
   const segment = await updateCustomerSegmentCommand(actor, {
     restaurantId,
     segmentId,
+    expectedUpdatedAt: parsed.data.expectedUpdatedAt,
     name: parsed.data.name,
     definition: parsed.data.definition,
   }, createCustomerApplicationPort())
-  if (!segment.ok) return { error: 'Segment güncellenemedi' }
+  if (!segment.ok) return segment.error.includes('customer_segment_conflict')
+    ? { code: 'conflict', error: 'Segment başka bir oturumda değiştirildi veya silindi. Taslağınız korundu. Güncel sürümü açmak için düzenlemeyi kapatıp yeniden açın.' }
+    : { error: 'Segment güncellenemedi' }
   if (!segment.value) return { error: 'Segment bulunamadı' }
   revalidatePath(`/dashboard/${restaurantId}/customers`)
   return segment.value

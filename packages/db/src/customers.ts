@@ -113,11 +113,15 @@ export async function getRestaurantCustomers(
   if (error) throw new Error(`getRestaurantCustomers: ${error.message}`)
 
   const rows = (data as RawRow[] | null) ?? []
+  if (rows.length === 0 && page > 1) {
+    return getRestaurantCustomers(restaurantId, { ...opts, page: 1 }, { ...visibility, loyaltyScope: scope })
+  }
   const total = rows.length > 0 ? Number(rows[0]!.total_count) : 0
   const customerIds = rows.map((row) => row.customer_id)
-  const { data: identityRows } = customerIds.length
+  const { data: identityRows, error: identityError } = customerIds.length
     ? await supabase.from('customers').select('id, email, auth_user_id').in('id', customerIds)
-    : { data: [] }
+    : { data: [], error: null }
+  if (identityError) throw new Error(`getRestaurantCustomers identities: ${identityError.message}`)
   const identities = new Map(((identityRows ?? []) as Array<{
     id: string
     email: string | null
@@ -161,12 +165,12 @@ export async function getRestaurantCustomerSegmentCounts(
     : options.loyaltyScope
   const scopeKey = scope?.scopeKey ?? restaurantId
   const supabase = createServiceClient()
-  const segments: CustomerSegment[] = ['new', 'frequent', 'lapsed', 'consented']
+  const segments: Array<CustomerSegment | 'total'> = ['total', 'new', 'frequent', 'lapsed', 'consented']
   const totals = await Promise.all(segments.map(async (segment) => {
     const { data, error } = await supabase.rpc('get_restaurant_customers', {
       p_restaurant_id: restaurantId,
       p_scope_key: scopeKey,
-      p_segment: segment,
+      ...(segment === 'total' ? {} : { p_segment: segment }),
       p_sort: 'last_seen',
       p_limit: 1,
       p_offset: 0,
@@ -253,6 +257,7 @@ export async function createCustomerSegment(params: {
 export async function updateCustomerSegment(params: {
   restaurantId: string
   segmentId: string
+  expectedUpdatedAt: string
   name: string
   definition: CustomerSegmentDefinition
 }): Promise<SavedCustomerSegment | null> {
@@ -263,11 +268,13 @@ export async function updateCustomerSegment(params: {
     .from('customer_segments')
     .update({ name, definition: segmentDefinitionToJson(definition) })
     .eq('id', params.segmentId)
+    .eq('updated_at', params.expectedUpdatedAt)
     .eq('restaurant_id', params.restaurantId)
     .is('deleted_at', null)
     .select('id, restaurant_id, name, definition, created_at, updated_at')
     .maybeSingle()
   if (error) throw new Error(`updateCustomerSegment: ${error.message}`)
+  if (!data) throw new Error('customer_segment_conflict')
   return data ? mapSavedSegment(data as {
     id: string
     restaurant_id: string
@@ -299,7 +306,7 @@ async function hasActivityAtVenue(
   restaurantId: string,
   customerId: string,
 ): Promise<boolean> {
-  const [{ count: oc }, { count: lc }, { count: ac }] = await Promise.all([
+  const [{ count: oc, error: oe }, { count: lc, error: le }, { count: ac, error: ae }] = await Promise.all([
     supabase.from('orders').select('id', { count: 'exact', head: true })
       .eq('restaurant_id', restaurantId).eq('customer_id', customerId).is('deleted_at', null),
     supabase.from('loyalty_transactions').select('id', { count: 'exact', head: true })
@@ -307,6 +314,8 @@ async function hasActivityAtVenue(
     supabase.from('customer_restaurants').select('customer_id', { count: 'exact', head: true })
       .eq('restaurant_id', restaurantId).eq('customer_id', customerId),
   ])
+  const error = oe ?? le ?? ae
+  if (error) throw new Error(`hasActivityAtVenue: ${error.message}`)
   return (oc ?? 0) > 0 || (lc ?? 0) > 0 || (ac ?? 0) > 0
 }
 
@@ -438,7 +447,7 @@ export async function getRestaurantCustomerDetail(
   const supabase = createServiceClient()
   if (!(await hasActivityAtVenue(supabase, restaurantId, customerId))) return null
 
-  const [{ data: cust }, consentOpen, balances, { data: summaryRows }, timelinePage] = await Promise.all([
+  const [{ data: cust, error: customerError }, consentOpen, balances, { data: summaryRows, error: summaryError }, timelinePage] = await Promise.all([
     supabase.from('customers').select('name, phone, email, auth_user_id, created_at').eq('id', customerId).maybeSingle(),
     getConsentStatus(customerId, restaurantId),
     getMemberBalances(customerId, restaurantId),
@@ -448,6 +457,7 @@ export async function getRestaurantCustomerDetail(
     }),
     queryRestaurantCustomerTimeline(supabase, restaurantId, customerId),
   ])
+  if (customerError || summaryError) throw new Error(`getRestaurantCustomerDetail: ${(customerError ?? summaryError)!.message}`)
   const customer = cust as {
     name: string | null
     phone: string | null

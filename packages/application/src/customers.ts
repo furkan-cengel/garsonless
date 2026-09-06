@@ -176,6 +176,7 @@ export interface CustomerApplicationPort {
     createdBy: string
   }): Promise<Result<SavedCustomerSegment>>
   updateSegment(input: {
+    expectedUpdatedAt: string
     restaurantId: string
     segmentId: string
     name: string
@@ -313,13 +314,14 @@ export async function createCustomerSegment(
 
 export async function updateCustomerSegment(
   context: DashboardActorContext,
-  input: { restaurantId: string; segmentId: string; name: string; definition: CustomerSegmentDefinition },
+  input: { restaurantId: string; segmentId: string; expectedUpdatedAt: string; name: string; definition: CustomerSegmentDefinition },
   port: CustomerApplicationPort,
 ): Promise<Result<SavedCustomerSegment | null>> {
   const access = requireCustomerAccess(context, input.restaurantId)
   if (!access.ok) return access
   const name = input.name.trim().slice(0, 60)
   if (!name) return err('Segment adı zorunludur')
+  if (!input.expectedUpdatedAt || !Number.isFinite(Date.parse(input.expectedUpdatedAt))) return err('Geçersiz segment sürümü')
   return port.updateSegment({
     ...input,
     name,

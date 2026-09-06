@@ -26,7 +26,7 @@ const emptyPage: RestaurantCustomersPage = { customers: [], total: 0, page: 1, p
 function port(): CustomerApplicationPort {
   return {
     listCustomers: async () => ok(emptyPage),
-    countSegments: async () => ok({ new: 0, frequent: 0, lapsed: 0, consented: 0 }),
+    countSegments: async () => ok({ total: 0, new: 0, frequent: 0, lapsed: 0, consented: 0 }),
     listSegments: async () => ok([]),
     getSegment: async () => ok(null),
     createSegment: async (input) => ok({

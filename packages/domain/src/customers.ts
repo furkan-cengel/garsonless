@@ -2,7 +2,7 @@ import type { LoyaltyTier, MemberBalances } from './loyalty'
 
 export type CustomerSort = 'last_seen' | 'spend' | 'visits' | 'points' | 'joined'
 export type CustomerSegment = 'new' | 'frequent' | 'lapsed' | 'consented'
-export type CustomerSegmentCounts = Record<CustomerSegment, number>
+export type CustomerSegmentCounts = Record<CustomerSegment | 'total', number>
 export type CustomerSegmentOperator = '>=' | '<='
 export type CustomerSegmentConsent = 'granted' | 'missing'
 export type CustomerConsentType = 'contact_data' | 'marketing'

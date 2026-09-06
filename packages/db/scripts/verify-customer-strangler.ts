@@ -8,12 +8,14 @@ import {
   readCustomers,
   updateCustomerSegment,
 } from '@garsonless/application/customers'
-import { createServiceClient } from '../src/client'
+import { createServiceClient } from '../src/service-client'
 import { createCustomerApplicationPort } from '../src/customer-application-port'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
 }
+
+if (new URL(process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? '').hostname !== 'yxsegwkzyiscrxiwdeuf.supabase.co') throw new Error('DEV target required')
 
 const service = createServiceClient()
 const suffix = randomUUID().slice(0, 8)
@@ -53,6 +55,11 @@ async function main() {
       .single()
     if (restaurantError) throw restaurantError
     restaurantId = restaurant.id
+    const { error: trialError } = await service.from('billing_subscriptions').insert({
+      restaurant_id: restaurantId, plan: 'pro', provider: null, status: 'trial',
+      trial_ends_at: new Date(Date.now() + 3_600_000).toISOString(),
+    })
+    if (trialError) throw trialError
 
     const email = `customer-strangler-${suffix}@example.test`
     const { data: authUser, error: authError } = await service.auth.admin.createUser({
@@ -96,10 +103,17 @@ async function main() {
     const updated = await updateCustomerSegment(actor, {
       restaurantId,
       segmentId: created.value.id,
+      expectedUpdatedAt: created.value.updatedAt,
       name: 'Runtime Active',
       definition: { visits: { op: '>=', value: 0 } },
     }, port)
     assert(updated.ok && updated.value?.name === 'Runtime Active', 'Segment update failed')
+
+    const stale = await updateCustomerSegment(actor, {
+      restaurantId, segmentId: created.value.id, expectedUpdatedAt: created.value.updatedAt,
+      name: 'Stale edit', definition: {},
+    }, port)
+    assert(!stale.ok && stale.error.includes('customer_segment_conflict'), 'Stale segment update overwrote the latest version')
 
     const credit = await grantCustomerStoreCredit(actor, {
       restaurantId,
@@ -120,12 +134,15 @@ async function main() {
     assert(page.value.customers[0]?.points === 25, 'Customer points projection mismatch')
     assert(page.value.customers[0]?.emailMasked === true, 'PII was not masked without consent')
 
+    const beyondLastPage = await readCustomers(actor, { restaurantId, page: 2, pageSize: 25 }, port)
+    assert(beyondLastPage.ok && beyondLastPage.value.page === 1 && beyondLastPage.value.total === 1, 'Out-of-range page lost the total')
+
     const detail = await readCustomerDetail(actor, { restaurantId, customerId }, port)
     assert(detail.ok && detail.value?.customerId === customerId, 'Customer detail failed')
     assert(detail.value.emailMasked === true, 'Detail PII was not masked without consent')
 
     const counts = await readCustomerSegmentCounts(actor, restaurantId, port)
-    assert(counts.ok, 'Segment counts failed')
+    assert(counts.ok && counts.value.total === 1, 'Global total failed')
 
     const crossTenant = await readCustomers(actor, { restaurantId: randomUUID() }, port)
     assert(!crossTenant.ok && crossTenant.error === 'Not authorized', 'Cross-tenant read was not rejected')
@@ -156,10 +173,15 @@ async function main() {
         builtinCounts: counts.value,
       },
       storeCredit: credit.value.granted,
+      staleSegmentRejected: !stale.ok,
+      outOfRangePageRecovered: beyondLastPage.ok,
       crossTenantRejected: !crossTenant.ok,
     }, null, 2))
   } finally {
-    if (restaurantId) await service.from('restaurants').delete().eq('id', restaurantId)
+    if (restaurantId) {
+      await service.from('billing_subscriptions').delete().eq('restaurant_id', restaurantId)
+      await service.from('restaurants').delete().eq('id', restaurantId)
+    }
     if (customerId) await service.from('customers').delete().eq('id', customerId)
     if (authUserId) await service.auth.admin.deleteUser(authUserId)
     const [{ count: restaurantOrphans }, { count: customerOrphans }, { count: segmentOrphans }] = await Promise.all([

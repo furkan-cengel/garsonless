@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-const client = readFileSync(new URL('./CustomersClient.tsx', import.meta.url), 'utf8')
+const client = readFileSync(new URL('./CustomerCampaignModal.tsx', import.meta.url), 'utf8')
+const list = readFileSync(new URL('./CustomersClient.tsx', import.meta.url), 'utf8')
 const actions = readFileSync(new URL('../../lib/actions/campaigns.ts', import.meta.url), 'utf8')
 const customerActions = readFileSync(new URL('../../lib/actions/customers.ts', import.meta.url), 'utf8')
 const page = readFileSync(new URL('../../app/dashboard/[restaurantId]/customers/page.tsx', import.meta.url), 'utf8')
@@ -30,7 +31,7 @@ test('campaign modal uses the shadcn accessible responsive dialog', () => {
   assert.match(client, /<Dialog open onOpenChange=/)
   assert.match(client, /<DialogTitle id="customer-campaign-title"/)
   assert.match(client, /<DialogDescription id="customer-campaign-description"/)
-  assert.match(client, /showCloseButton=\{!sending\}/)
+  assert.match(client, /showCloseButton=\{!sending && !emailTemplateSaving\}/)
   assert.match(client, /customer-campaign-panel/)
   assert.match(client, /@media \(max-width:760px\)/)
   assert.match(client, /grid-template-columns:1fr!important/)
@@ -40,7 +41,7 @@ test('campaign modal uses the shadcn accessible responsive dialog', () => {
 test('secondary CRM aggregates stay outside the route critical path', () => {
   assert.doesNotMatch(page, /readCustomerSegmentCounts|readCustomerSegments|readCampaigns|listCampaignEmailTemplates/)
   assert.match(page, /const initialResult = await readCustomers/)
-  assert.match(client, /loadCustomerPageSupportAction\(restaurantId\)/)
+  assert.match(list, /loadCustomerPageSupportAction\(restaurantId\)/)
   assert.match(customerActions, /const \[counts, segments, campaigns, emailTemplates\] = await Promise\.all/)
   assert.match(customerActions, /readCustomerSegmentCounts/)
   assert.match(customerActions, /readCampaigns/)

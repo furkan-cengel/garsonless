@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 const list = readFileSync(new URL('./CustomersClient.tsx', import.meta.url), 'utf8')
+const campaign = readFileSync(new URL('./CustomerCampaignModal.tsx', import.meta.url), 'utf8')
 const detail = readFileSync(new URL('./CustomerDetailClient.tsx', import.meta.url), 'utf8')
 const topbar = readFileSync(new URL('../layout/PageTopBar.tsx', import.meta.url), 'utf8')
 const shell = readFileSync(new URL('../layout/RestaurantShell.tsx', import.meta.url), 'utf8')
@@ -57,24 +58,24 @@ test('customer list exposes human labels, email search and one Turkish loading s
 })
 
 test('email campaigns disclose the restaurant sender identity and reply address', () => {
-  assert.match(list, /<strong>Gönderen: \{restaurantName\}<\/strong>/)
-  assert.match(list, /Müşteri yanıtları <strong>\{campaignReplyToEmail\}<\/strong> adresine gelir/)
-  assert.match(list, /Ayarlar → Mağaza bölümüne işletme e-postası ekleyin/)
+  assert.match(campaign, /<strong>Gönderen: \{restaurantName\}<\/strong>/)
+  assert.match(campaign, /Müşteri yanıtları <strong>\{campaignReplyToEmail\}<\/strong> adresine gelir/)
+  assert.match(campaign, /Ayarlar → Mağaza bölümüne işletme e-postası ekleyin/)
 })
 
 test('email campaigns provide ready templates and a sandboxed custom HTML preview', () => {
-  assert.match(list, /EMAIL_CAMPAIGN_TEMPLATES\.map/)
-  assert.match(list, />Hazır şablon<\/ToggleGroupItem>/)
-  assert.match(list, />Tasarımcı<\/ToggleGroupItem>/)
-  assert.match(list, />Özel HTML<\/ToggleGroupItem>/)
-  assert.match(list, /Kullanılabilir değişken: \{'\{\{restaurant_name\}\}'\}/)
-  assert.match(list, /<iframe title="E-posta önizlemesi" sandbox="" referrerPolicy="no-referrer" srcDoc=\{previewHtml\}/)
-  assert.match(list, /previewCampaignEmailAction/)
-  assert.match(list, /<CampaignEmailBuilder design=\{emailDesign\}/)
-  assert.match(list, /Şablonu kaydet/)
-  assert.match(list, /Kayıtlı işletme e-posta şablonları/)
-  assert.match(list, /Alıcı e-postalarını göster/)
-  assert.match(list, /getCampaignDeliveryLogAction/)
+  assert.match(campaign, /EMAIL_CAMPAIGN_TEMPLATES\.map/)
+  assert.match(campaign, />Hazır şablon<\/ToggleGroupItem>/)
+  assert.match(campaign, />Tasarımcı<\/ToggleGroupItem>/)
+  assert.match(campaign, />Özel HTML<\/ToggleGroupItem>/)
+  assert.match(campaign, /Kullanılabilir değişken: \{'\{\{restaurant_name\}\}'\}/)
+  assert.match(campaign, /<iframe title="E-posta önizlemesi" sandbox="" referrerPolicy="no-referrer" srcDoc=\{previewHtml\}/)
+  assert.match(campaign, /previewCampaignEmailAction/)
+  assert.match(campaign, /<CampaignEmailBuilder design=\{emailDesign\}/)
+  assert.match(campaign, /Şablonu kaydet/)
+  assert.match(campaign, /Kayıtlı işletme e-posta şablonları/)
+  assert.match(campaign, /Alıcı e-postalarını göster/)
+  assert.match(campaign, /getCampaignDeliveryLogAction/)
 })
 
 test('customer route skeleton follows the mobile two-column KPI and card layout', () => {
