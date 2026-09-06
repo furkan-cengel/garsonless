@@ -1,0 +1,25 @@
+
+> garsonless@ typecheck /Users/furkancengelm3/dev/gersonless
+> corepack pnpm -r --if-present --workspace-concurrency=4 typecheck
+
+Scope: 10 of 11 workspace projects
+packages/design-engine typecheck$ tsc --noEmit
+packages/domain typecheck$ tsc --noEmit
+packages/domain typecheck: Done
+packages/design-engine typecheck: Done
+packages/application typecheck$ tsc --noEmit
+packages/application typecheck: Done
+packages/db typecheck$ tsc --noEmit
+packages/db typecheck: Done
+packages/ui typecheck$ tsc --noEmit
+packages/ui typecheck: Done
+apps/kitchen typecheck$ tsc --noEmit
+apps/dashboard typecheck$ tsc --noEmit
+apps/menu typecheck$ tsc --noEmit
+apps/marketing typecheck$ tsc --noEmit
+apps/kitchen typecheck: Done
+apps/platform-admin typecheck$ tsc --noEmit
+apps/marketing typecheck: Done
+apps/menu typecheck: Done
+apps/platform-admin typecheck: Done
+apps/dashboard typecheck: Done

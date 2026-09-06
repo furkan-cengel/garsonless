@@ -1,0 +1,46 @@
+{
+  "date": "2026-09-06",
+  "baselineCommit": "a91709110d425601b022b8ada15e9f783da36bc4",
+  "state": "uncommitted worktree",
+  "checks": {
+    "focusedTests": {
+      "passed": 87,
+      "failed": 0
+    },
+    "checkCi": "passed",
+    "finalTypecheck": "passed",
+    "finalFocusedLint": "passed",
+    "productionDashboardBuild": "passed",
+    "diffCheck": "passed"
+  },
+  "browser": {
+    "productionBuild": true,
+    "viewportCssWidths": [
+      320,
+      390,
+      768,
+      1440
+    ],
+    "campaignFooterReachable": true,
+    "noHorizontalOverflow": true,
+    "draftEscapeKeepBothModals": true,
+    "segmentNetworkFailurePreservesDraft": true,
+    "segmentRetryCreateUpdateDelete": true,
+    "outOfRangePageRecovered": true,
+    "detailPlanGate": true
+  },
+  "devRuntime": {
+    "staleSegmentUpdateRejected": true,
+    "outOfRangePageRecovered": true,
+    "crossTenantReadRejected": true,
+    "testCreditPoints": 25,
+    "fixturesCleaned": true
+  },
+  "limits": [
+    "No real email delivery",
+    "No production Lighthouse or SQL EXPLAIN",
+    "No actual 200% browser zoom or full screen reader test",
+    "No separate delete-network-failure test"
+  ],
+  "deployment": "not requested in this turn; no commit/push/deploy"
+}

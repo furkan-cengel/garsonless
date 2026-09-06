@@ -1,0 +1,31 @@
+{
+  "restaurantId": "96dbc3d2-fac9-46fa-91e4-1a220a0a4f79",
+  "customerId": "7d6ab07b-26de-42b8-ae5c-f2f830b3fe71",
+  "list": {
+    "total": 1,
+    "points": 25,
+    "emailMasked": true
+  },
+  "detail": {
+    "found": true,
+    "emailMasked": true,
+    "timelineEvents": 1
+  },
+  "segment": {
+    "created": "Runtime VIP",
+    "updated": "Runtime Active",
+    "deleted": true,
+    "builtinCounts": {
+      "total": 1,
+      "new": 1,
+      "frequent": 0,
+      "lapsed": 0,
+      "consented": 0
+    }
+  },
+  "storeCredit": 25,
+  "staleSegmentRejected": true,
+  "outOfRangePageRecovered": true,
+  "crossTenantRejected": true
+}
+{"cleanup":{"restaurantOrphans":0,"customerOrphans":0,"segmentOrphans":0}}

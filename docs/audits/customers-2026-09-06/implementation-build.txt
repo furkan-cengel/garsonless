@@ -1,0 +1,70 @@
+
+> @garsonless/dashboard@0.0.0 build /Users/furkancengelm3/dev/gersonless/apps/dashboard
+> next build
+
+   ▲ Next.js 15.5.25
+   - Environments: .env.local, .env.production
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 63s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/17) ...
+   Generating static pages (4/17) 
+   Generating static pages (8/17) 
+   Generating static pages (12/17) 
+ ✓ Generating static pages (17/17)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                                                   Size  First Load JS
+┌ ○ /                                                                        191 B         105 kB
+├ ○ /_not-found                                                              191 B         105 kB
+├ ƒ /api/analytics/report                                                    191 B         105 kB
+├ ƒ /api/billing/iyzico/card-update/callback                                 191 B         105 kB
+├ ƒ /api/billing/iyzico/checkout/callback                                    191 B         105 kB
+├ ƒ /api/billing/iyzico/webhook                                              191 B         105 kB
+├ ƒ /api/internal/accounting-invoices                                        191 B         105 kB
+├ ƒ /api/internal/billing-maintenance                                        191 B         105 kB
+├ ƒ /api/internal/inbox                                                      191 B         105 kB
+├ ƒ /api/internal/notification-email                                         191 B         105 kB
+├ ƒ /api/internal/outbox                                                     191 B         105 kB
+├ ƒ /api/internal/push                                                       191 B         105 kB
+├ ƒ /api/internal/web-vitals                                                 191 B         105 kB
+├ ƒ /api/kitchen/launch/[restaurantId]                                       191 B         105 kB
+├ ƒ /api/restaurants/[restaurantId]/billing/invoices/[invoiceId]/document    191 B         105 kB
+├ ƒ /api/uploads/[kind]                                                      191 B         105 kB
+├ ƒ /api/webhooks/resend                                                     191 B         105 kB
+├ ƒ /auth/accept-invite                                                    65.6 kB         174 kB
+├ ƒ /auth/callback                                                           191 B         105 kB
+├ ○ /auth/login                                                             2.8 kB         130 kB
+├ ○ /auth/reset-password                                                   1.53 kB         110 kB
+├ ○ /auth/signup                                                           2.84 kB         130 kB
+├ ƒ /auth/verify-email                                                     1.42 kB         129 kB
+├ ƒ /dashboard                                                               191 B         105 kB
+├ ƒ /dashboard/[restaurantId]                                              37.9 kB         174 kB
+├ ƒ /dashboard/[restaurantId]/analytics                                       2 kB         129 kB
+├ ƒ /dashboard/[restaurantId]/customers                                    55.9 kB         231 kB
+├ ƒ /dashboard/[restaurantId]/customers/[customerId]                       26.6 kB         163 kB
+├ ƒ /dashboard/[restaurantId]/menu                                         5.96 kB         145 kB
+├ ƒ /dashboard/[restaurantId]/orders                                       2.03 kB         129 kB
+├ ƒ /dashboard/[restaurantId]/settings                                     3.37 kB         112 kB
+├ ƒ /dashboard/[restaurantId]/tables                                         440 B         115 kB
+├ ƒ /dashboard/[restaurantId]/tables/order-stands                           6.6 kB         119 kB
+├ ƒ /dashboard/[restaurantId]/tables/qr                                      446 B         115 kB
+├ ƒ /dashboard/[restaurantId]/theme                                         1.6 kB         110 kB
+├ ƒ /dashboard/[restaurantId]/theme/[templateId]/edit                      2.02 kB         120 kB
+├ ƒ /dashboard/onboarding                                                  10.7 kB         130 kB
+├ ○ /icon.svg                                                                  0 B            0 B
+└ ○ /preview/kiosk                                                         2.74 kB         108 kB
++ First Load JS shared by all                                               105 kB
+  ├ chunks/2973-dca416a7c578a983.js                                        46.6 kB
+  ├ chunks/467ad3d8-aec09a64ca74cbb6.js                                    54.2 kB
+  └ other shared chunks (total)                                            4.43 kB
+
+
+ƒ Middleware                                                               89.9 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

@@ -1,0 +1,95 @@
+{
+  "date": "2026-09-06",
+  "commit": "a91709110d425601b022b8ada15e9f783da36bc4",
+  "productMutations": false,
+  "testResults": {
+    "passed": 75,
+    "failed": 0,
+    "skipped": 0
+  },
+  "findings": [
+    {
+      "id": "C01",
+      "priority": "P1",
+      "title": "Mobil kampanya formunun altı kesiliyor",
+      "evidenceType": "Tarayıcı + kaynak"
+    },
+    {
+      "id": "C02",
+      "priority": "P1",
+      "title": "Segment ve kampanya taslakları uyarısız kayboluyor",
+      "evidenceType": "Tarayıcı + kaynak"
+    },
+    {
+      "id": "C03",
+      "priority": "P1",
+      "title": "Segment kaydında beklenmeyen hatadan kurtarma eksik",
+      "evidenceType": "Kaynak; gerçek hata enjeksiyonu yapılmadı"
+    },
+    {
+      "id": "C04",
+      "priority": "P1",
+      "title": "Kampanya onayı güncel hedef kitleyi beklemiyor",
+      "evidenceType": "Kaynak; gerçek e-posta gönderilmedi"
+    },
+    {
+      "id": "C05",
+      "priority": "P1",
+      "title": "Müşteri detayında plan kontrolü listeyle tutarsız",
+      "evidenceType": "Kaynak; plan dışı detay URL’si çalıştırılmadı"
+    },
+    {
+      "id": "C06",
+      "priority": "P1",
+      "title": "Bazı veri hataları gerçek sıfır gibi gösteriliyor",
+      "evidenceType": "Kaynak; kesinti enjekte edilmedi"
+    },
+    {
+      "id": "C07",
+      "priority": "P1",
+      "title": "Segment kural alanlarının erişilebilir adları yok",
+      "evidenceType": "Tarayıcı DOM + ekran + kaynak"
+    },
+    {
+      "id": "C08",
+      "priority": "P2",
+      "title": "Toplam müşteri ve izin yüzdesi filtreli sonuç sayısına bağlanmış",
+      "evidenceType": "Kaynak + DEV salt okunur veri; dolu UI plan nedeniyle kapalı"
+    },
+    {
+      "id": "C09",
+      "priority": "P2",
+      "title": "Sınır dışı sayfa bütün müşteri sayısını sıfırlıyor",
+      "evidenceType": "DEV salt okunur veri + kaynak"
+    },
+    {
+      "id": "C10",
+      "priority": "P1",
+      "title": "Filtreyi kaydet görülen hedef kitleyi korumuyor",
+      "evidenceType": "browser + source"
+    },
+    {
+      "id": "C11",
+      "priority": "P2",
+      "title": "Segment düzenlemede eski sürüm üzerine yazma koruması yok",
+      "evidenceType": "Kaynak; iki oturum yazması yapılmadı"
+    },
+    {
+      "id": "C12",
+      "priority": "P2",
+      "title": "Ana liste ve kampanya aracı gereğinden fazla birbirine bağlı",
+      "evidenceType": "Kaynak; yeni Lighthouse/EXPLAIN ölçümü yapılmadı"
+    }
+  ],
+  "pending": [
+    "populated customer list UI",
+    "customer detail UI",
+    "credit mutation",
+    "actual send",
+    "network failure injection",
+    "two session edit",
+    "200 percent zoom",
+    "screen reader",
+    "production performance measurement"
+  ]
+}
