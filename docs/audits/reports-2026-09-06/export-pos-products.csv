@@ -1,0 +1,19 @@
+﻿Rapor kapsamı
+Dönem,Son 7 gün
+Şube,QA Raporlar Audit
+İşletme kimliği,4938b714-d82f-40aa-b2bf-ab5943b8a114
+Saat dilimi,Europe/Istanbul
+"Dönem başlangıcı (dahil, ISO)",2026-08-30T21:00:00.000Z
+"Dönem bitişi (hariç, ISO)",2026-09-06T12:47:56.297Z
+"Önceki dönem başlangıcı (dahil, ISO)",2026-08-23T21:00:00.000Z
+"Önceki dönem bitişi (hariç, ISO)",2026-08-30T21:00:00.000Z
+Verinin oluşturulma zamanı (ISO),2026-09-06T12:47:56.297Z
+Güncellik,Güncel
+Kanal,all
+Ödeme yöntemi,pos
+Sipariş durumu,all
+Filtre birleşimi,AND
+
+Ürün Performansı (Son 7 gün)
+Ürün,Adet,Tutar (₺),Pay (%),Kümülatif (%),Sınıf,Değişim (%)
+Audit Ürün 1,1,100,100,100,A,Yeni
