@@ -152,8 +152,6 @@ const itemUpdateSchema = itemBaseSchema.partial().extend({
   images: z.array(z.string()).optional(),
 })
 
-export type { MenuBulkImportRow } from '../menu-import-validation'
-
 export interface MenuBulkImportFailure {
   row: number
   category: string

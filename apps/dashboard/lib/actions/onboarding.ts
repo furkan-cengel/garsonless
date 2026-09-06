@@ -29,7 +29,8 @@ import { err, ok, type DashboardActorContext, type Result } from '@garsonless/do
 import { createDashboardServerClient } from '../supabase-server'
 import { getDashboardRequestAuth } from '../auth/current-user'
 import { assertOwner } from '../auth/access'
-import { importMenuRows, type MenuBulkImportRow } from './menu'
+import { importMenuRows } from './menu'
+import type { MenuBulkImportRow } from '../menu-import-validation'
 import { sanitizeServerDiagnostic } from '../server-log-redaction'
 
 const planSchema = z.enum(['starter', 'plus', 'pro']).nullable()

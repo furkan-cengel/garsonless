@@ -17,7 +17,7 @@ import {
   UtensilsCrossed,
 } from 'lucide-react'
 import type { OnboardingSnapshot, OnboardingTargetPlan } from '@garsonless/application/onboarding'
-import type { MenuBulkImportRow } from '../../lib/actions/menu'
+import type { MenuBulkImportRow } from '../../lib/menu-import-validation'
 import {
   createOnboardingMenuItem,
   createOnboardingRestaurant,
