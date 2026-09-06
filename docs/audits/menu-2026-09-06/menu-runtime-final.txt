@@ -1,0 +1,13 @@
+
+> @garsonless/db@0.0.0 test:menu-runtime packages/db
+> DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx --test src/menu-runtime.integration.ts
+
+✔ DEV menu: CAS, tenant isolation, 1001+ rows and referenced media protection (18740.3665ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19181.055875
