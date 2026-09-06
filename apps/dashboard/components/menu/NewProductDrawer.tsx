@@ -1,5 +1,6 @@
 'use client'
 
+import { useMenuDraft } from './MenuDraftProvider'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -115,6 +116,7 @@ export default function NewProductDrawer({
     },
     initialDraftRef.current,
   )
+  useMenuDraft(isDirty, pending, () => onCloseRef.current())
   const dirtyRef = useRef(isDirty)
 
   onCloseRef.current = onClose

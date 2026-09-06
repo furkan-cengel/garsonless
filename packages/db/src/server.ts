@@ -302,3 +302,5 @@ export {
   recordResendNotificationEvent,
   upsertNotificationPreferences,
 } from './notification-email-port'
+
+export { removeUnreferencedMenuMedia } from './menu-media-cleanup'

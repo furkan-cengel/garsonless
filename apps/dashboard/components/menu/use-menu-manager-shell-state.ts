@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useMenuDrafts } from './MenuDraftProvider'
 import type { Tables } from '@garsonless/db/types'
 import type { MenuWorkspaceStage } from './menu-manager-view-model'
 
@@ -14,6 +15,7 @@ export function useMenuManagerShellState({
   initialCategories: MenuCategory[]
   initialItems: MenuItem[]
 }) {
+  const { registry, requestExit } = useMenuDrafts()
   const [mounted, setMounted] = useState(false)
   const [categories, setCategories] = useState(initialCategories)
   const [items, setItems] = useState(initialItems)
@@ -22,8 +24,6 @@ export function useMenuManagerShellState({
   )
   const [activeSubCategory, setActiveSubCategory] = useState<string | null>(null)
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
-  const [itemEditDirty, setItemEditDirty] = useState(false)
-  const [pendingEditorExit, setPendingEditorExit] = useState<(() => void) | null>(null)
   const [showAddItem, setShowAddItem] = useState(false)
   const [categoryAddRequest, setCategoryAddRequest] = useState(0)
   const [search, setSearch] = useState('')
@@ -34,13 +34,11 @@ export function useMenuManagerShellState({
   const searchInputRef = useRef<HTMLInputElement>(null)
   const editorReturnFocusRef = useRef<HTMLElement | null>(null)
   const addItemReturnFocusRef = useRef<HTMLElement | null>(null)
-  const itemEditDirtyRef = useRef(itemEditDirty)
 
   useEffect(() => setMounted(true), [])
-  useEffect(() => { itemEditDirtyRef.current = itemEditDirty }, [itemEditDirty])
 
   useEffect(() => {
-    if (itemEditDirtyRef.current) return
+    if (registry.dirty || registry.pending) return
     setCategories(initialCategories)
     setItems(initialItems)
     setSelectedItem((current) => current
@@ -56,11 +54,11 @@ export function useMenuManagerShellState({
         ? current
         : null
     ))
-  }, [initialCategories, initialItems])
+  }, [initialCategories, initialItems, registry])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'k' && !document.querySelector('[role=dialog], [role=alertdialog]')) {
         event.preventDefault()
         searchInputRef.current?.focus()
       }
@@ -90,8 +88,7 @@ export function useMenuManagerShellState({
   }, [])
 
   function requestEditorExit(action: () => void) {
-    if (!itemEditDirty) action()
-    else setPendingEditorExit(() => action)
+    requestExit(action)
   }
 
   function selectItem(item: MenuItem) {
@@ -159,11 +156,14 @@ export function useMenuManagerShellState({
   }
 
   function requestAddCategory() {
-    setWorkspaceStage('categories')
-    setCategoryAddRequest((current) => current + 1)
+    requestExit(() => {
+      setSelectedItem(null)
+      setWorkspaceStage('categories')
+      setCategoryAddRequest((current) => current + 1)
+    })
   }
 
-  function requestAddItem(event?: { currentTarget: EventTarget | null }) {
+  function openAddItem(event?: { currentTarget: EventTarget | null }) {
     const trigger = event?.currentTarget ?? document.activeElement
     addItemReturnFocusRef.current = trigger instanceof HTMLElement ? trigger : null
     const targetCategoryId = activeSubCategory
@@ -188,6 +188,11 @@ export function useMenuManagerShellState({
     setShowAddItem(true)
   }
 
+  function requestAddItem(event?: { currentTarget: EventTarget | null }) {
+    const currentTarget = event?.currentTarget ?? document.activeElement
+    requestExit(() => { setSelectedItem(null); openAddItem({ currentTarget }) })
+  }
+
   function closeAddItem() {
     setShowAddItem(false)
     requestAnimationFrame(() => addItemReturnFocusRef.current?.focus())
@@ -202,8 +207,9 @@ export function useMenuManagerShellState({
   }
 
   function updateSearch(value: string) {
-    setSearch(value)
-    if (value) setWorkspaceStage('items')
+    const update = () => { setSearch(value); if (value) { setSelectedItem(null); setWorkspaceStage('items') } }
+    if (selectedItem) requestExit(update)
+    else update()
   }
 
   function goBack() {
@@ -211,18 +217,7 @@ export function useMenuManagerShellState({
       closeItemEditor()
       return
     }
-    setWorkspaceStage('categories')
-  }
-
-  function keepEditing() {
-    setPendingEditorExit(null)
-  }
-
-  function discardPendingChanges() {
-    const action = pendingEditorExit
-    setPendingEditorExit(null)
-    setItemEditDirty(false)
-    action?.()
+    requestExit(() => setWorkspaceStage('categories'))
   }
 
   function notify(message: string, tone: 'error' | 'success') {
@@ -242,9 +237,6 @@ export function useMenuManagerShellState({
     setActiveSubCategory,
     selectedItem,
     setSelectedItem,
-    itemEditDirty,
-    setItemEditDirty,
-    pendingEditorExit,
     showAddItem,
     closeAddItem,
     categoryAddRequest,
@@ -271,8 +263,6 @@ export function useMenuManagerShellState({
     requestAddCategory,
     requestAddItem,
     closeItemEditor,
-    keepEditing,
-    discardPendingChanges,
     workspaceStage,
     setWorkspaceStage,
     goBack,

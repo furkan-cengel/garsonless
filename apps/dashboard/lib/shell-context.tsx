@@ -19,6 +19,8 @@ export interface ShellContextValue {
   openHelp: () => void
   openProfile: () => void
   /** Register a message to confirm before in-app navigation (null = no guard). */
+  setNavigationInterceptor?: (handler: ((action: () => void) => boolean) | null) => void
+  interceptNavigation?: (action: () => void) => boolean
   setNavigationGuard: (message: string | null) => void
   /** Read the current guard message at click time. */
   getNavigationGuard: () => string | null

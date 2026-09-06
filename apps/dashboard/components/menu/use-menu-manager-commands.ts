@@ -94,7 +94,7 @@ export function useMenuManagerCommands({
     if (!original) return
     const release = acquire([itemId])
     if (!release) return
-    const apply = (value: typeof patch) => {
+    const apply = (value: typeof patch & { updated_at?: string }) => {
       setItems((current) => patchMenuItemCollection(current, null, itemId, value).items)
       setSelectedItem((current) => patchMenuItemCollection([], current, itemId, value).selectedItem)
     }
@@ -107,6 +107,7 @@ export function useMenuManagerCommands({
       try {
         const formData = new FormData()
         formData.append('id', itemId)
+        formData.append('expectedUpdatedAt', original.updated_at)
         formData.append('restaurantId', restaurantId)
         if (patch.price !== undefined) formData.append('price', String(patch.price))
         if (patch.is_available !== undefined) formData.append('is_available', String(patch.is_available))
@@ -114,6 +115,7 @@ export function useMenuManagerCommands({
         if ('error' in result) { apply(rollback); onError(result.error); return }
         // Do not overwrite unrelated fields changed by the editor or live feed.
         apply({
+          updated_at: result.item.updated_at,
           ...(patch.price !== undefined ? { price: result.item.price } : {}),
           ...(patch.is_available !== undefined ? { is_available: result.item.is_available } : {}),
         })

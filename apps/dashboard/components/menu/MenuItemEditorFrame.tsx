@@ -7,6 +7,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { I } from '../../lib/ui'
 
 interface Props {
+  busy?: boolean
   itemId: string
   itemName: string
   position: number
@@ -19,7 +20,7 @@ interface Props {
   overlay?: ReactNode
 }
 
-export function MenuItemEditorFrame({ itemId, itemName, position, createdAt, updatedAt, tint, onClose, children, footer, overlay }: Props) {
+export function MenuItemEditorFrame({ busy = false, itemId, itemName, position, createdAt, updatedAt, tint, onClose, children, footer, overlay }: Props) {
   const headingRef = useRef<HTMLDivElement>(null)
   const headingId = `menu-item-editor-${itemId}`
 
@@ -87,7 +88,7 @@ export function MenuItemEditorFrame({ itemId, itemName, position, createdAt, upd
           </div>
           <div className="menu-secondary-text" style={{ fontSize: 11, color: 'var(--text-2)' }}>#{itemId.slice(0, 8)}</div>
         </div>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label="Kapat" onClick={onClose}>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label="Kapat" disabled={busy} onClick={onClose}>
           <I.close size={15} />
         </Button>
       </div>
@@ -95,7 +96,7 @@ export function MenuItemEditorFrame({ itemId, itemName, position, createdAt, upd
         className="menu-item-editor-scroll"
         style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', overscrollBehaviorY: 'contain' }}
       >
-        {children}
+        <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>{children}</fieldset>
       </div>
       <div
         style={{

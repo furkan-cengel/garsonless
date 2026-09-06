@@ -73,7 +73,7 @@ export default function ProfileMenu({
   onClose,
 }: Props) {
   const router = useRouter()
-  const { beginNavigation, getNavigationGuard } = useShell()
+  const { beginNavigation, getNavigationGuard, interceptNavigation } = useShell()
   const menuRef = useRef<HTMLDivElement>(null)
   const logoutLockRef = useRef(false)
   const storeAttemptedRef = useRef(false)
@@ -123,13 +123,15 @@ export default function ProfileMenu({
     }
   }, [currentRestaurantId, onClose, pendingRestaurantId, storePending])
 
-  function navigate(href: string) {
+  function navigate(href: string, confirmed = false) {
+    if (!confirmed && interceptNavigation?.(() => navigate(href, true))) return
     beginNavigation(href)
     router.push(href)
     onClose()
   }
 
-  function handleStoreSelect(id: string) {
+  function handleStoreSelect(id: string, confirmed = false) {
+    if (!confirmed && id !== currentRestaurantId && interceptNavigation?.(() => handleStoreSelect(id, true))) return
     if (id === currentRestaurantId) {
       onClose()
       return
@@ -160,6 +162,7 @@ export default function ProfileMenu({
   }
 
   function requestLogout() {
+    if (interceptNavigation?.(() => { void performLogout() })) return
     const guardMessage = getNavigationGuard()
     if (guardMessage) {
       setLogoutGuardMessage(guardMessage)

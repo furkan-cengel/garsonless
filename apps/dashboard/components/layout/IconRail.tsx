@@ -254,7 +254,7 @@ export default function IconRail({
   className,
 }: Props) {
   const router = useRouter()
-  const { overlay, toggleOverlay, beginNavigation, getNavigationGuard } = useShell()
+  const { overlay, toggleOverlay, beginNavigation, getNavigationGuard, interceptNavigation } = useShell()
   const base = `/dashboard/${restaurantId}`
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<{ href: string; message: string } | null>(null)
@@ -299,6 +299,11 @@ export default function IconRail({
       return
     }
 
+    if (interceptNavigation?.(() => { beginNavigation(href); router.push(href) })) {
+      event.preventDefault()
+      if (closeMobileMore) setMobileMoreOpen(false)
+      return
+    }
     const guardMessage = getNavigationGuard()
     if (guardMessage) {
       event.preventDefault()

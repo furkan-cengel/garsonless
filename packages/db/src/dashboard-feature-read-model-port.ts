@@ -4,6 +4,7 @@ import type { DashboardTablesReadModelPort } from '@garsonless/application/table
 import type { ThemeMenuReferenceReadModelPort } from '@garsonless/application/themes'
 import type { DashboardSettingsReadModelPort } from '@garsonless/application/settings'
 import { err, ok } from '@garsonless/domain/result'
+import { readAllPages } from './read-all-pages'
 import { createServiceClient } from './service-client'
 import { DASHBOARD_FEATURE_READ_PROJECTIONS as projection } from './dashboard-feature-read-model-contract'
 import { TEAM_SECURITY_EVENT_TYPES, type TeamSecurityEventType } from './security'
@@ -184,30 +185,33 @@ export function createMenuManagementReadModelPort(): MenuManagementReadModelPort
     async readManagementData({ restaurantId }) {
       const service = createServiceClient()
       const [categoryResult, stationResult] = await Promise.all([
-        service.from('menu_categories')
+        readAllPages((from, to) => service.from('menu_categories')
           .select(projection.menuCategory)
           .eq('restaurant_id', restaurantId)
           .is('deleted_at', null)
-          .order('position'),
-        service.from('kitchen_stations')
+          .order('position').order('id').range(from, to)),
+        readAllPages((from, to) => service.from('kitchen_stations')
           .select(projection.kitchenStation)
           .eq('restaurant_id', restaurantId)
-          .order('position'),
+          .order('position').order('id').range(from, to)),
       ])
       if (categoryResult.error) return err('Kategoriler yüklenemedi.')
       if (stationResult.error) return err('Mutfak istasyonları yüklenemedi.')
 
       const categories = (categoryResult.data ?? []) as unknown as MenuCategoryRow[]
-      let items: MenuItemRow[] = []
-      if (categories.length > 0) {
-        const itemResult = await service.from('menu_items')
+      const items: MenuItemRow[] = []
+      // Keep the PostgREST URL bounded as well as paging its response.
+      for (let offset = 0; offset < categories.length; offset += 100) {
+        const ids = categories.slice(offset, offset + 100).map((category) => category.id)
+        const itemResult = await readAllPages((from, to) => service.from('menu_items')
           .select(projection.menuItem)
-          .in('category_id', categories.map((category) => category.id))
+          .in('category_id', ids)
           .is('deleted_at', null)
-          .order('position')
+          .order('position').order('id').range(from, to))
         if (itemResult.error) return err('Ürünler yüklenemedi.')
-        items = (itemResult.data ?? []) as unknown as MenuItemRow[]
+        items.push(...(itemResult.data ?? []) as unknown as MenuItemRow[])
       }
+      items.sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
 
       return ok({
         categories,

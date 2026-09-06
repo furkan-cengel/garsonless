@@ -1,4 +1,5 @@
 'use client'
+import { MenuDraftProvider, useMenuDraft, useMenuDrafts } from './MenuDraftProvider'
 import { Toaster } from '@/components/ui/toast'
 import type { MenuItemRecommendationRow, Tables } from '@garsonless/db/types'
 import dynamic from 'next/dynamic'
@@ -24,8 +25,12 @@ interface Props {
   initialRecommendations: MenuItemRecommendationRow[]; recommendationsAvailable: boolean
   orderingFeaturesEnabled: boolean; loyaltyStampEnabled: boolean
 }
-export default function MenuManager({ restaurantId, restaurantName, publicMenuPath, initialCategories, initialItems, kitchenStations, initialRecommendations, recommendationsAvailable, orderingFeaturesEnabled, loyaltyStampEnabled }: Props) {
+export default function MenuManager(props: Props) {
+  return <MenuDraftProvider><MenuManagerContent {...props} /></MenuDraftProvider>
+}
+function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, initialCategories, initialItems, kitchenStations, initialRecommendations, recommendationsAvailable, orderingFeaturesEnabled, loyaltyStampEnabled }: Props) {
   const router = useRouter()
+  const { registry, requestExit } = useMenuDrafts()
   const recommendations = useMenuItemRecommendations(initialRecommendations)
   const shell = useMenuManagerShellState({ initialCategories, initialItems })
   const {
@@ -40,9 +45,6 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
     setActiveSubCategory: setActiveSubCat,
     selectedItem,
     setSelectedItem,
-    itemEditDirty,
-    setItemEditDirty,
-    pendingEditorExit,
     showAddItem,
     closeAddItem,
     categoryAddRequest,
@@ -68,8 +70,6 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
     requestAddCategory,
     requestAddItem,
     closeItemEditor,
-    keepEditing,
-    discardPendingChanges,
     workspaceStage,
     goBack,
   } = shell
@@ -104,9 +104,10 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
     onComplete: (message, tone) => notify(message, tone),
     onRefresh: () => router.refresh(),
   })
+  useMenuDraft(false, commands.pending || Boolean(csvImport.preview?.importing), () => {})
   const live = useMenuLiveState({
     restaurantId,
-    hasUnsavedChanges: itemEditDirty || commands.pending || Boolean(csvImport.preview?.importing),
+    hasUnsavedChanges: registry.dirty || registry.pending,
     onRefresh: () => router.refresh(),
   })
   if (!mounted) return <MenuManagerSkeleton />
@@ -147,7 +148,7 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
         onSearchChange={setSearch}
         onSearchFocusChange={setSearchFocused}
         onImportFileChange={csvImport.handleFileChange}
-        onOpenImport={csvImport.openStart}
+        onOpenImport={() => requestExit(csvImport.openStart)}
         onOpenAddCategory={requestAddCategory}
         onOpenAddItem={requestAddItem}
         workspaceStage={workspaceStage}
@@ -196,7 +197,7 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
         />
         {selectedItem ? (
           <MenuItemEditPanel
-            key={selectedItem.id}
+            key={`${selectedItem.id}:${selectedItem.updated_at}`}
             item={selectedItem}
             externalPending={commands.pendingItemIds.has(selectedItem.id) || commands.structuralPending}
             categoryName={activeCatForPanel?.name ?? ''}
@@ -213,7 +214,6 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
             onSaved={saveItem}
             onDeleted={removeItem}
             onError={showError}
-            onDirtyChange={setItemEditDirty}
             onRecommendationsSaved={(ids) => recommendations.replaceForItem(selectedItem.id, ids)}
           />
         ) : (
@@ -222,9 +222,6 @@ export default function MenuManager({ restaurantId, restaurantName, publicMenuPa
       </div>
       {toastMsg && <MenuManagerToast message={toastMsg} tone={toastTone} onDone={clearToast} />}
       <MenuManagerOverlays
-        pendingEditorExit={pendingEditorExit}
-        onKeepEditing={keepEditing}
-        onDiscardChanges={discardPendingChanges}
         csvImport={csvImport}
         showAddItem={showAddItem}
         activeCategoryId={activeSubCat ?? activeCategory}

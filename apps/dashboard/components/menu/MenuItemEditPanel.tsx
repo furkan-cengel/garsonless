@@ -1,5 +1,10 @@
 'use client'
 
+import { useMenuDraft, useMenuDrafts } from './MenuDraftProvider'
+import { useMenuImageDraft } from './use-menu-image-draft'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Field, FieldLabel, FieldError } from '@/components/ui/field'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -9,13 +14,11 @@ import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { LockKeyhole } from 'lucide-react'
 
-import { useEffect, useRef, useState, useTransition, type CSSProperties, type ReactNode } from 'react'
+import { useRef, useState, useTransition, type CSSProperties, type ReactNode } from 'react'
 import type { Tables } from '@garsonless/db/types'
 import type { MenuModifierGroup as ModifierGroup } from '@garsonless/db/browser'
-import { calculateMarginPercent } from '@garsonless/domain/menu'
+import { calculateMarginPercent, parseMenuNumericInput } from '@garsonless/domain/menu'
 import { deleteItem, updateItem } from '../../lib/actions/menu'
-import { uploadMenuImage } from '../../lib/dashboard-media-upload-client'
-import { prepareMenuImage } from '../../lib/menu-image-client'
 import { I, S } from '../../lib/ui'
 import NutritionFields, { appendNutritionToFormData, applyNutritionPatch, nutritionFromItem, NutritionStatusPill, type NutritionState } from './NutritionFields'
 import { MenuConfirmDialog } from './MenuConfirmDialog'
@@ -50,7 +53,6 @@ export function MenuItemEditPanel({
   onSaved,
   onDeleted,
   onError,
-  onDirtyChange,
   onRecommendationsSaved,
 }: {
   item: Tables<'menu_items'>
@@ -70,7 +72,6 @@ export function MenuItemEditPanel({
   onSaved: (updated: Tables<'menu_items'>) => void
   onDeleted: (id: string) => void
   onError: (msg: string) => void
-  onDirtyChange: (dirty: boolean) => void
   onRecommendationsSaved: (ids: string[]) => void
 }) {
   const [name, setName] = useState(item.name)
@@ -87,16 +88,35 @@ export function MenuItemEditPanel({
   const setN = (patch: Partial<NutritionState>) => setNutri((current) => applyNutritionPatch(current, patch))
   const [cost, setCost] = useState(item.cost == null ? '' : String(item.cost))
   const [initialImages] = useState<string[]>(() => (Array.isArray(item.images) ? (item.images as string[]) : []))
-  const [images, setImages] = useState<string[]>(() => initialImages)
+  const media = useMenuImageDraft(initialImages, restaurantId, item.id)
+  const images = media.images
+  const router = useRouter()
+  const { requestExit } = useMenuDrafts()
+  const [validationAttempted, setValidationAttempted] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [conflict, setConflict] = useState(false)
+  const operationLock = useRef(false)
   const [initialModifiers] = useState<ModifierGroup[]>(() => normalizeGroups(item.modifier_groups))
   const [modifiers, setModifiers] = useState<ModifierGroup[]>(() => initialModifiers)
-  const [uploading, setUploading] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [recommendationsDirty, setRecommendationsDirty] = useState(false)
   const tint = tintFor(item.id)
   const marginPercent = calculateMarginPercent(Number(price), cost.trim() === '' ? null : Number(cost))
+  const parsedPrice = parseMenuNumericInput(price, { required: true, min: 0.01 })
+  const parsedCost = parseMenuNumericInput(cost, { min: 0 })
+  const fieldErrors = {
+    name: !name.trim() || name.trim().length > 100 ? 'Ad 1–100 karakter olmalıdır.' : undefined,
+    description: description.length > 500 ? 'Açıklama en fazla 500 karakter olabilir.' : undefined,
+    price: !parsedPrice.ok ? parsedPrice.error : undefined,
+    cost: !parsedCost.ok ? parsedCost.error : undefined,
+  }
+  const fieldProps = (key: keyof typeof fieldErrors) => ({
+    id: `${item.id}-${key}`,
+    'aria-invalid': validationAttempted && Boolean(fieldErrors[key]),
+    'aria-describedby': validationAttempted && fieldErrors[key] ? `${item.id}-${key}-error` : undefined,
+  })
   const currentSnapshot: MenuItemEditorSnapshot = {
     name,
     description,
@@ -112,7 +132,7 @@ export function MenuItemEditPanel({
     images,
     modifiers,
   }
-  const savedSnapshotRef = useRef<MenuItemEditorSnapshot>({
+  const savedSnapshotRef = useRef<MenuItemEditorSnapshot & { nutrition: NutritionState; modifiers: ModifierGroup[] }>({
     name: item.name,
     description: item.description ?? '',
     price: String(item.price),
@@ -131,83 +151,65 @@ export function MenuItemEditPanel({
   const isDirty = itemIsDirty || recommendationsDirty
   const { state: itemSaveState, markSaved: markItemSaved } = useMenuSaveFeedback({
     dirty: itemIsDirty,
-    saving: isPending || uploading,
+    saving: isPending,
   })
 
-  useEffect(() => {
-    onDirtyChange(isDirty)
-    return () => onDirtyChange(false)
-  }, [isDirty, onDirtyChange])
+  useMenuDraft(isDirty, isPending || deleting || externalPending, () => {
+    const saved = savedSnapshotRef.current
+    setName(saved.name); setDescription(saved.description); setPrice(saved.price); setCost(saved.cost)
+    setVatMode(saved.vatMode); setVatRate(saved.vatRate); setStationMode(saved.stationMode)
+    setKitchenStationId(saved.kitchenStationId); setIsAvailable(saved.isAvailable); setEarnsStamp(saved.earnsStamp)
+    setNutri(saved.nutrition); setModifiers(saved.modifiers); media.discard()
+    setSaveError(null); setConflict(false)
+  })
 
-  useEffect(() => {
-    function warnBeforeUnload(event: BeforeUnloadEvent) {
-      if (!isDirty) return
-      event.preventDefault()
-    }
-    window.addEventListener('beforeunload', warnBeforeUnload)
-    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
-  }, [isDirty])
-
-  async function handleUpload(file: File) {
-    const prevImages = images
-    setUploading(true)
-    try {
-      const prepared = await prepareMenuImage(file)
-      const uploadData = new FormData()
-      uploadData.append('restaurantId', restaurantId)
-      uploadData.append('entityId', item.id)
-      uploadData.append('kind', 'items')
-      uploadData.append('file', prepared)
-      const uploadResult = await uploadMenuImage(uploadData)
-      if ('error' in uploadResult) throw new Error(uploadResult.error)
-
-      const newImages = [uploadResult.url, ...prevImages.slice(1)]
-      setImages(newImages)
-      const fd = new FormData()
-      fd.append('id', item.id)
-      fd.append('restaurantId', restaurantId)
-      fd.append('images', JSON.stringify(newImages))
-      const result = await updateItem(fd)
-      if ('error' in result) throw new Error(result.error)
-      savedSnapshotRef.current = {
-        ...savedSnapshotRef.current,
-        images: newImages,
-      }
-      markItemSaved()
-      onSaved(result.item)
-    } catch (uploadError) {
-      setImages(prevImages)
-      onError(uploadError instanceof Error ? uploadError.message : 'Görsel yüklenemedi.')
-    } finally {
-      setUploading(false)
-    }
+  function handleUpload(file: File) {
+    if (operationLock.current || externalPending) return
+    try { media.select(file) } catch (error) { onError(error instanceof Error ? error.message : 'Görsel seçilemedi.') }
   }
 
   function handleSave() {
-    if (!itemIsDirty || isPending || uploading) return
+    if (!itemIsDirty || operationLock.current || externalPending) return
+    setValidationAttempted(true)
+    if (Object.values(fieldErrors).some(Boolean)) {
+      document.getElementById(`${item.id}-${Object.keys(fieldErrors).find((key) => fieldErrors[key as keyof typeof fieldErrors])}`)?.focus()
+      return
+    }
+    operationLock.current = true
+    setSaveError(null)
+    setConflict(false)
     startTransition(async () => {
-      const fd = new FormData()
-      fd.append('id', item.id)
-      fd.append('restaurantId', restaurantId)
-      fd.append('name', name)
-      fd.append('description', description)
-      fd.append('price', price)
-      fd.append('vat_rate', vatMode === 'category' ? '' : vatRate)
-      fd.append('kitchen_station_id', stationMode === 'category' ? '' : kitchenStationId)
-      fd.append('is_available', String(isAvailable))
-      if (loyaltyStampEnabled) fd.append('earns_stamp', String(earnsStamp))
-      appendNutritionToFormData(fd, nutri)
-      fd.append('cost', cost)
-      fd.append('images', JSON.stringify(images))
-      fd.append('modifier_groups', JSON.stringify(modifiers))
-      const result = await updateItem(fd)
-      if ('error' in result) {
-        onError(result.error)
-        return
-      }
-      savedSnapshotRef.current = currentSnapshot
-      markItemSaved()
-      onSaved(result.item)
+      try {
+        const resolvedImages = await media.resolve()
+        const fd = new FormData()
+        fd.append('id', item.id)
+        fd.append('expectedUpdatedAt', item.updated_at)
+        fd.append('restaurantId', restaurantId)
+        fd.append('name', name)
+        fd.append('description', description)
+        fd.append('price', price)
+        fd.append('vat_rate', vatMode === 'category' ? '' : vatRate)
+        fd.append('kitchen_station_id', stationMode === 'category' ? '' : kitchenStationId)
+        fd.append('is_available', String(isAvailable))
+        if (loyaltyStampEnabled) fd.append('earns_stamp', String(earnsStamp))
+        appendNutritionToFormData(fd, nutri)
+        fd.append('cost', cost)
+        fd.append('images', JSON.stringify(resolvedImages))
+        fd.append('modifier_groups', JSON.stringify(modifiers))
+        const result = await updateItem(fd)
+        if ('error' in result) {
+          setSaveError(result.error)
+          setConflict(result.code === 'conflict')
+          onError(result.error)
+          return
+        }
+        media.commit(resolvedImages)
+        savedSnapshotRef.current = { ...currentSnapshot, nutrition: nutri, modifiers, images: resolvedImages }
+        markItemSaved()
+        onSaved(result.item)
+      } catch {
+        setSaveError('Ürün kaydedilemedi. Taslağın korundu; bağlantını kontrol edip tekrar deneyebilirsin.')
+      } finally { operationLock.current = false }
     })
   }
 
@@ -216,16 +218,21 @@ export function MenuItemEditPanel({
   }
 
   function confirmDelete() {
+    if (operationLock.current || externalPending) return
+    operationLock.current = true
     setDeleting(true)
     startTransition(async () => {
-      const result = await deleteItem(item.id, restaurantId)
-      if ('error' in result) {
-        setDeleting(false)
-        onError(result.error)
-        return
-      }
-      setDeleteConfirmOpen(false)
-      onDeleted(item.id)
+      try {
+        const result = await deleteItem(item.id, restaurantId)
+        if ('error' in result) {
+          setDeleting(false)
+          onError(result.error)
+          return
+        }
+        setDeleteConfirmOpen(false)
+        onDeleted(item.id)
+      } catch { onError('Ürün silinemedi. Bağlantını kontrol edip tekrar deneyin.') }
+      finally { setDeleting(false); operationLock.current = false }
     })
   }
 
@@ -242,32 +249,13 @@ export function MenuItemEditPanel({
 
   const mainImage = images[0] ?? null
 
-  async function handleRemoveImage() {
-    const previousImages = images
-    setImages([])
-    setUploading(true)
-    const fd = new FormData()
-    fd.append('id', item.id)
-    fd.append('restaurantId', restaurantId)
-    fd.append('images', JSON.stringify([]))
-    const result = await updateItem(fd)
-    if ('error' in result) {
-      setImages(previousImages)
-      setUploading(false)
-      onError(result.error)
-      return
-    }
-    savedSnapshotRef.current = {
-      ...savedSnapshotRef.current,
-      images: [],
-    }
-    setUploading(false)
-    markItemSaved()
-    onSaved(result.item)
+  function handleRemoveImage() {
+    if (!operationLock.current && !externalPending) media.remove()
   }
 
   return (
     <MenuItemEditorFrame
+      busy={isPending || deleting || externalPending}
       itemId={item.id}
       itemName={item.name}
       position={item.position}
@@ -367,6 +355,10 @@ export function MenuItemEditPanel({
         ) : null
       }
     >
+      {saveError && <Alert variant="destructive">
+        <AlertDescription>{saveError}</AlertDescription>
+        {conflict && <Button type="button" variant="outline" onClick={() => requestExit(() => router.refresh())}>Güncel ürünü yükle</Button>}
+      </Alert>}
       {/* Image */}
       <div style={{ padding: 16 }}>
         <MenuImageAttachment
@@ -375,9 +367,9 @@ export function MenuItemEditPanel({
           mediaStyle={{ background: tint }}
           imageUrl={mainImage}
           title={`${item.name} görseli`}
-          description={mainImage ? 'Yüklendi · değiştirmek için tıkla' : 'JPG, PNG, WebP veya AVIF'}
+          description={mainImage?.startsWith('blob:') ? 'Taslak · Kaydet ile yayımlanır' : mainImage ? 'Değişiklikler Kaydet ile yayımlanır' : 'JPG, PNG, WebP veya AVIF'}
           imageAlt={item.name}
-          uploading={uploading}
+          uploading={isPending}
           orientation="vertical"
           placeholder={<I.menuDish size={58} />}
           onFileSelected={handleUpload}
@@ -405,11 +397,11 @@ export function MenuItemEditPanel({
 
       {/* Genel */}
       <PanelSection title="Genel">
-        <FieldRow label="Ad">
-          <Input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+        <FieldRow label="Ad" htmlFor={`${item.id}-name`} error={validationAttempted ? fieldErrors.name : undefined}>
+          <Input {...fieldProps('name')} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
         </FieldRow>
-        <FieldRow label="Açıklama">
-          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
+        <FieldRow label="Açıklama" htmlFor={`${item.id}-description`} error={validationAttempted ? fieldErrors.description : undefined}>
+          <Textarea {...fieldProps('description')} maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
         </FieldRow>
         <FieldRow label="Kategori">
           <span
@@ -518,9 +510,10 @@ export function MenuItemEditPanel({
       {/* Fiyatlandırma */}
       <PanelSection title="Fiyatlandırma">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <FieldInline label="Satış fiyatı">
+          <FieldInline label="Satış fiyatı" htmlFor={`${item.id}-price`} error={validationAttempted ? fieldErrors.price : undefined}>
             <Input
               type="number"
+              {...fieldProps('price')}
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               style={{
@@ -530,8 +523,8 @@ export function MenuItemEditPanel({
               }}
             />
           </FieldInline>
-          <FieldInline label="Maliyet">
-            <Input type="number" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="—" style={{ ...inputStyle, fontFamily: "'Geist Mono', monospace" }} />
+          <FieldInline label="Maliyet" htmlFor={`${item.id}-cost`} error={validationAttempted ? fieldErrors.cost : undefined}>
+            <Input {...fieldProps('cost')} type="number" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="—" style={{ ...inputStyle, fontFamily: "'Geist Mono', monospace" }} />
           </FieldInline>
         </div>
         {marginPercent !== null && (
@@ -787,47 +780,21 @@ function PanelSection({ title, children }: { title: string; children: ReactNode 
   )
 }
 
-function FieldRow({ label, children }: { label: string; children: ReactNode }) {
+function FieldRow({ label, children, htmlFor, error }: { label: string; children: ReactNode; htmlFor?: string; error?: string }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 10,
-        padding: '6px 0',
-      }}
-    >
-      <span
-        style={{
-          fontSize: 12,
-          color: 'var(--text-2)',
-          width: 80,
-          flexShrink: 0,
-          paddingTop: 6,
-        }}
-      >
-        {label}
-      </span>
-      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
-    </div>
+    <Field data-invalid={Boolean(error)} orientation="horizontal" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 0' }}>
+      <FieldLabel htmlFor={htmlFor} style={{ fontSize: 12, color: 'var(--text-2)', width: 80, flex: '0 0 80px', fontWeight: 400, paddingTop: 6 }}>{label}</FieldLabel>
+      <div style={{ flex: 1, minWidth: 0 }}>{children}{error && <FieldError id={`${htmlFor}-error`}>{error}</FieldError>}</div>
+    </Field>
   )
 }
 
-function FieldInline({ label, children }: { label: string; children: ReactNode }) {
+function FieldInline({ label, children, htmlFor, error }: { label: string; children: ReactNode; htmlFor?: string; error?: string }) {
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div
-        style={{
-          fontSize: 10,
-          color: 'var(--text-3)',
-          letterSpacing: '.05em',
-          textTransform: 'uppercase',
-          marginBottom: 4,
-        }}
-      >
-        {label}
-      </div>
+    <Field data-invalid={Boolean(error)} style={{ marginBottom: 8, gap: 0 }}>
+      <FieldLabel htmlFor={htmlFor} style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</FieldLabel>
       {children}
-    </div>
+      {error && <FieldError id={`${htmlFor}-error`}>{error}</FieldError>}
+    </Field>
   )
 }

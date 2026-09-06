@@ -9,6 +9,7 @@ import {
   type MenuIngredient,
 } from '@garsonless/db/browser'
 import { parseMenuNumericInput } from '@garsonless/domain/menu'
+import { menuImportRowErrors, parseCsvBoolean } from '../../lib/menu-import-validation'
 import { importMenuRows } from '../../lib/actions/menu'
 
 export interface CsvPreviewRow {
@@ -186,7 +187,11 @@ export function useMenuCsvImport({
               ingredients.length === 0 ? 'içerik' : null,
               energyKcal === null ? 'kalori' : null,
             ].filter(Boolean)
-            return {
+            const alcohol = parseCsvBoolean(row['Alkol'], 'Alkol')
+            const pork = parseCsvBoolean(row['Domuz Kaynaklı'], 'Domuz Kaynaklı')
+            if (alcohol.error) errors.push(alcohol.error)
+            if (pork.error) errors.push(pork.error)
+            const previewRow = {
               sourceRow: index + 2,
               category,
               name,
@@ -195,8 +200,12 @@ export function useMenuCsvImport({
               ingredients,
               energyKcal,
               mayContainAllergens: allergens.codes,
-              containsAlcohol: ['evet', 'true', '1'].includes((row['Alkol'] ?? '').trim().toLocaleLowerCase('tr-TR')),
-              containsPork: ['evet', 'true', '1'].includes((row['Domuz Kaynaklı'] ?? '').trim().toLocaleLowerCase('tr-TR')),
+              containsAlcohol: alcohol.value,
+              containsPork: pork.value,
+            }
+            errors.push(...menuImportRowErrors(previewRow))
+            return {
+              ...previewRow,
               error: errors.length > 0 ? errors.join(' · ') : undefined,
               warning: errors.length === 0 && missingFoodInfo.length > 0
                 ? `${missingFoodInfo.join(' ve ')} eksik`

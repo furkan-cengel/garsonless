@@ -146,7 +146,7 @@ const NOTIFICATIONS_CSS = `
 `
 
 export default function NotificationsPanel({ restaurantId, browserNotificationsEnabled, onClose }: Props) {
-  const { beginNavigation } = useShell()
+  const { beginNavigation, interceptNavigation } = useShell()
   const router = useRouter()
   const dialogRef = useModalDialogFocus(onClose)
   const [items, setItems] = useState<NotificationItem[]>([])
@@ -216,11 +216,11 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
     if (!item.readAt && !await markRead([item.id])) return
     if (generation !== requestGeneration.current) return
     if (item.linkPath) {
-      onClose()
-      beginNavigation(item.linkPath)
-      router.push(item.linkPath)
+      const href = item.linkPath
+      const navigate = () => { onClose(); beginNavigation(href); router.push(href) }
+      if (!interceptNavigation?.(navigate)) navigate()
     }
-  }, [beginNavigation, loading, markRead, onClose, router])
+  }, [beginNavigation, interceptNavigation, loading, markRead, onClose, router])
 
   const handleMarkAllRead = useCallback(() => markRead(), [markRead])
 
@@ -249,10 +249,9 @@ export default function NotificationsPanel({ restaurantId, browserNotificationsE
 
   const goToOrders = useCallback(() => {
     const href = `/dashboard/${restaurantId}/orders`
-    onClose()
-    beginNavigation(href)
-    router.push(href)
-  }, [beginNavigation, onClose, router, restaurantId])
+    const navigate = () => { onClose(); beginNavigation(href); router.push(href) }
+    if (!interceptNavigation?.(navigate)) navigate()
+  }, [beginNavigation, interceptNavigation, onClose, router, restaurantId])
 
   return (
     <div

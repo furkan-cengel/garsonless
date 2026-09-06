@@ -132,6 +132,9 @@ export default function RestaurantShell({
   const [inboxUnread, setInboxUnread] = useState(0)
   const [waiterToast, setWaiterToast] = useState<{ tableLabel: string; label: string } | null>(null)
   const tableLabelsRef = useRef<Record<string, string>>({})
+  const navigationInterceptorRef = useRef<((action: () => void) => boolean) | null>(null)
+  const setNavigationInterceptor = useCallback((handler: ((action: () => void) => boolean) | null) => { navigationInterceptorRef.current = handler }, [])
+  const interceptNavigation = useCallback((action: () => void) => navigationInterceptorRef.current?.(action) ?? false, [])
   const navigationGuardRef = useRef<string | null>(null)
   const navigationFeedback = useNavigationFeedback()
 
@@ -413,6 +416,8 @@ export default function RestaurantShell({
     openNotifications,
     openHelp,
     openProfile,
+    setNavigationInterceptor,
+    interceptNavigation,
     setNavigationGuard,
     getNavigationGuard,
     beginNavigation: navigationFeedback.beginNavigation,
@@ -436,6 +441,8 @@ export default function RestaurantShell({
     permissions,
     sectionEntitlements,
     tableOperationsAllowed,
+    setNavigationInterceptor,
+    interceptNavigation,
     setNavigationGuard,
     toggleOverlay,
     userAvatarUrl,

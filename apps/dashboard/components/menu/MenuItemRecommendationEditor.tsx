@@ -1,5 +1,6 @@
 'use client'
 
+import { useMenuDraft } from './MenuDraftProvider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
@@ -41,6 +42,7 @@ export function MenuItemRecommendationEditor({
     })
     .slice(0, 12)
   const isDirty = !haveSameOrderedIds(selectedIds, savedIdsRef.current)
+  useMenuDraft(isDirty, isPending, () => setSelectedIds(savedIdsRef.current))
   const { state: saveState, markSaved } = useMenuSaveFeedback({
     dirty: isDirty,
     saving: isPending,

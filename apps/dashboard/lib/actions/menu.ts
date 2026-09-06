@@ -2,6 +2,7 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
+import { bulkImportRowSchema, type MenuBulkImportRow } from '../menu-import-validation'
 import { assertAccess, assertRestaurantFeature } from '../auth/access'
 import type { Tables } from '@garsonless/db/types'
 import {
@@ -26,6 +27,7 @@ import {
 } from '@garsonless/application/menu'
 import {
   createMenuCommandPort,
+  removeUnreferencedMenuMedia,
   createRestaurantAssetStoragePort,
 } from '@garsonless/db/server'
 import { createDashboardServerClient } from '../supabase-server'
@@ -144,25 +146,13 @@ const itemSchema = itemBaseSchema.superRefine((item, context) => {
 })
 
 const itemUpdateSchema = itemBaseSchema.partial().extend({
+  expectedUpdatedAt: z.string().datetime({ offset: true }),
   id: z.string().uuid(),
   restaurantId: z.string().uuid(),
   images: z.array(z.string()).optional(),
 })
 
-const bulkImportRowSchema = z.object({
-  sourceRow: z.number().int().min(2),
-  category: z.string().trim().min(1).max(100),
-  name: z.string().trim().min(1).max(100),
-  description: z.string().trim().max(500),
-  price: z.number().min(0.01),
-  ingredients: z.array(ingredientSchema).max(100),
-  energyKcal: z.number().int().min(0).nullable(),
-  mayContainAllergens: z.array(z.enum(ALLERGEN_CODES)),
-  containsAlcohol: z.boolean(),
-  containsPork: z.boolean(),
-})
-
-export type MenuBulkImportRow = z.infer<typeof bulkImportRowSchema>
+export type { MenuBulkImportRow } from '../menu-import-validation'
 
 export interface MenuBulkImportFailure {
   row: number
@@ -201,6 +191,8 @@ async function getMenuActor(restaurantId: string): Promise<MenuActionFailure | D
 }
 
 function menuCommandFailure(error: unknown, message: string): MenuActionFailure {
+  if (error === 'menu_item_conflict') return { error: 'Bu ürün başka bir oturumda değiştirildi. Taslağın korundu; güncel ürünü yükleyip değişikliklerini tekrar uygulayabilirsin.', code: 'conflict' }
+  if (error === 'Item not found') return { error: 'Ürün artık mevcut değil veya bu işletmeye ait değil.', code: 'not_found' }
   console.error('[menu-command-failure]', sanitizeServerDiagnostic(error))
   return { error: message, code: 'unavailable' }
 }
@@ -306,6 +298,19 @@ export async function uploadMenuImage(
   } catch (error) {
     console.error('[menu-image-upload-failure]', sanitizeServerDiagnostic(error))
     return { error: 'Görsel yüklenemedi. Lütfen tekrar deneyin.' }
+  }
+}
+
+export async function removeUnusedMenuImage(restaurantId: string, publicUrl: string): Promise<{ removed: boolean } | { error: string }> {
+  if (!z.string().uuid().safeParse(restaurantId).success || publicUrl.length > 2048) return { error: 'Geçersiz görsel hedefi.' }
+  const actor = await getMenuActor(restaurantId)
+  if ('error' in actor) return actor
+  const storageOrigin = process.env['NEXT_PUBLIC_SUPABASE_URL']
+  if (!storageOrigin) return { error: 'Görsel servisi kullanılamıyor.' }
+  try {
+    return { removed: await removeUnreferencedMenuMedia({ restaurantId, publicUrl, storageOrigin }) }
+  } catch {
+    return { error: 'Görselin kullanılmadığı doğrulanamadı; dosya korundu.' }
   }
 }
 
@@ -543,11 +548,12 @@ export async function updateItem(
   const invalidNumeric = Object.values(numericFields).find((field) => !field.ok)
   if (invalidNumeric && !invalidNumeric.ok) return { error: invalidNumeric.error }
   const parsed = itemUpdateSchema.safeParse({
+    expectedUpdatedAt: formData.get('expectedUpdatedAt'),
     id: formData.get('id'),
     restaurantId: formData.get('restaurantId'),
     categoryId: formData.get('categoryId') ?? undefined,
     name: formData.get('name') ?? undefined,
-    description: formData.get('description'),
+    description: formData.has('description') ? formData.get('description') : undefined,
     price: numericFields.price.ok ? numericFields.price.value : undefined,
     vat_rate: numericFields.vatRate.ok ? numericFields.vatRate.value : undefined,
     kitchen_station_id: nullableUuidFormValue(formData, 'kitchen_station_id'),

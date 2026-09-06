@@ -40,7 +40,7 @@ interface Props {
 }
 
 export default function StoreSwitcher({ restaurants, currentRestaurantId, isOwner, onClose }: Props) {
-  const { beginNavigation } = useShell()
+  const { beginNavigation, interceptNavigation } = useShell()
   const [query, setQuery] = useState('')
   const [pending, startTransition] = useTransition()
   const [pendingId, setPendingId] = useState<string | null>(null)
@@ -67,7 +67,8 @@ export default function StoreSwitcher({ restaurants, currentRestaurantId, isOwne
     }
   }, [currentRestaurantId, onClose, pending, pendingId])
 
-  function handleSelect(id: string) {
+  function handleSelect(id: string, confirmed = false) {
+    if (!confirmed && id !== currentRestaurantId && interceptNavigation?.(() => handleSelect(id, true))) return
     if (id === currentRestaurantId) {
       onClose()
       return
@@ -137,9 +138,8 @@ export default function StoreSwitcher({ restaurants, currentRestaurantId, isOwne
             className="store-switcher-row"
             onClick={() => {
               const href = `/dashboard/${currentRestaurantId}/settings?section=workspace`
-              beginNavigation(href)
-              router.push(href)
-              onClose()
+              const navigate = () => { beginNavigation(href); router.push(href); onClose() }
+              if (!interceptNavigation?.(navigate)) navigate()
             }}
             style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '6px 10px', borderRadius: 7, border: 0, background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', textAlign: 'left' }}
           >

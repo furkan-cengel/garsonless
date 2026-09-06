@@ -82,6 +82,7 @@ test('normalizes allergens and review state in the application command', async (
   }
   const result = await updateMenuItem(context, {
     id: 'item',
+    expectedUpdatedAt: '2026-07-15T08:00:00.000Z',
     restaurantId: 'restaurant-a',
     contains_allergens: ['milk'],
     may_contain_allergens: ['milk', 'sesame'],

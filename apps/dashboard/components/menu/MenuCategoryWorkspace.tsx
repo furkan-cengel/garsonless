@@ -1,5 +1,6 @@
 'use client'
 
+import { useMenuDrafts } from './MenuDraftProvider'
 import { Button } from '@/components/ui/button'
 
 import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react'
@@ -42,6 +43,7 @@ export function MenuCategoryWorkspace({
   onCategoriesReordered,
   addRequest,
 }: Props) {
+  const { requestExit } = useMenuDrafts()
   const [adding, setAdding] = useState(false)
   const [addingSubCategoryFor, setAddingSubCategoryFor] = useState<string | null>(null)
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
@@ -65,14 +67,14 @@ export function MenuCategoryWorkspace({
     activeTopId: view.activeTopId,
     restaurantId,
     addingSubCatFor: addingSubCategoryFor,
-    onAddingSubCategoryChange: setAddingSubCategoryFor,
+    onAddingSubCategoryChange: (id: string | null) => requestExit(() => setAddingSubCategoryFor(id)),
     onSelect,
-    onDeleteRequest: setConfirmDeleteId,
+    onDeleteRequest: (id: string) => requestExit(() => setConfirmDeleteId(id)),
     onCategoryAdded,
     onCategoryUpdated,
-    onCategoriesReordered,
+    onCategoriesReordered: (next: Tables<'menu_categories'>[]) => requestExit(() => onCategoriesReordered(next)),
     editingCategoryId,
-    onEditingCategoryChange: setEditingCategoryId,
+    onEditingCategoryChange: (id: string | null) => requestExit(() => setEditingCategoryId(id)),
   }
   const deleteCategory = confirmDeleteId ? categories.find((category) => category.id === confirmDeleteId) : null
   const directChildCount = confirmDeleteId ? categories.filter((category) => category.parent_id === confirmDeleteId).length : 0
@@ -128,7 +130,7 @@ export function MenuCategoryWorkspace({
           <Button
             type="button"
             className="menu-category-add"
-            onClick={() => setAdding(true)}
+            onClick={() => requestExit(() => setAdding(true))}
             style={{
               display: 'flex',
               alignItems: 'center',

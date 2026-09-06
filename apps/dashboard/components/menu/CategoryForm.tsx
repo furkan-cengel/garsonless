@@ -1,5 +1,6 @@
 'use client'
 
+import { useMenuDraft, useMenuDrafts } from './MenuDraftProvider'
 import { Button } from '@/components/ui/button'
 import {
   Combobox,
@@ -13,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { createCategory, updateCategory } from '../../lib/actions/menu'
 import { uploadMenuImage } from '../../lib/dashboard-media-upload-client'
 import { prepareMenuImage } from '../../lib/menu-image-client'
@@ -97,13 +98,18 @@ function KitchenStationCombobox({
 
 export default function CategoryForm({ restaurantId, parentId, existing, kitchenStations = [], onCreated, onUpdated, onCancel }: Props) {
   const [name, setName] = useState(existing?.name ?? '')
-  const [description, setDescription] = useState(existing?.description ?? null)
+  const [description, setDescription] = useState(existing?.description ?? '')
   const [vatRate, setVatRate] = useState(String(existing?.vat_rate ?? 10))
   const [kitchenStationId, setKitchenStationId] = useState(existing?.kitchen_station_id ?? '')
   const [imageUrl, setImageUrl] = useState(existing?.image_url ?? '')
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
+  const { requestExit } = useMenuDrafts()
+  const baseline = useRef(JSON.stringify([existing?.name ?? '', existing?.description ?? '', String(existing?.vat_rate ?? 10), existing?.kitchen_station_id ?? '', existing?.image_url ?? '']))
+  const dirty = JSON.stringify([name, description, vatRate, kitchenStationId, imageUrl]) !== baseline.current
+  const operationLock = useRef(false)
+  useMenuDraft(dirty, isPending || uploading, onCancel)
   const selectedVatPreset = VAT_PRESETS.includes(Number(vatRate)) ? [vatRate] : []
 
   async function handleImageUpload(file: File) {
@@ -128,62 +134,67 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (operationLock.current || uploading) return
+    operationLock.current = true
     setError('')
     startTransition(async () => {
-      const submittedVatRate = vatRate.trim() === '' ? String(existing?.vat_rate ?? 10) : vatRate
-      const submittedVatNumber = Number(submittedVatRate)
-      if (existing) {
-        const fd = new FormData()
-        fd.append('id', existing.id)
-        fd.append('restaurantId', restaurantId)
-        fd.append('name', name)
-        fd.append('vat_rate', submittedVatRate)
-        fd.append('kitchen_station_id', kitchenStationId)
-        fd.append('image_url', imageUrl)
-        if (description) fd.append('description', description)
-        const result = await updateCategory(fd)
-        if ('error' in result) {
-          setError(result.error)
-          return
+      try {
+        const submittedVatRate = vatRate.trim() === '' ? String(existing?.vat_rate ?? 10) : vatRate
+        const submittedVatNumber = Number(submittedVatRate)
+        if (existing) {
+          const fd = new FormData()
+          fd.append('id', existing.id)
+          fd.append('restaurantId', restaurantId)
+          fd.append('name', name)
+          fd.append('vat_rate', submittedVatRate)
+          fd.append('kitchen_station_id', kitchenStationId)
+          fd.append('image_url', imageUrl)
+          fd.append('description', description ?? '')
+          const result = await updateCategory(fd)
+          if ('error' in result) {
+            setError(result.error)
+            return
+          }
+          onUpdated?.({
+            ...existing,
+            name,
+            description: description ?? null,
+            image_url: imageUrl || null,
+            vat_rate: Number.isFinite(submittedVatNumber) ? submittedVatNumber : 0,
+            kitchen_station_id: kitchenStationId || null,
+          })
+        } else {
+          const fd = new FormData()
+          fd.append('restaurantId', restaurantId)
+          fd.append('name', name)
+          fd.append('vat_rate', submittedVatRate)
+          fd.append('kitchen_station_id', kitchenStationId)
+          fd.append('image_url', imageUrl)
+          fd.append('description', description ?? '')
+          if (parentId) fd.append('parentId', parentId)
+          const result = await createCategory(null, fd)
+          if ('error' in result) {
+            setError(result.error)
+            return
+          }
+          onCreated?.({
+            id: result.id,
+            restaurant_id: restaurantId,
+            name,
+            description: description ?? null,
+            image_url: imageUrl || null,
+            position: 0,
+            is_visible: true,
+            parent_id: parentId ?? null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            deleted_at: null,
+            vat_rate: Number.isFinite(submittedVatNumber) ? submittedVatNumber : 10,
+            kitchen_station_id: kitchenStationId || null,
+          } as Tables<'menu_categories'>)
         }
-        onUpdated?.({
-          ...existing,
-          name,
-          description: description ?? null,
-          image_url: imageUrl || null,
-          vat_rate: Number.isFinite(submittedVatNumber) ? submittedVatNumber : 0,
-          kitchen_station_id: kitchenStationId || null,
-        })
-      } else {
-        const fd = new FormData()
-        fd.append('restaurantId', restaurantId)
-        fd.append('name', name)
-        fd.append('vat_rate', submittedVatRate)
-        fd.append('kitchen_station_id', kitchenStationId)
-        fd.append('image_url', imageUrl)
-        if (description) fd.append('description', description)
-        if (parentId) fd.append('parentId', parentId)
-        const result = await createCategory(null, fd)
-        if ('error' in result) {
-          setError(result.error)
-          return
-        }
-        onCreated?.({
-          id: result.id,
-          restaurant_id: restaurantId,
-          name,
-          description: description ?? null,
-          image_url: imageUrl || null,
-          position: 0,
-          is_visible: true,
-          parent_id: parentId ?? null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          deleted_at: null,
-          vat_rate: Number.isFinite(submittedVatNumber) ? submittedVatNumber : 10,
-          kitchen_station_id: kitchenStationId || null,
-        } as Tables<'menu_categories'>)
-      }
+      } catch { setError('Kategori kaydedilemedi. Değişikliklerin korundu; tekrar deneyebilirsin.') }
+      finally { operationLock.current = false }
     })
   }
 
@@ -200,6 +211,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
         gap: 6,
       }}
     >
+      <fieldset disabled={isPending || uploading} style={{ display: 'contents' }}>
       <Input type="text" placeholder="Kategori adı" value={name} onChange={(e) => setName(e.target.value)} required autoFocus style={inputStyle} />
       <MenuImageAttachment
         imageUrl={imageUrl || null}
@@ -210,7 +222,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
         onFileSelected={handleImageUpload}
         onRemove={() => setImageUrl('')}
       />
-      <Input type="text" placeholder="Açıklama (opsiyonel)" value={description ?? ''} onChange={(e) => setDescription(e.target.value || null)} style={inputStyle} />
+      <Input type="text" placeholder="Açıklama (opsiyonel)" value={description ?? ''} onChange={(e) => setDescription(e.target.value)} style={inputStyle} />
       <div style={{ display: 'grid', gap: 5 }}>
         <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)' }}>Varsayılan KDV oranı</label>
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_64px] gap-1.5">
@@ -308,7 +320,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
         <Button
           className="category-form-action category-form-cancel"
           type="button"
-          onClick={onCancel}
+          onClick={() => requestExit(onCancel)}
           style={{
             height: 30,
             padding: '0 10px',
@@ -323,6 +335,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
           İptal
         </Button>
       </div>
+      </fieldset>
     </form>
   )
 }

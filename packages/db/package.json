@@ -64,7 +64,8 @@
     "verify:platform-impersonation": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-impersonation-runtime.ts",
     "verify:platform-errors": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-error-center-runtime.ts",
     "verify:platform-privacy": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-privacy-runtime.ts",
-    "bootstrap:platform-superadmin": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/bootstrap-platform-superadmin.ts"
+    "bootstrap:platform-superadmin": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/bootstrap-platform-superadmin.ts",
+    "test:menu-runtime": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx --test src/menu-runtime.integration.ts"
   },
   "dependencies": {
     "@garsonless/application": "workspace:*",

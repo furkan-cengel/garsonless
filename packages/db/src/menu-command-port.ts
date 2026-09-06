@@ -129,6 +129,7 @@ function itemInsert(
 function itemUpdate(input: PreparedMenuItemPatch): TablesUpdate<'menu_items'> {
   const {
     id: _id,
+    expectedUpdatedAt: _expectedUpdatedAt,
     restaurantId: _restaurantId,
     categoryId,
     modifier_groups,
@@ -242,10 +243,12 @@ export function createMenuCommandPort(): MenuCommandPort<MenuItem> {
         .from('menu_items')
         .update(itemUpdate(input))
         .eq('id', input.id)
+        .eq('updated_at', input.expectedUpdatedAt)
+        .is('deleted_at', null)
         .select('*')
         .maybeSingle()
       if (error) return err(error.message)
-      return data ? ok(data) : err('Item not found')
+      return data ? ok(data) : err('menu_item_conflict')
     },
 
     async deleteItem(input) {

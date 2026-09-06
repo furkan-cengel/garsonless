@@ -54,6 +54,7 @@ export interface MenuItemDraft {
 }
 
 export interface MenuItemPatch extends Partial<Omit<MenuItemDraft, 'restaurantId'>> {
+  expectedUpdatedAt: string
   id: string
   restaurantId: string
 }

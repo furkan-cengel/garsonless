@@ -2,7 +2,6 @@
 
 import dynamic from 'next/dynamic'
 import type { Tables } from '@garsonless/db/types'
-import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import type { useMenuCsvImport } from './use-menu-csv-import'
 
 const NewProductDrawer = dynamic(() => import('./NewProductDrawer'))
@@ -10,9 +9,6 @@ const CsvImportStartModal = dynamic(() => import('./MenuCsvImportOverlays').then
 const CsvImportModal = dynamic(() => import('./MenuCsvImportOverlays').then((module) => module.CsvImportModal))
 
 export function MenuManagerOverlays({
-  pendingEditorExit,
-  onKeepEditing,
-  onDiscardChanges,
   csvImport,
   showAddItem,
   activeCategoryId,
@@ -23,9 +19,6 @@ export function MenuManagerOverlays({
   onItemCreated,
   onCloseAddItem,
 }: {
-  pendingEditorExit: (() => void) | null
-  onKeepEditing: () => void
-  onDiscardChanges: () => void
   csvImport: ReturnType<typeof useMenuCsvImport>
   showAddItem: boolean
   activeCategoryId: string | null
@@ -42,13 +35,6 @@ export function MenuManagerOverlays({
 
   return (
     <>
-      {pendingEditorExit && (
-        <UnsavedChangesDialog
-          description="Bu üründe yaptığın değişiklikler henüz kaydedilmedi. Çıkarsan değişiklikler kalıcı olarak silinecek."
-          onKeepEditing={onKeepEditing}
-          onDiscard={onDiscardChanges}
-        />
-      )}
       {csvImport.showStart && (
         <CsvImportStartModal
           error={csvImport.setupError}
