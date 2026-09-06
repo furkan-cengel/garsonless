@@ -24,6 +24,23 @@ function port(calls: string[]): OrderRefundPort {
   }
 }
 
+test('manual, reservation and provider finalization agree on cent precision', async () => {
+  const owner = { actor: 'dashboard-member', restaurantId: 'r', userId: 'u', permissions: ['orders'], isOwner: true } as const
+  for (const amount of [0.29, 1.1, 19.99, 19.999, 0, -1]) {
+    const calls: string[] = []
+    const repository = port(calls)
+    const input = { orderId: 'o', restaurantId: 'r', amount, reason: 'Müşteri talebi', idempotencyKey: 'request' }
+    const expected = amount > 0 && amount !== 19.999
+    assert.equal((await recordManualOrderRefund(owner, { ...input, method: 'cash' }, repository)).ok, expected)
+    assert.equal((await reserveIyzicoOrderRefund(owner, input, repository)).ok, expected)
+    assert.equal((await finalizeIyzicoOrderRefund(
+      { actor: 'payment-provider', restaurantId: 'r', provider: 'iyzico' },
+      { ...input, refundId: 'refund', providerPaymentId: 'p', providerRefundRef: 'h' }, repository,
+    )).ok, expected)
+    assert.equal(calls.length, expected ? 3 : 0)
+  }
+})
+
 test('manual refund is owner-only, tenant-bound and cash/POS only', async () => {
   const calls: string[] = []
   const repository = port(calls)

@@ -1,5 +1,6 @@
 import type { CommandContext, Result } from '@garsonless/domain'
 import { err, hasSameRestaurant } from '@garsonless/domain'
+import { isValidOrderRefundAmount } from '@garsonless/domain/orders'
 
 export type OrderRefundMethod = 'cash' | 'pos' | 'iyzico'
 export type OrderRefundKind = 'full' | 'partial'
@@ -59,7 +60,7 @@ export interface OrderRefundPort {
 }
 
 function validAmount(amount: number): boolean {
-  return Number.isFinite(amount) && amount > 0 && Math.round(amount * 100) === amount * 100
+  return isValidOrderRefundAmount(amount)
 }
 
 function validReason(reason: string): boolean {

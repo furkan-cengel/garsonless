@@ -18,6 +18,7 @@ import { isActiveOrder, isCancelledOrder, isCompletedOrder, orderStatusGroup, pr
 import { FILTER_LABELS, ORDER_SOURCE_LABELS, orderMatchesSearch, orderMatchesSource, orderMatchesView, orderStationNames, type FilterId, type OrderSourceFilter } from './order-filters'
 import { ORDER_BOARD_COLUMNS } from './order-board-contract'
 import { ORDERS_REALTIME_COPY } from './order-realtime-model'
+import { parseOrderRefundAmount } from './order-refund-model'
 import { paymentMethodBadge } from '../../lib/payment-method'
 import {
   OPERATIONAL_STATUS_LABELS,
@@ -32,7 +33,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -346,7 +347,7 @@ function OrderDetailPanel({
             {settleLoading ? 'Adisyon yükleniyor…' : 'Masayı tahsil et (adisyon)'}
           </Button>
         )}
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {order.status === 'served' ? (
             <Button
               type="button"
@@ -700,7 +701,7 @@ const ORDERS_RESPONSIVE_CSS = `
 }
 .orders-detail-overlay { justify-content: flex-end; align-items: stretch; }
 .orders-filter-overlay { justify-content: flex-start; align-items: stretch; }
-.orders-filter-drawer { height: 100dvh; width: min(340px, calc(100vw - 24px)); }
+.orders-filter-drawer { height: 100%; min-height: 0; width: 100%; }
 .orders-nav--drawer { width: 100% !important; height: 100%; box-shadow: 16px 0 46px rgba(17,17,19,.2); }
 .order-card-open:focus-visible { border-radius: 9px; outline-offset: -3px !important; }
 
@@ -1001,7 +1002,10 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return
+      // Dialogs own their keyboard interaction, including when focus is on a
+      // button. Never change the order behind a financial confirmation.
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]')) return
       const target = event.target as HTMLElement | null
       const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable
       if (event.key === '/' && !typing) {
@@ -1383,7 +1387,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 
       {presentation !== 'desktop' && selectedOrder && !detailModalBlocked && (
         <Sheet open onOpenChange={(open) => { if (!open) setSelectedOrderId(null) }}>
-          <SheetContent side="right" showCloseButton={false} initialFocus={mobileDetailTitleRef} className="w-[min(430px,100vw)] gap-0 p-0 sm:max-w-[430px]">
+          <SheetContent side="right" showCloseButton={false} initialFocus={mobileDetailTitleRef} className="data-[side=right]:w-full data-[side=right]:max-w-[430px] data-[side=right]:sm:max-w-[430px] gap-0 p-0">
             <SheetHeader className="sr-only"><SheetTitle>Sipariş detayları</SheetTitle><SheetDescription>{labelFor(selectedOrder.table_id)} siparişinin operasyon ve ödeme detayları</SheetDescription></SheetHeader>
           {detailPanel}
           </SheetContent>
@@ -1392,7 +1396,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 
       {presentation !== 'desktop' && filtersOpen && (
         <Sheet open onOpenChange={(open) => { if (!open) setFiltersOpen(false) }}>
-          <SheetContent side="left" showCloseButton={false} initialFocus={searchInputRef} className="w-[min(340px,calc(100vw-18px))] gap-0 p-0 sm:max-w-[340px]">
+          <SheetContent side="left" showCloseButton={false} initialFocus={searchInputRef} className="data-[side=left]:w-[calc(100vw-18px)] data-[side=left]:max-w-[340px] data-[side=left]:sm:max-w-[340px] gap-0 p-0">
             <SheetHeader className="sr-only"><SheetTitle>Sipariş filtreleri</SheetTitle><SheetDescription>Sipariş görünümünü kaynak, durum ve istasyona göre filtreleyin.</SheetDescription></SheetHeader>
             <div className="orders-filter-drawer">
             <OrdersNav filter={filter} setFilter={setFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} orders={orders} search={search} setSearch={setSearch} onHistory={() => { setFiltersOpen(false); setHistoryOpen(true) }} onClose={() => setFiltersOpen(false)} lateThresholdMin={lateThresholdMin} searchInputRef={searchInputRef} now={now} stations={stations} selectedStation={selectedStation} setSelectedStation={setSelectedStation} />
@@ -1413,8 +1417,9 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         />
       )}
 
-      {historyOpen && !receipt && (
+      {historyOpen && (
         <HistoryModal
+          open={!receipt}
           restaurantId={restaurantId}
           tableLabels={tableLabels}
           onClose={closeHistory}
@@ -1543,9 +1548,9 @@ function RefundOrderModal({ order, tableLabel, onClose, onConfirm, pending }: {
   const [amountText, setAmountText] = useState(order.total.toFixed(2).replace('.', ','))
   const [reason, setReason] = useState('')
   const [requestId] = useState(() => crypto.randomUUID())
-  const amount = Number(amountText.replace(',', '.'))
-  const valid = Number.isFinite(amount) && amount > 0 && amount <= order.total
-    && Math.round(amount * 100) === amount * 100 && reason.trim().length >= 3
+  const amount = parseOrderRefundAmount(amountText, order.total)
+  const amountInvalid = amountText.length > 0 && amount === null
+  const valid = amount !== null && reason.trim().length >= 3
   const isProvider = order.payment_method === 'iyzico'
 
   return (
@@ -1558,7 +1563,7 @@ function RefundOrderModal({ order, tableLabel, onClose, onConfirm, pending }: {
         <Alert className={isProvider ? 'border-[var(--info)]/20 bg-[var(--info-bg)]' : 'border-[var(--warning)]/20 bg-[var(--warning-bg)]'}>
           <AlertDescription className={isProvider ? 'text-xs text-[var(--info)]' : 'text-xs text-[var(--warning)]'}>
             {isProvider
-              ? 'İade İyzico’ya gönderilir. Ledger yalnız sağlayıcının imzalı başarılı cevabından sonra tamamlanır; belirsiz yanıtta tekrar gönderim kilitlenir.'
+              ? 'İade İyzico’ya gönderilir ve onaylandığında kaydedilir. Sonuç doğrulanamazsa tekrar iade yapılmasını önlemek için işlem incelemeye alınır.'
               : `Bu alan yalnız ${order.payment_method === 'cash' ? 'elden nakit' : 'fiziksel POS'} iadesi gerçekten tamamlandıktan sonra kaydedilmelidir.`}
           </AlertDescription>
         </Alert>
@@ -1571,8 +1576,10 @@ function RefundOrderModal({ order, tableLabel, onClose, onConfirm, pending }: {
               disabled={pending}
               value={amountText}
               onChange={(event) => setAmountText(event.target.value)}
-              aria-invalid={amountText.length > 0 && (!Number.isFinite(amount) || amount <= 0 || amount > order.total)}
+              aria-invalid={amountInvalid}
+              aria-describedby={amountInvalid ? 'refund-order-amount-error' : undefined}
             />
+            {amountInvalid && <FieldError id="refund-order-amount-error">0’dan büyük, en çok {formatCurrency(order.total)} ve en fazla iki ondalık basamaklı bir tutar girin.</FieldError>}
           </Field>
           <Field>
             <FieldLabel htmlFor="refund-order-reason">Gerekçe</FieldLabel>
@@ -1593,7 +1600,7 @@ function RefundOrderModal({ order, tableLabel, onClose, onConfirm, pending }: {
             type="button"
             disabled={!valid || pending}
             aria-busy={pending}
-            onClick={() => valid && onConfirm({ amount, reason: reason.trim(), requestId })}
+            onClick={() => valid && amount !== null && onConfirm({ amount, reason: reason.trim(), requestId })}
           >
             {pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
             {pending ? 'İade işleniyor…' : isProvider ? 'İyzico’ya iade et' : 'İadeyi kaydet'}

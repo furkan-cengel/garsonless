@@ -10,6 +10,13 @@ export type OrderStatus =
 
 export type PaymentMethod = 'iyzico' | 'cash' | 'pos' | 'comp' | 'split'
 
+/** Compare the amount after a cents round trip, not the floating-point product.
+ * For example, 19.99 * 100 is 1998.9999999999998 in JavaScript. */
+export function isValidOrderRefundAmount(amount: number): boolean {
+  return Number.isFinite(amount) && amount > 0 && amount <= 1_000_000
+    && Math.round(amount * 100) / 100 === amount
+}
+
 /** Status exposed to operational read models. `paid` is a legacy storage value,
  * never a kitchen stage in application/UI contracts. */
 export type OperationalOrderStatus = Exclude<OrderStatus, 'paid'>

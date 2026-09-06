@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { readOrderLineSnapshots, type PaymentMethod } from '@garsonless/db/browser'
 import { getOrderHistory, type HistoryOrder } from '../../lib/actions/orders'
-import { historyTerminalAt } from './order-history-model'
+import { historyMatchesSearch, historyTerminalAt } from './order-history-model'
 import { I } from '../../lib/ui'
 import { formatCurrency } from '../../lib/utils'
 import { paymentMethodBadge } from '../../lib/payment-method'
@@ -29,9 +29,10 @@ function dayLabel(iso: string): string {
   return new Date(iso).toLocaleDateString('tr-TR', { day: '2-digit', month: 'long' })
 }
 
-export default function HistoryModal({ restaurantId, tableLabels, onClose, onReceipt }: {
+export default function HistoryModal({ restaurantId, tableLabels, open = true, onClose, onReceipt }: {
   restaurantId: string
   tableLabels: Record<string, string>
+  open?: boolean
   onClose: () => void
   onReceipt: (order: HistoryOrder, tableLabel: string) => void
 }) {
@@ -71,15 +72,10 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
     cancelled: orders.filter(o => o.status === 'cancelled').length,
   }), [orders])
 
-  const ql = q.trim().toLowerCase()
   const rows = orders.filter(o => {
     if (tab === 'done' && o.status !== 'served') return false
     if (tab === 'cancelled' && o.status !== 'cancelled') return false
-    if (ql) {
-      const label = (tableLabels[o.table_id ?? ''] ?? '').toLowerCase()
-      if (!o.id.toLowerCase().startsWith(ql) && !label.includes(ql)) return false
-    }
-    return true
+    return historyMatchesSearch(o.id, tableLabels[o.table_id ?? ''] ?? (o.table_id ? 'Masa' : 'Kasa'), q)
   })
   const groups = rows.reduce<Record<string, HistoryOrder[]>>((acc, o) => {
     const k = dayLabel(historyTerminalAt(o));(acc[k] ||= []).push(o); return acc
@@ -92,7 +88,7 @@ export default function HistoryModal({ restaurantId, tableLabels, onClose, onRec
   ]
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose() }}>
       <DialogContent className="flex h-[min(84dvh,720px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="border-b px-5 py-4 pr-12">
           <DialogTitle>Geçmiş siparişler</DialogTitle>

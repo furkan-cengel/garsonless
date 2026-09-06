@@ -23,6 +23,7 @@ import {
 } from '@garsonless/db/server'
 import type { Json } from '@garsonless/db/types'
 import type { OrderLifecycleTarget } from '@garsonless/domain/orders'
+import { isValidOrderRefundAmount } from '@garsonless/domain/orders'
 import { assertAccess, assertOwner } from '../auth/access'
 import { getRestaurantTimezone } from '../queries/insights-shared'
 import {
@@ -140,7 +141,7 @@ const refundSchema = z.object({
   restaurantId: z.string().uuid(),
   method: z.enum(['cash', 'pos', 'iyzico']),
   amount: z.number().positive().max(1_000_000)
-    .refine((value) => Math.round(value * 100) === value * 100, 'Tutar en fazla iki ondalık basamak içermeli'),
+    .refine(isValidOrderRefundAmount, 'Tutar en fazla iki ondalık basamak içermeli'),
   reason: z.string().trim().min(3).max(200),
   requestId: z.string().uuid(),
 })

@@ -51,7 +51,7 @@ test('density, closed-order, source and history controls use the shared shadcn s
 })
 
 test('history dialog uses shadcn dialog, search, tabs, feedback and receipt actions', () => {
-  assert.match(historySource, /<Dialog open onOpenChange=/)
+  assert.match(historySource, /<Dialog open=\{open\} onOpenChange=/)
   assert.match(historySource, /<InputGroup className="h-9 flex-1 bg-muted\/50">/)
   assert.match(historySource, /<Tabs value=\{tab\}/)
   assert.match(historySource, /<Alert className="my-2/)

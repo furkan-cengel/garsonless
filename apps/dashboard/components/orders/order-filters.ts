@@ -36,7 +36,7 @@ export function orderStationNames(order: Order): string[] {
   return [...new Set(readOrderLineSnapshots(order.items).map(line => line.station?.name).filter((name): name is string => Boolean(name)))]
 }
 
-function normalizeOrderSearch(search: string): string {
+export function normalizeOrderSearch(search: string): string {
   return search.trim().replace(/^#/, '').toLocaleLowerCase('tr-TR')
 }
 

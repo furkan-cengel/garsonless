@@ -9,7 +9,17 @@ import {
   isOrderLifecycleTarget,
   isCollectedOrder,
   normalizeOperationalOrderStatus,
+  isValidOrderRefundAmount,
 } from './orders'
+
+test('refund amounts accept exact cents despite binary multiplication residue', () => {
+  for (const amount of [0.01, 0.29, 1.1, 19.99, 130.01, 1_000_000]) {
+    assert.equal(isValidOrderRefundAmount(amount), true, String(amount))
+  }
+  for (const amount of [0, -1, NaN, Infinity, 1.001, 19.999, 1_000_000.01]) {
+    assert.equal(isValidOrderRefundAmount(amount), false, String(amount))
+  }
+})
 
 test('active order status vocabulary excludes terminal states', () => {
   assert.equal(ACTIVE_ORDER_STATUSES.includes('cancelled'), false)
