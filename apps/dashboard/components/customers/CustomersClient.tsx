@@ -54,7 +54,7 @@ import { useShell } from '../../lib/shell-context'
 import { I, S } from '../../lib/ui'
 import { formatCurrency } from '../../lib/utils'
 import PageTopBar from '../layout/PageTopBar'
-import { useDashboardDraft, useDashboardDrafts } from '../overlays/DashboardDraftProvider'
+import { DashboardDraftProvider, useDashboardDraft, useDashboardDrafts } from '../overlays/DashboardDraftProvider'
 import {
   customerListHref,
   parseCustomerListState,
@@ -119,7 +119,7 @@ function tagsForCustomer(c: RestaurantCustomer, referenceNow: string): string[] 
   return tags.slice(0, 3)
 }
 
-export default function CustomersClient({
+function CustomersClientContent({
   restaurantId,
   restaurantName,
   initial,
@@ -973,4 +973,8 @@ function SegmentEditorModal({
       </DialogContent>
     </Dialog>
   )
+}
+
+export default function CustomersClient(props: Parameters<typeof CustomersClientContent>[0]) {
+  return <DashboardDraftProvider message="Müşteriler bölümünde kaydedilmemiş değişiklikler var. Çıkarsan taslağın silinecek."><CustomersClientContent {...props} /></DashboardDraftProvider>
 }
