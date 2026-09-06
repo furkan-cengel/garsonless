@@ -124,3 +124,25 @@ test('double click sends one request and pending save cannot close the editor',a
  await page.keyboard.press('Escape');await expect(dialog).toBeVisible();await expect(page.getByRole('alertdialog')).toHaveCount(0);
  release();await expect(dialog.getByRole('alert')).toContainText('Taslağınız korundu');expect(count).toBe(1);
 })
+
+
+test('lazy settings confirmation keeps and discards workspace changes without saving', async ({ page }) => {
+ await page.getByRole('button', { name: /^Çalışma Alanı/ }).click()
+ const name = page.locator('input[autocomplete="organization"]')
+ await expect(name).toBeVisible()
+ const original = await name.inputValue()
+ const draft = original + ' test'
+ await name.fill(draft)
+ await page.getByRole('button', { name: /^Çalışma Saatleri/ }).click()
+ const confirmation = page.getByRole('alertdialog')
+ await expect(confirmation).toBeVisible()
+ await expect(confirmation.getByRole('button', { name: 'Düzenlemeye dön', exact: true })).toBeFocused()
+ await confirmation.getByRole('button', { name: 'Düzenlemeye dön', exact: true }).click()
+ await expect(name).toHaveValue(draft)
+ await page.getByRole('button', { name: /^Çalışma Saatleri/ }).click()
+ await confirmation.getByRole('button', { name: 'Değişiklikleri sil ve geç', exact: true }).click()
+ await expect(page).toHaveURL(/section=hours$/)
+ await expect(page.getByRole('heading', { name: 'Çalışma Saatleri', exact: true })).toBeVisible()
+ await page.getByRole('button', { name: /^Çalışma Alanı/ }).click()
+ await expect(name).toHaveValue(original)
+})
