@@ -1,3 +1,5 @@
+import type { AnalyticsReportScope } from '../../lib/analytics-report-scope'
+import type { AnalyticsFreshness } from './analytics-report-model'
 import type { AnalyticsReportId } from '../../lib/actions/analytics'
 import {
   analyticsRangePeriodLabel,
@@ -51,6 +53,7 @@ export function buildAnalyticsReportCsv(
   report: AnalyticsReportId,
   rangeInput: string | AnalyticsQuery,
   data: AnalyticsData,
+  context?: { restaurantId: string; restaurantName: string; scope: AnalyticsReportScope; generatedAt: string; freshness: AnalyticsFreshness },
 ): { filename: string; csv: string } | null {
   const query = coerceAnalyticsQuery(rangeInput)
   const effectiveFilters = report === 'sadakat'
@@ -64,11 +67,28 @@ export function buildAnalyticsReportCsv(
   }
   section('Rapor kapsamı')
   rows.push(['Dönem', period])
-  rows.push(['Şube kapsamı', 'Aktif restoran'])
+  rows.push(['Şube', context?.restaurantName ?? 'Belirtilmedi'])
+  if (context) {
+    rows.push(['İşletme kimliği', context.restaurantId])
+    rows.push(['Saat dilimi', context.scope.timezone])
+    rows.push(['Dönem başlangıcı (dahil, ISO)', context.scope.currentStart])
+    rows.push(['Dönem bitişi (hariç, ISO)', context.scope.currentEnd])
+    rows.push(['Önceki dönem başlangıcı (dahil, ISO)', context.scope.previousStart])
+    rows.push(['Önceki dönem bitişi (hariç, ISO)', context.scope.previousEnd])
+    rows.push(['Verinin oluşturulma zamanı (ISO)', context.generatedAt])
+    rows.push(['Güncellik', context.freshness === 'fresh' ? 'Güncel' : 'Son başarılı veri; güncel olmayabilir'])
+  }
   rows.push(['Kanal', effectiveFilters.source])
   rows.push(['Ödeme yöntemi', effectiveFilters.paymentMethod])
   rows.push(['Sipariş durumu', effectiveFilters.status])
   rows.push(['Filtre birleşimi', 'AND'])
+  if (report === 'operasyon') {
+    rows.push(['İptal kapsamı', 'Dönem + kanal + ödeme; durum filtresi uygulanmaz'])
+    rows.push(['Personel tahsilatı kapsamı', 'Dönem + kanal + ödeme + durum'])
+    rows.push(['Anormal kapatma kapsamı', 'Yalnız dönem; sipariş filtreleri uygulanmaz'])
+  }
+  if (report === 'tables') rows.push(['Oturum kapsamı', 'Devir/süre yalnız dönem; işlem filtreleri tahsilat ve siparişe uygulanır'])
+  if (report === 'sadakat') rows.push(['Sadakat kapsamı', 'Yalnız dönem; sipariş filtreleri uygulanmaz'])
 
   if (report === 'sales') {
     section(`Satış Raporu — seçili dönem özeti (${period})`)
@@ -139,7 +159,7 @@ export function buildAnalyticsReportCsv(
     section(`Anormal kapatma / kaçak (${period})`)
     rows.push(['Masa', 'Kapatılma', 'Gerekçe', 'Kapatan', 'Tutar (₺)'])
     for (const row of abnormalCloses.rows) {
-      rows.push([row.tableLabel, formatAnalyticsReportDate(row.closedAt), row.reason, '—', row.amount])
+      rows.push([row.tableLabel, formatAnalyticsReportDate(row.closedAt, context?.scope.timezone), row.reason, '—', row.amount])
     }
     section(`Personel tahsilat performansı (${period})`)
     rows.push(['Tahsil eden', 'Rol', 'Tahsil ettiği sipariş', 'Nakit (₺)', 'Fiziksel POS (₺)', 'Online / split / eski (₺)', 'İkram adet', 'İkram (₺)', 'Toplam (₺)', 'Yüksek nakit'])
@@ -187,6 +207,11 @@ export function downloadAnalyticsCsv(filename: string, csv: string) {
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.download = filename
-  anchor.click()
-  URL.revokeObjectURL(url)
+  try {
+    document.body.append(anchor)
+    anchor.click()
+  } finally {
+    anchor.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
 }

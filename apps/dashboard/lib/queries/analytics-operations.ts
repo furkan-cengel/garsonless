@@ -163,7 +163,7 @@ export async function getAbnormalCloseReport(restaurantId: string, range: string
 
 // ── 3. Personel tahsilat performansı ─────────────────────────────────────────
 export interface StaffSettlementRow {
-  label: string                  // owner/member email, "İyzico (otomatik)", or "Bilinmeyen kullanıcı"
+  label: string                  // owner/member email, "Tahsil eden kaydı yok", or "Bilinmeyen kullanıcı"
   role: 'owner' | 'member' | 'system' | 'unknown'
   sections: string[] | null      // member's granted sections (permissions); null otherwise
   cash: number
@@ -224,7 +224,7 @@ export async function getStaffSettlementReport(restaurantId: string, range: stri
     let label = 'Bilinmeyen kullanıcı'
     let role: StaffSettlementRow['role'] = 'unknown'
     let sections: string[] | null = null
-    if (key === SYSTEM) { label = 'İyzico (otomatik)'; role = 'system' }
+    if (key === SYSTEM) { label = 'Tahsil eden kaydı yok'; role = 'system' }
     else if (key === ownerId) { label = ownerEmail ?? 'Sahip'; role = 'owner' }
     else if (memberMap.has(key)) { const m = memberMap.get(key)!; label = m.email; role = 'member'; sections = m.permissions }
     const cardCash = agg.cash + agg.pos

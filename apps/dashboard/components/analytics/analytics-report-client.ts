@@ -1,4 +1,4 @@
-import type { AnalyticsPayload, AnalyticsReportId } from '../../lib/actions/analytics'
+import type { AnalyticsReportResponse, AnalyticsReportId } from '../../lib/actions/analytics'
 import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
 
 export async function fetchAnalyticsReportPayload(
@@ -6,12 +6,7 @@ export async function fetchAnalyticsReportPayload(
   query: AnalyticsQuery,
   report: AnalyticsReportId,
   signal?: AbortSignal,
-): Promise<{
-  data?: Partial<AnalyticsPayload>
-  generatedAt?: string
-  snapshotVersion?: number
-  error?: string
-}> {
+): Promise<AnalyticsReportResponse> {
   const response = await fetch('/api/analytics/report', {
     method: 'POST',
     credentials: 'same-origin',
@@ -21,14 +16,10 @@ export async function fetchAnalyticsReportPayload(
     signal,
   })
   const payload = await response.json().catch(() => null) as { error?: unknown; errorCode?: unknown } | null
+  const fail = (error: string): AnalyticsReportResponse => ({ error, generatedAt: new Date().toISOString(), snapshotVersion: 0 })
   if (!response.ok) {
-    return { error: typeof payload?.error === 'string' ? payload.error : 'Rapor verileri yüklenemedi.' }
+    return fail(typeof payload?.error === 'string' ? payload.error : 'Rapor verileri yüklenemedi.')
   }
-  if (!payload || typeof payload !== 'object') return { error: 'Rapor verileri yüklenemedi.' }
-  return payload as {
-    data?: Partial<AnalyticsPayload>
-    generatedAt?: string
-    snapshotVersion?: number
-    error?: string
-  }
+  if (!payload || typeof payload !== 'object') return fail('Rapor verileri yüklenemedi.')
+  return payload as AnalyticsReportResponse
 }

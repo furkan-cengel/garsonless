@@ -7,12 +7,14 @@ export function projectProductReport(items: ProductReportItem[]) {
     (projection, item) => {
       projection.totalRevenue += item.revenue
       projection.totalCount += item.count
+      if (item.count > 0) projection.productCount += 1
       projection.classTotals[item.abcClass] += item.revenue
       return projection
     },
     {
       totalRevenue: 0,
       totalCount: 0,
+      productCount: 0,
       classTotals: { A: 0, B: 0, C: 0 } as ProductClassTotals,
     },
   )

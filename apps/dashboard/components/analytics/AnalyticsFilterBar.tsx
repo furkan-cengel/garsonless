@@ -1,5 +1,7 @@
 'use client'
 
+import { useState, useSyncExternalStore } from 'react'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
 import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
 import { hasAnalyticsFilters } from '../../lib/analytics-filter-contract'
 import { Button } from '../ui/button'
@@ -31,6 +33,14 @@ const STATUSES = [
   ['served', 'Servis edildi'],
 ] as const
 
+function subscribeMobile(listener: () => void) {
+  const media = window.matchMedia('(max-width: 600px)')
+  media.addEventListener('change', listener)
+  return () => media.removeEventListener('change', listener)
+}
+const getMobile = () => window.matchMedia('(max-width: 600px)').matches
+const serverMobile = () => false
+
 export default function AnalyticsFilterBar({
   restaurantName,
   query,
@@ -46,12 +56,20 @@ export default function AnalyticsFilterBar({
   scopeNote?: string
   onChange: (query: AnalyticsQuery) => void
 }) {
+  const mobile = useSyncExternalStore(subscribeMobile, getMobile, serverMobile)
+  const [expanded, setExpanded] = useState(false)
+  const count = dateOnly ? 0 : Object.values(query.filters).filter((value) => value !== 'all').length
   const updateFilters = (patch: Partial<AnalyticsQuery['filters']>) => onChange({
     ...query,
     filters: { ...query.filters, ...patch },
   })
 
   return (
+    <Collapsible open={!mobile || expanded} onOpenChange={setExpanded} className="analytics-filters">
+      <CollapsibleTrigger className="analytics-filter-toggle" render={<Button type="button" variant="outline" size="sm" />}>
+        Filtreler ({count})
+      </CollapsibleTrigger>
+      <CollapsibleContent>
     <section className="analytics-filter-bar" aria-label="Rapor filtreleri">
       <div className="analytics-filter-context" title={restaurantName}>
         <span>Şube</span>
@@ -98,6 +116,8 @@ export default function AnalyticsFilterBar({
         </Button>
       </div>
     </section>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 

@@ -1,6 +1,8 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { useAnalyticsExport } from './use-analytics-export'
+import type { AnalyticsReportScope } from '../../lib/analytics-report-scope'
 import type {
   AnalyticsRangeKPIs,
   TopItem,
@@ -48,7 +50,7 @@ interface Props {
   initialQuery: AnalyticsQuery
   initialReport: AnalyticsReportId
   initialGeneratedAt: string
-  initialSnapshotVersion: number
+  initialScope: AnalyticsReportScope
 }
 
 export default function AnalyticsClient({
@@ -67,7 +69,7 @@ export default function AnalyticsClient({
   initialQuery,
   initialReport,
   initialGeneratedAt,
-  initialSnapshotVersion,
+  initialScope,
 }: Props) {
   const reports = useAnalyticsReports({
     restaurantId,
@@ -76,8 +78,9 @@ export default function AnalyticsClient({
     initialQuery,
     initialReport,
     initialGeneratedAt,
-    initialSnapshotVersion,
+    initialScope,
     initialData: {
+      liveActiveOrders,
       salesOverTime,
       rangeKpis,
       heatmapData,
@@ -88,13 +91,7 @@ export default function AnalyticsClient({
     },
   })
 
-  async function handleExport() {
-    if (!reports.canExport) return
-    const { buildAnalyticsReportCsv, downloadAnalyticsCsv } = await import('./analytics-report-export')
-    const built = buildAnalyticsReportCsv(reports.activeReport, reports.query, reports.analyticsData)
-    if (!built) return
-    downloadAnalyticsCsv(built.filename, built.csv)
-  }
+  const { handleExport, isExporting, exportError } = useAnalyticsExport({ reports, restaurantId, restaurantName })
 
   return (
     <AnalyticsReportShell
@@ -106,7 +103,10 @@ export default function AnalyticsClient({
       hasAdvancedAnalytics={hasAdvancedAnalytics}
       isPending={reports.isPending}
       activeReportLoaded={reports.activeReportLoaded}
-      canExport={reports.canExport}
+      canExport={reports.canExport && !isExporting}
+      isExporting={isExporting}
+      exportError={exportError}
+      timezone={initialScope.timezone}
       loadError={reports.loadError}
       generatedAt={reports.generatedAt}
       freshness={reports.freshness}
@@ -124,7 +124,7 @@ export default function AnalyticsClient({
       {reports.activeReport === 'sales' && reports.activeReportLoaded && (
         <AnalyticsSalesReport
           rangeKpis={reports.analyticsData.rangeKpis}
-          liveActiveOrders={liveActiveOrders}
+          liveActiveOrders={reports.analyticsData.liveActiveOrders}
           topItems={reports.analyticsData.topItems}
           salesOverTime={reports.analyticsData.salesOverTime}
           heatmapData={reports.analyticsData.heatmapData}

@@ -1,5 +1,5 @@
-export const HEATMAP_FIRST_HOUR = 8
-export const HEATMAP_LAST_HOUR = 22
+export const HEATMAP_FIRST_HOUR = 0
+export const HEATMAP_LAST_HOUR = 23
 const HEATMAP_LAST_DAY = 6
 
 export interface HeatmapFocus {

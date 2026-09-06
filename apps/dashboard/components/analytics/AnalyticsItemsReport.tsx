@@ -20,6 +20,7 @@ import {
   projectProductReport,
   selectProductMovers,
 } from './analytics-items-model'
+import { readProductTableState, writeProductTableUrl } from './analytics-report-navigation'
 import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
 
 const chartLoading = () => (
@@ -29,7 +30,7 @@ const ProductScatterChart = dynamic(() => loadAnalyticsChart(() => import('./cha
 const s = { mono: { fontFamily: "'Geist Mono', ui-monospace, monospace" } as CSSProperties }
 
 export function AnalyticsItemsReport({ items, query }: { items: ProductReportItem[]; query: AnalyticsQuery }) {
-  const { totalRevenue, totalCount, classTotals } = projectProductReport(items)
+  const { totalRevenue, totalCount, productCount, classTotals } = projectProductReport(items)
   const movers = selectProductMovers(items)
 
   return (
@@ -40,7 +41,7 @@ export function AnalyticsItemsReport({ items, query }: { items: ProductReportIte
       <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
         <KPISmall label="Ürün tahsilatı" value={formatCurrency(totalRevenue)} delta="—" />
         <KPISmall label="Satılan adet" value={String(totalCount)} delta="—" />
-        <KPISmall label="Ürün çeşidi" value={String(items.length)} delta="—" />
+        <KPISmall label="Ürün çeşidi" value={String(productCount)} delta="—" />
       </div>
 
       <Card title="ABC analizi" subtitle="Tahsilat payına göre sınıflandırma" style={{ marginBottom: 12 }}>
@@ -125,29 +126,20 @@ function ProductTable({ items }: { items: ProductReportItem[] }) {
     return direction === 'asc' ? result : -result
   }), [direction, items, sort])
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize))
-  const visible = sorted.slice((page - 1) * pageSize, page * pageSize)
-
-  const writeTableState = (patch: Record<string, string | null>, push = false) => {
-    const url = new URL(window.location.href)
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === null) url.searchParams.delete(key)
-      else url.searchParams.set(key, value)
-    }
-    const nextUrl = `${url.pathname}${url.searchParams.size > 0 ? `?${url.searchParams.toString()}` : ''}`
-    window.history[push ? 'pushState' : 'replaceState'](null, '', nextUrl)
-  }
+  const safePage = Math.min(page, pageCount)
+  const visible = sorted.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   useEffect(() => {
     const applyUrlState = () => {
+      const state = readProductTableState(window.location.search, pageCount)
+      setSort(state.sort)
+      setDirection(state.direction)
+      setPage(state.page)
+      setSelected(state.detail ? items.find((item) => item.name === state.detail) ?? null : null)
       const params = new URLSearchParams(window.location.search)
-      const requestedSort = params.get('sort')
-      const requestedDirection = params.get('dir')
-      const requestedPage = Number(params.get('page'))
-      const requestedDetail = params.get('detail')
-      if (requestedSort === 'revenue' || requestedSort === 'count' || requestedSort === 'name') setSort(requestedSort)
-      if (requestedDirection === 'asc' || requestedDirection === 'desc') setDirection(requestedDirection)
-      if (Number.isInteger(requestedPage) && requestedPage >= 1 && requestedPage <= pageCount) setPage(requestedPage)
-      setSelected(requestedDetail ? items.find((item) => item.name === requestedDetail) ?? null : null)
+      if (params.has('page') && params.get('page') !== String(state.page)) {
+        writeProductTableUrl({ page: state.page === 1 ? null : String(state.page) })
+      }
     }
     applyUrlState()
     window.addEventListener('popstate', applyUrlState)
@@ -156,7 +148,7 @@ function ProductTable({ items }: { items: ProductReportItem[] }) {
 
   const closeDetail = () => {
     setSelected(null)
-    writeTableState({ detail: null })
+    writeProductTableUrl({ detail: null })
   }
 
   return (
@@ -167,7 +159,7 @@ function ProductTable({ items }: { items: ProductReportItem[] }) {
           <Select value={sort} onValueChange={(value) => {
             if (!value) return
             const next = value as typeof sort
-            setSort(next); setPage(1); writeTableState({ sort: next, page: null })
+            setSort(next); setPage(1); writeProductTableUrl({ sort: next, page: null })
           }}>
             <SelectTrigger size="sm" aria-label="Ürün tablosu sıralama alanı"><SelectValue>{PRODUCT_SORT_LABELS[sort]}</SelectValue></SelectTrigger>
             <SelectContent>
@@ -181,7 +173,7 @@ function ProductTable({ items }: { items: ProductReportItem[] }) {
         </Field>
         <Button variant="outline" size="sm" type="button" onClick={() => {
           const next = direction === 'desc' ? 'asc' : 'desc'
-          setDirection(next); setPage(1); writeTableState({ dir: next, page: null })
+          setDirection(next); setPage(1); writeProductTableUrl({ dir: next, page: null })
         }} aria-label={direction === 'desc' ? 'Artan sıraya geç' : 'Azalan sıraya geç'}>
           {direction === 'desc' ? 'Azalan ↓' : 'Artan ↑'}
         </Button>
@@ -209,7 +201,7 @@ function ProductTable({ items }: { items: ProductReportItem[] }) {
                 <TableCell style={s.mono} className="text-right text-muted-foreground tabular-nums">%{item.sharePct.toLocaleString('tr-TR')}</TableCell>
                 <TableCell className="text-right"><Badge variant={item.abcClass === 'A' ? 'positive' : item.abcClass === 'B' ? 'warning' : 'secondary'}>{item.abcClass}</Badge></TableCell>
                 <TableCell><Button type="button" variant="ghost" size="xs" className="analytics-table-detail-button" aria-label={`${item.name} ürün detayını aç`} onClick={() => {
-                  setSelected(item); writeTableState({ detail: item.name }, true)
+                  setSelected(item); writeProductTableUrl({ detail: item.name }, true)
                 }}>Detay</Button></TableCell>
               </TableRow>
             ))}
@@ -218,11 +210,11 @@ function ProductTable({ items }: { items: ProductReportItem[] }) {
       </div>
       <div className="analytics-pagination" aria-label="Ürün tablosu sayfaları">
         <Button variant="outline" size="sm" type="button" disabled={page <= 1} onClick={() => {
-          const next = page - 1; setPage(next); writeTableState({ page: next === 1 ? null : String(next) })
+          const next = page - 1; setPage(next); writeProductTableUrl({ page: next === 1 ? null : String(next) })
         }}>Önceki</Button>
         <span>{page} / {pageCount}</span>
         <Button variant="outline" size="sm" type="button" disabled={page >= pageCount} onClick={() => {
-          const next = page + 1; setPage(next); writeTableState({ page: String(next) })
+          const next = page + 1; setPage(next); writeProductTableUrl({ page: String(next) })
         }}>Sonraki</Button>
       </div>
       <Dialog open={selected !== null} onOpenChange={(nextOpen) => { if (!nextOpen) closeDetail() }}>

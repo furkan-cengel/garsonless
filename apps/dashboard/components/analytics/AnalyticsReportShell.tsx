@@ -30,6 +30,9 @@ const REPORT_ICONS: Record<AnalyticsReportId, ReactNode> = {
 
 export function AnalyticsReportShell({
   restaurantName,
+  timezone,
+  isExporting,
+  exportError,
   activeReport,
   range,
   query,
@@ -51,6 +54,9 @@ export function AnalyticsReportShell({
   children,
 }: {
   restaurantName: string
+  timezone: string
+  isExporting: boolean
+  exportError: string | null
   activeReport: AnalyticsReportId
   range: AnalyticsRange
   query: AnalyticsQuery
@@ -77,10 +83,12 @@ export function AnalyticsReportShell({
 
   useEffect(() => {
     const activeTab = mobileTabsRef.current?.querySelector<HTMLElement>(`[data-report-id="${activeReport}"]`)
-    activeTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+    activeTab?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'nearest', inline: 'nearest' })
   }, [activeReport])
 
   const generatedTime = new Intl.DateTimeFormat('tr-TR', {
+    timeZone: timezone,
+    day: '2-digit', month: 'short',
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(generatedAt))
@@ -93,12 +101,13 @@ export function AnalyticsReportShell({
         title="Raporlar"
         right={(
           <>
-            <AnalyticsRangePicker query={query} onRangeChange={onRangeChange} onQueryChange={onQueryChange} loading={isPending} />
+            <AnalyticsRangePicker timezone={timezone} query={query} onRangeChange={onRangeChange} onQueryChange={onQueryChange} loading={isPending} />
             <Button
               className="analytics-export-button"
               type="button"
               onClick={onExport}
               disabled={!canExport}
+              aria-busy={isExporting}
               size="sm"
               aria-label="Raporu CSV olarak dışa aktar"
             >
@@ -182,7 +191,7 @@ export function AnalyticsReportShell({
             scopeNote={activeReport === 'tables'
               ? 'İşlem filtreleri tahsilat ve siparişe uygulanır; devir/süre fiziksel oturum kapsamıdır.'
               : activeReport === 'operasyon'
-                ? 'İşlem filtreleri iptal ve personel tahsilatına uygulanır; anormal kapatma oturum kapsamıdır.'
+                ? 'Kanal/ödeme: iptal ve personel tahsilatı. Durum: yalnız personel tahsilatı. Anormal kapatma: yalnız dönem.'
                 : undefined}
             onChange={onQueryChange}
           />
@@ -191,12 +200,12 @@ export function AnalyticsReportShell({
               {freshness === 'offline'
                 ? `Çevrimdışı · son başarılı güncelleme ${generatedTime}`
                 : freshness === 'stale'
-                  ? `Yeni veriler var · son güncelleme ${generatedTime}`
+                  ? `Rapor güncel olmayabilir · son güncelleme ${generatedTime}`
                   : freshness === 'refreshing'
                     ? `Yenileniyor · son başarılı güncelleme ${generatedTime}`
                     : `Son güncelleme ${generatedTime}`}
             </span>
-            {(freshness === 'stale' || freshness === 'offline') && (
+            {(
               <Button type="button" variant="ghost" size="xs" onClick={onRefresh} disabled={isPending} aria-busy={isPending}>
                 Yenile
               </Button>
@@ -204,6 +213,7 @@ export function AnalyticsReportShell({
           </div>
           <div className="analytics-content" style={{ padding: '24px 28px 60px' }}>
             <div className="analytics-active-label">{activeLabel}</div>
+            {exportError && <Alert variant="destructive" className="mb-4"><AlertTitle>Dışa aktarılamadı</AlertTitle><AlertDescription>{exportError}</AlertDescription></Alert>}
             {loadError && (
               <Alert variant="destructive" className="mb-4">
                 <I.warn aria-hidden="true" />

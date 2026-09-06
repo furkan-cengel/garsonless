@@ -71,7 +71,7 @@ export function AnalyticsSalesReport({
       </div>
 
       <div role="note" style={{ marginBottom: 16, padding: '9px 12px', border: '1px solid var(--divider)', borderRadius: 9, background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: 11.5 }}>
-        <strong style={{ color: 'var(--text)' }}>Canlı durum:</strong> Bugün açılmış {liveActiveOrders} aktif sipariş var. Bu anlık değer seçili dönem KPI’larına dahil değildir.
+        <strong style={{ color: 'var(--text)' }}>Şu an aktif sipariş:</strong> {liveActiveOrders}. Son başarılı yenilemedeki durumdur; seçili dönem KPI’larına dahil değildir.
       </div>
 
       <AnalyticsCard title="Tahsilat trendi" subtitle="Seçili dönem · paid_at bazlı" style={{ marginBottom: 12, overflow: 'visible' }}>

@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { restaurantDayKey, startOfDayNDaysAgo } from '@garsonless/db/browser'
+import { analyticsDateError } from '../../lib/analytics-report-scope'
 import { analyticsCustomDayCount } from '../../lib/analytics-filter-contract'
 import { Button } from '../ui/button'
 import {
@@ -21,11 +23,13 @@ const DATE_ERROR_ID = 'analytics-custom-range-error'
 
 export default function AnalyticsRangePicker({
   query,
+  timezone,
   onRangeChange,
   onQueryChange,
   loading,
 }: {
   query: AnalyticsQuery
+  timezone: string
   onRangeChange: (range: AnalyticsRange) => void
   onQueryChange: (query: AnalyticsQuery) => void
   loading: boolean
@@ -38,11 +42,8 @@ export default function AnalyticsRangePicker({
 
   const openCustomRange = () => {
     const today = new Date()
-    const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-    const defaultFrom = new Date(today)
-    defaultFrom.setDate(defaultFrom.getDate() - 6)
-    setFrom(query.from ?? dateKey(defaultFrom))
-    setTo(query.to ?? dateKey(today))
+    setFrom(query.from ?? restaurantDayKey(startOfDayNDaysAgo(timezone, 6, today), timezone))
+    setTo(query.to ?? restaurantDayKey(today, timezone))
     setDateError(null)
     setOpen(true)
   }
@@ -53,6 +54,8 @@ export default function AnalyticsRangePicker({
       setDateError('Başlangıç bitişten önce olmalı ve dönem en fazla 366 gün sürmelidir.')
       return
     }
+    const futureError = analyticsDateError({ ...query, range: 'custom', from, to }, timezone)
+    if (futureError) { setDateError(futureError); return }
     setOpen(false)
     onQueryChange({ ...query, range: 'custom', from, to })
   }
@@ -85,13 +88,14 @@ export default function AnalyticsRangePicker({
             <DialogTitle>Özel tarih aralığı</DialogTitle>
             <DialogDescription>Başlangıç ve bitiş günleri restoran saat diliminde kapsama dahildir.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={(event) => { event.preventDefault(); applyCustomRange() }}>
+          <form noValidate onSubmit={(event) => { event.preventDefault(); applyCustomRange() }}>
             <FieldGroup className="grid gap-3 sm:grid-cols-2">
               <Field data-invalid={dateError ? true : undefined}>
                 <FieldLabel htmlFor="analytics-range-from">Başlangıç</FieldLabel>
                 <Input
                   id="analytics-range-from"
                   type="date"
+                  max={restaurantDayKey(new Date(), timezone)}
                   value={from}
                   aria-invalid={dateError ? true : undefined}
                   aria-describedby={dateError ? DATE_ERROR_ID : undefined}
@@ -103,6 +107,7 @@ export default function AnalyticsRangePicker({
                 <Input
                   id="analytics-range-to"
                   type="date"
+                  max={restaurantDayKey(new Date(), timezone)}
                   value={to}
                   aria-invalid={dateError ? true : undefined}
                   aria-describedby={dateError ? DATE_ERROR_ID : undefined}

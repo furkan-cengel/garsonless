@@ -31,7 +31,7 @@ export function AnalyticsTablesReport({ tables, query }: { tables: TableReportRo
       </p>
 
       <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
-        <KPISmall label="Aktif masa" value={String(report.activeTables)} delta={report.openNowCount > 0 ? `${report.openNowCount} şu an dolu` : '—'} tone="neutral" direction="flat" />
+        <KPISmall label="Tahsilat yapılan masa" value={String(report.activeTables)} delta={report.openNowCount > 0 ? `${report.openNowCount} şu an dolu` : '—'} tone="neutral" direction="flat" />
         <KPISmall label="Ödemeli sipariş" value={String(report.totalOrders)} delta="—" />
         <KPISmall label="Toplam tahsilat" value={formatCurrency(report.totalRevenue)} delta="—" />
         <KPISmall label="Ort. masa tahsilatı"

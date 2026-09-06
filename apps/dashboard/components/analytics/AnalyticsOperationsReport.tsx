@@ -92,7 +92,7 @@ export function AnalyticsOperationsReport({
       <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
         <KPISmall label="Personel nakit" value={formatCurrency(sumStaffMethod(staffSettlement.rows, 'cash'))} delta="elden tahsilat" tone="neutral" direction="flat" />
         <KPISmall label="Personel kart" value={formatCurrency(sumStaffMethod(staffSettlement.rows, 'pos'))} delta="fiziksel POS" tone="neutral" direction="flat" />
-        <KPISmall label="İyzico (otomatik)" value={formatCurrency(staffSettlement.rows.find((row) => row.role === 'system')?.collected ?? 0)} delta="online · elle değil" tone="neutral" direction="flat" />
+        <KPISmall label="Tahsil eden kaydı yok" value={formatCurrency(staffSettlement.rows.find((row) => row.role === 'system')?.collected ?? 0)} delta="tüm ödeme yöntemleri" tone="neutral" direction="flat" />
       </div>
       <Card title="Tahsilat kırılımı" subtitle="Nakit vs fiziksel POS · tahsil eden başına">
         <StaffSettlementTable report={staffSettlement} />

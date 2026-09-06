@@ -1376,3 +1376,9 @@ html[data-focus-modality="pointer"] :where([aria-invalid="true"], [data-slot="in
     transition-duration: 0s !important;
   }
 }
+
+/* Report filters keep the period picker visible on compact screens. */
+.analytics-filter-toggle { display: none; }
+@media (max-width: 600px) {
+  .analytics-filter-toggle { display: flex; margin: 8px 12px; min-height: 44px; }
+}

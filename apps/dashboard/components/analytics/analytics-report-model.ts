@@ -43,6 +43,7 @@ export const ANALYTICS_REPORTS: ReadonlyArray<{
 ]
 
 export type AnalyticsData = {
+  liveActiveOrders: number
   rangeKpis: AnalyticsRangeKPIs
   salesOverTime: DailySale[]
   heatmapData: HeatmapCell[]
@@ -59,7 +60,7 @@ export type AnalyticsData = {
 export type AnalyticsInitialData = Pick<
   AnalyticsData,
   'rangeKpis' | 'salesOverTime' | 'heatmapData' | 'tableStats' | 'topItems' | 'paymentBreakdown' | 'productReport'
->
+> & { liveActiveOrders?: number }
 
 export type LoadedAnalyticsReports = Record<AnalyticsReportId, boolean>
 export type AnalyticsFreshness = 'fresh' | 'refreshing' | 'stale' | 'offline'
@@ -67,6 +68,7 @@ export type AnalyticsFreshness = 'fresh' | 'refreshing' | 'stale' | 'offline'
 export function createInitialAnalyticsData(initial: AnalyticsInitialData): AnalyticsData {
   return {
     ...initial,
+    liveActiveOrders: initial.liveActiveOrders ?? 0,
     cancellations: null,
     abnormalCloses: null,
     staffSettlement: null,
@@ -161,8 +163,9 @@ export function analyticsPreviousPeriodLabel(input: string | AnalyticsQuery): st
   } as Record<string, string>)[range] ?? 'önceki döneme göre'
 }
 
-export function formatAnalyticsReportDate(value: string): string {
+export function formatAnalyticsReportDate(value: string, timezone = 'Europe/Istanbul'): string {
   return new Intl.DateTimeFormat('tr-TR', {
+    timeZone: timezone,
     day: '2-digit',
     month: 'short',
     hour: '2-digit',

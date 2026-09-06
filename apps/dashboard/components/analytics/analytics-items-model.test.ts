@@ -30,6 +30,7 @@ test('product report projection derives KPI and ABC totals in one pass', () => {
   assert.deepEqual(projection, {
     totalRevenue: 200,
     totalCount: 6,
+    productCount: 3,
     classTotals: { A: 120, B: 50, C: 30 },
   })
 })

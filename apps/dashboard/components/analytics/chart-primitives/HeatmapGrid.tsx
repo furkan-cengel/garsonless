@@ -18,8 +18,8 @@ export default function HeatmapGrid({ data }: { data: HeatmapCell[] }) {
   const [focus, setFocus] = useState<HeatmapFocus>({ day: 0, hour: HEATMAP_FIRST_HOUR })
   const cells = useRef(new Map<string, HTMLButtonElement>())
 
-  if (data.length === 0) {
-    return <div style={{ padding: '40px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Veri yok</div>
+  if (data.length === 0 || data.every((cell) => cell.count === 0)) {
+    return <div style={{ padding: '40px 16px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>Seçili dönemde sipariş yok</div>
   }
 
   const lookup = new Map<string, number>()
@@ -54,18 +54,18 @@ export default function HeatmapGrid({ data }: { data: HeatmapCell[] }) {
           role="grid"
           aria-label="Gün ve saate göre sipariş yoğunluğu. Ok tuşlarıyla hücreler arasında gezinin."
           aria-rowcount={7}
-          aria-colcount={15}
-          style={{ display: 'grid', gridTemplateColumns: '28px repeat(15, minmax(44px, 1fr))', gap: 3, alignItems: 'center' }}
+          aria-colcount={24}
+          style={{ display: 'grid', gridTemplateColumns: '28px repeat(24, minmax(44px, 1fr))', gap: 3, alignItems: 'center' }}
         >
           <span aria-hidden="true" />
-          {Array.from({ length: 15 }, (_, h) => (
-            <span role="columnheader" key={h} style={{ fontSize: 9, color: 'var(--text-4)', textAlign: 'center', fontFamily: "'Geist Mono', ui-monospace, monospace" }}>{h + 8}</span>
+          {Array.from({ length: 24 }, (_, h) => (
+            <span role="columnheader" key={h} style={{ fontSize: 9, color: 'var(--text-4)', textAlign: 'center', fontFamily: "'Geist Mono', ui-monospace, monospace" }}>{h}</span>
           ))}
           {DAYS.map((d, dayIdx) => (
             <div role="row" key={d} style={{ display: 'contents' }}>
               <span role="rowheader" style={{ fontSize: 10, color: 'var(--text-3)', paddingRight: 6, fontWeight: 500 }}>{d}</span>
-              {Array.from({ length: 15 }, (_, hIdx) => {
-                const hour = hIdx + 8
+              {Array.from({ length: 24 }, (_, hIdx) => {
+                const hour = hIdx
                 const n = lookup.get(`${dayIdx}-${hour}`) ?? 0
                 const v = n / maxCount
                 return (

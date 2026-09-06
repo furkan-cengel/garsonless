@@ -1,3 +1,5 @@
+import { sumAnalyticsSalesBuckets } from '../analytics-sales-buckets'
+import { projectAnalyticsProducts } from '../analytics-product-projection'
 import {
   startOfRestaurantDay,
   startOfDayNDaysAgo,
@@ -241,32 +243,7 @@ export async function getPaymentBreakdown(restaurantId: string, range: string | 
 
 export async function getProductReportData(restaurantId: string, range: string | AnalyticsQuery = 'week', asOf = new Date()): Promise<ProductReportItem[]> {
   const source = await getAnalyticsCoreMetrics(restaurantId, range, asOf)
-  const current = new Map(source.products
-    .filter((item) => item.period === 'current')
-    .map((item) => [item.name, { count: item.count, revenue: item.revenue }]))
-  const previous = new Map(source.products
-    .filter((item) => item.period === 'previous')
-    .map((item) => [item.name, { count: item.count, revenue: item.revenue }]))
-  const totalRevenue = Array.from(current.values()).reduce((sum, item) => sum + item.revenue, 0)
-
-  let cumulative = 0
-  return Array.from(current.entries())
-    .map(([name, value]) => {
-      const prevRevenue = previous.get(name)?.revenue ?? 0
-      const deltaPct = prevRevenue > 0
-        ? Math.round(((value.revenue - prevRevenue) / prevRevenue) * 1000) / 10
-        : value.revenue > 0 ? null : 0
-      return { name, ...value, deltaPct }
-    })
-    .sort((a, b) => b.revenue - a.revenue)
-    .map((item) => {
-      const sharePct = totalRevenue > 0 ? Math.round((item.revenue / totalRevenue) * 1000) / 10 : 0
-      const cumulativeBefore = cumulative
-      cumulative += sharePct
-      const cumulativePct = Math.min(100, Math.round(cumulative * 10) / 10)
-      const abcClass: ProductReportItem['abcClass'] = cumulativeBefore < 80 ? 'A' : cumulativeBefore < 95 ? 'B' : 'C'
-      return { ...item, sharePct, cumulativePct, abcClass }
-    })
+  return projectAnalyticsProducts(source.products)
 }
 
 export async function getSalesOverTime(
@@ -288,24 +265,16 @@ export async function getSalesOverTime(
   if (section === 'analytics') {
     const source = coreSource ?? await getAnalyticsCoreMetrics(restaurantId, query, asOf)
     if (isHourly) {
-      const currentMap = new Map(source.sales
-        .filter((row) => row.period === 'current')
-        .map((row) => [row.hour, row.total]))
-      const previousMap = new Map(source.sales
-        .filter((row) => row.period === 'previous')
-        .map((row) => [row.hour, row.total]))
+      const currentMap = sumAnalyticsSalesBuckets(source.sales, 'current', (row) => row.hour)
+      const previousMap = sumAnalyticsSalesBuckets(source.sales, 'previous', (row) => row.hour)
       return Array.from({ length: 24 }, (_, hour) => ({
         date: `${hour.toString().padStart(2, '0')}:00`,
         current: currentMap.get(hour) ?? 0,
         prev: previousMap.get(hour) ?? 0,
       }))
     }
-    const currentMap = new Map(source.sales
-      .filter((row) => row.period === 'current')
-      .map((row) => [row.day, row.total]))
-    const previousMap = new Map(source.sales
-      .filter((row) => row.period === 'previous')
-      .map((row) => [row.day, row.total]))
+    const currentMap = sumAnalyticsSalesBuckets(source.sales, 'current', (row) => row.day)
+    const previousMap = sumAnalyticsSalesBuckets(source.sales, 'previous', (row) => row.day)
     return Array.from({ length: bucketCount }, (_, i) => {
       const dayStart = startOfDayNDaysAgo(tz, -i, currentStart)
       const prevDayStart = startOfDayNDaysAgo(tz, -i, previousStart)
@@ -378,9 +347,10 @@ export async function getAnalyticsSalesReportData(
   range: string | AnalyticsQuery,
   asOf = new Date(),
 ) {
-  const [core, paymentBreakdown] = await Promise.all([
+  const [core, paymentBreakdown, liveActiveOrders] = await Promise.all([
     getAnalyticsCoreMetrics(restaurantId, range, asOf),
     getPaymentBreakdown(restaurantId, range, asOf),
+    getAnalyticsActiveOrderCount(restaurantId),
   ])
   const [rangeKpis, salesOverTime, heatmapData, topItems] = await Promise.all([
     getAnalyticsRangeKPIs(restaurantId, range, asOf, core),
@@ -388,7 +358,7 @@ export async function getAnalyticsSalesReportData(
     getHeatmapData(restaurantId, range, asOf, core),
     getTopItems(restaurantId, range, asOf, core),
   ])
-  return { rangeKpis, salesOverTime, heatmapData, topItems, paymentBreakdown }
+  return { rangeKpis, salesOverTime, heatmapData, topItems, paymentBreakdown, liveActiveOrders }
 }
 
 export async function getTablesReportData(restaurantId: string, range: string | AnalyticsQuery = 'week', asOf = new Date()): Promise<TableReportRow[]> {

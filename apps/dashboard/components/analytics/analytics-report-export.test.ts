@@ -63,3 +63,17 @@ test('lazy reports cannot export before their complete payload exists', () => {
   assert.equal(buildAnalyticsReportCsv('operasyon', 'month', data), null)
   assert.equal(buildAnalyticsReportCsv('sadakat', 'month', data), null)
 })
+
+test('CSV carries exact tenant, period, timezone and stale snapshot context', () => {
+  const result = buildAnalyticsReportCsv('sales', 'week', createInitialAnalyticsData(initialData), {
+    restaurantId: 'tenant-a', restaurantName: '=Şube A', generatedAt: '2026-09-06T12:00:00Z', freshness: 'stale',
+    scope: { timezone: 'Europe/Istanbul', currentStart: '2026-08-30T21:00:00Z', currentEnd: '2026-09-06T12:00:00Z', previousStart: '2026-08-23T21:00:00Z', previousEnd: '2026-08-30T21:00:00Z' },
+  })
+  assert.ok(result)
+  assert.match(result.csv, /Şube,'=Şube A/)
+  assert.match(result.csv, /İşletme kimliği,tenant-a/)
+  assert.match(result.csv, /Europe\/Istanbul/)
+  assert.match(result.csv, /2026-08-30T21:00:00Z/)
+  assert.match(result.csv, /2026-09-06T12:00:00Z/)
+  assert.match(result.csv, /Son başarılı veri; güncel olmayabilir/)
+})

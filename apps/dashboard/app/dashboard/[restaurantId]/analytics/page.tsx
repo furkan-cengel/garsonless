@@ -1,7 +1,8 @@
+import { getRestaurantTimezone, rangeWindowFor } from '../../../../lib/queries/insights-shared'
+import { analyticsDateError } from '../../../../lib/analytics-report-scope'
 import { notFound } from 'next/navigation'
 import { getRestaurantById } from '../../../../lib/queries/restaurants'
 import {
-  getAnalyticsActiveOrderCount,
   getAnalyticsSalesReportData,
 } from '../../../../lib/queries/analytics'
 import AnalyticsClient from '../../../../components/analytics/AnalyticsClientBoundary'
@@ -19,7 +20,7 @@ interface Props {
 
 export default async function AnalyticsPage({ params, searchParams }: Props) {
   const [{ restaurantId }, requestedParams] = await Promise.all([params, searchParams])
-  const initialQuery = parseAnalyticsQuery(requestedParams)
+  let initialQuery = parseAnalyticsQuery(requestedParams)
   // Members with 'analytics' see the business tabs; the Operasyon AUDIT tab
   // (staff emails + per-person cash + fraud flags) is owner-only — the nav is
   // filtered by isOwner and the queries themselves re-check server-side.
@@ -30,10 +31,14 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
   if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'analytics_basic' })) {
     return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="analytics_basic" isOwner={access.isOwner} planPrices={readBillingPlanPrices()} />
   }
-  const [liveKpis, salesReport] = await Promise.all([
-    getAnalyticsActiveOrderCount(restaurantId),
+  const timezone = await getRestaurantTimezone(restaurantId)
+  if (analyticsDateError(initialQuery, timezone, asOf)) initialQuery = parseAnalyticsQuery({})
+  const [salesReport, window] = await Promise.all([
     getAnalyticsSalesReportData(restaurantId, initialQuery, asOf),
+    rangeWindowFor(restaurantId, initialQuery, asOf),
   ])
+  const initialScope = { timezone, currentStart: window.currentStart.toISOString(), currentEnd: window.currentEnd.toISOString(),
+    previousStart: window.previousStart.toISOString(), previousEnd: window.currentStart.toISOString() }
   const hasAdvancedAnalytics = await canRestaurantUseFeature({
     restaurantId,
     plan: restaurant.plan,
@@ -48,9 +53,11 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
 
   return (
     <AnalyticsClient
+      key={restaurantId}
+      initialScope={initialScope}
       restaurantId={restaurantId}
       restaurantName={restaurant.name}
-      liveActiveOrders={liveKpis}
+      liveActiveOrders={salesReport.liveActiveOrders}
       rangeKpis={salesReport.rangeKpis}
       topItems={salesReport.topItems}
       salesOverTime={salesReport.salesOverTime}
@@ -63,7 +70,6 @@ export default async function AnalyticsPage({ params, searchParams }: Props) {
       initialQuery={initialQuery}
       initialReport={initialReport}
       initialGeneratedAt={asOf.toISOString()}
-      initialSnapshotVersion={asOf.getTime()}
     />
   )
 }

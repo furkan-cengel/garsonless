@@ -26,9 +26,12 @@ import type {
 import { assertAccess } from '../auth/access'
 import { createDashboardServerClient } from '../supabase-server'
 import { canRestaurantUseFeature } from '@garsonless/db/server'
+import { getRestaurantTimezone, rangeWindowFor } from '../queries/insights-shared'
+import { analyticsDateError, type AnalyticsReportScope } from '../analytics-report-scope'
 import { validateAnalyticsQuery } from '../analytics-filter-contract'
 
 export interface AnalyticsPayload {
+  liveActiveOrders: number
   rangeKpis: AnalyticsRangeKPIs
   salesOverTime: DailySale[]
   heatmapData: HeatmapCell[]
@@ -48,6 +51,7 @@ export interface AnalyticsReportResponse<T = Partial<AnalyticsPayload>> {
   data?: T
   generatedAt: string
   snapshotVersion: number
+  scope?: AnalyticsReportScope
   error?: string
   errorCode?: AnalyticsReportErrorCode
 }
@@ -89,8 +93,10 @@ export async function fetchAnalyticsReportData(
     errorCode,
     error,
   })
+  let scope: AnalyticsReportScope | undefined
   const succeed = (data: Partial<AnalyticsPayload>, generatedAt: Date): AnalyticsReportResponse => ({
     data,
+    scope,
     generatedAt: generatedAt.toISOString(),
     snapshotVersion: generatedAt.getTime(),
   })
@@ -105,6 +111,12 @@ export async function fetchAnalyticsReportData(
 
   try {
     const asOf = new Date()
+    const timezone = await getRestaurantTimezone(restaurantId)
+    const dateError = analyticsDateError(query, timezone, asOf)
+    if (dateError) return fail('INVALID_REQUEST', dateError)
+    const window = await rangeWindowFor(restaurantId, query, asOf)
+    scope = { timezone, currentStart: window.currentStart.toISOString(), currentEnd: window.currentEnd.toISOString(),
+      previousStart: window.previousStart.toISOString(), previousEnd: window.currentStart.toISOString() }
     if (report === 'sales') {
       return succeed(await getAnalyticsSalesReportData(restaurantId, query, asOf), asOf)
     }
