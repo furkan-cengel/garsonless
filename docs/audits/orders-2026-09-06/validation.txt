@@ -1,0 +1,10 @@
+Orders audit — 2026-09-06
+Targeted tests: 49 passed, 0 failed.
+Dashboard architecture suite: 882 passed, 0 failed (mixed behavior/source assertions).
+Dashboard changed-file lint: passed.
+Domain/application changed-file lint: passed.
+Dashboard typecheck: passed.
+Application typecheck: passed.
+Dashboard production build: passed, Next.js 15.5.25.
+Browser: 320, 390, 768, 1440 CSS px; details in README.md.
+Isolated DEV fixture: cleaned. No production writes.
