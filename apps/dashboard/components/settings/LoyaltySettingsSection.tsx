@@ -21,6 +21,7 @@ export default function LoyaltySettingsSection({ restaurant, featureAllowed }: {
   return (
     <LoyaltySection
       restaurantId={restaurant.id}
+      timeZone={restaurant.timezone || 'Europe/Istanbul'}
       featureAllowed={featureAllowed}
       initialSettings={settings}
       initial={{

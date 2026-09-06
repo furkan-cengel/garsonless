@@ -99,3 +99,6 @@ export function couponStatus(
   if (coupon.totalUsageLimit !== null && coupon.redemptionCount >= coupon.totalUsageLimit) return 'exhausted'
   return 'active'
 }
+
+export { validateCouponWrite, CouponWriteError } from './coupon-write'
+export type { CouponWriteInput, CouponFieldErrors, CouponWriteErrorCode } from './coupon-write'

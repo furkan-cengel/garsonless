@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { LockKeyhole } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import type { Tables } from '@garsonless/db/types'
@@ -32,10 +32,10 @@ const SecuritySection        = dynamic(() => import('./AdvancedSections').then(m
 const PrivacySection         = dynamic(() => import('./AdvancedSections').then(m => ({ default: m.PrivacySection })), { loading: SectionLoading })
 const BillingSection         = dynamic(() => import('./BillingSection'), { loading: SectionLoading })
 import PageTopBar from '../layout/PageTopBar'
-const UnsavedChangesDialog = dynamic(() => import('../overlays/UnsavedChangesDialog'))
+import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import { useShell } from '../../lib/shell-context'
 import { I, S, Tag } from '../../lib/ui'
-import { SETTINGS_DIRTY_EVENT, SETTINGS_SAVED_EVENT, type SettingsDirtyEventDetail } from './settings-dirty-state'
+import { SETTINGS_DIRTY_EVENT, SETTINGS_SAVED_EVENT, SETTINGS_CONFIRM_DISCARD_EVENT, type SettingsConfirmDiscardDetail, type SettingsDirtyEventDetail } from './settings-dirty-state'
 import {
   canAccessSettingsSection,
   resolveSettingsSection,
@@ -311,19 +311,36 @@ export default function SettingsForm({
   sectionsAccess,
 }: SettingsFormProps) {
   const router = useRouter()
+  const sectionInUrl = useSearchParams().get('section')
   const { setNavigationGuard } = useShell()
   // A non-owner 'settings' member lands on a section they can see (workspace is owner-only).
   const [active, setActive] = useState<SectionId>(initialSection)
   const [dirtySources, setDirtySources] = useState<Set<string>>(() => new Set())
   const hasUnsavedChanges = dirtySources.size > 0
+  const blockingSources = useRef(new Set<string>())
+  const lastContent = useRef<ReactNode>(null)
+  const historySession = useRef<string | null>(null)
+  const historyPosition = useRef(0)
+  const restoringHistory = useRef(false)
+  const allowHistory = useRef(false)
+  const pendingHistoryDelta = useRef(0)
+  const pendingHistorySection = useRef<SectionId | null>(null)
   const settingsRevision = useSettingsRevision(restaurant.id, hasUnsavedChanges)
   const [pendingSection, setPendingSection] = useState<SectionId | null>(null)
   const [pendingFromHistory, setPendingFromHistory] = useState(false)
   const [conflict, setConflict] = useState<SettingsConflictEventDetail | null>(null)
 
   useEffect(() => {
-    setActive(initialSection)
-  }, [initialSection])
+    setActive(resolveSettingsSection(sectionInUrl, isOwner))
+  }, [sectionInUrl, isOwner])
+
+  useEffect(() => {
+    // A history-cache restore can update the URL before its section payload.
+    // Fetch the matching payload instead of leaving the loading guard stranded.
+    if (resolveSettingsSection(sectionInUrl, isOwner) === active && initialSection !== active) router.refresh()
+  }, [sectionInUrl, active, initialSection, isOwner, router])
+
+
 
   useEffect(() => {
     setNavigationGuard(hasUnsavedChanges
@@ -337,11 +354,14 @@ export default function SettingsForm({
     const onSaved = (event: Event) => setDirtySources(current => {
       const next = new Set(current)
       next.delete(source(event))
+      blockingSources.current.delete(source(event))
       return next
     })
     const onDirty = (event: Event) => setDirtySources(current => {
       const next = new Set(current)
       next.add(source(event))
+      if ((event as CustomEvent<SettingsDirtyEventDetail>).detail?.blocking) blockingSources.current.add(source(event))
+      else blockingSources.current.delete(source(event))
       return next
     })
     window.addEventListener(SETTINGS_SAVED_EVENT, onSaved)
@@ -369,20 +389,72 @@ export default function SettingsForm({
   }, [hasUnsavedChanges])
 
   useEffect(() => {
-    const onPopState = () => {
-      const requested = new URL(window.location.href).searchParams.get('section')
-      const next = resolveSettingsSection(requested, isOwner)
-      if (next === active) return
-      if (hasUnsavedChanges) {
-        setPendingFromHistory(true)
-        setPendingSection(next)
+    if (initialSection !== active || 'navigation' in window) return
+    // Next owns its history state. Preserve it and add only our traversal marker.
+    const existing = window.history.state?.masabuSettings
+    if (!historySession.current) historySession.current = existing?.session ?? crypto.randomUUID()
+    if (existing?.session === historySession.current && existing.section === initialSection) {
+      historyPosition.current = existing.position
+    } else {
+      window.history.replaceState({...window.history.state, masabuSettings:{session:historySession.current,position:historyPosition.current,section:initialSection}}, '', window.location.href)
+    }
+  }, [initialSection, active])
+
+  useEffect(() => {
+    // Cancel traversal before the URL changes when the browser supports it.
+    // This avoids a transient route render while a draft confirmation is open.
+    const navigation = (window as Window & { navigation?: EventTarget & { currentEntry: { index: number } | null } }).navigation
+    if (!navigation) return
+    const onNavigate = (event: Event) => {
+      const traversal = event as Event & { navigationType: string; destination: {url: string; index: number} }
+      if (traversal.navigationType !== 'traverse' || !event.cancelable || allowHistory.current) return
+      const destination = new URL(traversal.destination.url)
+      if (destination.pathname !== window.location.pathname) return
+      const next = resolveSettingsSection(destination.searchParams.get('section'), isOwner)
+      if (next === active || (!hasUnsavedChanges && !blockingSources.current.size)) return
+      event.preventDefault()
+      if (blockingSources.current.size) return
+      pendingHistoryDelta.current = traversal.destination.index - (navigation.currentEntry?.index ?? traversal.destination.index)
+      confirmSectionChange(next, true)
+    }
+    navigation.addEventListener('navigate', onNavigate)
+    return () => navigation.removeEventListener('navigate', onNavigate)
+  })
+
+  useEffect(() => {
+    const onPopState = (event: PopStateEvent) => {
+      if (restoringHistory.current) {
+        event.stopImmediatePropagation()
+        restoringHistory.current = false
+        historyPosition.current = event.state?.masabuSettings?.position ?? historyPosition.current
+        if (pendingHistorySection.current && !blockingSources.current.size) {
+          confirmSectionChange(pendingHistorySection.current, true)
+        }
+        pendingHistorySection.current = null
         return
       }
-      setActive(next)
+      const next = resolveSettingsSection(new URL(window.location.href).searchParams.get('section'), isOwner)
+      if (allowHistory.current) { allowHistory.current = false; return }
+      if (next === active) return
+      const marker = event.state?.masabuSettings
+      if ((hasUnsavedChanges || blockingSources.current.size) && marker?.session === historySession.current) {
+        const delta = marker.position - historyPosition.current
+        if (delta !== 0) {
+          // Capture before Next suspends/unmounts the section, then restore the
+          // current entry while the user decides. Both Back and Forward work.
+          event.stopImmediatePropagation()
+          pendingHistoryDelta.current = delta
+          restoringHistory.current = true
+          pendingHistorySection.current = next
+          window.history.go(-delta)
+          return
+        }
+      }
+      // Next restores its URL first; sectionInUrl then updates the selected view.
     }
-    window.addEventListener('popstate', onPopState)
-    return () => window.removeEventListener('popstate', onPopState)
-  }, [active, hasUnsavedChanges, isOwner])
+    window.addEventListener('popstate', onPopState, true)
+    return () => window.removeEventListener('popstate', onPopState, true)
+  })
 
   function sectionUrl(section: SectionId): string {
     const url = new URL(window.location.href)
@@ -399,20 +471,40 @@ export default function SettingsForm({
     const url = sectionUrl(next)
     setActive(next)
     if (mode === 'replace') router.replace(url)
-    else router.push(url)
+    else { historyPosition.current++; router.push(url) }
+  }
+
+  function discardSectionChange(next: SectionId, fromHistory: boolean) {
+    if (blockingSources.current.size) return
+    setDirtySources(new Set())
+    if (fromHistory) { allowHistory.current = true; window.history.go(pendingHistoryDelta.current) }
+    else commitSectionChange(next)
+    setPendingFromHistory(false)
+    setPendingSection(null)
+  }
+
+  function confirmSectionChange(next: SectionId, fromHistory: boolean) {
+    const event = new CustomEvent<SettingsConfirmDiscardDetail>(SETTINGS_CONFIRM_DISCARD_EVENT, {
+      cancelable: true, detail: {onDiscard: () => discardSectionChange(next, fromHistory)},
+    })
+    window.dispatchEvent(event)
+    if (!event.defaultPrevented) {
+      setPendingFromHistory(fromHistory)
+      setPendingSection(next)
+    }
   }
 
   function requestSectionChange(next: SectionId) {
-    if (next === active) return
+    if (next === active || blockingSources.current.size) return
     if (hasUnsavedChanges) {
-      setPendingFromHistory(false)
-      setPendingSection(next)
+      confirmSectionChange(next, false)
       return
     }
     commitSectionChange(next)
   }
 
   function renderContent() {
+    if (active !== initialSection) return <SectionLoading />
     // Defense in depth: never render an owner-only sub-section for a member.
     if (!canSeeSection(active, isOwner)) return null
     const sectionAccess = sectionsAccess[active]
@@ -429,7 +521,7 @@ export default function SettingsForm({
       case 'workspace':     return <WorkspaceSection restaurant={restaurant} />
       case 'loyalty':       return <LoyaltySettingsSection restaurant={restaurant} featureAllowed={featureAccess.loyalty} />
       case 'kitchen':       return <KitchenSectionWrapper restaurantId={restaurant.id} featureAllowed={featureAccess.kitchenDisplay} hasKitchenAccess={hasKitchenAccess} kitchenStations={kitchenStations} />
-      case 'profile':       return <ProfileSection user={user} />
+      case 'profile':       return <ProfileSection user={user} onOpenSecurity={() => requestSectionChange('security')} />
       case 'team':          return isOwner ? <TeamSection restaurantId={restaurant.id} ownerEmail={user?.email ?? ''} members={teamMembers} auditEvents={teamAuditEvents} /> : null
       case 'store':         return <StoreSection restaurant={restaurant} isOwner={isOwner} />
       case 'hours':         return <HoursSection restaurant={restaurant} />
@@ -450,6 +542,9 @@ export default function SettingsForm({
       />
     }
   }
+
+  const content = active === initialSection ? renderContent() : hasUnsavedChanges ? lastContent.current : <SectionLoading />
+  useEffect(() => { if (active === initialSection) lastContent.current = content })
 
   return (
     <div className={styles.root} data-settings-root>
@@ -495,28 +590,20 @@ export default function SettingsForm({
               </AlertDescription>
             </Alert>
           )}
-          {renderContent()}
+          {content}
         </ContentArea>
       </div>
-      {pendingSection && (
-        <UnsavedChangesDialog
+      {pendingSection && <UnsavedChangesDialog
           description="Bu ayar bölümünde kaydedilmemiş değişiklikler var. Geçersen değişiklikler kaybolacak."
           discardLabel="Değişiklikleri sil ve geç"
           onKeepEditing={() => {
-            if (pendingFromHistory) commitSectionChange(active, 'replace')
             setPendingFromHistory(false)
             setPendingSection(null)
           }}
           onDiscard={() => {
-            const next = pendingSection
-            setDirtySources(new Set())
-            if (pendingFromHistory) setActive(next)
-            else commitSectionChange(next)
-            setPendingFromHistory(false)
-            setPendingSection(null)
+            if (pendingSection) discardSectionChange(pendingSection, pendingFromHistory)
           }}
-        />
-      )}
+        />}
       {conflict && <SettingsConflictDialog conflict={conflict} onClose={() => setConflict(null)} />}
     </div>
   )

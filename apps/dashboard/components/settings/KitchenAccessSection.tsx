@@ -141,7 +141,7 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Mutfak Erişimi</div>
         <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 3, lineHeight: 1.45 }}>
-          Kalıcı erişim kodu artık tarayıcıya gösterilmez. Mutfak ekranı kısa ömürlü bir açılış biletiyle güvenli oturum kurar.
+          Mutfak ekibinizin siparişleri takip edebilmesi için güvenli erişim oluşturun.
         </div>
       </div>
 
@@ -213,7 +213,7 @@ export default function KitchenAccessSection({ restaurantId, featureAllowed, ini
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Mutfak istasyonları</div>
           <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 3, lineHeight: 1.45 }}>
-            Kategoriler varsayılan istasyona bağlanır; ürünler isterse özel istasyon kullanır. Sipariş anında istasyon snapshot&apos;ı alınır.
+            Siparişleri hazırlayan bölümleri ekleyin. Ürün ve kategorilerin istasyonlarını Menü bölümünden seçebilirsiniz.
           </div>
         </div>
 

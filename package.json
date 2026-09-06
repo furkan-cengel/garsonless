@@ -43,6 +43,7 @@
     "typecheck": "corepack pnpm -r --if-present --workspace-concurrency=4 typecheck",
     "visual:auth": "playwright test --config=playwright.visual.config.ts --project=dashboard-desktop --project=dashboard-mobile --project=dashboard-narrow --project=dashboard-tablet --project=dashboard-zoom-200",
     "visual:auth:setup": "playwright test --config=playwright.visual.config.ts --project=dashboard-auth-setup",
+    "visual:coupons": "playwright test --config=playwright.coupons.config.ts",
     "visual:settings": "playwright test --config=playwright.settings.config.ts",
     "visual:smoke": "playwright test --config=playwright.visual.config.ts",
     "format": "prettier --write \"**/*.{ts,tsx,css,md}\"",

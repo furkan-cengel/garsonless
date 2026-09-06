@@ -14,6 +14,7 @@
   "scripts": {
     "lint": "eslint .",
     "test": "node --import tsx --test src/*.test.ts scripts/*.test.mjs",
+    "test:coupon-editor-runtime": "node scripts/coupon-editor-runtime.mjs",
     "test:tables-runtime": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx --test src/table-transfers-runtime.integration.ts",
     "typecheck": "tsc --noEmit",
     "db:migrate": "node scripts/supabase-target.mjs push",

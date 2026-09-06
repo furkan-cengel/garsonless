@@ -39,7 +39,7 @@ import {
   FieldLabel,
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group'
+import NumberField from './LoyaltyNumberField'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
@@ -63,15 +63,6 @@ const I = {
   drag: <AppI.drag size={14} />,
 }
 
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n))
-}
-
-function numberFrom(value: string, fallback: number) {
-  const n = Number(value)
-  return Number.isFinite(n) ? n : fallback
-}
-
 function Toggle({ on, onChange, size = 'md', ariaLabel = 'Ayarı aç veya kapat' }: { on: boolean; onChange: (on: boolean) => void; size?: 'md' | 'lg'; ariaLabel?: string }) {
   return (
     <Switch
@@ -81,57 +72,6 @@ function Toggle({ on, onChange, size = 'md', ariaLabel = 'Ayarı aç veya kapat'
       onCheckedChange={onChange}
       size={size === 'lg' ? 'default' : 'sm'}
     />
-  )
-}
-
-function NumberField({
-  value,
-  onChange,
-  suffix,
-  min = 0,
-  max,
-  step = 1,
-  width = 120,
-  ariaLabel,
-  ariaDescribedBy,
-}: {
-  value: number
-  onChange: (value: number) => void
-  suffix?: string
-  min?: number
-  max?: number
-  step?: number
-  width?: number | string
-  ariaLabel?: string
-  ariaDescribedBy?: string
-}) {
-  const control = (
-    <InputGroup className="h-9">
-      <InputGroupInput
-        aria-label={ariaLabel}
-        aria-describedby={ariaDescribedBy}
-        type="number"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        className="text-center font-semibold"
-        onChange={(e) => {
-          const n = numberFrom(e.target.value, value)
-          onChange(max === undefined ? Math.max(min, n) : clamp(n, min, max))
-        }}
-      />
-      {suffix && (
-        <InputGroupAddon align="inline-end">
-          <InputGroupText>{suffix}</InputGroupText>
-        </InputGroupAddon>
-      )}
-    </InputGroup>
-  )
-  return (
-    <div className="shrink-0" style={{ width }}>
-      {control}
-    </div>
   )
 }
 
@@ -305,11 +245,13 @@ function SummaryChip({ on, icon, label }: { on: boolean; icon: React.ReactNode; 
 
 export default function LoyaltySection({
   restaurantId,
+  timeZone,
   featureAllowed,
   initial,
   initialSettings,
 }: {
   restaurantId: string
+  timeZone: string
   featureAllowed: boolean
   initial: LoyaltyConfig
   initialSettings: Record<string, unknown>
@@ -386,7 +328,7 @@ export default function LoyaltySection({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!tiersValid) return
+    if (!(e.currentTarget as HTMLFormElement).reportValidity() || !tiersValid) return
     setError('')
     setSuccess(false)
     const settingsPatch = { loyalty: cfg as unknown as Record<string, unknown> }
@@ -458,7 +400,7 @@ export default function LoyaltySection({
   }
 
   return (
-    <form onSubmit={handleSubmit} aria-busy={isPending} className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5">
       <div className="flex flex-wrap gap-2">
         <SummaryChip on={cfg.stamp_enabled} icon={<AppI.stamp size={14} />} label={cfg.stamp_enabled ? `Damga · ${cfg.stamp_goal} hedef` : 'Damga kapalı'} />
         <SummaryChip on={cfg.points_enabled} icon={<AppI.star size={14} />} label={cfg.points_enabled ? `Puan · ${cfg.points_per_lira}p/₺` : 'Puan kapalı'} />
@@ -468,7 +410,9 @@ export default function LoyaltySection({
         <SummaryChip on={hasPriorityTier} icon={<AppI.crown size={14} />} label={hasPriorityTier ? 'Öncelikli servis' : `${cfg.tiers.length} seviye`} />
       </div>
 
-      <CouponManager restaurantId={restaurantId} />
+      <CouponManager restaurantId={restaurantId} timeZone={timeZone} />
+
+      <form onSubmit={handleSubmit} aria-busy={isPending} className="flex flex-col gap-5">
 
       <Module
         icon={I.stamp}
@@ -584,15 +528,15 @@ export default function LoyaltySection({
               value={cfg.earn_trigger}
               onChange={(earn_trigger) => patch({ earn_trigger })}
               options={[
-                { value: 'paid', label: 'Ödeme alınınca', desc: 'paid_at' },
-                { value: 'served', label: 'Servis edilince', desc: 'served' },
+                { value: 'paid', label: 'Ödeme alınınca', desc: 'Ödeme tamamlandığında' },
+                { value: 'served', label: 'Servis edilince', desc: 'Sipariş servis edildiğinde' },
               ] as const}
             />
           </Field>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 4 }}>
-          <Field label="Üye indirimi fallback (%)" hint="Tüm seviye indirimleri 0 ise legacy üyelik indirimi olarak kullanılır. Seviye indirimi girildiğinde kayıt sırasında fallback pasifleşir.">
+          <Field label="Standart üye indirimi (%)" hint="Seviyelere özel indirim tanımlamadığınızda tüm üyelere uygulanır.">
             <NumberField width="100%" value={cfg.member_discount_pct} min={0} max={100} suffix="%" onChange={(member_discount_pct) => patch({ member_discount_pct: Math.floor(member_discount_pct) })} />
           </Field>
           <Field label="Hoş geldin bonusu (puan)" hint="Üye olunca bir defaya mahsus verilir (0 = kapalı)">
@@ -730,6 +674,7 @@ export default function LoyaltySection({
           </div>
         </CardFooter>
       </Card>
-    </form>
+      </form>
+    </div>
   )
 }

@@ -81,8 +81,8 @@ export default function PageTopBar({ restaurantName, title, className, tag, cent
             minHeight: 44, minWidth: 44, padding: '0 8px', borderRadius: 8,
           }}
         >
-          <span className="page-topbar-restaurant-name">{restaurantName}</span>
-          <span className="page-topbar-restaurant-chevron" aria-hidden="true">
+          <span className="page-topbar-restaurant-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 'min(22vw, 220px)', minWidth: 0 }}>{restaurantName}</span>
+          <span className="page-topbar-restaurant-chevron" aria-hidden="true" style={{ flexShrink: 0 }}>
             <I.chevDown size={13} />
           </span>
         </button>

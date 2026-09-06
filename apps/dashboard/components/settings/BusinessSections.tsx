@@ -728,7 +728,7 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                     onValueChange={(value) => updateSoundPrefs({ newOrderSoundPreset: value as OrderSoundPreset })}
                   >
                     <SelectTrigger className="w-full" aria-label="Yeni sipariş sesi">
-                      <SelectValue />
+                      <SelectValue>{({ 'masabu-alert':'Masabu alarmı', 'kitchen-pulse':'Güçlü mutfak zili', 'double-strike':'Çift darbe', 'urgent-triple':'Hızlı üçlü', 'classic':'Klasik', 'kitchen-bell':'Mutfak zili', 'double-chime':'Üçlü melodi', 'soft-ping':'Yumuşak ping' } as Record<string,string>)[prefs.newOrderSoundPreset] ?? 'Bildirim sesi'}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
@@ -776,7 +776,7 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                     disabled={!prefs.newOrderSound}
                     onValueChange={(value) => updateSoundPrefs({ newOrderRepeatSeconds: Number(value) as OrderSoundRepeatSeconds })}
                   >
-                    <SelectTrigger className="w-full" aria-label="Yeni sipariş sesi tekrar aralığı"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-full" aria-label="Yeni sipariş sesi tekrar aralığı"><SelectValue>{prefs.newOrderRepeatSeconds === 0 ? 'Tekrar etme' : `${prefs.newOrderRepeatSeconds} saniyede bir`}</SelectValue></SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
                         <SelectItem value="0">Tekrar etme</SelectItem>
@@ -797,7 +797,7 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                     disabled={!prefs.newOrderSound || prefs.newOrderRepeatSeconds === 0}
                     onValueChange={(value) => updateSoundPrefs({ newOrderRepeatMaxMinutes: Number(value) })}
                   >
-                    <SelectTrigger className="w-full" aria-label="Yeni sipariş sesi azami tekrar süresi"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-full" aria-label="Yeni sipariş sesi azami tekrar süresi"><SelectValue>{prefs.newOrderRepeatMaxMinutes} dakika</SelectValue></SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
                         {[1, 3, 5, 10].map((minute) => <SelectItem key={minute} value={String(minute)}>{minute} dakika</SelectItem>)}
@@ -945,7 +945,7 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
 
         <CardFooter className="flex-wrap justify-between gap-3">
           <span role={error ? 'alert' : 'status'} className={error ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
-            {error || (saved ? 'Değişiklikler kaydedildi' : 'Değişiklikleri kaydetmeyi unutmayın')}
+            {error || (isPending ? 'Kaydediliyor…' : notificationsDirty ? 'Kaydedilmemiş değişiklikler' : saved ? 'Kaydedildi' : 'Değişiklik yok')}
           </span>
           <Button type="submit" disabled={isPending || !notificationsDirty}>
             {isPending ? <Spinner data-icon="inline-start" /> : <I.check data-icon="inline-start" />}

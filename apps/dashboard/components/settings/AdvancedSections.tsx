@@ -17,6 +17,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { Textarea } from '../ui/textarea'
 import { Spinner } from '../ui/spinner'
 import type { IntegrationHealth } from '@garsonless/application/settings'
 import { createPrivacyOperation } from '../../lib/actions/privacy'
@@ -39,12 +40,12 @@ export function ApiSection({ resendHealth }: { resendHealth: IntegrationHealth |
         <I.code />
         <AlertTitle>Geliştirici erişimi henüz kapalı</AlertTitle>
         <AlertDescription>
-          Bu restorana ait gerçek API endpoint doğrulaması ve webhook gönderimi bu sürümde yok. Bu yüzden anahtar üretimi ve webhook ayarları pasif tutulur.
+          API erişimi ve otomatik veri bildirimleri henüz kullanıma açık değil.
         </AlertDescription>
       </Alert>
 
-      <SCard title="API anahtarları" subtitle="Gerçek API gateway eklendiğinde açılacak">
-        <FormRow label="Durum" hint="Şu anda hiçbir endpoint bu anahtarlarla istek kabul etmiyor">
+      <SCard title="API anahtarları" subtitle="API erişimi kullanıma açıldığında yönetilebilir">
+        <FormRow label="Durum" hint="Şu anda API anahtarı oluşturulamaz">
           <Tag tone="neutral">Yakında</Tag>
         </FormRow>
         <FormRow label="Anahtar üretimi">
@@ -58,20 +59,20 @@ export function ApiSection({ resendHealth }: { resendHealth: IntegrationHealth |
         <FormRow label="Hedef URL">
           <Input disabled value="" placeholder="Webhook URL desteği yakında" className="w-80 font-mono" />
         </FormRow>
-        <FormRow label="Olaylar" hint="Sipariş/ödeme/menu event gönderimi ayrı API epic'inde açılacak">
+        <FormRow label="Olaylar" hint="Sipariş, ödeme ve menü bildirimleri henüz desteklenmiyor">
           <Tag tone="neutral">Kapalı</Tag>
         </FormRow>
       </SCard>
 
-      <SCard title="E-posta teslimatı" subtitle="Resend platform tarafından yönetilir; tenant secret girişi yoktur" style={{ marginTop: 16 }}>
-        <FormRow label="Sağlayıcı"><Tag tone="neutral">Platform-managed Resend</Tag></FormRow>
+      <SCard title="E-posta teslimatı" subtitle="E-posta gönderimi Masabu tarafından yönetilir" style={{ marginTop: 16 }}>
+        <FormRow label="Sağlayıcı"><Tag tone="neutral">Masabu e-posta servisi</Tag></FormRow>
         <FormRow label="Sağlık" hint={resendHealth?.lastSuccessAt ? `Son başarılı kontrol: ${new Date(resendHealth.lastSuccessAt).toLocaleString('tr-TR')}` : 'Henüz başarılı bir sağlık kontrolü kaydedilmedi'}>
           <Tag tone={resendHealth?.state === 'healthy' ? 'positive' : 'neutral'}>
             {resendHealth?.state === 'healthy' ? 'Sağlıklı' : resendHealth?.state === 'error' ? 'Hata' : resendHealth?.state === 'untested' ? 'Test edilmedi' : 'Yapılandırılmadı'}
           </Tag>
         </FormRow>
         <FormRow label="Gönderici alan adı" hint="Doğrulama ve yeniden bağlama platform operasyonları tarafından yönetilir">
-          <Tag tone="neutral">Tenant kontrolü kapalı</Tag>
+          <Tag tone="neutral">Masabu tarafından yönetilir</Tag>
         </FormRow>
       </SCard>
     </>
@@ -432,14 +433,14 @@ export function PrivacySection({ restaurantId, restaurantName }: { restaurantId:
         <I.shield />
         <AlertTitle>Gizlilik ve veri sahipliği</AlertTitle>
         <AlertDescription>
-          Dışa aktarma dosyası yalnız bu tarayıcıya indirilir; sunucuda dosyanın kendisi değil SHA-256 özeti ve audit kaydı tutulur. Silme işlemleri doğrudan uygulanmaz, inceleme talebi oluşturur.
+          Verilerinizi bu cihaza indirebilirsiniz. Hesap veya işletme kapatma işlemi önce inceleme talebi oluşturur; verileriniz hemen silinmez.
         </AlertDescription>
       </Alert>
       <SCard title="Veri dışa aktarma ve kapatma talepleri" subtitle="Yalnızca işletme sahibi kullanabilir">
         <div className="grid gap-4 p-4">
           <label className="grid gap-1 text-sm font-medium">
             Talep gerekçesi
-            <Input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="Talebin amacını kısaca açıklayın" />
+            <Textarea id="privacy-request-reason" name="privacy-request-reason" autoComplete="off" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="Talebin amacını kısaca açıklayın" />
           </label>
           <label className="grid gap-1 text-sm font-medium">
             Hesap şifresi

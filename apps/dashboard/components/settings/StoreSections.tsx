@@ -256,7 +256,7 @@ export function StoreSection({ restaurant, isOwner }: { restaurant: Tables<'rest
       </SCard>
 
       {isOwner && <SCard title="Bölgesel ayarlar" subtitle="Rapor ve operasyon gün sınırlarını belirler" style={{ marginTop: 16 }}>
-        <FormRow label="Zaman dilimi" hint="IANA zaman dilimi; yalnız işletme sahibi değiştirebilir">
+        <FormRow label="Zaman dilimi" hint="Raporlar ve kampanya saatleri için kullanılır">
           <select value={timezone} onChange={(event) => { setTimezone(event.target.value); setTimezoneMessage(''); timezoneRequestRef.current = null }} style={storeInputStyle({ width: 230 })}>
             <option value="Europe/Istanbul">Europe/Istanbul</option>
             <option value="Europe/London">Europe/London</option>
@@ -265,7 +265,7 @@ export function StoreSection({ restaurant, isOwner }: { restaurant: Tables<'rest
             <option value="America/New_York">America/New_York</option>
           </select>
         </FormRow>
-        <FormRow label="Ürün politikası" hint="Çoklu para birimi ve locale bu iterasyonda kapalıdır">
+        <FormRow label="Ürün politikası" hint="Menünüzün dili Türkçe, para birimi Türk lirasıdır">
           <Tag tone="neutral">Türkçe · TRY · tr-TR</Tag>
         </FormRow>
         <div className="flex flex-wrap items-center justify-end gap-3 border-t p-4">
@@ -300,7 +300,7 @@ export function StoreSection({ restaurant, isOwner }: { restaurant: Tables<'rest
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
-          {error || (saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydedin')}
+          {error || (isPending ? 'Kaydediliyor…' : storeDirty ? 'Kaydedilmemiş değişiklikler' : saved ? 'Kaydedildi' : 'Değişiklik yok')}
         </span>
         <button type="submit" disabled={isPending || !storeDirty} style={btnPrimary()}>
           {isPending ? <InlineSpinner size={13} color="var(--on-action)" /> : <I.check size={13} />}{isPending ? 'Kaydediliyor…' : 'Kaydet'}
@@ -490,7 +490,7 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
-          {error || (saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydedin')}
+          {error || (isPending ? 'Kaydediliyor…' : hoursDirty ? 'Kaydedilmemiş değişiklikler' : saved ? 'Kaydedildi' : 'Değişiklik yok')}
         </span>
         <button type="submit" disabled={isPending || !hoursDirty} style={btnPrimary()}>
           {isPending ? <InlineSpinner size={13} color="var(--on-action)" /> : <I.check size={13} />}{isPending ? 'Kaydediliyor…' : 'Kaydet'}
@@ -586,7 +586,7 @@ export function TaxSection({ restaurant }: { restaurant: Tables<'restaurants'> }
         </div>
       </SCard>
 
-      <SCard title="Firma bilgisi" subtitle="Checkout adres alanlarında kullanılır; e-fatura entegrasyonu bu sürümde yok" style={{ marginTop: 16 }}>
+      <SCard title="Firma bilgisi" subtitle="Sipariş ve fiş bilgilerinde kullanılır" style={{ marginTop: 16 }}>
         <FormRow label="Şirket adı"><Input value={company} onChange={e => setCompany(e.target.value)} className="w-80" /></FormRow>
         <FormRow label="Vergi numarası"><Input value={taxNumber} onChange={e => setTaxNumber(e.target.value)} className="w-50 font-mono" /></FormRow>
         <FormRow label="Vergi dairesi"><Input value={office} onChange={e => setOffice(e.target.value)} className="w-50" /></FormRow>
@@ -600,7 +600,7 @@ export function TaxSection({ restaurant }: { restaurant: Tables<'restaurants'> }
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)' }}>
-          {error || (saved ? '✓ Kaydedildi' : 'Değişiklikleri kaydedin')}
+          {error || (isPending ? 'Kaydediliyor…' : taxDirty ? 'Kaydedilmemiş değişiklikler' : saved ? 'Kaydedildi' : 'Değişiklik yok')}
         </span>
         <Button type="submit" disabled={isPending || !taxDirty}>
           {isPending ? <Spinner data-icon="inline-start" /> : <I.check data-icon="inline-start" />}
@@ -641,7 +641,7 @@ export function LanguagesSection() {
               <Tag tone="positive">Varsayılan</Tag>
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 3, lineHeight: 1.45 }}>
-              Çok dilli menü, manuel çeviri ve otomatik çeviri pipeline'ı henüz bağlı değil.
+              Menünüz şu anda Türkçe yayınlanır. Ek diller henüz desteklenmiyor.
             </div>
           </div>
         </div>
@@ -651,7 +651,7 @@ export function LanguagesSection() {
         <FormRow label="Manuel çeviri" hint="Ürün/kategori metinlerinin ayrı dil varyantları henüz yok">
           <Tag tone="neutral">Yakında</Tag>
         </FormRow>
-        <FormRow label="Otomatik çeviri" hint="DeepL/LLM sağlayıcı ve onay akışı bu fazda yok">
+        <FormRow label="Otomatik çeviri" hint="Otomatik çeviri henüz kullanıma açık değil">
           <Tag tone="neutral">Kapalı</Tag>
         </FormRow>
       </SCard>

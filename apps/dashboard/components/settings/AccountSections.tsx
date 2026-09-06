@@ -41,7 +41,7 @@ const TEAM_SECTION_OPTIONS: { key: string; label: string }[] = [
 const TEAM_SECTION_LABEL: Record<string, string> = Object.fromEntries(TEAM_SECTION_OPTIONS.map(o => [o.key, o.label]))
 
 /* ── PROFILE ─────────────────────────────────────── */
-export function ProfileSection({ user }: { user: User | null }) {
+export function ProfileSection({ user, onOpenSecurity }: { user: User | null; onOpenSecurity: () => void }) {
   const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
   const str = (v: unknown) => (typeof v === 'string' ? v : '')
 
@@ -109,9 +109,10 @@ export function ProfileSection({ user }: { user: User | null }) {
         <FormRow label="Ad Soyad">
           <Input value={fullName} onChange={e => setFullName(e.target.value)} autoComplete="name" className="w-72 max-w-full" />
         </FormRow>
-        <FormRow label="E-posta" hint="Değiştirmek için destek ile iletişime geç">
+        <FormRow label="E-posta" hint="E-posta adresini Güvenlik bölümünden değiştirebilirsin">
           <Input value={email} disabled type="email" autoComplete="email" className="w-72 max-w-full" />
         </FormRow>
+        <div className="flex justify-end px-4 pb-3"><Button type="button" variant="link" onClick={onOpenSecurity}>E-posta adresini değiştir</Button></div>
         <FormRow label="Telefon">
           <Input value={phone} onChange={e => setPhone(e.target.value)} type="tel" autoComplete="tel" className="w-72 max-w-full" />
         </FormRow>

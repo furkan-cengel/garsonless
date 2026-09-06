@@ -1,5 +1,8 @@
 import {
   couponErrorMessage,
+  validateCouponWrite,
+  CouponWriteError,
+  type CouponWriteInput,
   couponStatus,
   isCouponCode,
   normalizeCouponCode,
@@ -39,28 +42,7 @@ type CouponRow = {
   updated_at: string
 }
 
-export type CouponWriteInput = {
-  id?: string
-  name: string
-  code: string
-  enabled: boolean
-  discountType: CouponDiscountType
-  discountValue: number
-  scope: CouponScope
-  minimumAmount: number
-  maximumDiscountAmount: number | null
-  startsAt: string | null
-  endsAt: string | null
-  totalUsageLimit: number | null
-  perCustomerLimit: number | null
-  audience: CouponAudience
-  stackingPolicy: CouponStackingPolicy
-  marketingLabel: string | null
-  marketingDescription: string | null
-  categoryIds: string[]
-  itemIds: string[]
-  expectedUpdatedAt?: string | null
-}
+export type { CouponWriteInput } from '@garsonless/domain/coupons'
 
 export type CouponFailure = { ok: false; code: CouponErrorCode; error: string }
 
@@ -150,11 +132,12 @@ async function hydrateCoupons(rows: CouponRow[]): Promise<CouponDefinition[]> {
   if (rows.length === 0) return []
   const db = createServiceClient()
   const ids = rows.map((row) => row.id)
-  const [{ data: categories }, { data: items }, { data: redemptions }] = await Promise.all([
+  const [{ data: categories, error: categoryError }, { data: items, error: itemError }, { data: redemptions, error: redemptionError }] = await Promise.all([
     db.from('coupon_categories').select('coupon_id, category_id').in('coupon_id', ids),
     db.from('coupon_items').select('coupon_id, item_id').in('coupon_id', ids),
     db.from('coupon_redemptions').select('coupon_id').in('coupon_id', ids).eq('status', 'consumed'),
   ])
+  if (categoryError || itemError || redemptionError) throw new Error('Kupon ayrıntıları yüklenemedi.')
   const categoryMap = new Map<string, string[]>()
   for (const row of categories ?? []) categoryMap.set(row.coupon_id, [...(categoryMap.get(row.coupon_id) ?? []), row.category_id])
   const itemMap = new Map<string, string[]>()
@@ -186,75 +169,25 @@ export async function listActivePublicCoupons(restaurantId: string): Promise<Pub
   }))
 }
 
-function validateWrite(input: CouponWriteInput): string | null {
-  if (!input.name.trim() || input.name.trim().length > 80) return 'Kupon adı 1–80 karakter olmalıdır.'
-  if (!isCouponCode(input.code)) return 'Kupon kodu 3–32 karakter olmalı; yalnız harf, rakam, _ ve - içermelidir.'
-  if (!(input.discountValue > 0) || (input.discountType === 'percentage' && input.discountValue > 100)) return 'İndirim değeri geçersiz.'
-  if (input.minimumAmount < 0 || (input.maximumDiscountAmount !== null && input.maximumDiscountAmount <= 0)) return 'Tutar sınırları geçersiz.'
-  if (input.startsAt && input.endsAt && Date.parse(input.endsAt) <= Date.parse(input.startsAt)) return 'Bitiş tarihi başlangıçtan sonra olmalıdır.'
-  if (input.scope === 'category' && input.categoryIds.length === 0) return 'En az bir kategori seçin.'
-  if (input.scope === 'product' && input.itemIds.length === 0) return 'En az bir ürün seçin.'
-  if (input.audience === 'everyone' && input.perCustomerLimit !== null) return 'Kişi başı limit için kuponu üyelere özel yapın.'
-  return null
-}
-
 export async function saveRestaurantCoupon(restaurantId: string, input: CouponWriteInput): Promise<CouponDefinition> {
-  const invalid = validateWrite(input)
-  if (invalid) throw new Error(invalid)
-  if (!await loyaltyEntitled(restaurantId)) throw new Error('Kuponlar Pro sadakat özelliğiyle kullanılabilir.')
+  const fields = validateCouponWrite(input)
+  if (Object.keys(fields).length) throw new CouponWriteError('INVALID_INPUT', 'İşaretli alanları kontrol edin.', fields)
+  if (!await loyaltyEntitled(restaurantId)) throw new CouponWriteError('FORBIDDEN', 'Kuponlar Pro sadakat özelliğiyle kullanılabilir.')
+  const { requestId, ...payload } = input
   const db = createServiceClient()
-  const categoryIds = [...new Set(input.categoryIds)]
-  const itemIds = [...new Set(input.itemIds)]
-  if (categoryIds.length > 0) {
-    const { count } = await db.from('menu_categories').select('id', { count: 'exact', head: true }).eq('restaurant_id', restaurantId).in('id', categoryIds).is('deleted_at', null)
-    if (count !== categoryIds.length) throw new Error('Seçili kategoriler bu restorana ait değil.')
+  const rpc = db.rpc.bind(db) as unknown as (name: string, args: Record<string, unknown>) => Promise<{data: unknown; error: {code?: string; message: string} | null}>
+  const {data, error} = await rpc('save_restaurant_coupon_atomic', {p_restaurant:restaurantId, p_request_id:requestId, p_input:payload})
+  if (error) {
+    if (error.code === '23505') throw new CouponWriteError('CODE_CONFLICT', 'Bu kupon kodu zaten kullanılıyor.', {code:'Farklı bir kod girin veya yeni kod oluşturun.'})
+    if (error.message.includes('COUPON_VERSION_CONFLICT')) throw new CouponWriteError('CONFLICT', 'Kupon başka bir oturumda değiştirildi. Taslağınız korundu. Güncel kuponu yükleyip değişiklikleri yeniden uygulayın.')
+    if (error.message.includes('COUPON_REQUEST_CONFLICT')) throw new CouponWriteError('REQUEST_CONFLICT', 'Bu kayıt isteği farklı bilgilerle kullanılmış. Formu yeniden açın.')
+    if (error.message.includes('COUPON_INVALID_TARGET')) throw new CouponWriteError('INVALID_INPUT', 'Seçili ürün veya kategoriler artık kullanılamıyor.', {[input.scope === 'category' ? 'categoryIds' : 'itemIds']:'Listeyi yenileyip seçiminizi kontrol edin.'})
+    if (error.message.includes('COUPON_FORBIDDEN')) throw new CouponWriteError('FORBIDDEN', 'Bu işletmede kupon kaydetme yetkiniz yok.')
+    throw new CouponWriteError('UNAVAILABLE', 'Kupon kaydı şu anda tamamlanamıyor. Taslağınız korundu; tekrar deneyin.')
   }
-  if (itemIds.length > 0) {
-    const { data } = await db.from('menu_items').select('id, menu_categories!inner(restaurant_id)').eq('menu_categories.restaurant_id', restaurantId).in('id', itemIds).is('deleted_at', null)
-    if ((data ?? []).length !== itemIds.length) throw new Error('Seçili ürünler bu restorana ait değil.')
-  }
-  const row = {
-    restaurant_id: restaurantId,
-    name: input.name.trim(),
-    code: normalizeCouponCode(input.code),
-    enabled: input.enabled,
-    discount_type: input.discountType,
-    discount_value: input.discountValue,
-    scope: input.scope,
-    minimum_amount: input.minimumAmount,
-    maximum_discount_amount: input.discountType === 'percentage' ? input.maximumDiscountAmount : null,
-    starts_at: input.startsAt,
-    ends_at: input.endsAt,
-    total_usage_limit: input.totalUsageLimit,
-    per_customer_limit: input.audience === 'everyone' ? null : input.perCustomerLimit,
-    audience: input.audience,
-    stacking_policy: input.stackingPolicy,
-    marketing_label: input.marketingLabel?.trim() || null,
-    marketing_description: input.marketingDescription?.trim() || null,
-    updated_at: new Date().toISOString(),
-  }
-  let couponId = input.id ?? null
-  if (couponId) {
-    let update = db.from('coupons').update(row).eq('id', couponId).eq('restaurant_id', restaurantId).is('archived_at', null)
-    if (input.expectedUpdatedAt) update = update.eq('updated_at', input.expectedUpdatedAt)
-    const { data, error } = await update.select('id').maybeSingle()
-    if (error) throw new Error(error.code === '23505' ? 'Bu kupon kodu zaten kullanılıyor.' : error.message)
-    if (!data) throw new Error('Kupon başka bir oturumda değiştirildi. Listeyi yenileyip tekrar deneyin.')
-  } else {
-    const { data, error } = await db.from('coupons').insert(row).select('id').single()
-    if (error || !data) throw new Error(error?.code === '23505' ? 'Bu kupon kodu zaten kullanılıyor.' : error?.message ?? 'Kupon oluşturulamadı.')
-    couponId = data.id
-  }
-  await Promise.all([
-    db.from('coupon_categories').delete().eq('coupon_id', couponId),
-    db.from('coupon_items').delete().eq('coupon_id', couponId),
-  ])
-  if (input.scope === 'category' && categoryIds.length > 0) await db.from('coupon_categories').insert(categoryIds.map((category_id) => ({ coupon_id: couponId!, category_id })))
-  if (input.scope === 'product' && itemIds.length > 0) await db.from('coupon_items').insert(itemIds.map((item_id) => ({ coupon_id: couponId!, item_id })))
-  const coupons = await listRestaurantCoupons(restaurantId)
-  const saved = coupons.find((coupon) => coupon.id === couponId)
-  if (!saved) throw new Error('Kupon kaydedildi ancak yeniden okunamadı.')
-  return saved
+  const saved = data as {coupon: CouponRow; categoryIds:string[]; itemIds:string[]; redemptionCount:number} | null
+  if (!saved?.coupon) throw new CouponWriteError('UNAVAILABLE', 'Kayıt yanıtı alınamadı. Aynı işlemi tekrar deneyebilirsiniz.')
+  return mapCoupon(saved.coupon,saved.categoryIds,saved.itemIds,saved.redemptionCount)
 }
 
 export async function archiveRestaurantCoupon(restaurantId: string, couponId: string, expectedUpdatedAt: string): Promise<string> {
