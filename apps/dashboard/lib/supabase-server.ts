@@ -1,10 +1,13 @@
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
+import { safeCallbackPath } from './auth/callback-path'
+import { redirect } from 'next/navigation'
+import { deviceContext, checkDeviceEvidence, deviceSecurityEnabled } from './auth/device-session'
 import type { Database } from '@garsonless/db/types'
 
-export async function createDashboardServerClient() {
+export async function createDashboardServerClient(options: { authOnly?: boolean } = {}) {
   const cookieStore = await cookies()
-  return createServerClient<Database>(
+  const client = createServerClient<Database>(
     process.env['NEXT_PUBLIC_SUPABASE_URL']!,
     process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']!,
     {
@@ -24,4 +27,12 @@ export async function createDashboardServerClient() {
       },
     },
   )
+  if (!options.authOnly && deviceSecurityEnabled()) {
+    const context = await deviceContext(client)
+    if (context && await checkDeviceEvidence(context)) {
+      const next = safeCallbackPath((await headers()).get('x-masabu-request-path'))
+      redirect('/auth/device-verification?' + new URLSearchParams({ next }).toString())
+    }
+  }
+  return client
 }

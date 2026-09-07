@@ -6,7 +6,7 @@ import { safeCallbackPath } from './callback-path'
 const callback = readFileSync(new URL('./callback-path.ts', import.meta.url), 'utf8')
 const callbackRoute = readFileSync(new URL('../../app/auth/callback/route.ts', import.meta.url), 'utf8')
 const actions = readFileSync(new URL('../actions/auth.ts', import.meta.url), 'utf8')
-const signup = readFileSync(new URL('../../app/auth/signup/page.tsx', import.meta.url), 'utf8')
+const signup = readFileSync(new URL('../../components/auth/AuthEntry.tsx', import.meta.url), 'utf8')
 
 test('auth callback accepts only same-origin relative next paths', () => {
   assert.match(callback, /!value\.startsWith\('\/'\)/)

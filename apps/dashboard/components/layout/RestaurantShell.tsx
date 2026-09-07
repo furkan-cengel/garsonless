@@ -17,6 +17,7 @@ import type { OnboardingSnapshot } from '@garsonless/application/onboarding'
 import { Skeleton } from '../../lib/ui'
 import IconRail from './IconRail'
 import ServiceRequestToast from './ServiceRequestToast'
+import { isDashboardLoggingOut } from '../../lib/auth/logout-state'
 import { getUnreadInboxCount, syncDashboardInboxEvent } from '../../lib/actions/notifications'
 import NavigationFeedback, { useNavigationFeedback } from './NavigationFeedback'
 import OnboardingStatusBanner from '../onboarding/OnboardingStatusBanner'
@@ -208,9 +209,9 @@ export default function RestaurantShell({
   const isFullScreen = pathname.includes('/tables')
 
   const refreshInboxUnread = useCallback(() => {
-    if (document.visibilityState !== 'visible') return
+    if (isDashboardLoggingOut() || document.visibilityState !== 'visible') return
     void getUnreadInboxCount(restaurantId).then((result) => {
-      if ('unread' in result) setInboxUnread(result.unread)
+      if (!isDashboardLoggingOut() && 'unread' in result) setInboxUnread(result.unread)
     })
   }, [restaurantId])
 
@@ -220,7 +221,7 @@ export default function RestaurantShell({
     const clientPromise = import('../../lib/supabase').then(({ createDashboardBrowserClient }) => createDashboardBrowserClient())
 
     const refreshCount = async () => {
-      if (document.visibilityState !== 'visible') return
+      if (isDashboardLoggingOut() || document.visibilityState !== 'visible') return
       const supabase = await clientPromise
       if (cancelled) return
       // Same operational scope as the Orders board: every order that still
@@ -245,9 +246,9 @@ export default function RestaurantShell({
     // consumer. Repair only that exact aggregate when the optional worker
     // callback is unavailable; never backfill unrelated historical orders.
     const syncInboxForOrder = (orderId: string | null) => {
-      if (!orderId) return
+      if (isDashboardLoggingOut() || !orderId) return
       void syncDashboardInboxEvent(restaurantId, orderId).then((result) => {
-        if ('unread' in result) setInboxUnread(result.unread)
+        if (!isDashboardLoggingOut() && 'unread' in result) setInboxUnread(result.unread)
       })
     }
 

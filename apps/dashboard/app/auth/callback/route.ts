@@ -6,15 +6,18 @@ import { createDashboardServerClient } from '../../../lib/supabase-server'
 import { parseForwardedIp } from '../../../lib/request-meta'
 import { safeCallbackPath } from '../../../lib/auth/callback-path'
 
-const PASSWORD_RECOVERY_COOKIE = 'dashboard_password_recovery'
+import { completeVerifiedSession } from '../../../lib/auth/flow-session'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const next = safeCallbackPath(searchParams.get('next'))
 
+  if (next === '/auth/reset-password') {
+    return NextResponse.redirect(origin + '/auth/login?mode=forgot&error=recovery_required')
+  }
   if (code) {
-    const supabase = await createDashboardServerClient()
+    const supabase = await createDashboardServerClient({ authOnly: true })
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       // Best-effort security audit for magic-link / OAuth logins.
@@ -37,23 +40,16 @@ export async function GET(request: NextRequest) {
           })
         }
       }
-      const response = NextResponse.redirect(`${origin}${next}`)
-      // A short-lived HttpOnly marker distinguishes the recovery link from a
-      // normal authenticated visit. The reset form refuses to update a password
-      // without it, while the Supabase code exchange remains the source of the
-      // authenticated recovery session.
-      if (next === '/auth/reset-password') {
-        response.cookies.set(PASSWORD_RECOVERY_COOKIE, crypto.randomUUID(), {
-          httpOnly: true,
-          sameSite: 'lax',
-          secure: process.env['NODE_ENV'] === 'production',
-          path: '/auth/reset-password',
-          maxAge: 10 * 60,
-        })
+      if (data.user && data.session && !await completeVerifiedSession(supabase, data.user, data.session.access_token)) {
+        const query = new URLSearchParams({ email: data.user.email ?? '', next })
+        return NextResponse.redirect(origin + '/auth/verify-email?' + query.toString())
       }
+      const response = NextResponse.redirect(origin + next)
+      response.headers.set('Cache-Control', 'private, no-store')
+
       return response
     }
   }
 
-  return NextResponse.redirect(`${origin}/auth/login?error=auth_callback_failed`)
+  return NextResponse.redirect(origin + '/auth/login?' + new URLSearchParams({ error: 'auth_callback_failed', next }).toString())
 }

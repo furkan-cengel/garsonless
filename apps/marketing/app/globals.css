@@ -6462,3 +6462,8 @@ html[data-focus-modality="pointer"] :where(input, textarea, select, [role="combo
 html[data-focus-modality="pointer"] :where([data-slot="input-group"], [data-slot="combobox-anchor"]):focus-within {
   box-shadow: none !important;
 }
+
+@media (max-width: 700px) {
+  .marketing-hero__copy { order: 0; margin-top: 0; }
+  .marketing-hero .hero-flow { order: 1; margin-top: 30px; }
+}

@@ -9,10 +9,11 @@
 //   RESEND_API_KEY         — Resend API anahtarı (masabu.co domain'i doğrulanmış olmalı)
 
 import { Webhook } from 'https://esm.sh/standardwebhooks@1.0.0'
-import { renderAuthEmailHtml } from './email-template.ts'
+import { recordDashboardRecoveryEmail } from './recovery-intent.ts'
+import { authEmailSubject, renderAuthEmailHtml } from './email-template.ts'
 
 interface EmailHookPayload {
-  user: { email: string; new_email?: string }
+  user: { id: string; email: string; new_email?: string }
   email_data: {
     token: string
     token_hash: string
@@ -24,14 +25,7 @@ interface EmailHookPayload {
   }
 }
 
-const SUBJECTS: Record<string, string> = {
-  signup: 'Masabu — e-posta adresini doğrula',
-  magiclink: 'Masabu — giriş kodun',
-  recovery: 'Masabu — şifre sıfırlama kodun',
-  email_change: 'Masabu — e-posta değişikliği doğrulaması',
-  otp: 'Masabu — doğrulama kodun',
-  invite: 'Masabu — davetin hazır',
-}
+
 
 Deno.serve(async (req) => {
   const hookSecret = Deno.env.get('SEND_EMAIL_HOOK_SECRET')
@@ -65,6 +59,12 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Missing email or token' }), { status: 400 })
   }
 
+  try {
+    await recordDashboardRecoveryEmail({ actionType, redirectTo: payload.email_data.redirect_to, userId: payload.user.id, email, token, tokenHash, supabaseUrl, serviceKey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '' })
+  } catch {
+    return new Response(JSON.stringify({ error: 'Recovery verification unavailable' }), { status: 500 })
+  }
+
   // 2) Resend ile gönder
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     body: JSON.stringify({
       from: 'Masabu <noreply@masabu.co>',
       to: [email],
-      subject: SUBJECTS[actionType] ?? SUBJECTS['otp'],
+      subject: authEmailSubject(actionType, payload.email_data.redirect_to),
       html: renderAuthEmailHtml({
         actionType,
         token,

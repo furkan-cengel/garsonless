@@ -13,7 +13,7 @@ test('onboarding is server-resumed and no longer exposes a fake theme choice', (
   assert.match(page, /adminEmail=\{user\.email \?\? ''\}/)
   assert.match(flow, /styles\.accountIdentity/)
   assert.doesNotMatch(flow, /Choose theme|Tema seç|StepTemplateSelect/)
-  assert.match(flow, /Excel veya CSV yükle/)
+  assert.match(flow, /CSV yükle/)
   assert.match(flow, /Manuel oluştur/)
 })
 
@@ -73,5 +73,5 @@ test('completion stays visible in a centered single-column layout', () => {
   )
   assert.match(completionAction, /revalidatePath\(`\/dashboard\/\$\{parsed\.data\.restaurantId\}\/menu`\)/)
   assert.doesNotMatch(completionAction, /revalidatePath\('\/dashboard\/onboarding'\)/)
-  assert.match(page, /snapshot\?\.status === 'completed'[\s\S]*redirect/)
+  assert.doesNotMatch(page, /snapshot\?\.status === 'completed'[\s\S]{0,100}redirect/)
 })

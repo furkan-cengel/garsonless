@@ -9,7 +9,7 @@ const FAQ_ITEMS = [
   },
   {
     question: '14 günlük deneme nasıl çalışır?',
-    answer: 'Yeni işletme 14 gün boyunca Pro özelliklerini deneyebilir. Bu sürenin sonunda abonelik başlamazsa işletme ücretsiz plana döner ve menü ile işletme verileri korunur.',
+    answer: 'Yeni işletme 14 gün boyunca Pro özelliklerini deneyebilir. Deneme için kredi kartı gerekmez. Süre sonunda ücretli abonelik başlatılmazsa menü yayını ve abonelik gerektiren özellikler duraklatılır; işletme verileri korunur.',
   },
   {
     question: 'Mutfak ekranında neleri takip edebilirim?',
@@ -29,7 +29,7 @@ const FAQ_ITEMS = [
   },
   {
     question: 'Aboneliği sürdürmezsem verilerime ne olur?',
-    answer: 'İşletme ücretsiz plana döner; menü ve işletme verileri korunur. Pro özelliklerine erişim plan kapsamına göre kapanır.',
+    answer: 'Menü yayını ve abonelik gerektiren özellikler duraklatılır; menü ve işletme verileri korunur. Ücretli abonelik başlattığında devam edebilirsin.',
   },
 ]
 

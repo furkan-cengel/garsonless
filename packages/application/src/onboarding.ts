@@ -12,6 +12,16 @@ export type OnboardingStatus = 'not_started' | 'in_progress' | 'completed'
 export type OnboardingMenuEntryMethod = 'manual' | 'csv'
 export type OnboardingTargetPlan = 'starter' | 'plus' | 'pro' | null
 
+export interface OnboardingMenuDraft {
+  mode: 'manual' | 'csv'
+  categoryName: string
+  itemName: string
+  price: string
+  description: string
+  csvFileName: string
+  csvRows: { sourceRow: number; category: string; name: string; description: string; price: string; error: string | null }[]
+}
+
 export interface OnboardingSnapshot {
   status: OnboardingStatus
   restaurantId: string | null
@@ -23,6 +33,8 @@ export interface OnboardingSnapshot {
   completedSteps: OnboardingStep[]
   menuEntryMethod: OnboardingMenuEntryMethod | null
   targetPlan: OnboardingTargetPlan
+  targetBillingInterval?: 'monthly' | 'yearly'
+  menuDraft?: OnboardingMenuDraft | null
   trialEndsAt: string | null
   startedAt: string | null
   completedAt: string | null
@@ -48,6 +60,7 @@ export interface CreateOnboardingInput {
   slug: string
   timezone: string
   targetPlan: OnboardingTargetPlan
+  targetBillingInterval?: 'monthly' | 'yearly'
   requestId: string
 }
 

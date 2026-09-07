@@ -43,8 +43,18 @@ export function buildVerificationUrl(input: AuthEmailTemplateInput): string | nu
 
   try {
     const base = new URL(input.supabaseUrl)
-    if (base.protocol !== 'https:') return null
 
+    // Only dashboard's explicit confirmation route uses the interactive flow.
+    // Other products, invitations and email changes retain their existing links.
+    const redirect = input.redirectTo ? new URL(input.redirectTo) : null
+    const dashboardOrigins = ['https://app.masabu.co', 'https://sandbox.masabu.co', 'http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3002', 'http://127.0.0.1:3002']
+    if (redirect && dashboardOrigins.includes(redirect.origin) && redirect.pathname === '/auth/confirm'
+      && ['signup', 'magiclink', 'recovery'].includes(input.actionType)) {
+      redirect.searchParams.set('token_hash', input.tokenHash)
+      redirect.searchParams.set('flow', input.actionType)
+      return redirect.toString()
+    }
+    if (base.protocol !== 'https:') return null
     const url = new URL('/auth/v1/verify', base)
     url.searchParams.set('token', input.tokenHash)
     url.searchParams.set('type', input.actionType)
@@ -88,4 +98,23 @@ export function renderAuthEmailHtml(input: AuthEmailTemplateInput): string {
     </div>
   </body>
 </html>`
+}
+
+export function authEmailSubject(actionType: string, redirectTo?: string): string {
+  const subjects: Record<string, string> = {
+    signup: 'Masabu — e-posta adresini doğrula',
+    magiclink: 'Masabu — giriş kodun',
+    recovery: 'Masabu — şifre sıfırlama kodun',
+    email_change: 'Masabu — e-posta değişikliği doğrulaması',
+    otp: 'Masabu — doğrulama kodun',
+    invite: 'Masabu — davetin hazır',
+  }
+  try {
+    const target = new URL(redirectTo ?? '')
+    if (['https://app.masabu.co', 'https://sandbox.masabu.co', 'http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3002', 'http://127.0.0.1:3002'].includes(target.origin) && target.pathname === '/auth/confirm') {
+      if (actionType === 'magiclink') return 'Masabu — giriş bağlantın'
+      if (actionType === 'recovery') return 'Masabu — şifre yenileme bağlantın'
+    }
+  } catch { /* Existing flows keep their original subject. */ }
+  return subjects[actionType] ?? subjects['otp']!
 }

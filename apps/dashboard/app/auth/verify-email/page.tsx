@@ -1,32 +1,17 @@
-import Image from 'next/image'
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import LoginShowcase from '../../../components/auth/LoginShowcase'
+import AuthShell from '../../../components/auth/AuthShell'
 import VerifyEmailForm from '../../../components/auth/VerifyEmailForm'
-import { safeCallbackPath } from '../../../lib/auth/callback-path'
-import styles from '../login/login.module.css'
-
-interface Props {
-  searchParams: Promise<{ email?: string; next?: string }>
-}
-
-export default async function VerifyEmailPage({ searchParams }: Props) {
+import { readEntryContext, type AuthEntryQuery } from '../../../lib/auth/entry-context'
+import { createDashboardServerClient } from '../../../lib/supabase-server'
+import { emailSchema } from '../../../lib/auth/password-policy'
+import { getFlowGrant, validatedFlowSession } from '../../../lib/auth/flow-session'
+export default async function VerifyEmailPage({ searchParams }: { searchParams: Promise<AuthEntryQuery> }) {
   const query = await searchParams
-  if (!query.email) redirect('/auth/signup')
-  const next = safeCallbackPath(query.next ?? null)
-
-  return (
-    <div className={styles.page}>
-      <main className={`${styles.authPanel} ${styles.signupPanel}`}>
-        <section className={`${styles.authContent} ${styles.signupContent}`}>
-          <Link href="https://masabu.co" aria-label="Masabu ana sayfasına dön" className={styles.logoLink}>
-            <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={126} height={34} priority />
-          </Link>
-          <VerifyEmailForm email={query.email} next={next} />
-          <footer className={styles.authFooter}>E-posta doğrulanmadan işletme kurulumu başlatılmaz.</footer>
-        </section>
-      </main>
-      <LoginShowcase />
-    </div>
-  )
+  const email = emailSchema.safeParse(query.email)
+  if (!email.success) redirect('/auth/signup')
+  const sent = await getFlowGrant('sent')
+  const complete = await getFlowGrant('complete')
+  const verified = complete ? await validatedFlowSession(await createDashboardServerClient({ authOnly: true }), 'complete') : null
+  const cooldown = sent?.userId === email.data ? Math.max(0, Math.ceil((sent.expiresAt - 540_000 - Date.now()) / 1000)) : 0
+  return <AuthShell><VerifyEmailForm email={email.data} next={readEntryContext(query, true).next} sent={sent?.userId === email.data && sent.sessionId === 'signup'} initialCooldown={cooldown} pendingCompletion={verified?.user.email === email.data}/></AuthShell>
 }

@@ -1,6 +1,8 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
+import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
 import { useEffect, useRef, useState } from 'react'
 import {
   ArrowRight,
@@ -23,10 +25,11 @@ import {
   createOnboardingRestaurant,
   importOnboardingCsvMenu,
   saveOnboardingBranding,
+  saveOnboardingMenuDraft,
 } from '../../lib/actions/onboarding'
 import { checkSlugAvailable } from '../../lib/actions/restaurant'
 import { uploadLogo } from '../../lib/dashboard-media-upload-client'
-import { signOut } from '../../lib/actions/auth'
+import { logoutCurrentBrowser } from '../../lib/client-logout'
 import { slugify } from '../../lib/utils'
 import {
   normalizeDetectedTimezone,
@@ -52,6 +55,8 @@ interface Props {
   initialSnapshot: OnboardingSnapshot | null
   initialBusinessName: string
   requestedPlan: OnboardingTargetPlan
+  requestedInterval?: 'monthly' | 'yearly'
+  needsTerms?: boolean
   adminName: string
   adminEmail: string
 }
@@ -137,10 +142,14 @@ export default function OnboardingFlow({
   initialSnapshot,
   initialBusinessName,
   requestedPlan,
+  requestedInterval = 'monthly',
+  needsTerms = false,
   adminName,
   adminEmail,
 }: Props) {
   const [snapshot, setSnapshot] = useState(initialSnapshot)
+  const [termsAccepted, setTermsAccepted] = useState(false)
+  const initialDraft = initialSnapshot?.menuDraft
   const [name, setName] = useState(initialSnapshot?.restaurantName || initialBusinessName)
   const [slug, setSlug] = useState(initialSnapshot?.slug || slugify(initialBusinessName))
   const [slugEdited, setSlugEdited] = useState(Boolean(initialSnapshot?.slug))
@@ -148,22 +157,29 @@ export default function OnboardingFlow({
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState(initialSnapshot?.logoUrl ?? '')
-  const [menuMode, setMenuMode] = useState<'manual' | 'csv'>('manual')
-  const [categoryName, setCategoryName] = useState('')
-  const [itemName, setItemName] = useState('')
-  const [price, setPrice] = useState('')
-  const [description, setDescription] = useState('')
-  const [csvRows, setCsvRows] = useState<CsvRowView[]>([])
-  const [csvFileName, setCsvFileName] = useState('')
+  const [menuMode, setMenuMode] = useState<'manual' | 'csv'>(initialDraft?.mode ?? 'manual')
+  const [categoryName, setCategoryName] = useState(initialDraft?.categoryName ?? '')
+  const [itemName, setItemName] = useState(initialDraft?.itemName ?? '')
+  const [price, setPrice] = useState(initialDraft?.price ?? '')
+  const [description, setDescription] = useState(initialDraft?.description ?? '')
+  const [csvRows, setCsvRows] = useState<CsvRowView[]>((initialDraft?.csvRows ?? []).map(entry => ({
+    row: { sourceRow: entry.sourceRow, category: entry.category, name: entry.name, description: entry.description, price: entry.price === '' ? Number.NaN : Number(entry.price), ingredients: [], energyKcal: null, mayContainAllergens: [], containsAlcohol: false, containsPork: false },
+    error: entry.error,
+  })))
+  const [csvFileName, setCsvFileName] = useState(initialDraft?.csvFileName ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const createRequest = useRef<string | null>(null)
   const brandingRequest = useRef<string | null>(null)
   const menuRequest = useRef<string | null>(null)
   const csvInput = useRef<HTMLInputElement>(null)
+  const draftRequest = useRef<{ payload: string; id: string } | null>(null)
+  const savingDraft = useRef(false)
+  const logoutPending = useRef(false)
 
   const step = snapshot?.status === 'completed' ? 3 : stepIndex(snapshot)
   const targetPlan = snapshot?.targetPlan ?? requestedPlan
+  const targetBillingInterval = snapshot?.targetBillingInterval ?? requestedInterval
   const liveUrl = snapshot?.slug ? publicMenuUrl(snapshot.slug, MENU_BASE_URL) : ''
   const csvValidRows = csvRows.filter((entry) => !entry.error)
   const previewName = snapshot?.restaurantName || name
@@ -176,10 +192,12 @@ export default function OnboardingFlow({
 
   useEffect(() => {
     if (step !== 0 || !slug) { setSlugAvailable(null); return }
+    let active = true
+    setSlugAvailable(null)
     const timer = window.setTimeout(() => {
-      void checkSlugAvailable(slug).then(setSlugAvailable).catch(() => setSlugAvailable(null))
+      void checkSlugAvailable(slug).then(value => { if (active) setSlugAvailable(value) }).catch(() => { if (active) setSlugAvailable(null) })
     }, 400)
-    return () => window.clearTimeout(timer)
+    return () => { active = false; window.clearTimeout(timer) }
   }, [slug, step])
 
   useEffect(() => {
@@ -201,12 +219,13 @@ export default function OnboardingFlow({
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault()
     setError('')
+    if (needsTerms && !termsAccepted) { setError('Devam etmek için hizmet sözleşmesini kabul et.'); return }
     if (!name.trim()) { setError('İşletme adını girin.'); return }
     if (!slug || slugAvailable === false) { setError('Kullanılabilir bir menü adresi seçin.'); return }
     setBusy(true)
     try {
       const result = await createOnboardingRestaurant({
-        name, slug, timezone, targetPlan, requestId: stableRequest(createRequest),
+        name, slug, timezone, targetPlan, targetBillingInterval, termsAccepted, termsVersion: LEGAL_DOCUMENT_VERSION, requestId: stableRequest(createRequest),
       })
       if ('error' in result) {
         setError(result.error)
@@ -378,12 +397,42 @@ export default function OnboardingFlow({
     }
   }
 
-  function pauseOnboarding() {
-    if (snapshot?.restaurantId) window.location.assign(`/dashboard/${snapshot.restaurantId}/menu`)
+  async function pauseOnboarding() {
+    if (!snapshot?.restaurantId || busy || savingDraft.current) return
+    savingDraft.current = true
+    setBusy(true)
+    setError('')
+    const draft = { mode: menuMode, categoryName, itemName, price, description, csvFileName, csvRows: csvRows.map(({ row, error: rowError }) => ({
+      sourceRow: row.sourceRow, category: row.category, name: row.name, description: row.description ?? '', price: Number.isFinite(row.price) ? String(row.price) : '', error: rowError,
+    })) }
+    const payload = JSON.stringify({ draft, revision: snapshot.revision })
+    if (draftRequest.current?.payload !== payload) draftRequest.current = { payload, id: crypto.randomUUID() }
+    try {
+      const result = await saveOnboardingMenuDraft({ restaurantId: snapshot.restaurantId, expectedRevision: snapshot.revision, requestId: draftRequest.current.id, draft })
+      if ('error' in result) {
+        setError(result.error)
+        if (result.snapshot) { setSnapshot(result.snapshot); draftRequest.current = null }
+        return
+      }
+      setSnapshot(result.snapshot)
+      window.location.assign('/dashboard/' + snapshot.restaurantId + '/menu')
+    } catch { setError('Taslak kaydedilemedi. Bilgilerin korundu; tekrar deneyebilirsin.') }
+    finally { savingDraft.current = false; setBusy(false) }
   }
 
   async function logout() {
-    try { await signOut(null) } finally { window.location.assign('/auth/login') }
+    if (logoutPending.current || busy) return
+    logoutPending.current = true
+    setBusy(true)
+    setError('')
+    const result = await logoutCurrentBrowser()
+    if ('error' in result) {
+      logoutPending.current = false
+      setBusy(false)
+      setError(result.error)
+      return
+    }
+    window.location.replace('/auth/login')
   }
 
   return (
@@ -397,7 +446,7 @@ export default function OnboardingFlow({
         </div>
         <div className={styles.topActions}>
           <a href="mailto:destek@masabu.co" aria-label="Yardım"><CircleHelp size={15} /> <span>Yardım</span></a>
-          <button type="button" onClick={() => void logout()}><LogOut size={15} /> <span>Çıkış</span></button>
+          <button type="button" aria-label="Çıkış" disabled={busy} onClick={() => void logout()}><LogOut size={15} /> <span>Çıkış</span></button>
           <i />
           <div className={styles.accountIdentity} aria-label={`Oturum: ${adminName || adminEmail}`}>
             <span>{adminInitial}</span>
@@ -443,8 +492,12 @@ export default function OnboardingFlow({
                   {slug && slugAvailable !== null && <span className={slugAvailable ? styles.available : styles.unavailable}>{slugAvailable ? '✓ Bu adres müsait' : '× Bu adres kullanımda'}</span>}
                   <span className={styles.helpText}>QR kodların bu adrese yönlenir.</span>
                 </Field>
+                {needsTerms && <div className={styles.helpText}>
+                  <label><input type="checkbox" checked={termsAccepted} onChange={event => setTermsAccepted(event.target.checked)} required/> <Link target="_blank" href="https://masabu.co/yasal/abonelik-hizmet-sozlesmesi">B2B Abonelik Hizmet Sözleşmesi’ni</Link> okudum ve kabul ediyorum.</label>
+                  <p><Link target="_blank" href="https://masabu.co/yasal/kvkk-aydinlatma-metni">KVKK Aydınlatma Metni’ni</Link> inceleyebilirsin.</p>
+                </div>}
                 <div className={styles.trialCard}>
-                  <div><strong>14 günlük Pro denemen hazır</strong><p>Hedef paketin: <b>{planLabel(targetPlan)}</b>. Kartın güvenli ödeme adımında alınır.</p></div>
+                  <div><strong>14 günlük Pro denemen hazır</strong><p>Hedef paketin: <b>{planLabel(targetPlan)}</b> · {targetBillingInterval === 'yearly' ? 'Yıllık' : 'Aylık'}. Deneme için kart gerekmez; yalnız ücretli abonelik başlatırken istenir.</p></div>
                 </div>
               </div>
               <div className={styles.cardFooter}>
@@ -493,7 +546,7 @@ export default function OnboardingFlow({
                 {topError}
                 <div className={styles.modeGrid}>
                   <button type="button" className={menuMode === 'manual' ? styles.modeActive : ''} onClick={() => { setMenuMode('manual'); setError(''); menuRequest.current = null }}><i /><span><Plus size={16} /></span><strong>Manuel oluştur<small>Kategori ve ilk ürününü elle ekle</small></strong><em>~2 dk</em></button>
-                  <button type="button" className={menuMode === 'csv' ? styles.modeActive : ''} onClick={() => { setMenuMode('csv'); setError(''); menuRequest.current = null }}><i /><span><FileSpreadsheet size={16} /></span><strong>Excel veya CSV yükle<small>Hazır şablonu doldurup içeri aktar</small></strong><em>Şablon mevcut</em></button>
+                  <button type="button" className={menuMode === 'csv' ? styles.modeActive : ''} onClick={() => { setMenuMode('csv'); setError(''); menuRequest.current = null }}><i /><span><FileSpreadsheet size={16} /></span><strong>CSV yükle<small>Excel dosyanı CSV olarak dışa aktar</small></strong><em>Şablon mevcut</em></button>
                 </div>
                 <div className={styles.menuEditor}>
               {menuMode === 'manual' ? (
@@ -526,7 +579,7 @@ export default function OnboardingFlow({
               </div>
               <div className={styles.cardFooter}>
                 <span>Adım 3 / 3</span>
-                <button type="button" className={styles.ghostButton} onClick={pauseOnboarding}>Kaydet ve sonra devam et</button>
+                <button type="button" className={styles.ghostButton} onClick={() => void pauseOnboarding()} disabled={busy}>{busy ? 'Kaydediliyor…' : 'Kaydet ve sonra devam et'}</button>
               </div>
             </section>
           )}

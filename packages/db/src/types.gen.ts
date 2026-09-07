@@ -1799,6 +1799,54 @@ export type Database = {
         }
         Relationships: []
       }
+      dashboard_device_challenges: {
+        Row: {
+          attempts: number
+          code_hash: string
+          consumed_at: string | null
+          country: string | null
+          created_at: string
+          device_hash: string
+          expires_at: string
+          id: string
+          ip_hash: string | null
+          sent_at: string | null
+          session_id: string
+          user_agent_hash: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          consumed_at?: string | null
+          country?: string | null
+          created_at?: string
+          device_hash: string
+          expires_at: string
+          id?: string
+          ip_hash?: string | null
+          sent_at?: string | null
+          session_id: string
+          user_agent_hash: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          consumed_at?: string | null
+          country?: string | null
+          created_at?: string
+          device_hash?: string
+          expires_at?: string
+          id?: string
+          ip_hash?: string | null
+          sent_at?: string | null
+          session_id?: string
+          user_agent_hash?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       dashboard_push_deliveries: {
         Row: {
           attempts: number
@@ -1943,6 +1991,117 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      dashboard_recovery_email_intents: {
+        Row: {
+          created_at: string
+          email: string
+          expires_at: string
+          otp_digest: string
+          token_hash: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          expires_at?: string
+          otp_digest: string
+          token_hash: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          expires_at?: string
+          otp_digest?: string
+          token_hash?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      dashboard_security_accounts: {
+        Row: {
+          enrolled_at: string
+          user_id: string
+        }
+        Insert: {
+          enrolled_at?: string
+          user_id: string
+        }
+        Update: {
+          enrolled_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      dashboard_trusted_devices: {
+        Row: {
+          country: string | null
+          created_at: string
+          expires_at: string
+          ip_hash: string | null
+          revoked_at: string | null
+          token_hash: string
+          user_agent_hash: string
+          user_id: string
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string
+          expires_at: string
+          ip_hash?: string | null
+          revoked_at?: string | null
+          token_hash: string
+          user_agent_hash: string
+          user_id: string
+        }
+        Update: {
+          country?: string | null
+          created_at?: string
+          expires_at?: string
+          ip_hash?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+          user_agent_hash?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      dashboard_verified_sessions: {
+        Row: {
+          country: string | null
+          device_hash: string
+          expires_at: string
+          ip_hash: string | null
+          revoked_at: string | null
+          session_id: string
+          user_agent_hash: string
+          user_id: string
+          verified_at: string
+        }
+        Insert: {
+          country?: string | null
+          device_hash: string
+          expires_at: string
+          ip_hash?: string | null
+          revoked_at?: string | null
+          session_id: string
+          user_agent_hash: string
+          user_id: string
+          verified_at?: string
+        }
+        Update: {
+          country?: string | null
+          device_hash?: string
+          expires_at?: string
+          ip_hash?: string | null
+          revoked_at?: string | null
+          session_id?: string
+          user_agent_hash?: string
+          user_id?: string
+          verified_at?: string
+        }
+        Relationships: []
       }
       domain_outbox: {
         Row: {
@@ -4160,12 +4319,14 @@ export type Database = {
           completed_at: string | null
           completed_steps: string[]
           current_step: string
+          menu_draft: Json | null
           menu_entry_method: string | null
           owner_user_id: string
           restaurant_id: string
           revision: number
           started_at: string
           status: string
+          target_billing_interval: string
           target_plan: string | null
           updated_at: string
         }
@@ -4174,12 +4335,14 @@ export type Database = {
           completed_at?: string | null
           completed_steps?: string[]
           current_step?: string
+          menu_draft?: Json | null
           menu_entry_method?: string | null
           owner_user_id: string
           restaurant_id: string
           revision?: number
           started_at?: string
           status?: string
+          target_billing_interval?: string
           target_plan?: string | null
           updated_at?: string
         }
@@ -4188,12 +4351,14 @@ export type Database = {
           completed_at?: string | null
           completed_steps?: string[]
           current_step?: string
+          menu_draft?: Json | null
           menu_entry_method?: string | null
           owner_user_id?: string
           restaurant_id?: string
           revision?: number
           started_at?: string
           status?: string
+          target_billing_interval?: string
           target_plan?: string | null
           updated_at?: string
         }
@@ -6117,6 +6282,7 @@ export type Database = {
         Args: { p_target_role: string; p_user_id: string }
         Returns: undefined
       }
+      assert_dashboard_onboarding_identity: { Args: never; Returns: undefined }
       attach_order_checkout_token: {
         Args: {
           p_order_id: string
@@ -6189,6 +6355,7 @@ export type Database = {
         }
         Returns: Json
       }
+      check_dashboard_session: { Args: never; Returns: undefined }
       checkpoint_accounting_invoice_job:
         | {
             Args: {
@@ -6628,6 +6795,17 @@ export type Database = {
         }
         Returns: Json
       }
+      create_restaurant_with_pro_trial_v3: {
+        Args: {
+          p_intended_interval: string
+          p_intended_plan: string
+          p_name: string
+          p_request_id: string
+          p_slug: string
+          p_timezone: string
+        }
+        Returns: Json
+      }
       create_split_share_guarded: {
         Args: {
           p_active_max: number
@@ -6683,6 +6861,7 @@ export type Database = {
         }[]
       }
       customer_access_token_hook: { Args: { event: Json }; Returns: Json }
+      dashboard_session_is_verified: { Args: never; Returns: boolean }
       defer_domain_outbox: {
         Args: {
           p_delay_seconds?: number
@@ -7139,6 +7318,7 @@ export type Database = {
           transaction_id: string
         }[]
       }
+      has_current_signup_legal_evidence: { Args: never; Returns: boolean }
       has_restaurant_access: {
         Args: { p_restaurant_id: string }
         Returns: boolean
@@ -8200,6 +8380,15 @@ export type Database = {
         }
         Returns: Json
       }
+      save_restaurant_onboarding_draft: {
+        Args: {
+          p_draft: Json
+          p_expected_revision: number
+          p_request_id: string
+          p_restaurant_id: string
+        }
+        Returns: Json
+      }
       save_restaurant_table_layout: {
         Args: {
           p_actor_id: string
@@ -8388,6 +8577,20 @@ export type Database = {
           p_shipping_address: Json
         }
         Returns: Json
+      }
+      verify_dashboard_device_challenge: {
+        Args: {
+          p_code_hash: string
+          p_country: string
+          p_device_hash: string
+          p_id: string
+          p_ip_hash: string
+          p_session_id: string
+          p_trust: boolean
+          p_user_agent_hash: string
+          p_user_id: string
+        }
+        Returns: string
       }
       void_unstarted_split_share_atomic: {
         Args: { p_restaurant_id: string; p_share_id: string }

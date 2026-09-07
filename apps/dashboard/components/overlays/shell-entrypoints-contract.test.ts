@@ -60,4 +60,6 @@ test('logout is local, endpoint-scoped, recoverable, and double-submit guarded',
   assert.match(profile, /logoutCurrentBrowser\(\)/)
   assert.match(clientLogout, /subscription\?\.unsubscribe\(\)/)
   assert.match(clientLogout, /removeAllChannels\(\)/)
+  assert.doesNotMatch(clientLogout, /import.*actions\/auth/)
+  assert.match(clientLogout, /fetch\('\/auth\/logout'/)
 })

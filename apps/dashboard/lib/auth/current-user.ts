@@ -1,4 +1,6 @@
 import { cache } from 'react'
+import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { createDashboardServerClient } from '../supabase-server'
 
@@ -10,7 +12,15 @@ import { createDashboardServerClient } from '../supabase-server'
 export const getDashboardRequestAuth = cache(async function getDashboardRequestAuth() {
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
-  return { supabase, user: user as User | null }
+  // Middleware may have authenticated an in-flight request before logout.
+  // Re-check here so a late action/render never turns an expired session into
+  // a missing-restaurant 404. Tenant/section denial still uses its own gates.
+  if (!user) {
+    const path = (await headers()).get('x-masabu-request-path') ?? ''
+    const next = /^\/dashboard(?:[/?]|$)/.test(path) ? path : '/dashboard'
+    redirect('/auth/login?' + new URLSearchParams({ next }).toString())
+  }
+  return { supabase, user: user as User }
 })
 
 export const getDashboardAuthenticatedUser = cache(async function getDashboardAuthenticatedUser(): Promise<User | null> {

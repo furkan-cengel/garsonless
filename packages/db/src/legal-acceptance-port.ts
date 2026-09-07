@@ -74,3 +74,10 @@ export async function recordCustomerMembershipLegalEvidence(input: {
   if (error) return err(error.message)
   return data === true ? ok(true) : err('Customer legal evidence result is invalid')
 }
+
+/** Server-side legal evidence lookup; user metadata is never consent authority. */
+export async function hasDashboardSignupLegalEvidence(userId:string,version:string):Promise<boolean> {
+ const {data,error}=await createServiceClient().from('legal_document_acceptances').select('id').eq('user_id',userId).eq('document_type','b2b_terms').eq('document_version',version).limit(1)
+ if(error)throw new Error('Legal evidence unavailable')
+ return !!data?.length
+}

@@ -222,10 +222,11 @@
 }
 
 .forgotLink {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  padding: 6px 0 0;
+  position: static;
+  display: block;
+  min-height: 44px;
+  margin-left: auto;
+  padding: 6px 0;
 }
 
 .forgotLink:hover,
@@ -643,3 +644,34 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Shared entry screens keep actions reachable when the keyboard or zoom reduces height. */
+.authPanel { align-items: flex-start; }
+.authContent { margin-block: auto; padding-block: 16px; }
+.tabs { width: 100%; height: auto; }
+.tabs button { min-height: 44px; height: auto; white-space: normal; }
+.tabs button[data-active] { color: #102017; background: #f8f4eb; }
+.fieldError { margin: 6px 0 0; color: #ffb5ad; font-size: 13px; line-height: 1.5; }
+.formError:focus-visible, .page a:focus-visible, .page button:focus-visible { outline: 2px solid #8fd9aa; outline-offset: 4px; }
+.authFooter, .legalNotice { color: #b4bcb5; }
+.authFooter a, .legalNotice a { color: #c8d4ca; text-decoration: underline; }
+.formHeading p, .fieldLabel { color: #bac6bd; }
+.contextSummary { border: 1px solid #3d5243; border-radius: 14px; padding: 12px 16px; color: #d4e5d8; font-size: 13px; line-height: 1.7; margin-bottom: 20px; }
+.resendForm { margin-top: 12px; }
+.backButton { display: inline-flex; align-items: center; min-height: 44px; margin-top: 10px; }
+.form > .field { margin-block: 18px; }
+.form > .primaryButton { margin-top: 18px; text-decoration: none; }
+.signupPrompt { gap: 12px; flex-wrap: wrap; }
+@media (max-width: 520px) {
+  .authPanel { padding: 24px 20px max(24px, env(safe-area-inset-bottom)); }
+  .authContent { gap: 24px; }
+  .formHeading h1 { font-size: 36px; }
+  .tabs { margin-bottom: 24px; }
+}
+
+.oauthDivider { display:flex; align-items:center; gap:12px; color:var(--text-secondary, #647067); font-size:12px; margin:12px 0; }
+.oauthDivider::before, .oauthDivider::after { content:""; flex:1; height:1px; background:var(--border, #dce3dc); }
+.googleButton { display:flex; align-items:center; justify-content:center; gap:12px; width:100%; min-height:48px; padding:12px 16px; border:1px solid var(--border, #dce3dc); border-radius:12px; background:var(--surface, #fff); color:var(--text-primary, #243126); font:inherit; font-weight:600; cursor:pointer; }
+.googleButton:hover { background:var(--surface-hover, #f5f7f4); }
+.googleButton:focus-visible { outline:2px solid var(--accent, #597b45); outline-offset:3px; }
+.googleButton:disabled { cursor:wait; opacity:.6; }

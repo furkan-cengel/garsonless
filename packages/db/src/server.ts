@@ -1,4 +1,5 @@
 import 'server-only'
+export { findDashboardRecoveryEmail } from './dashboard-recovery-intent'
 
 /** Server-only database boundary for app adapters and application ports. */
 export { resolveCheckoutDiscount, resolveOrderLines } from './orders'
@@ -304,3 +305,9 @@ export {
 } from './notification-email-port'
 
 export { removeUnreferencedMenuMedia } from './menu-media-cleanup'
+
+export { deviceDigest, enrollDashboardSecurity, readDashboardDeviceEvidence, saveDashboardVerifiedSession, invalidateDashboardSession, revokeDashboardDevices, createDashboardDeviceChallenge, markDashboardChallengeSent, verifyDashboardDeviceChallenge, sendDashboardDeviceCode } from './dashboard-device-security'
+
+export { hasDashboardSignupLegalEvidence } from './legal-acceptance-port'
+
+export { readPendingDashboardDeviceChallenge } from './dashboard-device-security'

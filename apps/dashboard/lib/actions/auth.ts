@@ -1,21 +1,27 @@
 'use server'
 
 import { createHash } from 'node:crypto'
+import { recordEmailVerifiedDeviceSession, deviceSecurityEnabled, deviceContext, checkDeviceEvidence } from '../auth/device-session'
+import { revokeDashboardDevices } from '@garsonless/db/server'
 import { redirect } from 'next/navigation'
 import {
-  completeDashboardSignupEmailVerification,
   consumeDashboardAuthRateLimit,
+  findDashboardRecoveryEmail,
   deleteDashboardPushEndpoint,
   recordSecurityEvent,
   recordSignupLegalEvidence,
   requireDashboardSignupEmailVerification,
 } from '@garsonless/db/server'
 import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
-import { cookies, headers } from 'next/headers'
+import { headers } from 'next/headers'
 import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { safeCallbackPath } from '../auth/callback-path'
 import { readRequestMeta } from '../request-meta'
+import { newPasswordSchema, emailSchema, emailCodeSchema } from '../auth/password-policy'
+import type { AuthActionState } from '../auth/entry-context'
+import { completeVerifiedSession, saveFlowGrant, validatedFlowSession, deleteFlowGrant } from '../auth/flow-session'
+import { sessionIdFromToken } from '../auth/flow-grant'
 import { sanitizeServerDiagnostic } from '../server-log-redaction'
 
 function publicAuthError(
@@ -37,33 +43,33 @@ function publicAuthError(
 }
 
 const signInSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
+  email: emailSchema,
+  password: z.string().min(1, 'Şifreni gir.'),
 })
 
 const signUpSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  name: z.string().trim().min(2, 'Ad soyad gerekli.').max(100),
+  email: emailSchema,
+  password: newPasswordSchema,
+  name: z.string().trim().min(2, 'Ad soyad gerekli.').max(100, 'Ad soyad en fazla 100 karakter olabilir.'),
   businessName: z.string().trim().max(200).optional(),
-  termsAccepted: z.literal('on'),
-  termsVersion: z.literal(LEGAL_DOCUMENT_VERSION),
+  termsAccepted: z.literal('on', { errorMap: () => ({ message: 'Devam etmek için hizmet sözleşmesini kabul et.' }) }),
+  termsVersion: z.literal(LEGAL_DOCUMENT_VERSION, { errorMap: () => ({ message: 'Sözleşme güncellendi. Sayfayı yenileyip tekrar dene.' }) }),
 })
 
 const magicLinkSchema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
 })
 
-const passwordResetRequestSchema = z.object({ email: z.string().email() })
+const passwordResetRequestSchema = z.object({ email: emailSchema })
 
 const signupEmailCodeSchema = z.object({
-  email: z.string().email(),
-  code: z.string().trim().regex(/^\d{6}$/),
+  email: emailSchema,
+  code: emailCodeSchema,
   next: z.string().optional(),
 })
 
 const resendSignupEmailCodeSchema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
 })
 
 function legalIpHash(ip: string | null): string | null {
@@ -141,13 +147,13 @@ async function repairSignupLegalEvidenceFromMetadata(user: {
 export async function signIn(
   _prev: unknown,
   formData: FormData,
-): Promise<{ error: string } | never> {
+): Promise<AuthActionState> {
   const parsed = signInSchema.safeParse({
     email: formData.get('email'),
     password: formData.get('password'),
   })
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+    return validationFailure(parsed.error)
   }
 
   const rateLimit = await checkDashboardAuthAction({
@@ -159,7 +165,7 @@ export async function signIn(
       : 'Çok fazla giriş denemesi yapıldı. Lütfen daha sonra tekrar deneyin.' }
   }
 
-  const supabase = await createDashboardServerClient()
+  const supabase = await createDashboardServerClient({ authOnly: true })
   const { data, error } = await supabase.auth.signInWithPassword(parsed.data)
   if (error) return { error: publicAuthError(error, 'auth.sign-in', 'Giriş yapılamadı. Lütfen tekrar deneyin.') }
 
@@ -170,7 +176,12 @@ export async function signIn(
     await repairSignupLegalEvidenceFromMetadata(data.user)
   }
 
-  redirect(safeNext(formData.get('next')))
+  const target = safeNext(formData.get('next'))
+  if (deviceSecurityEnabled()) {
+    const context = await deviceContext(supabase)
+    if (!context || await checkDeviceEvidence(context)) redirect('/auth/device-verification?' + new URLSearchParams({ next: target }).toString())
+  }
+  redirect(target)
 }
 
 /** Only allow same-origin relative redirects (e.g. the accept-invite return path). */
@@ -181,17 +192,17 @@ function safeNext(value: FormDataEntryValue | null, fallback = '/dashboard'): st
 export async function signUp(
   _prev: unknown,
   formData: FormData,
-): Promise<{ error: string }> {
+): Promise<AuthActionState> {
   const parsed = signUpSchema.safeParse({
     email: formData.get('email'),
     password: formData.get('password'),
-    name: formData.get('name') || undefined,
+    name: formData.get('name') ?? '',
     businessName: formData.get('biz') || undefined,
     termsAccepted: formData.get('termsAccepted'),
     termsVersion: formData.get('termsVersion'),
   })
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+    return validationFailure(parsed.error)
   }
 
   const rateLimit = await checkDashboardAuthAction({
@@ -206,10 +217,10 @@ export async function signUp(
   // Onboarding belongs to account creation. Login and other auth entrypoints
   // keep /dashboard as their default so existing accounts never start here.
   const next = safeNext(formData.get('next'), '/dashboard/onboarding')
-  const callbackUrl = `${process.env['NEXT_PUBLIC_APP_URL']}/auth/callback?next=${encodeURIComponent(next)}`
+  const callbackUrl = authConfirmationRedirect('signup', next)
   const acceptedAt = new Date().toISOString()
 
-  const supabase = await createDashboardServerClient()
+  const supabase = await createDashboardServerClient({ authOnly: true })
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
@@ -227,7 +238,7 @@ export async function signUp(
   if (error) return { error: publicAuthError(error, 'auth.sign-up', 'Hesap oluşturulamadı. Lütfen tekrar deneyin.') }
   if (!data.user || data.user.identities?.length === 0) {
     await supabase.auth.signOut({ scope: 'local' })
-    return { error: 'Bu e-posta adresiyle zaten bir hesap var.' }
+    return { error: 'Bu adresle kayıt tamamlanamıyorsa giriş yapabilir veya şifreni yenileyebilirsin.', code: 'INVALID' }
   }
 
   await persistSignupLegalEvidence({
@@ -235,23 +246,14 @@ export async function signUp(
     version: parsed.data.termsVersion,
     occurredAt: acceptedAt,
   })
-  const pending = await requireDashboardSignupEmailVerification(data.user.id)
-  if (!pending.ok) {
+  // Native confirmation sends exactly one message. Fail closed if the
+  // environment accidentally starts auto-confirming registrations.
+  if (data.session) {
+    await requireDashboardSignupEmailVerification(data.user.id)
     await supabase.auth.signOut({ scope: 'local' })
-    return { error: 'E-posta doğrulaması başlatılamadı. Lütfen tekrar deneyin.' }
+    return { error: 'E-posta doğrulama hizmeti şu anda kullanılamıyor.', code: 'UNAVAILABLE' }
   }
-
-  // The product-level OTP gate is independent from the Supabase project's
-  // `enable_confirmations` setting. This prevents an auto-confirmed provider
-  // configuration from opening onboarding before inbox possession is proven.
-  const { error: otpError } = await supabase.auth.signInWithOtp({
-    email: parsed.data.email,
-    options: { shouldCreateUser: false, emailRedirectTo: callbackUrl },
-  })
-  await supabase.auth.signOut({ scope: 'local' })
-  if (otpError) {
-    return { error: publicAuthError(otpError, 'auth.signup-otp', 'Doğrulama kodu gönderilemedi. Lütfen tekrar deneyin.') }
-  }
+  await saveFlowGrant('sent', parsed.data.email, 'signup')
 
   const verifySearch = new URLSearchParams({ email: parsed.data.email, next })
   redirect(`/auth/verify-email?${verifySearch.toString()}`)
@@ -260,13 +262,13 @@ export async function signUp(
 export async function verifySignupEmailCode(
   _prev: unknown,
   formData: FormData,
-): Promise<{ error: string }> {
+): Promise<AuthActionState> {
   const parsed = signupEmailCodeSchema.safeParse({
     email: formData.get('email'),
     code: formData.get('code'),
     next: formData.get('next') || undefined,
   })
-  if (!parsed.success) return { error: 'E-postana gönderilen 6 haneli kodu gir.' }
+  if (!parsed.success) return { error: 'E-postana gönderilen 6 haneli kodu gir.', fieldErrors: { code: '6 haneli doğrulama kodunu gir.' }, code: 'INVALID' }
 
   const rateLimit = await checkDashboardAuthAction({
     action: 'verify-signup-email', subject: parsed.data.email, limit: 8, windowSeconds: 900,
@@ -277,32 +279,26 @@ export async function verifySignupEmailCode(
       : 'Çok fazla doğrulama denemesi yapıldı. Lütfen daha sonra tekrar dene.' }
   }
 
-  const supabase = await createDashboardServerClient()
+  const supabase = await createDashboardServerClient({ authOnly: true })
   const { data, error } = await supabase.auth.verifyOtp({
     email: parsed.data.email,
     token: parsed.data.code,
     type: 'email',
   })
-  if (error || !data.user) return { error: 'Doğrulama kodu geçersiz veya süresi dolmuş.' }
+  if (error || !data.user) return { error: 'Doğrulama kodu geçersiz veya süresi dolmuş.', code: 'EXPIRED', fieldErrors: { code: 'Kodu kontrol et veya yeni kod iste.' } }
 
-  const completed = await completeDashboardSignupEmailVerification(data.user.id)
-  if (!completed.ok) {
-    await supabase.auth.signOut({ scope: 'local' })
-    return { error: 'E-posta doğrulaması tamamlanamadı. Lütfen tekrar dene.' }
-  }
-  const { error: refreshError } = await supabase.auth.refreshSession()
-  if (refreshError) {
-    await supabase.auth.signOut({ scope: 'local' })
-    return { error: 'Doğrulama tamamlandı ancak güvenli oturum açılamadı. Lütfen giriş yap.' }
+  if (!data.session || !await completeVerifiedSession(supabase, data.user, data.session.access_token)) {
+    return { error: 'E-postan doğrulandı. Oturumunu tamamlamak için tekrar dene.', code: 'COMPLETE_PENDING' }
   }
 
+  await recordEmailVerifiedDeviceSession(supabase)
   redirect(safeNext(parsed.data.next ?? null, '/dashboard/onboarding'))
 }
 
 export async function resendSignupEmailCode(
   _prev: unknown,
   formData: FormData,
-): Promise<{ error: string } | { success: true }> {
+): Promise<AuthActionState> {
   const parsed = resendSignupEmailCodeSchema.safeParse({ email: formData.get('email') })
   if (!parsed.success) return { error: 'Geçerli bir e-posta adresi gerekli.' }
 
@@ -312,24 +308,26 @@ export async function resendSignupEmailCode(
   if (rateLimit !== 'allowed') {
     return { error: rateLimit === 'unavailable'
       ? AUTH_SECURITY_UNAVAILABLE
-      : 'Çok fazla kod isteği gönderildi. Lütfen daha sonra tekrar dene.' }
+      : 'Çok fazla kod isteği gönderildi. Lütfen daha sonra tekrar dene.', code: rateLimit === 'unavailable' ? 'UNAVAILABLE' : 'RATE_LIMITED', retryAfter: rateLimit === 'blocked' ? 3600 : undefined }
   }
 
-  const supabase = await createDashboardServerClient()
-  const { error } = await supabase.auth.signInWithOtp({
+  const supabase = await createDashboardServerClient({ authOnly: true })
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
     email: parsed.data.email,
-    options: { shouldCreateUser: false },
+    options: { emailRedirectTo: authConfirmationRedirect('signup', safeNext(formData.get('next'), '/dashboard/onboarding')) },
   })
-  return error
-    ? { error: publicAuthError(error, 'auth.resend-signup-otp', 'Kod yeniden gönderilemedi.') }
-    : { success: true }
+  if (error) return emailSendFailure(error)
+  await saveFlowGrant('sent', parsed.data.email, 'signup')
+  return { success: true, retryAfter: 60 }
+
 }
 
 const logoutEndpointSchema = z.string().url().max(2_048).refine((value) => value.startsWith('https://'))
 
 /** Ends only this browser session and retires only its matching push endpoint. */
 export async function signOut(endpoint: unknown): Promise<{ success: true } | { error: string }> {
-  const supabase = await createDashboardServerClient()
+  const supabase = await createDashboardServerClient({ authOnly: true })
   const { data: { user } } = await supabase.auth.getUser()
   const { error } = await supabase.auth.signOut({ scope: 'local' })
   if (error) {
@@ -354,10 +352,10 @@ export async function signOut(endpoint: unknown): Promise<{ success: true } | { 
 export async function sendMagicLink(
   _prev: unknown,
   formData: FormData,
-): Promise<{ error: string } | { success: true }> {
+): Promise<AuthActionState> {
   const parsed = magicLinkSchema.safeParse({ email: formData.get('email') })
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'Invalid email' }
+    return validationFailure(parsed.error)
   }
 
   const rateLimit = await checkDashboardAuthAction({
@@ -369,20 +367,19 @@ export async function sendMagicLink(
       : 'Çok fazla bağlantı isteği gönderildi. Lütfen daha sonra tekrar deneyin.' }
   }
 
-  const supabase = await createDashboardServerClient()
+  const supabase = await createDashboardServerClient({ authOnly: true })
   const { error } = await supabase.auth.signInWithOtp({
     email: parsed.data.email,
-    options: { emailRedirectTo: `${process.env['NEXT_PUBLIC_APP_URL']}/auth/callback` },
+    options: { shouldCreateUser: false, emailRedirectTo: authConfirmationRedirect('magiclink', safeNext(formData.get('next'))) },
   })
-  if (error) return { error: publicAuthError(error, 'auth.magic-link', 'Giriş bağlantısı gönderilemedi. Lütfen tekrar deneyin.') }
-
-  return { success: true }
+  if (error && !['otp_disabled', 'user_not_found', 'signup_disabled'].includes(error.code ?? '')) return emailSendFailure(error)
+  return { success: true, retryAfter: 60 }
 }
 
 export async function requestPasswordReset(
   _prev: unknown,
   formData: FormData,
-): Promise<{ error: string } | { success: true }> {
+): Promise<AuthActionState> {
   const parsed = passwordResetRequestSchema.safeParse({ email: formData.get('email') })
   if (!parsed.success) return { error: 'Geçerli bir e-posta adresi girin.' }
 
@@ -392,17 +389,17 @@ export async function requestPasswordReset(
   if (rateLimit === 'unavailable') return { error: AUTH_SECURITY_UNAVAILABLE }
   if (rateLimit === 'blocked') {
     // Enumeration-safe: throttled known and unknown addresses receive the same response.
-    return { success: true }
+    return { success: true, retryAfter: 60 }
   }
 
-  const supabase = await createDashboardServerClient()
+  const supabase = await createDashboardServerClient({ authOnly: true })
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: passwordRecoveryRedirect(),
+    redirectTo: passwordRecoveryRedirect(safeNext(formData.get('next'))),
   })
-  if (error) return { error: publicAuthError(error, 'auth.password-reset-request', 'Şifre yenileme bağlantısı gönderilemedi.') }
+  if (error) return emailSendFailure(error)
   // Account enumeration is intentionally avoided; the same success response is
   // returned whether or not the address exists.
-  return { success: true }
+  return { success: true, retryAfter: 60 }
 }
 
 const updateProfileSchema = z.object({
@@ -420,7 +417,7 @@ export async function updateUserProfile(
     phone: formData.get('phone') ?? undefined,
   })
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+    return validationFailure(parsed.error)
   }
 
   const supabase = await createDashboardServerClient()
@@ -432,14 +429,14 @@ export async function updateUserProfile(
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Mevcut şifre gerekli'),
-  newPassword: z.string().min(8, 'Yeni şifre en az 8 karakter olmalı'),
+  newPassword: newPasswordSchema,
 })
 
 const freshPasswordSchema = z.object({ currentPassword: z.string().min(1).max(256) }).strict()
 const emailChangeSchema = freshPasswordSchema.extend({ email: z.string().trim().email().max(320) }).strict()
 const totpCodeSchema = z.object({
   factorId: z.string().uuid(),
-  code: z.string().trim().regex(/^\d{6}$/),
+  code: emailCodeSchema,
 }).strict()
 
 async function requireFreshUserPassword(currentPassword: string) {
@@ -549,14 +546,12 @@ export async function removeTotpFactor(
 }
 
 const resetPasswordSchema = z.object({
-  newPassword: z.string().min(8, 'Yeni şifre en az 8 karakter olmalı'),
+  newPassword: newPasswordSchema,
 })
 
-const PASSWORD_RECOVERY_COOKIE = 'dashboard_password_recovery'
 
-function passwordRecoveryRedirect(): string {
-  const base = process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000'
-  return `${base}/auth/callback?next=${encodeURIComponent('/auth/reset-password')}`
+function passwordRecoveryRedirect(next = '/dashboard'): string {
+  return authConfirmationRedirect('recovery', next)
 }
 
 /** Sends a recovery link for passwordless email/OAuth users and for forgotten passwords. */
@@ -587,23 +582,25 @@ export async function sendPasswordResetEmail(): Promise<{ error: string } | { su
  */
 export async function setPasswordFromRecovery(
   input: { newPassword: string },
-): Promise<{ error: string } | { success: true }> {
+): Promise<{ error: string; fieldErrors?: Record<string, string> } | { success: true }> {
   const parsed = resetPasswordSchema.safeParse(input)
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Geçersiz giriş' }
+  if (!parsed.success) return validationFailure(parsed.error)
 
-  const cookieStore = await cookies()
-  if (!cookieStore.get(PASSWORD_RECOVERY_COOKIE)?.value) {
-    return { error: 'Bu bağlantının süresi dolmuş. Yeni bir şifre belirleme e-postası iste.' }
-  }
-
-  const supabase = await createDashboardServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Oturum bulunamadı' }
+  if (!await isSameOriginRequest()) return { error: 'İstek doğrulanamadı.' }
+  const supabase = await createDashboardServerClient({ authOnly: true })
+  const verified = await validatedFlowSession(supabase, 'recovery')
+  if (!verified) return { error: 'Bu bağlantının süresi dolmuş. Yeni bir şifre yenileme e-postası iste.' }
+  const { user, grant } = verified
+  const consumed = await consumeDashboardAuthRateLimit({ action: 'recovery-consume', subject: grant.nonce, limit: 1, windowSeconds: 3600 })
+  if (!consumed.ok || !consumed.allowed) return { error: 'Bu bağlantı kullanılmış. Yeni bir şifre yenileme e-postası iste.' }
 
   const { error } = await supabase.auth.updateUser({ password: parsed.data.newPassword })
   if (error) return { error: publicAuthError(error, 'auth.password-recovery-update', 'Şifre güncellenemedi. Yeni bağlantı isteyin.') }
 
-  cookieStore.delete(PASSWORD_RECOVERY_COOKIE)
+  if (deviceSecurityEnabled()) await revokeDashboardDevices(user.id)
+  await deleteFlowGrant('recovery')
+  const { error: signOutError } = await supabase.auth.signOut({ scope: 'global' })
+  if (signOutError) return { error: 'Şifren güncellendi ancak oturumlar kapatılamadı. Güvenlik ayarlarından oturumlarını sonlandır.' }
   const { ip, userAgent } = await readRequestMeta()
   await recordSecurityEvent({ userId: user.id, eventType: 'password_change', ip, userAgent })
   return { success: true }
@@ -632,9 +629,77 @@ export async function changePassword(
   const { error: updateError } = await supabase.auth.updateUser({ password: parsed.data.newPassword })
   if (updateError) return { error: publicAuthError(updateError, 'auth.password-change', 'Şifre güncellenemedi. Lütfen tekrar deneyin.') }
 
+  if (deviceSecurityEnabled()) await revokeDashboardDevices(user.id)
   // Best-effort security audit (never blocks the change).
   const { ip, userAgent } = await readRequestMeta()
   await recordSecurityEvent({ userId: user.id, eventType: 'password_change', ip, userAgent })
 
   return { success: true }
+}
+
+function validationFailure(error: z.ZodError): AuthActionState & { error: string } {
+  const fieldErrors: Record<string, string> = {}
+  for (const issue of error.issues) {
+    const field = String(issue.path[0] ?? '')
+    if (!fieldErrors[field]) fieldErrors[field] = issue.message
+  }
+  return { error: 'İşaretli alanları kontrol et.', fieldErrors, code: 'INVALID' }
+}
+
+function authConfirmationRedirect(flow: 'signup' | 'magiclink' | 'recovery', next: string): string {
+  const base = process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000'
+  const query = new URLSearchParams({ flow, next: safeCallbackPath(next) })
+  return base + '/auth/confirm?' + query.toString()
+}
+
+function emailSendFailure(error: { code?: string; status?: number }): AuthActionState {
+  if (error.status === 429 || error.code?.includes('rate_limit')) return { error: 'Gönderim sınırına ulaşıldı. Biraz bekleyip tekrar dene.', code: 'RATE_LIMITED', retryAfter: 60 }
+  return { error: publicAuthError(error, 'auth.email-send', 'E-posta şu anda gönderilemedi. Tekrar deneyebilirsin.'), code: 'UNAVAILABLE' }
+}
+
+export async function verifyEmailToken(_prev: unknown, formData: FormData): Promise<AuthActionState> {
+  const flow = formData.get('flow')
+  if (flow !== 'signup' && flow !== 'magiclink' && flow !== 'recovery') return { error: 'Bağlantı geçersiz.', code: 'INVALID' }
+  const tokenHash = formData.get('token_hash')
+  const email = emailSchema.safeParse(formData.get('email'))
+  const code = formData.get('code')
+  const hasHash = typeof tokenHash === 'string' && /^[a-zA-Z0-9_-]{20,256}$/.test(tokenHash)
+  if (!hasHash && (!email.success || !emailCodeSchema.safeParse(code).success)) return { error: '6 haneli kodu gir.', fieldErrors: { code: '6 haneli kod gerekli.' }, code: 'INVALID' }
+  const subject = hasHash ? createHash('sha256').update(tokenHash).digest('hex') : email.success ? email.data : ''
+  const rate = await checkDashboardAuthAction({ action: 'verify-email-token', subject, limit: 8, windowSeconds: 900 })
+  if (rate !== 'allowed') return { error: 'Doğrulama şu anda yapılamıyor. Daha sonra tekrar dene.', code: rate === 'blocked' ? 'RATE_LIMITED' : 'UNAVAILABLE' }
+  const supabase = await createDashboardServerClient({ authOnly: true })
+  let recoveryIntent: {userId: string} | null = null
+  if (flow === 'recovery') {
+    try { recoveryIntent = await findDashboardRecoveryEmail(hasHash ? {tokenHash} : {email: email.success ? email.data : '', code: String(code)}) }
+    catch { return {error:'Doğrulama hizmetine ulaşılamadı. Tekrar deneyebilirsin.', code:'UNAVAILABLE'} }
+    if (!recoveryIntent) return {error:'Bu bağlantı veya kod şifre yenilemek için kullanılamaz. Yeni bir şifre yenileme e-postası iste.', code:'EXPIRED'}
+  }
+  const type = flow === 'recovery' ? 'recovery' as const : 'email' as const
+  const result = hasHash
+    ? await supabase.auth.verifyOtp({ token_hash: tokenHash, type })
+    : await supabase.auth.verifyOtp({ email: email.success ? email.data : '', token: String(code), type })
+  const { user, session } = result.data
+  if (result.error || !user || !session) return { error: 'Bağlantı veya kod geçersiz ya da süresi dolmuş. Yeni bir e-posta iste.', code: 'EXPIRED' }
+  if (flow === 'recovery') {
+    if (user.id !== recoveryIntent?.userId) return {error:'Kurtarma oturumu doğrulanamadı.', code:'EXPIRED'}
+    const sessionId = sessionIdFromToken(session.access_token)
+    if (!sessionId) return { error: 'Oturum doğrulanamadı.', code: 'UNAVAILABLE' }
+    await saveFlowGrant('recovery', user.id, sessionId)
+    redirect('/auth/reset-password?' + new URLSearchParams({ next: safeNext(formData.get('next')) }).toString())
+  }
+  if (!await completeVerifiedSession(supabase, user, session.access_token)) return { error: 'E-postan doğrulandı. Oturumunu tamamlamak için tekrar dene.', code: 'COMPLETE_PENDING' }
+  await recordEmailVerifiedDeviceSession(supabase)
+  redirect(safeNext(formData.get('next'), flow === 'signup' ? '/dashboard/onboarding' : '/dashboard'))
+}
+
+export async function retryAuthCompletion(_prev: unknown, formData: FormData): Promise<AuthActionState> {
+  if (!await isSameOriginRequest()) return { error: 'İstek doğrulanamadı.' }
+  const supabase = await createDashboardServerClient({ authOnly: true })
+  const verified = await validatedFlowSession(supabase, 'complete')
+  if (!verified) return { error: 'Devam etmek için tekrar giriş yap.', code: 'EXPIRED' }
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session || !await completeVerifiedSession(supabase, verified.user, session.access_token)) return { error: 'Oturum henüz tamamlanamadı. Tekrar deneyebilirsin.', code: 'COMPLETE_PENDING' }
+  await recordEmailVerifiedDeviceSession(supabase)
+  redirect(safeNext(formData.get('next')))
 }

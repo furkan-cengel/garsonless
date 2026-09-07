@@ -96,7 +96,7 @@ export function PricingPageClient() {
                   {MARKETING_PLANS.map((plan) => {
                     const href = plan.id === 'business'
                       ? '/iletisim?subject=business#satis-formu'
-                      : `${DASHBOARD_URL}/auth/signup?plan=${plan.id}`
+                      : `${DASHBOARD_URL}/auth/signup?plan=${plan.id}&interval=${interval === 'annual' ? 'yearly' : 'monthly'}`
                     return (
                       <th scope="col" key={plan.id} className={plan.highlight ? 'is-highlighted' : undefined}>
                         <strong>{plan.name}</strong>

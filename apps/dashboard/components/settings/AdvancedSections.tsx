@@ -1,7 +1,9 @@
 'use client'
+import { NEW_PASSWORD_MIN_LENGTH, NEW_PASSWORD_REQUIREMENTS } from '../../lib/auth/password-policy'
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { I, S, Tag } from '../../lib/ui'
 import { SCard, FormRow } from './primitives'
 import {
@@ -216,11 +218,11 @@ export function SecuritySection({ events, renderedAt, userEmail, authProvider }:
           <FormRow label="Mevcut şifre">
             <Input type="password" value={current} onChange={e => setCurrent(e.target.value)} autoComplete="current-password" className="w-55" />
           </FormRow>
-          <FormRow label="Yeni şifre" hint="En az 8 karakter">
-            <Input type="password" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" className="w-55" />
+          <FormRow label="Yeni şifre" hint={NEW_PASSWORD_REQUIREMENTS}>
+            <Input type="password" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" minLength={NEW_PASSWORD_MIN_LENGTH} className="w-55" />
           </FormRow>
           <FormRow label="Yeni şifre (tekrar)">
-            <Input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" className="w-55" />
+            <Input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} autoComplete="new-password" minLength={NEW_PASSWORD_MIN_LENGTH} className="w-55" />
           </FormRow>
           <div style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span role={error ? 'alert' : 'status'} style={{ fontSize: 12, color: error ? 'var(--critical)' : 'var(--text-3)', maxWidth: 280 }}>
@@ -254,6 +256,10 @@ export function SecuritySection({ events, renderedAt, userEmail, authProvider }:
             'Doğrulama bağlantıları eski ve yeni e-posta adreslerine gönderildi.',
           )}>E-posta değişikliğini başlat</Button>
         </div>
+      </SCard>
+
+      <SCard title="Güvenilen cihazlar" subtitle="E-posta doğrulaması ve 15 günlük cihaz güveni" style={{ marginTop: 16 }}>
+        <div className="p-4"><Link href="/auth/devices" className="text-sm font-medium underline underline-offset-4">Cihaz güvenini yönet</Link></div>
       </SCard>
 
       <SCard title="Oturum güvenliği" subtitle="Bu tarayıcı dışındaki açık oturumları kapat" style={{ marginTop: 16 }}>

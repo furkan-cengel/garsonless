@@ -5,6 +5,7 @@ import { createSecurityHeaders } from '../../next-security-headers.mjs'
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['127.0.0.1', 'localhost', 'sandbox.masabu.co'],
   poweredByHeader: false,
+  distDir: process.env['NEXT_DIST_DIR'] || '.next',
   async headers() {
     return [
       {

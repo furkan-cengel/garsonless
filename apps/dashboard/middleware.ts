@@ -1,9 +1,16 @@
+import { readEntryContext } from './lib/auth/entry-context'
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request: req })
+  const requestHeaders = new Headers(req.headers)
+  requestHeaders.set('x-masabu-request-path', req.nextUrl.pathname + req.nextUrl.search)
+  const nextResponse = () => {
+    requestHeaders.set('cookie', req.cookies.toString())
+    return NextResponse.next({ request: { headers: requestHeaders } })
+  }
+  let supabaseResponse = nextResponse()
 
   const supabase = createServerClient(
     process.env['NEXT_PUBLIC_SUPABASE_URL']!,
@@ -15,7 +22,7 @@ export async function middleware(req: NextRequest) {
         },
         setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
           cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request: req })
+          supabaseResponse = nextResponse()
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(
               name,
@@ -57,7 +64,7 @@ export async function middleware(req: NextRequest) {
       email: user.email ?? '',
       next: req.nextUrl.pathname.startsWith('/dashboard')
         ? `${req.nextUrl.pathname}${req.nextUrl.search}`
-        : '/dashboard/onboarding',
+        : readEntryContext(Object.fromEntries(req.nextUrl.searchParams), true).next,
     })
     return redirectTo('/auth/verify-email', `?${verifySearch.toString()}`)
   }
@@ -73,7 +80,8 @@ export async function middleware(req: NextRequest) {
   // the account-switch escape hatch for an authenticated user with no
   // restaurant access; signInWithPassword replaces that session in place.
   if (user && req.nextUrl.pathname === '/auth/signup') {
-    return redirectTo('/dashboard')
+    const target = new URL(readEntryContext(Object.fromEntries(req.nextUrl.searchParams), true).next, req.nextUrl.origin)
+    return redirectTo(target.pathname, target.search)
   }
 
   if (user && req.nextUrl.pathname === '/') {

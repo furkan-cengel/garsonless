@@ -2,6 +2,8 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
+import { recordSignupLegalEvidence } from '@garsonless/db/server'
+import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
 import {
   advanceOnboardingBranding,
   completeOnboardingCsv,
@@ -34,6 +36,17 @@ import type { MenuBulkImportRow } from '../menu-import-validation'
 import { sanitizeServerDiagnostic } from '../server-log-redaction'
 
 const planSchema = z.enum(['starter', 'plus', 'pro']).nullable()
+const menuDraftSchema = z.object({
+  mode: z.enum(['manual', 'csv']),
+  categoryName: z.string().max(100), itemName: z.string().max(100),
+  price: z.string().max(64), description: z.string().max(500),
+  csvFileName: z.string().max(255),
+  csvRows: z.array(z.object({
+    sourceRow: z.number().int().nonnegative(), category: z.string().max(100),
+    name: z.string().max(100), description: z.string().max(500),
+    price: z.string().max(64), error: z.string().max(500).nullable(),
+  }).strict()).max(1000),
+}).strict()
 const snapshotSchema = z.object({
   status: z.enum(['not_started', 'in_progress', 'completed']),
   restaurantId: z.string().uuid().nullable(),
@@ -45,6 +58,8 @@ const snapshotSchema = z.object({
   completedSteps: z.array(z.enum(['business', 'branding', 'menu', 'complete'])),
   menuEntryMethod: z.enum(['manual', 'csv']).nullable(),
   targetPlan: planSchema,
+  targetBillingInterval: z.enum(['monthly', 'yearly']).default('monthly'),
+  menuDraft: menuDraftSchema.nullable().default(null),
   trialEndsAt: z.string().datetime({ offset: true }).nullable(),
   startedAt: z.string().datetime({ offset: true }).nullable(),
   completedAt: z.string().datetime({ offset: true }).nullable(),
@@ -66,7 +81,10 @@ const createSchema = z.object({
     try { new Intl.DateTimeFormat('tr-TR', { timeZone: value }); return true } catch { return false }
   }, 'Geçerli bir saat dilimi seçin.'),
   targetPlan: planSchema,
+  targetBillingInterval: z.enum(['monthly', 'yearly']).default('monthly'),
   requestId: z.string().uuid(),
+  termsAccepted: z.boolean().optional(),
+  termsVersion: z.string().optional(),
 }).strict()
 
 const mutationSchema = z.object({
@@ -178,7 +196,7 @@ function signupEmailVerificationRequired(user: { app_metadata?: Record<string, u
 export async function readOwnerOnboarding(): Promise<{ error: string } | { snapshot: OnboardingSnapshot | null }> {
   const { supabase, user } = await getDashboardRequestAuth()
   if (!user) return { error: 'Not authenticated' }
-  if (signupEmailVerificationRequired(user)) return { error: 'Email verification required' }
+  if (!user.email_confirmed_at || signupEmailVerificationRequired(user)) return { error: 'Email verification required' }
   const rpc = supabase.rpc.bind(supabase) as unknown as (
     name: 'read_owner_restaurant_onboarding',
   ) => Promise<{ data: unknown; error: { message: string } | null }>
@@ -194,21 +212,27 @@ export async function createOnboardingRestaurant(input: unknown): Promise<Onboar
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'İşletme bilgileri geçersiz.', code: 'INVALID' }
   const { supabase, user } = await getDashboardRequestAuth()
   if (!user) return { error: 'Oturumunuz sona erdi. Tekrar giriş yapın.', code: 'UNAVAILABLE' }
-  if (signupEmailVerificationRequired(user)) {
+  if (!user.email_confirmed_at || signupEmailVerificationRequired(user)) {
     return { error: 'İşletme oluşturmadan önce e-posta adresini doğrula.', code: 'UNAVAILABLE' }
   }
+  if (parsed.data.termsAccepted === true && parsed.data.termsVersion === LEGAL_DOCUMENT_VERSION) {
+    const recorded = await recordSignupLegalEvidence({ userId: user.id, documentVersion: LEGAL_DOCUMENT_VERSION, occurredAt: new Date().toISOString(), ipHash: null, userAgent: null })
+    if (!recorded.ok) return { error: 'Sözleşme kabulü kaydedilemedi. Tekrar dene.', code: 'UNAVAILABLE' }
+  }
   const rpc = supabase.rpc.bind(supabase) as unknown as (
-    name: 'create_restaurant_with_pro_trial_v2',
+    name: 'create_restaurant_with_pro_trial_v3',
     args: Record<string, unknown>,
   ) => Promise<{ data: unknown; error: { code?: string; message: string } | null }>
-  const { data, error } = await rpc('create_restaurant_with_pro_trial_v2', {
+  const { data, error } = await rpc('create_restaurant_with_pro_trial_v3', {
     p_name: parsed.data.name,
     p_slug: parsed.data.slug,
     p_timezone: parsed.data.timezone,
     p_intended_plan: parsed.data.targetPlan,
+    p_intended_interval: parsed.data.targetBillingInterval,
     p_request_id: parsed.data.requestId,
   })
   if (error) {
+    if (error.message.includes('signup_legal_evidence_required')) return { error: 'Devam etmek için hizmet sözleşmesini kabul et.', code: 'INVALID' }
     if (error.code === '23505') return { error: 'Bu menü adresi kullanımda.', code: 'INVALID' }
     if (error.message.includes('additional_location_requires_sales_activation')) {
       return { error: 'Bu hesapta zaten bir işletme bulunuyor.', code: 'INVALID' }
@@ -302,4 +326,24 @@ export async function dismissOnboardingChecklistAction(input: unknown): Promise<
     parsed.data,
     createOnboardingPort(gate.supabase),
   ))
+}
+
+export async function hasOnboardingLegalEvidence(): Promise<boolean> {
+  const { supabase, user } = await getDashboardRequestAuth()
+  if (!user) return false
+  const call = supabase.rpc.bind(supabase) as unknown as (name: string) => Promise<{ data: unknown; error: unknown }>
+  const result = await call('has_current_signup_legal_evidence')
+  return !result.error && result.data === true
+}
+
+export async function saveOnboardingMenuDraft(input: unknown): Promise<OnboardingActionResult> {
+  const parsed = mutationSchema.extend({ draft: menuDraftSchema }).strict().safeParse(input)
+  if (!parsed.success) return { error: 'Taslak kaydedilemedi. Alan uzunluklarını ve dosyadaki satır sayısını kontrol et.', code: 'INVALID' }
+  const owner = await ownerActor(parsed.data.restaurantId)
+  if ('error' in owner) return { error: owner.error, code: 'UNAVAILABLE' }
+  const call = owner.supabase.rpc.bind(owner.supabase) as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>
+  const result = await call('save_restaurant_onboarding_draft', { p_restaurant_id: parsed.data.restaurantId, p_draft: parsed.data.draft, p_expected_revision: parsed.data.expectedRevision, p_request_id: parsed.data.requestId })
+  if (result.error) return actionError(result.error, 'Taslak kaydedilemedi. Bilgilerin korundu; tekrar deneyebilirsin.')
+  revalidatePath('/dashboard/onboarding')
+  return toActionResult(parsePersistence(result.data))
 }

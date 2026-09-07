@@ -33,7 +33,7 @@ function PriceCard({ plan, interval }: { plan: MarketingPlan; interval: BillingI
       : null
   const href = isBusiness
     ? '/iletisim?subject=business#satis-formu'
-    : `${DASHBOARD_URL}/auth/signup?plan=${plan.id}`
+    : `${DASHBOARD_URL}/auth/signup?plan=${plan.id}&interval=${interval === 'annual' ? 'yearly' : 'monthly'}`
 
   return (
     <article className={`pricing-card${plan.highlight ? ' pricing-card--highlight' : ''}`}>
