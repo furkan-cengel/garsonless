@@ -14,7 +14,7 @@ test.describe('critical browser matrix', () => {
     await expect(page.locator('body')).toContainText(/masabu/i)
 
     await page.goto(`${dashboardURL}/auth/login`, { waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('heading')).toContainText(/hoş geldiniz|giriş/i)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Tekrar hoş geldin.')
 
     const menuResponse = await page.goto(`${menuURL}/${encodeURIComponent(menuSlug)}`, {
       waitUntil: 'domcontentloaded',

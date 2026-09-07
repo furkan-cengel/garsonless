@@ -29,7 +29,6 @@ import {
 } from '../../lib/actions/onboarding'
 import { checkSlugAvailable } from '../../lib/actions/restaurant'
 import { uploadLogo } from '../../lib/dashboard-media-upload-client'
-import { logoutCurrentBrowser } from '../../lib/client-logout'
 import { slugify } from '../../lib/utils'
 import {
   normalizeDetectedTimezone,
@@ -425,7 +424,9 @@ export default function OnboardingFlow({
     logoutPending.current = true
     setBusy(true)
     setError('')
-    const result = await logoutCurrentBrowser()
+    const result = await import('../../lib/client-logout')
+      .then(({ logoutCurrentBrowser }) => logoutCurrentBrowser())
+      .catch(() => ({ error: 'Çıkış yapılamadı. Bağlantını kontrol edip tekrar dene.' }))
     if ('error' in result) {
       logoutPending.current = false
       setBusy(false)
